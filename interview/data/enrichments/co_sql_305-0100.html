@@ -1,0 +1,61 @@
+<p>TikTok's growth team measures friction in the signup funnel: after a user signs up, how long until they confirm their account? The metric is "average minutes to confirm". The SQL is a time-difference aggregate &mdash; and the interview is about handling the people who <em>never</em> confirmed, and about reading an expression that does more arithmetic than it needs to.</p>
+
+<h4>1. The source data &mdash; <code>signups</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>signup_at</th><th>confirmed_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-01 10:00:00</td><td>2026-01-01 10:05:00</td></tr>
+    <tr><td>2</td><td>2026-01-02 09:00:00</td><td>2026-01-02 09:30:00</td></tr>
+    <tr><td>3</td><td>2026-01-03 12:00:00</td><td>2026-01-04 12:00:00</td></tr>
+    <tr><td>4</td><td>2026-01-05 08:00:00</td><td><em>NULL</em></td></tr>
+    <tr><td>5</td><td>2026-01-06 14:00:00</td><td>2026-01-06 14:02:30</td></tr>
+  </tbody>
+</table>
+<p>User 4 signed up and <strong>never confirmed</strong> &mdash; <code>confirmed_at</code> is NULL. User 3 took a full day (1440 minutes), an outlier next to the others' few minutes. User 5's 2.5 minutes proves the metric must keep sub-minute fractions.</p>
+
+<h4>2. The SQL &mdash; <code>EXTRACT(EPOCH ...)</code> averaged</h4>
+<pre><code>SELECT AVG(((EXTRACT(EPOCH FROM (confirmed_at - signup_at)) / 86400.0) * 86400)/60)
+       AS avg_minutes_to_confirm
+FROM signups WHERE confirmed_at IS NOT NULL;</code></pre>
+<p><code>confirmed_at - signup_at</code> is an interval; <code>EXTRACT(EPOCH ...)</code> turns it into seconds; the arithmetic converts seconds to minutes; <code>AVG</code> takes the mean over confirmed users only.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_minutes_to_confirm</th></tr></thead>
+  <tbody>
+    <tr><td>369.37499999999999999760</td></tr>
+  </tbody>
+</table>
+<p>Four confirmed users: 5, 30, 1440, and 2.5 minutes &mdash; summing to 1477.5, divided by 4 = <strong>369.375</strong> minutes. User 4 contributed nothing: the <code>WHERE confirmed_at IS NOT NULL</code> filter removed them before the average. The trailing-9s tail is Postgres <code>numeric</code> precision noise. And notice the headline: one user's 24-hour delay dragged a "few minutes" reality up to six hours &mdash; the mean is fragile here.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The arithmetic is a no-op &mdash; read it carefully</h5>
+<p>Look at <code>(EXTRACT(EPOCH ...) / 86400.0) * 86400</code>: dividing by 86400 and then multiplying by 86400 <em>cancels exactly</em>. The whole expression reduces to <code>EXTRACT(EPOCH FROM (confirmed_at - signup_at)) / 60</code> &mdash; seconds to minutes, full stop. The detour through "days" computes nothing. The clean, equivalent query:</p>
+<pre><code>SELECT AVG(EXTRACT(EPOCH FROM (confirmed_at - signup_at)) / 60)
+       AS avg_minutes_to_confirm
+FROM signups WHERE confirmed_at IS NOT NULL;</code></pre>
+<p>An interviewer wants you to <em>say</em> the round-trip cancels &mdash; spotting that dead arithmetic is the senior read. (It is harmless, just noise; not a correctness bug.)</p>
+
+<h5>The non-confirmers &mdash; an averaging decision, not just a filter</h5>
+<p>The <code>WHERE confirmed_at IS NOT NULL</code> guard is necessary &mdash; without it, <code>confirmed_at - signup_at</code> is NULL for user 4 and <code>AVG</code> would skip it anyway, but the filter makes intent explicit. The deeper question: <em>should</em> non-confirmers be excluded? Excluding them answers "among people who confirmed, how fast?" But if 40% never confirm, that average flatters the funnel badly. The honest dashboard reports two numbers side by side:</p>
+<pre><code>SELECT
+  AVG(EXTRACT(EPOCH FROM (confirmed_at - signup_at))/60)
+    FILTER (WHERE confirmed_at IS NOT NULL) AS avg_minutes_to_confirm,
+  COUNT(*) FILTER (WHERE confirmed_at IS NOT NULL)::numeric
+    / COUNT(*)                              AS confirm_rate
+FROM signups;</code></pre>
+<p>Naming that "time to confirm" and "confirmation rate" are different metrics &mdash; and that reporting only the first hides churn &mdash; is the over-the-bar move.</p>
+
+<h5>Mean vs median &mdash; the 1440-minute outlier</h5>
+<p>User 3's one-day delay pulls the mean to 369 minutes when three of four users confirmed in under half an hour. For a skewed latency distribution, the median (or p90) is far more representative:</p>
+<pre><code>SELECT percentile_cont(0.5) WITHIN GROUP (
+         ORDER BY EXTRACT(EPOCH FROM (confirmed_at - signup_at))/60)
+       AS median_minutes
+FROM signups WHERE confirmed_at IS NOT NULL;</code></pre>
+<p>Latency metrics are almost always reported as percentiles, not means, precisely because of outliers like this.</p>
+
+<h5>Rounding and dirty timestamps</h5>
+<p><code>369.375...</code> with a precision tail is not dashboard-ready &mdash; wrap in <code>ROUND(..., 1)</code> for display. Also consider data quality: if a clock skew or backfill produces <code>confirmed_at &lt; signup_at</code>, the interval goes negative and <em>lowers</em> the average. A defensive query adds <code>AND confirmed_at &gt;= signup_at</code> to drop impossible rows.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> notice the &divide;86400&times;86400 cancels and simplify to <code>EXTRACT(EPOCH ...)/60</code>, treat excluding non-confirmers as a reporting decision &mdash; pair the latency with a confirmation rate &mdash; and prefer a median or percentile over a mean for a skewed latency distribution.</div>

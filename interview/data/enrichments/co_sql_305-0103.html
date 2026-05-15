@@ -1,0 +1,62 @@
+<p>Amazon's fulfillment analytics team wants a single number for basket size: on average, how many items are in an order? The phrasing "order items average" is deceptively loose &mdash; it could mean the average <em>line</em>, or the average <em>order</em>. The reference solution picks one interpretation, and the interview is about recognising the ambiguity and the two-level aggregation it forces.</p>
+
+<h4>1. The source data &mdash; <code>order_items</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td></tr>
+    <tr><td>1</td><td>3</td></tr>
+    <tr><td>2</td><td>5</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>4</td><td>10</td></tr>
+  </tbody>
+</table>
+<p>Order 1 has two line items totalling 5 units; order 3 has three line items of 1 unit each, also totalling 3; orders 2 and 4 are single-line. The mix &mdash; some orders many lines, some one &mdash; is exactly what makes "average items per order" different from "average qty per line".</p>
+
+<h4>2. The SQL &mdash; aggregate of an aggregate</h4>
+<pre><code>SELECT AVG(item_count) FROM (
+  SELECT order_id, SUM(qty) AS item_count FROM order_items GROUP BY order_id) t;</code></pre>
+<p>The inner query collapses line items to one row per order, summing <code>qty</code> into a per-order item total. The outer query averages those order totals.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg</th></tr></thead>
+  <tbody>
+    <tr><td>5.7500000000000000</td></tr>
+  </tbody>
+</table>
+<p>Per-order totals are 5, 5, 3, 10 &mdash; summing to 23, divided by 4 orders = <strong>5.75</strong> items per order. The output column is unnamed (Postgres defaults it to <code>avg</code>); add <code>AS avg_items_per_order</code> for a readable result. The high-scale <code>numeric</code> tail is normal for <code>AVG</code>. Crucially, the denominator is <strong>4</strong> &mdash; the number of orders &mdash; not 7, the number of line-item rows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The two interpretations &mdash; this is the whole question</h5>
+<p>"Order items average" has two defensible readings, and they give different numbers:</p>
+<pre><code>-- A. average items per ORDER (the reference solution): 23 / 4 = 5.75
+SELECT AVG(item_count) FROM (
+  SELECT order_id, SUM(qty) AS item_count
+  FROM order_items GROUP BY order_id) t;
+
+-- B. average qty per LINE ITEM: (2+3+5+1+1+1+10) / 7 = 3.28...
+SELECT AVG(qty) FROM order_items;</code></pre>
+<p>Reading A weights every order equally; reading B weights every line equally. They are not interchangeable. The senior move is to <em>state both</em> and ask which the business wants &mdash; for "basket size", reading A is almost always right.</p>
+
+<h5>Why the nested query is necessary</h5>
+<p>You cannot get reading A in one flat <code>SELECT</code>. <code>AVG(SUM(qty))</code> is illegal &mdash; you cannot nest aggregates directly &mdash; and <code>AVG(qty)</code> silently gives reading B. The pattern "<code>GROUP BY</code> to one row per order, then aggregate that" requires a subquery (or a CTE). Equivalent and arguably clearer with a CTE:</p>
+<pre><code>WITH per_order AS (
+  SELECT order_id, SUM(qty) AS item_count
+  FROM order_items GROUP BY order_id)
+SELECT AVG(item_count) AS avg_items_per_order FROM per_order;</code></pre>
+<p>There is also a shortcut for this specific case: <code>SUM(qty) / COUNT(DISTINCT order_id)</code> over the flat table gives the same 5.75, because total units over total orders <em>is</em> the average per order. Knowing why the shortcut works (and that it is integer division unless you cast) is a nice detail.</p>
+
+<h5>Lines per order vs units per order</h5>
+<p>Even within reading A there is a sub-choice. <code>SUM(qty)</code> averages <em>units</em> (an order of "3 of one SKU" counts as 3). If "items" means <em>distinct products</em>, the inner aggregate is <code>COUNT(*)</code> &mdash; number of line rows &mdash; not <code>SUM(qty)</code>. For order 3 that is 3 lines either way, but for order 1 it is 2 lines vs 5 units. Confirm whether "items" means physical units or line entries.</p>
+
+<h5>Empty table and integer division</h5>
+<p><code>AVG</code> over no orders returns NULL, not 0 &mdash; <code>COALESCE</code> if the dashboard needs a number. And if <code>qty</code> is an <code>INTEGER</code> column, the inner <code>SUM</code> stays integer, but <code>AVG</code> of integers in Postgres already returns <code>numeric</code>, so no truncation here &mdash; though in engines that keep integer division you would cast with <code>AVG(item_count::numeric)</code>.</p>
+
+<h5>Orders with no line items</h5>
+<p>This query only sees orders that appear in <code>order_items</code>. An order placed but with zero line rows (a glitch, or a fully-cancelled order) is absent, so it never enters the denominator. If such orders exist and should count as 0 items, start from the <code>orders</code> table with a <code>LEFT JOIN</code> and <code>COALESCE(SUM(qty), 0)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> surface that "order items average" has two readings &mdash; per-order vs per-line &mdash; and name which the reference query computes (per-order, denominator = order count), explain that the nested aggregate is required because <code>AVG(SUM(...))</code> is illegal, and clarify whether "items" means units or distinct lines before committing.</div>

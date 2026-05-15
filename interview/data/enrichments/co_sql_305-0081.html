@@ -1,0 +1,62 @@
+<p>Snowflake's field-sales analytics team wants to know which regions are <em>punching above their weight</em> &mdash; regions whose total revenue beats the average region. That phrase "the average" hides a subtlety: average of <em>what</em>? The average of every sale, or the average of the per-region totals? The reference solution picks one, and the interviewer wants to hear you say which, and why it changes the answer.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>100</td></tr>
+    <tr><td>North</td><td>200</td></tr>
+    <tr><td>South</td><td>50</td></tr>
+    <tr><td>East</td><td>900</td></tr>
+    <tr><td>West</td><td>60</td></tr>
+    <tr><td>West</td><td>40</td></tr>
+  </tbody>
+</table>
+<p>Four regions. East has a single huge sale; South has a single tiny one; North and West each have two. The lopsided East total is the edge case &mdash; one outlier region drags the average up and decides who clears the bar.</p>
+
+<h4>2. The SQL &mdash; <code>region total &gt; average region total</code></h4>
+<pre><code>SELECT region, total FROM (
+  SELECT region, SUM(amount) AS total FROM sales GROUP BY region
+) s WHERE total &gt; (SELECT AVG(total) FROM (
+  SELECT SUM(amount) AS total FROM sales GROUP BY region
+) x);</code></pre>
+<p>The inner derived table <code>s</code> gives one total per region. The scalar subquery repeats the same per-region grouping, then averages those totals &mdash; the comparison baseline is the average of <em>region totals</em>, not the average of individual sales.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>900</td></tr>
+  </tbody>
+</table>
+<p>Region totals are North 300, South 50, East 900, West 100. Their average is (300 + 50 + 900 + 100) &divide; 4 = 337.5. Only East (900) clears it. North at 300 falls just short &mdash; the lone East outlier pulls the bar above three of the four regions.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>"Average of totals" vs "average of rows" &mdash; they are not the same</h5>
+<p>The solution compares against the average of the four region totals (337.5). A natural-sounding alternative compares against the average of all six individual sales:</p>
+<pre><code>SELECT region, SUM(amount) AS total
+FROM sales GROUP BY region
+HAVING SUM(amount) &gt; (SELECT AVG(amount) FROM sales);
+-- AVG of 6 raw sales = 1350/6 = 225; North(300) and East(900) both qualify</code></pre>
+<p>Same data, <em>different result</em> &mdash; North now clears the bar. Neither is "wrong"; they answer different questions. The senior move is to state the choice: "I'm benchmarking each region against the typical region, so I average the region totals."</p>
+
+<h5>Collapsing the repeated subquery with a CTE</h5>
+<p>The solution computes the per-region grouping <em>twice</em> &mdash; once for <code>s</code>, once inside the scalar subquery. A CTE names it once and reads far better:</p>
+<pre><code>WITH region_totals AS (
+  SELECT region, SUM(amount) AS total FROM sales GROUP BY region
+)
+SELECT region, total FROM region_totals
+WHERE total &gt; (SELECT AVG(total) FROM region_totals);</code></pre>
+<p>Logically identical, but a reviewer sees the intent immediately and there is only one place to change the grouping.</p>
+
+<h5>The <code>HAVING</code> shortcut and why it cannot do the whole job</h5>
+<p><code>HAVING</code> filters groups against an aggregate &mdash; but only an aggregate <em>of the same query</em>. It can compare a region's total to <code>AVG(amount)</code> over raw rows in one statement. It <em>cannot</em> compare a region's total to the average of <em>other regions' totals</em>, because that benchmark is itself an aggregate-of-aggregates. That two-level structure is exactly why the subquery (or CTE) is unavoidable for the solution's interpretation.</p>
+
+<h5>The outlier sensitivity &mdash; a metric-design red flag</h5>
+<p>One giant sale in East lifted the threshold from "above 100" territory to 337.5 and silently disqualified North. A mean is not robust to outliers. If the goal is "which regions are typical-or-better", a senior analyst raises whether the <strong>median</strong> region total is the fairer benchmark &mdash; with this data the median of {50, 100, 300, 900} is 200, and both North and East would clear it. Flagging mean-vs-median sensitivity is the over-the-bar observation.</p>
+
+<h5>NULL amounts</h5>
+<p><code>SUM</code> skips NULL <code>amount</code> values, and a region whose every sale is NULL would produce <code>SUM = NULL</code>; <code>NULL &gt; 337.5</code> is unknown, so that region is excluded rather than treated as zero. If a region with no real revenue should count as 0 in the average, wrap the inner sum in <code>COALESCE(SUM(amount), 0)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the benchmark explicitly &mdash; average of region totals, not average of raw sales &mdash; since the two give different answers, fold the duplicated grouping into a single CTE, explain why <code>HAVING</code> alone cannot express an aggregate-of-aggregates, and raise mean-vs-median sensitivity when one outlier region distorts the threshold.</div>

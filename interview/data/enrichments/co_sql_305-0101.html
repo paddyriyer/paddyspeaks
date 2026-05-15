@@ -1,0 +1,61 @@
+<p>IBM's internal data-platform team monitors who is using the SQL console &mdash; for capacity planning and to spot analysts who have gone dormant. The ask: per employee, how many queries they have run and when they last ran one. It is a two-aggregate <code>GROUP BY</code>, and the interview probes whether you know what a single-row activity log can and cannot tell you.</p>
+
+<h4>1. The source data &mdash; <code>queries</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>query_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-04-01 09:00</td></tr>
+    <tr><td>1</td><td>2026-04-02 10:00</td></tr>
+    <tr><td>1</td><td>2026-04-10 11:00</td></tr>
+    <tr><td>2</td><td>2026-04-05 08:00</td></tr>
+    <tr><td>3</td><td>2026-03-01 12:00</td></tr>
+    <tr><td>3</td><td>2026-04-15 13:00</td></tr>
+    <tr><td>3</td><td>2026-04-20 14:00</td></tr>
+  </tbody>
+</table>
+<p>Employee 2 has run exactly <strong>one</strong> query &mdash; their <code>query_count</code> is 1 and their <code>last_query</code> is that same lone event. Employee 3's first query is back in March, a long gap before April activity. These are the rows that test the edges.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT</code> + <code>MAX</code> per group</h4>
+<pre><code>SELECT emp_id, COUNT(*) AS query_count, MAX(query_at) AS last_query
+FROM queries GROUP BY emp_id;</code></pre>
+<p>One row per employee; <code>COUNT(*)</code> is total queries run, <code>MAX(query_at)</code> is the most recent timestamp.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>query_count</th><th>last_query</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>3</td><td>2026-04-20T14:00:00.000Z</td></tr>
+    <tr><td>2</td><td>1</td><td>2026-04-05T08:00:00.000Z</td></tr>
+    <tr><td>1</td><td>3</td><td>2026-04-10T11:00:00.000Z</td></tr>
+  </tbody>
+</table>
+<p>Employee 2's single query produces a clean <code>query_count = 1</code> &mdash; <code>COUNT</code> and <code>MAX</code> handle a one-row group with no special case. Employees 1 and 3 both ran 3 queries, but <code>MAX</code> picks each one's latest correctly. Rows come back in no particular order &mdash; add <code>ORDER BY last_query DESC</code> for a human reader. Note what is <em>missing</em>: an employee who has never opened the console has zero rows here and is invisible.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The dormant analyst is the whole point &mdash; and they are missing</h5>
+<p><code>queries</code> only contains employees who have run at least one query. The team's actual goal &mdash; spotting people who have gone <em>dormant</em> &mdash; cannot be served by this query, because someone with zero queries simply has no group. To include them, drive from the employees table:</p>
+<pre><code>SELECT e.emp_id,
+       COUNT(q.query_at) AS query_count,   -- COUNT(col): 0 when no match
+       MAX(q.query_at)   AS last_query     -- NULL when no match
+FROM employees e
+LEFT JOIN queries q ON q.emp_id = e.emp_id
+GROUP BY e.emp_id;</code></pre>
+<p>Critically, use <code>COUNT(q.query_at)</code> not <code>COUNT(*)</code>: with a <code>LEFT JOIN</code>, an employee with no queries still produces one row (all-NULL on the right), so <code>COUNT(*)</code> would report <strong>1</strong> for someone who ran nothing. <code>COUNT(column)</code> ignores the NULL and correctly returns 0. Naming this is a senior signal.</p>
+
+<h5>"Dormant" needs a clock &mdash; <code>MAX</code> alone is not a status</h5>
+<p><code>last_query</code> is a timestamp, not a verdict. To flag dormancy, compare it to now:</p>
+<pre><code>SELECT emp_id, MAX(query_at) AS last_query,
+       CURRENT_DATE - MAX(query_at)::date AS days_idle
+FROM queries
+GROUP BY emp_id
+HAVING CURRENT_DATE - MAX(query_at)::date &gt; 30;</code></pre>
+<p>That turns the raw <code>MAX</code> into the actual business question. Mentioning that the deliverable is "who is dormant", not "what is everyone's max timestamp", shows you read the intent.</p>
+
+<h5><code>COUNT(*)</code> counts queries, not active days</h5>
+<p><code>COUNT(*)</code> is total query volume. "Activity" might better mean <em>distinct days active</em> &mdash; an analyst who logs in daily is more engaged than one who ran 50 queries in a single afternoon. That metric is <code>COUNT(DISTINCT query_at::date)</code>. Different question, different number; worth clarifying which the capacity model wants.</p>
+
+<h5>First-seen, span, and bot accounts</h5>
+<p>Two natural follow-ups. Add <code>MIN(query_at) AS first_query</code> for tenure, and the active span is <code>MAX - MIN</code>. Also watch for non-human <code>emp_id</code>s &mdash; service accounts or scheduled jobs can dominate <code>query_count</code> and distort "who is using the console"; you may need to filter them out.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that employees with zero queries are absent &mdash; reach for a <code>LEFT JOIN</code> from the employees table with <code>COUNT(column)</code> (never <code>COUNT(*)</code>, which returns 1 for an unmatched row), and turn the raw <code>MAX(query_at)</code> into the dormancy verdict the team actually asked for by comparing it against the current date.</div>

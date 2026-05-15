@@ -1,0 +1,67 @@
+<p>Amazon's catalog team powers the star rating you see on every product page. The query behind it &mdash; average rating per product &mdash; looks like a textbook <code>GROUP BY</code>. The interview is in the second column: <code>review_count</code>. A 5.0 from one review and a 4.6 from ten thousand reviews are not the same signal, and an interviewer wants to see you understand why the count rides along with the average.</p>
+
+<h4>1. The source data &mdash; <code>reviews</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>rating</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>5</td></tr>
+    <tr><td>101</td><td>4</td></tr>
+    <tr><td>101</td><td>3</td></tr>
+    <tr><td>102</td><td>2</td></tr>
+    <tr><td>102</td><td>4</td></tr>
+    <tr><td>103</td><td>5</td></tr>
+    <tr><td>104</td><td>1</td></tr>
+    <tr><td>104</td><td>2</td></tr>
+    <tr><td>104</td><td>3</td></tr>
+    <tr><td>104</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Product 103 has exactly <strong>one</strong> review &mdash; a perfect 5.0 on a sample size of one. Product 104 has four reviews averaging a mediocre 2.5. The single-review product is the edge case the <code>review_count</code> column exists to expose.</p>
+
+<h4>2. The SQL &mdash; <code>AVG</code> + <code>COUNT</code> per group</h4>
+<pre><code>SELECT product_id, AVG(rating) AS avg_rating, COUNT(*) AS review_count
+FROM reviews GROUP BY product_id;</code></pre>
+<p>One row per product; <code>AVG(rating)</code> is the mean star score, <code>COUNT(*)</code> is how many reviews backed it.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>avg_rating</th><th>review_count</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>4.0000000000000000</td><td>3</td></tr>
+    <tr><td>103</td><td>5.0000000000000000</td><td>1</td></tr>
+    <tr><td>104</td><td>2.5000000000000000</td><td>4</td></tr>
+    <tr><td>102</td><td>3.0000000000000000</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Product 103 tops the list at a flawless 5.0 &mdash; but on a single review, that "5.0" is statistically meaningless next to product 101's 4.0 across three. The long tail of digits (<code>4.0000000000000000</code>) is Postgres returning <code>numeric</code>: <code>AVG</code> of an <code>integer</code> column produces a high-scale <code>numeric</code>, not a clean float. Rows come back unordered without an explicit <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The single-review trap &mdash; why <code>review_count</code> is mandatory</h5>
+<p>Sort products by <code>avg_rating</code> alone and product 103's 5.0 wins, even though one rating proves almost nothing. Every credible "top rated" ranking guards against this with a minimum-reviews threshold:</p>
+<pre><code>SELECT product_id, AVG(rating) AS avg_rating, COUNT(*) AS review_count
+FROM reviews
+GROUP BY product_id
+HAVING COUNT(*) &gt;= 10          -- only products with enough signal
+ORDER BY avg_rating DESC;</code></pre>
+<p>The truly senior answer goes further &mdash; a <em>Bayesian (shrinkage) average</em> that pulls low-count products toward the global mean, so a 5.0&times;1 ranks below a 4.7&times;5000. Mentioning that raw <code>AVG</code> is naive for ranking is an over-the-bar signal.</p>
+
+<h5>Rounding &mdash; presentation versus storage</h5>
+<p><code>4.0000000000000000</code> is ugly on a product page. Round at the edge:</p>
+<pre><code>ROUND(AVG(rating), 2) AS avg_rating   -- 4.00</code></pre>
+<p>Note <code>ROUND(numeric, n)</code> works directly, but if <code>AVG</code> ever returns <code>double precision</code> you must cast: <code>ROUND(AVG(rating)::numeric, 2)</code>. Keep full precision in the warehouse and round only for display &mdash; rounding early loses information you cannot recover.</p>
+
+<h5>Products with zero reviews are missing entirely</h5>
+<p><code>reviews</code> only has rows for products that <em>have</em> a review. A brand-new product with none simply does not appear in this output &mdash; <code>GROUP BY</code> cannot invent a group from no rows. If the catalog page needs "no reviews yet" instead of a blank, drive the query from the products table:</p>
+<pre><code>SELECT p.product_id,
+       ROUND(AVG(r.rating), 2) AS avg_rating,
+       COUNT(r.rating)         AS review_count
+FROM products p
+LEFT JOIN reviews r ON r.product_id = p.product_id
+GROUP BY p.product_id;</code></pre>
+<p>Here <code>COUNT(r.rating)</code> &mdash; counting a column, not <code>*</code> &mdash; correctly returns 0 for unmatched products, and <code>AVG</code> returns NULL, which you can <code>COALESCE</code>.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(rating)</code> &mdash; NULL ratings</h5>
+<p>If a review row can exist with a NULL <code>rating</code> (a text-only review), <code>COUNT(*)</code> counts that row but <code>AVG</code> ignores it &mdash; so <code>review_count</code> would overstate the number of <em>scored</em> reviews. Use <code>COUNT(rating)</code> to count only ratings that actually fed the average, keeping the two columns consistent.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>AVG</code> alone is a misleading ranking key &mdash; pair it with <code>COUNT</code>, add a minimum-reviews <code>HAVING</code>, and ideally name a Bayesian average; round only for display; and know that zero-review products need a <code>LEFT JOIN</code> from the products table with <code>COUNT(col)</code> rather than <code>COUNT(*)</code>.</div>

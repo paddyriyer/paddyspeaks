@@ -1,0 +1,57 @@
+<p>Tesla's manufacturing-execution team runs an assembly line where every station logs tasks with a status. The supervisor's morning question is blunt: <em>which tasks are not finished?</em> &mdash; the work-in-progress board for the shift. The query is a one-line filter, but the interview is in the details: how the predicate handles statuses other than the obvious ones, and what happens to NULLs.</p>
+
+<h4>1. The source data &mdash; <code>tasks</code></h4>
+<table>
+  <thead><tr><th>task_id</th><th>status</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>complete</td><td>Weld frame</td></tr>
+    <tr><td>2</td><td>in_progress</td><td>Attach door</td></tr>
+    <tr><td>3</td><td>pending</td><td>Paint body</td></tr>
+    <tr><td>4</td><td>complete</td><td>Install seats</td></tr>
+    <tr><td>5</td><td>blocked</td><td>QA inspect</td></tr>
+  </tbody>
+</table>
+<p>Three distinct non-complete statuses appear &mdash; <code>in_progress</code>, <code>pending</code>, <code>blocked</code>. That variety is the point: "incomplete" is not a single value, it is "everything that is not <code>complete</code>". A solution must catch all three.</p>
+
+<h4>2. The SQL &mdash; <code>status &lt;&gt; 'complete'</code></h4>
+<pre><code>SELECT * FROM tasks WHERE status &lt;&gt; 'complete';</code></pre>
+<p>The not-equal operator <code>&lt;&gt;</code> keeps every row whose status is anything other than the literal <code>'complete'</code>. <code>SELECT *</code> returns the full task record for each.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>task_id</th><th>status</th><th>project_id</th><th>name</th><th>assignee_id</th><th>due_date</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>in_progress</td><td>10</td><td>Attach door</td><td>202</td><td>2024-06-05</td></tr>
+    <tr><td>3</td><td>pending</td><td>11</td><td>Paint body</td><td>203</td><td>2024-06-10</td></tr>
+    <tr><td>5</td><td>blocked</td><td>12</td><td>QA inspect</td><td>205</td><td>2024-06-15</td></tr>
+  </tbody>
+</table>
+<p>The two <code>complete</code> tasks (1 and 4) drop out; the three unfinished ones remain &mdash; regardless of <em>which</em> incomplete status they carry. Defining the filter by exclusion ("not complete") rather than enumeration ("pending or in_progress or blocked") is what makes it robust.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Exclusion beats enumeration</h5>
+<p>A tempting alternative lists the incomplete states explicitly: <code>WHERE status IN ('pending','in_progress','blocked')</code>. It returns the same three rows <em>today</em> &mdash; but it is brittle. The day the line introduces a new status (<code>'rework'</code>, <code>'awaiting_parts'</code>), the <code>IN</code>-list silently misses it and tasks vanish from the board. <code>status &lt;&gt; 'complete'</code> needs no maintenance: anything that is not the single terminal state is incomplete by definition.</p>
+
+<h5>The NULL trap &mdash; <code>&lt;&gt;</code> silently drops NULL rows</h5>
+<p>This is the sharp edge. If a task has a NULL <code>status</code>, <code>NULL &lt;&gt; 'complete'</code> evaluates to <em>unknown</em>, not true &mdash; so that row is <strong>excluded</strong> from the result. A task with no status is almost certainly <em>not</em> complete and belongs on the board, yet the query quietly hides it. Make NULL handling explicit:</p>
+<pre><code>SELECT * FROM tasks
+WHERE status IS DISTINCT FROM 'complete';</code></pre>
+<p><code>IS DISTINCT FROM</code> is NULL-aware: it treats NULL as a normal, different value, so a NULL-status task <em>is</em> returned. (The verbose equivalent is <code>status &lt;&gt; 'complete' OR status IS NULL</code>.) Naming this trap is the single most important senior signal here.</p>
+
+<h5>Case and whitespace sensitivity</h5>
+<p>String equality is exact. <code>'Complete'</code>, <code>'COMPLETE'</code>, or <code>'complete '</code> with a trailing space would all <em>fail</em> the <code>= 'complete'</code> test and therefore pass the <code>&lt;&gt;</code> filter &mdash; a finished task wrongly shown as incomplete. If status values are not strictly controlled, normalise: <code>lower(trim(status)) &lt;&gt; 'complete'</code>. The real fix is an enum or a check constraint on the column so only canonical values can exist.</p>
+
+<h5><code>SELECT *</code> &mdash; fine for a person, risky in code</h5>
+<p><code>SELECT *</code> is convenient for an ad-hoc supervisor query. In a saved report or application code it is fragile: if the table gains or reorders columns, downstream consumers break, and it pulls more data than needed. Project the columns the board actually shows &mdash; <code>task_id, name, status, assignee_id, due_date</code> &mdash; in production.</p>
+
+<h5>Sharpening the board &mdash; the likely follow-up</h5>
+<p>"Incomplete" usually leads to "incomplete <em>and overdue</em>" or "ordered by urgency". The schema ships <code>due_date</code> and <code>assignee_id</code>, so the natural extension is:</p>
+<pre><code>SELECT task_id, name, status, assignee_id, due_date
+FROM tasks
+WHERE status IS DISTINCT FROM 'complete'
+  AND due_date &lt; CURRENT_DATE
+ORDER BY due_date;</code></pre>
+<p>That turns a flat list into a prioritised, actionable shift board &mdash; anticipating it shows you read the schema, not just the question.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> define "incomplete" by exclusion (<code>&lt;&gt; 'complete'</code>) so new statuses need no code change, and above all flag that <code>&lt;&gt;</code> silently drops NULL-status rows &mdash; use <code>IS DISTINCT FROM</code> so a task with no status still appears on the board.</div>

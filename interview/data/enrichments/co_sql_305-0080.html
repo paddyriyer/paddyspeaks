@@ -1,0 +1,57 @@
+<p>Reddit's commerce team wants a single number for the weekly deck: the <em>average basket size</em> &mdash; how many items an order contains on average. The catch is that the data lives in <code>order_items</code>, one row per line item, not one row per order. So "average" has a hidden two-step shape: first roll line items up to orders, then average across orders. Getting the grain right is the entire question.</p>
+
+<h4>1. The source data &mdash; <code>order_items</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td></tr>
+    <tr><td>1</td><td>3</td></tr>
+    <tr><td>2</td><td>5</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>4</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Seven line-item rows, but only <strong>four orders</strong>. Order 1 has two lines totalling 5 units; order 3 has three lines totalling 3 units. The mismatch between row count and order count is exactly the trap.</p>
+
+<h4>2. The SQL &mdash; <code>AVG of per-order SUM</code></h4>
+<pre><code>SELECT AVG(items_per_order) AS avg_basket_size
+FROM (SELECT order_id, SUM(qty) AS items_per_order
+      FROM order_items GROUP BY order_id) t;</code></pre>
+<p>The inner query collapses line items to one row per order, summing <code>qty</code>. The outer query averages those four per-order totals. Two aggregations at two different grains.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_basket_size</th></tr></thead>
+  <tbody>
+    <tr><td>4.2500000000000000</td></tr>
+  </tbody>
+</table>
+<p>Per-order totals are 5, 5, 3, 4 &mdash; they sum to 17, and 17 &divide; 4 = 4.25. The long decimal tail is just Postgres's exact <code>numeric</code> arithmetic; a dashboard would round it to 4.3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the subquery is not optional</h5>
+<p>The instinct is to skip the nesting and write <code>AVG(qty)</code> directly. That answers a different question: the average <em>line-item</em> quantity (17 &divide; 7 = 2.43), not the average basket. The two-step structure exists because the metric is defined at the order grain while the data is stored at the line-item grain. You cannot average across orders until you have one number per order.</p>
+
+<h5>Items vs lines &mdash; clarify the definition</h5>
+<p>"Basket size" is ambiguous. It could mean total <em>units</em> (<code>SUM(qty)</code>, what the solution uses) or the number of distinct <em>lines</em> &mdash; how many products were in the cart. They differ whenever an order has qty &gt; 1:</p>
+<pre><code>-- average number of distinct lines per order
+SELECT AVG(line_count) AS avg_lines
+FROM (SELECT order_id, COUNT(*) AS line_count
+      FROM order_items GROUP BY order_id) t;
+-- line counts 2,1,3,1 -> 7/4 = 1.75</code></pre>
+<p>4.25 units vs 1.75 lines &mdash; same data, very different stories. Ask which the product team means before writing SQL.</p>
+
+<h5>A flatter rewrite with the same answer</h5>
+<p>The nested form is the clearest, but the average of per-group sums can also be expressed without a subquery, because the average equals total units divided by distinct orders:</p>
+<pre><code>SELECT SUM(qty)::numeric / COUNT(DISTINCT order_id) AS avg_basket_size
+FROM order_items;
+-- 17 / 4 = 4.25</code></pre>
+<p>This is handy to know, but the subquery version is more readable and generalises better (e.g. if you later need a median or a percentile per order). Reach for the explicit two-step unless performance demands otherwise.</p>
+
+<h5>Edge cases: zero-qty lines and empty orders</h5>
+<p>If a line can have <code>qty = 0</code> (a removed item left in the table), it inflates the line count but not the unit total &mdash; another reason units and lines diverge. And an order present in an <code>orders</code> table but with <em>no</em> rows in <code>order_items</code> simply will not appear in the inner <code>GROUP BY</code>, so it is excluded from the average entirely. If empty baskets should count as size 0, you need a <code>LEFT JOIN</code> from <code>orders</code> and a <code>COALESCE(SUM(qty), 0)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the line-item-to-order grain mismatch and explain why the subquery is structurally required, distinguish "average units" from "average distinct lines" and confirm which the metric means, and flag that orders with no line items quietly drop out of the average rather than counting as zero.</div>

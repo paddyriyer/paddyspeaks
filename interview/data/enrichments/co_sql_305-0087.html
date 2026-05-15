@@ -1,0 +1,57 @@
+<p>Walmart's PMO wants to spot resourcing collisions: pairs of projects whose date ranges <em>overlap</em>, because two concurrent projects compete for the same engineers and budget. There is no overlap column &mdash; you have to derive it from <code>start_date</code> and <code>end_date</code> with an interval-intersection test. The interview is whether you get the overlap condition exactly right and avoid reporting each pair twice.</p>
+
+<h4>1. The source data &mdash; <code>projects</code></h4>
+<table>
+  <thead><tr><th>project_id</th><th>start_date</th><th>end_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td><td>2024-03-31</td></tr>
+    <tr><td>2</td><td>2024-02-15</td><td>2024-05-15</td></tr>
+    <tr><td>3</td><td>2024-04-01</td><td>2024-06-30</td></tr>
+    <tr><td>4</td><td>2024-05-01</td><td>2024-07-31</td></tr>
+    <tr><td>5</td><td>2024-08-01</td><td>2024-09-30</td></tr>
+  </tbody>
+</table>
+<p>Project 5 runs in autumn and overlaps nobody &mdash; the isolated case. Projects 1&ndash;4 form a chain of partial overlaps. Project 1 and project 3 do <em>not</em> overlap (1 ends 03-31, 3 starts 04-01), which tests whether the condition is precise rather than loose.</p>
+
+<h4>2. The SQL &mdash; <code>self-join on interval intersection</code></h4>
+<pre><code>SELECT a.project_id, b.project_id
+FROM projects a JOIN projects b
+  ON a.project_id &lt; b.project_id
+ AND a.start_date &lt; b.end_date AND b.start_date &lt; a.end_date;</code></pre>
+<p>The table is joined to itself. <code>a.project_id &lt; b.project_id</code> keeps each unordered pair once and rules out a project pairing with itself. The two date inequalities are the overlap test.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>project_id (a)</th><th>project_id (b)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td></tr>
+    <tr><td>2</td><td>3</td></tr>
+    <tr><td>2</td><td>4</td></tr>
+    <tr><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Four overlapping pairs. Project 5 appears nowhere &mdash; correctly, it is isolated. The pair (1,3) is absent: project 1 ends 03-31 and project 3 starts 04-01, so they just miss. Note both result columns are literally named <code>project_id</code>; aliasing them (<code>AS project_a</code>, <code>AS project_b</code>) is essential for the output to be usable.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The overlap condition &mdash; why <em>this</em> form</h5>
+<p>Two intervals overlap when each starts before the other ends. Formally: <code>a.start &lt; b.end AND b.start &lt; a.end</code>. It is far easier to define overlap by its <em>negation</em> &mdash; two ranges do <strong>not</strong> overlap only if one finishes entirely before the other begins (<code>a.end &lt; b.start OR b.end &lt; a.start</code>). Negate that with De Morgan and you land exactly on the solution's two inequalities. Many candidates try to enumerate the overlap cases directly and miss one; deriving it from the non-overlap is the reliable method.</p>
+
+<h5>The duplicate-pair trap &mdash; why <code>a.project_id &lt; b.project_id</code></h5>
+<p>A self-join with <code>a.project_id &lt;&gt; b.project_id</code> reports every overlap <em>twice</em> &mdash; once as (2,3) and once as (3,2) &mdash; and also lets a row pair with itself if you use <code>&lt;=</code>. The strict <code>&lt;</code> does double duty: it removes self-pairs and keeps only one ordering of each pair. Switching <code>&lt;&gt;</code> for <code>&lt;</code> is the single most common bug in this question.</p>
+
+<h5>Closed vs half-open intervals &mdash; the boundary decision</h5>
+<p>With strict <code>&lt;</code>, two projects that merely <em>touch</em> &mdash; one ends on the same day the next starts &mdash; are <em>not</em> counted as overlapping. That is why (1,3) is excluded. If a same-day handover should count as a collision, the test becomes <code>&lt;=</code>:</p>
+<pre><code>-- inclusive: touching endpoints count as overlap
+AND a.start_date &lt;= b.end_date AND b.start_date &lt;= a.end_date</code></pre>
+<p>With <code>&lt;=</code>, the pair (1,3) would appear. Neither is universally right &mdash; it depends on whether <code>end_date</code> is the last active day (closed) or an exclusive bound. State the assumption.</p>
+
+<h5>NULL dates &mdash; open-ended projects</h5>
+<p>An ongoing project often has a NULL <code>end_date</code>. Any comparison with NULL is <em>unknown</em>, so <code>a.start_date &lt; b.end_date</code> fails and the open-ended project silently overlaps nobody &mdash; the opposite of reality, since a project with no end overlaps <em>everything</em> after its start. Treat a NULL end as "infinitely far in the future":</p>
+<pre><code>AND a.start_date &lt; COALESCE(b.end_date, DATE '9999-12-31')
+AND b.start_date &lt; COALESCE(a.end_date, DATE '9999-12-31')</code></pre>
+
+<h5>Scale &mdash; the self-join is quadratic</h5>
+<p>A self-join compares roughly <em>n&sup2;</em>/2 pairs. Fine for five projects, but on tens of thousands it is slow. An index on <code>(start_date, end_date)</code> helps the planner prune; for very large interval datasets a range type with a GiST index (<code>daterange</code> and the <code>&amp;&amp;</code> overlap operator) turns the scan into an index probe. Mentioning that the elegant self-join has a scaling ceiling is the senior note.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> derive the overlap test by negating the simpler non-overlap condition, use strict <code>&lt;</code> on the ids to emit each pair once and exclude self-pairs, make the closed-vs-half-open boundary choice explicit, and handle NULL end dates as open-ended rather than letting them match nothing.</div>

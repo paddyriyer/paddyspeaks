@@ -1,0 +1,62 @@
+<p>Coinbase's growth team wants to know where its sign-ups come from at the email-provider level: how many users are on Gmail, on a corporate domain, on a disposable address. The raw material is the <code>email</code> column, and the task is pure string surgery &mdash; pull the part after the <code>@</code>, then group on it. Easy to write, easy to get subtly wrong on malformed input.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>email</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>a@gmail.com</td></tr>
+    <tr><td>2</td><td>b@gmail.com</td></tr>
+    <tr><td>3</td><td>c@yahoo.com</td></tr>
+    <tr><td>4</td><td>d@coinbase.com</td></tr>
+    <tr><td>5</td><td>e@gmail.com</td></tr>
+    <tr><td>6</td><td>f@yahoo.com</td></tr>
+  </tbody>
+</table>
+<p>Three Gmail users, two Yahoo, one corporate (<code>coinbase.com</code>). The interesting part is what these rows <em>don't</em> contain &mdash; a missing <code>@</code>, mixed case, a NULL &mdash; all of which the parsing logic must survive in production.</p>
+
+<h4>2. The SQL &mdash; <code>substr after the @</code></h4>
+<pre><code>SELECT substr(email, POSITION('@' IN email) + 1) AS domain,
+       COUNT(*) AS users
+FROM users
+GROUP BY domain
+ORDER BY users DESC;</code></pre>
+<p><code>POSITION('@' IN email)</code> finds the 1-based index of the <code>@</code>; <code>+ 1</code> steps past it; <code>substr</code> with no length argument takes everything from there to the end. Group on that derived domain, order by population.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>domain</th><th>users</th></tr></thead>
+  <tbody>
+    <tr><td>gmail.com</td><td>3</td></tr>
+    <tr><td>yahoo.com</td><td>2</td></tr>
+    <tr><td>coinbase.com</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Gmail leads with 3, Yahoo 2, the corporate domain 1. The <code>ORDER BY users DESC</code> ranks providers by reach &mdash; the exact shape a growth team wants for a channel chart.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Grouping by an alias &mdash; portable or not?</h5>
+<p><code>GROUP BY domain</code> references the <code>SELECT</code>-list alias. Postgres and MySQL allow this, but it is <em>not</em> standard SQL &mdash; some engines reject it because <code>GROUP BY</code> logically runs before <code>SELECT</code>. The fully portable forms repeat the expression or use a positional reference:</p>
+<pre><code>GROUP BY substr(email, POSITION('@' IN email) + 1)   -- repeat expression
+GROUP BY 1                                            -- positional, terse</code></pre>
+<p>Knowing the alias shortcut works here but is non-portable is the kind of detail an interviewer rewards.</p>
+
+<h5>The "no @ sign" trap</h5>
+<p>If an <code>email</code> value has no <code>@</code> at all (bad data, or a username typed without a domain), <code>POSITION</code> returns <strong>0</strong>. Then <code>substr(email, 0 + 1)</code> = <code>substr(email, 1)</code> returns the <em>entire string</em> &mdash; the whole malformed value becomes a bogus "domain" and pollutes the grouping. Defend against it explicitly:</p>
+<pre><code>SELECT lower(split_part(email, '@', 2)) AS domain, COUNT(*) AS users
+FROM users
+WHERE email LIKE '%@%'
+GROUP BY 1
+ORDER BY users DESC;</code></pre>
+<p><code>split_part(email, '@', 2)</code> is cleaner than <code>substr</code>+<code>POSITION</code> &mdash; it directly returns the second piece &mdash; and the <code>WHERE email LIKE '%@%'</code> filters junk rows before they can form a fake domain.</p>
+
+<h5>Case sensitivity splits the count</h5>
+<p>Email domains are case-insensitive, but <code>substr</code> is not. <code>Gmail.com</code>, <code>GMAIL.COM</code> and <code>gmail.com</code> would land in <em>three separate groups</em> and the headline Gmail number would be wrong. Normalise with <code>lower(...)</code> before grouping &mdash; cheap insurance that prevents a real reporting bug.</p>
+
+<h5>NULL emails and the off-by-one</h5>
+<p>A NULL <code>email</code> yields NULL through <code>substr</code>; <code>GROUP BY</code> then collects every NULL into a single group and <code>COUNT(*)</code> tallies it &mdash; a NULL "domain" row appears unless you filter <code>email IS NOT NULL</code>. Also note the <code>+ 1</code> is load-bearing: <code>POSITION</code> returns the index <em>of</em> the <code>@</code>, so without the increment the domain string would start with a literal <code>@</code>.</p>
+
+<h5>Sub-domain rollups &mdash; the likely follow-up</h5>
+<p>A growth team often wants to collapse <code>mail.google.com</code> and <code>google.com</code> together, or group every corporate address against the free providers. That means extracting the registrable domain (last two labels) &mdash; <code>split_part</code> from the right, or a <code>CASE</code> that buckets known free providers vs "corporate". Anticipating that the raw domain is rarely the final grain is the senior move.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>split_part</code> over <code>substr</code>+<code>POSITION</code> for clarity, guard against the missing-<code>@</code> case where <code>POSITION</code> returns 0 and leaks the whole string, lower-case the domain so case variants do not fragment the count, and note that grouping by a <code>SELECT</code> alias is a Postgres convenience rather than portable SQL.</div>

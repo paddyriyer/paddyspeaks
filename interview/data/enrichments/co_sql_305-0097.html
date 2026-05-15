@@ -1,0 +1,63 @@
+<p>Meta's compensation team wants a quick list of everyone paid above the company average &mdash; an input to a pay-band review. The query is a classic subquery-in-<code>WHERE</code>, and it works. The interview lives in two places: whether you know the subquery runs exactly once (not once per row), and whether you notice that "above average" is a moving target the moment anyone's salary changes.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>120000</td></tr>
+    <tr><td>2</td><td>B</td><td>90000</td></tr>
+    <tr><td>3</td><td>C</td><td>150000</td></tr>
+    <tr><td>4</td><td>D</td><td>60000</td></tr>
+    <tr><td>5</td><td>E</td><td>80000</td></tr>
+    <tr><td>6</td><td>F</td><td>200000</td></tr>
+  </tbody>
+</table>
+<p>Six salaries summing to 700,000, so the average is <strong>116,666.67</strong>. The interesting rows sit near that line: employee 1 at 120K is just above it, employee 2 at 90K is well below. One high earner (F at 200K) is single-handedly dragging the average up.</p>
+
+<h4>2. The SQL &mdash; scalar subquery in <code>WHERE</code></h4>
+<pre><code>SELECT emp_id, salary FROM employees
+WHERE salary &gt; (SELECT AVG(salary) FROM employees);</code></pre>
+<p>The inner query computes one number &mdash; the company-wide average. The outer query keeps every employee whose salary exceeds it.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>120000</td></tr>
+    <tr><td>3</td><td>150000</td></tr>
+    <tr><td>6</td><td>200000</td></tr>
+  </tbody>
+</table>
+<p>Three of six employees are "above average" &mdash; and that is the statistical lesson. The mean is not the midpoint: one 200K outlier pulls the average up to 116.7K, so <em>fewer than half</em> the staff clear it. Employee 1, at 120K, barely makes the cut. If F's salary jumped to 400K, the average would rise and employee 1 could fall <em>below</em> the line without their own pay changing at all.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The subquery runs once &mdash; it is not correlated</h5>
+<p><code>(SELECT AVG(salary) FROM employees)</code> references nothing from the outer query, so the planner evaluates it a single time and treats the result as a constant. That is an <em>uncorrelated</em> scalar subquery &mdash; cheap. Contrast a correlated subquery, which re-runs per outer row:</p>
+<pre><code>-- correlated: re-evaluated for every employee, O(n&sup2;)
+SELECT emp_id FROM employees e
+WHERE salary &gt; (SELECT AVG(salary) FROM employees x
+                WHERE x.dept_id = e.dept_id);</code></pre>
+<p>Stating "this average is computed once, not per row" shows you read execution, not just syntax.</p>
+
+<h5>Mean vs median &mdash; "above average" is often the wrong metric</h5>
+<p>Salary distributions are right-skewed: a few large numbers stretch the mean above where most people sit. "Above average" therefore answers a different question than "above the typical employee". If the comp review really means the midpoint, use the median:</p>
+<pre><code>SELECT emp_id, salary FROM employees
+WHERE salary &gt; (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY salary)
+                FROM employees);</code></pre>
+<p>Raising the mean-versus-median distinction unprompted is a senior signal &mdash; it shows you understand what the number will be <em>used for</em>.</p>
+
+<h5>The strict <code>&gt;</code> and the employee exactly at the average</h5>
+<p><code>&gt;</code> excludes anyone whose salary equals the average exactly. With integer-ish salaries that is rare, but it happens &mdash; and the spec's wording decides it. "Above average" implies strict <code>&gt;</code>; "at or above" means <code>&gt;=</code>. Confirm rather than assume; a single boundary employee can change a headcount.</p>
+
+<h5>NULL salaries &mdash; ignored twice, then excluded</h5>
+<p>If any employee has a NULL <code>salary</code>: <code>AVG</code> skips NULLs (so they do not distort the average), and <code>WHERE salary &gt; ...</code> is NULL for them, which is not true, so they are excluded from the result. Usually fine &mdash; but if a NULL salary means "unknown, treat as 0" the average itself is wrong. Decide whether NULL means "skip" or "zero" and handle it explicitly with <code>COALESCE</code> if needed.</p>
+
+<h5>Showing the gap, and the wide schema</h5>
+<p>The follow-up is often "how far above average?" &mdash; return the delta with a window function so the average is computed inline:</p>
+<pre><code>SELECT emp_id, salary,
+       salary - AVG(salary) OVER () AS above_avg_by
+FROM employees;</code></pre>
+<p>Also note the table carries <code>dept_id</code>, <code>job_title</code>, <code>manager_id</code>. "Above average" is far more actionable scoped per department or per title &mdash; a junior earning above the <em>company</em> average may still be underpaid for their <em>role</em>. <code>AVG(salary) OVER (PARTITION BY dept_id)</code> is the natural next question.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify the subquery as uncorrelated and therefore evaluated once, explain that a right-skewed salary distribution makes "above average" exclude most staff (offer median instead), pin down strict vs inclusive at the boundary, and suggest partitioning the average by department or title to make it actionable.</div>

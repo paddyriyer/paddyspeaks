@@ -1,0 +1,57 @@
+<p>Meta's content-analytics team is hunting <em>unengaged pages</em> &mdash; pages that get traffic but generate zero interaction (no likes, comments, or shares). These are content that draws eyeballs and converts nothing, prime candidates for a redesign. The twist in the reference solution is that it does not trust <code>engagements</code> to be a clean number &mdash; it scrubs the value through a regex before comparing.</p>
+
+<h4>1. The source data &mdash; <code>pages</code></h4>
+<table>
+  <thead><tr><th>page_id</th><th>views</th><th>engagements</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>500</td><td>0</td></tr>
+    <tr><td>2</td><td>0</td><td>0</td></tr>
+    <tr><td>3</td><td>300</td><td>12</td></tr>
+    <tr><td>4</td><td>800</td><td>0</td></tr>
+    <tr><td>5</td><td>150</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Pages 1 and 4 are the targets: real traffic, zero engagement. Page 2 is the edge case &mdash; zero engagement <em>but also zero views</em>, so it is not "unengaged", it is simply unseen and must be excluded.</p>
+
+<h4>2. The SQL &mdash; <code>views &gt; 0 and scrubbed engagements = 0</code></h4>
+<pre><code>SELECT page_id FROM pages
+WHERE views &gt; 0
+  AND NULLIF(regexp_replace(engagements::text, '[^-.0-9]', '', 'g'), '')::numeric = 0;</code></pre>
+<p>The first predicate keeps only pages with traffic. The second casts <code>engagements</code> to text, strips every character that is not a digit, minus sign, or dot, turns an emptied string into NULL, casts back to <code>numeric</code>, and checks it equals zero.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>page_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+<p>Pages 1 and 4 surface &mdash; both have views and zero engagement. Page 2 is correctly excluded by <code>views &gt; 0</code> despite its zero engagement. Pages 3 and 5 have non-zero engagement and fall out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>views &gt; 0</code> guard is essential</h5>
+<p>"Unengaged" specifically means <em>traffic without interaction</em>. A page with zero views and zero engagement (page 2) is not under-performing &mdash; it has simply never had the chance. Dropping the <code>views &gt; 0</code> predicate would lump these unseen pages in with the genuinely unengaged ones and pollute the redesign backlog. The guard encodes the actual definition of the metric.</p>
+
+<h5>What the regex scrub is defending against</h5>
+<p><code>regexp_replace(engagements::text, '[^-.0-9]', '', 'g')</code> deletes every character that is not a digit, minus, or dot. This only matters if <code>engagements</code> is <em>not</em> a clean numeric column &mdash; e.g. it is stored as text and may contain values like <code>"1,024"</code>, <code>"12 likes"</code>, or <code>"~0"</code>. The scrub coerces such junk into a parseable number. If <code>engagements</code> is genuinely an <code>INT</code> column (as a sane schema would have it), the whole regex is unnecessary defensive machinery and the predicate collapses to:</p>
+<pre><code>SELECT page_id FROM pages
+WHERE views &gt; 0 AND engagements = 0;</code></pre>
+<p>The over-the-bar move is to say so: "if the column is numeric, this simplifies; the regex only earns its place against dirty text input."</p>
+
+<h5>The <code>NULLIF</code> guards an empty-string cast</h5>
+<p>If <code>engagements</code> is something like <code>"n/a"</code>, the regex strips it to an empty string <code>''</code>. Casting <code>''::numeric</code> throws an <em>invalid input syntax</em> error and the whole query dies. <code>NULLIF(..., '')</code> turns that empty string into NULL first; <code>NULL::numeric</code> is harmless NULL, and <code>NULL = 0</code> is <em>unknown</em> &mdash; so the row is simply not selected rather than crashing the query. It is a quiet but important piece of defensive plumbing.</p>
+
+<h5>NULL engagements &mdash; missing vs zero</h5>
+<p>A page with NULL <code>engagements</code> is debatable: is "engagement unknown" the same as "zero engagement"? The scrubbed expression treats NULL input as NULL output, and <code>NULL = 0</code> is unknown, so NULL-engagement pages are <em>excluded</em>. If the business wants missing engagement treated as zero, that must be an explicit <code>COALESCE(engagements, 0) = 0</code> decision, not an accident of the regex.</p>
+
+<h5>The likely follow-up &mdash; an engagement rate</h5>
+<p>A binary "zero or not" is coarse. Analysts usually want the <em>engagement rate</em> &mdash; engagements per view &mdash; and a threshold like "below 1%":</p>
+<pre><code>SELECT page_id, engagements::numeric / views AS engagement_rate
+FROM pages
+WHERE views &gt; 0
+ORDER BY engagement_rate ASC;</code></pre>
+<p>The <code>views &gt; 0</code> guard does double duty here &mdash; it also prevents a division-by-zero. Anticipating that "unengaged" really wants a rate, not a flag, is the senior instinct.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>views &gt; 0</code> encodes the real definition (traffic without interaction, not merely unseen), recognise the regex+<code>NULLIF</code> as defence against a dirty text column &mdash; and that it is redundant if <code>engagements</code> is properly numeric &mdash; and propose an engagement-rate threshold as the more useful follow-up metric.</div>
