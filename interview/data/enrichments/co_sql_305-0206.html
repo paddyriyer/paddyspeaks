@@ -1,0 +1,57 @@
+<p>Twilio bills international and domestic calls at very different rates, so the finance team wants the share of traffic that is international. Simple ratio &mdash; except the <code>is_international</code> flag arrived as a grab-bag of text values: <code>'true'</code>, <code>'1'</code>, <code>'t'</code>. The reference normalises all the truthy spellings and divides. The interviewer is checking whether you spot the dirty-boolean problem and get the float-division detail right.</p>
+
+<h4>1. The source data &mdash; <code>calls</code></h4>
+<table>
+  <thead><tr><th>call_id</th><th>is_international</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>true</td></tr>
+    <tr><td>2</td><td>false</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>4</td><td>0</td></tr>
+    <tr><td>5</td><td>true</td></tr>
+    <tr><td>6</td><td>t</td></tr>
+    <tr><td>7</td><td>false</td></tr>
+    <tr><td>8</td><td>false</td></tr>
+  </tbody>
+</table>
+<p>Eight calls, and <code>is_international</code> is stored as <strong>text</strong> in three different truthy spellings &mdash; <code>'true'</code>, <code>'1'</code>, <code>'t'</code>. Four rows are international (1, 3, 5, 6); four are domestic. That inconsistent encoding is the interview.</p>
+
+<h4>2. The SQL &mdash; <code>normalise truthy values, then ratio</code></h4>
+<pre><code>SELECT 100.0 * SUM(CASE WHEN is_international::text IN ('1','true','t','True','TRUE') THEN 1 ELSE 0 END)/COUNT(*) AS intl_pct
+FROM calls;</code></pre>
+<p>The <code>CASE</code> maps every recognised truthy spelling to 1 and everything else to 0; <code>SUM</code> counts the international calls; <code>COUNT(*)</code> counts all calls. Multiplying by the literal <code>100.0</code> (not <code>100</code>) forces the division into floating point.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>intl_pct</th></tr></thead>
+  <tbody>
+    <tr><td>50.000000</td></tr>
+  </tbody>
+</table>
+<p>Four international out of eight &rarr; 50%. The <code>CASE</code> caught all three truthy spellings &mdash; <code>'true'</code> (twice), <code>'1'</code>, and <code>'t'</code> &mdash; so no international call was missed. Drop one spelling from the <code>IN</code> list and the percentage silently drifts down.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>100.0</code> and not <code>100</code> &mdash; the integer-division trap</h5>
+<p>If both operands of <code>/</code> are integers, Postgres does <em>integer</em> division and truncates. <code>SUM(...)/COUNT(*)</code> with 4 international and 8 total is <code>4/8 = 0</code> &mdash; the fraction is gone before the percentage is computed. Writing <code>100.0 *</code> first promotes the whole expression to <code>numeric</code>, so the division keeps its decimal. The placement matters: <code>100.0 * SUM / COUNT</code> works; <code>100 * (SUM/COUNT)</code> would compute <code>0</code> inside the parentheses and then multiply zero by 100. An explicit cast &mdash; <code>SUM(...)::numeric / COUNT(*)</code> &mdash; is the clearest way to signal intent.</p>
+
+<h5>The dirty-boolean problem &mdash; an allow-list is fragile</h5>
+<p>The <code>CASE</code> hard-codes five truthy spellings. That works until a new spelling appears &mdash; <code>'TRUE '</code> with a trailing space, <code>'Y'</code>, <code>'yes'</code> &mdash; and that call is silently miscounted as domestic. A sturdier normalisation lowercases and trims first:</p>
+<pre><code>SUM(CASE WHEN lower(trim(is_international::text)) IN ('1','true','t','y','yes')
+         THEN 1 ELSE 0 END)</code></pre>
+<p>Better still, if the column is genuinely a Postgres <code>boolean</code>, none of this is needed &mdash; <code>SUM(is_international::int)</code> or <code>COUNT(*) FILTER (WHERE is_international)</code> just works. The text storage is an ETL defect; the real fix is to cast the column to <code>boolean</code> at load time.</p>
+
+<h5>What about the unrecognised values? The NULL question</h5>
+<p>The <code>CASE</code>'s <code>ELSE 0</code> lumps three groups together: genuine domestic calls, NULL flags, and unrecognised junk. So a NULL <code>is_international</code> is counted as domestic, and it still sits in the <code>COUNT(*)</code> denominator. If "unknown" should be excluded rather than assumed domestic, the denominator must change too:</p>
+<pre><code>SELECT 100.0 * COUNT(*) FILTER (WHERE lower(trim(is_international::text)) IN ('1','true','t'))
+       / COUNT(*) FILTER (WHERE is_international IS NOT NULL) AS intl_pct
+FROM calls;</code></pre>
+<p>Numerator and denominator must agree on how unknowns are treated &mdash; mixing "exclude from top, include in bottom" understates the rate.</p>
+
+<h5>The <code>FILTER</code> idiom &mdash; cleaner conditional counting</h5>
+<p><code>SUM(CASE WHEN cond THEN 1 ELSE 0 END)</code> is the portable way to count matching rows; Postgres' <code>COUNT(*) FILTER (WHERE cond)</code> says the same thing more directly and is easier to read. Functionally identical here; <code>FILTER</code> signals current-Postgres fluency.</p>
+
+<h5>Edge case: the empty table</h5>
+<p>On a table with no calls, <code>COUNT(*)</code> is 0 and the division is <code>0/0</code> &mdash; Postgres raises a <strong>division-by-zero</strong> error, not NULL. If the dashboard can ever query an empty window, guard the denominator: <code>... / NULLIF(COUNT(*), 0)</code>, which yields NULL instead of crashing. Wrap the whole thing in <code>COALESCE(..., 0)</code> if a number is required.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> multiply by <code>100.0</code> (or cast) so integer division does not truncate the ratio to zero, treat the multi-spelling text flag as an ETL defect and normalise defensively with <code>lower(trim(...))</code>, decide whether NULL flags count as domestic or are excluded (and keep numerator and denominator consistent), and guard <code>0/0</code> with <code>NULLIF</code> for the empty-table case.</div>

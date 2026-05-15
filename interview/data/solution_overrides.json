@@ -72,5 +72,17 @@
   "mixed_167-0020": {
     "reason": "The median offset predicate `rn IN (n/2, n/2 + 1, (n+1)/2)` is wrong for odd-sized groups. With integer division, for an odd group of size 3 it evaluates to the set {1, 2}, selecting rows 1 AND 2 and averaging them, rather than selecting only the single middle row. E.g. salaries {80000, 90000, 110000} returned 85000 (avg of the two lowest) instead of the true median 90000 (the middle value). Even-sized groups happened to work, so the bug was silent until an odd-sized job title appeared.",
     "solution": "WITH ranked AS (\n  SELECT job_title, salary,\n    ROW_NUMBER() OVER (PARTITION BY job_title ORDER BY salary) AS rn,\n    COUNT(*)    OVER (PARTITION BY job_title)                  AS n\n  FROM employees\n)\nSELECT job_title, AVG(salary) AS median_salary\nFROM ranked\nWHERE rn IN ((n+1)/2, (n+2)/2)\nGROUP BY job_title\nORDER BY job_title;"
+  },
+  "co_sql_305-0237": {
+    "reason": "The INNER JOIN gates both aliases: a row of alias a only survives if a partner row b with a strictly later term exists for the same student. Students who enrolled in only one term produce no join rows at all, so a.student_id and b.student_id range over exactly the same set (the re-enrollers). Numerator and denominator are therefore identical and the rate is pinned at 100% regardless of the data. The denominator must cover all distinct students.",
+    "solution": "SELECT 100.0 * COUNT(DISTINCT CASE WHEN later.student_id IS NOT NULL THEN e.student_id END) / NULLIF(COUNT(DISTINCT e.student_id), 0) AS reenroll_rate\nFROM enrollments e\nLEFT JOIN enrollments later ON e.student_id = later.student_id AND later.term > e.term;"
+  },
+  "mixed_167-0026": {
+    "reason": "The INNER JOIN gates both aliases: a row of alias a only survives if a partner row b with a strictly later term exists for the same student. Students who enrolled in only one term produce no join rows at all, so a.student_id and b.student_id range over exactly the same set (the re-enrollers). Numerator and denominator are therefore identical and the rate is pinned at 100% regardless of the data. The denominator must cover all distinct students.",
+    "solution": "SELECT 100.0 * COUNT(DISTINCT CASE WHEN later.student_id IS NOT NULL THEN e.student_id END) / NULLIF(COUNT(DISTINCT e.student_id), 0) AS reenroll_rate\nFROM enrollments e\nLEFT JOIN enrollments later ON e.student_id = later.student_id AND later.term > e.term;"
+  },
+  "co_sql_305-0240": {
+    "reason": "The reference solution measures reliability as SUM(CASE WHEN on_time IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*), which counts shipments that have ANY recorded outcome rather than shipments that arrived ON TIME. A supplier whose every shipment was late but logged scores 100% reliability -- the all-late supplier ranks first, which is nonsensical for a 'reliability checker'. The CASE must test the boolean (on_time) itself, so that both late and unlogged shipments fall to the ELSE 0 branch.",
+    "solution": "SELECT supplier_id, 100.0 * SUM(CASE WHEN on_time THEN 1 ELSE 0 END)/COUNT(*) AS reliability\nFROM shipments GROUP BY supplier_id ORDER BY reliability DESC;"
   }
 }

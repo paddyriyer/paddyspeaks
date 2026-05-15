@@ -1,0 +1,56 @@
+<p>Accenture's contact-centre team runs a data-quality scorecard, and one line on it is the share of calls that were never tagged with a category &mdash; a proxy for how disciplined agents are about wrap-up coding. "Uncategorised" sounds binary, but it hides a decision: is a call uncategorised when <code>category</code> is NULL, or also when it is an empty string? The reference counts both. The interviewer is checking whether you saw that distinction at all.</p>
+
+<h4>1. The source data &mdash; <code>calls</code></h4>
+<table>
+  <thead><tr><th>call_id</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>sales</td></tr>
+    <tr><td>2</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td>support</td></tr>
+    <tr><td>4</td><td><em>(empty string)</em></td></tr>
+    <tr><td>5</td><td>sales</td></tr>
+    <tr><td>6</td><td><em>NULL</em></td></tr>
+    <tr><td>7</td><td>billing</td></tr>
+    <tr><td>8</td><td>support</td></tr>
+  </tbody>
+</table>
+<p>Eight calls. Two have a NULL <code>category</code> (rows 2, 6) and one has an <strong>empty string</strong> (row 4). NULL and <code>''</code> are different values in SQL but mean the same thing to the business &mdash; "not categorised". Three uncategorised in total.</p>
+
+<h4>2. The SQL &mdash; <code>conditional count of NULL-or-blank</code></h4>
+<pre><code>SELECT 100.0 * SUM(CASE WHEN category IS NULL OR category='' THEN 1 ELSE 0 END)/COUNT(*) AS uncat_pct
+FROM calls;</code></pre>
+<p>The <code>CASE</code> flags a call as uncategorised when <code>category</code> is NULL <em>or</em> the empty string, mapping it to 1. <code>SUM</code> counts those; <code>COUNT(*)</code> counts every call. The literal <code>100.0</code> forces floating-point division.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>uncat_pct</th></tr></thead>
+  <tbody>
+    <tr><td>37.500000</td></tr>
+  </tbody>
+</table>
+<p>Three uncategorised of eight &rarr; 37.5%. Both halves of the <code>OR</code> earned their keep: the two NULLs and the one empty string. Drop <code>OR category=''</code> and the result falls to 25% &mdash; the empty-string call would be miscounted as properly tagged. That clause is the entire question.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>IS NULL</code> alone misses empty strings</h5>
+<p>NULL means "unknown / absent"; <code>''</code> is a known value that happens to be a zero-length string. They are distinct, and <code>category IS NULL</code> matches only the first. A blank-string call is just as uncategorised to the business, so the <code>OR category = ''</code> is required. Equally, do not write <code>category = NULL</code> &mdash; any comparison <em>to</em> NULL with <code>=</code> yields <code>unknown</code>, never <code>true</code>; NULL tests must use <code>IS NULL</code>. A compact way to cover both: <code>COALESCE(category, '') = ''</code>, or <code>NULLIF(category, '') IS NULL</code> &mdash; both fold NULL and blank into one test.</p>
+
+<h5>Whitespace-only categories &mdash; the next layer of dirty</h5>
+<p>A category of <code>'   '</code> (spaces) is neither NULL nor <code>''</code>, so the reference counts it as <em>categorised</em> &mdash; almost certainly wrong. If agents can submit blank-looking-but-not-empty values, trim first:</p>
+<pre><code>SUM(CASE WHEN category IS NULL OR trim(category) = '' THEN 1 ELSE 0 END)</code></pre>
+<p>And a literal <code>'uncategorised'</code> or <code>'N/A'</code> string is yet another case &mdash; data sometimes encodes "no category" as an actual category. Ask what the dirty values really look like before trusting <code>IS NULL OR category = ''</code>.</p>
+
+<h5>The integer-division trap</h5>
+<p><code>SUM(...)</code> and <code>COUNT(*)</code> are both integers, so <code>SUM/COUNT</code> alone does integer division and truncates &mdash; <code>3/8</code> would be <code>0</code>. The leading <code>100.0 *</code> promotes the expression to <code>numeric</code> so the fraction survives. Placement matters: <code>100.0 * SUM / COUNT</code> is correct; <code>100 * (SUM / COUNT)</code> truncates inside the parentheses first. An explicit <code>::numeric</code> cast on the numerator is the most readable way to make the intent obvious.</p>
+
+<h5>The <code>FILTER</code> alternative</h5>
+<p>Postgres expresses conditional counts more directly with <code>FILTER</code>:</p>
+<pre><code>SELECT 100.0 * COUNT(*) FILTER (WHERE category IS NULL OR category = '')
+       / COUNT(*) AS uncat_pct
+FROM calls;</code></pre>
+<p>Functionally identical to the <code>SUM(CASE ...)</code> form, just easier to read. The <code>CASE</code> version is the portable fallback for engines without <code>FILTER</code>.</p>
+
+<h5>Edge case: the empty table</h5>
+<p>If <code>calls</code> has no rows, <code>COUNT(*)</code> is 0 and the division becomes <code>0/0</code>, which Postgres raises as a <strong>division-by-zero error</strong> &mdash; not NULL, not 0. Guard the denominator with <code>NULLIF(COUNT(*), 0)</code> so the result is NULL instead of an exception, and wrap in <code>COALESCE(..., 0)</code> if the scorecard must always show a number.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat NULL and the empty string as distinct values and cover both (a <code>COALESCE</code>/<code>NULLIF</code> fold, or <code>trim</code> to also catch whitespace), never compare to NULL with <code>=</code>, multiply by <code>100.0</code> so integer division does not zero out the ratio, and guard the empty-table <code>0/0</code> with <code>NULLIF</code>.</div>
