@@ -113,6 +113,22 @@
     </p>
   </header>
 
+  <section class="company-picker" id="company-picker" hidden>
+    <div class="cp-top">
+      <div>
+        <div class="cp-eyebrow">Optional · SQL &amp; Python</div>
+        <h2 class="cp-title">Target specific companies</h2>
+        <p class="cp-sub">Pick one or more companies and your SQL or Python check is drawn only from real, company-tagged interview questions. Leave it empty for the standard topic-randomized check. Design has no company data, so it always runs topic-randomized.</p>
+      </div>
+      <div class="cp-summary" id="cp-summary">Topic-randomized — no company filter</div>
+    </div>
+    <div class="cp-controls">
+      <input type="search" id="cp-search" placeholder="Filter companies…" autocomplete="off" aria-label="Filter companies" />
+      <button type="button" id="cp-clear" class="cp-clear">Clear all</button>
+    </div>
+    <div class="cp-list" id="cp-list" role="group" aria-label="Companies"></div>
+  </section>
+
   <div class="eval-section-cards" id="section-cards">
     <a class="eval-card" href="./quiz.html?section=sql" data-section="sql">
       <div class="eval-card-tag">Section 01</div>
@@ -152,6 +168,7 @@
     <h3>How it works</h3>
     <ul>
       <li><strong>Each attempt draws a fresh random set</strong> of 20 questions from the section pool, with options shuffled — repeats and memorization don't help.</li>
+      <li><strong>Company mode (SQL &amp; Python)</strong> — pick one or more companies in the panel above and the quiz is drawn from a pool of real, company-tagged interview questions instead of the topic pool. Those questions are self-rated against a model answer.</li>
       <li><strong>Objective questions</strong> (single / multi) are auto-graded the moment you submit.</li>
       <li><strong>SQL code</strong> runs against a preloaded PostgreSQL schema in your browser (PGlite, ~14 MB on first run — cached afterwards); result table is checked against an expected output.</li>
       <li><strong>Python code</strong> runs in Pyodide (CPython 3.12 / WASM); a hidden test harness reports pass/fail. First load is ~6 MB.</li>
@@ -167,25 +184,124 @@
 </footer>
 
 <script>
-  // Fetch each section's bank size and inject it into the card meta.
-  (function fillPoolSizes() {
-    const sections = { sql: "./data/sql.json", python: "./data/python.json", design: "./data/design.json" };
-    Object.entries(sections).forEach(async ([slug, path]) => {
+  // ── Section pool sizes + the optional company picker ──────────────────
+  // Resume is intentionally NOT advertised — every visit starts a fresh draw.
+  (function () {
+    const POOL_FILES    = { sql: "./data/sql.json", python: "./data/python.json", design: "./data/design.json" };
+    const COMPANY_FILES = { sql: "./data/sql-companies.json", python: "./data/python-companies.json" };
+    const STORE_KEY = "paddyspeaks.skillcheck.companies";
+
+    const cardFor = (slug) => document.querySelector(`.eval-card[data-section="${slug}"]`);
+    const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+    // Topic pool size on each section card.
+    Object.entries(POOL_FILES).forEach(async ([slug, path]) => {
       try {
-        const r = await fetch(path);
-        if (!r.ok) return;
+        const r = await fetch(path); if (!r.ok) return;
         const d = await r.json();
-        const card = document.querySelector(`.eval-card[data-section="${slug}"]`);
-        if (!card) return;
-        const target = card.querySelector("[data-pool-size]");
-        if (target) target.innerHTML = `pool: <strong>${d.questions.length}</strong>`;
+        const card = cardFor(slug);
+        const target = card && card.querySelector("[data-pool-size]");
+        if (!target) return;
+        target.dataset.topicPool = d.questions.length;
+        if (!card.classList.contains("is-company")) {
+          target.innerHTML = `pool: <strong>${d.questions.length}</strong>`;
+        }
       } catch (e) { /* leave dash */ }
     });
-  })();
 
-  // Resume is intentionally NOT advertised. Every visit starts a fresh
-  // attempt (engine clears localStorage of any submitted state on load).
-  // We deliberately don't show "Submitted" or "in-progress" badges here.
+    // Company picker — sources the company-tagged pools.
+    const picker  = document.getElementById("company-picker");
+    const listEl  = document.getElementById("cp-list");
+    const summary = document.getElementById("cp-summary");
+    const search  = document.getElementById("cp-search");
+    const clearBt = document.getElementById("cp-clear");
+    if (!picker) return;
+
+    let selected = new Set();
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
+      if (Array.isArray(saved)) selected = new Set(saved);
+    } catch (e) {}
+
+    Promise.all(Object.entries(COMPANY_FILES).map(([slug, path]) =>
+      fetch(path).then(r => r.ok ? r.json() : null).then(d => [slug, d]).catch(() => [slug, null])
+    )).then(results => {
+      const index = {};   // company -> { sql, python }
+      results.forEach(([slug, d]) => {
+        if (!d || !Array.isArray(d.questions)) return;
+        d.questions.forEach(q => {
+          if (!q.company) return;
+          (index[q.company] || (index[q.company] = { sql: 0, python: 0 }))[slug]++;
+        });
+      });
+      const companies = Object.keys(index);
+      if (!companies.length) return;   // no data → picker stays hidden, page works as before
+      companies.sort((a, b) =>
+        (index[b].sql + index[b].python) - (index[a].sql + index[a].python) || a.localeCompare(b));
+      selected = new Set([...selected].filter(c => index[c]));   // drop stale saved companies
+      render(companies, index);
+      picker.hidden = false;
+    });
+
+    function render(companies, index) {
+      listEl.innerHTML = companies.map(name => {
+        const c = index[name];
+        const counts = [c.sql ? c.sql + " SQL" : "", c.python ? c.python + " Py" : ""].filter(Boolean).join(" · ");
+        return `<label class="cp-item" data-name="${esc(name)}">`
+          + `<input type="checkbox" value="${esc(name)}"${selected.has(name) ? " checked" : ""} />`
+          + `<span class="cp-name">${esc(name)}</span>`
+          + `<span class="cp-count">${counts}</span></label>`;
+      }).join("");
+      listEl.querySelectorAll("input[type=checkbox]").forEach(cb => {
+        cb.addEventListener("change", () => {
+          if (cb.checked) selected.add(cb.value); else selected.delete(cb.value);
+          persist(); apply(index);
+        });
+      });
+      search.addEventListener("input", () => {
+        const q = search.value.trim().toLowerCase();
+        listEl.querySelectorAll(".cp-item").forEach(it => {
+          it.style.display = it.dataset.name.toLowerCase().includes(q) ? "" : "none";
+        });
+      });
+      clearBt.addEventListener("click", () => {
+        selected.clear();
+        listEl.querySelectorAll("input[type=checkbox]").forEach(cb => { cb.checked = false; });
+        persist(); apply(index);
+      });
+      apply(index);
+    }
+
+    function persist() {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify([...selected])); } catch (e) {}
+    }
+
+    function apply(index) {
+      const names = [...selected];
+      const param = names.length ? "&companies=" + names.map(encodeURIComponent).join(",") : "";
+      let totSql = 0, totPy = 0;
+      names.forEach(n => { if (index[n]) { totSql += index[n].sql; totPy += index[n].python; } });
+      [["sql", totSql], ["python", totPy]].forEach(([slug, n]) => {
+        const card = cardFor(slug);
+        if (!card) return;
+        card.href = `./quiz.html?section=${slug}` + param;
+        card.classList.toggle("is-company", names.length > 0);
+        const ps = card.querySelector("[data-pool-size]");
+        if (ps) {
+          ps.innerHTML = names.length
+            ? `company pool: <strong>${n}</strong>`
+            : `pool: <strong>${ps.dataset.topicPool || "—"}</strong>`;
+        }
+      });
+      if (!names.length) {
+        summary.textContent = "Topic-randomized — no company filter";
+        summary.classList.remove("is-active");
+      } else {
+        summary.innerHTML = `<strong>Company mode</strong> · ${names.length} selected · ${totSql} SQL / ${totPy} Python`;
+        summary.classList.add("is-active");
+      }
+    }
+  })();
 </script>
 </body>
 </html>
