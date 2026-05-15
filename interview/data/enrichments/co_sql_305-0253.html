@@ -1,0 +1,58 @@
+<p>Microsoft's commerce-reporting team wants revenue broken out by order status &mdash; how much sits in <code>completed</code>, how much in <code>pending</code>, how much was lost to <code>cancelled</code>. A clean <code>GROUP BY status</code>. The interviewer is checking whether you know what <code>SUM</code> does with a NULL amount, and whether the status column is clean enough to group on directly.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>status</th><th>amount</th><th>order_id</th><th>customer_id</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>completed</td><td>120</td><td>1</td><td>101</td><td>2024-01-01</td></tr>
+    <tr><td>completed</td><td>200</td><td>2</td><td>102</td><td>2024-01-02</td></tr>
+    <tr><td>cancelled</td><td>80</td><td>3</td><td>103</td><td>2024-01-03</td></tr>
+    <tr><td>pending</td><td>50</td><td>4</td><td>104</td><td>2024-01-04</td></tr>
+    <tr><td>completed</td><td><em>NULL</em></td><td>5</td><td>105</td><td>2024-01-05</td></tr>
+  </tbody>
+</table>
+<p>There are three <code>completed</code> orders, but one has a <strong>NULL</strong> <code>amount</code> (order 5, perhaps captured before pricing finished). That NULL decides what the <code>completed</code> bucket sums to, and whether a status with only NULL amounts would show 0 or a blank.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY status</code></h4>
+<pre><code>SELECT status, SUM(amount) AS revenue
+FROM orders GROUP BY status;</code></pre>
+<p>One group per distinct <code>status</code> value; <code>SUM(amount)</code> totals the revenue within each.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>status</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>completed</td><td>320</td></tr>
+    <tr><td>cancelled</td><td>80</td></tr>
+    <tr><td>pending</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>The <code>completed</code> bucket is <strong>320</strong> (120 + 200) &mdash; order 5's NULL amount was simply skipped, not treated as 0. With three completed orders but only two priced, the sum is over the two. The other two statuses each have a single order. Note the rows come back in no guaranteed order &mdash; <code>GROUP BY</code> does not sort.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>SUM</code> ignores NULLs &mdash; usually right, but state it</h5>
+<p><code>SUM(amount)</code> skips NULL amounts, so order 5 contributes nothing to the <code>completed</code> total. That is normally correct &mdash; an unpriced order should not be counted as $0 revenue. But the edge case bites when a status group has <em>only</em> NULL amounts: <code>SUM</code> then returns <strong>NULL</strong>, not 0, and a dashboard tile shows a blank. Guard it when the consumer needs a number:</p>
+<pre><code>SELECT status, COALESCE(SUM(amount), 0) AS revenue
+FROM orders GROUP BY status;</code></pre>
+<p><code>COALESCE</code> wraps the aggregate. Decide deliberately: skip unpriced orders (current behaviour) or fold them in as $0 with <code>SUM(COALESCE(amount, 0))</code>.</p>
+
+<h5>Counting orders alongside revenue &mdash; <code>COUNT(*)</code> vs <code>COUNT(amount)</code></h5>
+<p>Reports usually want order volume next to revenue. Be precise about which count:</p>
+<pre><code>SELECT status,
+       COUNT(*)            AS order_count,
+       COUNT(amount)       AS priced_orders,
+       COALESCE(SUM(amount), 0) AS revenue
+FROM orders GROUP BY status;</code></pre>
+<p>For <code>completed</code>, <code>COUNT(*)</code> = 3 but <code>COUNT(amount)</code> = 2. The gap is exactly the unpriced orders &mdash; surfacing both numbers tells the reader the revenue figure is built on two of three orders, not all three.</p>
+
+<h5>Dirty status values &mdash; the silent group-fragmenter</h5>
+<p><code>GROUP BY status</code> trusts the column to be clean. If the data contains <code>'Completed'</code>, <code>'completed'</code>, and <code>'completed '</code> (trailing space), those become <strong>three separate groups</strong> and the revenue is scattered across them. On real data, normalise: <code>GROUP BY LOWER(TRIM(status))</code>, or fix the source. A senior answer raises this before trusting the raw column.</p>
+
+<h5>NULL status itself</h5>
+<p>If <code>status</code> can be NULL, <code>GROUP BY</code> collects all NULL-status rows into one group &mdash; <code>GROUP BY</code> treats NULLs as equal to each other (unlike <code>=</code>). It appears as a row with a blank status. That is usually acceptable, but label it (<code>COALESCE(status, 'unknown')</code>) so the report does not show a mysterious empty bucket.</p>
+
+<h5>What "revenue" should mean &mdash; the definitional question</h5>
+<p>The query reports a row for <code>cancelled</code> &mdash; $80 of orders that produced no money. Is "cancelled revenue" meaningful, or should the report show only realised revenue? Often the team wants <code>completed</code> only, or a <code>FILTER</code> split: <code>SUM(amount) FILTER (WHERE status = 'completed')</code> as realised revenue with the rest shown as pipeline. Confirm whether each status is a revenue bucket or whether only some count.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>SUM</code> skips NULL amounts and that an all-NULL status group returns NULL not 0 &mdash; coalesce when a number is required &mdash; pair the right <code>COUNT</code> with the sum to expose how many orders are unpriced, and flag dirty or NULL <code>status</code> values that would silently fragment the groups before trusting the raw column.</div>

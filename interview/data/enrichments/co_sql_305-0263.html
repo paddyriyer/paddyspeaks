@@ -1,0 +1,66 @@
+<p>Discord's content team wants a "readers who downloaded this also downloaded&hellip;" recommendation for its e-book library. The raw signal is co-occurrence: how often two books were downloaded by the same user. The classic answer is a self-join on <code>downloads</code> &mdash; pairing a user's books with each other. The interview is about the <em>join condition</em>: get it wrong and you get duplicate pairs, mirrored pairs, or a book paired with itself.</p>
+
+<h4>1. The source data &mdash; <code>downloads</code></h4>
+<table>
+  <thead><tr><th>book_id</th><th>user_id</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>1</td></tr>
+    <tr><td>20</td><td>1</td></tr>
+    <tr><td>30</td><td>1</td></tr>
+    <tr><td>10</td><td>2</td></tr>
+    <tr><td>20</td><td>2</td></tr>
+    <tr><td>20</td><td>3</td></tr>
+    <tr><td>30</td><td>3</td></tr>
+    <tr><td>10</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>User 1 downloaded all three books; users 2 and 3 downloaded two each; user 4 downloaded just one. The single-book user 4 is the edge case &mdash; they form no pair and must contribute nothing.</p>
+
+<h4>2. The SQL &mdash; self-join with <code>a.book_id &lt; b.book_id</code></h4>
+<pre><code>SELECT a.book_id AS b1, b.book_id AS b2, COUNT(*) AS pair_count
+FROM downloads a JOIN downloads b ON a.user_id = b.user_id AND a.book_id &lt; b.book_id
+GROUP BY a.book_id, b.book_id;</code></pre>
+<p>The table is joined to itself on <code>user_id</code>, so it pairs books that share a downloader. The crucial clause is <code>a.book_id &lt; b.book_id</code>: it keeps each pair exactly once and rules out self-pairs.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>b1</th><th>b2</th><th>pair_count</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>30</td><td>1</td></tr>
+    <tr><td>10</td><td>20</td><td>2</td></tr>
+    <tr><td>20</td><td>30</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Books 10 &amp; 20 were co-downloaded by users 1 and 2 &rarr; 2. Books 20 &amp; 30 by users 1 and 3 &rarr; 2. Books 10 &amp; 30 only by user 1 &rarr; 1. Three pairs total &mdash; and user 4, with a single book, correctly produced none.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>a.book_id &lt; b.book_id</code> &mdash; the heart of the question</h5>
+<p>Three things go wrong if the condition is loose:</p>
+<pre><code>ON a.user_id = b.user_id                       -- pairs (10,10), (10,20), (20,10) ...
+ON a.user_id = b.user_id AND a.book_id != b.book_id   -- (10,20) AND (20,10): mirror dupes
+ON a.user_id = b.user_id AND a.book_id &lt; b.book_id    -- (10,20) only: correct</code></pre>
+<p>With no book condition, a book joins to itself (self-pair). With <code>!=</code>, every pair appears twice in mirror order &mdash; <code>(10,20)</code> and <code>(20,10)</code> &mdash; doubling every count. The strict <code>&lt;</code> imposes a canonical order: smaller id is always <code>b1</code>, so each unordered pair is counted exactly once. This is the single most important line in the query.</p>
+
+<h5>The interviewer's follow-up: rank the recommendations</h5>
+<p>A raw pair list isn't a recommendation. Order it, and for "given book X, what to recommend" filter and sort:</p>
+<pre><code>SELECT a.book_id AS b1, b.book_id AS b2, COUNT(*) AS pair_count
+FROM downloads a JOIN downloads b
+  ON a.user_id = b.user_id AND a.book_id &lt; b.book_id
+GROUP BY a.book_id, b.book_id
+ORDER BY pair_count DESC, b1, b2;</code></pre>
+
+<h5>Co-occurrence count vs similarity &mdash; the popularity bias trap</h5>
+<p>Raw <code>pair_count</code> rewards <em>popular</em> books: a bestseller co-occurs with everything simply because everyone downloads it, not because it is genuinely related. Senior answers normalise &mdash; e.g. the Jaccard index, <code>shared_users / users_of_either_book</code>, or cosine similarity. The raw count is a fine first pass, but naming its popularity bias shows you understand what a recommendation actually needs.</p>
+
+<h5>The duplicate-download trap</h5>
+<p>The query assumes one row per (user, book). If a user can download the same book twice, those duplicate rows inflate <code>COUNT(*)</code> &mdash; a single user could contribute 4 to a pair's count from 2&times;2 download rows. If <code>downloads</code> is an event log rather than a unique set, de-duplicate first:</p>
+<pre><code>WITH d AS (SELECT DISTINCT user_id, book_id FROM downloads)
+SELECT a.book_id AS b1, b.book_id AS b2, COUNT(*) AS pair_count
+FROM d a JOIN d b ON a.user_id = b.user_id AND a.book_id &lt; b.book_id
+GROUP BY a.book_id, b.book_id;</code></pre>
+
+<h5>Edge cases: single-book users and scale</h5>
+<p>A user with one book (user 4) self-joins only to their own row, which <code>a.book_id &lt; b.book_id</code> rejects &mdash; they correctly contribute nothing, no special handling needed. At scale, beware: a "power user" with <em>k</em> downloads generates <em>k(k&minus;1)/2</em> join rows on their own; a user with 1,000 books explodes to ~500,000 pairs. On a real catalogue you'd cap downloads per user, or pre-aggregate, before the self-join.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>a.book_id &lt; b.book_id</code> simultaneously kills self-pairs and mirror-duplicates by imposing a canonical pair order, recognise that raw co-occurrence counts are biased toward popular books and name a normalised similarity metric, and guard against duplicate download rows with <code>SELECT DISTINCT</code> before the self-join.</div>

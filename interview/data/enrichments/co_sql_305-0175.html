@@ -1,0 +1,65 @@
+<p>Twitch's content-analytics team tracks weekly box-office gross for the movies featured on streamer watch-parties. The signal they care about is <em>momentum</em> &mdash; is a film building or fading week over week? The interviewer wants to see <code>LAG</code> used cleanly, and is watching whether you handle a movie's very first week and keep one film's numbers from leaking into another's.</p>
+
+<h4>1. The source data &mdash; <code>box_office</code></h4>
+<table>
+  <thead><tr><th>movie_id</th><th>week</th><th>gross</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>1000</td></tr>
+    <tr><td>1</td><td>2</td><td>700</td></tr>
+    <tr><td>1</td><td>3</td><td>500</td></tr>
+    <tr><td>1</td><td>4</td><td>550</td></tr>
+    <tr><td>2</td><td>1</td><td>2000</td></tr>
+    <tr><td>2</td><td>2</td><td>800</td></tr>
+  </tbody>
+</table>
+<p>Movie 1 fades for two weeks then ticks back up in week 4. Movie 2 opens huge and collapses. The interesting parts: <strong>week 1 of each movie</strong> (no prior week to compare against) and the fact that movie 2's week 1 must not be compared to movie 1's week 4.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> week-over-week delta</h4>
+<pre><code>SELECT movie_id, week, gross,
+  gross - LAG(gross) OVER (
+    PARTITION BY movie_id
+    ORDER BY week
+  ) AS week_change
+FROM box_office;</code></pre>
+<p><code>LAG(gross)</code> reaches back one row to the previous week's gross; <code>PARTITION BY movie_id</code> resets that lookback at each movie; <code>ORDER BY week</code> defines what "previous" means.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>movie_id</th><th>week</th><th>gross</th><th>week_change</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>1000</td><td><em>NULL</em></td></tr>
+    <tr><td>1</td><td>2</td><td>700</td><td>-300</td></tr>
+    <tr><td>1</td><td>3</td><td>500</td><td>-200</td></tr>
+    <tr><td>1</td><td>4</td><td>550</td><td>50</td></tr>
+    <tr><td>2</td><td>1</td><td>2000</td><td><em>NULL</em></td></tr>
+    <tr><td>2</td><td>2</td><td>800</td><td>-1200</td></tr>
+  </tbody>
+</table>
+<p>Each movie's week 1 returns <strong>NULL</strong> &mdash; there is no prior week, so <code>LAG</code> has nothing to subtract. Movie 1's decline (&minus;300, &minus;200) then a recovery (+50) is visible. Movie 2's &minus;1200 crash stands out. Crucially, movie 2's week 1 is NULL, <em>not</em> 2000 &minus; 550 &mdash; the partition stopped <code>LAG</code> from reaching into movie 1.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The first-row NULL is correct &mdash; but the consumer may want 0</h5>
+<p>A movie's opening week has no predecessor, so <code>week_change</code> is genuinely undefined &mdash; NULL is the honest answer. But a chart that sums or averages <code>week_change</code> may want 0 there instead. <code>LAG</code> takes an optional default for exactly this:</p>
+<pre><code>gross - LAG(gross, 1, gross) OVER (PARTITION BY movie_id ORDER BY week)
+-- when there is no prior row, LAG returns the 3rd arg (gross itself),
+-- so week 1 change becomes gross - gross = 0</code></pre>
+<p>Choose NULL or 0 deliberately. They mean different things: NULL says "not comparable", 0 says "no change".</p>
+
+<h5>The <code>PARTITION BY</code> is load-bearing &mdash; drop it and the result is silently wrong</h5>
+<p>Without <code>PARTITION BY movie_id</code>, <code>LAG</code> walks the entire ordered result set, so movie 2's week 1 would subtract movie 1's <em>last</em> row: <code>2000 - 550 = 1450</code> &mdash; a meaningless cross-movie delta, with no error to flag it. The partition is what makes "previous week" mean "previous week <em>of the same movie</em>". This is the most common bug in window-function answers.</p>
+
+<h5>The gap trap &mdash; "previous row" is not "previous week"</h5>
+<p><code>LAG(gross)</code> returns the prior <em>row</em> in the ordering, which is only the prior <em>week</em> if weeks are contiguous. If movie 1 has no week-3 row, <code>LAG</code> at week 4 silently reaches back to week 2 and the delta spans two weeks while still being labelled a weekly change. If week numbers can skip, either pre-fill the calendar or compute the gap explicitly with <code>week - LAG(week) OVER (&hellip;)</code> and divide. Naming this is the senior detail.</p>
+
+<h5>Percent change is usually the better metric</h5>
+<p>An absolute &minus;1200 from movie 2 and a &minus;300 from movie 1 are not comparable &mdash; different budgets, different scales. Analysts usually want the <em>rate</em> of decline:</p>
+<pre><code>ROUND(100.0 * (gross - LAG(gross) OVER w)
+       / NULLIF(LAG(gross) OVER w, 0), 1) AS pct_change
+-- w = (PARTITION BY movie_id ORDER BY week)</code></pre>
+<p>The <code>NULLIF(&hellip;, 0)</code> guards against a zero-gross prior week, which would otherwise divide by zero. Movie 1 week 2 is then &minus;30%, movie 2 week 2 is &minus;60% &mdash; now they are comparable.</p>
+
+<h5><code>LAG</code> vs a self-join</h5>
+<p>The pre-window-function way is <code>box_office b JOIN box_office p ON b.movie_id = p.movie_id AND p.week = b.week - 1</code>. It works only when weeks are exactly sequential, needs an <em>outer</em> join to keep week 1, and reads worse. <code>LAG</code> is one ordered pass &mdash; clearer and faster. Knowing the join exists, and why <code>LAG</code> beats it, is the complete answer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> keep <code>PARTITION BY movie_id</code> so deltas never cross films, recognise the first-week NULL as correct and decide NULL-vs-0 with <code>LAG</code>'s default argument, warn that "previous row" only equals "previous week" when weeks are contiguous, and offer percent-change (guarded by <code>NULLIF</code>) as the scale-free metric.</div>

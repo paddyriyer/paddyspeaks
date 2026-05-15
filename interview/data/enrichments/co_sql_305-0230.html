@@ -1,0 +1,61 @@
+<p>Snowflake's onboarding team is normalising a user table and wants a quick worked example of the everyday string functions &mdash; uppercase the name, measure its length, grab the first letter. It is deliberately a warm-up, but an interviewer uses it to check whether you know the quiet inconsistencies between engines and how each function reacts to an empty string or a NULL.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>alice</td></tr>
+    <tr><td>2</td><td>Bob</td></tr>
+    <tr><td>3</td><td>charlie</td></tr>
+    <tr><td>4</td><td>Dee</td></tr>
+    <tr><td>5</td><td><em>(empty string)</em></td></tr>
+  </tbody>
+</table>
+<p>Names arrive in mixed case &mdash; some lowercase, some capitalised. User 5 has an <strong>empty string</strong> for a name (not NULL, but zero-length). That row is the edge case: it probes whether <code>LENGTH</code> and <code>substr</code> behave sanely on a string with nothing in it.</p>
+
+<h4>2. The SQL &mdash; <code>UPPER / LENGTH / substr</code></h4>
+<pre><code>SELECT UPPER(name)        AS upper_name,
+       LENGTH(name)       AS len,
+       substr(name, 1, 1) AS first_letter
+FROM users;</code></pre>
+<p>Three scalar functions applied row by row. No aggregation &mdash; every input row produces one output row, the projection just transforms the <code>name</code> column three different ways.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>upper_name</th><th>len</th><th>first_letter</th></tr></thead>
+  <tbody>
+    <tr><td>ALICE</td><td>5</td><td>a</td></tr>
+    <tr><td>BOB</td><td>3</td><td>B</td></tr>
+    <tr><td>CHARLIE</td><td>7</td><td>c</td></tr>
+    <tr><td>DEE</td><td>3</td><td>D</td></tr>
+    <tr><td><em>(empty)</em></td><td>0</td><td><em>(empty)</em></td></tr>
+  </tbody>
+</table>
+<p>User 5 returns cleanly: <code>UPPER('')</code> is <code>''</code>, <code>LENGTH('')</code> is <code>0</code>, and <code>substr('', 1, 1)</code> is <code>''</code> &mdash; no error. Notice <code>first_letter</code> preserves the original case ("a" stays lowercase) because <code>substr</code> slices before any case change is applied; <code>upper_name</code> is the only column that normalises case.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>LENGTH</code> vs <code>CHAR_LENGTH</code> vs <code>OCTET_LENGTH</code></h5>
+<p>For plain ASCII these agree, but they diverge on multi-byte text. <code>LENGTH</code>/<code>CHAR_LENGTH</code> count <em>characters</em>; <code>OCTET_LENGTH</code> counts <em>bytes</em>. The name "Renee" with an accented e is 5 characters but 6 bytes in UTF-8:</p>
+<pre><code>SELECT LENGTH('Renée'), OCTET_LENGTH('Renée');  -- 5, 6</code></pre>
+<p>If the requirement is "display width" or "characters", use <code>CHAR_LENGTH</code>; <code>OCTET_LENGTH</code> only matters for storage sizing. Worth naming the distinction even on an easy question.</p>
+
+<h5>The NULL behaviour &mdash; empty string is not NULL</h5>
+<p>User 5 is an empty string and behaves predictably. A genuine <strong>NULL</strong> name behaves differently: <code>UPPER(NULL)</code>, <code>LENGTH(NULL)</code> and <code>substr(NULL,1,1)</code> all return <strong>NULL</strong>, not <code>''</code> or <code>0</code>. If a dashboard needs a value, guard it: <code>UPPER(COALESCE(name, ''))</code> or <code>COALESCE(LENGTH(name), 0)</code>. Conflating "empty" and "NULL" is the single most common string-handling mistake.</p>
+
+<h5>Dialect drift &mdash; the same idea, different spelling</h5>
+<p>This question is tagged Snowflake, and Snowflake accepts all three functions &mdash; but portable code should know the variants:</p>
+<table>
+  <thead><tr><th>intent</th><th>Postgres</th><th>other engines</th></tr></thead>
+  <tbody>
+    <tr><td>uppercase</td><td><code>UPPER(s)</code></td><td>same everywhere</td></tr>
+    <tr><td>length</td><td><code>LENGTH(s)</code></td><td><code>LEN(s)</code> in SQL Server</td></tr>
+    <tr><td>substring</td><td><code>substr(s,1,1)</code> or <code>substring(s FROM 1 FOR 1)</code></td><td><code>SUBSTRING</code>, or <code>LEFT(s,1)</code></td></tr>
+  </tbody>
+</table>
+<p>For "first letter", <code>LEFT(name, 1)</code> reads more clearly than <code>substr(name, 1, 1)</code> and is widely supported &mdash; a small clarity win.</p>
+
+<h5>Edge cases with <code>substr</code> indexing</h5>
+<p>SQL <code>substr</code> is <strong>1-indexed</strong>, unlike most programming languages &mdash; position 1 is the first character. Asking for more characters than exist is not an error: <code>substr('Dee', 1, 99)</code> simply returns "Dee". A start position past the end, or a non-positive start, yields an empty string rather than failing. That tolerance is why user 5 produced <code>''</code> instead of an exception.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish empty string from NULL and guard NULL with <code>COALESCE</code>, know that <code>LENGTH</code> counts characters while <code>OCTET_LENGTH</code> counts bytes, prefer the clearer <code>LEFT(name,1)</code> for a first character, and remember SQL string indexing is 1-based and out-of-range slices return empty rather than erroring.</div>

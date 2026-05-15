@@ -1,0 +1,61 @@
+<p>EPAM's revenue team wants the single top-selling region for a board slide. <code>GROUP BY</code>, <code>ORDER BY total DESC</code>, <code>LIMIT 1</code> &mdash; three lines, done. But "the top region" hides a question: what if two regions tie for first? The interviewer wants to see whether you notice that <code>LIMIT 1</code> picks an arbitrary winner among ties, and what you would do about it.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>West</td><td>100</td></tr>
+    <tr><td>West</td><td>150</td></tr>
+    <tr><td>East</td><td>200</td></tr>
+    <tr><td>East</td><td>60</td></tr>
+    <tr><td>North</td><td>90</td></tr>
+    <tr><td>South</td><td>300</td></tr>
+  </tbody>
+</table>
+<p>Per-region totals: South 300, West 250, East 260, North 90. South is the clear winner here &mdash; but notice how close West and East are. If a few more East rows pushed it to 300 as well, <code>LIMIT 1</code> would have to break a genuine first-place tie, and it would do so silently.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY then ORDER BY total DESC LIMIT 1</code></h4>
+<pre><code>SELECT region, SUM(amount) AS total
+FROM sales GROUP BY region
+ORDER BY total DESC LIMIT 1;</code></pre>
+<p>Group by region, sum the amounts, sort descending so the biggest total floats to the top, and <code>LIMIT 1</code> keeps only that first row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>South</td><td>300</td></tr>
+  </tbody>
+</table>
+<p>South wins with 300 &mdash; correct for this data, since no other region reaches it. One row, exactly what the board slide wants. The query is right; the discussion below is about the scenario it does <em>not</em> handle gracefully.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The tie trap &mdash; <code>LIMIT 1</code> picks one winner arbitrarily</h5>
+<p>If South and (say) East both totalled 300, <code>ORDER BY total DESC LIMIT 1</code> still returns exactly one row &mdash; and <em>which</em> one is non-deterministic, decided by the planner's scan order. The query would silently crown one of two tied regions. If ties must all be shown, rank instead of limiting:</p>
+<pre><code>SELECT region, total FROM (
+  SELECT region, SUM(amount) AS total,
+         RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+  FROM sales GROUP BY region) t
+WHERE rk = 1;</code></pre>
+<p><code>RANK() = 1</code> returns every region tied at the maximum &mdash; one row normally, several on a tie. Stating "do you want one region, or all regions tied for first?" before writing SQL is the senior move.</p>
+
+<h5>The <code>HAVING</code>-with-subquery alternative</h5>
+<p>Another tie-safe form keeps every region whose total equals the maximum total:</p>
+<pre><code>SELECT region, SUM(amount) AS total
+FROM sales GROUP BY region
+HAVING SUM(amount) = (
+  SELECT MAX(t.total) FROM (
+    SELECT SUM(amount) AS total FROM sales GROUP BY region) t);</code></pre>
+<p>It is wordier than the <code>RANK</code> version and aggregates the data twice, but it makes the "equals the max" logic explicit. <code>HAVING</code> filters <em>after</em> grouping &mdash; you cannot use a plain <code>WHERE</code> on an aggregate.</p>
+
+<h5>Why a deterministic tiebreaker matters even without ties</h5>
+<p>Even when there is no tie on the metric, <code>LIMIT</code> queries should be deterministic for reproducibility. Add a secondary sort key &mdash; <code>ORDER BY total DESC, region</code> &mdash; so that if a tie ever does occur, the same region wins every run instead of flickering between executions. Non-deterministic top-N queries are a classic source of "the dashboard changed but the data didn't" bugs.</p>
+
+<h5>NULL amounts and regions with no sales</h5>
+<p><code>SUM</code> ignores NULL amounts, so a region with some unpriced rows is still totalled on its priced ones. A region whose every amount is NULL gets <code>SUM = NULL</code>; under <code>ORDER BY ... DESC</code> Postgres sorts NULLs first, so such a region could wrongly land at the top &mdash; guard with <code>NULLS LAST</code> or filter NULLs out. And a region with no rows in <code>sales</code> never appears at all; that is fine for "top region", but worth noting.</p>
+
+<h5>Returning the runner-up too</h5>
+<p>Boards often ask for the runner-up in the same breath. Generalise to top-N by dropping <code>LIMIT</code> for a window function: <code>ORDER BY total DESC LIMIT 3</code> gives the top three but is still tie-blind, whereas <code>RANK() OVER (ORDER BY SUM(amount) DESC)</code> with <code>rk &lt;= 3</code> handles ties at every position. Designing for the inevitable follow-up signals seniority.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>ORDER BY ... DESC LIMIT 1</code> silently picks one arbitrary winner when regions tie for first, offer <code>RANK() = 1</code> or a <code>HAVING = MAX</code> form when all ties must show, add a deterministic tiebreaker for reproducibility, and handle NULL totals with <code>NULLS LAST</code>.</div>

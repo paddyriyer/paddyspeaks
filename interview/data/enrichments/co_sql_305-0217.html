@@ -1,0 +1,59 @@
+<p>DeliveryHero's CRM team wants order frequency per customer to feed a loyalty model. "Count orders per customer" is a textbook <code>GROUP BY</code> &mdash; but the interviewer is testing whether you count <em>all</em> orders or only the ones that actually happened, whether you know customers with zero orders are invisible here, and whether <code>COUNT(*)</code> is the right counter.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>order_date</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>2024-01-01</td><td>completed</td><td>50</td></tr>
+    <tr><td>101</td><td>2</td><td>2024-02-01</td><td>completed</td><td>75</td></tr>
+    <tr><td>101</td><td>3</td><td>2024-03-01</td><td>cancelled</td><td>30</td></tr>
+    <tr><td>102</td><td>4</td><td>2024-01-15</td><td>completed</td><td>120</td></tr>
+    <tr><td>103</td><td>5</td><td>2024-02-20</td><td>completed</td><td>60</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has three orders &mdash; but one is <strong>cancelled</strong>. That cancelled row is the interview: does "order count" mean orders <em>placed</em> or orders <em>fulfilled</em>?</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(*) per customer</code></h4>
+<pre><code>SELECT customer_id, COUNT(*) AS orders FROM orders GROUP BY customer_id;</code></pre>
+<p>One group per <code>customer_id</code>; <code>COUNT(*)</code> tallies every row in each group.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>3</td></tr>
+    <tr><td>103</td><td>1</td></tr>
+    <tr><td>102</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 shows <strong>3</strong> &mdash; the cancelled order is counted alongside the two completed ones. The result row order is arbitrary (no <code>ORDER BY</code>). And note who is <em>missing</em>: any customer who never ordered does not appear at all, because this table only knows about orders.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The cancelled-order decision</h5>
+<p>Counting 101 as a 3-order customer overstates loyalty if one order was cancelled. "How many orders" almost always means realised orders for a CRM signal. Surface the choice and filter explicitly:</p>
+<pre><code>SELECT customer_id, COUNT(*) AS orders
+FROM orders
+WHERE status = 'completed'
+GROUP BY customer_id;
+-- customer 101 now counts 2, not 3</code></pre>
+<p>Confirm with the interviewer: "placed or completed?" The filter changes the headline number more than the aggregate does.</p>
+
+<h5>Customers with zero orders are invisible &mdash; and why</h5>
+<p>This query is sourced from <code>orders</code>, so a customer who never ordered contributes no rows and is simply absent &mdash; <em>not</em> shown as 0. If the loyalty model needs every customer including the dormant ones, you must start from <code>customers</code> and left-join:</p>
+<pre><code>SELECT c.customer_id, COUNT(o.order_id) AS orders
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id;</code></pre>
+<p>Here the counter <em>must</em> be <code>COUNT(o.order_id)</code>, not <code>COUNT(*)</code> &mdash; see the next note.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(column)</code> &mdash; the left-join trap</h5>
+<p>In the single-table query <code>COUNT(*)</code> and <code>COUNT(order_id)</code> agree, because every order row has an <code>order_id</code>. But after a <code>LEFT JOIN</code>, a customer with no orders still produces one row &mdash; with all order columns NULL. <code>COUNT(*)</code> would count that phantom row as <strong>1</strong>; <code>COUNT(o.order_id)</code> ignores the NULL and correctly reports <strong>0</strong>. Pick the column-form counter whenever an outer join is in play.</p>
+
+<h5>Distinct orders vs order lines</h5>
+<p>If <code>orders</code> were actually one row per order <em>line</em> (an order split across products), <code>COUNT(*)</code> counts lines, not orders, and inflates frequency. The honest counter is then <code>COUNT(DISTINCT order_id)</code>. Always confirm the grain of the table before trusting <code>COUNT(*)</code>.</p>
+
+<h5>Presentation: sort and threshold</h5>
+<p>A frequency report wants order &mdash; <code>ORDER BY orders DESC</code> puts your best customers on top. If the ask is "customers with more than 5 orders," that is a <code>HAVING COUNT(*) &gt; 5</code> filter (post-aggregation), never a <code>WHERE</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> raise the cancelled-order question and add a <code>status</code> filter on purpose, recognise that an orders-sourced query silently omits zero-order customers (and switch to a <code>customers LEFT JOIN orders</code> when they matter), and know that <code>COUNT(*)</code> overcounts NULL-extended rows after an outer join where <code>COUNT(order_id)</code> does not.</div>

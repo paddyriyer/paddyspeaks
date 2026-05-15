@@ -1,0 +1,57 @@
+<p>Spotify wants a play counter that ticks up: for every listen, how many times has <em>this</em> user played <em>this</em> song so far, up to and including now. It powers "you've played this 50 times" badges and the obsession-tracking in Wrapped. The query is a running <code>COUNT</code> over a window &mdash; and the interviewer is checking whether you partition on the right keys and order on time.</p>
+
+<h4>1. The source data &mdash; <code>plays</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>song_id</th><th>played_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>2026-01-01 09:00</td></tr>
+    <tr><td>1</td><td>10</td><td>2026-01-01 12:00</td></tr>
+    <tr><td>1</td><td>20</td><td>2026-01-01 13:00</td></tr>
+    <tr><td>1</td><td>10</td><td>2026-01-02 08:00</td></tr>
+    <tr><td>2</td><td>10</td><td>2026-01-01 10:00</td></tr>
+    <tr><td>2</td><td>20</td><td>2026-01-01 11:00</td></tr>
+  </tbody>
+</table>
+<p>User 1 plays song 10 three times and song 20 once; user 2 plays each once. Two different users both play song 10 &mdash; the partition must keep those counters separate, or user 2's first play would read "4".</p>
+
+<h4>2. The SQL &mdash; <code>running COUNT(*) OVER</code></h4>
+<pre><code>SELECT user_id, song_id, played_at,
+  COUNT(*) OVER (PARTITION BY user_id, song_id ORDER BY played_at) AS cumulative_plays
+FROM plays;</code></pre>
+<p><code>PARTITION BY user_id, song_id</code> gives each (user, song) pair its own counter. <code>ORDER BY played_at</code> turns <code>COUNT(*)</code> into a running count: with an <code>ORDER BY</code> present, the implicit frame is <code>RANGE UNBOUNDED PRECEDING TO CURRENT ROW</code>, so each row counts itself and every earlier row in its partition.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>song_id</th><th>played_at</th><th>cumulative_plays</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>2026-01-01 09:00</td><td>1</td></tr>
+    <tr><td>1</td><td>10</td><td>2026-01-01 12:00</td><td>2</td></tr>
+    <tr><td>1</td><td>10</td><td>2026-01-02 08:00</td><td>3</td></tr>
+    <tr><td>1</td><td>20</td><td>2026-01-01 13:00</td><td>1</td></tr>
+    <tr><td>2</td><td>10</td><td>2026-01-01 10:00</td><td>1</td></tr>
+    <tr><td>2</td><td>20</td><td>2026-01-01 11:00</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>User 1's song 10 counter climbs 1 &rarr; 2 &rarr; 3 across the three plays. Their song 20 restarts at 1 &mdash; different partition. User 2's song 10 also reads 1, not 4: the two-column partition kept the two users' histories apart. Each row reports the count <em>as of that play</em>, which is exactly the badge number.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the implicit frame matters &mdash; the silent <code>RANGE</code></h5>
+<p>With an <code>ORDER BY</code> in the window and no explicit frame, Postgres applies <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. That is what makes <code>COUNT(*)</code> cumulative rather than partition-wide. Drop the <code>ORDER BY</code> and the frame becomes the whole partition &mdash; every row would show the total play count (3 for user 1 / song 10), not the running one. The <code>ORDER BY</code> is not cosmetic; it changes the answer.</p>
+
+<h5>The duplicate-timestamp trap &mdash; <code>RANGE</code> vs <code>ROWS</code></h5>
+<p>If a user plays the same song twice at the <em>identical</em> timestamp, the default <code>RANGE</code> frame treats them as peers and gives <em>both</em> rows the same cumulative count &mdash; the higher one. Two plays at <code>09:00</code> would both read 2, never 1 then 2. If you need a strict 1, 2, 3 even through ties, switch the frame to <code>ROWS</code>:</p>
+<pre><code>COUNT(*) OVER (PARTITION BY user_id, song_id
+  ORDER BY played_at ROWS UNBOUNDED PRECEDING)</code></pre>
+<p>Or, if "Nth play" must be unique, use <code>ROW_NUMBER()</code> instead &mdash; it never ties, assigning 1, 2, 3 even at equal timestamps (breaking the tie arbitrarily).</p>
+
+<h5><code>COUNT(*)</code> vs <code>ROW_NUMBER()</code> here</h5>
+<p>With distinct timestamps the two are interchangeable: both give 1, 2, 3. They diverge only on ties &mdash; <code>COUNT(*)</code> with a <code>RANGE</code> frame counts peers together, <code>ROW_NUMBER()</code> forces distinct positions. Pick based on whether two simultaneous plays should be "the 2nd play" together or "the 2nd and 3rd play" separately.</p>
+
+<h5>Partition keys: forgetting <code>song_id</code></h5>
+<p>A common error is <code>PARTITION BY user_id</code> alone. That counts every play by the user across <em>all</em> songs &mdash; a per-user lifetime listen counter, not a per-song one. The question asks for plays of a specific song, so both <code>user_id</code> and <code>song_id</code> belong in the partition. Naming the grain explicitly ("plays of this song by this user") prevents this.</p>
+
+<h5>Edge cases: NULL timestamps and ordering</h5>
+<p>If <code>played_at</code> is NULL on some rows, <code>ORDER BY played_at</code> sorts NULLs last by default in a descending sort but <em>first</em> in this ascending one &mdash; an undated play would be counted as the earliest. Decide deliberately: filter NULL timestamps or add <code>NULLS LAST</code>. Also note the output here has no <code>ORDER BY</code> on the outer query, so row order is not guaranteed &mdash; add <code>ORDER BY user_id, song_id, played_at</code> if the consumer cares about presentation order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> partition on the full grain (<code>user_id, song_id</code>), know that the <code>ORDER BY</code> is what makes <code>COUNT(*)</code> cumulative via the implicit <code>RANGE</code> frame, and switch to <code>ROWS</code> or <code>ROW_NUMBER()</code> when duplicate timestamps would otherwise tie the running count.</div>

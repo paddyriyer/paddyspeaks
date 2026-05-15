@@ -1,0 +1,69 @@
+<p>Splunk's revenue team wants a single report that shows sales at three levels at once &mdash; every region&times;product cell, each region's subtotal, and each product's subtotal. The reference solution stitches three <code>GROUP BY</code> queries together with <code>UNION ALL</code>. It produces the right numbers, but the interviewer is watching whether you recognise this as a hand-rolled <code>GROUPING SETS</code> and know the trap that emulation hides.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>product</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>West</td><td>Widget</td><td>100</td></tr>
+    <tr><td>West</td><td>Gadget</td><td>200</td></tr>
+    <tr><td>East</td><td>Widget</td><td>150</td></tr>
+    <tr><td>East</td><td>Gadget</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Four clean rows &mdash; two regions, two products. Deliberately tidy: the interest here is not messy data, it is the <em>shape</em> of the multi-level output and the <code>NULL</code>s that the subtotal rows carry.</p>
+
+<h4>2. The SQL &mdash; <code>UNION ALL</code> of three groupings</h4>
+<pre><code>SELECT region, product, SUM(amount) AS total
+FROM sales GROUP BY region, product
+UNION ALL
+SELECT region, NULL, SUM(amount) FROM sales GROUP BY region
+UNION ALL
+SELECT NULL, product, SUM(amount) FROM sales GROUP BY product
+ORDER BY region, product;</code></pre>
+<p>Branch 1 gives the leaf cells; branch 2 gives per-region subtotals (with <code>product = NULL</code>); branch 3 gives per-product subtotals (with <code>region = NULL</code>). <code>UNION ALL</code> stacks all three.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>product</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>Gadget</td><td>50</td></tr>
+    <tr><td>East</td><td>Widget</td><td>150</td></tr>
+    <tr><td>East</td><td><em>NULL</em></td><td>200</td></tr>
+    <tr><td>West</td><td>Gadget</td><td>200</td></tr>
+    <tr><td>West</td><td>Widget</td><td>100</td></tr>
+    <tr><td>West</td><td><em>NULL</em></td><td>300</td></tr>
+    <tr><td><em>NULL</em></td><td>Gadget</td><td>250</td></tr>
+    <tr><td><em>NULL</em></td><td>Widget</td><td>250</td></tr>
+  </tbody>
+</table>
+<p>Eight rows at three levels. The <code>product = NULL</code> rows are region subtotals (East = 200, West = 300); the <code>region = NULL</code> rows are product subtotals (Gadget = 250, Widget = 250). A <code>NULL</code> in a dimension column here means "all values of this dimension" &mdash; that overloading is the catch.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>This <em>is</em> <code>GROUPING SETS</code> &mdash; the one-pass native form</h5>
+<p>Three <code>UNION ALL</code> branches each scan <code>sales</code> independently &mdash; three table scans for one report. Postgres expresses the same intent in a single statement, single scan:</p>
+<pre><code>SELECT region, product, SUM(amount) AS total
+FROM sales
+GROUP BY GROUPING SETS ((region, product), (region), (product))
+ORDER BY region, product;</code></pre>
+<p>Each parenthesised tuple is one grouping level; <code>()</code> would add the grand total. It is shorter, the optimiser scans once, and it states the intent directly. Naming <code>GROUPING SETS</code> as the right tool &mdash; and <code>CUBE</code>/<code>ROLLUP</code> as its relatives &mdash; is the senior move.</p>
+
+<h5>The trap: a real <code>NULL</code> in the data is indistinguishable from a subtotal</h5>
+<p>Both the emulation and <code>GROUPING SETS</code> mark subtotal rows by putting <code>NULL</code> in the rolled-up column. But what if <code>region</code> itself contains genuine <code>NULL</code>s &mdash; sales with no region recorded? Then a leaf row <code>(NULL, 'Widget', &hellip;)</code> and the product-subtotal row <code>(NULL, 'Widget', 250)</code> are <em>visually identical</em>, and any consumer reading the result cannot tell a real NULL from "all regions". The fix is the <code>GROUPING()</code> function, which returns 1 for a column rolled up in that row and 0 otherwise:</p>
+<pre><code>SELECT region, product, SUM(amount) AS total,
+       GROUPING(region)  AS region_is_total,
+       GROUPING(product) AS product_is_total
+FROM sales
+GROUP BY GROUPING SETS ((region, product), (region), (product));</code></pre>
+<p>The <code>UNION ALL</code> emulation has <em>no</em> equivalent &mdash; it cannot distinguish the two cases at all. That is the concrete reason to prefer the native syntax beyond mere tidiness.</p>
+
+<h5><code>UNION ALL</code>, not <code>UNION</code></h5>
+<p>The branches are designed to produce different rows, but <code>UNION</code> would still pay for a dedup pass &mdash; and if a region subtotal coincidentally equalled a leaf total, <code>UNION</code> could collapse two semantically different rows into one. <code>UNION ALL</code> is correct and cheaper. (The reference uses it correctly.)</p>
+
+<h5><code>ORDER BY</code> with NULLs &mdash; where do subtotals land?</h5>
+<p><code>ORDER BY region, product</code> sorts <code>NULL</code> <em>last</em> by default in Postgres, so each region's subtotal row sorts after its leaf rows, and the product subtotals sink to the bottom &mdash; which happens to read naturally here. But the placement is a side effect of NULL-ordering, not a designed layout. If a report needs subtotals in a specific position, sort on <code>GROUPING()</code> flags explicitly rather than relying on where NULLs fall.</p>
+
+<h5>Consistency across branches</h5>
+<p>Each <code>UNION ALL</code> branch must emit the same column count and compatible types in the same order &mdash; here <code>(region, product, total)</code>. The literal <code>NULL</code> placeholders are untyped; Postgres infers their type from the other branches. If the branches ever drift (a reordered column, a renamed alias), the union silently misaligns data into the wrong column. A single <code>GROUPING SETS</code> statement removes that whole class of maintenance bug.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the three-way <code>UNION ALL</code> as a hand-rolled <code>GROUPING SETS</code>, replace it with the single-scan native syntax, and &mdash; the killer detail &mdash; use the <code>GROUPING()</code> function to distinguish a subtotal row's <code>NULL</code> from a genuine <code>NULL</code> in the data, something the <code>UNION ALL</code> form cannot do.</div>

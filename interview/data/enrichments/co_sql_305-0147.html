@@ -1,0 +1,65 @@
+<p>Oracle's monitoring team tracks a daily metric and wants each day shown alongside the day before and the day after &mdash; the raw material for deltas, trend arrows, and anomaly flags. <code>LAG</code> and <code>LEAD</code> are the window functions built exactly for this. The query is short; the interview value is in the frame clause you did not write, the ordering you must get exactly right, and what happens at the two endpoints.</p>
+
+<h4>1. The source data &mdash; <code>metrics</code></h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>100</td></tr>
+    <tr><td>2026-01-02</td><td>120</td></tr>
+    <tr><td>2026-01-03</td><td>90</td></tr>
+    <tr><td>2026-01-04</td><td>150</td></tr>
+    <tr><td>2026-01-05</td><td>150</td></tr>
+  </tbody>
+</table>
+<p>Five consecutive days. Days 4 and 5 hold the <strong>same value</strong> (150) &mdash; useful for showing that <code>LAG</code>/<code>LEAD</code> report the neighbouring <em>value</em> faithfully even when it is a repeat. The first and last rows are the edge cases: one has no predecessor, the other no successor.</p>
+
+<h4>2. The SQL &mdash; <code>LAG / LEAD over date order</code></h4>
+<pre><code>SELECT metric_date, value,
+  LAG(value)  OVER (ORDER BY metric_date) AS prev,
+  LEAD(value) OVER (ORDER BY metric_date) AS next
+FROM metrics;</code></pre>
+<p><code>LAG(value)</code> pulls <code>value</code> from the row one position earlier in the ordering; <code>LEAD(value)</code> pulls it from one position later. The <code>ORDER BY metric_date</code> inside <code>OVER</code> defines what "earlier" and "later" mean.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>prev</th><th>next</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>100</td><td><em>NULL</em></td><td>120</td></tr>
+    <tr><td>2026-01-02</td><td>120</td><td>100</td><td>90</td></tr>
+    <tr><td>2026-01-03</td><td>90</td><td>120</td><td>150</td></tr>
+    <tr><td>2026-01-04</td><td>150</td><td>90</td><td>150</td></tr>
+    <tr><td>2026-01-05</td><td>150</td><td>150</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>The first row's <code>prev</code> is <strong>NULL</strong> &mdash; nothing precedes Jan 1. The last row's <code>next</code> is <strong>NULL</strong> &mdash; nothing follows Jan 5. Every interior row sees both neighbours. Day 4 and Day 5 both show 150 in adjacent cells; the function does not collapse repeats.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The endpoint NULLs and the third argument</h5>
+<p><code>LAG</code> at the first row and <code>LEAD</code> at the last row have nothing to point at, so they return NULL. If a downstream day-over-day delta will compute <code>value - prev</code>, that NULL propagates &mdash; the first row's delta becomes NULL. Supply a default with the third argument:</p>
+<pre><code>LAG(value, 1, 0)  OVER (ORDER BY metric_date) AS prev
+-- offset 1, default 0 when there is no prior row</code></pre>
+<p>Whether 0 is the right default is a business call (for a delta you might prefer the row's own value, so the first delta is 0). The point is to choose, not to let NULL leak.</p>
+
+<h5>The missing-day trap &mdash; positional, not calendar</h5>
+<p><code>LAG</code> steps one <em>row</em> back, not one <em>day</em> back. If Jan 3 is absent from the table, Jan 4's <code>prev</code> becomes Jan 2's value &mdash; a two-day gap silently treated as one step, and any "daily change" computed from it is wrong. <code>LAG</code> cannot know the calendar. For true calendar-adjacency, either generate a complete date spine and left-join the metrics onto it, or use a range-based self-join on <code>metric_date = d - INTERVAL '1 day'</code>. Always ask whether the series can have gaps.</p>
+
+<h5>Computing the delta &mdash; the actual goal</h5>
+<p>Nobody wants <code>prev</code> for its own sake; they want the change. Day-over-day movement and percentage:</p>
+<pre><code>SELECT metric_date, value,
+       value - LAG(value) OVER (ORDER BY metric_date) AS dod_change,
+       ROUND( (value - LAG(value) OVER w) * 100.0
+              / NULLIF(LAG(value) OVER w, 0), 1) AS dod_pct
+FROM metrics
+WINDOW w AS (ORDER BY metric_date);</code></pre>
+<p>The named <code>WINDOW</code> clause defines the frame once and reuses it &mdash; cleaner than repeating <code>OVER (ORDER BY metric_date)</code> three times. <code>NULLIF(..., 0)</code> guards against a divide-by-zero when yesterday's value was 0.</p>
+
+<h5><code>PARTITION BY</code> &mdash; the multi-series follow-up</h5>
+<p>The moment the table has more than one metric (a <code>metric_name</code> column), an un-partitioned <code>LAG</code> bleeds across series &mdash; the first row of "latency" would pull its <code>prev</code> from the last row of "throughput". Partition to isolate each series:</p>
+<pre><code>LAG(value) OVER (PARTITION BY metric_name ORDER BY metric_date)</code></pre>
+<p><code>LAG</code> resets at every partition boundary, so each series independently gets a NULL on its own first row.</p>
+
+<h5>The <code>ORDER BY</code> inside <code>OVER</code> is mandatory and load-bearing</h5>
+<p><code>LAG</code>/<code>LEAD</code> are meaningless without an explicit <code>ORDER BY</code> in the window &mdash; "previous" needs a defined sequence. The <code>ORDER BY</code> at the end of the <code>SELECT</code> sorts the <em>output</em>; it does not feed the window. They are two separate orderings and confusing them is a classic mistake. Ties in the window's ordering make <code>LAG</code> non-deterministic about which peer counts as "previous" &mdash; add a tiebreaker column if dates can repeat.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain the endpoint NULLs and use <code>LAG</code>'s third (default) argument deliberately, warn that <code>LAG</code> is positional so missing days corrupt deltas, add <code>PARTITION BY</code> the instant multiple series exist, guard percentage deltas with <code>NULLIF</code>, and keep the window <code>ORDER BY</code> distinct from the output <code>ORDER BY</code>.</div>

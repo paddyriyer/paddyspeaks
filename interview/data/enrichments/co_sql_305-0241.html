@@ -1,0 +1,71 @@
+<p>Barclays' merchandising team wants the three best-selling products in every region for a category review. "Top 3 per group" is the canonical window-function interview question &mdash; it tests whether you can aggregate and rank in the same query, and whether you pick a ranking function whose tie behaviour matches what "top 3" is supposed to mean.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>product_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>West</td><td>1</td><td>100</td></tr>
+    <tr><td>West</td><td>1</td><td>50</td></tr>
+    <tr><td>West</td><td>2</td><td>120</td></tr>
+    <tr><td>West</td><td>3</td><td>90</td></tr>
+    <tr><td>West</td><td>4</td><td>30</td></tr>
+    <tr><td>East</td><td>5</td><td>200</td></tr>
+    <tr><td>East</td><td>6</td><td>200</td></tr>
+    <tr><td>East</td><td>7</td><td>40</td></tr>
+  </tbody>
+</table>
+<p>Each product can have several sale rows &mdash; product 1 in West appears twice, so totals must be aggregated first. East has a <strong>tie</strong>: products 5 and 6 both total 200. With only three East products that tie is harmless here, but it is the seed of the edge case discussed below.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER within region</code></h4>
+<pre><code>SELECT region, product_id, total FROM (
+  SELECT region, product_id, SUM(amount) AS total,
+    ROW_NUMBER() OVER (PARTITION BY region ORDER BY SUM(amount) DESC) rn
+  FROM sales GROUP BY region, product_id) t WHERE rn &lt;= 3;</code></pre>
+<p>The inner query groups by <code>(region, product_id)</code> to get per-product totals, then <code>ROW_NUMBER()</code> numbers the products 1, 2, 3, &hellip; within each region by descending total. The outer query keeps numbers <code>&le; 3</code>. You cannot filter on a window function in the same <code>SELECT</code> that defines it &mdash; hence the subquery.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>product_id</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>6</td><td>200</td></tr>
+    <tr><td>East</td><td>5</td><td>200</td></tr>
+    <tr><td>East</td><td>7</td><td>40</td></tr>
+    <tr><td>West</td><td>1</td><td>150</td></tr>
+    <tr><td>West</td><td>2</td><td>120</td></tr>
+    <tr><td>West</td><td>3</td><td>90</td></tr>
+  </tbody>
+</table>
+<p>West's product 1 totals 150 (100 + 50) and tops its region; products 4 (total 30) is correctly dropped as the 4th. In East, products 5 and 6 are tied at 200 &mdash; <code>ROW_NUMBER</code> still assigned them <em>distinct</em> numbers (1 and 2), and which one got "1" was decided arbitrarily by the planner. That is fine when both are inside the top 3, but it is a landmine at the boundary.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The tie-at-the-boundary trap &mdash; <code>ROW_NUMBER</code> vs <code>RANK</code></h5>
+<p>Imagine three products tied for 3rd place. <code>ROW_NUMBER</code> assigns them rn 3, 4, 5 and keeps exactly one &mdash; chosen non-deterministically. Is that what "top 3" means, or should all three co-3rd products survive? If ties must all be kept, use <code>RANK()</code>:</p>
+<pre><code>SELECT region, product_id, total FROM (
+  SELECT region, product_id, SUM(amount) AS total,
+    RANK() OVER (PARTITION BY region ORDER BY SUM(amount) DESC) rk
+  FROM sales GROUP BY region, product_id) t WHERE rk &lt;= 3;</code></pre>
+<p>This can return four or more rows for a region. <code>ROW_NUMBER</code> guarantees exactly three but picks arbitrarily among ties; <code>RANK</code> keeps every tied product but can exceed three. Naming that tradeoff out loud is the senior move &mdash; and adding a deterministic tiebreaker (<code>ORDER BY SUM(amount) DESC, product_id</code>) at least makes <code>ROW_NUMBER</code> reproducible.</p>
+
+<h5>Why <code>ORDER BY SUM(amount)</code> works inside <code>OVER</code></h5>
+<p>It can look odd to call <code>SUM(amount)</code> in a window <code>ORDER BY</code>, but it is legal: the query is already grouped by <code>(region, product_id)</code>, so <code>SUM(amount)</code> is a per-group scalar the window can sort on. You could alias it &mdash; but the alias <code>total</code> is not visible to the window clause in the same <code>SELECT</code>, so repeating <code>SUM(amount)</code> is the standard workaround.</p>
+
+<h5>Top-N with a CTE &mdash; the same query, more readable</h5>
+<p>For review-friendly SQL, lift the inner query into a CTE:</p>
+<pre><code>WITH product_totals AS (
+  SELECT region, product_id, SUM(amount) AS total
+  FROM sales GROUP BY region, product_id),
+ranked AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY region ORDER BY total DESC) rn
+  FROM product_totals)
+SELECT region, product_id, total FROM ranked WHERE rn &lt;= 3
+ORDER BY region, rn;</code></pre>
+<p>Note the CTE form lets the second stage reference the <code>total</code> alias directly. Functionally identical to the subquery; just easier to read and to extend.</p>
+
+<h5>Regions with fewer than three products</h5>
+<p>If a region has only one or two products, the query simply returns one or two rows for it &mdash; no error, no padding. That is almost always the desired behaviour, but if a report needs exactly three slots per region (with blanks), that is a presentation concern, not a SQL one. Worth a sentence to the interviewer so the expectation is explicit.</p>
+
+<h5>Add an explicit final <code>ORDER BY</code></h5>
+<p>The <code>WHERE rn &lt;= 3</code> filter does not impose output order &mdash; rows can come back in any sequence (the demo happens to show East before West). For a deterministic, presentable result, end with <code>ORDER BY region, total DESC</code> (or <code>, rn</code>). The window <code>ORDER BY</code> controls numbering, not the final row order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> aggregate before ranking, know that you must wrap a window function in a subquery or CTE to filter on it, and consciously choose <code>ROW_NUMBER</code> (exactly three, arbitrary among ties) versus <code>RANK</code> (keeps all ties, may exceed three) based on what "top 3" means for the business &mdash; then add a deterministic tiebreaker and a final <code>ORDER BY</code>.</div>

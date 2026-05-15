@@ -1,0 +1,60 @@
+<p>X's growth team wants customer counts broken out by city to decide where to run regional campaigns. The query is a one-line <code>GROUP BY</code> &mdash; but the interviewer is watching whether you notice the rows with <em>no</em> city, whether you reach for <code>COUNT(*)</code> or <code>COUNT(column)</code> on purpose, and whether you sort and clean the output the way a real dashboard needs.</p>
+
+<h4>1. The source data &mdash; <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>city</th><th>name</th><th>country</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>London</td><td>Ann</td><td>UK</td></tr>
+    <tr><td>2</td><td>London</td><td>Ben</td><td>UK</td></tr>
+    <tr><td>3</td><td>Paris</td><td>Cara</td><td>FR</td></tr>
+    <tr><td>4</td><td><em>NULL</em></td><td>Dan</td><td>FR</td></tr>
+    <tr><td>5</td><td>Berlin</td><td>Eve</td><td>DE</td></tr>
+    <tr><td>6</td><td>London</td><td>Fay</td><td>UK</td></tr>
+  </tbody>
+</table>
+<p>Three customers are in London. The interesting row is <strong>Dan</strong>, whose <code>city</code> is <strong>NULL</strong> &mdash; he never filled it in. Whether that row gets its own bucket or vanishes is the whole question.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY city</code></h4>
+<pre><code>SELECT city, COUNT(*) AS customers FROM customers GROUP BY city;</code></pre>
+<p>One group per distinct <code>city</code> value, and <code>COUNT(*)</code> counts the rows that fell into each group.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>city</th><th>customers</th></tr></thead>
+  <tbody>
+    <tr><td><em>NULL</em></td><td>1</td></tr>
+    <tr><td>Paris</td><td>1</td></tr>
+    <tr><td>Berlin</td><td>1</td></tr>
+    <tr><td>London</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Four groups. Crucially, <code>GROUP BY</code> treats <strong>all NULLs as one group</strong> &mdash; so Dan lands in a real <code>NULL</code> bucket with a count of 1, rather than disappearing. The row order is arbitrary: no <code>ORDER BY</code> means the engine returns groups in whatever order is convenient.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>GROUP BY</code> keeps NULL &mdash; <code>COUNT(column)</code> would have dropped it differently</h5>
+<p>Two NULL behaviours collide here, and a senior answer separates them. <code>GROUP BY city</code> folds every NULL-city row into a <em>single</em> group (NULL is "equal to" NULL for grouping, unlike in <code>WHERE</code>). Meanwhile <code>COUNT(*)</code> counts rows, so that group shows 1. If you had written <code>COUNT(city)</code>, it counts only non-NULL values &mdash; the NULL group would still appear as a row but with count <code>0</code>. For "how many customers," <code>COUNT(*)</code> is right; <code>COUNT(city)</code> would be a subtle bug.</p>
+
+<h5>Making the NULL bucket presentable</h5>
+<p>A "NULL" row on a regional dashboard looks like a defect. Label it explicitly so stakeholders see it is intentional:</p>
+<pre><code>SELECT COALESCE(city, 'Unknown') AS city, COUNT(*) AS customers
+FROM customers
+GROUP BY COALESCE(city, 'Unknown')
+ORDER BY customers DESC;</code></pre>
+<p>Note the <code>GROUP BY</code> repeats the expression &mdash; standard SQL groups by the underlying expression, not the <code>SELECT</code> alias. (Postgres tolerates grouping by alias or position; being explicit is the portable habit.)</p>
+
+<h5>Sort the output &mdash; never ship an unordered group result</h5>
+<p>Our result came back NULL, Paris, Berlin, London &mdash; no logic to it. A grouped query without <code>ORDER BY</code> has an <em>undefined</em> row order that can change between runs or after a plan change. A campaign-targeting report wants <code>ORDER BY customers DESC</code> (biggest cities first) or <code>ORDER BY city</code> (alphabetical). Always state the sort.</p>
+
+<h5>Only counting cities above a threshold &mdash; <code>HAVING</code></h5>
+<p>If the ask narrows to "cities with at least 3 customers," that is a post-aggregation filter &mdash; <code>HAVING</code>, not <code>WHERE</code>:</p>
+<pre><code>SELECT city, COUNT(*) AS customers
+FROM customers
+GROUP BY city
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p><code>WHERE</code> filters rows before grouping and cannot see <code>COUNT(*)</code>; <code>HAVING</code> filters groups after. Mixing them up is the classic aggregation mistake.</p>
+
+<h5>City names that are not really distinct</h5>
+<p><code>'London'</code>, <code>'london'</code>, and <code>'London '</code> are three different groups to <code>GROUP BY</code>. Dirty input fragments your buckets and undercounts every city. If the data is not trusted, normalise: <code>GROUP BY lower(trim(city))</code>. And "London, UK" vs "London, CA" is a genuine collision &mdash; grouping by <code>(country, city)</code> may be the honest key.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> note that <code>GROUP BY</code> collapses NULL cities into one real bucket (and label it with <code>COALESCE</code>), choose <code>COUNT(*)</code> over <code>COUNT(city)</code> deliberately, always attach an <code>ORDER BY</code> to a grouped report, and reach for <code>HAVING</code> &mdash; not <code>WHERE</code> &mdash; when filtering on the count.</div>

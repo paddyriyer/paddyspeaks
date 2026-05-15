@@ -1,0 +1,64 @@
+<p>Zscaler's customer-success team wants the average order size for VIP customers, to decide whether the VIP tier is pulling its weight on revenue. The data spans two tables: <code>customers</code> carries the <code>is_vip</code> flag, <code>orders</code> carries the amounts. The query joins them and averages. The interviewer is watching the join grain, the <code>is_vip</code> type, and the subtle difference between "average order" and "average per customer".</p>
+
+<h4>1. The source data</h4>
+<table>
+  <thead><tr><th colspan="3"><code>customers</code></th></tr><tr><th>customer_id</th><th>is_vip</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>A</td></tr>
+    <tr><td>2</td><td>0</td><td>B</td></tr>
+    <tr><td>3</td><td>1</td><td>C</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="2"><code>orders</code></th></tr><tr><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>200</td></tr>
+    <tr><td>1</td><td>400</td></tr>
+    <tr><td>2</td><td>100</td></tr>
+    <tr><td>3</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 is a VIP with <strong>two orders</strong>; customer 3 is a VIP with <strong>one</strong>. Customer 2 is not a VIP and must be excluded. The uneven order counts (2 vs 1) are the trap: they make "average order" and "average customer spend" diverge.</p>
+
+<h4>2. The SQL &mdash; <code>JOIN + filtered AVG</code></h4>
+<pre><code>SELECT AVG(o.amount) AS vip_avg
+FROM customers c JOIN orders o ON c.customer_id = o.customer_id
+WHERE c.is_vip::int = 1;</code></pre>
+<p>An inner join pairs each order with its customer, the <code>WHERE</code> keeps only VIP customers' orders, and <code>AVG</code> averages the amounts of whatever rows survive.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>vip_avg</th></tr></thead>
+  <tbody>
+    <tr><td>400.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Three VIP <em>orders</em> survive the join &mdash; 200, 400, 600 &mdash; summing to 1200, and 1200 &divide; 3 = 400. This is the average <strong>order</strong>, not the average <strong>customer</strong>. Customer 1's two orders each count once, so customer 1 is weighted twice as heavily as customer 3 in the result.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>"Average order" vs "average customer" &mdash; the grain question</h5>
+<p>The query averages over <em>orders</em>: each order is one data point. Customer 1 contributes two points (200, 400), customer 3 contributes one (600). So a frequent-buyer skews the number. If the question means "what does a typical VIP customer spend", that is a two-level aggregation &mdash; sum per customer first, then average the per-customer totals:</p>
+<pre><code>SELECT AVG(cust_total) AS avg_vip_customer
+FROM (
+  SELECT o.customer_id, SUM(o.amount) AS cust_total
+  FROM customers c JOIN orders o ON c.customer_id = o.customer_id
+  WHERE c.is_vip::int = 1
+  GROUP BY o.customer_id
+) t;
+-- AVG(600, 600) = 600, not 400</code></pre>
+<p>Customer 1 totals 600, customer 3 totals 600, average 600. Same data, a 50&percnt; different headline &mdash; purely a grain decision. Naming "average order or average customer?" before writing SQL is the senior move.</p>
+
+<h5><code>is_vip::int = 1</code> &mdash; what the cast is defending against</h5>
+<p>The <code>::int</code> cast hints that <code>is_vip</code> is stored inconsistently &mdash; perhaps a boolean, perhaps text <code>'1'</code>/<code>'0'</code>, perhaps a smallint. Casting normalises it before comparison. But casts hide assumptions: if <code>is_vip</code> were the text <code>'yes'</code>, <code>'yes'::int</code> would throw. The robust move is to know the column's real type. If it is a genuine boolean, the idiomatic filter is simply <code>WHERE c.is_vip</code> &mdash; no cast, no literal. If it is nullable, <code>c.is_vip IS TRUE</code> handles the NULL case cleanly.</p>
+
+<h5>The inner join silently excludes VIPs who never ordered</h5>
+<p><code>INNER JOIN</code> keeps only customers with at least one order. A VIP who has never placed an order contributes nothing &mdash; which is correct for "average order size" (they have no orders to average). But beware the related question "average revenue per VIP": there, a zero-order VIP <em>should</em> count as 0, so you would need a <code>LEFT JOIN</code> and <code>COALESCE</code>. The join type encodes which question you are answering.</p>
+
+<h5>Status and the meaning of "order"</h5>
+<p>The <code>orders</code> table has a <code>status</code> column not used here. Cancelled or pending orders are sitting inside the average. "Average order size" almost always means realised orders &mdash; add <code>AND o.status = 'completed'</code>. Otherwise a VIP's abandoned $5,000 cart drags the metric around.</p>
+
+<h5>Edge case: no VIP customers, or VIPs with no orders</h5>
+<p>If no customer is a VIP &mdash; or every VIP has zero orders &mdash; the join produces no rows and <code>AVG</code> returns <strong>NULL</strong>, not 0. A scorecard tile expecting a number needs <code>COALESCE(AVG(o.amount), 0)</code>. Mention it: an empty aggregate is NULL, and that NULL will surface the first time the VIP segment is empty.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish "average order" (average over order rows) from "average customer spend" (per-customer sum, then average) and confirm which the stakeholder means, treat the <code>::int</code> cast as a flag to verify <code>is_vip</code>'s real type rather than trust it, add the <code>status = 'completed'</code> filter, and note the empty-segment NULL.</div>

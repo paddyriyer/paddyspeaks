@@ -1,0 +1,63 @@
+<p>NVIDIA's finance team wants a customer-by-year revenue grid &mdash; one row per customer, one column per fiscal year &mdash; the shape a spreadsheet wants but a normalised <code>orders</code> table does not store. This is a <em>pivot</em>: turning row values (the year) into columns. Postgres has no native <code>PIVOT</code> keyword, so the idiom is conditional aggregation. The interview tests whether you know that idiom and what its empty cells mean.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>year</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2024</td><td>$500</td></tr>
+    <tr><td>2</td><td>101</td><td>2025</td><td>$700</td></tr>
+    <tr><td>3</td><td>101</td><td>2026</td><td>$300</td></tr>
+    <tr><td>4</td><td>102</td><td>2024</td><td>$1,000</td></tr>
+    <tr><td>5</td><td>102</td><td>2026</td><td>$250</td></tr>
+    <tr><td>6</td><td>103</td><td>2025</td><td>$400</td></tr>
+    <tr><td>7</td><td>103</td><td>2025</td><td>$600</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 ordered in all three years. Customer 102 <em>skipped</em> 2025 entirely &mdash; the missing-cell case. Customer 103 ordered <em>twice</em> in 2025 ($400 and $600) and never in 2024 or 2026 &mdash; the case that tests whether the aggregate sums correctly within a cell.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(CASE&hellip;) conditional pivot</code></h4>
+<pre><code>SELECT customer_id,
+  SUM(CASE WHEN year=2024 THEN amount END) AS y2024,
+  SUM(CASE WHEN year=2025 THEN amount END) AS y2025,
+  SUM(CASE WHEN year=2026 THEN amount END) AS y2026
+FROM orders GROUP BY customer_id;</code></pre>
+<p>One <code>GROUP BY customer_id</code> collapses to one row per customer. Each <code>SUM(CASE&hellip;)</code> is a filtered total: the <code>CASE</code> returns <code>amount</code> only for its target year and <code>NULL</code> otherwise, and <code>SUM</code> ignores those NULLs.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>y2024</th><th>y2025</th><th>y2026</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>500.00</td><td>700.00</td><td>300.00</td></tr>
+    <tr><td>103</td><td><em>NULL</em></td><td>1000.00</td><td><em>NULL</em></td></tr>
+    <tr><td>102</td><td>1000.00</td><td><em>NULL</em></td><td>250.00</td></tr>
+  </tbody>
+</table>
+<p>Three customers, three year columns. Customer 103's <code>y2025</code> is <strong>1000.00</strong> &mdash; the two 2025 orders ($400 + $600) summed inside one cell, exactly as a pivot should. Customer 102's <code>y2025</code> is <strong>NULL</strong> &mdash; no 2025 orders, so the <code>CASE</code> never fired and <code>SUM</code> over an all-NULL set returns NULL. The rows come back in no particular order.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The empty cell is NULL, not 0 &mdash; decide which you want</h5>
+<p>Customer 102's missing 2025 shows as NULL, because <code>SUM</code> of zero non-NULL inputs is NULL (not 0). For a finance grid that is usually wrong &mdash; "$0 of revenue" is a fact, "unknown" is not, and NULLs break downstream arithmetic like a row total. Wrap each cell:</p>
+<pre><code>SUM(CASE WHEN year=2024 THEN amount END) -- becomes
+COALESCE(SUM(CASE WHEN year=2024 THEN amount END), 0) AS y2024</code></pre>
+<p>Now a year with no orders reads as <code>0</code>. State the choice explicitly: a NULL says "no data", a 0 says "we looked and there was none".</p>
+
+<h5><code>SUM(CASE&hellip;)</code> vs the cleaner <code>FILTER</code> form</h5>
+<p>Postgres offers an aggregate <code>FILTER</code> clause that says the same thing more directly:</p>
+<pre><code>SELECT customer_id,
+  SUM(amount) FILTER (WHERE year=2024) AS y2024,
+  SUM(amount) FILTER (WHERE year=2025) AS y2025,
+  SUM(amount) FILTER (WHERE year=2026) AS y2026
+FROM orders GROUP BY customer_id;</code></pre>
+<p>Identical result, but it reads as "sum the 2024 amounts" rather than as arithmetic over a <code>CASE</code>. <code>SUM(CASE&hellip;)</code> remains the portable idiom that works on every engine; <code>FILTER</code> is the idiomatic Postgres choice. Knowing both, and why, is the senior detail.</p>
+
+<h5>The fixed columns are a real limitation</h5>
+<p>The query hard-codes 2024, 2025, 2026. A 2027 order would be silently <em>dropped</em> from every cell &mdash; it matches no <code>CASE</code> branch &mdash; and a 2027 column would simply not exist. A static pivot can only show columns you wrote by hand. Genuinely dynamic year sets need either application code that generates the SQL, or Postgres's <code>crosstab()</code> from the <code>tablefunc</code> extension. Name this ceiling; do not pretend the static query auto-adapts.</p>
+
+<h5><code>SUM</code> vs <code>MAX</code> inside the pivot &mdash; the duplicate-row trap</h5>
+<p>Customer 103 has two 2025 rows, and <code>SUM</code> correctly adds them to $1,000. A common pivot mistake is <code>MAX(CASE WHEN year=2025 THEN amount END)</code>, which is right only when each (customer, year) pair has at most one row &mdash; here it would return $600 and quietly lose the $400. Choose the aggregate to match the question: <code>SUM</code> for "total revenue per year", <code>MAX</code>/<code>MIN</code> for "largest order", <code>COUNT</code> for "number of orders".</p>
+
+<h5>Trust <code>year</code>, or derive it?</h5>
+<p>The schema carries both a <code>year</code> column and an <code>order_date</code>. They can drift &mdash; a backfilled or mis-stamped row might have <code>year = 2025</code> but an <code>order_date</code> in 2024. The robust pivot derives the year from the authoritative timestamp: <code>EXTRACT(YEAR FROM order_date)</code>. Ask which column finance treats as truth, and consider whether a <code>status</code> filter (excluding cancelled orders) belongs in the <code>CASE</code> as well.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise conditional aggregation as the standard pivot idiom, wrap each cell in <code>COALESCE(&hellip;,0)</code> when an empty cell should read as $0 rather than NULL, pick <code>SUM</code> over <code>MAX</code> so duplicate (customer, year) rows aggregate instead of being lost, and flag that the hard-coded year columns cannot adapt to new years without regenerating the query.</div>

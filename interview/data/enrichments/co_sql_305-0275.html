@@ -1,0 +1,72 @@
+<p>Samsung's catalogue spans phones, books, and shirts in one <code>products</code> table, and every category cares about different attributes &mdash; screen size, author, fabric size. The team stores those varying attributes in a single JSONB column so they don't have to alter the schema every time merchandising adds a category. The interview question: can you read a column whose <em>shape</em> depends on a sibling column, without writing a different query per category?</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>attribute_json</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>phone</td><td>{"screen_size": 6.1, "ram_gb": 8, &hellip;}</td></tr>
+    <tr><td>2</td><td>phone</td><td>{"screen_size": 6.7, "ram_gb": 12, &hellip;}</td></tr>
+    <tr><td>3</td><td>book</td><td>{"author": "Ursula K. Le Guin", "pages": 254, &hellip;}</td></tr>
+    <tr><td>4</td><td>book</td><td>{"author": "N.K. Jemisin", "pages": 449, &hellip;}</td></tr>
+    <tr><td>5</td><td>shirt</td><td>{"size": "M", "color": "navy", &hellip;}</td></tr>
+    <tr><td>6</td><td>shirt</td><td>{"size": "L", "color": "olive", &hellip;}</td></tr>
+  </tbody>
+</table>
+<p>The interesting part is that no two categories share a key. A phone has <code>screen_size</code>; a book has <code>author</code>; there is no universal "primary attribute" key. The shape of the document is a function of <code>category</code> &mdash; that is the "dynamic" in the title.</p>
+
+<h4>2. The SQL &mdash; <code>CASE</code> over <code>-&gt;&gt;</code></h4>
+<pre><code>SELECT
+    product_id,
+    category,
+    CASE category
+        WHEN 'phone' THEN attribute_json-&gt;&gt;'screen_size'
+        WHEN 'book'  THEN attribute_json-&gt;&gt;'author'
+        WHEN 'shirt' THEN attribute_json-&gt;&gt;'size'
+    END AS primary_attr,
+    CASE category
+        WHEN 'phone' THEN attribute_json-&gt;&gt;'ram_gb'
+        WHEN 'book'  THEN attribute_json-&gt;&gt;'pages'
+        WHEN 'shirt' THEN attribute_json-&gt;&gt;'color'
+    END AS secondary_attr
+FROM products
+ORDER BY category, product_id;</code></pre>
+<p>The <code>CASE category</code> picks <em>which JSON key</em> to extract per row, simulating a query whose column list changes by category &mdash; all in static SQL.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>primary_attr</th><th>secondary_attr</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>book</td><td>Ursula K. Le Guin</td><td>254</td></tr>
+    <tr><td>4</td><td>book</td><td>N.K. Jemisin</td><td>449</td></tr>
+    <tr><td>1</td><td>phone</td><td>6.1</td><td>8</td></tr>
+    <tr><td>2</td><td>phone</td><td>6.7</td><td>12</td></tr>
+    <tr><td>5</td><td>shirt</td><td>M</td><td>navy</td></tr>
+    <tr><td>6</td><td>shirt</td><td>L</td><td>olive</td></tr>
+  </tbody>
+</table>
+<p>Every row resolves to its category's relevant pair. Note the column type: <code>primary_attr</code> holds a number for phones (<code>6.1</code>), a string for books, a size code for shirts &mdash; it is <code>text</code> for all of them, because that is the only type that can hold all three.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>-&gt;&gt;</code> and not <code>-&gt;</code></h5>
+<p>Postgres has two JSON accessors. <code>-&gt;</code> returns a <code>jsonb</code> value (a quoted JSON scalar: the string <code>"navy"</code> with the quotes); <code>-&gt;&gt;</code> returns the value as plain <code>text</code> (<code>navy</code>, no quotes). A <code>CASE</code> expression must have one return type for all branches, and <code>-&gt;&gt;</code> gives every branch a clean <code>text</code> result. Mixing <code>-&gt;</code> and <code>-&gt;&gt;</code> across branches, or trying to return raw numbers from one branch and strings from another, is a type-mismatch error.</p>
+
+<h5>The missing-key case returns NULL, not an error</h5>
+<p><code>attribute_json-&gt;&gt;'screen_size'</code> on a book row would return <code>NULL</code> &mdash; JSON extraction of an absent key is quietly NULL. That is why the <code>CASE</code> matters: it only ever asks for a key the category is known to have. But a category with no <code>WHEN</code> branch (say a new <code>laptop</code>) falls through to an implicit <code>ELSE NULL</code>. If new categories are expected, add an explicit <code>ELSE</code> or the rows go silently blank.</p>
+
+<h5>The schema lists columns that don't exist here</h5>
+<p>The signature mentions <code>name</code>, <code>price</code>, <code>sku</code>, <code>manufacturer</code> &mdash; the broader product table &mdash; but the JSON pattern only needs <code>category</code> and <code>attribute_json</code>. Don't be thrown: the question is specifically about reading semi-structured data, so solve that and ignore the unused columns.</p>
+
+<h5>A more scalable alternative &mdash; an attribute config table</h5>
+<p>A wall of <code>CASE</code>s grows every time a category appears. The data-driven version stores the mapping in a table and joins to it, so adding a category is an <code>INSERT</code>, not a code change:</p>
+<pre><code>-- attr_config(category, slot, json_key)
+SELECT p.product_id, p.category,
+       p.attribute_json-&gt;&gt;ac.json_key AS attr_value, ac.slot
+FROM products p
+JOIN attr_config ac ON ac.category = p.category;</code></pre>
+<p>This returns one row per attribute (long form) rather than columns; pivot with <code>FILTER</code> if you need the wide shape. Mention this trade-off &mdash; static <code>CASE</code> is fine for three stable categories, the config table wins once categories churn.</p>
+
+<h5>Casting back to a usable type</h5>
+<p>Because everything comes out as <code>text</code>, sorting <code>primary_attr</code> would sort <code>'12'</code> before <code>'8'</code> lexically. If a downstream consumer needs numeric phone RAM, cast inside that branch: <code>(attribute_json-&gt;&gt;'ram_gb')::int</code> &mdash; but then that branch no longer type-matches the string branches, so you would split into per-category queries or keep the numeric work outside the unified <code>CASE</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>-&gt;&gt;</code> for a uniform <code>text</code> result so the <code>CASE</code> branches type-check, know that missing JSON keys return NULL (so an unhandled category goes silently blank), and recognise that a <code>CASE</code> ladder is fine for a few fixed categories but a config-table join is the maintainable pattern once categories proliferate.</div>

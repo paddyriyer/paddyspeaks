@@ -1,0 +1,68 @@
+<p>Accenture's sales operations team runs a quarterly leaderboard: total bookings per rep, ranked best-to-worst, for the commission committee. The catch in any real sales org is that two reps land on exactly the same number, and how the leaderboard handles that tie &mdash; do they share a place, does the next rep get skipped &mdash; is the entire point of asking for <code>DENSE_RANK</code> by name.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>rep_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>500</td></tr>
+    <tr><td>1</td><td>300</td></tr>
+    <tr><td>2</td><td>400</td></tr>
+    <tr><td>2</td><td>400</td></tr>
+    <tr><td>3</td><td>200</td></tr>
+    <tr><td>4</td><td>100</td></tr>
+    <tr><td>4</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Each rep has several deals. Once summed, rep 1 totals 800 and rep 2 also totals 800 &mdash; a <strong>tie at the top</strong>. The interview question is which rank rep 3 (total 200) then receives: 2 or 3?</p>
+
+<h4>2. The SQL &mdash; <code>DENSE_RANK</code> over a grouped sum</h4>
+<pre><code>SELECT rep_id, SUM(amount) AS total,
+  DENSE_RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+FROM sales GROUP BY rep_id;</code></pre>
+<p>The clever part: the window function's <code>ORDER BY</code> references <code>SUM(amount)</code>. Aggregates are computed first, then the window ranks the grouped rows &mdash; you can rank by an aggregate without a subquery.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>rep_id</th><th>total</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>800</td><td>1</td></tr>
+    <tr><td>1</td><td>800</td><td>1</td></tr>
+    <tr><td>3</td><td>200</td><td>2</td></tr>
+    <tr><td>4</td><td>150</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Reps 1 and 2 both get rank <strong>1</strong> &mdash; the tie shares a place. Then rep 3 gets rank <strong>2</strong>, not 3: <code>DENSE_RANK</code> does <em>not</em> leave a gap after a tie. (Within the rank-1 tie, rep 2 prints before rep 1, but that order is arbitrary &mdash; both are rank 1.)</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> &mdash; the gap after a tie</h5>
+<p>Both give tied rows the same rank. They differ on what comes next. After two reps tie at rank 1, <code>RANK()</code> resumes at <strong>3</strong> (it counts rows above you), while <code>DENSE_RANK()</code> resumes at <strong>2</strong> (it counts distinct values above you):</p>
+<pre><code>rep   total   RANK   DENSE_RANK
+2     800     1      1
+1     800     1      1
+3     200     3      2      &lt;- the difference
+4     150     4      3</code></pre>
+<p>For a leaderboard people read as "1st, 2nd, 3rd place", <code>DENSE_RANK</code> matches intuition &mdash; there is no missing "2nd". For competition standings where skipping is expected (two golds, no silver), <code>RANK</code> is right. The question names <code>DENSE_RANK</code>, so the no-gap behaviour is the desired one.</p>
+
+<h5>Why <code>ROW_NUMBER</code> would be wrong here</h5>
+<p><code>ROW_NUMBER()</code> would hand reps 1 and 2 different numbers &mdash; 1 and 2 &mdash; even though they sold identical amounts, breaking the tie on physical row order. Two reps with equal bookings getting different leaderboard places (and possibly different commission tiers) is indefensible. <code>ROW_NUMBER</code> is for "pick exactly one row per group"; genuine ranking with shared places needs <code>RANK</code> or <code>DENSE_RANK</code>.</p>
+
+<h5>Ranking by an aggregate without a subquery</h5>
+<p>People often assume you must first compute totals in a subquery, then rank the outer query. Not so &mdash; a window function's <code>ORDER BY</code> can take an aggregate directly, because window functions execute <em>after</em> <code>GROUP BY</code>. The subquery form is equivalent and sometimes clearer, but it is not required:</p>
+<pre><code>SELECT rep_id, total, DENSE_RANK() OVER (ORDER BY total DESC) AS rk
+FROM (SELECT rep_id, SUM(amount) AS total FROM sales GROUP BY rep_id) t;</code></pre>
+
+<h5>Top-3 reps &mdash; and the dialect note</h5>
+<p>To return only the podium, filter on the rank &mdash; which needs a wrapper, since <code>WHERE</code> cannot reference a window result:</p>
+<pre><code>SELECT * FROM (
+  SELECT rep_id, SUM(amount) AS total,
+         DENSE_RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+  FROM sales GROUP BY rep_id
+) ranked
+WHERE rk &lt;= 3;</code></pre>
+<p>With <code>DENSE_RANK</code>, "top 3" can return more than 3 reps if several tie at rank 3 &mdash; usually what the committee wants. Snowflake/BigQuery would let you write <code>QUALIFY rk &lt;= 3</code>; Postgres has no <code>QUALIFY</code>, so the subquery is the idiom.</p>
+
+<h5>NULL amounts and a rep with no sales</h5>
+<p><code>SUM</code> ignores NULL <code>amount</code>s, and a rep present only with NULL deals sums to NULL; <code>ORDER BY &hellip; DESC</code> places NULL totals first by default in Postgres &mdash; an unsold rep wrongly topping the board. And a rep with <em>no rows at all</em> in <code>sales</code> simply does not appear; if the leaderboard must list every rep, start from a <code>reps</code> table and <code>LEFT JOIN</code>, with <code>COALESCE(SUM(amount), 0)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>DENSE_RANK</code> shares a rank for ties and resumes with no gap (rep 3 is 2nd, not 3rd) whereas <code>RANK</code> skips, reject <code>ROW_NUMBER</code> because equal sellers must not get different places, and know window functions can rank an aggregate directly without a subquery.</div>

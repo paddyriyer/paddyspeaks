@@ -1,0 +1,65 @@
+<p>IBM's revenue desk wants the yearly sales report laid out the way a spreadsheet shows it: one row per year, one column per region. The source is long-format &mdash; one row per (year, region) &mdash; so this is a pivot. The interviewer wants to see the conditional-aggregation idiom and whether you notice what happens to a region with no data.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>year</th><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2023</td><td>NA</td><td>100</td></tr>
+    <tr><td>2023</td><td>EU</td><td>80</td></tr>
+    <tr><td>2023</td><td>NA</td><td>50</td></tr>
+    <tr><td>2024</td><td>EU</td><td>120</td></tr>
+    <tr><td>2024</td><td>APAC</td><td>90</td></tr>
+    <tr><td>2024</td><td>NA</td><td>70</td></tr>
+  </tbody>
+</table>
+<p>Two things to notice. 2023 has <strong>two NA rows</strong> (100 and 50) that must be summed, not just picked. And 2023 has <strong>no APAC row at all</strong> &mdash; the edge case that decides whether that cell shows 0 or NULL.</p>
+
+<h4>2. The SQL &mdash; <code>conditional aggregation</code></h4>
+<pre><code>SELECT year,
+  SUM(CASE WHEN region='NA'   THEN amount END) AS na,
+  SUM(CASE WHEN region='EU'   THEN amount END) AS eu,
+  SUM(CASE WHEN region='APAC' THEN amount END) AS apac
+FROM sales
+GROUP BY year;</code></pre>
+<p>Each <code>SUM(CASE &hellip;)</code> sums <code>amount</code> only for rows of one region and contributes <code>NULL</code> for the others. <code>GROUP BY year</code> collapses all rows of a year into a single output row &mdash; one column per region.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>na</th><th>eu</th><th>apac</th></tr></thead>
+  <tbody>
+    <tr><td>2024</td><td>70</td><td>120</td><td>90</td></tr>
+    <tr><td>2023</td><td>150</td><td>80</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>2023's <code>na</code> is <strong>150</strong> &mdash; the two NA rows summed, exactly what conditional <em>aggregation</em> (not a lookup) gets right. And 2023's <code>apac</code> is <strong>NULL</strong>, not 0: with no APAC row, every <code>CASE</code> returned NULL, and <code>SUM</code> of nothing is NULL. Whether that should be 0 is a product decision.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The "empty cell" question &mdash; NULL or 0?</h5>
+<p>A NULL <code>apac</code> for 2023 means "no APAC sales were recorded" &mdash; which could be genuine ($0 of business) or a data gap. They display differently and behave differently in arithmetic (<code>NULL + 5</code> is NULL). If the report should read 0, wrap each column:</p>
+<pre><code>SELECT year,
+  COALESCE(SUM(CASE WHEN region='NA' THEN amount END), 0) AS na,
+  COALESCE(SUM(CASE WHEN region='EU' THEN amount END), 0) AS eu,
+  COALESCE(SUM(CASE WHEN region='APAC' THEN amount END), 0) AS apac
+FROM sales GROUP BY year;</code></pre>
+<p>Equivalently, move the zero inside: <code>SUM(CASE WHEN region='APAC' THEN amount ELSE 0 END)</code>. Subtle difference &mdash; the <code>ELSE 0</code> form returns 0 even for a year with <em>zero rows entirely</em>, whereas <code>COALESCE</code> wraps the final sum. State which you mean.</p>
+
+<h5>Why <code>SUM(CASE&hellip;)</code> beats <code>MAX(CASE&hellip;)</code></h5>
+<p>A common pivot variant uses <code>MAX(CASE WHEN region='NA' THEN amount END)</code>. That works <em>only</em> when each (year, region) pair has at most one row. Here 2023 has two NA rows &mdash; <code>MAX</code> would return 100 and silently drop the 50. Use <code>SUM</code> when the cell is an additive measure; <code>MAX</code> only for a genuine one-row-per-cell lookup. Picking the wrong one is a silent data-loss bug.</p>
+
+<h5>The native <code>FILTER</code> clause &mdash; cleaner Postgres</h5>
+<p>Postgres offers a more readable form of the same idea:</p>
+<pre><code>SELECT year,
+  SUM(amount) FILTER (WHERE region='NA')   AS na,
+  SUM(amount) FILTER (WHERE region='EU')   AS eu,
+  SUM(amount) FILTER (WHERE region='APAC') AS apac
+FROM sales GROUP BY year;</code></pre>
+<p><code>FILTER</code> is standard SQL and states intent directly. <code>SUM(CASE&hellip;)</code> is the portable fallback that works on every engine. Mention both and the trade-off.</p>
+
+<h5>The hard-coded-columns limitation</h5>
+<p>This query bakes <code>NA</code>, <code>EU</code>, <code>APAC</code> into the SQL. A new region &mdash; say <code>LATAM</code> &mdash; will <em>not</em> appear until someone edits the query; its sales just vanish from the report. SQL pivots are inherently static: the column list must be known at write time. A truly dynamic pivot needs either a code generator that inspects <code>DISTINCT region</code> first, or Postgres's <code>crosstab()</code> from the <code>tablefunc</code> extension. Naming this limitation is the senior move.</p>
+
+<h5>NULLs in the <code>amount</code> column itself</h5>
+<p>Separate from empty cells: if a recorded sales row has <code>amount = NULL</code>, <code>SUM</code> simply skips it &mdash; usually fine. But a NULL <code>region</code> is silently excluded from <em>every</em> region column, so its <code>amount</code> disappears from the report entirely. If region can be NULL, add a catch-all column <code>SUM(amount) FILTER (WHERE region IS NULL) AS unknown</code> so the totals still reconcile.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>SUM(CASE&hellip;)</code> not <code>MAX</code> so multiple rows per cell aggregate correctly, decide deliberately whether an empty cell is NULL or 0, prefer the <code>FILTER</code> clause for readability in Postgres, and flag that the region columns are hard-coded so a new region needs a query change.</div>

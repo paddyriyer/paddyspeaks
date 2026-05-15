@@ -1,0 +1,61 @@
+<p>Bloomberg's marketing-ops team measures every campaign by ROAS &mdash; return on ad spend, revenue divided by spend. The data lives in two tables: <code>campaigns</code> holds the budget, <code>sales</code> holds the attributed revenue rows. The query joins them, sums revenue per campaign, and computes the ratio. The interviewer is watching the join type and the divide-by-zero guard &mdash; a campaign that spent money but drove zero sales is the case that breaks naive answers.</p>
+
+<h4>1. The source data</h4>
+<table>
+  <thead><tr><th colspan="3"><code>campaigns</code></th></tr><tr><th>campaign_id</th><th>name</th><th>spend</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Spring</td><td>1000</td></tr>
+    <tr><td>2</td><td>Summer</td><td>2000</td></tr>
+    <tr><td>3</td><td>Winter</td><td>0</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="2"><code>sales</code></th></tr><tr><th>campaign_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1500</td></tr>
+    <tr><td>1</td><td>2500</td></tr>
+    <tr><td>2</td><td>1800</td></tr>
+    <tr><td>3</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. <strong>Winter has <code>spend = 0</code></strong> &mdash; a divide-by-zero waiting to happen. And if a campaign had zero sales rows, an inner join would drop it entirely; the <code>LEFT JOIN</code> exists to keep it. Both are deliberate.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN + NULLIF</code></h4>
+<pre><code>SELECT c.name, SUM(s.amount) AS revenue, c.spend, SUM(s.amount)/NULLIF(c.spend,0) AS roas
+FROM campaigns c LEFT JOIN sales s ON c.campaign_id = s.campaign_id
+GROUP BY c.name, c.spend;</code></pre>
+<p>Every campaign survives the join; revenue is summed per campaign; <code>NULLIF(c.spend, 0)</code> turns a zero spend into NULL so the division yields NULL instead of erroring.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>revenue</th><th>spend</th><th>roas</th></tr></thead>
+  <tbody>
+    <tr><td>Spring</td><td>4000</td><td>1000</td><td>4.0000000000000000</td></tr>
+    <tr><td>Summer</td><td>1800</td><td>2000</td><td>0.90000000000000000000</td></tr>
+    <tr><td>Winter</td><td>600</td><td>0</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Spring returns 4x its spend; Summer lost money (ROAS below 1.0). Winter's <code>roas</code> is <strong>NULL</strong> &mdash; <code>NULLIF</code> converted the zero spend, so <code>600 / NULL = NULL</code>. No error, but a NULL the dashboard must be ready to render (an "n/a" or "&infin;").</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>NULLIF</code> &mdash; the divide-by-zero guard</h5>
+<p><code>x / 0</code> raises <code>division by zero</code> in Postgres and aborts the whole query &mdash; one bad row kills every campaign's number. <code>NULLIF(c.spend, 0)</code> says "if spend equals 0, treat it as NULL", and dividing by NULL yields NULL, which is harmless. It is the standard, portable guard. The alternative <code>CASE WHEN c.spend = 0 THEN NULL ELSE SUM(s.amount)/c.spend END</code> is equivalent but wordier. Either way, the <em>intent</em> &mdash; "a campaign with no spend has no defined ROAS" &mdash; should be stated, because NULL is a real business answer here, not just an error dodge.</p>
+
+<h5>Why <code>LEFT JOIN</code> and not <code>INNER JOIN</code></h5>
+<p>An <code>INNER JOIN</code> keeps only campaigns that have at least one matching sales row. A campaign that spent budget and drove <em>zero</em> sales would silently disappear &mdash; and that is exactly the campaign marketing-ops most needs to see (it has the worst possible ROAS: 0). <code>LEFT JOIN</code> keeps every campaign; a sales-less campaign gets NULL for <code>s.amount</code>, and <code>SUM</code> over only-NULLs returns NULL. If the report should show 0 revenue rather than NULL, wrap it: <code>COALESCE(SUM(s.amount), 0)</code> &mdash; and then ROAS becomes a real <code>0 / spend = 0</code>.</p>
+
+<h5>The double-counting trap when a campaign joins many sales</h5>
+<p>Spring has two sales rows, so the join produces two rows for Spring before aggregation &mdash; correct here, because <code>SUM</code> is meant to add them (1500 + 2500 = 4000). But the trap appears the moment you add a <em>second</em> one-to-many join (say, <code>clicks</code>): the two joins multiply, and <code>SUM(s.amount)</code> double-counts. The fix is to pre-aggregate each side in its own subquery before joining:</p>
+<pre><code>SELECT c.name, c.spend, sr.revenue, sr.revenue / NULLIF(c.spend, 0) AS roas
+FROM campaigns c
+LEFT JOIN (SELECT campaign_id, SUM(amount) AS revenue FROM sales GROUP BY campaign_id) sr
+  ON sr.campaign_id = c.campaign_id;</code></pre>
+
+<h5><code>GROUP BY name</code> is fragile &mdash; group by the key</h5>
+<p>The query groups by <code>c.name</code>. If two distinct campaigns share a name (a re-run "Spring" in a later year), their revenue silently merges into one row. Group by the primary key instead &mdash; <code>GROUP BY c.campaign_id, c.name, c.spend</code> &mdash; so each campaign stays its own row even with a duplicate name. Grouping by a non-unique label is a subtle correctness bug.</p>
+
+<h5>Edge case: a sales row with no parent campaign</h5>
+<p>If <code>sales</code> contains a <code>campaign_id</code> that does not exist in <code>campaigns</code> (orphaned attribution), the <code>LEFT JOIN</code> from <code>campaigns</code> simply never sees it &mdash; that revenue is dropped from every total. That may be desired (only known campaigns count) or a data-quality red flag. A quick <code>anti-join</code> audit &mdash; <code>SELECT * FROM sales s WHERE NOT EXISTS (SELECT 1 FROM campaigns c WHERE c.campaign_id = s.campaign_id)</code> &mdash; surfaces it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify the <code>LEFT JOIN</code> as the thing that keeps a zero-sales campaign visible, explain <code>NULLIF</code> as both a divide-by-zero guard and a meaningful "ROAS undefined" signal, group by the campaign key rather than the name, and pre-empt the fan-out double-counting that appears once a second one-to-many join is added.</div>

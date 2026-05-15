@@ -1,0 +1,66 @@
+<p>Zscaler's catalog team is auditing product copy and wants every product whose <code>description</code> contains a digit &mdash; specs like "40mm", "100W" or "750ml" that should arguably live in structured fields, not buried in free text. The brute-force solution chains ten <code>LIKE</code> clauses, one per digit. It works, but the interviewer wants to see whether you know the single-expression alternatives and the trap hiding in pattern matching.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>description</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Wireless headphones with 40mm drivers</td></tr>
+    <tr><td>2</td><td>Soft cotton blanket, machine washable</td></tr>
+    <tr><td>3</td><td>USB-C cable rated for 100W charging</td></tr>
+    <tr><td>4</td><td>Ergonomic chair with lumbar support</td></tr>
+    <tr><td>5</td><td>Stainless steel water bottle 750ml</td></tr>
+  </tbody>
+</table>
+<p>Products 1, 3 and 5 carry numbers in their copy. Products 2 and 4 are pure prose. Note product 3's "USB-C" contains a hyphen and a letter but no digit there &mdash; the digit is in "100W". Substring matching does not care about word boundaries.</p>
+
+<h4>2. The SQL &mdash; <code>OR-chain of LIKE per digit</code></h4>
+<pre><code>SELECT product_id, description
+FROM products
+WHERE description LIKE '%0%' OR description LIKE '%1%' OR description LIKE '%2%'
+   OR description LIKE '%3%' OR description LIKE '%4%' OR description LIKE '%5%'
+   OR description LIKE '%6%' OR description LIKE '%7%' OR description LIKE '%8%'
+   OR description LIKE '%9%';</code></pre>
+<p>Ten predicates joined by <code>OR</code> &mdash; a row passes if it contains any one of the digit characters 0 through 9 anywhere.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>description</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Wireless headphones with 40mm drivers</td></tr>
+    <tr><td>3</td><td>USB-C cable rated for 100W charging</td></tr>
+    <tr><td>5</td><td>Stainless steel water bottle 750ml</td></tr>
+  </tbody>
+</table>
+<p>Exactly the three rows with numbers in them. The OR-chain is verbose but correct. The interview value is showing you can collapse it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The single-expression rewrite &mdash; <code>SIMILAR TO</code> or regex</h5>
+<p>Ten <code>LIKE</code>s is a character class spelled out the long way. Postgres has two compact equivalents:</p>
+<pre><code>-- POSIX regex: ~ means "matches"
+SELECT product_id, description
+FROM products
+WHERE description ~ '[0-9]';
+
+-- SQL-standard SIMILAR TO (note the surrounding %)
+SELECT product_id, description
+FROM products
+WHERE description SIMILAR TO '%[0-9]%';</code></pre>
+<p>The regex <code>~ '[0-9]'</code> is the cleanest &mdash; it is an unanchored search, so no <code>%</code> wildcards needed. <code>\d</code> also works as shorthand for <code>[0-9]</code>.</p>
+
+<h5>The trap: <code>LIKE</code> is anchored, regex is not</h5>
+<p>A frequent mistake is writing <code>description LIKE '[0-9]'</code> &mdash; in <code>LIKE</code>, square brackets are literal characters, not a class, so that hunts for the literal text "[0-9]" and matches nothing. Conversely, a regex like <code>description ~ '0'</code> matches a substring anywhere, but <code>description SIMILAR TO '0'</code> requires the <em>whole string</em> to equal "0". <code>SIMILAR TO</code> is implicitly anchored at both ends, which is why it needs the leading and trailing <code>%</code>. Mixing up the three matching dialects is the classic error.</p>
+
+<h5>Actually extracting the number, not just flagging it</h5>
+<p>The title says "pattern extraction". Flagging rows is one reading; pulling the numeric token out is the stronger one:</p>
+<pre><code>SELECT product_id,
+       description,
+       (regexp_match(description, '\d+'))[1] AS first_number
+FROM products
+WHERE description ~ '\d';</code></pre>
+<p>For product 1 that yields "40", for product 3 "100", for product 5 "750". If a description holds several numbers, <code>regexp_matches(&hellip;, '\d+', 'g')</code> returns them all as separate rows.</p>
+
+<h5>Case, performance and NULLs</h5>
+<p>Digits have no case, so <code>ILIKE</code> versus <code>LIKE</code> is irrelevant here &mdash; but if the audit were for letters it would matter. On a large table every one of these is a sequential scan; a leading-<code>%</code> pattern cannot use a normal B-tree index. For repeated digit-hunting, a <code>pg_trgm</code> GIN index or a precomputed boolean <code>has_digit</code> column pays off. And a NULL <code>description</code> fails every predicate &mdash; it is neither matched nor returned, which is the right behaviour but worth stating.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> collapse the ten-way OR-chain into <code>~ '[0-9]'</code> or <code>SIMILAR TO '%[0-9]%'</code>, articulate that <code>LIKE</code> brackets are literal while regex brackets are a class and <code>SIMILAR TO</code> is whole-string anchored, and offer <code>regexp_match</code> to actually extract the number when the task is "extraction" rather than mere detection.</div>

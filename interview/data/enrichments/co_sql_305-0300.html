@@ -1,0 +1,70 @@
+<p>Activision Blizzard's storefront team wants every product tagged into a price band &mdash; Cheap, Standard, Premium, Luxury &mdash; for merchandising filters and reporting buckets. A <code>CASE</code> expression is the obvious tool. The interview is not "can you write a CASE"; it is whether you get the boundary logic exactly right, what the <code>ELSE</code> branch quietly absorbs, and what happens to a product with no price.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>$4.99</td></tr>
+    <tr><td>2</td><td>$59.99</td></tr>
+    <tr><td>3</td><td>$499.00</td></tr>
+    <tr><td>4</td><td>$2,500.00</td></tr>
+    <tr><td>5</td><td>$10.00</td></tr>
+    <tr><td>6</td><td>$100.00</td></tr>
+    <tr><td>7</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Products 5 and 6 sit <em>exactly</em> on the band boundaries (10 and 100) &mdash; the probe for off-by-one errors. Product 7 has a <strong>NULL</strong> price &mdash; the probe for how the <code>CASE</code> handles missing data. Both will reveal whether the bands behave as a senior would expect.</p>
+
+<h4>2. The SQL &mdash; <code>CASE price bands</code></h4>
+<pre><code>SELECT product_id,
+  CASE WHEN price &lt; 10 THEN 'Cheap'
+       WHEN price &lt; 100 THEN 'Standard'
+       WHEN price &lt; 1000 THEN 'Premium'
+       ELSE 'Luxury' END AS price_band
+FROM products;</code></pre>
+<p>A searched <code>CASE</code> evaluates branches top to bottom and stops at the first true one. The order matters: each later <code>WHEN</code> implicitly assumes the earlier ones were false.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>price_band</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Cheap</td></tr>
+    <tr><td>2</td><td>Standard</td></tr>
+    <tr><td>3</td><td>Premium</td></tr>
+    <tr><td>4</td><td>Luxury</td></tr>
+    <tr><td>5</td><td>Standard</td></tr>
+    <tr><td>6</td><td>Premium</td></tr>
+    <tr><td>7</td><td>Luxury</td></tr>
+  </tbody>
+</table>
+<p>The boundary rows are revealing. Product 5 at exactly $10 is <strong>Standard</strong>, not Cheap &mdash; <code>price &lt; 10</code> is false at 10. Product 6 at exactly $100 is <strong>Premium</strong>, not Standard &mdash; same reason. And product 7, with a NULL price, lands in <strong>Luxury</strong> &mdash; almost certainly a bug, explained below.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The NULL falls through to <code>ELSE</code> &mdash; the real trap</h5>
+<p>This is the bug an interviewer is hunting for. For product 7, <code>price IS NULL</code>, so <em>every</em> comparison &mdash; <code>NULL &lt; 10</code>, <code>NULL &lt; 100</code>, <code>NULL &lt; 1000</code> &mdash; evaluates to <code>unknown</code>, never to <code>true</code>. No <code>WHEN</code> matches, and the row drops through to <code>ELSE 'Luxury'</code>. An unpriced product is silently labelled the most expensive band. The fix is an explicit NULL branch <em>first</em>:</p>
+<pre><code>CASE WHEN price IS NULL THEN 'Unknown'
+     WHEN price &lt; 10   THEN 'Cheap'
+     WHEN price &lt; 100  THEN 'Standard'
+     WHEN price &lt; 1000 THEN 'Premium'
+     ELSE 'Luxury' END</code></pre>
+<p>Never let <code>ELSE</code> be the place NULLs and bad data quietly accumulate &mdash; make the catch-all branch mean exactly one thing.</p>
+
+<h5>Boundary semantics &mdash; <code>&lt;</code> vs <code>&lt;=</code></h5>
+<p>Because the bands use strict <code>&lt;</code>, the breakpoints 10, 100, 1000 belong to the <em>upper</em> band: $10 is Standard, $100 is Premium, $1000 is Luxury. That is a deliberate, consistent rule &mdash; the bands are <code>[0,10)</code>, <code>[10,100)</code>, <code>[100,1000)</code>, <code>[1000,&infin;)</code>, with no gaps and no overlaps. If the spec says "$10 and under is Cheap", you would switch to <code>price &lt;= 10</code>. Confirm which side the boundary lives on; a merchandising team usually has a firm answer.</p>
+
+<h5>Branch order is load-bearing</h5>
+<p>The <code>WHEN</code>s only read correctly because they run top-down. <code>price &lt; 100</code> really means "&ge;10 and &lt;100", because reaching it guarantees <code>price &lt; 10</code> already failed. Reorder them &mdash; put <code>price &lt; 1000</code> first &mdash; and every product under $1000 collapses into one band. A common interview misstep is writing the bands in the wrong order; the SQL still parses, the result is just wrong.</p>
+
+<h5>Negative or zero prices &mdash; another <code>ELSE</code> escape</h5>
+<p>What about a price of <code>0</code> (a freebie) or a negative price (a credit/refund line)? Zero satisfies <code>price &lt; 10</code> and lands in Cheap, which may be acceptable. A negative price also lands in Cheap. If those are not real products, filter them or give them their own branch. The point is the same: anticipate the values outside the happy path before <code>ELSE</code> swallows them.</p>
+
+<h5>Maintainability &mdash; bands as data, not code</h5>
+<p>Hard-coded thresholds in a <code>CASE</code> are fine for one query but rot when marketing rebands the catalogue. A more durable design stores bands in a small lookup table and joins:</p>
+<pre><code>SELECT p.product_id, b.band_name
+FROM products p
+JOIN price_bands b
+  ON p.price &gt;= b.min_price AND p.price &lt; b.max_price;</code></pre>
+<p>Now rebanding is a row update, not a code change &mdash; and note this <code>JOIN</code> form naturally <em>excludes</em> NULL-priced products rather than misfiling them, which is often the safer default.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> catch that a NULL price falls through every <code>WHEN</code> into <code>ELSE</code> and add an explicit <code>price IS NULL</code> branch first, state the boundary rule (<code>&lt;</code> puts 10/100/1000 in the upper band) so the bands tile without gaps, and recognise that branch order is logic &mdash; reordering the <code>WHEN</code>s silently breaks the classification.</div>

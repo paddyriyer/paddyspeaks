@@ -1,0 +1,57 @@
+<p>CapitalOne's travel-rewards team runs a hotel-partner dashboard, and the headline tile is <strong>today's occupancy rate</strong>: what fraction of rooms are occupied right now? It looks like a one-liner. The interviewer is probing two things &mdash; whether you handle a room booked by more than one overlapping reservation without double-counting, and whether your date overlap logic is correct on the boundary days.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>rooms</code></strong> &mdash; the full inventory (4 rooms):</p>
+<table>
+  <thead><tr><th>room_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr><tr><td>2</td></tr><tr><td>3</td></tr><tr><td>4</td></tr>
+  </tbody>
+</table>
+<p><strong><code>bookings</code></strong> &mdash; reservations (today is <code>2026-05-15</code>):</p>
+<table>
+  <thead><tr><th>room_id</th><th>start_date</th><th>end_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-05-10</td><td>2026-05-20</td></tr>
+    <tr><td>2</td><td>2026-05-12</td><td>2026-05-14</td></tr>
+    <tr><td>3</td><td>2026-05-15</td><td>2026-06-01</td></tr>
+    <tr><td>1</td><td>2026-05-15</td><td>2026-05-16</td></tr>
+  </tbody>
+</table>
+<p>Room 1 has <strong>two</strong> bookings that both cover today &mdash; the double-count trap. Room 2's stay ended on the 14th &mdash; it is <em>not</em> occupied today. Room 3's stay <em>starts</em> today &mdash; a boundary case. Room 4 is empty.</p>
+
+<h4>2. The SQL &mdash; <code>occupied / total &times; 100</code></h4>
+<pre><code>SELECT 100.0 * COUNT(DISTINCT b.room_id)
+              / (SELECT COUNT(*) FROM rooms) AS occupancy_pct
+FROM bookings b
+WHERE b.start_date &lt;= CURRENT_DATE
+  AND b.end_date   &gt;= CURRENT_DATE;</code></pre>
+<p>The <code>WHERE</code> keeps bookings whose date range straddles today; <code>COUNT(DISTINCT b.room_id)</code> is the numerator; a scalar subquery counts total rooms for the denominator.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>occupancy_pct</th></tr></thead>
+  <tbody>
+    <tr><td>50.000000</td></tr>
+  </tbody>
+</table>
+<p>Rooms 1 and 3 are occupied today &rarr; 2 of 4 rooms &rarr; <strong>50%</strong>. Room 1 had two overlapping bookings but counts <em>once</em> &mdash; that is the <code>DISTINCT</code> earning its place. Room 2 (checked out the 14th) and room 4 (no booking) are correctly excluded.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(DISTINCT room_id)</code> &mdash; the double-count defence</h5>
+<p>Room 1 matches the <code>WHERE</code> clause <em>twice</em> &mdash; once for each overlapping reservation. Plain <code>COUNT(b.room_id)</code> would count it as 2, the numerator would be 3, and occupancy would read a nonsensical <strong>75%</strong> &mdash; or worse, a number above 100% if a popular room had many bookings. <code>COUNT(DISTINCT room_id)</code> answers the real question: <em>how many distinct rooms</em> are occupied, not how many reservations exist. This is the single most important line in the query.</p>
+
+<h5>The boundary logic &mdash; <code>&lt;=</code> / <code>&gt;=</code> and the half-open trap</h5>
+<p>The overlap test uses inclusive comparisons: a booking covers today if it started on or before today <em>and</em> ends on or after today. That counts room 3 (starts today) as occupied. But hotels usually treat <code>end_date</code> as the <em>checkout</em> day &mdash; the guest is gone by then, the room is free. Under that model the predicate should be <code>b.end_date &gt; CURRENT_DATE</code> (strict), so a guest checking out today does not count. Confirm whether <code>end_date</code> is the last night or the checkout morning &mdash; it shifts the number. Room 2 (ends the 14th, in the past) is excluded either way.</p>
+
+<h5>The denominator must come from <code>rooms</code>, not <code>bookings</code></h5>
+<p>It is tempting to compute occupancy entirely from <code>bookings</code>, but the denominator is total <em>inventory</em> &mdash; and room 4 has never been booked, so it appears nowhere in <code>bookings</code>. Counting distinct rooms in <code>bookings</code> as the denominator would silently exclude empty rooms and inflate occupancy. The scalar subquery <code>(SELECT COUNT(*) FROM rooms)</code> is correct precisely because it sees the whole inventory.</p>
+
+<h5>Why <code>100.0</code> and not <code>100</code></h5>
+<p><code>COUNT(&hellip;)</code> returns an integer, and integer &divide; integer does integer division in Postgres: <code>2 / 4</code> would be <code>0</code>, so <code>100 * 2 / 4</code> evaluates left-to-right as <code>200 / 4 = 50</code> here &mdash; correct by luck of the multiplication order. Reorder it and you get 0. Leading with the numeric literal <code>100.0</code> forces the whole expression to <code>numeric</code>, making the result robust regardless of operator order. A safer habit is an explicit cast: <code>COUNT(DISTINCT b.room_id)::numeric</code>.</p>
+
+<h5>The zero-rooms edge case</h5>
+<p>If <code>rooms</code> were empty, the denominator is 0 and the query raises <code>division by zero</code>. Guard it with <code>NULLIF((SELECT COUNT(*) FROM rooms), 0)</code> so an empty hotel yields <code>NULL</code> rather than crashing the dashboard. Also note: with zero <em>matching</em> bookings the numerator is simply 0 and occupancy is a clean 0% &mdash; that direction is safe.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(DISTINCT room_id)</code> so a room with multiple overlapping bookings is not double-counted, draw the denominator from the <code>rooms</code> inventory so empty rooms are included, pin down whether <code>end_date</code> is the last night or checkout day before fixing the boundary operator, and force numeric division with <code>100.0</code> or an explicit cast.</div>

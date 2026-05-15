@@ -1,0 +1,55 @@
+<p>Meta's hardware-partnerships team tracks device sales across manufacturers, and finance wants a clean annual roll-up: revenue per manufacturer, per calendar year. The query is a textbook two-key <code>GROUP BY</code>. The interview is in the date handling &mdash; how you extract a year, whether you trust the column's type, and what happens at year boundaries.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>manufacturer</th><th>sale_date</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>Acme</td><td>2023-02-11</td><td>5000</td></tr>
+    <tr><td>Acme</td><td>2023-08-04</td><td>3000</td></tr>
+    <tr><td>Acme</td><td>2024-01-20</td><td>7000</td></tr>
+    <tr><td>Globex</td><td>2023-05-15</td><td>2000</td></tr>
+    <tr><td>Globex</td><td>2024-11-30</td><td>9000</td></tr>
+    <tr><td>Initech</td><td>2024-03-03</td><td>1500</td></tr>
+  </tbody>
+</table>
+<p>Acme has two 2023 rows that must collapse into one annual figure, and Acme also spans <em>two</em> years &mdash; so the grouping key is the pair (manufacturer, year), not manufacturer alone. Initech sells in 2024 only: it should produce exactly one row, not a zero-filled 2023 row.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY</code> manufacturer + year</h4>
+<pre><code>SELECT manufacturer, CAST(TO_CHAR(sale_date, 'YYYY') AS INTEGER) AS yr, SUM(revenue) AS annual_rev
+FROM sales GROUP BY manufacturer, CAST(TO_CHAR(sale_date, 'YYYY') AS INTEGER);</code></pre>
+<p><code>TO_CHAR(sale_date, 'YYYY')</code> formats the date as a 4-character year string; the <code>CAST</code> turns it back into an integer so it sorts and joins numerically. The same expression appears in <code>SELECT</code> and <code>GROUP BY</code> because standard SQL groups by expressions, not by output aliases.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>manufacturer</th><th>yr</th><th>annual_rev</th></tr></thead>
+  <tbody>
+    <tr><td>Globex</td><td>2023</td><td>2000</td></tr>
+    <tr><td>Acme</td><td>2024</td><td>7000</td></tr>
+    <tr><td>Initech</td><td>2024</td><td>1500</td></tr>
+    <tr><td>Acme</td><td>2023</td><td>8000</td></tr>
+    <tr><td>Globex</td><td>2024</td><td>9000</td></tr>
+  </tbody>
+</table>
+<p>Acme's two 2023 sales (5000 + 3000) fuse into 8000, while its 2024 sale stands alone at 7000 &mdash; the proof that the year is part of the key. Five output rows from six input rows: exactly one collapse happened. The rows arrive unsorted because the query has no <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Use <code>EXTRACT</code> instead of round-tripping through text</h5>
+<p><code>TO_CHAR(... ,'YYYY')</code> then <code>CAST(... AS INTEGER)</code> works, but it converts a date to a string and back &mdash; two conversions to get one number. <code>EXTRACT</code> goes straight to a numeric:</p>
+<pre><code>SELECT manufacturer, EXTRACT(YEAR FROM sale_date)::int AS yr, SUM(revenue) AS annual_rev
+FROM sales GROUP BY manufacturer, EXTRACT(YEAR FROM sale_date);</code></pre>
+<p><code>date_part('year', sale_date)</code> is the function form of the same thing. Both are clearer about intent and skip the locale-sensitive text formatting.</p>
+
+<h5>The interviewer's follow-up &mdash; ordering and the missing-year gap</h5>
+<p>The first ask is almost always "sort it" &mdash; add <code>ORDER BY manufacturer, yr</code>. The deeper follow-up: a manufacturer that did not sell in a year produces <em>no row</em> for that year. If finance needs a dense grid (every manufacturer &times; every year, zeros included), cross-join a manufacturers list with a years list and <code>LEFT JOIN</code> the aggregates, wrapping the sum in <code>COALESCE(SUM(revenue), 0)</code>.</p>
+
+<h5>NULL revenue and the <code>SUM</code> contract</h5>
+<p><code>SUM</code> skips NULLs, so a NULL <code>revenue</code> row is dropped from the total but still anchors the (manufacturer, year) group into existence. Result: a group can show <code>annual_rev = NULL</code> if <em>every</em> row in it is NULL, or an understated total if only some are. Decide whether a NULL means "$0" &mdash; <code>SUM(COALESCE(revenue, 0))</code> &mdash; or genuinely missing data to investigate.</p>
+
+<h5>Fiscal year vs calendar year</h5>
+<p><code>EXTRACT(YEAR ...)</code> assumes the year runs Jan&ndash;Dec. Many companies close books on a fiscal year (e.g. Feb&ndash;Jan). If Meta finance reports on a fiscal calendar, the year key must shift: something like <code>EXTRACT(YEAR FROM sale_date + INTERVAL '1 month')</code> for a December-start fiscal year. Always confirm which "year" the business means before grouping.</p>
+
+<h5>Time zones turn boundary sales into the wrong year</h5>
+<p>If <code>sale_date</code> were a <code>timestamptz</code> rather than a plain <code>date</code>, a sale at 11pm on Dec 31 in one zone is 4am Jan 1 in another. Extracting the year without first normalising to a canonical zone can park December revenue in the next year. With a pure <code>DATE</code> column this is moot &mdash; but say you checked.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> prefer <code>EXTRACT</code>/<code>date_part</code> over a text round-trip for the year, repeat the grouping expression rather than relying on alias-in-<code>GROUP BY</code>, recognise that absent (manufacturer, year) pairs simply do not appear and need a calendar join to densify, and ask whether "year" means calendar or fiscal before writing the key.</div>

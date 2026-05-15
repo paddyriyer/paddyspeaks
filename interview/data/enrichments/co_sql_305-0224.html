@@ -1,0 +1,58 @@
+<p>Zoom's pricing team wants to know how much discounting actually costs per product category &mdash; original price, discounted price, and the savings, averaged within each category. The query is three <code>AVG</code>s over a <code>GROUP BY</code>, but the interviewer is probing whether you understand that <code>AVG(a) &minus; AVG(b)</code> equals <code>AVG(a &minus; b)</code> here, how NULLs can break that identity, and whether an average is even the right lens on discount impact.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>category</th><th>original_price</th><th>discounted_price</th><th>order_id</th></tr></thead>
+  <tbody>
+    <tr><td>Electronics</td><td>1000</td><td>800</td><td>1</td></tr>
+    <tr><td>Electronics</td><td>500</td><td>500</td><td>2</td></tr>
+    <tr><td>Books</td><td>40</td><td>30</td><td>3</td></tr>
+    <tr><td>Books</td><td>20</td><td>18</td><td>4</td></tr>
+    <tr><td>Apparel</td><td>120</td><td>90</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Three categories. The interesting row is order 2 &mdash; an Electronics order with <strong>no discount at all</strong> (<code>original = discounted = 500</code>). A zero-discount order inside a discounted category drags the category's average savings down, which is exactly the signal pricing wants to see.</p>
+
+<h4>2. The SQL &mdash; <code>three AVGs per category</code></h4>
+<pre><code>SELECT category,
+  AVG(original_price) AS avg_orig,
+  AVG(discounted_price) AS avg_disc,
+  AVG(original_price - discounted_price) AS avg_savings
+FROM orders GROUP BY category;</code></pre>
+<p>One group per category; within each, the average list price, the average paid price, and the average per-order savings.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>avg_orig</th><th>avg_disc</th><th>avg_savings</th></tr></thead>
+  <tbody>
+    <tr><td>Electronics</td><td>750.0000000000000000</td><td>650.0000000000000000</td><td>100.0000000000000000</td></tr>
+    <tr><td>Apparel</td><td>120.0000000000000000</td><td>90.0000000000000000</td><td>30.0000000000000000</td></tr>
+    <tr><td>Books</td><td>30.0000000000000000</td><td>24.0000000000000000</td><td>6.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Electronics averages 100 in savings &mdash; pulled down by the zero-discount order 2 (the two orders saved 200 and 0, averaging 100). Notice <code>avg_orig &minus; avg_disc</code> = 750 &minus; 650 = 100, exactly matching <code>avg_savings</code>. That equality holds <em>here</em>, but only because no prices are NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>AVG(a) &minus; AVG(b)</code> equals <code>AVG(a &minus; b)</code> &mdash; and when it stops</h5>
+<p>The average is linear: <code>AVG(a) &minus; AVG(b) = (&Sigma;a &minus; &Sigma;b)/n = &Sigma;(a&minus;b)/n = AVG(a&minus;b)</code> &mdash; provided both columns have the <em>same</em> set of non-NULL rows. The identity <strong>breaks</strong> if, say, <code>discounted_price</code> is NULL on some rows: <code>AVG(discounted_price)</code> divides by fewer rows, while <code>AVG(original_price - discounted_price)</code> drops the whole expression (any arithmetic with NULL is NULL) on a possibly different row set. With clean data they agree; with NULLs they diverge. <code>AVG(original_price - discounted_price)</code> is the more honest "average savings" because it only averages orders where both prices exist.</p>
+
+<h5>NULL discounted prices &mdash; the subtle bug</h5>
+<p>If a NULL <code>discounted_price</code> really means "no discount applied," then <code>original - discounted</code> yields NULL and that order is excluded from <code>avg_savings</code> entirely &mdash; understating how often the category sells at full price. Decide deliberately:</p>
+<pre><code>AVG(original_price - COALESCE(discounted_price, original_price)) AS avg_savings
+-- treats a missing discount as zero savings, keeping the order in the average</code></pre>
+
+<h5>Average savings vs discount rate &mdash; the better metric</h5>
+<p>Absolute savings is dominated by expensive categories &mdash; Electronics "saves 100," Books "saves 6," but that comparison is meaningless across price tiers. Pricing usually wants the <em>rate</em>:</p>
+<pre><code>SELECT category,
+  SUM(original_price - discounted_price) / NULLIF(SUM(original_price), 0) AS discount_rate
+FROM orders GROUP BY category;</code></pre>
+<p>Note this is a <em>weighted</em> rate (total savings &divide; total list), not the average of per-order rates &mdash; large orders count more, which is what margin impact actually means. Offering both numbers and naming the difference is the senior move.</p>
+
+<h5>Average of ratios vs ratio of sums</h5>
+<p><code>AVG(savings / original_price)</code> weights a $10 order and a $10,000 order equally; <code>SUM(savings) / SUM(original_price)</code> weights by dollar value. They can differ a lot. Neither is "wrong" &mdash; but for revenue/margin impact the ratio-of-sums is right, and you should say which one you computed.</p>
+
+<h5>Negative savings and category hygiene</h5>
+<p>If <code>discounted_price &gt; original_price</code> (a price correction, a surcharge), savings go negative and quietly pull the average down &mdash; worth a sanity filter or a <code>CHECK</code> constraint. And <code>'Books'</code> vs <code>'books'</code> vs <code>NULL</code> category each form separate groups; dirty category labels fragment the report.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>AVG(orig) &minus; AVG(disc)</code> equals <code>AVG(orig &minus; disc)</code> only when both columns share the same non-NULL rows, handle a NULL discounted price on purpose with <code>COALESCE</code>, and recommend a weighted discount <em>rate</em> (<code>SUM/SUM</code>) over absolute savings for comparing impact across price tiers.</div>

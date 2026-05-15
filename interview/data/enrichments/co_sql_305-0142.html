@@ -1,0 +1,59 @@
+<p>Booking.com runs a learning catalogue, and the platform team needs a gap report: which courses currently have <em>no</em> instructor assigned, so they cannot be offered? It is an anti-join &mdash; "rows in A with no match in B" &mdash; and the interviewer wants the <code>LEFT JOIN &hellip; IS NULL</code> idiom plus an understanding of why <code>NOT IN</code> is the risky choice.</p>
+
+<h4>1. The source data &mdash; <code>courses</code> and <code>instructors</code></h4>
+<table>
+  <thead><tr><th>courses.course_id</th><th> </th><th>instructors.course_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td> </td><td>1</td></tr>
+    <tr><td>2</td><td> </td><td>3</td></tr>
+    <tr><td>3</td><td> </td><td>5</td></tr>
+    <tr><td>4</td><td> </td><td> </td></tr>
+    <tr><td>5</td><td> </td><td> </td></tr>
+  </tbody>
+</table>
+<p>Five courses; the <code>instructors</code> table has assignments for courses 1, 3, and 5. So courses <strong>2 and 4</strong> have no instructor &mdash; those are the gaps the report must surface.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN anti-join</code></h4>
+<pre><code>SELECT c.course_id
+FROM courses c
+LEFT JOIN instructors i ON c.course_id = i.course_id
+WHERE i.course_id IS NULL;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every course; for a course with no instructor, the <code>i.*</code> columns come back <code>NULL</code>. The <code>WHERE i.course_id IS NULL</code> then keeps only those unmatched rows &mdash; the anti-join pattern.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>course_id</th></tr></thead>
+  <tbody>
+    <tr><td>2</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+<p>Exactly courses 2 and 4 &mdash; the two with no row on the <code>instructors</code> side. Every other course matched at least one instructor, so its <code>i.course_id</code> was non-NULL and the <code>WHERE</code> filtered it out. The result is unordered; add <code>ORDER BY c.course_id</code> for a stable report.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The mechanics &mdash; filter <em>after</em> the join, on the join key</h5>
+<p>The <code>IS NULL</code> test must target a column that is non-nullable in the <em>real</em> <code>instructors</code> table &mdash; the join key <code>i.course_id</code> is ideal. The only way that column is NULL in the output is the <code>LEFT JOIN</code> manufacturing an unmatched row. If you tested a column that can legitimately be NULL in the data (say <code>i.notes</code>), you would also catch matched courses whose instructor row happens to have a NULL note &mdash; a wrong answer. Always probe the join key.</p>
+
+<h5><code>NOT EXISTS</code> &mdash; the equivalent the interviewer often prefers</h5>
+<p>The same gap report, expressed as a correlated subquery:</p>
+<pre><code>SELECT c.course_id
+FROM courses c
+WHERE NOT EXISTS (
+  SELECT 1 FROM instructors i WHERE i.course_id = c.course_id
+);</code></pre>
+<p>Many engineers find this reads more directly &mdash; "courses where no instructor exists" &mdash; and Postgres plans <code>NOT EXISTS</code> as an anti-join, identical performance to the <code>LEFT JOIN</code> form. Both are correct; knowing they are equivalent is the senior signal.</p>
+
+<h5>The <code>NOT IN</code> NULL trap &mdash; the headline danger</h5>
+<p>The tempting third form is broken in a way that is easy to miss:</p>
+<pre><code>SELECT course_id FROM courses
+WHERE course_id NOT IN (SELECT course_id FROM instructors);</code></pre>
+<p>If the <code>instructors</code> table contains <em>even one</em> row with a <code>NULL</code> <code>course_id</code>, this returns <strong>zero rows</strong> &mdash; not an error, just a silently empty report. <code>course_id NOT IN (1, 3, 5, NULL)</code> is <code>course_id &lt;&gt; NULL</code> AND-ed in, which is <em>unknown</em>, so no row ever qualifies. The schema here lets <code>instructors.course_id</code> be NULL (no <code>NOT NULL</code> constraint), so this is a live hazard. <code>LEFT JOIN &hellip; IS NULL</code> and <code>NOT EXISTS</code> are both NULL-safe; <code>NOT IN</code> is not. This is the single most important point of the question.</p>
+
+<h5>Duplicate instructors &mdash; why this anti-join is robust</h5>
+<p>If a course has two instructors (co-teaching), it has two rows in <code>instructors</code>. The <code>LEFT JOIN</code> would produce two output rows for it &mdash; but both have a non-NULL <code>i.course_id</code>, so both are filtered out, and the course correctly does <em>not</em> appear in the gap report. The anti-join asks only "any match at all?", so duplicate matches do not distort it. (If you instead wanted the <em>count</em> of instructors per course, that is a <code>GROUP BY</code>, a different query.)</p>
+
+<h5>Edge cases: empty <code>instructors</code> and NULL course ids</h5>
+<p>If <code>instructors</code> is empty, every course is unmatched and the report lists all five &mdash; correct, every course is a gap. And if <code>courses</code> itself had a NULL <code>course_id</code> row, the <code>LEFT JOIN</code> never matches it (NULL equals nothing), so it appears in the gap report &mdash; arguably right, but a NULL course id is itself a data-quality issue worth flagging upstream.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express the gap report as <code>LEFT JOIN &hellip; WHERE join_key IS NULL</code> or <code>NOT EXISTS</code>, test the <em>join key</em> for NULL (not an arbitrary nullable column), and explicitly warn that <code>NOT IN</code> collapses to zero rows if the inner table has any NULL &mdash; a real risk given the unconstrained <code>instructors.course_id</code>.</div>

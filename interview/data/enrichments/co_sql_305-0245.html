@@ -1,0 +1,61 @@
+<p>Walmart's store-operations team tracks "average transaction value" (ATV) per store &mdash; a core retail KPI. The query is a single <code>AVG</code> with a <code>GROUP BY</code>. The interviewer is not testing the syntax; they are testing whether you know what <code>AVG</code> does with a NULL amount, whether refunds belong in the average, and what type the result comes back as.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code></h4>
+<table>
+  <thead><tr><th>store_id</th><th>amount</th><th>transaction_id</th><th>txn_type</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>1</td><td>sale</td><td>ok</td></tr>
+    <tr><td>1</td><td>200</td><td>2</td><td>sale</td><td>ok</td></tr>
+    <tr><td>1</td><td><em>NULL</em></td><td>3</td><td>refund</td><td>ok</td></tr>
+    <tr><td>2</td><td>50</td><td>4</td><td>sale</td><td>ok</td></tr>
+    <tr><td>2</td><td>70</td><td>5</td><td>sale</td><td>ok</td></tr>
+  </tbody>
+</table>
+<p>Store 1 has three transactions, but one is a refund with a <strong>NULL</strong> <code>amount</code>. That row decides whether store 1's ATV is averaged over 2 transactions or 3 &mdash; and the answer is not obvious.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(amount) per store</code></h4>
+<pre><code>SELECT store_id, AVG(amount) AS atv
+FROM transactions GROUP BY store_id;</code></pre>
+<p>One group per store; <code>AVG(amount)</code> is the mean transaction amount within each group.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>store_id</th><th>atv</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>60.0000000000000000</td></tr>
+    <tr><td>1</td><td>150.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Store 1's ATV is <strong>150</strong>, not 100. <code>AVG</code> ignored the NULL refund row entirely: it summed 100 + 200 = 300 and divided by <strong>2</strong>, the count of non-NULL amounts &mdash; not by 3. Store 2 is a clean (50 + 70) / 2 = 60.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>AVG</code> silently skips NULLs &mdash; the central fact</h5>
+<p><code>AVG(amount)</code> is <code>SUM(amount) / COUNT(amount)</code>, and <code>COUNT(column)</code> counts only non-NULL values. The NULL refund is dropped from <em>both</em> numerator and denominator. Usually that is right &mdash; an unpriced row should not drag the average toward zero &mdash; but it must be a conscious choice. If a NULL should count as a $0 transaction:</p>
+<pre><code>SELECT store_id, AVG(COALESCE(amount, 0)) AS atv
+FROM transactions GROUP BY store_id;
+-- store 1: (100 + 200 + 0) / 3 = 100</code></pre>
+<p>Same column, same table, a 50-point swing in the KPI &mdash; purely from how one NULL is treated.</p>
+
+<h5>The <code>AVG</code> vs <code>SUM / COUNT(*)</code> trap</h5>
+<p>A tempting "equivalent" rewrite is wrong whenever NULLs exist:</p>
+<pre><code>SELECT store_id, SUM(amount) / COUNT(*) AS atv
+FROM transactions GROUP BY store_id;
+-- store 1: 300 / 3 = 100, NOT 150</code></pre>
+<p><code>COUNT(*)</code> counts rows (3); <code>AVG</code> divides by non-NULL values (2). They agree only when the column has no NULLs. If you ever hand-roll a mean, pair <code>SUM(col)</code> with <code>COUNT(col)</code> &mdash; never <code>COUNT(*)</code>.</p>
+
+<h5>Should refunds be in the average at all?</h5>
+<p>Even setting the NULL aside: a refund is not a sale. ATV almost always means the average <em>sale</em> value. The refund row should probably be filtered out, not just averaged around:</p>
+<pre><code>SELECT store_id, AVG(amount) AS atv
+FROM transactions
+WHERE txn_type = 'sale'
+GROUP BY store_id;</code></pre>
+<p>And if refunds carry real negative amounts elsewhere in the data, leaving them in would understate ATV. Confirm the definition &mdash; "sales only, or all transactions?" &mdash; before writing the query. The filter matters more than the aggregate.</p>
+
+<h5>Result type and rounding</h5>
+<p>Over a <code>numeric</code> column, <code>AVG</code> returns a high-scale <code>numeric</code> &mdash; hence the trailing zeros. Over an <code>integer</code> column, <code>AVG</code> still returns numeric in Postgres (no truncation), but other engines do integer division and truncate; a defensive <code>AVG(amount::numeric)</code> is portable. For a dashboard, round explicitly: <code>ROUND(AVG(amount), 2)</code>.</p>
+
+<h5>Empty groups and stores with no transactions</h5>
+<p><code>AVG</code> over a group with no non-NULL amounts returns <strong>NULL</strong>, not 0 &mdash; wrap in <code>COALESCE(AVG(amount), 0)</code> if the consumer needs a number. And a store with zero rows in <code>transactions</code> never appears in this <code>GROUP BY</code> at all; surfacing it as "ATV = 0" or "no data" requires a <code>LEFT JOIN</code> from the store dimension.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>AVG</code> ignores NULLs and decide on purpose whether a NULL means "skip" or "$0", never substitute <code>COUNT(*)</code> for <code>COUNT(col)</code> in a hand-rolled mean, add the <code>txn_type = 'sale'</code> filter that turns a raw average into a real ATV, and pre-empt the empty-group NULL and integer-division pitfalls.</div>

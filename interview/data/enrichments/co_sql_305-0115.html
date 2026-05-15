@@ -1,0 +1,56 @@
+<p>AMD's product team wants a single number for a catalog-breadth slide: how many distinct categories does the product line span? It is the simplest possible aggregate &mdash; one <code>COUNT(DISTINCT ...)</code>. The interview is whether you know exactly how <code>DISTINCT</code> inside <code>COUNT</code> treats NULL, duplicates, and case, because those three quietly change the number.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>name</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>periph</td><td>Mouse</td><td>20</td></tr>
+    <tr><td>2</td><td>periph</td><td>Keyboard</td><td>50</td></tr>
+    <tr><td>3</td><td>display</td><td>Monitor</td><td>300</td></tr>
+    <tr><td>4</td><td>audio</td><td>Headset</td><td>80</td></tr>
+    <tr><td>5</td><td><em>NULL</em></td><td>Mystery</td><td>10</td></tr>
+  </tbody>
+</table>
+<p>Five products, but only three category <em>values</em> &mdash; <code>periph</code> appears twice, and product 5 has a <strong>NULL</strong> category (an uncategorised SKU). The duplicate and the NULL are the whole interview: they decide whether the answer is 5, 4, or 3.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(DISTINCT ...)</code></h4>
+<pre><code>SELECT COUNT(DISTINCT category) AS distinct_categories FROM products;</code></pre>
+<p><code>DISTINCT</code> inside the aggregate deduplicates the <code>category</code> values first; <code>COUNT</code> then counts what survives. No <code>GROUP BY</code>, so one row of output.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>distinct_categories</th></tr></thead>
+  <tbody>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>The answer is <strong>3</strong>: <code>periph</code>, <code>display</code>, <code>audio</code>. The duplicate <code>periph</code> counts once &mdash; that is <code>DISTINCT</code> doing its job. And the NULL row counts <em>zero</em> times: <code>COUNT(column)</code> ignores NULLs, distinct or not. Five rows, three categories.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The NULL is excluded &mdash; and that is the trap</h5>
+<p>The single most important fact: <code>COUNT(DISTINCT category)</code> does <em>not</em> count NULL. So this query answers "how many <em>named</em> categories exist" &mdash; not "how many distinct states does the category field take, including uncategorised". If the business considers "uncategorised" a real bucket, the count is understated by one. Make it explicit:</p>
+<pre><code>SELECT COUNT(DISTINCT category)
+       + (CASE WHEN COUNT(*) FILTER (WHERE category IS NULL) &gt; 0 THEN 1 ELSE 0 END)
+       AS categories_incl_null
+FROM products;</code></pre>
+<p>Naming this gap &mdash; rather than silently shipping 3 &mdash; is the senior move.</p>
+
+<h5><code>COUNT(DISTINCT col)</code> vs <code>COUNT(col)</code> vs <code>COUNT(*)</code></h5>
+<p>Three counts, three answers on this data: <code>COUNT(*)</code> = 5 (all rows), <code>COUNT(category)</code> = 4 (non-NULL values), <code>COUNT(DISTINCT category)</code> = 3 (distinct non-NULL values). They coincide only when the column has no NULLs and no duplicates. Reaching for the wrong one is a classic silent bug &mdash; the query runs, the number is just wrong.</p>
+
+<h5>The case-and-whitespace trap</h5>
+<p><code>DISTINCT</code> compares values <em>exactly</em>. If the data holds <code>'Periph'</code>, <code>'periph'</code>, and <code>'periph '</code> (trailing space), those are three distinct values and the count inflates &mdash; the catalog looks broader than it is. Real-world category fields are rarely clean. Normalise before counting: <code>COUNT(DISTINCT lower(trim(category)))</code>. Whether to do so depends on whether the source is trusted; flag the assumption either way.</p>
+
+<h5>The natural follow-up &mdash; products per category</h5>
+<p>"How many categories" almost always leads to "how big is each one":</p>
+<pre><code>SELECT category, COUNT(*) AS product_count
+FROM products
+GROUP BY category
+ORDER BY product_count DESC;</code></pre>
+<p>Here <code>GROUP BY category</code> <em>does</em> emit a row for the NULL group (NULL is one grouping value) &mdash; a useful contrast: <code>GROUP BY</code> keeps NULL as a bucket, <code>COUNT(DISTINCT)</code> drops it. Same column, opposite NULL treatment.</p>
+
+<h5>Performance on large tables</h5>
+<p><code>COUNT(DISTINCT)</code> must materialise and deduplicate every value &mdash; a sort or hash over the whole column, which is memory-hungry on a huge table. For an <em>exact</em> count there is no cheaper path. If an <em>approximate</em> count is acceptable for a dashboard, Postgres extensions offer HyperLogLog (<code>hll</code>); naming that trade-off &mdash; exactness vs speed &mdash; signals you have run this at scale.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state up front that <code>COUNT(DISTINCT category)</code> excludes NULL, so the result is "named categories" and may undercount if "uncategorised" is a real bucket; distinguish <code>COUNT(*)</code> / <code>COUNT(col)</code> / <code>COUNT(DISTINCT col)</code> precisely; and normalise case and whitespace before counting so dirty data does not inflate the breadth number.</div>

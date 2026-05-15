@@ -2654,7 +2654,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "employees(job_title, salary, emp_id, name, email, hire_date, dept_id, manager_id)",
-    "solution": "WITH ranked AS (\n  SELECT job_title, salary,\n    ROW_NUMBER() OVER (PARTITION BY job_title ORDER BY salary) AS rn,\n    COUNT(*)    OVER (PARTITION BY job_title)                  AS n\n  FROM employees\n)\nSELECT job_title, AVG(salary) AS median_salary\nFROM ranked\nWHERE rn IN (n/2, n/2 + 1, (n+1)/2)\nGROUP BY job_title\nORDER BY job_title;",
+    "solution": "WITH ranked AS (\n  SELECT job_title, salary,\n    ROW_NUMBER() OVER (PARTITION BY job_title ORDER BY salary) AS rn,\n    COUNT(*)    OVER (PARTITION BY job_title)                  AS n\n  FROM employees\n)\nSELECT job_title, AVG(salary) AS median_salary\nFROM ranked\nWHERE rn IN ((n+1)/2, (n+2)/2)\nGROUP BY job_title\nORDER BY job_title;",
     "runtime": null,
     "tags": [
       "aggregation",
@@ -4431,7 +4431,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "enrollments(student_id, course_id, term)",
-    "solution": "SELECT 100.0 * COUNT(DISTINCT b.student_id)/NULLIF(COUNT(DISTINCT a.student_id), 0) AS reenroll_rate\nFROM enrollments a JOIN enrollments b ON a.student_id=b.student_id AND b.term > a.term;",
+    "solution": "SELECT 100.0 * COUNT(DISTINCT CASE WHEN later.student_id IS NOT NULL THEN e.student_id END) / NULLIF(COUNT(DISTINCT e.student_id), 0) AS reenroll_rate\nFROM enrollments e\nLEFT JOIN enrollments later ON e.student_id = later.student_id AND later.term > e.term;",
     "runtime": "postgres",
     "tags": [
       "aggregation",
@@ -4488,7 +4488,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "shipments(supplier_id, on_time)",
-    "solution": "SELECT supplier_id, 100.0 * SUM(CASE WHEN on_time IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*) AS reliability\nFROM shipments GROUP BY supplier_id ORDER BY reliability DESC;",
+    "solution": "SELECT supplier_id, 100.0 * SUM(CASE WHEN on_time THEN 1 ELSE 0 END)/COUNT(*) AS reliability\nFROM shipments GROUP BY supplier_id ORDER BY reliability DESC;",
     "runtime": "postgres",
     "tags": [
       "aggregation",
@@ -5089,7 +5089,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "shipments(supplier_id, on_time)",
-    "solution": "SELECT supplier_id, AVG(CASE WHEN on_time IS NOT NULL THEN 1.0 ELSE 0 END) AS rate,\n  RANK() OVER (ORDER BY AVG(CASE WHEN on_time IS NOT NULL THEN 1.0 ELSE 0 END) DESC) AS rk\nFROM shipments GROUP BY supplier_id;",
+    "solution": "SELECT supplier_id,\n  AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) AS rate,\n  RANK() OVER (ORDER BY AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) DESC) AS rk\nFROM shipments GROUP BY supplier_id;",
     "runtime": "postgres",
     "tags": [
       "aggregation",
@@ -5694,7 +5694,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "appointments(appt_id, doctor_id, start_ts, end_ts)",
-    "solution": "DROP TABLE IF EXISTS appointments;\nCREATE TABLE appointments (appt_id INT, doctor_id INT, start_ts TIMESTAMP, end_ts TIMESTAMP);\nINSERT INTO appointments (appt_id, doctor_id, start_ts, end_ts) VALUES\n  (1, 10, TIMESTAMP '2025-03-01 09:00', TIMESTAMP '2025-03-01 09:30'),\n  (2, 10, TIMESTAMP '2025-03-01 09:15', TIMESTAMP '2025-03-01 09:45'),\n  (3, 10, TIMESTAMP '2025-03-01 10:00', TIMESTAMP '2025-03-01 10:30'),\n  (4, 11, TIMESTAMP '2025-03-01 09:00', TIMESTAMP '2025-03-01 09:30'),\n  (5, 11, TIMESTAMP '2025-03-01 09:20', TIMESTAMP '2025-03-01 10:00'),\n  (6, 11, TIMESTAMP '2025-03-01 09:25', TIMESTAMP '2025-03-01 09:50'),\n  (7, 12, TIMESTAMP '2025-03-01 14:00', TIMESTAMP '2025-03-01 14:30');\nSELECT a.appt_id, b.appt_id FROM appointments a JOIN appointments b\nON a.doctor_id = b.doctor_id AND a.appt_id < b.appt_id\nAND a.start_ts < b.end_ts AND b.start_ts < a.end_ts;\n",
+    "solution": "SELECT a.appt_id AS appt_id_a, b.appt_id AS appt_id_b\nFROM appointments a\nJOIN appointments b\n  ON a.doctor_id = b.doctor_id\n AND a.appt_id < b.appt_id\n AND a.start_ts < b.end_ts\n AND b.start_ts < a.end_ts;",
     "runtime": "postgres",
     "tags": [
       "joins",
@@ -6097,7 +6097,7 @@
     "difficulty": null,
     "language": "sql",
     "schema": "employees(job_title, salary, emp_id, name, email, hire_date, dept_id, manager_id)",
-    "solution": "WITH ranked AS (\n  SELECT job_title, salary,\n    ROW_NUMBER() OVER (PARTITION BY job_title ORDER BY salary) AS rn,\n    COUNT(*)    OVER (PARTITION BY job_title)                  AS n\n  FROM employees\n)\nSELECT job_title, AVG(salary) AS median_salary\nFROM ranked\nWHERE rn IN (n/2, n/2 + 1, (n+1)/2)\nGROUP BY job_title\nORDER BY job_title;",
+    "solution": "WITH ranked AS (\n  SELECT job_title, salary,\n    ROW_NUMBER() OVER (PARTITION BY job_title ORDER BY salary) AS rn,\n    COUNT(*)    OVER (PARTITION BY job_title)                  AS n\n  FROM employees\n)\nSELECT job_title, AVG(salary) AS median_salary\nFROM ranked\nWHERE rn IN ((n+1)/2, (n+2)/2)\nGROUP BY job_title\nORDER BY job_title;",
     "runtime": null,
     "tags": [
       "aggregation",
@@ -6212,7 +6212,7 @@
     "difficulty": null,
     "language": "sql",
     "schema": "enrollments(student_id, term)",
-    "solution": "SELECT 100.0 * COUNT(DISTINCT b.student_id)/NULLIF(COUNT(DISTINCT a.student_id), 0) AS reenroll_rate\nFROM enrollments a JOIN enrollments b ON a.student_id=b.student_id AND b.term > a.term;",
+    "solution": "SELECT 100.0 * COUNT(DISTINCT CASE WHEN later.student_id IS NOT NULL THEN e.student_id END) / NULLIF(COUNT(DISTINCT e.student_id), 0) AS reenroll_rate\nFROM enrollments e\nLEFT JOIN enrollments later ON e.student_id = later.student_id AND later.term > e.term;",
     "runtime": "postgres",
     "tags": [
       "aggregation",

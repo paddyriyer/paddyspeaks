@@ -1,0 +1,66 @@
+<p>Activision Blizzard's player-monetisation analysts want to know how spend breaks down by demographic &mdash; total revenue per gender and age cohort. The query is a join plus a group-by, and it looks routine. But the choice of join type quietly decides whether non-spending players vanish, and grouping on raw <code>age</code> instead of an age <em>band</em> is the modelling decision an interviewer is really probing.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>purchases</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>gender</th><th>age</th><th></th><th>purchases.customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>F</td><td>28</td><td></td><td>1</td><td>120.00</td></tr>
+    <tr><td>2</td><td>M</td><td>34</td><td></td><td>1</td><td>30.00</td></tr>
+    <tr><td>3</td><td>F</td><td>28</td><td></td><td>2</td><td>200.00</td></tr>
+    <tr><td>4</td><td>M</td><td>41</td><td></td><td>3</td><td>80.00</td></tr>
+    <tr><td>5</td><td>F</td><td>28</td><td></td><td>3</td><td>80.00</td></tr>
+  </tbody>
+</table>
+<p>Three different customers (1, 3, 5) are all <strong>F, age 28</strong> &mdash; they collapse into a single output row. Customer 1 has <em>two</em> purchases. Customer 5 has <em>no</em> purchase rows at all. Those facts drive the result.</p>
+
+<h4>2. The SQL &mdash; <code>JOIN + GROUP BY (gender, age)</code></h4>
+<pre><code>SELECT c.gender, c.age, SUM(p.amount) AS spend
+FROM customers c JOIN purchases p ON c.customer_id = p.customer_id
+GROUP BY c.gender, c.age;</code></pre>
+<p>An inner join pairs each customer with their purchase rows, then <code>GROUP BY (gender, age)</code> sums the amounts within each cohort. Customer 1's two purchases (120 + 30) both fall into the F/28 bucket.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>gender</th><th>age</th><th>spend</th></tr></thead>
+  <tbody>
+    <tr><td>F</td><td>28</td><td>310.00</td></tr>
+    <tr><td>M</td><td>41</td><td>50.00</td></tr>
+    <tr><td>M</td><td>34</td><td>200.00</td></tr>
+  </tbody>
+</table>
+<p>F/28 totals 310 &mdash; that is 120 + 30 from customer 1 plus 80 from customer 3; customer 5 contributes <strong>nothing</strong>. The <code>INNER JOIN</code> dropped customer 5 entirely because they have no purchase rows. So this query reports <em>spend among spenders</em>, not spend across the cohort. Whether that is right depends on the question.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The inner-join trap &mdash; non-spenders disappear</h5>
+<p>If the analyst expects every demographic cohort to appear &mdash; including ones with zero revenue &mdash; the inner join is wrong, because cohorts made up entirely of non-spenders never surface. Use a <code>LEFT JOIN</code> and <code>COALESCE</code> the sum:</p>
+<pre><code>SELECT c.gender, c.age, COALESCE(SUM(p.amount), 0) AS spend
+FROM customers c
+LEFT JOIN purchases p ON c.customer_id = p.customer_id
+GROUP BY c.gender, c.age;</code></pre>
+<p>Now customer 5's cohort appears with <code>spend = 0</code> instead of being silently excluded. State the choice: "do you want all cohorts, or only cohorts that spent?"</p>
+
+<h5>Grouping on raw age is almost never what they want</h5>
+<p>Age 28, 29, 30 each become a separate row. Real demographic reporting uses <em>bands</em> &mdash; 18&ndash;24, 25&ndash;34, and so on. Bucket before grouping:</p>
+<pre><code>SELECT c.gender,
+       CASE WHEN c.age &lt; 25 THEN '18-24'
+            WHEN c.age &lt; 35 THEN '25-34'
+            WHEN c.age &lt; 50 THEN '35-49'
+            ELSE '50+' END AS age_band,
+       COALESCE(SUM(p.amount), 0) AS spend
+FROM customers c
+LEFT JOIN purchases p ON c.customer_id = p.customer_id
+GROUP BY 1, 2;</code></pre>
+<p>Raising the age-band question unprompted signals you think about the consumer of the report, not just the literal columns.</p>
+
+<h5>SUM vs COUNT &mdash; revenue is not the same as buyers</h5>
+<p>"Spend" here is <code>SUM(amount)</code>. But monetisation teams usually want several measures side by side &mdash; revenue, number of paying customers, and average ticket. <code>SUM</code> alone hides whether 310 came from one whale or three modest buyers:</p>
+<pre><code>SUM(p.amount)                       AS revenue,
+COUNT(DISTINCT c.customer_id)        AS paying_customers,
+SUM(p.amount) / COUNT(DISTINCT c.customer_id) AS arpu</code></pre>
+<p>Note <code>COUNT(DISTINCT customer_id)</code>, not <code>COUNT(*)</code> &mdash; customer 1's two purchase rows must not count them twice.</p>
+
+<h5>NULL demographics</h5>
+<p>If <code>gender</code> or <code>age</code> can be NULL, those rows form their own group &mdash; <code>GROUP BY</code> treats NULL as a single bucket. That is often acceptable as an "unknown" cohort, but call it out: a NULL-age row will not fall into any <code>CASE</code> band above unless you add an explicit <code>WHEN c.age IS NULL</code> arm, and will instead drop into the <code>ELSE '50+'</code> bucket &mdash; a silent mislabel.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the inner-join-drops-non-spenders behaviour and switch to <code>LEFT JOIN</code> when zero-revenue cohorts must appear, propose age <em>bands</em> over raw age for demographic reporting, use <code>COUNT(DISTINCT customer_id)</code> so multi-purchase customers aren't double-counted, and handle a NULL <code>age</code> explicitly so it isn't mislabelled into the wrong band.</div>

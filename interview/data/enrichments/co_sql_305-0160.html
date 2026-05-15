@@ -1,0 +1,59 @@
+<p>Amazon's retail-quality team wants the return rate per product category &mdash; the share of orders that come back. The shape is a <code>LEFT JOIN</code> from orders to returns plus a ratio, but the interview lives in two details: getting the join direction right so non-returned orders are not dropped, and counting the right thing in numerator and denominator.</p>
+
+<h4>1. The source data</h4>
+<p><code>orders</code> &mdash; one row per order:</p>
+<table>
+  <thead><tr><th>category</th><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>Electronics</td><td>1</td><td>100</td></tr>
+    <tr><td>Electronics</td><td>2</td><td>200</td></tr>
+    <tr><td>Electronics</td><td>3</td><td>150</td></tr>
+    <tr><td>Electronics</td><td>4</td><td>300</td></tr>
+    <tr><td>Apparel</td><td>5</td><td>60</td></tr>
+    <tr><td>Apparel</td><td>6</td><td>80</td></tr>
+    <tr><td>Books</td><td>7</td><td>25</td></tr>
+  </tbody>
+</table>
+<p><code>returns</code> &mdash; one row per returned order: <code>order_id</code> &isin; {1, 3, 5}. So Electronics had 4 orders / 2 returns, Apparel 2 / 1, and <strong>Books had 1 order and 0 returns</strong> &mdash; the category that tests whether the join keeps unmatched rows.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> + ratio</h4>
+<pre><code>SELECT o.category,
+  100.0 * COUNT(r.order_id)/COUNT(*) AS return_rate
+FROM orders o LEFT JOIN returns r ON o.order_id = r.order_id
+GROUP BY o.category;</code></pre>
+<p><code>LEFT JOIN</code> keeps every order; matched ones pick up a non-NULL <code>r.order_id</code>, unmatched ones get NULL there. <code>COUNT(*)</code> counts all orders in the group; <code>COUNT(r.order_id)</code> counts only the rows that matched a return.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>return_rate</th></tr></thead>
+  <tbody>
+    <tr><td>Electronics</td><td>50.0000000000000000</td></tr>
+    <tr><td>Apparel</td><td>50.0000000000000000</td></tr>
+    <tr><td>Books</td><td>0.00000000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Electronics: 2 returns / 4 orders = 50%. Apparel: 1 / 2 = 50%. Books: 0 / 1 = <strong>0%</strong> &mdash; and crucially Books still <em>appears</em> in the result with a real rate. An <code>INNER JOIN</code> would have erased Books entirely, silently dropping a 0%-return category from a quality report.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEFT JOIN</code>, not <code>INNER</code> &mdash; the dropped-category trap</h5>
+<p>An <code>INNER JOIN</code> emits only orders that have a matching return. Books, with zero returns, would produce zero joined rows and vanish from the output &mdash; the report would imply Books does not exist, when in fact it has the <em>best</em> return rate. A return-rate analysis must keep the denominator population intact. <code>orders LEFT JOIN returns</code> guarantees every order survives; the absence of a return becomes a NULL, not a missing row. Naming this is the single most important point.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(column)</code> &mdash; numerator and denominator</h5>
+<p>The ratio works only because the two counts count different things. <code>COUNT(*)</code> counts <em>rows</em> &mdash; every order in the group. <code>COUNT(r.order_id)</code> counts only <em>non-NULL</em> values &mdash; and after a <code>LEFT JOIN</code>, <code>r.order_id</code> is NULL exactly for orders with no return. So <code>COUNT(r.order_id)</code> is precisely the number of returned orders. Swapping it for <code>COUNT(*)</code> would make every rate 100%; swapping it for <code>COUNT(o.order_id)</code> would too, since <code>o.order_id</code> is never NULL. The numerator must reference a column from the <em>right</em> table.</p>
+
+<h5>The integer-division trap &mdash; why <code>100.0</code> not <code>100</code></h5>
+<p>Both <code>COUNT</code>s return integers. In Postgres <code>integer / integer</code> does integer division: <code>2/4</code> would be <code>0</code>, not <code>0.5</code>. Multiplying by the <em>numeric</em> literal <code>100.0</code> first promotes the whole expression to numeric, so the division is real. Writing <code>100 * COUNT(...)/COUNT(*)</code> with an integer <code>100</code> can still truncate depending on evaluation order &mdash; the <code>.0</code> is load-bearing. Equivalent fixes: <code>COUNT(r.order_id)::numeric</code> or <code>CAST</code>.</p>
+
+<h5>The duplicate-returns edge case</h5>
+<p>The query assumes <code>returns</code> has at most one row per order. If an order can be returned twice (two rows in <code>returns</code> with the same <code>order_id</code>), the <code>LEFT JOIN</code> <em>fans out</em> &mdash; that order now contributes two rows, inflating both <code>COUNT(*)</code> and <code>COUNT(r.order_id)</code> and corrupting the rate. Guard against it by counting distinct orders:</p>
+<pre><code>SELECT o.category,
+  100.0 * COUNT(DISTINCT r.order_id) / COUNT(DISTINCT o.order_id) AS return_rate
+FROM orders o LEFT JOIN returns r ON o.order_id = r.order_id
+GROUP BY o.category;</code></pre>
+<p>Or pre-aggregate <code>returns</code> to one row per order before joining. Asking "can an order be returned more than once?" is the senior clarifying question.</p>
+
+<h5>Empty categories and rounding</h5>
+<p>A category with zero orders simply will not appear &mdash; it has no rows in <code>orders</code> to group. There is no divide-by-zero risk here because every group has <code>COUNT(*) &ge; 1</code>. For presentation, wrap the rate in <code>ROUND(&hellip;, 2)</code> so the dashboard shows <code>50.00</code> rather than the long numeric tail seen above.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify <code>LEFT JOIN</code> by naming the category that an <code>INNER JOIN</code> would silently drop, explain why the numerator must <code>COUNT</code> a right-table column while the denominator uses <code>COUNT(*)</code>, force real division with a numeric literal, and pre-empt join fan-out when returns are not unique per order.</div>

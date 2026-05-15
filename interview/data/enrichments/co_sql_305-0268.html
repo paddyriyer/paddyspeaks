@@ -1,0 +1,63 @@
+<p>Tesla's customer-insights team wants to flag purchases that are unusually large <em>for that customer</em> &mdash; a buyer who normally spends $100 placing a $300 order. The phrase "for that customer" is the whole problem: the comparison baseline is not a global average, it is each customer's own average, and that is exactly what a correlated subquery delivers.</p>
+
+<h4>1. The source data &mdash; <code>purchases</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td></tr>
+    <tr><td>1</td><td>300</td></tr>
+    <tr><td>1</td><td>200</td></tr>
+    <tr><td>2</td><td>50</td></tr>
+    <tr><td>2</td><td>50</td></tr>
+    <tr><td>3</td><td>80</td></tr>
+  </tbody>
+</table>
+<p>Customer 1's average is 200, so only the $300 row clears it. Customer 2's two purchases are <strong>identical</strong> &mdash; both equal the average of 50, so neither is strictly above it. Customer 3 has a <strong>single</strong> purchase that <em>is</em> its own average. Those last two are the edge cases that decide the answer.</p>
+
+<h4>2. The SQL &mdash; correlated subquery per customer</h4>
+<pre><code>SELECT customer_id, amount FROM purchases p
+WHERE amount &gt; (SELECT AVG(amount) FROM purchases
+                WHERE customer_id = p.customer_id);</code></pre>
+<p>For each outer row <code>p</code>, the subquery recomputes the average over just that customer's purchases. The <code>WHERE customer_id = p.customer_id</code> link &mdash; the correlation &mdash; is what scopes the baseline to "this customer".</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>300</td></tr>
+  </tbody>
+</table>
+<p>Exactly one row. Customer 1's $300 beats their $200 average. Customer 1's $100 and $200 do not. Customer 2's $50 purchases tie their $50 average &mdash; <code>&gt;</code> is strict, so a tie fails. Customer 3's lone $80 equals its own one-row average of $80 &mdash; also a tie, also excluded. <strong>A single-purchase customer can never appear</strong>, because one value is always exactly its own mean.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The strict-vs-inclusive boundary</h5>
+<p><code>amount &gt; AVG</code> excludes purchases that exactly equal the average. That is why customer 2 and customer 3 produce nothing. Whether that is correct is a product decision &mdash; "above average" usually means strictly above, but confirm it. If at-average purchases should count, switch to <code>&gt;=</code>; for our data that would add both of customer 2's rows and customer 3's row.</p>
+
+<h5>The window-function rewrite &mdash; one pass instead of N</h5>
+<p>The correlated subquery re-scans the table once per row. A window function computes every customer's average in a single pass:</p>
+<pre><code>SELECT customer_id, amount FROM (
+  SELECT customer_id, amount,
+         AVG(amount) OVER (PARTITION BY customer_id) AS cust_avg
+  FROM purchases
+) t
+WHERE amount &gt; cust_avg;</code></pre>
+<p><code>AVG(amount) OVER (PARTITION BY customer_id)</code> attaches each customer's mean to every one of their rows; the outer query then filters. Same result, but O(n log n) instead of O(n&middot;rows-per-customer). On a large purchases table this is the answer you want &mdash; the correlated form is the one to <em>recognise</em>, the window form is the one to <em>ship</em>.</p>
+
+<h5>Correlated subquery vs GROUP BY join</h5>
+<p>A third equivalent: aggregate once into a derived table and join back.</p>
+<pre><code>SELECT p.customer_id, p.amount
+FROM purchases p
+JOIN (SELECT customer_id, AVG(amount) AS cust_avg
+      FROM purchases GROUP BY customer_id) a
+  ON a.customer_id = p.customer_id
+WHERE p.amount &gt; a.cust_avg;</code></pre>
+<p>The join form is often what a planner rewrites the correlated subquery into anyway. All three return the single $300 row &mdash; knowing they are equivalent, and which one a query planner prefers, is the senior signal.</p>
+
+<h5>NULL amounts</h5>
+<p>If a purchase had a NULL <code>amount</code>, two things happen: <code>AVG</code> skips it (the baseline ignores NULL), and <code>NULL &gt; anything</code> is unknown, so that row is filtered out. A NULL purchase silently disappears &mdash; usually fine, but state it. If NULL means "$0 sale" you would need <code>COALESCE(amount, 0)</code> in both the subquery and the comparison.</p>
+
+<h5>The self-comparison subtlety</h5>
+<p>The subquery's average <em>includes</em> the very row being tested. So a customer with two purchases, $100 and $300, has an average of $200, and the $300 clears it. If the business wants each purchase compared against the customer's <em>other</em> purchases (a leave-one-out average), you must exclude the current row &mdash; <code>AND purchase_id &lt;&gt; p.purchase_id</code> &mdash; which needs a unique key the bare <code>purchases(customer_id, amount)</code> schema does not provide. Flag that the schema lacks a row identifier.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> read "for that customer" as a per-customer baseline, know that <code>&gt;</code> excludes at-average rows so single-purchase customers never appear, and offer the <code>AVG() OVER (PARTITION BY &hellip;)</code> rewrite that replaces N table scans with one &mdash; while noting the baseline includes the row under test.</div>

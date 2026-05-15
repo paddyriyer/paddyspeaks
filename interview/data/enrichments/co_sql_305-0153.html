@@ -1,0 +1,65 @@
+<p>Crypto.com's compensation team wants every employee shown against their department's average salary, with the gap spelled out &mdash; the raw input for "who is underpaid relative to peers" reviews. The natural shape is: compute one average per department, then join it back to each employee. A CTE does the first step cleanly. The interview value is in the join grain, what happens to employees with no department, and the tempting-but-wrong window-function shortcut.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>100,000</td></tr>
+    <tr><td>2</td><td>10</td><td>140,000</td></tr>
+    <tr><td>3</td><td>10</td><td>120,000</td></tr>
+    <tr><td>4</td><td>20</td><td>90,000</td></tr>
+    <tr><td>5</td><td>20</td><td>110,000</td></tr>
+    <tr><td>6</td><td>30</td><td>200,000</td></tr>
+  </tbody>
+</table>
+<p>Department 10 has three salaries averaging 120K &mdash; employee 3 sits <em>exactly</em> on the average (diff 0). Department 20 averages 100K. Department 30 is a <strong>one-person department</strong>: its average <em>is</em> employee 6's salary, so the diff is necessarily 0. Those two zero-diff rows are the edge cases worth pointing at.</p>
+
+<h4>2. The SQL &mdash; <code>CTE for dept average, then join</code></h4>
+<pre><code>WITH dept_avg AS (
+  SELECT dept_id, AVG(salary) AS avg_sal
+  FROM employees
+  GROUP BY dept_id
+)
+SELECT e.emp_id, e.salary, d.avg_sal,
+       e.salary - d.avg_sal AS diff
+FROM employees e
+JOIN dept_avg d ON e.dept_id = d.dept_id;</code></pre>
+<p>The CTE <code>dept_avg</code> collapses the table to one row per department; the main query joins each employee back to their department's row to pick up <code>avg_sal</code> and compute the gap.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th><th>avg_sal</th><th>diff</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100000</td><td>120000.000000000000</td><td>-20000.000000000000</td></tr>
+    <tr><td>2</td><td>140000</td><td>120000.000000000000</td><td>20000.000000000000</td></tr>
+    <tr><td>3</td><td>120000</td><td>120000.000000000000</td><td>0.000000000000</td></tr>
+    <tr><td>4</td><td>90000</td><td>100000.000000000000</td><td>-10000.000000000000</td></tr>
+    <tr><td>5</td><td>110000</td><td>100000.000000000000</td><td>10000.000000000000</td></tr>
+    <tr><td>6</td><td>200000</td><td>200000.000000000000</td><td>0.000000000000</td></tr>
+  </tbody>
+</table>
+<p>Employee 1 is 20K under the dept-10 average; employee 2 is 20K over. Employee 3 lands exactly on it. Employee 6's diff is 0 because, alone in department 30, they <em>are</em> the average &mdash; a single-member group can never deviate from itself.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The window-function shortcut &mdash; one pass, no join</h5>
+<p>The CTE-plus-join works, but it scans <code>employees</code> twice and pays for a join. A windowed <code>AVG</code> computes the department average <em>alongside</em> each employee row in a single pass:</p>
+<pre><code>SELECT emp_id, salary,
+       AVG(salary) OVER (PARTITION BY dept_id) AS avg_sal,
+       salary - AVG(salary) OVER (PARTITION BY dept_id) AS diff
+FROM employees;</code></pre>
+<p>Same numbers, no <code>GROUP BY</code>, no join, and it naturally keeps every employee &mdash; including ones the join might drop. On a large table this is the answer to give; the CTE version is fine but the window version is what signals fluency.</p>
+
+<h5>The dead <code>dept_avg</code> column &mdash; a denormalisation trap</h5>
+<p>The schema already carries a <code>dept_avg</code> column on <code>employees</code>. It is tempting to just <code>SELECT salary - dept_avg</code> and skip all computation. Resist it: a stored aggregate is a <em>cached</em> value that goes stale the instant anyone's salary changes &mdash; give a raise and every cached <code>dept_avg</code> in that department is now wrong until something recomputes it. Compute the average live from the salaries unless you can prove the column is maintained by a trigger. Flagging this stale-denormalisation risk is the senior observation.</p>
+
+<h5>Employees with a NULL <code>dept_id</code></h5>
+<p>If an employee has no department (NULL <code>dept_id</code> &mdash; a contractor, an unassigned new hire), the <code>INNER JOIN</code> drops them: <code>NULL = NULL</code> is never true, so they match no <code>dept_avg</code> row. They simply vanish from the comp review. Decide deliberately: a <code>LEFT JOIN</code> keeps them with <code>avg_sal</code> NULL (and <code>diff</code> NULL), or filter them out on purpose &mdash; but do not let them disappear silently. The window-function version sidesteps this: a NULL-dept employee just forms their own partition.</p>
+
+<h5>The grain check &mdash; why this join is safe</h5>
+<p>Joining a detail table to an aggregate is safe <em>only</em> because the CTE produces exactly one row per <code>dept_id</code> &mdash; <code>GROUP BY dept_id</code> guarantees it. If <code>dept_avg</code> could emit two rows for a department, each employee would match both and the result would double. Always confirm the join's right side is unique on the join key; here <code>GROUP BY</code> is the guarantee, so each employee matches exactly one average.</p>
+
+<h5>The ranking follow-up</h5>
+<p>Expect "now rank each employee within their department." That is one more window function over the same partition: <code>RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC)</code>. Pointing out that the dept-average and the in-dept rank share the identical <code>PARTITION BY dept_id</code> &mdash; computable side by side in one query &mdash; is the over-the-bar finish.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> offer <code>AVG(salary) OVER (PARTITION BY dept_id)</code> as the single-pass alternative to the CTE-and-join, refuse to trust the stored <code>dept_avg</code> column because cached aggregates go stale, handle NULL-<code>dept_id</code> employees deliberately rather than letting the inner join drop them, and confirm the aggregate side is unique per key so the join cannot fan out.</div>

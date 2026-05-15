@@ -1,0 +1,55 @@
+<p>Deloitte's workforce-analytics team needs the <em>median</em> salary across a single flat list &mdash; the robust middle-of-the-pack number that staff-level outliers cannot distort the way they distort the mean. Standard SQL has no <code>MEDIAN</code> aggregate, so the candidate has to construct it: number the rows in salary order, then pick the middle one (odd count) or the two middle ones (even count). The whole interview lives in that odd/even branch and whether the offset arithmetic gets it exactly right.</p>
+
+<h4>1. The source data &mdash; <code>salaries</code></h4>
+<table>
+  <thead><tr><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>60,000</td></tr>
+    <tr><td>80,000</td></tr>
+    <tr><td>100,000</td></tr>
+    <tr><td>120,000</td></tr>
+    <tr><td>200,000</td></tr>
+  </tbody>
+</table>
+<p>Five values &mdash; an <strong>odd</strong> count, so the median is the single middle value, 100,000. The 200,000 outlier is deliberate: it pulls the <em>mean</em> up to 112,000 while leaving the median untouched at 100,000. That gap &mdash; mean 112K vs median 100K &mdash; is exactly why anyone asks for a median.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER with median offsets</code></h4>
+<pre><code>SELECT AVG(salary) AS median FROM (
+  SELECT salary,
+         ROW_NUMBER() OVER (ORDER BY salary) AS rn,
+         COUNT(*)     OVER ()                AS n
+  FROM salaries
+) t
+WHERE rn IN ((n+1)/2, (n+2)/2);</code></pre>
+<p>The subquery numbers every salary in ascending order (<code>rn</code>) and tags each row with the total count (<code>n</code>). The outer query keeps the middle row(s) and averages them &mdash; the <code>AVG</code> matters only for the even case.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>median</th></tr></thead>
+  <tbody>
+    <tr><td>100000.000000000000</td></tr>
+  </tbody>
+</table>
+<p>One row, one number: 100,000. With <code>n = 5</code>, integer division gives <code>(n+1)/2 = 3</code> and <code>(n+2)/2 = 3</code> &mdash; the same value, so the <code>IN</code> list selects only <code>rn = 3</code>, the single middle salary. <code>AVG</code> over that one row returns it unchanged. Cross-checked against <code>percentile_cont(0.5)</code>: also 100,000.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the offsets <code>(n+1)/2, (n+2)/2</code> handle both parities</h5>
+<p>This is the elegant core. With <strong>integer</strong> division: for odd <code>n = 5</code>, both offsets evaluate to 3 &mdash; the <code>IN</code> set is <code>{3}</code>, one row, the true middle. For even <code>n = 6</code>, <code>(7)/2 = 3</code> and <code>(8)/2 = 4</code> &mdash; the set is <code>{3, 4}</code>, the two middle rows, and <code>AVG</code> blends them. One formula, no <code>CASE</code>, because truncating division does the odd/even decision automatically. (Float division would break it &mdash; the truncation is load-bearing.)</p>
+
+<h5>The one-line answer &mdash; <code>percentile_cont</code></h5>
+<p>Postgres ships the median as an ordered-set aggregate:</p>
+<pre><code>SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY salary) AS median
+FROM salaries;</code></pre>
+<p>Lead with this &mdash; it is correct by construction and obviously expresses intent. Keep the <code>ROW_NUMBER</code> construction in your pocket: many interviewers explicitly ask you to build median <em>without</em> the aggregate (to test window-function fluency), and engines like MySQL &lt; 8 have no <code>percentile_cont</code>.</p>
+
+<h5><code>percentile_cont</code> vs <code>percentile_disc</code> &mdash; the even-count divergence</h5>
+<p>For an even count they differ. <code>percentile_cont</code> <em>interpolates</em> &mdash; with values {80K, 120K} as the middles it returns 100K, matching the <code>AVG</code>-of-two-rows approach. <code>percentile_disc</code> returns an <em>actual data value</em> &mdash; it would return 80K, the lower middle. The <code>ROW_NUMBER</code> + <code>AVG</code> solution matches <code>cont</code>. State which definition the business wants; "the median is 100K" is ambiguous for even-sized datasets.</p>
+
+<h5>The NULL-salary trap</h5>
+<p>A NULL salary still receives a <code>ROW_NUMBER</code> and is still tallied by <code>COUNT(*) OVER ()</code>, so it inflates <code>n</code> and shifts the median offset &mdash; a phantom data point dragging the answer off. <code>ORDER BY salary</code> sorts NULLs last by default so they usually fall outside the middle band, but <code>n</code> is still wrong. Filter first: <code>WHERE salary IS NOT NULL</code> inside the subquery, before numbering. <code>percentile_cont</code> ignores NULLs automatically &mdash; another reason to prefer it.</p>
+
+<h5>The naive sort-and-pick that breaks at scale</h5>
+<p>A tempting non-window approach &mdash; <code>ORDER BY salary LIMIT 1 OFFSET (count/2)</code> &mdash; needs a separate query (or a subquery) just to get the count, returns the wrong thing for even counts unless special-cased, and still has to sort the whole set. The <code>ROW_NUMBER</code> + <code>COUNT() OVER ()</code> form computes the count and the ordering in one pass over one sort, and the offset formula handles parity uniformly. It is both cleaner and the genuinely scalable choice.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that integer-division offsets <code>(n+1)/2, (n+2)/2</code> collapse to one row for odd counts and two for even with no <code>CASE</code>, reach first for <code>percentile_cont(0.5) WITHIN GROUP</code>, distinguish <code>cont</code> (interpolated) from <code>disc</code> (actual value) on even-sized data, and filter NULL salaries before numbering so they cannot skew the count.</div>

@@ -1,0 +1,63 @@
+<p>Robinhood's operations team works a queue of orders and wants it sorted the way the desk actually triages: High-priority first, then Med, then everything else &mdash; and within each tier, oldest order first. The catch is that <code>priority</code> is a text column, so a plain sort gives the wrong order. The interviewer wants the <code>CASE</code>-in-<code>ORDER BY</code> trick.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>priority</th><th>order_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Med</td><td>2024-02-10</td><td>$200</td></tr>
+    <tr><td>2</td><td>High</td><td>2024-02-12</td><td>$400</td></tr>
+    <tr><td>3</td><td>Low</td><td>2024-02-01</td><td>$90</td></tr>
+    <tr><td>4</td><td>High</td><td>2024-02-05</td><td>$350</td></tr>
+    <tr><td>5</td><td>Med</td><td>2024-02-03</td><td>$150</td></tr>
+  </tbody>
+</table>
+<p>Two orders are <strong>High</strong> (2 and 4) and two are <strong>Med</strong> (1 and 5) &mdash; so the within-tier date sort has real work to do. The desired order is not alphabetical: alphabetically <code>High &lt; Low &lt; Med</code>, which is nonsense for triage.</p>
+
+<h4>2. The SQL &mdash; <code>CASE in ORDER BY</code></h4>
+<pre><code>SELECT * FROM orders
+ORDER BY CASE priority WHEN 'High' THEN 1
+                       WHEN 'Med'  THEN 2
+                       ELSE 3 END,
+         order_date;</code></pre>
+<p>The <code>CASE</code> maps each priority string to a sort weight &mdash; 1, 2, 3 &mdash; so the database sorts by that number, not the text. <code>order_date</code> is the second sort key: the tiebreaker within a tier.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>priority</th><th>order_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>High</td><td>2024-02-05</td><td>350</td></tr>
+    <tr><td>2</td><td>High</td><td>2024-02-12</td><td>400</td></tr>
+    <tr><td>5</td><td>Med</td><td>2024-02-03</td><td>150</td></tr>
+    <tr><td>1</td><td>Med</td><td>2024-02-10</td><td>200</td></tr>
+    <tr><td>3</td><td>Low</td><td>2024-02-01</td><td>90</td></tr>
+  </tbody>
+</table>
+<p>High orders lead, Med follow, Low last &mdash; the business order, not the alphabet. Within High, order 4 (Feb 5) precedes order 2 (Feb 12); within Med, order 5 (Feb 3) precedes order 1 (Feb 10). The two-level sort &mdash; tier then date &mdash; reads exactly like the triage rule.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a plain <code>ORDER BY priority</code> is wrong</h5>
+<p>Sorting the text column directly sorts <em>lexically</em>: <code>'High'</code>, <code>'Low'</code>, <code>'Med'</code> &mdash; so a Low-priority order would jump ahead of a Med one. Alphabetical order rarely equals business order. The <code>CASE</code> exists precisely to impose an <em>arbitrary, intentional</em> ordering that the raw values cannot express.</p>
+
+<h5>The cleaner long-term fix &mdash; a priority lookup or enum</h5>
+<p>An inline <code>CASE</code> hard-codes the ordering into every query that needs it; add a <code>Critical</code> tier and you must edit them all. Two more durable designs:</p>
+<pre><code>-- A. a lookup table carrying an explicit sort rank
+SELECT o.* FROM orders o
+JOIN priority_levels pl ON o.priority = pl.name
+ORDER BY pl.sort_rank, o.order_date;
+
+-- B. a Postgres ENUM, whose declared order IS the sort order
+CREATE TYPE priority_t AS ENUM ('High','Med','Low');
+-- then ORDER BY priority sorts High, Med, Low natively</code></pre>
+<p>An <code>ENUM</code> sorts by declaration order for free; a lookup table keeps the ordering as data, editable without code changes. The inline <code>CASE</code> is the right answer for a one-off query, the wrong one for a pattern repeated across a codebase.</p>
+
+<h5>The <code>ELSE</code> catch-all and unexpected values</h5>
+<p><code>ELSE 3</code> sweeps up <code>'Low'</code> &mdash; but also <code>'Urgent'</code>, <code>'low'</code> (wrong case), a typo, or <code>NULL</code>. They all collapse to weight 3 and land together at the bottom, indistinguishably. If new priority values are likely, list them explicitly and reserve <code>ELSE</code> for genuine unknowns &mdash; or sort unknowns out of the way deliberately rather than lumping them with Low.</p>
+
+<h5>Where do NULL priorities go?</h5>
+<p><code>CASE priority WHEN 'High'&hellip;</code> uses equality, and <code>NULL = 'High'</code> is <em>unknown</em>, never true &mdash; so a NULL priority falls through to <code>ELSE 3</code> and sorts with Low. That may or may not be intended; a NULL could mean "untriaged" and belong at the <em>top</em>. If so, give it its own branch: <code>WHEN priority IS NULL THEN 0</code> (note: that needs the <em>searched</em> <code>CASE</code> form, <code>CASE WHEN &hellip;</code>, since the simple <code>CASE priority WHEN</code> form cannot test <code>IS NULL</code>).</p>
+
+<h5><code>SELECT *</code> in production code</h5>
+<p>The solution uses <code>SELECT *</code>, fine for an interview. In a real service it is fragile: a new column changes the result shape and can break a consumer or an <code>INSERT &hellip; SELECT</code>. Name the columns the desk actually needs. Worth stating as a senior aside even though it does not affect this answer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a <code>CASE</code> map to impose a business ordering that text sort cannot, add <code>order_date</code> as an explicit within-tier tiebreaker, know that <code>ELSE</code> silently absorbs typos and NULLs, and mention that an <code>ENUM</code> or priority lookup table is the more maintainable design when the ordering is reused.</div>

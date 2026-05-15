@@ -1,0 +1,63 @@
+<p>Amazon's supply-chain team wants a reorder alert: for each product, how many days of stock remain at the current sales pace, surfacing only the ones about to run out (under 14 days). The query divides on-hand quantity by daily sales velocity. The arithmetic is trivial &mdash; but the reference solution wraps every number in a <code>regexp_replace</code>, and the interviewer wants to know why, and what happens when velocity is zero.</p>
+
+<h4>1. The source data &mdash; <code>inventory</code> and <code>sales_velocity</code></h4>
+<table>
+  <thead><tr><th>inventory.product_id</th><th>qty</th><th></th><th>sales_velocity.product_id</th><th>daily_avg</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>50</td><td></td><td>1</td><td>10</td></tr>
+    <tr><td>2</td><td>200</td><td></td><td>2</td><td>8</td></tr>
+    <tr><td>3</td><td>12</td><td></td><td>3</td><td>3</td></tr>
+    <tr><td>4</td><td>0</td><td></td><td>4</td><td>5</td></tr>
+    <tr><td>5</td><td>90</td><td></td><td>5</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>Product 4 is already <strong>out of stock</strong> (qty 0). Product 5 has a <strong>daily_avg of 0</strong> &mdash; it does not sell, so "days left" is a division by zero. Those two rows are the interview: one is an honest 0, the other must not crash the query.</p>
+
+<h4>2. The SQL &mdash; <code>qty / daily_avg, with regexp scrub</code></h4>
+<pre><code>SELECT i.product_id,
+  NULLIF(regexp_replace(i.qty::text, '[^-.0-9]', '', 'g'), '')::numeric
+  / NULLIF(NULLIF(regexp_replace(s.daily_avg::text, '[^-.0-9]', '', 'g'), '')::numeric, 0)
+  AS days_left
+FROM inventory i
+JOIN sales_velocity s ON i.product_id = s.product_id
+WHERE NULLIF(regexp_replace(i.qty::text, '[^-.0-9]', '', 'g'), '')::numeric
+  / NULLIF(NULLIF(regexp_replace(s.daily_avg::text, '[^-.0-9]', '', 'g'), '')::numeric, 0)
+  &lt; 14;</code></pre>
+<p>The <code>regexp_replace(&hellip;, '[^-.0-9]', '', 'g')</code> strips every character that is not a digit, minus or dot &mdash; defensive cleaning in case <code>qty</code> arrived as text like "50 units". The inner <code>NULLIF(&hellip;, 0)</code> on the divisor is the guard against division by zero.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>days_left</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>5.0000000000000000</td></tr>
+    <tr><td>3</td><td>4.0000000000000000</td></tr>
+    <tr><td>4</td><td>0.00000000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Product 1: 50 / 10 = 5 days. Product 3: 12 / 3 = 4 days. Product 4: 0 / 5 = 0 days &mdash; correctly flagged, it is out of stock now. Product 2 (200 / 8 = 25 days) is comfortably stocked and excluded by the <code>&lt; 14</code> filter. Product 5 is <strong>silently dropped</strong>: <code>NULLIF(daily_avg, 0)</code> turned its divisor into NULL, the division yielded NULL, and <code>NULL &lt; 14</code> is <code>UNKNOWN</code> &mdash; so it fails the <code>WHERE</code>. Round the high-precision result with <code>ROUND(&hellip;, 1)</code> for a dashboard.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Division by zero &mdash; the <code>NULLIF</code> guard</h5>
+<p>Without the inner <code>NULLIF(divisor, 0)</code>, product 5 would raise <code>division by zero</code> and abort the whole query. <code>NULLIF(x, 0)</code> converts a zero divisor to NULL, and dividing by NULL yields NULL rather than an error. The behavioural consequence: a non-selling product reports an <em>unknown</em> runway, not an infinite one &mdash; arguably correct (you cannot forecast a stockout for something that never sells), but the interviewer wants you to <em>name</em> that product 5 vanishes, and decide whether a non-seller should instead surface as "never runs out".</p>
+
+<h5>Why the <code>regexp_replace</code> &mdash; defensive or paranoid?</h5>
+<p>If <code>qty</code> and <code>daily_avg</code> are already numeric columns &mdash; as the schema implies &mdash; the regex scrubbing is dead weight: it casts a number to text, strips nothing, and casts back. It only earns its place if those columns are actually <code>TEXT</code> holding values like "50 units" or "1,200". On clean numeric columns the query simplifies dramatically:</p>
+<pre><code>SELECT i.product_id, i.qty::numeric / NULLIF(s.daily_avg, 0) AS days_left
+FROM inventory i
+JOIN sales_velocity s ON i.product_id = s.product_id
+WHERE i.qty::numeric / NULLIF(s.daily_avg, 0) &lt; 14;</code></pre>
+<p>Knowing when defensive parsing is justified versus cargo-culted is a senior judgement call &mdash; ask what type the columns really are.</p>
+
+<h5>Don't repeat the expression &mdash; CTE or lateral</h5>
+<p>The solution computes the identical division <em>twice</em> &mdash; once in <code>SELECT</code>, once in <code>WHERE</code>. That is error-prone (edit one, forget the other) and you cannot reference a <code>SELECT</code> alias in <code>WHERE</code>. Compute once, filter after:</p>
+<pre><code>SELECT * FROM (
+  SELECT i.product_id, i.qty::numeric / NULLIF(s.daily_avg, 0) AS days_left
+  FROM inventory i JOIN sales_velocity s ON i.product_id = s.product_id
+) t
+WHERE days_left &lt; 14;</code></pre>
+
+<h5>The join type &mdash; missing velocity rows</h5>
+<p>The <code>INNER JOIN</code> drops any product that exists in <code>inventory</code> but has no <code>sales_velocity</code> row &mdash; a brand-new SKU with no sales history. That product never gets a reorder alert, which is a real blind spot. A <code>LEFT JOIN</code> keeps it (with <code>days_left</code> NULL); decide whether unknown-velocity products should be reviewed manually rather than silently ignored.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> guard the divisor with <code>NULLIF(x, 0)</code> and explicitly note that zero-velocity products then drop out of the alert, question whether the <code>regexp_replace</code> scrubbing is warranted or cargo-culted given the column types, compute the division once instead of duplicating it across <code>SELECT</code> and <code>WHERE</code>, and flag that an inner join blinds the alert to products with no sales history.</div>

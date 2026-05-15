@@ -1,0 +1,71 @@
+<p>Bloomberg's terminal team wants the top three revenue-generating products in every category for a sales dashboard. "Top N per group" is one of the most-asked SQL patterns precisely because the naive approaches &mdash; <code>GROUP BY</code>, <code>LIMIT</code> &mdash; cannot do it. The interviewer wants to see you reach for a windowed row number, and wants to hear which ranking function handles ties the way the product needs.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>category</th><th>product_id</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>Books</td><td>1</td><td>500</td></tr>
+    <tr><td>Books</td><td>2</td><td>400</td></tr>
+    <tr><td>Books</td><td>3</td><td>300</td></tr>
+    <tr><td>Books</td><td>4</td><td>200</td></tr>
+    <tr><td>Toys</td><td>5</td><td>900</td></tr>
+    <tr><td>Toys</td><td>6</td><td>900</td></tr>
+    <tr><td>Toys</td><td>7</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>Books has four products &mdash; one must be cut. Toys has only three, and two of them are <strong>tied</strong> at 900. That tie is the interview: with <code>ROW_NUMBER</code> the engine still hands the tied rows distinct numbers, picking a winner arbitrarily.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER() &lt;= 3</code></h4>
+<pre><code>SELECT category, product_id, revenue FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY category ORDER BY revenue DESC) rn FROM sales
+) t WHERE rn &lt;= 3;</code></pre>
+<p><code>PARTITION BY category</code> restarts the numbering for each category; <code>ORDER BY revenue DESC</code> numbers within it from highest. The outer query keeps rows numbered 1, 2, 3. The window function must live in a subquery because you cannot reference its alias <code>rn</code> in a <code>WHERE</code> at the same level.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>product_id</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>Books</td><td>1</td><td>500</td></tr>
+    <tr><td>Books</td><td>2</td><td>400</td></tr>
+    <tr><td>Books</td><td>3</td><td>300</td></tr>
+    <tr><td>Toys</td><td>5</td><td>900</td></tr>
+    <tr><td>Toys</td><td>6</td><td>900</td></tr>
+    <tr><td>Toys</td><td>7</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>Books correctly drops product 4 (revenue 200, ranked 4th). Toys keeps all three rows since it only has three. But notice: products 5 and 6 are both revenue 900 &mdash; <code>ROW_NUMBER</code> assigned them 1 and 2 in <em>some</em> order the planner chose. If Toys had a fourth product, the cut between the two tied 900s would be arbitrary.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>GROUP BY</code> and <code>LIMIT</code> both fail here</h5>
+<p><code>GROUP BY category</code> collapses each category to one row &mdash; it can give you the single max revenue, never the top three rows with their <code>product_id</code>s. A bare <code>ORDER BY revenue DESC LIMIT 3</code> returns three rows <em>total</em>, not three per category. "Top N per group" structurally needs a per-group counter, and that counter is a window function. Saying why the simple tools fail is half the answer.</p>
+
+<h5>The tie trap &mdash; <code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code></h5>
+<p>The reference uses <code>ROW_NUMBER</code>, which never produces a tie: equal-revenue rows still get consecutive integers, so it always returns <em>exactly</em> 3 rows per group. That is right when the product wants a hard cap. But it makes the cutoff non-deterministic when rows tie on the boundary. The three functions differ precisely on ties:</p>
+<table>
+  <thead><tr><th>revenue</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>900</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>900</td><td>2</td><td>1</td><td>1</td></tr>
+    <tr><td>100</td><td>3</td><td>3</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>If a tie at the boundary should mean "keep <em>everyone</em> tied at 3rd place", use <code>RANK() &lt;= 3</code> (may return more than 3 rows). If "top 3 distinct revenue levels", use <code>DENSE_RANK() &lt;= 3</code>. Confirm which the dashboard wants.</p>
+
+<h5>Make the tiebreak deterministic</h5>
+<p>Even with <code>ROW_NUMBER</code>, the cut should be reproducible. Add a unique column to the window's <code>ORDER BY</code> so equal-revenue rows always order the same way:</p>
+<pre><code>ROW_NUMBER() OVER (PARTITION BY category ORDER BY revenue DESC, product_id ASC)</code></pre>
+<p>Now if Toys had a fourth product, the lower <code>product_id</code> among the tied 900s wins consistently &mdash; the same answer on every run.</p>
+
+<h5>The dialect note &mdash; <code>QUALIFY</code></h5>
+<p>Snowflake, BigQuery and DuckDB let you skip the subquery with <code>QUALIFY</code>:</p>
+<pre><code>SELECT category, product_id, revenue,
+       ROW_NUMBER() OVER (PARTITION BY category ORDER BY revenue DESC) rn
+FROM sales
+QUALIFY rn &lt;= 3;</code></pre>
+<p><code>QUALIFY</code> is to window functions what <code>HAVING</code> is to aggregates. Postgres and MySQL do not support it &mdash; there the subquery (or a CTE) is mandatory. Mention this; it shows you know the standard and the vendor extensions.</p>
+
+<h5>Edge cases: small groups and NULL revenue</h5>
+<p>A category with fewer than 3 products simply returns all of them &mdash; <code>rn &lt;= 3</code> degrades gracefully, no special case needed. NULL revenue is the subtle one: under <code>ORDER BY revenue DESC</code>, Postgres sorts NULLs <em>first</em>, so a NULL-revenue product would be ranked #1 in its category. Add <code>NULLS LAST</code> if a missing revenue should sink, not float.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain why <code>GROUP BY</code>/<code>LIMIT</code> cannot express top-N-per-group, pick the ranking function deliberately (<code>ROW_NUMBER</code> for a hard cap, <code>RANK</code>/<code>DENSE_RANK</code> when boundary ties must all survive), make the tiebreak deterministic with a unique sort key, and know that <code>QUALIFY</code> replaces the subquery only on engines that support it.</div>

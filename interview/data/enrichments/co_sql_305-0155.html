@@ -1,0 +1,57 @@
+<p>Netflix's hardware catalogue team wants the product list rendered the way a merchandiser thinks: grouped by category, with the priciest items first inside each group, and ties broken alphabetically by name. It is a single <code>ORDER BY</code>, but the interviewer is checking whether you understand that sort keys are applied <em>in sequence</em> &mdash; and that mixing <code>ASC</code> and <code>DESC</code> per column is not just legal, it is the point.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>price</th><th>name</th><th>sku</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Audio</td><td>199.00</td><td>Studio Headphones</td><td>SKU-A1</td></tr>
+    <tr><td>2</td><td>Audio</td><td>199.00</td><td>Aero Earbuds</td><td>SKU-A2</td></tr>
+    <tr><td>3</td><td>Audio</td><td>89.00</td><td>Clip Speaker</td><td>SKU-A3</td></tr>
+    <tr><td>4</td><td>Video</td><td>499.00</td><td>4K Monitor</td><td>SKU-V1</td></tr>
+    <tr><td>5</td><td>Video</td><td>499.00</td><td>Action Cam</td><td>SKU-V2</td></tr>
+    <tr><td>6</td><td>Cables</td><td>12.00</td><td>HDMI 2m</td><td>SKU-C1</td></tr>
+  </tbody>
+</table>
+<p>Products 1 and 2 share a category <em>and</em> a price (199.00) &mdash; the only thing left to order them is the third sort key, <code>name</code>. Products 4 and 5 do the same in Video. Those ties are exactly where a multi-column <code>ORDER BY</code> earns its keep.</p>
+
+<h4>2. The SQL &mdash; <code>ORDER BY a, b, c</code></h4>
+<pre><code>SELECT * FROM products ORDER BY category ASC, price DESC, name ASC;</code></pre>
+<p>Three sort keys, evaluated left to right. <code>category</code> ascending groups the rows; within each category, <code>price</code> descending; within an equal price, <code>name</code> ascending.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>price</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Audio</td><td>199.00</td><td>Aero Earbuds</td></tr>
+    <tr><td>1</td><td>Audio</td><td>199.00</td><td>Studio Headphones</td></tr>
+    <tr><td>3</td><td>Audio</td><td>89.00</td><td>Clip Speaker</td></tr>
+    <tr><td>6</td><td>Cables</td><td>12.00</td><td>HDMI 2m</td></tr>
+    <tr><td>4</td><td>Video</td><td>499.00</td><td>4K Monitor</td></tr>
+    <tr><td>5</td><td>Video</td><td>499.00</td><td>Action Cam</td></tr>
+  </tbody>
+</table>
+<p>Inside Audio, the two 199.00 rows are tied on the first two keys, so the third key decides: "Aero Earbuds" sorts before "Studio Headphones", and product 2 comes first. Without that third key, the order of those two rows would be undefined &mdash; whatever the planner happened to emit.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Sort keys are lexicographic &mdash; later keys only break ties in earlier ones</h5>
+<p>A multi-column <code>ORDER BY</code> works like alphabetising words: the second letter only matters when the first letters match. <code>price DESC</code> is consulted <em>only</em> for rows that share a <code>category</code>; <code>name ASC</code> is consulted <em>only</em> for rows that share both category and price. If every category had distinct prices, the third key would never fire. State this ordering explicitly &mdash; interviewers want to hear "keys are applied in priority order", not "it sorts by all three".</p>
+
+<h5>Per-column direction is independent</h5>
+<p><code>ASC</code> and <code>DESC</code> attach to each column individually. <code>ORDER BY category ASC, price DESC</code> means category low-to-high <em>and</em> price high-to-low simultaneously &mdash; not a single global direction. A frequent mistake is writing <code>ORDER BY category, price DESC</code> and assuming <code>DESC</code> covers both; it does not. <code>category</code> there defaults to <code>ASC</code>. If you wanted both descending you would write <code>category DESC, price DESC</code>.</p>
+
+<h5>The deterministic-order trap &mdash; add a tiebreaker</h5>
+<p>Even with three keys, products tied on category, price <em>and</em> name would still come back in arbitrary order. For a result that is byte-for-byte reproducible across runs &mdash; needed for pagination, snapshot tests, or diffing &mdash; append a guaranteed-unique final key, almost always the primary key:</p>
+<pre><code>SELECT * FROM products
+ORDER BY category ASC, price DESC, name ASC, product_id ASC;</code></pre>
+<p>A senior answer mentions that <code>ORDER BY</code> without a unique trailing key is "stable enough for display, not stable enough for tests".</p>
+
+<h5>NULLs in a sort key</h5>
+<p>If <code>price</code> contained NULLs, Postgres places them <em>last</em> under <code>ASC</code> and <em>first</em> under <code>DESC</code> by default &mdash; so a NULL-priced item would jump to the top of its category here. That is rarely intended. Control it explicitly:</p>
+<pre><code>ORDER BY category ASC, price DESC NULLS LAST, name ASC;</code></pre>
+<p>Engines disagree on the default (MySQL sorts NULLs first under <code>ASC</code>; Postgres sorts them last), so <code>NULLS LAST</code> / <code>NULLS FIRST</code> is the portable, intentional choice.</p>
+
+<h5><code>SELECT *</code> versus naming columns</h5>
+<p><code>SELECT *</code> is fine for an ad-hoc pull, but in shipped code it is brittle: add or reorder a column and downstream consumers silently break. The sort keys do not have to appear in the select list &mdash; you could sort by <code>price</code> while only projecting <code>name</code> &mdash; so naming the projected columns and the sort keys separately is the production-grade habit.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>ORDER BY</code> keys are applied in priority order with each later key breaking ties in the earlier ones, that <code>ASC</code>/<code>DESC</code> is per-column, and that a result is only reproducible when the final sort key is unique &mdash; then pre-empt the NULL-ordering default before it bites.</div>

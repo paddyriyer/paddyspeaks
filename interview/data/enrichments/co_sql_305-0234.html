@@ -1,0 +1,62 @@
+<p>Deutsche Bank's risk-reporting desk charts a daily metric &mdash; say a P&amp;L figure &mdash; and the raw line is too jagged to read a trend off. They want a 7-day moving average smoothed alongside the raw series. The query is a single windowed <code>AVG</code> with a row frame. It looks compact, but the interviewer is checking whether you understand what the window actually averages at the start of the series.</p>
+
+<h4>1. The source data &mdash; <code>metrics</code></h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>10</td></tr>
+    <tr><td>2026-01-02</td><td>20</td></tr>
+    <tr><td>2026-01-03</td><td>30</td></tr>
+    <tr><td>2026-01-04</td><td>40</td></tr>
+    <tr><td>&hellip;</td><td>&hellip;</td></tr>
+    <tr><td>2026-01-08</td><td>80</td></tr>
+  </tbody>
+</table>
+<p>Eight consecutive days, values climbing 10, 20, 30 &hellip; 80. The first six rows are interesting: each has <em>fewer than 7</em> prior days available, so the "7-day" average is computed over a shorter window. That partial-window behaviour is the heart of the question.</p>
+
+<h4>2. The SQL &mdash; <code>AVG OVER (ROWS 6 PRECEDING)</code></h4>
+<pre><code>SELECT metric_date, value,
+  AVG(value) OVER (ORDER BY metric_date
+                   ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS ma7
+FROM metrics;</code></pre>
+<p>The frame <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> spans the current row plus the six before it &mdash; seven rows when seven exist. <code>AVG</code> averages <code>value</code> over whatever the frame currently holds.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>ma7</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>10</td><td>10</td></tr>
+    <tr><td>2026-01-02</td><td>20</td><td>15</td></tr>
+    <tr><td>2026-01-03</td><td>30</td><td>20</td></tr>
+    <tr><td>2026-01-04</td><td>40</td><td>25</td></tr>
+    <tr><td>2026-01-05</td><td>50</td><td>30</td></tr>
+    <tr><td>2026-01-06</td><td>60</td><td>35</td></tr>
+    <tr><td>2026-01-07</td><td>70</td><td>40</td></tr>
+    <tr><td>2026-01-08</td><td>80</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>On 01-01 there is one row in the frame, so <code>ma7</code> = 10 (just itself). By 01-07 the frame is full &mdash; seven rows, average of 10&hellip;70 = 40. On 01-08 the window slides: it now covers 20&hellip;80, averaging 50. The first six values are <strong>not</strong> true 7-day averages &mdash; they are "average so far". The result type is high-precision <code>numeric</code>; round it for display with <code>ROUND(&hellip;, 2)</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The partial-window trap &mdash; the chart's first six points lie</h5>
+<p>A reader assumes every <code>ma7</code> point averages seven days. The first six do not &mdash; they average 1 through 6. That makes the early curve look smoother and rise faster than a real 7-day average would. If the requirement is "only show the average once 7 full days exist", null out the warm-up:</p>
+<pre><code>CASE WHEN COUNT(*) OVER (ORDER BY metric_date
+                         ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) = 7
+     THEN AVG(value) OVER (ORDER BY metric_date
+                           ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+END AS ma7</code></pre>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; rows are not days</h5>
+<p><code>ROWS 6 PRECEDING</code> counts six physical rows back. If the series has gaps &mdash; a missing weekend, a holiday &mdash; six rows might span ten calendar days, and the "7-day" average silently covers the wrong window. For a genuine 7-calendar-day average, switch to a <code>RANGE</code> frame on the date:</p>
+<pre><code>AVG(value) OVER (ORDER BY metric_date
+                 RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW)</code></pre>
+<p>Naming the rows-vs-range distinction, and which one the data's gappiness demands, is the senior move. If the series is guaranteed dense (one row per day, no gaps), <code>ROWS</code> is fine and faster.</p>
+
+<h5>Duplicate dates and the <code>RANGE</code> peers caveat</h5>
+<p>If two rows share a <code>metric_date</code>, a <code>RANGE</code> frame treats them as <em>peers</em> &mdash; they enter and leave the frame together, and a <code>CURRENT ROW</code> boundary includes both. A <code>ROWS</code> frame would treat them as distinct positions. Confirm the grain is one row per day; if not, pre-aggregate to a daily total first.</p>
+
+<h5>Centred vs trailing, and ordering determinism</h5>
+<p>This is a <em>trailing</em> average &mdash; it only looks backward, which is correct for real-time dashboards (no future data leakage). A <em>centred</em> average uses <code>ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING</code> and is common in retrospective analysis. Also: the <code>ORDER BY</code> inside the window must be unambiguous &mdash; if dates can tie, add a tiebreaker so the frame is deterministic.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> flag that the first six rows are partial windows that misrepresent the trend, distinguish <code>ROWS</code> (physical rows) from <code>RANGE</code> (calendar interval) and pick <code>RANGE</code> when the series can have gaps, choose a trailing frame to avoid future-data leakage, and round the high-precision <code>numeric</code> result for display.</div>

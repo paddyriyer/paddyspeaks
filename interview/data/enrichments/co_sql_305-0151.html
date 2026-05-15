@@ -1,0 +1,60 @@
+<p>Accenture's reporting team wants a year-over-year view: each month's sales next to the same month a year earlier, plus the delta. The data is one flat <code>sales</code> table, so "the same month last year" has to come from the table joined to <em>itself</em>, shifted twelve months. The query is short, but the join key &mdash; <code>a.month = b.month + INTERVAL '1 year'</code> &mdash; has a direction that is easy to get backwards, and the <code>LEFT JOIN</code> is doing something specific at the edges.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>month</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>100</td></tr>
+    <tr><td>2024-02-01</td><td>120</td></tr>
+    <tr><td>2025-01-01</td><td>150</td></tr>
+    <tr><td>2025-02-01</td><td>90</td></tr>
+    <tr><td>2025-03-01</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>Two months exist in <em>both</em> years (Jan and Feb), so they have a prior-year comparison. The 2024 months have nothing before them, and 2025-03 has no 2024-03 partner. Those <strong>three rows with no match</strong> are the edge cases the <code>LEFT JOIN</code> governs.</p>
+
+<h4>2. The SQL &mdash; <code>self-join shifted one year</code></h4>
+<pre><code>SELECT a.month, a.amount,
+  b.amount AS prev_year_amount,
+  a.amount - b.amount AS yoy_diff
+FROM sales a
+LEFT JOIN sales b ON a.month = b.month + INTERVAL '1 year';</code></pre>
+<p>Alias <code>a</code> is the current month; alias <code>b</code> is the prior-year row. The condition reads "<code>a</code>'s month equals <code>b</code>'s month plus a year" &mdash; so <code>b</code> is always twelve months <em>behind</em> <code>a</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>amount</th><th>prev_year_amount</th><th>yoy_diff</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>100</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+    <tr><td>2024-02-01</td><td>120</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+    <tr><td>2025-01-01</td><td>150</td><td>100</td><td>50</td></tr>
+    <tr><td>2025-02-01</td><td>90</td><td>120</td><td>-30</td></tr>
+    <tr><td>2025-03-01</td><td>200</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>2025-01 grew by 50 over 2024-01; 2025-02 fell 30. The three rows with no prior-year partner &mdash; both 2024 months and 2025-03 &mdash; show <code>prev_year_amount</code> NULL, and <code>yoy_diff</code> is therefore NULL too: any arithmetic with NULL is NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The join direction &mdash; getting it backwards is silent</h5>
+<p><code>a.month = b.month + INTERVAL '1 year'</code> means <code>b</code> is the older row. If you instead wrote <code>a.month + INTERVAL '1 year' = b.month</code>, then <code>b</code> would be the <em>future</em> row, <code>prev_year_amount</code> would actually be next year's number, and every delta would carry the wrong sign. The query still runs and still returns numbers &mdash; the bug is invisible without checking a known pair. Always sanity-check one row by hand: 2025-01 should pull 2024-01's 100, and it does.</p>
+
+<h5>Why <code>LEFT JOIN</code>, not <code>INNER JOIN</code></h5>
+<p>With an <code>INNER JOIN</code>, the three unmatched rows vanish &mdash; you would see only the two months that have a prior-year partner. That is fine for a strict YoY-only report, but usually wrong: a dashboard wants <em>every</em> month listed, with the comparison blank where it cannot be computed. The <code>LEFT JOIN</code> keeps all of <code>a</code> and lets <code>b</code>'s columns fall to NULL. Choosing <code>LEFT</code> here is the deliberate "show all months" decision.</p>
+
+<h5>The NULL <code>yoy_diff</code> &mdash; and the percentage version</h5>
+<p>For months without a partner, NULL is honest &mdash; "no comparison available" is not the same as a zero change. But if the consumer wants a number, <code>COALESCE(a.amount - b.amount, 0)</code>. The far more common follow-up is the YoY <em>percentage</em>, which needs a divide-by-zero guard:</p>
+<pre><code>ROUND((a.amount - b.amount) * 100.0 / NULLIF(b.amount, 0), 1) AS yoy_pct</code></pre>
+<p><code>NULLIF(b.amount, 0)</code> turns a zero prior-year base into NULL instead of raising an error.</p>
+
+<h5>The modern alternative &mdash; <code>LAG</code> with a year offset</h5>
+<p>Provided the series is dense (exactly one row per month, no gaps), a window function expresses the same idea without a self-join:</p>
+<pre><code>SELECT month, amount,
+       LAG(amount, 12) OVER (ORDER BY month) AS prev_year_amount
+FROM sales;</code></pre>
+<p>But note the catch: <code>LAG(amount, 12)</code> steps back twelve <em>rows</em>, not twelve months. If any month is missing, the offset lands on the wrong month. The self-join, keyed on the actual date arithmetic, is robust to gaps &mdash; it matches by calendar value, not by row position. That trade-off (gap-safety vs simplicity) is the senior point.</p>
+
+<h5>The grain trap &mdash; duplicate months fan out</h5>
+<p>The join assumes <code>month</code> is unique. If 2024-01 appeared twice (a data bug, or monthly rows that are really per-region), the self-join produces a <em>cross product</em> for that key &mdash; each current row matches every prior-year duplicate, multiplying rows and double-counting the delta. Confirm the table is one row per month; if it is per-region, the join key must include <code>region</code> on both sides.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> verify the join direction against a known pair so the sign is right, justify <code>LEFT JOIN</code> as the "show every month" choice, guard the percentage form with <code>NULLIF</code>, and explain that <code>LAG(amount, 12)</code> is row-positional and breaks on gaps whereas the date-keyed self-join does not &mdash; while checking the table's grain to avoid a fan-out.</div>

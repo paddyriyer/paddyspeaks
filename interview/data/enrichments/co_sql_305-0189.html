@@ -1,0 +1,64 @@
+<p>Citi's finance desk reports profit on a smoothed basis &mdash; a 7-period rolling average that damps the noise of any single period. The query is one window function, but the interviewer is watching the frame specification (<code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code>), what happens at the start of the series, and the difference between <code>ROWS</code> and <code>RANGE</code>.</p>
+
+<h4>1. The source data &mdash; <code>profit</code></h4>
+<table>
+  <thead><tr><th>period</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td></tr>
+    <tr><td>2</td><td>200</td></tr>
+    <tr><td>3</td><td>150</td></tr>
+    <tr><td>4</td><td>300</td></tr>
+    <tr><td>5</td><td>250</td></tr>
+    <tr><td>6</td><td>400</td></tr>
+    <tr><td>7</td><td>350</td></tr>
+    <tr><td>8</td><td>500</td></tr>
+  </tbody>
+</table>
+<p>Eight periods. The interesting region is the <strong>first six</strong>: the window asks for 6 preceding rows, but period 1 has none, period 2 has one, and so on &mdash; the average "warms up" over a partial window before it ever sees a full 7.</p>
+
+<h4>2. The SQL &mdash; <code>windowed AVG</code></h4>
+<pre><code>SELECT period, amount,
+  AVG(amount) OVER (ORDER BY period ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS rolling_7
+FROM profit;</code></pre>
+<p>For each row, the window is "this row plus the 6 before it", ordered by <code>period</code>, and <code>AVG</code> averages the <code>amount</code>s inside that frame.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>period</th><th>amount</th><th>rolling_7</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>100.0000000000000000</td></tr>
+    <tr><td>2</td><td>200</td><td>150.0000000000000000</td></tr>
+    <tr><td>3</td><td>150</td><td>150.0000000000000000</td></tr>
+    <tr><td>4</td><td>300</td><td>187.5000000000000000</td></tr>
+    <tr><td>5</td><td>250</td><td>200.0000000000000000</td></tr>
+    <tr><td>6</td><td>400</td><td>233.3333333333333333</td></tr>
+    <tr><td>7</td><td>350</td><td>250.0000000000000000</td></tr>
+    <tr><td>8</td><td>500</td><td>307.1428571428571429</td></tr>
+  </tbody>
+</table>
+<p>Period 1's "rolling 7" is just 100 &mdash; it averaged a single row. Period 7 is the first true 7-period average (100..350, sum 1750, &divide;7 = 250). Period 8 averages periods 2..8. The first six rows are <strong>partial-window</strong> averages, and that is the subtlety most candidates miss.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The frame does not error at the edges &mdash; it shrinks</h5>
+<p><code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> does not fail when fewer than 6 prior rows exist; it simply uses whatever rows <em>are</em> there. So <code>rolling_7</code> for period 3 is <code>AVG(100, 200, 150)</code> &mdash; a 3-row average labelled as if it were a 7. For a finance report this can mislead: the early periods look smoother than the methodology claims. If only genuine full windows should report a value, gate on the row count:</p>
+<pre><code>SELECT period, amount,
+  CASE WHEN COUNT(*) OVER w = 7
+       THEN AVG(amount) OVER w END AS rolling_7
+FROM profit
+WINDOW w AS (ORDER BY period ROWS BETWEEN 6 PRECEDING AND CURRENT ROW);</code></pre>
+<p>Now periods 1&ndash;6 return NULL and only period 7 onward shows a number. Stating this trade-off &mdash; "partial windows, or NULL until warmed up?" &mdash; is the senior move.</p>
+
+<h5>It is a 7-row window, not 6 &mdash; the off-by-one</h5>
+<p><code>6 PRECEDING</code> plus <code>CURRENT ROW</code> is <strong>7 rows</strong>. The classic mistake is writing <code>7 PRECEDING</code> for a "7-period average", which yields an 8-row window. Count the current row in: an <em>N</em>-period rolling average is <code>(N-1) PRECEDING AND CURRENT ROW</code>.</p>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; and the gap trap</h5>
+<p><code>ROWS</code> counts physical rows: exactly 7 rows regardless of their <code>period</code> values. <code>RANGE</code> counts <em>logical</em> values of the ordering column. If <code>period</code> had a gap &mdash; say period 5 is missing &mdash; <code>ROWS</code> still grabs 7 rows (reaching further back in time), whereas a value-based <code>RANGE BETWEEN '6' PRECEDING ...</code> would span a fixed period-width window and include fewer rows. For a "last 7 data points" average, <code>ROWS</code> is correct. For "last 7 calendar units", <code>RANGE</code> is correct. Know which the report means; with gappy data they diverge.</p>
+
+<h5>The default frame trap &mdash; always specify it</h5>
+<p>If you write <code>AVG(amount) OVER (ORDER BY period)</code> with <em>no</em> frame clause, Postgres applies the default <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; a <em>cumulative</em> average from the start of the series, not a rolling one. Forgetting the explicit frame silently turns a rolling metric into a running one. The explicit <code>ROWS BETWEEN ...</code> in the solution is mandatory, not optional.</p>
+
+<h5>Edge case: ties in <code>period</code>, and NULL amounts</h5>
+<p>If two rows share a <code>period</code>, the <code>ORDER BY</code> cannot deterministically order them, so which one is "current" and which is "preceding" is arbitrary &mdash; <code>profit</code> should have one row per period. And if an <code>amount</code> is NULL, <code>AVG</code> skips it: the window still spans 7 rows but averages only the 6 non-NULL ones. If a missing period should count as 0 profit, <code>COALESCE(amount, 0)</code> first.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the frame shrinks (not errors) at the series start so early rows are partial-window averages, get the off-by-one right (<code>6 PRECEDING</code> + current = 7 rows), contrast <code>ROWS</code> vs <code>RANGE</code> for gappy data, and know that omitting the frame clause silently yields a cumulative average instead of a rolling one.</div>

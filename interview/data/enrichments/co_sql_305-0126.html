@@ -1,0 +1,67 @@
+<p>Citi's reconciliation team is comparing two quarters of order books: which orders were placed in Q1 but did <em>not</em> recur in Q2? It is a textbook set-difference, and an interviewer asking it wants to see that you reach for <code>EXCEPT</code> rather than hand-rolling a join &mdash; and that you know what <code>EXCEPT</code> does with duplicates and NULLs.</p>
+
+<h4>1. The source data &mdash; <code>orders_q1</code> and <code>orders_q2</code></h4>
+<table>
+  <thead><tr><th>orders_q1.order_id</th><th> </th><th>orders_q2.order_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td> </td><td>2</td></tr>
+    <tr><td>2</td><td> </td><td>4</td></tr>
+    <tr><td>3</td><td> </td><td>6</td></tr>
+    <tr><td>4</td><td> </td><td>8</td></tr>
+    <tr><td>5</td><td> </td><td>9</td></tr>
+    <tr><td>6</td><td> </td><td> </td></tr>
+    <tr><td>7</td><td> </td><td> </td></tr>
+  </tbody>
+</table>
+<p>Q1 holds orders 1&ndash;7; Q2 holds 2, 4, 6, 8, 9. The overlap is 2, 4, 6. Orders 8 and 9 are <strong>Q2-only</strong> &mdash; a deliberate distractor, because <code>EXCEPT</code> is directional and must ignore them.</p>
+
+<h4>2. The SQL &mdash; <code>EXCEPT</code></h4>
+<pre><code>SELECT order_id FROM orders_q1
+EXCEPT
+SELECT order_id FROM orders_q2;</code></pre>
+<p><code>EXCEPT</code> returns every distinct row from the first query that does not appear in the second. It is one-directional: rows unique to <code>orders_q2</code> (8 and 9) are simply not considered.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th></tr></thead>
+  <tbody>
+    <tr><td>3</td></tr>
+    <tr><td>5</td></tr>
+    <tr><td>7</td></tr>
+    <tr><td>1</td></tr>
+  </tbody>
+</table>
+<p>Orders 1, 3, 5, 7 &mdash; the Q1 entries with no Q2 match. Orders 2, 4, 6 were removed (they recur); 8 and 9 never appear because they are not in Q1. Note the result is <strong>unordered</strong> &mdash; <code>EXCEPT</code> guarantees no row order, so add <code>ORDER BY</code> if the report needs one.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>EXCEPT</code> is directional &mdash; and that is the point</h5>
+<p>Swapping the operands answers a different question:</p>
+<pre><code>SELECT order_id FROM orders_q2
+EXCEPT
+SELECT order_id FROM orders_q1;
+-- returns 8, 9 — orders new in Q2</code></pre>
+<p>"In A not B" and "in B not A" are both legitimate; confirm which side the analyst means. If they want <em>both</em> &mdash; the full symmetric difference &mdash; that is a different construction (a <code>FULL JOIN &hellip; WHERE one side IS NULL</code>, or two <code>EXCEPT</code>s unioned).</p>
+
+<h5><code>EXCEPT</code> de-duplicates &mdash; use <code>EXCEPT ALL</code> to keep multiplicity</h5>
+<p>Plain <code>EXCEPT</code> applies <code>DISTINCT</code> to both inputs: if Q1 listed order 3 twice, the result still shows a single <code>3</code>. When row counts matter &mdash; reconciling quantities, not just identities &mdash; <code>EXCEPT ALL</code> does multiset subtraction: three copies in A minus one in B leaves two. Know which semantics the task wants before you pick the keyword.</p>
+
+<h5>The anti-join equivalent &mdash; and when to prefer it</h5>
+<p><code>EXCEPT</code> is the cleanest expression of intent, but two rewrites do the same job and scale better when you need extra columns:</p>
+<pre><code>-- NOT EXISTS — usually the planner's favourite
+SELECT q1.order_id FROM orders_q1 q1
+WHERE NOT EXISTS (SELECT 1 FROM orders_q2 q2 WHERE q2.order_id = q1.order_id);
+
+-- LEFT JOIN ... IS NULL — handy when you also want q1's other columns
+SELECT q1.order_id FROM orders_q1 q1
+LEFT JOIN orders_q2 q2 ON q1.order_id = q2.order_id
+WHERE q2.order_id IS NULL;</code></pre>
+<p>Key difference: <code>EXCEPT</code> forces the output to be <em>distinct</em> and the two <code>SELECT</code> lists to match in shape; the anti-joins let you carry <code>q1.customer_id</code>, <code>q1.amount</code>, etc. through to the result. Reach for <code>EXCEPT</code> for pure set logic, the anti-join when you need a wider row.</p>
+
+<h5>The NULL trap &mdash; <code>NOT IN</code> is the wrong tool</h5>
+<p>A tempting fourth option is <code>WHERE order_id NOT IN (SELECT order_id FROM orders_q2)</code>. If <em>any</em> row in <code>orders_q2</code> has a NULL <code>order_id</code>, <code>NOT IN</code> returns <em>no rows at all</em> &mdash; the <code>NULL</code> makes every comparison <em>unknown</em>. <code>EXCEPT</code> sidesteps this: it treats two NULLs as equal for set purposes, so a NULL in Q1 is correctly removed if Q2 also has one. This NULL-safety is a genuine reason to prefer <code>EXCEPT</code> or <code>NOT EXISTS</code> over <code>NOT IN</code>.</p>
+
+<h5>Column compatibility and ordering</h5>
+<p>Both sides of <code>EXCEPT</code> must have the same number of columns with compatible types, matched by position, not name. And the result has no defined order &mdash; the <code>1, 3, 5, 7</code> above could come back in any sequence. Wrap with <code>ORDER BY order_id</code> for a stable report.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>EXCEPT</code> for the set-difference, state that it de-duplicates (reach for <code>EXCEPT ALL</code> when counts matter), know it is directional, and call out that it is NULL-safe where <code>NOT IN</code> silently collapses to zero rows.</div>

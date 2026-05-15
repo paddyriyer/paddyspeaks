@@ -1,0 +1,68 @@
+<p>Snap's revenue team wants to find the seasonal peaks in ad sales &mdash; which calendar months pull the most revenue, ranked. The query buckets every sale into a month-of-year, sums revenue, and ranks the months. The interviewer is watching how you extract the month, what happens when two months tie, and whether you noticed this collapses years together.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-15</td><td>100</td></tr>
+    <tr><td>2024-01-20</td><td>150</td></tr>
+    <tr><td>2024-02-10</td><td>300</td></tr>
+    <tr><td>2024-03-05</td><td>200</td></tr>
+    <tr><td>2024-03-25</td><td>250</td></tr>
+    <tr><td>2024-11-11</td><td>450</td></tr>
+  </tbody>
+</table>
+<p>January has two sales summing to 250; March has two summing to <strong>450</strong>; November has one sale of <strong>450</strong>. March and November <strong>tie</strong> at 450 &mdash; that tie is the whole interview, because it decides whether they share a rank or get arbitrary distinct ones.</p>
+
+<h4>2. The SQL &mdash; <code>RANK over monthly SUM</code></h4>
+<pre><code>SELECT CAST(TO_CHAR(sale_date, 'MM') AS INTEGER) AS mo, SUM(amount) AS total,
+  RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+FROM sales GROUP BY CAST(TO_CHAR(sale_date, 'MM') AS INTEGER);</code></pre>
+<p><code>TO_CHAR(sale_date, 'MM')</code> formats the date as a two-digit month string, cast back to an integer. <code>GROUP BY</code> collapses each month; <code>RANK()</code> orders the monthly totals descending.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>mo</th><th>total</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>11</td><td>450</td><td>1</td></tr>
+    <tr><td>3</td><td>450</td><td>1</td></tr>
+    <tr><td>2</td><td>300</td><td>3</td></tr>
+    <tr><td>1</td><td>250</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>March and November both get <strong>rank 1</strong> &mdash; equal totals, so <code>RANK()</code> assigns them the same position. Then February gets <strong>rank 3, not 2</strong>: <code>RANK()</code> skips the gap left by the tie. The peak season is "March and November", and the skipped 2 is a deliberate consequence of the ranking function chosen.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The tie behaviour &mdash; <code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code></h5>
+<p>With March and November tied, the three ranking functions diverge sharply:</p>
+<table>
+  <thead><tr><th>month</th><th>total</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>Nov</td><td>450</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>Mar</td><td>450</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>Feb</td><td>300</td><td>3 (skips 2)</td><td>2</td><td>3</td></tr>
+    <tr><td>Jan</td><td>250</td><td>4</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>RANK</code> leaves a gap after a tie (1, 1, 3). <code>DENSE_RANK</code> does not (1, 1, 2). <code>ROW_NUMBER</code> refuses to tie at all &mdash; it would hand March and November <em>different</em> numbers based on arbitrary row order, which for "peak months" is simply wrong. For "top N seasons", <code>DENSE_RANK</code> is usually the better default, since <code>WHERE rk &lt;= 3</code> then genuinely means "the three best totals".</p>
+
+<h5>This silently collapses all years together &mdash; the real trap</h5>
+<p><code>TO_CHAR(sale_date, 'MM')</code> extracts only the <em>month</em>, discarding the year. Sales from January 2023 and January 2025 land in the same bucket. For a true "which season" answer that may be intended &mdash; you <em>want</em> every January pooled. But if the data spans uneven years (three Marches but only one November), the comparison is unfair: March looks big merely because it was sampled more often. Confirm the intent. If the question is "best month <em>per year</em>", group by both:</p>
+<pre><code>SELECT EXTRACT(YEAR FROM sale_date) AS yr,
+       EXTRACT(MONTH FROM sale_date) AS mo,
+       SUM(amount) AS total,
+       RANK() OVER (PARTITION BY EXTRACT(YEAR FROM sale_date)
+                    ORDER BY SUM(amount) DESC) AS rk
+FROM sales GROUP BY 1, 2;</code></pre>
+
+<h5><code>EXTRACT</code> beats <code>TO_CHAR</code>-then-<code>CAST</code></h5>
+<p><code>CAST(TO_CHAR(sale_date,'MM') AS INTEGER)</code> does a date&rarr;string&rarr;integer round trip. <code>EXTRACT(MONTH FROM sale_date)</code> goes straight to a number &mdash; one step, no formatting locale to worry about, and the planner can reason about it better. The reference works, but <code>EXTRACT</code> (or <code>date_part</code>) is the idiomatic choice and worth naming.</p>
+
+<h5>The query has no <code>ORDER BY</code> &mdash; rank assigned, order not guaranteed</h5>
+<p><code>RANK()</code> computes the <em>value</em> of the rank, but it does not sort the output. Without a final <code>ORDER BY rk</code>, the planner may return February before November. The result happening to come back sorted is luck. Always append <code>ORDER BY rk</code> (or <code>ORDER BY total DESC</code>) when the consumer expects a ranked list.</p>
+
+<h5>Edge case: months with zero sales</h5>
+<p>A month with no sales produces no row &mdash; <code>GROUP BY</code> only emits months that appear in the data. A "seasonality" chart usually wants all 12 months, including the dead ones at 0. That needs a calendar spine: <code>generate_series(1, 12)</code> left-joined to the aggregated sales, with <code>COALESCE(total, 0)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spell out that two tied months share a <code>RANK()</code> and the next rank is skipped, flag that extracting only the month silently pools every year together (fine for "seasonality", wrong for uneven year coverage), prefer <code>EXTRACT</code> over the <code>TO_CHAR</code>/<code>CAST</code> round trip, and add the missing <code>ORDER BY rk</code>.</div>

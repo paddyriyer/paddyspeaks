@@ -1,0 +1,74 @@
+<p>Expedia's analytics team needs every order for an Electronics product. The natural instinct is to join <code>orders</code> to <code>products</code> and then filter by category &mdash; but where the category test goes (in the <code>ON</code> clause or in a <code>WHERE</code>) is the entire point of the question. For an inner join the two are equivalent; the interviewer wants to hear that you know <em>why</em>, and when they stop being equivalent.</p>
+
+<h4>1. The source data &mdash; <code>orders</code> and <code>products</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>product_id</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>1</td><td>500</td><td>completed</td></tr>
+    <tr><td>2</td><td>102</td><td>2</td><td>80</td><td>completed</td></tr>
+    <tr><td>3</td><td>103</td><td>3</td><td>1200</td><td>completed</td></tr>
+    <tr><td>4</td><td>104</td><td>1</td><td>500</td><td>completed</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Electronics</td><td>Laptop</td></tr>
+    <tr><td>2</td><td>Books</td><td>Novel</td></tr>
+    <tr><td>3</td><td>Electronics</td><td>Phone</td></tr>
+  </tbody>
+</table>
+<p>Product 2 is a Book &mdash; order 2 must be excluded. Product 1 (a Laptop) is ordered <strong>twice</strong> (orders 1 and 4), so both should survive. That repeat is a quiet check that the join is a clean one-row-per-order match, not a fan-out.</p>
+
+<h4>2. The SQL &mdash; <code>JOIN with a condition in ON</code></h4>
+<pre><code>SELECT o.* FROM orders o
+JOIN products p ON o.product_id = p.product_id AND p.category = 'Electronics';</code></pre>
+<p>The <code>ON</code> clause carries two predicates: the join key (<code>o.product_id = p.product_id</code>) and a filter on the product side (<code>p.category = 'Electronics'</code>). Only order rows whose product is both matched and Electronics pass.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>product_id</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>1</td><td>500</td><td>completed</td></tr>
+    <tr><td>3</td><td>103</td><td>3</td><td>1200</td><td>completed</td></tr>
+    <tr><td>4</td><td>104</td><td>1</td><td>500</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Three of four orders match. Order 2 is gone &mdash; product 2 is a Book. Orders 1 and 4 both appear because product 1 is Electronics and each is a distinct order. The join is one-to-one on the key, so no order is duplicated.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>ON</code> vs <code>WHERE</code> &mdash; identical for an inner join</h5>
+<p>For an <code>INNER JOIN</code>, putting <code>p.category = 'Electronics'</code> in the <code>ON</code> clause or in a separate <code>WHERE</code> produces exactly the same result &mdash; the planner applies both predicates before any row is emitted:</p>
+<pre><code>SELECT o.* FROM orders o
+JOIN products p ON o.product_id = p.product_id
+WHERE p.category = 'Electronics';</code></pre>
+<p>Many teams prefer the <code>WHERE</code> form precisely because it reads as "join key in <code>ON</code>, filters in <code>WHERE</code>" &mdash; a discipline that pays off the moment the join becomes outer.</p>
+
+<h5>The trap: the same condition under a <code>LEFT JOIN</code></h5>
+<p>This is the real lesson. Change <code>JOIN</code> to <code>LEFT JOIN</code> and the placement stops being cosmetic. A category predicate in <code>ON</code> only decides whether the right side <em>matches</em> &mdash; unmatched left rows are still kept with NULLs. The same predicate in <code>WHERE</code> filters <em>after</em> the join and discards those NULL rows, silently turning the <code>LEFT JOIN</code> back into an inner join:</p>
+<pre><code>-- keeps ALL orders; non-Electronics show NULL product columns
+SELECT o.*, p.name FROM orders o
+LEFT JOIN products p ON o.product_id = p.product_id AND p.category = 'Electronics';
+
+-- keeps only Electronics orders — the LEFT was pointless
+SELECT o.*, p.name FROM orders o
+LEFT JOIN products p ON o.product_id = p.product_id
+WHERE p.category = 'Electronics';</code></pre>
+<p>Knowing this distinction &mdash; <code>ON</code> filters the match, <code>WHERE</code> filters the result &mdash; is exactly what a "JOIN with multiple conditions" question is probing.</p>
+
+<h5>The duplicate-rows risk &mdash; is the join key unique?</h5>
+<p>This works cleanly because <code>product_id</code> is the primary key of <code>products</code> &mdash; each order matches at most one product, so <code>orders</code> rows are never multiplied. If you joined on a non-unique column (say <code>products.manufacturer</code>), one order could match many product rows and <code>SELECT o.*</code> would emit duplicate orders. Before any join, confirm the right-side key is unique &mdash; or be ready with <code>DISTINCT</code> or <code>EXISTS</code>.</p>
+
+<h5><code>EXISTS</code> &mdash; the intent-revealing alternative</h5>
+<p>Since the query returns only <code>orders</code> columns and never uses <code>products</code> data, a semi-join expresses the intent precisely &mdash; "orders whose product is Electronics" &mdash; and is immune to the duplication risk:</p>
+<pre><code>SELECT * FROM orders o
+WHERE EXISTS (SELECT 1 FROM products p
+              WHERE p.product_id = o.product_id
+                AND p.category = 'Electronics');</code></pre>
+<p><code>EXISTS</code> stops at the first match, so even a non-unique key cannot fan out the result. When you need filtering but not columns from the other table, it is often the cleaner choice.</p>
+
+<h5>NULL <code>product_id</code> and case sensitivity</h5>
+<p>An order with a NULL <code>product_id</code> never matches anything (NULL equality is unknown) and is correctly dropped by the inner join. And <code>category = 'Electronics'</code> is case- and whitespace-sensitive &mdash; <code>'electronics'</code> or <code>' Electronics'</code> would silently match nothing; normalise the data or use <code>ILIKE</code>/<code>TRIM</code> if the category column is dirty.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>ON</code> and <code>WHERE</code> are interchangeable for an inner join but diverge sharply under a <code>LEFT JOIN</code> &mdash; <code>ON</code> filters the match, <code>WHERE</code> filters the result &mdash; confirm the join key is unique before trusting <code>SELECT o.*</code>, and reach for <code>EXISTS</code> when you need filtering without the other table's columns.</div>

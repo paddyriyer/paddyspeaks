@@ -1,0 +1,68 @@
+<p>Broadcom's people-analytics team wants annual turnover broken out by manager &mdash; how many of each manager's reports left, per year. It is a clean <code>GROUP BY</code>, but two decisions hide inside it: how do you treat employees who are still employed (no termination date), and what does "year" even mean &mdash; the year they left, or the year they were hired?</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>manager_id</th><th>emp_id</th><th>term_date</th><th>job_title</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>1</td><td>2023-03-01</td><td>eng</td></tr>
+    <tr><td>10</td><td>2</td><td>2023-08-15</td><td>eng</td></tr>
+    <tr><td>10</td><td>3</td><td>2024-02-01</td><td>eng</td></tr>
+    <tr><td>20</td><td>4</td><td>2023-06-01</td><td>sales</td></tr>
+    <tr><td>20</td><td>5</td><td><em>NULL</em></td><td>sales</td></tr>
+    <tr><td>10</td><td>6</td><td><em>NULL</em></td><td>eng</td></tr>
+  </tbody>
+</table>
+<p>Four employees left; two (5 and 6) have a <strong>NULL</strong> <code>term_date</code> &mdash; they are still employed. They must not count as turnover. Manager 10 lost people in <em>two different years</em> (2023 and 2024), so that manager appears on more than one output row.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY manager, year-of-term</code></h4>
+<pre><code>SELECT manager_id,
+  CAST(TO_CHAR(term_date, 'YYYY') AS INTEGER) AS yr,
+  COUNT(*) AS turnover
+FROM employees WHERE term_date IS NOT NULL
+GROUP BY manager_id, CAST(TO_CHAR(term_date, 'YYYY') AS INTEGER);</code></pre>
+<p><code>WHERE term_date IS NOT NULL</code> drops still-employed staff before grouping. <code>TO_CHAR(term_date,'YYYY')</code> extracts the year as text, then a cast turns it into an integer for a clean numeric column.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>manager_id</th><th>yr</th><th>turnover</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>2023</td><td>2</td></tr>
+    <tr><td>20</td><td>2023</td><td>1</td></tr>
+    <tr><td>10</td><td>2024</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Three rows. Manager 10 lost two reports in 2023 and one in 2024 &mdash; one manager, two rows, because the group key is (manager, year). Manager 20 lost one in 2023. The still-employed pair (5 and 6) vanished thanks to the <code>WHERE</code>; without it they would have grouped under a NULL year and inflated counts.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why filter NULLs <em>before</em> grouping, not after</h5>
+<p>If you skip the <code>WHERE</code>, the two still-employed rows survive. <code>TO_CHAR(NULL,'YYYY')</code> is NULL, so they land in a <code>(manager_id, NULL)</code> group &mdash; a phantom "turnover" bucket for people who never left. <code>COUNT(*)</code> would count them. The <code>WHERE</code> clause is not cosmetic; it encodes the definition of turnover: <em>turnover means a completed departure</em>.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(term_date)</code></h5>
+<p>Here <code>COUNT(*)</code> is safe <em>because</em> the <code>WHERE</code> already removed every NULL. If you dropped the filter and relied on <code>COUNT(term_date)</code> instead &mdash; which skips NULLs &mdash; the counts would be right but the <code>yr</code> column would still show a spurious NULL-year row. Filtering is the cleaner fix; <code>COUNT(column)</code> alone does not remove the bad group, it only stops counting inside it.</p>
+
+<h5>Cleaner year extraction &mdash; <code>EXTRACT</code> and <code>DATE_TRUNC</code></h5>
+<p><code>TO_CHAR(&hellip;)::INTEGER</code> round-trips a date through text and back to a number. Two more direct idioms:</p>
+<pre><code>-- EXTRACT returns numeric directly, no cast dance
+SELECT manager_id, EXTRACT(YEAR FROM term_date)::int AS yr, COUNT(*)
+FROM employees WHERE term_date IS NOT NULL
+GROUP BY manager_id, EXTRACT(YEAR FROM term_date);
+
+-- DATE_TRUNC keeps a real date, good for joining to a calendar dim
+GROUP BY manager_id, DATE_TRUNC('year', term_date);</code></pre>
+<p>All three give the same buckets. <code>EXTRACT</code> is the most readable; <code>DATE_TRUNC</code> is best when the result feeds a time-series chart.</p>
+
+<h5>Turnover <em>rate</em> &mdash; the follow-up the count cannot answer</h5>
+<p>A raw count is misleading: a manager with 50 reports losing 5 is healthier than one with 6 reports losing 5. The interviewer will ask for a <em>rate</em> &mdash; departures over headcount. That needs the denominator, which the filtered query has thrown away. Compute both sides with conditional aggregation, no filter:</p>
+<pre><code>SELECT manager_id,
+       COUNT(*) FILTER (WHERE term_date IS NOT NULL) AS leavers,
+       COUNT(*)                                     AS total_reports,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE term_date IS NOT NULL)
+                   / COUNT(*), 1) AS turnover_pct
+FROM employees
+GROUP BY manager_id;</code></pre>
+
+<h5>Missing years and re-orgs</h5>
+<p>If a manager had zero departures in a year, that year simply does not appear &mdash; <code>GROUP BY</code> never invents empty groups. For a dense year-by-year table, cross-join managers against a year series and <code>LEFT JOIN</code> the counts, coalescing to 0. Also note <code>manager_id</code> reflects the <em>current</em> manager; if someone changed managers before leaving, the departure is attributed to whoever they reported to last &mdash; worth flagging as an assumption.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> filter <code>term_date IS NOT NULL</code> before grouping so still-employed staff cannot form a phantom NULL-year bucket, prefer <code>EXTRACT</code>/<code>DATE_TRUNC</code> over a <code>TO_CHAR</code>-and-cast round trip, and pre-empt the "turnover rate not count" follow-up by keeping the headcount denominator with <code>COUNT(*) FILTER</code>.</div>

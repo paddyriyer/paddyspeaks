@@ -1,0 +1,51 @@
+<p>GitLab's revenue team wants to spotlight its most valuable customers &mdash; people who order both <em>often</em> and <em>big</em> &mdash; for a loyalty tier. "Often and big" is two conditions on aggregated values, which is exactly what <code>HAVING</code> is for. The interview is whether you know why these filters cannot live in <code>WHERE</code>, and how the two thresholds interact.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101&ndash;105</td><td>300, 250, 200, 150, 200</td></tr>
+    <tr><td>2</td><td>106&ndash;107</td><td>500, 600</td></tr>
+    <tr><td>3</td><td>108&ndash;112</td><td>100, 90, 80, 70, 60</td></tr>
+  </tbody>
+</table>
+<p>Three customers, each engineered to fail a different way. Customer 1: <strong>5 orders, $1,100 total</strong> &mdash; clears both bars. Customer 2: only <strong>2 orders</strong> though they total $1,100 &mdash; big but not frequent. Customer 3: <strong>5 orders</strong> but only $400 &mdash; frequent but not big. Only customer 1 should survive.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY</code> + compound <code>HAVING</code></h4>
+<pre><code>SELECT customer_id, COUNT(*) AS orders, SUM(amount) AS total
+FROM orders GROUP BY customer_id HAVING COUNT(*) &gt;= 5 AND SUM(amount) &gt;= 1000;</code></pre>
+<p><code>GROUP BY customer_id</code> collapses orders into one row per customer; <code>HAVING</code> then filters those <em>groups</em> on two aggregate conditions joined by <code>AND</code> &mdash; both must hold.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>5</td><td>1100</td></tr>
+  </tbody>
+</table>
+<p>One customer survives. Customer 2 is dropped by <code>COUNT(*) &ge; 5</code> (only 2 orders) despite a healthy $1,100; customer 3 is dropped by <code>SUM(amount) &ge; 1000</code> (only $400) despite 5 orders. The <code>AND</code> is strict &mdash; passing one test is not enough. That is the whole point of the compound predicate.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why these filters cannot go in <code>WHERE</code></h5>
+<p><code>WHERE</code> is evaluated row-by-row <em>before</em> grouping &mdash; at that point <code>COUNT(*)</code> and <code>SUM(amount)</code> do not exist, because there are no groups yet. <code>HAVING</code> runs <em>after</em> <code>GROUP BY</code>, when each group has its aggregates computed, so it is the only clause that can filter on them. The logical pipeline is <code>FROM &rarr; WHERE &rarr; GROUP BY &rarr; HAVING &rarr; SELECT &rarr; ORDER BY</code> &mdash; reciting it explains every "where does this filter go" question.</p>
+
+<h5><code>WHERE</code> and <code>HAVING</code> together &mdash; not either/or</h5>
+<p>They are complementary, and a good query uses both. <code>WHERE</code> filters <em>rows</em> before aggregation; <code>HAVING</code> filters <em>groups</em> after. To count only completed orders toward the thresholds:</p>
+<pre><code>SELECT customer_id, COUNT(*) AS orders, SUM(amount) AS total
+FROM orders
+WHERE status = 'completed'          -- drop non-completed rows first
+GROUP BY customer_id
+HAVING COUNT(*) &gt;= 5 AND SUM(amount) &gt;= 1000;</code></pre>
+<p>Putting the row-level <code>status</code> filter in <code>WHERE</code> is also faster &mdash; fewer rows reach the grouping step. Pushing it into <code>HAVING</code> would work only via a <code>COUNT(*) FILTER (...)</code> contortion and aggregates more rows than necessary.</p>
+
+<h5>The NULL-amount trap</h5>
+<p>If an order has a NULL <code>amount</code>, <code>SUM(amount)</code> skips it but <code>COUNT(*)</code> still counts the row. So a customer could clear <code>COUNT(*) &ge; 5</code> on order volume while their <code>SUM</code> is quietly understated by the NULL orders &mdash; possibly failing the $1,000 bar they would otherwise pass. If a NULL amount should count as $0 that is fine; if it means "unpriced / pending", consider <code>WHERE amount IS NOT NULL</code> so volume and value measure the same set of orders.</p>
+
+<h5>The boundary &mdash; <code>&ge;</code> vs <code>&gt;</code></h5>
+<p>"At least 5 orders" is <code>&ge; 5</code>; "more than 5" is <code>&gt; 5</code>. Customer 1 has exactly 5 and exactly... well, $1,100, but a customer with exactly $1,000 would be the live test for the amount bar. One-character changes that move real customers in and out of the loyalty tier &mdash; confirm both thresholds with the stakeholder rather than guessing.</p>
+
+<h5>You can <code>HAVING</code> on aggregates not in the <code>SELECT</code></h5>
+<p><code>HAVING</code> is not restricted to the columns you project. You could filter on <code>HAVING AVG(amount) &gt;= 150</code> or <code>HAVING MAX(amount) &gt; 500</code> without selecting average or max at all &mdash; useful when a threshold is an implementation detail the consumer should not see. And if the consumer wants the list ranked, add <code>ORDER BY total DESC</code>; <code>HAVING</code> filters but does not sort.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that aggregate filters require <code>HAVING</code> because <code>WHERE</code> runs before grouping, use <code>WHERE</code> and <code>HAVING</code> together (row filters before, group filters after) for both correctness and speed, watch that a NULL <code>amount</code> lets <code>COUNT(*)</code> and <code>SUM</code> disagree, and treat the <code>&ge;</code> thresholds as business decisions to confirm.</div>

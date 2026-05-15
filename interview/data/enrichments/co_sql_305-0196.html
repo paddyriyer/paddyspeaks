@@ -1,0 +1,61 @@
+<p>Microsoft's compensation team wants the three highest salary <em>tiers</em> in the org &mdash; not the three highest-paid people, the three distinct salary levels. The distinction is the whole question. If five people earn the top number and you forget <code>DISTINCT</code>, "top three salaries" returns that one number three times. An interviewer is watching whether you read "salaries" as values or as rows.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>salary</th><th>dept_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>150000</td><td>1</td></tr>
+    <tr><td>2</td><td>B</td><td>150000</td><td>1</td></tr>
+    <tr><td>3</td><td>C</td><td>120000</td><td>2</td></tr>
+    <tr><td>4</td><td>D</td><td>120000</td><td>2</td></tr>
+    <tr><td>5</td><td>E</td><td>90000</td><td>2</td></tr>
+    <tr><td>6</td><td>F</td><td>75000</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Six employees but only <strong>four distinct salaries</strong> &mdash; 150K and 120K each occur twice. Those duplicates are the interview: they decide whether "top three" means three values or three people.</p>
+
+<h4>2. The SQL &mdash; <code>DISTINCT + ORDER BY + LIMIT</code></h4>
+<pre><code>SELECT DISTINCT salary FROM employees ORDER BY salary DESC LIMIT 3;</code></pre>
+<p><code>DISTINCT</code> collapses the duplicate salaries to one row each, <code>ORDER BY salary DESC</code> sorts highest first, and <code>LIMIT 3</code> keeps the top three values.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>150000</td></tr>
+    <tr><td>120000</td></tr>
+    <tr><td>90000</td></tr>
+  </tbody>
+</table>
+<p>Three rows, three distinct values. Without <code>DISTINCT</code> the query would return 150000, 150000, 120000 &mdash; only two real tiers, the third row a duplicate. <code>DISTINCT</code> is doing the load-bearing work; drop it and the answer is silently wrong on any data with salary ties.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DISTINCT</code> is mandatory, not optional</h5>
+<p>"Top three salaries" is a question about distinct compensation levels. <code>LIMIT 3</code> alone counts <em>rows</em>; if the top earners are tied, those rows are the same number repeated. The order of operations is <code>DISTINCT</code> (dedupe) &rarr; <code>ORDER BY</code> &rarr; <code>LIMIT</code>, so the limit is applied to already-unique values. State this explicitly &mdash; it is the single thing the question tests.</p>
+
+<h5>The window-function equivalent &mdash; <code>DENSE_RANK</code></h5>
+<p><code>DENSE_RANK()</code> expresses the same intent and extends cleanly to "top N":</p>
+<pre><code>SELECT salary FROM (
+  SELECT salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS rk
+  FROM employees
+) t WHERE rk &lt;= 3;</code></pre>
+<p><code>DENSE_RANK</code> gives tied salaries the same rank with no gaps (1, 1, 2, 2, 3) &mdash; so <code>rk &lt;= 3</code> picks exactly the top three distinct values. Note this returns one row <em>per matching distinct salary value</em>; if you want the people, select <code>name</code> too and drop the outer dedupe.</p>
+
+<h5>The <code>RANK</code> trap &mdash; gaps skip tiers</h5>
+<p>Swapping <code>RANK</code> for <code>DENSE_RANK</code> quietly breaks it. <code>RANK</code> leaves gaps after ties: with two people at 150K and two at 120K, the ranks are 1, 1, 3, 3, 5. Filtering <code>rk &lt;= 3</code> would then capture 150K and 120K but <em>miss</em> 90K entirely, returning only two tiers. For "Nth distinct value" questions, <code>DENSE_RANK</code> is the safe default; <code>RANK</code> answers a different question (competition placing).</p>
+
+<h5>People vs values &mdash; clarify before coding</h5>
+<p>If the recruiter actually wants the three highest-<em>paid employees</em>, ties change the row count and <code>DISTINCT</code> is wrong &mdash; you would want all people at the top salaries:</p>
+<pre><code>-- everyone in the top 3 salary tiers, names included
+SELECT name, salary FROM (
+  SELECT name, salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS rk
+  FROM employees
+) t WHERE rk &lt;= 3;
+-- returns A, B, C, D, E — five people across three tiers</code></pre>
+<p>One sentence to the interviewer &mdash; "three salary values, or all employees at those values?" &mdash; saves writing the wrong query.</p>
+
+<h5>Edge cases: fewer than three tiers, and NULL salaries</h5>
+<p>If the company has only two distinct salaries, the query returns two rows, not three &mdash; <code>LIMIT</code> is a cap, not a guarantee. If a consumer needs exactly three, that is a different (and odd) requirement. NULL salaries are another decision: <code>ORDER BY salary DESC</code> places NULLs <em>first</em> in Postgres by default, so an unpaid contractor row could occupy a top slot &mdash; add <code>NULLS LAST</code> or filter <code>WHERE salary IS NOT NULL</code> to keep them out.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>DISTINCT</code> is the entire point of "top three salaries", reach for <code>DENSE_RANK</code> (not <code>RANK</code>) as the window-function form, clarify whether the ask is three values or three people, and pre-empt the NULL-salary sort-order surprise.</div>

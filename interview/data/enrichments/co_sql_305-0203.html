@@ -1,0 +1,59 @@
+<p>Shopify's merchant dashboard shows each customer's most recent order &mdash; one row per customer, the latest purchase. It feels trivial until you hit a customer who placed two orders on the same day: which one is "the latest"? The reference uses <code>ROW_NUMBER()</code> to pick exactly one. The interviewer is checking whether you know that <code>ROW_NUMBER</code> resolves ties arbitrarily &mdash; and whether you make that tiebreak deterministic.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>order_date</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>2026-01-01</td><td>50</td></tr>
+    <tr><td>101</td><td>2</td><td>2026-01-05</td><td>60</td></tr>
+    <tr><td>102</td><td>3</td><td>2026-01-02</td><td>80</td></tr>
+    <tr><td>102</td><td>4</td><td>2026-01-08</td><td>90</td></tr>
+    <tr><td>103</td><td>5</td><td>2026-01-03</td><td>40</td></tr>
+  </tbody>
+</table>
+<p>Customers 101 and 102 each have two orders on different days; customer 103 has just one. Distinct dates make this clean &mdash; the interesting case (two orders on the <em>same</em> date) is what section 4 stress-tests.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER then filter rn = 1</code></h4>
+<pre><code>SELECT * FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) rn FROM orders
+) t WHERE rn=1;</code></pre>
+<p>The inner query numbers each customer's orders newest-first. The outer query keeps only <code>rn = 1</code> &mdash; the latest order per customer. The window function must be assigned in a subquery because you cannot reference a window alias in a <code>WHERE</code> at the same level.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>order_date</th><th>total</th><th>status</th><th>amount</th><th>rn</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2</td><td>2026-01-05</td><td>60</td><td>completed</td><td>60</td><td>1</td></tr>
+    <tr><td>102</td><td>4</td><td>2026-01-08</td><td>90</td><td>completed</td><td>90</td><td>1</td></tr>
+    <tr><td>103</td><td>5</td><td>2026-01-03</td><td>40</td><td>completed</td><td>40</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>One row per customer &mdash; the most recent order each. Note <code>SELECT *</code> dragged the helper <code>rn</code> column into the output; on a real dashboard you would list columns explicitly so <code>rn</code> never leaks. The pattern works perfectly here because every customer's order dates are distinct.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The same-day tie &mdash; the bug waiting to happen</h5>
+<p><code>ORDER BY order_date DESC</code> alone is not a total order. If customer 101 placed two orders on 2026-01-05, <code>ROW_NUMBER</code> still assigns 1 and 2 &mdash; but <em>which</em> order gets rn 1 is arbitrary, decided by physical row order or the planner's whim. The dashboard would show a different "latest order" run to run. Watch:</p>
+<pre><code>-- customer 101: orders 1 and 2 BOTH on 2026-01-05
+-- ROW_NUMBER picks one non-deterministically
+customer_id | order_id | order_date
+101         | 1        | 2026-01-05   <- could be order 2 next run</code></pre>
+<p>The fix is a deterministic tiebreaker &mdash; usually the surrogate key, which is monotonic with insertion time: <code>ORDER BY order_date DESC, order_id DESC</code>. Now the latest order is reproducible. If the table has a true timestamp column, order by that instead of the date.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> &mdash; pick one, on purpose</h5>
+<p>If two orders genuinely tie on the latest date and the business wants <em>both</em> shown, <code>ROW_NUMBER</code> is wrong &mdash; it forces a single winner. Use <code>RANK()</code> and filter <code>rk = 1</code>: ties share rank 1, so both rows survive. The choice is semantic: <code>ROW_NUMBER</code> = "exactly one row per customer", <code>RANK</code> = "all rows tied at the top". The question says "the latest purchase" (singular), so <code>ROW_NUMBER</code> plus a tiebreaker is right here &mdash; but name the alternative.</p>
+
+<h5>The <code>DISTINCT ON</code> alternative</h5>
+<p>Postgres has a terser idiom for "one row per group, top by some order":</p>
+<pre><code>SELECT DISTINCT ON (customer_id) *
+FROM orders
+ORDER BY customer_id, order_date DESC, order_id DESC;</code></pre>
+<p>It avoids the subquery and never emits a stray <code>rn</code> column. The catch: the leading <code>ORDER BY</code> columns must start with the <code>DISTINCT ON</code> key, and the same tiebreaker rule applies. It is Postgres-specific &mdash; <code>ROW_NUMBER</code> is the portable choice across engines.</p>
+
+<h5>The correlated-subquery anti-pattern</h5>
+<p>A pre-window approach &mdash; <code>WHERE order_date = (SELECT MAX(order_date) FROM orders o2 WHERE o2.customer_id = orders.customer_id)</code> &mdash; works but runs a subquery per row and, crucially, returns <em>two</em> rows for a customer with two orders on the max date. It reintroduces the tie problem you were trying to solve and scales poorly. The window function is both cleaner and tie-controllable.</p>
+
+<h5>Edge cases: NULL dates and <code>SELECT *</code> hygiene</h5>
+<p>If <code>order_date</code> is NULL on some orders, <code>ORDER BY order_date DESC</code> sorts NULLs <em>first</em> in Postgres &mdash; an undated order would be crowned "latest". Add <code>NULLS LAST</code> or filter NULL dates. And the literal <code>SELECT *</code> here exposes the internal <code>rn</code> to consumers; in production, project the columns you actually want.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>ORDER BY order_date DESC</code> is not a total order, add a deterministic tiebreaker (<code>order_id DESC</code>) so "latest" is reproducible, distinguish <code>ROW_NUMBER</code> ("exactly one") from <code>RANK</code> ("all ties"), and avoid leaking the helper <code>rn</code> column via a careless <code>SELECT *</code>.</div>

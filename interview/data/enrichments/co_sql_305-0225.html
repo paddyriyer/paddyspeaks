@@ -1,0 +1,65 @@
+<p>Revolut's resourcing team wants a headcount-utilisation view: for every employee, how many projects are they assigned to &mdash; including the people assigned to <em>none</em>, because bench capacity is the whole point. The query is a join plus a count, but the interviewer is watching whether you pick a <code>LEFT JOIN</code> over an inner one, and whether you count the right column so the unassigned employees show 0 rather than 1.</p>
+
+<h4>1. The source data &mdash; <code>employees</code> and <code>project_assignments</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>job_title</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>10</td><td>Eng</td></tr>
+    <tr><td>2</td><td>Bao</td><td>10</td><td>Eng</td></tr>
+    <tr><td>3</td><td>Cleo</td><td>20</td><td>PM</td></tr>
+    <tr><td>4</td><td>Dev</td><td>20</td><td>Intern</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>emp_id</th><th>project_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>501</td><td>Apollo</td></tr>
+    <tr><td>1</td><td>502</td><td>Borealis</td></tr>
+    <tr><td>2</td><td>501</td><td>Apollo</td></tr>
+    <tr><td>3</td><td>503</td><td>Cosmos</td></tr>
+  </tbody>
+</table>
+<p>Ada is on two projects, Bao and Cleo on one each &mdash; and <strong>Dev has no assignment row at all</strong>. That benched employee is the interview: a correct utilisation report must show Dev with a count of 0, not omit him.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN + COUNT(column)</code></h4>
+<pre><code>SELECT e.emp_id, e.name, COUNT(pa.project_id) AS projects
+FROM employees e LEFT JOIN project_assignments pa ON e.emp_id = pa.emp_id
+GROUP BY e.emp_id, e.name;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every employee even with no matching assignment; <code>COUNT(pa.project_id)</code> tallies their assignment rows per employee.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>projects</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Bao</td><td>1</td></tr>
+    <tr><td>3</td><td>Cleo</td><td>1</td></tr>
+    <tr><td>1</td><td>Ada</td><td>2</td></tr>
+    <tr><td>4</td><td>Dev</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>Dev appears with <strong>0</strong> &mdash; exactly what bench-capacity planning needs. The <code>LEFT JOIN</code> kept his row (with all <code>pa.*</code> columns NULL), and <code>COUNT(pa.project_id)</code> counted zero non-NULL values for him. Result row order is arbitrary &mdash; no <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(pa.project_id)</code> and not <code>COUNT(*)</code></h5>
+<p>This is the single decision the question turns on. After the <code>LEFT JOIN</code>, Dev still produces one output row &mdash; with every <code>project_assignments</code> column NULL. <code>COUNT(*)</code> counts <em>rows</em>, so it would count that phantom row and report Dev as <strong>1</strong> &mdash; a benched employee wrongly shown as staffed. <code>COUNT(pa.project_id)</code> counts only non-NULL values, so Dev's NULL is skipped and he correctly shows <strong>0</strong>. With a <code>LEFT JOIN</code>, always count a column from the <em>right</em> table.</p>
+
+<h5><code>LEFT JOIN</code> vs <code>INNER JOIN</code> &mdash; the visible difference</h5>
+<p>Swap to an inner join and Dev vanishes entirely &mdash; no assignment row, no match, no output. For a utilisation report that is a real bug: the bench (your spare capacity) is precisely the rows you most need. The inner join would be correct only if the ask were "employees who <em>are</em> on a project." Read the requirement: "every employee, including zero" demands the outer join.</p>
+
+<h5>The double-count trap with <code>DISTINCT</code></h5>
+<p><code>COUNT(pa.project_id)</code> counts assignment <em>rows</em>. If the same employee can be assigned to the same project twice (a data-quality slip, or one row per project-role), that inflates the count. If "how many projects" means <em>distinct</em> projects, harden it:</p>
+<pre><code>SELECT e.emp_id, e.name, COUNT(DISTINCT pa.project_id) AS projects
+FROM employees e LEFT JOIN project_assignments pa ON e.emp_id = pa.emp_id
+GROUP BY e.emp_id, e.name;</code></pre>
+<p><code>COUNT(DISTINCT ...)</code> still ignores NULLs, so Dev stays at 0. Confirm the assignment grain before choosing.</p>
+
+<h5>Grouping by the key, carrying the name</h5>
+<p><code>GROUP BY e.emp_id, e.name</code> groups by the primary key and carries <code>name</code> along. Grouping by <code>name</code> alone would merge two different employees who happen to share a name into one row &mdash; group by the id. (Postgres also lets you <code>GROUP BY e.emp_id</code> alone and still select <code>e.name</code>, because <code>emp_id</code> is the table's primary key and functionally determines it; listing both is the portable habit.)</p>
+
+<h5>Finding the bench &mdash; the natural follow-up</h5>
+<p>"Show only unassigned employees" filters this with <code>HAVING</code>, not <code>WHERE</code>:</p>
+<pre><code>... GROUP BY e.emp_id, e.name HAVING COUNT(pa.project_id) = 0;</code></pre>
+<p>Equivalently, an anti-join: <code>WHERE NOT EXISTS (SELECT 1 FROM project_assignments pa WHERE pa.emp_id = e.emp_id)</code>. Both isolate Dev; the anti-join skips the aggregation entirely and often plans better.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose <code>LEFT JOIN</code> so benched employees are not silently dropped, count <code>pa.project_id</code> rather than <code>COUNT(*)</code> so a NULL-extended row reads as 0 instead of 1, reach for <code>COUNT(DISTINCT ...)</code> if assignments can repeat, and know that finding the bench is a <code>HAVING ... = 0</code> or an anti-join.</div>

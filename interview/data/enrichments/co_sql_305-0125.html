@@ -1,0 +1,64 @@
+<p>TCS runs an infrastructure SLA dashboard for a client, and the headline figure is total downtime per server in hours. The reference solution computes it with a chain of EXTRACT and arithmetic that looks deliberately convoluted &mdash; the interviewer wants to see whether you can simplify it, and whether you notice the messy floating-point output it produces.</p>
+
+<h4>1. The source data &mdash; <code>downtime</code></h4>
+<table>
+  <thead><tr><th>server_id</th><th>start_ts</th><th>end_ts</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01 02:00:00</td><td>2024-01-01 05:30:00</td></tr>
+    <tr><td>1</td><td>2024-01-03 22:00:00</td><td>2024-01-04 01:00:00</td></tr>
+    <tr><td>2</td><td>2024-01-02 09:15:00</td><td>2024-01-02 09:45:00</td></tr>
+    <tr><td>3</td><td>2024-01-05 00:00:00</td><td>2024-01-06 00:00:00</td></tr>
+  </tbody>
+</table>
+<p>Server 1 has <strong>two outages</strong> that must be summed (3.5h + 3h). Server 2's outage <strong>crosses no hour boundary cleanly</strong> (30 minutes). Server 3's outage <strong>spans a calendar day</strong> &mdash; a good check that the math gives 24h, not 1.</p>
+
+<h4>2. The SQL &mdash; <code>SUM of EXTRACT(EPOCH)</code></h4>
+<pre><code>SELECT server_id,
+       SUM(((EXTRACT(EPOCH FROM (end_ts - start_ts)) / 86400.0) * 86400) / 3600)
+         AS total_hours
+FROM downtime
+GROUP BY server_id;</code></pre>
+<p><code>end_ts - start_ts</code> is an <code>interval</code>; <code>EXTRACT(EPOCH FROM &hellip;)</code> turns it into seconds. The <code>/ 86400.0 * 86400</code> pair cancels out (divide by a day, multiply by a day), so the expression is really just <code>seconds / 3600</code> &mdash; downtime in hours &mdash; summed per server.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>server_id</th><th>total_hours</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>24.00000000000000000000</td></tr>
+    <tr><td>2</td><td>0.49999999999999999992</td></tr>
+    <tr><td>1</td><td>6.49999999999999999992</td></tr>
+  </tbody>
+</table>
+<p>The numbers are right &mdash; server 1 is 3.5 + 3 = 6.5h, server 2 is 0.5h, server 3 is a full 24h &mdash; but look at the <strong>display</strong>. The redundant <code>/ 86400.0</code> introduces a fractional intermediate, and the trailing <code>&hellip;9992</code> is floating-point dust. The arithmetic is correct; the presentation is not dashboard-ready.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Simplify the expression &mdash; the day factors cancel</h5>
+<p><code>(EXTRACT(EPOCH FROM d) / 86400.0) * 86400 / 3600</code> reduces algebraically to <code>EXTRACT(EPOCH FROM d) / 3600</code>. The detour through "days" does nothing but inject rounding error. Write what you mean:</p>
+<pre><code>SELECT server_id,
+       ROUND(SUM(EXTRACT(EPOCH FROM (end_ts - start_ts))) / 3600.0, 2)
+         AS total_hours
+FROM downtime
+GROUP BY server_id
+ORDER BY server_id;</code></pre>
+<p>Note <code>SUM</code> first, <em>then</em> divide &mdash; one division instead of one per row &mdash; and a final <code>ROUND(&hellip;, 2)</code> so the SLA report reads <code>6.50</code>, not <code>6.499&hellip;92</code>.</p>
+
+<h5>The interval-to-hours follow-up</h5>
+<p>Interviewers often ask for the answer without <code>EXTRACT</code> at all. Postgres can sum intervals directly:</p>
+<pre><code>SELECT server_id, SUM(end_ts - start_ts) AS total_downtime
+FROM downtime
+GROUP BY server_id;</code></pre>
+<p>That returns a native <code>interval</code> like <code>06:30:00</code> &mdash; perfect if the consumer wants <code>HH:MM:SS</code>. The <code>EXTRACT(EPOCH &hellip;) / 3600</code> form is better when the consumer wants a decimal number to do further math on. Pick based on the output contract.</p>
+
+<h5>The trap: <code>end_ts &lt; start_ts</code> and open outages</h5>
+<p>If a row has <code>end_ts</code> earlier than <code>start_ts</code> (clock skew, a bad import), the interval is negative and silently <em>reduces</em> the total &mdash; a server looks healthier than it is. And an ongoing outage often has <code>end_ts IS NULL</code>; <code>NULL - start_ts</code> is NULL, and <code>SUM</code> skips it, so live incidents vanish from the report. Guard both:</p>
+<pre><code>SUM(EXTRACT(EPOCH FROM (COALESCE(end_ts, NOW()) - start_ts)) / 3600.0)
+WHERE end_ts IS NULL OR end_ts &gt;= start_ts</code></pre>
+
+<h5>Integer-division gotcha &mdash; why the literal needs a dot</h5>
+<p>Dividing by <code>3600.0</code> (not <code>3600</code>) forces numeric division. <code>EXTRACT(EPOCH &hellip;)</code> already returns numeric so it is safe here, but in engines where the seconds value is an integer, <code>/ 3600</code> would floor 6.5 to 6. The decimal point on the divisor is a cheap insurance policy.</p>
+
+<h5>Overlapping outages &mdash; the question behind the question</h5>
+<p>If two rows for the same server overlap in time, a plain <code>SUM</code> double-counts the shared minutes. "Total downtime" usually means <em>wall-clock time the server was down at least once</em>, which needs an interval-merge (a gaps-and-islands pass) before summing. Worth asking: "can outage windows for one server overlap?" If yes, the simple sum is wrong.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that the <code>/86400*86400</code> pair cancels and simplify to <code>EXTRACT(EPOCH &hellip;)/3600</code>, <code>SUM</code> before dividing and <code>ROUND</code> for a clean report, guard against negative and NULL <code>end_ts</code>, and raise overlapping-window double-counting before trusting a naive sum.</div>

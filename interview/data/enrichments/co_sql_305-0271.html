@@ -1,0 +1,68 @@
+<p>Visa's payments-analytics team wants to study how customers re-order &mdash; for every customer, pair each order with the orders that came after it and measure the gap in days. That is a self-join: the <code>orders</code> table joined to itself. The interview lives in the join condition, because get it slightly wrong and you produce every pair twice, or pair an order with itself.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>100</td><td>2024-01-10</td></tr>
+    <tr><td>3</td><td>100</td><td>2024-02-01</td></tr>
+    <tr><td>4</td><td>200</td><td>2024-01-05</td></tr>
+    <tr><td>5</td><td>200</td><td>2024-03-05</td></tr>
+  </tbody>
+</table>
+<p>Customer 100 has <strong>three orders</strong> &mdash; that yields three ordered pairs (1-2, 1-3, 2-3), the case that exposes whether your join condition double-counts. Customer 200 has two orders, one pair. The join must never cross customers: order 1 and order 4 belong to different people.</p>
+
+<h4>2. The SQL &mdash; self-join on <code>order_id &lt; order_id</code></h4>
+<pre><code>SELECT a.order_id, b.order_id, b.order_date - a.order_date AS gap
+FROM orders a
+JOIN orders b
+  ON a.customer_id = b.customer_id
+ AND a.order_id &lt; b.order_id;</code></pre>
+<p>Two aliases of the same table. <code>a.customer_id = b.customer_id</code> keeps pairs within one customer; <code>a.order_id &lt; b.order_id</code> is the clever half &mdash; it pairs each order only with <em>later</em>-ID orders, so each pair appears once and no order joins itself.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_id</th><th>gap</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>9</td></tr>
+    <tr><td>1</td><td>3</td><td>31</td></tr>
+    <tr><td>2</td><td>3</td><td>22</td></tr>
+    <tr><td>4</td><td>5</td><td>60</td></tr>
+  </tbody>
+</table>
+<p>Four pairs &mdash; three for customer 100, one for customer 200, none crossing customers. The gaps are integers because <code>date - date</code> yields whole days. Note both output columns are literally named <code>order_id</code> &mdash; the query never aliased them. That is legal in Postgres but a problem for any consumer that addresses columns by name; see below.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>&lt;</code> and not <code>&lt;&gt;</code> &mdash; the double-count trap</h5>
+<p>Using <code>a.order_id &lt;&gt; b.order_id</code> (just "not the same row") returns <em>both</em> orderings of every pair: (1,2) <em>and</em> (2,1), (1,3) <em>and</em> (3,1) &mdash; six rows for customer 100 instead of three, with half the gaps negative. The strict <code>&lt;</code> imposes a direction: <code>a</code> is always the earlier order. It does two jobs at once &mdash; eliminates the self-pair (an order is never <code>&lt;</code> itself) <em>and</em> picks one ordering of each pair. This is the single detail the interviewer is checking.</p>
+
+<h5>Order by <code>order_id</code> or by <code>order_date</code>?</h5>
+<p><code>a.order_id &lt; b.order_id</code> assumes ID order matches chronological order. If IDs are assigned out of sequence (parallel inserts, back-dated orders), "earlier ID" is not "earlier date" and <code>gap</code> could be negative. The robust condition pairs on the date itself:</p>
+<pre><code>JOIN orders b
+  ON a.customer_id = b.customer_id
+ AND a.order_date &lt; b.order_date</code></pre>
+<p>Mention the assumption. If two orders share a date you may then need <code>order_id</code> as a tiebreaker to keep each pair once.</p>
+
+<h5>The duplicate column name &mdash; alias your output</h5>
+<p>Both selected columns are <code>order_id</code>. A driver returning rows as a dictionary keeps only the last one; downstream code silently loses the earlier order. Always alias:</p>
+<pre><code>SELECT a.order_id AS earlier_order,
+       b.order_id AS later_order,
+       b.order_date - a.order_date AS gap_days
+FROM orders a JOIN orders b
+  ON a.customer_id = b.customer_id AND a.order_id &lt; b.order_id;</code></pre>
+<p>The original solution is correct, but un-aliased duplicate names are a production hazard worth calling out.</p>
+
+<h5>"Gap to the <em>next</em> order" &mdash; the better question</h5>
+<p>This self-join produces <em>all</em> later pairs, so order 1 pairs with both 2 and 3. Usually the business wants only consecutive orders &mdash; the gap to the <em>immediately</em> next one. A self-join can do it, but <code>LEAD</code> is far cleaner and O(n log n) instead of O(n&sup2;):</p>
+<pre><code>SELECT order_id, customer_id,
+       LEAD(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)
+         - order_date AS days_to_next
+FROM orders;</code></pre>
+<p>The self-join is the right tool for <em>all</em> pairs (e.g. "any two orders within 7 days"); <code>LEAD</code>/<code>LAG</code> is right for <em>adjacent</em> pairs. Knowing which the question wants is the senior move.</p>
+
+<h5>Single-order customers vanish</h5>
+<p>A customer with one order produces no pair &mdash; an inner self-join needs two rows to match. If the report must list every customer (showing NULL for those who never re-ordered), that calls for a <code>LEFT JOIN</code> or the <code>LEAD</code> form, where a lone order simply gets a NULL <code>days_to_next</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use the strict <code>a.order_id &lt; b.order_id</code> to kill both the self-pair and the mirror-image duplicate in one stroke, question whether ID order equals date order, alias the two <code>order_id</code> outputs, and reach for <code>LEAD</code> when the question is really about <em>consecutive</em> orders rather than all pairs.</div>

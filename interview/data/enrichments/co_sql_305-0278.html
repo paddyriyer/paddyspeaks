@@ -1,0 +1,52 @@
+<p>Datadog's growth team reviews paid acquisition weekly, and the number every marketer lives by is CPA &mdash; cost per acquisition. Spend lives in <code>campaigns</code>; each customer a campaign converted is a row in <code>conversions</code>. CPA is spend divided by customers acquired. It is a one-line ratio, and the interview is entirely about the two ways it goes wrong: a campaign that converted nobody, and a customer counted twice.</p>
+
+<h4>1. The source data &mdash; <code>campaigns</code> and <code>conversions</code></h4>
+<table>
+  <thead><tr><th>campaign_id</th><th>spend</th><th>conversion rows</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1000</td><td>101, 102, 103, <em>103</em></td></tr>
+    <tr><td>2</td><td>600</td><td>201, 202</td></tr>
+    <tr><td>3</td><td>900</td><td>301</td></tr>
+    <tr><td>4</td><td>400</td><td><em>(none)</em></td></tr>
+  </tbody>
+</table>
+<p>Two edge cases are baked in. Campaign 1 logged customer <strong>103 twice</strong> &mdash; a re-touched conversion event, not two customers. Campaign 4 spent $400 and converted <strong>nobody</strong> &mdash; dividing by zero is one keystroke away.</p>
+
+<h4>2. The SQL &mdash; <code>spend / NULLIF(COUNT DISTINCT, 0)</code></h4>
+<pre><code>SELECT c.campaign_id, c.spend / NULLIF(COUNT(DISTINCT cv.customer_id),0) AS cpa
+FROM campaigns c LEFT JOIN conversions cv ON c.campaign_id = cv.campaign_id
+GROUP BY c.campaign_id, c.spend;</code></pre>
+<p><code>COUNT(DISTINCT cv.customer_id)</code> collapses the duplicate; <code>NULLIF(&hellip;, 0)</code> turns a zero denominator into NULL so the division is safe; the <code>LEFT JOIN</code> keeps campaign 4 in the report.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>campaign_id</th><th>cpa</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>333.3333333333333333</td></tr>
+    <tr><td>2</td><td>300.0000000000000000</td></tr>
+    <tr><td>3</td><td>900.0000000000000000</td></tr>
+    <tr><td>4</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Campaign 1: $1000 over <strong>3 distinct</strong> customers (not 4 rows) = $333.33. If the duplicate had counted, CPA would read $250 &mdash; a 25% understatement of acquisition cost. Campaign 4 returns <strong>NULL</strong>: spend with no conversions has no meaningful per-customer cost, and NULL says exactly that instead of crashing.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT &hellip;)</code> and not <code>COUNT(*)</code></h5>
+<p>A conversions table often stores an <em>event</em> per row, not a customer. Re-attribution, multi-touch logging, or a late pixel fire all produce repeated <code>customer_id</code>s. <code>COUNT(*)</code> would count events and inflate the denominator, making CPA look cheaper than reality &mdash; the most expensive direction to be wrong for a budgeting decision. <code>COUNT(DISTINCT customer_id)</code> counts people. Always confirm the grain of the conversions table before choosing.</p>
+
+<h5><code>NULLIF</code> is the divide-by-zero guard &mdash; know the alternative</h5>
+<p><code>NULLIF(x, 0)</code> returns NULL when <code>x = 0</code>, and <code>anything / NULL</code> is NULL &mdash; no error. Without it, campaign 4 throws <code>division by zero</code> and the whole report fails. The deliberate decision is what the zero-conversion case <em>should</em> show: NULL ("undefined"), or perhaps the raw wasted spend. A <code>CASE</code> can encode either:</p>
+<pre><code>CASE WHEN COUNT(DISTINCT cv.customer_id) = 0 THEN NULL
+     ELSE c.spend / COUNT(DISTINCT cv.customer_id) END</code></pre>
+
+<h5>The <code>INNER JOIN</code> trap hides your worst campaign</h5>
+<p>Switch to <code>INNER JOIN</code> and campaign 4 disappears &mdash; the one campaign that burned $400 for nothing is exactly the one a growth lead must see. Reporting CPA per campaign means every campaign with spend belongs in the output, converting or not. The <code>LEFT JOIN</code> from <code>campaigns</code> is what guarantees that.</p>
+
+<h5>Why <code>spend</code> is in the <code>GROUP BY</code></h5>
+<p><code>c.spend</code> appears in the <code>SELECT</code> but is not aggregated, so Postgres requires it in <code>GROUP BY</code>. Since <code>campaign_id</code> is the campaign's key, <code>spend</code> is functionally dependent on it &mdash; grouping by the extra column changes nothing about the result, it just satisfies the grammar. (Grouping by a true primary key would let you skip this; grouping by <code>campaign_id</code> alone here does not, because the planner cannot prove uniqueness without the constraint.)</p>
+
+<h5>Integer division &mdash; check the column types</h5>
+<p>If <code>spend</code> were an <code>integer</code> column, <code>integer / bigint</code> truncates: a $1000 spend over 3 customers would return <code>333</code>, silently dropping the cents. CPA usually wants the fraction &mdash; cast with <code>c.spend::numeric / NULLIF(&hellip;, 0)</code>. Here <code>spend</code> is numeric so it is fine, but state the check.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> count <code>DISTINCT customer_id</code> so re-logged conversion events don't deflate CPA, guard the denominator with <code>NULLIF(&hellip;, 0)</code> and decide on purpose what a zero-conversion campaign shows, and keep the join <code>LEFT</code> so a campaign that spent money and converted nobody still surfaces in the report.</div>

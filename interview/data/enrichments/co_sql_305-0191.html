@@ -1,0 +1,57 @@
+<p>Uber's payments team wants the users who have crossed a transaction milestone &mdash; people with at least 2 transactions, the threshold that separates a one-off rider from a repeat customer worth retaining. The query is a single <code>GROUP BY</code> with a <code>HAVING</code> count filter. Simple on the surface; the interviewer is watching whether you put the count condition in the right clause and whether you noticed what "transaction" actually means in this messy schema.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>txn_id</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>50</td><td>ok</td></tr>
+    <tr><td>1</td><td>2</td><td>60</td><td>ok</td></tr>
+    <tr><td>2</td><td>3</td><td>70</td><td>ok</td></tr>
+    <tr><td>3</td><td>4</td><td>80</td><td>ok</td></tr>
+    <tr><td>3</td><td>5</td><td>90</td><td>ok</td></tr>
+    <tr><td>3</td><td>6</td><td>30</td><td>ok</td></tr>
+  </tbody>
+</table>
+<p>User 1 has 2 transactions, user 3 has 3 &mdash; both clear the milestone. User 2 has exactly <strong>one</strong> &mdash; the boundary case that must be excluded. The threshold is "<code>&gt;= 2</code>", so user 2 with a count of 1 falls just short.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY + HAVING COUNT</code></h4>
+<pre><code>SELECT user_id FROM transactions
+GROUP BY user_id HAVING COUNT(*) &gt;= 2;</code></pre>
+<p>One row per user via <code>GROUP BY</code>; <code>HAVING COUNT(*) &gt;= 2</code> keeps only users whose group has 2 or more rows.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>Users 1 and 3 qualify; user 2 is filtered out by <code>HAVING</code>. The result is just the id list &mdash; no count column &mdash; which answers "who", but a reviewer often wants the count alongside for sanity-checking. Row order is not guaranteed without an <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>WHERE</code> vs <code>HAVING</code> &mdash; the core distinction</h5>
+<p>You cannot write <code>WHERE COUNT(*) &gt;= 2</code> &mdash; <code>WHERE</code> is evaluated row-by-row <em>before</em> grouping, when no aggregate exists yet; Postgres rejects it outright. <code>HAVING</code> is evaluated <em>after</em> grouping, so it can see <code>COUNT(*)</code>. The rule: <code>WHERE</code> filters rows going <em>into</em> the groups, <code>HAVING</code> filters the groups <em>coming out</em>. They often appear together &mdash; <code>WHERE</code> to drop irrelevant rows first, then <code>HAVING</code> on the aggregate.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(DISTINCT txn_id)</code> &mdash; what is a transaction?</h5>
+<p><code>COUNT(*)</code> counts <em>rows</em>. That is correct only if each row is exactly one transaction. This schema is alarming: it carries both <code>txn_id</code> <em>and</em> <code>transaction_id</code> &mdash; redundant id columns that smell of a sloppy join or a denormalised table. If a single transaction can appear on multiple rows (one row per line-item, say), <code>COUNT(*)</code> over-counts and a one-transaction user could falsely clear the milestone. The safe milestone count is over distinct transactions:</p>
+<pre><code>SELECT user_id FROM transactions
+GROUP BY user_id
+HAVING COUNT(DISTINCT txn_id) &gt;= 2;</code></pre>
+<p>Asking "is one row guaranteed to be one transaction?" before trusting <code>COUNT(*)</code> is the senior move.</p>
+
+<h5>The status filter the milestone implies</h5>
+<p>The table has a <code>status</code> column. A "transaction milestone" almost certainly means <em>successful</em> transactions &mdash; failed, declined, or reversed attempts should not count toward someone being a repeat customer. The reference counts every row regardless of status. Confirm the definition and filter the rows <em>before</em> grouping, which is exactly the job of <code>WHERE</code>:</p>
+<pre><code>SELECT user_id FROM transactions
+WHERE status = 'completed'
+GROUP BY user_id
+HAVING COUNT(*) &gt;= 2;</code></pre>
+
+<h5><code>user_id</code> vs <code>customer_id</code> &mdash; which identity?</h5>
+<p>The schema also exposes <code>customer_id</code> alongside <code>user_id</code>. They may be the same person under two systems, or genuinely different grains (a customer account vs an app user). Grouping by the wrong one silently answers a different question. Verify which column is the intended unit of "user" rather than guessing.</p>
+
+<h5>Edge case: NULL <code>user_id</code></h5>
+<p>If some transactions have a NULL <code>user_id</code> (unauthenticated or orphaned), <code>GROUP BY</code> gathers them all into a single NULL group. If that group has &gt;= 2 rows it appears in the output as a NULL <code>user_id</code> &mdash; almost never a meaningful "user". Add <code>WHERE user_id IS NOT NULL</code> to keep the milestone list clean.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the count condition must live in <code>HAVING</code> because <code>WHERE</code> runs before aggregation, question whether one row equals one transaction given the duplicate <code>txn_id</code>/<code>transaction_id</code> columns and reach for <code>COUNT(DISTINCT)</code> if not, add the <code>status</code> filter so only successful transactions count toward the milestone, and exclude NULL <code>user_id</code>.</div>

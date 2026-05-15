@@ -1,0 +1,71 @@
+<p>Samsung's merchandising team wants to know which product categories command the highest average price &mdash; the premium end of the catalogue, where TVs and appliances live versus accessories and cables. The query is a textbook group-and-rank. The interview value is in the quiet decisions: what "average" means when categories have wildly different sizes, what <code>LIMIT 5</code> does at a tie, and whether a NULL price should drag the average down.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>category</th><th>price</th><th>product_id</th></tr></thead>
+  <tbody>
+    <tr><td>TVs</td><td>$1,800</td><td>1</td></tr>
+    <tr><td>TVs</td><td>$1,200</td><td>2</td></tr>
+    <tr><td>Phones</td><td>$999</td><td>3</td></tr>
+    <tr><td>Phones</td><td>$1,099</td><td>4</td></tr>
+    <tr><td>Tablets</td><td>$650</td><td>5</td></tr>
+    <tr><td>Wearables</td><td>$250</td><td>6</td></tr>
+    <tr><td>Wearables</td><td>$180</td><td>7</td></tr>
+    <tr><td>Accessories</td><td>$30</td><td>8</td></tr>
+    <tr><td>Appliances</td><td>$1,400</td><td>9</td></tr>
+  </tbody>
+</table>
+<p>Six categories, nine products. Some categories have two products, "Appliances" has only one. That single-product category is the edge case: its "average" is just that one price, and a one-product category outranking a two-product category is a feature of the metric worth questioning.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY category, ORDER BY AVG DESC</code></h4>
+<pre><code>SELECT category, AVG(price) AS avg_price FROM products
+GROUP BY category ORDER BY avg_price DESC LIMIT 5;</code></pre>
+<p>One row per category, the mean price within it, sorted highest first, top five kept. Standard aggregate-then-rank shape.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>avg_price</th></tr></thead>
+  <tbody>
+    <tr><td>TVs</td><td>1500.0000000000000000</td></tr>
+    <tr><td>Appliances</td><td>1400.0000000000000000</td></tr>
+    <tr><td>Phones</td><td>1049.0000000000000000</td></tr>
+    <tr><td>Tablets</td><td>650.0000000000000000</td></tr>
+    <tr><td>Wearables</td><td>215.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>TVs lead at $1,500 (mean of 1,800 and 1,200). Appliances come second at $1,400 &mdash; on the strength of a <em>single</em> product. Accessories, at $30, are the sixth category and fall outside the top five. The result is correct; whether Appliances <em>deserves</em> second place when it is one item is exactly the conversation an interviewer wants.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>A one-product category outranks a deep one &mdash; is that fair?</h5>
+<p>Appliances beats Phones with one data point versus two. An average over a tiny sample is volatile and easily distorted by an outlier. The senior move is to expose the sample size and let the consumer judge:</p>
+<pre><code>SELECT category, AVG(price) AS avg_price, COUNT(*) AS n
+FROM products
+GROUP BY category
+HAVING COUNT(*) &gt;= 3
+ORDER BY avg_price DESC LIMIT 5;</code></pre>
+<p>The <code>HAVING COUNT(*) &gt;= 3</code> excludes categories too thin to average meaningfully. Whether to apply it is a product call &mdash; but you should raise it, not silently ship a ranking a single SKU can swing.</p>
+
+<h5>Ties at the <code>LIMIT</code> boundary are non-deterministic</h5>
+<p>If two categories shared the fifth-place average, <code>LIMIT 5</code> would keep one and drop the other <em>arbitrarily</em> &mdash; the planner decides, and the choice can change between runs. To make it reproducible, add a deterministic tiebreaker (<code>ORDER BY avg_price DESC, category</code>), or switch to <code>RANK()</code> if you want <em>all</em> categories tied at the cutoff:</p>
+<pre><code>SELECT category, avg_price FROM (
+  SELECT category, AVG(price) AS avg_price,
+         RANK() OVER (ORDER BY AVG(price) DESC) AS rk
+  FROM products GROUP BY category
+) t WHERE rk &lt;= 5;</code></pre>
+
+<h5>NULL prices &mdash; <code>AVG</code> skips them</h5>
+<p><code>AVG(price)</code> ignores NULL prices entirely: they drop out of both the sum and the count. A category with three priced products and two unpriced ones is averaged over three. Usually fine &mdash; but if an unpriced product means "free" or "price TBD", the average is misleading. And a category where <em>every</em> price is NULL yields <code>AVG = NULL</code>, which sorts to the end under <code>DESC</code> (Postgres puts NULLs first under <code>ASC</code>, last under <code>DESC</code>). Decide whether such a category should appear at all.</p>
+
+<h5>Mean vs median for skewed prices</h5>
+<p>Price distributions are right-skewed &mdash; one $5,000 flagship pulls the mean far above the typical product. If "highest average price" really means "highest <em>typical</em> price", the median is more honest:</p>
+<pre><code>SELECT category,
+       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS median_price
+FROM products GROUP BY category
+ORDER BY median_price DESC LIMIT 5;</code></pre>
+<p>Naming the mean-versus-median choice signals you think about what the number is <em>for</em>, not just how to compute it.</p>
+
+<h5>The wider schema and weighting</h5>
+<p>The table also carries <code>manufacturer</code> and <code>sku</code>. A natural follow-up is "average price by category <em>and</em> manufacturer", which just adds a column to <code>GROUP BY</code>. A subtler one: should the average be weighted by units sold rather than treating every SKU equally? A simple <code>AVG(price)</code> answers "average sticker price"; a revenue-weighted average answers "average price a customer actually pays" &mdash; very different metrics from the same column.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> expose <code>COUNT(*)</code> alongside the average so a one-SKU category cannot quietly rank second, make the <code>LIMIT 5</code> deterministic at ties (tiebreaker or <code>RANK()</code>), note that <code>AVG</code> drops NULL prices, and raise mean-versus-median when prices are skewed.</div>

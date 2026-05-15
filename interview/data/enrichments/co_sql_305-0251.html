@@ -1,0 +1,63 @@
+<p>DoorDash's operations team wants to flag "slow" orders &mdash; ones that took more than 48 hours from placement to completion &mdash; for a fulfilment audit. The core idea is a timestamp difference; the interview value is in how you compute a duration in hours, whether the threshold comparison is exact, and whether the chosen formula introduces floating-point noise.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>placed_at</th><th>completed_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-05-01 08:00</td><td>2024-05-01 09:30</td></tr>
+    <tr><td>2</td><td>2024-05-02 10:00</td><td>2024-05-04 12:00</td></tr>
+    <tr><td>3</td><td>2024-05-03 09:00</td><td>2024-05-03 11:00</td></tr>
+    <tr><td>4</td><td>2024-05-04 06:00</td><td>2024-05-07 06:00</td></tr>
+    <tr><td>5</td><td>2024-05-05 12:00</td><td>2024-05-09 18:00</td></tr>
+    <tr><td>6</td><td>2024-05-06 07:00</td><td>2024-05-06 10:00</td></tr>
+  </tbody>
+</table>
+<p>Order 2 spans exactly <strong>50 hours</strong> &mdash; just past the 48-hour line, the boundary case that tests whether the threshold is exclusive. Orders 4 (72h) and 5 (102h) are clearly slow; orders 1, 3, 6 are same-day and fast.</p>
+
+<h4>2. The SQL &mdash; <code>EPOCH duration over 48h</code></h4>
+<pre><code>SELECT order_id,
+  ((EXTRACT(EPOCH FROM (completed_at - placed_at)) / 86400.0) * 86400) / 3600 AS hrs
+FROM orders
+WHERE ((EXTRACT(EPOCH FROM (completed_at - placed_at)) / 86400.0) * 86400) / 3600 &gt; 48;</code></pre>
+<p><code>completed_at - placed_at</code> is an <code>interval</code>; <code>EXTRACT(EPOCH FROM &hellip;)</code> turns it into total seconds. The expression then divides by 86400 (seconds per day), multiplies by 86400, and divides by 3600 (seconds per hour). The <code>WHERE</code> repeats the same expression to keep only durations above 48 hours.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>hrs</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>49.9999999999999992</td></tr>
+    <tr><td>4</td><td>72.0000000000000000</td></tr>
+    <tr><td>5</td><td>102.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Three orders cross the line. But look at order 2: it spans exactly 50 hours, yet <code>hrs</code> reads <strong>49.9999999999999992</strong>. The <code>/ 86400.0</code> step promotes the value to floating point, and <code>50</code> has no exact binary representation once divided and re-multiplied &mdash; the round trip leaves residue. The number is right; its presentation is not.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The formula is a no-op dressed up &mdash; simplify it</h5>
+<p><code>((seconds / 86400.0) * 86400) / 3600</code> divides by 86400 and immediately multiplies by 86400 &mdash; algebraically those cancel, leaving <code>seconds / 3600</code>. The detour buys nothing except the floating-point error you can see in order 2's row. Write the duration directly:</p>
+<pre><code>SELECT order_id,
+  EXTRACT(EPOCH FROM (completed_at - placed_at)) / 3600 AS hrs
+FROM orders
+WHERE completed_at - placed_at &gt; INTERVAL '48 hours';</code></pre>
+<p>Spotting that an expression simplifies &mdash; and that the redundant step actively introduces noise &mdash; is exactly the senior instinct an interviewer rewards.</p>
+
+<h5>Compare intervals directly &mdash; skip the arithmetic entirely</h5>
+<p>The cleanest filter never converts to a number at all. <code>completed_at - placed_at</code> is an <code>interval</code>, and intervals compare directly against an interval literal: <code>WHERE completed_at - placed_at &gt; INTERVAL '48 hours'</code>. This is exact &mdash; no epoch, no division, no float &mdash; and reads as the business rule verbatim. Compute the <code>hrs</code> column for display if the report needs it, but do the <em>filtering</em> on the interval.</p>
+
+<h5>The boundary &mdash; is exactly 48 hours slow?</h5>
+<p>The query uses <code>&gt; 48</code>, so an order taking precisely 48 hours is <em>not</em> flagged. Is that intended? "More than 48 hours" usually means strictly greater, so <code>&gt;</code> is defensible &mdash; but confirm it. If 48 hours exactly should count, the operator is <code>&gt;=</code>. And the floating-point residue makes this worse: a value that is "really" 48.0 could compute as 47.9999&hellip; and slip under a <code>&gt;= 48</code> test. Interval comparison sidesteps that fragility completely.</p>
+
+<h5>Repeating the expression &mdash; DRY it with a CTE or lateral</h5>
+<p>The solution writes the duration formula twice &mdash; once in <code>SELECT</code>, once in <code>WHERE</code>. You cannot reference a <code>SELECT</code> alias in the same query's <code>WHERE</code> (the <code>WHERE</code> is evaluated first), but a CTE or subquery computes it once:</p>
+<pre><code>WITH durations AS (
+  SELECT order_id,
+         EXTRACT(EPOCH FROM (completed_at - placed_at)) / 3600 AS hrs
+  FROM orders)
+SELECT * FROM durations WHERE hrs &gt; 48;</code></pre>
+<p>One definition of <code>hrs</code> means the displayed value and the filtered value can never drift apart &mdash; and rounding (<code>ROUND(hrs, 1)</code>) can be applied in one place.</p>
+
+<h5>NULL timestamps &mdash; orders still open</h5>
+<p>An order that has been placed but not yet completed has <code>completed_at = NULL</code>. <code>completed_at - placed_at</code> is then NULL, the duration is NULL, and <code>NULL &gt; 48</code> is unknown &mdash; so the order is silently excluded. An order open for a week is arguably the <em>slowest</em> of all, yet this query never flags it. Decide explicitly: filter <code>WHERE completed_at IS NOT NULL</code> to be clear you mean "completed but slow", or measure open orders against <code>now()</code> with <code>COALESCE(completed_at, now()) - placed_at</code> if stuck-open orders must surface.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>(x/86400)*86400</code> cancels to a no-op that only adds floating-point noise &mdash; visible as <code>49.999&hellip;</code> for an exact 50-hour order &mdash; prefer a direct <code>interval &gt; INTERVAL '48 hours'</code> comparison that is exact and self-documenting, compute the duration once via a CTE, and handle NULL <code>completed_at</code> deliberately rather than letting the slowest open orders vanish.</div>

@@ -1,0 +1,66 @@
+<p>Meta's messaging team wants a per-sender activity profile: for each user who sends messages, how many messages they sent and how many distinct people they messaged. The gap between those two numbers &mdash; total sent vs unique recipients &mdash; tells you whether someone broadcasts to many contacts or hammers one. The query is a <code>GROUP BY</code> with a plain count and a <code>DISTINCT</code> count, and the interviewer is watching whether you understand exactly what each count includes.</p>
+
+<h4>1. The source data &mdash; <code>messages</code></h4>
+<table>
+  <thead><tr><th>sender_id</th><th>receiver_id</th><th>sent_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>2024-01-01 09:00</td></tr>
+    <tr><td>1</td><td>3</td><td>2024-01-01 10:00</td></tr>
+    <tr><td>1</td><td>2</td><td>2024-01-01 11:00</td></tr>
+    <tr><td>2</td><td>1</td><td>2024-01-02 09:00</td></tr>
+    <tr><td>3</td><td>1</td><td>2024-01-03 09:00</td></tr>
+    <tr><td>3</td><td>2</td><td>2024-01-03 10:00</td></tr>
+  </tbody>
+</table>
+<p>Sender 1 sent <strong>3 messages but to only 2 distinct people</strong> &mdash; they messaged user 2 twice. That repeat is the whole point: it is the one row of data where <code>COUNT(*)</code> and <code>COUNT(DISTINCT receiver_id)</code> diverge.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT vs COUNT DISTINCT</code></h4>
+<pre><code>SELECT sender_id, COUNT(*) AS sent, COUNT(DISTINCT receiver_id) AS unique_recipients
+FROM messages GROUP BY sender_id;</code></pre>
+<p>One row per sender. <code>COUNT(*)</code> tallies every message they sent; <code>COUNT(DISTINCT receiver_id)</code> tallies how many different people received at least one.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sender_id</th><th>sent</th><th>unique_recipients</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>2</td></tr>
+    <tr><td>2</td><td>1</td><td>1</td></tr>
+    <tr><td>3</td><td>2</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Sender 1 shows <strong>3 sent but 2 unique</strong> &mdash; the two messages to user 2 collapse into one recipient. Senders 2 and 3 messaged each person once, so their two counts match. The <code>sent &gt; unique_recipients</code> gap is exactly the "did they repeat-message anyone" signal.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(DISTINCT col)</code> &mdash; rows vs distinct values</h5>
+<p><code>COUNT(*)</code> counts every row in the group, NULLs included. <code>COUNT(DISTINCT receiver_id)</code> counts the number of <em>distinct non-NULL</em> values. Two consequences worth saying aloud: <code>DISTINCT</code> deduplicates (sender 1's repeat receiver counts once), and <code>DISTINCT</code> drops NULLs (a message with no <code>receiver_id</code> would inflate <code>sent</code> but not <code>unique_recipients</code>). The two counts being equal means "every message went to a different person"; the two diverging means "someone got messaged more than once".</p>
+
+<h5>The interviewer's follow-up: senders who never receive</h5>
+<p>This query profiles only people who <em>appear as a sender</em>. A user who only ever receives messages produces no <code>sender_id</code> row and is invisible. To profile <em>every</em> user &mdash; including pure receivers with 0 sent &mdash; you cannot <code>GROUP BY sender_id</code> alone; you need a user list left-joined to messages:</p>
+<pre><code>SELECT u.user_id,
+       COUNT(m.sent_at)               AS sent,
+       COUNT(DISTINCT m.receiver_id)  AS unique_recipients
+FROM users u
+LEFT JOIN messages m ON m.sender_id = u.user_id
+GROUP BY u.user_id;</code></pre>
+<p>Note <code>COUNT(m.sent_at)</code>, not <code>COUNT(*)</code>: after a <code>LEFT JOIN</code>, a user with no messages still yields one row with NULLs, and <code>COUNT(*)</code> would wrongly score them 1. <code>COUNT(a_nullable_column)</code> correctly returns 0. That swap is a classic outer-join trap.</p>
+
+<h5>Receiving activity &mdash; the symmetric metric</h5>
+<p>"Messaging activity" often means both directions. The mirror query groups by <code>receiver_id</code> for messages received and distinct senders. To get a single row per user with all four numbers, aggregate each direction separately and full-join, or <code>UNION ALL</code> the two roles and group:</p>
+<pre><code>SELECT user_id,
+       SUM(is_sender)   AS sent,
+       SUM(is_receiver) AS received
+FROM (
+  SELECT sender_id   AS user_id, 1 AS is_sender, 0 AS is_receiver FROM messages
+  UNION ALL
+  SELECT receiver_id AS user_id, 0,             1                FROM messages
+) t
+GROUP BY user_id;</code></pre>
+
+<h5>Self-messages and time scope</h5>
+<p>Should a message where <code>sender_id = receiver_id</code> (a note-to-self) count as a "unique recipient"? Often not &mdash; <code>WHERE sender_id &lt;&gt; receiver_id</code> filters them. And "messaging activity" usually has an implied window (last 30 days, this quarter); the reference counts all history. Pin the time scope down with a <code>WHERE sent_at &gt;= ...</code> rather than silently reporting lifetime totals.</p>
+
+<h5>Edge case: NULL <code>receiver_id</code> or NULL <code>sender_id</code></h5>
+<p>A message with a NULL <code>sender_id</code> forms its own NULL group &mdash; a meaningless "sender". A message with a NULL <code>receiver_id</code> still increments <code>sent</code> (via <code>COUNT(*)</code>) but not <code>unique_recipients</code> (<code>DISTINCT</code> skips NULL), so the two counts drift apart for a reason that has nothing to do with behaviour. If NULLs are possible, filter them or decide explicitly how a "no recipient" message should score.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate that <code>COUNT(*)</code> counts rows while <code>COUNT(DISTINCT receiver_id)</code> counts distinct non-NULL values, recognise that grouping by <code>sender_id</code> excludes pure receivers and that the fix needs a <code>LEFT JOIN</code> with <code>COUNT(nullable_col)</code> instead of <code>COUNT(*)</code>, and raise self-messages and the implied time window before reporting lifetime totals.</div>

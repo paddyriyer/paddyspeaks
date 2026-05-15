@@ -1,0 +1,58 @@
+<p>Deutsche Bank's recruiting team wants a funnel view of its applicant pipeline: how many candidates sit at each stage, and what share of the total each stage represents. The trick is the percentage &mdash; you need a per-group count <em>and</em> the grand total in the same query, without a second pass over the table.</p>
+
+<h4>1. The source data &mdash; <code>applications</code></h4>
+<table>
+  <thead><tr><th>app_id</th><th>stage</th><th>applied_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>applied</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>applied</td><td>2024-01-02</td></tr>
+    <tr><td>3</td><td>applied</td><td>2024-01-03</td></tr>
+    <tr><td>4</td><td>applied</td><td>2024-01-04</td></tr>
+    <tr><td>5</td><td>screen</td><td>2024-01-05</td></tr>
+    <tr><td>6</td><td>screen</td><td>2024-01-06</td></tr>
+    <tr><td>7</td><td>onsite</td><td>2024-01-07</td></tr>
+    <tr><td>8</td><td>offer</td><td>2024-01-08</td></tr>
+  </tbody>
+</table>
+<p>Eight applications across four stages &mdash; a classic narrowing funnel: 4 applied, 2 screened, 1 onsite, 1 offer. The interesting part is the denominator: every stage's percentage must be measured against the same total of 8, computed once.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT</code> with a windowed total</h4>
+<pre><code>SELECT stage, COUNT(*) AS apps,
+  100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS pct
+FROM applications GROUP BY stage;</code></pre>
+<p>The clever line is <code>SUM(COUNT(*)) OVER ()</code>: <code>COUNT(*)</code> is the per-stage count, and the window <code>SUM(... ) OVER ()</code> with an empty frame sums those group counts across all groups &mdash; the grand total. An aggregate of an aggregate, evaluated after the <code>GROUP BY</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>stage</th><th>apps</th><th>pct</th></tr></thead>
+  <tbody>
+    <tr><td>applied</td><td>4</td><td>50.0000000000000000</td></tr>
+    <tr><td>screen</td><td>2</td><td>25.0000000000000000</td></tr>
+    <tr><td>onsite</td><td>1</td><td>12.5000000000000000</td></tr>
+    <tr><td>offer</td><td>1</td><td>12.5000000000000000</td></tr>
+  </tbody>
+</table>
+<p>The percentages sum to 100 &mdash; the proof the denominator is consistent. Note the result has <strong>no <code>ORDER BY</code></strong>, so the engine returns the four stages in whatever order it likes (here grouped, not funnel-ordered). The trailing zeros are <code>numeric</code> display precision; round in the presentation layer.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How <code>SUM(COUNT(*)) OVER ()</code> actually works</h5>
+<p>Execution order is the key. <code>GROUP BY</code> runs first, collapsing the table to one row per stage with a <code>COUNT(*)</code>. <em>Then</em> the window function runs over those four grouped rows: <code>SUM(COUNT(*)) OVER ()</code> adds up 4 + 2 + 1 + 1 = 8. The empty <code>OVER ()</code> means "the whole result set is one frame". This is why you can nest an aggregate inside a window function but not inside another plain aggregate.</p>
+
+<h5>The alternative &mdash; a subquery for the total</h5>
+<p>Before window functions, the total came from a scalar subquery:</p>
+<pre><code>SELECT stage, COUNT(*) AS apps,
+  100.0 * COUNT(*) / (SELECT COUNT(*) FROM applications) AS pct
+FROM applications GROUP BY stage;</code></pre>
+<p>It produces the same numbers but scans the table twice &mdash; once for the groups, once for the total. The window version scans once. On a large applications table that difference is real; on a small one it is style. Either is defensible if you can articulate the trade-off.</p>
+
+<h5>The ordering follow-up &mdash; funnels are not alphabetical</h5>
+<p>A funnel must read applied &rarr; screen &rarr; onsite &rarr; offer, but <code>ORDER BY stage</code> sorts alphabetically: applied, offer, onsite, screen &mdash; "offer" jumps to second. Stages are an ordinal sequence with no natural string order. Carry an explicit rank: a <code>CASE</code> mapping each stage to 1&ndash;4, or join a small <code>stages(stage, ordinal)</code> dimension table and <code>ORDER BY ordinal</code>.</p>
+
+<h5>The integer-division trap</h5>
+<p>The leading <code>100.0</code> is essential. With <code>100 * COUNT(*) / total</code> &mdash; all integers &mdash; Postgres does integer division: <code>100 * 1 / 8</code> = <code>100 / 8</code> = 12, silently dropping the .5. Every non-round percentage would truncate. The <code>100.0</code> literal forces <code>numeric</code> arithmetic so the .5 survives. Equivalently, cast: <code>COUNT(*)::numeric</code>.</p>
+
+<h5>Missing stages and conversion rates</h5>
+<p>Two deeper points. First, a stage with zero applicants produces <em>no row</em> &mdash; <code>GROUP BY</code> only emits stages that exist; a true funnel view needs a <code>LEFT JOIN</code> to a stages dimension so empty stages show as 0. Second, this query gives <em>share of total</em>, not <em>stage-to-stage conversion</em> &mdash; recruiting usually wants "what % of screened candidates reached onsite", which is each stage over the <em>previous</em> stage's count (a <code>LAG</code>), not over the grand total. Clarify which the interviewer means.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>SUM(COUNT(*)) OVER ()</code> works because the window runs after the <code>GROUP BY</code>, prefer it to a double-scanning subquery while naming the trade-off, force float math to avoid truncated percentages, and distinguish share-of-total from stage-to-stage conversion &mdash; and add an explicit ordinal so the funnel does not sort alphabetically.</div>

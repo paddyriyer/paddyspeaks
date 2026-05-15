@@ -1,0 +1,57 @@
+<p>BMW's connected-vehicle BI team ingests a daily sales feed from dealerships worldwide. On any given day a few regions simply don't report &mdash; a network hiccup, a late close, a regional holiday &mdash; and those gaps land in the warehouse as <code>NULL</code> amounts. The dashboard that rolls these up does arithmetic, and arithmetic plus <code>NULL</code> equals <code>NULL</code>. This question looks like one tiny function call, but it is really about whether you know what a missing number <em>means</em> before you decide how to fill it.</p>
+
+<h4>1. The source data &mdash; <code>daily_sales</code></h4>
+<table>
+  <thead><tr><th>d</th><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-01</td><td>North</td><td>1200</td></tr>
+    <tr><td>2025-03-01</td><td>South</td><td><em>NULL</em></td></tr>
+    <tr><td>2025-03-02</td><td>North</td><td><em>NULL</em></td></tr>
+    <tr><td>2025-03-02</td><td>South</td><td>900</td></tr>
+    <tr><td>2025-03-03</td><td>North</td><td>1500</td></tr>
+    <tr><td>2025-03-03</td><td>South</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Three of the six rows have a <strong>NULL</strong> <code>amount</code>. The question is whether a non-reporting region means "they sold &euro;0 that day" or "we genuinely don't know". The SQL below picks the first interpretation &mdash; correct only if that is what the business intends.</p>
+
+<h4>2. The SQL &mdash; <code>COALESCE(amount, 0)</code></h4>
+<pre><code>SELECT d, region, COALESCE(amount,0) AS amount FROM daily_sales;</code></pre>
+<p><code>COALESCE</code> returns its first non-NULL argument. For a row with a real amount it passes the value straight through; for a NULL row it substitutes <code>0</code>. No <code>GROUP BY</code> &mdash; this is a row-by-row projection that simply cleans the column.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-01</td><td>North</td><td>1200</td></tr>
+    <tr><td>2025-03-01</td><td>South</td><td>0</td></tr>
+    <tr><td>2025-03-02</td><td>North</td><td>0</td></tr>
+    <tr><td>2025-03-02</td><td>South</td><td>900</td></tr>
+    <tr><td>2025-03-03</td><td>North</td><td>1500</td></tr>
+    <tr><td>2025-03-03</td><td>South</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>Every NULL has become <code>0</code>; the populated rows are untouched. The output now sums and averages without infecting the result with NULL &mdash; <code>SUM</code> over this column gives 3600, a finite number a dashboard can render.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The interviewer's first follow-up: "is zero the right fill?"</h5>
+<p>Filling with <code>0</code> is a business decision disguised as a syntax choice. If "South didn't report" really means "South sold nothing", <code>0</code> is correct and <code>SUM</code> is honest. But if it means "data is in flight", a <code>0</code> <em>understates</em> the total and quietly drags down any <code>AVG</code>. The senior answer names both readings and asks which one holds. Sometimes the right move is to leave the NULL alone and let <code>AVG</code> skip it, or carry the last known value forward.</p>
+
+<h5><code>COALESCE</code> vs the gotchas around it</h5>
+<p><code>COALESCE</code> is ANSI SQL and portable. Two cousins are <em>not</em> drop-in equivalents:</p>
+<pre><code>-- NVL is Oracle-only; ISNULL is SQL Server-only and ISNULL takes exactly 2 args
+COALESCE(amount, 0)          -- portable, n-ary
+-- NULLIF does the OPPOSITE: turns a value INTO null
+NULLIF(amount, 0)            -- returns NULL when amount = 0</code></pre>
+<p>Reach for <code>COALESCE</code> by default; it accepts any number of fallbacks &mdash; <code>COALESCE(a, b, c, 0)</code>.</p>
+
+<h5>The type trap &mdash; all branches must agree</h5>
+<p><code>COALESCE</code>'s arguments must share a common type. <code>COALESCE(amount, 0)</code> is fine because <code>0</code> coerces to numeric. But <code>COALESCE(amount, 'N/A')</code> would fail &mdash; you cannot fall back from a number to a string. If you need a text placeholder, cast the number first: <code>COALESCE(amount::text, 'N/A')</code>.</p>
+
+<h5>Filling on the way in vs filling on the way out</h5>
+<p>This query patches the value at <em>read</em> time, leaving the warehouse honest about what is missing &mdash; usually the right call, because the next analyst can choose a different fill. The alternative, <code>UPDATE daily_sales SET amount = 0 WHERE amount IS NULL</code>, destroys the distinction between "zero sales" and "no data" permanently. Patch in the SELECT, not in the table.</p>
+
+<h5>Edge case: a region that never reports</h5>
+<p><code>COALESCE</code> only touches rows that <em>exist</em>. If a region is entirely absent from <code>daily_sales</code> for a date, no row means nothing to coalesce &mdash; the gap is invisible. Surfacing those requires a calendar &times; region grid <code>LEFT JOIN</code>ed to the feed, and <em>then</em> <code>COALESCE</code> on the join result.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat the NULL-to-0 substitution as a business decision &mdash; confirm that a non-reporting region means zero sales, not unknown &mdash; reach for portable <code>COALESCE</code> over <code>NVL</code>/<code>ISNULL</code>, keep the fill in the query rather than mutating the table, and note that <code>COALESCE</code> cannot rescue rows that are missing entirely.</div>

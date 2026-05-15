@@ -1,0 +1,68 @@
+<p>Cognizant inherited a regional sales table built for a spreadsheet: one column per region &mdash; <code>north</code>, <code>south</code>, <code>east</code>, <code>west</code> &mdash; sitting side by side. The new BI tool wants the data <em>long</em>: one row per (product, region). This is an <strong>unpivot</strong>, and the interviewer wants to see whether you reach for the portable <code>UNION ALL</code> idiom and whether you understand what it does to a <code>NULL</code> cell.</p>
+
+<h4>1. The source data &mdash; <code>regional_sales</code></h4>
+<table>
+  <thead><tr><th>product</th><th>north</th><th>south</th><th>east</th><th>west</th></tr></thead>
+  <tbody>
+    <tr><td>Widget</td><td>100</td><td>80</td><td>120</td><td>90</td></tr>
+    <tr><td>Gadget</td><td>50</td><td><em>NULL</em></td><td>70</td><td>60</td></tr>
+    <tr><td>Gizmo</td><td>200</td><td>150</td><td>180</td><td>210</td></tr>
+  </tbody>
+</table>
+<p>Three products across four region columns. <strong>Gadget has no South figure</strong> &mdash; the cell is <code>NULL</code>. That single NULL is the interview: it decides whether the long table gets a Gadget/South row at all, and what value it carries.</p>
+
+<h4>2. The SQL &mdash; <code>UNION ALL</code> unpivot</h4>
+<pre><code>SELECT product, 'North' AS region, north AS amount FROM regional_sales
+UNION ALL SELECT product, 'South', south FROM regional_sales
+UNION ALL SELECT product, 'East',  east  FROM regional_sales
+UNION ALL SELECT product, 'West',  west  FROM regional_sales;</code></pre>
+<p>One <code>SELECT</code> per region column, each emitting a literal region label and that column as <code>amount</code>. <code>UNION ALL</code> stacks the four result sets into one tall table.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product</th><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>Widget</td><td>North</td><td>100</td></tr>
+    <tr><td>Gadget</td><td>North</td><td>50</td></tr>
+    <tr><td>Gizmo</td><td>North</td><td>200</td></tr>
+    <tr><td>Widget</td><td>South</td><td>80</td></tr>
+    <tr><td>Gadget</td><td>South</td><td><em>NULL</em></td></tr>
+    <tr><td>Gizmo</td><td>South</td><td>150</td></tr>
+    <tr><td>Widget</td><td>East</td><td>120</td></tr>
+    <tr><td>Gadget</td><td>East</td><td>70</td></tr>
+    <tr><td>Gizmo</td><td>East</td><td>180</td></tr>
+    <tr><td>Widget</td><td>West</td><td>90</td></tr>
+    <tr><td>Gadget</td><td>West</td><td>60</td></tr>
+    <tr><td>Gizmo</td><td>West</td><td>210</td></tr>
+  </tbody>
+</table>
+<p>Twelve rows &mdash; 3 products &times; 4 regions. The Gadget/South row <em>still exists</em>, carrying <code>amount = NULL</code>. The unpivot is structural: it produces a row per (product, region) cell regardless of whether the cell had a value.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>UNION ALL</code>, never <code>UNION</code> &mdash; the silent-row-loss trap</h5>
+<p><code>UNION</code> deduplicates; <code>UNION ALL</code> does not. If two products had identical (region, amount) &mdash; say two products both with North = 100 &mdash; plain <code>UNION</code> would collapse them into one row and you would lose data. Worse, it triggers a sort/hash to find duplicates, so it is slower for no benefit. Unpivot is a structural reshape: every source cell must survive. Always <code>UNION ALL</code>.</p>
+
+<h5>Should the NULL row be kept or dropped?</h5>
+<p>That is a business question. Keeping Gadget/South as <code>NULL</code> faithfully records "no South sales data for Gadget". If the consumer wants only rows that represent real sales, filter the result:</p>
+<pre><code>SELECT * FROM ( &hellip; the UNION ALL &hellip; ) u
+WHERE amount IS NOT NULL;</code></pre>
+<p>Do not assume &mdash; ask whether a missing cell should appear as a NULL row or vanish. And note: a NULL here is genuinely different from a zero. NULL means "unknown / not recorded"; 0 means "we sold none".</p>
+
+<h5>Postgres native: <code>LATERAL</code> + <code>VALUES</code> &mdash; one table scan</h5>
+<p>The <code>UNION ALL</code> form scans <code>regional_sales</code> four times. A tidier, single-scan alternative uses a lateral join:</p>
+<pre><code>SELECT r.product, v.region, v.amount
+FROM regional_sales r
+CROSS JOIN LATERAL (VALUES
+  ('North', r.north), ('South', r.south),
+  ('East',  r.east),  ('West',  r.west)
+) AS v(region, amount);</code></pre>
+<p>It reads the table once and expands each row into four. Same result, better plan on a large table. (Other engines have a dedicated <code>UNPIVOT</code> operator; <code>UNION ALL</code> is the portable answer that runs everywhere.)</p>
+
+<h5>Column types must line up</h5>
+<p>Each branch of the <code>UNION ALL</code> must have compatible types in matching positions. Here all four region columns are numeric, so <code>amount</code> is clean. If one region column were text and another numeric, the union would either error or coerce to text &mdash; cast explicitly so the result type is intentional, not whatever the planner negotiates.</p>
+
+<h5>Adding a fifth region later</h5>
+<p>This pattern hard-codes the region list. Add a <code>central</code> column and you must add a fifth <code>SELECT</code> &mdash; the query does not adapt on its own. That is the inherent cost of unpivoting wide tables in SQL; the real fix is upstream, storing the data long in the first place so reshaping is never needed.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>UNION ALL</code> (not <code>UNION</code>, which silently drops duplicate rows), recognise that the unpivot keeps a NULL cell as a NULL row and decide deliberately whether to filter it, offer the single-scan <code>LATERAL VALUES</code> form, and note that the hard-coded region list is a maintenance cost best solved by storing data long upstream.</div>

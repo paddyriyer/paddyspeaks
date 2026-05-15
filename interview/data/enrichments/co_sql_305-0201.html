@@ -1,0 +1,60 @@
+<p>Robinhood's markets team wants the all-time high and low price for each of the big tech tickers &mdash; the kind of "52-week range" figure that sits on every stock detail page. The query is a grouped <code>MAX</code>/<code>MIN</code> with an <code>IN</code> filter. An interviewer asking this is checking whether you put the filter in the right place and whether you understand what "extremes" means once dividends, splits, and time windows enter the picture.</p>
+
+<h4>1. The source data &mdash; <code>stocks</code></h4>
+<table>
+  <thead><tr><th>ticker</th><th>trade_date</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>META</td><td>2026-01-01</td><td>480</td></tr>
+    <tr><td>META</td><td>2026-01-02</td><td>510</td></tr>
+    <tr><td>META</td><td>2026-01-03</td><td>495</td></tr>
+    <tr><td>AAPL</td><td>2026-01-01</td><td>190</td></tr>
+    <tr><td>AAPL</td><td>2026-01-02</td><td>185</td></tr>
+    <tr><td>AMZN</td><td>2026-01-01</td><td>175</td></tr>
+    <tr><td>NFLX</td><td>2026-01-01</td><td>600</td></tr>
+    <tr><td>GOOG</td><td>2026-01-01</td><td>155</td></tr>
+    <tr><td>TSLA</td><td>2026-01-01</td><td>240</td></tr>
+  </tbody>
+</table>
+<p>META has three price points; AMZN, NFLX, and GOOG have only <strong>one</strong> each &mdash; for them high equals low. There is also a <strong>TSLA</strong> row that is not in the FAANG list; the filter must drop it.</p>
+
+<h4>2. The SQL &mdash; <code>grouped MAX/MIN with IN filter</code></h4>
+<pre><code>SELECT ticker, MAX(price) AS hi, MIN(price) AS lo
+FROM stocks WHERE ticker IN ('META','AAPL','AMZN','NFLX','GOOG') GROUP BY ticker;</code></pre>
+<p>The <code>WHERE</code> keeps only the five named tickers, <code>GROUP BY ticker</code> makes one row per ticker, and <code>MAX</code>/<code>MIN</code> pick the extreme prices within each group.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>ticker</th><th>hi</th><th>lo</th></tr></thead>
+  <tbody>
+    <tr><td>AAPL</td><td>190</td><td>185</td></tr>
+    <tr><td>META</td><td>510</td><td>480</td></tr>
+    <tr><td>NFLX</td><td>600</td><td>600</td></tr>
+    <tr><td>GOOG</td><td>155</td><td>155</td></tr>
+    <tr><td>AMZN</td><td>175</td><td>175</td></tr>
+  </tbody>
+</table>
+<p>Five rows &mdash; TSLA is correctly gone. META's range is 480&ndash;510 across its three days. NFLX, GOOG, and AMZN show <code>hi = lo</code> because each has a single observation: that is correct, not a bug, but worth flagging to a stakeholder who may misread a zero-width range as missing data. The row order is unspecified &mdash; the query has no <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>WHERE</code> before <code>GROUP BY</code> &mdash; filter then aggregate</h5>
+<p><code>WHERE</code> runs before grouping, so non-FAANG rows are discarded before <code>MAX</code>/<code>MIN</code> ever see them &mdash; efficient and correct. The mistake is putting the ticker test in <code>HAVING</code>: <code>HAVING</code> filters <em>after</em> aggregation, so the engine would group every ticker (including TSLA), aggregate them all, then throw groups away. Same result, wasted work. Reserve <code>HAVING</code> for conditions on the aggregates themselves, e.g. <code>HAVING MAX(price) &gt; 500</code>.</p>
+
+<h5>Five rows guaranteed? Only if every ticker has data</h5>
+<p><code>GROUP BY</code> produces a row only for tickers that <em>appear</em> in the table. If GOOG had no rows in the date range, the result would have four rows, not five &mdash; the missing ticker is silently absent, not a row of NULLs. If a dashboard must show all five names always, drive the query from a ticker list and <code>LEFT JOIN</code> the prices, or <code>VALUES</code>-list the tickers. Don't assume the cardinality of the <code>IN</code> clause equals the cardinality of the result.</p>
+
+<h5>"Extremes" over what window? The split-and-dividend trap</h5>
+<p><code>MAX(price)</code> over the whole table is the all-time extreme. A 52-week range needs a date filter: <code>WHERE trade_date &gt;= CURRENT_DATE - INTERVAL '1 year'</code>. More subtly, raw price across a stock split is meaningless &mdash; a pre-split $600 and a post-split $150 are the "same" value. If the table stores unadjusted prices, the high/low must be computed on <em>split-adjusted</em> prices, or the range is nonsense. Surfacing that question ("are these prices split-adjusted?") is the senior move.</p>
+
+<h5>Want the date of the high, not just the price?</h5>
+<p>A frequent follow-up: "on which day did META peak?" <code>MAX(price)</code> gives the value but not the row. Use <code>DISTINCT ON</code> or a ranking window:</p>
+<pre><code>SELECT DISTINCT ON (ticker) ticker, trade_date, price
+FROM stocks
+WHERE ticker IN ('META','AAPL','AMZN','NFLX','GOOG')
+ORDER BY ticker, price DESC;</code></pre>
+<p>This returns the peak <em>row</em> per ticker. If two days tie at the high, <code>DISTINCT ON</code> keeps one arbitrarily &mdash; add a tiebreaker to <code>ORDER BY</code> (e.g. <code>, trade_date</code>) for determinism.</p>
+
+<h5>Edge cases: NULL prices and single observations</h5>
+<p><code>MAX</code> and <code>MIN</code> skip NULL prices, so a ticker whose only rows are NULL-priced yields <code>(NULL, NULL)</code>. The single-observation tickers here (<code>hi = lo</code>) are legitimate &mdash; a one-day range is genuinely zero-width. Both are fine; just name them so nobody mistakes correct output for a data problem.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> put the ticker filter in <code>WHERE</code> (not <code>HAVING</code>) so it runs before aggregation, do not assume the result has one row per <code>IN</code>-list entry, raise the split-adjustment and time-window questions that "extremes" really depends on, and reach for <code>DISTINCT ON</code> when the ask shifts from the price to the day it happened.</div>

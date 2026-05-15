@@ -1,0 +1,64 @@
+<p>Yahoo's HR analytics team wants every employee tagged into a compensation band &mdash; High, Mid, or Low &mdash; for a pay-equity dashboard. It is a per-row label, the bread-and-butter use of <code>CASE</code> in a <code>SELECT</code>. The interview is whether your band thresholds are airtight: every employee gets exactly one band, the boundary salaries land where you intend, and a NULL salary does not silently misfile.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th><th>name</th><th>dept_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>120000</td><td>Ann</td><td>10</td></tr>
+    <tr><td>2</td><td>100000</td><td>Ben</td><td>10</td></tr>
+    <tr><td>3</td><td>75000</td><td>Cy</td><td>20</td></tr>
+    <tr><td>4</td><td>50000</td><td>Dee</td><td>20</td></tr>
+    <tr><td>5</td><td>40000</td><td>Eve</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Two rows sit exactly on a threshold: Ben at <strong>100000</strong> and Dee at <strong>50000</strong>. With <code>&ge;</code> they fall into the <em>upper</em> band; with <code>&gt;</code> they would drop to the lower one. Those boundary employees are the whole interview.</p>
+
+<h4>2. The SQL &mdash; <code>CASE</code> in the select list</h4>
+<pre><code>SELECT emp_id, salary,
+  CASE WHEN salary &gt;= 100000 THEN 'High'
+       WHEN salary &gt;= 50000 THEN 'Mid' ELSE 'Low' END AS band
+FROM employees;</code></pre>
+<p><code>CASE</code> evaluates its <code>WHEN</code> arms top to bottom and returns the first match. There is no <code>GROUP BY</code> &mdash; this is a per-row transformation, one band label per employee.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th><th>band</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>120000</td><td>High</td></tr>
+    <tr><td>2</td><td>100000</td><td>High</td></tr>
+    <tr><td>3</td><td>75000</td><td>Mid</td></tr>
+    <tr><td>4</td><td>50000</td><td>Mid</td></tr>
+    <tr><td>5</td><td>40000</td><td>Low</td></tr>
+  </tbody>
+</table>
+<p>Ben at exactly 100000 is <strong>High</strong> and Dee at exactly 50000 is <strong>Mid</strong> &mdash; both boundary salaries land in the higher band because the operator is <code>&ge;</code>. Five employees, five bands assigned, none missed: <code>ELSE</code> guarantees no row escapes.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Order matters &mdash; first match wins</h5>
+<p>The arms are correct <em>because</em> they descend. Ann at 120000 satisfies both <code>&ge; 100000</code> and <code>&ge; 50000</code>, but <code>CASE</code> stops at the first true arm, so she is <code>High</code>. Reorder them &mdash; <code>WHEN salary &ge; 50000 THEN 'Mid'</code> first &mdash; and <em>everyone</em> earning 50K+ becomes <code>Mid</code>; the <code>High</code> arm becomes unreachable dead code. The thresholds also need not restate their lower bound: reaching the <code>&ge; 50000</code> arm already implies salary is under 100000.</p>
+
+<h5>The boundary is a real decision</h5>
+<p>"High is 100K and up" vs "above 100K" is a one-character change (<code>&ge;</code> vs <code>&gt;</code>) that moves every employee sitting exactly on a band edge. On a real payroll, salaries cluster on round numbers, so this is not a corner case &mdash; it is many people. Confirm the intended bands with the interviewer, ideally as a half-open convention (lower bound inclusive, upper exclusive) so adjacent bands never overlap or gap.</p>
+
+<h5>The NULL-salary trap</h5>
+<p>Every <code>WHEN</code> here is a comparison, and <code>NULL &ge; anything</code> is <em>unknown</em> &mdash; not true. So an employee with a NULL <code>salary</code> fails both <code>WHEN</code> arms and falls into <code>ELSE</code>, getting silently labelled <code>'Low'</code>. That is wrong: their pay is unknown, not low. Handle it before the comparisons:</p>
+<pre><code>CASE WHEN salary IS NULL THEN 'Unknown'
+     WHEN salary &gt;= 100000 THEN 'High'
+     WHEN salary &gt;= 50000 THEN 'Mid'
+     ELSE 'Low' END</code></pre>
+<p>A bare <code>ELSE</code> is a magnet for NULLs and out-of-range values &mdash; never let it absorb cases you have not thought about.</p>
+
+<h5>The follow-up &mdash; count per band</h5>
+<p>HR will immediately ask "how many in each band". Wrap the <code>CASE</code> and group by it:</p>
+<pre><code>SELECT band, COUNT(*) FROM (
+  SELECT CASE WHEN salary &gt;= 100000 THEN 'High'
+              WHEN salary &gt;= 50000 THEN 'Mid' ELSE 'Low' END AS band
+  FROM employees
+) t GROUP BY band;</code></pre>
+<p>Watch the ordering trap on the result: <code>ORDER BY band</code> sorts <code>High, Low, Mid</code> alphabetically &mdash; not the natural Low/Mid/High. Carry a numeric sort key, or order by the band's lower-bound salary.</p>
+
+<h5>Maintainability &mdash; bands as data, not code</h5>
+<p>Hard-coded thresholds (100000, 50000) mean a comp-policy change requires editing every query that bands salaries. At scale, store the bands in a small table &mdash; <code>salary_bands(band, min_salary, max_salary)</code> &mdash; and join with a range condition. The literal <code>CASE</code> is perfect for an interview answer; mentioning the table-driven version shows you have maintained this kind of logic in production.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>CASE</code> returns the first matching arm so descending thresholds are essential, pin down <code>&ge;</code> vs <code>&gt;</code> on the band boundaries, and &mdash; the real differentiator &mdash; handle NULL salary explicitly before the comparisons so the <code>ELSE</code> arm does not silently misfile it as <code>Low</code>.</div>
