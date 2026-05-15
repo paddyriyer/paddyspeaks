@@ -1,0 +1,58 @@
+<p>Apple frames "Rotting Oranges" as the canonical <strong>multi-source BFS</strong> question. A grid of cells: <code>0</code> empty, <code>1</code> fresh orange, <code>2</code> rotten. Each minute, every rotten orange rots its 4-directional fresh neighbours. Return the minutes until none are fresh, or <code>-1</code> if some can never rot. It tests whether you see this as <em>simultaneous</em> spreading from many sources at once &mdash; not one DFS per orange.</p>
+
+<h4>1. The input data</h4>
+<pre><code>grid = [
+  [2, 1, 1],
+  [1, 1, 0],
+  [0, 1, 1],
+]
+# one rotten orange at (0,0); six fresh oranges; one empty cell</code></pre>
+
+<h4>2. The approach</h4>
+<p>A <strong>breadth-first search seeded from all rotten cells simultaneously</strong>. The first scan does two jobs: push every rotten orange onto the <code>deque</code> as <code>(r, c, 0)</code> &mdash; the <code>0</code> is its rot-time &mdash; and count the <code>fresh</code> oranges so we know when we're done.</p>
+<p>The BFS then pops cells with <code>popleft()</code> (FIFO &mdash; the property that makes it <em>breadth</em>-first and the times monotonically non-decreasing). For each fresh neighbour it rots the cell (<code>grid[nr][nc] = 2</code>), decrements <code>fresh</code>, and enqueues it with time <code>t+1</code>. Mutating the grid to <code>2</code> on enqueue is the visited-marker &mdash; a cell can't be rotted twice. <code>minutes</code> tracks the largest time seen, which is the last minute any orange rotted.</p>
+<p>The final check is the elegant part: <code>return minutes if fresh == 0 else -1</code>. If a fresh orange was walled off (no path of adjacency from any rotten source), the BFS can never reach it, <code>fresh</code> stays positive, and the answer is <code>-1</code>.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>minute</th><th>newly rotten cells</th><th>fresh remaining</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>(0,0) &mdash; seed</td><td>6</td></tr>
+    <tr><td>1</td><td>(0,1), (1,0)</td><td>4</td></tr>
+    <tr><td>2</td><td>(0,2), (1,1)</td><td>2</td></tr>
+    <tr><td>3</td><td>(2,1)</td><td>1</td></tr>
+    <tr><td>4</td><td>(2,2)</td><td>0</td></tr>
+  </tbody>
+</table>
+<pre><code>orangesRotting(grid) -&gt; 4</code></pre>
+<p>All six fresh oranges rot; the last one falls at minute 4, so the answer is <code>4</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(R&middot;C)</strong> &mdash; the seeding scan is O(R&middot;C), and the BFS enqueues each cell at most once. <strong>Space O(R&middot;C)</strong> for the queue, which in the worst case (the whole grid rotten at minute 0) holds every cell.</p>
+
+<h5>The idiomatic alternative &mdash; level-by-level BFS</h5>
+<p>Instead of carrying a per-cell time in the tuple, drain one whole "minute" per outer loop and increment a counter:</p>
+<pre><code>minutes = 0
+while q and fresh:
+    minutes += 1
+    for _ in range(len(q)):          # exactly one level
+        r, c = q.popleft()
+        for dr, dc in ((1,0),(-1,0),(0,1),(0,-1)):
+            nr, nc = r+dr, c+dc
+            if 0&lt;=nr&lt;R and 0&lt;=nc&lt;C and grid[nr][nc]==1:
+                grid[nr][nc] = 2; fresh -= 1; q.append((nr,nc))
+return minutes if fresh == 0 else -1</code></pre>
+<p>The <code>for _ in range(len(q))</code> snapshot is the standard "process one BFS level" idiom &mdash; cleaner state, same O(R&middot;C).</p>
+
+<h5>The edge case</h5>
+<p><strong>Zero fresh oranges at the start</strong> &mdash> <code>fresh == 0</code> from the outset; the answer must be <code>0</code> (nothing to rot). The shown solution handles this: if the grid has a rotten orange, <code>minutes</code> ends at <code>0</code> after the BFS; if the grid is entirely empty or all-empty cells, the queue is empty and <code>minutes</code> stays <code>0</code>. The <em>level-by-level</em> variant needs the <code>and fresh</code> guard or it would wrongly return 1. <strong>A walled-off fresh orange</strong> &rarr; <code>-1</code>.</p>
+
+<h5>The follow-up</h5>
+<p>"Which orange rots <em>last</em>, and where?" &mdash; track the coordinate alongside <code>minutes</code>. "Oranges also rot diagonally" &rarr; eight direction deltas. "Stream a grid too big for memory" breaks the in-RAM queue and pushes toward a tiled approach.</p>
+
+<h5>The trap</h5>
+<p>Running a separate DFS/BFS from each rotten orange independently and taking the min distance per fresh cell &mdash; that's O((R&middot;C)&sup2;) and easy to get wrong. The insight is that <em>all sources spread at once</em>, so they must share <em>one</em> queue, seeded together. The other trap: forgetting that "0 fresh at start" must yield <code>0</code>, not whatever the loop counter happens to be.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognises this as multi-source BFS and seeds <em>all</em> rotten oranges into one queue rather than searching from each separately, marks cells visited by mutating them to <code>2</code> on enqueue, returns <code>-1</code> via a leftover-<code>fresh</code> check, and explicitly handles the "no fresh oranges &rarr; 0 minutes" edge that trips up the level-counting variant.</div>

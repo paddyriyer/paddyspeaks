@@ -1,0 +1,51 @@
+<p>Google asks Min Stack because it is a perfect small test of one idea: can you make an O(1) query work by <em>precomputing</em> the answer instead of recomputing it? A stack that returns its minimum in constant time cannot scan its contents &mdash; that would be O(n). The interviewer wants to see you carry the minimum forward as the stack mutates, which is a microcosm of how real systems keep maintained aggregates.</p>
+
+<h4>1. The input data</h4>
+<p>A sequence of operations on a fresh <code>MinStack</code>:</p>
+<pre><code>st = MinStack()
+st.push(5)
+st.push(2)
+st.push(7)
+st.push(1)
+st.getMin()
+st.pop()
+st.getMin()
+st.top()</code></pre>
+
+<h4>2. The approach</h4>
+<p>The class keeps <em>two</em> parallel lists. <code>self.s</code> is the actual value stack. <code>self.m</code> is a "minimum-so-far" stack: <code>m[i]</code> holds the smallest value among the first <code>i+1</code> pushes. On <code>push(x)</code>, the code appends <code>x</code> to <code>s</code>, and appends to <code>m</code> either <code>x</code> (if <code>m</code> is empty) or <code>min(x, m[-1])</code> &mdash; the smaller of the new value and the previous running minimum. The two stacks therefore always have equal length and move in lockstep. <code>pop()</code> pops both. <code>top()</code> reads <code>s[-1]</code>; <code>getMin()</code> reads <code>m[-1]</code>, which by construction is the minimum of every value currently in the stack. The minimum is never searched for &mdash; it is maintained.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>operation</th><th>value stack s</th><th>min stack m</th><th>returns</th></tr></thead>
+  <tbody>
+    <tr><td>push(5)</td><td>[5]</td><td>[5]</td><td>&mdash;</td></tr>
+    <tr><td>push(2)</td><td>[5, 2]</td><td>[5, 2]</td><td>&mdash;</td></tr>
+    <tr><td>push(7)</td><td>[5, 2, 7]</td><td>[5, 2, 2]</td><td>&mdash;</td></tr>
+    <tr><td>push(1)</td><td>[5, 2, 7, 1]</td><td>[5, 2, 2, 1]</td><td>&mdash;</td></tr>
+    <tr><td>getMin()</td><td>[5, 2, 7, 1]</td><td>[5, 2, 2, 1]</td><td>1</td></tr>
+    <tr><td>pop()</td><td>[5, 2, 7]</td><td>[5, 2, 2]</td><td>&mdash;</td></tr>
+    <tr><td>getMin()</td><td>[5, 2, 7]</td><td>[5, 2, 2]</td><td>2</td></tr>
+    <tr><td>top()</td><td>[5, 2, 7]</td><td>[5, 2, 2]</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>The crucial line is the second <code>getMin()</code>: after popping <code>1</code>, the min stack also pops, exposing <code>2</code> &mdash; the minimum correctly "rolls back" without any rescan.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>Every operation &mdash; <code>push</code>, <code>pop</code>, <code>top</code>, <code>getMin</code> &mdash; is <strong>O(1)</strong>. Space is O(n), with a second stack the same height as the first. That extra stack is the price of constant-time minimum queries; it is a deliberate space-for-time trade.</p>
+
+<h5>The idiomatic alternative &mdash; store pairs or deltas</h5>
+<p>Instead of two lists you can push <code>(value, current_min)</code> tuples onto one stack &mdash; same complexity, but the min can never desync from its value because they live in the same slot. A more advanced variant stores only deltas from the running minimum, achieving O(1) <em>extra</em> space beyond the value stack. Mentioning the delta trick is a strong senior tell.</p>
+
+<h5>The edge case &mdash; popping an empty stack</h5>
+<p><code>pop()</code>, <code>top()</code>, and <code>getMin()</code> all index <code>[-1]</code> with no guard, so calling them on an empty stack raises <code>IndexError</code>. Whether that is acceptable depends on the contract; many interviewers want an explicit check or a documented precondition. State the assumption rather than letting it surprise you.</p>
+
+<h5>The follow-up &mdash; a Max Stack, or popMax</h5>
+<p>"Now also support getMax." Add a third stack mirroring the min logic with <code>max(...)</code>. The harder follow-up, <em>popMax</em> (remove the maximum element wherever it sits), breaks the pure-stack model &mdash; it needs a balanced BST or a doubly linked list plus a heap, because you can no longer assume the target is on top.</p>
+
+<h5>The trap &mdash; storing just a scalar minimum</h5>
+<p>Keeping a single <code>self.min</code> integer works for <code>push</code> but fails on <code>pop</code>: when you pop the current minimum, you have no idea what the <em>previous</em> minimum was &mdash; that history is gone. The minimum must be a stack precisely so it can unwind in step with the values.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior keeps the minimum as a synchronized stack (or tuples) so it rolls back on <code>pop</code>, can describe the O(1)-extra-space delta encoding, and names the empty-stack <code>IndexError</code> &mdash; a junior tracks one scalar min and corrupts it on the first pop.</div>

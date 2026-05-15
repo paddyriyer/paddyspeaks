@@ -1,0 +1,37 @@
+<p>"Design Twitter" is a Google favorite because it compresses a real product &mdash; a personalized, time-ordered feed &mdash; into one class. The interviewer is not testing whether you know Twitter; they are testing API design and the merge: given many users you follow, each with their own tweet timeline, produce the 10 most recent across all of them. That "merge K sorted lists, take the top 10" shape is the heart of the problem.</p>
+
+<h4>1. The input data</h4>
+<p>A sequence of API calls in arrival order:</p>
+<pre><code>tw = Twitter()
+tw.postTweet(1, 101)   # user 1 posts tweet 101
+tw.postTweet(1, 102)   # user 1 posts tweet 102
+tw.follow(1, 2)        # user 1 follows user 2
+tw.postTweet(2, 201)   # user 2 posts tweet 201
+tw.getNewsFeed(1)</code></pre>
+
+<h4>2. The approach</h4>
+<p>A global counter <code>self.t</code> increments on every <code>postTweet</code>, stamping each tweet with a strictly increasing logical time &mdash; this is what makes "most recent" well-defined across users. <code>self.tweets</code> is a <code>defaultdict(list)</code> mapping a user to their <code>(time, tweetId)</code> history; <code>self.follows</code> is a <code>defaultdict(set)</code> of followee IDs. <code>getNewsFeed(u)</code> gathers the relevant authors as <code>self.follows[u] | {u}</code> &mdash; everyone <code>u</code> follows, plus <code>u</code> themselves &mdash; then, for each author, pushes only their <em>last 10</em> tweets (<code>[-10:]</code>) into a min-heap keyed on <code>-ts</code>. Negating the timestamp turns Python's min-heap into a max-heap, so the largest (newest) timestamp surfaces first. Finally it pops up to 10 entries, returning their tweet IDs newest-first. <code>follow</code>/<code>unfollow</code> just mutate the set, with <code>follow</code> guarding against self-follow.</p>
+
+<h4>3. The output</h4>
+<p>Tweets get timestamps 101&rarr;t1, 102&rarr;t2, 201&rarr;t3. User 1's feed merges authors {1, 2}:</p>
+<pre><code>getNewsFeed(1)  ->  [201, 102, 101]</code></pre>
+<p>Tweet 201 has the newest timestamp (t3), then 102 (t2), then 101 (t1). The heap holds <code>(-3,201),(-2,102),(-1,101)</code> and pops them in that order.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>Let <code>f</code> be the number of followees. <code>getNewsFeed</code> pushes at most <code>10&times;(f+1)</code> entries into the heap and pops 10, so it is <strong>O(f log f)</strong> roughly &mdash; bounded because each author contributes only 10 tweets. <code>postTweet</code>, <code>follow</code>, <code>unfollow</code> are O(1). The <code>[-10:]</code> slice is the key optimization: without it a celebrity with a million tweets would flood the heap.</p>
+
+<h5>The idiomatic alternative &mdash; <code>heapq.merge</code></h5>
+<p>Each user's timeline is already sorted by time. Instead of a manual heap, you can feed reversed per-user lists into <code>heapq.merge(*lists, reverse=True)</code> and take the first 10 via <code>itertools.islice</code>. That is the canonical "merge K sorted streams" tool and is worth naming. <code>heapq.nlargest(10, all_tweets)</code> is another one-liner if you do not mind materializing the candidates.</p>
+
+<h5>The edge case &mdash; fewer than 10 tweets, and self-follow</h5>
+<p><code>min(10, len(h))</code> handles a feed with fewer than 10 tweets without an <code>IndexError</code>. The <code>{u}</code> union guarantees you see your own tweets even with zero follows. And <code>follow</code> rejecting <code>a == b</code> prevents a user appearing twice in the author set &mdash; a duplicate that would otherwise double-count their tweets.</p>
+
+<h5>The follow-up &mdash; the celebrity fan-out problem</h5>
+<p>"A user follows 10 million accounts &mdash; is <code>getNewsFeed</code> still fine?" No: gathering and heap-merging 10M timelines per read does not scale. Production systems <em>fan out on write</em> &mdash; push a new tweet into each follower's precomputed feed &mdash; or use a hybrid: fan-out-on-write for normal users, fan-out-on-read for celebrities. This is the architectural payoff the interviewer is steering toward.</p>
+
+<h5>The trap &mdash; sorting by tweet ID</h5>
+<p>Ordering the feed by <code>tweetId</code> instead of the logical timestamp is a classic mistake: tweet IDs are not guaranteed monotonic per the API, and even if they were, you would still need a global clock to interleave two users fairly. The incrementing counter <code>self.t</code> exists precisely to provide that total order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior caps each author at their last 10 tweets before heap-merging, uses a global counter for a total time order, and pivots to fan-out-on-write when asked about celebrity scale &mdash; a junior scans every tweet on every read or sorts by tweet ID.</div>

@@ -1,0 +1,47 @@
+<p>Amazon ingests logs from dozens of services &mdash; application logs, Apache access logs, syslog, custom formats &mdash; each stamping time differently. "Extract and Normalize Timestamps from Multi-Format Log File" tests real data-engineering judgement: a regex to <em>locate</em> the timestamp, a fallback chain to <em>parse</em> it across formats, and graceful degradation when nothing matches. It is a parsing problem disguised as a string problem.</p>
+
+<h4>1. The input data &mdash; a log file</h4>
+<pre><code>2024-03-01 09:15:42 INFO  user login ok
+192.168.0.5 - - [01/Mar/2024:09:16:03 +0000] "GET /api"
+2024-03-01T09:17:30Z WARN  retry scheduled
+Mar  1 09:18:11 host sshd: connection closed
+service started, no timestamp here</code></pre>
+<p>Four distinct timestamp dialects plus one line with none &mdash; the function must handle all five gracefully.</p>
+
+<h4>2. The approach</h4>
+<p><code>TS_RE</code> is a single broad regex that <em>locates</em> an ISO-ish timestamp anywhere in a line &mdash; it tolerates <code>-</code> or <code>/</code> date separators, <code>T</code> or space before the time, optional fractional seconds (<code>[.,]\d+</code>), and an optional offset (<code>+00:00</code> or <code>Z</code>). Locating is separate from parsing.</p>
+<p><code>parse_ts</code> then tries each entry in <code>FORMATS</code> in order with <code>datetime.strptime</code>, catching <code>ValueError</code> and falling through to the next &mdash; a classic try-each-pattern chain. The first format that parses wins; if all fail it returns <code>None</code>. <code>normalize_log</code> streams the file line-by-line (no full load into memory), runs the regex, parses the captured token, and emits <code>{'iso': ..., 'raw': ...}</code> &mdash; keeping the original line so nothing is lost when parsing fails.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>raw (truncated)</th><th>iso</th></tr></thead>
+  <tbody>
+    <tr><td>2024-03-01 09:15:42 INFO...</td><td>2024-03-01T09:15:42</td></tr>
+    <tr><td>192.168.0.5 - - [01/Mar/2024:09:16:03 +0000]...</td><td><em>None</em></td></tr>
+    <tr><td>2024-03-01T09:17:30Z WARN...</td><td>2024-03-01T09:17:30+00:00</td></tr>
+    <tr><td>Mar  1 09:18:11 host sshd...</td><td><em>None</em></td></tr>
+    <tr><td>service started, no timestamp here</td><td><em>None</em></td></tr>
+  </tbody>
+</table>
+<p>Only two lines fully normalize. The Apache and syslog lines yield <code>None</code> because <code>TS_RE</code> requires a <em>numeric</em> <code>\d{4}</code> year and <code>\d{2}</code> month &mdash; it never matches <code>01/Mar/2024</code> or <code>Mar  1</code>, so their <code>FORMATS</code> entries are unreachable through this regex. That mismatch between the regex and the format list is the question's hidden bug.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(L &middot; F) where L is the number of lines and F the number of formats &mdash; each line tries up to F <code>strptime</code> calls. Memory is O(1) streaming for the file plus O(L) for the result list. The regex match itself is linear in line length.</p>
+
+<h5>The idiomatic alternative &mdash; <code>dateutil</code> or <code>datetime.fromisoformat</code></h5>
+<pre><code>from dateutil import parser
+ts = parser.parse(token, fuzzy=True)   # handles most formats, no FORMATS list</code></pre>
+<p><code>dateutil.parser</code> auto-detects almost every dialect, and Python 3.11+ <code>datetime.fromisoformat</code> finally accepts <code>Z</code> and offsets natively. A senior names these but also notes the tradeoff: <code>dateutil</code> is permissive to a fault and a hard-coded <code>FORMATS</code> list is more <em>predictable</em> for a known set of services.</p>
+
+<h5>The edge case &mdash; the regex/format mismatch and naive vs aware datetimes</h5>
+<p>As traced above, Apache and syslog timestamps are caught by <code>FORMATS</code> but never reach it &mdash; the regex gates them out. Fixing this means broadening <code>TS_RE</code> with month-name and bracketed-date alternatives. Separately, <code>isoformat()</code> output is <em>aware</em> (has an offset) when the source had one and <em>naive</em> otherwise &mdash; mixing the two in later comparisons raises <code>TypeError</code>. Syslog has no year at all, so even when parsed it defaults to year 1900.</p>
+
+<h5>The follow-up &mdash; normalize everything to UTC</h5>
+<p>"Convert all timestamps to UTC so they're comparable." That means attaching <code>tzinfo</code> to naive values (you must <em>assume</em> a source zone) and calling <code>.astimezone(timezone.utc)</code> on aware ones &mdash; the interviewer is probing whether you understand that a naive timestamp carries no zone and the assumption must be explicit.</p>
+
+<h5>The trap &mdash; one mega-regex with capture groups per format</h5>
+<p>Trying to parse <em>and</em> validate every format in a single monster regex is unmaintainable and brittle &mdash; each new log source means surgery on a 300-character pattern. The locate-then-try-parse split is the robust design: a loose regex to find a candidate, then a clean ordered list of <code>strptime</code> formats (or <code>dateutil</code>) to interpret it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> separate <em>locating</em> a timestamp from <em>parsing</em> it, stream the file instead of loading it, preserve the raw line for unparseable rows, and spot that the regex and the <code>FORMATS</code> list disagree &mdash; then push to normalize everything to UTC so the output is actually usable.</div>

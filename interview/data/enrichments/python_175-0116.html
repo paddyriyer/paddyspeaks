@@ -1,0 +1,47 @@
+<p>Google asks "Add Two Numbers" because it hides a surprising amount of engineering judgement behind grade-school arithmetic. The digits are stored <em>reversed</em> in two linked lists (ones place first), and you must produce a third list. It tests whether you can manage a carry, walk two lists of unequal length in one pass, and &mdash; the senior tell &mdash; whether you reach for a <strong>dummy head node</strong> instead of special-casing the first append.</p>
+
+<h4>1. The input data</h4>
+<p>Numbers 342 and 465. Stored least-significant-digit first:</p>
+<pre><code>l1:  2 -&gt; 4 -&gt; 3        # represents 342
+l2:  5 -&gt; 6 -&gt; 4        # represents 465
+                       # 342 + 465 = 807</code></pre>
+
+<h4>2. The approach</h4>
+<p>One pass, simulating column addition. A <strong>dummy head</strong> (<code>dummy = cur = ListNode()</code>) lets every digit be appended uniformly via <code>cur.next = ...</code> &mdash; no "is this the first node?" branch. The loop condition <code>while l1 or l2 or carry</code> is the elegant part: it keeps going while <em>either</em> list has digits left <em>or</em> a final carry still needs a node (e.g. 5 + 5 = 10).</p>
+<p>Each iteration sums the two current digits, substituting <code>0</code> for an exhausted list (<code>l1.val if l1 else 0</code>), plus the incoming <code>carry</code>. The key idiom is <code>carry, v = divmod(s, 10)</code>: one call splits the sum into the digit to store (<code>s % 10</code>) and the carry to forward (<code>s // 10</code>). Both list pointers advance, guarding against <code>None</code>. At the end, <code>dummy.next</code> skips the placeholder and returns the real head.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>step</th><th>l1.val</th><th>l2.val</th><th>carry in</th><th>sum</th><th>digit (v)</th><th>carry out</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>5</td><td>0</td><td>7</td><td>7</td><td>0</td></tr>
+    <tr><td>2</td><td>4</td><td>6</td><td>0</td><td>10</td><td>0</td><td>1</td></tr>
+    <tr><td>3</td><td>3</td><td>4</td><td>1</td><td>8</td><td>8</td><td>0</td></tr>
+  </tbody>
+</table>
+<pre><code>result: 7 -&gt; 0 -&gt; 8        # represents 807  (correct)</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(max(m, n))</strong> where m, n are the list lengths &mdash; one node visited per iteration. <strong>Space O(max(m, n))</strong> for the result list (O(1) auxiliary beyond the output). The result can be one node longer than the longer input when a final carry escapes.</p>
+
+<h5>The idiomatic alternative &mdash; and why it's a trap</h5>
+<p>The "Pythonic" temptation is to decode each list to an <code>int</code>, add, and re-encode:</p>
+<pre><code>def to_int(node):
+    n, p = 0, 1
+    while node: n += node.val * p; p *= 10; node = node.next
+    return n
+# add the two ints, then split digits back into a list</code></pre>
+<p>It works in Python because ints are arbitrary precision &mdash; but it's the <em>wrong</em> answer in an interview. It quietly assumes bignum support (fails in C++/Java for long lists) and signals you missed the point: the question is about <strong>streaming digit-by-digit with a carry</strong>. State that you know the shortcut exists but reject it for portability.</p>
+
+<h5>The edge case</h5>
+<p>Two tricky ones, both handled. <em>Unequal lengths</em>: the shorter list contributes <code>0</code> once exhausted, so <code>99 + 1</code> works. <em>Trailing carry</em>: <code>5 + 5</code> &rarr; the lists are empty but <code>carry == 1</code> keeps the loop alive for one more node, producing <code>0 -&gt; 1</code> (i.e. 10). Without <code>or carry</code> in the guard, that leading digit is silently dropped.</p>
+
+<h5>The follow-up</h5>
+<p>"What if the digits are stored most-significant-first?" Now you can't add left-to-right because the carry flows the other way. Two answers: reverse both lists, add, reverse the result &mdash; or push both lists onto stacks and pop in tandem, building the result by prepending. The stack version keeps the inputs immutable.</p>
+
+<h5>The trap</h5>
+<p>Forgetting the dummy node and instead initialising <code>head = None</code> forces an ugly <code>if head is None</code> check inside every iteration and makes returning the head awkward. The dummy-head pattern is the standard linked-list builder idiom &mdash; not using it here is a junior tell.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> uses a dummy head so the append loop has zero special cases, collapses digit-and-carry extraction into a single <code>divmod</code>, gets the <code>while l1 or l2 or carry</code> condition right so a trailing carry is never lost, and explicitly rejects the "convert to int" shortcut as non-portable rather than reaching for it.</div>

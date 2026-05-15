@@ -1,0 +1,45 @@
+<p>The trie is a Google staple because it is the data structure behind autocomplete, spell-check, and IP routing tables &mdash; anywhere you need fast prefix queries. The interview question tests one specific insight: the difference between "is this an exact word?" and "is this a prefix of some word?" Candidates who conflate the two write a trie that cannot tell <code>app</code> from <code>apple</code>.</p>
+
+<h4>1. The input data</h4>
+<p>A sequence of operations on a fresh <code>Trie</code>:</p>
+<pre><code>t = Trie()
+t.insert('apple')
+t.search('apple')      # exact word?
+t.search('app')        # exact word?
+t.startsWith('app')    # any word with this prefix?
+t.insert('app')
+t.search('app')        # exact word now?</code></pre>
+
+<h4>2. The approach</h4>
+<p>The trie is a tree of nested <code>dict</code>s rooted at <code>self.r</code>; each level maps one character to a child node. <code>insert</code> walks the word, using <code>n.setdefault(c, {})</code> to descend into an existing child or create one on the fly, then stores a sentinel key <code>'#': True</code> at the final node to mark a complete word. The private helper <code>_walk(w)</code> follows the path for <code>w</code> character by character, returning the node it lands on, or <code>None</code> the moment a character has no child. Both public queries are thin wrappers over <code>_walk</code>: <code>search</code> returns <code>True</code> only if <code>_walk</code> reaches a node <em>and</em> that node carries the <code>'#'</code> sentinel; <code>startsWith</code> returns <code>True</code> if <code>_walk</code> simply reaches any node at all. That single sentinel check is the entire distinction between the two operations.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>operation</th><th>why</th><th>returns</th></tr></thead>
+  <tbody>
+    <tr><td>search('apple')</td><td>path exists, node has <code>'#'</code></td><td>True</td></tr>
+    <tr><td>search('app')</td><td>path exists, but node has no <code>'#'</code></td><td>False</td></tr>
+    <tr><td>startsWith('app')</td><td>path exists (prefix of 'apple')</td><td>True</td></tr>
+    <tr><td>search('app') <em>after insert</em></td><td>now <code>'#'</code> sits at the 'app' node</td><td>True</td></tr>
+  </tbody>
+</table>
+<p>The two <code>search('app')</code> calls bracket the lesson: same path both times, but the answer flips once a word actually terminates there.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><code>insert</code>, <code>search</code>, and <code>startsWith</code> are each <strong>O(L)</strong> in the length of the input string &mdash; crucially independent of how many words the trie holds. That is the trie's headline advantage over a hash set, which is O(L) to hash but offers <em>no</em> prefix query at all. Space is O(total characters inserted), reduced by shared prefixes &mdash; <code>apple</code> and <code>app</code> share their first three nodes.</p>
+
+<h5>The idiomatic alternative</h5>
+<p>For exact-membership only, a <code>set</code> of strings is simpler and faster to write. The trie earns its complexity exclusively when you need <code>startsWith</code> &mdash; prefix enumeration, autocomplete, longest-common-prefix. A more conventional implementation uses a small <code>TrieNode</code> class with a <code>children</code> dict and an explicit <code>is_end</code> boolean, which reads more clearly than smuggling <code>'#'</code> into the children namespace.</p>
+
+<h5>The edge case &mdash; empty string and the sentinel as a key</h5>
+<p><code>insert('')</code> puts <code>'#'</code> at the root, so <code>search('')</code> returns <code>True</code> and <code>startsWith('')</code> always returns <code>True</code> (the root always exists) &mdash; reasonable, but state it. The subtle hazard of the plain-dict design: a word containing the literal character <code>'#'</code> would collide with the sentinel. A dedicated boolean field sidesteps that entirely.</p>
+
+<h5>The follow-up &mdash; delete, and autocomplete</h5>
+<p>"Add a <code>delete(word)</code>." Deletion is the tricky operation: clear the <code>'#'</code> at the terminal node, then walk back up pruning nodes that have become childless &mdash; but stop the moment a node is still part of another word or marks a shorter word. The other classic follow-up, "return all words with prefix P," is a DFS from the node <code>_walk(P)</code> returns, collecting every path that ends in <code>'#'</code>.</p>
+
+<h5>The trap &mdash; no end-of-word marker</h5>
+<p>The most common failure is omitting <code>'#'</code> and making <code>search</code> just check that the path exists. That implementation reports <code>search('app')</code> as <code>True</code> after only <code>apple</code> was inserted &mdash; it has silently turned <code>search</code> into <code>startsWith</code>. The sentinel is not optional.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior nails the word-vs-prefix distinction with an explicit terminal marker, notes that O(L) operations are independent of dictionary size, and reaches for a trie only when prefix queries are actually required &mdash; a junior drops the end marker and conflates <code>search</code> with <code>startsWith</code>.</div>

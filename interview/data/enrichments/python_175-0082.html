@@ -1,0 +1,51 @@
+<p>Google's infra teams model a lot of state as linked structures &mdash; LRU eviction chains, job-dependency lists, free-block pools. A corrupted pointer that loops a list back on itself turns a simple traversal into an infinite hang. "Detect a cycle in a linked list" looks like a toy question, but it's really probing whether you reach for <em>constant extra space</em> instead of the obvious hash set, and whether you can reason about two pointers moving at different speeds.</p>
+
+<h4>1. The input data</h4>
+<p>A singly linked list. The tail's <code>next</code> points back to node index 1, forming a cycle:</p>
+<pre><code>3 -&gt; 2 -&gt; 0 -&gt; -4
+     ^___________|     # -4.next == the node holding 2
+
+head = node(3)         # cycle present  -> expect True
+# contrast: 1 -&gt; 2 -&gt; None  -> expect False</code></pre>
+
+<h4>2. The approach</h4>
+<p>This is <strong>Floyd's cycle detection</strong> ("tortoise and hare"). Two pointers start at <code>head</code>. Each iteration <code>slow</code> advances one node and <code>fast</code> advances two: <code>slow, fast = slow.next, fast.next.next</code>. The loop guard <code>while fast and fast.next</code> is doing double duty &mdash; it both stops cleanly at the end of an acyclic list and guarantees <code>fast.next.next</code> never dereferences <code>None</code>.</p>
+<p>If there is a cycle, <code>fast</code> cannot "escape" it &mdash; once both pointers are inside the loop, the gap between them shrinks by exactly one node per step, so they are guaranteed to collide. The check <code>slow is fast</code> uses identity, not <code>==</code>, because we care whether they are the <em>same node object</em>, not whether two nodes carry equal values.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>list</th><th>hasCycle</th></tr></thead>
+  <tbody>
+    <tr><td>3 &rarr; 2 &rarr; 0 &rarr; -4 &rarr; (back to 2)</td><td><code>True</code></td></tr>
+    <tr><td>1 &rarr; 2 &rarr; None</td><td><code>False</code></td></tr>
+    <tr><td>None (empty)</td><td><code>False</code></td></tr>
+  </tbody>
+</table>
+<p>For the cyclic list, <code>slow</code> and <code>fast</code> meet at the node holding value <code>2</code> after a few steps; the function returns <code>True</code> on that iteration.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(n)</strong>, <strong>space O(1)</strong>. The O(1) space is the entire point of the question. Before any pointers meet, <code>fast</code> traverses at most n nodes to enter the loop; once inside, it closes a gap of at most n, so total work is linear.</p>
+
+<h5>The idiomatic alternative</h5>
+<p>The "obvious" solution is a <code>set</code> of visited node ids &mdash; walk the list, return <code>True</code> if a node is seen twice:</p>
+<pre><code>def hasCycle(head):
+    seen = set()
+    while head:
+        if head in seen: return True
+        seen.add(head)
+        head = head.next
+    return False</code></pre>
+<p>It is O(n) time but <strong>O(n) space</strong>. Floyd's algorithm is the senior answer precisely because it drops the space to O(1). Mention both, then say which you'd ship and why.</p>
+
+<h5>The edge case</h5>
+<p>Empty list (<code>head is None</code>) and single node with no self-loop: <code>while fast and fast.next</code> is false immediately, so the function correctly returns <code>False</code> without entering the loop. A single node whose <code>next</code> points to itself is handled too &mdash; <code>fast.next</code> exists, both pointers stay on that node, and they're equal on the first iteration.</p>
+
+<h5>The follow-up</h5>
+<p>"Now return the node where the cycle <em>begins</em>." The classic extension: after the meeting point, reset one pointer to <code>head</code>, then advance both one step at a time &mdash; they meet at the cycle entrance (provable from the 2d = d + nk distance algebra). Same O(1) space.</p>
+
+<h5>The trap</h5>
+<p>Writing <code>while fast.next and fast.next.next</code> crashes on an empty list because <code>fast</code> itself is <code>None</code>. The guard must check <code>fast</code> <em>before</em> <code>fast.next</code> &mdash; short-circuit order matters. Another trap: comparing values (<code>slow.val == fast.val</code>) instead of identity, which gives false positives on lists with duplicate values.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a junior writes the hash-set solution and stops. A senior names it, states its O(n) space cost, then produces Floyd's two-pointer version for O(1) space, explains why the speed-2 pointer cannot skip past the speed-1 pointer inside a loop, and is ready for the "find the cycle start" follow-up without re-deriving from scratch.</div>

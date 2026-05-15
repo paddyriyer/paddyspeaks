@@ -1,0 +1,52 @@
+<p>Apple poses "Pacific Atlantic Water Flow" to see whether you spot the <strong>reverse-the-search</strong> insight. A grid of cell heights; water flows from a cell to a neighbour of equal or lower height. The Pacific touches the top and left edges, the Atlantic the bottom and right. You must return every cell from which water can reach <em>both</em> oceans. The naive "from each cell, can it reach an ocean?" is O((R&middot;C)&sup2;); the elegant answer flips the direction.</p>
+
+<h4>1. The input data</h4>
+<p>A 5&times;5 height map (the canonical example):</p>
+<pre><code>h = [
+  [1, 2, 2, 3, 5],
+  [3, 2, 3, 4, 4],
+  [2, 4, 5, 3, 1],
+  [6, 7, 1, 4, 5],
+  [5, 1, 1, 2, 4],
+]
+# Pacific borders the top row + left column
+# Atlantic borders the bottom row + right column</code></pre>
+
+<h4>2. The approach</h4>
+<p>The key reframe: instead of asking "can this cell flow <em>out</em> to an ocean," ask "starting <em>at</em> an ocean, which cells can water climb back <em>up</em> to?" Reverse the flow rule &mdash; from an ocean border cell, move to a neighbour whose height is <code>&gt;=</code> the current height.</p>
+<p>Two sets, <code>pac</code> and <code>atl</code>. The code seeds DFS from every Pacific border cell into <code>pac</code> and every Atlantic border cell into <code>atl</code>. <code>dfs(r, c, seen, prev)</code> stops if the cell was already visited, is out of bounds, or &mdash; the reversed rule &mdash; <code>h[r][c] &lt; prev</code> (water can't climb <em>down</em> when running the flow backwards). Otherwise it records the cell and recurses into all four neighbours, passing the current height as the new <code>prev</code>. Border seeds use <code>prev=0</code> so the border cell itself always qualifies. The answer is the <strong>set intersection</strong> <code>pac &amp; atl</code> &mdash; cells reachable from both.</p>
+
+<h4>3. The output</h4>
+<p>The cells that drain to both oceans (order is set-dependent):</p>
+<table>
+  <thead><tr><th>(row, col)</th><th>height</th></tr></thead>
+  <tbody>
+    <tr><td>(0, 4)</td><td>5</td></tr>
+    <tr><td>(1, 3)</td><td>4</td></tr>
+    <tr><td>(1, 4)</td><td>4</td></tr>
+    <tr><td>(2, 2)</td><td>5</td></tr>
+    <tr><td>(3, 0)</td><td>6</td></tr>
+    <tr><td>(3, 1)</td><td>7</td></tr>
+    <tr><td>(4, 0)</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Seven cells. They form the ridge from which water spills toward both coasts.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(R&middot;C)</strong> &mdash; each cell is visited at most once per ocean (the <code>seen</code> set blocks revisits), so two passes over the grid. <strong>Space O(R&middot;C)</strong> for the two reachability sets plus recursion depth. This beats the brute-force O((R&middot;C)&sup2;) of searching outward from every cell independently.</p>
+
+<h5>The idiomatic alternative</h5>
+<p>A multi-source <code>BFS</code> with <code>deque</code> per ocean is equally valid and dodges the recursion limit &mdash; seed the queue with all border cells at once. The intersection step itself is already idiomatic Python: <code>list(pac &amp; atl)</code> is far cleaner than nested loops checking two boolean grids. Comprehensions can build the border seeds: <code>[(r,0) for r in range(R)]</code>.</p>
+
+<h5>The edge case</h5>
+<p><code>if not h: return []</code> covers an empty grid. A <strong>1&times;1 grid</strong>: the single cell borders all four sides, so it reaches both oceans &rarr; returned. A grid that is a single row or column: every cell touches both a Pacific and an Atlantic edge, so <em>all</em> cells qualify. Equal-height plateaus flow freely in the reversed search because the rule is <code>&gt;=</code>, not strict <code>&gt;</code>.</p>
+
+<h5>The follow-up</h5>
+<p>"Return the <em>count</em> of such cells" (trivial: <code>len(pac &amp; atl)</code>) or "what if water also flows diagonally?" &mdash; add four diagonal deltas to the direction list. A deeper one: "stream the grid, you can't hold it all" &mdash; this breaks the in-memory set approach and pushes toward a tiled or external algorithm.</p>
+
+<h5>The trap</h5>
+<p>The fatal mistake is searching in the <em>natural</em> flow direction &mdash; from each cell, DFS downhill looking for an ocean. That recomputes overlapping paths for every start cell, giving O((R&middot;C)&sup2;) and timing out on large grids. The whole point of the question is to <em>invert</em> the search: start at the oceans, climb uphill, intersect. Miss the reversal and you've missed the question.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reverses the flow &mdash; searches uphill <em>from</em> the oceans rather than downhill from every cell &mdash; turning O((R&middot;C)&sup2;) into O(R&middot;C), expresses the final answer as a clean set intersection, gets the <code>&gt;=</code> climb rule and <code>prev=0</code> border seeding exactly right, and can swap DFS for multi-source BFS when recursion depth is a concern.</div>

@@ -1,0 +1,44 @@
+<p>Meta's data engineering interviews love this question because it sits exactly where analysts and engineers collide: a recruiter wants a quarterly regional-sales workbook, and you have a database. The task tests whether you can move data cleanly across three boundaries &mdash; SQL engine, in-process DataFrame, and a delivered file &mdash; without losing types or silently corrupting numbers. It is less about clever algorithms and more about knowing which tool owns which step.</p>
+
+<h4>1. The input data</h4>
+<p>A single <code>sales</code> table loaded into an in-memory SQLite database:</p>
+<table>
+  <thead><tr><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>NA</td><td>100.0</td></tr>
+    <tr><td>NA</td><td>50.0</td></tr>
+    <tr><td>APAC</td><td>75.0</td></tr>
+    <tr><td>EMEA</td><td>125.0</td></tr>
+    <tr><td>APAC</td><td>25.0</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The approach</h4>
+<p>The solution deliberately splits work between layers. <strong>SQLite does the aggregation</strong> &mdash; <code>SUM(amount) ... GROUP BY region ORDER BY total DESC</code> &mdash; because the database is far faster at folding millions of rows into a handful of groups than Python is. <code>fetchall()</code> then pulls back only the small result set (one row per region), not the raw table. In production the next line would be <code>pd.DataFrame(rows, columns=['region','total']).to_excel('out.xlsx', index=False)</code>; pandas owns the file-format step because it knows how to write a typed <code>.xlsx</code> via <code>openpyxl</code>. The demo substitutes the <code>csv</code> module writing into an <code>io.StringIO</code> buffer so the snippet runs anywhere without the Excel dependency &mdash; same shape of output, no binary writer. Note <code>defaultdict</code> is imported but unused; a senior candidate would delete it.</p>
+
+<h4>3. The output</h4>
+<p>NA totals 150, EMEA 125, APAC 100, sorted descending:</p>
+<pre><code>region,total
+NA,150.0
+EMEA,125.0
+APAC,100.0
+</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity &mdash; and where the work belongs</h5>
+<p>The <code>GROUP BY</code> is O(n) over the rows with O(g) groups; the database streams it. Materializing into pandas is O(g), trivial here. The senior point: <strong>do not <code>SELECT *</code> then group in Python</strong> &mdash; that ships every row over the connection and discards the engine's indexes and hash-aggregate.</p>
+
+<h5>The idiomatic alternative</h5>
+<p>If pandas is already a dependency, skip the manual cursor entirely: <code>pd.read_sql_query(query, con)</code> returns a typed DataFrame in one call, then <code>.to_excel(...)</code>. That is the canonical two-liner an interviewer wants to hear named.</p>
+
+<h5>The edge case &mdash; the index column</h5>
+<p>The most common bug here is forgetting <code>index=False</code> on <code>to_excel</code>, which writes pandas' 0,1,2 row index as a phantom first column the recruiter has to delete by hand. Also: an empty <code>sales</code> table yields zero rows, so the workbook has headers only &mdash; usually correct, but confirm the consumer does not expect a "no data" sentinel.</p>
+
+<h5>The follow-up &mdash; multiple sheets</h5>
+<p>"Now put each region on its own tab." Switch to <code>pd.ExcelWriter('out.xlsx')</code> as a context manager and call <code>df.to_excel(writer, sheet_name=region)</code> per group. The SQL stays identical; only the delivery layer changes &mdash; which is the whole lesson of the question.</p>
+
+<h5>The trap &mdash; floats and money</h5>
+<p>Summing <code>REAL</code> columns accumulates binary-float error; <code>0.1 + 0.2</code> is the classic. For currency, aggregate as integer cents or cast to <code>NUMERIC</code>/<code>Decimal</code> before the workbook is published, or the totals will be off by fractions of a cent that auditors notice.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior candidate pushes aggregation into SQL, names <code>read_sql_query</code> + <code>to_excel(index=False)</code> as the clean path, and flags float-money precision before being asked &mdash; a junior pulls the whole table into Python and loops.</div>

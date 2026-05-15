@@ -1,0 +1,46 @@
+<p>Amazon asks "Walls and Gates" to test whether you recognise a <strong>multi-source shortest-path</strong> problem in disguise. A grid where <code>-1</code> is a wall, <code>0</code> is a gate, and <code>2147483647</code> (i.e. <code>INT_MAX</code>) is an empty room. Fill every empty room with its distance to the <em>nearest</em> gate. The naive instinct &mdash; BFS outward from each room &mdash; is quadratic; the senior answer floods from <em>all gates at once</em>.</p>
+
+<h4>1. The input data</h4>
+<p><code>INF</code> below is the literal <code>2147483647</code>:</p>
+<pre><code>rooms = [
+  [INF,  -1,   0,  INF],
+  [INF, INF, INF,  -1],
+  [INF,  -1, INF,  -1],
+  [  0,  -1, INF, INF],
+]
+# two gates: (0,2) and (3,0).  -1 cells are walls.</code></pre>
+
+<h4>2. The approach</h4>
+<p><strong>Multi-source BFS.</strong> The crucial line builds the initial queue from a generator expression: <code>deque((r,c) for r in range(R) for c in range(C) if rooms[r][c] == 0)</code> &mdash; <em>every</em> gate enters the queue at distance 0 simultaneously. Because BFS expands all sources in lockstep, the first time any room is reached, it is reached by the closest gate &mdash; so the first write to a room is automatically its minimum distance.</p>
+<p>The loop pops a cell with <code>popleft()</code> (FIFO &rarr; non-decreasing distances) and inspects its four neighbours. The neighbour test <code>rooms[nr][nc] == 2147483647</code> does double duty: it skips walls (<code>-1</code>), skips gates (<code>0</code>), <em>and</em> skips already-filled rooms &mdash; an unfilled room is the <em>only</em> cell still holding <code>INT_MAX</code>. When a fresh room is found, <code>rooms[nr][nc] = rooms[r][c] + 1</code> records distance and marks it visited in one stroke, then it's enqueued. In place, returns nothing.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th colspan="4">distance grid (W = wall)</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>W</td><td>0</td><td>1</td></tr>
+    <tr><td>2</td><td>2</td><td>1</td><td>W</td></tr>
+    <tr><td>1</td><td>W</td><td>2</td><td>W</td></tr>
+    <tr><td>0</td><td>W</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Each room shows the steps to its nearest gate. Cell (0,0) is 3 away from gate (3,0) via the left column; cell (3,3) is 4 from gate (0,2). Any room walled off from all gates would keep <code>INT_MAX</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(R&middot;C)</strong> &mdash; every cell is enqueued and dequeued at most once because the <code>== INT_MAX</code> guard blocks re-visits. <strong>Space O(R&middot;C)</strong> for the queue. Compare the brute force: BFS from each of up to R&middot;C rooms is O((R&middot;C)&sup2;).</p>
+
+<h5>The idiomatic alternative</h5>
+<p>The generator-expression queue seed is already the clean idiom. A direction-vector list <code>DIRS = ((1,0),(-1,0),(0,1),(0,-1))</code> hoisted out of the loop avoids rebuilding it each iteration. The level-by-level form &mdash; <code>for _ in range(len(q))</code> with an explicit <code>dist</code> counter &mdash; is equivalent and lets you stop early if you only need distances up to some cap.</p>
+
+<h5>The edge case</h5>
+<p><code>if not rooms</code> guards an empty grid. A grid with <strong>no gates</strong> &rarr; the queue starts empty, the loop never runs, every room stays <code>INT_MAX</code> &mdash; correct (unreachable). A room <strong>fully enclosed by walls</strong> keeps <code>INT_MAX</code> too. A grid that is <em>all gates</em> &rarr; every cell is <code>0</code>, nothing to fill. The magic-number <code>2147483647</code> is brittle &mdash; a senior would name it as <code>INF</code> or use <code>float('inf')</code> for readability.</p>
+
+<h5>The follow-up</h5>
+<p>"What if each gate has a different <em>cost</em> to traverse, or rooms have weights?" &mdash; uniform BFS no longer gives shortest paths; you switch to <strong>Dijkstra with a <code>heapq</code></strong>, multi-source by pushing all gates onto the heap first. "Return the single farthest room" &mdash; track the max distance written.</p>
+
+<h5>The trap</h5>
+<p>Two classic mistakes. First, looping over rooms and running an independent BFS from each &mdash; O((R&middot;C)&sup2;) and times out. Second, in the multi-source version, forgetting that writing <code>rooms[nr][nc]</code> <em>is</em> the visited mark; if you instead keep a separate <code>visited</code> set but check it after enqueuing, a cell can be enqueued by two gates before either marks it, and it gets a non-minimal distance. Mark on enqueue.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> seeds the BFS queue with <em>all</em> gates at once so the first visit to a room is provably its nearest-gate distance, uses the <code>== INT_MAX</code> sentinel as the combined wall/gate/visited filter, marks rooms on enqueue not dequeue, and knows to escalate to multi-source Dijkstra the moment traversal costs stop being uniform.</div>
