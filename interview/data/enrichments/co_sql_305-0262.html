@@ -1,0 +1,56 @@
+<p>Airbnb's travel-experiences team monitors flight reliability across routes its partners sell. Operations wants two numbers per route: the average delay, and a count of "late" flights past a threshold. The query is a textbook <code>GROUP BY</code> with a conditional aggregate, but the interview hides a real subtlety &mdash; the average and the late-count tell different stories, and one of them can mislead.</p>
+
+<h4>1. The source data &mdash; <code>flights</code></h4>
+<table>
+  <thead><tr><th>flight_id</th><th>route</th><th>delay_minutes</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>SFO-JFK</td><td>45</td></tr>
+    <tr><td>2</td><td>SFO-JFK</td><td>10</td></tr>
+    <tr><td>3</td><td>SFO-JFK</td><td>60</td></tr>
+    <tr><td>4</td><td>LAX-ORD</td><td>5</td></tr>
+    <tr><td>5</td><td>LAX-ORD</td><td>0</td></tr>
+    <tr><td>6</td><td>SEA-DEN</td><td>35</td></tr>
+  </tbody>
+</table>
+<p><code>SEA-DEN</code> is a <strong>single-flight route</strong> &mdash; an aggregate over one row. <code>SFO-JFK</code> has a wide spread (10 to 60). And the threshold is 30 minutes: a 30-minute flight would be a boundary case, though none sits exactly there.</p>
+
+<h4>2. The SQL &mdash; <code>AVG</code> + conditional <code>SUM</code> per route</h4>
+<pre><code>SELECT route, AVG(delay_minutes) AS avg_delay,
+  SUM(CASE WHEN delay_minutes &gt; 30 THEN 1 ELSE 0 END) AS late_flights
+FROM flights GROUP BY route;</code></pre>
+<p><code>AVG(delay_minutes)</code> averages every flight on the route. The <code>SUM(CASE &hellip;)</code> is a counting trick: each flight contributes 1 if its delay exceeds 30, else 0, so the sum is the count of late flights.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>route</th><th>avg_delay</th><th>late_flights</th></tr></thead>
+  <tbody>
+    <tr><td>SFO-JFK</td><td>38.3333333333333333</td><td>2</td></tr>
+    <tr><td>SEA-DEN</td><td>35.0000000000000000</td><td>1</td></tr>
+    <tr><td>LAX-ORD</td><td>2.5000000000000000</td><td>0</td></tr>
+  </tbody>
+</table>
+<p><code>SFO-JFK</code>: mean 38.3 min, 2 of 3 flights late. <code>SEA-DEN</code>: a single flight at 35 min &mdash; mean equals that one value, and it counts as 1 late. <code>LAX-ORD</code>: mean 2.5 min, 0 late. Rows came back in <strong>no particular order</strong> &mdash; no <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why both metrics &mdash; the average hides the distribution</h5>
+<p>This is the senior insight. <code>SFO-JFK</code>'s mean of 38 minutes <em>looks</em> like "typically a bit late". But the late-count says 2 of 3 flights blew past 30 minutes &mdash; the route is unreliable, not mildly tardy. One badly delayed flight can also drag a mean up while most flights were fine (the reverse failure). Reporting <code>AVG</code> alone would mislead ops; the late-count is the reliability signal. A senior answer might add a percentile:</p>
+<pre><code>PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY delay_minutes) AS p90_delay</code></pre>
+
+<h5><code>SUM(CASE&hellip;)</code> vs <code>COUNT(CASE&hellip;)</code> vs <code>FILTER</code> &mdash; the trap</h5>
+<p>The conditional-count idiom has a notorious foot-gun. These are equivalent:</p>
+<pre><code>SUM(CASE WHEN delay_minutes &gt; 30 THEN 1 ELSE 0 END)        -- correct
+COUNT(*) FILTER (WHERE delay_minutes &gt; 30)                  -- correct, Postgres
+COUNT(CASE WHEN delay_minutes &gt; 30 THEN 1 END)              -- correct (NULL else)</code></pre>
+<p>But <code>COUNT(CASE WHEN delay_minutes &gt; 30 THEN 1 ELSE 0 END)</code> is <strong>wrong</strong> &mdash; <code>COUNT</code> counts non-NULL values, and <code>0</code> is non-NULL, so it counts <em>every</em> row. With <code>COUNT</code> the <code>ELSE</code> must yield <code>NULL</code> (or be omitted). The <code>SUM(&hellip; ELSE 0)</code> form in the solution sidesteps this entirely; <code>FILTER</code> is the cleanest modern equivalent.</p>
+
+<h5>The threshold boundary &mdash; <code>&gt;</code> vs <code>&gt;=</code></h5>
+<p>The condition is <code>delay_minutes &gt; 30</code>, so a flight delayed <em>exactly</em> 30 minutes is <strong>not</strong> late. If the SLA says "30 minutes or more counts as late", it must be <code>&gt;= 30</code>. None of the demo flights sits exactly at 30, so the choice is invisible here &mdash; which is precisely why you must confirm the SLA definition rather than guess.</p>
+
+<h5>The single-flight route &mdash; small-sample noise</h5>
+<p><code>SEA-DEN</code> has one flight. Its <code>avg_delay</code> of 35 is not a trend, it is a single observation, and the late-count of 1 means "100% late" on a sample of one. Aggregates over tiny groups are statistically fragile. Consider a <code>HAVING COUNT(*) &gt;= n</code> floor, or report <code>COUNT(*)</code> alongside so the consumer can see how much each average is worth.</p>
+
+<h5>Edge cases: NULL delays and missing routes</h5>
+<p><code>AVG</code> skips NULL <code>delay_minutes</code> (a cancelled flight with no recorded delay), so the average covers only flights that actually flew &mdash; defensible, but say so. In the <code>CASE</code>, a NULL delay fails <code>&gt; 30</code> and lands in <code>ELSE 0</code>, counted as not-late. And a route with zero flights produces no row at all &mdash; <code>GROUP BY</code> cannot invent groups that have no rows. Add <code>ORDER BY late_flights DESC</code> to surface the worst routes first.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain why the average and the late-count must be read together &mdash; a moderate mean can hide a route where most flights are late &mdash; use <code>SUM(CASE&hellip;ELSE 0)</code> or <code>FILTER</code> and know that <code>COUNT(CASE&hellip;ELSE 0)</code> silently counts everything, confirm the <code>&gt;</code> vs <code>&gt;=</code> SLA boundary, and treat single-flight routes as noise rather than signal.</div>

@@ -1,0 +1,57 @@
+<p>Snap's product-research team watches customer satisfaction trend by week. The ask is a one-liner: average rating, bucketed weekly. The query is genuinely short, but it carries two senior-grade subtleties &mdash; what "week" actually means in Postgres, and the gap between projecting a truncated key and grouping by it.</p>
+
+<h4>1. The source data &mdash; <code>feedback</code></h4>
+<table>
+  <thead><tr><th>feedback_date</th><th>rating</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-03</td><td>5</td></tr>
+    <tr><td>2025-03-05</td><td>3</td></tr>
+    <tr><td>2025-03-06</td><td>4</td></tr>
+    <tr><td>2025-03-10</td><td>2</td></tr>
+    <tr><td>2025-03-12</td><td>4</td></tr>
+    <tr><td>2025-03-17</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>March 3, 10 and 17, 2025 are all <strong>Mondays</strong>. Postgres weeks start on Monday, so these three dates each open a fresh week &mdash; the data deliberately straddles three weekly buckets so the grouping is visible.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(rating)</code> by week</h4>
+<pre><code>SELECT DATE_TRUNC('week', feedback_date)::date AS wk, AVG(rating) AS avg_rating
+FROM feedback GROUP BY DATE_TRUNC('week', feedback_date);</code></pre>
+<p><code>DATE_TRUNC('week', &hellip;)</code> snaps each date back to the Monday that begins its week. Rows sharing a Monday collapse into one group, and <code>AVG</code> averages the ratings within each.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>wk</th><th>avg_rating</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-10</td><td>3.0000000000000000</td></tr>
+    <tr><td>2025-03-17</td><td>5.0000000000000000</td></tr>
+    <tr><td>2025-03-03</td><td>4.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Week of Mar 3: ratings 5, 3, 4 average to 4.0. Week of Mar 10: 2 and 4 average to 3.0. Week of Mar 17: a lone 5. Satisfaction dipped mid-month then recovered &mdash; but notice the rows came back in <strong>no chronological order</strong>: there is no <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The missing <code>ORDER BY</code> &mdash; a trend out of order</h5>
+<p>A weekly <em>trend</em> that returns Mar 10, Mar 17, Mar 3 is not a trend a human can read. Always sort the result:</p>
+<pre><code>... GROUP BY DATE_TRUNC('week', feedback_date)
+    ORDER BY wk;</code></pre>
+<p>The query is correct without it, but for a trend report the omission is a real defect, not a nitpick.</p>
+
+<h5>What "week" means &mdash; the ISO vs locale trap</h5>
+<p><code>DATE_TRUNC('week', &hellip;)</code> in Postgres always uses the <strong>ISO week</strong>: weeks start Monday. If the business reports Sunday-start weeks (common in US retail and ad-tech), this query is silently off by a day &mdash; a Sunday's feedback lands in the <em>previous</em> ISO week. To force a Sunday start, shift the date before and after truncation:</p>
+<pre><code>(DATE_TRUNC('week', feedback_date + INTERVAL '1 day') - INTERVAL '1 day')::date AS wk</code></pre>
+<p>Confirm the calendar convention before writing the query; "week" is not universal.</p>
+
+<h5>Projecting vs grouping &mdash; why this still works</h5>
+<p>The <code>SELECT</code> casts the key to <code>::date</code>; the <code>GROUP BY</code> does <em>not</em>. They still match because the cast is a deterministic function of the grouped expression &mdash; Postgres allows a projected column that is functionally dependent on a <code>GROUP BY</code> term. Cleaner is to group by the exact alias or expression you project, so reviewers don't have to reason about functional dependence:</p>
+<pre><code>SELECT DATE_TRUNC('week', feedback_date)::date AS wk, AVG(rating) AS avg_rating
+FROM feedback GROUP BY 1 ORDER BY 1;</code></pre>
+
+<h5><code>AVG</code> and NULL ratings</h5>
+<p><code>AVG(rating)</code> skips NULL ratings &mdash; a customer who left a comment but no star score is dropped from both numerator and denominator. Usually fine, but if a missing rating should count as a sentiment signal, decide explicitly. Also: <code>AVG</code> over a week with <em>only</em> NULL ratings returns NULL, not 0.</p>
+
+<h5>Empty weeks &mdash; the gap the GROUP BY can't show</h5>
+<p>If a week receives <em>zero</em> feedback, it produces no row at all &mdash; the trend line has an invisible hole, and a chart will draw a straight line across it as if nothing happened. To make quiet weeks visible, <code>generate_series</code> a full week spine and <code>LEFT JOIN</code> the aggregated feedback onto it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> add the <code>ORDER BY wk</code> a trend needs, know that <code>DATE_TRUNC('week')</code> is ISO/Monday-start and adjust if the business reports Sunday weeks, group by the exact projected expression rather than relying on functional dependence, and surface zero-feedback weeks with a calendar spine so the trend has no invisible gaps.</div>

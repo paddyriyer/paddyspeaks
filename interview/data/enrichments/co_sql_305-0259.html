@@ -1,0 +1,60 @@
+<p>Datadog's billing analytics team needs to find invoices that were paid late and by how many days &mdash; the input to dunning workflows and DSO (days sales outstanding) reporting. The query is a simple date subtraction with a filter, but the filter's boundary condition and the treatment of still-unpaid invoices are exactly what an interviewer probes.</p>
+
+<h4>1. The source data &mdash; <code>invoices</code></h4>
+<table>
+  <thead><tr><th>invoice_id</th><th>due_date</th><th>paid_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-15</td><td>2025-01-10</td></tr>
+    <tr><td>2</td><td>2025-01-20</td><td>2025-02-05</td></tr>
+    <tr><td>3</td><td>2025-02-01</td><td>2025-02-10</td></tr>
+    <tr><td>4</td><td>2025-02-15</td><td>2025-02-15</td></tr>
+    <tr><td>5</td><td>2025-03-01</td><td>2025-03-20</td></tr>
+    <tr><td>6</td><td>2025-03-10</td><td>2025-03-12</td></tr>
+  </tbody>
+</table>
+<p>Invoice 1 was paid <strong>early</strong> (Jan 10 vs Jan 15 due). Invoice 4 was paid <strong>exactly on the due date</strong> &mdash; the boundary case. The other four are genuinely late. The filter decides which of these count.</p>
+
+<h4>2. The SQL &mdash; <code>paid_date - due_date</code> where late</h4>
+<pre><code>SELECT invoice_id, paid_date - due_date AS days_late
+FROM invoices WHERE paid_date &gt; due_date;</code></pre>
+<p>Subtracting two Postgres <code>DATE</code>s gives an integer day count. The <code>WHERE paid_date &gt; due_date</code> keeps only invoices paid <em>strictly after</em> their due date &mdash; a strict <code>&gt;</code>, so the on-time and early invoices are excluded.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>invoice_id</th><th>days_late</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>16</td></tr>
+    <tr><td>3</td><td>9</td></tr>
+    <tr><td>5</td><td>19</td></tr>
+    <tr><td>6</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Four invoices are flagged late. Invoice 1 (paid early) and invoice 4 (paid exactly on time) are correctly absent &mdash; <code>days_late</code> would be &minus;5 and 0 respectively, and the strict <code>&gt;</code> filter dropped both. The worst offender is invoice 5 at 19 days.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The boundary &mdash; is "due date" the last on-time day?</h5>
+<p>Invoice 4 was paid on Feb 15, exactly its due date, and the strict <code>&gt;</code> treats it as on time. That is the standard reading: the due date is the last acceptable day. But if "late" means "not paid <em>before</em> the due date", you would need <code>&gt;=</code>, and invoice 4 would appear with <code>days_late = 0</code>. Confirm the convention &mdash; a 0-day-late row is either a precision win or noise depending on the definition.</p>
+
+<h5>The big one &mdash; unpaid invoices are invisible</h5>
+<p>The filter <code>paid_date &gt; due_date</code> only ever sees invoices that <em>have</em> a <code>paid_date</code>. An invoice that is overdue and <strong>still unpaid</strong> has <code>paid_date = NULL</code>, the comparison is unknown, and the row is silently dropped &mdash; the very worst delinquents disappear from a "payment delay" report. That is usually the opposite of what billing wants:</p>
+<pre><code>SELECT invoice_id,
+       COALESCE(paid_date, CURRENT_DATE) - due_date AS days_late,
+       (paid_date IS NULL) AS still_open
+FROM invoices
+WHERE COALESCE(paid_date, CURRENT_DATE) &gt; due_date;</code></pre>
+<p>This measures lateness against <em>today</em> for open invoices and flags them. Raising the unpaid-invoice blind spot unprompted is the senior signal.</p>
+
+<h5>The reference solution bundles its own setup</h5>
+<p>The provided answer ships a <code>DROP TABLE</code> / <code>CREATE TABLE</code> / <code>INSERT</code> ahead of the <code>SELECT</code> &mdash; a self-contained script. In an interview that is fine for a runnable demo, but note the schema it creates (<code>invoice_id, due_date, paid_date</code>) is narrower than the full <code>invoices</code> table in the question's schema (which also has <code>customer_id, amount, status</code>). The query logic is unaffected; just be aware the demo table is a slice.</p>
+
+<h5>No ordering &mdash; rank the worst offenders</h5>
+<p>For a collections worklist, the rows should lead with the most overdue:</p>
+<pre><code>SELECT invoice_id, paid_date - due_date AS days_late
+FROM invoices WHERE paid_date &gt; due_date
+ORDER BY days_late DESC;</code></pre>
+
+<h5>Edge cases: paid_date before due_date, and timestamp columns</h5>
+<p>Early payments yield a negative subtraction; the strict <code>&gt;</code> filter already excludes them, so no negative <code>days_late</code> leaks out &mdash; good. If <code>due_date</code> or <code>paid_date</code> were <code>timestamp</code> rather than <code>date</code>, the subtraction would return an <code>interval</code> with hours, and an invoice paid at 2am on the due date might or might not count depending on time-of-day; cast both to <code>::date</code> to keep the comparison purely calendar-based.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> confirm whether the due date is the last on-time day (<code>&gt;</code> vs <code>&gt;=</code>), and above all flag that filtering on <code>paid_date</code> hides still-unpaid overdue invoices &mdash; the worst delinquents &mdash; offering a <code>COALESCE(paid_date, CURRENT_DATE)</code> rewrite plus an <code>ORDER BY days_late DESC</code> for the collections worklist.</div>

@@ -1,0 +1,59 @@
+<p>Tesla's auto-financing risk team needs a single headline: what fraction of the loan book, weighted by principal, has defaulted? Not the count of defaulted loans &mdash; the <em>dollar</em> exposure. The reference solution wraps the arithmetic in a thick layer of type-coercion armour, and understanding why is the whole interview: it is defending against a schema where the columns are not the types you would hope.</p>
+
+<h4>1. The source data &mdash; <code>loans</code></h4>
+<table>
+  <thead><tr><th>loan_id</th><th>default_flag</th><th>principal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>true</td><td>50000</td></tr>
+    <tr><td>2</td><td>false</td><td>120000</td></tr>
+    <tr><td>3</td><td>false</td><td>80000</td></tr>
+    <tr><td>4</td><td>true</td><td>30000</td></tr>
+    <tr><td>5</td><td>false</td><td>200000</td></tr>
+    <tr><td>6</td><td>true</td><td>20000</td></tr>
+  </tbody>
+</table>
+<p>Three of six loans defaulted &mdash; but by <em>count</em> that is 50%. The defaulted principals (50k + 30k + 20k = 100k) are small loans; the total book is 500k. The dollar-weighted rate will be far lower than the count-weighted rate. That divergence is the point.</p>
+
+<h4>2. The SQL &mdash; principal-weighted default rate</h4>
+<pre><code>SELECT 100.0 * SUM(CASE WHEN default_flag::text IN ('1','true','t','True','TRUE') THEN NULLIF(regexp_replace(principal::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END)/NULLIF(SUM(NULLIF(regexp_replace(principal::text, '[^-.0-9]', '', 'g'), '')::numeric), 0) AS default_rate_pct
+FROM loans;</code></pre>
+<p>Stripped down: <code>100.0 * SUM(defaulted principal) / SUM(all principal)</code>. The <code>CASE</code> contributes a loan's principal to the numerator only when it defaulted; the denominator sums every principal. The <code>regexp_replace</code> and <code>NULLIF</code> wrappers are defensive coercion, discussed below.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>default_rate_pct</th></tr></thead>
+  <tbody>
+    <tr><td>20.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Defaulted principal is 100,000; total principal is 500,000; the rate is <strong>20%</strong>. Contrast that with the <em>count</em>-based rate of 50% (3 of 6 loans). The dollar-weighted number is the one a risk committee cares about &mdash; it says the defaults clustered in the <em>small</em> loans, which is a materially better book than "half our loans defaulted" implies.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Dollar-weighted vs count-weighted &mdash; the metric that matters</h5>
+<p>This is the senior insight: <em>which</em> default rate?</p>
+<pre><code>-- count-weighted: 3/6 = 50%
+SELECT 100.0 * COUNT(*) FILTER (WHERE default_flag) / COUNT(*) FROM loans;
+-- dollar-weighted: 100k/500k = 20%   <-- the reference query
+</code></pre>
+<p>For credit risk, dollar-weighted is almost always the right denominator &mdash; losing a $20k loan is not the same event as losing a $200k loan. State which one the question wants and why; answering with the count rate when they wanted exposure is a real miss.</p>
+
+<h5>Why the coercion armour? &mdash; the schema is defensive</h5>
+<p>If <code>default_flag</code> were a clean <code>BOOLEAN</code> and <code>principal</code> a clean <code>NUMERIC</code>, the query would be one readable line. The armour exists because the source might not be clean:</p>
+<ul>
+  <li><code>default_flag::text IN ('1','true','t','True','TRUE')</code> &mdash; copes with the flag arriving as a string, an integer, or a boolean, in any casing.</li>
+  <li><code>regexp_replace(principal::text, '[^-.0-9]', '', 'g')</code> &mdash; strips currency symbols and thousands separators if <code>principal</code> is text like <code>"$50,000"</code>.</li>
+  <li><code>NULLIF(&hellip;, '')</code> &mdash; turns an empty string (post-scrub) into NULL so the <code>::numeric</code> cast doesn't blow up.</li>
+</ul>
+<p>A senior candidate names this: "this is hardened against a dirty, untyped feed; against a typed table I'd drop the regex for clarity."</p>
+
+<h5>The division-by-zero guard</h5>
+<p>The denominator is wrapped in <code>NULLIF(SUM(&hellip;), 0)</code>. If the loan book is empty, or every principal scrubs to NULL, <code>SUM</code> is 0 (or NULL), and dividing by it would either error or be undefined. <code>NULLIF(x, 0)</code> converts a zero denominator into NULL, so the whole expression returns NULL &mdash; "no rate" &mdash; instead of crashing. Wrap in <code>COALESCE(&hellip;, 0)</code> if the dashboard insists on a number.</p>
+
+<h5>The NULL-flag trap</h5>
+<p>A loan whose <code>default_flag</code> is NULL fails the <code>IN</code> list (NULL matches nothing), so its principal lands in the <code>ELSE 0</code> branch &mdash; counted as <em>not defaulted</em>. But its principal <em>is</em> still in the denominator. So an unknown-status loan quietly dilutes the default rate downward. If status-unknown loans should be excluded entirely, or treated as defaulted (conservative), handle them explicitly rather than letting <code>ELSE</code> absorb them.</p>
+
+<h5>The <code>100.0</code> &mdash; forcing real division</h5>
+<p>Leading with <code>100.0</code> (a numeric literal) rather than <code>100</code> guarantees the whole expression is evaluated in <code>numeric</code>, not integer, arithmetic. With integer <code>100</code> and integer operands, <code>100 * 100000 / 500000</code> could truncate. The <code>.0</code> is a deliberate, cheap insurance against silent integer division.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish the dollar-weighted default rate (20%) from the count-weighted rate (50%) and explain why exposure is the right lens for credit risk, read the regex/<code>NULLIF</code> layer as defensive coercion for an untyped feed, and flag that NULL <code>default_flag</code> loans silently dilute the rate via the <code>ELSE 0</code> branch.</div>

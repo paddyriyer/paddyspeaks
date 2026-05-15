@@ -1,0 +1,57 @@
+<p>BMW's connected-services team runs a subscription business for in-car features and wants a running total of subscribers over time: each period's net change, plus the cumulative count. The reference solution reaches for a window function &mdash; <code>SUM() OVER (ORDER BY &hellip;)</code> &mdash; which is exactly right. The interview is about whether you understand the implicit window frame, and whether the cumulative total is even meaningful without a starting balance.</p>
+
+<h4>1. The source data &mdash; <code>subscriptions</code></h4>
+<table>
+  <thead><tr><th>period</th><th>new_subs</th><th>cancelled_subs</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>500</td><td>120</td></tr>
+    <tr><td>2025-02-01</td><td>640</td><td>200</td></tr>
+    <tr><td>2025-03-01</td><td>300</td><td>350</td></tr>
+    <tr><td>2025-04-01</td><td>450</td><td>180</td></tr>
+  </tbody>
+</table>
+<p>March is the interesting period: 300 new but 350 cancelled, a <strong>negative net</strong> of &minus;50. A running total has to absorb a down month gracefully &mdash; the cumulative line should dip, not break.</p>
+
+<h4>2. The SQL &mdash; cumulative <code>SUM() OVER</code></h4>
+<pre><code>SELECT period, new_subs - cancelled_subs AS net,
+  SUM(new_subs - cancelled_subs) OVER (ORDER BY period) AS cumulative_subs
+FROM subscriptions;</code></pre>
+<p><code>net</code> is the per-period change. The window function <code>SUM(&hellip;) OVER (ORDER BY period)</code> accumulates that net from the first period up to the current row &mdash; a running total.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>period</th><th>net</th><th>cumulative_subs</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>380</td><td>380</td></tr>
+    <tr><td>2025-02-01</td><td>440</td><td>820</td></tr>
+    <tr><td>2025-03-01</td><td>-50</td><td>770</td></tr>
+    <tr><td>2025-04-01</td><td>270</td><td>1040</td></tr>
+  </tbody>
+</table>
+<p>January nets +380. February's +440 lifts the running total to 820. March's &minus;50 correctly <em>drags it down</em> to 770 &mdash; the window <code>SUM</code> handles the negative period naturally. April recovers to 1040.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The implicit window frame &mdash; the detail interviewers wait for</h5>
+<p><code>SUM(&hellip;) OVER (ORDER BY period)</code> with no explicit frame defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. That is what makes it a running total. The trap is <code>RANGE</code> vs <code>ROWS</code>: with <code>RANGE</code>, all rows tied on <code>period</code> are summed <em>together</em> into the same cumulative value. Periods are unique here so it doesn't bite &mdash; but if two rows shared a <code>period</code>, you'd want the explicit, unambiguous frame:</p>
+<pre><code>SUM(new_subs - cancelled_subs)
+  OVER (ORDER BY period ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code></pre>
+<p>Naming the implicit frame and knowing the <code>RANGE</code>/<code>ROWS</code> distinction is the senior signal here.</p>
+
+<h5>The cumulative total assumes the book started at zero</h5>
+<p>The running total begins at January's 380 &mdash; it implicitly assumes there were <em>no subscribers before January</em>. If the business existed before the first row in this table, <code>cumulative_subs</code> is not the true subscriber count; it is the net change <em>since</em> the window opened. To get an absolute count, add the opening balance:</p>
+<pre><code>SELECT period,
+       :opening_balance + SUM(new_subs - cancelled_subs) OVER (ORDER BY period) AS total_subs
+FROM subscriptions;</code></pre>
+<p>Confirm whether the data is the full history or a slice &mdash; it changes whether the number is a count or a delta.</p>
+
+<h5>Window function vs self-join &mdash; why <code>OVER</code> wins</h5>
+<p>The pre-window way to do a running total is a correlated self-join: for each period, sum the net of every period up to it. That is O(n&sup2;) and verbose. <code>SUM() OVER (ORDER BY period)</code> sorts once and accumulates in a single pass &mdash; O(n log n), and far clearer. On a real subscription history the window function is the only sensible choice.</p>
+
+<h5>No <code>ORDER BY</code> on the outer query</h5>
+<p>The window's <code>ORDER BY period</code> controls <em>accumulation</em> order, but it does <strong>not</strong> guarantee the <em>output</em> rows come back sorted. The rows happen to be ordered here, but to be safe add an explicit final <code>ORDER BY period</code> so the cumulative column reads top-to-bottom.</p>
+
+<h5>Edge cases: gaps in periods and the schema mismatch</h5>
+<p>The window sums consecutive <em>rows</em>, not consecutive <em>months</em>. If a period is missing from the table, the running total simply skips it &mdash; the cumulative value is still correct, but a chart will draw a flat segment across the gap. Separately, the question's schema lists per-subscriber columns (<code>subscription_id</code>, <code>customer_id</code>, <code>plan</code>, <code>start_date</code>, &hellip;) alongside the per-period <code>new_subs</code>/<code>cancelled_subs</code>; the solution correctly uses only the period-grain columns. If the table were actually per-subscriber, you'd first aggregate to a period grain before the running total.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the implicit <code>UNBOUNDED PRECEDING &hellip; CURRENT ROW</code> frame and the <code>RANGE</code>/<code>ROWS</code> distinction, recognise that <code>cumulative_subs</code> is a delta-since-window-open unless an opening balance is added, prefer <code>SUM() OVER</code> to an O(n&sup2;) self-join, and add a final <code>ORDER BY</code> so the running total renders in sequence.</div>
