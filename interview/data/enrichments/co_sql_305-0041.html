@@ -1,0 +1,59 @@
+<p>Elastic's growth team tracks one number above all others: how many new customers signed up each month. The query is a classic <code>DATE_TRUNC</code> grouping &mdash; but the interviewer asking this is probing whether you know why you must group by the <em>truncated</em> value rather than the raw timestamp, and whether you spot that months with zero signups will silently vanish from the result.</p>
+
+<h4>1. The source data &mdash; <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>signup_date</th><th>country</th><th>city</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-05</td><td>US</td><td>NYC</td></tr>
+    <tr><td>2</td><td>2026-01-20</td><td>US</td><td>LA</td></tr>
+    <tr><td>3</td><td>2026-02-02</td><td>UK</td><td>London</td></tr>
+    <tr><td>4</td><td>2026-02-15</td><td>UK</td><td>Leeds</td></tr>
+    <tr><td>5</td><td>2026-02-28</td><td>DE</td><td>Berlin</td></tr>
+    <tr><td>6</td><td>2026-03-01</td><td>FR</td><td>Paris</td></tr>
+  </tbody>
+</table>
+<p>Six customers spread over three months &mdash; two in January, three in February, one in March. Every <code>signup_date</code> is a distinct day; the whole point of the query is to <em>bucket</em> distinct days into shared months.</p>
+
+<h4>2. The SQL &mdash; <code>DATE_TRUNC('month', ...)</code></h4>
+<pre><code>SELECT DATE_TRUNC('month', signup_date)::DATE AS month, COUNT(*) AS signups
+FROM customers GROUP BY DATE_TRUNC('month', signup_date)::DATE ORDER BY month;</code></pre>
+<p><code>DATE_TRUNC('month', d)</code> snaps any date to the first day of its month, so 2026-01-05 and 2026-01-20 both become 2026-01-01 and collapse into one group. The <code>::DATE</code> cast drops the time component that <code>DATE_TRUNC</code> returns.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>signups</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>2</td></tr>
+    <tr><td>2026-02-01</td><td>3</td></tr>
+    <tr><td>2026-03-01</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Three rows, one per month with activity. January's two distinct signup days collapsed into a single 2026-01-01 bucket; February's three did the same. The month label is a real date (the first of the month), which sorts and filters cleanly &mdash; better than a text label like "2026-01".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why group by the truncated value, not <code>signup_date</code></h5>
+<p>A frequent mistake is <code>GROUP BY signup_date</code> with <code>DATE_TRUNC</code> only in the <code>SELECT</code>. That groups by the raw <em>day</em>, producing six one-row groups, and most engines reject it because the selected expression isn't functionally dependent on the grouping key. The grouping key and the projected month must be the <em>same</em> expression. Postgres also allows the shorthand <code>GROUP BY 1</code> (group by the first select item).</p>
+
+<h5>Missing months &mdash; the gap the interviewer is waiting for</h5>
+<p>If no customer signs up in, say, April, there is no April row at all &mdash; <code>GROUP BY</code> only emits buckets that have data. A trend chart with a silently-absent month is misleading. Generate the calendar and <code>LEFT JOIN</code> the counts onto it:</p>
+<pre><code>SELECT m.month, COUNT(c.customer_id) AS signups
+FROM generate_series(DATE '2026-01-01', DATE '2026-04-01', INTERVAL '1 month') AS m(month)
+LEFT JOIN customers c
+  ON DATE_TRUNC('month', c.signup_date) = m.month
+GROUP BY m.month ORDER BY m.month;</code></pre>
+<p>Note <code>COUNT(c.customer_id)</code>, not <code>COUNT(*)</code>: a month with no signups still produces one join row with NULLs, and <code>COUNT(*)</code> would wrongly report 1 for it.</p>
+
+<h5>Time zones &mdash; where signup counts actually go wrong</h5>
+<p>If <code>signup_date</code> is really a <code>TIMESTAMPTZ</code>, <code>DATE_TRUNC</code> uses the session time zone, so a sign-up at 23:30 UTC on Jan 31 may land in January or February depending on the viewer. For a stable report, truncate in an explicit zone: <code>DATE_TRUNC('month', signup_date AT TIME ZONE 'UTC')</code>.</p>
+
+<h5>Cumulative growth &mdash; the natural follow-up</h5>
+<p>Growth teams rarely stop at per-month counts; they want the running total. Layer a window function over the grouped result:</p>
+<pre><code>SELECT month, signups,
+  SUM(signups) OVER (ORDER BY month) AS cumulative_signups
+FROM (
+  SELECT DATE_TRUNC('month', signup_date)::DATE AS month, COUNT(*) AS signups
+  FROM customers GROUP BY 1
+) t ORDER BY month;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> group by the same <code>DATE_TRUNC</code> expression you project, return a real date label rather than text, pre-empt the missing-months gap with a <code>generate_series</code> calendar plus <code>LEFT JOIN</code> (and <code>COUNT(column)</code>), and raise the time-zone caveat for <code>TIMESTAMPTZ</code> sign-up data.</div>

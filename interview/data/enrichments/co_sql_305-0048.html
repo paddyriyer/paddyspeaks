@@ -1,0 +1,65 @@
+<p>Cisco's customer-success team wants a clean list: every customer who has placed an order but <em>never</em> requested a refund &mdash; the candidates for an upsell. It is an exclusion query, and the reference solution shows real maturity by pre-filtering the refunds list for NULLs. The interviewer asking this is testing whether you understand <em>why</em> that <code>WHERE customer_id IS NOT NULL</code> is not optional cleanup but a correctness fix.</p>
+
+<h4>1. The source data &mdash; <code>orders</code> and <code>refunds</code></h4>
+<p>The solution provides its own fixture:</p>
+<table>
+  <thead><tr><th>orders.customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1, 2, 3, 4, 5, 6, 7, 8</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>refunds.customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>2, 4, 7, <em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Eight customers have ordered; three &mdash; 2, 4, 7 &mdash; have refunds. The fourth refund row has a <strong>NULL</strong> <code>customer_id</code> (an orphaned or unattributed refund). That single NULL is the entire interview.</p>
+
+<h4>2. The SQL &mdash; <code>NOT IN</code> with a NULL guard</h4>
+<pre><code>SELECT DISTINCT customer_id FROM orders
+WHERE customer_id NOT IN (
+  SELECT customer_id FROM refunds WHERE customer_id IS NOT NULL
+);</code></pre>
+<p>The inner <code>WHERE customer_id IS NOT NULL</code> strips the NULL refund row <em>before</em> it can reach <code>NOT IN</code>. The outer query then keeps customers whose id matches none of the (now NULL-free) refunded ids.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>3</td></tr>
+    <tr><td>5</td></tr>
+    <tr><td>6</td></tr>
+    <tr><td>1</td></tr>
+    <tr><td>8</td></tr>
+  </tbody>
+</table>
+<p>Five customers &mdash; 1, 3, 5, 6, 8 &mdash; ordered without ever refunding. The result is unordered (<code>DISTINCT</code> and <code>NOT IN</code> promise the set, not a sort). And it is <em>correct</em> &mdash; but only because of the NULL guard, as the next section shows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the NULL guard is mandatory, not cosmetic</h5>
+<p>Delete <code>WHERE customer_id IS NOT NULL</code> and the query returns <strong>zero rows</strong>. <code>NOT IN (2, 4, 7, NULL)</code> means <code>customer_id &lt;&gt; 2 AND &lt;&gt; 4 AND &lt;&gt; 7 AND &lt;&gt; NULL</code>. That final <code>&lt;&gt; NULL</code> evaluates to <em>unknown</em>, never <em>true</em>, so the whole <code>AND</code> can never be true &mdash; every customer is filtered out. An empty upsell list, no error raised. The reference solution's guard is the fix for this exact failure.</p>
+
+<h5><code>NOT EXISTS</code> &mdash; immune by construction</h5>
+<p>A more robust idiom that needs no guard at all:</p>
+<pre><code>SELECT DISTINCT o.customer_id FROM orders o
+WHERE NOT EXISTS (
+  SELECT 1 FROM refunds r WHERE r.customer_id = o.customer_id
+);</code></pre>
+<p><code>NOT EXISTS</code> asks a yes/no question: "is there a refund row for this customer?" The NULL refund row simply fails the <code>r.customer_id = o.customer_id</code> join and is harmlessly skipped &mdash; it cannot poison the predicate. For exclusion against a nullable column, <code>NOT EXISTS</code> is the safer default precisely because you don't have to <em>remember</em> the guard.</p>
+
+<h5>The <code>LEFT JOIN / IS NULL</code> anti-join</h5>
+<p>Equivalent, and also NULL-safe here:</p>
+<pre><code>SELECT DISTINCT o.customer_id FROM orders o
+LEFT JOIN refunds r ON o.customer_id = r.customer_id
+WHERE r.customer_id IS NULL;</code></pre>
+<p>Keep every order, then discard customers that matched a refund. The NULL refund row never equals any customer id, so it joins to nobody and changes nothing.</p>
+
+<h5>Why <code>DISTINCT</code> is here</h5>
+<p><code>orders</code> has one row per <em>order</em>, so a customer with five orders appears five times. <code>DISTINCT</code> collapses the output to one row per customer &mdash; the question asks for a list of customers, not of orders. With the <code>NOT EXISTS</code> form the <code>DISTINCT</code> is still needed for the same reason.</p>
+
+<h5>Edge case: the orphaned refund itself</h5>
+<p>The NULL-<code>customer_id</code> refund is unattributable &mdash; it can't exclude anyone because we don't know whose it is. Dropping it (as the solution does) is the right call for <em>this</em> question, but in a data-quality review it's a flag: a refund with no customer is a broken record worth chasing upstream.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the inner <code>IS NOT NULL</code> is a correctness fix &mdash; one NULL in a <code>NOT IN</code> subquery empties the whole result &mdash; and know that <code>NOT EXISTS</code> or a <code>LEFT JOIN / IS NULL</code> anti-join avoids the trap entirely, while remembering <code>DISTINCT</code> because <code>orders</code> is per-order not per-customer.</div>

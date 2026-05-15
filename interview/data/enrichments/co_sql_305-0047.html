@@ -1,0 +1,57 @@
+<p>Plus500's analytics team needs the overlap between two cohorts &mdash; say, ids that appear in both a "funded accounts" feed and a "placed a trade" feed. The reference answer reaches straight for <code>INTERSECT</code>. The interviewer asking this wants to see that you know what <code>INTERSECT</code> does to duplicates and NULLs, and that you can name the join-based equivalent and when it would behave differently.</p>
+
+<h4>1. The source data &mdash; <code>table_a</code> and <code>table_b</code></h4>
+<table>
+  <thead><tr><th>table_a.id</th></tr></thead>
+  <tbody>
+    <tr><td>1, 2, 3, 4, 5</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>table_b.id</th></tr></thead>
+  <tbody>
+    <tr><td>3, 4, 5, 6, 7</td></tr>
+  </tbody>
+</table>
+<p>The two sets overlap on 3, 4, 5. Ids 1 and 2 are only in A; ids 6 and 7 are only in B. The expected answer is the three-element intersection &mdash; the middle of the Venn diagram.</p>
+
+<h4>2. The SQL &mdash; <code>INTERSECT</code></h4>
+<pre><code>SELECT id FROM table_a INTERSECT SELECT id FROM table_b;</code></pre>
+<p><code>INTERSECT</code> takes two result sets and returns only the rows present in <em>both</em>. It is a set operator, so it compares whole rows and &mdash; importantly &mdash; removes duplicates from the output.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th></tr></thead>
+  <tbody>
+    <tr><td>3</td></tr>
+    <tr><td>5</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+<p>Exactly the three shared ids. Note the rows come back <strong>3, 5, 4</strong> &mdash; not sorted. <code>INTERSECT</code> guarantees the <em>set</em> of results but makes <strong>no promise about order</strong>; if the consumer needs 3, 4, 5 you must add an explicit <code>ORDER BY id</code> at the end.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>INTERSECT</code> de-duplicates &mdash; the behaviour to call out</h5>
+<p><code>INTERSECT</code> is set-semantic: even if <code>table_a</code> held id 3 five times and <code>table_b</code> held it twice, the result has <strong>one</strong> row for 3. That is usually what "find common ids" wants &mdash; but say it explicitly. If you need multiplicity preserved (the smaller of the two counts), the variant is <code>INTERSECT ALL</code>, which most engines including Postgres support.</p>
+
+<h5>The <code>INNER JOIN</code> equivalent &mdash; and where it diverges</h5>
+<p>The same intersection via a join:</p>
+<pre><code>SELECT DISTINCT a.id
+FROM table_a a
+JOIN table_b b ON a.id = b.id;</code></pre>
+<p>The <code>DISTINCT</code> is load-bearing. Without it, if id 3 appears twice in A and three times in B, the join produces 2&times;3 = <strong>6</strong> rows for id 3 &mdash; the dreaded fan-out. <code>INTERSECT</code> de-duplicates for free; the join does not. This is the key difference, and a common interview gotcha.</p>
+
+<h5>NULL handling &mdash; where set operators differ from joins</h5>
+<p>If both tables contained a NULL <code>id</code>, <code>INTERSECT</code> treats the two NULLs as equal and the result includes one NULL row. A join, by contrast, uses <code>a.id = b.id</code>, and <code>NULL = NULL</code> is unknown &mdash; so the join would <em>not</em> match the NULLs. Set operators compare with <em>NULL-equal</em> semantics; equality joins do not. If NULL ids are meaningful, this distinction matters.</p>
+
+<h5>Column count and type must line up</h5>
+<p><code>INTERSECT</code> requires both <code>SELECT</code>s to expose the same number of columns with compatible types, matched <em>by position</em> &mdash; not by name. <code>SELECT id FROM table_a INTERSECT SELECT user_id FROM table_b</code> works fine despite the different column names; what matters is that each side projects one column of a comparable type.</p>
+
+<h5><code>EXISTS</code> &mdash; the scalable alternative</h5>
+<p>On large tables, a semi-join via <code>EXISTS</code> can let the planner stop at the first match per row:</p>
+<pre><code>SELECT id FROM table_a a
+WHERE EXISTS (SELECT 1 FROM table_b b WHERE b.id = a.id);</code></pre>
+<p>One subtlety: this returns one row per <em>matching row of A</em>, so duplicates in A survive &mdash; add <code>DISTINCT</code> if you want true set semantics like <code>INTERSECT</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>INTERSECT</code> de-duplicates and returns rows in no guaranteed order, contrast it with an <code>INNER JOIN</code> (which fans out without <code>DISTINCT</code>), note that set operators treat NULLs as equal while equality joins do not, and add an explicit <code>ORDER BY</code> when the consumer needs sorted output.</div>

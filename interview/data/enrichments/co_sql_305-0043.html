@@ -1,0 +1,63 @@
+<p>RedHat's revenue analysts want a category-by-category comparison: for each product category, the average sale in the North region beside the average sale in the South. It is a pivot &mdash; turning region values into columns &mdash; built with conditional aggregation. The interviewer asking this wants to see that you reach for <code>AVG(CASE WHEN ...)</code> rather than a join, and that you know what <code>AVG</code> returns when a category has no sales in one of the regions.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>category</th><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>Books</td><td>North</td><td>100</td></tr>
+    <tr><td>Books</td><td>North</td><td>200</td></tr>
+    <tr><td>Books</td><td>South</td><td>150</td></tr>
+    <tr><td>Toys</td><td>North</td><td>300</td></tr>
+    <tr><td>Toys</td><td>South</td><td>50</td></tr>
+    <tr><td>Toys</td><td>South</td><td>70</td></tr>
+    <tr><td>Games</td><td>North</td><td>400</td></tr>
+  </tbody>
+</table>
+<p>Books and Toys sell in both regions, but <strong>Games sells only in the North</strong> &mdash; it has zero South rows. That asymmetric category is the whole interview: it decides what shows up in the <code>avg_south</code> column.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(CASE WHEN ...)</code></h4>
+<pre><code>SELECT category,
+  AVG(CASE WHEN region = 'North' THEN amount END) AS avg_north,
+  AVG(CASE WHEN region = 'South' THEN amount END) AS avg_south
+FROM sales GROUP BY category;</code></pre>
+<p>For each category, the <code>CASE</code> passes <code>amount</code> through only for the matching region and yields NULL otherwise. <code>AVG</code> then averages just the non-NULL values &mdash; effectively a region-filtered average, one per column.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>avg_north</th><th>avg_south</th></tr></thead>
+  <tbody>
+    <tr><td>Games</td><td>400.0000000000000000</td><td>NULL</td></tr>
+    <tr><td>Toys</td><td>300.0000000000000000</td><td>60.0000000000000000</td></tr>
+    <tr><td>Books</td><td>150.0000000000000000</td><td>150.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Books North = (100+200)/2 = 150; Toys South = (50+70)/2 = 60. The key row is <strong>Games</strong>: with no South sales, every <code>CASE</code> for South returns NULL, and <code>AVG</code> over nothing-but-NULL returns <strong>NULL</strong> &mdash; not 0. That distinction (no data vs a real zero) is exactly what the interviewer is probing.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>CASE</code> has no <code>ELSE</code></h5>
+<p>The <code>CASE</code> deliberately omits <code>ELSE</code>, so a non-matching region yields NULL, and <code>AVG</code> skips it. Writing <code>ELSE 0</code> instead would be a real bug: the zeros would enter the average and crush it. For Books' South average, <code>ELSE 0</code> would give (0+0+150+0+0+0+0)/7 &mdash; meaningless. With <code>AVG</code>, "not this region" must map to NULL, never 0.</p>
+
+<h5>NULL vs 0 &mdash; making the empty cell explicit</h5>
+<p>Games' <code>avg_south</code> is NULL because there is genuinely no South data. If a dashboard would rather show a placeholder, make that choice on purpose:</p>
+<pre><code>SELECT category,
+  COALESCE(AVG(CASE WHEN region='North' THEN amount END), 0) AS avg_north,
+  COALESCE(AVG(CASE WHEN region='South' THEN amount END), 0) AS avg_south
+FROM sales GROUP BY category;</code></pre>
+<p>But know what you've done: a 0 now means "no sales", indistinguishable from a true average of 0. Leaving NULL preserves that signal &mdash; the better default for analytics.</p>
+
+<h5>The <code>FILTER</code> alternative &mdash; clearer intent</h5>
+<p>Postgres offers a more readable form of the same pivot &mdash; the aggregate <code>FILTER</code> clause:</p>
+<pre><code>SELECT category,
+  AVG(amount) FILTER (WHERE region = 'North') AS avg_north,
+  AVG(amount) FILTER (WHERE region = 'South') AS avg_south
+FROM sales GROUP BY category;</code></pre>
+<p>Identical results, but the intent &mdash; "average the rows where region is North" &mdash; reads off the page. <code>CASE</code> is the portable form that works on every engine; <code>FILTER</code> is the cleaner Postgres-native one.</p>
+
+<h5>Why not self-join the table twice?</h5>
+<p>One could join <code>sales</code> to itself, once filtered to North and once to South. It is slower (two passes plus a join), it explodes if either side has multiple rows per category, and it drops categories absent from one side unless you use outer joins. Conditional aggregation does it in a single <code>GROUP BY</code> pass &mdash; the right tool for pivoting a low-cardinality column.</p>
+
+<h5>Edge case: an unexpected third region</h5>
+<p>The query hard-codes North and South. A row with <code>region = 'West'</code> still forms a group and contributes to neither column &mdash; its <code>amount</code> silently disappears from both averages. If a category sells <em>only</em> in the West, it appears as a row with two NULLs. That's a correctness gap worth naming; a robust report enumerates every region or validates the domain.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot with <code>AVG(CASE WHEN ...)</code> and deliberately omit <code>ELSE</code> so non-matching rows become NULL not 0, explain that <code>AVG</code> over an all-NULL group returns NULL (no data, not zero), offer <code>FILTER</code> as the cleaner Postgres equivalent, and note that hard-coded region columns silently swallow any unlisted region.</div>
