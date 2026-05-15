@@ -1,0 +1,70 @@
+<p>Uber's commerce team sells through two channels &mdash; an online store and physical retail &mdash; each landing in its own table. Finance wants one combined view: total sales per channel, stacked in a single result set. This is a <code>UNION ALL</code> of two aggregates, and the interviewer is checking whether you know <em>why</em> <code>UNION ALL</code> and not <code>UNION</code>, and how to stamp each branch with a channel label.</p>
+
+<h4>1. The source data</h4>
+<p><code>online_sales</code>:</p>
+<table>
+  <thead><tr><th>same</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>x</td><td>500</td></tr>
+    <tr><td>y</td><td>300</td></tr>
+  </tbody>
+</table>
+<p><code>retail_sales</code>:</p>
+<table>
+  <thead><tr><th>same</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>a</td><td>100</td></tr>
+    <tr><td>b</td><td>250</td></tr>
+    <tr><td>c</td><td>75</td></tr>
+  </tbody>
+</table>
+<p>Two separate tables, identical shape. Online totals 800, retail totals 425. Note the retail total (425) and online total (800) are <em>different</em> numbers &mdash; but watch what would happen if they coincided: <code>UNION</code> (no <code>ALL</code>) would collapse the two identical totals into one row.</p>
+
+<h4>2. The SQL &mdash; <code>UNION ALL</code> of two aggregates</h4>
+<pre><code>SELECT 'online' AS channel, SUM(amount) FROM online_sales
+UNION ALL
+SELECT 'retail', SUM(amount) FROM retail_sales;</code></pre>
+<p>Each <code>SELECT</code> aggregates one table to a single row and prepends a constant string naming the channel. <code>UNION ALL</code> stacks the two one-row results into a two-row output.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>channel</th><th>sum</th></tr></thead>
+  <tbody>
+    <tr><td>online</td><td>800</td></tr>
+    <tr><td>retail</td><td>425</td></tr>
+  </tbody>
+</table>
+<p>One row per channel, exactly as finance wants. The literal <code>'online'</code> / <code>'retail'</code> in each branch is what makes the rows identifiable &mdash; without it the result would be two anonymous numbers and you could not tell which channel was which.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>UNION ALL</code> vs <code>UNION</code> &mdash; the deduplication trap</h5>
+<p><code>UNION</code> removes duplicate rows; <code>UNION ALL</code> keeps every row. With the channel label present, the two rows here (<code>'online', 800</code> and <code>'retail', 425</code>) differ and would survive either way. But suppose both channels happened to total the same amount &mdash; say 500 each. <code>UNION</code> would see two identical <code>(label, 500)</code>&hellip; no, the labels still differ. The real danger is dropping the label: <code>SELECT SUM(amount) FROM online ... UNION SELECT SUM(amount) FROM retail</code> with equal totals collapses to <strong>one row</strong>, silently losing a channel. Beyond correctness, <code>UNION</code> pays for a sort/hash to dedupe; <code>UNION ALL</code> skips it and is faster. Default to <code>UNION ALL</code> unless you specifically need duplicate removal &mdash; and say so.</p>
+
+<h5>The channel label is not optional</h5>
+<p>Each branch hard-codes its channel as a string literal. That constant is the only thing tying a number back to its source &mdash; it is data, not decoration. A frequent mistake is omitting it and assuming row order identifies the channel; row order from a set operation is not guaranteed. The label belongs in <em>every</em> branch.</p>
+
+<h5>Column count, order, and type must line up</h5>
+<p>Set operations match columns <em>by position</em>, not by name. Both branches here project two columns &mdash; <code>(text, numeric)</code> &mdash; in the same order, so they align. The result column names come from the <em>first</em> <code>SELECT</code> only; the second branch's names are ignored, which is why aliasing the second branch is pointless. If the branches had different column counts, or a text lined up against a number, the query would error. Alias the aggregate in the first branch so the output column has a real name:</p>
+<pre><code>SELECT 'online' AS channel, SUM(amount) AS total_sales FROM online_sales
+UNION ALL
+SELECT 'retail' AS channel, SUM(amount) AS total_sales FROM retail_sales;</code></pre>
+
+<h5>The schema typo &mdash; <code>same</code></h5>
+<p>Both tables have a column literally named <code>same</code> &mdash; almost certainly a typo for <code>name</code> or an id column. It does not affect this query (we only touch <code>amount</code>), but flag it: a column called <code>same</code> is a maintenance landmine, and noticing schema oddities is part of the job.</p>
+
+<h5>Scaling to more channels &mdash; and a grand total</h5>
+<p><code>UNION ALL</code> extends naturally: add a third <code>SELECT</code> for a marketplace channel, and so on. If finance also wants the all-channels total, do not run a separate query &mdash; wrap and aggregate:</p>
+<pre><code>SELECT channel, total_sales FROM (
+  SELECT 'online' AS channel, SUM(amount) AS total_sales FROM online_sales
+  UNION ALL
+  SELECT 'retail', SUM(amount) FROM retail_sales
+) c
+UNION ALL
+SELECT 'ALL', SUM(total_sales) FROM (
+  SELECT SUM(amount) AS total_sales FROM online_sales
+  UNION ALL SELECT SUM(amount) FROM retail_sales
+) g;</code></pre>
+<p>For many channels, the cleaner long-term design is one <code>sales</code> table with a <code>channel</code> column &mdash; then it is a plain <code>GROUP BY</code>. Mentioning that the table-per-channel layout is the real problem is the senior observation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> default to <code>UNION ALL</code> and explain that <code>UNION</code>'s deduplication can silently merge legitimately-equal rows while also costing a sort, stamp every branch with its channel label, know that set operations align columns by position with names taken from the first <code>SELECT</code>, and note that a per-channel table layout is itself a design smell.</div>

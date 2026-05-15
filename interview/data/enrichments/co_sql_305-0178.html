@@ -1,0 +1,58 @@
+<p>Cloudflare's logistics team wants stock totals broken down by <em>both</em> warehouse and product category &mdash; not one or the other, but every (warehouse, category) combination. It is the most basic multi-column <code>GROUP BY</code>, and precisely because it looks trivial, the interviewer uses it to check whether you understand what a multi-column grouping key actually is, and what it does <em>not</em> give you.</p>
+
+<h4>1. The source data &mdash; <code>inventory</code></h4>
+<table>
+  <thead><tr><th>warehouse_id</th><th>category</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Electronics</td><td>50</td></tr>
+    <tr><td>1</td><td>Electronics</td><td>30</td></tr>
+    <tr><td>1</td><td>Apparel</td><td>20</td></tr>
+    <tr><td>2</td><td>Electronics</td><td>40</td></tr>
+    <tr><td>2</td><td>Apparel</td><td>60</td></tr>
+    <tr><td>2</td><td>Apparel</td><td>10</td></tr>
+  </tbody>
+</table>
+<p>Six rows. Warehouse 1 has <strong>two</strong> Electronics rows (a category split across multiple SKUs or shipments); warehouse 2 has two Apparel rows. The grouping must collapse each (warehouse, category) pair into a single summed row.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY warehouse_id, category</code></h4>
+<pre><code>SELECT warehouse_id, category, SUM(qty)
+FROM inventory
+GROUP BY warehouse_id, category;</code></pre>
+<p>The grouping key is the <em>pair</em> of columns. Every distinct combination of <code>warehouse_id</code> and <code>category</code> becomes one output row, with <code>SUM(qty)</code> totalling all input rows in that combination.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>warehouse_id</th><th>category</th><th>sum</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Apparel</td><td>20</td></tr>
+    <tr><td>1</td><td>Electronics</td><td>80</td></tr>
+    <tr><td>2</td><td>Apparel</td><td>70</td></tr>
+    <tr><td>2</td><td>Electronics</td><td>40</td></tr>
+  </tbody>
+</table>
+<p>Four rows &mdash; one per (warehouse, category) pair. Warehouse 1's two Electronics rows (50 + 30) collapsed to 80; warehouse 2's two Apparel rows (60 + 10) collapsed to 70. The result is a clean inventory matrix.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The grouping key is the <em>combination</em>, not two separate groupings</h5>
+<p><code>GROUP BY warehouse_id, category</code> does not group by warehouse and then by category &mdash; it groups by the <em>tuple</em> <code>(warehouse_id, category)</code>. Two rows land in the same group only if they agree on <strong>both</strong> columns. That is why warehouse 1's Electronics and Apparel rows stay separate even though they share a warehouse. Internalising "the key is the whole column list" is what the question tests.</p>
+
+<h5>The select-list rule &mdash; the classic error this question baits</h5>
+<p>Every non-aggregated column in the <code>SELECT</code> must appear in <code>GROUP BY</code>. Add <code>qty</code> to the select list without aggregating it &mdash; <code>SELECT warehouse_id, category, qty, SUM(qty)</code> &mdash; and Postgres rejects the query: <code>column "inventory.qty" must appear in the GROUP BY clause or be used in an aggregate function</code>. Each output row represents many input rows, so a bare <code>qty</code> has no single value to show. (MySQL historically allowed this and returned an arbitrary row's value &mdash; a silent-wrong-answer trap. Postgres is strict, and correctly so.)</p>
+
+<h5>This gives a long table, not a cross-tab</h5>
+<p>The result has one (warehouse, category) per row. If the logistics team wants a <em>matrix</em> &mdash; warehouses as rows, categories as columns &mdash; that is a pivot, a different query:</p>
+<pre><code>SELECT warehouse_id,
+  SUM(qty) FILTER (WHERE category='Electronics') AS electronics,
+  SUM(qty) FILTER (WHERE category='Apparel')     AS apparel
+FROM inventory
+GROUP BY warehouse_id;</code></pre>
+<p>Knowing that "grouped by two columns" and "pivoted on the second column" are different shapes &mdash; and which one the consumer asked for &mdash; is the senior clarification.</p>
+
+<h5>Subtotals need <code>ROLLUP</code> / <code>GROUPING SETS</code></h5>
+<p>This query gives only the leaf cells &mdash; no per-warehouse total, no grand total. If the dashboard wants "warehouse 1: 100 total" alongside the breakdown, plain <code>GROUP BY</code> cannot do it in one pass. <code>GROUP BY ROLLUP(warehouse_id, category)</code> adds the warehouse subtotals and the grand total as extra rows (with <code>NULL</code> in the rolled-up columns). Reaching for <code>ROLLUP</code> when subtotals are wanted shows range.</p>
+
+<h5>NULL categories and alias the aggregate</h5>
+<p>If <code>category</code> can be NULL, <code>GROUP BY</code> treats all NULLs as one group &mdash; "uncategorised stock" gets its own row. That is usually desirable, but say so. Also: the reference selects <code>SUM(qty)</code> with no alias, so the column comes back named <code>sum</code> &mdash; harmless in an interview, but in production always alias it (<code>AS total_qty</code>) so downstream consumers bind to a stable, meaningful name.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the grouping key is the column <em>tuple</em> so rows must match on all of it, recall that every non-aggregated select column must be in <code>GROUP BY</code> (Postgres errors, MySQL silently lied), distinguish this long-format result from a pivot, and reach for <code>ROLLUP</code> when subtotals are needed.</div>

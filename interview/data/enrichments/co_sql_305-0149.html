@@ -1,0 +1,64 @@
+<p>GE's finance team keeps sales in a long, tall table &mdash; one row per year/quarter/amount &mdash; but the board deck wants it wide: one row per year, four quarter columns across. That reshape is a <em>pivot</em>, and the portable way to do it in SQL is conditional aggregation: a <code>CASE</code> inside each <code>SUM</code>. The query is mechanical once you see the trick; the interview value is in what the <code>CASE</code> returns when it does not match, and what happens when a year/quarter pair appears more than once.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>year</th><th>quarter</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2024</td><td>Q1</td><td>100</td></tr>
+    <tr><td>2024</td><td>Q2</td><td>150</td></tr>
+    <tr><td>2024</td><td>Q3</td><td>120</td></tr>
+    <tr><td>2024</td><td>Q4</td><td>200</td></tr>
+    <tr><td>2025</td><td>Q1</td><td>180</td></tr>
+    <tr><td>2025</td><td>Q2</td><td>210</td></tr>
+    <tr><td>2025</td><td>Q1</td><td>20</td></tr>
+  </tbody>
+</table>
+<p>2024 is complete &mdash; one row per quarter. 2025 is the interesting year: it is <strong>missing Q3 and Q4</strong> entirely, and it has <strong>two Q1 rows</strong> (180 and 20). The pivot has to handle both the gap and the duplicate.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(CASE WHEN quarter = ...)</code></h4>
+<pre><code>SELECT year,
+  SUM(CASE WHEN quarter='Q1' THEN amount END) AS q1,
+  SUM(CASE WHEN quarter='Q2' THEN amount END) AS q2,
+  SUM(CASE WHEN quarter='Q3' THEN amount END) AS q3,
+  SUM(CASE WHEN quarter='Q4' THEN amount END) AS q4
+FROM sales
+GROUP BY year;</code></pre>
+<p>Each <code>CASE</code> lets a row's <code>amount</code> through only for its own quarter and yields NULL otherwise; <code>SUM</code> then collapses the four sparse columns down to one row per year.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>q1</th><th>q2</th><th>q3</th><th>q4</th></tr></thead>
+  <tbody>
+    <tr><td>2025</td><td>200</td><td>210</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+    <tr><td>2024</td><td>100</td><td>150</td><td>120</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>Two facts to read carefully. 2025's <code>q1</code> is <strong>200</strong>, not 180 &mdash; the two Q1 rows (180 + 20) were <em>summed</em>, which is exactly what the aggregate is for. And 2025's <code>q3</code>/<code>q4</code> are <strong>NULL</strong>, not 0 &mdash; no row matched, so every <code>CASE</code> returned NULL and <code>SUM</code> of all-NULL is NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The implicit <code>ELSE NULL</code> &mdash; and why <code>SUM</code> not <code>MAX</code></h5>
+<p>A <code>CASE</code> with no <code>ELSE</code> returns NULL on a miss. That is deliberate: <code>SUM</code> ignores NULLs, so non-matching quarters contribute nothing. <code>SUM</code> is the right aggregate because it also <em>adds up duplicates</em> &mdash; the 180 and 20 Q1 rows. A common alternative, <code>MAX(CASE WHEN ...)</code>, works only when each year/quarter pair is unique; on this data <code>MAX</code> would report <code>q1 = 180</code> and silently lose the 20. Choose <code>SUM</code> vs <code>MAX</code> based on whether the cell should aggregate or just relocate a single value.</p>
+
+<h5>NULL vs 0 for a missing quarter</h5>
+<p>2025's empty Q3/Q4 come back NULL. On a finance deck a blank cell often needs to read as <code>0</code>:</p>
+<pre><code>COALESCE(SUM(CASE WHEN quarter='Q3' THEN amount END), 0) AS q3</code></pre>
+<p>But pause before doing it &mdash; NULL ("no data reported yet") and 0 ("reported, sold nothing") are genuinely different statements. For a quarter that has not happened, NULL is arguably more honest. Decide with the consumer; do not reflexively coalesce.</p>
+
+<h5>The native <code>FILTER</code> clause &mdash; cleaner Postgres</h5>
+<p>Postgres has first-class syntax for "aggregate a subset" that reads better than <code>CASE</code>:</p>
+<pre><code>SELECT year,
+  SUM(amount) FILTER (WHERE quarter='Q1') AS q1,
+  SUM(amount) FILTER (WHERE quarter='Q2') AS q2,
+  SUM(amount) FILTER (WHERE quarter='Q3') AS q3,
+  SUM(amount) FILTER (WHERE quarter='Q4') AS q4
+FROM sales GROUP BY year;</code></pre>
+<p>Identical results, identical NULL behaviour &mdash; just clearer intent. There is also the <code>tablefunc</code> extension's <code>crosstab()</code>, but it is awkward and rarely worth it; conditional aggregation is the portable default every interviewer expects.</p>
+
+<h5>The fixed-columns limitation</h5>
+<p>This pivot hard-codes four quarters. That is fine here &mdash; quarters are a closed set &mdash; but the moment the pivot key is open-ended (one column per product, per region, per month-as-it-arrives), you cannot enumerate columns in static SQL. A truly dynamic pivot needs the application layer to read the distinct keys and assemble the SQL string, or a return type of <code>jsonb</code>/array. Naming this boundary &mdash; "pivot columns must be known at query-write time" &mdash; is the senior observation.</p>
+
+<h5>Add a row total and guard the grain</h5>
+<p>A deck usually wants an annual total column too &mdash; <code>SUM(amount) AS full_year</code> beside the four quarters, free in the same <code>GROUP BY</code>. And confirm the table's grain: if there is genuinely meant to be one row per year/quarter, the duplicate 2025 Q1 is a <em>data-quality bug</em>, and summing it masks the duplicate instead of surfacing it. <code>SUM</code> gives the arithmetically correct total either way, but a <code>HAVING COUNT(*) &gt; 1</code> check on (year, quarter) is how you catch the dupe rather than hide it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the absent <code>ELSE</code> yields NULL so <code>SUM</code> skips non-matching quarters, pick <code>SUM</code> over <code>MAX</code> precisely because it folds duplicate rows, treat NULL-vs-0 for missing quarters as a deliberate choice, prefer the native <code>FILTER</code> clause, and name the fixed-column limit of any static pivot.</div>

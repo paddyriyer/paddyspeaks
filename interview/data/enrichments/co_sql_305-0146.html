@@ -1,0 +1,61 @@
+<p>Adobe's identity team is de-duplicating a customer table: two rows with the same email are almost certainly the same person who signed up twice. The classic tool is a self-join &mdash; join the table to itself on the shared key. It is two lines of SQL, but the <code>a.id &lt; b.id</code> condition is doing three jobs at once, and an interviewer asking this wants you to articulate all three.</p>
+
+<h4>1. The source data &mdash; <code>records</code></h4>
+<table>
+  <thead><tr><th>id</th><th>email</th><th>phone</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>a@x.com</td><td>111</td></tr>
+    <tr><td>2</td><td>b@x.com</td><td>222</td></tr>
+    <tr><td>3</td><td>a@x.com</td><td>333</td></tr>
+    <tr><td>4</td><td>c@x.com</td><td>444</td></tr>
+    <tr><td>5</td><td>a@x.com</td><td>555</td></tr>
+    <tr><td>6</td><td>b@x.com</td><td>666</td></tr>
+  </tbody>
+</table>
+<p><code>a@x.com</code> appears <strong>three</strong> times (ids 1, 3, 5) &mdash; a triple, not just a pair. <code>b@x.com</code> appears twice (2, 6). <code>c@x.com</code> is unique. The triple is the interesting case: a group of three duplicates produces <em>three</em> pairs, not one.</p>
+
+<h4>2. The SQL &mdash; <code>self-join on email, a.id &lt; b.id</code></h4>
+<pre><code>SELECT a.id, b.id, a.email
+FROM records a
+JOIN records b ON a.email = b.email AND a.id &lt; b.id;</code></pre>
+<p>Two aliases over the same table. The join key is the shared <code>email</code>; the <code>a.id &lt; b.id</code> predicate keeps exactly one ordering of each matching pair.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>id</th><th>email</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>a@x.com</td></tr>
+    <tr><td>1</td><td>5</td><td>a@x.com</td></tr>
+    <tr><td>3</td><td>5</td><td>a@x.com</td></tr>
+    <tr><td>2</td><td>6</td><td>b@x.com</td></tr>
+  </tbody>
+</table>
+<p>Four rows. The <code>a@x.com</code> triple yields the three pairs (1,3), (1,5), (3,5) &mdash; that is "3 choose 2". <code>b@x.com</code> yields one pair. <code>c@x.com</code> produces nothing: with only one row it can never satisfy <code>a.id &lt; b.id</code> against itself.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>What <code>a.id &lt; b.id</code> is doing &mdash; all three jobs</h5>
+<p>It is one predicate with three effects. <strong>One:</strong> it stops a row from matching itself (id 1 against id 1) &mdash; <code>=</code> on email would otherwise pair every row with itself. <strong>Two:</strong> it de-duplicates the pair &mdash; without it you would get both (1,3) <em>and</em> (3,5)... rather, both (1,3) and (3,1), the same duplicate reported twice in mirror order. <strong>Three:</strong> it imposes a canonical orientation, so downstream logic can treat the lower id as the "keep" row and the higher as the "merge". A naive <code>a.id &lt;&gt; b.id</code> fixes only the first job and leaves the mirror duplicates.</p>
+
+<h5>The combinatorial blow-up on large duplicate groups</h5>
+<p>A group of <em>k</em> identical emails produces <em>k(k&minus;1)/2</em> pair rows. Three duplicates &rarr; 3 rows; ten duplicates &rarr; 45; a thousand &rarr; ~500,000. If the goal is just to <em>find</em> duplicated emails rather than enumerate every pair, <code>GROUP BY</code> is dramatically cheaper and does not explode:</p>
+<pre><code>SELECT email, COUNT(*) AS dup_count, MIN(id) AS keep_id
+FROM records
+GROUP BY email
+HAVING COUNT(*) &gt; 1;</code></pre>
+<p>This returns one row per duplicated email &mdash; <code>a@x.com</code> (3), <code>b@x.com</code> (2) &mdash; and scales linearly. Reach for the self-join only when you genuinely need the pairwise mapping.</p>
+
+<h5>The NULL-email trap</h5>
+<p>If two rows both have <code>email = NULL</code>, the join condition <code>a.email = b.email</code> evaluates to <em>unknown</em>, not true &mdash; NULL never equals NULL in SQL. So rows with a missing email are silently never flagged as duplicates, even of each other. If a missing email should itself be a data-quality flag, handle it separately; do not assume the self-join caught it. (<code>IS NOT DISTINCT FROM</code> would treat two NULLs as equal &mdash; rarely what you want for identity matching.)</p>
+
+<h5>Multi-column duplicate definition</h5>
+<p>"Duplicate" is rarely just email. Often it is email <em>or</em> phone, or normalised name plus date of birth. Extend the join condition deliberately &mdash; and beware that <code>OR</code> across columns can both explode the row count and match unintended pairs:</p>
+<pre><code>JOIN records b
+  ON a.id &lt; b.id
+ AND (lower(a.email) = lower(b.email) OR a.phone = b.phone)</code></pre>
+<p>Note <code>lower()</code> &mdash; <code>Ada@X.com</code> and <code>ada@x.com</code> are the same person; raw equality misses case-variant duplicates. Real de-dup almost always normalises (trim, lowercase, strip phone formatting) before comparing.</p>
+
+<h5>From detection to resolution</h5>
+<p>Finding duplicates is step one; the interviewer often asks "now keep one". The canonical-id idea from the self-join carries over: keep <code>MIN(id)</code> per email, delete the rest. <code>ctid</code>-based or <code>ROW_NUMBER</code>-based deletes are the usual patterns &mdash; <code>DELETE FROM records a USING records b WHERE a.email = b.email AND a.id &gt; b.id</code> removes every non-minimal duplicate in one statement.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>a.id &lt; b.id</code> simultaneously blocks self-matches, kills mirror duplicates, and sets a canonical orientation; quantify the <em>k(k&minus;1)/2</em> blow-up and prefer <code>GROUP BY ... HAVING COUNT(*) &gt; 1</code> for pure detection; flag that NULL emails dodge the join; and normalise (lowercase, trim) before comparing.</div>

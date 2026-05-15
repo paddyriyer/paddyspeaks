@@ -1,0 +1,67 @@
+<p>PayPal's billing team sometimes applies a <em>retroactive</em> discount &mdash; a credit negotiated after an order was placed, stored in a separate <code>retro</code> table. Finance needs each order's true final total: original price, minus the discount at checkout, minus any retro credit. The interviewer is watching one thing: do you use the right join so that orders <em>without</em> a retro credit are not silently dropped?</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>orders</code></strong></p>
+<table>
+  <thead><tr><th>order_id</th><th>original_total</th><th>discount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>200</td><td>20</td></tr>
+    <tr><td>2</td><td>150</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td>300</td><td>30</td></tr>
+    <tr><td>4</td><td>100</td><td>10</td></tr>
+  </tbody>
+</table>
+<p><strong><code>retro</code></strong></p>
+<table>
+  <thead><tr><th>order_id</th><th>retro_discount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>15</td></tr>
+    <tr><td>3</td><td>25</td></tr>
+  </tbody>
+</table>
+<p>Only orders 1 and 3 ever got a retro credit. Order 2's checkout <code>discount</code> is <strong>NULL</strong> &mdash; no discount applied. Orders 2 and 4 have <em>no</em> matching <code>retro</code> row. Those two facts &mdash; a NULL discount and a missing retro match &mdash; are the interview.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> + <code>COALESCE</code></h4>
+<pre><code>SELECT o.order_id,
+  o.original_total
+  - COALESCE(o.discount, 0)
+  - COALESCE(r.retro_discount, 0) AS final_total
+FROM orders o
+LEFT JOIN retro r ON o.order_id = r.order_id;</code></pre>
+<p>A <code>LEFT JOIN</code> keeps every order; <code>COALESCE(&hellip;, 0)</code> turns both a NULL <code>discount</code> and a NULL (unmatched) <code>retro_discount</code> into 0 so the subtraction always produces a number.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>final_total</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>165</td></tr>
+    <tr><td>2</td><td>150</td></tr>
+    <tr><td>3</td><td>245</td></tr>
+    <tr><td>4</td><td>90</td></tr>
+  </tbody>
+</table>
+<p>All four orders survive. Order 1: 200 &minus; 20 &minus; 15 = 165. Order 3: 300 &minus; 30 &minus; 25 = 245. Order 2 keeps its full 150 &mdash; NULL discount coalesced to 0, no retro row. Order 4: 100 &minus; 10 &minus; 0 = 90. Every order is accounted for, which is exactly what finance needs from a revenue figure.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>LEFT JOIN</code>, not <code>INNER JOIN</code> &mdash; the silent-revenue-loss trap</h5>
+<p>This is the heart of the question. An <code>INNER JOIN</code> returns only rows with a match in <em>both</em> tables &mdash; so orders 2 and 4, which have no <code>retro</code> entry, would <strong>vanish entirely</strong>. The finance report would be missing two orders and understate total revenue, with no error to warn you. The <code>retro</code> table is an optional supplement, so the order table must be the preserved (left) side. Picking the join type is the senior decision here, not the arithmetic.</p>
+
+<h5>Why <code>COALESCE</code> on <code>retro_discount</code> is mandatory</h5>
+<p>For an unmatched order, the <code>LEFT JOIN</code> fills <code>r.retro_discount</code> with <code>NULL</code>. And in SQL, <strong>any arithmetic involving NULL yields NULL</strong>: <code>100 - 10 - NULL = NULL</code>. Without <code>COALESCE</code>, orders 2 and 4 would not disappear &mdash; worse, they would show <code>final_total = NULL</code>, a poisoned number that breaks every downstream <code>SUM</code>. <code>COALESCE(r.retro_discount, 0)</code> makes "no retro credit" mean "subtract zero", which is correct.</p>
+
+<h5>The duplicate-retro edge case &mdash; row fan-out</h5>
+<p>The query assumes <em>at most one</em> retro row per order. If <code>retro</code> can hold two credits for the same <code>order_id</code>, the <code>LEFT JOIN</code> fans out: that order appears twice, and a downstream <code>SUM(final_total)</code> double-counts its <code>original_total</code>. The robust pattern pre-aggregates the supplement before joining:</p>
+<pre><code>LEFT JOIN (
+  SELECT order_id, SUM(retro_discount) AS retro_discount
+  FROM retro GROUP BY order_id
+) r ON o.order_id = r.order_id</code></pre>
+<p>Now each order matches exactly one summed row. Ask the interviewer whether <code>retro</code> is one-row-per-order or a log of credits &mdash; the answer changes the query.</p>
+
+<h5>The negative-total edge case</h5>
+<p>Nothing stops the discounts from exceeding <code>original_total</code> &mdash; a generous retro credit on a cheap order could push <code>final_total</code> negative. Is that a refund the customer is owed, or a data error to clamp at zero with <code>GREATEST(&hellip;, 0)</code>? Surface it; do not let an unexpected negative quietly enter the ledger.</p>
+
+<h5>The schema's redundant columns</h5>
+<p><code>orders</code> ships both <code>original_total</code> and <code>amount</code>. They are probably pre- and post-discount snapshots that have drifted. Do not assume which is which &mdash; confirm whether <code>amount</code> already reflects the checkout discount, because if it does, subtracting <code>discount</code> again double-discounts the order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose <code>LEFT JOIN</code> so orders with no retro credit are kept rather than silently dropped by an <code>INNER JOIN</code>, wrap every nullable term in <code>COALESCE(&hellip;, 0)</code> because NULL arithmetic poisons the total, pre-aggregate <code>retro</code> if it can have multiple rows per order, and flag negative totals and the <code>original_total</code>/<code>amount</code> ambiguity.</div>

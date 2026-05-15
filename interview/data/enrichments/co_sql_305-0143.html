@@ -1,0 +1,70 @@
+<p>Activision Blizzard's people-analytics team wants the <em>median</em> salary for every job title, not the average &mdash; a handful of staff-level outliers drag the mean up and make every band look healthier than it is. Median has no built-in aggregate in standard SQL, so the candidate has to build it by hand from row numbers. That hand-rolled arithmetic is exactly where this question bites: the offset formula has to pick the middle row for odd-sized groups and the two middle rows for even-sized ones, and getting that boundary wrong is silent &mdash; the query still returns a number.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>job_title</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Engineer</td><td>$100,000</td></tr>
+    <tr><td>2</td><td>Engineer</td><td>$120,000</td></tr>
+    <tr><td>3</td><td>Engineer</td><td>$140,000</td></tr>
+    <tr><td>4</td><td>Engineer</td><td>$160,000</td></tr>
+    <tr><td>5</td><td>Analyst</td><td>$80,000</td></tr>
+    <tr><td>6</td><td>Analyst</td><td>$90,000</td></tr>
+    <tr><td>7</td><td>Analyst</td><td>$110,000</td></tr>
+    <tr><td>8</td><td>Manager</td><td>$200,000</td></tr>
+  </tbody>
+</table>
+<p>Three deliberately different group sizes: <strong>Engineer has 4</strong> (even &mdash; median is the mean of the two middle values), <strong>Analyst has 3</strong> (odd &mdash; median is the single middle value, $90K), and <strong>Manager has 1</strong> (the median is just that one salary). The odd group is the trap.</p>
+
+<h4>2. The SQL &mdash; <code>corrected median offsets</code></h4>
+<pre><code>WITH ranked AS (
+  SELECT job_title, salary,
+    ROW_NUMBER() OVER (PARTITION BY job_title ORDER BY salary) AS rn,
+    COUNT(*)    OVER (PARTITION BY job_title)                  AS n
+  FROM employees
+)
+SELECT job_title, AVG(salary) AS median_salary
+FROM ranked
+WHERE rn IN ((n+1)/2, (n+2)/2)
+GROUP BY job_title
+ORDER BY job_title;</code></pre>
+<p>The reference solution shipped a different predicate &mdash; <code>rn IN (n/2, n/2 + 1, (n+1)/2)</code> &mdash; and it is wrong for odd-sized groups (see the trap below). The corrected predicate above uses the two classic median offsets and, with integer division, collapses to a single row when <code>n</code> is odd.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>job_title</th><th>median_salary</th></tr></thead>
+  <tbody>
+    <tr><td>Analyst</td><td>90000.000000000000</td></tr>
+    <tr><td>Engineer</td><td>130000.000000000000</td></tr>
+    <tr><td>Manager</td><td>200000.000000000000</td></tr>
+  </tbody>
+</table>
+<p>Engineer = AVG(120K, 140K) = 130K. Analyst = the lone middle value, 90K. Manager = its single salary, 200K. Cross-checked against <code>percentile_cont(0.5)</code>, all three match exactly.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug in the reference predicate</h5>
+<p>The shipped predicate <code>rn IN (n/2, n/2 + 1, (n+1)/2)</code> looks plausible but mishandles odd groups. With integer division, for Analyst <code>n = 3</code>: <code>n/2 = 1</code>, <code>n/2+1 = 2</code>, <code>(n+1)/2 = 2</code> &mdash; the set is <code>{1, 2}</code>. It selects rows 1 <em>and</em> 2 (salaries 80K and 90K), averaging to <strong>85K</strong>. The real median of {80K, 90K, 110K} is the middle value, <strong>90K</strong>. For even groups it happens to land right (Engineer's set is <code>{2, 3}</code>), so the error hides until an odd-sized title appears. The correct predicate is just the two median offsets:</p>
+<pre><code>WHERE rn IN ((n+1)/2, (n+2)/2)
+-- odd  n=3:  (4/2, 5/2) = (2, 2) -> one row,  the middle
+-- even n=4:  (5/2, 6/2) = (2, 3) -> two rows, both middles</code></pre>
+<p>The same offsets are the standard hand-rolled median; integer truncation does the odd/even branching for free.</p>
+
+<h5>The one-line answer &mdash; <code>percentile_cont</code></h5>
+<p>Postgres ships an ordered-set aggregate that <em>is</em> the median, interpolation and all:</p>
+<pre><code>SELECT job_title,
+       percentile_cont(0.5) WITHIN GROUP (ORDER BY salary) AS median_salary
+FROM employees
+GROUP BY job_title;</code></pre>
+<p>Mention this first &mdash; it is shorter, correct by construction, and signals you know the modern toolset. The window-function version still matters because many interviewers ask you to build median <em>without</em> the aggregate, and engines like MySQL &lt; 8 lack it.</p>
+
+<h5><code>percentile_cont</code> vs <code>percentile_disc</code></h5>
+<p>For even groups they differ. <code>percentile_cont</code> <em>interpolates</em> &mdash; Engineer returns 130K, the mean of 120K and 140K, matching <code>AVG</code> of the two middle rows. <code>percentile_disc</code> returns an <em>actual</em> data value &mdash; it would return 120K, the lower middle. The hand-rolled <code>AVG</code> approach matches <code>percentile_cont</code>. State which definition the business wants for even-sized bands.</p>
+
+<h5>Ties at the median</h5>
+<p>If two Analysts both earned 90K, <code>ROW_NUMBER</code> still assigns them distinct <code>rn</code> values, so the offset arithmetic is unaffected &mdash; the median is still 90K. That robustness is why <code>ROW_NUMBER</code> is the right window function here, not <code>RANK</code>: <code>RANK</code> would give tied rows the same number and break the "pick row k" logic.</p>
+
+<h5>NULL salaries</h5>
+<p>A NULL salary still gets a <code>ROW_NUMBER</code> and is counted by <code>COUNT(*)</code>, so it inflates <code>n</code> and shifts the median offset &mdash; a phantom employee skewing the band. <code>ORDER BY salary</code> sorts NULLs last by default, so they typically land outside the middle, but the count is still wrong. Filter explicitly with <code>WHERE salary IS NOT NULL</code> in the CTE before ranking.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> catch that the reference offset formula double-counts on odd-sized groups, fix it to the two standard median offsets <code>(n+1)/2, (n+2)/2</code>, reach first for <code>percentile_cont(0.5) WITHIN GROUP</code>, and distinguish <code>cont</code> (interpolated) from <code>disc</code> (actual value) while pre-empting the NULL-salary count skew.</div>

@@ -1,0 +1,72 @@
+<p>OpenAI's revenue team wants to know which customer segment actually <em>makes money</em>, not which one books the most revenue. A segment can post huge top-line numbers and still lose money once cost of delivery is netted out. The query is a join and a sum &mdash; but the interviewer is watching whether you net revenue against cost per order, and whether you notice that an inner join quietly drops every customer who has never ordered.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>segment</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Enterprise</td></tr>
+    <tr><td>2</td><td>Enterprise</td></tr>
+    <tr><td>3</td><td>SMB</td></tr>
+    <tr><td>4</td><td>Consumer</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>revenue</th><th>cost</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>1</td><td>1000</td><td>400</td></tr>
+    <tr><td>11</td><td>1</td><td>500</td><td>300</td></tr>
+    <tr><td>12</td><td>2</td><td>2000</td><td>900</td></tr>
+    <tr><td>13</td><td>3</td><td>300</td><td>250</td></tr>
+    <tr><td>14</td><td>3</td><td>400</td><td>200</td></tr>
+    <tr><td>15</td><td>4</td><td>150</td><td>120</td></tr>
+  </tbody>
+</table>
+<p>SMB books 700 in revenue but its margins are thin (50 + 200 profit). Consumer barely clears (30 profit). The Enterprise segment carries the business. The arithmetic per <em>order</em> is the point: aggregating revenue and cost separately would also work, but netting per-row keeps the intent obvious.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(revenue - cost) per segment</code></h4>
+<pre><code>SELECT c.segment, SUM(o.revenue - o.cost) AS profit
+FROM customers c JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.segment
+ORDER BY profit DESC;</code></pre>
+<p>Join each order to its customer to pick up <code>segment</code>, compute per-order margin, sum within segment, rank descending.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>segment</th><th>profit</th></tr></thead>
+  <tbody>
+    <tr><td>Enterprise</td><td>1900</td></tr>
+    <tr><td>SMB</td><td>250</td></tr>
+    <tr><td>Consumer</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Enterprise nets 1900 ((1000&minus;400) + (500&minus;300) + (2000&minus;900)). SMB nets 250 on 700 revenue &mdash; a 36% margin. Consumer nets 30. The ordering by profit, not revenue, is what the question asked for and what makes the answer actionable.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>SUM(revenue - cost)</code> vs <code>SUM(revenue) - SUM(cost)</code></h5>
+<p>Both are algebraically identical &mdash; summation distributes over subtraction &mdash; and both give 1900 / 250 / 30 here. The per-row form reads as "profit per order, then totalled"; the split form reads as "total revenue minus total cost". The one caveat: if a row has a NULL <code>cost</code>, <code>revenue - cost</code> is NULL and that whole order is dropped from the sum, whereas <code>SUM(revenue) - SUM(cost)</code> keeps the revenue and ignores only the NULL cost. They diverge precisely on NULLs &mdash; decide which behaviour you want and use <code>COALESCE(cost, 0)</code> to make it explicit.</p>
+
+<h5>The inner join drops customers with zero orders</h5>
+<p>Customer 4 has one order here, but imagine a fifth customer in a "Startup" segment who has never purchased. <code>JOIN</code> emits no row for them, so the Startup segment vanishes from the report entirely &mdash; not shown as zero profit, just absent. If the deck must show every segment, switch to <code>LEFT JOIN</code> and coalesce:</p>
+<pre><code>SELECT c.segment, COALESCE(SUM(o.revenue - o.cost), 0) AS profit
+FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.segment
+ORDER BY profit DESC;</code></pre>
+<p>Without the <code>COALESCE</code>, a segment with no orders shows <code>profit = NULL</code>, which sorts unpredictably and looks broken on a dashboard.</p>
+
+<h5>The order-status trap</h5>
+<p>The <code>orders</code> table carries a <code>status</code> column. Cancelled or refunded orders may still have <code>revenue</code> and <code>cost</code> populated, so they are silently inflating &mdash; or deflating &mdash; segment profit. Almost always profitability should count only realised orders: <code>WHERE o.status = 'completed'</code>. Confirm the definition before trusting the number.</p>
+
+<h5>The <code>revenue</code> vs <code>amount</code> ambiguity</h5>
+<p>The <code>orders</code> schema ships both <code>revenue</code> and <code>amount</code>. They are likely near-duplicates that have drifted &mdash; one gross, one net of discount; one with tax, one without. The solution uses <code>revenue</code>; that is probably right for a profit calculation, but say so and confirm which column the finance team treats as the source of truth.</p>
+
+<h5>Margin percentage, not just absolute profit</h5>
+<p>Expect the follow-up "which segment is most <em>efficient</em>?" Absolute profit favours big segments; margin reveals quality:</p>
+<pre><code>SELECT c.segment,
+       SUM(o.revenue - o.cost) AS profit,
+       ROUND(SUM(o.revenue - o.cost) * 100.0 / NULLIF(SUM(o.revenue), 0), 1) AS margin_pct
+FROM customers c JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.segment;</code></pre>
+<p><code>NULLIF(SUM(o.revenue), 0)</code> guards against divide-by-zero for a segment with zero revenue.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> net revenue against cost rather than ranking on top-line, know that <code>SUM(a-b)</code> and <code>SUM(a)-SUM(b)</code> diverge only on NULLs, switch to <code>LEFT JOIN</code> + <code>COALESCE</code> when every segment must appear, apply the <code>status = 'completed'</code> filter, and offer margin percentage as the efficiency view.</div>

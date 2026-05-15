@@ -1,0 +1,61 @@
+<p>Spotify keeps active and churned listeners in two separate tables, and the lifecycle team wants one unified roster tagged with each user's state. It is a classic <code>UNION</code> &mdash; but the interviewer is watching whether you pick <code>UNION</code> or <code>UNION ALL</code> on purpose, and whether you have thought about a user who appears in both tables.</p>
+
+<h4>1. The source data &mdash; <code>active_users</code> and <code>inactive_users</code></h4>
+<table>
+  <thead><tr><th>active_users.user_id</th><th> </th><th>inactive_users.user_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td> </td><td>4</td></tr>
+    <tr><td>2</td><td> </td><td>5</td></tr>
+    <tr><td>3</td><td> </td><td>2</td></tr>
+    <tr><td>3</td><td> </td><td> </td></tr>
+  </tbody>
+</table>
+<p>Two things are deliberate. <code>active_users</code> lists user <strong>3 twice</strong> (a duplicate row). And user <strong>2 appears in both tables</strong> &mdash; active <em>and</em> inactive &mdash; which is the data-quality landmine the interviewer planted.</p>
+
+<h4>2. The SQL &mdash; <code>UNION</code></h4>
+<pre><code>SELECT user_id, 'active' AS status FROM active_users
+UNION
+SELECT user_id, 'inactive' FROM inactive_users;</code></pre>
+<p><code>UNION</code> stacks the two result sets and then removes duplicate rows across the whole combined set. The literal columns <code>'active'</code> and <code>'inactive'</code> tag which table each row came from.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>inactive</td></tr>
+    <tr><td>4</td><td>inactive</td></tr>
+    <tr><td>3</td><td>active</td></tr>
+    <tr><td>2</td><td>inactive</td></tr>
+    <tr><td>1</td><td>active</td></tr>
+    <tr><td>2</td><td>active</td></tr>
+  </tbody>
+</table>
+<p>The duplicate <code>(3, 'active')</code> from <code>active_users</code> collapsed to one row &mdash; that is <code>UNION</code> de-duplicating. But user <strong>2 appears twice</strong>: once as <code>active</code>, once as <code>inactive</code>. The rows are <em>not</em> duplicates &mdash; the <code>status</code> column differs &mdash; so <code>UNION</code> keeps both. The roster now contradicts itself, and that is the whole interview.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>UNION</code> vs <code>UNION ALL</code> &mdash; know the cost</h5>
+<p><code>UNION</code> runs a global <code>DISTINCT</code> over the combined output &mdash; a sort or hash across every row. <code>UNION ALL</code> just concatenates, no de-dup, far cheaper. Here, because each branch tags a different <code>status</code> literal, no row from branch A can ever equal a row from branch B, so the de-dup pass <em>cannot remove anything across branches</em> &mdash; it only collapsed the within-table duplicate <code>(3, 'active')</code>. If the source tables are already clean, <code>UNION ALL</code> gives the identical answer for less work:</p>
+<pre><code>SELECT user_id, 'active' AS status FROM active_users
+UNION ALL
+SELECT user_id, 'inactive' FROM inactive_users;</code></pre>
+<p>Default to <code>UNION ALL</code> and only pay for <code>UNION</code> when you genuinely need duplicate removal. Saying that out loud is the senior signal.</p>
+
+<h5>The real bug: a user in both tables</h5>
+<p>User 2 being both active and inactive is a <em>source-data</em> contradiction that <code>UNION</code> faithfully reproduces &mdash; it cannot fix what the inputs got wrong. Surface it and ask the product question: should the tables be mutually exclusive? If so, decide a precedence rule. "Active wins" is expressible cleanly:</p>
+<pre><code>SELECT user_id, 'active' AS status FROM active_users
+UNION
+SELECT user_id, 'inactive' FROM inactive_users i
+WHERE i.user_id NOT IN (SELECT user_id FROM active_users);</code></pre>
+<p>Now user 2 resolves to a single <code>active</code> row. A senior answer flags the contradiction <em>before</em> shipping the roster.</p>
+
+<h5>Column matching is positional, not by name</h5>
+<p>The two <code>SELECT</code> lists are matched by <em>position</em>: column 1 to column 1, column 2 to column 2. The names <code>'active'</code> / <code>'inactive'</code> and even the <code>AS status</code> alias on only the first branch are irrelevant to the pairing &mdash; the result takes its column names from the <em>first</em> query. Swap the order of columns in one branch and you would silently union <code>user_id</code> against a status string, which is a type error or, worse, a logic error.</p>
+
+<h5>Type coercion across branches</h5>
+<p>Corresponding columns must have compatible types; Postgres coerces to a common type if it can. <code>'active'</code> and <code>'inactive'</code> are both <code>text</code>, fine. But if one branch produced an <code>integer</code> status code and the other a string, the union would fail or coerce unexpectedly. Keep the tag columns the same type on both sides.</p>
+
+<h5>NULL handling &mdash; NULLs are equal for <code>UNION</code></h5>
+<p>If both tables held a row with a <code>NULL</code> <code>user_id</code>, <code>UNION</code> treats the two NULL rows as duplicates and keeps one &mdash; unlike <code>=</code>, set operations consider <code>NULL = NULL</code> true. Usually fine, but if a NULL <code>user_id</code> is itself a data error, filter it (<code>WHERE user_id IS NOT NULL</code>) rather than letting it ride into the roster.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> default to <code>UNION ALL</code> and justify <code>UNION</code> only when real duplicate removal is needed, recognise that the <code>status</code> literal makes cross-branch duplicates impossible anyway, and flag the user-in-both-tables contradiction with an explicit precedence rule instead of shipping a self-contradictory roster.</div>

@@ -1,0 +1,64 @@
+<p>TikTok's growth analysts want to roll orders up by month for cohort charts, so they need year and month pulled out of <code>order_date</code> as plain integers. It is a one-liner &mdash; but "extract the month" hides a choice between half a dozen functions, and the interviewer wants to know you picked one deliberately and know what type it returns.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>customer_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-05</td><td>101</td><td>completed</td></tr>
+    <tr><td>2</td><td>2024-03-22</td><td>102</td><td>completed</td></tr>
+    <tr><td>3</td><td>2024-12-31</td><td>103</td><td>pending</td></tr>
+    <tr><td>4</td><td>2025-02-14</td><td>104</td><td>completed</td></tr>
+    <tr><td>5</td><td>2025-11-09</td><td>105</td><td>cancelled</td></tr>
+  </tbody>
+</table>
+<p>Order 3 lands on <strong>2024-12-31</strong> &mdash; the last day of the year. That edge case checks that the split returns month <code>12</code>, year <code>2024</code>, and does not roll the year forward.</p>
+
+<h4>2. The SQL &mdash; <code>TO_CHAR</code> then cast to integer</h4>
+<pre><code>SELECT order_id,
+       CAST(TO_CHAR(order_date, 'YYYY') AS INTEGER) AS yr,
+       CAST(TO_CHAR(order_date, 'MM') AS INTEGER) AS mo
+FROM orders;</code></pre>
+<p><code>TO_CHAR</code> formats the date as text using a pattern, then <code>CAST(&hellip; AS INTEGER)</code> turns <code>'2024'</code> and <code>'01'</code> back into numbers. The <code>MM</code> pattern is zero-padded, but the cast strips the leading zero so January becomes <code>1</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>yr</th><th>mo</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024</td><td>1</td></tr>
+    <tr><td>2</td><td>2024</td><td>3</td></tr>
+    <tr><td>3</td><td>2024</td><td>12</td></tr>
+    <tr><td>4</td><td>2025</td><td>2</td></tr>
+    <tr><td>5</td><td>2025</td><td>11</td></tr>
+  </tbody>
+</table>
+<p>Order 3 splits cleanly into <code>yr = 2024</code>, <code>mo = 12</code> &mdash; the year-end date does not bleed into 2025. And <code>yr</code>/<code>mo</code> come back as real integers, so they sort and group numerically (month 2 before month 11), not as strings where <code>'11'</code> would sort before <code>'2'</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The idiomatic Postgres way is <code>EXTRACT</code></h5>
+<p><code>TO_CHAR(&hellip;)</code>-then-cast works, but it round-trips through text needlessly. <code>EXTRACT</code> pulls a numeric field straight out of the date:</p>
+<pre><code>SELECT order_id,
+       EXTRACT(YEAR  FROM order_date)::int AS yr,
+       EXTRACT(MONTH FROM order_date)::int AS mo
+FROM orders;</code></pre>
+<p><code>EXTRACT</code> returns <code>numeric</code> in modern Postgres, so the <code>::int</code> cast keeps the column a clean integer. Same result, no string detour. Mentioning both and explaining the trade-off is the senior move.</p>
+
+<h5>The "month sorts as text" trap</h5>
+<p>If you skip the cast and select <code>TO_CHAR(order_date, 'MM')</code> directly, <code>mo</code> is <em>text</em>. Then <code>ORDER BY mo</code> sorts lexically: <code>'01', '02', '10', '11', '12', '03'</code> &hellip; actually <code>'1' &lt; '10' &lt; '11' &lt; '12' &lt; '2'</code>. Charts come out in nonsense order. The explicit <code>CAST(&hellip; AS INTEGER)</code> is what makes downstream <code>GROUP BY</code>/<code>ORDER BY</code> behave.</p>
+
+<h5>A month number alone is ambiguous &mdash; you usually want a month <em>bucket</em></h5>
+<p>Splitting into <code>yr</code> and <code>mo</code> means January 2024 and January 2025 both have <code>mo = 1</code>. For a true monthly time series you want a single sortable key. <code>DATE_TRUNC</code> gives one:</p>
+<pre><code>SELECT DATE_TRUNC('month', order_date) AS month_bucket,
+       COUNT(*) AS orders
+FROM orders
+GROUP BY 1
+ORDER BY 1;</code></pre>
+<p><code>DATE_TRUNC('month', '2024-12-31')</code> returns <code>2024-12-01</code> &mdash; one timestamp per month, naturally ordered, no two-column join key needed.</p>
+
+<h5>Dialect note &mdash; this is not portable as written</h5>
+<p>Functions for date parts differ sharply across engines. MySQL uses <code>YEAR(order_date)</code> and <code>MONTH(order_date)</code>; SQL Server uses <code>DATEPART(year, order_date)</code>; BigQuery uses <code>EXTRACT(YEAR FROM order_date)</code> like Postgres. <code>TO_CHAR</code> exists in Postgres and Oracle but not MySQL. Name the target engine before reaching for a date function.</p>
+
+<h5>Edge cases: NULL dates and time zones</h5>
+<p>A <code>NULL</code> <code>order_date</code> yields <code>NULL</code> for both <code>yr</code> and <code>mo</code> &mdash; harmless, but those rows then form a NULL group in any roll-up. And if <code>order_date</code> were a <code>timestamptz</code>, the extracted month depends on the session time zone: an order at <code>2024-12-31 23:00 UTC</code> is January in <code>UTC+02</code>. Pin the zone with <code>AT TIME ZONE</code> when the boundary matters.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>EXTRACT</code> over a <code>TO_CHAR</code> text round-trip, always cast month/year to integer so they sort numerically, suggest <code>DATE_TRUNC</code> when the real need is a monthly bucket, and flag the dialect differences and the time-zone dependency for <code>timestamptz</code> columns.</div>

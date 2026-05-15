@@ -1,0 +1,57 @@
+<p>Qualcomm's finance team keeps quarterly revenue in a long, tall table &mdash; one row per quarter &mdash; but the board deck wants it <em>wide</em>: one row per year with Q1&hellip;Q4 as columns. This is the classic <strong>pivot</strong>, and the interviewer is watching whether you reach for conditional aggregation cleanly, and whether you know what happens to a quarter that simply has no data.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>year</th><th>quarter</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2023</td><td>Q1</td><td>100</td></tr>
+    <tr><td>2023</td><td>Q2</td><td>150</td></tr>
+    <tr><td>2023</td><td>Q3</td><td>200</td></tr>
+    <tr><td>2023</td><td>Q4</td><td>250</td></tr>
+    <tr><td>2024</td><td>Q1</td><td>300</td></tr>
+    <tr><td>2024</td><td>Q2</td><td>350</td></tr>
+    <tr><td>2024</td><td>Q4</td><td>400</td></tr>
+  </tbody>
+</table>
+<p>2023 is complete, but <strong>2024 has no Q3 row at all</strong> &mdash; the quarter has not closed, or the data has not landed. That missing row is the whole interview: it decides whether the pivoted Q3 cell is <code>NULL</code> or <code>0</code>.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(CASE WHEN &hellip;)</code> pivot</h4>
+<pre><code>SELECT year,
+  SUM(CASE WHEN quarter='Q1' THEN amount END) AS q1,
+  SUM(CASE WHEN quarter='Q2' THEN amount END) AS q2,
+  SUM(CASE WHEN quarter='Q3' THEN amount END) AS q3,
+  SUM(CASE WHEN quarter='Q4' THEN amount END) AS q4
+FROM sales GROUP BY year;</code></pre>
+<p>Group by <code>year</code>, then for each quarter use a <code>CASE</code> that yields <code>amount</code> on a match and <code>NULL</code> otherwise. <code>SUM</code> collapses the four CASE columns into one row per year.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>q1</th><th>q2</th><th>q3</th><th>q4</th></tr></thead>
+  <tbody>
+    <tr><td>2023</td><td>100</td><td>150</td><td>200</td><td>250</td></tr>
+    <tr><td>2024</td><td>300</td><td>350</td><td><em>NULL</em></td><td>400</td></tr>
+  </tbody>
+</table>
+<p>Two years, four quarter columns. 2024's <code>q3</code> comes back <strong>NULL</strong>, not 0: there was no Q3 row, so every <code>CASE</code> for that year produced <code>NULL</code>, and <code>SUM</code> over an all-NULL set is itself <code>NULL</code>. Whether that is right depends on what "no data" means to the business.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>NULL</code>-vs-0 decision &mdash; the question behind the question</h5>
+<p>A missing quarter could mean "we genuinely sold nothing" (then 0 is right) or "the data has not arrived yet" (then NULL is honest). <code>SUM(CASE&hellip;)</code> gives you NULL by default; force a 0 with <code>COALESCE</code> only if the business says so:</p>
+<pre><code>SUM(CASE WHEN quarter='Q3' THEN amount ELSE 0 END) AS q3
+-- now an empty quarter shows 0, indistinguishable from a real zero-sales quarter</code></pre>
+<p>The senior move is to flag the ambiguity, not to silently pick one. A NULL that means "unknown" is information; a 0 that hides it is a bug waiting to mislead the board.</p>
+
+<h5>The <code>ELSE</code> clause is doing nothing here &mdash; on purpose</h5>
+<p><code>CASE WHEN quarter='Q1' THEN amount END</code> has no <code>ELSE</code>, so non-Q1 rows yield <code>NULL</code>. That is exactly what you want inside <code>SUM</code>: NULLs are skipped, so only the true Q1 rows are added. Writing <code>ELSE 0</code> instead would still give the same total (adding zeros changes nothing) &mdash; but it changes the <em>empty-group</em> behaviour above. Know which one you are choosing.</p>
+
+<h5>Postgres has a native crosstab</h5>
+<p>The <code>tablefunc</code> extension offers <code>crosstab()</code>, and other dialects have <code>PIVOT</code> (SQL Server, Oracle). They are terser but rigid &mdash; the column list is fixed and the syntax is engine-specific. Conditional aggregation is portable and readable, and it composes with other aggregates. For an interview, <code>SUM(CASE&hellip;)</code> is the answer that travels.</p>
+
+<h5>Dynamic columns &mdash; when the quarters are not known in advance</h5>
+<p>This works because we <em>know</em> the four quarters. If the pivot columns were, say, an open-ended set of product codes, no single static query can produce them &mdash; SQL's result shape is fixed at parse time. That needs dynamic SQL: query the distinct values, build the <code>CASE</code> list as a string, execute it. Saying this out loud shows you understand the limit of the pattern.</p>
+
+<h5>Duplicate rows per quarter</h5>
+<p>If <code>sales</code> can hold more than one row for the same (year, quarter) &mdash; say one per region &mdash; the <code>SUM</code> correctly adds them. Had you reached for <code>MAX(CASE&hellip;)</code> instead (a common pivot variant), you would silently drop all but the largest. <code>SUM</code> is the safe aggregate when a year/quarter cell represents a total.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> write the pivot as <code>SUM(CASE WHEN&hellip;)</code>, explain that a missing quarter yields <code>NULL</code> not 0 and decide that on purpose with <code>COALESCE</code>, prefer portable conditional aggregation over engine-specific <code>PIVOT</code>/<code>crosstab</code>, and note that an unknown set of pivot columns requires dynamic SQL.</div>

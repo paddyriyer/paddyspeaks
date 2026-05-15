@@ -1,0 +1,57 @@
+<p>Citi's supply-chain analytics group runs a nightly replenishment check: which products have fallen to or below their reorder point and need a purchase order raised. The logic is a single comparison, but the reference solution wraps both columns in regex-scrubbing because the inventory feed delivers quantities as untrusted text &mdash; and the comparison must be numeric, not lexical.</p>
+
+<h4>1. The source data &mdash; <code>inventory</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>qty_on_hand</th><th>reorder_point</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>5</td><td>10</td></tr>
+    <tr><td>2</td><td>20</td><td>10</td></tr>
+    <tr><td>3</td><td>10</td><td>10</td></tr>
+    <tr><td>4</td><td>0</td><td>5</td></tr>
+    <tr><td>5</td><td>15</td><td>12</td></tr>
+  </tbody>
+</table>
+<p>Product 3 sits <em>exactly</em> at its reorder point (10 = 10) &mdash; the boundary case that decides whether the comparison is <code>&lt;</code> or <code>&lt;=</code>. Product 4 is fully depleted. Products 2 and 5 are comfortably stocked. The quantities are stored as text, which is the trap.</p>
+
+<h4>2. The SQL &mdash; numeric comparison after scrubbing</h4>
+<pre><code>SELECT product_id FROM inventory
+WHERE NULLIF(regexp_replace(qty_on_hand::text, '[^-.0-9]', '', 'g'), '')::numeric
+   &lt;= NULLIF(regexp_replace(reorder_point::text, '[^-.0-9]', '', 'g'), '')::numeric;</code></pre>
+<p><code>regexp_replace(&hellip;, '[^-.0-9]', '', 'g')</code> strips any character that is not a digit, dot, or minus &mdash; so <code>"10 units"</code> becomes <code>"10"</code>. <code>NULLIF(&hellip;, '')</code> turns a string that scrubbed down to nothing into NULL, then <code>::numeric</code> casts to a real number for the comparison.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+<p>Three products need replenishing. Product 1 (5 &le; 10) and product 4 (0 &le; 5) are clearly low. Product 3 (<strong>10 &le; 10</strong>) is included <em>because the operator is <code>&lt;=</code></em> &mdash; "at the reorder point" counts as triggering. Products 2 and 5 have stock above their points and are excluded.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The boundary &mdash; <code>&lt;=</code> vs <code>&lt;</code> is a business decision</h5>
+<p>Product 3 appears only because the comparison is <code>&lt;=</code>. The reorder point is the level at which you <em>should</em> reorder, so "stock equal to the reorder point" almost always means "reorder now" &mdash; <code>&lt;=</code> is the right call. But it is a genuine policy choice: with <code>&lt;</code>, product 3 waits until stock drops to 9. Confirm it: "does hitting the reorder point exactly trigger a PO, or only dropping below it?" An off-by-one here means either premature orders or stockouts.</p>
+
+<h5>The string-comparison trap &mdash; why the numeric cast is essential</h5>
+<p>This is the heart of the question. If <code>qty_on_hand</code> and <code>reorder_point</code> are <em>text</em>, comparing them directly does a <strong>lexical</strong> comparison, character by character. Lexically, <code>'9' &gt; '10'</code> is true &mdash; <code>'9'</code> sorts after <code>'1'</code> &mdash; so a product with 9 units would be judged <em>above</em> a reorder point of 10 and the PO would never fire. String ordering is not numeric ordering. The <code>::numeric</code> cast forces a real arithmetic comparison: <code>9 &lt; 10</code>. Diagnosing that "text columns compared directly give wrong answers" is the senior insight this question is built around.</p>
+
+<h5>Why <code>regexp_replace</code> and the <code>NULLIF</code> guard</h5>
+<p>A bare <code>qty_on_hand::numeric</code> throws <code>invalid input syntax for type numeric</code> the moment a value contains a stray unit suffix or whitespace &mdash; and one bad row aborts the whole query. <code>regexp_replace</code> salvages the digits first. The <code>NULLIF(&hellip;, '')</code> is not optional: a value like <code>"unknown"</code> scrubs to the <em>empty string</em>, and <code>''::numeric</code> is itself an error. <code>NULLIF</code> turns that empty string into NULL, which casts cleanly. Skipping it reintroduces the very crash you were defending against.</p>
+
+<h5>The NULL outcome &mdash; a NULL-quantity product is silently excluded</h5>
+<p>If a product's <code>qty_on_hand</code> is NULL (or scrubs to NULL), the comparison <code>NULL &lt;= reorder_point</code> evaluates to <code>unknown</code>, and <code>WHERE</code> keeps only <code>true</code> rows &mdash; so that product is dropped from the replenishment list. That is dangerous: a product with <em>unknown</em> stock is arguably the one most needing attention, yet it silently disappears. Surface it instead:</p>
+<pre><code>SELECT product_id,
+  CASE WHEN qty IS NULL THEN 'Unknown stock — investigate'
+       WHEN qty &lt;= rop THEN 'Reorder'
+       ELSE 'OK' END AS status
+FROM ( ... cleaned columns ... ) c;</code></pre>
+
+<h5>If the columns are already numeric, the query collapses</h5>
+<p>The schema does not state the type. If <code>qty_on_hand</code> and <code>reorder_point</code> are proper <code>integer</code>/<code>numeric</code> columns, every scrap of regex and casting is dead weight and the query is simply:</p>
+<pre><code>SELECT product_id FROM inventory WHERE qty_on_hand &lt;= reorder_point;</code></pre>
+<p>The defensive form earns its complexity only against a dirty text feed. Stating that trade-off &mdash; and asking what the column type actually is &mdash; is the over-the-bar move.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pin down whether the trigger is <code>&lt;=</code> or <code>&lt;</code> at the reorder point, explain that comparing text columns does a lexical comparison where <code>'9' &gt; '10'</code> &mdash; so the numeric cast is correctness, not cosmetics &mdash; justify the <code>regexp_replace</code>/<code>NULLIF</code> pair as crash protection, and flag that a NULL-stock product is silently dropped when it most needs review.</div>

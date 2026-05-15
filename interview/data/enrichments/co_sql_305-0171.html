@@ -1,0 +1,58 @@
+<p>Infosys runs demand-planning for a retail client and needs to grade each period's forecast against what actually happened. The metric is <strong>absolute percentage error</strong>: how far off was the forecast, as a percentage of actual? The twist the interviewer is hunting for &mdash; the forecast and actual columns arrived as <em>messy text</em> ("1,100", "$1000"), and a zero or missing actual will blow up the division.</p>
+
+<h4>1. The source data &mdash; <code>forecasts</code></h4>
+<table>
+  <thead><tr><th>period</th><th>forecast</th><th>actual</th></tr></thead>
+  <tbody>
+    <tr><td>2024-Q1</td><td>1100</td><td>1000</td></tr>
+    <tr><td>2024-Q2</td><td>900</td><td>1000</td></tr>
+    <tr><td>2024-Q3</td><td>1000</td><td>1000</td></tr>
+    <tr><td>2024-Q4</td><td>1200</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Q1 over-forecast, Q2 under-forecast, Q3 was spot-on. <strong>Q4 has no actual yet</strong> &mdash; the quarter has not closed. Dividing by that missing actual is the trap the query must survive.</p>
+
+<h4>2. The SQL &mdash; <code>ABS(forecast &minus; actual) / actual</code></h4>
+<pre><code>SELECT period,
+  ABS(
+    NULLIF(regexp_replace(forecast::text, '[^-.0-9]', '', 'g'), '')::numeric
+  - NULLIF(regexp_replace(actual::text,   '[^-.0-9]', '', 'g'), '')::numeric
+  )
+  / NULLIF(NULLIF(regexp_replace(actual::text, '[^-.0-9]', '', 'g'), '')::numeric, 0)
+  * 100 AS error_pct
+FROM forecasts;</code></pre>
+<p>Each value is stripped to digits, sign and decimal point with <code>regexp_replace</code>, cast to <code>numeric</code>, and the absolute difference is divided by actual and scaled to a percentage. Two <code>NULLIF</code>s guard the denominator.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>period</th><th>error_pct</th></tr></thead>
+  <tbody>
+    <tr><td>2024-Q1</td><td>10.00000000000000000000</td></tr>
+    <tr><td>2024-Q2</td><td>10.00000000000000000000</td></tr>
+    <tr><td>2024-Q3</td><td>0.00000000000000000000</td></tr>
+    <tr><td>2024-Q4</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Q1 and Q2 both score 10% error &mdash; <code>ABS</code> makes a +100 miss and a &minus;100 miss look identical in magnitude. Q3's perfect forecast scores 0%. Q4 returns <strong>NULL</strong>, not a crash: with no actual, error percentage is genuinely undefined, and the query says so honestly.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The divide-by-zero defence &mdash; <code>NULLIF(&hellip;, 0)</code></h5>
+<p>The outer <code>NULLIF(actual_numeric, 0)</code> is the safety valve. If a period's actual is exactly 0 &mdash; a genuine zero-sales quarter &mdash; dividing by it would raise <code>division by zero</code> and abort the whole query. <code>NULLIF(x, 0)</code> turns a 0 denominator into <code>NULL</code>, and division by <code>NULL</code> yields <code>NULL</code>: one bad row degrades to a NULL instead of killing the report. Percentage error against a zero actual is mathematically undefined anyway, so <code>NULL</code> is the correct answer, not a workaround.</p>
+
+<h5>The two roles of <code>NULLIF</code> here &mdash; do not conflate them</h5>
+<p><code>NULLIF</code> appears three times doing two different jobs. The inner <code>NULLIF(regexp_replace(&hellip;), '')</code> handles a value that is <em>empty after cleaning</em> &mdash; a blank string, or text with no digits at all &mdash; so <code>''::numeric</code> (which would error) never happens. The outer <code>NULLIF(&hellip;, 0)</code> handles a <em>zero denominator</em>. Same function, two distinct failure modes: empty-input and divide-by-zero.</p>
+
+<h5>Why <code>regexp_replace</code> at all &mdash; and the dialect note</h5>
+<p>The columns are typed as text and may hold <code>"$1,100"</code> or <code>"1 200"</code>. <code>regexp_replace(x, '[^-.0-9]', '', 'g')</code> deletes every character that is not a digit, minus, or dot, leaving a clean numeric string. If the columns were already a numeric type, all of this scaffolding collapses to <code>ABS(forecast - actual) / NULLIF(actual,0) * 100</code> &mdash; mention that the defensive parsing is a symptom of bad upstream typing. (The <code>regexp_replace</code> here is standard Postgres; the same idea in other engines uses <code>REGEXP_REPLACE</code> with minor syntax differences.)</p>
+
+<h5>The interviewer follow-up: APE vs MAPE</h5>
+<p>This query gives per-period <em>absolute percentage error</em>. The headline accuracy metric planners actually report is <strong>MAPE</strong> &mdash; the mean of those across periods:</p>
+<pre><code>SELECT AVG(error_pct) AS mape
+FROM ( &hellip; the per-period query &hellip; ) p;</code></pre>
+<p>And <code>AVG</code> skipping the Q4 NULL is exactly right here: you cannot average in an error you could not compute. Be ready to also name <em>bias</em> &mdash; the signed mean error &mdash; which tells you if the forecast systematically over- or under-shoots, something <code>ABS</code> deliberately hides.</p>
+
+<h5>The asymmetry trap of percentage error</h5>
+<p>MAPE has a known flaw: under-forecasting is capped at 100% error, but over-forecasting is unbounded. Forecasting 2000 against an actual of 1000 is 100% error; forecasting 0 against 1000 is also 100%. This skews the metric toward penalising over-forecasts. Senior candidates mention <em>symmetric MAPE</em> or <em>WAPE</em> (weighted by volume) as the fix when the interviewer pushes on metric choice.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> guard the denominator with <code>NULLIF(actual, 0)</code> so a zero actual degrades to NULL instead of crashing, recognise the inner <code>NULLIF(&hellip;, '')</code> as a separate empty-string defence, treat the text-parsing as a code smell of bad upstream typing, and aggregate to MAPE while naming its asymmetry weakness.</div>

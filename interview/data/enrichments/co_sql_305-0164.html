@@ -1,0 +1,54 @@
+<p>Bolt's logistics team wants a cost-efficiency view of shipments &mdash; cost per kilogram &mdash; ranked cheapest first, so the network team can spot which lanes are bleeding money. It is a division plus a sort, but the interview hinges on one defensive move: a shipment with zero weight would divide by zero, and the query has to survive that.</p>
+
+<h4>1. The source data &mdash; <code>shipments</code></h4>
+<table>
+  <thead><tr><th>shipment_id</th><th>weight_kg</th><th>cost</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>100</td></tr>
+    <tr><td>2</td><td>5</td><td>200</td></tr>
+    <tr><td>3</td><td>20</td><td>100</td></tr>
+    <tr><td>4</td><td>0</td><td>50</td></tr>
+    <tr><td>5</td><td>4</td><td>40</td></tr>
+  </tbody>
+</table>
+<p>Shipment 4 has <strong>weight 0</strong> &mdash; a data-quality glitch (an unweighed parcel, or a documentation-only entry). A raw <code>cost / weight_kg</code> would throw <code>division by zero</code> and abort the whole query. That single row is the entire interview.</p>
+
+<h4>2. The SQL &mdash; <code>cost / NULLIF(weight, 0)</code></h4>
+<pre><code>SELECT shipment_id, cost / NULLIF(weight_kg,0) AS cost_per_kg
+FROM shipments ORDER BY cost_per_kg;</code></pre>
+<p><code>NULLIF(weight_kg, 0)</code> returns NULL when the weight is exactly 0, otherwise the weight unchanged. Dividing by NULL yields NULL &mdash; no error. The result is sorted ascending so the most efficient (lowest cost per kg) shipments surface first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>shipment_id</th><th>cost_per_kg</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>5.0000000000000000</td></tr>
+    <tr><td>1</td><td>10.0000000000000000</td></tr>
+    <tr><td>5</td><td>10.0000000000000000</td></tr>
+    <tr><td>2</td><td>40.0000000000000000</td></tr>
+    <tr><td>4</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Shipment 3 is the most efficient at 5/kg (100 &divide; 20); shipments 1 and 5 tie at 10/kg. Shipment 4's <code>cost_per_kg</code> is <strong>NULL</strong> &mdash; the <code>NULLIF</code> converted its undefined division into a NULL instead of crashing &mdash; and Postgres sorts NULL <em>last</em> under ascending order, so it parks harmlessly at the bottom.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The divide-by-zero trap &mdash; the whole point of the question</h5>
+<p>Without the guard, <code>cost / weight_kg</code> hits shipment 4 and raises <code>ERROR: division by zero</code> &mdash; and SQL aborts the <em>entire</em> statement, so you get no rows at all, not just a bad row. <code>NULLIF(weight_kg, 0)</code> is the idiomatic fix: it swaps the dangerous 0 for a NULL, and division by NULL is defined to produce NULL. The query degrades gracefully &mdash; one unusable row becomes NULL, the other four are fine. Recognising that a real shipments table <em>will</em> contain a zero-weight row, and defending against it unprompted, is the senior instinct.</p>
+
+<h5>NULL result vs zero result &mdash; choose deliberately</h5>
+<p><code>NULLIF</code> makes <code>cost_per_kg</code> NULL for the bad row, which honestly says "undefined" &mdash; you cannot compute efficiency for a zero-weight shipment. If the consumer needs a number instead, wrap it: <code>COALESCE(cost / NULLIF(weight_kg,0), 0)</code>. But think before you do &mdash; a 0 cost-per-kg would sort to the <em>top</em> as if it were the most efficient shipment, which is misleading. NULL-and-sort-last is usually the more honest representation. Either way, make the choice on purpose.</p>
+
+<h5>The integer-division trap</h5>
+<p>If <code>cost</code> and <code>weight_kg</code> are integer columns, <code>cost / weight_kg</code> does integer division: shipment 2 would give <code>200/5 = 40</code> (fine), but a 100/8 case would truncate to 12, not 12.5. In this dataset the values divide evenly so the bug stays hidden &mdash; which is exactly how it reaches production. Force real division with a cast:</p>
+<pre><code>SELECT shipment_id, cost::numeric / NULLIF(weight_kg,0) AS cost_per_kg
+FROM shipments ORDER BY cost_per_kg;</code></pre>
+<p>Casting <em>one</em> operand to numeric promotes the whole expression. Mention this even if the sample data happens to divide cleanly.</p>
+
+<h5>Where NULLs sort &mdash; and controlling it</h5>
+<p>Postgres places NULL <em>last</em> under <code>ORDER BY ... ASC</code> and <em>first</em> under <code>DESC</code>. Here ascending order conveniently buries shipment 4 at the bottom. But this default is engine-specific &mdash; MySQL sorts NULL first under <code>ASC</code>. For portable, intentional behaviour, be explicit: <code>ORDER BY cost_per_kg ASC NULLS LAST</code>. If the undefined rows should not appear in an efficiency ranking at all, filter them: <code>WHERE weight_kg &gt; 0</code>.</p>
+
+<h5>Negative or NULL weights</h5>
+<p><code>NULLIF</code> only neutralises exactly <code>0</code>. A negative weight (bad data) would still divide and produce a nonsensical negative efficiency; a NULL weight produces NULL via normal division. For a robust pipeline, validate the input range &mdash; <code>WHERE weight_kg &gt; 0</code> &mdash; rather than relying on <code>NULLIF</code> to catch every species of garbage. <code>NULLIF</code> handles the zero; it does not handle "implausible".</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> anticipate the zero-weight row and guard the division with <code>NULLIF</code> so the statement does not abort, decide consciously between a NULL and a <code>COALESCE</code>d 0 (and note 0 mis-sorts as "most efficient"), cast to force real division even when the sample divides evenly, and make NULL ordering explicit rather than trusting the engine default.</div>

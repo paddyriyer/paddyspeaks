@@ -1,0 +1,62 @@
+<p>Visa's people-analytics team runs an annual bonus cycle: an employee qualifies when their performance score is at least 90 <em>and</em> they have served at least two years. The rule is a one-line <code>CASE</code> with two conditions joined by <code>AND</code>. The wrinkle &mdash; and what makes the reference solution look intimidating &mdash; is that <code>performance</code> and <code>tenure_yrs</code> arrive as messy text, so the query scrubs them to numbers before comparing.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>performance</th><th>tenure_yrs</th><th>name</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>95</td><td>3</td><td>Ann</td><td>100</td></tr>
+    <tr><td>2</td><td>88</td><td>5</td><td>Ben</td><td>90</td></tr>
+    <tr><td>3</td><td>92</td><td>1</td><td>Cy</td><td>80</td></tr>
+    <tr><td>4</td><td>99</td><td>10</td><td>Di</td><td>120</td></tr>
+    <tr><td>5</td><td><em>NULL</em></td><td>4</td><td>Ed</td><td>95</td></tr>
+  </tbody>
+</table>
+<p>Each row probes one corner of the rule: Ann passes both; Ben fails on performance; Cy has a great score but only one year (fails tenure); Di clears both comfortably; Ed has a <strong>NULL</strong> performance &mdash; the edge case that decides how missing data is treated.</p>
+
+<h4>2. The SQL &mdash; <code>CASE</code> with two <code>AND</code>ed conditions</h4>
+<pre><code>SELECT emp_id,
+  CASE WHEN NULLIF(regexp_replace(performance::text, '[^-.0-9]', '', 'g'), '')::numeric &gt;= 90
+        AND NULLIF(regexp_replace(tenure_yrs::text, '[^-.0-9]', '', 'g'), '')::numeric &gt;= 2
+       THEN 'Eligible' ELSE 'Not Eligible' END AS bonus_status
+FROM employees;</code></pre>
+<p>The <code>regexp_replace(&hellip;, '[^-.0-9]', '', 'g')</code> strips every character that is not a digit, minus sign, or dot &mdash; turning <code>"95%"</code> or <code>" 3 yrs"</code> into a clean numeric string. <code>NULLIF(&hellip;, '')</code> converts an emptied-out string back to NULL so the <code>::numeric</code> cast does not blow up.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>bonus_status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Eligible</td></tr>
+    <tr><td>2</td><td>Not Eligible</td></tr>
+    <tr><td>3</td><td>Not Eligible</td></tr>
+    <tr><td>4</td><td>Eligible</td></tr>
+    <tr><td>5</td><td>Not Eligible</td></tr>
+  </tbody>
+</table>
+<p>Ann (95, 3 yrs) and Di (99, 10 yrs) qualify. Ben fails &mdash; 88 is below 90. Cy fails &mdash; 92 clears performance but 1 year misses the 2-year bar. Ed's NULL performance makes the first condition <em>unknown</em>, so the <code>AND</code> is not true and the <code>ELSE</code> catches him.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>AND</code> short-circuit is the whole rule</h5>
+<p>Eligibility needs <em>both</em> conditions true. Cy is the instructive case: a strong score is worthless without tenure. Candidates sometimes write <code>OR</code> by reflex &mdash; that would qualify anyone with either a high score <em>or</em> long tenure, a far looser policy. Reading the requirement carefully and choosing <code>AND</code> is the first checkpoint. State the policy back: "both conditions, not either."</p>
+
+<h5>NULL in a boolean &mdash; why Ed is "Not Eligible", correctly</h5>
+<p>SQL booleans are three-valued: <code>true</code>, <code>false</code>, <code>unknown</code>. <code>NULL &gt;= 90</code> is <code>unknown</code>, and <code>unknown AND anything</code> is at best <code>unknown</code> &mdash; never <code>true</code>. So a NULL feeds the <code>ELSE</code> branch and Ed is "Not Eligible". Here that is the safe outcome (no data, no bonus), but it is happening <em>by accident</em> of NULL semantics. A senior answer makes it deliberate &mdash; e.g. a distinct flag so HR can chase the missing review rather than silently denying it:</p>
+<pre><code>CASE WHEN performance IS NULL OR tenure_yrs IS NULL THEN 'Incomplete Data'
+     WHEN ... &gt;= 90 AND ... &gt;= 2 THEN 'Eligible'
+     ELSE 'Not Eligible' END</code></pre>
+
+<h5>Why scrub the text at all &mdash; and the <code>NULLIF</code> guard</h5>
+<p>If <code>performance</code> is stored as <code>"95%"</code> or <code>tenure_yrs</code> as <code>"3 years"</code>, a direct <code>::numeric</code> cast throws <code>invalid input syntax</code> and the whole query dies. <code>regexp_replace</code> keeps only <code>[-.0-9]</code>, salvaging the number. The <code>NULLIF(&hellip;, '')</code> matters: a value like <code>"N/A"</code> scrubs down to the <em>empty string</em>, and <code>''::numeric</code> is itself an error &mdash; <code>NULLIF</code> turns that empty string into NULL, which casts harmlessly. Skipping <code>NULLIF</code> is a real bug, not a style choice.</p>
+
+<h5>If the columns are already numeric, drop the machinery</h5>
+<p>The schema is ambiguous about the stored type. If <code>performance</code> and <code>tenure_yrs</code> are genuine numeric columns, all the regex/cast scaffolding is noise and the query is simply:</p>
+<pre><code>SELECT emp_id,
+  CASE WHEN performance &gt;= 90 AND tenure_yrs &gt;= 2
+       THEN 'Eligible' ELSE 'Not Eligible' END AS bonus_status
+FROM employees;</code></pre>
+<p>The defensive version is the right call only when the data type is dirty or unknown. Naming that trade-off &mdash; robustness vs readability &mdash; is the senior move.</p>
+
+<h5>Boundary values &mdash; exactly 90, exactly 2</h5>
+<p>Both comparisons use <code>&gt;=</code>, so an employee at precisely 90 or precisely 2 years <em>qualifies</em>. Confirm that is the intended policy &mdash; "is exactly 2 years in or out?" If the rule were "more than two years", it would be <code>&gt; 2</code> and a 2.0-year employee would fail. An off-by-one here quietly mis-pays people.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose <code>AND</code> deliberately and read the policy back, explain that a NULL input makes the boolean <code>unknown</code> so it falls to <code>ELSE</code> (and consider flagging incomplete data instead), justify the <code>regexp_replace</code>/<code>NULLIF</code> guard as protection against a cast error rather than decoration, and pin down whether the <code>&gt;=</code> boundaries are correct.</div>

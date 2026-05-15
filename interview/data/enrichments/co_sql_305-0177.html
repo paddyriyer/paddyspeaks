@@ -1,0 +1,64 @@
+<p>IBM's recruiting-ops team wants a single number for the funnel dashboard: the <strong>interview success rate</strong> &mdash; what share of interviews end in an offer? It is a one-line ratio, but the interviewer is probing two things: do you avoid the integer-division trap, and have you thought about what the <em>denominator</em> should actually be when outcomes are messier than offer/reject.</p>
+
+<h4>1. The source data &mdash; <code>interviews</code></h4>
+<table>
+  <thead><tr><th>candidate_id</th><th>outcome</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>offer</td></tr>
+    <tr><td>2</td><td>reject</td></tr>
+    <tr><td>3</td><td>offer</td></tr>
+    <tr><td>4</td><td>reject</td></tr>
+    <tr><td>5</td><td>reject</td></tr>
+    <tr><td>6</td><td>no_show</td></tr>
+    <tr><td>7</td><td>offer</td></tr>
+    <tr><td>8</td><td>reject</td></tr>
+  </tbody>
+</table>
+<p>Eight interviews: 3 offers, 4 rejects, and 1 <strong><code>no_show</code></strong> &mdash; an outcome that is neither a yes nor a no. That stray category is the whole interview: it decides whether the denominator is 8 or 7.</p>
+
+<h4>2. The SQL &mdash; <code>offers / total &times; 100</code></h4>
+<pre><code>SELECT 100.0 * SUM(CASE WHEN outcome='offer' THEN 1 ELSE 0 END)
+              / COUNT(*) AS success_rate
+FROM interviews;</code></pre>
+<p><code>SUM(CASE&hellip;)</code> counts the offers (1 per offer, 0 otherwise); <code>COUNT(*)</code> counts every interview; <code>100.0 *</code> scales the ratio to a percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>success_rate</th></tr></thead>
+  <tbody>
+    <tr><td>37.500000</td></tr>
+  </tbody>
+</table>
+<p>3 offers out of 8 total interviews &rarr; <strong>37.5%</strong>. Note what the query did with the <code>no_show</code>: it counted it in the denominator (<code>COUNT(*)</code> sees all 8 rows) but not the numerator. Whether that is the right call is a definition question, not a SQL one.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The integer-division trap &mdash; why <code>100.0</code> leads</h5>
+<p>Both <code>SUM(CASE&hellip;)</code> and <code>COUNT(*)</code> are integers, and integer &divide; integer truncates in Postgres: <code>3 / 8</code> alone is <code>0</code>. Putting the <code>100.0</code> numeric literal <em>first</em> forces the whole expression to <code>numeric</code> before the division happens, so you get 37.5 rather than 0. Reorder it carelessly &mdash; <code>SUM(&hellip;) / COUNT(*) * 100.0</code> &mdash; and the division truncates to 0 before the multiply, yielding a flat <strong>0%</strong>. This is the single most common bug in rate queries; the literal placement is doing real work.</p>
+
+<h5>The denominator question &mdash; the real interview</h5>
+<p>Is a <code>no_show</code> a failed interview? It is arguably not an interview that <em>happened</em> at all. "Success rate" has at least three defensible denominators:</p>
+<pre><code>-- A. offers / all records (the reference) — no_show counts against you
+100.0 * SUM(CASE WHEN outcome='offer' THEN 1 ELSE 0 END) / COUNT(*)
+
+-- B. offers / interviews that reached a decision — exclude no_show
+100.0 * COUNT(*) FILTER (WHERE outcome='offer')
+      / NULLIF(COUNT(*) FILTER (WHERE outcome IN ('offer','reject')), 0)
+
+-- C. offers / rejects — odds, not a rate
+</code></pre>
+<p>For our data, A gives 37.5%, B gives 3/7 = 42.9%. Same table, a 5-point swing in the headline metric &mdash; purely from how one ambiguous row is classified. The senior move is to ask which definition recruiting-ops wants before writing anything.</p>
+
+<h5>The cleaner idiom: <code>COUNT(*) FILTER (WHERE &hellip;)</code> and <code>AVG</code></h5>
+<p><code>SUM(CASE WHEN cond THEN 1 ELSE 0 END)</code> works everywhere, but Postgres offers a more readable conditional count:</p>
+<pre><code>SELECT 100.0 * COUNT(*) FILTER (WHERE outcome='offer') / COUNT(*) AS success_rate
+FROM interviews;</code></pre>
+<p>Even slicker, a boolean averaged is a rate directly: <code>AVG((outcome='offer')::int) * 100</code>, since the mean of 1s and 0s <em>is</em> the proportion. All three give 37.5% &mdash; pick the one that reads clearest to your team.</p>
+
+<h5>The empty-table edge case</h5>
+<p>If <code>interviews</code> has no rows, <code>COUNT(*)</code> is 0 and the query raises <code>division by zero</code>. A dashboard query should never crash on no data &mdash; guard the denominator with <code>NULLIF(COUNT(*), 0)</code>, which yields <code>NULL</code> (shown as "no data") instead of an error. <code>SUM(CASE&hellip;)</code> over an empty table is 0, which is fine; it is the denominator that bites.</p>
+
+<h5>NULL outcomes and grouping</h5>
+<p>If <code>outcome</code> can be NULL, <code>outcome='offer'</code> is <code>NULL</code> (not true), so a NULL row correctly fails the offer test &mdash; but it still inflates <code>COUNT(*)</code>. Decide whether an unrecorded outcome belongs in the denominator. And the natural follow-up is success rate <em>per</em> recruiter, role, or quarter: add <code>GROUP BY</code> and the same ratio becomes a comparison.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> lead with the <code>100.0</code> literal to dodge integer truncation to 0%, surface the denominator ambiguity (does <code>no_show</code> count?) as a definition question before coding, reach for the readable <code>COUNT(*) FILTER (WHERE &hellip;)</code> idiom, and guard the empty-table divide-by-zero with <code>NULLIF</code>.</div>

@@ -1,0 +1,62 @@
+<p>Okta's people-analytics team tracks a productivity score per employee per period. A single period is noisy &mdash; one bad sprint, one heroic week &mdash; so managers want a <strong>3-period rolling average</strong> to see the trend, not the jitter. The interviewer is checking whether you know the difference between <code>ROWS</code> and <code>RANGE</code> framing, and what the average does at the start of an employee's history.</p>
+
+<h4>1. The source data &mdash; <code>productivity</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>period</th><th>score</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01</td><td>80</td></tr>
+    <tr><td>1</td><td>2024-02</td><td>90</td></tr>
+    <tr><td>1</td><td>2024-03</td><td>70</td></tr>
+    <tr><td>1</td><td>2024-04</td><td>100</td></tr>
+    <tr><td>2</td><td>2024-01</td><td>60</td></tr>
+    <tr><td>2</td><td>2024-02</td><td>60</td></tr>
+  </tbody>
+</table>
+<p>Employee 1 has four periods; employee 2 has only two. The interesting parts: the <strong>first one or two periods of each employee</strong> (where a 3-period window cannot be full) and the fact that the window must <strong>not bleed across employees</strong>.</p>
+
+<h4>2. The SQL &mdash; <code>AVG OVER (&hellip; ROWS 2 PRECEDING)</code></h4>
+<pre><code>SELECT emp_id, period, score,
+  AVG(score) OVER (
+    PARTITION BY emp_id
+    ORDER BY period
+    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+  ) AS rolling3
+FROM productivity;</code></pre>
+<p><code>PARTITION BY emp_id</code> walls off each employee; <code>ORDER BY period</code> sequences their history; the <code>ROWS</code> frame averages the current row and the two before it.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>period</th><th>score</th><th>rolling3</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01</td><td>80</td><td>80.000000</td></tr>
+    <tr><td>1</td><td>2024-02</td><td>90</td><td>85.000000</td></tr>
+    <tr><td>1</td><td>2024-03</td><td>70</td><td>80.000000</td></tr>
+    <tr><td>1</td><td>2024-04</td><td>100</td><td>86.666667</td></tr>
+    <tr><td>2</td><td>2024-01</td><td>60</td><td>60.000000</td></tr>
+    <tr><td>2</td><td>2024-02</td><td>60</td><td>60.000000</td></tr>
+  </tbody>
+</table>
+<p>Employee 1's first row averages just itself (80). The second averages two rows ((80+90)/2 = 85). Only from the third row on is the window genuinely 3-wide ((80+90+70)/3 = 80, then (90+70+100)/3 = 86.67). Employee 2's window resets &mdash; it never sees employee 1's numbers.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The ramp-up: a "3-period average" that averages fewer than 3</h5>
+<p>The first two rows of each employee do not have two predecessors, so the frame is partial &mdash; the average is over 1 then 2 rows. That is usually fine, but it means early values are computed on a different basis than later ones, and a dashboard plotting them side by side can look misleadingly smooth at the start. If the business wants a rolling average only once a full window exists, gate it with a count:</p>
+<pre><code>CASE WHEN COUNT(*) OVER w = 3
+     THEN AVG(score) OVER w END AS rolling3
+-- w = (PARTITION BY emp_id ORDER BY period ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
+-- first two periods now return NULL instead of a partial average</code></pre>
+
+<h5>The <code>ROWS</code> vs <code>RANGE</code> trap &mdash; and why it bites here</h5>
+<p>If you omit the frame and write only <code>ORDER BY period</code>, the default frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; a running average from the start, not a 3-period window. And <code>ROWS</code> counts physical rows, while <code>RANGE</code> groups by <em>value</em>: if an employee had two rows with the same <code>period</code>, a <code>RANGE</code> frame would lump those duplicates together and a <code>ROWS</code> frame would not. For "last 3 records", you want <code>ROWS</code> &mdash; explicitly. The reference solution does this correctly.</p>
+
+<h5>The gap problem &mdash; "3 periods" vs "3 months"</h5>
+<p><code>ROWS 2 PRECEDING</code> means the three most recent <em>rows</em>, not the three most recent <em>months</em>. If an employee skips 2024-02 entirely, the window silently spans Jan, Mar, Apr and still calls itself a 3-period average. If the metric must be calendar-accurate, you either pre-fill missing periods with a calendar spine, or switch to a <code>RANGE</code> frame over a real date with an interval. Naming this distinction is the senior detail.</p>
+
+<h5>NULL scores inside the window</h5>
+<p><code>AVG</code> skips NULLs &mdash; a NULL score in the frame is dropped from both numerator and denominator, so a 3-row window with one NULL averages 2 values. If a missing score should count as a zero, wrap it: <code>AVG(COALESCE(score, 0)) OVER &hellip;</code>. Decide on purpose.</p>
+
+<h5><code>ORDER BY period</code> only works because the format sorts</h5>
+<p><code>'2024-01' &lt; '2024-02'</code> as text because zero-padded <code>YYYY-MM</code> strings sort chronologically. If <code>period</code> were <code>'Jan-2024'</code> or an unpadded <code>'2024-1'</code>, the text sort would be wrong and the window would slide over the wrong rows. Confirm the period column's type and format before trusting the order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use an explicit <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> frame (not the default <code>RANGE</code>, which gives a running total), call out that the first two periods average a partial window, distinguish "3 rows" from "3 calendar months" when gaps exist, and verify the <code>period</code> column actually sorts chronologically.</div>

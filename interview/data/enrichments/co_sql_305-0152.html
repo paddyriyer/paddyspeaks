@@ -1,0 +1,73 @@
+<p>Salesforce's CRM team wants a customer roster with each customer's orders attached &mdash; and crucially, customers who have <em>never</em> ordered must still appear, flagged as having no activity. That single requirement is the whole question: it forces a <code>LEFT JOIN</code> over an <code>INNER JOIN</code>, and an interviewer asking this is testing whether you reach for the right join by reflex and can read the NULLs it produces.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>country</th><th>city</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Acme</td><td>US</td><td>NYC</td></tr>
+    <tr><td>2</td><td>Globex</td><td>UK</td><td>London</td></tr>
+    <tr><td>3</td><td>Initech</td><td>CA</td><td>Toronto</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>1</td><td>100</td></tr>
+    <tr><td>11</td><td>1</td><td>250</td></tr>
+    <tr><td>12</td><td>2</td><td>80</td></tr>
+  </tbody>
+</table>
+<p>Acme has two orders, Globex has one, and <strong>Initech has none</strong>. Initech is the entire point: an inner join would erase it; a left join must keep it with NULL order columns.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN customers to orders</code></h4>
+<pre><code>SELECT c.*, o.order_id, o.amount
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id;</code></pre>
+<p><code>customers</code> is the left (preserved) table; every customer row survives, and <code>orders</code> columns are filled where a match exists and NULL where it does not.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>country</th><th>city</th><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Acme</td><td>US</td><td>NYC</td><td>10</td><td>100</td></tr>
+    <tr><td>1</td><td>Acme</td><td>US</td><td>NYC</td><td>11</td><td>250</td></tr>
+    <tr><td>2</td><td>Globex</td><td>UK</td><td>London</td><td>12</td><td>80</td></tr>
+    <tr><td>3</td><td>Initech</td><td>CA</td><td>Toronto</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Four rows. Acme appears <strong>twice</strong> &mdash; one row per order &mdash; because a left join still fans a parent row out across its children. Initech appears <strong>once</strong>, with <code>order_id</code> and <code>amount</code> NULL: that NULL is the join saying "no matching order", and it is exactly the outcome the requirement asked for. (The schema lists <code>email</code>/<code>signup_date</code> columns too; <code>c.*</code> includes them &mdash; omitted here as they were unpopulated.)</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>LEFT JOIN</code> vs <code>INNER JOIN</code> &mdash; the one-word difference that drops a customer</h5>
+<p>Swap <code>LEFT JOIN</code> for <code>JOIN</code> and Initech disappears: an inner join emits a row only where both sides match, and Initech has no order. The result would silently shrink from 4 rows to 3, and "customers with no orders" &mdash; often the most important segment for a churn or re-engagement analysis &mdash; would be invisible. The choice of join <em>is</em> the answer to this question. Say out loud: "the requirement to keep zero-order customers is precisely why this is a <code>LEFT JOIN</code>."</p>
+
+<h5>The NULL-in-the-<code>WHERE</code> trap that turns it back into an inner join</h5>
+<p>The single most common mistake: filtering on a right-table column in the <code>WHERE</code> clause. <code>WHERE o.amount &gt; 50</code> evaluates to <em>unknown</em> for Initech's NULL <code>amount</code>, so Initech is dropped &mdash; the left join silently degrades into an inner join. If a condition on the right table must coexist with preserving all customers, put it in the <code>ON</code> clause, not the <code>WHERE</code>:</p>
+<pre><code>-- keeps Initech; filters which ORDERS attach
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id AND o.amount &gt; 50;
+
+-- drops Initech: the WHERE kills the NULL row
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+WHERE o.amount &gt; 50;</code></pre>
+<p>The only legitimate right-table <code>WHERE</code> on a left join is the deliberate anti-join: <code>WHERE o.order_id IS NULL</code> to get <em>exactly</em> the never-ordered customers.</p>
+
+<h5>The row-fan-out and one-row-per-customer follow-up</h5>
+<p>Acme's two rows are correct for a detail listing, but if the consumer wants one row per customer, the join must be followed by aggregation &mdash; and you must <code>COUNT</code>/<code>SUM</code> a right-table column so a no-order customer reads as 0, not 1:</p>
+<pre><code>SELECT c.customer_id, c.name,
+       COUNT(o.order_id)            AS order_count,
+       COALESCE(SUM(o.amount), 0)   AS total_spent
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, c.name;</code></pre>
+<p><code>COUNT(o.order_id)</code> counts non-NULL keys, so Initech gets 0; <code>COUNT(*)</code> would wrongly give it 1. <code>SUM</code> over no rows is NULL, hence the <code>COALESCE</code>.</p>
+
+<h5><code>SELECT c.*</code> is fragile</h5>
+<p><code>c.*</code> is fine in an ad-hoc query but a liability in shipped code: add or reorder a column in <code>customers</code> and every downstream consumer's column layout shifts underneath them. For anything persisted &mdash; a view, an ETL step &mdash; enumerate the columns explicitly. It also makes the two <code>amount</code> columns in the schema (one on each table) less likely to collide confusingly.</p>
+
+<h5>Direction matters &mdash; which table is preserved</h5>
+<p>A <code>LEFT JOIN</code> keeps the <em>left</em> table whole. Writing <code>orders LEFT JOIN customers</code> would instead preserve all orders and surface <em>orphan orders</em> (an order whose customer was deleted) &mdash; a different and also useful query, but not this one. <code>customers LEFT JOIN orders</code> answers "all customers"; flip it for "all orders". A <code>FULL OUTER JOIN</code> would surface both anomalies at once.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LEFT JOIN</code> because the spec demands zero-order customers, never put a right-table filter in the <code>WHERE</code> (it silently re-creates an inner join &mdash; use the <code>ON</code> clause), use <code>COUNT(o.order_id)</code> + <code>COALESCE(SUM(...),0)</code> when collapsing to one row per customer, and know that join direction decides which side is preserved.</div>

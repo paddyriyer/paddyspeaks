@@ -1,0 +1,58 @@
+<p>X's payments team needs every order tagged for the operations queue: cancelled orders route to refunds, big-ticket orders get a high-value flag, everything else is standard. It is a single <code>CASE</code> expression, but the interviewer is watching one thing closely &mdash; do you understand that <code>CASE</code> stops at the <em>first</em> branch that matches, so the order of the <code>WHEN</code>s is itself a business decision?</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>amount</th><th>status</th><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1500</td><td>completed</td><td>101</td></tr>
+    <tr><td>2</td><td>2000</td><td>cancelled</td><td>102</td></tr>
+    <tr><td>3</td><td>300</td><td>completed</td><td>103</td></tr>
+    <tr><td>4</td><td>50</td><td>cancelled</td><td>104</td></tr>
+    <tr><td>5</td><td>1000</td><td>completed</td><td>105</td></tr>
+  </tbody>
+</table>
+<p>Order 2 is the crux: it is <strong>cancelled and over $1000</strong> &mdash; two branches could fire, and only the first one written wins. Order 5 sits exactly on the boundary at $1000 &mdash; an off-by-one test for the <code>&gt;</code> operator.</p>
+
+<h4>2. The SQL &mdash; <code>CASE WHEN &hellip; END</code></h4>
+<pre><code>SELECT order_id,
+  CASE WHEN status='cancelled' THEN 'Refund'
+       WHEN amount &gt; 1000 THEN 'High Value'
+       ELSE 'Standard' END AS flag
+FROM orders;</code></pre>
+<p>A searched <code>CASE</code>: each <code>WHEN</code> is an independent boolean test, evaluated top to bottom. The first one that is true supplies the result; if none match, <code>ELSE</code> applies.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>flag</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>High Value</td></tr>
+    <tr><td>2</td><td>Refund</td></tr>
+    <tr><td>3</td><td>Standard</td></tr>
+    <tr><td>4</td><td>Refund</td></tr>
+    <tr><td>5</td><td>Standard</td></tr>
+  </tbody>
+</table>
+<p>Order 2 (cancelled, $2000) is flagged <strong>Refund</strong>, not High Value &mdash; the <code>status='cancelled'</code> branch comes first and short-circuits. Order 4 (cancelled, $50) is also Refund. Order 5 at exactly $1000 is <strong>Standard</strong>: <code>amount &gt; 1000</code> is strict, so the boundary value fails the test.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>First-match-wins &mdash; clause order is a business rule</h5>
+<p><code>CASE</code> is not "pick the best-fitting branch"; it is "take the first true branch and stop". Order 2 satisfies both <code>status='cancelled'</code> and <code>amount &gt; 1000</code>, but because the cancelled test is written first, it never reaches High Value. Swap the two <code>WHEN</code>s and order 2 becomes "High Value" instead &mdash; a different operational routing from the <em>same</em> data. Always confirm the priority with the interviewer: "if an order is both cancelled and high-value, which queue should it land in?"</p>
+
+<h5>The boundary &mdash; <code>&gt;</code> vs <code>&gt;=</code></h5>
+<p>Order 5 at exactly $1000 is Standard because <code>amount &gt; 1000</code> excludes the endpoint. If "high value" means $1000 <em>and above</em>, the test must be <code>amount &gt;= 1000</code>. This is a classic off-by-one: pin the definition down. "Is $1000 itself high-value?" is the kind of clarifying question that separates a careful engineer from one who guesses.</p>
+
+<h5>The NULL trap &mdash; an unmatched NULL falls through to <code>ELSE</code></h5>
+<p>If <code>status</code> were NULL, <code>status='cancelled'</code> evaluates to <em>unknown</em> (not true), so that branch is skipped. If <code>amount</code> were NULL, <code>amount &gt; 1000</code> is also unknown. A row with both columns NULL silently lands in <code>ELSE</code> &mdash; "Standard". That may be wrong: a NULL status might mean "not yet processed", which deserves its own flag. Handle it explicitly rather than letting it default:</p>
+<pre><code>CASE WHEN status IS NULL THEN 'Needs Review'
+     WHEN status='cancelled' THEN 'Refund'
+     WHEN amount &gt; 1000 THEN 'High Value'
+     ELSE 'Standard' END</code></pre>
+
+<h5>Always include <code>ELSE</code></h5>
+<p>A <code>CASE</code> with no <code>ELSE</code> returns NULL for any unmatched row &mdash; an implicit <code>ELSE NULL</code>. That turns a "no rule matched" situation into a silent NULL that flows downstream. Writing <code>ELSE 'Standard'</code> (or <code>ELSE 'Unclassified'</code>) makes the catch-all intentional and visible. An interviewer notices a missing <code>ELSE</code>.</p>
+
+<h5>Searched <code>CASE</code> vs simple <code>CASE</code></h5>
+<p>This is a <em>searched</em> <code>CASE</code> &mdash; each <code>WHEN</code> is a full boolean expression, so the branches can test different columns (<code>status</code> here, <code>amount</code> there). The <em>simple</em> form, <code>CASE status WHEN 'cancelled' THEN &hellip;</code>, compares one expression against constants and cannot mix columns or use ranges. Because this problem needs both an equality check and a <code>&gt;</code> comparison, the searched form is the only option. Knowing why is the senior detail.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>CASE</code> takes the first matching branch and that <code>WHEN</code> order therefore encodes a priority decision, pin down whether the threshold is <code>&gt;</code> or <code>&gt;=</code>, handle NULL inputs explicitly instead of letting them fall through to <code>ELSE</code>, and always write an explicit <code>ELSE</code>.</div>
