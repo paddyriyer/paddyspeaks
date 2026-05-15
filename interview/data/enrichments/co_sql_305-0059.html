@@ -1,0 +1,73 @@
+<p>Plus500's analytics team wants each customer's purchases ranked biggest-spend first &mdash; "this was your largest order, this your second largest." The reference solution reaches straight for <code>ROW_NUMBER</code>. It runs and looks right, but the interviewer has seeded a tie: two purchases at the identical amount. How <code>ROW_NUMBER</code> handles that tie &mdash; arbitrarily &mdash; is the whole conversation.</p>
+
+<h4>1. The source data &mdash; <code>purchases</code></h4>
+<table>
+  <thead><tr><th>purchase_id</th><th>customer_id</th><th>amount</th><th>purchase_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>200</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>101</td><td>500</td><td>2024-02-01</td></tr>
+    <tr><td>3</td><td>101</td><td>500</td><td>2024-03-01</td></tr>
+    <tr><td>4</td><td>102</td><td>300</td><td>2024-01-05</td></tr>
+    <tr><td>5</td><td>102</td><td>150</td><td>2024-02-05</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has <strong>two purchases tied at 500</strong> &mdash; purchases 2 and 3. That tie decides whether the ranking is deterministic, and it is the entire interview.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER</code> per customer</h4>
+<pre><code>SELECT *,
+  ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY amount DESC) AS rn
+FROM purchases;</code></pre>
+<p><code>PARTITION BY customer_id</code> restarts the numbering for each customer; <code>ORDER BY amount DESC</code> ranks within the partition; <code>ROW_NUMBER</code> hands out 1, 2, 3&hellip; with no gaps and no ties.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>purchase_id</th><th>customer_id</th><th>amount</th><th>purchase_date</th><th>rn</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>101</td><td>500</td><td>2024-02-01</td><td>1</td></tr>
+    <tr><td>3</td><td>101</td><td>500</td><td>2024-03-01</td><td>2</td></tr>
+    <tr><td>1</td><td>101</td><td>200</td><td>2024-01-01</td><td>3</td></tr>
+    <tr><td>4</td><td>102</td><td>300</td><td>2024-01-05</td><td>1</td></tr>
+    <tr><td>5</td><td>102</td><td>150</td><td>2024-02-05</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>The numbering restarts at customer 102 &mdash; that part is solid. But the two tied 500s get <strong>rn 1 and rn 2</strong>: <code>ROW_NUMBER</code> was forced to pick a winner, and it broke the tie arbitrarily. Here purchase 2 happened to land first, but <code>amount DESC</code> alone does not specify which of two equal amounts comes first &mdash; the result is <em>non-deterministic</em>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The non-deterministic tie &mdash; <code>ROW_NUMBER</code>'s sharp edge</h5>
+<p>When the <code>ORDER BY</code> does not uniquely order the rows, <code>ROW_NUMBER</code> still produces distinct integers &mdash; the engine just chooses, and the choice can change between runs, after a re-index, or on a parallel plan. Make the order total by adding a tiebreaker:</p>
+<pre><code>ROW_NUMBER() OVER (
+  PARTITION BY customer_id
+  ORDER BY amount DESC, purchase_date DESC, purchase_id DESC)</code></pre>
+<p>Now "second largest" is reproducible: equal amounts break by recency, then by id. A senior answer never ships a <code>ROW_NUMBER</code> whose <code>ORDER BY</code> is not unique.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code> &mdash; which does the question want?</h5>
+<p>The three differ entirely on ties:</p>
+<table>
+  <thead><tr><th>amount</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>500</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>500</td><td>2</td><td>1</td><td>1</td></tr>
+    <tr><td>200</td><td>3</td><td>3</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>If the two 500s are genuinely "joint largest", <code>ROW_NUMBER</code> is the wrong tool &mdash; it lies by assigning 1 and 2. <code>RANK</code> gives 1, 1, 3 (tie shares, gap after); <code>DENSE_RANK</code> gives 1, 1, 2 (no gap). Pick by intent: <code>ROW_NUMBER</code> only when you truly need exactly one row per position.</p>
+
+<h5>The "pick one row per customer" pattern</h5>
+<p><code>ROW_NUMBER</code> shines for top-N-per-group. Wrap it and filter:</p>
+<pre><code>SELECT * FROM (
+  SELECT *, ROW_NUMBER() OVER (
+    PARTITION BY customer_id
+    ORDER BY amount DESC, purchase_id DESC) AS rn
+  FROM purchases
+) t
+WHERE rn = 1;</code></pre>
+<p>You cannot put <code>WHERE rn = 1</code> in the same <code>SELECT</code> &mdash; window functions are evaluated after <code>WHERE</code> &mdash; so the subquery (or a CTE) is mandatory. Some engines offer <code>QUALIFY rn = 1</code> as sugar; Postgres does not, so the subquery is the portable form.</p>
+
+<h5>NULL amounts and the sort</h5>
+<p>A purchase with a NULL <code>amount</code> sorts <em>first</em> under <code>ORDER BY amount DESC</code> in Postgres &mdash; so a priceless row would be crowned the customer's "largest" purchase. Decide deliberately: <code>ORDER BY amount DESC NULLS LAST</code> to sink them, or filter <code>WHERE amount IS NOT NULL</code> if unpriced purchases should not be ranked at all.</p>
+
+<h5>Single-purchase customers</h5>
+<p>A customer with exactly one purchase gets a single row with <code>rn = 1</code> &mdash; the partition logic handles it for free, no special case. Worth a sentence in an interview: confirm the edge behaves, then move on.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> add a tiebreaker column so <code>ROW_NUMBER</code> is deterministic, articulate <code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code> by how each treats ties, know the window result needs a subquery wrapper before it can be filtered, and handle NULL amounts that would otherwise sort to the top.</div>

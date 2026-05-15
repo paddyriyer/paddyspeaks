@@ -1,0 +1,53 @@
+<p>DigitalOcean's growth team is segmenting the customer base and wants everyone whose name starts with "A" or ends in "son". It is a two-line <code>WHERE</code> with <code>LIKE</code> &mdash; but the interviewer is probing whether you know exactly what the wildcards match, that <code>LIKE</code> is case-sensitive in Postgres, and what an index can and cannot do with each pattern.</p>
+
+<h4>1. The source data &mdash; <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>email</th><th>country</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Anderson</td><td>an@x</td><td>US</td></tr>
+    <tr><td>2</td><td>Johnson</td><td>jo@x</td><td>US</td></tr>
+    <tr><td>3</td><td>Alice</td><td>al@x</td><td>US</td></tr>
+    <tr><td>4</td><td>Bob</td><td>bo@x</td><td>US</td></tr>
+    <tr><td>5</td><td>Watson</td><td>wa@x</td><td>US</td></tr>
+  </tbody>
+</table>
+<p>Anderson matches <em>both</em> rules (starts with A, ends in "son"); Alice matches only the first; Johnson and Watson only the second; Bob matches neither. That overlap &mdash; one name satisfying both predicates &mdash; is the subtlety the interviewer is testing.</p>
+
+<h4>2. The SQL &mdash; two <code>LIKE</code> patterns, <code>OR</code></h4>
+<pre><code>SELECT * FROM customers
+WHERE name LIKE 'A%' OR name LIKE '%son';</code></pre>
+<p><code>'A%'</code> matches any string beginning with a capital A (<code>%</code> = zero-or-more characters). <code>'%son'</code> matches any string ending in "son". <code>OR</code> keeps a row satisfying <em>either</em>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>email</th><th>country</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Anderson</td><td>an@x</td><td>US</td></tr>
+    <tr><td>2</td><td>Johnson</td><td>jo@x</td><td>US</td></tr>
+    <tr><td>3</td><td>Alice</td><td>al@x</td><td>US</td></tr>
+    <tr><td>5</td><td>Watson</td><td>wa@x</td><td>US</td></tr>
+  </tbody>
+</table>
+<p>Four of five rows match; only Bob is excluded. Crucially, <strong>Anderson appears exactly once</strong> even though it satisfies both predicates &mdash; <code>OR</code> in a <code>WHERE</code> clause is a row filter, not a join, so a row is returned once if it qualifies at all. No <code>DISTINCT</code> needed; double-matching never means double rows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>LIKE</code> is case-sensitive &mdash; the silent miss</h5>
+<p>In Postgres, <code>LIKE</code> respects case. <code>name LIKE 'A%'</code> matches "Anderson" but <em>not</em> "anderson" or "ASHTON" in lowercase &mdash; and a name typed <code>'andrew'</code> would slip through the segment. If the segmentation should be case-insensitive, use <code>ILIKE</code>:</p>
+<pre><code>SELECT * FROM customers
+WHERE name ILIKE 'a%' OR name ILIKE '%son';</code></pre>
+<p>Or normalise both sides with <code>LOWER(name) LIKE 'a%'</code>. Names are exactly the column where casing is inconsistent in real data &mdash; confirm whether the match should be case-sensitive before assuming.</p>
+
+<h5><code>%</code> vs <code>_</code> &mdash; know both wildcards</h5>
+<p><code>%</code> matches zero or more characters; <code>_</code> matches exactly one. <code>'A%'</code> matches "A" itself (zero following chars) and "Anderson" alike. If the requirement were "a three-letter name starting with A", that is <code>'A__'</code>, not <code>'A%'</code>. And to match a <em>literal</em> percent or underscore in the data, escape it: <code>LIKE '100\%'</code>.</p>
+
+<h5>The leading-wildcard index trap</h5>
+<p><code>name LIKE 'A%'</code> is <em>sargable</em> &mdash; a plain B-tree index on <code>name</code> can range-scan the "A" prefix. But <code>name LIKE '%son'</code> has a <em>leading</em> wildcard, and a B-tree cannot seek a suffix &mdash; that predicate forces a full scan. On a large customers table this matters. Two senior fixes: index the reversed string, <code>CREATE INDEX ON customers (reverse(name))</code> and query <code>reverse(name) LIKE reverse('%son')</code>; or use a trigram index, <code>CREATE INDEX ON customers USING gin (name gin_trgm_ops)</code>, which accelerates both prefix and suffix <code>LIKE</code>.</p>
+
+<h5>NULL names are never matched</h5>
+<p>A customer with a NULL <code>name</code> satisfies neither <code>LIKE</code> &mdash; any comparison with NULL is unknown, and <code>unknown OR unknown</code> is unknown, which <code>WHERE</code> treats as not-true. So NULL-name rows are silently excluded. Usually fine; but if "no name on file" is its own segment, handle it explicitly with <code>OR name IS NULL</code>.</p>
+
+<h5><code>SELECT *</code> is a smell in production</h5>
+<p><code>SELECT *</code> is acceptable for exploration, but a segmentation query feeding a campaign should name its columns &mdash; <code>SELECT customer_id, name, email</code>. Explicit columns survive schema changes (a new column will not silently widen the export), make the intent reviewable, and avoid shipping sensitive fields by accident.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>LIKE</code> is case-sensitive in Postgres and reach for <code>ILIKE</code> when matching messy name data, distinguish <code>%</code> from <code>_</code>, explain that a leading-wildcard <code>'%son'</code> defeats a B-tree index and propose a reverse or trigram index, and note that <code>OR</code> never produces duplicate rows so no <code>DISTINCT</code> is required.</div>

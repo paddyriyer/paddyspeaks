@@ -1,0 +1,71 @@
+<p>TCS is running a retail-analytics engagement for a department-store chain, and the regional manager wants a single ranked list: every store and its total sales, biggest first. The query is four lines &mdash; but the interviewer planted a trap in the word "every". A store that opened last week and has not rung up a single sale still needs to appear on the report, and a naive join makes it vanish.</p>
+
+<h4>1. The source data &mdash; <code>stores</code> and <code>sales</code></h4>
+<table>
+  <thead><tr><th>store_id</th><th>name</th><th>city</th><th>region</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Downtown</td><td>Mumbai</td><td>West</td></tr>
+    <tr><td>2</td><td>Airport</td><td>Mumbai</td><td>West</td></tr>
+    <tr><td>3</td><td>Mall</td><td>Pune</td><td>West</td></tr>
+    <tr><td>4</td><td>Outlet</td><td>Nagpur</td><td>Central</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>store_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>500</td></tr>
+    <tr><td>1</td><td>300</td></tr>
+    <tr><td>2</td><td>1200</td></tr>
+    <tr><td>3</td><td>200</td></tr>
+    <tr><td>3</td><td>200</td></tr>
+    <tr><td>3</td><td>150</td></tr>
+  </tbody>
+</table>
+<p>Four stores, but <code>sales</code> only mentions store_ids 1, 2 and 3. Store 4 &mdash; <strong>Outlet</strong> in Nagpur &mdash; has zero sales rows. That single missing store is the entire question.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> + <code>SUM</code></h4>
+<pre><code>SELECT s.name, SUM(sa.amount) AS total
+FROM stores s LEFT JOIN sales sa ON s.store_id = sa.store_id
+GROUP BY s.name ORDER BY total DESC;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every row of <code>stores</code> even when no <code>sales</code> row matches; <code>GROUP BY name</code> rolls each store into one line; <code>ORDER BY total DESC</code> ranks them.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>Outlet</td><td><em>NULL</em></td></tr>
+    <tr><td>Airport</td><td>1200</td></tr>
+    <tr><td>Downtown</td><td>800</td></tr>
+    <tr><td>Mall</td><td>550</td></tr>
+  </tbody>
+</table>
+<p>Outlet survives the join &mdash; but its <code>total</code> is <strong>NULL</strong>, not 0, because <code>SUM</code> over zero rows returns NULL. And NULL sorts <em>first</em> under a plain <code>DESC</code> in Postgres, so the store with no sales floats to the top of a "biggest sellers" list. The query keeps the store but lies about its rank.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>INNER JOIN</code> would be silently wrong</h5>
+<p>Swap <code>LEFT JOIN</code> for a plain <code>JOIN</code> and Outlet disappears entirely &mdash; no matching <code>sales</code> row, no output row. The report would show three stores, the manager would never know a fourth exists, and nothing errors. This is the classic "missing rows" bug: an inner join answers "stores that have sales", not "every store". When the question says <em>every</em>, <em>all</em>, or <em>including those with none</em>, reach for an outer join.</p>
+
+<h5>The NULL total &mdash; coalesce it to zero</h5>
+<p>A store with no sales should report 0, not NULL. Wrap the aggregate:</p>
+<pre><code>SELECT s.name, COALESCE(SUM(sa.amount), 0) AS total
+FROM stores s LEFT JOIN sales sa ON s.store_id = sa.store_id
+GROUP BY s.name
+ORDER BY total DESC;</code></pre>
+<p><code>COALESCE</code> turns the empty-group NULL into 0, and now Outlet correctly sorts last. Alternatively keep the NULL but force its sort position with <code>ORDER BY total DESC NULLS LAST</code> &mdash; decide whether the consumer wants a number or a blank.</p>
+
+<h5>Group by the id, not the name</h5>
+<p><code>GROUP BY s.name</code> works only while names are unique. Two stores both called "Outlet" in different cities would be merged into one inflated row. The robust form groups on the primary key and carries the name along:</p>
+<pre><code>SELECT s.store_id, s.name, COALESCE(SUM(sa.amount), 0) AS total
+FROM stores s LEFT JOIN sales sa ON s.store_id = sa.store_id
+GROUP BY s.store_id, s.name
+ORDER BY total DESC;</code></pre>
+<p>Grouping on the key is correct regardless of name collisions, and Postgres lets you <code>SELECT</code> functionally-dependent columns like <code>name</code> once the key is in the <code>GROUP BY</code>.</p>
+
+<h5>Aggregate filters live in HAVING, not WHERE</h5>
+<p>If the follow-up is "only stores selling more than 600", that filter is on the <em>aggregate</em> and belongs in <code>HAVING SUM(sa.amount) &gt; 600</code>. Putting <code>amount &gt; 600</code> in <code>WHERE</code> filters individual sale rows before grouping &mdash; a completely different, usually wrong, calculation.</p>
+
+<h5>The duplicate location columns</h5>
+<p>The schema ships both <code>location</code> and <code>city</code>. They are likely redundant &mdash; one a street address, one a city. The query needs neither, but if the manager wants per-city rollups, confirm which column is the analytic dimension before grouping on it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LEFT JOIN</code> the moment the question says "every store", explain that an inner join would silently drop the no-sales store, <code>COALESCE</code> the empty-group NULL to 0 (and remember NULL sorts first under plain <code>DESC</code>), and group on the primary key rather than a name that might collide.</div>

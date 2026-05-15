@@ -1,0 +1,64 @@
+<p>Intuit's procurement analytics team wants a simple catalog view: each product paired with the name of its supplier. The query is a textbook two-table join &mdash; but the interviewer dropped a product whose <code>supplier_id</code> points at a supplier that does not exist, and the choice of join type decides whether that orphaned product appears, vanishes silently, or gets flagged.</p>
+
+<h4>1. The source data &mdash; <code>products</code> and <code>suppliers</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>supplier_id</th><th>name</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>Widget</td><td>A</td></tr>
+    <tr><td>2</td><td>10</td><td>Gadget</td><td>A</td></tr>
+    <tr><td>3</td><td>20</td><td>Gizmo</td><td>B</td></tr>
+    <tr><td>4</td><td>99</td><td>Orphan</td><td>B</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>supplier_id</th><th>supplier_name</th><th>country</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Acme Corp</td><td>US</td></tr>
+    <tr><td>20</td><td>Globex</td><td>US</td></tr>
+  </tbody>
+</table>
+<p>Product 4, <strong>Orphan</strong>, has <code>supplier_id = 99</code> &mdash; and there is no supplier 99. That dangling foreign key is the entire interview.</p>
+
+<h4>2. The SQL &mdash; <code>INNER JOIN</code> on <code>supplier_id</code></h4>
+<pre><code>SELECT p.name, s.supplier_name
+FROM products p JOIN suppliers s ON p.supplier_id = s.supplier_id;</code></pre>
+<p>A plain <code>JOIN</code> (inner) emits a row only when a product's <code>supplier_id</code> finds a matching <code>suppliers</code> row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>supplier_name</th></tr></thead>
+  <tbody>
+    <tr><td>Widget</td><td>Acme Corp</td></tr>
+    <tr><td>Gadget</td><td>Acme Corp</td></tr>
+    <tr><td>Gizmo</td><td>Globex</td></tr>
+  </tbody>
+</table>
+<p>Three rows &mdash; <strong>Orphan is gone</strong>. The inner join found no supplier 99, so it dropped the product without a word: no error, no NULL, no warning. The catalog shows 3 products when there are 4. If a row count or a revenue total depends on this view, the discrepancy is now invisible.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The silent row loss &mdash; <code>INNER JOIN</code>'s quiet failure mode</h5>
+<p>An inner join answers "products that have a valid supplier", not "all products". When the requirement is the catalog &mdash; <em>every</em> product &mdash; that is a bug, and the nastiest kind: it produces a plausible-looking, smaller result. Use a <code>LEFT JOIN</code> to keep every product regardless of supplier match:</p>
+<pre><code>SELECT p.name, s.supplier_name
+FROM products p
+LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id;</code></pre>
+<p>Now Orphan appears with <code>supplier_name = NULL</code> &mdash; the product is preserved and the missing supplier is visible rather than hidden.</p>
+
+<h5>Turning the NULL into a data-quality signal</h5>
+<p>A NULL supplier on a catalog row is itself a finding. Make it explicit:</p>
+<pre><code>SELECT p.name,
+       COALESCE(s.supplier_name, '(unknown supplier)') AS supplier_name
+FROM products p
+LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id;</code></pre>
+<p>Or invert it &mdash; <code>WHERE s.supplier_id IS NULL</code> after the left join lists exactly the products with broken supplier links, a useful report for the procurement team to fix the source data.</p>
+
+<h5>The duplicate-name column trap</h5>
+<p><code>suppliers</code> ships both <code>supplier_name</code> and a plain <code>name</code>, and <code>products</code> also has a <code>name</code>. Select <code>name</code> unqualified in a join touching two tables that both have it and Postgres errors with <em>column reference "name" is ambiguous</em>. Always table-qualify &mdash; <code>p.name</code>, <code>s.supplier_name</code> &mdash; and confirm with the schema owner whether <code>suppliers.name</code> and <code>suppliers.supplier_name</code> are duplicates or hold different things (legal entity vs trading name).</p>
+
+<h5>Fan-out if <code>supplier_id</code> is not unique</h5>
+<p>The join is one-to-many only if <code>suppliers.supplier_id</code> is a true primary key. If the supplier table has duplicate ids (a dirty extract, or a versioned/SCD table), each product matches multiple supplier rows and the result <em>fans out</em> &mdash; more rows than products, silently double-counting. Confirm the join key is unique on the supplier side, or de-duplicate first with <code>DISTINCT ON (supplier_id)</code>.</p>
+
+<h5>NULL <code>supplier_id</code> on the product side</h5>
+<p>A product whose own <code>supplier_id</code> is NULL never matches anything &mdash; <code>NULL = anything</code> is unknown &mdash; so an inner join drops it and a left join keeps it with a NULL supplier, same as the orphan. Either way, NULL join keys deserve a deliberate decision rather than a surprise.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that an inner join silently drops the orphaned product and switch to <code>LEFT JOIN</code> to preserve the full catalog, turn the resulting NULL into a data-quality report, table-qualify every column when both tables expose a <code>name</code>, and verify the supplier-side key is unique so the join does not fan out.</div>
