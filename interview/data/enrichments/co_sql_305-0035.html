@@ -1,0 +1,68 @@
+<p>IBM's promotions team wants a running total of discount dollars given away &mdash; a cumulative tracker so finance can see the giveaway accumulate day by day. The reference solution uses <code>SUM(&hellip;) OVER (ORDER BY order_date)</code>. It is the right tool, and the interview lives in one subtlety: what the window does when <em>two orders share a date</em>.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>discount_amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td><td>$10</td></tr>
+    <tr><td>2</td><td>2024-01-02</td><td>$25</td></tr>
+    <tr><td>3</td><td>2024-01-02</td><td>$5</td></tr>
+    <tr><td>4</td><td>2024-01-04</td><td>$40</td></tr>
+    <tr><td>5</td><td>2024-01-05</td><td>$15</td></tr>
+  </tbody>
+</table>
+<p>Orders 2 and 3 fall on the <strong>same date</strong>, 2024-01-02. Two rows, one date &mdash; that tie is exactly what exposes how the window frame works.</p>
+
+<h4>2. The SQL &mdash; <code>SUM() OVER (ORDER BY order_date)</code></h4>
+<pre><code>SELECT order_date, discount_amount,
+  SUM(discount_amount) OVER (ORDER BY order_date) AS cumulative_discount
+FROM orders;</code></pre>
+<p>A windowed <code>SUM</code> ordered by date. No <code>PARTITION BY</code>, so the running total spans the whole table; the <code>ORDER BY</code> defines what "so far" means.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_date</th><th>discount_amount</th><th>cumulative_discount</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>10</td><td>10</td></tr>
+    <tr><td>2024-01-02</td><td>25</td><td>40</td></tr>
+    <tr><td>2024-01-02</td><td>5</td><td>40</td></tr>
+    <tr><td>2024-01-04</td><td>40</td><td>80</td></tr>
+    <tr><td>2024-01-05</td><td>15</td><td>95</td></tr>
+  </tbody>
+</table>
+<p>Both 2024-01-02 rows show <strong>40</strong>, not 35 and 40. The window did not add the two same-date orders one at a time &mdash; it added them <em>together</em>, so both rows see the full day-end total. That is the default frame behaving exactly as specified, and it surprises people.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The default frame is <code>RANGE</code>, and that is why the tie shows 40</h5>
+<p>When you write <code>ORDER BY</code> in a window with no explicit frame, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. Crucially, <code>RANGE</code>'s "current row" means <em>every row with the same ORDER BY value</em> &mdash; they are <strong>peers</strong>. So for both 2024-01-02 orders the frame includes each other, and both get 10 + 25 + 5 = 40. If you want a strict row-by-row running total &mdash; 35 then 40 &mdash; switch the frame to <code>ROWS</code> and add a tiebreaker:</p>
+<pre><code>SELECT order_date, discount_amount,
+  SUM(discount_amount) OVER (
+    ORDER BY order_date, order_id
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS cumulative_discount
+FROM orders;
+-- now the two 2024-01-02 rows show 35 and 40</code></pre>
+<p><code>ROWS</code> counts physical rows; <code>RANGE</code> counts logical peer-groups. For a daily tracker, the <code>RANGE</code> answer (both rows = day-end total) is often <em>more</em> correct &mdash; but you must say which you intended.</p>
+
+<h5>Per-day totals: do you even want one row per order?</h5>
+<p>If finance wants one cumulative figure <em>per day</em>, returning two rows for 2024-01-02 is noise. Aggregate to the day first, then run the window over the daily totals:</p>
+<pre><code>SELECT order_date, daily_discount,
+       SUM(daily_discount) OVER (ORDER BY order_date) AS cumulative_discount
+FROM (
+  SELECT order_date, SUM(discount_amount) AS daily_discount
+  FROM orders
+  GROUP BY order_date
+) d;</code></pre>
+<p>One row per date, cumulative 10, 40, 80, 95 &mdash; the gap-day 2024-01-03 simply absent. Clarify the grain the consumer expects before choosing.</p>
+
+<h5>The trap: a non-deterministic order with no tiebreaker</h5>
+<p><code>ORDER BY order_date</code> alone does not uniquely order the two same-date rows. With the <code>RANGE</code> default it does not matter &mdash; peers get the same total either way. But the instant you switch to <code>ROWS</code>, the per-row running values (35 vs 40) depend on which same-date row the engine processes first, and that is <em>not guaranteed</em>. Always add a deterministic tiebreaker like <code>order_id</code> to a <code>ROWS</code> frame.</p>
+
+<h5>Gaps, ordering, and a missing window: edge cases</h5>
+<p>2024-01-03 has no orders, so it never appears &mdash; the running total simply has no row for it. If the tracker must show every calendar day (carrying the total flat across gaps), join against a generated date series first. Also note the output is <em>unordered</em> unless you add a top-level <code>ORDER BY order_date</code> &mdash; the window's internal ordering does not guarantee the result-set ordering. And if <code>discount_amount</code> can be NULL, <code>SUM</code> skips it, so the running total flatlines across that row rather than breaking.</p>
+
+<h5>Dialect note</h5>
+<p>This is standard SQL and runs as-is in PostgreSQL. Some engines (older MySQL) lack window functions entirely &mdash; there the cumulative total needs a correlated subquery or a self-join, which is O(N&sup2;). Naming that fallback shows range.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that an <code>ORDER BY</code> window defaults to a <code>RANGE</code> frame so same-date rows become peers sharing the day-end total, switch to <code>ROWS</code> with a deterministic tiebreaker when a strict row-by-row running total is wanted, and pre-aggregate to the day when the consumer expects one cumulative figure per date.</div>

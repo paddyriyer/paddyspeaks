@@ -1,0 +1,53 @@
+<p>Spotify's logistics-analytics team tracks how long each order sits between being created and being shipped &mdash; a fulfilment-latency metric the ops team watches daily. The data stores two timestamps per order; the report wants the gap in hours. The interview question is whether you can do timestamp arithmetic cleanly &mdash; and whether you notice when an "answer" is written in a needlessly tangled way.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>created_at</th><th>shipped_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-10 09:00:00</td><td>2024-01-11 09:00:00</td></tr>
+    <tr><td>2</td><td>2024-01-12 14:30:00</td><td>2024-01-12 20:30:00</td></tr>
+    <tr><td>3</td><td>2024-01-15 08:00:00</td><td><em>NULL</em></td></tr>
+    <tr><td>4</td><td>2024-01-18 10:15:00</td><td>2024-01-20 22:45:00</td></tr>
+  </tbody>
+</table>
+<p>Four orders. Order 1 shipped exactly 24 hours later; order 2 took 6 hours; order 4 took two and a bit days. Order 3 is <strong>still unshipped</strong> &mdash; its <code>shipped_at</code> is NULL &mdash; and that NULL is the edge case the query must handle.</p>
+
+<h4>2. The SQL &mdash; <code>EXTRACT(EPOCH ...) to hours</code></h4>
+<pre><code>SELECT order_id,
+  ((EXTRACT(EPOCH FROM (shipped_at - created_at)) / 86400.0) * 86400) / 3600
+    AS hours_to_ship
+FROM orders
+WHERE shipped_at IS NOT NULL;</code></pre>
+<p><code>shipped_at - created_at</code> is an <code>interval</code>; <code>EXTRACT(EPOCH FROM &hellip;)</code> converts that interval to a total number of <strong>seconds</strong>. The remaining arithmetic turns seconds into hours &mdash; though, as the analysis shows, it does so by a scenic route.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>hours_to_ship</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>24.00000000000000000000</td></tr>
+    <tr><td>2</td><td>6.00000000000000000000</td></tr>
+    <tr><td>4</td><td>60.4999999999999992</td></tr>
+  </tbody>
+</table>
+<p>Three rows &mdash; order 3 is correctly excluded by the <code>WHERE shipped_at IS NOT NULL</code> filter. Order 1 is 24 hours, order 2 is 6, order 4 is 60.5. The numbers are right, but the long decimal tails are a presentation problem, and order 4's <code>60.4999999999999992</code> is a small floating-point artefact of <code>60.5</code> &mdash; both worth cleaning up.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The arithmetic is correct &mdash; but written the long way</h5>
+<p>Read the expression carefully: it divides the epoch seconds by <code>86400.0</code>, then multiplies by <code>86400</code>, then divides by <code>3600</code>. The <code>/ 86400.0</code> and <code>* 86400</code> <strong>cancel out</strong> &mdash; algebraically the whole thing is just <code>EXTRACT(EPOCH FROM &hellip;) / 3600</code>, seconds to hours. The detour through "days" leaves no trace in the result, but it does make the query harder to review and invites a typo. The clean form:</p>
+<pre><code>SELECT order_id,
+  ROUND(EXTRACT(EPOCH FROM (shipped_at - created_at)) / 3600.0, 2) AS hours_to_ship
+FROM orders
+WHERE shipped_at IS NOT NULL;</code></pre>
+<p>Same answer, one obvious operation, plus <code>ROUND(&hellip;, 2)</code> to kill the decimal tail and the <code>60.4999&hellip;</code> float wobble.</p>
+
+<h5>Why filter <code>shipped_at IS NOT NULL</code> &mdash; and what the alternative means</h5>
+<p>Order 3 has no <code>shipped_at</code>. Without the filter, <code>shipped_at - created_at</code> is <code>NULL - timestamp = NULL</code>, and the row would show a NULL latency &mdash; not wrong, but it pollutes an <code>AVG</code> later. The <code>WHERE</code> filter scopes the metric to <em>shipped</em> orders, which is the honest definition of "time to ship". An alternative &mdash; measuring age of <em>unshipped</em> orders &mdash; is a different metric: <code>EXTRACT(EPOCH FROM (now() - created_at)) / 3600</code> for rows where <code>shipped_at IS NULL</code>. Name which one the ops team wants.</p>
+
+<h5>Don't subtract a <code>DATE</code> and a <code>TIMESTAMP</code> expecting the same thing</h5>
+<p>Postgres timestamp arithmetic has a subtlety. <code>timestamp - timestamp</code> yields an <code>interval</code> (what this query relies on). But <code>date - date</code> yields an <strong>integer number of days</strong>, not an interval &mdash; so <code>EXTRACT(EPOCH FROM (date_col - date_col))</code> would behave differently. The schema also carries a separate <code>order_date</code> (a <code>DATE</code>) alongside <code>created_at</code> (a <code>TIMESTAMP</code>); make sure latency is computed from the two <em>timestamps</em>, not accidentally from the date column, or the hours will be quantised to whole days.</p>
+
+<h5>Edge cases: clock skew and timezones</h5>
+<p>Two real-world traps. First, if <code>shipped_at</code> is somehow <em>earlier</em> than <code>created_at</code> &mdash; clock skew between services, or a backfilled row &mdash; <code>hours_to_ship</code> goes <strong>negative</strong>. A sanity guard such as <code>GREATEST(EXTRACT(EPOCH FROM (shipped_at - created_at)), 0)</code>, or surfacing negatives as a data-quality flag, keeps the dashboard honest. Second, if the columns are <code>timestamp</code> <em>without</em> time zone but events were recorded in different zones, the subtraction silently mixes wall clocks; <code>timestamptz</code> is the correct type for cross-zone event data. For a clean per-day rollup, wrap the result: <code>AVG(hours_to_ship)</code> grouped by <code>DATE(created_at)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> simplify the tangled <code>/86400 *86400 /3600</code> expression to a plain <code>EXTRACT(EPOCH ...) / 3600</code> and wrap it in <code>ROUND</code>, justify the <code>shipped_at IS NOT NULL</code> filter as the definition of the metric, know that <code>date - date</code> gives days while <code>timestamp - timestamp</code> gives an interval, and guard against negative latency from clock skew.</div>

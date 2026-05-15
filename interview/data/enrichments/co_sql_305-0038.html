@@ -1,0 +1,51 @@
+<p>Salesforce's workforce-management team needs to catch scheduling errors before payroll runs &mdash; the same employee booked into two shifts that overlap in time. The reference solution self-joins the shift table and applies the classic interval-overlap test. The logic is sound; the one defect is cosmetic but real, and an interviewer reviewing the output will spot it instantly.</p>
+
+<h4>1. The source data &mdash; <code>shifts</code></h4>
+<table>
+  <thead><tr><th>shift_id</th><th>employee_id</th><th>start_time</th><th>end_time</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2024-05-01 08:00</td><td>2024-05-01 12:00</td></tr>
+    <tr><td>2</td><td>100</td><td>2024-05-01 11:00</td><td>2024-05-01 15:00</td></tr>
+    <tr><td>3</td><td>100</td><td>2024-05-01 16:00</td><td>2024-05-01 20:00</td></tr>
+    <tr><td>4</td><td>200</td><td>2024-05-02 09:00</td><td>2024-05-02 17:00</td></tr>
+    <tr><td>5</td><td>200</td><td>2024-05-02 13:00</td><td>2024-05-02 18:00</td></tr>
+    <tr><td>6</td><td>300</td><td>2024-05-03 06:00</td><td>2024-05-03 10:00</td></tr>
+  </tbody>
+</table>
+<p>Employee 100's shifts 1 and 2 overlap by an hour (11:00&ndash;12:00); shift 3 sits cleanly apart. Employee 200's shifts 4 and 5 overlap. Employee 300 has a <strong>single</strong> shift &mdash; the control row that must produce no match.</p>
+
+<h4>2. The SQL &mdash; <code>self-join with the overlap predicate</code></h4>
+<pre><code>SELECT a.shift_id AS shift_a, b.shift_id AS shift_b
+FROM shifts a JOIN shifts b
+  ON a.employee_id = b.employee_id AND a.shift_id &lt; b.shift_id
+ AND a.start_time &lt; b.end_time AND b.start_time &lt; a.end_time;</code></pre>
+<p>Each shift <code>a</code> is paired with another shift <code>b</code> of the <em>same employee</em>. <code>a.shift_id &lt; b.shift_id</code> keeps each pair once and removes self-pairs; the last two conditions are the interval-overlap test. (The reference answer selected <code>a.shift_id, b.shift_id</code> with no aliases &mdash; see the explanations for why that needs fixing.)</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>shift_a</th><th>shift_b</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td></tr>
+    <tr><td>4</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Two conflicting pairs: shifts 1&amp;2 for employee 100, shifts 4&amp;5 for employee 200. Shift 3 never appears &mdash; it overlaps nothing &mdash; and employee 300, with one shift, contributes nothing. Each conflict is listed exactly once, not twice.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The defect: two output columns named <code>shift_id</code></h5>
+<p>The reference query selects <code>a.shift_id, b.shift_id</code> &mdash; producing two result columns with the <em>identical</em> name <code>shift_id</code>. Postgres permits this, but it is a genuine bug for any consumer: an application that reads rows into a keyed object (a JSON map, a Python <code>dict</code>) sees only <em>one</em> <code>shift_id</code> &mdash; the second silently overwrites the first. The conflict pair becomes unreadable. The fix is one word per column: <code>a.shift_id AS shift_a, b.shift_id AS shift_b</code>. Distinct aliases on a self-join are not style; they are correctness.</p>
+
+<h5>The overlap predicate &mdash; why <code>a.start &lt; b.end AND b.start &lt; a.end</code></h5>
+<p>Two intervals overlap when each starts before the other ends. It is easier to derive from the negation: they <em>don't</em> overlap only if one finishes before the other begins &mdash; <code>a.end &lt;= b.start OR b.end &lt;= a.start</code>. Invert that (De Morgan) and you get exactly <code>a.start &lt; b.end AND b.start &lt; a.end</code>. Memorising the positive form without the derivation is the junior tell; deriving it on the spot is the senior one.</p>
+
+<h5>The boundary: do touching shifts count?</h5>
+<p>Strict <code>&lt;</code> means a shift ending at 12:00 and another starting at exactly 12:00 do <em>not</em> conflict &mdash; back-to-back shifts are allowed. If the rule is "even touching is a violation", switch to <code>&lt;=</code>: <code>a.start_time &lt;= b.end_time AND b.start_time &lt;= a.end_time</code>. This is a real policy question &mdash; confirm whether adjacency is a conflict before picking the operator.</p>
+
+<h5>Why <code>a.shift_id &lt; b.shift_id</code>, not <code>&lt;&gt;</code></h5>
+<p>Two jobs are done by one condition. It removes the trivial self-pair (a shift never conflicts with itself), and it de-duplicates: without it, an overlap of shifts 1 and 2 would show up <em>twice</em> &mdash; as (1,2) and (2,1). Using <code>&lt;&gt;</code> instead of <code>&lt;</code> would let both orderings through. The strict inequality gives one canonical row per conflicting pair.</p>
+
+<h5>Edge cases: NULL end times and three-way pile-ups</h5>
+<p>An open-ended shift with a NULL <code>end_time</code> makes <code>a.start_time &lt; b.end_time</code> evaluate to NULL &mdash; not true &mdash; so a genuine open shift conflict is silently missed. Treat an ongoing shift as ending "now": <code>COALESCE(b.end_time, CURRENT_TIMESTAMP)</code>. And if an employee has three mutually overlapping shifts, this query reports three <em>pairs</em> (A-B, A-C, B-C) rather than one cluster &mdash; fine for "flag every conflict", but if the question is "how many employees have <em>any</em> conflict", wrap it: <code>SELECT COUNT(DISTINCT employee_id)</code> over the conflicting shifts.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> alias both sides of a self-join so the output never has two identically-named columns, derive the interval-overlap predicate from its negation rather than reciting it, justify <code>shift_id &lt; shift_id</code> as the combined de-dupe-and-self-exclude trick, and handle NULL end-times with <code>COALESCE</code> so open shifts are not silently exempt from conflict detection.</div>

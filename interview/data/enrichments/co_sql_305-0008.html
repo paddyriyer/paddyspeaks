@@ -1,0 +1,77 @@
+<p>AMD's order-management team wants a flat line-item report &mdash; one row per product on every order, with the customer's name spelled out. The data is normalised across four tables, so the report is a chain of joins. The interview question is not "can you write three joins" &mdash; it is "do you understand that joining through a <em>bridge</em> table multiplies rows, and is that what the report wants?"</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>orders</code></strong> (one row per order) and <strong><code>order_items</code></strong> (the bridge &mdash; one row per product on an order):</p>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>5001</td><td>1</td><td>completed</td></tr>
+    <tr><td>5002</td><td>2</td><td>completed</td></tr>
+    <tr><td>5003</td><td>1</td><td>pending</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>order_id</th><th>product_id</th></tr></thead>
+  <tbody>
+    <tr><td>5001</td><td>100</td></tr>
+    <tr><td>5001</td><td>200</td></tr>
+    <tr><td>5002</td><td>100</td></tr>
+    <tr><td>5003</td><td>200</td></tr>
+  </tbody>
+</table>
+<p><code>customers</code>: id 1 = Acme Corp, id 2 = Globex. <code>products</code>: id 100 = Ryzen CPU, id 200 = Radeon GPU. The key detail: <strong>order 5001 has two line items</strong> &mdash; a CPU and a GPU &mdash; so it occupies two rows in <code>order_items</code>.</p>
+
+<h4>2. The SQL &mdash; <code>chained INNER JOINs</code></h4>
+<pre><code>SELECT o.order_id, c.name AS customer, p.name AS product
+FROM orders o
+JOIN customers c   ON o.customer_id = c.customer_id
+JOIN order_items oi ON o.order_id    = oi.order_id
+JOIN products p     ON oi.product_id = p.product_id;</code></pre>
+<p>Four tables, three join conditions. The chain goes <code>orders</code> &rarr; <code>customers</code> (to get the name), then <code>orders</code> &rarr; <code>order_items</code> (the bridge) &rarr; <code>products</code> (to get the product name).</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer</th><th>product</th></tr></thead>
+  <tbody>
+    <tr><td>5001</td><td>Acme Corp</td><td>Ryzen CPU</td></tr>
+    <tr><td>5001</td><td>Acme Corp</td><td>Radeon GPU</td></tr>
+    <tr><td>5002</td><td>Globex</td><td>Ryzen CPU</td></tr>
+    <tr><td>5003</td><td>Acme Corp</td><td>Radeon GPU</td></tr>
+  </tbody>
+</table>
+<p>Four rows from three orders. <strong>Order 5001 appears twice</strong> &mdash; once per line item. This is not a bug; it is the intended grain of a line-item report. The crucial thing is to <em>know</em> it happens: if you summed an order-level <code>amount</code> column across these rows, you would double-count order 5001's revenue.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The fan-out trap &mdash; the heart of this question</h5>
+<p>Joining <code>orders</code> through the <code>order_items</code> bridge <em>fans out</em>: a one-row order becomes one row per product. That is correct for a line-item report, but it makes order-level aggregates wrong. If the query also selected <code>o.amount</code> and you ran <code>SUM(o.amount)</code>, order 5001's amount would be added <strong>twice</strong>. To total order revenue after a fan-out, deduplicate first:</p>
+<pre><code>-- WRONG: double-counts multi-item orders
+SELECT SUM(o.amount) FROM orders o JOIN order_items oi ON o.order_id = oi.order_id;
+
+-- RIGHT: aggregate at the order grain, then there is nothing to fan out
+SELECT SUM(amount) FROM orders;</code></pre>
+<p>The rule: know the <em>grain</em> of every row before you aggregate. A line-item row is not an order.</p>
+
+<h5>Join order is cosmetic; join <em>type</em> is not</h5>
+<p>The optimiser is free to execute these joins in any order &mdash; writing <code>customers</code> before <code>order_items</code> does not change the plan or the result. What <em>does</em> change the result is the join <em>type</em>. Every join here is <code>INNER</code>, so the report silently drops:</p>
+<ul>
+  <li>an order with <em>no</em> rows in <code>order_items</code> (an empty cart) &mdash; gone;</li>
+  <li>a line item whose <code>product_id</code> points at a deleted product &mdash; gone;</li>
+  <li>an order whose <code>customer_id</code> is NULL or orphaned &mdash; gone.</li>
+</ul>
+<p>If the report must show every order even when a join fails, switch the relevant links to <code>LEFT JOIN</code> and decide what the missing side should display.</p>
+
+<h5>Including order status &mdash; the filter the interviewer expects</h5>
+<p>Order 5003 is <code>pending</code>. A revenue or fulfilment report usually wants only realised orders. The filter belongs in <code>WHERE</code> (it filters a non-outer-joined table):</p>
+<pre><code>SELECT o.order_id, c.name AS customer, p.name AS product
+FROM orders o
+JOIN customers c    ON o.customer_id = c.customer_id
+JOIN order_items oi ON o.order_id    = oi.order_id
+JOIN products p     ON oi.product_id = p.product_id
+WHERE o.status = 'completed';</code></pre>
+<p>A subtlety worth voicing: if any join were a <code>LEFT JOIN</code>, a status predicate in <code>WHERE</code> would quietly turn it back into an <code>INNER JOIN</code> &mdash; the condition on a join's nullable side belongs in <code>ON</code>, not <code>WHERE</code>.</p>
+
+<h5>The duplicate-key edge case</h5>
+<p>A line-item report is <em>supposed</em> to fan out on <code>order_items</code>. The unwanted fan-out is on the <em>dimension</em> tables: if <code>customers</code> or <code>products</code> had two rows with the same id &mdash; a dirty dimension &mdash; every row would duplicate again, and that fan-out is a genuine bug. Dimension keys must be unique; verify with a <code>GROUP BY id HAVING COUNT(*) &gt; 1</code> before trusting the row count.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that joining through the <code>order_items</code> bridge fans an order into one row per line item &mdash; correct for this report but fatal to any order-level <code>SUM</code> &mdash; reason about grain before aggregating, know that <code>INNER JOIN</code> silently drops empty carts and orphaned keys, and place the <code>status</code> filter in <code>WHERE</code> only because no link here is an outer join.</div>

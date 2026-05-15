@@ -1,0 +1,61 @@
+<p>Anthropic runs two products on separate billing systems, each with its own customer table. The growth team wants a single deduplicated list of <em>every</em> customer across both. It sounds like a one-line <code>UNION</code> &mdash; and it is &mdash; but the interviewer is checking whether you know the difference between <code>UNION</code> and <code>UNION ALL</code>, and what "duplicate" actually means when two tables disagree.</p>
+
+<h4>1. The source data &mdash; <code>service_a_customers</code> &amp; <code>service_b_customers</code></h4>
+<table>
+  <thead><tr><th>table</th><th>customer_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>service_a</td><td>1</td><td>Ana</td></tr>
+    <tr><td>service_a</td><td>2</td><td>Ben</td></tr>
+    <tr><td>service_a</td><td>3</td><td>Cara</td></tr>
+    <tr><td>service_b</td><td>2</td><td>Ben</td></tr>
+    <tr><td>service_b</td><td>3</td><td>Cara</td></tr>
+    <tr><td>service_b</td><td>4</td><td>Dan</td></tr>
+  </tbody>
+</table>
+<p>Customers 2 and 3 use <strong>both</strong> products &mdash; they appear in each table with identical <code>(customer_id, name)</code>. Those overlaps are what <code>UNION</code> has to collapse.</p>
+
+<h4>2. The SQL &mdash; <code>UNION</code></h4>
+<pre><code>SELECT customer_id, name FROM service_a_customers
+UNION
+SELECT customer_id, name FROM service_b_customers;</code></pre>
+<p><code>UNION</code> stacks the two result sets and then removes duplicate rows &mdash; a row is a duplicate only when <em>every</em> selected column matches. The two queries must have the same column count and compatible types, which they do.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ana</td></tr>
+    <tr><td>2</td><td>Ben</td></tr>
+    <tr><td>3</td><td>Cara</td></tr>
+    <tr><td>4</td><td>Dan</td></tr>
+  </tbody>
+</table>
+<p>Four distinct customers from six input rows. Ben and Cara appeared twice but surface once each. Note there is <strong>no <code>ORDER BY</code></strong> &mdash; the rows above happen to come back sorted, but that ordering is incidental, decided by how the engine deduplicated, not guaranteed.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>UNION</code> vs <code>UNION ALL</code> &mdash; the question behind the question</h5>
+<p><code>UNION</code> deduplicates; <code>UNION ALL</code> does not. With <code>UNION ALL</code> the result would have six rows &mdash; Ben and Cara listed twice. The deduplication is not free: it forces the engine to sort or hash the entire combined set. If you <em>know</em> the inputs are disjoint, <code>UNION ALL</code> is strictly faster:</p>
+<pre><code>SELECT customer_id, name FROM service_a_customers
+UNION ALL
+SELECT customer_id, name FROM service_b_customers;</code></pre>
+<p>The senior reflex: default to <code>UNION ALL</code> and add the <code>DISTINCT</code>-cost of plain <code>UNION</code> <em>only</em> when overlap is actually possible. Here it is, so <code>UNION</code> is right &mdash; but say why.</p>
+
+<h5>The dedup is by whole row &mdash; the dangerous edge</h5>
+<p><code>UNION</code> compares the full row, not just <code>customer_id</code>. Suppose service B has customer 2 as <code>(2, 'Benjamin')</code> &mdash; same person, name spelled differently. <code>UNION</code> sees two <em>distinct</em> rows and keeps both, and now customer 2 appears twice. If <code>customer_id</code> is the true identity key, deduplicate on <em>that</em>, not the row:</p>
+<pre><code>SELECT DISTINCT ON (customer_id) customer_id, name
+FROM (
+  SELECT customer_id, name FROM service_a_customers
+  UNION ALL
+  SELECT customer_id, name FROM service_b_customers
+) all_c
+ORDER BY customer_id;</code></pre>
+<p>This is the trap: "deduplicate customers" and "deduplicate rows" are different requests, and conflicting <code>name</code> values across systems is exactly when they diverge.</p>
+
+<h5>How NULLs are treated in <code>UNION</code></h5>
+<p>Unlike <code>=</code>, <code>UNION</code>'s duplicate-detection treats two NULLs as <em>equal</em>. So <code>(5, NULL)</code> from each table collapses to a single row &mdash; consistent with the dedup of any other repeated value. Worth stating, because it contradicts the usual "NULL is never equal to anything" rule that governs <code>WHERE</code> and <code>JOIN</code>.</p>
+
+<h5>Column names, types, and ordering</h5>
+<p>The output column names come from the <strong>first</strong> <code>SELECT</code>; the second query's aliases are ignored. The two branches must be union-compatible &mdash; same arity, coercible types &mdash; or the query errors. And a single <code>ORDER BY</code> at the very end orders the combined result; you cannot put <code>ORDER BY</code> on an individual branch. If the consumer needs a stable list, append <code>ORDER BY customer_id</code> &mdash; never rely on the incidental ordering shown above.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish <code>UNION</code> from <code>UNION ALL</code> by the cost of deduplication and default to <code>ALL</code> unless overlap is real, recognise that row-level dedup breaks when the same customer has a different <code>name</code> across systems (use <code>DISTINCT ON</code> the identity key), and add an explicit <code>ORDER BY</code> rather than trusting incidental ordering.</div>

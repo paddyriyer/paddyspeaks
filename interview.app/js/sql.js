@@ -311,7 +311,9 @@ async function loadEnrichment(qid) {
     const cached = enrichmentCache.get(qid);
     if (cached) {
       body.innerHTML = cached;
-      block.hidden = false;
+      // Gated: the walkthrough embeds the answer SQL, so it stays hidden
+      // until the reader reveals the solution.
+      block.hidden = !state.solutionShown;
     }
     return;
   }
@@ -327,7 +329,7 @@ async function loadEnrichment(qid) {
     // questions fast must not leak the previous question's enrichment.
     if (state.currentQ && state.currentQ.id === qid) {
       body.innerHTML = html;
-      block.hidden = false;
+      block.hidden = !state.solutionShown;
     }
   } catch (err) {
     enrichmentCache.set(qid, null);
@@ -339,6 +341,7 @@ function loadQuestion(qid /* , opts unused */) {
   const q = state.sqlQuestions.find((x) => x.id === qid);
   if (!q) return;
   state.currentQ = q;
+  state.solutionShown = false;
   $("#pg-q-title").textContent = q.title || "(untitled)";
   $("#pg-q-co").textContent = q.company ? "🏢 " + q.company : "";
   $("#pg-q-diff").textContent = q.difficulty || "";
@@ -424,10 +427,9 @@ function loadQuestion(qid /* , opts unused */) {
     setStatus("Engine switch failed: " + err.message, "error");
   });
 
-  // Up-front dialect banner if the reference solution uses
-  // Snowflake/PostgreSQL features we can't run. Show the canonical
-  // MySQL/PostgreSQL/Snowflake solution inline so the reader doesn't have
-  // to hunt for the "Show solution" button — the code is the answer.
+  // Dialect notice if the reference solution uses Snowflake/MySQL/Postgres
+  // features the in-browser engine can't run. The solution itself stays
+  // gated behind Show solution — only a notice appears here.
   const body = $("#pg-results-body");
   if (q.runtime === "non-sqlite") {
     body.innerHTML = renderDialectReference(q);
@@ -436,29 +438,23 @@ function loadQuestion(qid /* , opts unused */) {
   }
 }
 
-// Build the inline dialect-reference block shown in the results pane for
-// questions whose canonical solution targets MySQL / PostgreSQL / Snowflake.
-// We display the actual SQL code (not just a warning) so the reader can read
-// and learn from the canonical solution even though it can't execute here.
+// Build the dialect-notice block shown in the results pane for questions
+// whose canonical solution targets MySQL / PostgreSQL / Snowflake. The
+// solution itself stays behind Show solution — never revealed upfront.
 function renderDialectReference(q) {
   const tok = q.dialect_token
     ? ` (<code>${escapeHtml(q.dialect_token)}</code>)`
     : "";
-  const code = (q.solution || "").trim();
-  const codeBlock = code
-    ? `<pre class="pg-dialect-code"><code>${escapeHtml(code)}</code></pre>`
-    : '<div class="pg-dialect-empty">No reference solution shipped with this question.</div>';
   return (
     '<div class="pg-dialect-ref">' +
       '<div class="pg-dialect-banner">' +
-        '<strong>Reference solution — MySQL / PostgreSQL / Snowflake dialect</strong>' + tok +
+        '<strong>Dialect notice — MySQL / PostgreSQL / Snowflake</strong>' + tok +
         '<div class="pg-dialect-note">' +
-          'This is the canonical answer most interviewers expect. ' +
-          'It uses syntax that the in-browser SQLite engine does not support, ' +
-          'so it will not run here — copy it into MySQL, PostgreSQL, or Snowflake to execute.' +
+          "This question's reference solution uses syntax the in-browser engine " +
+          'does not support, so it cannot run here. Click <strong>Show solution</strong> ' +
+          'to view the canonical answer, then run it in MySQL, PostgreSQL, or Snowflake.' +
         '</div>' +
       '</div>' +
-      codeBlock +
     '</div>'
   );
 }
@@ -950,15 +946,25 @@ function csvCell(v) {
 }
 
 // ─── Solution actions ───
+// The enrichment walkthrough embeds the reference SQL, so it is revealed
+// together with the solution — never upfront.
+function revealEnrichment() {
+  const body = $("#pg-q-enrichment");
+  if (body && body.innerHTML.trim()) $("#pg-q-enrichment-block").hidden = false;
+}
 function showSolution() {
   if (!state.currentQ) return;
+  state.solutionShown = true;
   $("#pg-solution").textContent = state.currentQ.solution || "(no reference solution)";
   $("#pg-solution-pane").hidden = false;
   $("#pg-solution-pane").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  revealEnrichment();
 }
 function loadSolution() {
   if (!state.currentQ?.solution) return;
+  state.solutionShown = true;
   $("#pg-editor").value = state.currentQ.solution;
+  revealEnrichment();
 }
 
 // ─── Custom CSV loader ───
@@ -1024,7 +1030,11 @@ function wire() {
   $("#pg-format").addEventListener("click", formatSQL);
   $("#pg-show-solution").addEventListener("click", showSolution);
   $("#pg-load-solution").addEventListener("click", loadSolution);
-  $("#pg-solution-close").addEventListener("click", () => ($("#pg-solution-pane").hidden = true));
+  $("#pg-solution-close").addEventListener("click", () => {
+    state.solutionShown = false;
+    $("#pg-solution-pane").hidden = true;
+    $("#pg-q-enrichment-block").hidden = true;
+  });
   $("#pg-export-csv").addEventListener("click", exportCSV);
   $("#pg-refresh-schema").addEventListener("click", () => {
     if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }

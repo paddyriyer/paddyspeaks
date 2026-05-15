@@ -1,0 +1,60 @@
+<p>Amazon's finance team keeps each fiscal year's sales in its own table &mdash; <code>sales_2024</code>, <code>sales_2025</code> &mdash; and the year-over-year deck needs one tidy two-row total. The reference solution stitches the totals together with <code>UNION ALL</code>. It works, and the interview is about <em>why</em> it is <code>UNION ALL</code> and not <code>UNION</code>, and what happens when there are ten yearly tables instead of two.</p>
+
+<h4>1. The source data &mdash; <code>sales_2024</code> and <code>sales_2025</code></h4>
+<table>
+  <thead><tr><th>table</th><th>same</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>sales_2024</td><td>a</td><td>$100</td></tr>
+    <tr><td>sales_2024</td><td>b</td><td>$250</td></tr>
+    <tr><td>sales_2024</td><td>c</td><td>$75</td></tr>
+    <tr><td>sales_2025</td><td>a</td><td>$300</td></tr>
+    <tr><td>sales_2025</td><td>b</td><td>$120</td></tr>
+    <tr><td>sales_2025</td><td>c</td><td>$90</td></tr>
+    <tr><td>sales_2025</td><td>d</td><td>$60</td></tr>
+  </tbody>
+</table>
+<p>Two tables with identical structure. 2024 totals $425 across three rows; 2025 totals $570 across four. The yearly totals happen to be different numbers &mdash; keep that in mind, because if they were <em>equal</em> the choice of <code>UNION</code> vs <code>UNION ALL</code> would suddenly matter.</p>
+
+<h4>2. The SQL &mdash; <code>UNION ALL of two SUMs</code></h4>
+<pre><code>SELECT '2024' AS yr, SUM(amount) FROM sales_2024
+UNION ALL
+SELECT '2025', SUM(amount) FROM sales_2025;</code></pre>
+<p>Each branch collapses a whole table to one row with a hard-coded year literal, then the two single-row results are stacked vertically.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>yr</th><th>sum</th></tr></thead>
+  <tbody>
+    <tr><td>2024</td><td>425</td></tr>
+    <tr><td>2025</td><td>570</td></tr>
+  </tbody>
+</table>
+<p>Two rows, exactly as the deck wants. Note the second column is just called <code>sum</code> &mdash; only the <em>first</em> branch's column aliases survive, and that branch never named the aggregate.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNION ALL</code>, not <code>UNION</code> &mdash; and the trap if you pick wrong</h5>
+<p><code>UNION</code> de-duplicates: it sorts the combined result and drops identical rows. <code>UNION ALL</code> concatenates blindly. Here the danger is real &mdash; suppose two years coincidentally posted the <em>same</em> total revenue. With <code>UNION</code>, the rows <code>('2024', 500)</code> and <code>('2025', 500)</code> stay distinct (the year literal differs), so you are safe <em>this time</em>. But the moment the branches select only <code>SUM(amount)</code> with no year label, two equal totals would silently collapse to one row. <code>UNION ALL</code> is correct because the intent is "keep every branch's row", and it skips the needless dedupe sort &mdash; faster, and free of accidental row loss.</p>
+
+<h5>Column names come from the first SELECT only</h5>
+<p>The output column is <code>sum</code> because the second branch's names are ignored entirely &mdash; a set operation takes its column names from the <strong>first</strong> query. Name it once, in the first branch:</p>
+<pre><code>SELECT '2024' AS yr, SUM(amount) AS total_sales FROM sales_2024
+UNION ALL
+SELECT '2025' AS yr, SUM(amount) AS total_sales FROM sales_2025;</code></pre>
+<p>The aliases on the second branch are documentation for the reader; the engine discards them.</p>
+
+<h5>Type and column-count alignment &mdash; the silent failure modes</h5>
+<p>Branches in a <code>UNION</code> must match on column <em>count</em> and have <em>compatible types</em>, matched <strong>by position, not by name</strong>. Selecting <code>'2024'</code> (text) above <code>SUM(amount)</code> (numeric) in different positions across branches would either error or coerce unexpectedly. The literal <code>'2024'</code> is text here; if a consumer needs a real year integer, cast it: <code>2024 AS yr</code> or <code>'2024'::int</code> &mdash; consistently in every branch.</p>
+
+<h5>The design smell: year-per-table doesn't scale</h5>
+<p>The honest senior comment is that this schema is the actual problem. Ten years means a ten-branch <code>UNION ALL</code> that must be hand-edited every January. A single partitioned <code>sales</code> table with a <code>year</code> column reduces the whole report to:</p>
+<pre><code>SELECT year, SUM(amount) AS total_sales
+FROM sales
+GROUP BY year
+ORDER BY year;</code></pre>
+<p>If you cannot change the schema, generate the union dynamically or wrap the per-year tables in a view. Flagging the data-model issue &mdash; while still delivering the asked-for query &mdash; is the over-the-bar move.</p>
+
+<h5>Edge case: an empty year table</h5>
+<p><code>SUM(amount)</code> over an empty table returns <strong>NULL</strong>, not 0 &mdash; so a year with no sales rows shows a blank, which a chart may render as a gap. Wrap it if the deck needs a hard zero: <code>COALESCE(SUM(amount), 0) AS total_sales</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify <code>UNION ALL</code> over <code>UNION</code> by intent (keep every row, skip the dedupe sort), know that output column names come from the first branch and that branches align by position, and call out that one-table-per-year is a schema smell that a single partitioned table with a <code>GROUP BY</code> would fix.</div>

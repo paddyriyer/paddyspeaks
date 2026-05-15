@@ -1,0 +1,77 @@
+<p>Amazon's order-reporting team needs a flat line-item view: customer name, order id, product name, quantity &mdash; one row per item shipped. The reference solution chains four inner joins from <code>customers</code> through <code>orders</code> and <code>order_items</code> to <code>products</code>. It reads cleanly, and the interview is about what those <em>inner</em> joins quietly throw away.</p>
+
+<h4>1. The source data</h4>
+<p><code>customers</code> &mdash; three customers:</p>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ana</td></tr>
+    <tr><td>2</td><td>Ben</td></tr>
+    <tr><td>3</td><td>Cy</td></tr>
+  </tbody>
+</table>
+<p><code>orders</code> &mdash; Ana has two orders, Ben has one, <strong>Cy has none</strong>:</p>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>500</td><td>1</td></tr>
+    <tr><td>501</td><td>1</td></tr>
+    <tr><td>502</td><td>2</td></tr>
+  </tbody>
+</table>
+<p><code>order_items</code> &mdash; line items, and <code>products</code> holds <code>Widget(90)</code>, <code>Gadget(91)</code>, <code>Doohickey(92)</code>:</p>
+<table>
+  <thead><tr><th>order_id</th><th>product_id</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>500</td><td>90</td><td>2</td></tr>
+    <tr><td>500</td><td>91</td><td>1</td></tr>
+    <tr><td>501</td><td>92</td><td>5</td></tr>
+    <tr><td>502</td><td>90</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Cy has placed no orders &mdash; the customer with nothing on the other side of the join. That is the row the interviewer is watching for.</p>
+
+<h4>2. The SQL &mdash; <code>four-table inner join chain</code></h4>
+<pre><code>SELECT c.name, o.order_id, p.name AS product, oi.qty
+FROM customers c
+JOIN orders o      ON c.customer_id = o.customer_id
+JOIN order_items oi ON o.order_id = oi.order_id
+JOIN products p     ON oi.product_id = p.product_id;</code></pre>
+<p>The join walks the chain: customer &rarr; their orders &rarr; the items on each order &rarr; the product behind each item. The grain of the result is <em>one row per order item</em>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>order_id</th><th>product</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>Ana</td><td>500</td><td>Widget</td><td>2</td></tr>
+    <tr><td>Ana</td><td>500</td><td>Gadget</td><td>1</td></tr>
+    <tr><td>Ana</td><td>501</td><td>Doohickey</td><td>5</td></tr>
+    <tr><td>Ben</td><td>502</td><td>Widget</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Four rows &mdash; one per line item. Ana appears <em>three</em> times because she has three items across two orders; order 500 appears twice because it has two products. <strong>Cy is absent entirely.</strong> That fan-out and that omission are both consequences of the join, not the data being wrong.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Inner joins drop the unmatched side &mdash; Cy disappears</h5>
+<p>An <code>INNER JOIN</code> emits a row only when both sides match. Cy has no order, so <code>customers JOIN orders</code> never produces a Cy row, and the rest of the chain has nothing to extend. For a line-item report that is fine &mdash; a customer with no items has no lines. But if the question were "list <em>all</em> customers and their items, zero or more", the inner join is wrong and you need <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT c.name, o.order_id, p.name AS product, oi.qty
+FROM customers c
+LEFT JOIN orders o       ON c.customer_id = o.customer_id
+LEFT JOIN order_items oi ON o.order_id = oi.order_id
+LEFT JOIN products p     ON oi.product_id = p.product_id;</code></pre>
+<p>Now Cy returns one row with NULLs for <code>order_id</code>, <code>product</code>, <code>qty</code>. The rule: one inner join anywhere in the chain re-filters everything &mdash; if you want to preserve customers, <em>every</em> join from <code>customers</code> onward must be <code>LEFT</code>.</p>
+
+<h5>Row multiplication is correct here &mdash; know your grain</h5>
+<p>Ana appearing three times is not a duplicate bug; the result's grain is the order item, and she has three items. The trap is using this row set as a base for <code>SUM</code> or <code>COUNT</code> without remembering that. <code>COUNT(DISTINCT c.customer_id)</code> = 2 customers, but <code>COUNT(*)</code> = 4 lines. Always state what one row represents before aggregating on top of it.</p>
+
+<h5>Joining on the <em>right</em> keys &mdash; this schema is a minefield</h5>
+<p>Look at the schema: <code>customers</code>, <code>orders</code>, <code>products</code> and <code>order_items</code> each carry <code>customer_id</code>, <code>order_id</code>, <code>product_id</code>, <code>qty</code>, even <code>name</code>. A careless join like <code>JOIN products p ON p.order_id = o.order_id</code> would compile and return plausible-looking garbage. The solution is correct because it joins on the <em>relationship</em> keys: orders to items by <code>order_id</code>, items to products by <code>product_id</code>. Never join two tables just because a column name matches &mdash; join on the column that actually models the foreign key.</p>
+
+<h5>Ambiguous columns and the <code>name</code> collision</h5>
+<p>Both <code>customers</code> and <code>products</code> have a <code>name</code> column &mdash; that is why the query qualifies every reference (<code>c.name</code>, <code>p.name</code>) and aliases the product as <code>AS product</code>. An unqualified <code>SELECT name</code> would raise an "ambiguous column" error. Table aliases plus output aliases are mandatory hygiene in a multi-table join, not optional polish.</p>
+
+<h5>Edge cases: orphan items and explicit join syntax</h5>
+<p>If an <code>order_items</code> row points at a <code>product_id</code> that is missing from <code>products</code> (a deleted SKU), the final inner join drops that line silently &mdash; the report under-reports without warning. A <code>LEFT JOIN products</code> with a NULL <code>product</code> surfaces the orphan instead of hiding it. Also prefer explicit <code>JOIN &hellip; ON</code> over comma-joins with <code>WHERE</code> conditions: with four tables, a forgotten comma-join predicate becomes an accidental cross join &mdash; millions of rows from a missing line.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that an inner-join chain filters out customers with no orders (Cy) and switch to <code>LEFT JOIN</code> end-to-end when the question wants every customer, name the result's grain before aggregating on it, and join strictly on the foreign-key relationship rather than on any same-named column in a deliberately redundant schema.</div>

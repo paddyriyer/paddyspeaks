@@ -1,0 +1,57 @@
+<p>Crypto.com runs a tournament leaderboard and needs every player's rank by score. The reference solution computes rank the pre-window-function way: for each player, count how many players scored strictly higher. It produces the right numbers &mdash; but the interviewer is watching whether you recognise this as an O(n&sup2;) self-join in disguise, and whether you know which ranking semantics it actually implements.</p>
+
+<h4>1. The source data &mdash; <code>scores</code></h4>
+<table>
+  <thead><tr><th>player_id</th><th>score</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>95</td></tr>
+    <tr><td>2</td><td>88</td></tr>
+    <tr><td>3</td><td>95</td></tr>
+    <tr><td>4</td><td>72</td></tr>
+    <tr><td>5</td><td>60</td></tr>
+  </tbody>
+</table>
+<p>Players 1 and 3 are <strong>tied</strong> at 95 &mdash; the top score. That tie is the whole interview: it decides whether the player below them is ranked 2 or 3.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(higher) + 1</code></h4>
+<pre><code>SELECT player_id, score,
+  (SELECT COUNT(*)+1 FROM scores s2 WHERE s2.score &gt; s1.score) AS rank
+FROM scores s1 ORDER BY rank;</code></pre>
+<p>For each player <code>s1</code>, the correlated subquery counts how many rows have a <em>strictly greater</em> score, then adds 1. A player with nobody above them gets <code>rank = 1</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>player_id</th><th>score</th><th>rank</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>95</td><td>1</td></tr>
+    <tr><td>3</td><td>95</td><td>1</td></tr>
+    <tr><td>2</td><td>88</td><td>3</td></tr>
+    <tr><td>4</td><td>72</td><td>4</td></tr>
+    <tr><td>5</td><td>60</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Both 95-scorers get rank 1 &mdash; neither has anyone strictly above. Then player 2 gets <strong>rank 3, not 2</strong>: two players outscore them. The count of strict-greater values is exactly <code>RANK()</code> semantics &mdash; <em>ties share a rank and the next rank is skipped</em>. The "2" is gone.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>This is <code>RANK()</code> &mdash; the gap-after-ties behaviour is deliberate</h5>
+<p>"Count how many are strictly higher, plus one" is the textbook definition of competition ranking. Ties get the same rank; the rank after a tie jumps by the size of the tie group (ranks 1, 1, 3). The window-function equivalent is one line and far clearer about intent:</p>
+<pre><code>SELECT player_id, score,
+       RANK() OVER (ORDER BY score DESC) AS rank
+FROM scores
+ORDER BY rank;</code></pre>
+<p>If the leaderboard should instead read 1, 1, 2 &mdash; no gap &mdash; that is <code>DENSE_RANK()</code>, and the subquery would have to count distinct higher <em>scores</em>, not rows. Naming which one the product wants is the senior move.</p>
+
+<h5>The performance trap &mdash; O(n&sup2;)</h5>
+<p>The correlated subquery runs once per player, and each run scans the whole table: with <em>n</em> players that is roughly <em>n&sup2;</em> comparisons. Fine for a 5-row demo, quadratic and unacceptable for a million-row leaderboard. <code>RANK() OVER (&hellip;)</code> sorts once &mdash; O(n log n) &mdash; and assigns ranks in a single pass. On any real table the window function is not just cleaner, it is the only viable answer.</p>
+
+<h5>The type label is misleading</h5>
+<p>The question is tagged "SQL / Arrays", but there is no array work here &mdash; it is a ranking problem. Do not be lured into <code>array_agg</code> or unnest gymnastics; recognise it for what it is. (Mislabelled categories happen; solve the question, not the tag.)</p>
+
+<h5><code>ROW_NUMBER</code> is the wrong tool &mdash; know why</h5>
+<p>A common mistake is <code>ROW_NUMBER() OVER (ORDER BY score DESC)</code>. That assigns 1, 2, 3, 4, 5 &mdash; it would give the two tied 95-scorers <em>different</em> numbers (1 and 2), arbitrarily breaking the tie by physical row order. <code>ROW_NUMBER</code> is for "pick exactly one row per group"; for genuine ranking where ties must share a position, it is wrong. <code>RANK</code> / <code>DENSE_RANK</code> respect ties; <code>ROW_NUMBER</code> ignores them.</p>
+
+<h5>NULL scores and the strict inequality</h5>
+<p><code>s2.score &gt; s1.score</code> is unknown whenever either side is NULL, so a NULL-score player counts nobody as above them and lands at rank 1 &mdash; almost certainly wrong. And NULL never counts as "higher" for anyone else either. Decide explicitly: filter <code>WHERE score IS NOT NULL</code>, or use <code>RANK() OVER (ORDER BY score DESC NULLS LAST)</code> so unscored players sink to the bottom.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify "count strictly higher + 1" as <code>RANK()</code> semantics with skipped ranks after ties, replace the O(n&sup2;) correlated self-join with <code>RANK() OVER (ORDER BY score DESC)</code>, distinguish <code>RANK</code>/<code>DENSE_RANK</code>/<code>ROW_NUMBER</code> by how each treats ties, and handle NULL scores deliberately rather than letting them default to rank 1.</div>
