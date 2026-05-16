@@ -1,0 +1,65 @@
+<p>A ride-sharing platform ingests customer profile updates nightly from a staging table. The merge rule is: if the customer exists in the target, update their record only when the incoming row is <em>newer</em> (guarded by <code>updated_at</code>); if they are new, insert them. In Snowflake this is a native <code>MERGE INTO</code> statement; the solution shown uses PostgreSQL's <code>INSERT … ON CONFLICT DO UPDATE WHERE</code> idiom, which is semantically equivalent. The interviewer is testing mastery of upsert patterns, timestamp-gated update logic, and dialect awareness.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> (target) and <code>staging_customers</code> (incoming)</h4>
+<table>
+  <thead><tr><th>customers (before merge)</th><th>customer_id</th><th>name</th><th>email</th><th>updated_at</th></tr></thead>
+  <tbody>
+    <tr><td></td><td>1</td><td>Alice</td><td>alice@old.com</td><td>2025-01-01 09:00</td></tr>
+    <tr><td></td><td>2</td><td>Bob</td><td>bob@old.com</td><td>2025-01-15 09:00</td></tr>
+    <tr><td></td><td>3</td><td>Carol</td><td>carol@old.com</td><td>2025-02-01 09:00</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>staging_customers (incoming)</th><th>customer_id</th><th>name</th><th>email</th><th>updated_at</th><th>action</th></tr></thead>
+  <tbody>
+    <tr><td></td><td>2</td><td>Bobby</td><td>bob@new.com</td><td>2025-04-01 12:00</td><td>update &mdash; newer, apply</td></tr>
+    <tr><td></td><td>3</td><td>Carol</td><td>carol@old.com</td><td>2024-12-01 09:00</td><td>update &mdash; older, skip</td></tr>
+    <tr><td></td><td>4</td><td>Dave</td><td>dave@new.com</td><td>2025-04-01 12:00</td><td>insert &mdash; new customer</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; INSERT … ON CONFLICT with timestamp guard</h4>
+<pre><code>INSERT INTO customers (customer_id, name, email, updated_at)
+SELECT customer_id, name, email, updated_at
+FROM staging_customers
+ON CONFLICT (customer_id) DO UPDATE
+   SET name       = EXCLUDED.name,
+       email      = EXCLUDED.email,
+       updated_at = EXCLUDED.updated_at
+ WHERE EXCLUDED.updated_at &gt; customers.updated_at;
+
+SELECT customer_id, name, email, updated_at
+FROM customers
+ORDER BY customer_id;</code></pre>
+<p><strong>Snowflake native equivalent:</strong> <code>MERGE INTO customers c USING staging_customers s ON c.customer_id = s.customer_id WHEN MATCHED AND s.updated_at &gt; c.updated_at THEN UPDATE SET name=s.name, email=s.email, updated_at=s.updated_at WHEN NOT MATCHED THEN INSERT (customer_id, name, email, updated_at) VALUES (s.customer_id, s.name, s.email, s.updated_at);</code></p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>email</th><th>updated_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>alice@old.com</td><td>2025-01-01 09:00</td></tr>
+    <tr><td>2</td><td>Bobby</td><td>bob@new.com</td><td>2025-04-01 12:00</td></tr>
+    <tr><td>3</td><td>Carol</td><td>carol@old.com</td><td>2025-02-01 09:00</td></tr>
+    <tr><td>4</td><td>Dave</td><td>dave@new.com</td><td>2025-04-01 12:00</td></tr>
+  </tbody>
+</table>
+<p>Alice (id=1): not in staging &rarr; unchanged. Bob (id=2): staging row is newer (2025-04-01 &gt; 2025-01-15) &rarr; name updated to "Bobby," email updated. Carol (id=3): staging row is older (2024-12-01 &lt; 2025-02-01) &rarr; the WHERE clause rejects the update, Carol stays unchanged. Dave (id=4): no conflict &rarr; inserted.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The timestamp guard — why it is critical</h5>
+<p>Without <code>WHERE EXCLUDED.updated_at &gt; customers.updated_at</code>, an older staging row would overwrite a newer target row — a silent data regression. The guard makes the merge <em>idempotent</em> with respect to ordering: re-running the same staging batch multiple times will never regress data. This is the key correctness property of any CDC (Change Data Capture) or SCD (Slowly Changing Dimension) upsert. Always state this invariant explicitly in an interview.</p>
+
+<h5>The EXCLUDED pseudo-table in PostgreSQL</h5>
+<p>In <code>ON CONFLICT DO UPDATE</code>, <code>EXCLUDED</code> is a virtual table that refers to the row that <em>would have been inserted</em> (i.e., the incoming staging row). So <code>EXCLUDED.updated_at</code> is the staging row's timestamp and <code>customers.updated_at</code> is the existing target row's timestamp. The <code>WHERE</code> clause on the DO UPDATE block makes the update conditional — if it evaluates to false, the row in the target is left untouched, which is exactly what we want for Carol's stale staging record.</p>
+
+<h5>Snowflake MERGE INTO vs PostgreSQL ON CONFLICT</h5>
+<p>Snowflake's native <code>MERGE INTO … USING … ON … WHEN MATCHED THEN UPDATE … WHEN NOT MATCHED THEN INSERT</code> is the ANSI SQL:2003 MERGE statement. It is more readable for complex upsert logic and supports multiple WHEN MATCHED clauses (e.g., a second WHEN MATCHED for deletes). PostgreSQL added a <code>MERGE</code> statement in version 15; prior versions use <code>INSERT … ON CONFLICT</code>. BigQuery supports <code>MERGE</code>. MySQL does not have MERGE — <code>INSERT … ON DUPLICATE KEY UPDATE</code> is the alternative (but lacks the conditional WHERE on the update).</p>
+
+<h5>What happens to Alice?</h5>
+<p>Customer id=1 is not present in <code>staging_customers</code>, so the INSERT finds no row to insert for her and she remains unchanged. This is the correct behavior for a nightly delta load: only touched records are in staging. A full-load strategy (where staging contains all customers) would instead treat absence from staging as a delete signal, requiring a different pattern.</p>
+
+<h5>Atomicity and concurrency</h5>
+<p>The <code>INSERT … ON CONFLICT</code> block executes atomically within a transaction. If two concurrent staging loads try to upsert the same customer_id at the same time, one will win and the other will see a conflict and apply the WHERE guard — no lost update. In Snowflake, <code>MERGE</code> is similarly atomic. Mentioning ACID guarantees in the context of concurrent ETL loads is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the timestamp guard (<code>WHERE EXCLUDED.updated_at &gt; customers.updated_at</code>) as the idempotency invariant that prevents stale data from overwriting fresh data; explain the <code>EXCLUDED</code> pseudo-table; contrast the PostgreSQL <code>ON CONFLICT</code> pattern with Snowflake's native <code>MERGE INTO … WHEN MATCHED … WHEN NOT MATCHED</code>; and note that the whole statement is atomic — concurrent staging loads are safe.</div>
