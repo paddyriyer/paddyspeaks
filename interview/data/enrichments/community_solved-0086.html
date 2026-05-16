@@ -1,0 +1,78 @@
+<p>A fraud / risk team wants customers who fired off more than three transactions inside any one-hour window &mdash; a burst pattern that often signals card testing or account abuse. The interviewer is probing a sliding-window-count technique, and is watching closely for the off-by-one error that turns "more than 3" into "3 or more".</p>
+
+<h4>1. The source data &mdash; <code>Customer_Transactions</code></h4>
+<table>
+  <thead><tr><th>transaction_id</th><th>customer_id</th><th>transaction_time</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2099-03-01 10:00</td><td>burst start</td></tr>
+    <tr><td>2</td><td>100</td><td>2099-03-01 10:15</td><td></td></tr>
+    <tr><td>3</td><td>100</td><td>2099-03-01 10:40</td><td></td></tr>
+    <tr><td>4</td><td>100</td><td>2099-03-01 10:55</td><td>4 txns within 55 min &mdash; qualifies</td></tr>
+    <tr><td>5</td><td>100</td><td>2099-03-01 14:00</td><td>much later &mdash; outside the window</td></tr>
+    <tr><td>6</td><td>200</td><td>2099-03-01 09:00</td><td>only 2 txns, hours apart</td></tr>
+    <tr><td>7</td><td>200</td><td>2099-03-01 12:00</td><td></td></tr>
+    <tr><td>8</td><td>300</td><td>2099-03-01 08:00</td><td>exactly 3 txns in 50 min &mdash; the boundary trap</td></tr>
+    <tr><td>9</td><td>300</td><td>2099-03-01 08:30</td><td></td></tr>
+    <tr><td>10</td><td>300</td><td>2099-03-01 08:50</td><td>3 is NOT "more than 3"</td></tr>
+  </tbody>
+</table>
+<p>Customer 300 has exactly three transactions in an hour &mdash; the deliberate boundary. "More than 3" means four or more, so 300 must <em>not</em> appear; only customer 100 should.</p>
+
+<h4>2. The SQL &mdash; pair transactions, count per anchor</h4>
+<p><strong>Original solution (flagged &mdash; wrong threshold):</strong></p>
+<pre><code>WITH frequent_txn_info AS (
+  SELECT ct1.customer_id,
+         ct1.transaction_id AS transaction_1,
+         ct2.transaction_id AS transaction_2,
+         ct1.transaction_time AS transaction_ts1,
+         ct2.transaction_time AS transaction_ts2,
+         EXTRACT(EPOCH FROM (ct2.transaction_time - ct1.transaction_time))/60 AS interval_min
+  FROM customer_transactions ct1
+  INNER JOIN customer_transactions ct2
+    ON ct1.customer_id = ct2.customer_id
+   AND ct1.transaction_time &lt;= ct2.transaction_time
+   AND ct1.transaction_id &lt;&gt; ct2.transaction_id
+),
+frequent_txn AS (
+  SELECT customer_id,
+         COUNT(*) OVER (PARTITION BY customer_id, transaction_1) AS freq_txn
+  FROM frequent_txn_info
+  WHERE interval_min &lt;= 60
+)
+SELECT DISTINCT customer_id
+FROM frequent_txn
+WHERE freq_txn &gt;= 2;</code></pre>
+<p>The self-join pairs each transaction (<code>ct1</code>, the anchor) with every <em>later</em> transaction within 60 minutes. <code>COUNT(*) OVER (PARTITION BY customer_id, transaction_1)</code> counts those later partners per anchor. Because the join's <code>ct1.transaction_id &lt;&gt; ct2.transaction_id</code> clause excludes the anchor from its own count, an anchor with N partners represents a burst of <strong>N + 1</strong> transactions. So <code>freq_txn &gt;= 2</code> admits bursts of only 3 &mdash; it answers "3 or more", not "more than 3". Customer 300 wrongly slips through.</p>
+<p><strong>Corrected solution &mdash; threshold raised to <code>&gt;= 3</code>:</strong></p>
+<pre><code>-- ...frequent_txn_info and frequent_txn CTEs unchanged...
+SELECT DISTINCT customer_id
+FROM frequent_txn
+WHERE freq_txn &gt;= 3;   -- 3 later partners + the anchor = 4+ transactions</code></pre>
+
+<h4>3. The resulting analysis (corrected query)</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>txns 1,2,3,4 all within 55 min &mdash; 4 transactions, genuinely &gt; 3</td></tr>
+  </tbody>
+</table>
+<p>Only customer 100 survives. Customer 300 (exactly 3 transactions) is correctly excluded by the corrected <code>&gt;= 3</code> threshold; the original <code>&gt;= 2</code> would have included it. Customer 200's two far-apart transactions never form a window.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug &mdash; counting partners, not transactions</h5>
+<p>The mental model must be precise. <code>freq_txn</code> is the number of transactions that occur <em>at or after</em> the anchor and within 60 minutes, <em>excluding the anchor itself</em>. A burst of K transactions, anchored on its earliest member, has K&minus;1 such partners. "More than 3 transactions" means K &ge; 4, which means K&minus;1 &ge; 3 &mdash; hence <code>freq_txn &gt;= 3</code>. The original <code>&gt;= 2</code> corresponds to K &ge; 3, the "at least 3" question. A single misread of strict-vs-inclusive bound flips the answer.</p>
+
+<h5>Why anchor on the <em>earliest</em> transaction of a window</h5>
+<p>The join condition <code>ct1.transaction_time &lt;= ct2.transaction_time</code> only pairs an anchor with transactions that come <em>after</em> it. So a window is correctly measured from its first transaction forward &mdash; the anchor sees the whole hour ahead of it. If any transaction (not just the earliest) could anchor a backward-and-forward window you would double-count; pinning the window's left edge to the anchor keeps each burst counted from one well-defined origin.</p>
+
+<h5>The self-join is O(n&sup2;) &mdash; the modern alternative</h5>
+<p>Pairing every transaction with every other transaction of the same customer is quadratic in transactions-per-customer. For a high-volume customer that is expensive. The cleaner, near-linear approach is a range-framed window count: <code>COUNT(*) OVER (PARTITION BY customer_id ORDER BY transaction_time RANGE BETWEEN CURRENT ROW AND INTERVAL '1 hour' FOLLOWING)</code> gives, per row, how many transactions fall in the next hour &mdash; then keep customers where that count ever reaches 4. One sort, one pass, no self-join.</p>
+
+<h5>Boundary semantics &mdash; <code>&lt;= 60</code> and inclusive windows</h5>
+<p><code>interval_min &lt;= 60</code> makes the one-hour window inclusive of its endpoint: two transactions exactly 60 minutes apart count as "within the window". Whether the window is open or closed at 60 minutes is a business decision; state it. Also note <code>EXTRACT(EPOCH FROM interval)/60</code> yields fractional minutes &mdash; fine for a <code>&lt;=</code> comparison, but do not assume it is an integer.</p>
+
+<h5>What to say next &mdash; ties and the meaning of "any window"</h5>
+<p>If two transactions share an identical <code>transaction_time</code>, the <code>&lt;=</code> join still pairs them (the <code>&lt;&gt;</code> on id keeps it from self-pairing), so simultaneous transactions are handled. The deeper senior point: "any 1-hour window" is a <em>continuous</em> sliding window, and anchoring on actual transaction timestamps is correct precisely because a burst's window can always be slid to start exactly on one of its transactions &mdash; you never need to test arbitrary clock times. Saying that shows you understand why the discrete anchor set suffices.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> nail the off-by-one &mdash; an anchor's partner count excludes the anchor, so "more than 3 transactions" is <code>freq_txn &gt;= 3</code>, not <code>&gt;= 2</code>. Then flag the O(n&sup2;) self-join and offer the <code>RANGE ... INTERVAL '1 hour' FOLLOWING</code> window count as the linear replacement.</div>

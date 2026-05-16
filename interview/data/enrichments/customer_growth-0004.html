@@ -1,0 +1,124 @@
+<p>A lifecycle-marketing team wants to study customers who have <em>repeatedly</em> lapsed and come back &mdash; not one-time churners, but accounts with multiple resurrection cycles. The question (snapshot 2025-04-01) asks for cycle counts, the idle-gap statistics between active phases, and crucially whether each comeback brings a <em>bigger</em> basket than the order before the lapse (the AOV uplift). The interviewer is testing the full gaps-and-islands toolkit: define islands by a 90-day gap, then compare adjacent islands with <code>LAG</code>.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>pattern</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>5 tight clusters across 2 years</td><td>4 resurrection cycles, comeback AOV rising</td></tr>
+    <tr><td>2</td><td>4 clusters, gaps widening</td><td>3 cycles, modest uplift, Y2-heavy</td></tr>
+    <tr><td>3</td><td>4 clusters all inside 12 months</td><td>3 cycles, comeback AOV <em>falling</em> &mdash; negative uplift</td></tr>
+    <tr><td>4</td><td>7 orders, every gap &lt; 90 days</td><td>single island &mdash; excluded (needs &ge; 2)</td></tr>
+  </tbody>
+</table>
+<p>Customer 4 is the edge case: a steady customer who orders every two to three months but never lets a gap exceed 90 days. They form exactly <em>one</em> island, have zero resurrection cycles, and must drop out of the result &mdash; "loyal-and-continuous" is the opposite of "resurrected".</p>
+
+<h4>2. The SQL &mdash; 90-day-gap islands with adjacent-island comparison</h4>
+<pre><code>WITH params AS (SELECT DATE '2025-04-01' AS snapshot),
+flagged AS (
+    SELECT o.customer_id, o.order_date, o.amount,
+        CASE
+          WHEN LAG(o.order_date) OVER w IS NULL THEN 1
+          WHEN (o.order_date - LAG(o.order_date) OVER w) &gt; 90 THEN 1
+          ELSE 0
+        END AS opens_island,
+        ((SELECT snapshot FROM params) - o.order_date) AS days_back
+    FROM orders o
+    WHERE o.order_date &gt;= (SELECT snapshot FROM params) - INTERVAL '730 days'
+    WINDOW w AS (PARTITION BY o.customer_id ORDER BY o.order_date)
+),
+with_island AS (
+    SELECT customer_id, order_date, amount, days_back,
+        SUM(opens_island) OVER (
+            PARTITION BY customer_id ORDER BY order_date
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS island_id
+    FROM flagged
+),
+windowed AS (
+    SELECT customer_id, order_date, amount, island_id,
+        FIRST_VALUE(amount) OVER w_island AS first_amount,
+        LAST_VALUE(amount)  OVER w_island AS last_amount
+    FROM with_island
+    WINDOW w_island AS (PARTITION BY customer_id, island_id ORDER BY order_date
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+),
+islands AS (
+    SELECT customer_id, island_id,
+        MIN(order_date) AS island_start, MAX(order_date) AS island_end,
+        MAX(first_amount) AS first_amount, MAX(last_amount) AS last_amount
+    FROM windowed GROUP BY customer_id, island_id
+),
+phase_pairs AS (
+    SELECT customer_id, island_id,
+        island_start AS comeback_date, first_amount AS comeback_aov,
+        LAG(island_end)  OVER (PARTITION BY customer_id ORDER BY island_id) AS prev_island_end,
+        LAG(last_amount) OVER (PARTITION BY customer_id ORDER BY island_id) AS prev_island_aov,
+        ((SELECT snapshot FROM params) - island_start) AS days_back_comeback
+    FROM islands
+),
+resurrections AS (
+    SELECT customer_id, comeback_date, comeback_aov,
+        prev_island_aov AS pre_churn_aov,
+        (comeback_date - prev_island_end) AS gap_days, days_back_comeback
+    FROM phase_pairs
+    WHERE prev_island_end IS NOT NULL AND (comeback_date - prev_island_end) &gt; 90
+),
+total_islands_per_cust AS (
+    SELECT customer_id, MAX(island_id) AS total_islands
+    FROM islands GROUP BY customer_id
+),
+per_customer AS (
+    SELECT r.customer_id, ti.total_islands,
+        COUNT(*) AS resurrection_cycles,
+        ROUND(AVG(gap_days), 0) AS avg_gap_days, MAX(gap_days) AS max_gap_days,
+        ROUND(AVG(pre_churn_aov), 2) AS avg_pre_churn_aov,
+        ROUND(AVG(comeback_aov), 2)  AS avg_comeback_aov,
+        SUM(CASE WHEN days_back_comeback &lt; 365 THEN 1 ELSE 0 END) AS y1_resurrections,
+        SUM(CASE WHEN days_back_comeback &gt;= 365 AND days_back_comeback &lt; 730 THEN 1 ELSE 0 END) AS y2_resurrections,
+        MAX(comeback_date) AS most_recent_comeback
+    FROM resurrections r
+    JOIN total_islands_per_cust ti ON ti.customer_id = r.customer_id
+    GROUP BY r.customer_id, ti.total_islands
+)
+SELECT customer_id, total_islands, resurrection_cycles,
+    avg_gap_days, max_gap_days, avg_pre_churn_aov, avg_comeback_aov,
+    ROUND(avg_comeback_aov - avg_pre_churn_aov, 2) AS aov_uplift,
+    y1_resurrections, y2_resurrections,
+    CASE
+        WHEN y2_resurrections = 0 AND y1_resurrections &gt; 0 THEN 'y1_only'
+        WHEN y1_resurrections &gt; y2_resurrections THEN 'rising'
+        WHEN y1_resurrections &lt; y2_resurrections THEN 'falling'
+        ELSE 'stable'
+    END AS resurrection_trend,
+    most_recent_comeback
+FROM per_customer
+ORDER BY resurrection_cycles DESC, aov_uplift DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>total_islands</th><th>resurrection_cycles</th><th>avg_gap_days</th><th>max_gap_days</th><th>avg_pre_churn_aov</th><th>avg_comeback_aov</th><th>aov_uplift</th><th>y1 / y2</th><th>resurrection_trend</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>5</td><td>4</td><td>139</td><td>180</td><td>250.00</td><td>297.50</td><td>47.50</td><td>2 / 2</td><td>stable</td></tr>
+    <tr><td>2</td><td>4</td><td>3</td><td>148</td><td>208</td><td>86.67</td><td>96.00</td><td>9.33</td><td>1 / 2</td><td>falling</td></tr>
+    <tr><td>3</td><td>4</td><td>3</td><td>103</td><td>110</td><td>240.00</td><td>196.67</td><td>-43.33</td><td>3 / 0</td><td>y1_only</td></tr>
+  </tbody>
+</table>
+<p>Customer 4 is absent &mdash; one island, no cycles. Customer 3 is the warning sign: it resurrects often (3 cycles, all in the last year) but each comeback basket is <em>smaller</em> than the order before the lapse, a &minus;43.33 uplift. Customer 1 is the healthy pattern: comebacks come back bigger.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two layers of islands: the running-sum trick</h5>
+<p>The first layer flags an order that opens a new island &mdash; either the customer's first order, or one more than 90 days after the previous. A running <code>SUM(opens_island)</code> over the customer's timeline turns those 0/1 flags into a monotonically increasing <code>island_id</code>: every flag bumps the id, and orders in between inherit it. This "flag-then-cumulative-sum" is the gaps-and-islands variant for event streams (as opposed to the <code>m_idx - rn</code> variant used for dense calendar grids).</p>
+
+<h5><code>FIRST_VALUE</code>/<code>LAST_VALUE</code> need the full-frame window</h5>
+<p><code>LAST_VALUE</code> is the notorious trap: with the default frame (<code>RANGE UNBOUNDED PRECEDING TO CURRENT ROW</code>) it returns the <em>current</em> row, not the last row of the partition. The query explicitly sets <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> so <code>FIRST_VALUE</code> grabs the island's opening basket and <code>LAST_VALUE</code> its closing basket. Without that frame the pre-churn AOV would be garbage. (You could also use <code>MIN</code>/<code>MAX</code> by order_date, but the explicit frame is the idiomatic answer when the question says "first/last".)</p>
+
+<h5>Comparing adjacent islands &mdash; <code>LAG</code> on the collapsed grain</h5>
+<p>After collapsing to one row per island, <code>LAG(island_end)</code> and <code>LAG(last_amount)</code> ordered by <code>island_id</code> pull the <em>previous</em> island's end date and closing basket alongside the current island's start. A resurrection is then simply: previous island exists and the gap between previous-end and current-start exceeds 90 days. The first island per customer has <code>LAG = NULL</code> and is correctly not a resurrection &mdash; you cannot resurrect into your first-ever phase.</p>
+
+<h5>Why <code>total_islands</code> comes from a separate CTE</h5>
+<p><code>resurrection_cycles</code> counts rows in <code>resurrections</code> (gaps &gt; 90d), and that count should equal <code>total_islands - 1</code>. But the join is to a <em>separately</em> computed <code>MAX(island_id)</code> because a customer with only one island produces zero resurrection rows &mdash; they vanish from <code>resurrections</code> entirely. Computing <code>total_islands</code> independently and inner-joining it keeps the arithmetic honest for customers who do appear, while still excluding the single-island customers (customer 4) because the inner join finds no matching resurrection rows.</p>
+
+<h5>The <code>resurrection_trend</code> ordering of CASE branches matters</h5>
+<p><code>'y1_only'</code> (Y2 = 0, Y1 &gt; 0) is checked <em>first</em>. If you instead checked <code>y1 &gt; y2</code> first, a customer with 3 Y1 and 0 Y2 comebacks would be labelled <code>'rising'</code> &mdash; technically true but it hides the more useful signal that this customer's entire resurrection history is recent. Customer 3 is exactly this case. Branch order in a <code>CASE</code> is semantics, not style.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish the flag-then-running-<code>SUM</code> island pattern from the <code>m_idx - rn</code> variant, explicitly frame <code>FIRST_VALUE</code>/<code>LAST_VALUE</code> with <code>ROWS UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> to avoid the <code>LAST_VALUE</code> default-frame trap, compute <code>total_islands</code> in its own CTE so single-island customers are cleanly excluded, and order the trend <code>CASE</code> branches so <code>y1_only</code> wins over a misleading <code>rising</code>.</div>

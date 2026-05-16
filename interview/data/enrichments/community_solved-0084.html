@@ -1,0 +1,66 @@
+<p>A digital-health platform wants to flag high-risk patients: those whose 7-day average heart rate is elevated <em>and</em> whose 7-day average step count is low. The interviewer is probing whether you can compute two rolling averages over a sliding window and combine the conditions &mdash; and whether you guard against the messy, dirty-typed activity data that real wearable feeds always carry.</p>
+
+<h4>1. The source data &mdash; <code>PatientActivity</code></h4>
+<table>
+  <thead><tr><th>patient_id</th><th>on_date</th><th>steps</th><th>heart_rate</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-03-01</td><td>3000</td><td>105</td><td>low steps, high HR</td></tr>
+    <tr><td>1</td><td>2099-03-02</td><td>2500</td><td>110</td><td>still high-risk profile</td></tr>
+    <tr><td>1</td><td>2099-03-03</td><td>3500</td><td>102</td><td>avg HR &gt; 100, avg steps &lt; 4000</td></tr>
+    <tr><td>2</td><td>2099-03-01</td><td>9000</td><td>70</td><td>healthy &mdash; high steps, low HR</td></tr>
+    <tr><td>2</td><td>2099-03-02</td><td>8500</td><td>72</td><td>not at risk</td></tr>
+    <tr><td>3</td><td>2099-03-01</td><td>2000</td><td>120</td><td>high-risk profile</td></tr>
+    <tr><td>3</td><td>2099-03-02</td><td>N/A</td><td>115</td><td>dirty steps value &mdash; the trap</td></tr>
+    <tr><td>3</td><td>2099-03-03</td><td>3000</td><td>108</td><td></td></tr>
+  </tbody>
+</table>
+<p>Patient 3 has a literal <code>'N/A'</code> in <code>steps</code> &mdash; the columns are stored as text, so a naive <code>::numeric</code> cast would throw on that row.</p>
+
+<h4>2. The SQL &mdash; sanitise types, then dual rolling averages</h4>
+<pre><code>WITH safe AS (
+  SELECT patient_id, on_date,
+    CASE WHEN steps::text ~ '^-?[0-9]+(\.[0-9]+)?$' THEN steps::numeric END AS steps,
+    CASE WHEN heart_rate::text ~ '^-?[0-9]+(\.[0-9]+)?$' THEN heart_rate::numeric END AS heart_rate
+  FROM patientactivity
+),
+patient_info AS (
+  SELECT patient_id, on_date, steps, heart_rate,
+    AVG(heart_rate) OVER (PARTITION BY patient_id ORDER BY on_date ASC
+                          ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS seven_day_avg_hr,
+    AVG(steps) OVER (PARTITION BY patient_id ORDER BY on_date ASC
+                     ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS seven_day_avg_steps
+  FROM safe
+)
+SELECT patient_id
+FROM patient_info
+WHERE seven_day_avg_hr &gt; 100 AND seven_day_avg_steps &lt; 4000
+GROUP BY patient_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>patient_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>7-day avg HR &approx; 105.7 (&gt;100), avg steps 3000 (&lt;4000) &mdash; high-risk</td></tr>
+    <tr><td>3</td><td>avg HR &approx; 114.3 (&gt;100), avg steps 2500 (&lt;4000) &mdash; high-risk despite a dirty steps value</td></tr>
+  </tbody>
+</table>
+<p>Patient 2 is healthy (8500+ steps, HR ~71) and never appears. Patient 3 still qualifies: the <code>'N/A'</code> steps row became NULL, and <code>AVG</code> averaged only the two valid step readings (2000 and 3000 = 2500) &mdash; the dirty row did not crash the query or drag the average to zero.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The defensive cast &mdash; regex-guarded type conversion</h5>
+<p>The <code>steps</code> and <code>heart_rate</code> columns are text. <code>CASE WHEN steps ~ '^-?[0-9]+(\.[0-9]+)?$' THEN steps::numeric END</code> casts only when the string actually looks numeric; anything else (<code>'N/A'</code>, empty, garbage) falls through to NULL instead of raising an <em>invalid input syntax for numeric</em> error that aborts the whole statement. This regex-then-cast guard is how you survive real-world wearable feeds, and Postgres 16+ offers a cleaner equivalent: <code>steps::numeric ... ON ERROR NULL</code> via <code>CAST</code>'s error-handling, or a <code>safe</code>-style wrapper.</p>
+
+<h5>The sliding-window frame &mdash; "6 PRECEDING" means 7 rows</h5>
+<p><code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> spans the current day plus the six before it &mdash; seven rows, hence "7-day average". An off-by-one here (writing <code>7 PRECEDING</code>) silently averages eight days. As with any moving average, <code>ROWS</code> counts <em>rows</em>, not calendar days: if a patient misses a day of syncing, "7 rows" stretches across more than 7 calendar days. If strict calendar windows matter, use <code>RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW</code>.</p>
+
+<h5><code>AVG</code> ignores NULL &mdash; helpful here, but know the denominator</h5>
+<p>After the guard, patient 3's bad steps row is NULL, and <code>AVG</code> excludes NULLs from <em>both</em> numerator and denominator &mdash; so the 7-day step average is computed over the two valid readings, not three. That is usually the right call (better than treating a missing reading as zero steps, which would falsely depress the average). But be aware the "7-day average" can quietly be a 6-day or 5-day average when data is sparse; if every reading in the window is NULL, the result is NULL and the <code>WHERE</code> comparison is unknown, excluding the patient.</p>
+
+<h5>The trailing-window trap &mdash; early rows are partial</h5>
+<p>For a patient's first six days the window holds fewer than seven rows, so the "7-day average" is really a 1-to-6-day average. A patient could be flagged high-risk on day 2 from a single alarming reading. Clinically that may be premature. If the rule should require a full week of history, gate it: only evaluate rows where <code>COUNT(*) OVER (same window) = 7</code>.</p>
+
+<h5>What to say next &mdash; the <code>GROUP BY</code> is doing dedup work</h5>
+<p>The window function produces a rolling average on <em>every</em> row, so a patient who is high-risk on several days would otherwise appear multiple times. The trailing <code>GROUP BY patient_id</code> (with no aggregates) collapses those to one row each &mdash; effectively a <code>DISTINCT</code>. <code>SELECT DISTINCT patient_id</code> would read more clearly. A senior answer also asks: should "high-risk" require the thresholds to be breached on the <em>latest</em> day, on <em>any</em> day, or on a <em>sustained</em> run? The query as written flags "any qualifying day", which is worth confirming.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> guard the numeric cast with a regex so a <code>'N/A'</code> reading becomes NULL instead of aborting the query, get the <code>6 PRECEDING</code> = 7-rows frame right, and know that <code>AVG</code> drops NULLs so a "7-day" average can silently be shorter. Flag that the trailing <code>GROUP BY</code> is really a <code>DISTINCT</code>.</div>

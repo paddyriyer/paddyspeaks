@@ -1,0 +1,71 @@
+<p>A growth team wants to know which customers spent the most in their <em>first calendar month</em> of ordering &mdash; an early-revenue signal that predicts lifetime value. The subtlety the interviewer is watching for: "first month" is not the first order, it is the calendar month of the first order, and every order in that same month must be summed. This forces a two-step "find the anchor, then aggregate within it" pattern.</p>
+
+<h4>1. The source data &mdash; <code>order_details</code> + <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>order_date</th><th>order_amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aisha Khan</td><td>2099-01-08</td><td>$200</td><td>first month = Jan</td></tr>
+    <tr><td>1</td><td>Aisha Khan</td><td>2099-01-20</td><td>$300</td><td>same month &mdash; counts</td></tr>
+    <tr><td>1</td><td>Aisha Khan</td><td>2099-02-05</td><td>$900</td><td>Feb &mdash; excluded</td></tr>
+    <tr><td>2</td><td>Bruno Costa</td><td>2099-01-12</td><td>$500</td><td>first month = Jan</td></tr>
+    <tr><td>2</td><td>Bruno Costa</td><td>2099-01-28</td><td>$450</td><td>same month &mdash; counts</td></tr>
+    <tr><td>3</td><td>Chen Wei</td><td>2099-02-03</td><td>$1000</td><td>single first-month order</td></tr>
+    <tr><td>4</td><td>Dara Singh</td><td>2099-02-20</td><td>$700</td><td>first month = Feb</td></tr>
+    <tr><td>5</td><td>Elena Ruiz</td><td>2099-03-02</td><td>$120</td><td>low spender</td></tr>
+  </tbody>
+</table>
+<p>Aisha's $900 February order is the trap: it is her largest single order, but it falls outside her first month and must not count.</p>
+
+<h4>2. The SQL &mdash; anchor month via <code>MIN</code>, then self-rejoin</h4>
+<pre><code>WITH first_order AS (
+  SELECT customer_id, MIN(order_date) AS first_order_date
+  FROM order_details
+  GROUP BY customer_id
+),
+first_month AS (
+  SELECT customer_id, to_char(first_order_date, 'YYYY-MM') AS month_year
+  FROM first_order
+),
+max_amount_spend AS (
+  SELECT o.customer_id, SUM(o.order_amount) AS total_amount
+  FROM order_details o
+  INNER JOIN first_month f
+    ON o.customer_id = f.customer_id
+   AND f.month_year = to_char(o.order_date, 'YYYY-MM')
+  GROUP BY o.customer_id
+  ORDER BY total_amount DESC
+  LIMIT 3
+)
+SELECT m.*, c.customer_name
+FROM max_amount_spend m
+LEFT JOIN customers c ON m.customer_id = c.customer_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>total_amount</th><th>customer_name</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>1000</td><td>Chen Wei</td><td>single Feb order &mdash; top spender</td></tr>
+    <tr><td>2</td><td>950</td><td>Bruno Costa</td><td>$500 + $450, both January</td></tr>
+    <tr><td>4</td><td>850</td><td>Dara Singh</td><td>$700 + $150, both February</td></tr>
+  </tbody>
+</table>
+<p>Aisha's first-month total is $500 ($200 + $300) &mdash; her $900 February order was correctly excluded, so she misses the top 3. Note the output rows are ordered by the final join, not by spend; the <code>LIMIT 3</code> selection happened inside <code>max_amount_spend</code>, before the customer join.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two passes over the same table are needed</h5>
+<p>You cannot know which month is "first" until you have scanned all of a customer's orders, and you cannot sum the first month's orders until you know which month that is. The first CTE establishes the anchor (<code>MIN(order_date)</code>); the third CTE rejoins <code>order_details</code> to itself on <em>customer + month string</em> to pull only the in-month rows. This "establish anchor, then filter to anchor" shape recurs constantly &mdash; first purchase, cohort month, account-opening week.</p>
+
+<h5>The month-bucket join key &mdash; <code>to_char</code> vs <code>date_trunc</code></h5>
+<p>Comparing <code>to_char(date, 'YYYY-MM')</code> on both sides buckets by calendar month as a string. It works, but <code>date_trunc('month', order_date)</code> is the more idiomatic Postgres form: it keeps a real <code>date</code>/<code>timestamp</code>, sorts and indexes correctly, and avoids locale surprises. String-month comparison is fine for equality but would mis-sort across year boundaries if you ever needed <code>&lt;</code> / <code>&gt;</code>.</p>
+
+<h5>The <code>LIMIT</code>-without-tie-break trap</h5>
+<p><code>ORDER BY total_amount DESC LIMIT 3</code> is non-deterministic when several customers tie on the third-place amount &mdash; the engine may return any of them. For a stable, defensible "top 3" add a deterministic tie-breaker (<code>ORDER BY total_amount DESC, customer_id</code>), or switch to <code>RANK() OVER (ORDER BY total_amount DESC)</code> and filter <code>rank &lt;= 3</code> if the business wants <em>all</em> tied customers included.</p>
+
+<h5>Why the final join is <code>LEFT</code>, and the ordering caveat</h5>
+<p>The closing <code>LEFT JOIN customers</code> only decorates the three winners with a display name; <code>LEFT</code> guards against an order referencing a customer missing from <code>customers</code> (the row survives with a NULL name rather than vanishing). But note the join does not preserve the <code>ORDER BY</code> from the CTE &mdash; SQL result order is undefined unless the outermost query has its own <code>ORDER BY</code>. Add <code>ORDER BY total_amount DESC</code> on the final <code>SELECT</code> for a presentation-ready ranking.</p>
+
+<h5>What to say next &mdash; window-function alternative</h5>
+<p>The whole thing collapses into one scan with a window function: tag each order with <code>MIN(date_trunc('month', order_date)) OVER (PARTITION BY customer_id)</code>, keep rows whose month matches, sum per customer, and rank. Fewer self-joins, one pass &mdash; the senior framing is "this is a first-cohort problem, and window functions express cohorts most directly."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "first month" as a calendar-month anchor (not the first order), prefer <code>date_trunc</code> over <code>to_char</code> string-month keys, add a deterministic tie-breaker to <code>LIMIT 3</code>, and remember that a join does not carry an inner <code>ORDER BY</code> &mdash; the outermost query needs its own.</div>

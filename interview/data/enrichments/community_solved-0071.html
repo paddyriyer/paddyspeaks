@@ -1,0 +1,59 @@
+<p>A retailer wants to identify customers with a broad basket &mdash; those who have bought more than one <em>distinct</em> product, not just placed more than one order. The interviewer is probing one precise distinction: filtering on <code>COUNT(DISTINCT product_id)</code> versus <code>COUNT(*)</code>. The trap customer is the loyal repeat buyer who ordered the same single product several times &mdash; they have many rows but only one product, and must be excluded.</p>
+
+<h4>1. The source data &mdash; <code>orders_tab</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>product_id</th><th>quantity</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>10</td><td>1</td></tr>
+    <tr><td>2</td><td>100</td><td>20</td><td>2</td></tr>
+    <tr><td>3</td><td>100</td><td>10</td><td>1</td></tr>
+    <tr><td>4</td><td>200</td><td>30</td><td>1</td></tr>
+    <tr><td>5</td><td>200</td><td>30</td><td>5</td></tr>
+    <tr><td>6</td><td>300</td><td>40</td><td>1</td></tr>
+    <tr><td>7</td><td>400</td><td>50</td><td>1</td></tr>
+    <tr><td>8</td><td>400</td><td>60</td><td>1</td></tr>
+    <tr><td>9</td><td>400</td><td>70</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Customer 200 is the edge case: <em>two orders</em> of product 30 &mdash; many rows, one product. Customer 100 bought product 10 twice <em>and</em> product 20 once (two distinct products). Customer 300 ordered exactly once.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY</code> with a <code>HAVING COUNT(DISTINCT ...)</code> filter</h4>
+<pre><code>SELECT customer_id
+FROM orders_tab
+GROUP BY customer_id
+HAVING COUNT(DISTINCT product_id) &gt; 1;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>distinct products</th><th>verdict</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>2 (10, 20)</td><td>qualifies</td></tr>
+    <tr><td>400</td><td>3 (50, 60, 70)</td><td>qualifies</td></tr>
+  </tbody>
+</table>
+<p>Customers 100 and 400 are returned. Customer 200 is correctly excluded &mdash; two orders but a single distinct product. Customer 300 is excluded for ordering once. <code>COUNT(*)</code> would have wrongly admitted customer 200.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT product_id)</code>, not <code>COUNT(*)</code></h5>
+<p><code>COUNT(*)</code> counts <em>rows</em> in the group &mdash; for customer 200 that is 2, which would pass a <code>&gt; 1</code> test even though they only ever bought one product. <code>COUNT(DISTINCT product_id)</code> counts <em>unique</em> product ids, so customer 200 scores 1 and is excluded. The question says "more than one distinct product"; the word <em>distinct</em> is the entire spec, and <code>DISTINCT</code> inside the aggregate is the literal translation. Misreading it as "more than one order" is the single most common wrong answer.</p>
+
+<h5>Why the filter belongs in <code>HAVING</code>, not <code>WHERE</code></h5>
+<p><code>WHERE</code> filters individual rows <em>before</em> grouping &mdash; it has no access to a per-group aggregate like <code>COUNT(DISTINCT ...)</code>. <code>HAVING</code> filters <em>groups</em> after aggregation, so it can test the count. Putting an aggregate in <code>WHERE</code> is a syntax error in every SQL dialect; the row-filter / group-filter split is fundamental and an interviewer expects you to articulate it.</p>
+
+<h5>NULL handling &mdash; <code>COUNT(DISTINCT)</code> skips NULLs</h5>
+<p>If a <code>product_id</code> is <code>NULL</code> (a malformed order), <code>COUNT(DISTINCT product_id)</code> ignores it &mdash; NULL is never counted and never treated as a distinct value, even across multiple NULL rows. A customer with one real product plus several NULL-product orders scores 1 and is excluded. That is usually the right behaviour, but state it: if a NULL product should count, you would need <code>COUNT(DISTINCT COALESCE(product_id, -1))</code> or a separate clause.</p>
+
+<h5>Returning more than the id &mdash; the natural follow-up</h5>
+<p>Interviewers often extend this to "show the basket size too". Because the aggregate is already computed, just project it:</p>
+<pre><code>SELECT customer_id, COUNT(DISTINCT product_id) AS distinct_products
+FROM orders_tab
+GROUP BY customer_id
+HAVING COUNT(DISTINCT product_id) &gt; 1
+ORDER BY distinct_products DESC;</code></pre>
+<p>You may repeat the expression in <code>HAVING</code> &mdash; standard SQL does not let <code>HAVING</code> reference a <code>SELECT</code> alias (Postgres permits it as an extension; MySQL does too, but portable code repeats it).</p>
+
+<h5>Performance &mdash; <code>COUNT(DISTINCT)</code> is not free</h5>
+<p><code>COUNT(DISTINCT)</code> must deduplicate within each group, which typically needs a sort or hash per customer &mdash; heavier than a plain <code>COUNT(*)</code>. On a large <code>orders</code> table an index on <code>(customer_id, product_id)</code> lets the planner stream the group and dedupe cheaply. It is the correct query regardless; just know the distinct count carries a cost a plain count does not.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pin the answer on the word "distinct" &mdash; <code>COUNT(DISTINCT product_id) &gt; 1</code>, not <code>COUNT(*)</code> &mdash; so a customer who reorders one product many times is correctly excluded. Explaining the <code>WHERE</code>-vs-<code>HAVING</code> split and that <code>COUNT(DISTINCT)</code> silently skips NULL product ids rounds out the senior answer.</div>

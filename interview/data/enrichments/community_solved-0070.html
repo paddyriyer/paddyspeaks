@@ -1,0 +1,82 @@
+<p>An online retailer logs every purchase as mobile or desktop, and product wants a daily breakdown: how many users &mdash; and how much spend &mdash; came from mobile-only, desktop-only, and users who shopped on <em>both</em> platforms that day. The interviewer is probing whether you can classify each user's daily behaviour before aggregating, and whether you can synthesise the "both" bucket, which is not a value in the data but a derived category.</p>
+
+<h4>1. The source data &mdash; <code>spending</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>spend_date</th><th>platform</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td><td>mobile</td><td>100</td></tr>
+    <tr><td>1</td><td>2024-01-01</td><td>desktop</td><td>100</td></tr>
+    <tr><td>2</td><td>2024-01-01</td><td>mobile</td><td>100</td></tr>
+    <tr><td>2</td><td>2024-01-02</td><td>mobile</td><td>100</td></tr>
+    <tr><td>3</td><td>2024-01-01</td><td>desktop</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>On 2024-01-01, user 1 appears twice (both platforms), user 2 once (mobile), user 3 once (desktop). User 2 also reappears on 2024-01-02 &mdash; a single-member day for that date. This mix of a "both" user, two single-platform users, and a lone-day user covers every classification branch.</p>
+
+<h4>2. The SQL &mdash; classify by daily row count, then aggregate per bucket</h4>
+<pre><code>WITH combination_cte AS (
+  SELECT *, COUNT(1) OVER (PARTITION BY user_id, spend_date) AS test_count
+  FROM spending
+),
+both_cte AS (
+  SELECT spend_date, 'both' AS platform,
+         SUM(amount) AS total_amount,
+         COUNT(DISTINCT user_id) AS total_users
+  FROM combination_cte
+  WHERE test_count = 2
+  GROUP BY spend_date
+),
+mobile_desktop_users AS (
+  SELECT spend_date, platform,
+         SUM(amount) AS total_amount,
+         COUNT(DISTINCT user_id) AS total_users
+  FROM combination_cte
+  WHERE test_count = 1
+  GROUP BY spend_date, platform
+)
+SELECT * FROM both_cte
+UNION ALL
+SELECT * FROM mobile_desktop_users
+ORDER BY spend_date ASC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>spend_date</th><th>platform</th><th>total_amount</th><th>total_users</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>both</td><td>200</td><td>1</td></tr>
+    <tr><td>2024-01-01</td><td>desktop</td><td>100</td><td>1</td></tr>
+    <tr><td>2024-01-01</td><td>mobile</td><td>100</td><td>1</td></tr>
+    <tr><td>2024-01-02</td><td>mobile</td><td>100</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>User 1's two rows collapse into one "both" user spending 200. Users 2 and 3 land in mobile-only / desktop-only. On 2024-01-02 only mobile appears &mdash; the query emits no zero rows for the absent buckets.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The classification trick &mdash; <code>COUNT(*) OVER (PARTITION BY user_id, spend_date)</code></h5>
+<p>The clever step is the windowed count: it tags every row with how many rows that user has <em>on that day</em>, without collapsing the rows. A count of 2 means the user transacted on two platforms (one mobile + one desktop) &mdash; the "both" group. A count of 1 means a single platform. This lets one CTE feed two differently-grouped downstream queries.</p>
+
+<h5>The hidden assumption &mdash; one row per user / platform / day</h5>
+<p>This is the most important thing to say out loud. <code>test_count = 2</code> only means "mobile and desktop" if a user can have <em>at most one row per platform per day</em>. If user 1 made two separate mobile purchases on the same day, <code>test_count</code> would also be 2 &mdash; and they would be misclassified as a "both" user when they only used mobile. The robust version does not count rows; it counts <em>distinct platforms</em>: <code>COUNT(DISTINCT platform) OVER (PARTITION BY user_id, spend_date)</code>. Then 2 genuinely means two different platforms regardless of how many transactions each had. Naming this fragility &mdash; and the <code>DISTINCT</code> fix &mdash; is the senior signal.</p>
+
+<h5>Why <code>UNION ALL</code> and the matching column shape</h5>
+<p>The "both" rows come from one grouping (<code>GROUP BY spend_date</code>) and the single-platform rows from another (<code>GROUP BY spend_date, platform</code>); they cannot be produced by one query. <code>UNION ALL</code> stitches them &mdash; <code>ALL</code>, not <code>UNION</code>, because the two sets are already disjoint (<code>test_count = 2</code> vs <code>= 1</code>), so deduplication is wasted work. Both arms must project the same four columns in the same order; the literal <code>'both' AS platform</code> manufactures the synthetic category so the shapes line up.</p>
+
+<h5>The missing-bucket trap</h5>
+<p>On 2024-01-02 the result shows only a mobile row &mdash; no <code>desktop = 0</code>, no <code>both = 0</code>. If the dashboard needs an explicit zero for every (date, bucket) pair, the query must <code>CROSS JOIN</code> a list of dates with the three bucket labels and <code>LEFT JOIN</code> the aggregates on. The current query reports only buckets that actually had activity &mdash; fine for some consumers, wrong for a fixed-shape report. Clarify which the stakeholder wants.</p>
+
+<h5>The modern alternative &mdash; conditional aggregation in one pass</h5>
+<p>Instead of two CTEs plus a union, classify each user once and pivot with <code>FILTER</code>:</p>
+<pre><code>WITH per_user AS (
+  SELECT user_id, spend_date,
+         CASE WHEN COUNT(DISTINCT platform) = 2 THEN 'both'
+              ELSE MIN(platform) END AS bucket,
+         SUM(amount) AS amt
+  FROM spending GROUP BY user_id, spend_date
+)
+SELECT spend_date, bucket,
+       COUNT(*) AS total_users, SUM(amt) AS total_amount
+FROM per_user GROUP BY spend_date, bucket;</code></pre>
+<p>One scan, no union, and the "both" logic is explicit. <code>MIN(platform)</code> safely yields the sole platform when the count is 1.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the windowed <code>COUNT() OVER (PARTITION BY user_id, spend_date)</code> as a classify-before-aggregate trick &mdash; then immediately flag that counting <em>rows</em> assumes one row per platform per day, and switch to <code>COUNT(DISTINCT platform)</code> so two mobile purchases are not mistaken for "both". Folding the two CTEs into a single conditional-aggregation pass is the over-the-bar finish.</div>

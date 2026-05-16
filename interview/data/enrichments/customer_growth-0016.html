@@ -1,0 +1,91 @@
+<p>A growth-analytics team wants a monthly dashboard that classifies every order's customer as NEW, RESURRECTED, or RETAINED_REPEAT, counts distinct customers per status per month, and shows the month-over-month change for each status line. The interviewer is probing a two-stage window pattern: first <code>LAG</code> over a customer's order history to label each order, then a <em>second</em> <code>LAG</code> over the aggregated monthly grid to compute the MoM trend.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order pattern</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aug, Dec 2024, Jan, Mar 2025</td><td>NEW, then RESURRECTED (Aug&rarr;Dec gap), then RETAINED</td></tr>
+    <tr><td>2</td><td>Nov, Dec 2024, Feb 2025</td><td>NEW, RETAINED, then RETAINED (Dec&rarr;Feb is 54d &le; 90)</td></tr>
+    <tr><td>3</td><td>Dec 2024, Apr 2025</td><td>NEW, then RESURRECTED (124-day gap)</td></tr>
+    <tr><td>5</td><td>Feb 2025, Apr 2025</td><td>NEW, then RESURRECTED (gap &gt; 90d)</td></tr>
+    <tr><td>6</td><td>Apr 2024, Mar 2025</td><td>first order pre-window; Mar order is RESURRECTED</td></tr>
+    <tr><td>8</td><td>Apr 2025 only</td><td>single order &mdash; NEW, no prior, lone month</td></tr>
+  </tbody>
+</table>
+<p>Customer 6 is the instructive edge case: its first order (Apr 2024) falls before the 6-month report window, but the <code>LAG</code> in the labelling stage still sees it, so the March 2025 order is correctly labelled <code>RESURRECTED</code> rather than <code>NEW</code>. Labelling happens on full history; the window filter is applied only afterward.</p>
+
+<h4>2. The SQL &mdash; two-stage <code>LAG</code>: per-order label, then per-month trend</h4>
+<pre><code>WITH labeled AS (
+    SELECT customer_id, order_date,
+        TO_CHAR(order_date, 'YYYY-MM') AS ym,
+        CASE
+            WHEN LAG(order_date) OVER w IS NULL THEN 'NEW'
+            WHEN (order_date - LAG(order_date) OVER w) &gt; 90 THEN 'RESURRECTED'
+            ELSE 'RETAINED_REPEAT'
+        END AS growth_status
+    FROM orders
+    WINDOW w AS (PARTITION BY customer_id ORDER BY order_date)
+),
+monthly AS (
+    SELECT ym AS year_month, growth_status,
+           COUNT(DISTINCT customer_id) AS customers
+    FROM labeled
+    WHERE order_date &gt;= DATE '2024-11-01'
+    GROUP BY ym, growth_status
+),
+trended AS (
+    SELECT year_month, growth_status, customers,
+           LAG(customers) OVER (PARTITION BY growth_status
+                                ORDER BY year_month) AS prev_month_customers
+    FROM monthly
+)
+SELECT year_month, growth_status, customers, prev_month_customers,
+    CASE WHEN prev_month_customers &gt; 0
+         THEN ROUND(100.0*(customers - prev_month_customers)/prev_month_customers, 1)
+         END AS mom_growth_pct
+FROM trended
+ORDER BY year_month DESC,
+    CASE growth_status WHEN 'NEW' THEN 1
+                       WHEN 'RESURRECTED' THEN 2
+                       ELSE 3 END;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year_month</th><th>growth_status</th><th>customers</th><th>prev_month_customers</th><th>mom_growth_pct</th></tr></thead>
+  <tbody>
+    <tr><td>2025-04</td><td>NEW</td><td>1</td><td>1</td><td>0.0</td></tr>
+    <tr><td>2025-04</td><td>RESURRECTED</td><td>1</td><td>1</td><td>0.0</td></tr>
+    <tr><td>2025-04</td><td>RETAINED_REPEAT</td><td>2</td><td>2</td><td>0.0</td></tr>
+    <tr><td>2025-03</td><td>NEW</td><td>1</td><td>1</td><td>0.0</td></tr>
+    <tr><td>2025-03</td><td>RESURRECTED</td><td>1</td><td>1</td><td>0.0</td></tr>
+    <tr><td>2025-03</td><td>RETAINED_REPEAT</td><td>2</td><td>2</td><td>0.0</td></tr>
+    <tr><td>2025-02</td><td>NEW</td><td>1</td><td>1</td><td>0.0</td></tr>
+    <tr><td>2025-02</td><td>RETAINED_REPEAT</td><td>2</td><td>1</td><td>100.0</td></tr>
+    <tr><td>2025-01</td><td>NEW</td><td>1</td><td>1</td><td>0.0</td></tr>
+    <tr><td>2025-01</td><td>RETAINED_REPEAT</td><td>1</td><td>1</td><td>0.0</td></tr>
+    <tr><td>2024-12</td><td>NEW</td><td>1</td><td>&mdash;</td><td>&mdash;</td></tr>
+    <tr><td>2024-12</td><td>RESURRECTED</td><td>1</td><td>&mdash;</td><td>&mdash;</td></tr>
+    <tr><td>2024-12</td><td>RETAINED_REPEAT</td><td>1</td><td>&mdash;</td><td>&mdash;</td></tr>
+    <tr><td>2024-11</td><td>NEW</td><td>1</td><td>&mdash;</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+<p>Two structural details show in the output. February has no <code>RESURRECTED</code> row at all &mdash; nobody resurrected that month &mdash; so the <code>RESURRECTED</code> line for March's <code>LAG</code> reaches back to <em>December</em>, not February. And the earliest months (Nov/Dec 2024) have <code>NULL</code> <code>prev_month_customers</code> because there is no prior month inside the result set to lag from.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two distinct window passes &mdash; do not conflate them</h5>
+<p>The query uses <code>LAG</code> twice for two different jobs. The first, in <code>labeled</code>, is <code>PARTITION BY customer_id ORDER BY order_date</code> &mdash; it looks at a customer's <em>previous order</em> to classify the current one. The second, in <code>trended</code>, is <code>PARTITION BY growth_status ORDER BY year_month</code> &mdash; it looks at the <em>previous month's count</em> for the same status line. Different grain, different partition key. Articulating that you need two separate passes (not one clever window) is the senior framing.</p>
+
+<h5>The labelling runs on full history; the window filter comes after</h5>
+<p>The <code>WHERE order_date &gt;= '2024-11-01'</code> sits in the <code>monthly</code> CTE, <em>after</em> <code>labeled</code> has already classified every order. This ordering is essential: customer 6's first order was April 2024, well before the window. If the filter ran before labelling, <code>LAG</code> would not see that April order and customer 6's March 2025 order would be mislabelled <code>NEW</code> instead of <code>RESURRECTED</code>. Filter the aggregation window, never the classification input.</p>
+
+<h5>The MoM <code>LAG</code> compares adjacent <em>rows</em>, not adjacent <em>calendar months</em></h5>
+<p><code>LAG(customers) OVER (PARTITION BY growth_status ORDER BY year_month)</code> returns the previous <em>row</em> within that status partition &mdash; which is the previous month that has a row, not necessarily the immediately preceding calendar month. February has no <code>RESURRECTED</code> row, so for the March <code>RESURRECTED</code> line, <code>LAG</code> jumps to December. If the business needs a true "previous calendar month even when zero", you must first build a complete month&times;status grid (cross join a calendar to the statuses, <code>LEFT JOIN</code> the counts, <code>COALESCE</code> to 0) and lag over that. This gap-in-the-series subtlety is the question's deepest trap.</p>
+
+<h5>Why <code>COUNT(DISTINCT customer_id)</code> and not <code>COUNT(*)</code></h5>
+<p>A customer could place two orders in the same month, both labelled <code>RETAINED_REPEAT</code>. The dashboard wants <em>how many customers</em> were retained, not how many orders &mdash; so <code>COUNT(DISTINCT customer_id)</code> deduplicates within the (month, status) cell. <code>COUNT(*)</code> would over-count multi-order customers and break the headcount semantics.</p>
+
+<h5>The <code>NULL</code>-safe MoM division</h5>
+<p><code>mom_growth_pct</code> is wrapped in <code>CASE WHEN prev_month_customers &gt; 0</code>. This handles two cases at once: the earliest month where <code>prev_month_customers</code> is <code>NULL</code> (no prior row), and any month where the prior count is genuinely 0. Both correctly yield <code>NULL</code> &mdash; "growth is undefined" &mdash; rather than a divide-by-zero error or a misleading number. Note the comparison <code>NULL &gt; 0</code> is itself <code>UNKNOWN</code>, which the <code>CASE</code> treats as not-matched, so the guard covers the NULL case for free.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise this as two separate <code>LAG</code> passes &mdash; per-customer order history for labelling, per-status month series for the trend &mdash; apply the report-window filter only after classification so pre-window history still informs <code>LAG</code>, use <code>COUNT(DISTINCT customer_id)</code> for a headcount, and flag that the MoM <code>LAG</code> compares adjacent rows so a month with zero rows for a status silently makes the comparison skip a month.</div>
