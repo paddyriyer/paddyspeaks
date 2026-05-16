@@ -1,0 +1,62 @@
+<p>A banking team needs a running account balance: a ledger of deposits, withdrawals, and refunds, with a cumulative balance after every transaction. The interviewer is probing whether you can sign each transaction by type with a <code>CASE</code>, then carry a running sum with a partitioned window &mdash; and whether your ordering is deterministic when two transactions share a timestamp.</p>
+
+<h4>1. The source data &mdash; <code>txn</code></h4>
+<table>
+  <thead><tr><th>id</th><th>account</th><th>ts</th><th>kind</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>2025-01-01 09:00</td><td>deposit</td><td>100</td></tr>
+    <tr><td>2</td><td>A</td><td>2025-01-02 10:00</td><td>withdrawal</td><td>30</td></tr>
+    <tr><td>3</td><td>A</td><td>2025-01-03 11:00</td><td>withdrawal</td><td>50</td></tr>
+    <tr><td>4</td><td>A</td><td>2025-01-05 12:00</td><td>refund</td><td>20</td></tr>
+    <tr><td>5</td><td>A</td><td>2025-01-06 13:00</td><td>withdrawal</td><td>10</td></tr>
+    <tr><td>6</td><td>B</td><td>2025-01-02 09:00</td><td>deposit</td><td>500</td></tr>
+    <tr><td>7</td><td>B</td><td>2025-01-04 10:00</td><td>refund</td><td>25</td></tr>
+    <tr><td>8</td><td>B</td><td>2025-01-04 14:00</td><td>withdrawal</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>Two details matter. <code>refund</code> is a <em>positive</em> credit, easy to mis-sign as negative because it sounds like money leaving. And account B has two transactions on <code>2025-01-04</code> &mdash; the window must order them deterministically or the running balance is unstable.</p>
+
+<h4>2. The SQL &mdash; signed delta + partitioned running sum</h4>
+<pre><code>SELECT id, account, ts, kind,
+       CASE WHEN kind = 'withdrawal' THEN -amount ELSE amount END AS signed_amount,
+       SUM(CASE WHEN kind = 'withdrawal' THEN -amount ELSE amount END)
+         OVER (PARTITION BY account ORDER BY ts, id
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance
+FROM txn
+ORDER BY account, ts, id;</code></pre>
+<p>The <code>CASE</code> turns each transaction into a signed delta: withdrawals negative, deposits and refunds positive. The window <code>SUM</code> of that same expression, <code>PARTITION BY account</code>, accumulates per account; <code>ORDER BY ts, id</code> with an explicit <code>ROWS</code> frame produces the cumulative balance after each row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>account</th><th>id</th><th>kind</th><th>signed_amount</th><th>running_balance</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>1</td><td>deposit</td><td>100.00</td><td>100.00</td></tr>
+    <tr><td>A</td><td>2</td><td>withdrawal</td><td>-30.00</td><td>70.00</td></tr>
+    <tr><td>A</td><td>3</td><td>withdrawal</td><td>-50.00</td><td>20.00</td></tr>
+    <tr><td>A</td><td>4</td><td>refund</td><td>20.00</td><td>40.00</td></tr>
+    <tr><td>A</td><td>5</td><td>withdrawal</td><td>-10.00</td><td>30.00</td></tr>
+    <tr><td>B</td><td>6</td><td>deposit</td><td>500.00</td><td>500.00</td></tr>
+    <tr><td>B</td><td>7</td><td>refund</td><td>25.00</td><td>525.00</td></tr>
+    <tr><td>B</td><td>8</td><td>withdrawal</td><td>-100.00</td><td>425.00</td></tr>
+  </tbody>
+</table>
+<p>The refund at id 4 <em>raises</em> A's balance from 20 to 40 &mdash; it is a credit, not a debit. Account B's two Jan-4 rows are sequenced refund-then-withdrawal by the <code>ts, id</code> tiebreak, giving a stable 525 then 425.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>CASE</code> normalises before summing</h5>
+<p>The three transaction kinds have different effects on the balance, but a running <code>SUM</code> only knows how to add. The <code>CASE</code> converts every kind into a single <em>signed delta</em> &mdash; the universal currency the window function can accumulate. Note the polarity carefully: only <code>withdrawal</code> is negative; <code>deposit</code> and <code>refund</code> are both positive credits. Mis-signing <code>refund</code> is the most common error here, because the word sounds like an outflow.</p>
+
+<h5>Why <code>PARTITION BY account</code> is essential</h5>
+<p>The running sum must restart for each account &mdash; account A's balance must never bleed into account B's. <code>PARTITION BY account</code> gives each account an independent window: the <code>UNBOUNDED PRECEDING</code> boundary resets at every partition. Drop the partition and you would get one global running total across all accounts &mdash; meaningless as a per-account balance.</p>
+
+<h5>Why <code>ORDER BY ts, id</code> &mdash; determinism</h5>
+<p>Account B has two transactions stamped <code>2025-01-04</code> (one 10:00, one 14:00 &mdash; here the time component already differs, but if both were the same instant the order would be ambiguous). Ordering by <code>ts</code> alone risks a non-deterministic sequence within a tie group, so the running balance could flip between query runs. Adding <code>id</code> &mdash; a unique, monotonic key &mdash; gives a total order and a reproducible balance. A ledger that is not deterministic is not a ledger.</p>
+
+<h5>Why the explicit <code>ROWS</code> frame</h5>
+<p><code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> states the frame literally: every row from the partition start through this one. Without an explicit frame, an ordered window defaults to <code>RANGE</code>, and any tied <code>ORDER BY</code> values would lump tied rows into one shared total. With <code>id</code> in the sort the keys are unique so <code>RANGE</code> and <code>ROWS</code> would coincide here &mdash; but writing <code>ROWS</code> makes the intent explicit and bug-proof against future edits.</p>
+
+<h5>Repeating the <code>CASE</code> &mdash; readability</h5>
+<p>The signed-delta <code>CASE</code> appears twice: once for the <code>signed_amount</code> column, once inside <code>SUM</code>. You cannot reference the output alias <code>signed_amount</code> inside the window in the same <code>SELECT</code> level. To avoid the duplication, compute <code>signed_amount</code> in a CTE or subquery, then <code>SUM(signed_amount) OVER (...)</code> over it &mdash; cleaner and a single source of truth for the sign logic.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build a running balance by first normalising each transaction to a signed delta with <code>CASE</code> (watch the refund polarity), then <code>SUM</code> it over a window <code>PARTITION BY account ORDER BY ts, id</code> with an explicit <code>ROWS</code> frame &mdash; the unique-key tiebreak makes the ledger deterministic and the partition keeps accounts isolated.</div>

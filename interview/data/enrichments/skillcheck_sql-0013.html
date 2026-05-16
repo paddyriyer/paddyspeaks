@@ -1,0 +1,65 @@
+<p>A social graph wants user 1's "friends-of-friends" &mdash; people exactly two hops away who are not already direct friends and not user 1 themselves &mdash; the suggestion engine behind "people you may know". The interviewer is probing two things: handling an <em>undirected</em> graph stored as unordered pairs, and correctly excluding the 1-hop and 0-hop nodes that a raw 2-hop traversal would otherwise include.</p>
+
+<h4>1. The source data &mdash; <code>friendship</code></h4>
+<table>
+  <thead><tr><th>a</th><th>b</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>1's direct friend</td></tr>
+    <tr><td>1</td><td>3</td><td>1's direct friend</td></tr>
+    <tr><td>2</td><td>4</td><td>4 is 2 hops from 1</td></tr>
+    <tr><td>2</td><td>5</td><td>5 is 2 hops from 1 (via 2)</td></tr>
+    <tr><td>3</td><td>5</td><td>5 is also 2 hops from 1 (via 3) &mdash; reachable two ways</td></tr>
+    <tr><td>3</td><td>6</td><td>6 is 2 hops from 1</td></tr>
+    <tr><td>4</td><td>7</td><td>7 is 3 hops &mdash; must be excluded</td></tr>
+    <tr><td>5</td><td>8</td><td>8 is 3 hops &mdash; must be excluded</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. User 5 is reachable on <em>two</em> distinct 2-hop paths (1&rarr;2&rarr;5 and 1&rarr;3&rarr;5) &mdash; it must appear once, not twice. And the traversal naturally tries to walk back to user 1 itself (1&rarr;2&rarr;1) &mdash; that self-return has to be filtered out.</p>
+
+<h4>2. The SQL &mdash; symmetrise the edges, then a 2-hop self-join</h4>
+<pre><code>WITH edges AS (
+  SELECT a AS u, b AS v FROM friendship
+  UNION ALL
+  SELECT b, a FROM friendship
+),
+direct AS (
+  SELECT v FROM edges WHERE u = 1
+),
+fof AS (
+  SELECT DISTINCT e2.v AS user_id
+  FROM edges e1
+  JOIN edges e2 ON e1.v = e2.u
+  WHERE e1.u = 1
+)
+SELECT user_id FROM fof
+WHERE user_id &lt;&gt; 1
+  AND user_id NOT IN (SELECT v FROM direct)
+ORDER BY user_id;</code></pre>
+<p><code>edges</code> makes the graph traversable in both directions &mdash; each stored pair is emitted as <code>(a,b)</code> and <code>(b,a)</code>. <code>fof</code> joins two edge hops: <code>e1</code> leaves user 1, <code>e2</code> continues from wherever <code>e1</code> landed. The outer query then removes user 1 itself and anyone in <code>direct</code> (the 1-hop friends).</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>1&rarr;2&rarr;4 &mdash; genuine FoF</td></tr>
+    <tr><td>5</td><td>reachable via 2 <em>and</em> via 3 &mdash; DISTINCT collapses to one row</td></tr>
+    <tr><td>6</td><td>1&rarr;3&rarr;6 &mdash; genuine FoF</td></tr>
+  </tbody>
+</table>
+<p>Users 4, 5, 6 are returned. User 5 appears once despite two 2-hop paths &mdash; <code>SELECT DISTINCT</code> deduplicates. User 1 is dropped by <code>user_id &lt;&gt; 1</code> (the 1&rarr;2&rarr;1 walk-back). Users 2 and 3 are dropped by <code>NOT IN direct</code> &mdash; they are 1-hop friends, even though a 2-hop path also reaches them (1&rarr;2&rarr;... no, but 1&rarr;3&rarr;5&rarr;... etc.). Users 7 and 8 are correctly absent: they sit three hops out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the graph must be symmetrised first</h5>
+<p>Friendships are undirected but stored once, as an unordered pair &mdash; only <code>(1,2)</code> exists, not also <code>(2,1)</code>. A join that walked solely on the stored direction could traverse <code>1&rarr;2</code> but never <code>2&rarr;1</code>, missing half the graph. The <code>edges</code> CTE fixes this by emitting both orientations of every pair, so a join on <code>e1.v = e2.u</code> can move freely in any direction. Forgetting this symmetrisation is the most common bug on undirected-graph questions.</p>
+
+<h5>Why "exactly 2 hops" needs three exclusions</h5>
+<p>A raw two-hop traversal from user 1 collects more than friends-of-friends. It includes user 1 itself (every friend leads back: 1&rarr;2&rarr;1), so <code>user_id &lt;&gt; 1</code> is required. It includes 1-hop friends (a friend of a friend can be a direct friend), so <code>NOT IN (SELECT v FROM direct)</code> strips them &mdash; "people you may know" should not re-suggest existing friends. Only after removing the 0-hop and 1-hop nodes is what remains genuinely "exactly 2 hops away, new". Each exclusion maps to a concrete product requirement.</p>
+
+<h5>The <code>DISTINCT</code> handles multi-path reachability</h5>
+<p>In any non-trivial graph a node is reachable by several paths &mdash; user 5 here via both friend 2 and friend 3. The join produces one row per <em>path</em>, so without <code>DISTINCT</code> user 5 would appear twice. <code>SELECT DISTINCT</code> collapses paths to nodes, which is what a suggestion list wants. (If you wanted to <em>rank</em> suggestions by how many mutual friends connect them, you would instead <code>GROUP BY ... COUNT(*)</code> &mdash; the path count becomes the mutual-friend score.)</p>
+
+<h5><code>NOT IN</code> and the NULL trap; a recursive alternative</h5>
+<p><code>NOT IN</code> has a notorious pitfall: if the subquery (<code>direct</code>) ever returns a <code>NULL</code>, <code>NOT IN</code> evaluates to <em>unknown</em> for every row and the whole result goes empty. Here <code>direct</code> derives from <code>edges</code> columns that are never NULL, so it is safe &mdash; but <code>NOT EXISTS</code> or a <code>LEFT JOIN ... WHERE v IS NULL</code> is the NULL-robust habit. Note this solution is labelled "Recursive CTEs" yet uses none &mdash; a fixed 2-hop reach is a plain double join. A recursive CTE is the right tool only for <em>variable</em>-depth reachability ("anyone within N hops"); for exactly 2, the explicit join is clearer and faster. Solve the question, not the tag.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> symmetrise an undirected edge list before traversing, recognise that "exactly 2 hops" requires explicitly excluding the start node (self-return) <em>and</em> the 1-hop friends, <code>DISTINCT</code> away multi-path duplicates (or <code>COUNT</code> them as a mutual-friend score), and note that a fixed-depth reach is a plain join &mdash; a recursive CTE is only needed for variable-depth reachability.</div>

@@ -1,0 +1,60 @@
+<p>A growth team measures the e-commerce funnel: who actually moved <em>visit &rarr; add-to-cart &rarr; purchase</em>, in that order? The <code>event</code> table is a raw clickstream &mdash; events can arrive in any order, repeat, or be missing &mdash; so the question is not "did all three happen" but "did they happen <em>in sequence</em>". The interviewer is probing whether you compare the <em>first</em> timestamp of each step and enforce strict ordering, rather than just checking set membership.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event</th><th>ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>visit / add_to_cart / purchase</td><td>09:00 / 09:30 / 10:00</td><td>clean funnel &mdash; in order</td></tr>
+    <tr><td>2</td><td>visit / purchase / add_to_cart</td><td>09:00 / 09:30 / 10:00</td><td>all three, but purchase before cart &mdash; fails</td></tr>
+    <tr><td>3</td><td>visit / add_to_cart</td><td>09:00 / 09:30</td><td>never purchased &mdash; incomplete</td></tr>
+    <tr><td>4</td><td>add_to_cart / visit / purchase</td><td>09:00 / 10:00 / 11:00</td><td>cart before visit &mdash; fails order</td></tr>
+    <tr><td>5</td><td>visit / add_to_cart / purchase / visit</td><td>09:00 / 09:30 / 10:00 / 11:00</td><td>extra later visit &mdash; still passes</td></tr>
+  </tbody>
+</table>
+<p>The traps are users 2, 4, and 5. User 2 has every event but purchased <em>before</em> adding to cart. User 4 added to cart <em>before</em> visiting. User 5 visited <em>again</em> after purchasing &mdash; a duplicate event that must not break the funnel because we compare the <em>earliest</em> occurrence of each step.</p>
+
+<h4>2. The SQL &mdash; first-timestamp-per-step, then strict comparison</h4>
+<pre><code>WITH firsts AS (
+  SELECT user_id,
+         MIN(ts) FILTER (WHERE event = 'visit')       AS first_visit,
+         MIN(ts) FILTER (WHERE event = 'add_to_cart') AS first_cart,
+         MIN(ts) FILTER (WHERE event = 'purchase')    AS first_purchase
+  FROM event GROUP BY user_id
+)
+SELECT user_id FROM firsts
+WHERE first_visit IS NOT NULL
+  AND first_cart IS NOT NULL
+  AND first_purchase IS NOT NULL
+  AND first_visit &lt; first_cart
+  AND first_cart  &lt; first_purchase
+ORDER BY user_id;</code></pre>
+<p>The CTE pivots each user's events into one row with three timestamps &mdash; the <em>earliest</em> visit, cart, and purchase &mdash; using <code>MIN(...) FILTER (WHERE ...)</code>. The outer query then demands all three exist and that they strictly increase: visit before cart before purchase.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>(why)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>09:00 &lt; 09:30 &lt; 10:00 &mdash; ordered</td></tr>
+    <tr><td>5</td><td>first visit 09:00 &lt; cart 09:30 &lt; purchase 10:00 &mdash; the later 11:00 visit is ignored</td></tr>
+  </tbody>
+</table>
+<p>Only users <strong>1 and 5</strong> qualify. User 2 fails (<code>first_cart</code> 10:00 is not before <code>first_purchase</code> 09:30). User 3 fails (<code>first_purchase IS NULL</code>). User 4 fails (<code>first_visit</code> 10:00 is not before <code>first_cart</code> 09:00). User 5 passes because the funnel uses the <em>first</em> visit (09:00), not the stray repeat.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>MIN(ts) FILTER</code> &mdash; the earliest occurrence is the funnel step</h5>
+<p>A user can fire <code>visit</code> many times; the funnel step "visit" is defined by <em>when they first did it</em>. <code>MIN(ts) FILTER (WHERE event = 'visit')</code> collapses all visit rows to that earliest moment. This conditional-aggregation pivot turns a tall event log into one wide row per user &mdash; exactly the shape needed to compare steps with simple <code>&lt;</code> operators.</p>
+
+<h5>Strict <code>&lt;</code> vs <code>&lt;=</code> &mdash; the ordering semantics</h5>
+<p>The spec says each step is "strictly later" than the prior. <code>first_visit &lt; first_cart</code> rejects a user whose first visit and first cart share the exact same timestamp. With <code>&lt;=</code>, simultaneous events would pass &mdash; defensible if ties mean "same session", wrong if the funnel requires genuine progression. State which you mean: at second-granularity timestamps, ties are common and the choice is material.</p>
+
+<h5>The classic mistake &mdash; membership instead of ordering</h5>
+<p>A naive solution checks only that all three event types exist for the user (<code>COUNT(DISTINCT event) = 3</code> or three <code>EXISTS</code> clauses). That passes user 2 and user 4 &mdash; they <em>have</em> every event &mdash; but their events are out of order. The funnel is fundamentally a <em>sequence</em> question; you must compare timestamps, not just confirm presence. This is the trap the question is built around.</p>
+
+<h5>NULL-safety &mdash; why the explicit <code>IS NOT NULL</code> guards</h5>
+<p>User 3 never purchased, so <code>first_purchase</code> is <code>NULL</code>. The comparison <code>first_cart &lt; first_purchase</code> would evaluate to <code>NULL</code> (not <code>FALSE</code>), and a <code>WHERE</code> clause drops <code>NULL</code> rows &mdash; so user 3 is excluded even without the explicit guard. But stating <code>first_purchase IS NOT NULL</code> makes the "must have completed all steps" requirement <em>visible</em> and intentional, rather than relying on three-valued-logic side effects. Senior code documents its assumptions.</p>
+
+<h5>Dialect notes &mdash; <code>FILTER</code> is not universal</h5>
+<p><code>aggregate(...) FILTER (WHERE ...)</code> is SQL-standard and supported by Postgres and SQLite 3.30+. SQL Server, MySQL, and older engines lack it &mdash; use <code>MIN(CASE WHEN event = 'visit' THEN ts END)</code>, which is semantically identical (the <code>CASE</code> yields <code>NULL</code> for non-matching rows and <code>MIN</code> ignores <code>NULL</code>). The funnel logic is unchanged; only the conditional-aggregation syntax differs.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat a funnel as a <em>sequence</em> not a set &mdash; pivot to the <code>MIN(ts)</code> of each step with <code>FILTER</code>, then enforce strictly increasing timestamps, choosing <code>&lt;</code> vs <code>&lt;=</code> for simultaneous events deliberately and guarding incomplete funnels with explicit <code>IS NOT NULL</code> checks.</div>

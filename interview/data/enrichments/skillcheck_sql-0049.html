@@ -1,0 +1,66 @@
+<p>A subscriptions team wants the trial-conversion breakdown: of everyone who started on a trial, what plan did they move to next &mdash; basic, pro, churn &mdash; and how many never converted at all? The <code>subs</code> table is an append-only log of plan changes. The interviewer is probing whether you can use <code>LEAD</code> to find each customer's <em>next</em> plan and, critically, whether you handle the customer whose trial has no next row.</p>
+
+<h4>1. The source data &mdash; <code>subs</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>start_date</th><th>plan</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>trial</td><td>&rarr; basic</td></tr>
+    <tr><td>1</td><td>2025-01-08</td><td>basic</td><td>the next plan after customer 1's trial</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>trial</td><td>&rarr; pro</td></tr>
+    <tr><td>2</td><td>2025-01-09</td><td>pro</td><td>...</td></tr>
+    <tr><td>3</td><td>2025-01-03</td><td>trial</td><td>&rarr; churn</td></tr>
+    <tr><td>3</td><td>2025-01-10</td><td>churn</td><td>churn counts as a transition target</td></tr>
+    <tr><td>4</td><td>2025-01-04</td><td>trial</td><td>&rarr; basic</td></tr>
+    <tr><td>4</td><td>2025-01-11</td><td>basic</td><td>...</td></tr>
+    <tr><td>5</td><td>2025-01-05</td><td>trial</td><td>only row &mdash; never converted</td></tr>
+    <tr><td>6</td><td>2025-01-06</td><td>trial</td><td>&rarr; annual</td></tr>
+    <tr><td>6</td><td>2025-01-13</td><td>annual</td><td>...</td></tr>
+  </tbody>
+</table>
+<p>The edge case is <strong>customer 5</strong>: a single <code>trial</code> row with nothing after it. Their <code>LEAD</code> returns <code>NULL</code>, and that <code>NULL</code> must be reported as the explicit bucket <code>never_converted</code> &mdash; not dropped, not left blank.</p>
+
+<h4>2. The SQL &mdash; LEAD to find the next plan, COALESCE the NULL bucket</h4>
+<pre><code>WITH journeys AS (
+  SELECT customer_id, plan,
+         LEAD(plan) OVER (PARTITION BY customer_id ORDER BY start_date) AS next_plan
+  FROM subs
+)
+SELECT COALESCE(next_plan, 'never_converted') AS next_plan,
+       COUNT(*) AS customer_count
+FROM journeys
+WHERE plan = 'trial'
+GROUP BY COALESCE(next_plan, 'never_converted')
+ORDER BY customer_count DESC, next_plan;</code></pre>
+<p><code>LEAD(plan)</code> looks one row forward in each customer's date-ordered timeline to find the plan they moved to. The outer query keeps only the <code>trial</code> rows, replaces a <code>NULL</code> next plan with the literal <code>never_converted</code>, and counts customers per destination.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>next_plan</th><th>customer_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>basic</td><td>2</td><td>customers 1 and 4 &mdash; the most common path</td></tr>
+    <tr><td>annual</td><td>1</td><td>customer 6</td></tr>
+    <tr><td>churn</td><td>1</td><td>customer 3 &mdash; churn is a real bucket</td></tr>
+    <tr><td>never_converted</td><td>1</td><td>customer 5 &mdash; NULL surfaced as a labelled row</td></tr>
+    <tr><td>pro</td><td>1</td><td>customer 2</td></tr>
+  </tbody>
+</table>
+<p><code>basic</code> leads with 2 customers. The four single-count buckets then sort alphabetically by the tiebreaker: <code>annual</code>, <code>churn</code>, <code>never_converted</code>, <code>pro</code>. Customer 5 appears as <code>never_converted</code> &mdash; the <code>NULL</code> from <code>LEAD</code> was caught and labelled, not lost.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEAD</code> &mdash; the next event is the transition target</h5>
+<p>A state-transition question asks "from X, where next?" In an append-only log, the answer is literally the next row for that customer. <code>LEAD(plan) OVER (PARTITION BY customer_id ORDER BY start_date)</code> reaches that row directly &mdash; no self-join, no correlated subquery. Pairing each row with its successor is the canonical pattern for transition and conversion analysis.</p>
+
+<h5>The <code>NULL</code> is the answer, not noise &mdash; <code>COALESCE</code> twice</h5>
+<p>For customer 5's only row, <code>LEAD</code> returns <code>NULL</code> &mdash; and that <code>NULL</code> <em>means</em> "no conversion happened", a result the business explicitly wants counted. <code>COALESCE(next_plan, 'never_converted')</code> turns it into a first-class bucket. It must appear in <em>both</em> the <code>SELECT</code> and the <code>GROUP BY</code>: grouping on the raw <code>next_plan</code> would create an unlabelled <code>NULL</code> group, and the projected label would not match the grouping key.</p>
+
+<h5>Filter on <code>plan = 'trial'</code> <em>after</em> the window, not before</h5>
+<p><code>LEAD</code> must see every row to compute the successor correctly &mdash; if you filtered to <code>plan = 'trial'</code> <em>before</em> the window function, <code>LEAD</code> would look forward to the next <em>trial</em> row (skipping basic, pro, etc.) or find nothing. The window runs over the full log inside the CTE; the <code>WHERE plan = 'trial'</code> in the outer query then restricts to the transitions that start from a trial. Filter placement relative to the window is the subtle correctness point.</p>
+
+<h5>Counting customers vs counting rows</h5>
+<p><code>COUNT(*)</code> is correct <em>here</em> only because each customer has exactly one <code>trial</code> row, so one row equals one customer. If a customer could re-enter trial (trial &rarr; churn &rarr; trial &rarr; basic), <code>COUNT(*)</code> would count two trial transitions for one person. If the metric is truly "how many customers", <code>COUNT(DISTINCT customer_id)</code> is the safer expression. State the assumption that trials are non-recurring.</p>
+
+<h5>Dialect notes &mdash; broadly portable</h5>
+<p><code>LEAD</code>, <code>COALESCE</code>, and <code>GROUP BY</code> on an expression are SQL-standard and behave identically in Postgres, SQL Server, BigQuery, Snowflake, Oracle, and MySQL 8+/SQLite 3.25+. One minor portability note: some engines let you <code>GROUP BY</code> a <code>SELECT</code>-list alias, but repeating the <code>COALESCE</code> expression in the <code>GROUP BY</code> (as here) is the universally safe form.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> model state transitions by pairing each row with its successor via <code>LEAD</code>, run the window over the <em>full</em> log and filter to the source state afterward, and treat the <code>NULL</code> from a missing next row as a meaningful <code>never_converted</code> bucket with <code>COALESCE</code> in both <code>SELECT</code> and <code>GROUP BY</code>.</div>

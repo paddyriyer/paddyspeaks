@@ -1,0 +1,61 @@
+<p>A merchandising team wants the top 3 products by sales in each category &mdash; but with a fairness rule: if products tie at the cut-off, all of them stay, even if that means 4 rows. This is <strong>top-N with ties</strong>, and the interviewer is probing whether you know which ranking function honours ties and how it differs from a plain <code>LIMIT</code>.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>category</th><th>name</th><th>sales</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>p1</td><td>100</td><td>rank 1</td></tr>
+    <tr><td>A</td><td>p2</td><td>90</td><td>rank 2</td></tr>
+    <tr><td>A</td><td>p3</td><td>80</td><td>tied for rank 3 &mdash; the boundary tie</td></tr>
+    <tr><td>A</td><td>p4</td><td>80</td><td>tied for rank 3 &mdash; must also be kept</td></tr>
+    <tr><td>A</td><td>p5</td><td>70</td><td>rank 4 &mdash; excluded</td></tr>
+    <tr><td>B</td><td>p6 / p7 / p8</td><td>50</td><td>three-way tie for rank 1</td></tr>
+    <tr><td>B</td><td>p9</td><td>40</td><td>rank 2</td></tr>
+    <tr><td>C</td><td>p10</td><td>10</td><td>single-product category</td></tr>
+  </tbody>
+</table>
+<p>Category A has a tie <em>at the boundary</em> (p3 and p4 both at 80, both rank 3) &mdash; both must appear, yielding 4 rows. Category C has just one product, a single-member-group edge case. Category B has a three-way tie that all shares rank 1.</p>
+
+<h4>2. The SQL &mdash; DENSE_RANK keeps boundary ties</h4>
+<pre><code>SELECT category, name, sales
+FROM (
+  SELECT category, name, sales,
+         DENSE_RANK() OVER (PARTITION BY category ORDER BY sales DESC) AS rk
+  FROM products
+) t
+WHERE rk <= 3
+ORDER BY category, sales DESC, name;</code></pre>
+<p><code>DENSE_RANK()</code> assigns a rank per category by descending sales; tied rows get the <em>same</em> rank. Filtering <code>rk &lt;= 3</code> in the outer query keeps the top three rank <em>levels</em> &mdash; and because tied products share a rank, every product at the 3rd level survives the cut.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>name</th><th>sales</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>p1</td><td>100</td><td>rk 1</td></tr>
+    <tr><td>A</td><td>p2</td><td>90</td><td>rk 2</td></tr>
+    <tr><td>A</td><td>p3</td><td>80</td><td>rk 3 &mdash; tie kept</td></tr>
+    <tr><td>A</td><td>p4</td><td>80</td><td>rk 3 &mdash; tie kept &rarr; 4 rows for A</td></tr>
+    <tr><td>B</td><td>p6</td><td>50</td><td>rk 1</td></tr>
+    <tr><td>B</td><td>p7</td><td>50</td><td>rk 1</td></tr>
+    <tr><td>B</td><td>p8</td><td>50</td><td>rk 1 &mdash; three-way tie</td></tr>
+    <tr><td>B</td><td>p9</td><td>40</td><td>rk 2</td></tr>
+    <tr><td>C</td><td>p10</td><td>10</td><td>rk 1 &mdash; only product</td></tr>
+  </tbody>
+</table>
+<p>Category A returns <strong>4 rows</strong>: p3 and p4 both hold rank 3, and the tie-inclusive rule keeps both. p5 (70) is rank 4 and correctly drops out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code>, not <code>ROW_NUMBER</code></h5>
+<p><code>ROW_NUMBER()</code> assigns a strict 1,2,3,&hellip; &mdash; it would give p3 number 3 and p4 number 4, and <code>rk &lt;= 3</code> would arbitrarily drop one of the tied products by physical order. That breaks the fairness rule. <code>DENSE_RANK</code> gives equal rows the same rank, so a boundary tie is kept or dropped <em>as a unit</em> &mdash; exactly the "include ties" requirement.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> &mdash; a subtle choice</h5>
+<p>Both honour ties, but they differ <em>after</em> a tie. <code>RANK</code> skips: ranks go 1, 1, 3 &mdash; so a category with a 2-way tie for 1st has its next product at rank 3, and <code>rk &lt;= 3</code> would yield only 3 rows (1,1,3) and stop. <code>DENSE_RANK</code> never gaps: 1, 1, 2 &mdash; "top 3" means three distinct <em>sales levels</em>. For "top 3 distinct values, ties included", <code>DENSE_RANK</code> is right. If the rule were "top 3 <em>rows</em>, plus ties at the 3rd row", that is <code>RANK() &lt;= 3</code>. Naming which interpretation the product wants is the senior move.</p>
+
+<h5>Why a per-category <code>LIMIT</code> cannot do this</h5>
+<p><code>LIMIT 3</code> (or <code>FETCH FIRST 3 ROWS</code>) is purely positional &mdash; it counts rows and stops, blind to ties, and it has no notion of "per category" without a lateral join. Category A would lose p4. SQL Server's <code>TOP 3 WITH TIES</code> is the one built-in that does honour boundary ties &mdash; but only for the whole result, not per group. A windowed <code>DENSE_RANK</code> filter is the portable way to get tie-inclusive top-N <em>within each partition</em>.</p>
+
+<h5>Why the rank must be in a subquery</h5>
+<p>Window functions are computed <em>after</em> the <code>WHERE</code> clause, so you cannot write <code>WHERE DENSE_RANK() OVER (...) &lt;= 3</code> directly &mdash; the engine rejects it. Wrap the ranking in a subquery or CTE, then filter <code>rk</code> in the outer query. The final <code>ORDER BY category, sales DESC, name</code> is presentation only; <code>name</code> as the last key keeps tied rows in a stable, readable order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> for tie-inclusive top-N per group, rank with <code>DENSE_RANK() OVER (PARTITION BY ... ORDER BY ... DESC)</code> in a subquery and filter <code>rk &lt;= N</code> &mdash; <code>ROW_NUMBER</code> would arbitrarily split a boundary tie, and a plain <code>LIMIT</code> is tie-blind; distinguish <code>DENSE_RANK</code> (no gaps, top-N distinct values) from <code>RANK</code> (gaps after ties).</div>

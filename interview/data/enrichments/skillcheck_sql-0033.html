@@ -1,0 +1,63 @@
+<p>A loyalty program (a Danny's Diner-style points engine) awards points per dollar spent, but with two stacking bonuses: a first-week welcome bonus and a sushi promotion. The interviewer is probing whether you can express layered, mutually-exclusive business rules with a single <code>CASE</code> ladder &mdash; getting the <em>order</em> of the branches right &mdash; and whether you handle non-members, who must fall back to the base rate.</p>
+
+<h4>1. The source data &mdash; <code>members</code> and <code>purchases</code></h4>
+<table>
+  <thead><tr><th>customer</th><th>join_date</th><th>order_date</th><th>product</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>A (member)</td><td>2021-01-07</td><td>2021-01-01</td><td>sushi 10 / curry 15</td><td>before join &mdash; sushi bonus only</td></tr>
+    <tr><td>A</td><td>2021-01-07</td><td>2021-01-07</td><td>curry 15</td><td>on join_date &mdash; first-week bonus</td></tr>
+    <tr><td>A</td><td>2021-01-07</td><td>2021-01-10/11</td><td>ramen &times;3</td><td>day 3-4 after join &mdash; first-week bonus</td></tr>
+    <tr><td>B (member)</td><td>2021-01-09</td><td>2021-01-01..16</td><td>curry, sushi, ramen</td><td>spans before, during, after window</td></tr>
+    <tr><td>C (non-member)</td><td>&mdash;</td><td>2021-01-01/07</td><td>ramen &times;2</td><td>no join row &mdash; base rate only</td></tr>
+  </tbody>
+</table>
+<p>Customer C is the edge case: she has no <code>members</code> row, so the <code>LEFT JOIN</code> leaves <code>join_date</code> NULL and she must earn the flat 10 points/dollar &mdash; no bonus branch may fire for her.</p>
+
+<h4>2. The SQL &mdash; layered CASE inside a conditional SUM</h4>
+<pre><code>SELECT p.customer_id,
+       SUM(
+         CASE
+           WHEN m.join_date IS NOT NULL
+                AND p.order_date BETWEEN m.join_date AND m.join_date + 6
+             THEN p.amount * 20
+           WHEN p.product = 'sushi' THEN p.amount * 20
+           ELSE p.amount * 10
+         END
+       ) AS points
+FROM purchases p
+LEFT JOIN members m ON m.customer_id = p.customer_id
+WHERE p.order_date >= DATE '2021-01-01'
+  AND p.order_date <  DATE '2021-02-01'
+GROUP BY p.customer_id
+ORDER BY p.customer_id;</code></pre>
+<p>The <code>CASE</code> ladder is evaluated top to bottom and the <em>first</em> matching branch wins. First-week bonus (member-only, date-bounded) is checked first; sushi promotion second; base rate is the <code>ELSE</code>. <code>SUM</code> rolls every row's points into a per-customer total.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>points</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>1370</td><td>sushi 10&times;20 + curry 15&times;10 (pre-join) + 5 in-window purchases &times;20</td></tr>
+    <tr><td>B</td><td>820</td><td>mix of in-window &times;20, sushi &times;20, base &times;10</td></tr>
+    <tr><td>C</td><td>240</td><td>non-member: 24 dollars &times; 10 &mdash; no bonus fired</td></tr>
+  </tbody>
+</table>
+<p>C earns exactly <strong>240</strong> (12+12 dollars at the flat rate). Because <code>join_date</code> is NULL the first branch's <code>IS NOT NULL</code> guard fails, and her ramen never triggers the sushi branch &mdash; she lands in <code>ELSE</code>, exactly as a non-member should.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why branch order is the whole problem</h5>
+<p><code>CASE</code> short-circuits: the first <code>WHEN</code> that is true decides the row, and later branches never see it. A sushi bought during the first week is worth 20 either way, so order does not change the number <em>there</em> &mdash; but the principle matters: if the rates differed, putting the broader rule first would mask the narrower one. Encode the most specific / highest-priority rule first and let generality cascade down to <code>ELSE</code>.</p>
+
+<h5>Why the member guard must be explicit</h5>
+<p>For a non-member, <code>m.join_date</code> is NULL after the <code>LEFT JOIN</code>. Without <code>m.join_date IS NOT NULL</code>, the predicate <code>p.order_date BETWEEN NULL AND NULL+6</code> evaluates to <code>unknown</code> &mdash; which is <em>not</em> true, so the branch happens not to fire here. But relying on NULL-propagation accidentally is fragile; an explicit <code>IS NOT NULL</code> states the intent ("members only") and survives a future rewrite to an <code>INNER JOIN</code> or an <code>OR</code> condition.</p>
+
+<h5>Inclusive 7-day window: <code>join_date + 6</code></h5>
+<p>"First 7 days, inclusive of join_date" means days 0 through 6 &mdash; <code>BETWEEN join_date AND join_date + 6</code>, not <code>+ 7</code>. Off-by-one here silently over- or under-pays bonuses. In Postgres, <code>date + integer</code> adds days; be explicit (<code>+ INTERVAL '6 days'</code>) if the column is a <code>timestamp</code>, because date vs timestamp arithmetic differs.</p>
+
+<h5>Conditional aggregation vs a pre-computed column</h5>
+<p>Folding the rule into <code>SUM(CASE ...)</code> keeps everything in one pass and one place. The alternative &mdash; a CTE that computes <code>row_points</code>, then a plain <code>SUM</code> &mdash; is equally correct and often more readable when the rule is long; it also makes the per-row points inspectable for debugging. Both are fine; for a 3-branch rule the inline form is concise enough.</p>
+
+<h5>Half-open date range &mdash; and a note on the prompt</h5>
+<p>The month filter uses <code>&gt;= '2021-01-01' AND &lt; '2021-02-01'</code> &mdash; a half-open interval. This is the safe idiom: it captures every January timestamp including <code>2021-01-31 23:59:59</code> without the <code>BETWEEN ... AND '2021-01-31'</code> bug that drops late-in-day rows. (The prompt says "January 2025" while the fixture data and solution both use January 2021 &mdash; the query is internally consistent with its own dataset, which is what is graded.)</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express stacked business rules as a single <code>CASE</code> ladder ordered most-specific-first because the first true branch wins; guard member-only logic with an explicit <code>IS NOT NULL</code> rather than relying on NULL propagation; get the inclusive-window arithmetic exactly right and filter months with a half-open <code>&gt;= / &lt;</code> range.</div>

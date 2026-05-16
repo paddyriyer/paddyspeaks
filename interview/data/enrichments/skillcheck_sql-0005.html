@@ -1,0 +1,58 @@
+<p>A finance team wants total spend per customer for a billing report &mdash; and crucially, customers who have never ordered must still appear, showing <code>0</code>, not a blank. The interviewer is probing two linked ideas: that an <strong>inner join would silently drop the zero-order customers</strong>, and that <code>SUM</code> over no rows returns <code>NULL</code>, which <code>COALESCE</code> must convert to a real zero.</p>
+
+<h4>1. The source data &mdash; <code>customer</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer.id</th><th>customer.name</th><th>has orders?</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>yes &mdash; orders 101, 102</td></tr>
+    <tr><td>2</td><td>Bob</td><td>yes &mdash; order 103</td></tr>
+    <tr><td>3</td><td>Cara</td><td><strong>no orders at all</strong></td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>50</td></tr>
+    <tr><td>102</td><td>1</td><td>30</td></tr>
+    <tr><td>103</td><td>2</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>Cara is the edge case the whole question is built around: a customer with <em>zero</em> matching order rows. A correct answer must still emit a Cara row, and her <code>total</code> must read <code>0</code> rather than <code>NULL</code> or nothing.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> with <code>COALESCE</code></h4>
+<pre><code>SELECT
+  c.id,
+  c.name,
+  COALESCE(SUM(o.amount), 0) AS total
+FROM customer c
+LEFT JOIN orders o ON o.customer_id = c.id
+GROUP BY c.id, c.name
+ORDER BY c.id;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every <code>customer</code> row even when no <code>orders</code> row matches &mdash; the order columns simply come back <code>NULL</code> for those customers. <code>GROUP BY</code> then collapses each customer's rows, <code>SUM</code> totals their amounts, and <code>COALESCE</code> rewrites the <code>NULL</code> that <code>SUM</code> produces for an all-NULL group into <code>0</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>total</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>80</td><td>50 + 30, two real orders</td></tr>
+    <tr><td>2</td><td>Bob</td><td>100</td><td>one order</td></tr>
+    <tr><td>3</td><td>Cara</td><td>0</td><td>kept by LEFT JOIN; SUM(NULL) &rarr; COALESCE &rarr; 0</td></tr>
+  </tbody>
+</table>
+<p>Cara is the proof point. The <code>LEFT JOIN</code> gives her one row with <code>o.amount</code> = <code>NULL</code>; <code>SUM</code> of a group containing only NULL is <code>NULL</code>; <code>COALESCE(NULL, 0)</code> turns it into <code>0</code>. With a plain <code>INNER JOIN</code> Cara would have produced no rows at all and vanished from the billing report &mdash; a missing customer, not a zero one.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEFT JOIN</code> and not <code>INNER JOIN</code></h5>
+<p>An <code>INNER JOIN</code> emits a row only when both sides match, so a customer with no orders contributes nothing and disappears. <code>LEFT JOIN</code> guarantees every left-side (customer) row survives; unmatched right-side columns are filled with <code>NULL</code>. The requirement "including customers with zero orders" is precisely the definition of a left join &mdash; recognising that phrasing as a join-type signal is the core skill being tested.</p>
+
+<h5><code>SUM</code> of nothing is <code>NULL</code>, not <code>0</code></h5>
+<p>This surprises people: <code>SUM</code> ignores NULLs, and a group made entirely of NULLs (or of no rows) has nothing to add, so the result is <code>NULL</code> &mdash; not <code>0</code>. That is why <code>COALESCE(SUM(o.amount), 0)</code> is needed: it supplies the zero the report wants. <code>COUNT</code> behaves differently &mdash; <code>COUNT(o.order_id)</code> of an all-NULL group is genuinely <code>0</code> &mdash; so if the report needed an order <em>count</em>, no <code>COALESCE</code> would be required there.</p>
+
+<h5>The filter-placement trap: <code>WHERE</code> vs the <code>ON</code> clause</h5>
+<p>If the task were "total of <em>completed</em> orders, still keeping zero-order customers", a predicate like <code>o.status = 'completed'</code> must go in the <code>ON</code> clause, not <code>WHERE</code>. A <code>WHERE o.status = 'completed'</code> tests <code>NULL = 'completed'</code> for Cara's unmatched row, which is false &mdash; quietly converting the <code>LEFT JOIN</code> back into an inner join and dropping her. Filters on the optional table belong in <code>ON</code>; filters on the preserved table can stay in <code>WHERE</code>.</p>
+
+<h5>Grouping by the natural key, and an aggregate-free alternative</h5>
+<p><code>GROUP BY c.id, c.name</code> includes <code>name</code> because every non-aggregated <code>SELECT</code> column must be grouped (or functionally dependent on the group key). Grouping by <code>c.id</code> alone would also be valid in PostgreSQL when <code>id</code> is the primary key, since <code>name</code> is then functionally determined &mdash; but listing both is the portable habit. A correlated-subquery form &mdash; <code>SELECT c.id, c.name, COALESCE((SELECT SUM(amount) FROM orders WHERE customer_id = c.id), 0)</code> &mdash; avoids the join and the <code>GROUP BY</code> entirely and reads cleanly for one aggregate.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> read "including customers with zero orders" as a mandate for <code>LEFT JOIN</code>, know that <code>SUM</code> over an all-NULL group returns <code>NULL</code> so <code>COALESCE(..., 0)</code> is required to show a true zero, and remember that any filter on the optional table must sit in the <code>ON</code> clause or it silently degrades the left join into an inner join.</div>

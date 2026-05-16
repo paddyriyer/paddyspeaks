@@ -1,0 +1,60 @@
+<p>An HR-analytics team wants the org chart flattened with a depth label &mdash; the CEO at depth 0, their directs at depth 1, and so on. A single self-join reaches only one level; an organisation of unknown depth needs a <strong>recursive CTE</strong> that walks the management tree until it runs out of employees. The interviewer is probing the anchor / recursive-member structure and what makes the recursion terminate.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>manager_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>CEO</td><td><em>NULL</em></td><td>the root &mdash; recursion anchors here</td></tr>
+    <tr><td>2</td><td>VP-A</td><td>1</td><td>reports to CEO</td></tr>
+    <tr><td>3</td><td>VP-B</td><td>1</td><td>reports to CEO</td></tr>
+    <tr><td>4</td><td>Mgr-A1</td><td>2</td><td>reports to VP-A</td></tr>
+    <tr><td>5</td><td>Mgr-A2</td><td>2</td><td>reports to VP-A &mdash; sibling leaf</td></tr>
+    <tr><td>6</td><td>IC-A1a</td><td>4</td><td>deepest node, under Mgr-A1</td></tr>
+  </tbody>
+</table>
+<p>A four-deep tree. The <strong>NULL <code>manager_id</code></strong> on the CEO is the edge case that matters: it is the only row with no parent, so it is the seed the recursion starts from. Mgr-A2 is a leaf with no reports &mdash; the recursion must not break when it reaches a node that has no children.</p>
+
+<h4>2. The SQL &mdash; <code>WITH RECURSIVE</code></h4>
+<pre><code>WITH RECURSIVE tree AS (
+  SELECT id, name, 0 AS depth
+  FROM employee
+  WHERE manager_id IS NULL
+  UNION ALL
+  SELECT e.id, e.name, t.depth + 1
+  FROM employee e
+  JOIN tree t ON e.manager_id = t.id
+)
+SELECT id, name, depth
+FROM tree
+ORDER BY depth, id;</code></pre>
+<p>Two members joined by <code>UNION ALL</code>. The <strong>anchor</strong> seeds <code>tree</code> with the root &mdash; the employee whose <code>manager_id IS NULL</code>, stamped <code>depth 0</code>. The <strong>recursive member</strong> joins <code>employee</code> back to rows already in <code>tree</code>, finding everyone whose manager surfaced in the previous round, and labels them one level deeper.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>depth</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>CEO</td><td>0</td><td>anchor row</td></tr>
+    <tr><td>2</td><td>VP-A</td><td>1</td><td>found in round 2</td></tr>
+    <tr><td>3</td><td>VP-B</td><td>1</td><td>found in round 2</td></tr>
+    <tr><td>4</td><td>Mgr-A1</td><td>2</td><td>found in round 3</td></tr>
+    <tr><td>5</td><td>Mgr-A2</td><td>2</td><td>found in round 3 &mdash; leaf, no children</td></tr>
+    <tr><td>6</td><td>IC-A1a</td><td>3</td><td>found in round 4</td></tr>
+  </tbody>
+</table>
+<p>All six employees appear, each tagged with depth. The recursion ran four productive rounds: round 1 found the CEO, round 2 the two VPs, round 3 the two managers, round 4 the lone IC. Round 5 joined and found nobody &mdash; an empty round, which is the signal to stop.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How a recursive CTE executes &mdash; the termination question</h5>
+<p>The recursive member runs <em>repeatedly</em>. On each iteration, <code>tree</code> on the right of the join refers only to the rows produced by the <em>previous</em> iteration. The engine keeps iterating until an iteration adds <strong>zero new rows</strong>, then stops. That is the natural terminator: once the deepest employees are found, the next round's join matches nobody, the round is empty, and recursion ends. No loop counter is required &mdash; the tree's finite depth ends it.</p>
+
+<h5><code>UNION ALL</code> vs <code>UNION</code> &mdash; not interchangeable</h5>
+<p>Recursive CTEs use <code>UNION ALL</code> deliberately. <code>UNION</code> deduplicates on every iteration &mdash; extra work, and more importantly it can <em>mask</em> a structural problem instead of surfacing it. In a clean tree each employee is reached exactly once, so there is nothing to dedupe and <code>UNION ALL</code> is both correct and faster. If the data were a graph with diamonds (an employee reachable by two paths), <code>UNION ALL</code> would reveal the duplication so you handle it consciously.</p>
+
+<h5>The infinite-loop trap &mdash; cycles in the data</h5>
+<p>Termination depends on the data being an actual <em>tree</em>. If a cycle exists &mdash; the CEO's <code>manager_id</code> pointed back at an IC, say &mdash; the recursive join keeps finding "new" rows forever and the query never terminates (or hits a recursion limit). Defensive recursion carries a visited-path array and a depth cap; PostgreSQL 14+ also offers a built-in <code>CYCLE id SET is_cycle USING path</code> clause for exactly this protection. Naming the cycle risk unprompted is the senior move.</p>
+
+<h5>Edge cases: depth 0 vs 1, multiple roots, and orphans</h5>
+<p>The anchor sets <code>0 AS depth</code> because the prompt says the CEO is depth 0; seed it with <code>1</code> and every level shifts. Because the anchor is <code>WHERE manager_id IS NULL</code>, it seeds <em>every</em> root &mdash; correct for a company with several independent top-level executives (a forest). The opposite risk: an employee whose <code>manager_id</code> points to a non-existent or cyclic node never reaches a root and is <strong>silently absent</strong>. Reconcile <code>COUNT(*) FROM tree</code> against <code>COUNT(*) FROM employee</code> to catch any such orphan.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain the anchor / recursive-member split and that recursion stops when an iteration yields zero new rows, justify <code>UNION ALL</code> over <code>UNION</code>, pre-empt the infinite loop a data cycle would cause with a visited-path guard or the <code>CYCLE</code> clause, and reconcile the row count against the table to catch orphans the anchor never reaches.</div>

@@ -1,0 +1,52 @@
+<p>A catalogue team auditing a product database wants to find every description that contains a numeral &mdash; sizes, pack counts, model numbers, dimensions. The reference solution chains six <code>LIKE '%digit%'</code> predicates with <code>OR</code>. The interviewer is probing whether you see this as a hand-rolled, incomplete substitute for a real pattern match, and whether you know the portable and Postgres-native ways to do it properly.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>description</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Cable A</td><td>USB cable 2m length</td><td>contains "2"</td></tr>
+    <tr><td>2</td><td>Mug</td><td>Ceramic mug, dishwasher safe</td><td>no digit</td></tr>
+    <tr><td>3</td><td>Router X9</td><td>Dual-band wireless router</td><td>"9" is in the name, not the description</td></tr>
+    <tr><td>4</td><td>Bolt Pack</td><td>Pack of 50 steel bolts</td><td>contains "5" and "0"</td></tr>
+    <tr><td>5</td><td>Notebook</td><td>Lined notebook, no numerals here</td><td>the word "numerals" but no actual digit</td></tr>
+    <tr><td>6</td><td>Lamp</td><td>NULL</td><td>NULL description &mdash; the trap</td></tr>
+    <tr><td>7</td><td>Desk</td><td>Standing desk adjustable</td><td>no digit</td></tr>
+  </tbody>
+</table>
+<p>Two rows decide the interview. Row 6 has a <em>NULL</em> description, and the solution only checks digits 0&ndash;5 &mdash; a "7", "8", or "9" in a description would be missed entirely.</p>
+
+<h4>2. The SQL &mdash; numeral search via chained <code>LIKE</code></h4>
+<pre><code>SELECT product_id, description
+FROM products
+WHERE description LIKE '%0%' OR description LIKE '%1%' OR description LIKE '%2%'
+   OR description LIKE '%3%' OR description LIKE '%4%' OR description LIKE '%5%';</code></pre>
+<p>Each <code>LIKE '%n%'</code> tests whether the literal character <code>n</code> appears anywhere in the string; <code>OR</code> accepts a row if any one of them matches.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>description</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>USB cable 2m length</td><td>"2" matched</td></tr>
+    <tr><td>4</td><td>Pack of 50 steel bolts</td><td>"5" and "0" matched</td></tr>
+  </tbody>
+</table>
+<p>Only two rows return. The NULL description (row 6) is silently excluded &mdash; <code>NULL LIKE anything</code> is unknown, never true. The word "numerals" in row 5 does not match because no actual digit character is present. And critically, the query would <em>also</em> miss any description containing only 6&ndash;9, because those patterns were never written.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The pattern is incomplete &mdash; six predicates is not "any digit"</h5>
+<p>The solution checks 0 through 5 only. A description like "Model 789" contains a digit but matches none of the six <code>LIKE</code> clauses, so it is wrongly excluded. To genuinely mean "contains any numeral" you need all ten digits &mdash; or, far better, a single pattern. This is the headline bug an interviewer wants you to spot: enumerating characters by hand is error-prone exactly because it is easy to stop short.</p>
+
+<h5>The portable fix &mdash; <code>LIKE</code> with a character class is not enough</h5>
+<p>Standard <code>LIKE</code> has no character-class syntax, so you cannot write <code>LIKE '%[0-9]%'</code> portably (that bracket syntax is SQL Server's <code>LIKE</code>, not ANSI). The genuinely portable answer is <code>SIMILAR TO '%[0-9]%'</code> (Postgres) or a regex. In PostgreSQL the idiomatic form is the <code>~</code> operator: <code>WHERE description ~ '[0-9]'</code> &mdash; one short predicate that matches any digit anywhere, with no enumeration to get wrong.</p>
+
+<h5>NULL descriptions vanish &mdash; decide if that is intended</h5>
+<p>Row 6's NULL description is dropped because every <code>LIKE</code> against NULL evaluates to unknown, and unknown is not true. That is usually fine for "find descriptions with digits" &mdash; a missing description plainly has none. But if the audit needs to <em>flag</em> products with no description at all, add an explicit <code>OR description IS NULL</code> branch; do not let NULL handling be accidental.</p>
+
+<h5>Performance &mdash; leading-wildcard <code>LIKE</code> cannot use a B-tree index</h5>
+<p>Every pattern here starts with <code>%</code>, so a standard B-tree index on <code>description</code> is useless &mdash; the engine must scan and substring-test every row. A regex (<code>~</code>) has the same cost. On a large catalogue, the real accelerator is a trigram index: <code>CREATE EXTENSION pg_trgm; CREATE INDEX ON products USING gin (description gin_trgm_ops);</code>, which lets both <code>LIKE '%...%'</code> and <code>~</code> use the index.</p>
+
+<h5>The "regex" tag is the hint</h5>
+<p>This question is tagged <em>regex</em>, yet the solution uses no regex at all &mdash; it is six string literals. The tag is telling you the expected answer is a single regular expression: <code>description ~ '\d'</code> in Postgres. Recognising that the chained <code>LIKE</code> is the naive form, and that one regex replaces all six predicates and fixes the missing-digits bug, is the move the interviewer is waiting for.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that six chained <code>LIKE</code> clauses only cover digits 0&ndash;5 and silently miss 6&ndash;9, replace the whole chain with one regex (<code>description ~ '[0-9]'</code>), note that NULL descriptions drop out by three-valued logic, and know that leading-wildcard matches need a <code>pg_trgm</code> GIN index to scale.</div>

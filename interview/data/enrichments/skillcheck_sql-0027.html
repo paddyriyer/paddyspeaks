@@ -1,0 +1,51 @@
+<p>A growth team wants to count users who have <em>not</em> opted in to marketing &mdash; per country. The obvious filter <code>WHERE opt_in != 'yes'</code> looks right, but it silently drops everyone who never answered (<code>opt_in IS NULL</code>). The interviewer is probing whether you understand three-valued logic: a <code>WHERE</code> clause keeps a row only when the predicate evaluates to <em>true</em>, and <code>NULL != 'yes'</code> is not true &mdash; it is <code>unknown</code>.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>id</th><th>country</th><th>opt_in</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>CA</td><td>yes</td><td>opted in</td></tr>
+    <tr><td>2</td><td>CA</td><td>no</td><td>explicitly declined</td></tr>
+    <tr><td>3</td><td>CA</td><td>NULL</td><td>never answered &mdash; the edge case</td></tr>
+    <tr><td>4</td><td>FR</td><td>yes</td><td>opted in</td></tr>
+    <tr><td>5</td><td>FR</td><td>NULL</td><td>never answered</td></tr>
+    <tr><td>6</td><td>JP</td><td>no</td><td>explicitly declined</td></tr>
+    <tr><td>7</td><td>JP</td><td>no</td><td>explicitly declined</td></tr>
+  </tbody>
+</table>
+<p>Two countries carry a <code>NULL</code> <code>opt_in</code> &mdash; CA (id 3) and FR (id 5). Whether those rows are counted as "not opted in" is the entire question. FR is the sharpest case: its only non-<code>yes</code> row <em>is</em> the NULL, so the naive query returns no FR row at all.</p>
+
+<h4>2. The SQL &mdash; non-opt-in count with <code>IS DISTINCT FROM</code></h4>
+<pre><code>SELECT country, COUNT(*) AS c
+FROM users
+WHERE opt_in IS DISTINCT FROM 'yes'
+GROUP BY country
+ORDER BY country;</code></pre>
+<p><code>IS DISTINCT FROM</code> is a <em>NULL-safe</em> inequality. It always returns a clean boolean: <code>'no' IS DISTINCT FROM 'yes'</code> is true, and crucially <code>NULL IS DISTINCT FROM 'yes'</code> is also true (a NULL <em>is</em> distinct from the value <code>'yes'</code>). So every row that is not literally <code>'yes'</code> &mdash; including the never-answered rows &mdash; passes the filter.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>country</th><th>c</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>CA</td><td>2</td><td>id 2 ('no') + id 3 (NULL)</td></tr>
+    <tr><td>FR</td><td>1</td><td>id 5 (NULL) &mdash; the naive query lost this row entirely</td></tr>
+    <tr><td>JP</td><td>2</td><td>id 6 + id 7, both 'no'</td></tr>
+  </tbody>
+</table>
+<p>Compare the naive <code>opt_in != 'yes'</code>: it returns only <code>CA=1</code> and <code>JP=2</code> &mdash; FR vanishes from the report, and CA undercounts by one. The corrected query restores all three NULL-bearing users.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>!= 'yes'</code> drops the NULLs</h5>
+<p>SQL uses three-valued logic: <code>true</code>, <code>false</code>, <code>unknown</code>. Any comparison with <code>NULL</code> yields <code>unknown</code> &mdash; <code>NULL != 'yes'</code> is <code>unknown</code>, not <code>true</code>. A <code>WHERE</code> clause admits a row only on <code>true</code>, so the never-answered rows are filtered out. This is not a bug in the engine; it is the standard, and it bites whenever a nullable column appears under a negated predicate.</p>
+
+<h5>Why <code>IS DISTINCT FROM</code> is the clean fix</h5>
+<p><code>IS DISTINCT FROM</code> treats <code>NULL</code> as just another value for comparison purposes: two NULLs are <em>not</em> distinct, and a NULL is distinct from any non-NULL. It never returns <code>unknown</code>, so it behaves predictably inside <code>WHERE</code>. The portable alternative is <code>WHERE opt_in IS NULL OR opt_in != 'yes'</code> &mdash; correct, but verbose and easy to forget. <code>COALESCE(opt_in,'') != 'yes'</code> also works but invents a sentinel; <code>IS DISTINCT FROM</code> states the intent directly.</p>
+
+<h5>The mirror trap: <code>= 'yes'</code> and <code>IN</code></h5>
+<p>The same logic catches you on the positive side. <code>WHERE opt_in = 'yes'</code> correctly excludes the NULLs (you want only confirmed opt-ins), but <code>WHERE opt_in NOT IN ('yes')</code> behaves like <code>!=</code> and drops them. And <code>NOT IN</code> with a subquery that can yield a NULL is famously worse &mdash; it can return zero rows. Whenever a column is nullable, audit every negated predicate touching it.</p>
+
+<h5>Dialect notes</h5>
+<p><code>IS DISTINCT FROM</code> is standard SQL and supported by PostgreSQL, SQLite, and DuckDB. SQL Server lacks it before 2022, where you write <code>EXCEPT</code>-style logic or the explicit <code>OR opt_in IS NULL</code>; SQL Server 2022 adds the shorthand <code>opt_in IS DISTINCT FROM 'yes'</code>. MySQL spells the NULL-safe <em>equality</em> as <code>&lt;=&gt;</code>, so the inequality is <code>NOT (opt_in &lt;=&gt; 'yes')</code>. Same semantics, different surface syntax &mdash; mention this to show dialect awareness.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that a negated predicate over a nullable column silently drops NULL rows because <code>NULL != x</code> is <code>unknown</code>, not <code>true</code>; reach for <code>IS DISTINCT FROM</code> as the NULL-safe inequality, know the portable <code>OR ... IS NULL</code> fallback, and audit every <code>!=</code> / <code>NOT IN</code> against a nullable column.</div>

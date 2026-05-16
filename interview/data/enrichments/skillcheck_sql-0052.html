@@ -1,0 +1,57 @@
+<p>An experimentation team wants to know whether two A/B tests overlap: which users were enrolled in <em>both</em> the <code>feed_v2</code> and <code>pricing_v3</code> experiments, and how their variant assignments cross-tabulate. The <code>experiment_users</code> table is one row per (experiment, user, variant). The interviewer is probing a self-join on a long-format table to produce a crosstab &mdash; and whether you understand that the join itself enforces the "both experiments" condition.</p>
+
+<h4>1. The source data &mdash; <code>experiment_users</code></h4>
+<table>
+  <thead><tr><th>experiment</th><th>user_id</th><th>variant</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>feed_v2</td><td>1, 2, 5, 6</td><td>A</td><td>users on the feed_v2 control</td></tr>
+    <tr><td>feed_v2</td><td>3, 4, 7</td><td>B</td><td>users on the feed_v2 treatment</td></tr>
+    <tr><td>pricing_v3</td><td>1, 3, 6, 7</td><td>A</td><td>users on the pricing_v3 control</td></tr>
+    <tr><td>pricing_v3</td><td>2, 4</td><td>B</td><td>users on the pricing_v3 treatment</td></tr>
+  </tbody>
+</table>
+<p>The intersection is the point. Users 1, 2, 3, 4, 6, 7 appear in <em>both</em> experiments &mdash; they are the only ones counted. User 5 is in <code>feed_v2</code> only and user 5's absence from <code>pricing_v3</code> means the join drops them. The edge case to watch: every (variant_feed, variant_pricing) combination must surface, including thinly-populated cells.</p>
+
+<h4>2. The SQL &mdash; self-join on user_id, crosstab the variants</h4>
+<pre><code>SELECT f.variant AS variant_feed,
+       p.variant AS variant_pricing,
+       COUNT(*) AS users
+FROM experiment_users f
+JOIN experiment_users p
+  ON f.user_id = p.user_id
+ AND f.experiment = 'feed_v2'
+ AND p.experiment = 'pricing_v3'
+GROUP BY f.variant, p.variant
+ORDER BY variant_feed, variant_pricing;</code></pre>
+<p>The table is joined to itself: alias <code>f</code> is filtered to <code>feed_v2</code> rows, alias <code>p</code> to <code>pricing_v3</code> rows, and the join matches them on <code>user_id</code>. A row survives only if the same user exists in both filtered sets &mdash; that <em>is</em> the intersection. Grouping by the two variants produces the crosstab counts.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>variant_feed</th><th>variant_pricing</th><th>users</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>A</td><td>2</td><td>users 1 and 6</td></tr>
+    <tr><td>A</td><td>B</td><td>1</td><td>user 2</td></tr>
+    <tr><td>B</td><td>A</td><td>2</td><td>users 3 and 7</td></tr>
+    <tr><td>B</td><td>B</td><td>1</td><td>user 4</td></tr>
+  </tbody>
+</table>
+<p>The four cells sum to <strong>6</strong> &mdash; exactly the six users in both experiments. User 5 contributed nothing: with no <code>pricing_v3</code> row, the inner join found no partner and dropped them. The crosstab shows feed and pricing assignments are roughly balanced &mdash; no obvious correlation between the two experiments' bucketing.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The self-join <em>is</em> the intersection &mdash; no INTERSECT needed</h5>
+<p>An <code>INNER JOIN</code> only emits a row when a match exists on both sides. By filtering <code>f</code> to <code>feed_v2</code> and <code>p</code> to <code>pricing_v3</code> and joining on <code>user_id</code>, a user appears in the result <em>if and only if</em> they are in both experiments. The "enrolled in BOTH" requirement is satisfied structurally by the join &mdash; no separate <code>INTERSECT</code>, <code>EXISTS</code>, or <code>HAVING COUNT</code> is required.</p>
+
+<h5>Filters in the <code>ON</code> clause vs the <code>WHERE</code> clause</h5>
+<p>Here the experiment filters sit in the <code>ON</code> clause. For an <code>INNER JOIN</code> that is <em>equivalent</em> to putting them in <code>WHERE</code> &mdash; the optimiser treats them the same and the result is identical. The distinction only bites with <code>OUTER JOIN</code>s, where an <code>ON</code> predicate filters before the join (preserving unmatched rows) and a <code>WHERE</code> predicate filters after (discarding them). Knowing the equivalence holds for <code>INNER</code> but not <code>OUTER</code> is the precise senior point.</p>
+
+<h5>This is a pivot in disguise &mdash; long to crosstab</h5>
+<p><code>GROUP BY f.variant, p.variant</code> turns one row per (experiment, user) into a 2&times;2 grid of counts &mdash; a crosstab. It stays in <em>long</em> format (one row per cell), which is what the spec asks. To rotate it into a true wide grid (pricing variants as columns) you would add <code>SUM(CASE WHEN p.variant = 'A' THEN 1 ELSE 0 END)</code> per column &mdash; conditional aggregation &mdash; but the long form here is the cleaner answer to the question posed.</p>
+
+<h5>The duplicate-enrollment trap &mdash; when <code>COUNT(*)</code> lies</h5>
+<p><code>COUNT(*)</code> is correct only if each user has at most one row per experiment. If a user were enrolled in <code>feed_v2</code> twice (re-randomisation, logging bug), the self-join would emit two rows for them and the cell count would over-state real users. When uniqueness is not guaranteed, <code>COUNT(DISTINCT f.user_id)</code> is the safe expression. State the one-row-per-(experiment,user) assumption explicitly &mdash; experiment-enrollment tables are a classic place it silently fails.</p>
+
+<h5>Dialect notes &mdash; fully portable</h5>
+<p><code>INNER JOIN</code>, predicates in <code>ON</code>, and <code>GROUP BY</code> on multiple columns are SQL-standard and behave identically across Postgres, SQL Server, MySQL, BigQuery, Snowflake, and Oracle. There is nothing engine-specific in this query. The only stylistic variation is the wide-pivot alternative: Snowflake/SQL Server/Oracle offer a <code>PIVOT</code> operator, but the portable <code>SUM(CASE ...)</code> idiom works everywhere.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express "enrolled in both experiments" as a self-join on <code>user_id</code> with each alias filtered to one experiment &mdash; the inner join enforces the intersection &mdash; produce the crosstab with a two-column <code>GROUP BY</code>, and use <code>COUNT(DISTINCT user_id)</code> when one-row-per-enrollment is not guaranteed.</div>

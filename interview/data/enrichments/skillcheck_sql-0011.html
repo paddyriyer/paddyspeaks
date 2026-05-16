@@ -1,0 +1,65 @@
+<p>A manufacturing-planning team needs the full parts explosion for one bicycle: starting from the root assembly "Bike", list every component required transitively, with the total quantity for a single unit. This is a <strong>recursive bill-of-materials</strong> &mdash; the interviewer is probing whether you can walk a multi-level tree <em>and</em> multiply quantities correctly down each path, not just collect part names.</p>
+
+<h4>1. The source data &mdash; <code>bom</code></h4>
+<table>
+  <thead><tr><th>parent_part</th><th>child_part</th><th>qty</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Bike</td><td>Frame</td><td>1</td><td>level 1</td></tr>
+    <tr><td>Bike</td><td>Wheel</td><td>2</td><td>level 1 &mdash; two wheels, the multiplier that matters</td></tr>
+    <tr><td>Bike</td><td>Seat</td><td>1</td><td>level 1</td></tr>
+    <tr><td>Wheel</td><td>Tire</td><td>1</td><td>1 per wheel &rarr; 2 per bike</td></tr>
+    <tr><td>Wheel</td><td>Spoke</td><td>32</td><td>32 per wheel &rarr; 64 per bike</td></tr>
+    <tr><td>Wheel</td><td>Hub</td><td>1</td><td>sub-assembly &mdash; has its own children</td></tr>
+    <tr><td>Hub</td><td>Bearing</td><td>2</td><td>2 per hub &rarr; 2 per wheel &rarr; 4 per bike</td></tr>
+    <tr><td>Hub</td><td>Axle</td><td>1</td><td>deepest leaf</td></tr>
+  </tbody>
+</table>
+<p>The edge case is multi-level multiplication. A <code>Bearing</code> is three levels down: Bike &rarr; Wheel(&times;2) &rarr; Hub(&times;1) &rarr; Bearing(&times;2). The per-bike quantity is the <em>product</em> of every qty on the path, 2&times;1&times;2 = 4 &mdash; a query that merely sums the leaf <code>qty</code> would wrongly report 2.</p>
+
+<h4>2. The SQL &mdash; recursive explosion with running multiplication</h4>
+<pre><code>WITH RECURSIVE explode AS (
+  SELECT child_part AS part, qty AS total_qty
+  FROM bom
+  WHERE parent_part = 'Bike'
+  UNION ALL
+  SELECT b.child_part, e.total_qty * b.qty
+  FROM explode e
+  JOIN bom b ON b.parent_part = e.part
+)
+SELECT part, SUM(total_qty) AS total_qty
+FROM explode
+GROUP BY part
+ORDER BY part;</code></pre>
+<p>The <strong>anchor</strong> takes the direct children of <code>Bike</code> with their face quantities. The <strong>recursive member</strong> joins each discovered part to its own children and carries the running product <code>e.total_qty * b.qty</code> &mdash; so the quantity accumulates down the path. The final <code>GROUP BY part</code> with <code>SUM</code> folds together parts reached by more than one route.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>part</th><th>total_qty</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Axle</td><td>2</td><td>2&times;1&times;1</td></tr>
+    <tr><td>Bearing</td><td>4</td><td>2&times;1&times;2 &mdash; the three-level product</td></tr>
+    <tr><td>Frame</td><td>1</td><td>direct child</td></tr>
+    <tr><td>Hub</td><td>2</td><td>2&times;1 &mdash; one hub per wheel, two wheels</td></tr>
+    <tr><td>Seat</td><td>1</td><td>direct child</td></tr>
+    <tr><td>Spoke</td><td>64</td><td>2&times;32 &mdash; the big multiplier</td></tr>
+    <tr><td>Tire</td><td>2</td><td>2&times;1</td></tr>
+    <tr><td>Wheel</td><td>2</td><td>direct child &mdash; itself an assembly</td></tr>
+  </tbody>
+</table>
+<p>Every quantity is the product down its path, not the raw edge <code>qty</code>. <code>Spoke</code> is 64 (two wheels &times; 32 spokes), <code>Bearing</code> is 4, <code>Wheel</code> appears both as a component (qty 2) and as a sub-assembly that gets exploded further. Summing leaf <code>qty</code> values alone would have produced 32 and 2 &mdash; visibly wrong.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the multiplication must accumulate, not reset</h5>
+<p>A bill-of-materials quantity is path-dependent: needing 2 Wheels, each needing 1 Hub, each needing 2 Bearings means 4 Bearings per bike. The recursive member encodes that by passing <code>e.total_qty * b.qty</code> &mdash; the parent's already-accumulated quantity times this edge's qty. Each level multiplies onto the running total. Carrying just <code>b.qty</code> (the bare edge quantity) would lose the upstream factors and undercount every deep part.</p>
+
+<h5>Why <code>SUM</code> at the end &mdash; the diamond case</h5>
+<p>If the same part were reachable through two different sub-assemblies &mdash; say both <code>Frame</code> and <code>Wheel</code> required a <code>Bolt</code> &mdash; the recursion would emit a separate <code>explode</code> row for each path, each with its own path-product. The outer <code>GROUP BY part, SUM(total_qty)</code> adds those contributions into one correct grand total per part. Skip the aggregation and a multi-parent part would appear several times with partial quantities. <code>UNION ALL</code> (not <code>UNION</code>) inside the CTE is essential here precisely so those distinct-path rows survive to be summed.</p>
+
+<h5>The cycle trap &mdash; a BOM must be acyclic</h5>
+<p>The recursion terminates only because the BOM is a DAG &mdash; eventually every path reaches a leaf with no children and the join returns nothing. If the data contained a cycle (part A requires part B which requires part A), the recursion would loop forever, multiplying quantities without bound. Real BOM schemas forbid this; a defensive query carries a visited-path array (<code>WHERE b.child_part &lt;&gt; ALL(path)</code>) or a depth cap, and PostgreSQL 14+ offers the <code>CYCLE</code> clause. Flagging this unprompted is the senior signal.</p>
+
+<h5>Edge cases: shared sub-assemblies and "where-used"</h5>
+<p><code>Hub</code> shows a part that is simultaneously a component and a parent &mdash; the recursion handles it naturally, emitting a <code>Hub</code> row <em>and</em> exploding its children. The same engine answers the inverse "where-used" question (given a <code>Bearing</code>, which assemblies need it) by recursing on <code>child_part = parent</code> instead. And if the planner needs quantities for 50 bikes rather than 1, you multiply the final <code>total_qty</code> by 50 &mdash; or seed the anchor with <code>qty * 50</code>. Knowing the same recursion drives both directions and scales by order size is the depth an interviewer wants.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explode a BOM with a recursive CTE that carries a <em>running product</em> (<code>parent_total * edge_qty</code>) so quantities accumulate down each path, <code>SUM</code> by part at the end so a component reachable via multiple sub-assemblies is totalled correctly, use <code>UNION ALL</code> to preserve those per-path rows, and guard against cycles that would otherwise never terminate.</div>

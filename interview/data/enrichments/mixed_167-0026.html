@@ -1,0 +1,55 @@
+<p>A university registrar wants the re-enrollment rate: of all students who ever enrolled, what percentage came back for a later term. The reference solution self-joins <code>enrollments</code> to itself &mdash; left side is "a term a student took", right side is "a strictly later term by the same student" &mdash; then divides distinct returners by distinct students. The interviewer is probing whether you understand why <code>DISTINCT</code> is essential here and how the <code>LEFT JOIN</code> plus <code>NULLIF</code> guard against silent errors.</p>
+
+<h4>1. The source data &mdash; <code>enrollments</code></h4>
+<table>
+  <thead><tr><th>student_id</th><th>term</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-Fall</td><td>student 1, first term</td></tr>
+    <tr><td>1</td><td>2026-Spring</td><td>student 1 returns &mdash; counts as re-enrolled</td></tr>
+    <tr><td>2</td><td>2025-Fall</td><td>student 2 &mdash; one term only, never returns</td></tr>
+    <tr><td>3</td><td>2025-Fall</td><td>student 3, first term</td></tr>
+    <tr><td>3</td><td>2026-Spring</td><td>student 3 returns</td></tr>
+    <tr><td>3</td><td>2026-Fall</td><td>student 3 returns again &mdash; three rows, one student</td></tr>
+    <tr><td>4</td><td>2026-Spring</td><td>student 4 &mdash; one term only</td></tr>
+    <tr><td>5</td><td>2025-Fall</td><td>student 5 &mdash; one term only</td></tr>
+  </tbody>
+</table>
+<p>Student 3 is the trap: <em>three</em> enrollment rows. The self-join will multiply that student's rows, so a naive count would over-count both the numerator and the denominator. Five distinct students; two of them (1 and 3) re-enroll.</p>
+
+<h4>2. The SQL &mdash; self-join with distinct-count ratio</h4>
+<pre><code>SELECT 100.0 * COUNT(DISTINCT CASE WHEN later.student_id IS NOT NULL
+                                   THEN e.student_id END)
+            / NULLIF(COUNT(DISTINCT e.student_id), 0) AS reenroll_rate
+FROM enrollments e
+LEFT JOIN enrollments later
+       ON e.student_id = later.student_id
+      AND later.term &gt; e.term;</code></pre>
+<p>Each enrollment row <code>e</code> is matched to every <em>strictly later</em> term by the same student. A student with no later term still appears once (the <code>LEFT JOIN</code>) but with <code>later.student_id</code> NULL.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>reenroll_rate</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>40.0000000000000000</td><td>2 of 5 distinct students re-enrolled</td></tr>
+  </tbody>
+</table>
+<p>The answer is <strong>40%</strong>. Students 1 and 3 each have at least one later term, so they enter the numerator; students 2, 4, and 5 do not. The denominator is 5 &mdash; the distinct student count &mdash; <em>not</em> the 8 enrollment rows, and the numerator is 2 distinct students, <em>not</em> the number of (earlier, later) pairs (student 3 alone contributes three such pairs). Both counts use <code>DISTINCT</code>, which is the only reason 40% comes out correct.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DISTINCT</code> is load-bearing, not decorative</h5>
+<p>The self-join fans out: student 3's 2025-Fall row matches both 2026-Spring and 2026-Fall, and 2026-Spring matches 2026-Fall &mdash; three matched pairs from one student. Without <code>DISTINCT</code>, that student would count three times in the numerator and the row explosion would inflate the denominator too. <code>COUNT(DISTINCT e.student_id)</code> collapses every student to one regardless of how many terms or pairs they generated. The ratio is "students who returned / students who enrolled", so both halves must be counted per student.</p>
+
+<h5>The <code>LEFT JOIN</code> keeps non-returners in the denominator</h5>
+<p>An <code>INNER JOIN</code> would drop students 2, 4, and 5 entirely &mdash; they have no later term to match &mdash; and the denominator would shrink to just the returners, yielding a meaningless 100%. The <code>LEFT JOIN</code> preserves every enrollment row even when there is no later term; those rows get <code>later.student_id = NULL</code>. The <code>CASE WHEN later.student_id IS NOT NULL</code> in the numerator is what separates returners from non-returners <em>after</em> the join has kept everyone.</p>
+
+<h5><code>NULLIF(..., 0)</code> &mdash; the divide-by-zero guard</h5>
+<p>If the table were empty, <code>COUNT(DISTINCT e.student_id)</code> would be 0 and the division would raise a divide-by-zero error. <code>NULLIF(count, 0)</code> turns a zero denominator into NULL, and dividing by NULL yields NULL &mdash; a clean "no data" result instead of a crashed query. This is a small, senior habit: any ratio in production should guard its denominator.</p>
+
+<h5><code>100.0 *</code> forces a real percentage, not integer truncation</h5>
+<p><code>COUNT</code> returns an integer; integer divided by integer truncates in SQL (2 / 5 would be 0). Multiplying by the numeric literal <code>100.0</code> promotes the whole expression to numeric arithmetic, so the result is a true 40.0, not a floored 0 or 40 with the fraction lost. Putting the <code>100.0</code> at the front, before the division, is the correct placement.</p>
+
+<h5>Term comparison is string ordering &mdash; a hidden assumption</h5>
+<p><code>later.term &gt; e.term</code> compares text. It works here only because the labels sort chronologically by luck of formatting &mdash; and "2026-Fall" &gt; "2026-Spring" is true alphabetically but the seasons are out of calendar order ("Fall" &lt; "Spring" lexically yet Fall is later in some academic calendars). Real systems store a sortable term key or a start date. Flagging that string comparison is not the same as chronological comparison is the senior catch; the safe fix is to join on a numeric term sequence or a date.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that a self-join fans out multi-term students so both numerator and denominator <em>must</em> use <code>COUNT(DISTINCT student_id)</code>, keep non-returners with a <code>LEFT JOIN</code>, guard the ratio with <code>NULLIF(denominator, 0)</code> and <code>100.0</code> for numeric division, and call out that comparing term <em>strings</em> is not a reliable chronological order.</div>

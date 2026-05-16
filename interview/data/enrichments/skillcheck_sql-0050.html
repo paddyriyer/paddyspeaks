@@ -1,0 +1,62 @@
+<p>This is a classic from Danny Ma's <em>8 Week SQL Challenge</em> ("Pizza Runner"): does a bigger order take longer to prepare? <code>customer_orders</code> holds one row per pizza and <code>runner_orders</code> holds the delivery record. The metric is average prep time bucketed by order size. The interviewer is probing two things at once &mdash; aggregating a one-to-many join without fan-out, and excluding cancelled orders cleanly.</p>
+
+<h4>1. The source data &mdash; <code>customer_orders</code> &amp; <code>runner_orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>pizza rows</th><th>pickup_time</th><th>cancellation</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1 pizza</td><td>12:10</td><td>NULL</td><td>1-pizza order</td></tr>
+    <tr><td>2</td><td>2 pizzas</td><td>12:20</td><td>NULL</td><td>2-pizza order</td></tr>
+    <tr><td>3</td><td>3 rows (pizza 1 listed twice)</td><td>12:35</td><td>NULL</td><td>size = 3 rows, duplicate is counted</td></tr>
+    <tr><td>4</td><td>2 pizzas</td><td>12:25</td><td>NULL</td><td>2-pizza order</td></tr>
+    <tr><td>5</td><td>1 pizza</td><td>12:08</td><td>NULL</td><td>1-pizza order</td></tr>
+    <tr><td>6</td><td>1 pizza</td><td>NULL</td><td>'Customer Cancellation'</td><td>cancelled &mdash; must be excluded</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Order 3 lists <code>pizza_id = 1</code> <em>twice</em> &mdash; the spec defines size as the count of pizza <em>rows</em>, so order 3 is size 3 (duplicates count). Order 6 has a non-NULL <code>cancellation</code> and a NULL <code>pickup_time</code> &mdash; it must be filtered out before any time arithmetic.</p>
+
+<h4>2. The SQL &mdash; aggregate per order, then average by size</h4>
+<pre><code>WITH per_order AS (
+  SELECT co.order_id,
+         COUNT(*) AS pizzas_in_order,
+         EXTRACT(EPOCH FROM (ro.pickup_time - MIN(co.order_time)))/60.0 AS prep_minutes
+  FROM customer_orders co
+  JOIN runner_orders ro USING (order_id)
+  WHERE ro.cancellation IS NULL OR ro.cancellation = ''
+  GROUP BY co.order_id, ro.pickup_time
+)
+SELECT pizzas_in_order,
+       ROUND(AVG(prep_minutes)::numeric, 2) AS avg_prep_minutes
+FROM per_order
+GROUP BY pizzas_in_order
+ORDER BY pizzas_in_order;</code></pre>
+<p>The CTE collapses each order to one row: <code>COUNT(*)</code> is the pizza-row count, and prep time is <code>pickup_time</code> minus the order's <code>MIN(order_time)</code>, converted to minutes. The outer query then groups those per-order rows by size and averages.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>pizzas_in_order</th><th>avg_prep_minutes</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>9.00</td><td>orders 1 (10 min) &amp; 5 (8 min) &rarr; avg 9</td></tr>
+    <tr><td>2</td><td>22.50</td><td>orders 2 (20 min) &amp; 4 (25 min) &rarr; avg 22.5</td></tr>
+    <tr><td>3</td><td>35.00</td><td>order 3 only &mdash; 35 min</td></tr>
+  </tbody>
+</table>
+<p>Prep time rises monotonically with order size &mdash; 9, 22.5, 35 minutes &mdash; the answer to "do bigger orders take longer". Order 6 contributes <em>nothing</em>: the cancellation filter removed it. Order 3's size is 3 because its duplicate pizza row was counted, exactly as the spec's "count of pizza rows" wording requires.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why aggregate inside a CTE first &mdash; two grain levels</h5>
+<p>The question mixes two grains: per-<em>order</em> facts (size, prep time) and a per-<em>size</em> average. You cannot compute both in one <code>GROUP BY</code>. The CTE settles the order grain &mdash; one row per order &mdash; and the outer query rolls those up to the size grain. Trying to average prep time directly off the joined pizza rows would weight each order by its pizza count, skewing the mean.</p>
+
+<h5><code>MIN(order_time)</code> &mdash; collapsing repeated order_time</h5>
+<p>Every pizza row of an order carries the same <code>order_time</code>, but it is not in the <code>GROUP BY</code> at the order grain, so it needs an aggregate. <code>MIN(co.order_time)</code> picks that single shared value &mdash; <code>MAX</code> or <code>any_value</code> would do equally since the values are identical. Prep time is then one well-defined interval per order: <code>pickup_time - order_time</code>.</p>
+
+<h5>The cancellation filter &mdash; NULL <em>and</em> empty string</h5>
+<p>The spec says exclude rows where <code>cancellation</code> is "non-NULL and non-empty". The dataset stores <em>completed</em> orders as <code>cancellation = NULL</code>, but real Pizza Runner data also has <code>''</code> (empty string) for non-cancellations. <code>WHERE ro.cancellation IS NULL OR ro.cancellation = ''</code> keeps both as valid deliveries and drops only genuine cancellation text like <code>'Customer Cancellation'</code>. Handling NULL <em>and</em> empty is the careful read of the requirement.</p>
+
+<h5>Why <code>pickup_time</code> is in the <code>GROUP BY</code></h5>
+<p><code>ro.pickup_time</code> appears in the CTE's <code>SELECT</code> (inside <code>EXTRACT</code>) but is a column of the joined <code>runner_orders</code> row, not an aggregate &mdash; so it must be in the <code>GROUP BY</code>. Since <code>runner_orders</code> has one row per order, grouping by <code>(order_id, pickup_time)</code> is the same grain as grouping by <code>order_id</code> alone; the extra key is just SQL bookkeeping. Alternatively <code>MIN(ro.pickup_time)</code> would let you drop it from the <code>GROUP BY</code>.</p>
+
+<h5>Dialect notes &mdash; interval-to-minutes is engine-specific</h5>
+<p><code>EXTRACT(EPOCH FROM (a - b))/60.0</code> is the Postgres idiom (timestamp subtraction yields an interval; <code>EPOCH</code> gives seconds). SQL Server uses <code>DATEDIFF(MINUTE, b, a)</code> (integer minutes, no fractions); BigQuery uses <code>TIMESTAMP_DIFF(a, b, MINUTE)</code>; MySQL uses <code>TIMESTAMPDIFF(MINUTE, b, a)</code>. The aggregate-then-average structure is portable; only the duration expression needs translating per engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> when a query mixes per-order and per-size grains, settle the lower grain in a CTE before rolling up &mdash; averaging off the raw one-to-many join would weight orders by pizza count &mdash; and write the cancellation filter to catch both <code>NULL</code> and empty-string "not cancelled" values.</div>

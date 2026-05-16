@@ -1,0 +1,56 @@
+<p>A merchandising team wants every product numbered in ascending price order &mdash; a simple "rank by price" list for a pricing review. The reference solution applies <code>ROW_NUMBER() OVER (ORDER BY price ASC)</code>. The interviewer is probing whether you understand how <code>ROW_NUMBER</code> breaks ties (it does not &mdash; it assigns arbitrary distinct numbers), where NULL prices land, and when <code>RANK</code> would be the right tool instead.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Bolt Pack</td><td>4.50</td><td>second cheapest</td></tr>
+    <tr><td>2</td><td>Notebook</td><td>3.25</td><td>cheapest</td></tr>
+    <tr><td>3</td><td>Cable A</td><td>9.99</td><td>tied at 9.99</td></tr>
+    <tr><td>4</td><td>Mug</td><td>9.99</td><td>tied at 9.99 &mdash; the trap</td></tr>
+    <tr><td>5</td><td>Lamp</td><td>45.00</td><td>&mdash;</td></tr>
+    <tr><td>6</td><td>Router X9</td><td>129.00</td><td>most expensive priced item</td></tr>
+    <tr><td>7</td><td>Sensor</td><td>NULL</td><td>price not set &mdash; the other trap</td></tr>
+  </tbody>
+</table>
+<p>Two rows decide the interview. Cable A and Mug are <em>tied</em> at 9.99, and Sensor has a <em>NULL</em> price. How <code>ROW_NUMBER</code> orders the tie, and where the NULL ends up, is the whole question.</p>
+
+<h4>2. The SQL &mdash; sequential numbering with <code>ROW_NUMBER</code></h4>
+<pre><code>SELECT product_id, name, price,
+       ROW_NUMBER() OVER (ORDER BY price ASC) AS seq
+FROM products;</code></pre>
+<p><code>ROW_NUMBER</code> assigns 1, 2, 3, &hellip; to rows in the order defined by the window's <code>ORDER BY</code> &mdash; one distinct integer per row, no gaps, no repeats.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th><th>seq</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Notebook</td><td>3.25</td><td>1</td><td>cheapest</td></tr>
+    <tr><td>1</td><td>Bolt Pack</td><td>4.50</td><td>2</td><td>&mdash;</td></tr>
+    <tr><td>4</td><td>Mug</td><td>9.99</td><td>3</td><td>tie &mdash; got 3 arbitrarily</td></tr>
+    <tr><td>3</td><td>Cable A</td><td>9.99</td><td>4</td><td>tie &mdash; got 4 arbitrarily</td></tr>
+    <tr><td>5</td><td>Lamp</td><td>45.00</td><td>5</td><td>&mdash;</td></tr>
+    <tr><td>6</td><td>Router X9</td><td>129.00</td><td>6</td><td>&mdash;</td></tr>
+    <tr><td>7</td><td>Sensor</td><td>NULL</td><td>7</td><td>NULL price sorted last</td></tr>
+  </tbody>
+</table>
+<p>The two 9.99 products get <strong>3 and 4</strong> &mdash; different numbers for an identical price. Which one got 3 is arbitrary: <code>ROW_NUMBER</code> needs a total order, and when <code>price</code> alone does not provide one the engine picks whatever order it likes. Re-run the query and the 3/4 assignment could flip. Sensor's NULL price sorts <em>last</em> &mdash; PostgreSQL places NULLs last for <code>ORDER BY ... ASC</code> by default.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>ROW_NUMBER</code> never shares a number &mdash; ties are broken arbitrarily</h5>
+<p><code>ROW_NUMBER</code> always produces 1..n with no duplicates, even when the <code>ORDER BY</code> values tie. For the two 9.99 rows it must pick an order, and with no tie-breaker that choice is non-deterministic &mdash; not stable across runs, indexes, or parallel plans. If "sequence number" must be reproducible, the fix is a deterministic tie-breaker: <code>ORDER BY price ASC, product_id ASC</code>. Always make the window <code>ORDER BY</code> a total order when the output must be stable.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code> &mdash; pick by tie semantics</h5>
+<p>If the two 9.99 products <em>should</em> share a position, <code>ROW_NUMBER</code> is the wrong function. <code>RANK() OVER (ORDER BY price)</code> gives 1, 2, 3, 3, 5, 6 &mdash; ties share, next rank skips. <code>DENSE_RANK()</code> gives 1, 2, 3, 3, 4, 5 &mdash; ties share, no gap. <code>ROW_NUMBER</code> is correct only when you genuinely want one distinct integer per row (paging, "pick exactly one row per group"). Naming which of the three the task wants is the senior move.</p>
+
+<h5>NULL prices &mdash; where they land and how to control it</h5>
+<p>Sensor's NULL got <code>seq = 7</code> because Postgres sorts NULLs last under <code>ASC</code> (and first under <code>DESC</code>). Other engines differ &mdash; Oracle also puts NULLs last for <code>ASC</code>, but SQL Server puts them <em>first</em>. Never rely on the default if it matters: write <code>ORDER BY price ASC NULLS LAST</code> (or <code>NULLS FIRST</code>) explicitly. If unpriced products should not be numbered at all, filter <code>WHERE price IS NOT NULL</code> before the window.</p>
+
+<h5>Window function vs the old self-join</h5>
+<p>The pre-window way to number rows was a correlated subquery counting cheaper rows &mdash; O(n&sup2;) and clumsy with ties. <code>ROW_NUMBER</code> sorts once, O(n log n), and assigns numbers in a single pass. It is both faster and unambiguous about intent. An index on <code>price</code> lets the optimiser skip the sort entirely, making the window function close to free on large tables.</p>
+
+<h5>The window has no <code>PARTITION BY</code> &mdash; numbering is global</h5>
+<p>This <code>OVER (ORDER BY price)</code> has no <code>PARTITION BY</code>, so <code>seq</code> runs 1..7 across the whole table. If the requirement were "sequence within each category", you would add <code>PARTITION BY category</code> &mdash; numbering would then restart at 1 per category. Knowing that omitting <code>PARTITION BY</code> means "one global partition" &mdash; and adding it scopes the numbering &mdash; shows you understand the clause, not just the function name.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>ROW_NUMBER</code> assigns distinct integers and breaks ties arbitrarily &mdash; add a tie-breaker like <code>product_id</code> for reproducibility &mdash; choose <code>RANK</code>/<code>DENSE_RANK</code> when tied rows must share a position, and control NULL placement explicitly with <code>NULLS LAST/FIRST</code> rather than trusting an engine-specific default.</div>

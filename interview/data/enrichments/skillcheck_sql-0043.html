@@ -1,0 +1,74 @@
+<p>A support-ops team logs every status touch on a ticket, but for an SLA report they need the <em>stints</em>: contiguous runs where a ticket sat in one status. The <code>status_log</code> table has one noisy row per touch &mdash; the same status may appear back-to-back &mdash; so the task is to collapse consecutive identical statuses into single intervals. This is the classic gaps-and-islands problem, and the interviewer wants to see the "difference of running counts" trick that identifies each island.</p>
+
+<h4>1. The source data &mdash; <code>status_log</code></h4>
+<table>
+  <thead><tr><th>entity_id</th><th>ts</th><th>status</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 09:00</td><td>open</td><td>stint 1 begins</td></tr>
+    <tr><td>1</td><td>2025-01-01 10:00</td><td>open</td><td>same status &mdash; folds into stint 1</td></tr>
+    <tr><td>1</td><td>2025-01-02 09:00</td><td>in_progress</td><td>status changes &mdash; new stint</td></tr>
+    <tr><td>1</td><td>2025-01-02 12:00</td><td>in_progress</td><td>same again &mdash; folds in</td></tr>
+    <tr><td>1</td><td>2025-01-03 09:00</td><td>open</td><td>back to 'open' &mdash; a fresh stint, not the first</td></tr>
+    <tr><td>1</td><td>2025-01-04 09:00</td><td>closed</td><td>single-row stint</td></tr>
+    <tr><td>2</td><td>2025-01-01 08:00</td><td>open</td><td>different entity, separate runs</td></tr>
+    <tr><td>2</td><td>2025-01-02 08:00</td><td>closed</td><td>...</td></tr>
+    <tr><td>2</td><td>2025-01-03 08:00</td><td>closed</td><td>folds into entity 2's closed stint</td></tr>
+  </tbody>
+</table>
+<p>The trap is entity 1 returning to <code>open</code> on Jan 3 after a spell in <code>in_progress</code>. That is a <em>separate</em> island from the Jan 1 <code>open</code> run &mdash; grouping by status alone would wrongly merge them. The Jan 4 <code>closed</code> row also tests the single-row stint.</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands via LAG and a running change-count</h4>
+<pre><code>WITH flagged AS (
+  SELECT entity_id, ts, status,
+         LAG(status) OVER (PARTITION BY entity_id ORDER BY ts) AS prev_status
+  FROM status_log
+),
+changes AS (
+  SELECT entity_id, ts, status,
+         SUM(CASE WHEN prev_status IS DISTINCT FROM status THEN 1 ELSE 0 END)
+           OVER (PARTITION BY entity_id ORDER BY ts
+                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS grp
+  FROM flagged
+)
+SELECT entity_id,
+       MIN(ts) AS stint_start,
+       MAX(ts) AS stint_end,
+       MIN(status) AS status,
+       COUNT(*) AS row_count
+FROM changes
+GROUP BY entity_id, grp
+ORDER BY entity_id, stint_start;</code></pre>
+<p><code>LAG</code> exposes the previous row's status. The <code>SUM(CASE ...)</code> running total ticks up by 1 every time the status differs from the prior row &mdash; so every row in one contiguous run shares the same <code>grp</code> value. Grouping by <code>(entity_id, grp)</code> then collapses each island into one stint.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>entity_id</th><th>stint_start</th><th>stint_end</th><th>status</th><th>row_count</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 09:00</td><td>2025-01-01 10:00</td><td>open</td><td>2</td></tr>
+    <tr><td>1</td><td>2025-01-02 09:00</td><td>2025-01-02 12:00</td><td>in_progress</td><td>2</td></tr>
+    <tr><td>1</td><td>2025-01-03 09:00</td><td>2025-01-03 09:00</td><td>open</td><td>1</td></tr>
+    <tr><td>1</td><td>2025-01-04 09:00</td><td>2025-01-04 09:00</td><td>closed</td><td>1</td></tr>
+    <tr><td>2</td><td>2025-01-01 08:00</td><td>2025-01-01 08:00</td><td>open</td><td>1</td></tr>
+    <tr><td>2</td><td>2025-01-02 08:00</td><td>2025-01-03 08:00</td><td>closed</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Entity 1's <code>open</code> appears as <strong>two separate rows</strong> &mdash; the Jan 1 run and the Jan 3 run &mdash; exactly as required: a status that recurs after an interruption is a new stint. The single-row <code>closed</code> stint shows <code>stint_start = stint_end</code>, which is correct, not a bug.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the running-sum-of-changes assigns one id per island</h5>
+<p>The core idea: increment a counter only at a <em>boundary</em> (where status differs from the prior row). Every row inside a contiguous run sees zero increments and inherits the same cumulative total; the first row of the next run sees a +1 and jumps to a new value. That cumulative total <em>is</em> the island id. It is monotonic and gap-tolerant &mdash; it does not care whether <code>open</code> reappears later, because each fresh run gets its own number.</p>
+
+<h5><code>IS DISTINCT FROM</code> &mdash; the NULL-safe comparison that matters here</h5>
+<p>The very first row of each entity has <code>prev_status = NULL</code> (no prior row). A plain <code>prev_status &lt;&gt; status</code> would evaluate to <code>NULL</code> &mdash; not <code>TRUE</code> &mdash; so the <code>CASE</code> would fall to <code>ELSE 0</code> and the first row would not start a new island. <code>IS DISTINCT FROM</code> treats <code>NULL</code> as just another value: <code>NULL IS DISTINCT FROM 'open'</code> is <code>TRUE</code>, so the first row correctly increments to 1. This single operator is what makes the first stint of every entity register.</p>
+
+<h5>The classic mistake &mdash; grouping by status</h5>
+<p>The instinctive (wrong) solution is <code>GROUP BY entity_id, status</code>. That merges entity 1's two <code>open</code> runs into one row spanning Jan 1 to Jan 3 &mdash; erasing the <code>in_progress</code> spell in between. Gaps-and-islands exists precisely because the same value can recur: you must group by a <em>computed island id</em>, never by the value itself.</p>
+
+<h5><code>MIN(status)</code> is safe only because the group is homogeneous</h5>
+<p><code>MIN(status)</code> looks odd &mdash; why aggregate a column that is constant within the group? It is a workaround for <code>status</code> not being in the <code>GROUP BY</code>: every row in one island has the same status, so <code>MIN</code>, <code>MAX</code>, or <code>any_value</code> all return that one value. Adding <code>status</code> to the <code>GROUP BY</code> alongside <code>grp</code> would be equally correct and arguably clearer. State that the aggregate is a no-op picking a constant.</p>
+
+<h5>Dialect notes &mdash; portability of the building blocks</h5>
+<p><code>LAG</code>, framed running <code>SUM</code>, and <code>GROUP BY</code> are standard across Postgres, SQL Server, BigQuery, Snowflake, and MySQL 8+. The one portability snag is <code>IS DISTINCT FROM</code>: SQL Server lacks it &mdash; use <code>prev_status &lt;&gt; status OR prev_status IS NULL OR status IS NULL</code>, or in newer versions the standard <code>IS DISTINCT FROM</code> predicate. BigQuery and Snowflake support it directly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve gaps-and-islands with a running <code>SUM</code> of boundary flags to assign one id per contiguous run, group by that computed id &mdash; never by the recurring value &mdash; and use <code>IS DISTINCT FROM</code> so the leading <code>NULL</code> from <code>LAG</code> still registers the first stint.</div>

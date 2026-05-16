@@ -1,0 +1,50 @@
+<p>A data-quality audit needs to surface duplicate email addresses before a unique constraint can be added &mdash; and "duplicate" must be <em>case-insensitive</em>, because <code>alice@x.com</code> and <code>Alice@X.com</code> are the same mailbox. The interviewer is probing whether you normalise before grouping, and whether you know <code>HAVING</code> is where a per-group count filter belongs.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>id</th><th>email</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>alice@x.com</td><td>same mailbox as id 3, different casing</td></tr>
+    <tr><td>2</td><td>BOB@y.com</td><td>same mailbox as id 5, different casing</td></tr>
+    <tr><td>3</td><td>Alice@X.com</td><td>case-variant duplicate of id 1</td></tr>
+    <tr><td>4</td><td>carol@z.com</td><td>unique &mdash; appears once</td></tr>
+    <tr><td>5</td><td>bob@y.com</td><td>case-variant duplicate of id 2</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the casing itself. A naive exact-match <code>GROUP BY email</code> sees five <em>distinct</em> strings and reports zero duplicates &mdash; the bug the question is built to catch. Carol is the control: a genuinely unique address that must <em>not</em> appear in the output.</p>
+
+<h4>2. The SQL &mdash; group by the normalised email</h4>
+<pre><code>SELECT
+  LOWER(email) AS email_lower,
+  COUNT(*) AS occurrences
+FROM users
+GROUP BY LOWER(email)
+HAVING COUNT(*) &gt; 1
+ORDER BY occurrences DESC, email_lower;</code></pre>
+<p><code>LOWER(email)</code> folds every address to a single canonical case <em>before</em> grouping, so <code>alice@x.com</code> and <code>Alice@X.com</code> land in the same bucket. <code>GROUP BY LOWER(email)</code> forms one group per distinct mailbox; <code>COUNT(*)</code> sizes each; <code>HAVING COUNT(*) &gt; 1</code> keeps only the buckets that hold a collision.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>email_lower</th><th>occurrences</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>alice@x.com</td><td>2</td><td>ids 1 and 3 &mdash; caught only because of LOWER</td></tr>
+    <tr><td>bob@y.com</td><td>2</td><td>ids 2 and 5 &mdash; BOB@y.com folded to bob@y.com</td></tr>
+  </tbody>
+</table>
+<p>Two duplicate mailboxes surface; <code>carol@z.com</code> is correctly absent because its single occurrence fails <code>HAVING COUNT(*) &gt; 1</code>. Both reported rows show the <em>lowercased</em> form &mdash; the <code>GROUP BY</code> key &mdash; not whichever mixed-case spelling happened to be stored, which is the right thing for a normalised audit report.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Normalise before grouping &mdash; not after</h5>
+<p>Grouping is an equality test on the group key. If the key is the raw <code>email</code>, equality is case-<em>sensitive</em> and <code>Alice@X.com &ne; alice@x.com</code>, so the duplicate hides. Applying <code>LOWER</code> inside the <code>GROUP BY</code> makes the key itself canonical, so case variants collapse into one bucket. The principle generalises: whenever "same" means something looser than byte-for-byte equality &mdash; trimmed whitespace, case, accent-folding &mdash; normalise <em>in</em> the group key, never as a cosmetic afterthought in the <code>SELECT</code>.</p>
+
+<h5>Why the count filter must be <code>HAVING</code>, not <code>WHERE</code></h5>
+<p><code>WHERE</code> filters individual rows before any grouping happens, so the aggregate <code>COUNT(*)</code> does not exist yet &mdash; <code>WHERE COUNT(*) &gt; 1</code> is a hard error. <code>HAVING</code> runs <em>after</em> grouping and aggregation, when each group's count is known, so it is the only place a per-group threshold can live. "More than once" is a property of a group, hence <code>HAVING</code>.</p>
+
+<h5>Dialect note &mdash; collation can do this too</h5>
+<p>Lowercasing in the query is the portable answer, but some engines can enforce case-insensitivity at the column level: PostgreSQL has the <code>citext</code> type and case-insensitive ICU collations; SQL Server columns carry a collation such as <code>SQL_Latin1_General_CP1_CI_AS</code> where <code>CI</code> already means case-insensitive, so a plain <code>GROUP BY email</code> would fold cases automatically. Relying on column collation is convenient but invisible in the query text &mdash; an explicit <code>LOWER</code> makes the intent obvious and behaves identically everywhere.</p>
+
+<h5>Edge cases: NULL emails, whitespace, and the real fix</h5>
+<p><code>LOWER(NULL)</code> is <code>NULL</code>; all NULL emails group into one bucket, and if two or more rows have a NULL email this query would flag <code>NULL</code> as a "duplicate" &mdash; usually not what an email audit wants, so consider <code>WHERE email IS NOT NULL</code>. Real address data also carries stray spaces; <code>LOWER(TRIM(email))</code> is the sturdier key. And once the duplicates are found, the fix is structural: dedupe the rows, then add <code>CREATE UNIQUE INDEX ... ON users (LOWER(email))</code> &mdash; a functional index &mdash; so the database rejects future case-variant collisions outright.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> normalise with <code>LOWER</code> (ideally <code>LOWER(TRIM(...))</code>) <em>inside</em> the <code>GROUP BY</code> key so case variants collapse, put the "more than once" test in <code>HAVING</code> because it filters groups not rows, exclude NULL emails deliberately, and close the loop by recommending a unique functional index on <code>LOWER(email)</code> to prevent recurrence.</div>
