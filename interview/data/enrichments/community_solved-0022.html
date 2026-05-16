@@ -1,0 +1,59 @@
+<p>A Community question in the playbook-analytics style: for each country, count how many users touched an Apple device and how many users there were in total. Product wants to size the iOS/Mac install base by geography. The interesting part is doing it in one pass &mdash; a conditional <code>COUNT(DISTINCT &hellip;)</code> &mdash; and being honest about what the <code>LEFT JOIN</code> direction does to events whose user is unknown.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>playbook_events</code></strong>:</p>
+<table>
+  <thead><tr><th>event_id</th><th>user_id</th><th>device</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>macbook pro</td></tr>
+    <tr><td>2</td><td>1</td><td>iphone 5s</td></tr>
+    <tr><td>3</td><td>2</td><td>windows pc</td></tr>
+    <tr><td>4</td><td>3</td><td>ipad air</td></tr>
+    <tr><td>5</td><td>4</td><td>samsung galaxy</td></tr>
+    <tr><td>7</td><td>2</td><td>macbook pro</td></tr>
+  </tbody>
+</table>
+<p><strong><code>playbook_users</code></strong> maps users to countries: users 1,2&rarr;USA; users 3,4&rarr;India; user 5&rarr;Brazil. The traps: user 1 has <em>two</em> Apple events (must count once), and user 2 used both a Windows PC <em>and</em> a MacBook &mdash; one user, two device classes &mdash; so a per-event count would double them.</p>
+
+<h4>2. The SQL &mdash; <code>conditional COUNT(DISTINCT)</code></h4>
+<pre><code>SELECT
+    pu.country,
+    COUNT(DISTINCT CASE
+        WHEN pe.device IN ('macbook pro', 'iphone 5s', 'ipad air')
+        THEN pe.user_id END) AS n_apple_users,
+    COUNT(DISTINCT pe.user_id) AS n_total_users
+FROM playbook_events pe
+LEFT JOIN playbook_users pu ON pe.user_id = pu.user_id
+GROUP BY pu.country
+ORDER BY n_total_users DESC;</code></pre>
+<p>The <code>CASE</code> inside <code>COUNT(DISTINCT)</code> returns the <code>user_id</code> only for Apple devices and NULL otherwise; <code>COUNT</code> ignores the NULLs, so it counts distinct Apple users per country.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>country</th><th>n_apple_users</th><th>n_total_users</th></tr></thead>
+  <tbody>
+    <tr><td>India</td><td>1</td><td>2</td></tr>
+    <tr><td>USA</td><td>2</td><td>2</td></tr>
+    <tr><td>Brazil</td><td>1</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>USA shows 2 Apple users of 2 total &mdash; user 1 (two Apple events, counted once) and user 2 (MacBook, also counted once despite his Windows event). India has user 3 on iPad and user 4 on Samsung &rarr; 1 of 2. The <code>DISTINCT</code> is doing the heavy lifting: without it, user 1's two Apple events alone would have inflated the count.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>CASE</code> inside <code>COUNT(DISTINCT)</code> &mdash; the conditional-aggregation pattern</h5>
+<p><code>COUNT(DISTINCT CASE WHEN cond THEN user_id END)</code> is the single-pass idiom for "count distinct things that satisfy a condition". The <code>CASE</code> with no <code>ELSE</code> yields NULL for non-Apple rows; <code>COUNT</code> drops NULLs and de-duplicates the rest. One scan produces both metrics side by side &mdash; no subquery, no join of two grouped results. Putting the <code>device IN (&hellip;)</code> in a <code>WHERE</code> instead would corrupt <code>n_total_users</code>, because it would also filter the rows feeding the total count.</p>
+
+<h5>The <code>LEFT JOIN</code> direction and the NULL-country bucket</h5>
+<p>The join is <code>events LEFT JOIN users</code>, so every event survives even if its <code>user_id</code> is absent from <code>playbook_users</code> &mdash; such rows get <code>country = NULL</code> and <code>GROUP BY</code> gathers them into a NULL group. That can be intentional ("count unmapped traffic") or a bug ("users should always resolve"). Here every user maps, so no NULL row appears, but you should say what would happen. An <code>INNER JOIN</code> would instead silently drop unmapped events &mdash; a different, equally deliberate choice.</p>
+
+<h5>Counts come from events, not the user table &mdash; the coverage gap</h5>
+<p><code>n_total_users</code> counts distinct users <em>who appear in <code>playbook_events</code></em>. A registered user in <code>playbook_users</code> with zero events is invisible to this query. If "total users per country" means <em>all registered users</em>, the query must drive from <code>playbook_users</code> and <code>LEFT JOIN</code> events. "Active users" vs "registered users" is a real definitional fork &mdash; confirm which one product means.</p>
+
+<h5>The device-list trap &mdash; exact strings only</h5>
+<p><code>device IN ('macbook pro', 'iphone 5s', 'ipad air')</code> is a hard-coded, case-sensitive allow-list. A new Apple device (<code>'iphone 14'</code>), a capitalised value (<code>'MacBook Pro'</code>), or trailing whitespace all fail to match and quietly undercount. More durable: normalise with <code>lower(trim(device))</code>, pattern-match (<code>device ILIKE 'iphone%' OR device ILIKE 'ipad%' OR device ILIKE 'macbook%'</code>), or keep the mapping in a reference table. Flag that the literal list is brittle.</p>
+
+<h5>The ordering tiebreak</h5>
+<p><code>ORDER BY n_total_users DESC</code> leaves countries with equal totals in arbitrary order &mdash; here India and USA both have 2. Add a deterministic secondary key, e.g. <code>ORDER BY n_total_users DESC, country</code>, so the report is reproducible run to run.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(DISTINCT CASE WHEN &hellip;)</code> for one-pass conditional counting rather than a <code>WHERE</code> that would corrupt the total, state what the <code>LEFT JOIN</code> does to unmapped events, distinguish active-from-events vs registered users, and call out the brittle hard-coded device list.</div>

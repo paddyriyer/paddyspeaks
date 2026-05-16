@@ -1,0 +1,69 @@
+<p>A Community-sourced org-chart question: given one employee, walk <em>up</em> the reporting chain and list every manager above them. It is the canonical recursive-CTE warm-up, but the interviewer is watching two things &mdash; do you anchor on the right row, and do you understand why the chain stops on its own when it reaches the CEO.</p>
+
+<h4>1. The source data &mdash; <code>emp_details</code></h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>manager_id</th><th>designation</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>jia</td><td>2</td><td>developer</td></tr>
+    <tr><td>2</td><td>rohan</td><td>3</td><td>team lead</td></tr>
+    <tr><td>3</td><td>priya</td><td>4</td><td>manager</td></tr>
+    <tr><td>4</td><td>amit</td><td><em>NULL</em></td><td>director</td></tr>
+  </tbody>
+</table>
+<p>The table is a self-referencing tree: each row points at its boss through <code>manager_id</code>. The interesting row is <strong>amit</strong> &mdash; <code>manager_id</code> is <strong>NULL</strong>, the signal "top of the org, nobody above me". That NULL is what makes the recursion terminate.</p>
+
+<h4>2. The SQL &mdash; <code>WITH RECURSIVE</code> walking up</h4>
+<pre><code>WITH RECURSIVE cte AS (
+    SELECT id, name, manager_id FROM emp_details WHERE name = 'jia'
+    UNION ALL
+    SELECT ed.id, ed.name, ed.manager_id
+    FROM cte
+    JOIN emp_details ed ON cte.manager_id = ed.id
+)
+SELECT cte.*, emp.name AS manager_name
+FROM cte
+JOIN emp_details emp ON cte.manager_id = emp.id;</code></pre>
+<p>The anchor selects jia. Each recursive step takes the current row's <code>manager_id</code> and fetches <em>that</em> employee &mdash; one hop up the tree per iteration. The final <code>SELECT</code> joins each row back to <code>emp_details</code> to print the manager's name alongside the id.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>manager_id</th><th>manager_name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>jia</td><td>2</td><td>rohan</td></tr>
+    <tr><td>2</td><td>rohan</td><td>3</td><td>priya</td></tr>
+    <tr><td>3</td><td>priya</td><td>4</td><td>amit</td></tr>
+  </tbody>
+</table>
+<p>Three rows: jia reports to rohan, rohan to priya, priya to amit. Notice <strong>amit himself is absent</strong> from the output even though the recursion <em>did</em> visit his row. The recursive step produced amit's row with <code>manager_id = NULL</code>; the final <code>JOIN ... ON cte.manager_id = emp.id</code> then drops it, because NULL never equals anything. The query lists "jia and her managers", not "jia, her managers, and the CEO's empty slot".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the recursion terminates</h5>
+<p>A recursive CTE stops when the recursive term returns zero new rows. After visiting amit (<code>manager_id = NULL</code>), the next iteration runs <code>JOIN emp_details ed ON cte.manager_id = ed.id</code> with <code>cte.manager_id = NULL</code> &mdash; the join condition is <em>unknown</em>, matches nothing, and the CTE closes. The NULL at the root is not a nuisance; it is the natural stop condition. If every employee had a non-NULL manager (a cycle, or a self-reference), the query would loop forever &mdash; see the cycle trap below.</p>
+
+<h5>The interviewer follow-up: include the employee's own depth</h5>
+<p>"How many levels up is each manager?" Carry a counter through the recursion:</p>
+<pre><code>WITH RECURSIVE cte AS (
+    SELECT id, name, manager_id, 0 AS lvl
+    FROM emp_details WHERE name = 'jia'
+    UNION ALL
+    SELECT ed.id, ed.name, ed.manager_id, cte.lvl + 1
+    FROM cte JOIN emp_details ed ON cte.manager_id = ed.id
+)
+SELECT * FROM cte;</code></pre>
+<p>jia is level 0, rohan 1, priya 2, amit 3. The same counter trick answers "stop after N levels" &mdash; add <code>WHERE cte.lvl &lt; 3</code> to the recursive term.</p>
+
+<h5>The cycle trap &mdash; dirty hierarchy data</h5>
+<p>If the data is corrupt &mdash; A manages B and B manages A &mdash; the recursion never sees a NULL and loops until the engine aborts. Postgres lets you guard with <code>CYCLE</code>:</p>
+<pre><code>WITH RECURSIVE cte AS ( ... )
+  CYCLE id SET is_cycle USING path
+SELECT * FROM cte WHERE NOT is_cycle;</code></pre>
+<p>Or carry an array <code>path</code> and add <code>WHERE ed.id &lt;&gt; ALL(cte.path)</code> to the recursive term. Mentioning that real org tables <em>do</em> contain accidental cycles is a senior tell.</p>
+
+<h5>Anchoring by name vs. id</h5>
+<p>The anchor uses <code>WHERE name = 'jia'</code>. Names are not unique &mdash; two employees called "jia" would seed the recursion with both chains, silently merging them. In production, anchor on the primary key (<code>WHERE id = 1</code>); filter by name only in a throwaway analysis.</p>
+
+<h5>Walking down instead of up</h5>
+<p>Reverse the join to get jia's <em>reports</em> rather than her managers: anchor on the target manager, then <code>JOIN emp_details ed ON ed.manager_id = cte.id</code>. Same skeleton, opposite direction &mdash; knowing the join flip is the difference between "my chain of command" and "my whole sub-org".</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the NULL root <em>is</em> the termination condition, carry a level counter for depth-limited queries, anchor on the primary key rather than a non-unique name, and pre-empt the infinite loop that a cyclic hierarchy would cause with a <code>CYCLE</code> clause or path array.</div>

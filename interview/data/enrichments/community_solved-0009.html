@@ -1,0 +1,59 @@
+<p>A Community routes question: <code>A&rarr;B</code> and <code>B&rarr;A</code> describe the same trip, so collapse them and report the average distance per undirected route. Here the distance column is a clean numeric, which makes the question almost entirely about one idea &mdash; building a direction-independent key so the two halves of a route group together.</p>
+
+<h4>1. The source data &mdash; <code>locations</code></h4>
+<table>
+  <thead><tr><th>source</th><th>destination</th><th>distance</th></tr></thead>
+  <tbody>
+    <tr><td>Mumbai</td><td>Delhi</td><td>1400</td></tr>
+    <tr><td>Delhi</td><td>Mumbai</td><td>1390</td></tr>
+    <tr><td>Bangalore</td><td>Chennai</td><td>350</td></tr>
+    <tr><td>Chennai</td><td>Bangalore</td><td>360</td></tr>
+    <tr><td>Hyderabad</td><td>Pune</td><td>560</td></tr>
+  </tbody>
+</table>
+<p>Mumbai&ndash;Delhi and Bangalore&ndash;Chennai each appear in <strong>both directions</strong>, with slightly different recorded distances &mdash; the same road, measured twice. Hyderabad&ndash;Pune appears only once: a single-direction route. Both shapes must come out right.</p>
+
+<h4>2. The SQL &mdash; canonical route key, then average</h4>
+<pre><code>SELECT
+    CASE WHEN source &gt; destination THEN concat(source, '-', destination)
+         ELSE concat(destination, '-', source) END AS unique_route,
+    AVG(NULLIF(regexp_replace(distance::text, '[^-.0-9]', '', 'g'), '')::numeric) AS average_distance
+FROM locations
+GROUP BY CASE WHEN source &gt; destination THEN concat(source, '-', destination)
+              ELSE concat(destination, '-', source) END;</code></pre>
+<p>The <code>CASE</code> places the alphabetically-larger city name first, so both <code>Mumbai&rarr;Delhi</code> and <code>Delhi&rarr;Mumbai</code> produce the identical key <code>Mumbai-Delhi</code> and land in one group. <code>AVG</code> then averages the distances within each group.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>unique_route</th><th>average_distance</th></tr></thead>
+  <tbody>
+    <tr><td>Mumbai-Delhi</td><td>1395.0000000000000000</td></tr>
+    <tr><td>Pune-Hyderabad</td><td>560.0000000000000000</td></tr>
+    <tr><td>Chennai-Bangalore</td><td>355.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Five rows collapse to three routes. <code>Mumbai-Delhi</code> averages 1400 and 1390 to <strong>1395</strong>; <code>Chennai-Bangalore</code> averages 350 and 360 to <strong>355</strong>. <code>Pune-Hyderabad</code> had only one row, so its "average" is just 560. The long decimal tail is only the <code>numeric</code> display type &mdash; round it for a report.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The canonical key &mdash; the one idea this question tests</h5>
+<p>"<code>A&rarr;B</code> equals <code>B&rarr;A</code>" means you must group on an <em>unordered</em> pair. SQL groups on values, so you manufacture a value that is the same regardless of direction: sort the two endpoints. The <code>CASE</code> does it; Postgres does it more tersely with <code>LEAST</code>/<code>GREATEST</code>:</p>
+<pre><code>concat(LEAST(source, destination), '-', GREATEST(source, destination))</code></pre>
+<p>One expression instead of the four-line <code>CASE</code> repeated in <code>SELECT</code> and <code>GROUP BY</code>. You can also write <code>GROUP BY 1</code> to point at the select-list position and avoid restating the key entirely.</p>
+
+<h5>Why the distance is wrapped in <code>regexp_replace</code> even though it is numeric</h5>
+<p>Here <code>distance</code> is a clean integer, so <code>regexp_replace(distance::text, ...)</code> is a no-op &mdash; defensive plumbing for the case where the column is actually dirty text like <code>'350 km'</code>. <code>NULLIF(..., '')</code> then turns any value that scrubs down to nothing into NULL instead of crashing on <code>''::numeric</code>. On genuinely numeric data you can drop the whole wrapper and just write <code>AVG(distance)</code> &mdash; mention that you would, to show you are not cargo-culting.</p>
+
+<h5>The reverse-pair distances disagree &mdash; is averaging right?</h5>
+<p>Mumbai&ndash;Delhi is recorded as both 1400 and 1390. The query happily averages them to 1395, but that hides a data-quality issue: the same road should have one length. A senior surfaces it:</p>
+<pre><code>SELECT unique_route, MIN(distance) lo, MAX(distance) hi
+FROM locations GROUP BY 1 HAVING MIN(distance) &lt;&gt; MAX(distance);</code></pre>
+<p>If the directions <em>should</em> always agree, the right move may be <code>MIN</code> or "flag for review", not <code>AVG</code>. If they can genuinely differ (one-way detours), averaging is fine &mdash; but that is a decision, not a default.</p>
+
+<h5>Edge cases: lone routes, NULLs, self-routes</h5>
+<p>A single-direction route averages to its one value &mdash; correct. A NULL distance is skipped by <code>AVG</code> (both numerator and denominator), so a route with one real reading and one NULL reports the real reading. A degenerate <code>source = destination</code> row keys as <code>City-City</code> via the <code>ELSE</code> branch &mdash; filter it with <code>WHERE source &lt;&gt; destination</code> if such rows are meaningless.</p>
+
+<h5>The simpler alternative: <code>UNION</code> the directions</h5>
+<p>Instead of a sort key, you can normalise by stacking both orientations and deduping &mdash; but for averaging, the <code>GROUP BY</code> on a canonical key is fewer moving parts and one pass. Reach for <code>UNION</code> only when you need the symmetric edge list itself.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build the direction-independent key with <code>LEAST</code>/<code>GREATEST</code> rather than a duplicated <code>CASE</code>, note that the <code>regexp_replace</code> wrapper is defensive and drop it on truly numeric data, and treat reverse-pair distances that disagree as something to surface rather than silently average.</div>

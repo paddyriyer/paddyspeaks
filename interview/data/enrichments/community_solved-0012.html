@@ -1,0 +1,70 @@
+<p>A Community aggregation question: from an events table, find the client (desktop, mobile, tablet&hellip;) that generates the most <em>call</em> activity &mdash; video and voice calls, sent or received. It sounds like a one-line "group, sort, take the top". The reference solution, however, reaches for a "more than 50% of total" filter, and that is the trap the interviewer is laying.</p>
+
+<h4>1. The source data &mdash; <code>fact_events</code></h4>
+<table>
+  <thead><tr><th>client_id</th><th>event_type</th></tr></thead>
+  <tbody>
+    <tr><td>desktop</td><td>video call received</td></tr>
+    <tr><td>desktop</td><td>video call sent</td></tr>
+    <tr><td>desktop</td><td>voice call received</td></tr>
+    <tr><td>desktop</td><td>message sent</td></tr>
+    <tr><td>mobile</td><td>voice call sent</td></tr>
+    <tr><td>mobile</td><td>message received</td></tr>
+    <tr><td>tablet</td><td>message sent</td></tr>
+  </tbody>
+</table>
+<p>Counting only call events: desktop has 3, mobile has 1, tablet has 0. The non-call rows (<code>message sent</code>, <code>message received</code>) are noise &mdash; they must <em>not</em> count. desktop is clearly the most active caller.</p>
+
+<h4>2. The SQL &mdash; group, then take the top by call count</h4>
+<pre><code>WITH t1 AS (
+    SELECT client_id,
+           SUM(CASE WHEN event_type IN ('video call received', 'video call sent',
+                                        'voice call received', 'voice call sent')
+                    THEN 1 ELSE 0 END) AS specific_event_count
+    FROM fact_events
+    GROUP BY client_id
+)
+SELECT client_id FROM t1
+ORDER BY specific_event_count DESC
+LIMIT 1;</code></pre>
+<p>The <code>CASE</code> inside <code>SUM</code> is a conditional count &mdash; it adds 1 only for the four call event types, so <code>specific_event_count</code> is each client's call volume. Sorting that descending and taking <code>LIMIT 1</code> returns the most active client.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>client_id</th></tr></thead>
+  <tbody>
+    <tr><td>desktop</td></tr>
+  </tbody>
+</table>
+<p>desktop wins with 3 call events against mobile's 1 and tablet's 0 &mdash; the expected answer.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the original "&gt; 50% of total" solution is wrong</h5>
+<p>The reference answer did not sort and take the top. It filtered:</p>
+<pre><code>SELECT client_id FROM t1
+WHERE specific_event_count &gt; 0.5 * (SELECT SUM(specific_event_count) FROM t1)
+LIMIT 1;</code></pre>
+<p>That keeps a client only if it owns a <em>strict majority</em> &mdash; over half &mdash; of all call events. "Most popular" means the <strong>maximum</strong>, not "an absolute majority". The two coincide only when one client happens to dominate. The moment activity is split &mdash; say desktop 4, mobile 3, tablet 3 &mdash; <em>no</em> client clears 50%, the <code>WHERE</code> matches nothing, and the query returns <strong>zero rows</strong>. It fails to name a most-popular client precisely when the question is least trivial. The corrected query in section 2 sorts by count and takes the top, which always returns the genuine leader.</p>
+
+<h5>Conditional aggregation: <code>SUM(CASE...)</code> vs <code>COUNT FILTER</code></h5>
+<p><code>SUM(CASE WHEN ... THEN 1 ELSE 0 END)</code> is the portable conditional count. Postgres has a cleaner native form:</p>
+<pre><code>COUNT(*) FILTER (WHERE event_type IN ('video call received', ...)) AS specific_event_count</code></pre>
+<p>Same result, and it reads as exactly what it is. Either way, doing the filtering <em>inside</em> the aggregate &mdash; rather than a <code>WHERE</code> before the <code>GROUP BY</code> &mdash; keeps clients with zero calls in the result (tablet shows 0), which matters if you later want to rank or report them all.</p>
+
+<h5>The tie trap &mdash; <code>LIMIT 1</code> is non-deterministic</h5>
+<p>If two clients tie for the most calls, <code>ORDER BY count DESC LIMIT 1</code> returns <em>one of them, arbitrarily</em> &mdash; whichever the planner emits first. To return <em>all</em> co-leaders, rank instead:</p>
+<pre><code>SELECT client_id FROM (
+  SELECT client_id, specific_event_count,
+         RANK() OVER (ORDER BY specific_event_count DESC) AS rk
+  FROM t1
+) WHERE rk = 1;</code></pre>
+<p>Confirm with the interviewer: "if there's a tie for most popular, do you want one client or every tied client?"</p>
+
+<h5>The category-list maintainability problem</h5>
+<p>Hard-coding four call types in an <code>IN</code> list is brittle &mdash; a new <code>'video call missed'</code> event ships and the query silently undercounts. If event types follow a pattern, match the pattern: <code>event_type LIKE '%call%'</code>, or better, join to a small dimension table that classifies event types into "call" / "message" / etc. A senior flags that the literal list will rot.</p>
+
+<h5>Edge case: no call events at all</h5>
+<p>If the table has only message events, every <code>specific_event_count</code> is 0. The corrected query still returns a row &mdash; some client with a count of 0 &mdash; which is misleading ("most popular" among zero activity). Guard it if needed: <code>WHERE specific_event_count &gt; 0</code> before the <code>LIMIT</code>, so an empty result honestly means "nobody made calls".</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that "most popular" is a max-and-rank problem, not a "&gt; 50% majority" filter &mdash; the majority test returns nothing whenever activity is split &mdash; use <code>COUNT FILTER</code> for the conditional count, and handle ties with <code>RANK()</code> rather than a non-deterministic <code>LIMIT 1</code>.</div>

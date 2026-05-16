@@ -1,0 +1,71 @@
+<p>A Community member has a wide marks table &mdash; one row per student with separate <code>English</code>, <code>Maths</code> and <code>Science</code> columns &mdash; and needs it reshaped tall: one row per student-subject pair, a single <code>Marks</code> column. This is unpivot, and the interviewer wants to see whether you reach for a portable construct and whether you understand what happens to a NULL mark.</p>
+
+<h4>1. The source data &mdash; <code>student_info</code></h4>
+<table>
+  <thead><tr><th>StudentName</th><th>English</th><th>Maths</th><th>Science</th></tr></thead>
+  <tbody>
+    <tr><td>Asha</td><td>78</td><td>92</td><td>85</td></tr>
+    <tr><td>Ben</td><td>64</td><td>70</td><td>88</td></tr>
+    <tr><td>Chris</td><td>90</td><td>81</td><td>76</td></tr>
+  </tbody>
+</table>
+<p>Three students, three subject columns &mdash; nine logical scores. The target shape turns each of those nine cells into its own row. The edge to keep in mind: if a cell were NULL (a student who skipped a subject), an unpivot still emits a row, with a NULL <code>Marks</code> &mdash; unless you choose to drop it.</p>
+
+<h4>2. The SQL &mdash; <code>UNION ALL unpivot</code></h4>
+<pre><code>SELECT StudentName, 'English' AS Subject, English AS Marks
+FROM student_info
+UNION ALL
+SELECT StudentName, 'Maths'   AS Subject, Maths   AS Marks
+FROM student_info
+UNION ALL
+SELECT StudentName, 'Science' AS Subject, Science AS Marks
+FROM student_info
+ORDER BY StudentName, Subject;</code></pre>
+<p>One <code>SELECT</code> per source column, each hard-coding the subject name as a string literal and aliasing that column to a common <code>Marks</code>. <code>UNION ALL</code> stacks the three result sets; the final <code>ORDER BY</code> groups each student's rows together.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>studentname</th><th>subject</th><th>marks</th></tr></thead>
+  <tbody>
+    <tr><td>Asha</td><td>English</td><td>78</td></tr>
+    <tr><td>Asha</td><td>Maths</td><td>92</td></tr>
+    <tr><td>Asha</td><td>Science</td><td>85</td></tr>
+    <tr><td>Ben</td><td>English</td><td>64</td></tr>
+    <tr><td>Ben</td><td>Maths</td><td>70</td></tr>
+    <tr><td>Ben</td><td>Science</td><td>88</td></tr>
+    <tr><td>Chris</td><td>English</td><td>90</td></tr>
+    <tr><td>Chris</td><td>Maths</td><td>81</td></tr>
+    <tr><td>Chris</td><td>Science</td><td>76</td></tr>
+  </tbody>
+</table>
+<p>Three input rows become nine &mdash; one per student-subject pair. The data is unchanged; only the shape moved from wide to tall. This long form is what lets you <code>GROUP BY Subject</code> for a class average, or <code>GROUP BY StudentName</code> for a per-student total, neither of which is natural against the wide table.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNION ALL</code>, not <code>UNION</code></h5>
+<p>Plain <code>UNION</code> de-duplicates the combined result. If two students scored the same mark in the same subject &mdash; entirely possible &mdash; <code>UNION</code> would silently merge those rows and a student would lose a score. <code>UNION ALL</code> keeps every row unconditionally. It is also cheaper: no sort-and-dedup pass. For an unpivot, <code>UNION ALL</code> is correctness <em>and</em> performance.</p>
+
+<h5>The dialect map &mdash; <code>UNPIVOT</code> vs the portable form</h5>
+<p>SQL Server and Oracle have a dedicated operator:</p>
+<pre><code>SELECT StudentName, Subject, Marks
+FROM student_info
+UNPIVOT (Marks FOR Subject IN (English, Maths, Science)) u;</code></pre>
+<p>It is terser, but it does <em>not</em> run in SQLite, MySQL, or older Postgres. The <code>UNION ALL</code> form runs everywhere. Postgres also offers <code>LATERAL (VALUES ('English', English), ...)</code> &mdash; a single table scan instead of three. Naming the trade-off (portability vs one scan) is the senior move.</p>
+
+<h5>The NULL divergence &mdash; <code>UNPIVOT</code> drops, <code>UNION ALL</code> keeps</h5>
+<p>A genuine behavioural difference, not a style point. If a student has a NULL <code>Science</code> mark, the <code>UNION ALL</code> form emits <code>(student, 'Science', NULL)</code> &mdash; a row with a NULL <code>Marks</code>. The SQL Server <code>UNPIVOT</code> operator <em>excludes</em> NULL-valued rows by default. So the two approaches return different row counts on NULL data. Decide which you want: keep the NULL row and filter later, or add <code>WHERE Marks IS NOT NULL</code> to the <code>UNION ALL</code> form to match <code>UNPIVOT</code>'s behaviour.</p>
+
+<h5>The single-scan optimisation</h5>
+<p><code>UNION ALL</code> of three <code>SELECT</code>s scans <code>student_info</code> <em>three times</em>. On a 3-row demo that is nothing; on a million-row table it triples I/O. The <code>LATERAL VALUES</code> / cross-join-to-a-subject-list rewrite reads the base table once and expands each row in memory:</p>
+<pre><code>SELECT s.StudentName, v.Subject, v.Marks
+FROM student_info s
+CROSS JOIN LATERAL (VALUES
+  ('English', s.English),
+  ('Maths',   s.Maths),
+  ('Science', s.Science)
+) AS v(Subject, Marks);</code></pre>
+
+<h5>Type consistency across the unioned columns</h5>
+<p>Every branch's <code>Marks</code> column must be a compatible type &mdash; here all three are integers, fine. But if one subject column were stored as <code>TEXT</code> (a grade like <code>'A'</code>) and another as <code>INT</code>, the <code>UNION ALL</code> would fail or implicitly coerce. Unpivot only makes sense when the columns being folded are genuinely the same kind of measure; mixing a numeric score with a letter grade is a modelling smell.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for the portable <code>UNION ALL</code> unpivot (or <code>LATERAL VALUES</code> for a single scan) over the non-portable <code>UNPIVOT</code> operator, insist on <code>UNION ALL</code> so equal marks are never merged, and call out that <code>UNPIVOT</code> drops NULL rows while <code>UNION ALL</code> keeps them &mdash; a real difference the consumer must decide on.</div>

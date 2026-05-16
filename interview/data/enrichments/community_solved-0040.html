@@ -1,0 +1,65 @@
+<p>A Community member needs a directory-style roll-up: for each department, collapse every employee's email into a single delimited string &mdash; the kind of output that feeds a "notify the whole team" mail merge. It is a one-line aggregate, but the interviewer is probing whether you know what the delimiter, the ordering, and a NULL email each do to the result.</p>
+
+<h4>1. The source data &mdash; <code>emp_details</code></h4>
+<table>
+  <thead><tr><th>EMPID</th><th>Gender</th><th>EmailID</th><th>DeptID</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>M</td><td>charlie@co.com</td><td>10</td></tr>
+    <tr><td>2</td><td>F</td><td>alice@co.com</td><td>10</td></tr>
+    <tr><td>3</td><td>M</td><td>bob@co.com</td><td>10</td></tr>
+    <tr><td>4</td><td>F</td><td>dana@co.com</td><td>20</td></tr>
+    <tr><td>5</td><td>M</td><td>eve@co.com</td><td>20</td></tr>
+    <tr><td>6</td><td>F</td><td>frank@co.com</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Department 10 has three members <em>not</em> inserted in alphabetical order (charlie, alice, bob); department 30 has a <strong>single member</strong> &mdash; the edge case that proves the aggregate still emits one clean value, not a string with stray delimiters.</p>
+
+<h4>2. The SQL &mdash; <code>STRING_AGG</code></h4>
+<pre><code>SELECT deptid,
+       STRING_AGG(emailid, ';' ORDER BY emailid ASC) AS email_list
+FROM emp_details
+GROUP BY deptid;</code></pre>
+<p><code>STRING_AGG</code> concatenates the column across each <code>GROUP BY</code> bucket, joining values with the literal <code>;</code>. The <code>ORDER BY</code> inside the parentheses sorts the elements <em>within</em> each list &mdash; independent of any outer ordering.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>deptid</th><th>email_list</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>alice@co.com;bob@co.com;charlie@co.com</td></tr>
+    <tr><td>20</td><td>dana@co.com;eve@co.com</td></tr>
+    <tr><td>30</td><td>frank@co.com</td></tr>
+  </tbody>
+</table>
+<p>Department 10's list is alphabetised even though the rows were inserted out of order &mdash; that is the <code>ORDER BY emailid</code> doing its job. Department 30 returns <code>frank@co.com</code> with no leading or trailing semicolon: a delimiter is placed <em>between</em> elements, so a one-element list has zero delimiters.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the inner <code>ORDER BY</code> is not optional</h5>
+<p>Drop the <code>ORDER BY</code> and the engine concatenates in whatever physical order rows arrive &mdash; which is unspecified and can change between runs, after a <code>VACUUM</code>, or under parallel scan. For a value a human reads or a downstream system diffs, that nondeterminism is a bug. Always pin the order inside the aggregate so the output is reproducible.</p>
+
+<h5>The dialect map &mdash; same idea, four names</h5>
+<p><code>STRING_AGG</code> is Postgres and SQL Server. The interviewer may want the others:</p>
+<pre><code>-- MySQL
+SELECT deptid, GROUP_CONCAT(emailid ORDER BY emailid SEPARATOR ';')
+FROM emp_details GROUP BY deptid;
+
+-- Oracle
+SELECT deptid, LISTAGG(emailid, ';')
+       WITHIN GROUP (ORDER BY emailid)
+FROM emp_details GROUP BY deptid;</code></pre>
+<p>BigQuery uses <code>STRING_AGG</code> too. Knowing all four &mdash; and that they share one mental model: group, order, join &mdash; signals breadth.</p>
+
+<h5>NULL emails vanish silently</h5>
+<p>Like every aggregate, <code>STRING_AGG</code> skips NULL inputs. If an employee has a NULL <code>emailid</code>, they simply do not appear in the list &mdash; no empty slot, no <code>;;</code>. That is usually desirable, but it means the list length can be smaller than the headcount. If the consumer needs every employee represented, substitute first: <code>STRING_AGG(COALESCE(emailid, '(no email)'), ';' ORDER BY ...)</code>.</p>
+
+<h5>Duplicates and the <code>DISTINCT</code> option</h5>
+<p>If two rows share an email (a shared alias, a data-entry dup), it appears twice in the string. Postgres and MySQL accept <code>DISTINCT</code> inside the aggregate &mdash; but note Postgres rejects <code>DISTINCT</code> combined with an <code>ORDER BY</code> on a <em>different</em> expression. Order by the same column you de-duplicate on:</p>
+<pre><code>STRING_AGG(DISTINCT emailid, ';' ORDER BY emailid)</code></pre>
+
+<h5>The reverse operation &mdash; splitting back to rows</h5>
+<p>A natural follow-up: "now explode that list back into one row per email." That is the inverse, and Postgres has it built in:</p>
+<pre><code>SELECT deptid, unnest(string_to_array(email_list, ';')) AS emailid
+FROM dept_email_lists;</code></pre>
+<p>Knowing both directions &mdash; aggregate to a string, and split a string back to rows &mdash; shows you treat delimited text as a reversible transform, not a dead end.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> always pin an inner <code>ORDER BY</code> so the concatenation is deterministic, name the <code>GROUP_CONCAT</code>/<code>LISTAGG</code>/<code>STRING_AGG</code> dialect equivalents, and call out that NULL emails are dropped silently &mdash; deciding on purpose whether that is correct for the mail-merge consumer.</div>

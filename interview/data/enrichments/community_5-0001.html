@@ -1,0 +1,58 @@
+<p>A Community marketing analyst is asked the weekly question: <em>which campaigns are pulling their weight?</em> The cut-off is "more than 100 conversions". It looks like a one-line <code>GROUP BY</code> &mdash; but the interviewer is watching whether you count off the right table, whether you use a <code>LEFT JOIN</code> for a reason, and whether you know that <code>HAVING</code> and <code>WHERE</code> are not interchangeable.</p>
+
+<h4>1. The source data &mdash; <code>conversions</code> (joined to <code>campaigns</code>)</h4>
+<table>
+  <thead><tr><th>campaign_name</th><th>conversion rows</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>Spring Launch</td><td>150</td><td>over the line</td></tr>
+    <tr><td>Summer Sale</td><td>220</td><td>over the line</td></tr>
+    <tr><td>Quiet Drip</td><td>30</td><td>below 100 &mdash; excluded</td></tr>
+    <tr><td>Fall Push</td><td>110</td><td>just over</td></tr>
+  </tbody>
+</table>
+<p>"Quiet Drip" has real conversions but only 30 of them &mdash; it is the row the <code>HAVING</code> clause must drop. "Fall Push" at 110 is the edge case: a strict <code>&gt; 100</code> keeps it; a hypothetical <code>&gt;= 100</code> would also keep an exactly-100 campaign, so the boundary wording matters.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY + HAVING COUNT</code></h4>
+<pre><code>SELECT
+  c.campaign_name,
+  COUNT(co.conversion_id) AS conversion_count
+FROM conversions co
+LEFT JOIN campaigns c ON co.campaign_id = c.campaign_id
+GROUP BY c.campaign_name
+HAVING COUNT(co.conversion_id) &gt; 100;</code></pre>
+<p>Conversions is the driving table; each row is one conversion. Grouping by <code>campaign_name</code> collapses them per campaign, and <code>HAVING</code> filters the <em>groups</em> &mdash; not the rows &mdash; down to the busy ones.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>campaign_name</th><th>conversion_count</th></tr></thead>
+  <tbody>
+    <tr><td>Fall Push</td><td>110</td></tr>
+    <tr><td>Summer Sale</td><td>220</td></tr>
+    <tr><td>Spring Launch</td><td>150</td></tr>
+  </tbody>
+</table>
+<p>Three campaigns clear the bar; "Quiet Drip" with 30 conversions is gone. Note the result is <strong>unordered</strong> &mdash; there is no <code>ORDER BY</code>, so the engine returns groups in whatever order is convenient. If a report needs Summer Sale on top, that is a missing <code>ORDER BY conversion_count DESC</code>, not a bug in the aggregation.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>HAVING</code> and not <code>WHERE</code></h5>
+<p><code>WHERE</code> filters individual rows <em>before</em> grouping; <code>HAVING</code> filters groups <em>after</em> aggregation. You cannot put <code>WHERE COUNT(*) &gt; 100</code> &mdash; the count does not exist until rows are grouped. The pipeline is fixed: <code>FROM</code> &rarr; <code>JOIN</code> &rarr; <code>WHERE</code> &rarr; <code>GROUP BY</code> &rarr; <code>HAVING</code> &rarr; <code>SELECT</code> &rarr; <code>ORDER BY</code>. Per-row predicates (a date range, a status) belong in <code>WHERE</code>; predicates on an aggregate belong in <code>HAVING</code>.</p>
+
+<h5>The <code>LEFT JOIN</code> vs <code>INNER JOIN</code> question</h5>
+<p>Here the join direction barely matters &mdash; every conversion references a real campaign, and the <code>HAVING &gt; 100</code> threshold would discard any campaign with zero conversions anyway. But the interviewer may flip it: <em>"list campaigns with FEWER than 100 conversions, including those with none."</em> Then you must drive from <code>campaigns</code> and <code>LEFT JOIN conversions</code>, because a campaign with zero conversions has no rows on the conversion side:</p>
+<pre><code>SELECT c.campaign_name, COUNT(co.conversion_id) AS conversion_count
+FROM campaigns c
+LEFT JOIN conversions co ON c.campaign_id = co.campaign_id
+GROUP BY c.campaign_name
+HAVING COUNT(co.conversion_id) &lt; 100;</code></pre>
+<p>The subtle part: <code>COUNT(co.conversion_id)</code> counts non-NULL values, so a campaign with no matching conversions correctly counts <strong>0</strong>. Writing <code>COUNT(*)</code> there would count the one all-NULL row the <code>LEFT JOIN</code> manufactures &mdash; giving 1 instead of 0. Count the column, not the star, whenever an outer join is involved.</p>
+
+<h5>The grouping-key trap &mdash; group by id, not name</h5>
+<p>Grouping by <code>campaign_name</code> is fine only because names are unique here. If two campaigns shared a name (re-run of "Spring Launch" next year), <code>GROUP BY campaign_name</code> would silently merge them. The robust form groups by the primary key and carries the name along:</p>
+<pre><code>GROUP BY c.campaign_id, c.campaign_name</code></pre>
+<p>In strict-<code>GROUP BY</code> engines (Postgres) you must list every non-aggregated <code>SELECT</code> column anyway; MySQL's looser default lets a bare <code>campaign_name</code> slip through, which is exactly how the duplicate-name bug hides.</p>
+
+<h5>Edge case: counting conversions in a date window</h5>
+<p>"Conversions" often means conversions <em>within the campaign's run dates</em>, not all-time. If a conversion can land outside <code>start_date</code>&ndash;<code>end_date</code>, add a per-row filter in <code>WHERE</code> before the count: <code>WHERE co.conversion_date BETWEEN c.start_date AND c.end_date</code>. Confirm the definition &mdash; "100 conversions ever" and "100 conversions during the campaign" are different metrics.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> place per-row predicates in <code>WHERE</code> and aggregate predicates in <code>HAVING</code> without hesitation, count the joined column (not <code>COUNT(*)</code>) so outer-join NULLs read as zero, group by the primary key to survive duplicate names, and ask whether the threshold is all-time or windowed before writing the query.</div>

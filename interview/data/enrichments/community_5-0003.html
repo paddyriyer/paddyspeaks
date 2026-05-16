@@ -1,0 +1,69 @@
+<p>A Community education platform wants a pass-rate dashboard: <em>for each course and semester, what fraction of students passed?</em> The shape is conditional aggregation &mdash; count passes, divide by total. The interviewer is watching for one classic trap (integer division silently flooring every rate to 0) and one judgement call (how NULL grades and the pass threshold are handled).</p>
+
+<h4>1. The source data &mdash; <code>student_courses</code></h4>
+<table>
+  <thead><tr><th>student_id</th><th>course_id</th><th>semester</th><th>grade</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>CS101</td><td>Fall2024</td><td>72</td></tr>
+    <tr><td>2</td><td>CS101</td><td>Fall2024</td><td>45</td></tr>
+    <tr><td>3</td><td>CS101</td><td>Fall2024</td><td>88</td></tr>
+    <tr><td>4</td><td>CS101</td><td>Spring2025</td><td>50</td></tr>
+    <tr><td>5</td><td>CS101</td><td>Spring2025</td><td>49</td></tr>
+    <tr><td>6</td><td>MATH200</td><td>Fall2024</td><td>90</td></tr>
+    <tr><td>7</td><td>MATH200</td><td>Fall2024</td><td>91</td></tr>
+    <tr><td>8</td><td>MATH200</td><td>Fall2024</td><td>95</td></tr>
+  </tbody>
+</table>
+<p>Two rows sit right on the boundary: student 4 at exactly <strong>50</strong> (passes, with <code>&gt;= 50</code>) and student 5 at <strong>49</strong> (fails). That one-point gap is the whole interview &mdash; it decides whether CS101/Spring2025 is a 50% or a 100% pass rate, and it forces you to confirm whether 50 is a pass.</p>
+
+<h4>2. The SQL &mdash; <code>conditional aggregation</code></h4>
+<pre><code>SELECT
+  course_id,
+  semester,
+  100.0 * SUM(CASE WHEN grade &gt;= 50 THEN 1 ELSE 0 END) / COUNT(student_id)
+    AS pass_rate_pct
+FROM student_courses
+GROUP BY course_id, semester
+ORDER BY course_id, semester;</code></pre>
+<p>The <code>SUM(CASE ...)</code> is a filtered count of passes; <code>COUNT(student_id)</code> is the group size. Multiplying by the literal <code>100.0</code> &mdash; not <code>100</code> &mdash; is the detail that makes the result a real percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>course_id</th><th>semester</th><th>pass_rate_pct</th></tr></thead>
+  <tbody>
+    <tr><td>CS101</td><td>Fall2024</td><td>66.666666666666...</td></tr>
+    <tr><td>CS101</td><td>Spring2025</td><td>50.000000000000...</td></tr>
+    <tr><td>MATH200</td><td>Fall2024</td><td>100.000000000000...</td></tr>
+  </tbody>
+</table>
+<p>CS101/Fall2024: 2 of 3 passed &rarr; 66.67%. CS101/Spring2025: student 4 (50) passes, student 5 (49) fails &rarr; exactly 50%. MATH200: all three pass &rarr; 100%. The raw value carries a long decimal tail &mdash; a dashboard would wrap it in <code>ROUND(&hellip;, 2)</code>, but the un-rounded number proves the division happened in floating point, not integer.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The integer-division trap &mdash; the one that fails the question</h5>
+<p>The single most common wrong answer drops the <code>.0</code>:</p>
+<pre><code>-- WRONG: every rate floors to 0
+100 * SUM(CASE WHEN grade &gt;= 50 THEN 1 ELSE 0 END) / COUNT(student_id)</code></pre>
+<p>With integer operands, <code>2 / 3</code> evaluates to <code>0</code> before the <code>* 100</code> can help &mdash; so CS101/Fall2024 reports <strong>0%</strong>. The fix is to force one operand to be non-integer: the literal <code>100.0</code>, or <code>SUM(...)::numeric</code>, or <code>CAST(... AS FLOAT)</code>. The reference solution does this correctly with <code>100.0</code>. Always make the numerator floating-point <em>before</em> the division operator, never after.</p>
+
+<h5><code>SUM(CASE)</code> vs <code>COUNT(CASE)</code> vs <code>FILTER</code></h5>
+<p>Three equivalent ways to count the passes &mdash; know all three:</p>
+<pre><code>SUM(CASE WHEN grade &gt;= 50 THEN 1 ELSE 0 END)   -- portable, every dialect
+COUNT(CASE WHEN grade &gt;= 50 THEN 1 END)         -- COUNT ignores the NULL else-branch
+COUNT(*) FILTER (WHERE grade &gt;= 50)             -- Postgres / standard SQL, cleanest</code></pre>
+<p>The trap in the middle form: <code>COUNT(CASE WHEN ... THEN 1 ELSE 0 END)</code> counts <em>every</em> row, because <code>COUNT</code> counts the literal <code>0</code> too &mdash; you must omit the <code>ELSE</code> so non-passes become NULL and are skipped. <code>SUM</code> with <code>ELSE 0</code> is safe; <code>COUNT</code> with <code>ELSE 0</code> is a silent bug.</p>
+
+<h5>NULL grades &mdash; numerator and denominator disagree</h5>
+<p>If a student is enrolled but ungraded, <code>grade</code> is NULL. <code>CASE WHEN grade &gt;= 50</code> is unknown, so the <code>ELSE 0</code> branch fires &mdash; the NULL-grade student counts as a <em>fail</em>. Meanwhile <code>COUNT(student_id)</code> still counts them in the denominator. Is an ungraded student a fail, or should they be excluded? Decide explicitly:</p>
+<pre><code>-- exclude ungraded students from both numerator and denominator
+100.0 * COUNT(*) FILTER (WHERE grade &gt;= 50)
+      / COUNT(*) FILTER (WHERE grade IS NOT NULL) AS pass_rate_pct</code></pre>
+<p>Using <code>COUNT(grade)</code> as the denominator achieves the same thing &mdash; it counts only non-NULL grades.</p>
+
+<h5>The pass threshold is a business rule, not a guess</h5>
+<p>The solution hard-codes <code>grade &gt;= 50</code>. Is the pass mark 50, or 40, or does it vary by course? And is exactly-50 a pass (<code>&gt;= 50</code>) or a fail (<code>&gt; 50</code>)? Student 4 sits precisely on that line. Confirm the rule before writing SQL &mdash; an off-by-one in the comparison flips a real student's outcome and the whole course's headline number.</p>
+
+<h5>Empty groups and division by zero</h5>
+<p>A course/semester with zero enrolled students cannot appear here &mdash; <code>GROUP BY</code> only produces groups that have rows. But if the denominator were filtered (e.g. <code>COUNT(grade)</code> and every grade in a group is NULL), it becomes 0 and the division errors. Guard it with <code>NULLIF(COUNT(grade), 0)</code> so the rate returns NULL instead of throwing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> force floating-point division with <code>100.0</code> (or a cast) so rates do not floor to zero, prefer <code>COUNT(*) FILTER</code> or <code>SUM(CASE)</code> while knowing <code>COUNT(CASE ... ELSE 0)</code> is a trap, decide deliberately whether a NULL grade is a fail or an exclusion, and confirm the pass threshold and its boundary rather than hard-coding a guess.</div>

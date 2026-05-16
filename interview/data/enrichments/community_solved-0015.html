@@ -1,0 +1,73 @@
+<p>A Community-sourced Yelp question: surface the five states with the most 5-star businesses for a "best places to start a business" map. It reads like a trivial <code>GROUP BY</code> with a <code>LIMIT 5</code> &mdash; but the schema column <code>stars</code> is a per-business average, the headline word is "top 5", and what happens when the sixth state ties the fifth is exactly the thing an interviewer is probing.</p>
+
+<h4>1. The source data &mdash; <code>yelp_business</code></h4>
+<table>
+  <thead><tr><th>business_id</th><th>state</th><th>stars</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>CA</td><td>5</td></tr>
+    <tr><td>3</td><td>CA</td><td>4</td></tr>
+    <tr><td>4</td><td>TX</td><td>5</td></tr>
+    <tr><td>6</td><td>NY</td><td>5</td></tr>
+    <tr><td>8</td><td>AZ</td><td>5</td></tr>
+    <tr><td>14</td><td>NV</td><td>5</td></tr>
+    <tr><td>15</td><td>NV</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>CA has a 4-star business that must <em>not</em> be counted; NV has a 2-star one likewise. The interesting part is the long tail: six states each end up with exactly <strong>one</strong> 5-star business, all tied for fifth place.</p>
+
+<h4>2. The SQL &mdash; <code>RANK then filter rnk &le; 5</code></h4>
+<pre><code>WITH t1 AS (
+    SELECT state, COUNT(DISTINCT business_id) AS n_businesses
+    FROM yelp_business
+    WHERE stars = 5
+    GROUP BY state
+),
+t2 AS (
+    SELECT state, n_businesses, RANK() OVER (ORDER BY n_businesses DESC) AS rnk FROM t1
+)
+SELECT state, n_businesses
+FROM t2
+WHERE rnk &lt;= 5
+ORDER BY rnk ASC, state ASC;</code></pre>
+<p>The <code>WHERE stars = 5</code> filter runs <em>before</em> the aggregate, so only 5-star rows are counted. <code>RANK()</code> then orders states by count, and the outer filter keeps everything ranked 5 or better.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>state</th><th>n_businesses</th></tr></thead>
+  <tbody>
+    <tr><td>CA</td><td>3</td></tr>
+    <tr><td>TX</td><td>3</td></tr>
+    <tr><td>AZ</td><td>1</td></tr>
+    <tr><td>FL</td><td>1</td></tr>
+    <tr><td>NV</td><td>1</td></tr>
+    <tr><td>NY</td><td>1</td></tr>
+    <tr><td>OR</td><td>1</td></tr>
+    <tr><td>WA</td><td>1</td></tr>
+  </tbody>
+</table>
+<p><strong>Eight rows, not five.</strong> CA and TX tie at rank 1; <code>RANK()</code> skips rank 2 and the next group lands at rank 3. Six states sit at count 1, <em>all</em> sharing rank 3 &mdash; and 3 &le; 5, so every one of them survives the filter. "Top 5" by rank can return far more than five rows. That is a feature, not a bug, but you must say so.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>RANK</code> &le; 5 is the defensible reading of "top 5"</h5>
+<p>If three states are tied for first, picking an arbitrary five and dropping the rest is indefensible &mdash; the cut would be decided by physical row order, not data. <code>RANK() &lt;= 5</code> keeps every state that is genuinely in the top five <em>positions</em>, ties included. The cost is an unbounded row count when the tail is flat, exactly as we see here. State the trade out loud: "ties are kept, so the result can exceed five rows &mdash; is that acceptable, or do you want a hard five?"</p>
+
+<h5>The <code>LIMIT 5</code> alternative &mdash; and why it is tie-blind</h5>
+<pre><code>SELECT state, COUNT(DISTINCT business_id) AS n_businesses
+FROM yelp_business
+WHERE stars = 5
+GROUP BY state
+ORDER BY n_businesses DESC, state ASC
+LIMIT 5;</code></pre>
+<p>This returns exactly five rows &mdash; CA, TX, then three of the six tied states chosen by the <code>state ASC</code> tiebreak (AZ, FL, NV). It is deterministic <em>only</em> because of that secondary sort key; without it the planner is free to pick any three. <code>LIMIT</code> answers "give me five rows"; <code>RANK</code> answers "give me the top five tiers". Different questions &mdash; confirm which the map needs.</p>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> here</h5>
+<p>With <code>DENSE_RANK()</code> the tiers would be 1, 1, 2 instead of 1, 1, 3 &mdash; the six count-1 states would rank 2, still inside the &le; 5 cut, so the result is identical for <em>this</em> data. They diverge only when enough distinct count values stack up between rank 1 and the cutoff. <code>RANK</code> matches "competition" placement (Olympic medals); <code>DENSE_RANK</code> matches "how many tiers down am I". Know which the stakeholder means.</p>
+
+<h5>Why <code>COUNT(DISTINCT business_id)</code> and not <code>COUNT(*)</code></h5>
+<p>The schema hints at messy joins (<code>t1</code>, <code>t2</code>, <code>businesses</code> columns). If <code>yelp_business</code> were ever a join result with one row per review, <code>COUNT(*)</code> would count reviews and inflate every state. <code>COUNT(DISTINCT business_id)</code> is defensive: it counts businesses no matter how the row grain drifts. On a clean one-row-per-business table the two agree, but the distinct version costs nothing in correctness and buys robustness.</p>
+
+<h5>The NULL-state edge case</h5>
+<p>If <code>state</code> is NULL for some businesses, <code>GROUP BY state</code> collapses them into a single NULL group that can itself rank in the top five &mdash; a meaningless "state". Decide deliberately: <code>WHERE state IS NOT NULL</code> to drop it, or surface it as a data-quality flag. Silence here is the junior tell.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>RANK() &lt;= 5</code> can return more than five rows when the tail ties, name that trade against a tie-blind <code>LIMIT 5</code>, justify <code>COUNT(DISTINCT business_id)</code> as grain-defensive, and flag the NULL-state group before it sneaks into the leaderboard.</div>

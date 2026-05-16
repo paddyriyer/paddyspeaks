@@ -1,0 +1,72 @@
+<p>A Community member models a cinema seat map: each seat has a status of occupied or empty, and the task is to find <em>runs</em> of consecutive occupied seats &mdash; and how many seats each run contains. A run of one does not count. This is gaps-and-islands again, and the interviewer wants the row-number trick plus a clear eye on the "more than one" boundary.</p>
+
+<h4>1. The source data &mdash; <code>cinema_tbl</code></h4>
+<table>
+  <thead><tr><th>seat_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td></tr>
+    <tr><td>2</td><td>0</td></tr>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>4</td><td>1</td></tr>
+    <tr><td>5</td><td>1</td></tr>
+    <tr><td>6</td><td>0</td></tr>
+    <tr><td>7</td><td>1</td></tr>
+    <tr><td>8</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Seat 1 is occupied but <strong>isolated</strong> (seat 2 is empty) &mdash; a run of length 1. Seats 3&ndash;5 form a run of three; seats 7&ndash;8 a run of two. The interview hinges on the lone seat 1 being correctly <em>excluded</em>, and the two genuine runs surviving.</p>
+
+<h4>2. The SQL &mdash; <code>row-number difference, then size filter</code></h4>
+<pre><code>WITH t1 AS (
+  SELECT seat_id, status,
+         ROW_NUMBER() OVER (ORDER BY seat_id ASC) AS nw_id,
+         (seat_id - ROW_NUMBER() OVER (ORDER BY seat_id ASC)) AS flg
+  FROM cinema_tbl
+  WHERE status::text = '1'
+), t2 AS (
+  SELECT *, SUM(1) OVER (PARTITION BY flg) AS seat_count
+  FROM t1
+)
+SELECT seat_id, status, nw_id, flg, seat_count
+FROM t2
+WHERE seat_count &gt; 1;</code></pre>
+<p>Filter to occupied seats, then subtract a dense row number from <code>seat_id</code>: that difference <code>flg</code> stays constant only while seat ids are contiguous. <code>SUM(1) OVER (PARTITION BY flg)</code> counts each run's size, and the final <code>WHERE seat_count &gt; 1</code> drops isolated seats.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>seat_id</th><th>status</th><th>nw_id</th><th>flg</th><th>seat_count</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>1</td><td>2</td><td>1</td><td>3</td></tr>
+    <tr><td>4</td><td>1</td><td>3</td><td>1</td><td>3</td></tr>
+    <tr><td>5</td><td>1</td><td>4</td><td>1</td><td>3</td></tr>
+    <tr><td>7</td><td>1</td><td>5</td><td>2</td><td>2</td></tr>
+    <tr><td>8</td><td>1</td><td>6</td><td>2</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Seat 1 is gone &mdash; its run had <code>seat_count = 1</code>, filtered out. Seats 3&ndash;5 all share <code>flg = 1</code> and report <code>seat_count = 3</code>; seats 7&ndash;8 share <code>flg = 2</code> with <code>seat_count = 2</code>. The result lists every seat that belongs to a run of two or more.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the row-number difference isolates runs</h5>
+<p>After filtering to occupied seats only, walk their ids: 1, 3, 4, 5, 7, 8. The dense row number is 1, 2, 3, 4, 5, 6. Subtract: <code>0, 1, 1, 1, 2, 2</code>. Within a contiguous block both counters step by exactly 1, so the difference is flat; the moment an empty seat creates a gap, <code>seat_id</code> jumps but the row number does not, and the difference increments. That constant <code>flg</code> is the run identifier &mdash; the canonical gaps-and-islands trick.</p>
+
+<h5>The filter-before-numbering subtlety</h5>
+<p>The <code>ROW_NUMBER</code> is computed <em>after</em> <code>WHERE status = '1'</code> &mdash; it numbers only occupied seats, 1..6. That is exactly what makes the difference work: empty seats must not consume row numbers, or the gaps would not register. If you numbered all seats first and filtered later, <code>flg</code> would be constant everywhere and every occupied seat would look like one giant run. Order of operations is the bug-or-not here.</p>
+
+<h5>The <code>seat_count &gt; 1</code> boundary &mdash; runs vs the lone seat</h5>
+<p>"Consecutive" implies at least two adjacent seats; a single occupied seat between two empties is not a run. <code>WHERE seat_count &gt; 1</code> encodes that. Confirm the definition with the interviewer though &mdash; some phrasings of this problem want <em>all</em> occupied seats with their run length annotated, lone seats included as runs of 1. The threshold is a one-character change (<code>&gt; 1</code> vs <code>&gt;= 1</code>); getting the definition right matters more than the SQL.</p>
+
+<h5>The output shape question &mdash; per-seat vs per-run</h5>
+<p>This query returns one row <em>per seat</em>. Often the consumer wants one row <em>per run</em> &mdash; start seat, end seat, length:</p>
+<pre><code>SELECT MIN(seat_id) AS run_start,
+       MAX(seat_id) AS run_end,
+       COUNT(*)     AS run_length
+FROM t1
+GROUP BY flg
+HAVING COUNT(*) &gt; 1;</code></pre>
+<p>Same <code>flg</code> grouping, collapsed with <code>GROUP BY</code> and a <code>HAVING</code> filter. Knowing both the detail and the summarised shape &mdash; and asking which one is wanted &mdash; is the senior move.</p>
+
+<h5>The status type and the gap-vs-row assumption</h5>
+<p>The solution writes <code>status::text = '1'</code> &mdash; a defensive cast, because <code>status</code> might be stored as text, integer, or boolean depending on the source. Pin the actual type and compare cleanly (<code>status = 1</code> or <code>status IS TRUE</code>). Also note "consecutive" here means consecutive <code>seat_id</code> values: this assumes seat ids are a dense integer sequence with no legitimate gaps. If seat ids skip numbers for non-seat reasons (an aisle), the difference trick would wrongly split a run &mdash; use <code>ROW_NUMBER</code> over the physical seat order instead of raw <code>seat_id</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify the seat-id-minus-row-number difference as the gaps-and-islands island key, understand that the <code>ROW_NUMBER</code> must be computed <em>after</em> filtering to occupied seats, treat <code>seat_count &gt; 1</code> as a definition to confirm (run vs lone seat), and offer the per-run summarised shape as the likely real deliverable.</div>

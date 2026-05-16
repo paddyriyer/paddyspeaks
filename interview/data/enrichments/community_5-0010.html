@@ -1,0 +1,84 @@
+<p>A Community school keeps grades in a wide table &mdash; one column per subject. The analytics team needs the long shape: one row per student-per-subject, so the data can be filtered, grouped, and charted generically. This is an unpivot. The interviewer is watching whether you reach for <code>UNION ALL</code>, why it scales the way it does, and how the column labels stay correct.</p>
+
+<h4>1. The source data &mdash; <code>student_grades</code></h4>
+<table>
+  <thead><tr><th>student_id</th><th>student_name</th><th>math</th><th>science</th><th>english</th><th>history</th></tr></thead>
+  <tbody>
+    <tr><td>501</td><td>Aarav Krishnan</td><td>78</td><td>92</td><td>85</td><td>70</td></tr>
+    <tr><td>502</td><td>Bianca Rossi</td><td>88</td><td>75</td><td>91</td><td>84</td></tr>
+    <tr><td>503</td><td>Chen Wei</td><td>95</td><td>98</td><td>80</td><td>88</td></tr>
+    <tr><td>504</td><td>Daria Petrova</td><td>62</td><td>70</td><td>73</td><td>65</td></tr>
+  </tbody>
+</table>
+<p>Four students, four subject columns each. The wide layout is hostile to analysis: "average grade across all subjects" needs <code>(math + science + english + history)/4</code>, and adding a fifth subject means rewriting every query. The long shape fixes that. Note all 16 cells are populated &mdash; a real dataset would have NULLs (a subject not taken), and those are the edge case to think about.</p>
+
+<h4>2. The SQL &mdash; <code>UNION ALL per subject</code></h4>
+<pre><code>SELECT student_id, student_name, 'math'    AS subject, math    AS grade FROM student_grades
+UNION ALL
+SELECT student_id, student_name, 'science', science FROM student_grades
+UNION ALL
+SELECT student_id, student_name, 'english', english FROM student_grades
+UNION ALL
+SELECT student_id, student_name, 'history', history FROM student_grades
+ORDER BY student_id, subject;</code></pre>
+<p>One <code>SELECT</code> per subject column. Each branch hard-codes the subject name as a string literal and projects that subject's column under the common alias <code>grade</code>. <code>UNION ALL</code> stacks the four branches; the final <code>ORDER BY</code> gives a stable, readable order.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>student_id</th><th>student_name</th><th>subject</th><th>grade</th></tr></thead>
+  <tbody>
+    <tr><td>501</td><td>Aarav Krishnan</td><td>english</td><td>85</td></tr>
+    <tr><td>501</td><td>Aarav Krishnan</td><td>history</td><td>70</td></tr>
+    <tr><td>501</td><td>Aarav Krishnan</td><td>math</td><td>78</td></tr>
+    <tr><td>501</td><td>Aarav Krishnan</td><td>science</td><td>92</td></tr>
+    <tr><td>502</td><td>Bianca Rossi</td><td>english</td><td>91</td></tr>
+    <tr><td>502</td><td>Bianca Rossi</td><td>history</td><td>84</td></tr>
+    <tr><td>502</td><td>Bianca Rossi</td><td>math</td><td>88</td></tr>
+    <tr><td>502</td><td>Bianca Rossi</td><td>science</td><td>75</td></tr>
+    <tr><td>503</td><td>Chen Wei</td><td>english</td><td>80</td></tr>
+    <tr><td>503</td><td>Chen Wei</td><td>history</td><td>88</td></tr>
+    <tr><td>503</td><td>Chen Wei</td><td>math</td><td>95</td></tr>
+    <tr><td>503</td><td>Chen Wei</td><td>science</td><td>98</td></tr>
+    <tr><td>504</td><td>Daria Petrova</td><td>english</td><td>73</td></tr>
+    <tr><td>504</td><td>Daria Petrova</td><td>history</td><td>65</td></tr>
+    <tr><td>504</td><td>Daria Petrova</td><td>math</td><td>62</td></tr>
+    <tr><td>504</td><td>Daria Petrova</td><td>science</td><td>70</td></tr>
+  </tbody>
+</table>
+<p>Four students &times; four subjects = <strong>16 rows</strong> &mdash; the wide table's 4 rows &times; 4 grade columns, fully unfolded. <code>subject</code> sorts alphabetically (english, history, math, science) within each student because of <code>ORDER BY student_id, subject</code>. Now <code>GROUP BY subject</code> or <code>WHERE subject = 'math'</code> works trivially.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNION ALL</code>, never <code>UNION</code></h5>
+<p>This is the single most important detail. <code>UNION</code> deduplicates its result &mdash; it sorts or hashes every row to discard duplicates. If two students happened to score the same grade in the same subject (e.g. two 70s in history), plain <code>UNION</code> would <strong>silently collapse them into one row</strong>, losing a student. <code>UNION ALL</code> keeps every row unconditionally, which is what unpivot requires &mdash; and it skips the dedup pass, so it is also faster. For unpivot the answer is always <code>UNION ALL</code>.</p>
+
+<h5>The cost: one table scan per subject</h5>
+<p>Each <code>UNION ALL</code> branch is an independent <code>SELECT FROM student_grades</code> &mdash; four branches means the table is scanned four times. For four subjects on a small table that is fine. For a wide table with 40 columns it is 40 scans, and the pattern gets clumsy. The single-scan alternative is a <code>CROSS JOIN</code> against an inline list of subjects:</p>
+<pre><code>WITH subjects(subject) AS (
+  VALUES ('math'), ('science'), ('english'), ('history')
+)
+SELECT g.student_id, g.student_name, s.subject,
+       CASE s.subject
+         WHEN 'math'    THEN g.math
+         WHEN 'science' THEN g.science
+         WHEN 'english' THEN g.english
+         WHEN 'history' THEN g.history
+       END AS grade
+FROM student_grades g CROSS JOIN subjects s
+ORDER BY g.student_id, s.subject;</code></pre>
+<p>The <code>CROSS JOIN</code> reads <code>student_grades</code> once and multiplies each row by the four-row subjects list; the <code>CASE</code> picks the right column. Same 16-row result, one scan &mdash; the better choice when subject count grows.</p>
+
+<h5>NULL grades survive &mdash; usually what you want</h5>
+<p>If a student never took history, that cell is NULL. Both the <code>UNION ALL</code> and <code>CROSS JOIN</code> forms still emit a row for them &mdash; <code>(504, 'Daria', 'history', NULL)</code>. That is normally correct: the long table records that the subject <em>exists</em> for that student even if ungraded. If the consumer instead wants only graded subjects, add <code>WHERE grade IS NOT NULL</code> as an outer filter. Decide on purpose; do not let it be accidental.</p>
+
+<h5>The dialect <code>UNPIVOT</code> operator</h5>
+<p>SQL Server and Oracle have a dedicated <code>UNPIVOT</code> clause:</p>
+<pre><code>SELECT student_id, student_name, subject, grade
+FROM student_grades
+UNPIVOT (grade FOR subject IN (math, science, english, history)) AS u;</code></pre>
+<p>Cleaner to write, but two caveats: it is not portable (no <code>UNPIVOT</code> in Postgres, MySQL, or SQLite), and standard <code>UNPIVOT</code> <em>drops</em> NULL-grade rows by default &mdash; the opposite of the <code>UNION ALL</code> behaviour. Postgres's idiomatic equivalent is <code>LATERAL (VALUES ...)</code> or <code>jsonb_each</code>. Know the operator exists; default to <code>UNION ALL</code> in an interview for portability.</p>
+
+<h5>Type compatibility across branches</h5>
+<p><code>UNION ALL</code> matches columns by position and requires compatible types per column. All four grade columns are <code>INTEGER</code>, so <code>grade</code> is clean. If one subject column were <code>NUMERIC</code> and another <code>INTEGER</code>, the union would promote to the wider type &mdash; usually harmless, but if one were text the union would fail or coerce unexpectedly. Keep the unpivoted columns type-aligned, and cast explicitly if they are not.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> always use <code>UNION ALL</code> (never <code>UNION</code>, which silently dedupes away real rows), know the single-scan <code>CROSS JOIN</code>-against-a-values-list alternative for wide tables, decide deliberately whether NULL-grade rows stay or go, and recognise <code>UNPIVOT</code> as non-portable sugar that drops NULLs by default.</div>

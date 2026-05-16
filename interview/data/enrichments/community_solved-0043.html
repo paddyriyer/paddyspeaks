@@ -1,0 +1,70 @@
+<p>A Community member poses a deceptively small puzzle: print all 26 letters of the English alphabet, A through Z, using only SQL &mdash; no source table at all. It is a classic recursive-CTE warm-up, and the interviewer uses it to see whether you can <em>generate</em> rows from nothing and, just as importantly, whether you place a termination condition that actually fires.</p>
+
+<h4>1. The source data &mdash; <code>(none)</code></h4>
+<table>
+  <thead><tr><th>concept</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>ASCII of 'A'</td><td>65</td></tr>
+    <tr><td>ASCII of 'Z'</td><td>90</td></tr>
+    <tr><td>letters to emit</td><td>90 &minus; 65 + 1 = 26</td></tr>
+    <tr><td>recursion step</td><td>next letter = char(ascii(letter) + 1)</td></tr>
+  </tbody>
+</table>
+<p>There is no table to query &mdash; the rows are <em>manufactured</em>. The whole problem is a number line from 65 to 90, walked one ASCII code at a time and rendered back into characters. The interesting edge is the stopping point: the recursion must halt exactly at <code>'Z'</code>, not one past it.</p>
+
+<h4>2. The SQL &mdash; <code>recursive CTE over ASCII codes</code></h4>
+<pre><code>WITH alphabet AS (
+  SELECT char(ascii('A')) AS letter
+  UNION ALL
+  SELECT char(ascii(letter) + 1) AS letter
+  FROM alphabet
+  WHERE letter &lt;&gt; 'Z'
+)
+SELECT * FROM alphabet;</code></pre>
+<p>The anchor seeds <code>'A'</code>. The recursive member takes the last letter, advances its ASCII code by one, converts back to a character, and the <code>WHERE letter &lt;&gt; 'Z'</code> guard stops the walk once <code>'Z'</code> has been produced.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>letter</th></tr></thead>
+  <tbody>
+    <tr><td>A</td></tr>
+    <tr><td>B</td></tr>
+    <tr><td>C</td></tr>
+    <tr><td>&hellip; (D through W) &hellip;</td></tr>
+    <tr><td>X</td></tr>
+    <tr><td>Y</td></tr>
+    <tr><td>Z</td></tr>
+  </tbody>
+</table>
+<p>26 rows, A through Z in order. The guard <code>WHERE letter &lt;&gt; 'Z'</code> is checked on each <em>input</em> row before the next is produced: once the row holding <code>'Z'</code> is fed in, the predicate is false and no 91st character (<code>'['</code>) is generated. <code>'Z'</code> itself is emitted because it was produced from <code>'Y'</code>, whose predicate was still true.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The dialect note &mdash; <code>char()</code> is not Postgres</h5>
+<p>The reference uses <code>char()</code>, which is the SQL Server / MySQL name for "ASCII code to character". Postgres spells it <code>chr()</code>, and standard SQL needs the <code>RECURSIVE</code> keyword:</p>
+<pre><code>WITH RECURSIVE alphabet AS (
+  SELECT chr(ascii('A')) AS letter
+  UNION ALL
+  SELECT chr(ascii(letter) + 1)
+  FROM alphabet WHERE letter &lt;&gt; 'Z'
+)
+SELECT * FROM alphabet;</code></pre>
+<p>The logic is identical; only <code>char</code>&rarr;<code>chr</code> and the <code>RECURSIVE</code> marker differ. Calling out that the function name is dialect-specific &mdash; rather than assuming one engine &mdash; is the senior tell.</p>
+
+<h5>The infinite-recursion trap</h5>
+<p>The termination predicate is the entire risk. <code>WHERE letter &lt;&gt; 'Z'</code> works because the sequence lands <em>exactly</em> on <code>'Z'</code>. But guard on the wrong condition &mdash; say <code>WHERE letter &lt; 'Z'</code> when you meant to include Z, or omit the <code>WHERE</code> entirely &mdash; and the CTE walks past <code>'Z'</code> forever, hitting the engine's recursion-depth cap (Postgres errors; SQL Server stops at 100 by default). Always prove the guard is reached by an exact value, not approached.</p>
+
+<h5>The set-based alternative &mdash; <code>generate_series</code></h5>
+<p>Recursion is the textbook answer, but a sequence generator is shorter and clearer where the engine has one:</p>
+<pre><code>-- Postgres
+SELECT chr(g) AS letter
+FROM generate_series(ascii('A'), ascii('Z')) AS g;</code></pre>
+<p>One declarative line, no anchor, no termination predicate to get wrong. SQL Server reaches the same goal via <code>master..spt_values</code> or a numbers table. Recursion is great practice; for "generate N rows" a series function is usually the production choice.</p>
+
+<h5>Case, collation, and the "next character" assumption</h5>
+<p><code>ascii(letter) + 1</code> assumes A&ndash;Z are 26 <em>contiguous</em> code points &mdash; true for ASCII and UTF-8. It is not portable to arbitrary alphabets: in Unicode, accented or non-Latin letters are not one step apart. Also, <code>'Z'</code> (90) and <code>'z'</code> (122) are different code points; this query emits uppercase only. For lowercase, seed <code>'a'</code> and stop at <code>'z'</code>. And beware case-insensitive collations &mdash; under one, <code>'Z' &lt;&gt; 'z'</code> could behave unexpectedly in the guard.</p>
+
+<h5>Why this pattern matters beyond the toy</h5>
+<p>"Generate a contiguous sequence" is the backbone of real work: a date spine to fill calendar gaps, an integer range to left-join against for missing-row detection, buckets for a histogram. The alphabet is just the friendliest instance &mdash; master the recursive-CTE / <code>generate_series</code> pair here and the date-gap problems become routine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> generate rows from nothing with a recursive CTE whose termination predicate lands on an exact value (never an open inequality that risks infinite recursion), note that <code>char</code> vs <code>chr</code> is dialect-specific, and recognise that <code>generate_series</code> is the cleaner production tool for any contiguous sequence.</div>

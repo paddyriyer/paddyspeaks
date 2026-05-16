@@ -1,0 +1,68 @@
+<p>A delivery team at a Community open-source project logs every task as a calendar day of work. The PM wants the project timeline reconstructed: which stretches of days were worked back-to-back, and how long each stretch lasted. The data has no "project" column &mdash; a project <em>is</em> a maximal run of consecutive dates. The interviewer is checking whether you reach for gaps-and-islands instead of trying to write a recursive crawl.</p>
+
+<h4>1. The source data &mdash; <code>tasks</code></h4>
+<table>
+  <thead><tr><th>task_id</th><th>start_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>2024-01-02</td></tr>
+    <tr><td>3</td><td>2024-01-03</td></tr>
+    <tr><td>4</td><td>2024-01-05</td></tr>
+    <tr><td>5</td><td>2024-01-06</td></tr>
+    <tr><td>6</td><td>2024-01-09</td></tr>
+  </tbody>
+</table>
+<p>There are <strong>two gaps</strong>: Jan 3 to Jan 5 (Jan 4 missing) and Jan 6 to Jan 9. That splits the six rows into three islands &mdash; a 3-day run, a 2-day run, and a lone single day. The single day is the edge case: a "project" of one task still has duration 1.</p>
+
+<h4>2. The SQL &mdash; <code>date &minus; row_number</code> islands</h4>
+<pre><code>WITH numbered AS (
+    SELECT start_date,
+           ROW_NUMBER() OVER (ORDER BY start_date) AS rn
+    FROM tasks
+),
+islands AS (
+    SELECT start_date,
+           start_date - (rn || ' days')::INTERVAL AS island_key
+    FROM numbered
+)
+SELECT MIN(start_date)::DATE                      AS project_start,
+       MAX(start_date)::DATE                      AS project_end,
+       (MAX(start_date) - MIN(start_date) + 1)    AS duration_days
+FROM islands
+GROUP BY island_key
+ORDER BY duration_days ASC, project_start ASC;</code></pre>
+<p>Number the rows in date order. Within a consecutive run both the date and <code>rn</code> increment by exactly 1, so <code>date &minus; rn</code> stays <em>constant</em>. The moment a gap appears, the date jumps but <code>rn</code> does not &mdash; the difference shifts. That constant is the island key.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>project_start</th><th>project_end</th><th>duration_days</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-09</td><td>2024-01-09</td><td>1</td></tr>
+    <tr><td>2024-01-05</td><td>2024-01-06</td><td>2</td></tr>
+    <tr><td>2024-01-01</td><td>2024-01-03</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Three projects, sorted shortest-first as the <code>ORDER BY</code> asks. Notice the lone Jan 9 task: <code>MIN</code> and <code>MAX</code> are the same date, and <code>MAX &minus; MIN + 1 = 1</code> &mdash; the <code>+ 1</code> is what makes a one-day project read as duration 1 rather than 0.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why subtract <code>row_number</code> at all?</h5>
+<p>The whole trick is that two monotonic sequences advancing at the same rate have a constant difference. Dates in a run go 1, 2, 3; <code>rn</code> goes 1, 2, 3; the difference is flat. Across a gap the date sequence skips a value while <code>rn</code> does not, so the difference steps up by the size of the gap. Grouping on that difference collapses each run into one row &mdash; no recursion, no self-join, one sort.</p>
+
+<h5>Integer dates make this cleaner</h5>
+<p>Postgres lets you subtract an <code>INTERVAL</code> from a date, which is why the solution builds <code>(rn || ' days')::INTERVAL</code>. A tidier idiom many engineers prefer is to anchor against day-zero arithmetic directly:</p>
+<pre><code>SELECT start_date,
+       start_date - rn * INTERVAL '1 day' AS island_key
+FROM numbered;</code></pre>
+<p>Same result. If <code>start_date</code> were an integer surrogate instead of a real date, it collapses to the textbook one-liner <code>start_date - rn</code>.</p>
+
+<h5>The trap: duplicate dates</h5>
+<p>This pattern assumes each date appears at most once. If two tasks share <code>2024-01-02</code>, <code>ROW_NUMBER</code> gives them <em>different</em> <code>rn</code> values, so their <code>date &minus; rn</code> differs and the run is wrongly split. If duplicates are possible, dedupe first (<code>SELECT DISTINCT start_date</code>) or rank with <code>DENSE_RANK()</code> over distinct dates so tied dates collapse to one ordinal.</p>
+
+<h5>HackerRank's two-column variant</h5>
+<p>The classic HackerRank "Project Planning" question ships <code>Start_Date</code> and <code>End_Date</code> where each task spans exactly one day (<code>End = Start + 1</code>). There the island key is <code>Start_Date &minus; rn</code> over start dates, and you report <code>MIN(Start_Date)</code> and <code>MAX(End_Date)</code>. The single-date framing here is the same problem with the redundant end column dropped &mdash; recognising the equivalence is the senior move.</p>
+
+<h5>Edge cases: one row, and all-consecutive</h5>
+<p>A single task yields one island, duration 1 &mdash; verified above. A table with no gaps at all yields exactly one island spanning everything; the <code>GROUP BY</code> still works, you just get one row. An empty table returns zero rows, which is correct &mdash; no projects.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "consecutive runs" as gaps-and-islands and reach for <code>date &minus; row_number</code> rather than recursion, explain <em>why</em> the difference is constant within a run, pre-empt the duplicate-date trap with <code>DISTINCT</code> or <code>DENSE_RANK</code>, and connect the single-date framing back to the canonical two-column HackerRank version.</div>

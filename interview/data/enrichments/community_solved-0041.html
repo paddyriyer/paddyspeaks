@@ -1,0 +1,59 @@
+<p>A Community member shares a tournament-results table where each row is a played match: two teams and the winner. The ask is to "digitize" it into a standings table &mdash; matches played, won, tied, lost &mdash; per team. The catch the interviewer wants you to find: a team appears in <em>two</em> columns, and a tied match has no winner at all.</p>
+
+<h4>1. The source data &mdash; <code>match_result</code></h4>
+<table>
+  <thead><tr><th>Team_1</th><th>Team_2</th><th>Result_won</th></tr></thead>
+  <tbody>
+    <tr><td>India</td><td>Australia</td><td>India</td></tr>
+    <tr><td>India</td><td>England</td><td>England</td></tr>
+    <tr><td>Australia</td><td>England</td><td><em>NULL</em></td></tr>
+    <tr><td>India</td><td>Australia</td><td>Australia</td></tr>
+    <tr><td>England</td><td>India</td><td>India</td></tr>
+  </tbody>
+</table>
+<p>Five matches. India plays in both <code>Team_1</code> and <code>Team_2</code> slots. The Australia&ndash;England match has a <strong>NULL</strong> <code>Result_won</code> &mdash; that is a tie, and it must be counted as a tie for <em>both</em> teams, not silently dropped.</p>
+
+<h4>2. The SQL &mdash; <code>unpivot then aggregate</code></h4>
+<pre><code>WITH t1 AS (
+  SELECT team_1 AS team, result_won AS result FROM match_result
+  UNION ALL
+  SELECT team_2 AS team, result_won AS result FROM match_result
+)
+SELECT team,
+       COUNT(1) AS match_count,
+       SUM(CASE WHEN team = result THEN 1 ELSE 0 END) AS match_won,
+       SUM(CASE WHEN result IS NULL THEN 1 ELSE 0 END) AS tied_match,
+       SUM(CASE WHEN team &lt;&gt; result THEN 1 ELSE 0 END) AS lost_match
+FROM t1
+GROUP BY team;</code></pre>
+<p>The CTE stacks the two team columns into one <code>team</code> column &mdash; each match becomes two rows, one per participant, each carrying the same <code>result</code>. Then a single <code>GROUP BY team</code> with conditional sums splits the outcomes.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>team</th><th>match_count</th><th>match_won</th><th>tied_match</th><th>lost_match</th></tr></thead>
+  <tbody>
+    <tr><td>Australia</td><td>3</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>England</td><td>3</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>India</td><td>4</td><td>2</td><td>0</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>India played 4 (no ties), won 2, lost 2 &mdash; and 2&nbsp;+&nbsp;0&nbsp;+&nbsp;2 reconciles to 4. Australia and England each played 3, and crucially each shows <strong>1 tie</strong>: the single NULL-result match was counted for both sides. Won + tied + lost equals match_count for every team &mdash; the integrity check that proves the three buckets partition the matches with no double-count and no gap.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNION ALL</code>, never <code>UNION</code></h5>
+<p>The CTE must use <code>UNION ALL</code>. Plain <code>UNION</code> de-duplicates, and that would silently collapse two genuinely distinct matches that happen to produce the same <code>(team, result)</code> pair &mdash; e.g. India winning two separate matches would become one row, and India's count would read 1 instead of 2. <code>UNION ALL</code> keeps every row; here it is correctness, not just speed.</p>
+
+<h5>The NULL trap &mdash; <code>team &lt;&gt; result</code> never matches a tie</h5>
+<p>This is the heart of the question. For the tied match, <code>result</code> is NULL. <code>team = NULL</code> is unknown, and <code>team &lt;&gt; NULL</code> is <em>also</em> unknown &mdash; neither the won bucket nor the lost bucket fires. So the tie falls only into the <code>result IS NULL</code> bucket, which is exactly right. But the logic is fragile: if you wrote <code>lost_match</code> as <code>COUNT(*) - match_won - tied_match</code> you would get the same answer, whereas <code>team &lt;&gt; result</code> only works <em>because</em> NULL comparisons are unknown. Know which one you are relying on.</p>
+
+<h5>The classic bug: forgetting ties don't satisfy <code>&lt;&gt;</code></h5>
+<p>A common wrong instinct is to define a loss as "this team did not win": <code>SUM(CASE WHEN team &lt;&gt; result THEN 1 ELSE 0 END)</code> looks like "not a win" &mdash; but a tie is also "not a win", and <code>&lt;&gt;</code> against NULL is unknown so the tie is excluded here by luck. If a junior instead writes <code>CASE WHEN team != result OR result IS NULL THEN 1 END</code> for losses, ties get miscounted as losses. The three outcomes are mutually exclusive states; model them explicitly, do not infer one by negating another.</p>
+
+<h5>A team that only ever ties</h5>
+<p>Suppose a team's matches are all NULL-result. Its row would read <code>match_count = N, won = 0, tied = N, lost = 0</code> &mdash; correct, and the reconciliation still holds. The conditional-sum pattern degrades gracefully to single-bucket teams; a <code>JOIN</code>-based approach that assumes at least one win would not.</p>
+
+<h5>Generalising the unpivot</h5>
+<p><code>UNION ALL</code> of one <code>SELECT</code> per column is the portable unpivot &mdash; it works in every engine. SQL Server and Oracle also have a dedicated <code>UNPIVOT</code> operator, and Postgres can use <code>LATERAL (VALUES ...)</code> or <code>unnest</code>. With only two team columns the <code>UNION ALL</code> is clearest; with twenty columns the operator-based forms scale better.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> insist on <code>UNION ALL</code> so distinct matches are never merged, recognise that a NULL <code>Result_won</code> is a tie that must land in its own bucket for both teams, model won/tied/lost as three explicit mutually exclusive cases, and sanity-check that they sum back to <code>match_count</code>.</div>

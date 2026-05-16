@@ -1,0 +1,69 @@
+<p>A Community health clinic wants to flag no-show risk: <em>which patients missed more than two appointments last quarter?</em> A join, a two-part filter, a grouped count, a <code>HAVING</code> threshold &mdash; routine. The interviewer is watching whether you keep the status and date filters in <code>WHERE</code> (not <code>HAVING</code>), whether your count survives an outer join, and whether you read "more than two" as strictly greater than 2.</p>
+
+<h4>1. The source data &mdash; <code>appointments</code> (joined to <code>patients</code>)</h4>
+<table>
+  <thead><tr><th>patient</th><th>missed (Aug&ndash;Oct)</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>3</td><td>3 missed in-window + 1 Attended (ignored)</td></tr>
+    <tr><td>Bob</td><td>4</td><td>4 missed, all in-window</td></tr>
+    <tr><td>Carol</td><td>2</td><td>exactly 2 &mdash; fails <code>&gt; 2</code></td></tr>
+    <tr><td>Dan</td><td>1</td><td>1 missed + 1 Attended</td></tr>
+    <tr><td>Eve</td><td>0</td><td>2 missed, but both OUTSIDE the window</td></tr>
+  </tbody>
+</table>
+<p>Carol sits exactly on the boundary at 2 missed &mdash; she is the test of "more than two" (strict <code>&gt; 2</code> drops her). Eve has two missed appointments in the raw table, but one is in July and one in November, so the Aug&ndash;Oct <code>WHERE</code> filter zeroes her count. Alice's "Attended" appointment must not be counted.</p>
+
+<h4>2. The SQL &mdash; <code>WHERE status + date, HAVING COUNT</code></h4>
+<pre><code>SELECT
+  p.patient_name,
+  COUNT(a.appointment_id) AS missed_appointments
+FROM appointments a
+LEFT JOIN patients p ON a.patient_id = p.patient_id
+WHERE a.appointment_date BETWEEN '2024-08-01' AND '2024-10-31'
+  AND a.status = 'Missed'
+GROUP BY p.patient_name
+HAVING COUNT(a.appointment_id) &gt; 2
+ORDER BY missed_appointments DESC;</code></pre>
+<p>Both per-row predicates &mdash; the quarter window and <code>status = 'Missed'</code> &mdash; sit in <code>WHERE</code>, so only relevant rows ever reach the <code>GROUP BY</code>. <code>HAVING</code> then filters the grouped counts.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>patient_name</th><th>missed_appointments</th></tr></thead>
+  <tbody>
+    <tr><td>Bob</td><td>4</td></tr>
+    <tr><td>Alice</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Only Bob and Alice clear the bar. Carol's 2 misses fail the strict <code>&gt; 2</code>. Dan never had more than one. Eve's misses are both outside the window, so she has zero in-scope rows and never forms a group at all. A patient drops out for any of three reasons: too few misses, misses outside the window, or no misses of status 'Missed'.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Status filter: <code>WHERE</code>, not <code>HAVING</code></h5>
+<p><code>status = 'Missed'</code> is a property of a single appointment row, so it belongs in <code>WHERE</code> &mdash; evaluated before grouping. A tempting wrong approach counts conditionally instead:</p>
+<pre><code>-- alternative: count only missed ones via conditional aggregation
+SELECT p.patient_name,
+       COUNT(*) FILTER (WHERE a.status = 'Missed') AS missed_appointments
+FROM appointments a
+LEFT JOIN patients p ON a.patient_id = p.patient_id
+WHERE a.appointment_date BETWEEN '2024-08-01' AND '2024-10-31'
+GROUP BY p.patient_name
+HAVING COUNT(*) FILTER (WHERE a.status = 'Missed') &gt; 2;</code></pre>
+<p>That also works and is the right shape if you need <em>several</em> per-status counts in one query (missed, attended, cancelled side by side). For this single-status question the plain <code>WHERE status = 'Missed'</code> is simpler and lets the planner shrink the scan earlier.</p>
+
+<h5>"More than two" is strictly greater than 2</h5>
+<p><code>HAVING COUNT(...) &gt; 2</code> keeps 3, 4, 5&hellip; and drops exactly-2 &mdash; that is why Carol is excluded. If the requirement were "two or more" it would be <code>&gt;= 2</code>. This is the single most common off-by-one in threshold questions: read the English precisely. "More than", "over", "exceeds" all mean strict <code>&gt;</code>; "at least" means <code>&gt;=</code>.</p>
+
+<h5>The <code>LEFT JOIN</code> direction and <code>COUNT(column)</code></h5>
+<p>The query drives from <code>appointments</code> and outer-joins <code>patients</code>. Counting <code>a.appointment_id</code> is correct &mdash; it is never NULL for a real appointment. Two subtleties worth voicing:</p>
+<ul>
+<li>Driving from <code>appointments</code> means a patient with <em>zero</em> appointments simply never appears &mdash; which is fine, because zero misses can never exceed 2 anyway.</li>
+<li>If an <code>appointment</code> row had a <code>patient_id</code> with no matching patient, the <code>LEFT JOIN</code> yields a NULL <code>patient_name</code>, and that orphan row would group under a NULL key. Counting <code>COUNT(*)</code> instead of <code>COUNT(a.appointment_id)</code> changes nothing here, but with the join reversed it would &mdash; counting the joined-from column is the safe habit.</li>
+</ul>
+
+<h5>Grouping by name vs id</h5>
+<p><code>GROUP BY p.patient_name</code> works only because names are unique in this dataset. Two different patients both named "Alice" would be silently merged into one inflated count. Production-grade SQL groups by the key and carries the label: <code>GROUP BY p.patient_id, p.patient_name</code>. Strict engines force you to list <code>patient_name</code> anyway; MySQL's loose mode is where the duplicate-name bug slips through unnoticed.</p>
+
+<h5>Edge case: the inclusive date boundary</h5>
+<p><code>BETWEEN '2024-08-01' AND '2024-10-31'</code> captures all of October only because <code>appointment_date</code> is a <code>DATE</code>. If it were a <code>TIMESTAMP</code>, an appointment at <code>2024-10-31 14:00</code> would fall <em>after</em> the literal <code>2024-10-31 00:00:00</code> and be dropped. The portable fix is the half-open range <code>&gt;= '2024-08-01' AND &lt; '2024-11-01'</code> &mdash; correct regardless of the column's time component.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> push per-row predicates (status, date) into <code>WHERE</code> so grouping sees only relevant rows, read "more than two" as strict <code>&gt; 2</code>, count the non-null joined column to stay correct under a <code>LEFT JOIN</code>, group by the patient key rather than the name, and prefer a half-open date range so a <code>TIMESTAMP</code> column cannot silently drop boundary rows.</div>

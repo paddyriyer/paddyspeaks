@@ -1,0 +1,70 @@
+<p>A Community member has a daily bank-balance log and wants to compress it: whenever the balance stays at the same amount across <em>consecutive</em> days, collapse that stretch into a single row with a start date and an end date. This is the classic "gaps and islands" problem &mdash; and the reference solution gets it subtly, dangerously wrong.</p>
+
+<h4>1. The source data &mdash; <code>bank_account</code></h4>
+<table>
+  <thead><tr><th>amount</th><th>date_stamp</th></tr></thead>
+  <tbody>
+    <tr><td>1000</td><td>2024-01-01</td></tr>
+    <tr><td>1000</td><td>2024-01-02</td></tr>
+    <tr><td>1500</td><td>2024-01-03</td></tr>
+    <tr><td>1500</td><td>2024-01-04</td></tr>
+    <tr><td>1500</td><td>2024-01-05</td></tr>
+    <tr><td>1000</td><td>2024-01-06</td></tr>
+  </tbody>
+</table>
+<p>The balance is 1000 for two days, rises to 1500 for three days, then <strong>drops back to 1000</strong>. That last row is the whole interview: the value 1000 appears in <em>two separate, non-adjacent</em> stretches. A correct answer reports three islands; a naive one merges the two 1000-runs into a single Jan-1-to-Jan-6 span that never actually happened.</p>
+
+<h4>2. The SQL &mdash; <code>gaps-and-islands by difference of row numbers</code></h4>
+<pre><code>WITH grouped AS (
+  SELECT amount, date_stamp,
+         ROW_NUMBER() OVER (ORDER BY date_stamp)
+           - ROW_NUMBER() OVER (PARTITION BY amount ORDER BY date_stamp) AS grp
+  FROM bank_account
+)
+SELECT amount,
+       MIN(date_stamp) AS bank_start_date,
+       MAX(date_stamp) AS bank_end_date
+FROM grouped
+GROUP BY amount, grp
+ORDER BY bank_start_date;</code></pre>
+<p>This is the <em>corrected</em> query. The trick: a global row number minus a per-amount row number stays constant only while rows of the same amount are contiguous. That constant, <code>grp</code>, plus the <code>amount</code>, uniquely tags each island &mdash; so grouping on both yields one row per genuine run.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>amount</th><th>bank_start_date</th><th>bank_end_date</th></tr></thead>
+  <tbody>
+    <tr><td>1000</td><td>2024-01-01</td><td>2024-01-02</td></tr>
+    <tr><td>1500</td><td>2024-01-03</td><td>2024-01-05</td></tr>
+    <tr><td>1000</td><td>2024-01-06</td><td>2024-01-06</td></tr>
+  </tbody>
+</table>
+<p><strong>Three</strong> rows &mdash; and 1000 correctly appears twice, as two distinct islands (Jan&nbsp;1&ndash;2 and the single-day Jan&nbsp;6). The 1500 run spans Jan&nbsp;3&ndash;5. A single-day island degrades gracefully: start and end are the same date.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug &mdash; the reference merges non-adjacent runs</h5>
+<p>The original solution partitions <em>only</em> by amount and takes <code>MIN</code>/<code>MAX</code> over that whole partition:</p>
+<pre><code>-- ORIGINAL (broken)
+MIN(date_stamp) OVER (PARTITION BY amount) AS bank_start_date,
+MAX(date_stamp) OVER (PARTITION BY amount) AS bank_end_date</code></pre>
+<p>For amount 1000 that partition holds Jan&nbsp;1, Jan&nbsp;2 <em>and</em> Jan&nbsp;6, so it reports the run as Jan&nbsp;1&rarr;Jan&nbsp;6 &mdash; a six-day stretch that never happened, straddling three days at 1500. The question explicitly says <em>continuous</em>; the reference's <code>flag</code> CTE column is computed and then never used, and because it is a window function with no <code>GROUP BY</code> it also emits one row per input day (six rows, duplicated). It answers "first and last time we ever saw this balance", not "contiguous runs".</p>
+
+<h5>Why the row-number difference works</h5>
+<p>Walk amount 1000: global row numbers 1, 2, 6; per-amount row numbers 1, 2, 3. The differences are <code>0, 0, 3</code> &mdash; the first two share <code>grp = 0</code>, Jan&nbsp;6 gets <code>grp = 3</code>. The instant a same-amount row is <em>not</em> adjacent, the global counter has advanced faster than the per-amount counter, so the difference jumps. <code>(amount, grp)</code> is therefore a unique island key. This is the canonical "Tabibitosan" / difference-of-row-numbers technique &mdash; worth knowing by name.</p>
+
+<h5>Date gaps vs row gaps &mdash; the deeper assumption</h5>
+<p>The row-number trick defines "consecutive" as <em>adjacent rows when sorted</em>, not adjacent <em>calendar days</em>. If the log skips Jan&nbsp;4 entirely (no row at all), Jan&nbsp;3 and Jan&nbsp;5 are still adjacent rows and would be treated as one island despite the missing day. If a true calendar gap should break a run, group on the date arithmetic instead:</p>
+<pre><code>date_stamp - (ROW_NUMBER() OVER (PARTITION BY amount
+              ORDER BY date_stamp))::int AS grp</code></pre>
+<p>Subtracting a row counter from the date itself yields a constant only across truly consecutive <em>dates</em>. Pick the variant that matches what the business means by "continuous".</p>
+
+<h5>The duplicate-date trap</h5>
+<p>If two rows share the same <code>date_stamp</code> and amount, <code>ROW_NUMBER</code> still numbers them 1 and 2 &mdash; arbitrarily &mdash; so the grouping holds, but the daily-log assumption is already violated. Confirm the grain: is it strictly one row per day, or can a day appear twice? If duplicates are possible, de-duplicate first or decide whether <code>DENSE_RANK</code> is the right counter.</p>
+
+<h5>The <code>LAG</code>-based alternative</h5>
+<p>An equivalent island detector compares each row to its predecessor and starts a new group on every change:</p>
+<pre><code>SUM(CASE WHEN amount = LAG(amount) OVER (ORDER BY date_stamp)
+         THEN 0 ELSE 1 END) OVER (ORDER BY date_stamp) AS grp</code></pre>
+<p>This flags a boundary wherever the amount differs from the prior day, then a running <code>SUM</code> turns those flags into group ids. It is often more readable than the row-number difference and generalises cleanly when "same island" depends on more than equality.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>MIN/MAX</code> partitioned by value alone collapses non-adjacent runs &mdash; the bug here &mdash; and instead tag islands with the difference-of-row-numbers (or a <code>LAG</code> change-flag); then ask whether "continuous" means adjacent rows or adjacent calendar dates, and switch the grouping expression accordingly.</div>

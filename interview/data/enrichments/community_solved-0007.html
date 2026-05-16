@@ -1,0 +1,70 @@
+<p>The same Community brief as its sibling &mdash; return brands that grew every year &mdash; but this solution takes a different route: tag each row with a 1/0 <em>flag</em> for "did this year beat the last", then keep brands that never recorded a 0. It is a cleaner encoding for one reason worth naming: a flag built on <code>amount &gt; LAG</code> is strict, so it correctly rejects flat years where the delta-sign version does not.</p>
+
+<h4>1. The source data &mdash; <code>brand_amount</code></h4>
+<table>
+  <thead><tr><th>year</th><th>brand</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>apple</td><td>100</td></tr>
+    <tr><td>2021</td><td>apple</td><td>150</td></tr>
+    <tr><td>2022</td><td>apple</td><td>180</td></tr>
+    <tr><td>2020</td><td>nike</td><td>80</td></tr>
+    <tr><td>2021</td><td>nike</td><td>60</td></tr>
+    <tr><td>2022</td><td>nike</td><td>90</td></tr>
+    <tr><td>2021</td><td>sony</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>apple rises every year; nike dips in 2021 and recovers; <strong>sony has one year only</strong> &mdash; a single-row group whose first (and only) row gets a flag from the <code>LAG</code> default.</p>
+
+<h4>2. The SQL &mdash; per-row 1/0 flag, then <code>NOT EXISTS</code> a 0</h4>
+<pre><code>WITH t1 AS (
+    SELECT *,
+           CASE WHEN amount &gt; LAG(amount, 1, 0) OVER (PARTITION BY brand ORDER BY year ASC)
+                THEN 1 ELSE 0 END AS flag
+    FROM brand_amount
+)
+SELECT * FROM brand_amount
+WHERE NOT EXISTS (
+    SELECT brand FROM t1
+    WHERE flag = 0 AND t1.brand = brand_amount.brand
+);</code></pre>
+<p><code>flag = 1</code> when the year strictly beat the prior year, else <code>0</code>. The outer query keeps a brand only if <strong>no</strong> row of that brand has <code>flag = 0</code> &mdash; i.e. every year was a strict increase.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>brand</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2022</td><td>apple</td><td>180</td></tr>
+    <tr><td>2021</td><td>apple</td><td>150</td></tr>
+    <tr><td>2020</td><td>apple</td><td>100</td></tr>
+    <tr><td>2021</td><td>sony</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>apple is returned (all three rows) and so is sony. nike is excluded: its 2021 row (60 &lt; 80) has <code>flag = 0</code>, so the <code>NOT EXISTS</code> probe matches and removes every nike row. Note the apple rows come back in <code>year</code>-descending order &mdash; the query has no <code>ORDER BY</code>, so this ordering is the planner's choice, not a guarantee.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the strict <code>&gt;</code> flag beats the delta-sign version</h5>
+<p>This solution's sibling rejects a brand on <code>amount_change &lt; 0</code> &mdash; a <em>strict decrease</em>. That tolerates a flat year (delta exactly 0 is not &lt; 0). Here the flag is <code>amount &gt; LAG(amount)</code>, also strict: a flat year (<code>amount = LAG</code>) is <em>not</em> greater, so <code>flag = 0</code>, and the brand is excluded. If "increased every year" means each year must be <em>strictly</em> higher than the last &mdash; the usual reading &mdash; this flag formulation is the more faithful one. Naming that difference between the two sibling solutions is the senior move.</p>
+
+<h5>The first-year flag &mdash; a lucky <code>LAG</code> default</h5>
+<p><code>LAG(amount, 1, 0)</code> returns <code>0</code> for each brand's debut year. Since amounts are positive, <code>amount &gt; 0</code> is true, so the first year always gets <code>flag = 1</code> &mdash; it never triggers a false rejection. That is correct here, but it is correct <em>by accident of the default</em>. If a brand could legitimately start at <code>amount = 0</code> or negative, the debut row would get <code>flag = 0</code> and the brand would be wrongly dropped even if it climbed forever after. The robust version uses <code>LAG(amount, 1)</code> with no default and treats the first row specially:</p>
+<pre><code>CASE WHEN LAG(amount) OVER w IS NULL THEN 1          -- first year: no down-move yet
+     WHEN amount &gt; LAG(amount) OVER w THEN 1
+     ELSE 0 END AS flag</code></pre>
+<p>so the first year is never the reason a brand fails.</p>
+
+<h5>Single-row groups &mdash; sony again</h5>
+<p>sony's only row gets <code>flag = 1</code> (200 &gt; default 0), so it has no <code>flag = 0</code> row and passes. A one-data-point brand "increasing every year" is vacuously true. If the business wants at least two years before a brand can qualify, guard it:</p>
+<pre><code>HAVING COUNT(*) &gt; 1</code></pre>
+<p>in a <code>GROUP BY brand</code> reformulation, or a correlated count in the outer <code>WHERE</code>.</p>
+
+<h5>The tighter rewrite &mdash; <code>GROUP BY ... HAVING MIN(flag)</code></h5>
+<p>A brand is fully increasing iff <em>every</em> flag is 1, i.e. the minimum flag is 1:</p>
+<pre><code>WITH t1 AS ( ... flag ... )
+SELECT brand FROM t1 GROUP BY brand HAVING MIN(flag) = 1;</code></pre>
+<p>This avoids the correlated <code>NOT EXISTS</code> subquery entirely &mdash; one pass, one aggregate. <code>MIN(flag) = 1</code> reads as "no zero anywhere", which is exactly the intent.</p>
+
+<h5>Output shape and ordering</h5>
+<p><code>SELECT *</code> returns every row of the qualifying brands; if only the names are wanted, <code>SELECT DISTINCT brand</code>. Either way add <code>ORDER BY brand, year</code> &mdash; the demo output above came back year-descending purely because nothing pinned the order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that an <code>amount &gt; LAG</code> flag is strict and so rejects flat years (unlike a <code>delta &lt; 0</code> test), notice the <code>LAG</code> default of 0 only saves the first year because amounts happen to be positive, and offer the <code>GROUP BY brand HAVING MIN(flag) = 1</code> rewrite as the cleanest "every year" encoding.</div>

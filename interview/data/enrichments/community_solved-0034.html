@@ -1,0 +1,72 @@
+<p>A Community retail dataset has a customer table and an order table. The ask is oddly specific: among customers who placed <em>exactly one</em> order, find the one with the highest customer id, and return that customer's full record. It is a two-step problem &mdash; filter to single-order customers, then pick the max &mdash; and the interviewer wants to see you handle the join direction and the empty-result case.</p>
+
+<h4>1. The source data &mdash; <code>customer_tab</code> and <code>order_tab</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>item</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>Pen</td></tr>
+    <tr><td>102</td><td>1</td><td>Book</td></tr>
+    <tr><td>103</td><td>2</td><td>Lamp</td></tr>
+    <tr><td>104</td><td>3</td><td>Chair</td></tr>
+    <tr><td>105</td><td>4</td><td>Desk</td></tr>
+    <tr><td>106</td><td>4</td><td>Mat</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 placed two orders and customer 4 placed two &mdash; both disqualified. Customers <strong>2 and 3 each placed exactly one</strong>. Among those single-order customers the maximum id is <strong>3</strong>. (Customer dimension: 1 Ann, 2 Bob, 3 Cara, 4 Dan.)</p>
+
+<h4>2. The SQL &mdash; <code>HAVING count = 1</code>, then <code>MAX</code></h4>
+<pre><code>with t1 as(
+select max(a.customer_id) as customer_id
+from(
+select customer_id
+from order_tab
+group by customer_id
+having count(*) = 1
+) a
+)
+select c.* from t1
+left join customer_tab c
+on t1.customer_id = c.customer_id;</code></pre>
+<p>The innermost query groups orders by customer and keeps groups of size 1 &mdash; the single-order customers. The next layer takes <code>MAX(customer_id)</code> of that set. The outer query joins that single id back to <code>customer_tab</code> to fetch the full row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>country</th><th>state</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>Cara</td><td>India</td><td>MH</td></tr>
+  </tbody>
+</table>
+<p>Single-order customers are {2, 3}; <code>MAX</code> picks 3; the join resolves 3 to Cara's full record. Customers 1 and 4 are excluded because <code>HAVING count(*) = 1</code> rejects their two-order groups. Exactly one row out &mdash; as the question demands.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>HAVING</code>, not <code>WHERE</code>, for "exactly one order"</h5>
+<p>"Placed one order" is a statement about a <em>count per group</em>, and a count only exists after <code>GROUP BY</code>. <code>WHERE</code> runs before grouping and cannot see <code>count(*)</code>. <code>HAVING count(*) = 1</code> is the correct &mdash; and only &mdash; way to express it. This is the same <code>WHERE</code>-vs-<code>HAVING</code> reflex interviewers probe repeatedly.</p>
+
+<h5>The collapse-then-join structure</h5>
+<p><code>MAX(customer_id)</code> over the single-order set guarantees the inner CTE returns exactly <em>one</em> row. That is what makes the final join safe: joining a one-row table to <code>customer_tab</code> can only yield one row. A <code>LEFT JOIN</code> and an <code>INNER JOIN</code> behave identically here &mdash; the max id provably exists in <code>customer_tab</code> if referential integrity holds. An <code>INNER JOIN</code> states that expectation more honestly.</p>
+
+<h5>A flatter equivalent</h5>
+<p>The triple nesting is heavier than the problem needs. One subquery does it:</p>
+<pre><code>SELECT c.*
+FROM customer_tab c
+WHERE c.customer_id = (
+  SELECT customer_id
+  FROM order_tab
+  GROUP BY customer_id
+  HAVING COUNT(*) = 1
+  ORDER BY customer_id DESC
+  LIMIT 1
+);</code></pre>
+<p>Same result, one level of nesting, and the intent &mdash; "the customer record whose id equals the largest single-order id" &mdash; reads straight off the page.</p>
+
+<h5>The empty-result edge case</h5>
+<p>If <em>no</em> customer placed exactly one order, the inner query returns no rows and <code>MAX(...)</code> over an empty set returns <strong>NULL</strong>. The outer <code>LEFT JOIN ... ON t1.customer_id = c.customer_id</code> then joins on <code>NULL = c.customer_id</code>, which is never true, so <code>c.*</code> comes back all-NULL &mdash; one row of NULLs rather than zero rows. If the consumer expects "no row" when there is no answer, switch the outer join to <code>INNER JOIN</code> so the NULL id matches nothing and the result is genuinely empty.</p>
+
+<h5>Customers with zero orders</h5>
+<p>"Exactly one order" deliberately excludes customers with <em>no</em> orders &mdash; they never appear in <code>order_tab</code>, so they form no group and are absent from the count. That is correct for this question. But it is worth confirming with the interviewer that zero-order customers should not count as "single order" &mdash; the wording occasionally trips people.</p>
+
+<h5>Ties are impossible here &mdash; know why</h5>
+<p><code>MAX(customer_id)</code> can only ever return one value, so unlike a "max <em>order amount</em>" question there is no tie to resolve. If the ask were instead "the customer with the most orders", ties <em>would</em> be possible and you would need <code>RANK()</code> or a "<code>= (SELECT MAX(cnt))</code>" pattern. Recognising when ties can and cannot arise saves needless defensive code.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express "exactly one order" with <code>HAVING COUNT(*) = 1</code>, flatten the nesting to a single subquery, and call out the empty-set behaviour &mdash; a <code>LEFT JOIN</code> on a NULL max id yields a row of NULLs, so use <code>INNER JOIN</code> if "no answer" should mean "no row".</div>

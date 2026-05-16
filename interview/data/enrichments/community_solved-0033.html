@@ -1,0 +1,57 @@
+<p>A Community e-commerce dataset wants the share of orders that are actually <em>shippable</em> &mdash; meaning they carry a real delivery address. It is a simple ratio: shippable orders over total orders, as a percentage. The interviewer is checking whether you get the numerator and denominator scoped correctly, and whether you notice that "blank address" is sneakier than "NULL address".</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>id</th><th>cust_id</th><th>address</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>12 Main St</td></tr>
+    <tr><td>2</td><td>2</td><td>7 Oak Ave</td></tr>
+    <tr><td>3</td><td>3</td><td>&nbsp;</td></tr>
+    <tr><td>4</td><td>4</td><td>99 Pine Rd</td></tr>
+    <tr><td>5</td><td>5</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+<p>Five orders. Orders 3 and 5 have a <strong>blank-space address</strong> &mdash; not NULL, an actual <code>' '</code> string. That distinction is the whole trap: a query checking <code>address IS NOT NULL</code> would count these as valid.</p>
+
+<h4>2. The SQL &mdash; filtered count over total count</h4>
+<pre><code>SELECT CAST((1.0*COUNT(*)/(SELECT COUNT(*) FROM orders))*100 AS INT) AS shipable_order_percent
+FROM orders o
+LEFT JOIN customer c ON o.cust_id = c.id
+WHERE o.address &lt;&gt; ' ';</code></pre>
+<p>The outer <code>COUNT(*)</code> counts orders that survive <code>WHERE address &lt;&gt; ' '</code> &mdash; the shippable ones. The scalar subquery <code>(SELECT COUNT(*) FROM orders)</code> counts <em>all</em> orders, unfiltered. Their ratio &times; 100 is the percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>shipable_order_percent</th></tr></thead>
+  <tbody>
+    <tr><td>60</td></tr>
+  </tbody>
+</table>
+<p>Three of five orders have a non-blank address, so 3 / 5 = 0.6 &rarr; <code>60</code>. The two blank-address orders are excluded from the numerator but still counted in the denominator &mdash; which is correct: they <em>are</em> orders, they just are not shippable.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the denominator must be a separate subquery</h5>
+<p>The <code>WHERE</code> clause filters the rows feeding the outer <code>COUNT(*)</code>, so that count is already only the shippable orders. To get the <em>total</em>, you need a count that the <code>WHERE</code> does not touch &mdash; hence the independent <code>(SELECT COUNT(*) FROM orders)</code>. A common bug is using <code>COUNT(*)</code> for both: numerator and denominator become identical and the answer is always 100%.</p>
+
+<h5>The cleaner one-pass alternative &mdash; conditional aggregation</h5>
+<p>Scanning the table twice is avoidable. Compute both counts in a single pass with a filtered aggregate:</p>
+<pre><code>SELECT CAST(
+         100.0 * COUNT(*) FILTER (WHERE address &lt;&gt; ' ')
+         / COUNT(*)
+       AS INT) AS shipable_order_percent
+FROM orders;</code></pre>
+<p><code>COUNT(*) FILTER (...)</code> is the numerator, plain <code>COUNT(*)</code> the denominator &mdash; one scan, no correlated subquery, and the two counts are guaranteed to agree on what "all orders" means.</p>
+
+<h5>The trap: <code>&lt;&gt; ' '</code> does not catch NULL or empty string</h5>
+<p><code>address &lt;&gt; ' '</code> excludes only the literal single-space string. It does <em>not</em> exclude a genuine empty string <code>''</code>, and crucially a NULL address makes <code>NULL &lt;&gt; ' '</code> evaluate to <em>unknown</em> &mdash; so a NULL-address order is silently dropped from the numerator too, which may or may not be intended. A robust "has a real address" test handles all three:</p>
+<pre><code>WHERE address IS NOT NULL AND TRIM(address) &lt;&gt; ''</code></pre>
+<p><code>TRIM</code> collapses any amount of whitespace to empty, so one space, three spaces, or tabs all count as "no address".</p>
+
+<h5>The unused join &mdash; recognise dead code</h5>
+<p><code>LEFT JOIN customer c</code> contributes nothing: no <code>customer</code> column appears in the <code>SELECT</code> or <code>WHERE</code>. Because it is a <em>left</em> join it does not even change the row count, so the answer is unaffected &mdash; but it is wasted work and noise. If the real definition of shippable also required, say, the customer to exist or be in a serviced country, the join would matter; as written, drop it. Spotting and removing dead joins is a senior habit.</p>
+
+<h5>Integer division and the rounding choice</h5>
+<p><code>1.0 *</code> promotes the division to numeric so the fraction is not truncated to 0 before the <code>&times; 100</code>. The final <code>CAST(... AS INT)</code> then truncates toward zero &mdash; 59.9% would report as <code>59</code>, not 60. If the business wants nearest-integer, use <code>ROUND(...)</code> instead of an <code>INT</code> cast; if it wants one decimal, cast to <code>NUMERIC(5,1)</code>. State which rounding rule you applied.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> keep the denominator independent of the <code>WHERE</code> filter (or better, use one-pass <code>COUNT(*) FILTER</code>), recognise that <code>&lt;&gt; ' '</code> misses NULL and empty strings and replace it with a <code>TRIM</code>-based test, prune the dead <code>LEFT JOIN</code>, and state whether the percentage truncates or rounds.</div>

@@ -1,0 +1,72 @@
+<p>A Community member asks the deceptively simple question every SQL interviewer loves: given two tiny tables, how many rows does each kind of join return? It is not really about syntax &mdash; it is a probe of whether you understand what each join <em>does</em> with unmatched rows, duplicate keys, and NULLs.</p>
+
+<h4>1. The source data &mdash; <code>tbl1</code> and <code>tbl2</code></h4>
+<table>
+  <thead><tr><th>tbl1.id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>tbl2.id</th></tr></thead>
+  <tbody>
+    <tr><td>2</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>4</td></tr>
+    <tr><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Deliberately nasty: <code>tbl1</code> has <code>2</code> <strong>twice</strong>, <code>tbl2</code> has <code>2</code> twice, each table has a <strong>NULL</strong>, and each has a value the other lacks (<code>tbl1</code> has <code>1</code>, <code>tbl2</code> has <code>4</code>). Five rows each &mdash; and the join row counts are anything but five.</p>
+
+<h4>2. The SQL &mdash; <code>one count per join type</code></h4>
+<pre><code>SELECT 'inner' AS join_type, COUNT(*) AS row_count
+FROM tbl1 INNER JOIN tbl2 ON tbl1.id = tbl2.id
+UNION ALL
+SELECT 'left',  COUNT(*) FROM tbl1 LEFT  JOIN tbl2 ON tbl1.id = tbl2.id
+UNION ALL
+SELECT 'right', COUNT(*) FROM tbl1 RIGHT JOIN tbl2 ON tbl1.id = tbl2.id
+UNION ALL
+SELECT 'full',  COUNT(*) FROM tbl1 FULL  JOIN tbl2 ON tbl1.id = tbl2.id
+UNION ALL
+SELECT 'cross', COUNT(*) FROM tbl1 CROSS JOIN tbl2;</code></pre>
+<p>Each branch joins the two tables one way and counts the rows. <code>UNION ALL</code> stacks the five counts into a single comparison table.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>join_type</th><th>row_count</th></tr></thead>
+  <tbody>
+    <tr><td>inner</td><td>5</td></tr>
+    <tr><td>left</td><td>7</td></tr>
+    <tr><td>right</td><td>7</td></tr>
+    <tr><td>full</td><td>9</td></tr>
+    <tr><td>cross</td><td>25</td></tr>
+  </tbody>
+</table>
+<p>Not one of these is 5, the row count of either table. The inner join already <em>multiplies</em> &mdash; the duplicate <code>2</code>s cross-pair into four rows on their own. The cross join, 5&times;5, is the only one whose count you can predict without thinking.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The inner join &mdash; why duplicates multiply to 5, not 3</h5>
+<p>Matching values are <code>2</code> and <code>3</code>. The value <code>3</code> appears once on each side: 1&times;1 = 1 row. But <code>2</code> appears <em>twice</em> in <code>tbl1</code> and <em>twice</em> in <code>tbl2</code>: every left <code>2</code> pairs with every right <code>2</code>, so 2&times;2 = 4 rows. Total 4 + 1 = <strong>5</strong>. The lesson interviewers hunt for: a join on a non-unique key is a partial Cartesian product &mdash; the count is the sum over each key of <code>(left count &times; right count)</code>, not "number of matching keys".</p>
+
+<h5>The NULL trap &mdash; <code>NULL = NULL</code> is not true</h5>
+<p>Both tables contain a NULL <code>id</code>. They never match &mdash; in SQL, <code>NULL = NULL</code> evaluates to <em>unknown</em>, not true. So neither NULL contributes to the inner join, and in the outer joins each NULL row appears only as an unmatched row padded with NULLs. This is the single most common wrong answer to this question: candidates assume the two NULLs join to each other. They do not.</p>
+
+<h5>Left and right &mdash; inner plus the orphans</h5>
+<p>A <code>LEFT JOIN</code> count is the inner-join count <em>plus</em> every left row that matched nothing. Unmatched left rows: <code>id = 1</code> and <code>id = NULL</code> &mdash; 2 orphans. So 5 + 2 = <strong>7</strong>. <code>RIGHT JOIN</code> is the mirror: inner plus unmatched <em>right</em> rows, which are <code>id = 4</code> and <code>id = NULL</code> &mdash; again 2 orphans, 5 + 2 = <strong>7</strong>. The symmetry is a coincidence of this data, not a rule.</p>
+
+<h5>Full join &mdash; inner plus both sides' orphans</h5>
+<p><code>FULL JOIN</code> keeps the inner matches and <em>both</em> sets of unmatched rows: 5 + 2 (left orphans) + 2 (right orphans) = <strong>9</strong>. The clean identity to recite: <code>full = inner + left_only + right_only</code>, equivalently <code>full = left + right &minus; inner</code> &mdash; here 7 + 7 &minus; 5 = 9. That formula is the senior-level one-liner.</p>
+
+<h5>Cross join &mdash; the pure Cartesian baseline</h5>
+<p><code>CROSS JOIN</code> ignores any condition and pairs every left row with every right row: 5 &times; 5 = <strong>25</strong>. NULLs and duplicates are irrelevant &mdash; it is raw multiplication. It is also the ceiling: no <code>INNER</code>/<code>LEFT</code>/<code>RIGHT</code>/<code>FULL</code> join on these tables can ever exceed 25. A useful sanity bound when a join "explodes" unexpectedly &mdash; if your result tops <code>n &times; m</code>, something is structurally wrong.</p>
+
+<h5>The portability and dialect note</h5>
+<p>The reference is written as five separate <code>SELECT *</code> statements &mdash; fine in a console, but the single <code>UNION ALL</code> query above returns one tidy comparison table. One caveat: MySQL before 8.0 has no <code>FULL JOIN</code> &mdash; you emulate it with <code>LEFT</code> <code>UNION</code> <code>RIGHT</code>. And <code>CROSS JOIN</code> with a <code>WHERE</code> equality is logically identical to an <code>INNER JOIN</code>; the planner treats them the same.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute an inner-join count as the sum of <code>left&times;right</code> per key (duplicates multiply), state firmly that <code>NULL</code> never matches <code>NULL</code>, and recite <code>full = left + right &minus; inner</code> with <code>cross = n&times;m</code> as the hard ceiling that flags a runaway join.</div>
