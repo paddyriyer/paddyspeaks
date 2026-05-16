@@ -1,0 +1,51 @@
+<p>A sales team wants the dormant accounts &mdash; customers who exist in the system but have <em>never</em> placed an order &mdash; to target a win-back campaign. This is a <strong>set-difference</strong> (anti-join) problem, and the interviewer specifically wants the <code>LEFT JOIN</code> / <code>IS NULL</code> pattern: keep all customers, attach orders, and surface only the rows where no order attached.</p>
+
+<h4>1. The source data &mdash; <code>customer</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>cust_code</th><th>cust_name</th><th>cust_country</th><th>order rows</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>C01</td><td>Alpha</td><td>India</td><td>2 orders</td><td>has ordered &mdash; excluded</td></tr>
+    <tr><td>C02</td><td>Beta</td><td>USA</td><td>none</td><td>never ordered &mdash; in result</td></tr>
+    <tr><td>C03</td><td>Gamma</td><td>UK</td><td>1 order</td><td>has ordered &mdash; excluded</td></tr>
+    <tr><td>C04</td><td>Delta</td><td>India</td><td>1 order</td><td>has ordered &mdash; excluded</td></tr>
+    <tr><td>C05</td><td>Epsilon</td><td>Canada</td><td>none</td><td>never ordered &mdash; in result</td></tr>
+  </tbody>
+</table>
+<p>C01 deliberately has <em>two</em> order rows &mdash; the duplicate-match edge case that a naive approach can mishandle. C02 and C05 have no matching order at all; they are the two customers the query must return. C04 has exactly one order &mdash; the boundary between "ordered" and "never ordered".</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> then <code>IS NULL</code> anti-join</h4>
+<pre><code>SELECT c.cust_code, c.cust_name, c.cust_country
+FROM customer c
+LEFT JOIN orders o ON o.cust_code = c.cust_code
+WHERE o.cust_code IS NULL
+ORDER BY c.cust_code;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every customer row, attaching matching orders where they exist. For a customer with no order, every right-side column &mdash; including <code>o.cust_code</code> &mdash; comes back NULL. <code>WHERE o.cust_code IS NULL</code> then keeps exactly those unmatched rows: the customers with no order.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cust_code</th><th>cust_name</th><th>cust_country</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>C02</td><td>Beta</td><td>USA</td><td>no matching order row &mdash; <code>o.cust_code</code> is NULL</td></tr>
+    <tr><td>C05</td><td>Epsilon</td><td>Canada</td><td>no matching order row &mdash; <code>o.cust_code</code> is NULL</td></tr>
+  </tbody>
+</table>
+<p>Exactly two rows. C01, C03, C04 all matched at least one order, so their <code>o.cust_code</code> is non-NULL and the <code>WHERE</code> filters them out. C01's two orders never produce two output rows here &mdash; the anti-join discards the matched rows entirely rather than keeping them.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How the <code>LEFT JOIN</code> / <code>IS NULL</code> anti-join works</h5>
+<p>A <code>LEFT JOIN</code> guarantees every left row appears at least once. When the join finds no match, it manufactures one output row with all right-side columns set to NULL. Filtering <code>WHERE o.cust_code IS NULL</code> selects precisely those manufactured rows &mdash; the left rows that had no partner. The result is set difference: customers minus customers-with-orders. The column you test for NULL must be one that is <em>never legitimately NULL in a matched row</em> &mdash; the join key <code>o.cust_code</code> is the safe choice, since a matched order always has a non-NULL <code>cust_code</code>.</p>
+
+<h5>The filter belongs in <code>WHERE</code>, not the <code>ON</code> clause</h5>
+<p>A subtle, common bug: putting <code>AND o.cust_code IS NULL</code> in the <code>ON</code> clause instead of <code>WHERE</code>. With a <code>LEFT JOIN</code>, conditions in <code>ON</code> only affect <em>which rows match</em> &mdash; non-matching left rows are still kept with NULLs. The anti-join filter must run <em>after</em> the join, in <code>WHERE</code>, to discard the matched rows. <code>ON</code> decides matching; <code>WHERE</code> decides the final row set. Getting this wrong silently returns every customer.</p>
+
+<h5>Why <code>NOT IN</code> was explicitly ruled out &mdash; the NULL trap</h5>
+<p>The spec bars <code>NOT IN</code>, and for a real reason. <code>WHERE c.cust_code NOT IN (SELECT cust_code FROM orders)</code> is dangerous if <em>any</em> row in <code>orders</code> has a NULL <code>cust_code</code>: <code>NOT IN</code> against a list containing NULL evaluates to <em>unknown</em> for every customer, so the query returns <strong>zero rows</strong> &mdash; a silent, total failure. The <code>LEFT JOIN</code> / <code>IS NULL</code> pattern (and <code>NOT EXISTS</code>) are immune to this because they compare keys row-by-row rather than against a set membership that NULL poisons.</p>
+
+<h5>Duplicates on the right side do not multiply the result</h5>
+<p>C01 has two order rows. In an <em>inner</em> join that customer would appear twice; here it does not matter, because the anti-join only keeps the <em>unmatched</em> customers and C01 is matched. The duplicate-match case is exactly why you select only <code>customer</code> columns and never aggregate &mdash; matched customers are dropped wholesale, so their fan-out is irrelevant. The result has one row per never-ordering customer, guaranteed.</p>
+
+<h5>Dialect &mdash; anti-join forms and <code>EXCEPT</code></h5>
+<p>The <code>LEFT JOIN</code> / <code>IS NULL</code> pattern is portable to every SQL engine. <code>NOT EXISTS (SELECT 1 FROM orders o WHERE o.cust_code = c.cust_code)</code> is an equally correct, NULL-safe alternative and often optimises to the same anti-join plan &mdash; the spec just chose to test the join form here. <code>EXCEPT</code> (PostgreSQL, SQL Server) does set difference too, but operates on whole rows and requires matching column lists, so it is awkward when you want extra customer columns. For "rows in A not matched in B", the <code>LEFT JOIN</code> / <code>IS NULL</code> and <code>NOT EXISTS</code> idioms are the two to know.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement "never placed an order" as a <code>LEFT JOIN</code> / <code>IS NULL</code> anti-join, test the join key for NULL (never a nullable payload column), keep the <code>IS NULL</code> filter in <code>WHERE</code> not <code>ON</code>, and explain that <code>NOT IN</code> is the trap &mdash; a single NULL in the subquery makes it return nothing &mdash; while <code>NOT EXISTS</code> is the equally safe alternative.</div>

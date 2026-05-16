@@ -1,0 +1,61 @@
+<p>An account-management dashboard wants a "recent activity" strip: for every customer, show their two latest orders side by side. The naive instinct is a window function with <code>ROW_NUMBER()</code>, but the question pins you to a <strong>LATERAL subquery</strong> &mdash; a correlated derived table that runs once per outer row. The interviewer is checking whether you understand that LATERAL lets a subquery reference columns from the table to its left, and why that produces a clean per-group Top-N without a wrapping filter.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>ord_num</th><th>cust_code</th><th>ord_amount</th><th>ord_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>C01</td><td>500</td><td>2025-01-01</td><td>C01 has 3 orders &mdash; this one is oldest, gets dropped</td></tr>
+    <tr><td>2</td><td>C01</td><td>800</td><td>2025-02-01</td><td>C01 &mdash; kept</td></tr>
+    <tr><td>3</td><td>C01</td><td>300</td><td>2025-03-01</td><td>C01 &mdash; newest, kept</td></tr>
+    <tr><td>4</td><td>C02</td><td>700</td><td>2025-04-01</td><td>C02 has only 1 order &mdash; single-member group</td></tr>
+    <tr><td>5</td><td>C03</td><td>100</td><td>2025-01-15</td><td>C03 &mdash; oldest, dropped</td></tr>
+    <tr><td>6</td><td>C03</td><td>150</td><td>2025-02-15</td><td>C03 &mdash; kept</td></tr>
+    <tr><td>7</td><td>C03</td><td>200</td><td>2025-03-15</td><td>C03 &mdash; newest, kept</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases steer the answer. C02 has <em>only one</em> order &mdash; a <code>LIMIT 2</code> must gracefully return just that one row, not error or pad. And every customer here has at least one order, so the <code>JOIN LATERAL</code> form is fine; a customer with <em>zero</em> orders would be silently dropped (see below).</p>
+
+<h4>2. The SQL &mdash; per-customer Top-N via <code>JOIN LATERAL</code></h4>
+<pre><code>SELECT c.cust_code, c.cust_name, o.ord_num, o.ord_amount, o.ord_date
+FROM customer c
+JOIN LATERAL (
+  SELECT ord_num, ord_amount, ord_date
+  FROM orders
+  WHERE cust_code = c.cust_code
+  ORDER BY ord_date DESC, ord_num DESC
+  LIMIT 2
+) o ON TRUE
+ORDER BY c.cust_code, o.ord_date DESC, o.ord_num;</code></pre>
+<p>The keyword <code>LATERAL</code> grants the subquery the right to see <code>c.cust_code</code> from the row currently being processed. For each customer the inner query sorts <em>that customer's</em> orders newest-first and keeps two. <code>ON TRUE</code> is the join predicate &mdash; the real filtering already happened inside via the correlation, so there is nothing left to match on.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cust_code</th><th>cust_name</th><th>ord_num</th><th>ord_amount</th><th>ord_date</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>C01</td><td>Alpha</td><td>3</td><td>300</td><td>2025-03-01</td><td>newest of 3</td></tr>
+    <tr><td>C01</td><td>Alpha</td><td>2</td><td>800</td><td>2025-02-01</td><td>2nd newest &mdash; order 1 dropped</td></tr>
+    <tr><td>C02</td><td>Beta</td><td>4</td><td>700</td><td>2025-04-01</td><td>only 1 order &mdash; LIMIT 2 returns just 1</td></tr>
+    <tr><td>C03</td><td>Gamma</td><td>7</td><td>200</td><td>2025-03-15</td><td>newest of 3</td></tr>
+    <tr><td>C03</td><td>Gamma</td><td>6</td><td>150</td><td>2025-02-15</td><td>2nd newest &mdash; order 5 dropped</td></tr>
+  </tbody>
+</table>
+<p>Five rows: two each for C01 and C03, one for C02. The <code>LIMIT 2</code> inside the lateral did the per-customer capping; C02 simply had nothing more to give and that is correct, not an error.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>What <code>LATERAL</code> actually unlocks</h5>
+<p>An ordinary subquery in the <code>FROM</code> clause is evaluated <em>once</em>, independently, and cannot reference other <code>FROM</code> items. <code>LATERAL</code> lifts that restriction: the derived table is re-evaluated for every row of the table on its left, and may use that row's columns. It is the relational equivalent of a <code>for</code> loop calling a parameterised query. That is exactly what per-group Top-N needs &mdash; "for each customer, run this little ranked query."</p>
+
+<h5>LATERAL vs the window-function approach</h5>
+<p>The window form &mdash; <code>ROW_NUMBER() OVER (PARTITION BY cust_code ORDER BY ord_date DESC)</code> then <code>WHERE rn &lt;= 2</code> &mdash; computes a rank for <em>every</em> row, then throws most away. LATERAL with <code>LIMIT</code> can stop early per customer. With a supporting index on <code>orders(cust_code, ord_date DESC)</code> the lateral does an index range scan and grabs the first two entries per customer &mdash; often dramatically faster on a wide table with few rows wanted per group. The window function sorts the whole partition regardless.</p>
+
+<h5>The trap: <code>JOIN LATERAL</code> drops empty groups</h5>
+<p><code>JOIN LATERAL ... ON TRUE</code> is an inner join: if a customer has no orders, the lateral yields zero rows and that customer vanishes from the output. The question explicitly says "customers with no orders are omitted", so <code>JOIN</code> is correct here. If the requirement were to keep every customer (orders or not), you would switch to <code>LEFT JOIN LATERAL ... ON TRUE</code>, which preserves the outer row and fills the order columns with NULL. Knowing which join keyword encodes which business rule is the senior distinction.</p>
+
+<h5>The deterministic tiebreak</h5>
+<p>Sorting by <code>ord_date DESC</code> alone is ambiguous if a customer placed two orders on the same day &mdash; <code>LIMIT 2</code> would pick an arbitrary pair. The inner <code>ORDER BY ord_date DESC, ord_num DESC</code> adds <code>ord_num</code> as a tiebreaker so the result is reproducible run to run. The outer <code>ORDER BY</code> then re-sorts the final five rows for presentation; note it uses <code>ord_num</code> ascending as its last key, which is the requested display order, distinct from the inner descending pick order.</p>
+
+<h5>Dialect notes</h5>
+<p><code>LATERAL</code> is SQL-standard and supported by PostgreSQL, Oracle (12c+), and SQL Server (as <code>CROSS APPLY</code> / <code>OUTER APPLY</code> &mdash; same idea, different keyword). MySQL gained <code>LATERAL</code> in 8.0.14. Engines without it fall back to the window-function pattern. <code>CROSS APPLY</code> maps to <code>JOIN LATERAL ... ON TRUE</code>; <code>OUTER APPLY</code> maps to <code>LEFT JOIN LATERAL</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise <code>LATERAL</code> as a correlated, per-outer-row subquery that enables index-friendly per-group Top-N via <code>LIMIT</code>, choose <code>JOIN</code> vs <code>LEFT JOIN LATERAL</code> based on whether empty groups should survive, add a deterministic tiebreak to the inner <code>ORDER BY</code>, and know it surfaces as <code>CROSS APPLY</code> in SQL Server.</div>

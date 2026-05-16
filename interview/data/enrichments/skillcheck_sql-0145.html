@@ -1,0 +1,75 @@
+<p>A merchandising team runs a category tree and wants a roll-up: for <em>every</em> node &mdash; leaf or internal &mdash; the total sales of all products anywhere in its subtree. Products only ever hang off leaf categories, so internal nodes have no products of their own; their total has to be summed from descendants. The interviewer is checking whether you can build an ancestor&ndash;descendant closure with a recursive CTE and then aggregate against it without double-counting.</p>
+
+<h4>1. The source data &mdash; <code>category</code> and <code>product</code></h4>
+<table>
+  <thead><tr><th>category_id</th><th>name</th><th>parent_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>All</td><td>NULL</td><td>root &mdash; no parent</td></tr>
+    <tr><td>2</td><td>Electronics</td><td>1</td><td>internal node, no products</td></tr>
+    <tr><td>3</td><td>Phones</td><td>2</td><td>leaf, has products</td></tr>
+    <tr><td>4</td><td>Laptops</td><td>2</td><td>leaf, has products</td></tr>
+    <tr><td>5</td><td>Apparel</td><td>1</td><td>internal node, no products</td></tr>
+    <tr><td>6</td><td>Shoes</td><td>5</td><td>leaf, has products</td></tr>
+    <tr><td>7</td><td>Shirts</td><td>5</td><td>leaf, has products</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_id</th><th>category_id</th><th>sales</th></tr></thead>
+  <tbody>
+    <tr><td>101 / 102</td><td>3 (Phones)</td><td>500 + 300</td></tr>
+    <tr><td>103</td><td>4 (Laptops)</td><td>1000</td></tr>
+    <tr><td>104</td><td>6 (Shoes)</td><td>200</td></tr>
+    <tr><td>105 / 106</td><td>7 (Shirts)</td><td>400 + 100</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the internal nodes &mdash; <em>All</em>, <em>Electronics</em>, <em>Apparel</em> have zero products attached directly; their totals exist only by rolling up children. The query must still report them, not drop them.</p>
+
+<h4>2. The SQL &mdash; recursive descendant closure, then LEFT JOIN aggregate</h4>
+<pre><code>WITH RECURSIVE descendants(ancestor_id, descendant_id) AS (
+  SELECT category_id, category_id FROM category          -- every node is its own descendant
+  UNION ALL
+  SELECT d.ancestor_id, c.category_id
+  FROM descendants d JOIN category c ON c.parent_id = d.descendant_id
+)
+SELECT c.category_id, c.name,
+       COALESCE(SUM(p.sales), 0) AS total_sales
+FROM category c
+LEFT JOIN descendants d ON d.ancestor_id = c.category_id
+LEFT JOIN product p ON p.category_id = d.descendant_id
+GROUP BY c.category_id, c.name
+ORDER BY c.category_id;</code></pre>
+<p>The recursive CTE builds the <em>transitive closure</em>: one <code>(ancestor, descendant)</code> pair for every node and each node beneath it, plus the self-pair from the anchor. Joining a category to its descendant set, then to products on those descendants, gathers every product in the subtree; <code>SUM</code> totals them and <code>COALESCE</code> turns "no products" into <code>0</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category_id</th><th>name</th><th>total_sales</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>All</td><td>2500</td><td>root &mdash; sum of every product</td></tr>
+    <tr><td>2</td><td>Electronics</td><td>1800</td><td>500+300+1000, rolled from leaves</td></tr>
+    <tr><td>3</td><td>Phones</td><td>800</td><td>leaf &mdash; its own two products</td></tr>
+    <tr><td>4</td><td>Laptops</td><td>1000</td><td>leaf</td></tr>
+    <tr><td>5</td><td>Apparel</td><td>700</td><td>200+400+100, rolled from leaves</td></tr>
+    <tr><td>6</td><td>Shoes</td><td>200</td><td>leaf</td></tr>
+    <tr><td>7</td><td>Shirts</td><td>500</td><td>leaf</td></tr>
+  </tbody>
+</table>
+<p><em>All</em> = 2500 is the grand total; <em>Electronics</em> (1800) and <em>Apparel</em> (700) sum to it. Each internal node carries a real number despite owning no products directly &mdash; that is the closure doing the work. No node is missing.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a closure, not a one-level join</h5>
+<p>A naive <code>JOIN category child ON child.parent_id = c.category_id</code> only reaches direct children &mdash; <em>All</em> would see <em>Electronics</em> and <em>Apparel</em> but not the leaf products two levels down. The recursive CTE walks <em>every</em> depth, emitting an <code>(ancestor, descendant)</code> pair for each node-under-node relationship. Aggregating against that closure is depth-agnostic: it works for a 2-level or a 20-level tree with no query change.</p>
+
+<h5>The anchor's self-pair is load-bearing</h5>
+<p>The anchor <code>SELECT category_id, category_id</code> emits each node as its own descendant. That is what lets a <em>leaf</em> see its own directly-attached products: without the self-pair, Phones would join only to its (empty) set of children and report 0. "Every node is an ancestor of itself" is the reflexive part of the closure &mdash; drop it and leaves silently lose their own sales.</p>
+
+<h5><code>COALESCE</code> + <code>LEFT JOIN</code> keeps empty subtrees visible</h5>
+<p>An internal node whose subtree happened to contain no products (none here, but possible) would produce no <code>product</code> rows; an inner join would drop the category entirely. <code>LEFT JOIN product</code> keeps the category row with <code>p.sales = NULL</code>, and <code>SUM</code> of all-NULL is <code>NULL</code>, so <code>COALESCE(&hellip;, 0)</code> converts it to the required <code>0</code>. Both <code>LEFT JOIN</code>s matter: the first keeps the category, the second keeps it when products are absent.</p>
+
+<h5>Why no double-counting here &mdash; and when it would happen</h5>
+<p>Each product hangs off exactly one leaf, and each leaf appears once in any ancestor's descendant set, so every product is counted once per ancestor. If products could be attached to <em>internal</em> nodes too, or a category could have two parents (a DAG, not a tree), a product could reach an ancestor by multiple paths and be summed repeatedly. With a strict tree and leaf-only products, the arithmetic is clean &mdash; state that assumption out loud.</p>
+
+<h5>Termination and dialect notes</h5>
+<p>The recursion terminates because a tree is finite and acyclic: each step descends one level, and leaves produce no further rows. A genuine cycle would loop forever &mdash; you would then track a visited-path array and filter it. <code>WITH RECURSIVE</code> is standard in Postgres, SQLite, MySQL 8+, and SQL Server (where the keyword is just <code>WITH</code>); Oracle offers both <code>CONNECT BY</code> and recursive CTEs.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> model "subtree roll-up" as a recursive ancestor&ndash;descendant closure with the reflexive self-pair in the anchor, aggregate via double <code>LEFT JOIN</code> + <code>COALESCE</code> so internal and empty nodes still report, and call out that the no-double-count guarantee depends on a strict tree with leaf-only products.</div>

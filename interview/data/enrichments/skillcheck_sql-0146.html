@@ -1,0 +1,62 @@
+<p>An HR tool needs an org-chart breadcrumb: for each employee, the full reporting chain from the CEO down to them, rendered as "CEO &gt; VP &gt; Manager &gt; You", plus a depth number. The interviewer is probing recursive CTEs &mdash; specifically whether you can <em>accumulate a string</em> as the recursion descends, rather than just walk the hierarchy.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>manager_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL</td><td>CEO &mdash; the recursion anchor</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>reports to Alice (depth 1)</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td><td>also reports to Alice</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>reports to Bob (depth 2)</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td><td>reports to Bob</td></tr>
+    <tr><td>6</td><td>Finn</td><td>3</td><td>reports to Cara</td></tr>
+    <tr><td>7</td><td>Grace</td><td>5</td><td>deepest node &mdash; reports to Eve (depth 3)</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the root: Alice has <code>manager_id = NULL</code>, so she is the one row with no parent &mdash; the recursion's base case. Grace at depth 3 is the deepest chain, which exercises string accumulation across four names.</p>
+
+<h4>2. The SQL &mdash; recursive CTE accumulating a path string</h4>
+<pre><code>WITH RECURSIVE tree AS (
+  SELECT emp_id, name, manager_id, 0 AS depth, name AS path
+  FROM employee WHERE manager_id IS NULL
+  UNION ALL
+  SELECT e.emp_id, e.name, e.manager_id,
+         t.depth + 1, t.path || ' &gt; ' || e.name
+  FROM employee e JOIN tree t ON e.manager_id = t.emp_id
+)
+SELECT emp_id, name, depth, path FROM tree ORDER BY depth, emp_id;</code></pre>
+<p>The anchor seeds the CEO with <code>depth = 0</code> and <code>path = name</code>. The recursive arm joins each employee to <em>their manager's already-computed row</em> in <code>tree</code>, increments depth, and appends <code>' &gt; ' || name</code> to the manager's path. Because the manager's path is already complete when the child is processed, the breadcrumb builds top-down automatically.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>depth</th><th>path</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>0</td><td>Alice</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>Alice &gt; Bob</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td><td>Alice &gt; Cara</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>Alice &gt; Bob &gt; Dan</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td><td>Alice &gt; Bob &gt; Eve</td></tr>
+    <tr><td>6</td><td>Finn</td><td>2</td><td>Alice &gt; Cara &gt; Finn</td></tr>
+    <tr><td>7</td><td>Grace</td><td>3</td><td>Alice &gt; Bob &gt; Eve &gt; Grace</td></tr>
+  </tbody>
+</table>
+<p>Grace's path threads four names &mdash; it inherited Eve's <code>"Alice &gt; Bob &gt; Eve"</code> and appended itself. Depth equals the number of <code>&gt;</code> separators, and the <code>ORDER BY depth, emp_id</code> lists each org level together.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The accumulator pattern &mdash; carry state in a CTE column</h5>
+<p>A recursive CTE is not limited to walking edges; any column you compute in the recursive arm becomes <em>state passed to the next iteration</em>. Here two accumulators ride along: <code>depth</code> (a counter) and <code>path</code> (a growing string). The child reads the parent's value, transforms it, and hands the new value down. This same trick computes running products, level numbers, or visited-node arrays &mdash; the CTE row is your loop variable.</p>
+
+<h5>Anchor on the root, join child-to-parent</h5>
+<p>The anchor <code>WHERE manager_id IS NULL</code> picks exactly the CEO &mdash; the only node whose chain is trivially just itself. The recursive join <code>e.manager_id = t.emp_id</code> reads "find employees whose manager is already in the tree". Direction matters: joining the other way (<code>e.emp_id = t.manager_id</code>) would walk <em>up</em> from leaves and you would not have the root's path ready when you need it. Top-down from the root is what makes the breadcrumb read CEO-first.</p>
+
+<h5>Why the path is correct top-down, not reversed</h5>
+<p>Each iteration appends the child's name to the <em>end</em> of the parent's path: <code>t.path || ' &gt; ' || e.name</code>. Since the parent row was finalised in an earlier iteration, its path already runs from the CEO down to the parent &mdash; appending the child extends it by one. If you instead built the chain from a leaf upward you would get the names reversed and need a final string-reverse step. Building from the root sidesteps that entirely.</p>
+
+<h5>Separator and NULL hygiene</h5>
+<p><code>name</code> is assumed non-NULL; if it could be NULL, <code>||</code> in Postgres yields NULL and would blank out the whole path &mdash; wrap with <code>COALESCE(name, '?')</code>. The anchor sets <code>path = name</code> with <em>no</em> leading separator, so the CEO's breadcrumb is just "Alice" rather than "&gt; Alice". Picking <code>' &gt; '</code> (spaces around the arrow) is cosmetic but consistent &mdash; whatever you choose, use the identical literal in both arms.</p>
+
+<h5>Termination, ordering, and dialect</h5>
+<p>A clean org chart is a finite tree, so each step descends one level and the recursion ends when leaves produce no children. A data error creating a cycle (A manages B manages A) would loop forever &mdash; defend with a visited-array check or <code>UNION</code> (instead of <code>UNION ALL</code>) plus a depth cap. <code>WITH RECURSIVE</code> is standard in Postgres, SQLite, and MySQL 8+; SQL Server uses <code>WITH</code> without the keyword; Oracle also supports <code>CONNECT BY &hellip; PRIOR</code> with <code>SYS_CONNECT_BY_PATH</code> for exactly this breadcrumb.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat a recursive CTE column as loop state &mdash; accumulate both <code>depth</code> and the <code>path</code> string as the recursion descends, anchor on the <code>NULL</code>-parent root and join child-to-parent so the breadcrumb builds top-down, keep the separator literal identical in both arms, and mention cycle defence for dirty hierarchy data.</div>

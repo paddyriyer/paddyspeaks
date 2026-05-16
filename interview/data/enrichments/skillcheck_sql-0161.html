@@ -1,0 +1,57 @@
+<p>An operations dashboard wants one row per region with revenue broken out into <code>paid</code>, <code>pending</code>, and <code>refunded</code> columns plus a total. This is a <strong>pivot</strong> &mdash; rotating distinct values of <code>status</code> into column headers. The interviewer is checking whether you reach for the modern <code>FILTER</code> clause on aggregates, and whether you correctly turn a region's missing status into a <code>0</code> rather than a <code>NULL</code>.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>status</th><th>region</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>paid</td><td>NA</td><td>100</td><td>NA &mdash; no refunded order at all</td></tr>
+    <tr><td>2</td><td>pending</td><td>NA</td><td>50</td><td>NA</td></tr>
+    <tr><td>3</td><td>refunded</td><td>EU</td><td>30</td><td>EU &mdash; no pending order</td></tr>
+    <tr><td>4</td><td>paid</td><td>EU</td><td>200</td><td>EU</td></tr>
+    <tr><td>5</td><td>paid</td><td>APAC</td><td>150</td><td>APAC &mdash; two paid orders</td></tr>
+    <tr><td>6</td><td>paid</td><td>APAC</td><td>250</td><td>APAC &mdash; second paid, folds in</td></tr>
+    <tr><td>7</td><td>pending</td><td>APAC</td><td>40</td><td>APAC</td></tr>
+  </tbody>
+</table>
+<p>The edge cases that decide the interview: NA has <em>no refunded</em> order and EU has <em>no pending</em> order &mdash; those cells must read <code>0</code>, not blank. And APAC has <em>two</em> paid orders that must sum to 400 in a single cell.</p>
+
+<h4>2. The SQL &mdash; pivot via <code>FILTER</code>-clause aggregates</h4>
+<pre><code>SELECT region,
+       COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0) AS paid,
+       COALESCE(SUM(amount) FILTER (WHERE status = 'pending'), 0) AS pending,
+       COALESCE(SUM(amount) FILTER (WHERE status = 'refunded'), 0) AS refunded,
+       SUM(amount) AS total
+FROM orders
+GROUP BY region
+ORDER BY region;</code></pre>
+<p><code>SUM(amount) FILTER (WHERE status = 'paid')</code> sums <code>amount</code> over only the rows in that group where the status matches &mdash; one filtered aggregate per output column. <code>GROUP BY region</code> collapses each region to one row. <code>COALESCE(..., 0)</code> converts the NULL that an empty filter produces into <code>0</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>paid</th><th>pending</th><th>refunded</th><th>total</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>APAC</td><td>400</td><td>40</td><td>0</td><td>440</td><td>two paid orders folded: 150+250</td></tr>
+    <tr><td>EU</td><td>200</td><td>0</td><td>30</td><td>230</td><td>no pending &rarr; COALESCE gives 0</td></tr>
+    <tr><td>NA</td><td>100</td><td>50</td><td>0</td><td>150</td><td>no refunded &rarr; 0</td></tr>
+  </tbody>
+</table>
+<p>EU's <code>pending</code> cell and NA's <code>refunded</code> cell are <strong>0</strong>, not NULL &mdash; the <code>COALESCE</code> did its job. APAC's <code>paid</code> is 400 because <code>SUM</code> folds both matching orders, and <code>total</code> equals the unfiltered sum of all the region's amounts.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>FILTER</code> clause vs <code>SUM(CASE WHEN ...)</code></h5>
+<p>The classic portable pivot is <code>SUM(CASE WHEN status = 'paid' THEN amount END)</code>. The <code>FILTER</code> clause &mdash; <code>SUM(amount) FILTER (WHERE status = 'paid')</code> &mdash; expresses the identical idea more declaratively: the predicate decides which rows the aggregate <em>sees</em>, instead of rewriting non-matching rows to NULL. They produce the same result. <code>FILTER</code> is SQL-standard and reads better; the <code>CASE</code> form is the fallback for engines that lack it. Both still require you to enumerate the statuses by hand.</p>
+
+<h5>Why <code>COALESCE</code> is needed &mdash; empty filter yields NULL</h5>
+<p>When a region has no order of a given status, that filtered <code>SUM</code> aggregates over <em>zero</em> rows. <code>SUM</code> of an empty set is <code>NULL</code>, not <code>0</code> &mdash; a deliberate SQL rule (you summed nothing, so there is no number). The question demands <code>0</code> for missing combinations, so each filtered column is wrapped in <code>COALESCE(..., 0)</code>. Omit it and EU's <code>pending</code> would be NULL, which then poisons any downstream arithmetic. Note <code>total</code> is <em>not</em> wrapped: every region has at least one order, so the unfiltered <code>SUM</code> is never NULL here.</p>
+
+<h5>Why <code>total</code> is the unfiltered <code>SUM</code>, not paid+pending+refunded</h5>
+<p><code>total</code> is computed as a plain <code>SUM(amount)</code> over the whole group. That is robust: if a future order arrived with a status outside the three named ones (say <code>'cancelled'</code>), it would still count toward <code>total</code> but appear in no status column &mdash; and the three columns would no longer add up to <code>total</code>. Adding the three columns instead would silently hide such rows. Computing <code>total</code> independently is a deliberate integrity check; the mismatch, if any, is a signal worth surfacing.</p>
+
+<h5>The static-column limitation</h5>
+<p>The three statuses are hard-coded. A new status value lands in no column and is invisible except in <code>total</code>. Pure SQL cannot grow columns from data &mdash; a truly data-driven pivot needs dynamic SQL (build the column list from <code>SELECT DISTINCT status</code>, then execute the generated text) or PostgreSQL's <code>crosstab()</code> from the <code>tablefunc</code> extension. Naming this limit unprompted is the senior signal.</p>
+
+<h5>Dialect notes</h5>
+<p>The <code>FILTER</code> clause is supported by PostgreSQL and SQLite (3.30+). MySQL and SQL Server do not have it &mdash; there you write <code>SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END)</code>, and the <code>ELSE 0</code> makes the per-column <code>COALESCE</code> unnecessary because the aggregate then always sees a number. Snowflake, Oracle, and SQL Server additionally offer a dedicated <code>PIVOT</code> operator that is terser still but equally requires an explicit value list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot status into columns with one <code>SUM(amount) FILTER (WHERE ...)</code> per status, wrap each in <code>COALESCE(...,0)</code> because an empty filtered aggregate returns NULL, compute <code>total</code> as an independent unfiltered <code>SUM</code> so stray statuses are not hidden, and note the column list is static unless you use dynamic SQL or <code>crosstab()</code>.</div>

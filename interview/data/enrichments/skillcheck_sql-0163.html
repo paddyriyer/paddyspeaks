@@ -1,0 +1,54 @@
+<p>A product catalog needs each item's tags rendered as a single comma-separated string, ordered so the heaviest-weighted tag leads. The interviewer is probing whether you know <code>STRING_AGG</code> accepts an <code>ORDER BY</code> <em>inside</em> the aggregate call, and whether you handle the dirty-data wrinkle: some tag rows have a <code>NULL</code> tag value, and one item has <em>only</em> NULL tags &mdash; it should drop out of the result entirely.</p>
+
+<h4>1. The source data &mdash; <code>tag</code></h4>
+<table>
+  <thead><tr><th>item_id</th><th>tag</th><th>weight</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>red</td><td>3</td><td>item 1 &mdash; middle weight</td></tr>
+    <tr><td>1</td><td>blue</td><td>1</td><td>item 1 &mdash; lowest weight, ends up last</td></tr>
+    <tr><td>1</td><td>green</td><td>5</td><td>item 1 &mdash; highest weight, leads</td></tr>
+    <tr><td>2</td><td>big</td><td>10</td><td>item 2 &mdash; highest, leads</td></tr>
+    <tr><td>2</td><td>NULL</td><td>2</td><td>item 2 &mdash; NULL tag, must be skipped</td></tr>
+    <tr><td>2</td><td>fast</td><td>7</td><td>item 2 &mdash; second</td></tr>
+    <tr><td>3</td><td>NULL</td><td>5</td><td>item 3 &mdash; its ONLY row, and tag is NULL</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases drive the answer. Item 2 has a NULL-tag row in the middle &mdash; it must vanish without leaving a stray <code>, ,</code>. Item 3's <em>only</em> tag is NULL, so after skipping it the item has nothing left and should not appear in the output at all.</p>
+
+<h4>2. The SQL &mdash; <code>STRING_AGG</code> with an in-aggregate <code>ORDER BY</code></h4>
+<pre><code>SELECT item_id,
+       STRING_AGG(tag, ', ' ORDER BY weight DESC) AS tag_list
+FROM tag
+WHERE tag IS NOT NULL
+GROUP BY item_id
+ORDER BY item_id;</code></pre>
+<p><code>STRING_AGG(tag, ', ' ...)</code> concatenates the <code>tag</code> values of each group, joined by the delimiter <code>', '</code>. The <code>ORDER BY weight DESC</code> sits <em>inside</em> the aggregate's parentheses &mdash; it controls the order in which values are stitched together. The <code>WHERE tag IS NOT NULL</code> removes NULL-tag rows before grouping.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>item_id</th><th>tag_list</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>green, red, blue</td><td>ordered by weight 5 &gt; 3 &gt; 1</td></tr>
+    <tr><td>2</td><td>big, fast</td><td>NULL-tag row skipped &mdash; no empty slot</td></tr>
+  </tbody>
+</table>
+<p>Item 1's list is <code>green, red, blue</code> &mdash; weight order, not alphabetical, not insertion order. Item 2 is <code>big, fast</code>: the NULL-tag row was filtered, so the string has no dangling delimiter. Item 3 is <strong>absent entirely</strong> &mdash; the <code>WHERE</code> removed its only row, so it formed no group.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>ORDER BY</code> inside the aggregate is the whole trick</h5>
+<p>Without an in-aggregate <code>ORDER BY</code>, <code>STRING_AGG</code> concatenates values in an <em>unspecified</em> order &mdash; whatever the executor happens to produce, which can vary run to run. The clause <code>STRING_AGG(tag, ', ' ORDER BY weight DESC)</code> makes the output deterministic and meaningful: heaviest tag first. This is a distinct, lesser-known piece of syntax &mdash; the <code>ORDER BY</code> lives <em>between</em> the aggregate's arguments and its closing paren, not in the query's outer <code>ORDER BY</code> (which here only sorts the final rows by <code>item_id</code>).</p>
+
+<h5>Filtering NULLs in <code>WHERE</code> vs relying on the aggregate</h5>
+<p><code>STRING_AGG</code> already skips NULL inputs &mdash; a NULL <code>tag</code> contributes neither a value nor a delimiter, so <code>big, fast</code> would come out clean even without the filter. But the explicit <code>WHERE tag IS NOT NULL</code> is still essential: it is what makes <em>item 3 disappear</em>. Without the filter, item 3 forms a group, <code>STRING_AGG</code> aggregates its single NULL row, and returns <code>NULL</code> as the <code>tag_list</code> &mdash; the item would appear with an empty list rather than being omitted. The question says skip NULL tags <em>and</em> the natural reading is "no tags, no row", so filter first.</p>
+
+<h5>Duplicate tags fold in &mdash; or do they?</h5>
+<p><code>STRING_AGG</code> keeps every matching row, so a tag listed twice for an item appears twice in the string. If the requirement were a deduplicated tag set you would write <code>STRING_AGG(DISTINCT tag, ', ')</code> &mdash; but note a Postgres limitation: <code>DISTINCT</code> and an <code>ORDER BY</code> on a <em>different</em> expression cannot be combined, because the ordering key must then be part of the distinct set. Knowing that constraint, and pre-deduplicating in a CTE when you need both, is a senior detail.</p>
+
+<h5>Dialect notes &mdash; the function name changes everywhere</h5>
+<p>This aggregate has a different name in nearly every engine. PostgreSQL: <code>STRING_AGG(expr, sep ORDER BY ...)</code>. MySQL: <code>GROUP_CONCAT(expr ORDER BY ... SEPARATOR sep)</code> &mdash; beware its default <code>group_concat_max_len</code> truncation. SQL Server (2017+): <code>STRING_AGG(expr, sep) WITHIN GROUP (ORDER BY ...)</code> &mdash; the ordering moves to a <code>WITHIN GROUP</code> clause. Oracle: <code>LISTAGG(expr, sep) WITHIN GROUP (ORDER BY ...)</code>. SQLite: <code>GROUP_CONCAT</code>, but it cannot order the concatenation at all. The concept is universal; the spelling is not.</p>
+
+<h5>The MySQL truncation trap</h5>
+<p>If this ran on MySQL, <code>GROUP_CONCAT</code> would silently cut the string at 1024 bytes by default &mdash; a long tag list would be quietly truncated with no error. On a large catalog you would raise <code>group_concat_max_len</code> first. SQL Server's <code>STRING_AGG</code> caps at 8000 bytes unless the inputs are <code>MAX</code> types. Calling out these silent limits unprompted is the senior move.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>STRING_AGG</code> with its <em>in-aggregate</em> <code>ORDER BY weight DESC</code> for deterministic ordering, filter <code>tag IS NOT NULL</code> in <code>WHERE</code> so an all-NULL item drops out instead of returning an empty list, and know the function's name and ordering syntax differ across MySQL/SQL Server/Oracle plus the silent length-truncation traps.</div>

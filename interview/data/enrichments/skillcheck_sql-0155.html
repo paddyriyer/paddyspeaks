@@ -1,0 +1,56 @@
+<p>A product analyst wants a per-user lifecycle summary: each user's first and last event on a single row &mdash; first timestamp, first action, last timestamp, last action. The interviewer is probing <code>FIRST_VALUE</code> / <code>LAST_VALUE</code> window functions, and specifically the notorious <strong>default-frame trap</strong> that makes <code>LAST_VALUE</code> return the wrong row unless you set the frame explicitly.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>ts</th><th>action</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 10:00</td><td>signup</td><td>user 1 first event</td></tr>
+    <tr><td>1</td><td>2025-01-02 11:00</td><td>view</td><td>middle event</td></tr>
+    <tr><td>1</td><td>2025-01-05 12:00</td><td>purchase</td><td>user 1 last event</td></tr>
+    <tr><td>2</td><td>2025-02-01 09:00</td><td>signup</td><td>user 2 first event</td></tr>
+    <tr><td>2</td><td>2025-02-10 14:00</td><td>churn</td><td>user 2 last event &mdash; only two rows</td></tr>
+  </tbody>
+</table>
+<p>User 1 has a clear middle event (<code>view</code>) that must <em>not</em> leak into the first/last columns. User 2 has just two events &mdash; first and last are different rows, a useful boundary for the frame logic. Both users exercise whether <code>LAST_VALUE</code> sees the whole partition.</p>
+
+<h4>2. The SQL &mdash; FIRST_VALUE / LAST_VALUE with an explicit full-partition frame</h4>
+<pre><code>SELECT DISTINCT
+  user_id,
+  FIRST_VALUE(ts)     OVER w AS first_ts,
+  FIRST_VALUE(action) OVER w AS first_action,
+  LAST_VALUE(ts)      OVER w AS last_ts,
+  LAST_VALUE(action)  OVER w AS last_action
+FROM event
+WINDOW w AS (PARTITION BY user_id ORDER BY ts
+             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+ORDER BY user_id;</code></pre>
+<p>The named window <code>w</code> partitions by user, orders by <code>ts</code>, and &mdash; critically &mdash; sets the frame to the <em>entire</em> partition. <code>FIRST_VALUE</code> reads the earliest row, <code>LAST_VALUE</code> the latest. The window function repeats those values on every row of the user, so <code>DISTINCT</code> collapses each user to one summary row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>first_ts</th><th>first_action</th><th>last_ts</th><th>last_action</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 10:00</td><td>signup</td><td>2025-01-05 12:00</td><td>purchase</td></tr>
+    <tr><td>2</td><td>2025-02-01 09:00</td><td>signup</td><td>2025-02-10 14:00</td><td>churn</td></tr>
+  </tbody>
+</table>
+<p>User 1's last is <code>purchase</code> at Jan 5 &mdash; the middle <code>view</code> event is correctly ignored. User 2 spans <code>signup</code> to <code>churn</code>. Each user is one row. With the default frame, <code>last_action</code> would instead have echoed each row's own action &mdash; the bug this query is built to avoid.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The default-frame trap &mdash; why <code>LAST_VALUE</code> usually lies</h5>
+<p>When a window has an <code>ORDER BY</code> but no explicit frame, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. The frame therefore <em>ends at the current row</em>. <code>FIRST_VALUE</code> still works &mdash; the first row is always in that frame &mdash; but <code>LAST_VALUE</code> returns the last row <em>of the frame</em>, which is the current row itself. So <code>LAST_VALUE(action)</code> without an explicit frame just echoes each row's own action: user 1 would show <code>view</code> on the <code>view</code> row, <code>purchase</code> on the <code>purchase</code> row. Setting <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> extends the frame to the full partition so <code>LAST_VALUE</code> genuinely sees the final row.</p>
+
+<h5>Why <code>FIRST_VALUE</code> seems immune &mdash; and is not, conceptually</h5>
+<p><code>FIRST_VALUE</code> appears to work even with the default frame, because the partition's first row is in <em>every</em> growing frame. That is luck, not correctness &mdash; it relies on the frame starting at <code>UNBOUNDED PRECEDING</code>. The disciplined habit is to always state the frame explicitly when using <code>FIRST_VALUE</code>/<code>LAST_VALUE</code>/<code>NTH_VALUE</code>, so the reader does not have to reason about defaults and a later edit cannot quietly break it.</p>
+
+<h5><code>SELECT DISTINCT</code> &mdash; why it is needed and its alternatives</h5>
+<p>A window function does not collapse rows: it computes a value <em>per row</em> and leaves the row count unchanged. User 1 has three event rows, each now carrying the identical first/last quad, so without deduplication you would get three identical summary rows. <code>DISTINCT</code> folds them to one. Cleaner alternatives: filter to one row per user with <code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts) = 1</code>, or skip windows entirely and use conditional aggregation &mdash; <code>MIN(ts)</code>, plus <code>(array_agg(action ORDER BY ts))[1]</code> for the first action.</p>
+
+<h5>Ties on <code>ts</code> &mdash; an unstated risk</h5>
+<p>If a user had two events at the exact same timestamp, "first" and "last" become ambiguous &mdash; <code>FIRST_VALUE</code>/<code>LAST_VALUE</code> would pick whichever the engine ordered first, non-deterministically. The fixture has distinct timestamps so it does not bite, but a senior answer adds a tie-break to the window <code>ORDER BY</code> &mdash; <code>ORDER BY ts, event_id</code> &mdash; to make first/last deterministic. Always ask whether the ordering key is unique.</p>
+
+<h5>Dialect &mdash; <code>FIRST</code>/<code>LAST</code> aggregates elsewhere</h5>
+<p>The <code>WINDOW</code> clause, <code>FIRST_VALUE</code>, <code>LAST_VALUE</code>, and explicit frames are standard in Postgres, SQL Server, Oracle, MySQL 8+, and SQLite 3.25+. Some engines offer terser aggregate forms &mdash; BigQuery has <code>ANY_VALUE</code> with <code>HAVING MIN/MAX</code>, Oracle has <code>FIRST</code>/<code>LAST</code> with <code>KEEP (DENSE_RANK FIRST ORDER BY &hellip;)</code>, and Postgres can do <code>(array_agg(x ORDER BY ts))[1]</code>. The explicit-frame window form shown here is the most portable and the version interviewers want you to be able to defend.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> when using <code>LAST_VALUE</code>, always set the frame explicitly to <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> &mdash; the default <code>RANGE &hellip; CURRENT ROW</code> frame makes <code>LAST_VALUE</code> echo the current row &mdash; remember windows do not collapse rows so you need <code>DISTINCT</code> or a row filter, and add a tie-break to the window <code>ORDER BY</code> when the timestamp is not unique.</div>

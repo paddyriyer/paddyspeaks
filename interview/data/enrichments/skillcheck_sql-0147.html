@@ -1,0 +1,66 @@
+<p>A dependency or routing tool needs reachability: from node 1, which nodes can you get to, and what is the shortest hop count to each? The graph is directed and <em>may contain cycles</em>, so a naive recursive traversal would loop forever. The interviewer is probing whether you know the cycle-safe pattern &mdash; carry the visited path in an array and refuse to revisit &mdash; and whether you compute the <em>minimum</em> hops rather than just any path length.</p>
+
+<h4>1. The source data &mdash; <code>edge</code></h4>
+<table>
+  <thead><tr><th>src</th><th>dst</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>start node has two out-edges</td></tr>
+    <tr><td>1</td><td>3</td><td></td></tr>
+    <tr><td>2</td><td>4</td><td>4 reachable via 1&rarr;2&rarr;4 (2 hops)</td></tr>
+    <tr><td>3</td><td>4</td><td>4 also reachable via 1&rarr;3&rarr;4 &mdash; two paths</td></tr>
+    <tr><td>4</td><td>5</td><td></td></tr>
+    <tr><td>5</td><td>2</td><td>back-edge 5&rarr;2 &mdash; creates a cycle</td></tr>
+    <tr><td>5</td><td>6</td><td></td></tr>
+    <tr><td>6</td><td>7</td><td></td></tr>
+    <tr><td>7</td><td>3</td><td>back-edge 7&rarr;3 &mdash; a second cycle</td></tr>
+  </tbody>
+</table>
+<p>Two cycles are baked in: 2&rarr;4&rarr;5&rarr;2 and 3&rarr;4&rarr;5&rarr;6&rarr;7&rarr;3. Without cycle protection the traversal never terminates. Node 4 is reachable two ways &mdash; that is the case that forces you to take the <em>minimum</em>.</p>
+
+<h4>2. The SQL &mdash; recursive walk with a visited-path array</h4>
+<pre><code>WITH RECURSIVE walk(node, hops, path) AS (
+  SELECT 1, 0, ARRAY[1]
+  UNION ALL
+  SELECT e.dst, w.hops + 1, w.path || e.dst
+  FROM walk w JOIN edge e ON e.src = w.node
+  WHERE NOT (e.dst = ANY(w.path))
+)
+SELECT node, MIN(hops) AS min_hops
+FROM walk
+WHERE node &lt;&gt; 1
+GROUP BY node
+ORDER BY node;</code></pre>
+<p>Each <code>walk</code> row carries the <code>path</code> array of nodes visited so far. The recursive arm follows an out-edge only if <code>e.dst</code> is <em>not already in</em> <code>path</code> &mdash; that guard is what breaks cycles. The traversal still enumerates multiple distinct paths to a node, so the outer <code>MIN(hops)</code> collapses them to the shortest.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>node</th><th>min_hops</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>1</td><td>direct edge 1&rarr;2</td></tr>
+    <tr><td>3</td><td>1</td><td>direct edge 1&rarr;3</td></tr>
+    <tr><td>4</td><td>2</td><td>min of 1&rarr;2&rarr;4 and 1&rarr;3&rarr;4</td></tr>
+    <tr><td>5</td><td>3</td><td>1&rarr;2&rarr;4&rarr;5</td></tr>
+    <tr><td>6</td><td>4</td><td>1&rarr;2&rarr;4&rarr;5&rarr;6</td></tr>
+    <tr><td>7</td><td>5</td><td>1&rarr;2&rarr;4&rarr;5&rarr;6&rarr;7</td></tr>
+  </tbody>
+</table>
+<p>Node 4 is reached at hop 2 by two routes; <code>MIN</code> reports 2 once. Node 1 is excluded by <code>WHERE node &lt;&gt; 1</code> &mdash; the cycle 5&rarr;2&hellip; could otherwise loop back to it. The query terminates despite both cycles because the path guard forbids stepping onto an already-visited node.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The visited-path array is the cycle breaker</h5>
+<p>A plain recursive CTE on a cyclic graph never stops: 1&rarr;2&rarr;4&rarr;5&rarr;2&rarr;4&hellip; produces rows forever. Carrying <code>path</code> &mdash; the ordered list of nodes on the <em>current</em> branch &mdash; and filtering <code>WHERE NOT (e.dst = ANY(w.path))</code> means a branch refuses to re-enter a node it has already stepped on. Each branch can therefore visit each node at most once, so its length is bounded by the node count and the recursion is guaranteed finite.</p>
+
+<h5>Per-path memory, not global &mdash; why <code>MIN</code> is still needed</h5>
+<p>The array tracks visited nodes for <em>that branch only</em>; it is not a global "seen" set. So node 4 is still discovered twice &mdash; once down the 1&rarr;2 branch, once down 1&rarr;3 &mdash; because neither branch's path contained 4 beforehand. That is intentional: a global visited set would prune some paths before their hop count was known and could miss the shortest one. The recursion enumerates all simple paths; the outer <code>GROUP BY node + MIN(hops)</code> then picks the shortest reach per node.</p>
+
+<h5><code>= ANY(array)</code> and array append</h5>
+<p><code>e.dst = ANY(w.path)</code> tests membership of a scalar in a Postgres array; <code>w.path || e.dst</code> appends an element. The anchor seeds <code>ARRAY[1]</code> so node 1 itself is "visited" from the start &mdash; that is what stops the 5&rarr;2&hellip; and 7&rarr;3&hellip; cycles from ever re-deriving node 1 and is why the final <code>WHERE node &lt;&gt; 1</code> is about <em>output</em>, not termination. These are array operations; in engines without native arrays you would carry a delimited string and use <code>LIKE</code>, or use the <code>CYCLE</code> clause below.</p>
+
+<h5>This is BFS-by-result, not by traversal</h5>
+<p>A recursive CTE explores depth-first-ish, not breadth-first, so it does not naturally find shortest paths &mdash; it finds <em>all</em> simple paths and you reduce. For genuinely large graphs that is exponential in the worst case. Real shortest-path work belongs in a graph engine or an iterative algorithm; recursive-CTE reachability is correct and interview-appropriate but does not scale like Dijkstra. Naming that ceiling is the senior move.</p>
+
+<h5>Dialect &mdash; the <code>CYCLE</code> clause</h5>
+<p>Standard SQL and Postgres 14+ offer <code>UNION ALL &hellip; CYCLE node SET is_cycle USING path_col</code>, which builds and checks the visited array for you &mdash; terser and less error-prone than the manual <code>ARRAY</code> + <code>ANY</code> guard. SQL Server has no <code>CYCLE</code> clause and needs the manual pattern (often with <code>MAXRECURSION</code> as a safety cap); Oracle's <code>CONNECT BY</code> has <code>NOCYCLE</code> and <code>CONNECT_BY_ISCYCLE</code>. The manual array shown here is the most portable and the clearest to explain in an interview.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> make recursive graph traversal cycle-safe by carrying the visited <em>path</em> array and filtering <code>NOT (dst = ANY(path))</code>, understand the array is per-branch so multiple paths still surface and an outer <code>MIN(hops)</code> is required, and acknowledge that recursive-CTE reachability enumerates all simple paths &mdash; fine for interviews, not a substitute for a real shortest-path algorithm at scale.</div>

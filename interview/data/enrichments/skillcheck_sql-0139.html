@@ -1,0 +1,65 @@
+<p>A finance team runs a month-end reconciliation: every customer row carries a stored <code>recorded_outstanding</code> snapshot, and the team wants to recompute that balance from first principles &mdash; total orders minus total payments &mdash; and surface only the customers whose stored figure <em>disagrees</em> with the derived one. The interviewer is probing whether you can fan out two independent aggregations, re-join them with <code>LEFT JOIN</code>s so customers with no orders or no payments still appear, and treat the resulting NULLs as zero.</p>
+
+<h4>1. The source data &mdash; <code>customer</code>, <code>orders</code>, <code>payment</code></h4>
+<table>
+  <thead><tr><th>cust_code</th><th>recorded_outstanding</th><th>orders (sum)</th><th>payments (sum)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>C01</td><td>9000</td><td>10500</td><td>1500</td><td>10500&minus;1500 = 9000 &mdash; matches, excluded</td></tr>
+    <tr><td>C02</td><td>12000</td><td>5200</td><td>1000</td><td>derived 4200 &mdash; large discrepancy</td></tr>
+    <tr><td>C03</td><td>5000</td><td>5500</td><td>1200</td><td>derived 4300 &mdash; small discrepancy</td></tr>
+    <tr><td>C04</td><td>0</td><td>(none)</td><td>(none)</td><td>no orders, no payments &mdash; derived 0, matches</td></tr>
+    <tr><td>C05</td><td>8000</td><td>5000</td><td>(none)</td><td>no payment row &mdash; NULL must become 0</td></tr>
+    <tr><td>C06</td><td>2500</td><td>2500</td><td>(none)</td><td>derived 2500 &mdash; matches, excluded</td></tr>
+  </tbody>
+</table>
+<p>C04 is the all-missing edge case &mdash; absent from both <code>orders</code> and <code>payment</code>. C05 has orders but no payment row. Both must survive the joins; their missing sums have to coalesce to&nbsp;0, or the discrepancy arithmetic produces NULL and the customer silently disappears.</p>
+
+<h4>2. The SQL &mdash; pre-aggregate, <code>LEFT JOIN</code>, <code>COALESCE</code></h4>
+<pre><code>WITH o AS (
+  SELECT cust_code, SUM(ord_amount) AS total_orders FROM orders GROUP BY cust_code
+),
+p AS (
+  SELECT cust_code, SUM(paid_amount) AS total_payments FROM payment GROUP BY cust_code
+)
+SELECT c.cust_code,
+       c.recorded_outstanding,
+       COALESCE(o.total_orders,0)   AS total_orders,
+       COALESCE(p.total_payments,0) AS total_payments,
+       COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0) AS calculated_balance,
+       c.recorded_outstanding - (COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0)) AS discrepancy
+FROM customer c
+LEFT JOIN o ON o.cust_code = c.cust_code
+LEFT JOIN p ON p.cust_code = c.cust_code
+WHERE c.recorded_outstanding - (COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0)) &lt;&gt; 0
+ORDER BY ABS(c.recorded_outstanding - (COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0))) DESC, c.cust_code;</code></pre>
+<p>The <code>o</code> and <code>p</code> CTEs collapse orders and payments to one row per customer <em>before</em> joining. The <code>customer</code> table drives two <code>LEFT JOIN</code>s, so every customer is kept; <code>COALESCE(...,0)</code> converts the NULL a missing match produces into a real zero, and the arithmetic builds <code>calculated_balance</code> and <code>discrepancy</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cust_code</th><th>recorded_outstanding</th><th>total_orders</th><th>total_payments</th><th>calculated_balance</th><th>discrepancy</th></tr></thead>
+  <tbody>
+    <tr><td>C02</td><td>12000</td><td>5200</td><td>1000</td><td>4200</td><td>7800</td></tr>
+    <tr><td>C05</td><td>8000</td><td>5000</td><td>0</td><td>5000</td><td>3000</td></tr>
+    <tr><td>C03</td><td>5000</td><td>5500</td><td>1200</td><td>4300</td><td>700</td></tr>
+  </tbody>
+</table>
+<p>Three customers disagree, ordered by the magnitude of the gap: C02 (7800) first, then C05 (3000), then C03 (700). C01, C04, and C06 are absent &mdash; their stored and derived balances match, so <code>discrepancy = 0</code> fails the <code>&lt;&gt; 0</code> filter. C05's <code>total_payments</code> shows <strong>0</strong>, not NULL: the missing payment row was coalesced.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why pre-aggregate in CTEs before joining</h5>
+<p>If you joined <code>customer</code> to raw <code>orders</code> and raw <code>payment</code> first and then aggregated, the join would multiply rows &mdash; a customer with 2 orders and 3 payments yields 6 combined rows, and <code>SUM(ord_amount)</code> would count each order three times. This is the classic <strong>fan-out double-counting</strong> trap. Collapsing each side to one row per customer <em>first</em> means the joins are strictly one-to-one and the sums stay honest. Aggregate, then join &mdash; never join, then aggregate across independent dimensions.</p>
+
+<h5><code>LEFT JOIN</code> + <code>COALESCE</code> is what keeps C04 and C05</h5>
+<p>An <code>INNER JOIN</code> to <code>orders</code> would drop C04 (no orders) entirely, and an inner join to <code>payment</code> would drop C04 and C05. The <code>customer</code> table must drive the query and both joins must be <code>LEFT</code>, so every customer is preserved. A non-matching <code>LEFT JOIN</code> yields NULL for the right-side columns, so <code>COALESCE(...,0)</code> is mandatory: "no orders" means a balance contribution of 0, not unknown. The spec says exactly this &mdash; "NULLs from missing orders/payments treated as 0".</p>
+
+<h5>The discrepancy expression is repeated &mdash; and why that smells</h5>
+<p>The same <code>recorded_outstanding - (orders - payments)</code> formula appears in the <code>SELECT</code>, the <code>WHERE</code>, and the <code>ORDER BY</code> &mdash; three times. SQL does not let you reference a <code>SELECT</code> alias in <code>WHERE</code> (the select list is evaluated after the filter), hence the duplication. The clean fix is to wrap the computed columns in another CTE or subquery and filter/sort on the alias from the outside &mdash; one definition, no drift risk. Mentioning this refactor unprompted signals maintainability awareness.</p>
+
+<h5>Filtering "non-zero" &mdash; <code>&lt;&gt; 0</code> and the NULL it cannot see</h5>
+<p><code>discrepancy &lt;&gt; 0</code> keeps genuine mismatches and drops exact matches. Because every input is coalesced to a number, <code>discrepancy</code> is never NULL here, so <code>&lt;&gt; 0</code> is safe. Without the <code>COALESCE</code>s, a missing match would make the subtraction NULL, <code>NULL &lt;&gt; 0</code> would be <em>unknown</em>, and that customer would be filtered out &mdash; the very customers (C04, C05) the reconciliation most needs to inspect. Coalescing first is what makes the comparison total.</p>
+
+<h5>Ordering by <code>ABS(discrepancy)</code> &mdash; magnitude, not sign</h5>
+<p><code>ORDER BY ABS(discrepancy) DESC</code> ranks the <em>worst</em> mismatches first regardless of direction &mdash; a stored balance 5000 too high and one 5000 too low are equally urgent. Sorting by the signed value would bury large negative discrepancies at the bottom. The <code>cust_code</code> tie-break makes the order deterministic when two customers have equal-magnitude gaps. For an exception report, "biggest problem first" is the right default.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pre-aggregate orders and payments in separate CTEs to avoid join fan-out double-counting, drive the query off <code>customer</code> with <code>LEFT JOIN</code>s and <code>COALESCE(...,0)</code> so zero-activity customers survive and their NULL sums become real zeros, recognise that the repeated discrepancy formula should be defined once in a wrapping CTE, and sort exception reports by <code>ABS()</code> so the largest mismatch &mdash; either direction &mdash; surfaces first.</div>

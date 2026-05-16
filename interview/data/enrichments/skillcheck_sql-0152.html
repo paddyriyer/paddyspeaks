@@ -1,0 +1,56 @@
+<p>An HR analyst wants the "above-average earners" in each department &mdash; not above the company average, but above <em>their own department's</em> average. The comparison threshold therefore differs row by row. The interviewer is probing whether you can compute a per-group aggregate and then filter individual rows against the matching group's value, and whether you get the strict-vs-equal boundary right.</p>
+
+<h4>1. The source data &mdash; <code>salary</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Eng</td><td>100</td><td>Eng avg = 115 &rarr; below</td></tr>
+    <tr><td>2</td><td>Eng</td><td>120</td><td>above 115</td></tr>
+    <tr><td>3</td><td>Eng</td><td>90</td><td>below</td></tr>
+    <tr><td>4</td><td>Eng</td><td>150</td><td>above</td></tr>
+    <tr><td>7</td><td>Sales</td><td>100</td><td>Sales avg = 80 &rarr; above</td></tr>
+    <tr><td>8</td><td>HR</td><td>70</td><td>HR avg = 70 &mdash; exactly equal</td></tr>
+    <tr><td>9</td><td>HR</td><td>70</td><td>also exactly 70 &mdash; the tie case</td></tr>
+  </tbody>
+</table>
+<p>HR is the deliberate edge case: both employees earn exactly 70, so the department average is also 70 &mdash; nobody is <em>strictly</em> above it. A correct query must return zero HR rows, testing whether you use <code>&gt;</code> or sloppily use <code>&gt;=</code>.</p>
+
+<h4>2. The SQL &mdash; per-department average in a CTE, then a self-comparison join</h4>
+<pre><code>WITH d AS (
+  SELECT dept, AVG(amount) AS dept_avg FROM salary GROUP BY dept
+)
+SELECT s.emp_id, s.dept, s.amount, ROUND(d.dept_avg::numeric, 2) AS dept_avg
+FROM salary s JOIN d ON d.dept = s.dept
+WHERE s.amount &gt; d.dept_avg
+ORDER BY s.dept, s.emp_id;</code></pre>
+<p>The CTE <code>d</code> computes one average per department. Joining each employee back to <code>d</code> on <code>dept</code> attaches <em>that employee's department average</em> to their row; the <code>WHERE s.amount &gt; d.dept_avg</code> filter then keeps only employees who beat their own department's number.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>amount</th><th>dept_avg</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Eng</td><td>120</td><td>115.00</td><td>120 &gt; 115</td></tr>
+    <tr><td>4</td><td>Eng</td><td>150</td><td>115.00</td><td>150 &gt; 115</td></tr>
+    <tr><td>7</td><td>Sales</td><td>100</td><td>80.00</td><td>100 &gt; 80</td></tr>
+  </tbody>
+</table>
+<p>Three rows. Eng keeps employees 2 and 4; employees 1 (100) and 3 (90) fall below the 115 average. Sales keeps only employee 7. <strong>HR returns nothing</strong> &mdash; both earn exactly 70, the average is 70, and <code>70 &gt; 70</code> is false. The <code>dept_avg</code> column shows each row was judged against its own department.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The threshold is per-group &mdash; that is why you cannot use one scalar</h5>
+<p>A single <code>WHERE amount &gt; (SELECT AVG(amount) FROM salary)</code> compares everyone to the <em>company-wide</em> average &mdash; the wrong question. The bar must move per department: Eng's 115, Sales' 80, HR's 70. Computing the averages grouped by <code>dept</code> and joining on <code>dept</code> is what makes the comparison row-relative. This "compare a row to its own group's aggregate" shape is the core pattern the question is testing.</p>
+
+<h5>Why a CTE join over a correlated subquery</h5>
+<p>You could write <code>WHERE amount &gt; (SELECT AVG(amount) FROM salary s2 WHERE s2.dept = s.dept)</code> &mdash; correct, but the subquery re-runs per row and naive engines recompute each department's average many times. The CTE computes every department average <em>once</em>, then joins. Same result, and the planner can hash-join the small aggregate against the base table. A window function &mdash; <code>AVG(amount) OVER (PARTITION BY dept)</code> &mdash; is a third equally good option that avoids the explicit join entirely.</p>
+
+<h5>The strict inequality decides HR &mdash; <code>&gt;</code> not <code>&gt;=</code></h5>
+<p>"More than the average" means strictly greater. HR's two employees both sit <em>on</em> the average, so <code>&gt;</code> excludes them &mdash; the intended answer. Switching to <code>&gt;=</code> would wrongly return both HR rows, and in any uniform department every employee would qualify. The fixture's all-equal HR group exists precisely to catch this off-by-one; always probe the boundary with an "exactly equal" case.</p>
+
+<h5>An employee never inflates their own comparison &mdash; but they are <em>in</em> the average</h5>
+<p>Subtle point: the department average includes the employee being tested. Eng's 115 average counts employee 4's 150. So a single outlier raises the bar for everyone, themselves included &mdash; employee 4 still clears it here, but a lone high earner can pull the average up enough that mid-tier colleagues drop below. If the business wanted "above the average of <em>everyone else</em>", you would compute a leave-one-out average &mdash; a different, harder query. Confirm which definition the question means; the standard reading includes the row itself.</p>
+
+<h5>NULL salaries and the rounding cast</h5>
+<p><code>AVG</code> ignores NULL <code>amount</code> values, so a NULL-salary employee neither shifts the department average nor passes <code>amount &gt; dept_avg</code> (a comparison with NULL is unknown, so they are filtered out). That is usually the desired behaviour, but decide consciously. <code>ROUND(d.dept_avg::numeric, 2)</code> is purely cosmetic for the output column &mdash; the <code>::numeric</code> cast is needed because Postgres's two-argument <code>ROUND</code> requires <code>numeric</code>; crucially the <code>WHERE</code> compares against the <em>unrounded</em> <code>dept_avg</code>, so rounding never distorts the filter.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compare each row to its <em>own group's</em> aggregate by grouping then joining on the group key (a CTE or <code>AVG() OVER (PARTITION BY)</code>, not a company-wide scalar), use a strict <code>&gt;</code> so an all-equal department correctly returns nobody, and note the tested row is included in its own average &mdash; flag a leave-one-out reading if the business needs it.</div>

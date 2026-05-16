@@ -1,0 +1,55 @@
+<p>An education platform wants to find "quiet" students &mdash; those who, across every exam they sat, were never the top scorer and never the bottom scorer. The interviewer plants two precise traps: a tie for top must disqualify <em>all</em> tied students, and a student who never took an exam should not be counted as quiet (you cannot be quiet if you never spoke). This is a window-function exclusion problem.</p>
+
+<h4>1. The source data &mdash; <code>exam</code> (with <code>student</code> for names)</h4>
+<table>
+  <thead><tr><th>exam_id</th><th>student_id</th><th>score</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1 / 2 / 3 / 4 / 5</td><td>90 / 85 / 80 / 70 / 60</td><td>exam 1: Aki top, Em bottom</td></tr>
+    <tr><td>2</td><td>1 / 2 / 3 / 4 / 5</td><td>70 / 75 / 72 / 68 / 80</td><td>exam 2: Em top, Dee bottom</td></tr>
+    <tr><td>3</td><td>1 / 2 / 3 / 4 / 5</td><td>60 / 90 / 80 / 40 / 75</td><td>exam 3: Bea top, Dee bottom</td></tr>
+  </tbody>
+</table>
+<p>Trace student 3 (Cy): exam 1 he scores 80 &mdash; 3rd of 5, neither extreme; exam 2 he scores 72 &mdash; mid-pack; exam 3 he scores 80 &mdash; 2nd, not the 90 top nor the 40 bottom. Cy is never an extreme. The edge cases: a hypothetical tie for top should knock out both tied students (<code>DENSE_RANK = 1</code> handles this), and student id 4 (Dee) is bottom twice &mdash; clearly loud &mdash; verifying the disqualification path.</p>
+
+<h4>2. The SQL &mdash; rank within each exam from both ends, exclude the extremes</h4>
+<pre><code>WITH ranked AS (
+  SELECT exam_id, student_id,
+         DENSE_RANK() OVER (PARTITION BY exam_id ORDER BY score DESC) AS rk_high,
+         DENSE_RANK() OVER (PARTITION BY exam_id ORDER BY score ASC)  AS rk_low
+  FROM exam
+),
+loud AS (
+  SELECT DISTINCT student_id FROM ranked WHERE rk_high = 1 OR rk_low = 1
+)
+SELECT s.student_id, s.student_name
+FROM student s
+JOIN exam e ON e.student_id = s.student_id
+WHERE s.student_id NOT IN (SELECT student_id FROM loud)
+GROUP BY s.student_id, s.student_name
+ORDER BY s.student_id;</code></pre>
+<p><code>ranked</code> tags every exam row with its rank from the top (<code>rk_high</code>) and from the bottom (<code>rk_low</code>). <code>loud</code> collects any student who hit rank 1 from either end in <em>any</em> exam. The final query keeps students who took an exam but never landed in <code>loud</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>student_id</th><th>student_name</th><th>why quiet</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>Cy</td><td>scored 80, 72, 80 &mdash; 3rd, 3rd, 2nd; never top, never bottom in any exam</td></tr>
+  </tbody>
+</table>
+<p>Only <strong>Cy</strong> survives. Aki and Em were each top once; Bea was top in exam 3; Dee was bottom in exams 2 and 3. Every other student hit an extreme at least once and landed in <code>loud</code>, leaving Cy as the sole quiet student.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code> and why ranking from both directions</h5>
+<p>"Top scorer" is rank 1 by <code>score DESC</code>; "bottom scorer" is rank 1 by <code>score ASC</code>. Two window functions over the same partition, opposite orderings, capture both ends. <code>DENSE_RANK</code> (or <code>RANK</code>) is chosen over <code>ROW_NUMBER</code> deliberately: with a tie for the top score, <code>DENSE_RANK</code> assigns <em>both</em> tied rows <code>rk_high = 1</code>, so both are flagged loud &mdash; exactly the spec's "they BOTH disqualify". <code>ROW_NUMBER</code> would arbitrarily give one of them rank 1 and the other rank 2, letting a genuine co-top-scorer slip through as "quiet".</p>
+
+<h5>The "took at least one exam" rule &mdash; why the JOIN matters</h5>
+<p>A student absent from <code>exam</code> never appears in <code>ranked</code> or <code>loud</code>, so <code>NOT IN (loud)</code> alone would wrongly classify them as quiet. The <code>JOIN exam e</code> is the guard: it restricts the result to students with at least one exam row. The trailing <code>GROUP BY s.student_id, s.student_name</code> then collapses the one-row-per-exam fan-out from that join back to one row per student. Here all five students sat exams, but the join is what makes the query correct for a roster that includes non-test-takers.</p>
+
+<h5>Set-difference logic: define "loud", then subtract</h5>
+<p>The cleanest way to express "never an extreme" is by complement: first compute everyone who <em>was</em> an extreme (the <code>loud</code> set), then take the students <em>not</em> in it. Trying to assert "quiet" directly &mdash; "for all of this student's exams, rank is neither 1 nor last" &mdash; needs an awkward correlated <code>NOT EXISTS</code> over a universally-quantified condition. Computing the positive set and subtracting is simpler and matches how an interviewer expects you to decompose the problem.</p>
+
+<h5>The <code>NOT IN</code> safety note and a cleaner finish</h5>
+<p><code>NOT IN (SELECT student_id FROM loud)</code> is safe here because <code>student_id</code> is non-nullable, but <code>NOT IN</code> against a nullable subquery returns nothing &mdash; the usual footgun. <code>NOT EXISTS</code>, or an <code>EXCEPT</code>, sidesteps it. A senior might also skip the final <code>JOIN + GROUP BY</code> and instead drive off <code>ranked</code>: <code>SELECT DISTINCT student_id FROM ranked</code> already restricts to exam-takers, so <code>(SELECT DISTINCT student_id FROM ranked) EXCEPT (SELECT student_id FROM loud)</code> answers it in one set operation, then join to <code>student</code> only for the name.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> rank each exam from both ends with <code>DENSE_RANK</code> (not <code>ROW_NUMBER</code>) so a tie for top disqualifies every tied student, build the "loud" set and subtract it, and use a join to <code>exam</code> to enforce "took at least one exam" so never-tested students are not mistaken for quiet ones.</div>

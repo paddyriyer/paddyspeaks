@@ -1,0 +1,67 @@
+<p>A merchandising team has a curated "must-have" product list and wants the users whose cart contains <em>every</em> one of those products. This is <strong>relational division</strong> &mdash; the SQL operation that answers "for all" questions &mdash; and the interviewer explicitly wants the classic <code>NOT EXISTS</code>-inside-<code>NOT EXISTS</code> formulation, because SQL has no native "for all" quantifier.</p>
+
+<h4>1. The source data</h4>
+<p><code>target_products</code> &mdash; the divisor, three must-have items:</p>
+<table>
+  <thead><tr><th>product_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p><code>cart</code> &mdash; user/product pairs, note the duplicate and the supersets:</p>
+<table>
+  <thead><tr><th>user_id</th><th>product_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1, 2, 3, 4</td><td>has all 3 targets plus an extra &mdash; qualifies</td></tr>
+    <tr><td>2</td><td>1, 2</td><td>missing product 3 &mdash; fails</td></tr>
+    <tr><td>3</td><td>1, 3, 2</td><td>has all 3 (any order) &mdash; qualifies</td></tr>
+    <tr><td>4</td><td>3, 4</td><td>missing 1 and 2 &mdash; fails</td></tr>
+    <tr><td>5</td><td>1, 2, 3, 1</td><td>has all 3, with product 1 listed twice &mdash; qualifies once</td></tr>
+  </tbody>
+</table>
+<p>The edge cases that decide the interview: user 1 has a <em>superset</em> (extra product 4 must not disqualify), user 5 has a <em>duplicate</em> row (must still count as one user, not two), and user 2 is the near-miss &mdash; two of three targets is not enough.</p>
+
+<h4>2. The SQL &mdash; double <code>NOT EXISTS</code> (relational division)</h4>
+<pre><code>SELECT DISTINCT u.user_id
+FROM cart u
+WHERE NOT EXISTS (
+  SELECT 1 FROM target_products t
+  WHERE NOT EXISTS (
+    SELECT 1 FROM cart c
+    WHERE c.user_id = u.user_id AND c.product_id = t.product_id
+  )
+)
+ORDER BY u.user_id;</code></pre>
+<p>Read it inside-out. The innermost query asks "does this user have this target product?" The middle <code>NOT EXISTS</code> turns that into "is there a target product this user is <em>missing</em>?" The outer <code>NOT EXISTS</code> negates again: "this user is missing <em>no</em> target product" &mdash; i.e. has them all.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>has 1,2,3 (extra 4 ignored) &mdash; superset still qualifies</td></tr>
+    <tr><td>3</td><td>has 1,2,3 in any order</td></tr>
+    <tr><td>5</td><td>has 1,2,3; duplicate row collapsed by DISTINCT</td></tr>
+  </tbody>
+</table>
+<p>Users 1, 3, 5 qualify. User 1's extra product 4 is irrelevant &mdash; division checks <em>containment</em>, not equality. User 5 appears <strong>once</strong> despite its duplicate cart row, thanks to <code>SELECT DISTINCT</code>. Users 2 and 4 are correctly absent: each is missing at least one target.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two negations express "for all"</h5>
+<p>SQL has <code>EXISTS</code> ("there is at least one") but no <code>FOR ALL</code> quantifier. The logical identity that rescues you is: <em>"X holds for all t"</em> is equivalent to <em>"there is no t for which X fails"</em>. Apply it here: "user has every target" becomes "there is no target the user lacks." Each clause &mdash; "lacks" and "there is no" &mdash; is one <code>NOT EXISTS</code>, so the construct nests two of them. This double-negation is <em>the</em> canonical SQL pattern for universal quantification; recognising it on sight is the point of the question.</p>
+
+<h5>The correlation chain is what makes it work</h5>
+<p>Three query levels, two correlations. The middle query is correlated to the outer via <code>c.user_id = u.user_id</code> &mdash; "the user we are currently testing." The inner is correlated to the middle via <code>c.product_id = t.product_id</code> &mdash; "the target we are currently checking." If either correlation is dropped, the logic collapses: lose the user correlation and you ask whether <em>anyone</em> has the product, not this user. Trace both correlations explicitly when explaining.</p>
+
+<h5>Superset and duplicate behaviour &mdash; by design</h5>
+<p>Relational division tests "cart &supe; targets", not "cart = targets". User 1's product 4 is simply never examined &mdash; the query only ever iterates over <code>target_products</code>, so anything in the cart beyond the targets is invisible. Duplicates are equally harmless to the <em>logic</em>: the inner <code>EXISTS</code> only cares whether <em>at least one</em> matching row exists, so user 5's repeated product 1 changes nothing. The duplicate <em>does</em> matter for the <em>output</em> though &mdash; <code>FROM cart u</code> would emit user 5 once per cart row, hence <code>SELECT DISTINCT</code> is required to collapse them.</p>
+
+<h5>The empty-divisor trap</h5>
+<p>A famous quirk: if <code>target_products</code> were <em>empty</em>, the middle <code>NOT EXISTS</code> would be vacuously true for everyone (no target rows means no missing target), so the query would return <em>every</em> user. Mathematically correct &mdash; everyone trivially owns all zero required products &mdash; but rarely the intended business answer. On a real system, guard against an empty divisor explicitly. Also note: a NULL <code>product_id</code> in either table would make the inner equality <code>UNKNOWN</code> and could distort the result; with a <code>NOT NULL</code> column this is moot, but worth stating.</p>
+
+<h5>Dialect notes and the alternative</h5>
+<p>The double-<code>NOT EXISTS</code> form is fully ANSI-standard and runs identically on PostgreSQL, MySQL, SQL Server, and Oracle. The common alternative is the <em>counting</em> formulation: join cart to targets, <code>GROUP BY user_id</code>, and keep groups where <code>COUNT(DISTINCT c.product_id) = (SELECT COUNT(*) FROM target_products)</code>. It is often easier to read &mdash; but the <code>DISTINCT</code> inside the count is mandatory, precisely to neutralise user 5's duplicate. The question pins you to the <code>NOT EXISTS</code> form, but knowing the count-based equivalent (and why it needs <code>DISTINCT</code>) is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "contains every X" as relational division, implement it as <code>NOT EXISTS</code> ("no target...") wrapping <code>NOT EXISTS</code> ("...that the user lacks"), keep both correlation predicates intact, add <code>SELECT DISTINCT</code> to collapse duplicate cart rows, and know the empty-divisor returns-everyone trap plus the count-based alternative.</div>

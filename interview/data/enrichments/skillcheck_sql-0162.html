@@ -1,0 +1,60 @@
+<p>A trust-and-safety service needs the list of users who are <em>not</em> banned, but the <code>banned</code> table has a known data-quality flaw: it sometimes contains a NULL user_id. The interviewer is deliberately setting the classic <code>NOT IN</code> trap &mdash; a single NULL in the subquery silently turns the whole anti-join into the <strong>empty set</strong>. The task asks you to show both the broken naive count and the correct one side by side, so you must understand <em>why</em> three-valued logic breaks <code>NOT IN</code>.</p>
+
+<h4>1. The source data</h4>
+<p><code>users</code> &mdash; the population to filter:</p>
+<table>
+  <thead><tr><th>user_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>4</td></tr>
+    <tr><td>5</td></tr>
+  </tbody>
+</table>
+<p><code>banned</code> &mdash; note the poisoned middle row:</p>
+<table>
+  <thead><tr><th>user_id</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>genuine ban</td></tr>
+    <tr><td>NULL</td><td>data-quality defect &mdash; this row breaks NOT IN</td></tr>
+    <tr><td>4</td><td>genuine ban</td></tr>
+  </tbody>
+</table>
+<p>The whole interview hinges on that <code>NULL</code> row. The <em>correct</em> answer is "users 1, 3, 5 are not banned" &mdash; three users. The naive <code>NOT IN</code> query returns <strong>zero</strong>.</p>
+
+<h4>2. The SQL &mdash; safe <code>NOT EXISTS</code> beside broken <code>NOT IN</code></h4>
+<pre><code>SELECT
+  (SELECT COUNT(*) FROM users u
+   WHERE NOT EXISTS (SELECT 1 FROM banned b WHERE b.user_id = u.user_id)) AS safe_count,
+  (SELECT COUNT(*) FROM users u
+   WHERE u.user_id NOT IN (SELECT user_id FROM banned)) AS naive_count;</code></pre>
+<p><code>safe_count</code> uses <code>NOT EXISTS</code> with a correlated equality &mdash; immune to NULLs. <code>naive_count</code> uses <code>NOT IN</code> against a subquery that contains a NULL &mdash; the textbook bug. Both run in one statement so the two numbers can be compared directly.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>safe_count</th><th>naive_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>0</td><td>correct vs the NULL-poisoned answer</td></tr>
+  </tbody>
+</table>
+<p><code>safe_count</code> is <strong>3</strong> &mdash; users 1, 3, 5. <code>naive_count</code> is <strong>0</strong>: the NULL in <code>banned</code> made <code>NOT IN</code> unable to confirm <em>any</em> user as definitely-not-present, so it excluded everyone. Same data, same intent, and the naive query is not merely off-by-one &mdash; it is catastrophically wrong.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why one NULL empties a <code>NOT IN</code></h5>
+<p><code>x NOT IN (a, b, NULL)</code> expands to <code>x &lt;&gt; a AND x &lt;&gt; b AND x &lt;&gt; NULL</code>. The comparison <code>x &lt;&gt; NULL</code> is never <code>TRUE</code> &mdash; it evaluates to <code>UNKNOWN</code> in SQL's three-valued logic. An <code>AND</code> chain that contains an <code>UNKNOWN</code> can be <code>FALSE</code> (if another term is false) but can <em>never</em> be <code>TRUE</code>. So for every user the predicate is at best <code>UNKNOWN</code>, the <code>WHERE</code> keeps only <code>TRUE</code> rows, and the result is empty. The NULL does not just affect itself &mdash; it sabotages the test for <em>every</em> row.</p>
+
+<h5>Why <code>NOT EXISTS</code> is immune</h5>
+<p><code>NOT EXISTS (SELECT 1 FROM banned b WHERE b.user_id = u.user_id)</code> asks a different question: "does any banned row's user_id <em>equal</em> this user's id?" The correlated predicate <code>b.user_id = u.user_id</code> against the NULL row evaluates to <code>UNKNOWN</code>, which <code>EXISTS</code> treats exactly like <code>FALSE</code> &mdash; that row does not satisfy the inner query, so it simply contributes nothing. <code>EXISTS</code> only ever returns a clean <code>TRUE</code>/<code>FALSE</code>; there is no <code>UNKNOWN</code> leaking out. The NULL row is harmlessly ignored, and users 1, 3, 5 correctly pass.</p>
+
+<h5>The third option: <code>LEFT JOIN ... IS NULL</code></h5>
+<p>The anti-join can also be written <code>FROM users u LEFT JOIN banned b ON b.user_id = u.user_id WHERE b.user_id IS NULL</code>. This is also NULL-safe for the same reason &mdash; it matches on equality, and an unmatched user gets a NULL right side. It produces the correct 3. All three NULL-safe forms (<code>NOT EXISTS</code>, anti-<code>JOIN</code>, <code>EXCEPT</code>) are interchangeable; <code>NOT IN</code> against a nullable column is the one to avoid.</p>
+
+<h5>How to make <code>NOT IN</code> safe if you must use it</h5>
+<p><code>NOT IN</code> is not forbidden &mdash; it is only dangerous when the subquery column is nullable. Two fixes: filter the NULLs out (<code>... NOT IN (SELECT user_id FROM banned WHERE user_id IS NOT NULL)</code>), or declare the column <code>NOT NULL</code> so the defect cannot occur. The deeper senior point: this is a data-quality bug. A NULL <code>user_id</code> in a <code>banned</code> table is meaningless &mdash; the real fix is a <code>NOT NULL</code> constraint at the schema level so the poisoned row can never be inserted in the first place.</p>
+
+<h5>Dialect notes</h5>
+<p>This three-valued-logic behaviour is SQL-standard &mdash; PostgreSQL, MySQL, SQL Server, and Oracle all empty a <code>NOT IN</code> the same way when the subquery yields a NULL. It is one of the most universal SQL footguns. Some optimisers will rewrite <code>NOT IN</code> to an anti-join <em>only</em> when they can prove the column is non-nullable; the moment NULLs are possible, the rewrite is illegal and you are stuck with the slow, wrong semantics.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that a single NULL in a <code>NOT IN</code> subquery collapses the result to empty because <code>x &lt;&gt; NULL</code> is <code>UNKNOWN</code>, default to <code>NOT EXISTS</code> or an anti-<code>JOIN</code> which match on equality and are NULL-safe, and treat the underlying NULL <code>user_id</code> as a data-quality defect to fix with a <code>NOT NULL</code> constraint.</div>

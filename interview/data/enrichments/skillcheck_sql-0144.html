@@ -1,0 +1,60 @@
+<p>A sales manager wants a "top deals per rep" board: for every agent, show their two biggest orders, with a stable tie-break so the report is deterministic run after run. The interviewer is probing whether you reach for <code>ROW_NUMBER()</code> in a partitioned window, and &mdash; more subtly &mdash; whether you understand that a multi-key <code>ORDER BY</code> inside the window is what makes the ranking <em>reproducible</em> when amounts tie.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>ord_num</th><th>agent_code</th><th>ord_amount</th><th>ord_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A001</td><td>800</td><td>2025-01-01</td><td>agent with a single order</td></tr>
+    <tr><td>3</td><td>A002</td><td>7000</td><td>2025-02-15</td><td>ties on amount with ord 4</td></tr>
+    <tr><td>4</td><td>A002</td><td>7000</td><td>2025-02-10</td><td>same amount, earlier date &rarr; wins</td></tr>
+    <tr><td>5</td><td>A002</td><td>3000</td><td>2025-03-01</td><td>drops off the top 2</td></tr>
+    <tr><td>6</td><td>A004</td><td>2500</td><td>2025-01-10</td><td>ties amount AND date with ord 7</td></tr>
+    <tr><td>7</td><td>A004</td><td>2500</td><td>2025-01-10</td><td>full tie &mdash; broken only by ord_num</td></tr>
+  </tbody>
+</table>
+<p>Three deliberate edge cases: A001 has only one order (must still appear), A002 ties on <code>ord_amount</code> (broken by date), and A004 ties on <em>both</em> amount and date (broken only by <code>ord_num</code>). A correct tie-break chain has to survive all three.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER with a three-key window ORDER BY</h4>
+<pre><code>WITH ranked AS (
+  SELECT agent_code, ord_num, ord_date, ord_amount,
+         ROW_NUMBER() OVER (PARTITION BY agent_code
+                            ORDER BY ord_amount DESC, ord_date ASC, ord_num ASC) AS rk
+  FROM orders
+)
+SELECT agent_code, ord_num, ord_date, ord_amount, rk
+FROM ranked
+WHERE rk &lt;= 2
+ORDER BY agent_code, rk;</code></pre>
+<p><code>PARTITION BY agent_code</code> restarts the numbering for each agent; the three-key <code>ORDER BY</code> decides the sequence within the partition. The <code>WHERE rk &lt;= 2</code> filter must live in an outer query &mdash; you cannot reference a window alias in the same <code>SELECT</code>'s <code>WHERE</code>, because window functions are evaluated after <code>WHERE</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>agent_code</th><th>ord_num</th><th>ord_date</th><th>ord_amount</th><th>rk</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>A001</td><td>1</td><td>2025-01-01</td><td>800</td><td>1</td><td>single order &mdash; still returned</td></tr>
+    <tr><td>A002</td><td>4</td><td>2025-02-10</td><td>7000</td><td>1</td><td>tie on 7000 &rarr; earlier date wins</td></tr>
+    <tr><td>A002</td><td>3</td><td>2025-02-15</td><td>7000</td><td>2</td><td>later date &rarr; rank 2</td></tr>
+    <tr><td>A004</td><td>6</td><td>2025-01-10</td><td>2500</td><td>1</td><td>full tie &rarr; lower ord_num wins</td></tr>
+    <tr><td>A004</td><td>7</td><td>2025-01-10</td><td>2500</td><td>2</td><td>broken purely by ord_num</td></tr>
+  </tbody>
+</table>
+<p>A002's rank 1 is order 4, not 3: same amount, but 2025-02-10 precedes 2025-02-15. A004's two orders are identical on amount and date, so only <code>ord_num ASC</code> separates them &mdash; ord 6 gets rank 1. A001 yields one row; the <code>rk &lt;= 2</code> filter never demanded two.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> and not <code>RANK</code> here</h5>
+<p>The question explicitly says "no ties surface a duplicate rank" &mdash; it wants exactly two distinct rows per agent. <code>RANK()</code> would give both A004 orders rank 1 (a tie group), so <code>rk &lt;= 2</code> could return three rows for an agent with a three-way tie. <code>ROW_NUMBER()</code> guarantees a strict 1, 2, 3, &hellip; sequence, so "top 2" means precisely two rows. The price is that you must <em>decide</em> the tie order yourself &mdash; which is what the three-key <code>ORDER BY</code> does.</p>
+
+<h5>The tie-break chain must be total</h5>
+<p>A tie-break is only deterministic if the final key is unique. <code>ord_amount DESC, ord_date ASC</code> alone still leaves A004's two orders tied &mdash; same amount, same date. The engine would then pick arbitrarily, and the "winner" could flip between runs. Ending the chain with <code>ord_num ASC</code> (a primary key, guaranteed unique) makes the ordering <em>total</em>. Senior tip: always anchor a tie-break with a unique column, or accept non-determinism explicitly.</p>
+
+<h5>Why the filter needs a CTE (or subquery)</h5>
+<p>SQL's logical evaluation order is <code>FROM</code> &rarr; <code>WHERE</code> &rarr; <code>GROUP BY</code> &rarr; window functions &rarr; <code>SELECT</code> &rarr; <code>ORDER BY</code>. The window function does not exist yet when <code>WHERE</code> runs, so <code>WHERE rk &lt;= 2</code> in the same query is a syntax error. Wrapping the windowed query in a CTE (or derived table) lets the outer query treat <code>rk</code> as an ordinary column. <code>QUALIFY</code> (Snowflake, BigQuery, DuckDB) is sugar for exactly this, but Postgres, MySQL, and SQLite require the explicit wrapper.</p>
+
+<h5>Single-member partitions are free</h5>
+<p>A001's partition has one row, which gets <code>rk = 1</code> and passes the filter. There is no special case to write &mdash; "top N" via <code>ROW_NUMBER</code> naturally returns "all of them" when a group has fewer than N rows. Contrast a <code>LIMIT</code>-per-group hack or a hard-coded "two rows" join, which would need extra logic to not drop the single-order agent.</p>
+
+<h5>Performance and the <code>NULLS</code> footnote</h5>
+<p>The window sorts each partition once &mdash; O(n log n) overall &mdash; and a composite index on <code>(agent_code, ord_amount DESC, ord_date, ord_num)</code> can let the planner stream the rows pre-sorted, skipping the sort entirely. One trap: if <code>ord_amount</code> can be NULL, Postgres sorts NULLs <em>first</em> under <code>DESC</code>, so a NULL-amount order would wrongly rank #1. Add <code>NULLS LAST</code> or filter NULL amounts if that is possible in your data.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>ROW_NUMBER() OVER (PARTITION BY &hellip; ORDER BY &hellip;)</code> for strict top-N-per-group, make the tie-break chain <em>total</em> by ending it on a unique key, know that the <code>rk &lt;= N</code> filter must sit in an outer query because windows run after <code>WHERE</code>, and note that single-member groups need no special handling.</div>

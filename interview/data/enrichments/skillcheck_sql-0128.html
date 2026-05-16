@@ -1,0 +1,59 @@
+<p>A telecom analyst wants the chatty countries: countries whose average call duration &mdash; counting every call where the country is on <em>either</em> end &mdash; beats the global average across all call legs. The interviewer is probing two skills at once: deriving the country from a phone-number prefix via string parsing, and a <code>HAVING</code> filter that compares each group against a scalar global benchmark.</p>
+
+<h4>1. The source data &mdash; <code>country</code>, <code>person</code>, <code>calls</code></h4>
+<table>
+  <thead><tr><th>relation</th><th>row</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>country</td><td>(1,USA,'1'), (2,China,'86'), (3,India,'91')</td><td>country_code is the dialling prefix</td></tr>
+    <tr><td>person</td><td>10&rarr;'1-555', 11&rarr;'1-666'</td><td>USA persons (prefix before the '-')</td></tr>
+    <tr><td>person</td><td>20&rarr;'86-12', 30&rarr;'91-99'</td><td>China person 20, India person 30</td></tr>
+    <tr><td>calls</td><td>(10&rarr;11, 30), (10&rarr;20, 300)</td><td>a 30s domestic call, a 300s call USA&harr;China</td></tr>
+    <tr><td>calls</td><td>(11&rarr;30, 60), (20&rarr;30, 10)</td><td>USA&harr;India 60s, China&harr;India 10s</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the cross-border call. A call between a USA caller and a China callee must count <em>once for USA and once for China</em> &mdash; that is the "either caller or callee" rule. Splitting each call into two legs makes both endpoints countable; India ends up with only short calls, which tests a group that falls <em>below</em> the benchmark.</p>
+
+<h4>2. The SQL &mdash; explode calls into legs, tag with country, compare to global average</h4>
+<pre><code>WITH legs AS (
+  SELECT caller_id AS pid, duration FROM calls
+  UNION ALL
+  SELECT callee_id, duration FROM calls
+),
+tagged AS (
+  SELECT c.country_name, l.duration
+  FROM legs l
+  JOIN person  p ON p.person_id = l.pid
+  JOIN country c ON split_part(p.phone_number, '-', 1) = c.country_code
+)
+SELECT country_name
+FROM tagged
+GROUP BY country_name
+HAVING AVG(duration) &gt; (SELECT AVG(duration) FROM legs)
+ORDER BY country_name;</code></pre>
+<p><code>legs</code> turns each call into two rows &mdash; the caller's leg and the callee's leg. <code>tagged</code> attaches a country by parsing the prefix out of the phone number. The <code>HAVING</code> keeps countries whose per-country average exceeds the scalar global average over the same leg set.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>country_name</th><th>country avg</th><th>vs global (100)</th></tr></thead>
+  <tbody>
+    <tr><td>China</td><td>155.0</td><td>4 legs touch China &rarr; above 100, qualifies</td></tr>
+    <tr><td>USA</td><td>105.0</td><td>USA legs average 105 &rarr; just above 100, qualifies</td></tr>
+  </tbody>
+</table>
+<p>The global average over all 8 legs is <strong>100</strong>. China (155) and USA (105) strictly exceed it. India is correctly excluded: its legs (a 60s and two 10s calls) average 35 &mdash; well below the benchmark, so the <code>HAVING</code> rejects it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why explode calls into legs with <code>UNION ALL</code></h5>
+<p>"Calls touching that country, as caller <em>or</em> callee" means each call must be attributable to up to two countries. Keeping calls one-row-each and trying to <code>OR</code> the two sides leads to double-handling bugs. Splitting into a caller leg and a callee leg &mdash; <code>UNION ALL</code> &mdash; makes every endpoint a first-class row, so a cross-border call cleanly contributes its duration to <em>both</em> countries' averages. <code>UNION ALL</code> not <code>UNION</code>: a call's two legs share the same <code>duration</code>, and <code>UNION</code> would dedupe them, destroying the count.</p>
+
+<h5>The benchmark must use the same leg universe</h5>
+<p><code>HAVING AVG(duration) &gt; (SELECT AVG(duration) FROM legs)</code> &mdash; the global benchmark averages over <code>legs</code>, the <em>same</em> doubled row set the per-country averages use. This is deliberate and the question says so ("global average across all call legs"). If you instead benchmarked against <code>SELECT AVG(duration) FROM calls</code> (one row per call) the two averages would actually coincide here, but in general they differ &mdash; comparing a per-leg average to a per-call average is an apples-to-oranges bug. Keep numerator and benchmark on the same grain.</p>
+
+<h5><code>split_part</code> &mdash; parsing the country code, and its fragility</h5>
+<p><code>split_part(phone_number, '-', 1)</code> takes the text before the first <code>'-'</code> &mdash; the dialling prefix &mdash; and joins it to <code>country.country_code</code>. It works because the data format is strictly <code>code-rest</code>. It is fragile: a number with no <code>'-'</code> yields the whole string, an unknown prefix joins to nothing (that leg silently drops from <code>tagged</code>), and a leading <code>'+'</code> would break the match. A senior flags that prefix-to-country is genuinely ambiguous in reality (variable-length codes) and that a proper schema would store <code>country_id</code> on <code>person</code> directly.</p>
+
+<h5>Dialect &mdash; <code>split_part</code> is not universal</h5>
+<p><code>split_part</code> is PostgreSQL (and Redshift). MySQL has <code>SUBSTRING_INDEX(phone_number,'-',1)</code>; SQL Server has no direct equivalent and needs <code>LEFT(phone_number, CHARINDEX('-',phone_number)-1)</code>; SQLite needs <code>substr(phone_number,1,instr(phone_number,'-')-1)</code>. The leg-explode and <code>HAVING</code>-vs-subquery logic is fully portable &mdash; only the string-splitting function changes. Knowing the per-dialect substitution, and that the rest of the query is unaffected, is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explode each call into caller and callee legs with <code>UNION ALL</code> so a cross-border call counts for both countries, benchmark the <code>HAVING</code> against the global average computed over the <em>same</em> leg grain, and treat the <code>split_part</code> prefix parse as fragile &mdash; naming the dialect variants and the cleaner "store country_id directly" schema.</div>

@@ -1,0 +1,55 @@
+<p>An analytics dashboard needs running totals on a daily metric: as of each day, the cumulative sum, the count of days so far, and the running average. The question explicitly contrasts the modern window-function approach with the pre-2003 self-join. The interviewer is probing whether you can write a correct cumulative window frame &mdash; and whether you know the frame clause is what makes it "to date".</p>
+
+<h4>1. The source data &mdash; <code>metric</code></h4>
+<table>
+  <thead><tr><th>d</th><th>v</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10</td><td>first day &mdash; running stats equal the row itself</td></tr>
+    <tr><td>2025-01-02</td><td>20</td><td>cumulative 30</td></tr>
+    <tr><td>2025-01-03</td><td>15</td><td>cumulative 45</td></tr>
+    <tr><td>2025-01-04</td><td>25</td><td>cumulative 70</td></tr>
+    <tr><td>2025-01-05</td><td>30</td><td>last day &mdash; cumulative 100</td></tr>
+  </tbody>
+</table>
+<p>The boundary case is the first row: with no prior days, <code>sum_to_date</code>, <code>count_to_date</code>, and <code>avg_to_date</code> must equal the day's own values (10, 1, 10.00). A correct cumulative frame includes the current row, so day one is self-consistent rather than empty.</p>
+
+<h4>2. The SQL &mdash; window functions with a cumulative frame</h4>
+<pre><code>SELECT d, v,
+       SUM(v)   OVER (ORDER BY d ROWS UNBOUNDED PRECEDING) AS sum_to_date,
+       COUNT(*) OVER (ORDER BY d ROWS UNBOUNDED PRECEDING) AS count_to_date,
+       ROUND(AVG(v) OVER (ORDER BY d ROWS UNBOUNDED PRECEDING)::numeric, 2) AS avg_to_date_2dp
+FROM metric
+ORDER BY d;</code></pre>
+<p>Each window aggregate runs over a <em>frame</em>: <code>ORDER BY d ROWS UNBOUNDED PRECEDING</code> means "every row from the start of the partition up to and including the current row". As the engine walks the rows in date order, the frame grows by one each step, so the aggregates accumulate.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th><th>v</th><th>sum_to_date</th><th>count_to_date</th><th>avg_to_date_2dp</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10</td><td>10</td><td>1</td><td>10.00</td></tr>
+    <tr><td>2025-01-02</td><td>20</td><td>30</td><td>2</td><td>15.00</td></tr>
+    <tr><td>2025-01-03</td><td>15</td><td>45</td><td>3</td><td>15.00</td></tr>
+    <tr><td>2025-01-04</td><td>25</td><td>70</td><td>4</td><td>17.50</td></tr>
+    <tr><td>2025-01-05</td><td>30</td><td>100</td><td>5</td><td>20.00</td></tr>
+  </tbody>
+</table>
+<p>Day one's running stats are 10 / 1 / 10.00 &mdash; the row itself, because the frame includes the current row. Each later row adds <code>v</code> to the sum and 1 to the count; <code>avg_to_date</code> is always <code>sum_to_date / count_to_date</code> (e.g. 70 / 4 = 17.50).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The frame clause <em>is</em> the cumulation</h5>
+<p>A window function without a frame would aggregate over a different scope. <code>ROWS UNBOUNDED PRECEDING</code> is shorthand for <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; "all rows up to and including this one". That growing frame is precisely what turns a plain <code>SUM</code> into a running total. Change the frame to <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> and you get a 3-day moving sum instead. The aggregate function describes <em>what</em>; the frame describes <em>over which rows</em>.</p>
+
+<h5>Why <code>ROWS</code> and not the default <code>RANGE</code> &mdash; the tie trap</h5>
+<p>When you supply an <code>ORDER BY</code> but omit the frame, the SQL default is <code>RANGE UNBOUNDED PRECEDING</code>, not <code>ROWS</code>. <code>RANGE</code> frames by <em>value</em>: all rows whose <code>d</code> equals the current <code>d</code> collapse into one frame step. With one row per day that happens to match <code>ROWS</code> &mdash; but if two rows shared a date, <code>RANGE</code> would give them an <em>identical</em> running total (both seeing the full tied group), whereas <code>ROWS</code> increments strictly row by row. Writing <code>ROWS</code> explicitly makes the per-row cumulation unambiguous and tie-proof.</p>
+
+<h5>Window functions vs the pre-2003 self-join</h5>
+<p>The old approach was a correlated self-join: <code>SELECT m1.d, m1.v, (SELECT SUM(v) FROM metric m2 WHERE m2.d &lt;= m1.d) &hellip;</code>. It returns the same numbers but rescans the table for every row &mdash; O(n&sup2;). The window function sorts once and sweeps the rows in a single pass maintaining a running accumulator &mdash; O(n log n), and O(n) if an index already supplies date order. On a large table the window form is not just cleaner, it is the only viable answer; the self-join is a historical artefact from before SQL:2003 standardised window functions.</p>
+
+<h5><code>COUNT(*)</code> over the frame, and the WINDOW alias option</h5>
+<p><code>COUNT(*) OVER (&hellip;)</code> counts rows in the frame &mdash; here the day ordinal, 1..5. The three aggregates repeat the identical <code>OVER</code> clause; that is correct but verbose. A named window &mdash; <code>&hellip; WINDOW w AS (ORDER BY d ROWS UNBOUNDED PRECEDING)</code>, then <code>SUM(v) OVER w</code> &mdash; defines the frame once and is the cleaner senior style when several functions share a window.</p>
+
+<h5>NULLs, ordering, and dialect</h5>
+<p><code>SUM</code> and <code>AVG</code> skip NULL <code>v</code>; <code>COUNT(*)</code> still counts the row, so on a NULL-valued day <code>count_to_date</code> advances but the running average is over fewer real values &mdash; usually fine, but know it. The outer <code>ORDER BY d</code> governs display order and is separate from the window's internal <code>ORDER BY</code>. Window functions and explicit <code>ROWS</code> frames are standard in Postgres, SQL Server, Oracle, modern MySQL 8+, and SQLite 3.25+; the <code>::numeric</code> cast before two-argument <code>ROUND</code> is the Postgres-specific touch.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build a running total with a window aggregate over an explicit <code>ROWS UNBOUNDED PRECEDING</code> frame &mdash; the frame, not the function, is what cumulates &mdash; spell out <code>ROWS</code> to avoid the default-<code>RANGE</code> tie trap, and know the window form replaces the O(n&sup2;) pre-2003 correlated self-join with a single O(n log n) pass.</div>
