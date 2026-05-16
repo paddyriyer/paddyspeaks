@@ -6315,7 +6315,7 @@
     "difficulty": null,
     "language": "sql",
     "schema": "products(category, price, product_id, name, sku, manufacturer)",
-    "solution": "SELECT category, AVG(price) AS avg_price FROM products\nGROUP BY category ORDER BY avg_price DESC LIMIT 5;",
+    "solution": "SELECT category, AVG(price) AS avg_price FROM products\nGROUP BY category ORDER BY avg_price DESC NULLS LAST LIMIT 5;",
     "runtime": null,
     "tags": [
       "aggregation"
@@ -16187,7 +16187,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "user_profiles(user_id, age, gender, country, signup_source, last_login)",
-    "solution": "-- The portable approach: one COUNT per column, transposed via UNION ALL.\nWITH totals AS (SELECT COUNT(*) AS n FROM user_profiles)\nSELECT 'age'           AS col, SUM(CASE WHEN age           IS NULL THEN 1 ELSE 0 END) AS nulls, (SELECT n FROM totals) AS total FROM user_profiles\nUNION ALL SELECT 'gender',        SUM(CASE WHEN gender        IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'country',       SUM(CASE WHEN country       IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'signup_source', SUM(CASE WHEN signup_source IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'last_login',    SUM(CASE WHEN last_login    IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nORDER BY nulls DESC;\n\n-- For dozens of columns you'd code-generate this from information_schema\n-- in a script \u2014 but the UNION ALL pattern is what every dialect supports.",
+    "solution": "WITH totals AS (SELECT COUNT(*) AS n FROM user_profiles),\ncounts AS (\n  SELECT 'age' AS col, SUM(CASE WHEN age IS NULL THEN 1 ELSE 0 END) AS nulls FROM user_profiles\n  UNION ALL SELECT 'gender',        SUM(CASE WHEN gender        IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n  UNION ALL SELECT 'country',       SUM(CASE WHEN country       IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n  UNION ALL SELECT 'signup_source', SUM(CASE WHEN signup_source IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n  UNION ALL SELECT 'last_login',    SUM(CASE WHEN last_login    IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n)\nSELECT c.col, c.nulls, t.n AS total,\n       ROUND(100.0 * c.nulls / t.n, 1) AS null_pct\nFROM counts c CROSS JOIN totals t\nORDER BY c.nulls DESC;",
     "source": {
       "name": "PaddySpeaks \u00b7 Practical scenarios",
       "url": "https://paddyspeaks.com/interview.app/"
@@ -20951,7 +20951,7 @@
     "language": "sql",
     "question": "Schema: monthly_sales(month_start, region, revenue) (one row per region per first-of-month). Return month_start, region, revenue, prior_month_revenue, mom_growth_pct (this/prev - 1 in percent, 2 decimals). Ordering: region, month_start. If a month has no prior month for that region (gap or first observation), prior_month_revenue and mom_growth_pct should be NULL.",
     "schema": "CREATE TABLE monthly_sales (month_start DATE, region TEXT, revenue NUMERIC);\nINSERT INTO monthly_sales VALUES\n  ('2025-01-01','NA',1000),\n  ('2025-02-01','NA',1100),\n  ('2025-03-01','NA',1320),\n  ('2025-05-01','NA',1500),  -- April missing for NA\n  ('2025-01-01','EU',800),\n  ('2025-02-01','EU',900);",
-    "solution": "SELECT month_start, region, revenue,\n       LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) AS prior_month_revenue,\n       CASE\n         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)\n              = (month_start - INTERVAL '1 month')::date\n         THEN ROUND((revenue / LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) - 1) * 100, 2)\n         ELSE NULL\n       END AS mom_growth_pct\nFROM monthly_sales\nORDER BY region, month_start;",
+    "solution": "SELECT month_start, region, revenue,\n       CASE\n         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)\n              = (month_start - INTERVAL '1 month')::date\n         THEN LAG(revenue) OVER (PARTITION BY region ORDER BY month_start)\n         ELSE NULL\n       END AS prior_month_revenue,\n       CASE\n         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)\n              = (month_start - INTERVAL '1 month')::date\n         THEN ROUND((revenue / LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) - 1) * 100, 2)\n         ELSE NULL\n       END AS mom_growth_pct\nFROM monthly_sales\nORDER BY region, month_start;",
     "runtime": "postgres",
     "tags": [
       "period-over-period-growth"
