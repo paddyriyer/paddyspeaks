@@ -1,0 +1,57 @@
+<p>An org-chart or category-tree feature needs every node labelled by its structural role: roots have no parent, leaves have no children, and inner nodes have both. The interviewer is checking whether you can classify a node by a property of <em>other</em> rows (does any row name me as its parent?) inside a single self-contained query, without a procedural loop or a recursive walk.</p>
+
+<h4>1. The source data &mdash; <code>tree_node</code></h4>
+<table>
+  <thead><tr><th>id</th><th>p_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>NULL</td><td>p_id is NULL &rarr; the root</td></tr>
+    <tr><td>2</td><td>1</td><td>child of 1, and itself a parent of 4 &amp; 5 &rarr; inner</td></tr>
+    <tr><td>3</td><td>1</td><td>child of 1, but nobody's parent &rarr; leaf</td></tr>
+    <tr><td>4</td><td>2</td><td>child of 2, no children &rarr; leaf</td></tr>
+    <tr><td>5</td><td>2</td><td>child of 2, no children &rarr; leaf</td></tr>
+  </tbody>
+</table>
+<p>Node 3 is the instructive case: it has a parent (so it is not a Root) yet appears in nobody's <code>p_id</code> column, so it is a Leaf, not an Inner node. Node 1 is the NULL-parent edge case the <code>WHERE p_id IS NOT NULL</code> filter inside the subquery must respect.</p>
+
+<h4>2. The SQL &mdash; <code>CASE</code> over a self-referencing membership test</h4>
+<pre><code>SELECT id,
+  CASE
+    WHEN p_id IS NULL THEN 'Root'
+    WHEN id IN (SELECT p_id FROM tree_node WHERE p_id IS NOT NULL) THEN 'Inner'
+    ELSE 'Leaf'
+  END AS node_type
+FROM tree_node
+ORDER BY id;</code></pre>
+<p>The <code>CASE</code> is evaluated top-down. First branch: a NULL <code>p_id</code> means root. Second branch: the row's <code>id</code> appears somewhere as a <code>p_id</code> &mdash; meaning at least one node calls it parent &mdash; so it has children. Anything reaching the <code>ELSE</code> has a parent but no children: a leaf.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>node_type</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Root</td><td>p_id NULL &mdash; first branch fires</td></tr>
+    <tr><td>2</td><td>Inner</td><td>has parent 1, and id 2 is the p_id of rows 4 &amp; 5</td></tr>
+    <tr><td>3</td><td>Leaf</td><td>has parent 1, but id 3 is no row's p_id &rarr; ELSE</td></tr>
+    <tr><td>4</td><td>Leaf</td><td>child of 2, childless</td></tr>
+    <tr><td>5</td><td>Leaf</td><td>child of 2, childless</td></tr>
+  </tbody>
+</table>
+<p>The three roles are correctly partitioned: one Root, one Inner, three Leaves. The ordering of the <code>CASE</code> branches matters &mdash; the root test runs first so a hypothetical root that also had children would still be labelled Root, which is the conventional precedence.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>IN</code> subquery is the natural "has children" test</h5>
+<p>"Does node X have children?" is equivalent to "does X's id appear in the <code>p_id</code> column of any row?" The set <code>SELECT p_id FROM tree_node</code> is precisely the set of all parents. Testing membership with <code>id IN (...)</code> answers it directly. No join, no aggregation &mdash; the structure of the question maps one-to-one onto a set-membership check.</p>
+
+<h5>The critical <code>WHERE p_id IS NOT NULL</code> inside the subquery</h5>
+<p>This filter looks optional but protects correctness with <code>NOT IN</code> and clarifies intent with <code>IN</code>. The root's <code>p_id</code> is NULL; leaving it in the subquery puts a NULL in the candidate set. With <code>IN</code> a NULL in the list is harmless (it just never matches), but if you ever rewrite the second branch as <code>id NOT IN (SELECT p_id FROM tree_node)</code> to find leaves directly, that stray NULL makes the whole <code>NOT IN</code> return <em>unknown</em> for every row &mdash; and no row is classified as a leaf. Filtering NULLs out is the habit that makes the rewrite safe.</p>
+
+<h5>Branch order encodes the precedence rule</h5>
+<p><code>CASE</code> stops at the first matching <code>WHEN</code>. Putting <code>p_id IS NULL</code> first means "root" wins over "inner" if a node were somehow both. In a strict tree the root has no parent and the inner test is independent, so order rarely bites here &mdash; but stating the precedence explicitly (root, then inner, then leaf) is what a reviewer wants to hear, because in a malformed graph the order is the tie-breaker.</p>
+
+<h5>Dialect notes &mdash; this query is fully portable</h5>
+<p><code>CASE</code>, scalar <code>IN</code> subqueries, and <code>IS NULL</code> are core SQL and behave identically in PostgreSQL, MySQL, SQL Server, Oracle, and SQLite. No translation needed. The one engine-specific concern is performance: a <code>LEFT JOIN</code> or <code>EXISTS</code> form (below) can plan better than <code>IN</code> on some optimisers, but all three are logically equivalent here.</p>
+
+<h5>A cleaner alternative &mdash; <code>EXISTS</code> or a parent-count join</h5>
+<p>A senior might prefer a correlated <code>EXISTS</code>: <code>WHEN EXISTS (SELECT 1 FROM tree_node c WHERE c.p_id = t.id) THEN 'Inner'</code>. It conveys "has at least one child" more literally and short-circuits on the first match. For large trees you could instead <code>LEFT JOIN</code> to an aggregated child-count CTE once, avoiding a per-row subquery scan. Mentioning that the <code>IN</code> form is fine for modest data but you would switch to a single pre-aggregated join at scale is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> classify a node by testing whether its <code>id</code> appears in the table's own <code>p_id</code> column, always filter <code>p_id IS NOT NULL</code> in that subquery so a NULL-root never poisons a <code>NOT IN</code> rewrite, order the <code>CASE</code> branches deliberately, and note you would pre-aggregate child counts into one join at scale instead of a per-row subquery.</div>
