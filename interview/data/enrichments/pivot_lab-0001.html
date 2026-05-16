@@ -1,0 +1,62 @@
+<p>A growth analyst inherits a finance export where each product is one fat row with four quarterly revenue columns. The charting library they want to feed expects <em>tidy</em> data &mdash; one row per observation. The ask is an <strong>unpivot</strong>: rotate those four side-by-side columns down into rows, so <code>q1_revenue&hellip;q4_revenue</code> become values of a single <code>quarter</code> column. The interviewer is checking whether you can flip a wide table to long format in portable SQL, and whether you notice what happens to a NULL cell along the way.</p>
+
+<h4>1. The source data &mdash; <code>quarterly_kpi</code></h4>
+<table>
+  <thead><tr><th>product</th><th>q1_revenue</th><th>q2_revenue</th><th>q3_revenue</th><th>q4_revenue</th></tr></thead>
+  <tbody>
+    <tr><td>Widget</td><td>100</td><td>150</td><td>120</td><td>200</td></tr>
+    <tr><td>Gadget</td><td>80</td><td>0</td><td>90</td><td>110</td></tr>
+    <tr><td>Gizmo</td><td>50</td><td>60</td><td>NULL</td><td>70</td></tr>
+  </tbody>
+</table>
+<p>Two cells decide the interview. Gadget's Q2 is a genuine <strong>0</strong> &mdash; the product really earned nothing that quarter. Gizmo's Q3 is <strong>NULL</strong> &mdash; the figure is missing or unreported. After the unpivot those two must stay distinguishable: 0 is a measurement, NULL is the absence of one.</p>
+
+<h4>2. The SQL &mdash; unpivot via stacked <code>UNION ALL</code></h4>
+<pre><code>SELECT product, 'Q1' AS quarter, q1_revenue AS revenue FROM quarterly_kpi
+UNION ALL
+SELECT product, 'Q2', q2_revenue FROM quarterly_kpi
+UNION ALL
+SELECT product, 'Q3', q3_revenue FROM quarterly_kpi
+UNION ALL
+SELECT product, 'Q4', q4_revenue FROM quarterly_kpi
+ORDER BY product, quarter;</code></pre>
+<p>Each branch reads one quarter's column, hard-codes the matching label as a string literal, and aliases the metric to a common name <code>revenue</code>. <code>UNION ALL</code> stacks the four result sets vertically. The column count and types must line up across every branch &mdash; that alignment <em>is</em> the unpivot.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product</th><th>quarter</th><th>revenue</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Gadget</td><td>Q1</td><td>80</td><td>&nbsp;</td></tr>
+    <tr><td>Gadget</td><td>Q2</td><td>0</td><td>real zero &mdash; preserved, not dropped</td></tr>
+    <tr><td>Gadget</td><td>Q3</td><td>90</td><td>&nbsp;</td></tr>
+    <tr><td>Gadget</td><td>Q4</td><td>110</td><td>&nbsp;</td></tr>
+    <tr><td>Gizmo</td><td>Q1</td><td>50</td><td>&nbsp;</td></tr>
+    <tr><td>Gizmo</td><td>Q2</td><td>60</td><td>&nbsp;</td></tr>
+    <tr><td>Gizmo</td><td>Q3</td><td>NULL</td><td>missing figure &mdash; stays NULL, distinct from 0</td></tr>
+    <tr><td>Gizmo</td><td>Q4</td><td>70</td><td>&nbsp;</td></tr>
+    <tr><td>Widget</td><td>Q1</td><td>100</td><td>&nbsp;</td></tr>
+    <tr><td>Widget</td><td>Q2</td><td>150</td><td>&nbsp;</td></tr>
+    <tr><td>Widget</td><td>Q3</td><td>120</td><td>&nbsp;</td></tr>
+    <tr><td>Widget</td><td>Q4</td><td>200</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+<p>Three input rows became twelve output rows &mdash; 3 products &times; 4 quarters. Gadget Q2 stays <strong>0</strong> and Gizmo Q3 stays <strong>NULL</strong>: a plain unpivot copies the cell verbatim, so the 0-vs-NULL distinction survives the reshape untouched.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why this is an unpivot &mdash; the mirror image of a pivot</h5>
+<p>A pivot rotates row <em>values</em> up into column headers. An unpivot does the reverse: it takes column <em>names</em> (<code>q1_revenue</code> &hellip;) and turns them into the data of a new column (<code>quarter</code>), while the cells line up under a single value column. Wide-to-long is the shape every charting library, time-series model, and <code>GROUP BY</code> wants &mdash; you can aggregate over <code>quarter</code> once it is a column, but you cannot aggregate over four separate columns without naming all four.</p>
+
+<h5><code>UNION ALL</code>, never <code>UNION</code></h5>
+<p>Use <code>UNION ALL</code>. Plain <code>UNION</code> adds a global de-duplication pass, and that can silently delete real data: if two products both had <code>(NULL revenue)</code> in the same quarter, or two genuinely equal rows existed, <code>UNION</code> would collapse them to one. The branches here are disjoint by construction &mdash; each carries a different <code>quarter</code> literal &mdash; so dedup buys nothing and only costs a sort. <code>UNION ALL</code> is both correct and faster.</p>
+
+<h5>The performance cost &mdash; four scans of one table</h5>
+<p>This query names <code>quarterly_kpi</code> four times, so the planner reads the table <em>four times</em>, once per branch. For three rows that is irrelevant; for a hundred-million-row table it is four full scans plus the stitch. The single-scan alternative is <code>CROSS JOIN LATERAL (VALUES &hellip;)</code> in Postgres, or the dedicated <code>UNPIVOT</code> operator elsewhere &mdash; same result, one pass. Knowing the <code>UNION ALL</code> form re-scans is the detail that separates a junior answer from a senior one.</p>
+
+<h5>NULL is carried, not coerced &mdash; decide if that is what you want</h5>
+<p>Gizmo's Q3 arrives as <code>NULL</code> because the branch simply selects the column and the cell was already NULL. That is usually correct: "no Q3 figure" should not masquerade as "&pound;0 of Q3 revenue". But if a downstream <code>SUM</code> or chart treats NULL badly, wrap the column &mdash; <code>COALESCE(q3_revenue, 0)</code> &mdash; <em>only</em> if the business rule truly says missing means zero. Conflating the two is the classic data-quality bug; make the choice explicitly and say so.</p>
+
+<h5>Dialect &mdash; the dedicated <code>UNPIVOT</code> operator</h5>
+<p>Oracle, SQL Server, and Snowflake ship an <code>UNPIVOT</code> clause that does this in one scan and far less text &mdash; e.g. <code>SELECT product, quarter, revenue FROM quarterly_kpi UNPIVOT (revenue FOR quarter IN (q1_revenue AS 'Q1', q2_revenue AS 'Q2', q3_revenue AS 'Q3', q4_revenue AS 'Q4'))</code>. Note one gotcha: SQL Server's <code>UNPIVOT</code> <em>drops</em> NULL input rows by default, so Gizmo's Q3 would simply vanish &mdash; the <code>UNION ALL</code> form keeps it. PostgreSQL, MySQL, and SQLite have no <code>UNPIVOT</code> keyword, so the stacked <code>UNION ALL</code> shown here is the portable answer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise unpivot as the inverse of a pivot &mdash; column names becoming row values &mdash; implement it portably with stacked <code>UNION ALL</code> (never <code>UNION</code>), call out that this re-scans the table once per branch and a <code>LATERAL VALUES</code> or native <code>UNPIVOT</code> does it in one, and note that a plain unpivot preserves the 0-vs-NULL distinction whereas SQL Server's <code>UNPIVOT</code> silently drops NULL cells.</div>
