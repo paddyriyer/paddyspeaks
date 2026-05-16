@@ -1,0 +1,51 @@
+<p>An analytics team at a search company has a year-end summary table that is already aggregated: instead of one row per user, it stores <em>"this many users each ran exactly this many searches."</em> The task asks for the median number of searches across the real population those counts describe. The interviewer is probing one specific skill: can you compute a percentile over a <strong>weighted histogram</strong> &mdash; a frequency table &mdash; rather than over a raw event log?</p>
+
+<h4>1. The source data &mdash; <code>search_frequency</code></h4>
+<table>
+  <thead><tr><th>searches</th><th>num_users</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>2 users ran 1 search each</td></tr>
+    <tr><td>2</td><td>2</td><td>2 users ran 2 searches each</td></tr>
+    <tr><td>3</td><td>3</td><td>3 users ran 3 searches each &mdash; the heaviest bucket</td></tr>
+    <tr><td>4</td><td>1</td><td>single-user bucket &mdash; the edge case</td></tr>
+  </tbody>
+</table>
+<p>The implied population is <strong>eight</strong> users, not four rows: <code>[1, 1, 2, 2, 3, 3, 3, 4]</code>. The <code>(4, 1)</code> bucket is the trap &mdash; a naive median over the four <em>rows</em> would average the values 2 and 3 and report 2.5 by luck, but for the wrong reason. The correct answer must weight every value by <code>num_users</code>.</p>
+
+<h4>2. The SQL &mdash; expand the histogram, then take the percentile</h4>
+<pre><code>WITH expanded AS (
+  SELECT s.searches
+  FROM search_frequency s,
+       generate_series(1, s.num_users)
+)
+SELECT ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY searches)::numeric, 1) AS median
+FROM expanded;</code></pre>
+<p><code>generate_series(1, s.num_users)</code> is a lateral set-returning function: for a row with <code>num_users = 3</code> it emits three rows, so the cross join multiplies that <code>searches</code> value into three physical rows. After the CTE, <code>expanded</code> holds the eight-row raw population, and <code>PERCENTILE_CONT(0.5)</code> computes the ordinary median over it.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>median</th></tr></thead>
+  <tbody>
+    <tr><td>2.5</td></tr>
+  </tbody>
+</table>
+<p>With eight values the median is the mean of the 4th and 5th: in <code>[1, 1, 2, 2, 3, 3, 3, 4]</code> those are <code>2</code> and <code>3</code>, so <code>PERCENTILE_CONT</code> interpolates to <strong>2.5</strong>. The single-member <code>(4, 1)</code> bucket sits at the tail and never reaches the middle &mdash; but it still counts toward the population size of 8, which is what shifts the median position.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the histogram must be expanded</h5>
+<p>A percentile is defined over a population. The table is <em>pre-aggregated</em>, so each row is shorthand for <code>num_users</code> identical observations. Running <code>PERCENTILE_CONT</code> directly over the four rows answers a different question &mdash; "median of the four distinct search-counts" &mdash; which ignores that 3 searches is three times as common as 4. <code>generate_series</code> reconstitutes the raw population so the percentile sees the real distribution.</p>
+
+<h5><code>PERCENTILE_CONT</code> vs <code>PERCENTILE_DISC</code></h5>
+<p><code>PERCENTILE_CONT</code> (continuous) <em>interpolates</em> between the two middle values &mdash; here 2 and 3 give 2.5, the textbook median for an even count. <code>PERCENTILE_DISC</code> (discrete) returns an actual value from the set, picking 2 (the value at or below the 0.5 cume). Both are "the median" by some definition; interviewers want you to name which one you used and why. For "the median," <code>PERCENTILE_CONT</code> is the conventional choice.</p>
+
+<h5>Performance &mdash; expansion is O(population), not O(rows)</h5>
+<p><code>generate_series</code> materialises one row per user. If the histogram described 50 million users, the CTE produces 50 million rows and the sort behind <code>WITHIN GROUP</code> is over all of them &mdash; the compact histogram's size advantage is thrown away. At scale you would compute the median <em>arithmetically</em> from the cumulative <code>num_users</code> (a running <code>SUM</code> as a window) and find which bucket the (N+1)/2 position lands in &mdash; no expansion at all. For interview-sized data, expansion is clear and correct; mention the scaled alternative.</p>
+
+<h5>An empty or single-user table</h5>
+<p>If <code>search_frequency</code> were empty, <code>expanded</code> is empty and <code>PERCENTILE_CONT</code> returns <code>NULL</code> &mdash; not an error, but worth stating. A row like <code>(4, 0)</code> (zero users) contributes nothing because <code>generate_series(1, 0)</code> yields no rows. And a single-user population returns that user's value exactly, with no interpolation.</p>
+
+<h5>Dialect notes</h5>
+<p><code>PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...)</code> is standard SQL and works in PostgreSQL, Oracle, Snowflake, and BigQuery. MySQL has no ordered-set aggregate before 8.0 and still lacks <code>PERCENTILE_CONT</code> &mdash; you would emulate it with row numbering and an average of the middle one or two rows. SQL Server spells it <code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ...) OVER ()</code> as a window function, not a plain aggregate.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise a frequency table as a compressed population, expand it with <code>generate_series</code> before taking a percentile, distinguish <code>PERCENTILE_CONT</code>'s interpolation from <code>PERCENTILE_DISC</code>, and note that at production scale you would compute the median from a cumulative count instead of materialising every user.</div>

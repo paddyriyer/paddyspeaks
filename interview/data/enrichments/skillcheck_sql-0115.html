@@ -1,0 +1,66 @@
+<p>An HR system stores a manager hierarchy as an adjacency list &mdash; each employee row points at its direct manager. The task: list everyone who reports to employee 1, directly or through any chain of managers, however deep. The interviewer is checking whether you reach for a recursive CTE to walk a tree of unknown depth, and whether you correctly exclude a <em>separate</em> org subtree that does not roll up to employee 1.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>employee_id</th><th>employee_name</th><th>manager_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Boss</td><td>NULL</td><td>top of the tree we care about</td></tr>
+    <tr><td>2</td><td>V1</td><td>1</td><td>direct report of Boss</td></tr>
+    <tr><td>3</td><td>V2</td><td>1</td><td>direct report of Boss</td></tr>
+    <tr><td>4</td><td>M1</td><td>2</td><td>under V1 &mdash; depth 2</td></tr>
+    <tr><td>5</td><td>M2</td><td>2</td><td>under V1 &mdash; depth 2</td></tr>
+    <tr><td>6</td><td>M3</td><td>3</td><td>under V2 &mdash; depth 2</td></tr>
+    <tr><td>7</td><td>IC1</td><td>4</td><td>under M1 &mdash; depth 3</td></tr>
+    <tr><td>8</td><td>IC2</td><td>5</td><td>under M2 &mdash; depth 3</td></tr>
+    <tr><td>9</td><td>Outsider</td><td>NULL</td><td>a SEPARATE root &mdash; must NOT appear</td></tr>
+    <tr><td>10</td><td>OutsiderReport</td><td>9</td><td>reports to 9, not 1 &mdash; must NOT appear</td></tr>
+  </tbody>
+</table>
+<p>The deliberate edge case is employees 9 and 10: a second, disconnected org tree. A correct recursive walk anchored at employee 1 must never reach them. Including them &mdash; e.g. by walking the whole table &mdash; is the classic failure this question is built to expose.</p>
+
+<h4>2. The SQL &mdash; recursive descent from employee 1</h4>
+<pre><code>WITH RECURSIVE downstream AS (
+  SELECT employee_id, employee_name FROM employees WHERE manager_id = 1
+  UNION ALL
+  SELECT e.employee_id, e.employee_name
+  FROM employees e
+  JOIN downstream d ON e.manager_id = d.employee_id
+)
+SELECT employee_id, employee_name
+FROM downstream
+ORDER BY employee_id;</code></pre>
+<p>The anchor selects employee 1's <em>direct</em> reports (<code>manager_id = 1</code>) &mdash; note it omits employee 1 itself, satisfying "excluding employee 1". The recursive arm joins the table back to the rows found so far: anyone whose manager is already in <code>downstream</code> joins in. Iteration repeats until no new rows appear.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>employee_id</th><th>employee_name</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>V1</td><td>anchor &mdash; direct report</td></tr>
+    <tr><td>3</td><td>V2</td><td>anchor &mdash; direct report</td></tr>
+    <tr><td>4</td><td>M1</td><td>iteration 1 &mdash; manager 2 is in the set</td></tr>
+    <tr><td>5</td><td>M2</td><td>iteration 1</td></tr>
+    <tr><td>6</td><td>M3</td><td>iteration 1 &mdash; manager 3 is in the set</td></tr>
+    <tr><td>7</td><td>IC1</td><td>iteration 2 &mdash; manager 4 is in the set</td></tr>
+    <tr><td>8</td><td>IC2</td><td>iteration 2 &mdash; manager 5 is in the set</td></tr>
+  </tbody>
+</table>
+<p>Seven employees &mdash; the entire subtree below Boss. Employees 9 (Outsider) and 10 (OutsiderReport) are correctly absent: the walk only ever follows edges into the set seeded at employee 1, and there is no edge connecting that tree to employee 9's tree.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a recursive CTE and not a fixed chain of joins</h5>
+<p>The prompt says "the hierarchy depth is unknown in advance." A self-join handles exactly one level; three self-joins handle three; but you cannot pre-write joins for an unbounded depth. A recursive CTE iterates until a fixed point &mdash; it walks however many levels exist. That is precisely the tool for transitive closure over an adjacency list.</p>
+
+<h5>How the anchor scopes the result to one subtree</h5>
+<p>The recursive arm only ever adds employees whose manager is <em>already</em> in <code>downstream</code>. So the entire result is determined by the anchor. Seeding with <code>WHERE manager_id = 1</code> means the walk can only ever reach descendants of employee 1. Employees 9 and 10 form an island with no edge into that set, so they are unreachable. If the anchor had been <code>WHERE manager_id IS NULL</code> (all roots) the result would wrongly include the Outsider tree &mdash; the anchor predicate <em>is</em> the scope.</p>
+
+<h5>Excluding employee 1 itself &mdash; anchor choice, not a post-filter</h5>
+<p>The prompt says exclude employee 1. Two correct approaches: seed with <code>manager_id = 1</code> (employee 1 is never inserted, as done here), or seed with <code>employee_id = 1</code> and then add <code>WHERE employee_id &lt;&gt; 1</code> to the final <code>SELECT</code>. The first is cleaner &mdash; the exclusion is structural. Picking the anchor to express the requirement directly is the senior move.</p>
+
+<h5>Termination and the cycle hazard</h5>
+<p>This CTE terminates because a valid org tree is acyclic &mdash; eventually no employee has an unvisited manager in the set, the recursive arm yields zero rows, and iteration stops. But adjacency-list data can be corrupt: if employee A managed B and B managed A, the walk would loop forever. Production-grade code defends against this &mdash; carry a path array and filter <code>WHERE NOT e.employee_id = ANY(path)</code>, or use a depth counter with a sane cap. Mentioning the cycle risk unprompted is a strong signal.</p>
+
+<h5>Dialect notes</h5>
+<p><code>WITH RECURSIVE</code> is standard &mdash; PostgreSQL, SQLite, MySQL 8+, and Oracle support it (Oracle also has the older <code>CONNECT BY ... PRIOR</code> syntax for the same job). SQL Server uses <code>WITH</code> without the <code>RECURSIVE</code> keyword and defaults to a 100-level recursion cap (<code>OPTION (MAXRECURSION n)</code> to raise it). For a hierarchy deeper than 100, that limit must be lifted explicitly on SQL Server.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> walk an unbounded-depth hierarchy with a recursive CTE, recognise that the anchor predicate scopes the whole result so seeding at <code>manager_id = 1</code> naturally excludes other org trees and employee 1 itself, and flag the cycle hazard in adjacency-list data &mdash; production code carries a visited-path guard.</div>

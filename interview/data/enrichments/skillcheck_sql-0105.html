@@ -1,0 +1,57 @@
+<p>A growth analyst wants to know the longest stretch a user went without visiting &mdash; the biggest "engagement gap." The twist is the boundary: a user's <em>last</em> visit has no following visit, so the gap is measured against a fixed cap date <code>2025-04-01</code>. The interviewer is probing whether you reach for <code>LEAD</code> with a default argument instead of fragile self-joins, and whether you handle the user who visited only once.</p>
+
+<h4>1. The source data &mdash; <code>user_visits</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>visit_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>three visits, irregular gaps</td></tr>
+    <tr><td>1</td><td>2025-01-05</td><td>4 days after the first</td></tr>
+    <tr><td>1</td><td>2025-01-20</td><td>last visit &rarr; gap runs to the cap</td></tr>
+    <tr><td>2</td><td>2025-02-01</td><td>two visits, one day apart</td></tr>
+    <tr><td>2</td><td>2025-02-02</td><td>last visit &rarr; gap runs to the cap</td></tr>
+    <tr><td>3</td><td>2025-03-01</td><td>single-visit user &mdash; the edge case</td></tr>
+  </tbody>
+</table>
+<p>User 3 is the trap: they have <em>no</em> consecutive pair at all. A self-join on "next visit" would simply drop them. The cap date has to give every user, even a one-visit user, exactly one measurable window.</p>
+
+<h4>2. The SQL &mdash; <code>LEAD</code> with a default fallback</h4>
+<pre><code>WITH paired AS (
+  SELECT user_id, visit_date,
+         LEAD(visit_date, 1, DATE '2025-04-01') OVER (PARTITION BY user_id ORDER BY visit_date) AS next_date
+  FROM user_visits
+)
+SELECT user_id, MAX(next_date - visit_date)::int AS biggest_window
+FROM paired
+GROUP BY user_id
+ORDER BY user_id;</code></pre>
+<p>The three-argument form of <code>LEAD(expr, offset, default)</code> returns <code>default</code> when there is no row <code>offset</code> positions ahead. Here every user's final row &mdash; including user 3's only row &mdash; gets <code>next_date = 2025-04-01</code>, so subtraction always yields a real interval.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>biggest_window</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>71</td><td>gaps 4, 15, then 20 Jan &rarr; 1 Apr = 71 days; the cap leg wins</td></tr>
+    <tr><td>2</td><td>58</td><td>gap 1, then 2 Feb &rarr; 1 Apr = 58 days</td></tr>
+    <tr><td>3</td><td>31</td><td>single visit: 1 Mar &rarr; 1 Apr = 31 days, supplied entirely by the default</td></tr>
+  </tbody>
+</table>
+<p>User 3 produces a row at all <em>only</em> because of the <code>LEAD</code> default. Without it, their single visit would have <code>next_date = NULL</code>, the subtraction would be NULL, and <code>MAX</code> over a single NULL is NULL &mdash; or the row vanishes entirely under a self-join formulation.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEAD</code> beats a self-join here</h5>
+<p>The classic alternative pairs each visit with "the minimum later visit for the same user" via a correlated subquery or self-join &mdash; O(n&sup2;) comparisons and, worse, it structurally cannot emit the last visit's gap because there is no later row to join to. <code>LEAD</code> sorts each partition once, reads the neighbour in a single pass, and its <code>default</code> argument cleanly models "and if there is no neighbour, use the cap."</p>
+
+<h5>Date arithmetic returns an integer in Postgres</h5>
+<p><code>date - date</code> yields an <code>integer</code> count of days in PostgreSQL, so <code>next_date - visit_date</code> is already a day count; the <code>::int</code> cast is cosmetic insurance. In other engines this differs sharply &mdash; see the dialect note &mdash; so never assume the bare subtraction is portable.</p>
+
+<h5>The single-member partition is the whole point</h5>
+<p>Interviewers seed exactly one user with one visit to see if your answer collapses. Because <code>LEAD</code>'s default fires per partition regardless of partition size, user 3 behaves identically to everyone else. If you had used <code>LEAD(visit_date)</code> without the third argument and then <code>COALESCE</code>d afterwards, you would get the same result &mdash; but stating the default inline is tighter and shows you know the full signature.</p>
+
+<h5>Dialect &mdash; date subtraction is not universal</h5>
+<p>MySQL needs <code>DATEDIFF(next_date, visit_date)</code>; <code>next_date - visit_date</code> there does numeric coercion and gives wrong answers. SQL Server uses <code>DATEDIFF(day, visit_date, next_date)</code>. BigQuery uses <code>DATE_DIFF(next_date, visit_date, DAY)</code>. The <code>LEAD(expr, 1, default)</code> three-argument form, by contrast, is standard SQL and works across all of them &mdash; only the subtraction needs translating.</p>
+
+<h5>What to say next</h5>
+<p>Mention that the cap date is a hard-coded assumption: in production you would parameterise it (often <code>CURRENT_DATE</code>) so the report stays correct as time passes. And if two users could share a <code>(user, date)</code> row &mdash; ruled out here &mdash; you would first dedupe, because <code>LEAD</code> over duplicate dates yields a zero-length gap that muddies the maximum.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LEAD(expr, 1, default)</code> to pair each row with its successor and model the missing-successor boundary in one stroke, recognise that the single-visit user only survives because of that default, and flag that <code>date - date</code> is Postgres-specific while the windowing is portable.</div>

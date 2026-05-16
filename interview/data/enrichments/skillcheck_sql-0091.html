@@ -1,0 +1,68 @@
+<p>An insurance-operations analyst wants to find policy holders who phoned in repeatedly across the year &mdash; specifically, those whose calls form at least three distinct "callback clusters," where calls within 7 days of each other count as one cluster. This is a sessionization problem: the interviewer is probing whether you can detect cluster boundaries with <code>LAG</code> and a gap threshold, then count clusters per policy.</p>
+
+<h4>1. The source data &mdash; <code>call_log</code></h4>
+<table>
+  <thead><tr><th>policy_id</th><th>called_at (with cluster letter)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jan-01, Jan-03 (A); Feb-01 (B); Mar-15, Mar-17 (C); May-01 (D)</td><td>4 clusters &mdash; qualifies</td></tr>
+    <tr><td>2</td><td>Jan-10 (A); Feb-15 (B); Mar-25 (C)</td><td>3 clusters &mdash; qualifies (boundary)</td></tr>
+    <tr><td>3</td><td>Jan-01, Jan-05 (A); Feb-01 (B)</td><td>2 clusters &mdash; just short</td></tr>
+    <tr><td>4</td><td>Jan-01, Jan-04, Jan-08 (all A)</td><td>1 cluster &mdash; calls chained &le; 7d apart</td></tr>
+  </tbody>
+</table>
+<p>Policy 2 sits exactly on the <code>&gt;= 3</code> threshold &mdash; it must be counted. Policy 4 is the chaining trap: Jan-01&rarr;Jan-04 is 3 days, Jan-04&rarr;Jan-08 is 4 days; each gap is &le; 7, so all three calls collapse into a <em>single</em> cluster &mdash; the gaps are measured between consecutive calls, not against the cluster's first call.</p>
+
+<h4>2. The SQL &mdash; flag cluster starts with <code>LAG</code>, sum them per policy</h4>
+<pre><code>WITH flagged AS (
+  SELECT policy_id, called_at,
+         CASE WHEN called_at - LAG(called_at) OVER (PARTITION BY policy_id ORDER BY called_at)
+                   &gt; INTERVAL '7 days' OR LAG(called_at) OVER (PARTITION BY policy_id ORDER BY called_at) IS NULL
+              THEN 1 ELSE 0 END AS is_cluster_start
+  FROM call_log
+),
+cluster_counts AS (
+  SELECT policy_id, SUM(is_cluster_start) AS clusters
+  FROM flagged
+  GROUP BY policy_id
+)
+SELECT COUNT(*) AS policy_holders
+FROM cluster_counts
+WHERE clusters &gt;= 3;</code></pre>
+<p><code>flagged</code> marks a call with <code>1</code> when it begins a new cluster &mdash; either the gap from the prior call exceeds 7 days, or there is no prior call. <code>cluster_counts</code> sums those flags per policy (each <code>1</code> is one cluster). The final query counts policies with three or more.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>policy_id</th><th>clusters</th><th>commentary (not in final output)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>4</td><td>A/B/C/D &mdash; qualifies</td></tr>
+    <tr><td>2</td><td>3</td><td>each call &gt;7d after the last &mdash; qualifies</td></tr>
+    <tr><td>3</td><td>2</td><td>Jan calls cluster; Feb is separate &mdash; short</td></tr>
+    <tr><td>4</td><td>1</td><td>all three calls chain within 7d</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>policy_holders</th></tr></thead>
+  <tbody>
+    <tr><td>2</td></tr>
+  </tbody>
+</table>
+<p>The final answer is <strong>2</strong> &mdash; policies 1 and 4... no: policies <strong>1 and 2</strong>, the only ones with <code>clusters &gt;= 3</code>. Policy 4 illustrates the chaining rule: although it has three calls, consecutive gaps of 3 and 4 days are both within the window, so it forms a single cluster and is correctly excluded.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Sessionization &mdash; boundaries, not memberships</h5>
+<p>The elegant trick is to never explicitly build clusters. You only need to <em>count</em> them, and a cluster count equals the number of cluster <em>starts</em>. <code>LAG</code> gives each call its predecessor; a call starts a new cluster exactly when the gap exceeds the threshold (or there is no predecessor). Summing a 0/1 start-flag per policy counts clusters without ever materialising cluster ids. This "flag the boundary, then sum" idiom is the core sessionization pattern &mdash; it also underlies counting login streaks, trip legs, and visit sessions.</p>
+
+<h5>The gap is between consecutive calls &mdash; why policy 4 is one cluster</h5>
+<p><code>LAG</code> compares each call to the <em>immediately preceding</em> call, not to the cluster's first call. Policy 4's calls are Jan-01, Jan-04, Jan-08: gaps of 3 and 4 days, both &le; 7, so no boundary is created and all three are one cluster &mdash; even though Jan-01 to Jan-08 is 7 days total and a "from cluster start" rule might split differently. The spec says "the gap from the previous call," so consecutive-pair comparison is correct. If clusters had a maximum span you would need a recursive or running-anchor approach instead; naming that distinction is the senior move.</p>
+
+<h5>The first-call <code>NULL</code> must be an explicit cluster start</h5>
+<p>For a policy's earliest call, <code>LAG</code> returns <code>NULL</code>, and <code>NULL &gt; INTERVAL '7 days'</code> evaluates to <code>UNKNOWN</code> &mdash; not <code>TRUE</code>. Without the explicit <code>OR LAG(...) IS NULL</code>, the very first call of every policy would be flagged <code>0</code> and you would under-count clusters by exactly one per policy. That single <code>OR</code> term is load-bearing: it ensures every policy's first call opens its first cluster. Forgetting it is the most common bug in this pattern.</p>
+
+<h5><code>&gt; INTERVAL '7 days'</code> &mdash; strict inequality matters at the boundary</h5>
+<p>The rule "within 7 days counts as the same cluster" means a gap of <em>exactly</em> 7 days is still the same cluster, and only a gap <em>strictly greater</em> than 7 days starts a new one &mdash; hence <code>&gt;</code>, not <code>&gt;=</code>. A call 7 days and one second after the previous one would, with timestamps, exceed the interval and split. Pin down whether the boundary is inclusive; here "within 7 days" reads as inclusive, so strict <code>&gt;</code> is right.</p>
+
+<h5>Dialect notes</h5>
+<p><code>timestamp - timestamp &gt; INTERVAL '7 days'</code> and <code>LAG</code> are PostgreSQL/standard. SQL Server has no interval literal &mdash; write <code>DATEDIFF(day, LAG(called_at) OVER (...), called_at) &gt; 7</code>. MySQL 8+ uses <code>TIMESTAMPDIFF(DAY, LAG(...) OVER (...), called_at) &gt; 7</code>. Note <code>DATEDIFF</code>/<code>TIMESTAMPDIFF</code> in day units count calendar-day boundaries, which differs subtly from a 7&times;24h interval &mdash; for timestamped data, decide whether "7 days" means 168 hours or 7 date boundaries.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> count sessions by flagging boundaries, not by building them &mdash; use <code>LAG</code> to compare each event to its predecessor, mark a 1 when the gap exceeds the threshold <em>or</em> the predecessor is NULL (the explicit NULL branch prevents under-counting every group's first cluster), then <code>SUM</code> the flags per group; know that consecutive-pair gaps differ from a maximum-span rule.</div>

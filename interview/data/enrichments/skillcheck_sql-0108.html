@@ -1,0 +1,53 @@
+<p>Given unsorted positions on a number line, find the smallest distance between any two of them &mdash; the "closest pair in 1-D" problem. The naive answer cross-joins every point with every other and is O(n&sup2;). The interviewer is explicitly probing whether you know the key insight: once the points are sorted, the closest pair must be <em>adjacent</em>, so a single <code>LAG</code> over the sorted list solves it in O(n log n).</p>
+
+<h4>1. The source data &mdash; <code>point</code></h4>
+<table>
+  <thead><tr><th>x</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>-1</td><td>negative coordinate &mdash; gaps must stay positive</td></tr>
+    <tr><td>0</td><td>1 unit from -1</td></tr>
+    <tr><td>2</td><td>2 units from 0</td></tr>
+    <tr><td>5</td><td>3 units from 2</td></tr>
+    <tr><td>10</td><td>5 units from 5</td></tr>
+    <tr><td>11</td><td>1 unit from 10 &mdash; ties the minimum</td></tr>
+    <tr><td>20</td><td>9 units from 11 &mdash; the largest gap</td></tr>
+  </tbody>
+</table>
+<p>The rows arrive unordered. The edge cases: a <em>negative</em> coordinate (the distance formula must not go negative), and a <em>tie</em> for the minimum &mdash; the gap <code>-1&rarr;0</code> and the gap <code>10&rarr;11</code> are both 1. The answer is a single number, so the tie is invisible in the output but tests that your aggregate picks the true minimum.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> over the sorted list, then <code>MIN</code></h4>
+<pre><code>SELECT MIN(x - prev_x)::int AS shortest
+FROM (
+  SELECT x, LAG(x) OVER (ORDER BY x) AS prev_x
+  FROM point
+) t
+WHERE prev_x IS NOT NULL;</code></pre>
+<p><code>LAG(x) OVER (ORDER BY x)</code> sorts the points and attaches each point's immediate predecessor. Because the list is sorted, <code>x &gt;= prev_x</code> always, so <code>x - prev_x</code> is a non-negative adjacent gap. <code>MIN</code> over those gaps is the shortest distance. The <code>WHERE prev_x IS NOT NULL</code> drops the first row, which has no predecessor.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>shortest</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>adjacent gaps are 1,2,3,5,1,9 &mdash; the minimum is 1 (achieved twice)</td></tr>
+  </tbody>
+</table>
+<p>The six adjacent gaps from the sorted sequence <code>-1, 0, 2, 5, 10, 11, 20</code> are <code>1, 2, 3, 5, 1, 9</code>. <code>MIN</code> returns <strong>1</strong>. Note it appears twice; <code>MIN</code> is indifferent to multiplicity, so the tie produces the correct single answer with no special handling.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the closest pair must be adjacent after sorting</h5>
+<p>This is the load-bearing insight. Suppose the two closest points were <em>not</em> neighbours in the sorted order &mdash; then some third point lies strictly between them, and that third point is closer to each of them than they are to each other. Contradiction. Therefore the global minimum distance is always realised by some adjacent pair, and you only need to inspect the <code>n - 1</code> adjacent gaps, not all <code>n(n-1)/2</code> pairs.</p>
+
+<h5>The complexity argument the interviewer wants spoken aloud</h5>
+<p>The cross-join <code>SELECT MIN(ABS(a.x - b.x)) FROM point a JOIN point b ON a.x &lt; b.x</code> materialises ~n&sup2;/2 pairs &mdash; fine for 7 rows, catastrophic for a million. The <code>LAG</code> approach costs one sort (O(n log n)) plus one linear pass. Stating "sorted-adjacency reduces this from quadratic to log-linear" is exactly the senior signal the prompt is fishing for.</p>
+
+<h5>Why no <code>ABS</code> is needed &mdash; and when it would be</h5>
+<p>Because the window orders by <code>x</code> ascending, every current <code>x</code> is &ge; its <code>prev_x</code>, so <code>x - prev_x</code> is already non-negative even though the data includes <code>-1</code>. If you instead used <code>LEAD</code> or computed <code>prev_x - x</code>, you would get negatives and <code>MIN</code> would return the wrong (most-negative) value &mdash; there you would wrap it in <code>ABS</code>. The direction of the subtraction must match the sort direction.</p>
+
+<h5>Edge cases &mdash; the first row and duplicate coordinates</h5>
+<p>The smallest <code>x</code> has <code>LAG(x) = NULL</code>; <code>NULL - prev</code> is NULL and <code>MIN</code> would ignore it anyway, but the explicit <code>WHERE prev_x IS NOT NULL</code> makes intent obvious. The prompt promises all <code>x</code> are distinct; if duplicates were possible, two equal coordinates would produce a gap of 0 &mdash; arguably the correct "shortest distance" of zero, but worth confirming the business definition. A table with fewer than two rows yields no adjacent pair and <code>MIN</code> returns <code>NULL</code>.</p>
+
+<h5>Dialect notes</h5>
+<p><code>LAG</code> with an <code>ORDER BY</code> in the <code>OVER</code> clause is standard SQL &mdash; PostgreSQL, SQL Server, Oracle, MySQL 8+, BigQuery, and SQLite all support it. The only non-portable touch is the <code>::int</code> cast, which is Postgres syntax; elsewhere use <code>CAST(... AS INT)</code>. The algorithm itself needs no translation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise closest-pair-in-1-D as a sorted-adjacency problem, replace the O(n&sup2;) self-cross-join with one <code>LAG</code> over the ordered list plus <code>MIN</code> for O(n log n), match the subtraction direction to the sort order so no <code>ABS</code> is needed, and articulate the proof that the nearest pair is always adjacent.</div>

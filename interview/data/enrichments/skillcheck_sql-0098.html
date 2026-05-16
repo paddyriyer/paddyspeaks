@@ -1,0 +1,64 @@
+<p>A finance team keeps monthly metrics in tall (key-value) form &mdash; one row per month per metric &mdash; and wants a board-ready table: month down the side, <code>revenue</code> and <code>cost</code> as columns, plus a derived <code>profit</code> and a month-over-month profit delta. This combines a pivot with a window function, and the interviewer is checking that you can do both in one pass and get the first-month <code>NULL</code> right.</p>
+
+<h4>1. The source data &mdash; <code>monthly_metric</code></h4>
+<table>
+  <thead><tr><th>month_start</th><th>metric</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>revenue</td><td>10000</td><td>Jan revenue</td></tr>
+    <tr><td>2025-01-01</td><td>cost</td><td>6000</td><td>Jan cost &mdash; first month, no prior</td></tr>
+    <tr><td>2025-02-01</td><td>revenue</td><td>12000</td><td>Feb revenue</td></tr>
+    <tr><td>2025-02-01</td><td>cost</td><td>7000</td><td>Feb cost</td></tr>
+    <tr><td>2025-03-01</td><td>revenue</td><td>11000</td><td>Mar revenue &mdash; revenue falls vs Feb</td></tr>
+    <tr><td>2025-03-01</td><td>cost</td><td>8000</td><td>Mar cost rises &rarr; profit drops</td></tr>
+    <tr><td>2025-04-01</td><td>revenue</td><td>15000</td><td>Apr revenue</td></tr>
+    <tr><td>2025-04-01</td><td>cost</td><td>9000</td><td>Apr cost</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: January is the <em>first</em> month, so its <code>mom_profit_delta</code> has no prior month and must be <code>NULL</code> &mdash; not 0. And March's profit <em>falls</em> (revenue down, cost up), so the delta must come out negative &mdash; a real sign test.</p>
+
+<h4>2. The SQL &mdash; pivot in a CTE, LAG for the delta</h4>
+<pre><code>WITH p AS (
+  SELECT month_start,
+         SUM(value) FILTER (WHERE metric='revenue') AS revenue,
+         SUM(value) FILTER (WHERE metric='cost')    AS cost
+  FROM monthly_metric
+  GROUP BY month_start
+)
+SELECT month_start, revenue, cost,
+       ROUND((revenue - cost)::numeric, 2) AS profit,
+       ROUND(((revenue - cost) - LAG(revenue - cost) OVER (ORDER BY month_start))::numeric, 2)
+         AS mom_profit_delta
+FROM p
+ORDER BY month_start;</code></pre>
+<p>The <code>p</code> CTE pivots tall to wide with two filtered <code>SUM</code>s &mdash; one per metric. The outer query derives <code>profit</code>, and <code>LAG(revenue - cost) OVER (ORDER BY month_start)</code> reaches back one month so the delta is this month's profit minus last month's.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month_start</th><th>revenue</th><th>cost</th><th>profit</th><th>mom_profit_delta</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10000</td><td>6000</td><td>4000.00</td><td>NULL</td></tr>
+    <tr><td>2025-02-01</td><td>12000</td><td>7000</td><td>5000.00</td><td>1000.00</td></tr>
+    <tr><td>2025-03-01</td><td>11000</td><td>8000</td><td>3000.00</td><td>-2000.00</td></tr>
+    <tr><td>2025-04-01</td><td>15000</td><td>9000</td><td>6000.00</td><td>3000.00</td></tr>
+  </tbody>
+</table>
+<p>January's delta is <code>NULL</code> &mdash; <code>LAG</code> has no prior row, and subtracting <code>NULL</code> yields <code>NULL</code>, exactly what the spec wants. March's delta is <strong>-2000.00</strong>: profit fell from 5000 to 3000, and the negative sign is preserved.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Pivot first, then window &mdash; why the CTE is essential</h5>
+<p>You cannot pivot and apply <code>LAG</code> in the same <code>SELECT</code>: <code>LAG</code> needs one row per month, but the raw table has two rows per month. The CTE <code>p</code> does the pivot &mdash; collapsing each month to a single row with <code>revenue</code> and <code>cost</code> columns &mdash; and only then can a window function order months and reach back. This "reshape in a CTE, analyse in the outer query" layering is the standard pattern when a pivot and a window must compose.</p>
+
+<h5><code>SUM(value) FILTER (WHERE metric=...)</code> is conditional aggregation</h5>
+<p>Each filtered <code>SUM</code> lets through only the rows for one metric, turning a <code>metric</code> <em>value</em> into a <em>column</em>. The portable equivalent is <code>SUM(CASE WHEN metric='revenue' THEN value END)</code>. <code>SUM</code> (not <code>MAX</code>) is the safe aggregate: if a month ever had two <code>revenue</code> rows they would add up rather than one silently winning. The column list is static &mdash; a new metric needs a new line &mdash; which is the inherent limit of a SQL pivot.</p>
+
+<h5>Why the first month is <code>NULL</code>, not 0 &mdash; and why that is correct</h5>
+<p><code>LAG(expr) OVER (ORDER BY month_start)</code> with no default returns <code>NULL</code> for the first row. <code>profit - NULL</code> is <code>NULL</code>, so January's delta is <code>NULL</code> &mdash; precisely what the question demands. Had you written <code>LAG(revenue - cost, 1, 0)</code> with a default of 0, January's delta would be <code>4000 - 0 = 4000</code>, falsely implying profit jumped from zero. The absence of a prior month is genuinely unknown, and <code>NULL</code> models that honestly.</p>
+
+<h5><code>LAG</code> over a self-join &mdash; the performance and correctness win</h5>
+<p>The pre-window way to get "previous month" is a self-join: <code>p</code> joined to <code>p</code> on <code>month = prev_month + interval '1 month'</code>. That is fragile (it breaks on gaps in the month sequence) and slower. <code>LAG</code> with <code>ORDER BY month_start</code> takes the <em>immediately preceding row in sort order</em> regardless of calendar gaps &mdash; if March were missing, February's delta would compare to January, which is usually the desired "previous present month". One sorted pass, no join.</p>
+
+<h5><code>ORDER BY</code> inside <code>OVER</code> vs the final <code>ORDER BY</code></h5>
+<p>Two orderings appear and they are independent. <code>OVER (ORDER BY month_start)</code> defines which row <code>LAG</code> treats as "previous" &mdash; it controls the computation. The trailing <code>ORDER BY month_start</code> controls the order rows are <em>returned</em> to the client. Omitting the window's <code>ORDER BY</code> would make <code>LAG</code> non-deterministic; omitting the final one would leave output order unspecified. Both are needed, for different reasons.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> layer the query &mdash; pivot tall-to-wide in a CTE with <code>SUM(value) FILTER (WHERE metric=...)</code>, then apply <code>LAG</code> in the outer query &mdash; let <code>LAG</code>'s default <code>NULL</code> give the first month a correct empty delta rather than a misleading 0, and prefer <code>LAG</code> over a calendar self-join that breaks on gaps.</div>

@@ -1,0 +1,58 @@
+<p>A tennis-stats system stores Grand Slam winners in a wide layout &mdash; one row per year, with four columns (<code>wimbledon</code>, <code>fr_open</code>, <code>us_open</code>, <code>au_open</code>) each holding the winning player's id. The task is to total each player's titles across all years and all four tournaments. The interviewer is checking whether you can <em>unpivot</em> four columns into a single stream of wins, then aggregate &mdash; the inverse of a pivot.</p>
+
+<h4>1. The source data &mdash; <code>players</code> and <code>championships</code></h4>
+<table>
+  <thead><tr><th>yr</th><th>wimbledon</th><th>fr_open</th><th>us_open</th><th>au_open</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2018</td><td>3</td><td>2</td><td>3</td><td>3</td><td>Djokovic 3, Nadal 1</td></tr>
+    <tr><td>2019</td><td>3</td><td>2</td><td>2</td><td>3</td><td>Djokovic 2, Nadal 2</td></tr>
+    <tr><td>2020</td><td>3</td><td>2</td><td>3</td><td>3</td><td>Djokovic 3, Nadal 1</td></tr>
+    <tr><td>2021</td><td>3</td><td>2</td><td>3</td><td>3</td><td>Djokovic 3, Nadal 1</td></tr>
+    <tr><td>2022</td><td>3</td><td>2</td><td>5</td><td>3</td><td>Djokovic 2, Nadal 1, Wawrinka 1</td></tr>
+  </tbody>
+</table>
+<p><code>players</code> maps ids to names: 1 Federer, 2 Nadal, 3 Djokovic, 4 Murray, 5 Wawrinka. The edge cases: player 5 (Wawrinka) wins exactly one title &mdash; the smallest non-zero total &mdash; and players 1 (Federer) and 4 (Murray) win <em>nothing</em> across all five years, so they must be entirely absent from the output, not shown with a zero.</p>
+
+<h4>2. The SQL &mdash; UNION ALL to unpivot, then GROUP BY</h4>
+<pre><code>WITH wins AS (
+  SELECT wimbledon AS player_id FROM championships
+  UNION ALL SELECT fr_open  FROM championships
+  UNION ALL SELECT us_open  FROM championships
+  UNION ALL SELECT au_open  FROM championships
+)
+SELECT p.player_id, p.player_name, COUNT(*)::int AS grand_slam_count
+FROM players p
+JOIN wins w ON w.player_id = p.player_id
+GROUP BY p.player_id, p.player_name
+ORDER BY grand_slam_count DESC, p.player_id;</code></pre>
+<p>Four <code>SELECT</code>s stacked with <code>UNION ALL</code> turn the four winner columns into one column of <code>player_id</code>s &mdash; one row per title. An inner <code>JOIN</code> to <code>players</code> attaches names, and <code>COUNT(*)</code> per player totals the titles.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>player_id</th><th>player_name</th><th>grand_slam_count</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>Djokovic</td><td>13</td></tr>
+    <tr><td>2</td><td>Nadal</td><td>6</td></tr>
+    <tr><td>5</td><td>Wawrinka</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Djokovic totals 13 titles, Nadal 6, Wawrinka 1 &mdash; and 13 + 6 + 1 = 20 = 5 years &times; 4 slams, so every title is accounted for. Federer and Murray are absent: zero wins, and an <em>inner</em> join produces no row for a player with no matching win.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>This is an unpivot &mdash; <code>UNION ALL</code> is the portable tool</h5>
+<p>The four winner columns are really one logical fact ("a player won a slam") spread across columns. To aggregate it you must first <em>unpivot</em>: collapse the four columns into one. Stacking four <code>SELECT</code>s with <code>UNION ALL</code> &mdash; each projecting one column under a shared alias &mdash; is the universal way to do that. It is the exact inverse of the <code>SUM(CASE)</code> pivot, and works in every SQL engine.</p>
+
+<h5><code>UNION ALL</code>, never <code>UNION</code> &mdash; this is the bug that loses the offer</h5>
+<p><code>UNION</code> de-duplicates its combined result; <code>UNION ALL</code> keeps every row. Here the rows are deliberately repetitive &mdash; Djokovic's id <code>3</code> appears many times. <code>UNION</code> would collapse all those <code>3</code>s into a single row, and <code>COUNT(*)</code> would return 1 for every player. You must use <code>UNION ALL</code> so each title survives as its own row. <code>UNION</code> also pays an unnecessary sort/hash cost to dedupe. When counting, <code>UNION ALL</code> is both correct and faster.</p>
+
+<h5>Why the inner <code>JOIN</code> correctly drops zero-win players</h5>
+<p>The spec says players with zero titles must not appear. An inner <code>JOIN</code> between <code>players</code> and <code>wins</code> emits a row only when a player id matches a win &mdash; Federer (1) and Murray (4) never appear in <code>wins</code>, so they produce nothing. This is the desired behaviour for free. A <code>LEFT JOIN</code> would keep them with <code>grand_slam_count = 0</code> (after a <code>COUNT</code> of the nullable joined column) &mdash; correct only if the spec wanted zeros. Match the join type to the requirement.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(column)</code> after the join</h5>
+<p>Post-join, every row represents one real title, so <code>COUNT(*)</code> is right. Be careful with <code>COUNT(w.player_id)</code>: it would also be correct here (the joined id is never NULL), but if you had used a <code>LEFT JOIN</code>, <code>COUNT(*)</code> would count 1 for an unmatched player (the row still exists) while <code>COUNT(w.player_id)</code> would correctly count 0. The two diverge precisely on outer-join NULLs &mdash; know which you need.</p>
+
+<h5>The type tag is misleading</h5>
+<p>The question is tagged "SQL / Window Functions", but there is no window function here &mdash; it is unpivot + <code>GROUP BY</code>. Do not force a <code>RANK()</code> or <code>SUM() OVER ()</code> where a plain aggregate suffices. (You <em>could</em> add <code>RANK() OVER (ORDER BY COUNT(*) DESC)</code> as a "title rank" column if asked, but the question does not ask for it.) Solve the question, not the label.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise four winner columns as needing an unpivot, do it with <code>UNION ALL</code> &mdash; never <code>UNION</code>, which would dedupe the repeated ids and break the count &mdash; then total with <code>COUNT(*)</code>, and use an inner <code>JOIN</code> so zero-win players drop out without an explicit filter.</div>

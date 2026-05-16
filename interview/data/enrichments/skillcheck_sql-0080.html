@@ -1,0 +1,54 @@
+<p>A growth team at a social platform wants a "distribution of distributions" view: not how many tweets were posted in 2025, but <em>how many users posted exactly one tweet, exactly two, exactly three</em>, and so on. That is a histogram of a per-user count &mdash; a two-stage aggregation. The interviewer is checking whether you can <strong>aggregate an aggregate</strong>: count per user, then count the users at each count.</p>
+
+<h4>1. The source data &mdash; <code>tweet</code></h4>
+<table>
+  <thead><tr><th>tweet_id</th><th>user_id</th><th>tweet_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1&ndash;3</td><td>1</td><td>Jan&ndash;Mar 2025</td><td>user 1 posts 3 times in 2025</td></tr>
+    <tr><td>4</td><td>2</td><td>2025-04-05</td><td>user 2 posts once</td></tr>
+    <tr><td>5&ndash;7</td><td>3</td><td>Jan&ndash;Mar 2025</td><td>user 3 posts 3 times &mdash; ties user 1's count</td></tr>
+    <tr><td>8&ndash;9</td><td>4</td><td>Apr&ndash;May 2025</td><td>user 4 posts twice</td></tr>
+    <tr><td>10</td><td>5</td><td>2024-12-30</td><td>boundary case &mdash; 2024, must be excluded</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases are deliberate. User 5's only tweet falls on <strong>2024-12-30</strong> &mdash; outside the year, so user 5 has zero 2025 tweets and must not appear at all. And users 1 and 3 both post exactly 3 times, so the <code>tweet_count = 3</code> bucket must show <strong>2</strong> users, not 1.</p>
+
+<h4>2. The SQL &mdash; per-user count, then histogram</h4>
+<pre><code>WITH per_user AS (
+  SELECT user_id, COUNT(*) AS tweet_count
+  FROM tweet
+  WHERE tweet_date &gt;= DATE '2025-01-01' AND tweet_date &lt; DATE '2026-01-01'
+  GROUP BY user_id
+)
+SELECT tweet_count, COUNT(*) AS users
+FROM per_user
+GROUP BY tweet_count
+ORDER BY tweet_count;</code></pre>
+<p>The CTE produces one row per user with their 2025 tweet total. The outer query then groups <em>those rows</em> by <code>tweet_count</code> and counts how many users sit in each bucket &mdash; a <code>GROUP BY</code> over the output of a <code>GROUP BY</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>tweet_count</th><th>users</th><th>(reading)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>user 2 only</td></tr>
+    <tr><td>2</td><td>1</td><td>user 4 only</td></tr>
+    <tr><td>3</td><td>2</td><td>users 1 and 3 &mdash; the tie folds into one bucket</td></tr>
+  </tbody>
+</table>
+<p>The <code>tweet_count = 3</code> row reads <strong>2</strong>: both heavy posters land in the same bucket and <code>COUNT(*)</code> adds them. User 5 is absent everywhere &mdash; their single tweet was in 2024, so they never enter <code>per_user</code>, and there is correctly no <code>tweet_count = 0</code> row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two stages, not one</h5>
+<p>The question asks about a derived quantity &mdash; "number of tweets a user posted" &mdash; that does not exist as a column. You must <em>compute</em> it first (stage one: <code>COUNT(*) ... GROUP BY user_id</code>), then treat that result as a new fact table and aggregate again (stage two: <code>GROUP BY tweet_count</code>). Trying to do it in a single <code>GROUP BY</code> is impossible because the two groupings are at different grains &mdash; per-user, then per-count.</p>
+
+<h5>The half-open date range avoids a year-boundary bug</h5>
+<p><code>&gt;= '2025-01-01' AND &lt; '2026-01-01'</code> is a half-open interval: it captures every instant of 2025 and nothing of 2026. Writing <code>BETWEEN '2025-01-01' AND '2025-12-31'</code> works for a <code>DATE</code> column but silently drops rows if the column is ever widened to a <code>TIMESTAMP</code> &mdash; <code>2025-12-31 14:00</code> is greater than the date <code>2025-12-31</code>. The half-open form is correct for both types, which is why seniors default to it.</p>
+
+<h5>Zero-tweet users are correctly invisible</h5>
+<p>The spec explicitly says users with no 2025 tweets should not appear, and this query honours that for free: a user with no qualifying rows never survives into <code>per_user</code>, so there is no <code>tweet_count = 0</code> bucket. If the requirement flipped &mdash; "include a 0 bucket counting dormant users" &mdash; you would need a separate <code>users</code> table and a <code>LEFT JOIN</code>, because the <code>tweet</code> table alone cannot know about users who never tweeted.</p>
+
+<h5>Common mistake &mdash; <code>COUNT(DISTINCT ...)</code> in the wrong place</h5>
+<p>A frequent error is <code>COUNT(DISTINCT user_id)</code> in the outer query. Inside <code>per_user</code> each user already appears once, so a plain <code>COUNT(*)</code> is exactly the user count &mdash; <code>DISTINCT</code> is redundant and only adds a sort. Conversely, if you skipped the CTE and tried to count distinct users grouped by a raw per-row count, you would be grouping by something that does not exist. Knowing where <code>DISTINCT</code> is needed (nowhere here) signals you understand the grain.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify a "histogram of a per-user metric" as a two-stage aggregation &mdash; count per user in a CTE, then count users per count &mdash; use a half-open date range so the filter survives a <code>DATE</code>-to-<code>TIMESTAMP</code> change, and explain that zero-activity users are absent by construction unless you <code>LEFT JOIN</code> a user dimension.</div>

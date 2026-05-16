@@ -1,0 +1,71 @@
+<p>A growth team wants a "users seen so far" curve: for every date in the log, how many <em>distinct</em> users have been observed up to and including that day. A user who first appeared on Monday must not be re-counted on Tuesday. The interviewer is probing whether you can turn a running <code>COUNT(DISTINCT ...)</code> &mdash; which window functions cannot do directly &mdash; into a running <code>SUM</code> of first-appearances.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>user 1 first seen</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>user 2 first seen</td></tr>
+    <tr><td>3</td><td>2025-01-01</td><td>user 3 first seen</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>user 1 returns &mdash; must NOT re-count</td></tr>
+    <tr><td>4</td><td>2025-01-02</td><td>user 4 first seen</td></tr>
+    <tr><td>2</td><td>2025-01-03</td><td>user 2 returns &mdash; must NOT re-count</td></tr>
+    <tr><td>5</td><td>2025-01-03</td><td>user 5 first seen</td></tr>
+    <tr><td>6</td><td>2025-01-03</td><td>user 6 first seen</td></tr>
+    <tr><td>7</td><td>2025-01-05</td><td>user 7 first seen &mdash; Jan-04 is a gap, no row</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases drive the answer. Users 1 and 2 appear on multiple days &mdash; only their <em>first</em> day should add to the count. And 2025-01-04 has no events at all; the curve must skip it (the question asks only for dates that appear).</p>
+
+<h4>2. The SQL &mdash; running SUM of first-appearance counts</h4>
+<pre><code>WITH first_seen AS (
+  SELECT user_id, MIN(event_date) AS first_date
+  FROM event
+  GROUP BY user_id
+),
+new_per_day AS (
+  SELECT first_date AS event_date, COUNT(*) AS new_users
+  FROM first_seen
+  GROUP BY first_date
+),
+all_days AS (
+  SELECT DISTINCT event_date FROM event
+)
+SELECT d.event_date,
+       SUM(COALESCE(n.new_users, 0)) OVER (ORDER BY d.event_date
+         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_distinct_users
+FROM all_days d
+LEFT JOIN new_per_day n ON n.event_date = d.event_date
+ORDER BY d.event_date;</code></pre>
+<p><code>first_seen</code> collapses each user to their earliest date. <code>new_per_day</code> counts how many users debut on each date. A running <code>SUM</code> over those daily debuts gives the cumulative distinct count &mdash; because every user is counted exactly once, on the day they first appear.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>event_date</th><th>cumulative_distinct_users</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>3</td><td>users 1, 2, 3 debut</td></tr>
+    <tr><td>2025-01-02</td><td>4</td><td>+user 4; user 1 returned but does not count</td></tr>
+    <tr><td>2025-01-03</td><td>6</td><td>+users 5, 6; user 2 returned, no count</td></tr>
+    <tr><td>2025-01-05</td><td>7</td><td>+user 7; Jan-04 absent, no row</td></tr>
+  </tbody>
+</table>
+<p>The curve is monotonic and never double-counts: Jan-02 is 4, not 5, because user 1's return contributes nothing. Jan-04 has no row at all &mdash; <code>all_days</code> only carries dates that appear in the data.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a running <code>COUNT(DISTINCT)</code> does not exist</h5>
+<p>The obvious idea &mdash; <code>COUNT(DISTINCT user_id) OVER (ORDER BY event_date ...)</code> &mdash; is illegal in standard SQL and PostgreSQL: <code>DISTINCT</code> is not permitted inside a windowed aggregate. The fix is to make each user contribute exactly once <em>before</em> the window: reduce every user to their first date, then a plain running <code>SUM</code> of those first-appearances <em>is</em> the cumulative distinct count. Distinctness is enforced by the <code>MIN(event_date) GROUP BY user_id</code> step, not by the window.</p>
+
+<h5>The frame clause is doing real work</h5>
+<p><code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> defines the running total. Critically, <code>ROWS</code> (physical rows) is the right choice over the default <code>RANGE</code>. With <code>ORDER BY event_date</code> and a <code>RANGE</code> frame, all rows sharing a date are treated as peers and folded together &mdash; harmless here because <code>all_days</code> has one row per date, but a latent bug if duplicates ever creep in. <code>ROWS</code> is unambiguous: it sums this row and every earlier one.</p>
+
+<h5>The <code>LEFT JOIN</code> + <code>COALESCE</code> guard</h5>
+<p><code>all_days</code> is the date spine; <code>new_per_day</code> only has rows for dates where someone debuted. If every user on a given date is a returning user, that date has no <code>new_per_day</code> match and the <code>LEFT JOIN</code> yields <code>NULL</code>. <code>SUM</code> would skip the NULL and the running total would still be correct &mdash; but <code>COALESCE(n.new_users, 0)</code> makes the intent explicit and protects you if the frame logic changes. Here every appearing date happens to have a debut, but the guard is correct defensive style.</p>
+
+<h5>Gaps: dates with no events</h5>
+<p>2025-01-04 simply does not exist in <code>event</code>, so <code>SELECT DISTINCT event_date FROM event</code> never produces it &mdash; matching the question's "for each date that appears". If the requirement were a <em>gap-free</em> daily curve, you would replace <code>all_days</code> with a generated calendar (<code>generate_series</code>) and the running <code>SUM</code> would carry the previous total forward across empty days. Know which version the stakeholder wants.</p>
+
+<h5>The naive self-join alternative and why it is worse</h5>
+<p>You could write <code>SELECT d.event_date, COUNT(DISTINCT e.user_id) FROM all_days d JOIN event e ON e.event_date &lt;= d.event_date GROUP BY d.event_date</code>. It is correct but O(n&sup2;): every date re-scans the whole history. The first-seen + running-<code>SUM</code> approach touches each user once and sorts once &mdash; O(n log n). On a real event table that difference is decisive.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>COUNT(DISTINCT)</code> is forbidden inside a window, so collapse each user to their first date and run a plain cumulative <code>SUM</code> of debuts; choose a <code>ROWS</code> frame over <code>RANGE</code> deliberately; and distinguish "dates that appear" from a gap-free calendar spine.</div>

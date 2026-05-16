@@ -1,0 +1,62 @@
+<p>Compute the median salary per department &mdash; but the interviewer has banned <code>PERCENTILE_CONT</code> and <code>PERCENTILE_DISC</code>, the built-ins that would make this trivial. This is a deliberate constraint to see whether you understand what a median <em>is</em>: rank the values, pick the middle one (odd group) or average the two straddling the middle (even group). The technique is <code>ROW_NUMBER</code> plus a group-size <code>COUNT</code>.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>100</td><td>dept 1: three salaries (odd group)</td></tr>
+    <tr><td>2</td><td>1</td><td>200</td><td>the middle value &rarr; median of dept 1</td></tr>
+    <tr><td>3</td><td>1</td><td>300</td><td></td></tr>
+    <tr><td>4</td><td>2</td><td>50</td><td>dept 2: four salaries (even group)</td></tr>
+    <tr><td>5</td><td>2</td><td>60</td><td>lower middle</td></tr>
+    <tr><td>6</td><td>2</td><td>70</td><td>upper middle &rarr; median = avg(60,70)</td></tr>
+    <tr><td>7</td><td>2</td><td>80</td><td></td></tr>
+    <tr><td>8</td><td>3</td><td>500</td><td>dept 3: single employee &mdash; the edge case</td></tr>
+  </tbody>
+</table>
+<p>The three departments cover the three cases on purpose: an odd-sized group (dept 1), an even-sized group (dept 2), and a single-row group (dept 3). The single-row group is the trap &mdash; the median of one value is that value, and the formula must collapse to it cleanly.</p>
+
+<h4>2. The SQL &mdash; rank, group-size count, pick the middle position(s)</h4>
+<pre><code>WITH ranked AS (
+  SELECT dept_id, salary,
+         ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary) AS rn_asc,
+         COUNT(*)   OVER (PARTITION BY dept_id) AS cnt
+  FROM employee
+)
+SELECT dept_id,
+       ROUND(AVG(salary)::numeric, 1) AS median_salary
+FROM ranked
+WHERE rn_asc IN (FLOOR((cnt + 1) / 2.0)::int, CEIL((cnt + 1) / 2.0)::int)
+GROUP BY dept_id
+ORDER BY dept_id;</code></pre>
+<p>Each row gets its rank within the department (<code>rn_asc</code>) and the department's total size (<code>cnt</code>). The two "middle positions" are <code>FLOOR((cnt+1)/2)</code> and <code>CEIL((cnt+1)/2)</code>: for odd <code>cnt</code> they collapse to the same single position; for even <code>cnt</code> they are the two straddling rows. Averaging the salaries at those positions gives the median in both cases.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>median_salary</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>200.0</td><td>cnt=3 &rarr; positions floor(2)=2, ceil(2)=2 &rarr; just rank 2 = 200</td></tr>
+    <tr><td>2</td><td>65.0</td><td>cnt=4 &rarr; positions floor(2.5)=2, ceil(2.5)=3 &rarr; avg(60,70)=65</td></tr>
+    <tr><td>3</td><td>500.0</td><td>cnt=1 &rarr; positions floor(1)=1, ceil(1)=1 &rarr; just rank 1 = 500</td></tr>
+  </tbody>
+</table>
+<p>Dept 2's median is <strong>65</strong> &mdash; the average of the 2nd and 3rd salaries &mdash; not any single stored value, which is the whole point of the even-group rule. Dept 3's single employee returns <strong>500.0</strong>: both middle positions resolve to rank 1, the <code>IN</code> list dedupes them, and <code>AVG</code> of one value is that value.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>(cnt + 1) / 2</code> with <code>FLOOR</code> and <code>CEIL</code> handles both parities</h5>
+<p>For odd <code>cnt</code>, <code>(cnt+1)/2</code> is a whole number &mdash; <code>FLOOR</code> and <code>CEIL</code> both return it, so the <code>IN</code> list is a single position and the median is one value. For even <code>cnt</code>, <code>(cnt+1)/2</code> is an "<em>x</em>.5", so <code>FLOOR</code> gives the lower middle and <code>CEIL</code> the upper middle &mdash; two positions, averaged. One formula, no <code>CASE</code> on parity. Writing <code>2.0</code> (not <code>2</code>) forces real division so the <code>.5</code> actually appears; integer division would silently truncate it.</p>
+
+<h5><code>ROW_NUMBER</code> is correct here &mdash; <code>RANK</code> would be a bug</h5>
+<p>The median picks values at <em>positions</em>, and positions must be a dense, gap-free <code>1..n</code> sequence &mdash; that is exactly <code>ROW_NUMBER</code>. <code>RANK</code> skips numbers after ties (1, 1, 3), so a tied salary at the median position could leave <em>no</em> row with the rank the formula expects, dropping the department entirely. <code>DENSE_RANK</code> collapses ties, distorting which physical row sits at position <em>k</em>. For positional selection, <code>ROW_NUMBER</code> is the only safe ranking function.</p>
+
+<h5>The single-row group &mdash; why it just works</h5>
+<p>Dept 3 has <code>cnt = 1</code>. Both middle positions evaluate to <code>1</code>; the <code>IN (1, 1)</code> list is logically just <code>{1}</code>, so only rank-1 is selected and <code>AVG</code> returns that lone salary. No special case needed &mdash; but you should <em>say</em> you checked it, because a formula that divided by <code>cnt - 1</code> or assumed at least two rows would crash here.</p>
+
+<h5>Dialect notes &mdash; and the banned built-in</h5>
+<p>The intended one-liner, <code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary)</code>, exists in PostgreSQL, Oracle, and SQL Server &mdash; the interviewer banned it precisely to test the manual method. MySQL has no percentile function before 8.0, making this <code>ROW_NUMBER</code> technique the standard MySQL answer anyway. The window functions used here (<code>ROW_NUMBER</code>, windowed <code>COUNT(*)</code>) are fully portable; only the <code>::numeric</code>/<code>::int</code> casts need <code>CAST(...)</code> syntax elsewhere.</p>
+
+<h5>Common mistakes</h5>
+<p>(1) Integer division &mdash; <code>(cnt+1)/2</code> with an integer <code>2</code> truncates, so even groups silently pick one value instead of averaging two. (2) Using <code>RANK</code> and getting NULL departments when salaries tie. (3) Computing a per-department median in a correlated subquery &mdash; correct but O(n&sup2;); the windowed version is one sort per partition.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement median as <code>ROW_NUMBER</code> ranking plus a windowed <code>COUNT(*)</code>, select positions <code>FLOOR</code> and <code>CEIL</code> of <code>(cnt+1)/2.0</code> so odd and even groups fall out of one formula, insist on <code>ROW_NUMBER</code> (never <code>RANK</code>) for positional selection, and force real division with a literal <code>2.0</code>.</div>

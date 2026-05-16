@@ -1,0 +1,68 @@
+<p>A telecom analytics team wants average call duration broken down by country code, where the code is the prefix of a stored phone number. The subtlety is that one call connects two people, so it must count toward <em>both</em> the caller's country and the callee's country. The interviewer is probing string extraction (pulling the prefix) and the "fan a row into two legs" union pattern.</p>
+
+<h4>1. The source data &mdash; <code>person</code> and <code>calls</code></h4>
+<table>
+  <thead><tr><th>name</th><th>phone_number</th><th>country code (prefix before first <code>-</code>)</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>1-555-1111</td><td>1</td></tr>
+    <tr><td>Bob</td><td>86-1234</td><td>86</td></tr>
+    <tr><td>Cara</td><td>91-9876</td><td>91</td></tr>
+    <tr><td>Dan</td><td>880-7777</td><td>880 &mdash; multi-digit code, not just one char</td></tr>
+    <tr><td>Eve</td><td>1-555-2222</td><td>1 &mdash; shares code 1 with Alice</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>caller</th><th>callee</th><th>duration_sec</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>Bob</td><td>60</td></tr>
+    <tr><td>Bob</td><td>Cara</td><td>120</td></tr>
+    <tr><td>Cara</td><td>Dan</td><td>30</td></tr>
+    <tr><td>Eve</td><td>Alice</td><td>90</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: code <code>880</code> is three digits, so a fixed <code>SUBSTRING(phone,1,1)</code> would mangle it &mdash; the split must be delimiter-based. And code <code>1</code> is shared by two people (Alice, Eve), so its average aggregates legs from multiple persons.</p>
+
+<h4>2. The SQL &mdash; fan calls into legs, join to country, average</h4>
+<pre><code>WITH legs AS (
+  SELECT caller AS who, duration_sec FROM calls
+  UNION ALL
+  SELECT callee, duration_sec FROM calls
+)
+SELECT split_part(p.phone_number, '-', 1) AS country_code,
+       ROUND(AVG(l.duration_sec)::numeric, 2) AS avg_duration
+FROM legs l
+JOIN person p ON p.name = l.who
+GROUP BY split_part(p.phone_number, '-', 1)
+ORDER BY country_code;</code></pre>
+<p>The <code>legs</code> CTE turns each call into two rows &mdash; one for the caller, one for the callee &mdash; with <code>UNION ALL</code> (not <code>UNION</code>, so identical durations are not collapsed). Each leg is joined to its person to find the country, then grouped by the delimiter-split prefix and averaged.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>country_code</th><th>avg_duration</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>80.00</td><td>Alice 60+90, Eve 90 &rarr; (60+90+90)/3 = 80</td></tr>
+    <tr><td>86</td><td>90.00</td><td>Bob: caller 120, callee 60 &rarr; (120+60)/2 = 90</td></tr>
+    <tr><td>880</td><td>30.00</td><td>Dan appears once, as a callee &rarr; single leg of 30</td></tr>
+    <tr><td>91</td><td>75.00</td><td>Cara: caller 30, callee 120 &rarr; (30+120)/2 = 75</td></tr>
+  </tbody>
+</table>
+<p>Note <code>880</code> sorts between <code>86</code> and <code>91</code> &mdash; <code>country_code</code> is text, so ordering is lexicographic, not numeric. Code <code>1</code> aggregates three legs because two distinct people share that code; this is the "same call may bump two country averages" rule working as intended.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>split_part</code> beats fixed-width substring</h5>
+<p>Country codes are variable length (<code>1</code>, <code>86</code>, <code>880</code>). <code>SUBSTRING(phone, 1, 2)</code> would read <code>88</code> for Dan and <code>1-</code> for Alice &mdash; both wrong. <code>split_part(phone_number, '-', 1)</code> takes everything up to the first hyphen regardless of length, which exactly matches "the code is the prefix". Delimiter-based parsing is the right tool whenever the field width varies.</p>
+
+<h5><code>UNION ALL</code> vs <code>UNION</code> &mdash; a correctness issue, not style</h5>
+<p>The two legs of one call carry the same <code>duration_sec</code>. Plain <code>UNION</code> deduplicates, so if a caller and callee happened to be in the same country with the same duration, <code>UNION</code> would silently drop one leg and skew the average. <code>UNION ALL</code> keeps every leg. The rule: use <code>UNION ALL</code> unless you specifically want deduplication &mdash; here each leg is a distinct fact and must be preserved.</p>
+
+<h5>The <code>::numeric</code> cast before <code>ROUND</code></h5>
+<p><code>AVG</code> over an <code>integer</code> column returns <code>numeric</code> in Postgres already, but <code>ROUND(value, 2)</code> with two arguments is only defined for <code>numeric</code> &mdash; calling <code>ROUND(double precision, int)</code> raises "function does not exist". The explicit <code>::numeric</code> guarantees the two-argument <code>ROUND</code> resolves. It is defensive, and on a column typed <code>double precision</code> it would be mandatory.</p>
+
+<h5>Edge cases &mdash; single-leg codes and people who never call</h5>
+<p>Dan appears in exactly one call (as a callee), so code <code>880</code> averages a single value &mdash; correct, and the query needs no special case for it. A subtler point: the prompt restricts output to codes that "ever appeared in a call". Because the query is driven by <code>legs</code> (derived from <code>calls</code>) and only inner-joins to <code>person</code>, a person who never placed or received a call contributes nothing &mdash; their country silently never appears, which is exactly the requirement.</p>
+
+<h5>Dialect notes</h5>
+<p><code>split_part</code> is PostgreSQL-specific. The portable equivalents: MySQL <code>SUBSTRING_INDEX(phone_number, '-', 1)</code>; SQL Server has no direct function pre-2022, you slice with <code>LEFT(phone, CHARINDEX('-', phone) - 1)</code>; Oracle <code>SUBSTR(phone, 1, INSTR(phone,'-') - 1)</code>; BigQuery <code>SPLIT(phone_number, '-')[OFFSET(0)]</code>. The <code>UNION ALL</code> fan-out and the grouping are fully standard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> extract a variable-length prefix with delimiter-based <code>split_part</code> rather than fixed-width substring, fan each call into caller and callee legs with <code>UNION ALL</code> (never <code>UNION</code>, which would drop equal-duration legs), and remember that a text country code sorts lexicographically so <code>880</code> lands before <code>91</code>.</div>

@@ -1,0 +1,54 @@
+<p>A gaming analytics team wants each player's cumulative games-played total &mdash; a running sum that, on any given day, shows everything they have played up to and including that date. This is the textbook cumulative-window question. The interviewer is checking whether you use a windowed <code>SUM</code> with the right frame and partition, rather than a self-join that re-aggregates the whole history per row.</p>
+
+<h4>1. The source data &mdash; <code>activity</code></h4>
+<table>
+  <thead><tr><th>player_id</th><th>event_date</th><th>games_played</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>5</td><td>player 1, day 1</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>3</td><td>player 1, next day</td></tr>
+    <tr><td>1</td><td>2025-01-04</td><td>2</td><td>player 1 &mdash; note the gap, Jan 3 has no row</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>10</td><td>player 2 &mdash; same date as player 1, separate partition</td></tr>
+    <tr><td>2</td><td>2025-01-03</td><td>4</td><td>player 2, day 2</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Player 1 has a calendar gap (no Jan 3 row) &mdash; the running total must simply skip it, not reset or interpolate. And both players have a Jan 1 row &mdash; the running sum must keep their histories independent, which the <code>PARTITION BY</code> guarantees.</p>
+
+<h4>2. The SQL &mdash; windowed <code>SUM</code> with an explicit running frame</h4>
+<pre><code>SELECT player_id, event_date,
+       SUM(games_played) OVER (PARTITION BY player_id ORDER BY event_date
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)::int AS games_played_so_far
+FROM activity
+ORDER BY player_id, event_date;</code></pre>
+<p><code>PARTITION BY player_id</code> keeps each player's sum separate. <code>ORDER BY event_date</code> defines the accumulation direction. The frame <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> says "sum every row from the start of this player's partition through the current row" &mdash; that span is exactly the running total.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>player_id</th><th>event_date</th><th>games_played_so_far</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>5</td><td>first row &mdash; running total = 5</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>8</td><td>5 + 3</td></tr>
+    <tr><td>1</td><td>2025-01-04</td><td>10</td><td>8 + 2 &mdash; the Jan 3 gap is simply skipped</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>10</td><td>player 2's total restarts at 10 &mdash; partition isolation</td></tr>
+    <tr><td>2</td><td>2025-01-03</td><td>14</td><td>10 + 4</td></tr>
+  </tbody>
+</table>
+<p>Player 1's total climbs 5 &rarr; 8 &rarr; 10; the missing Jan 3 causes no reset because the window sums <em>rows</em>, not calendar days. Player 2 starts fresh at 10 &mdash; the <code>PARTITION BY</code> prevents player 1's running total from leaking in even though both share the Jan 1 date.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a windowed <code>SUM</code> beats a correlated self-join</h5>
+<p>The pre-window approach is a correlated subquery: for each row, <code>SELECT SUM(games_played) FROM activity a2 WHERE a2.player_id = a.player_id AND a2.event_date &lt;= a.event_date</code>. It re-scans and re-sums the player's whole history for <em>every</em> row &mdash; O(n&sup2;) within a partition. The windowed <code>SUM</code> sorts each partition once and accumulates in a single linear pass. Same answer, dramatically better complexity.</p>
+
+<h5>The <code>ROWS</code> frame is the heart of "running total"</h5>
+<p>A window function with an <code>ORDER BY</code> but no explicit frame defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; which is <em>usually</em> a running total too, but with a critical subtlety (next point). <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> states the intent unambiguously: accumulate from partition start to here. Other frames give other shapes &mdash; <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> is a 3-row moving sum; omitting <code>ORDER BY</code> sums the whole partition into every row.</p>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; the tie-handling trap</h5>
+<p>This is the senior detail. With <code>ROWS</code>, the frame is "this physical row and all before it." With <code>RANGE</code>, the frame includes <em>all rows whose ORDER BY value ties the current row</em>. If a player had two rows on the same <code>event_date</code>, <code>RANGE</code> would give both of those rows the <em>same</em> running total (the sum through the end of that date), whereas <code>ROWS</code> would show two stepped values. The data here is one row per player per day so they coincide &mdash; but spelling out <code>ROWS</code> is the correct, deliberate choice. Mention this distinction unprompted.</p>
+
+<h5>Calendar gaps do not break a row-based running total</h5>
+<p>Player 1 has no Jan 3 row. Because the frame counts rows, not days, the running total just moves from the Jan 2 row to the Jan 4 row &mdash; 8 then 10. The total is "games played so far," and on a day with no play there is nothing to add. If the requirement were a per-calendar-day series with zeros on idle days, you would first generate a complete date spine and <code>LEFT JOIN</code> the activity onto it &mdash; a different question. State which is wanted.</p>
+
+<h5>Dialect notes</h5>
+<p>The windowed <code>SUM</code> with a <code>ROWS</code> frame is standard SQL &mdash; PostgreSQL, SQL Server, Oracle, MySQL 8+, and SQLite 3.25+ all support it. Pre-8.0 MySQL had no window functions and forced the self-join or a session-variable hack. The only Postgres-specific token is the <code>::int</code> cast; elsewhere use <code>CAST(... AS INT)</code>. The framing clause itself needs no translation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute a running total with a windowed <code>SUM</code> partitioned by the entity and ordered by date, write the frame explicitly as <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>, know that <code>ROWS</code> vs <code>RANGE</code> diverges the moment the order key has ties, and recognise that a row-based running total skips calendar gaps by design.</div>

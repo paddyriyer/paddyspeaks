@@ -1,0 +1,59 @@
+<p>An e-commerce analyst wants, per customer, how many products they bought on their <em>most recent</em> shopping day &mdash; a quick read on latest-visit basket size. The interviewer is probing a deceptively tricky "latest per group" case: a customer can have several transactions on that same most-recent date, and the spec says to sum across them rather than pick one arbitrarily.</p>
+
+<h4>1. The source data &mdash; <code>user_txn</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>products_bought</th><th>txn_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>2025-01-05</td><td>older transaction</td></tr>
+    <tr><td>1</td><td>2</td><td>2025-02-10</td><td>most-recent date &mdash; row A</td></tr>
+    <tr><td>1</td><td>4</td><td>2025-02-10</td><td>SAME most-recent date &mdash; row B, must be summed</td></tr>
+    <tr><td>2</td><td>1</td><td>2025-03-01</td><td>only one transaction</td></tr>
+    <tr><td>3</td><td>5</td><td>2025-01-15</td><td>older</td></tr>
+    <tr><td>3</td><td>7</td><td>2025-04-20</td><td>most-recent date</td></tr>
+    <tr><td>3</td><td>2</td><td>2025-04-19</td><td>one day earlier &mdash; NOT the latest</td></tr>
+  </tbody>
+</table>
+<p>User 1 is the trap: <em>two</em> transactions share the most-recent date 2025-02-10 (2 and 4 products). The answer for user 1 must be 2 + 4 = 6, not 2 or 4. User 3 confirms only the true maximum date counts &mdash; the 04-19 row is one day short and must be excluded.</p>
+
+<h4>2. The SQL &mdash; find each user's max date, join back, sum the matches</h4>
+<pre><code>WITH latest AS (
+  SELECT user_id, MAX(txn_date) AS latest_date
+  FROM user_txn
+  GROUP BY user_id
+)
+SELECT u.user_id, u.txn_date AS latest_date, SUM(u.products_bought)::int AS total_products
+FROM user_txn u
+JOIN latest l ON l.user_id = u.user_id AND l.latest_date = u.txn_date
+GROUP BY u.user_id, u.txn_date
+ORDER BY u.user_id;</code></pre>
+<p><code>latest</code> computes each user's most-recent <code>txn_date</code>. The join keeps only original rows that fall on that date (matching both <code>user_id</code> <em>and</em> the date). The final <code>GROUP BY ... SUM</code> then folds multiple same-day transactions into one total.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>latest_date</th><th>total_products</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-02-10</td><td>6</td><td>two 02-10 transactions: 2 + 4 summed</td></tr>
+    <tr><td>2</td><td>2025-03-01</td><td>1</td><td>single transaction</td></tr>
+    <tr><td>3</td><td>2025-04-20</td><td>7</td><td>only the 04-20 row; 04-19 excluded</td></tr>
+  </tbody>
+</table>
+<p>User 1 returns <strong>6</strong> &mdash; both 2025-02-10 rows match the latest date and <code>SUM</code> adds them. User 3 returns <strong>7</strong>: the 04-19 transaction is one day before the maximum, so the join drops it. The <code>SUM</code> + <code>GROUP BY</code> is what correctly handles the same-day multiplicity.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> alone would be wrong here</h5>
+<p>The reflex for "latest per group" is <code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY txn_date DESC)</code> filtered to <code>rn = 1</code> &mdash; but that returns exactly <em>one</em> row, so for user 1 it would pick either the 2-product or the 4-product transaction arbitrarily and report 2 or 4. The spec demands <em>summing</em> all transactions on the latest date. The max-date-and-join pattern naturally keeps every tied row; <code>ROW_NUMBER</code> deliberately discards them. Choosing the right "latest per group" variant is the core senior judgement.</p>
+
+<h5>The join condition must match on both keys</h5>
+<p><code>ON l.user_id = u.user_id AND l.latest_date = u.txn_date</code> joins each user's transactions back to <em>their own</em> max date. Dropping the date predicate would re-attach every transaction; dropping the user predicate would let one user's transactions match another user's max date. Both keys together act as a filter: keep a transaction iff it occurred on its owner's most-recent day. This semi-join-by-equality is the heart of the pattern.</p>
+
+<h5>If a window approach is preferred &mdash; do it correctly</h5>
+<p>You <em>can</em> stay window-only: <code>MAX(txn_date) OVER (PARTITION BY user_id) AS latest_date</code>, then <code>WHERE txn_date = latest_date</code>, then <code>GROUP BY user_id, txn_date</code> with <code>SUM</code>. That avoids the self-join and gives the identical result &mdash; the key is the final <code>GROUP BY/SUM</code>, present in both forms, because that is what aggregates the tied same-day rows. The mistake to avoid is any approach that picks a single row before the sum.</p>
+
+<h5>Including <code>latest_date</code> in <code>GROUP BY</code> &mdash; and why it is safe</h5>
+<p>The output needs <code>latest_date</code> as a column, so it appears in the <code>GROUP BY</code>. That is harmless: within a single user, every surviving row already has the <em>same</em> <code>txn_date</code> (it is the max date by construction), so grouping by <code>(user_id, txn_date)</code> creates exactly one group per user &mdash; the same grouping as <code>user_id</code> alone. The date is along for the ride, not splitting groups.</p>
+
+<h5>Dialect notes</h5>
+<p><code>MAX</code>, <code>GROUP BY</code>, <code>JOIN</code>, and <code>SUM</code> are universal &mdash; the CTE-and-join form ports unchanged to MySQL, SQL Server, Oracle, and SQLite. The window alternative needs <code>MAX() OVER (...)</code>, available in MySQL 8+, SQL Server, Oracle, and SQLite 3.25+ but not legacy MySQL. <code>::int</code> is Postgres; elsewhere use <code>CAST(SUM(products_bought) AS INT)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> for "latest day per group," recognise that the most-recent date can carry multiple rows &mdash; compute the per-group <code>MAX</code> date, join (or window-filter) back to keep <em>every</em> row on that date, then <code>GROUP BY/SUM</code> to fold them; a bare <code>ROW_NUMBER() = 1</code> is a bug because it arbitrarily keeps just one of the tied same-day transactions.</div>

@@ -1,0 +1,52 @@
+<p>A community-platform analyst needs to find pages nobody has liked &mdash; candidates for archival or a promotion push. The data hides a deliberate landmine: one <code>page_likes</code> row has a <code>NULL</code> <code>page_id</code> (an orphaned like that matches no page). The interviewer is probing whether you can express an anti-join correctly, and crucially whether you avoid <code>NOT IN</code>, whose interaction with NULL silently breaks this exact query.</p>
+
+<h4>1. The source data &mdash; <code>pages</code> and <code>page_likes</code></h4>
+<table>
+  <thead><tr><th>page_id</th><th>page_name</th><th>likes (page_id in page_likes)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>CatLovers</td><td>two rows, page_id 1</td><td>has likes</td></tr>
+    <tr><td>2</td><td>BookClub</td><td>&mdash;</td><td>zero likes &mdash; should appear</td></tr>
+    <tr><td>3</td><td>CodeCorner</td><td>one row, page_id 3</td><td>has likes</td></tr>
+    <tr><td>4</td><td>TravelHacks</td><td>&mdash;</td><td>zero likes &mdash; should appear</td></tr>
+    <tr><td>5</td><td>FoodTruck</td><td>one row, page_id 5</td><td>has likes</td></tr>
+  </tbody>
+</table>
+<p>Separately, <code>page_likes</code> contains a row with <code>page_id = NULL</code> &mdash; a like attached to no page. It must not be treated as a match for any page, and it must not poison the "which pages are unliked" logic. Pages 2 and 4 are the expected answer.</p>
+
+<h4>2. The SQL &mdash; anti-join via <code>NOT EXISTS</code></h4>
+<pre><code>SELECT p.page_id
+FROM pages p
+WHERE NOT EXISTS (
+  SELECT 1 FROM page_likes l WHERE l.page_id = p.page_id
+)
+ORDER BY p.page_id;</code></pre>
+<p><code>NOT EXISTS</code> keeps a page only when the correlated subquery finds <em>no</em> matching like. The correlation <code>l.page_id = p.page_id</code> is an ordinary equality: a <code>NULL</code> <code>page_id</code> in <code>page_likes</code> can never satisfy it, so the orphaned like is ignored exactly as required.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>page_id</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>BookClub &mdash; no like rows reference it</td></tr>
+    <tr><td>4</td><td>TravelHacks &mdash; no like rows reference it</td></tr>
+  </tbody>
+</table>
+<p>Pages 1, 3, and 5 each have a matching like and are excluded. The <code>NULL</code>-page_id like contributes nothing: it does not match page 2 or 4 (so they correctly stay), and it does not match 1/3/5 either. The result is clean precisely because <code>NOT EXISTS</code> uses row-by-row correlation rather than set membership.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>NOT IN</code> is forbidden here &mdash; the NULL-IN gotcha</h5>
+<p><code>WHERE p.page_id NOT IN (SELECT page_id FROM page_likes)</code> looks equivalent but is catastrophically wrong when the subquery returns a <code>NULL</code>. <code>NOT IN</code> expands to <code>page_id &lt;&gt; v1 AND page_id &lt;&gt; v2 AND ... AND page_id &lt;&gt; NULL</code>; that last term is <code>UNKNOWN</code>, and <code>anything AND UNKNOWN</code> can never be <code>TRUE</code>. The result: <strong>the query returns zero rows</strong> for every page, even pages that genuinely have no likes. The single orphaned like would blank the entire report.</p>
+
+<h5>Why <code>NOT EXISTS</code> is immune</h5>
+<p><code>NOT EXISTS</code> asks a yes/no question &mdash; "did the subquery produce any row?" &mdash; not a value comparison. The subquery's <code>WHERE l.page_id = p.page_id</code> simply yields no rows for a <code>NULL</code> <code>page_id</code> (the equality is <code>UNKNOWN</code>, which is not <code>TRUE</code>, so the row is not emitted). No row produced means <code>NOT EXISTS</code> is <code>TRUE</code>. The three-valued logic stays contained inside the subquery and never propagates to a query-killing <code>AND UNKNOWN</code>.</p>
+
+<h5><code>LEFT JOIN ... IS NULL</code> &mdash; the other safe anti-join</h5>
+<p>The equivalent portable idiom is <code>SELECT p.page_id FROM pages p LEFT JOIN page_likes l ON l.page_id = p.page_id WHERE l.page_id IS NULL</code>. The left join attaches likes where they exist; unmatched pages get all-NULL <code>page_likes</code> columns, and <code>WHERE l.page_id IS NULL</code> keeps exactly those. It is also NULL-safe, because the orphaned like's <code>NULL</code> <code>page_id</code> never matches any page in the <code>ON</code> clause. Both <code>NOT EXISTS</code> and <code>LEFT JOIN/IS NULL</code> are correct; <code>NOT IN</code> is the one to avoid.</p>
+
+<h5>Performance &mdash; anti-joins and indexing</h5>
+<p>With an index on <code>page_likes(page_id)</code>, <code>NOT EXISTS</code> can stop at the first matching like per page (a semi-join probe), and most planners optimise <code>NOT EXISTS</code> and <code>LEFT JOIN/IS NULL</code> into the same anti-join plan. <code>NOT IN</code> with a nullable column, by contrast, often cannot be optimised into an anti-join at all because of the NULL semantics &mdash; another reason to prefer the alternatives even when correctness happens not to bite.</p>
+
+<h5>Dialect notes</h5>
+<p><code>NOT EXISTS</code> is fully standard and behaves identically in PostgreSQL, MySQL, SQL Server, Oracle, and SQLite &mdash; this query needs no translation. The <code>NOT IN</code>/NULL hazard is universal too: it bites the same way in every engine, which is exactly why the question bakes "without <code>NOT IN</code>" into the requirement.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement an anti-join with <code>NOT EXISTS</code> or <code>LEFT JOIN ... IS NULL</code>, never <code>NOT IN</code> over a nullable column &mdash; a single NULL collapses <code>NOT IN</code> to zero rows because <code>x &lt;&gt; NULL</code> is <code>UNKNOWN</code> &mdash; and explain that <code>NOT EXISTS</code> is safe because it tests row existence, keeping three-valued logic contained in the subquery.</div>

@@ -1,0 +1,58 @@
+<p>A compensation analyst wants the median base salary per department, with one twist: rows where the salary is NULL must be ignored, and any department where <em>every</em> employee has a NULL salary should not appear at all. The interviewer is probing whether you know SQL's ordered-set aggregate for median &mdash; not <code>AVG</code> &mdash; and whether you handle the all-NULL group correctly.</p>
+
+<h4>1. The source data &mdash; <code>salary</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>base_salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>50000</td><td>dept 1</td></tr>
+    <tr><td>2</td><td>1</td><td>60000</td><td>dept 1</td></tr>
+    <tr><td>3</td><td>1</td><td>80000</td><td>dept 1 &mdash; 3 real salaries, odd count</td></tr>
+    <tr><td>4</td><td>1</td><td>NULL</td><td>dept 1 &mdash; NULL, must be ignored</td></tr>
+    <tr><td>5</td><td>2</td><td>100000</td><td>dept 2</td></tr>
+    <tr><td>6</td><td>2</td><td>100000</td><td>dept 2 &mdash; two equal salaries</td></tr>
+    <tr><td>7</td><td>3</td><td>NULL</td><td>dept 3 &mdash; every row NULL</td></tr>
+    <tr><td>8</td><td>3</td><td>NULL</td><td>dept 3 &mdash; must NOT appear at all</td></tr>
+    <tr><td>9</td><td>4</td><td>30000</td><td>dept 4</td></tr>
+    <tr><td>10</td><td>4</td><td>70000</td><td>dept 4 &mdash; even count, median interpolates</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases drive the answer. Department 1 has a NULL salary that must not skew the median. Department 3 has <em>only</em> NULL salaries and must vanish from the output. Department 4 has an even count, so the median sits between two values.</p>
+
+<h4>2. The SQL &mdash; PERCENTILE_CONT ordered-set aggregate</h4>
+<pre><code>SELECT dept_id,
+       ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY base_salary)::numeric, 2) AS median_salary
+FROM salary
+WHERE base_salary IS NOT NULL
+GROUP BY dept_id
+ORDER BY dept_id;</code></pre>
+<p><code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY base_salary)</code> is the SQL-standard <em>ordered-set aggregate</em> for the continuous 50th percentile &mdash; the median. The <code>WHERE base_salary IS NOT NULL</code> filter both excludes NULL rows from the median and removes all-NULL departments before grouping.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>median_salary</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>60000.00</td><td>median of {50k, 60k, 80k} &mdash; NULL row ignored</td></tr>
+    <tr><td>2</td><td>100000.00</td><td>both values equal &rarr; median is that value</td></tr>
+    <tr><td>4</td><td>50000.00</td><td>even count: midpoint of 30k and 70k</td></tr>
+  </tbody>
+</table>
+<p>Department 3 is absent: every salary was NULL, the <code>WHERE</code> filter removed all its rows, so no group formed. Department 4's median is <strong>50000</strong> &mdash; <code>PERCENTILE_CONT</code> interpolates the midpoint of the two middle values (30000 + 70000) / 2.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>PERCENTILE_CONT</code>, and what <code>WITHIN GROUP</code> means</h5>
+<p>SQL has no <code>MEDIAN()</code> aggregate in the standard. <code>PERCENTILE_CONT(0.5)</code> is an <em>ordered-set aggregate</em>: the <code>WITHIN GROUP (ORDER BY base_salary)</code> clause tells it how to sort the group before picking the 50th-percentile position. It is fundamentally different from a normal aggregate &mdash; the ordering is part of the function call, not an <code>OVER</code> clause. This is the correct, set-based way to get a median.</p>
+
+<h5><code>PERCENTILE_CONT</code> vs <code>PERCENTILE_DISC</code></h5>
+<p>For an even-count group the two diverge. <code>PERCENTILE_CONT</code> (continuous) <em>interpolates</em> &mdash; department 4 yields 50000, a value no employee actually earns. <code>PERCENTILE_DISC</code> (discrete) returns an <em>actual</em> data value &mdash; it would return 30000 for department 4. The textbook statistical median is the interpolating one, so <code>PERCENTILE_CONT</code> is the right default; mention <code>PERCENTILE_DISC</code> if the business needs a real observed salary.</p>
+
+<h5>The all-NULL department: why <code>WHERE</code> makes it disappear</h5>
+<p>The requirement "departments where every row is NULL must not appear" is satisfied for free by <code>WHERE base_salary IS NOT NULL</code>. The filter runs before <code>GROUP BY</code>; department 3's rows are all removed, so there is no surviving row to seed a group &mdash; <code>GROUP BY</code> only creates groups for keys that have rows. If instead you filtered NULLs <em>inside</em> the aggregate and kept the rows, department 3 would appear with a NULL median, violating the spec.</p>
+
+<h5><code>AVG</code> is the wrong tool &mdash; know why</h5>
+<p>A tempting shortcut is <code>AVG(base_salary)</code>. It is not the median: for a skewed distribution the mean and median differ sharply, and the question explicitly says median. <code>AVG</code> also happens to ignore NULLs automatically, which can lull a candidate into thinking it is "close enough". It is not &mdash; median is a positional statistic, mean is not. Use the aggregate the question names.</p>
+
+<h5>The <code>::numeric</code> cast before <code>ROUND</code></h5>
+<p><code>PERCENTILE_CONT</code> returns <code>double precision</code>. PostgreSQL's two-argument <code>ROUND(value, scale)</code> is only defined for <code>numeric</code>, not <code>double precision</code> &mdash; calling <code>ROUND(double, 2)</code> raises "function round(double precision, integer) does not exist". The explicit <code>::numeric</code> cast bridges the type so the 2-dp rounding works. This is a real PostgreSQL gotcha worth naming.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute median with the ordered-set aggregate <code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary)</code> not <code>AVG</code>, know <code>PERCENTILE_CONT</code> interpolates while <code>PERCENTILE_DISC</code> returns a real value, drop NULLs with a <code>WHERE</code> so all-NULL departments never form a group, and cast to <code>numeric</code> before two-arg <code>ROUND</code>.</div>

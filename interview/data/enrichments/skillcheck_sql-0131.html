@@ -1,0 +1,58 @@
+<p>A learning-platform analytics team wants each student's "best subject" &mdash; the single course where they earned their top grade &mdash; for a transcript highlights widget. The twist the interviewer is probing: a student can earn their top grade in two courses at once, so "the best course" is genuinely ambiguous until you commit to a deterministic tie-break. Picking exactly one row per group, predictably, is the whole exercise.</p>
+
+<h4>1. The source data &mdash; <code>student_courses</code></h4>
+<table>
+  <thead><tr><th>student_id</th><th>course_id</th><th>grade</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>90</td><td>not the best</td></tr>
+    <tr><td>1</td><td>102</td><td>95</td><td>tied top &mdash; smaller course_id</td></tr>
+    <tr><td>1</td><td>103</td><td>95</td><td>tied top &mdash; loses the tie-break</td></tr>
+    <tr><td>2</td><td>201</td><td>80</td><td>tied top &mdash; smaller course_id</td></tr>
+    <tr><td>2</td><td>202</td><td>80</td><td>tied top &mdash; loses the tie-break</td></tr>
+    <tr><td>2</td><td>203</td><td>70</td><td>not the best</td></tr>
+    <tr><td>3</td><td>301</td><td>100</td><td>single-course student</td></tr>
+  </tbody>
+</table>
+<p>Student 1 scored 95 in <em>two</em> courses; student 2 scored 80 in two. Both are ties at the top, and the rule says break them toward the smaller <code>course_id</code>. Student 3 has only one row &mdash; the degenerate single-member group that any correct query must still return.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER</code> with a tie-breaking ORDER BY</h4>
+<pre><code>WITH ranked AS (
+  SELECT student_id, course_id, grade,
+         ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY grade DESC, course_id ASC) AS rn
+  FROM student_courses
+)
+SELECT student_id, course_id, grade
+FROM ranked
+WHERE rn = 1
+ORDER BY student_id;</code></pre>
+<p><code>PARTITION BY student_id</code> restarts the numbering for every student. The two-key <code>ORDER BY grade DESC, course_id ASC</code> sorts the highest grade first and, <em>within</em> an equal-grade tie, the smallest course_id first &mdash; so <code>rn = 1</code> is always the intended row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>student_id</th><th>course_id</th><th>grade</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>102</td><td>95</td><td>tie at 95 &rarr; 102 &lt; 103, so 102 wins</td></tr>
+    <tr><td>2</td><td>201</td><td>80</td><td>tie at 80 &rarr; 201 &lt; 202, so 201 wins</td></tr>
+    <tr><td>3</td><td>301</td><td>100</td><td>only row &rarr; trivially rn = 1</td></tr>
+  </tbody>
+</table>
+<p>Course 103 and 202 vanish even though they share the top grade: <code>ROW_NUMBER</code> assigns exactly one <code>1</code> per partition, and the second sort key decides who gets it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> and not <code>RANK</code> here</h5>
+<p>The requirement is "<em>the</em> course" &mdash; exactly one row per student. <code>RANK()</code> would give both 95-rows rank 1 and <code>WHERE rk = 1</code> would return <em>both</em>, breaking the one-row contract. <code>ROW_NUMBER</code> is the deduplicating ranking function: it never repeats a number inside a partition, so it forces a single winner. Choose <code>RANK</code> only when the spec explicitly says "return all ties".</p>
+
+<h5>The tie-break must be in the <code>ORDER BY</code>, not left to chance</h5>
+<p>Drop <code>, course_id ASC</code> and the two 95-rows are sorted only by grade &mdash; a tie. Which one gets <code>rn = 1</code> then depends on physical row order or the plan, and can change between runs or after a <code>VACUUM</code>. A deterministic query encodes <em>every</em> tie-break the spec names as an explicit sort key. Non-determinism in a transcript widget is a real bug, not a cosmetic one.</p>
+
+<h5>The filter belongs outside the window</h5>
+<p>You cannot write <code>WHERE ROW_NUMBER() OVER (&hellip;) = 1</code> directly: window functions are evaluated <em>after</em> <code>WHERE</code>, so the alias does not yet exist at filter time. The CTE (or a subquery) materialises <code>rn</code> as an ordinary column, and the outer <code>WHERE rn = 1</code> then filters it. This "rank in a CTE, filter outside" shape is the canonical top-N-per-group idiom.</p>
+
+<h5>NULL grades would corrupt the pick</h5>
+<p>If a grade were <code>NULL</code>, <code>ORDER BY grade DESC</code> sorts NULLs <em>first</em> in PostgreSQL (NULLs are largest under <code>DESC</code> unless you add <code>NULLS LAST</code>) &mdash; so an ungraded course could be crowned the student's "best". With clean integer grades the demo is safe, but on real data add <code>NULLS LAST</code> or filter <code>WHERE grade IS NOT NULL</code> and say so out loud.</p>
+
+<h5>Dialect &mdash; <code>QUALIFY</code> trims the boilerplate</h5>
+<p>Snowflake, BigQuery, and DuckDB support <code>QUALIFY ROW_NUMBER() OVER (&hellip;) = 1</code>, which filters on a window result without the wrapping CTE. PostgreSQL, MySQL, and SQL Server have no <code>QUALIFY</code>, so the CTE form shown here is the portable answer &mdash; mention <code>QUALIFY</code> as the terser equivalent where it exists.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>ROW_NUMBER</code> &mdash; not <code>RANK</code> &mdash; when the spec wants exactly one row per group, encode every tie-break as an explicit secondary <code>ORDER BY</code> key so the result is deterministic, filter the rank in an outer query because windows run after <code>WHERE</code>, and flag that NULL sort positions could otherwise hijack the winner.</div>

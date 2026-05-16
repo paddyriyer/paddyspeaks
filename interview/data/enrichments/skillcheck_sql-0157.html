@@ -1,0 +1,61 @@
+<p>A growth analyst wants a daily signup chart for the first ten days of January, but the raw <code>signup</code> table only has rows for days where someone actually registered. Plot that directly and the line silently skips the quiet days, distorting the trend. The interviewer is probing whether you can <strong>manufacture a complete date spine</strong> and left-join the data onto it, so that zero-activity days appear as a genuine <code>0</code> rather than vanishing.</p>
+
+<h4>1. The source data &mdash; <code>signup</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>signup_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>day 1 &mdash; two signups share this date</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>day 1</td></tr>
+    <tr><td>3</td><td>2025-01-03</td><td>day 3</td></tr>
+    <tr><td>4</td><td>2025-01-05</td><td>day 5 &mdash; three signups share this date</td></tr>
+    <tr><td>5</td><td>2025-01-05</td><td>day 5</td></tr>
+    <tr><td>6</td><td>2025-01-05</td><td>day 5</td></tr>
+  </tbody>
+</table>
+<p>The edge cases that decide the interview: <em>nobody signed up on Jan 2, 4, or 6&ndash;10</em>, and Jan 5 has a cluster of three. A correct query must invent the missing days and still count the busy ones.</p>
+
+<h4>2. The SQL &mdash; calendar spine via <code>generate_series</code> + LEFT JOIN</h4>
+<pre><code>SELECT g.d::date AS d,
+       COUNT(s.user_id) AS signups
+FROM generate_series('2025-01-01'::date, '2025-01-10'::date, INTERVAL '1 day') AS g(d)
+LEFT JOIN signup s ON s.signup_date = g.d
+GROUP BY g.d
+ORDER BY g.d;</code></pre>
+<p><code>generate_series</code> emits one row per day across the closed interval. The <code>LEFT JOIN</code> keeps every generated day even when no signup matches, and <code>COUNT(s.user_id)</code> &mdash; counting the <em>right-side</em> column &mdash; returns <code>0</code> for the unmatched days because <code>COUNT</code> ignores NULLs.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th><th>signups</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>2</td><td>two rows folded together</td></tr>
+    <tr><td>2025-01-02</td><td>0</td><td>generated day, no match &rarr; genuine 0</td></tr>
+    <tr><td>2025-01-03</td><td>1</td><td></td></tr>
+    <tr><td>2025-01-04</td><td>0</td><td>gap day preserved</td></tr>
+    <tr><td>2025-01-05</td><td>3</td><td>cluster of three</td></tr>
+    <tr><td>2025-01-06</td><td>0</td><td></td></tr>
+    <tr><td>2025-01-07</td><td>0</td><td></td></tr>
+    <tr><td>2025-01-08</td><td>0</td><td></td></tr>
+    <tr><td>2025-01-09</td><td>0</td><td></td></tr>
+    <tr><td>2025-01-10</td><td>0</td><td>boundary day, inclusive</td></tr>
+  </tbody>
+</table>
+<p>All ten rows are present. Without the spine the result would be just three rows (Jan 1, 3, 5) and any downstream chart or window function would misread the cadence.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(s.user_id)</code> and not <code>COUNT(*)</code></h5>
+<p>On a <code>LEFT JOIN</code> an unmatched generated day still produces one output row, but with every <code>signup</code> column NULL. <code>COUNT(*)</code> counts <em>rows</em>, so it would return <code>1</code> for an empty day &mdash; wrong. <code>COUNT(s.user_id)</code> counts non-NULL values of a column that only exists on the matched side, so empty days correctly score <code>0</code>. This column choice is the single most common bug in calendar-spine queries.</p>
+
+<h5>The series endpoints are inclusive</h5>
+<p><code>generate_series(start, stop, step)</code> includes <em>both</em> bounds when the step lands exactly on <code>stop</code>. Here Jan 1 plus nine one-day steps reaches Jan 10, so all ten days appear. If you instead need a half-open window you must subtract a day from the upper bound yourself &mdash; <code>generate_series</code> has no half-open mode.</p>
+
+<h5>Performance &mdash; the spine is the small side</h5>
+<p>The generated set is tiny and fixed (ten rows); the optimiser treats it as the driving table and probes <code>signup</code> via an index on <code>signup_date</code>. For wide ranges &mdash; years of days &mdash; consider materialising a permanent <code>dim_date</code> calendar table instead: it can be indexed, joined repeatedly, and decorated with fiscal periods and holiday flags. <code>generate_series</code> is perfect for ad-hoc ranges; a calendar dimension is the warehouse-grade pattern.</p>
+
+<h5>Dialect notes &mdash; <code>generate_series</code> is Postgres-specific</h5>
+<p><code>generate_series</code> over dates is a PostgreSQL feature. SQL Server uses a recursive CTE or <code>sys.all_objects</code> tally; MySQL 8 needs a recursive CTE (<code>WITH RECURSIVE d AS (SELECT '2025-01-01' AS d UNION ALL SELECT d + INTERVAL 1 DAY FROM d WHERE d &lt; '2025-01-10')</code>); BigQuery has <code>GENERATE_DATE_ARRAY</code> fed through <code>UNNEST</code>; Snowflake combines <code>GENERATOR</code> with <code>DATEADD</code>. The shape &mdash; build a spine, left-join, count the right side &mdash; is universal even though the spine generator is not.</p>
+
+<h5>What a senior says next</h5>
+<p>"This guarantees density for a fixed window. If the chart range is user-selected I would parameterise the two bounds; if the report is recurring I would back it with a <code>dim_date</code> table so the same spine powers WoW and MoM rollups. And I would confirm timezone handling &mdash; <code>signup_date</code> is a plain <code>DATE</code> here, but if it were a <code>timestamptz</code> I would truncate to the business timezone before joining."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> generate a complete date spine with <code>generate_series</code>, <code>LEFT JOIN</code> the facts onto it, and count the <em>right-side</em> column so quiet days surface as a real <code>0</code> instead of disappearing &mdash; then mention a <code>dim_date</code> table as the durable alternative for recurring reports.</div>
