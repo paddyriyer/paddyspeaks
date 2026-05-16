@@ -1,0 +1,56 @@
+<p>Shopify&rsquo;s trust-and-safety team wants to detect interactions where a user interacted with themselves &mdash; a common data-quality audit in social and marketplace systems, where self-loops indicate either a bug in the interaction pipeline, a test account, or in some cases a deliberate fraud pattern (self-reviews, self-referrals). The query is intentionally minimal: a single equality predicate on two columns of the same row, with no joins and no aggregation. The interviewer is testing whether you can write a clean predicate without over-engineering it.</p>
+
+<h4>1. The source data &mdash; <code>interactions</code></h4>
+<table>
+  <thead><tr><th>interaction_id</th><th>source_user_id</th><th>target_user_id</th><th>ts</th></tr></thead>
+  <tbody>
+    <tr><td>I001</td><td>U01</td><td>U02</td><td>2025-03-01 10:00:00</td></tr>
+    <tr><td>I002</td><td>U02</td><td>U03</td><td>2025-03-01 10:05:00</td></tr>
+    <tr><td>I003</td><td>U03</td><td>U03</td><td>2025-03-01 10:10:00</td></tr>
+    <tr><td>I004</td><td>U01</td><td>U01</td><td>2025-03-01 10:15:00</td></tr>
+    <tr><td>I005</td><td>U04</td><td>U05</td><td>2025-03-01 10:20:00</td></tr>
+    <tr><td>I006</td><td>U05</td><td>U05</td><td>2025-03-01 10:25:00</td></tr>
+  </tbody>
+</table>
+<p>I003, I004, and I006 are self-interactions (source = target). I001, I002, and I005 are normal cross-user interactions.</p>
+
+<h4>2. The SQL &mdash; same-row equality filter</h4>
+<pre><code>SELECT *
+FROM interactions
+WHERE source_user_id = target_user_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>interaction_id</th><th>source_user_id</th><th>target_user_id</th><th>ts</th></tr></thead>
+  <tbody>
+    <tr><td>I003</td><td>U03</td><td>U03</td><td>2025-03-01 10:10:00</td></tr>
+    <tr><td>I004</td><td>U01</td><td>U01</td><td>2025-03-01 10:15:00</td></tr>
+    <tr><td>I006</td><td>U05</td><td>U05</td><td>2025-03-01 10:25:00</td></tr>
+  </tbody>
+</table>
+<p>Three self-interaction rows returned. The normal cross-user interactions (I001, I002, I005) are correctly excluded because <code>source_user_id &lt;&gt; target_user_id</code> for those rows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The predicate: comparing two columns in the same row</h5>
+<p><code>WHERE source_user_id = target_user_id</code> is an intra-row predicate &mdash; it compares two columns within the same tuple. No join is needed. This is conceptually different from a self-join (which would create pairs of rows from the same table). Intra-row predicates are evaluated once per row during the filter phase and are highly efficient: the engine can short-circuit any row where the two columns differ without further processing.</p>
+
+<h5>SELECT * in this context</h5>
+<p><code>SELECT *</code> is appropriate for a diagnostic audit query where the goal is to surface the full record for manual review. In production reporting pipelines, prefer explicit column lists to avoid breaking when new columns are added, to control data exposure, and to improve query plan readability. For a trust-and-safety audit tool, however, <code>SELECT *</code> lets analysts see the complete row and route to remediation without needing to modify the query.</p>
+
+<h5>NULL behaviour: what if source or target is NULL?</h5>
+<p>If <code>source_user_id IS NULL</code> or <code>target_user_id IS NULL</code>, the equality <code>NULL = NULL</code> evaluates to <code>UNKNOWN</code> in SQL &mdash; not <code>TRUE</code>. Such rows are excluded by the <code>WHERE</code> filter. This is almost always correct (a NULL user ID indicates missing data, not a self-interaction), but worth stating explicitly in interview contexts where data quality is discussed. To also surface NULL-vs-NULL rows (if that is meaningful), add <code>OR (source_user_id IS NULL AND target_user_id IS NULL)</code>.</p>
+
+<h5>Inverting the filter: excluding self-interactions from a feed</h5>
+<p>The mirror-image query &mdash; <code>WHERE source_user_id &lt;&gt; target_user_id</code> &mdash; is equally important: it is the standard guard added to social-graph queries to prevent self-loops from polluting recommendation models or friend-of-friend traversals. Knowing both sides of the predicate shows you understand the operational context, not just the syntax.</p>
+
+<h5>Indexing and performance</h5>
+<p>An index on <code>(source_user_id)</code> or <code>(target_user_id)</code> alone does not help this query: the predicate is not a range or equality filter on a single column but a cross-column comparison. A full table scan is typically required. For large interactions tables, a computed/generated column <code>is_self_interaction BOOLEAN DEFAULT (source_user_id = target_user_id)</code> with an index on it, or a partial index <code>WHERE source_user_id = target_user_id</code> (supported in Postgres), makes this audit query O(log n + k) where k is the number of self-interactions.</p>
+
+<h5>Downstream action: DELETE vs flag</h5>
+<p>In practice, detected self-interactions are typically flagged (update a <code>flagged</code> column or insert into a review queue) rather than immediately deleted. The detection query becomes the subquery of an UPDATE or INSERT INTO review_queue ... SELECT. Framing the detection as the first step in a remediation pipeline shows senior operational thinking.</p>
+
+<h5>Dialect notes</h5>
+<p>The predicate <code>WHERE col_a = col_b</code> is universal ANSI SQL. Postgres supports partial indexes (<code>CREATE INDEX ON interactions(interaction_id) WHERE source_user_id = target_user_id</code>) for fast audit queries. Snowflake does not support partial indexes but supports search optimization on equality predicates. MySQL and SQL Server also require a full scan without a generated column index.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognize that this is an intra-row predicate (no join needed), explain NULL = NULL &rarr; UNKNOWN so NULL-ID rows are silently excluded, offer the inverted predicate (<code>&lt;&gt;</code>) as the equally important guard for downstream pipelines, and mention the partial index (Postgres) or generated-column index pattern for making audit scans fast at scale.</div>
