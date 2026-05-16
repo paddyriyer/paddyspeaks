@@ -1,0 +1,54 @@
+<p>A reporting team has long-format daily sales &mdash; one row per date per product &mdash; and needs it reshaped into a wide grid: one row per date, one column per product. That rotation of distinct row values into column headers is a <strong>pivot</strong>. The interviewer is checking whether you can express a pivot in portable SQL and whether you fill missing date/product combinations with <code>0</code> rather than <code>NULL</code>.</p>
+
+<h4>1. The source data &mdash; <code>daily_sales</code></h4>
+<table>
+  <thead><tr><th>date_id</th><th>product</th><th>qty</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-06-01</td><td>apples</td><td>10</td><td>day 1 has apples and bananas</td></tr>
+    <tr><td>2025-06-01</td><td>bananas</td><td>3</td><td>&hellip; but no cherries &rarr; cherry cell must be 0</td></tr>
+    <tr><td>2025-06-02</td><td>apples</td><td>7</td><td>day 2 has apples and cherries</td></tr>
+    <tr><td>2025-06-02</td><td>cherries</td><td>5</td><td>&hellip; but no bananas &rarr; banana cell must be 0</td></tr>
+    <tr><td>2025-06-03</td><td>bananas</td><td>8</td><td>day 3 has only bananas &rarr; apples and cherries both 0</td></tr>
+  </tbody>
+</table>
+<p>The edge case threaded through every row: no date has all three products. Each output row will have at least one missing combination, and the pivot must turn each of those gaps into a <code>0</code>, not a <code>NULL</code> &mdash; a sales grid reads cleaner with explicit zeros.</p>
+
+<h4>2. The SQL &mdash; pivot via filtered conditional aggregation</h4>
+<pre><code>SELECT date_id,
+       COALESCE(SUM(qty) FILTER (WHERE product = 'apples'),0)::int   AS apples,
+       COALESCE(SUM(qty) FILTER (WHERE product = 'bananas'),0)::int  AS bananas,
+       COALESCE(SUM(qty) FILTER (WHERE product = 'cherries'),0)::int AS cherries
+FROM daily_sales
+GROUP BY date_id
+ORDER BY date_id;</code></pre>
+<p><code>GROUP BY date_id</code> collapses each date to one row. Each <code>SUM(qty) FILTER (WHERE product = '...')</code> totals only that product's quantity within the date's group. When a date has no rows for a product, the filtered <code>SUM</code> sees nothing and returns <code>NULL</code>; <code>COALESCE(..., 0)</code> converts that to <code>0</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>date_id</th><th>apples</th><th>bananas</th><th>cherries</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2025-06-01</td><td>10</td><td>3</td><td>0</td><td>no cherry row &rarr; COALESCE supplies 0</td></tr>
+    <tr><td>2025-06-02</td><td>7</td><td>0</td><td>5</td><td>no banana row &rarr; 0</td></tr>
+    <tr><td>2025-06-03</td><td>0</td><td>8</td><td>0</td><td>only bananas &rarr; apples and cherries 0</td></tr>
+  </tbody>
+</table>
+<p>Every missing combination shows as <strong>0</strong>, exactly as required. Without the <code>COALESCE</code>, those cells would be <code>NULL</code> &mdash; technically a different meaning ("no data") and uglier in a dashboard. The pivot rotates the three distinct <code>product</code> values into three columns.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why this is a pivot and a plain <code>GROUP BY</code> is not</h5>
+<p><code>SELECT date_id, product, SUM(qty) GROUP BY date_id, product</code> returns the same numbers in <em>long</em> form &mdash; one row per date/product pair. A pivot turns the <code>product</code> <em>values</em> into <em>column headers</em>: it is a rotation. The conditional-aggregation idiom &mdash; one aggregate per target column &mdash; is the portable way to do that, because <code>CASE</code>/<code>FILTER</code> work in every engine.</p>
+
+<h5>Why <code>SUM</code> and not <code>MAX</code> for the cell value</h5>
+<p>The data here has one row per date/product, so <code>SUM</code>, <code>MAX</code>, and <code>MIN</code> would all return the same cell. But <code>SUM</code> is the correct choice of intent: if a date ever had two <code>apples</code> rows, <code>SUM</code> adds them (the day's total apple quantity) while <code>MAX</code> would silently keep only the larger. The aggregate you pick <em>is</em> the business rule &mdash; "total quantity" means <code>SUM</code>.</p>
+
+<h5><code>COALESCE</code> placement &mdash; outside the aggregate, not inside</h5>
+<p><code>COALESCE(SUM(qty) FILTER (...), 0)</code> wraps the <em>result</em> of the aggregate. Writing <code>SUM(COALESCE(qty, 0))</code> instead would not help: when a product is absent there are <em>zero rows</em> to sum, so <code>SUM</code> still returns <code>NULL</code> &mdash; the <code>COALESCE</code> inside never even runs. The empty-group <code>NULL</code> can only be caught after the aggregate. This is a subtle but common mistake.</p>
+
+<h5>The hard limit &mdash; columns are static</h5>
+<p>The three product columns are hard-coded. Add a fourth product ('grapes') to the table and it lands in <em>no</em> column &mdash; it silently vanishes from the report. Pure SQL cannot grow columns from data: a truly dynamic pivot needs a procedural step (build the SQL text from <code>SELECT DISTINCT product</code>, then execute it) or PostgreSQL's <code>crosstab()</code> from the <code>tablefunc</code> extension. Calling out this limitation unprompted is the senior signal.</p>
+
+<h5>Dialect notes &mdash; <code>FILTER</code>, <code>CASE</code>, and <code>PIVOT</code></h5>
+<p><code>FILTER (WHERE ...)</code> is standard SQL, supported by PostgreSQL and SQLite 3.30+. MySQL and SQL Server lack it; the portable form is <code>SUM(CASE WHEN product='apples' THEN qty ELSE 0 END)</code> &mdash; and with the <code>ELSE 0</code> the <code>COALESCE</code> becomes unnecessary because non-matching rows contribute 0 directly. Snowflake, Oracle, and SQL Server also ship a dedicated <code>PIVOT</code> clause, which still makes you enumerate the values in an <code>IN</code> list &mdash; the same static-column constraint.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise reshaping long-to-wide as a pivot, implement it portably with one <code>SUM(... FILTER)</code> or <code>SUM(CASE ...)</code> per column, wrap the aggregate (not the inner column) in <code>COALESCE(..., 0)</code> so empty-group NULLs become zeros, and flag unprompted that the column list is static &mdash; a data-driven pivot needs dynamic SQL or <code>crosstab()</code>.</div>

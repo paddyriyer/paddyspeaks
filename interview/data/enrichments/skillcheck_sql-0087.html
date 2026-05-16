@@ -1,0 +1,63 @@
+<p>A rideshare analyst wants each driver's best tipper &mdash; the rider who has tipped them the most in total across all trips. This is a "top-1 per group after a sub-aggregation" problem, with an explicit tie-break rule. The interviewer is probing whether you aggregate to the (driver, rider) grain first, then rank, and whether you encode "smallest rider_id wins ties" into the ranking <code>ORDER BY</code>.</p>
+
+<h4>1. The source data &mdash; <code>trip</code></h4>
+<table>
+  <thead><tr><th>trip_id</th><th>driver_id</th><th>rider_id</th><th>tip_amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>10</td><td>3.00</td><td>driver 1, rider 10</td></tr>
+    <tr><td>2</td><td>1</td><td>10</td><td>5.00</td><td>rider 10 again &mdash; totals to 8.00</td></tr>
+    <tr><td>3</td><td>1</td><td>20</td><td>8.00</td><td>rider 20 totals 8.00 &mdash; ties rider 10</td></tr>
+    <tr><td>4</td><td>1</td><td>30</td><td>8.00</td><td>rider 30 totals 8.00 &mdash; three-way tie</td></tr>
+    <tr><td>5</td><td>2</td><td>10</td><td>1.50</td><td>driver 2, rider 10</td></tr>
+    <tr><td>6</td><td>2</td><td>40</td><td>7.00</td><td>driver 2, rider 40 &mdash; clear winner</td></tr>
+    <tr><td>7</td><td>3</td><td>50</td><td>4.00</td><td>driver 3 has just one rider</td></tr>
+  </tbody>
+</table>
+<p>Driver 1 is the deliberate trap: riders 10, 20, and 30 <em>all</em> total 8.00 in tips. The tie-break rule says the smallest <code>rider_id</code> wins, so rider 10 must be returned. Driver 3 is the single-rider edge case &mdash; only one candidate, so no tie-break needed.</p>
+
+<h4>2. The SQL &mdash; sum per pair, rank per driver, keep rank 1</h4>
+<pre><code>WITH per_pair AS (
+  SELECT driver_id, rider_id, SUM(tip_amount) AS total_tip
+  FROM trip
+  GROUP BY driver_id, rider_id
+),
+ranked AS (
+  SELECT driver_id, rider_id, total_tip,
+         ROW_NUMBER() OVER (PARTITION BY driver_id ORDER BY total_tip DESC, rider_id) AS rn
+  FROM per_pair
+)
+SELECT driver_id, rider_id AS top_rider, ROUND(total_tip, 2) AS total_tip
+FROM ranked
+WHERE rn = 1
+ORDER BY driver_id;</code></pre>
+<p><code>per_pair</code> sums tips for each (driver, rider) combination. <code>ranked</code> numbers each driver's riders by <code>total_tip DESC</code>, breaking ties by <code>rider_id</code> ascending. <code>WHERE rn = 1</code> keeps the single top rider per driver.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>driver_id</th><th>top_rider</th><th>total_tip</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>8.00</td><td>three riders tie at 8.00; smallest id (10) wins</td></tr>
+    <tr><td>2</td><td>40</td><td>7.00</td><td>40 beats rider 10's 1.50 outright</td></tr>
+    <tr><td>3</td><td>50</td><td>4.00</td><td>only rider &mdash; wins by default</td></tr>
+  </tbody>
+</table>
+<p>Driver 1 returns rider <strong>10</strong>: riders 10, 20, 30 each total 8.00, and the <code>ORDER BY total_tip DESC, rider_id</code> places the smallest id first within the tie group, so <code>rn = 1</code> lands on rider 10. The tie-break is built into the window's <code>ORDER BY</code> &mdash; it is not an afterthought.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why aggregate before ranking</h5>
+<p>"Tipped the most in total" is a sum across each rider's trips, so you cannot rank raw trip rows &mdash; rider 10's two trips (3.00 and 5.00) must first combine into 8.00. The <code>per_pair</code> CTE does that. Ranking the un-aggregated <code>trip</code> table would compare individual tip amounts, which answers "the single largest tip," a completely different question. Aggregate to the grain the question asks about, <em>then</em> rank.</p>
+
+<h5>The tie-break lives in the window's <code>ORDER BY</code></h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY driver_id ORDER BY total_tip DESC, rider_id)</code> has a two-key order: primary by descending total, secondary by ascending <code>rider_id</code>. When totals tie, the second key decides which row gets <code>rn = 1</code>. This is the clean way to encode "smallest id wins" &mdash; no post-processing, no extra filter. If the rule were "largest id wins" you would write <code>rider_id DESC</code>; if "most recent trip wins" you would add a timestamp. The tie-break rule <em>is</em> the secondary sort key.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> &mdash; why the tie must collapse to one row</h5>
+<p><code>ROW_NUMBER</code> is deliberate. For driver 1's three-way tie, <code>RANK</code> would assign all three <code>rn = 1</code>, and <code>WHERE rn = 1</code> would return three rows for one driver &mdash; violating "one row per driver." <code>ROW_NUMBER</code> always produces exactly one <code>rn = 1</code>, with the <code>rider_id</code> tiebreaker deterministically choosing which. When the spec demands a single winner per group, <code>ROW_NUMBER</code> is correct and <code>RANK</code> is a bug.</p>
+
+<h5>Rounding placement &mdash; after the sum, on the survivor</h5>
+<p><code>ROUND(total_tip, 2)</code> sits in the final <code>SELECT</code>, applied to the already-summed value of the surviving rank-1 row. Rounding individual <code>tip_amount</code> values before summing could accumulate per-row rounding error; rounding once at the end is both correct and cheaper (it runs on three rows, not seven). With <code>NUMERIC</code> tip amounts the sums are exact here, but rounding-last is the habit that protects you when <code>FLOAT</code> money sneaks in.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ROW_NUMBER() OVER (...)</code> is standard (PostgreSQL, SQL Server, Oracle, MySQL 8+, SQLite 3.25+). PostgreSQL also offers a terser <code>DISTINCT ON (driver_id) ... ORDER BY driver_id, total_tip DESC, rider_id</code> after the aggregation &mdash; same result, Postgres-only. The window-function form shown is the portable, interview-safe choice; <code>DISTINCT ON</code> is a nice "I also know the Postgres shortcut" addition.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> for "top-1 per group," sub-aggregate to the comparison grain first, then rank with <code>ROW_NUMBER() OVER (PARTITION BY group ORDER BY metric DESC, tiebreak)</code> &mdash; folding the tie-break rule directly into the secondary sort key &mdash; and use <code>ROW_NUMBER</code> not <code>RANK</code> so a tie collapses to exactly one winning row per group.</div>

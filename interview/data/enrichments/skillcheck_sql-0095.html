@@ -1,0 +1,55 @@
+<p>A data-quality audit of the customer table needs to surface accounts that are the same person typed inconsistently &mdash; <code>Alice@Example.com</code>, <code>alice@example.com&nbsp;</code>, and <code>&nbsp;ALICE@example.com</code> are one identity. The interviewer wants every duplicate group reported with its canonical email and signup span, and is checking whether you normalise <em>inside</em> the <code>GROUP BY</code> rather than grouping on the raw, dirty values.</p>
+
+<h4>1. The source data &mdash; <code>customer</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>email</th><th>signed_up_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice@Example.com</td><td>2025-01-01 09:00</td><td>mixed case</td></tr>
+    <tr><td>2</td><td>alice@example.com&nbsp;</td><td>2025-03-01 09:00</td><td>trailing space</td></tr>
+    <tr><td>3</td><td>&nbsp;ALICE@example.com</td><td>2025-06-01 09:00</td><td>leading space + caps</td></tr>
+    <tr><td>4</td><td>bob@x.com</td><td>2025-02-01 09:00</td><td>unique &mdash; single account</td></tr>
+    <tr><td>5</td><td>carol@y.com</td><td>2025-05-01 09:00</td><td>clean dup, later row</td></tr>
+    <tr><td>6</td><td>carol@y.com</td><td>2025-04-01 09:00</td><td>clean dup, earlier row</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases matter. Alice's three rows look <em>textually different</em> &mdash; case and whitespace &mdash; yet are one identity. <code>bob@x.com</code> is a genuine singleton and must be excluded. And Carol's two rows are inserted out of chronological order, so the query must pick the true min/max, not the first row it sees.</p>
+
+<h4>2. The SQL &mdash; normalise inside GROUP BY, gate with HAVING</h4>
+<pre><code>SELECT LOWER(TRIM(email)) AS email_norm,
+       MIN(signed_up_at) AS earliest,
+       MAX(signed_up_at) AS latest,
+       COUNT(*) AS n_accounts
+FROM customer
+GROUP BY LOWER(TRIM(email))
+HAVING COUNT(*) &gt; 1
+ORDER BY email_norm;</code></pre>
+<p><code>LOWER(TRIM(email))</code> strips surrounding whitespace and folds case, producing a canonical key. Grouping on that <em>expression</em> &mdash; not the raw column &mdash; collapses the variants into one group; <code>HAVING COUNT(*) &gt; 1</code> keeps only the genuine duplicates.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>email_norm</th><th>earliest</th><th>latest</th><th>n_accounts</th></tr></thead>
+  <tbody>
+    <tr><td>alice@example.com</td><td>2025-01-01 09:00</td><td>2025-06-01 09:00</td><td>3</td></tr>
+    <tr><td>carol@y.com</td><td>2025-04-01 09:00</td><td>2025-05-01 09:00</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>All three Alice rows fold into one group of 3 despite their textual differences. Carol's earliest is <code>2025-04-01</code> &mdash; <code>MIN</code> ignores insert order entirely. <code>bob@x.com</code> is absent: a single account fails the <code>HAVING COUNT(*) &gt; 1</code> gate.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Group on the normalised expression, not the raw column</h5>
+<p>The whole trick is <code>GROUP BY LOWER(TRIM(email))</code>. <code>GROUP BY email</code> would treat <code>Alice@Example.com</code> and <code>alice@example.com&nbsp;</code> as different keys &mdash; each becomes its own group of one and the duplicates are never detected. SQL lets you group by any expression, so the cleanup function <em>is</em> the grouping key. The same normalised expression must appear in the <code>SELECT</code> to report the canonical form.</p>
+
+<h5>Why <code>MIN</code>/<code>MAX</code> are correct &mdash; tables have no order</h5>
+<p>Carol's rows are physically inserted newest-first. A solution that grabbed "the first signup_at" via some row-order assumption would return the wrong earliest. <code>MIN(signed_up_at)</code> and <code>MAX(signed_up_at)</code> scan the whole group and are immune to physical order &mdash; which is the only safe assumption, because a SQL table is an unordered set. Never rely on insertion or physical row order for a "first" or "last" value.</p>
+
+<h5>The order of <code>TRIM</code> and <code>LOWER</code> &mdash; and why it does not matter here</h5>
+<p><code>LOWER(TRIM(email))</code> trims then lowercases; <code>TRIM(LOWER(email))</code> lowercases then trims. For ASCII whitespace and ASCII letters the result is identical, because lowercasing never creates or removes spaces. It is still worth doing both steps: <code>TRIM</code> alone leaves <code>Alice</code> &ne; <code>alice</code>, and <code>LOWER</code> alone leaves the trailing space intact. Each function fixes one defect; you need both.</p>
+
+<h5><code>TRIM</code> only removes the <em>edges</em></h5>
+<p><code>TRIM</code> strips leading and trailing whitespace, not interior whitespace, and standard <code>TRIM</code> only removes spaces &mdash; not tabs or non-breaking spaces. If the dirty data contained <code>alice @example.com</code> (an internal space) or a Unicode <code>U+00A0</code>, this normalisation would miss it. For deeper cleansing you would add <code>REGEXP_REPLACE(email, '\s', '', 'g')</code>. Knowing the limit of <code>TRIM</code> is the senior detail.</p>
+
+<h5>What this query does <em>not</em> do: choose a survivor</h5>
+<p>This reports the duplicate <em>groups</em>; it does not decide which <code>customer_id</code> to keep in a dedupe. The natural follow-up is "merge to the earliest account" &mdash; <code>ROW_NUMBER() OVER (PARTITION BY LOWER(TRIM(email)) ORDER BY signed_up_at)</code> to tag row 1 as the survivor and the rest as merge candidates. Volunteering that next step shows you understand audit reporting versus remediation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> normalise inside the <code>GROUP BY</code> with <code>LOWER(TRIM(email))</code> so case/whitespace variants collapse, gate genuine duplicates with <code>HAVING COUNT(*) &gt; 1</code>, use <code>MIN</code>/<code>MAX</code> rather than trusting row order, and know that <code>TRIM</code> only touches the edges &mdash; interior or Unicode whitespace needs a regex.</div>

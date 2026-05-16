@@ -1,0 +1,65 @@
+<p>A delivery-operations analyst wants each driver's daily average delivery time alongside their overall average &mdash; the daily figure shown per row, the overall repeated beside it for context. The interviewer is probing a subtle point: the "overall" average is a <em>mean of daily means</em>, not a mean of all deliveries. Computing it correctly &mdash; and knowing the two are different &mdash; is the whole exercise.</p>
+
+<h4>1. The source data &mdash; <code>delivery</code></h4>
+<table>
+  <thead><tr><th>driver_id</th><th>customer_id</th><th>order_placed</th><th>delivered_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>01-01 12:00</td><td>01-01 12:20</td><td>20 min</td></tr>
+    <tr><td>1</td><td>101</td><td>01-01 13:00</td><td>01-01 13:30</td><td>30 min &mdash; Jan 1 has 2 deliveries</td></tr>
+    <tr><td>1</td><td>102</td><td>01-02 11:00</td><td>01-02 11:40</td><td>40 min &mdash; Jan 2 has only 1</td></tr>
+    <tr><td>2</td><td>103</td><td>01-01 18:00</td><td>01-01 18:25</td><td>25 min</td></tr>
+    <tr><td>2</td><td>104</td><td>01-02 18:00</td><td>01-02 18:35</td><td>35 min</td></tr>
+    <tr><td>2</td><td>105</td><td>01-02 19:00</td><td>01-02 19:25</td><td>25 min &mdash; Jan 2 has 2 deliveries</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the uneven day sizes. Driver 1's Jan 1 has two deliveries, Jan 2 has one. That imbalance is exactly what makes "average of daily averages" diverge from "average of all deliveries" &mdash; the single-delivery day gets equal weight to the two-delivery day.</p>
+
+<h4>2. The SQL &mdash; per-delivery duration, daily mean, then a window mean of means</h4>
+<pre><code>WITH dur AS (
+  SELECT driver_id,
+         order_placed::date AS day,
+         EXTRACT(EPOCH FROM (delivered_at - order_placed))/60 AS minutes
+  FROM delivery
+),
+daily AS (
+  SELECT driver_id, day, AVG(minutes) AS daily_avg_min
+  FROM dur
+  GROUP BY driver_id, day
+)
+SELECT driver_id, day,
+       ROUND(daily_avg_min::numeric, 2) AS daily_avg_min,
+       ROUND(AVG(daily_avg_min) OVER (PARTITION BY driver_id)::numeric, 2) AS overall_avg_min
+FROM daily
+ORDER BY driver_id, day;</code></pre>
+<p><code>dur</code> computes each delivery's duration in minutes. <code>daily</code> averages those per (driver, day). The final query keeps the per-day average and, in the same row, computes <code>AVG(daily_avg_min) OVER (PARTITION BY driver_id)</code> &mdash; the mean of that driver's daily means.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>driver_id</th><th>day</th><th>daily_avg_min</th><th>overall_avg_min</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>25.00</td><td>32.50</td><td>(20+30)/2 = 25</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>40.00</td><td>32.50</td><td>single delivery = 40</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>25.00</td><td>27.50</td><td>single delivery = 25</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>30.00</td><td>27.50</td><td>(35+25)/2 = 30</td></tr>
+  </tbody>
+</table>
+<p>Driver 1's overall is <strong>32.50</strong> = (25 + 40)/2. Note a flat average over all three of driver 1's deliveries would be (20+30+40)/3 = <strong>30.00</strong> &mdash; a different number. The 32.50 is the mean of daily means: the one-delivery day (40) pulls equal weight against the two-delivery day (25).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Mean of means &ne; grand mean &mdash; the central trap</h5>
+<p>Averaging daily averages weights each <em>day</em> equally regardless of how many deliveries it contains. Averaging all deliveries weights each <em>delivery</em> equally. They coincide only when every day has the same number of deliveries. Driver 1 proves the gap: mean-of-daily-means = 32.50, grand mean = 30.00. The question explicitly asks for "the average across all days," i.e. the mean of the daily figures &mdash; so the two-step aggregation is required, and you must be able to say <em>why</em> a single <code>AVG</code> over <code>dur</code> would answer a different question.</p>
+
+<h5>Why a window function, not a second <code>GROUP BY</code></h5>
+<p>The output keeps every daily row <em>and</em> shows the driver-level overall beside it. A plain <code>GROUP BY driver_id</code> would collapse to one row per driver and lose the per-day detail. <code>AVG(daily_avg_min) OVER (PARTITION BY driver_id)</code> computes the driver-level average <em>without collapsing</em> &mdash; it broadcasts the aggregate across all of that driver's rows. Window aggregates are the tool whenever you need a group-level number alongside, not instead of, the detail rows.</p>
+
+<h5>Duration arithmetic and the date bucket</h5>
+<p><code>delivered_at - order_placed</code> yields an <code>interval</code>; <code>EXTRACT(EPOCH FROM ...)</code> gives seconds, and <code>/60</code> converts to minutes (kept fractional for accuracy). <code>order_placed::date</code> buckets each delivery into a calendar day &mdash; a modelling choice: you could bucket by <code>delivered_at::date</code> instead, which would matter for an order placed at 23:50 and delivered at 00:10. State which timestamp defines "the day"; here it is when the order was placed.</p>
+
+<h5>Round last, and cast for two-argument <code>ROUND</code></h5>
+<p>Rounding happens once, in the outer <code>SELECT</code>, after both averages are fully computed &mdash; rounding the per-delivery minutes early would inject error into both downstream means. The <code>::numeric</code> casts are mandatory, not decorative: <code>AVG</code> and <code>EXTRACT</code> produce <code>double precision</code>, and PostgreSQL's <code>ROUND(value, scale)</code> only accepts <code>numeric</code> &mdash; without the cast you get <em>function round(double precision, integer) does not exist</em>.</p>
+
+<h5>Dialect notes</h5>
+<p>Window aggregates (<code>AVG(...) OVER (PARTITION BY ...)</code>) are standard. The interval maths is dialect-specific: SQL Server uses <code>DATEDIFF(MINUTE, order_placed, delivered_at)</code> (integer minutes &mdash; loses fractional precision); MySQL <code>TIMESTAMPDIFF(MINUTE, ...)</code> or <code>TIMESTAMPDIFF(SECOND,...)/60</code> for fractions. The two-argument <code>ROUND</code> needing a non-float type is a Postgres quirk &mdash; most other engines accept <code>ROUND(float, 2)</code> directly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that "average of daily averages" weights days equally and is not the grand mean over all deliveries &mdash; compute it as a two-step aggregation, then surface the driver-level figure beside each daily row with <code>AVG(...) OVER (PARTITION BY driver)</code> rather than a collapsing <code>GROUP BY</code>; round once at the end and cast to <code>numeric</code> so two-argument <code>ROUND</code> compiles.</div>

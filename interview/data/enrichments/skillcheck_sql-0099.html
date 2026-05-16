@@ -1,0 +1,63 @@
+<p>A trading-analytics pipeline needs each trade marked with the prevailing quote &mdash; the latest quote for the same symbol with a timestamp at or before the trade. This is an "as-of join", the bread and butter of market-data work. The interviewer explicitly asks for a <code>LATERAL</code> subquery and is checking whether you can produce a per-row "top-1 by time" lookup without exploding rows in a self-join.</p>
+
+<h4>1. The source data &mdash; <code>quote</code> and <code>trade</code></h4>
+<table>
+  <thead><tr><th>table</th><th>key</th><th>timestamp</th><th>price / (narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>quote</td><td>AAPL</td><td>2025-01-01 09:00</td><td>150</td></tr>
+    <tr><td>quote</td><td>AAPL</td><td>2025-01-01 09:30</td><td>151</td></tr>
+    <tr><td>quote</td><td>AAPL</td><td>2025-01-01 10:00</td><td>152</td></tr>
+    <tr><td>quote</td><td>TSLA</td><td>2025-01-01 09:30</td><td>200 &mdash; TSLA's only quote</td></tr>
+    <tr><td>trade</td><td>1 / AAPL</td><td>2025-01-01 08:00</td><td>before any AAPL quote &rarr; NULL</td></tr>
+    <tr><td>trade</td><td>2 / AAPL</td><td>2025-01-01 09:15</td><td>latest quote &le; 09:15 is 09:00</td></tr>
+    <tr><td>trade</td><td>3 / AAPL</td><td>2025-01-01 09:45</td><td>latest quote &le; 09:45 is 09:30</td></tr>
+    <tr><td>trade</td><td>4 / TSLA</td><td>2025-01-01 10:00</td><td>only TSLA quote (09:30) qualifies</td></tr>
+    <tr><td>trade</td><td>5 / TSLA</td><td>2025-01-01 09:00</td><td>before TSLA's 09:30 quote &rarr; NULL</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases must be handled. Trade 1 (AAPL at 08:00) and trade 5 (TSLA at 09:00) happen <em>before</em> any qualifying quote &mdash; <code>last_price</code> must be <code>NULL</code>, and the trade must still appear in the output. Symbol matching matters too: a TSLA trade must never pick up an AAPL quote.</p>
+
+<h4>2. The SQL &mdash; LEFT JOIN LATERAL with ORDER BY ... LIMIT 1</h4>
+<pre><code>SELECT t.trade_id, t.symbol, t.traded_at, q.price AS last_price
+FROM trade t
+LEFT JOIN LATERAL (
+  SELECT price
+  FROM quote
+  WHERE quote.symbol = t.symbol AND quote.quoted_at &lt;= t.traded_at
+  ORDER BY quote.quoted_at DESC
+  LIMIT 1
+) q ON TRUE
+ORDER BY t.trade_id;</code></pre>
+<p>The <code>LATERAL</code> subquery runs once per trade and can reference <code>t.symbol</code> and <code>t.traded_at</code>. It filters quotes to the same symbol at or before the trade time, sorts them newest-first, and <code>LIMIT 1</code> keeps the single most recent &mdash; the prevailing quote.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>trade_id</th><th>symbol</th><th>traded_at</th><th>last_price</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>AAPL</td><td>2025-01-01 08:00</td><td>NULL</td><td>no quote at/before 08:00</td></tr>
+    <tr><td>2</td><td>AAPL</td><td>2025-01-01 09:15</td><td>150</td><td>09:00 quote is the latest &le; 09:15</td></tr>
+    <tr><td>3</td><td>AAPL</td><td>2025-01-01 09:45</td><td>151</td><td>09:30 quote wins over 09:00</td></tr>
+    <tr><td>4</td><td>TSLA</td><td>2025-01-01 10:00</td><td>200</td><td>TSLA 09:30 quote</td></tr>
+    <tr><td>5</td><td>TSLA</td><td>2025-01-01 09:00</td><td>NULL</td><td>TSLA's only quote (09:30) is later</td></tr>
+  </tbody>
+</table>
+<p>Trades 1 and 5 carry <code>NULL</code> &mdash; no quote satisfies the time filter, the <code>LATERAL</code> block returns zero rows, and the <code>LEFT JOIN</code> still keeps the trade. Trade 3 correctly picks 151 (the 09:30 quote), not 150, because <code>ORDER BY quoted_at DESC</code> puts the newest qualifying quote first.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LATERAL</code> &mdash; the subquery depends on the outer row</h5>
+<p>A normal subquery in <code>FROM</code> is evaluated once, independently. <code>LATERAL</code> lifts that restriction: the subquery is re-evaluated <em>per outer row</em> and may reference its columns &mdash; here <code>t.symbol</code> and <code>t.traded_at</code>. That is exactly what an as-of join needs: a fresh "find the latest quote for <em>this</em> trade" computation for every trade. It is a correlated subquery promoted to a full table expression, so it can return columns and even multiple rows.</p>
+
+<h5><code>ORDER BY ... LIMIT 1</code> &mdash; clean top-1-per-group</h5>
+<p>Inside the <code>LATERAL</code>, <code>ORDER BY quoted_at DESC LIMIT 1</code> selects the single most recent qualifying quote. This is the most readable "greatest-per-group" idiom and it pairs naturally with <code>LATERAL</code>. The alternative &mdash; <code>ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY quoted_at DESC)</code> filtered to <code>= 1</code> &mdash; works but ranks <em>every</em> quote for every trade window; the <code>LATERAL</code> + <code>LIMIT 1</code> stops as soon as it has one row.</p>
+
+<h5><code>LEFT JOIN LATERAL ... ON TRUE</code> is what preserves no-quote trades</h5>
+<p>Two pieces matter. <code>LEFT JOIN</code> (not inner) keeps trades 1 and 5 even though the <code>LATERAL</code> block yields nothing &mdash; with a plain inner join those rows would silently disappear, badly under-reporting trades. And <code>ON TRUE</code> is the required join predicate: a <code>LATERAL</code> subquery already encodes its correlation in its own <code>WHERE</code>, so there is no extra condition to put in the <code>ON</code> clause &mdash; <code>ON TRUE</code> means "join on the lateral correlation alone".</p>
+
+<h5>The row-explosion trap the question warns against</h5>
+<p>The naive answer is <code>trade JOIN quote ON quote.symbol = t.symbol AND quote.quoted_at &lt;= t.traded_at</code>, then <code>MAX</code> or a window to pick the latest. That join first produces <em>every</em> qualifying quote for each trade &mdash; trade 4 would briefly match all three AAPL... no, the same symbol, but a trade late in the day matches many quotes, and the intermediate result balloons before you collapse it. <code>LATERAL</code> + <code>LIMIT 1</code> never materialises that explosion: it fetches one quote per trade directly.</p>
+
+<h5>The boundary: <code>&lt;=</code> vs <code>&lt;</code></h5>
+<p>The spec says "quoted_at <em>&le;</em> traded_at" &mdash; a quote stamped at the exact trade time counts. <code>&lt;=</code> is therefore correct; <code>&lt;</code> would exclude a simultaneous quote. With <code>&lt;=</code> and ties at the same timestamp, <code>LIMIT 1</code> picks one arbitrarily &mdash; if quotes could collide on <code>quoted_at</code>, add a tiebreaker like <code>ORDER BY quoted_at DESC, quote_id DESC</code> for determinism. Naming that tie risk unprompted is the senior detail.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "latest quote at or before each trade" as an as-of join, implement it with <code>LEFT JOIN LATERAL (... ORDER BY quoted_at DESC LIMIT 1) ON TRUE</code> &mdash; <code>LEFT</code> keeps trades with no prior quote, <code>LATERAL</code> correlates per row, <code>LIMIT 1</code> avoids the self-join row explosion &mdash; and add a tiebreaker if timestamps can collide.</div>

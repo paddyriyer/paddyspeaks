@@ -1,0 +1,70 @@
+<p>A customer-success dashboard wants each customer's three most recent orders &mdash; the classic "top-N per group" pattern. The catch is the graceful fallback: a customer with fewer than three orders should return all of them, not be padded or dropped. The interviewer is checking whether you use a partitioned <code>ROW_NUMBER</code> with a <code>rn &lt;= 3</code> filter, and whether you order the final output stably.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aanya</td></tr>
+    <tr><td>2</td><td>Bilal</td></tr>
+    <tr><td>3</td><td>Chitra</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>total</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>2025-01-01</td><td>50</td><td>Aanya's oldest &mdash; will be dropped (4th newest)</td></tr>
+    <tr><td>102</td><td>1</td><td>2025-02-01</td><td>60</td><td>Aanya, kept</td></tr>
+    <tr><td>103</td><td>1</td><td>2025-03-01</td><td>70</td><td>Aanya, kept</td></tr>
+    <tr><td>104</td><td>1</td><td>2025-04-01</td><td>80</td><td>Aanya's newest, kept</td></tr>
+    <tr><td>201</td><td>2</td><td>2025-01-15</td><td>100</td><td>Bilal &mdash; only 2 orders, both kept</td></tr>
+    <tr><td>202</td><td>2</td><td>2025-02-15</td><td>200</td><td>Bilal</td></tr>
+    <tr><td>301</td><td>3</td><td>2025-03-10</td><td>30</td><td>Chitra &mdash; single order, kept</td></tr>
+  </tbody>
+</table>
+<p>Three deliberate cases: Aanya has <em>more</em> than 3 orders (the oldest, 101, must be cut), Bilal has fewer than 3 (both survive), and Chitra has exactly 1 (returned as-is). A correct top-N solution must not require padding rows or assume every group has three.</p>
+
+<h4>2. The SQL &mdash; partitioned <code>ROW_NUMBER</code>, keep <code>rn &lt;= 3</code></h4>
+<pre><code>WITH ranked AS (
+  SELECT o.order_id, o.customer_id, o.order_date, o.total,
+         ROW_NUMBER() OVER (PARTITION BY o.customer_id ORDER BY o.order_date DESC, o.order_id DESC) AS rn
+  FROM orders o
+)
+SELECT c.name, r.order_id, r.order_date, r.total
+FROM ranked r
+JOIN customers c ON c.customer_id = r.customer_id
+WHERE r.rn &lt;= 3
+ORDER BY c.name, r.order_date DESC, r.order_id;</code></pre>
+<p><code>ROW_NUMBER</code> numbers each customer's orders newest-first (<code>order_date DESC</code>, then <code>order_id DESC</code> as a tie-break). Filtering <code>rn &lt;= 3</code> keeps at most three per customer; a customer with one or two simply has no <code>rn</code> above their count, so all their rows pass. The join attaches the customer name.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>order_id</th><th>order_date</th><th>total</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>Aanya</td><td>104</td><td>2025-04-01</td><td>80</td><td>rn 1 &mdash; newest</td></tr>
+    <tr><td>Aanya</td><td>103</td><td>2025-03-01</td><td>70</td><td>rn 2</td></tr>
+    <tr><td>Aanya</td><td>102</td><td>2025-02-01</td><td>60</td><td>rn 3 &mdash; order 101 (rn 4) dropped</td></tr>
+    <tr><td>Bilal</td><td>202</td><td>2025-02-15</td><td>200</td><td>only 2 orders, both kept</td></tr>
+    <tr><td>Bilal</td><td>201</td><td>2025-01-15</td><td>100</td><td></td></tr>
+    <tr><td>Chitra</td><td>301</td><td>2025-03-10</td><td>30</td><td>single order, returned as-is</td></tr>
+  </tbody>
+</table>
+<p>Aanya is capped at three &mdash; her January order (101) falls to <code>rn = 4</code> and is filtered out. Bilal and Chitra return everything they have, with no empty placeholder rows. The "fewer than three" rule needs no special <code>CASE</code>; the <code>rn &lt;= 3</code> filter handles it automatically.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>rn &lt;= 3</code> gives the "fewer than N returns all" behaviour for free</h5>
+<p>This is the elegant part. A customer with two orders gets <code>rn</code> values <code>1</code> and <code>2</code>; both satisfy <code>&lt;= 3</code>, so both pass. There is no <code>rn = 3</code> row to miss. The filter is a ceiling, not an exact match &mdash; so it naturally degrades to "all rows" for small groups. Trying to special-case short customers with <code>UNION</code>s or <code>CASE</code> logic is a classic over-engineering mistake.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code> for top-N</h5>
+<p>If two orders shared a date, <code>RANK</code> could assign <code>1, 1, 3</code> &mdash; and <code>rn &lt;= 3</code> would then return potentially four rows for a customer (two tied at 1, one at 3, and the gap). <code>DENSE_RANK</code> avoids the gap but still returns <em>all</em> tied rows, so a three-way tie at the top yields four rows. <code>ROW_NUMBER</code> guarantees a strict count &mdash; at most three rows, always. For "exactly N per group" you want <code>ROW_NUMBER</code>; for "all rows tied into the top N positions" you want <code>RANK</code>/<code>DENSE_RANK</code>. State which the product wants.</p>
+
+<h5>The tie-break on <code>order_id</code> &mdash; determinism again</h5>
+<p><code>ORDER BY order_date DESC, order_id DESC</code> inside the window ensures two orders on the same date get a stable, repeatable ranking. Without the <code>order_id</code> key, a date tie at the rn=3 boundary would make it arbitrary <em>which</em> of two same-day orders is kept &mdash; a flaky result. Ending the window <code>ORDER BY</code> with a unique column is the habit that removes that nondeterminism.</p>
+
+<h5>Why filter in the outer query, not the <code>OVER</code> clause</h5>
+<p><code>ROW_NUMBER</code> cannot be referenced in a <code>WHERE</code> in the same <code>SELECT</code> that computes it &mdash; window functions are evaluated after <code>WHERE</code>. Hence the CTE: compute <code>rn</code> in <code>ranked</code>, then filter <code>rn &lt;= 3</code> in the outer query. A subquery works identically. This two-step shape is mandatory for any "filter on a window result" task.</p>
+
+<h5>Dialect notes &mdash; and the <code>LATERAL</code> alternative</h5>
+<p>The <code>ROW_NUMBER</code> + CTE pattern is fully portable. Postgres also offers a <code>LATERAL</code> join &mdash; <code>FROM customers c, LATERAL (SELECT ... FROM orders WHERE customer_id = c.customer_id ORDER BY order_date DESC LIMIT 3) o</code> &mdash; which can be faster when there is an index on <code>(customer_id, order_date)</code> because it fetches only three rows per customer instead of ranking all of them. SQL Server's equivalent is <code>CROSS APPLY</code> with <code>TOP 3</code>. Mention the <code>LATERAL</code>/<code>APPLY</code> option as a scale optimisation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement top-N-per-group with a partitioned <code>ROW_NUMBER</code> filtered <code>rn &lt;= N</code> in an outer query, recognise that the inequality filter gives "fewer than N returns all" with no special case, choose <code>ROW_NUMBER</code> over <code>RANK</code> for a strict count, and offer <code>LATERAL</code>/<code>CROSS APPLY</code> as the index-friendly optimisation at scale.</div>

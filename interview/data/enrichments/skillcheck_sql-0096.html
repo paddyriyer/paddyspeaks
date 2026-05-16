@@ -1,0 +1,54 @@
+<p>A merchandising team has a small reference list of "top items" and wants the users who have bought <em>every single one</em>. Order, duplicates, and purchases of items outside the list are all irrelevant &mdash; only full coverage of the reference set counts. This is a relational-division problem, and the interviewer is checking whether you express "owns all of set X" as a count match rather than chaining one <code>INTERSECT</code> per item.</p>
+
+<h4>1. The source data &mdash; <code>top_items</code> and <code>purchase</code></h4>
+<table>
+  <thead><tr><th>table</th><th>user_id</th><th>item_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>top_items</td><td>&mdash;</td><td>10, 20, 30</td><td>the reference set: 3 items</td></tr>
+    <tr><td>purchase</td><td>1</td><td>10, 20, 30, 40</td><td>all three + an extra &mdash; qualifies</td></tr>
+    <tr><td>purchase</td><td>2</td><td>10, 30</td><td>missing 20 &mdash; fails</td></tr>
+    <tr><td>purchase</td><td>3</td><td>10, 20, 30, 30, 30</td><td>all three, item 30 bought 3&times; &mdash; qualifies</td></tr>
+    <tr><td>purchase</td><td>4</td><td>10, 20</td><td>missing 30 &mdash; fails</td></tr>
+    <tr><td>purchase</td><td>5</td><td>10, 20, 30, 50</td><td>all three + an out-of-list item &mdash; qualifies</td></tr>
+  </tbody>
+</table>
+<p>The edge cases test both failure modes. User 3 bought item 30 <em>three times</em> &mdash; the duplicates must not inflate coverage to "more than 3". Users 1 and 5 bought items (40, 50) not in the list &mdash; those extras must not be counted toward the target.</p>
+
+<h4>2. The SQL &mdash; relational division by COUNT(DISTINCT)</h4>
+<pre><code>SELECT p.user_id
+FROM purchase p
+WHERE p.item_id IN (SELECT item_id FROM top_items)
+GROUP BY p.user_id
+HAVING COUNT(DISTINCT p.item_id) = (SELECT COUNT(*) FROM top_items)
+ORDER BY p.user_id;</code></pre>
+<p>The <code>WHERE ... IN</code> keeps only purchases of reference items, so items 40 and 50 are dropped first. Then per user, <code>COUNT(DISTINCT p.item_id)</code> counts how many <em>distinct</em> reference items they bought; if that equals the size of <code>top_items</code>, they own the whole set.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>distinct reference items {10,20,30} = 3 &mdash; item 40 already filtered out</td></tr>
+    <tr><td>3</td><td>distinct {10,20,30} = 3 &mdash; the three buys of item 30 collapse to one</td></tr>
+    <tr><td>5</td><td>distinct {10,20,30} = 3 &mdash; item 50 already filtered out</td></tr>
+  </tbody>
+</table>
+<p>Users 2 and 4 are absent: each covers only 2 of the 3 reference items. User 3 qualifies because <code>COUNT(DISTINCT)</code> folds the triplicate item 30 down to a single distinct value &mdash; coverage is 3, not 5.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>This is relational division &mdash; "owns all of X"</h5>
+<p>"Find users who bought every top item" is the textbook relational-division pattern. The clean SQL idiom: filter to the divisor set, group by the entity, and require the distinct-count of matched items to equal the divisor's cardinality. It scales to any set size without touching the query &mdash; add a fourth top item and the subquery <code>SELECT COUNT(*) FROM top_items</code> just returns 4.</p>
+
+<h5>Why <code>COUNT(DISTINCT)</code> is non-negotiable</h5>
+<p>User 3 bought item 30 three times. Plain <code>COUNT(p.item_id)</code> would count 5 purchase rows &mdash; <code>5 = 3</code> is false, and user 3 would be wrongly excluded. <code>DISTINCT</code> answers the real question ("how many <em>different</em> reference items") rather than "how many purchase events". Whenever duplicates exist in the fact table, a coverage test must count distinct keys.</p>
+
+<h5>The <code>WHERE ... IN</code> filter does two jobs</h5>
+<p>It excludes out-of-list items <em>and</em> makes the count comparison sound. Without it, <code>COUNT(DISTINCT p.item_id)</code> would include items 40 and 50, so user 1 would score 4 distinct items &mdash; <code>4 = 3</code> is false and a fully-qualified user would be dropped. Restricting to the divisor set first guarantees the distinct-count can never exceed the target. Filter to the set, then count within it.</p>
+
+<h5>The alternative: <code>NOT EXISTS</code> double negation</h5>
+<p>The other canonical form is "no top item exists that this user did not buy": <code>SELECT user_id FROM purchase p1 WHERE NOT EXISTS (SELECT 1 FROM top_items t WHERE NOT EXISTS (SELECT 1 FROM purchase p2 WHERE p2.user_id = p1.user_id AND p2.item_id = t.item_id))</code>. It is provably equivalent and handles an empty divisor differently &mdash; with an empty <code>top_items</code>, the double-<code>NOT EXISTS</code> returns <em>all</em> users (vacuously true), while the count form returns none. Know both; pick by which empty-set semantics the business wants.</p>
+
+<h5>Edge case: the empty divisor</h5>
+<p>If <code>top_items</code> were empty, <code>(SELECT COUNT(*) FROM top_items)</code> is 0, and no grouped user has <code>COUNT(DISTINCT) = 0</code> (a group only exists if it has rows) &mdash; so this query returns no one. That is a defensible answer ("nobody has bought all of nothing... in a useful sense"), but it differs from the set-theoretic "everybody". Flagging that divergence unprompted is the senior move.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "bought every top item" as relational division, implement it by filtering to the reference set then requiring <code>COUNT(DISTINCT item_id) = (SELECT COUNT(*) FROM top_items)</code>, insist on <code>DISTINCT</code> so repeat purchases do not inflate coverage, and know the <code>NOT EXISTS</code> equivalent diverges only on the empty-divisor edge case.</div>
