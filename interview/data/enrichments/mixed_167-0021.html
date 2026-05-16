@@ -1,0 +1,51 @@
+<p>A growth analyst inherits a <code>users</code> table where interests are crammed into one comma-separated <code>tags_csv</code> column &mdash; a denormalised mess &mdash; and asks: <em>"how many users picked each tag?"</em> The reference solution splits the string into an array, explodes it into rows, and aggregates. The interviewer is probing whether you can handle the dirty-data realities: stray whitespace, empty tokens, and NULL cells.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>name</th><th>country</th><th>tags_csv</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ann</td><td>US</td><td><code>sql, python ,ml</code></td></tr>
+    <tr><td>2</td><td>Bob</td><td>UK</td><td><code>python,devops</code></td></tr>
+    <tr><td>3</td><td>Cara</td><td>IN</td><td><code>sql,,python</code></td></tr>
+    <tr><td>4</td><td>Dan</td><td>US</td><td><code></code> (empty string)</td></tr>
+    <tr><td>5</td><td>Eve</td><td>CA</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Four deliberate hazards: <strong>inconsistent spacing</strong> around Ann's tags, an <strong>empty token</strong> from the double comma in Cara's row, an <strong>empty string</strong> for Dan, and a <strong>NULL</strong> for Eve. A clean split must survive all four.</p>
+
+<h4>2. The SQL &mdash; split, unnest, aggregate</h4>
+<pre><code>SELECT trim(tag) AS tag, COUNT(*) AS users
+FROM users, UNNEST(string_to_array(tags_csv, ',')) AS tag
+WHERE trim(tag) &lt;&gt; ''
+GROUP BY trim(tag);</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>tag</th><th>users</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>devops</td><td>1</td><td>Bob only</td></tr>
+    <tr><td>ml</td><td>1</td><td>Ann &mdash; <code> ml</code> trimmed</td></tr>
+    <tr><td>python</td><td>3</td><td>Ann, Bob, Cara</td></tr>
+    <tr><td>sql</td><td>2</td><td>Ann, Cara</td></tr>
+  </tbody>
+</table>
+<p>Four tags. The empty token from Cara's <code>sql,,python</code> is gone, Ann's spaced <code> python </code> and <code>ml</code> are normalised, and Dan (empty string) and Eve (NULL) contribute <strong>nothing</strong> &mdash; exactly the intended outcome.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The split-unnest pipeline &mdash; how it works</h5>
+<p><code>string_to_array(tags_csv, ',')</code> turns the CSV text into a Postgres array. <code>UNNEST(...)</code> is a set-returning function: placed in the <code>FROM</code> clause it expands that array into one row per element, and a comma-join against <code>users</code> implicitly behaves like a <code>LATERAL</code> join &mdash; each user's row is paired with each of its exploded tags. The result is the normalised long form the original schema should have stored to begin with.</p>
+
+<h5>Why <code>trim()</code> appears three times &mdash; and the double-comma trap</h5>
+<p>Real CSV text has untidy spacing. <code>trim(tag)</code> in the <code>SELECT</code> normalises the displayed value, in the <code>WHERE</code> it ensures a token that is <em>only</em> whitespace counts as empty, and in <code>GROUP BY</code> it makes <code> python</code> and <code>python</code> aggregate together &mdash; without it they would be different groups. The double comma in <code>sql,,python</code> produces a genuine empty-string element; <code>WHERE trim(tag) &lt;&gt; ''</code> discards it. Skipping any of the three trims gives split or miscounted groups &mdash; the classic mistake here.</p>
+
+<h5>NULL and empty-string handling &mdash; the quiet edge cases</h5>
+<p>Two non-tag rows behave differently under the hood but land in the same place. Eve's <code>tags_csv</code> is <code>NULL</code>: <code>string_to_array(NULL, ',')</code> returns <code>NULL</code>, and <code>UNNEST(NULL)</code> yields <em>zero rows</em>, so Eve drops out before the filter. Dan's value is the empty string: it splits into a single empty-string element, which <code>WHERE trim(tag) &lt;&gt; ''</code> then removes. Note that <code>COUNT(*)</code> counts exploded tag-rows, not users &mdash; if one user listed the same tag twice it would be counted twice; use <code>COUNT(DISTINCT user_id)</code> for true per-user counts.</p>
+
+<h5>Dialect notes &mdash; this is Postgres-specific</h5>
+<p><code>string_to_array</code> + <code>UNNEST</code> is Postgres. Elsewhere: BigQuery uses <code>SPLIT()</code> with <code>UNNEST()</code>; Snowflake has <code>SPLIT_TO_TABLE</code> (or <code>LATERAL FLATTEN</code>); SQL Server and modern MySQL/Oracle expose <code>STRING_SPLIT</code> / <code>JSON_TABLE</code>. The shape &mdash; split, explode, trim, filter, group &mdash; is universal even though the function names are not.</p>
+
+<h5>The real senior point &mdash; don't store CSV in a column</h5>
+<p>This whole query is a workaround for a denormalisation anti-pattern. A comma-separated column cannot be indexed per tag, cannot enforce a foreign key, and forces a string parse on every read. The proper design is a <code>user_tags(user_id, tag)</code> junction table &mdash; then this question is a trivial <code>GROUP BY tag</code>. Saying that unprompted is the over-the-bar finish.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> describe the split-unnest pipeline, justify <code>trim()</code> in all three clauses (display, empty-token filter, and group key), explain that NULL yields zero unnested rows while the empty string yields one filtered-out token &mdash; then call out that storing CSV in a column is the underlying anti-pattern and a junction table is the fix.</div>

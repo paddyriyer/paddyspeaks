@@ -1,0 +1,57 @@
+<p>An e-commerce analyst wants each customer's biggest order: <em>"return the full order row with the highest amount for every customer."</em> The reference solution is a correlated subquery &mdash; for each row, compare its amount to that customer's own maximum. It is correct, but the interviewer is watching for the tie behaviour and whether you can name the modern window-function alternative.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th><th>order_date</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>$250</td><td>2026-03-01</td><td>shipped</td></tr>
+    <tr><td>2</td><td>101</td><td>$400</td><td>2026-03-05</td><td>shipped</td></tr>
+    <tr><td>3</td><td>101</td><td>$400</td><td>2026-03-09</td><td>pending</td></tr>
+    <tr><td>4</td><td>102</td><td>$90</td><td>2026-03-02</td><td>shipped</td></tr>
+    <tr><td>5</td><td>103</td><td>$150</td><td>2026-03-03</td><td>cancelled</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has <strong>two orders tied at $400</strong> &mdash; the edge case. Whether the answer returns one row or both is the entire interview question.</p>
+
+<h4>2. The SQL &mdash; correlated subquery on MAX</h4>
+<pre><code>SELECT * FROM orders o
+WHERE amount = (SELECT MAX(amount) FROM orders
+                WHERE customer_id = o.customer_id);</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th><th>order_date</th><th>status</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>101</td><td>$400</td><td>2026-03-05</td><td>shipped</td><td>tied for max</td></tr>
+    <tr><td>3</td><td>101</td><td>$400</td><td>2026-03-09</td><td>pending</td><td>also tied &mdash; both returned</td></tr>
+    <tr><td>4</td><td>102</td><td>$90</td><td>2026-03-02</td><td>shipped</td><td>only order</td></tr>
+    <tr><td>5</td><td>103</td><td>$150</td><td>2026-03-03</td><td>cancelled</td><td>only order</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 yields <strong>two rows</strong>, not one &mdash; both orders equal the customer's max of $400, so both satisfy <code>amount = MAX</code>. Customer 101's $250 order is filtered out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The correlated subquery runs per customer-row</h5>
+<p>The inner query references <code>o.customer_id</code> from the outer query, so it is <em>correlated</em> &mdash; conceptually re-evaluated for each outer row, computing that customer's maximum. The outer row survives only if its <code>amount</code> equals that maximum. This is the pre-window-function idiom for "rows matching a per-group extreme."</p>
+
+<h5>The tie behaviour &mdash; <code>= MAX</code> returns ALL ties</h5>
+<p>This is the point the interviewer wants. Because the filter is an <em>equality against the max value</em>, every row equal to that value passes. Customer 101's two $400 orders both qualify. That may be exactly what you want ("show me all top orders") or a bug ("I expected one row per customer"). Contrast with <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY amount DESC)</code> filtered to <code>= 1</code>, which picks <em>exactly one</em> row per customer and breaks the tie arbitrarily. <code>RANK() = 1</code> behaves like the subquery &mdash; it keeps all ties. Naming which semantics the product needs is the senior move.</p>
+
+<h5>The window-function rewrite &mdash; one table scan</h5>
+<p>The subquery effectively scans <code>orders</code> twice. A window function does it in one pass:</p>
+<pre><code>SELECT order_id, customer_id, amount, order_date, status
+FROM (
+  SELECT *, RANK() OVER (PARTITION BY customer_id ORDER BY amount DESC) AS rk
+  FROM orders
+) t
+WHERE rk = 1;</code></pre>
+<p>Swap <code>RANK</code> for <code>ROW_NUMBER</code> if you want strictly one row per customer. On large tables this is both clearer and faster than the correlated form.</p>
+
+<h5>NULL amounts and the empty-group case</h5>
+<p>If a customer's orders all have NULL <code>amount</code>, <code>MAX</code> returns NULL, and <code>amount = NULL</code> is <em>unknown</em> &mdash; that customer contributes no rows at all. Also, a row with a NULL amount can never equal a non-NULL max, so it is silently dropped. Decide whether NULL-amount orders should be excluded upstream or coalesced.</p>
+
+<h5><code>SELECT *</code> caveat</h5>
+<p>Returning every column is fine for a demo. In production, name the columns &mdash; <code>SELECT *</code> in a subquery-filtered statement is brittle if the schema changes and ships unnecessary data.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>amount = (SELECT MAX ...)</code> returns <em>every</em> tied row, not one per customer; state that this matches <code>RANK() = 1</code> but differs from <code>ROW_NUMBER() = 1</code>; and offer the single-scan window rewrite while clarifying with the interviewer whether ties should be kept.</div>

@@ -1,0 +1,61 @@
+<p>A community sales dataset asks for the <em>top-selling country in each continent</em> &mdash; first summing sales to the country level, then surfacing the leader per continent. This is the universal "max-per-group" / "greatest-N-per-group" interview pattern, behind every "best region", "top product per category", "highest-paid employee per department" question. The interviewer is watching how you rank within groups and, above all, how you handle ties at the top.</p>
+
+<h4>1. The source data &mdash; <code>salesinfo</code></h4>
+<table>
+  <thead><tr><th>id</th><th>continents</th><th>country</th><th>sales</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Asia</td><td>India</td><td>500</td><td>India row 1</td></tr>
+    <tr><td>2</td><td>Asia</td><td>India</td><td>300</td><td>India row 2 &mdash; India totals 800</td></tr>
+    <tr><td>3</td><td>Asia</td><td>China</td><td>800</td><td>China totals 800</td></tr>
+    <tr><td>4</td><td>Asia</td><td>Japan</td><td>800</td><td>Japan totals 800 &mdash; three-way tie</td></tr>
+    <tr><td>5</td><td>Europe</td><td>France</td><td>250</td><td>France</td></tr>
+    <tr><td>6</td><td>Europe</td><td>Germany</td><td>600</td><td>Germany leads Europe</td></tr>
+    <tr><td>7</td><td>Africa</td><td>Kenya</td><td>120</td><td>Kenya &mdash; sole country in Africa</td></tr>
+  </tbody>
+</table>
+<p>After summing, Asia has a <strong>three-way tie at 800</strong> (India 500+300, China 800, Japan 800). Africa has a <strong>single country</strong>. Both decide the design: does the query return one winner per continent, or all tied winners?</p>
+
+<h4>2. The SQL &mdash; aggregate, then <code>DENSE_RANK</code> per continent</h4>
+<pre><code>WITH t1 AS (
+  SELECT continents, country,
+         SUM(CASE WHEN sales::text ~ '^-?[0-9]+(\.[0-9]+)?$' THEN sales::numeric ELSE 0 END) AS total_sales
+  FROM salesinfo
+  GROUP BY continents, country
+),
+rnk_sales AS (
+  SELECT *, DENSE_RANK() OVER (PARTITION BY continents ORDER BY total_sales DESC) AS rnk
+  FROM t1
+)
+SELECT continents, country, total_sales, rnk
+FROM rnk_sales
+WHERE rnk = 1;</code></pre>
+<p><code>t1</code> rolls sales up to one row per (continent, country); <code>DENSE_RANK</code> ranks countries within each continent by descending total; filtering <code>rnk = 1</code> keeps the leader(s).</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>continents</th><th>country</th><th>total_sales</th><th>rnk</th></tr></thead>
+  <tbody>
+    <tr><td>Africa</td><td>Kenya</td><td>120</td><td>1</td></tr>
+    <tr><td>Asia</td><td>China</td><td>800</td><td>1</td></tr>
+    <tr><td>Asia</td><td>India</td><td>800</td><td>1</td></tr>
+    <tr><td>Asia</td><td>Japan</td><td>800</td><td>1</td></tr>
+    <tr><td>Europe</td><td>Germany</td><td>600</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Asia returns <strong>three rows</strong> &mdash; China, India, and Japan all tie at 800, so all three get rank 1. Africa returns Kenya, the only country there. This "ties produce multiple winners" behaviour is a deliberate property of <code>DENSE_RANK</code>, not a bug.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why aggregate first, then rank</h5>
+<p>The question is about <em>country</em> totals, but the raw table has multiple rows per country (India appears twice). Ranking the raw rows would compare individual transactions, not countries. The <code>GROUP BY continents, country</code> in <code>t1</code> collapses each country to one total <em>before</em> <code>DENSE_RANK</code> sees it &mdash; aggregate, then rank, in that order.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> vs <code>ROW_NUMBER</code> &mdash; the tie decision</h5>
+<p>All three rank within <code>PARTITION BY continents</code>, but treat the 800-way tie differently. <code>ROW_NUMBER</code> would pick <em>one</em> arbitrary winner &mdash; India <em>or</em> China <em>or</em> Japan, decided by physical order, non-deterministic. <code>RANK</code> and <code>DENSE_RANK</code> both give all tied countries rank 1, so all three are returned. The choice is a product question: "show <em>the</em> top country" (one row) &rarr; <code>ROW_NUMBER</code> with a deterministic tiebreaker; "show <em>all</em> countries that lead" &rarr; <code>RANK</code>/<code>DENSE_RANK</code>. Naming this trade-off is the senior signal &mdash; <code>WHERE rnk = 1</code> silently returns a variable number of rows per continent.</p>
+
+<h5>The single-country edge &mdash; Africa</h5>
+<p>Africa has one country, Kenya, which trivially ranks 1. No ranking method drops it &mdash; a partition of size one always has a rank-1 row. Worth confirming out loud, because interviewers sometimes expect "top N" logic to mishandle a group of size one.</p>
+
+<h5>Correlated-subquery alternative and the cast guard</h5>
+<p>Pre-window-function, the same result comes from <code>WHERE total_sales = (SELECT MAX(total_sales) FROM t1 t2 WHERE t2.continents = t1.continents)</code> &mdash; correct, and it also returns all ties, but it re-scans per row. The window version sorts once. Separately, <code>sales</code> is <code>TEXT</code>, so the <code>CASE ... ~ '^-?[0-9]+(\.[0-9]+)?$'</code> regex validates each value before <code>::numeric</code>; the <code>ELSE 0</code> branch keeps a dirty <code>'N/A'</code> from aborting the query, but silently under-counts that country &mdash; the column should really be <code>NUMERIC</code> upstream.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> aggregate to the country grain <em>before</em> ranking, and make the tie decision explicit &mdash; <code>DENSE_RANK</code>/<code>RANK</code> with <code>WHERE rnk = 1</code> returns every tied leader (Asia yields three rows here), whereas <code>ROW_NUMBER</code> forces a single arbitrary winner and needs a deterministic tiebreaker.</div>

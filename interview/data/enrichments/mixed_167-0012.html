@@ -1,0 +1,54 @@
+<p>An HR data-quality audit asks a pointed question: <em>"which employees report to a supervisor whose ID does not actually exist in the table?"</em> These are dangling references &mdash; broken org-chart links. The query self-joins <code>employees</code> to itself and uses an anti-join to surface the orphans. The interviewer is probing whether you can model a hierarchy with a self-join and separate "no supervisor" from "bad supervisor."</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>supervisor_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td><em>NULL</em></td><td>top of the org &mdash; no supervisor</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>reports to Alice (valid)</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td><td>reports to Alice (valid)</td></tr>
+    <tr><td>4</td><td>Dave</td><td>2</td><td>reports to Bob (valid)</td></tr>
+    <tr><td>5</td><td>Eve</td><td>99</td><td>supervisor 99 does not exist</td></tr>
+    <tr><td>6</td><td>Frank</td><td>88</td><td>supervisor 88 does not exist</td></tr>
+    <tr><td>7</td><td>Grace</td><td>2</td><td>reports to Bob (valid)</td></tr>
+    <tr><td>8</td><td>Hank</td><td>77</td><td>supervisor 77 does not exist</td></tr>
+  </tbody>
+</table>
+<p>Two distinct cases to keep apart: Alice's <em>NULL</em> (legitimately no boss) and Eve/Frank/Hank pointing at IDs 99/88/77 that have no matching row (genuine corruption).</p>
+
+<h4>2. The SQL &mdash; self anti-join</h4>
+<pre><code>SELECT e.emp_id, e.name
+FROM employees e
+LEFT JOIN employees s ON e.supervisor_id = s.emp_id
+WHERE e.supervisor_id IS NOT NULL
+  AND s.emp_id IS NULL;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>Eve</td><td>supervisor_id 99 &mdash; no such employee</td></tr>
+    <tr><td>6</td><td>Frank</td><td>supervisor_id 88 &mdash; no such employee</td></tr>
+    <tr><td>8</td><td>Hank</td><td>supervisor_id 77 &mdash; no such employee</td></tr>
+  </tbody>
+</table>
+<p>Exactly the three broken links. Alice is correctly <em>excluded</em> &mdash; her <code>supervisor_id</code> is NULL, which the <code>IS NOT NULL</code> guard filters out before the orphan test. Valid reports (Bob, Carol, Dave, Grace) match a real row and are dropped by the <code>IS NULL</code> condition.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a self-join models the hierarchy</h5>
+<p><code>employees</code> holds both the "child" and the "parent" of every reporting edge &mdash; the parent is just another row. Joining the table to itself under two aliases (<code>e</code> for the employee, <code>s</code> for the supervisor) lets one query reach from a worker to their manager. <code>ON e.supervisor_id = s.emp_id</code> walks one level up the org chart.</p>
+
+<h5>Why <code>LEFT JOIN</code> + <code>IS NULL</code> finds the orphans</h5>
+<p>A plain inner join would <em>silently drop</em> Eve, Frank, and Hank &mdash; the very rows we want &mdash; because their supervisor has no match. The <code>LEFT JOIN</code> keeps every <code>e</code> row and fills <code>s.*</code> with NULL when no supervisor matches. <code>WHERE s.emp_id IS NULL</code> then isolates exactly the unmatched rows. This is the anti-join: use a left join to find what is <em>missing</em>, not what is present.</p>
+
+<h5>The critical guard &mdash; <code>e.supervisor_id IS NOT NULL</code></h5>
+<p>Without that condition, Alice would be flagged: her <code>supervisor_id</code> is NULL, the join finds no match, and <code>s.emp_id</code> is NULL &mdash; she would look like a broken link. But Alice is <em>correct</em>; the CEO has no boss. The guard separates "no supervisor" (NULL, legitimate) from "supervisor that does not exist" (non-NULL pointing nowhere, the actual defect). Distinguishing those two NULL-producing cases is the senior insight.</p>
+
+<h5>The NULL-test column must be a key</h5>
+<p>The <code>IS NULL</code> check uses <code>s.emp_id</code> &mdash; the primary key. A real employee can never have a NULL <code>emp_id</code>, so a NULL there unambiguously means "the join failed." Testing a nullable column (say <code>s.manager_id</code>) would also catch supervisors who simply have no manager, corrupting the result. Always anti-join on the join target's primary key.</p>
+
+<h5>Equivalent form and the production fix</h5>
+<p><code>NOT EXISTS</code> expresses the same intent: <code>WHERE e.supervisor_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM employees s WHERE s.emp_id = e.supervisor_id)</code>. (Avoid <code>NOT IN</code> &mdash; a NULL among the <code>emp_id</code> list would make it return nothing.) Long term, the real cure is a self-referencing <strong>foreign key</strong> on <code>supervisor_id REFERENCES employees(emp_id)</code>, which makes IDs 99/88/77 impossible to insert in the first place. Naming that as the root-cause fix elevates the answer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> model the org chart with an aliased self anti-join, guard with <code>supervisor_id IS NOT NULL</code> so the bossless CEO is not mistaken for corruption, anti-join on the primary key, and recommend a self-referencing foreign key to prevent dangling references entirely.</div>

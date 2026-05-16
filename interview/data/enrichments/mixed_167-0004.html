@@ -1,0 +1,50 @@
+<p>A finance analyst opens the orders ledger and asks the simplest revenue question there is: <em>"on average, how much does an order bring in?"</em> The query is a single <code>AVG</code> over <code>order_total</code>. It looks trivial, but the interviewer is watching whether you know what <code>AVG</code> silently does with NULLs and cancelled orders &mdash; the difference between an honest number and a misleading one.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>status</th><th>order_total</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>completed</td><td>120.00</td><td>normal</td></tr>
+    <tr><td>2</td><td>102</td><td>completed</td><td>340.50</td><td>normal</td></tr>
+    <tr><td>3</td><td>103</td><td>cancelled</td><td>0.00</td><td>cancelled, totals zero</td></tr>
+    <tr><td>4</td><td>104</td><td>completed</td><td>75.25</td><td>normal</td></tr>
+    <tr><td>5</td><td>105</td><td>completed</td><td><em>NULL</em></td><td>total never populated</td></tr>
+    <tr><td>6</td><td>106</td><td>completed</td><td>260.00</td><td>normal</td></tr>
+  </tbody>
+</table>
+<p>Two edge rows: order 3 has a real <code>0.00</code> total, and order 5 has a NULL total. They are <em>not</em> treated the same.</p>
+
+<h4>2. The SQL &mdash; a single aggregate over the column</h4>
+<pre><code>SELECT AVG(order_total) AS avg_order_value
+FROM orders;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_order_value</th></tr></thead>
+  <tbody>
+    <tr><td>159.15</td></tr>
+  </tbody>
+</table>
+<p>The math: <code>(120 + 340.50 + 0 + 75.25 + 260) / 5 = 795.75 / 5 = 159.15</code>. Six rows exist, but the divisor is <strong>5</strong>, not 6 &mdash; the NULL row was dropped entirely. The <code>0.00</code> row, by contrast, was kept and pulled the average down.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>AVG</code> ignores NULL but counts zero</h5>
+<p><code>AVG(x)</code> is defined as <code>SUM(x) / COUNT(x)</code> &mdash; and <code>COUNT(x)</code> on a column counts only non-NULL values. A NULL contributes to neither the sum nor the count, so it is invisible. A genuine <code>0.00</code> contributes <code>0</code> to the sum and <code>1</code> to the count, so it drags the mean toward zero. Knowing that NULL and zero diverge here is the whole point of the question.</p>
+
+<h5>The status trap &mdash; should cancelled orders even be in the average?</h5>
+<p>Order 3 is cancelled with a zero total. Including it answers "average over all order records"; excluding it answers "average value of a real sale." Those are different business questions. A senior answer states the assumption out loud and offers the filtered form:</p>
+<pre><code>SELECT AVG(order_total) AS avg_completed_order_value
+FROM orders
+WHERE status = 'completed';</code></pre>
+
+<h5>The NULL trap &mdash; is missing the same as nothing?</h5>
+<p>If a NULL total really means "this order was free" or "amount not yet known," dropping it changes the answer. To treat NULLs as zero instead, average a coalesced expression: <code>AVG(COALESCE(order_total, 0))</code> &mdash; that forces the divisor back to the full row count. Pick deliberately; do not let the default behaviour decide the business meaning.</p>
+
+<h5>Mean vs. median &mdash; the distribution follow-up</h5>
+<p>One large order (here, 340.50) skews a mean. Interviewers often follow with <em>"what about a typical order?"</em> &mdash; that is the median, which resists outliers. In Postgres: <code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY order_total)</code>. Reporting <code>AVG</code> alongside the median, plus <code>COUNT(*)</code> for sample size, is the over-the-bar finish.</p>
+
+<h5>Common mistakes</h5>
+<p><code>SUM(order_total) / COUNT(*)</code> divides by every row including NULLs &mdash; a different (smaller) number than <code>AVG</code>. And integer division bites in some dialects: if <code>order_total</code> were an integer column, <code>SUM/COUNT</code> would truncate. <code>AVG</code> over an integer column returns a numeric in Postgres but an integer in older MySQL &mdash; cast when in doubt.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>AVG</code> skips NULLs but counts genuine zeros, surface the cancelled-order assumption before being asked, and offer median via <code>PERCENTILE_CONT</code> as the outlier-resistant companion metric.</div>

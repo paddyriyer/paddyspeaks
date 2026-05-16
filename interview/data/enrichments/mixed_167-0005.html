@@ -1,0 +1,63 @@
+<p>An HR dashboard needs a roster: every employee next to the name of their department. The query is the canonical inner join on <code>dept_id</code>. It is the most common SQL operation in existence &mdash; so the interviewer is not testing whether you can write it, but whether you notice which employees the inner join silently <em>drops</em>.</p>
+
+<h4>1. The source data &mdash; <code>employees</code> and <code>departments</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>job_title</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice Ng</td><td>10</td><td>Eng Lead</td></tr>
+    <tr><td>2</td><td>Bob Reilly</td><td>20</td><td>Sales Lead</td></tr>
+    <tr><td>3</td><td>Carol Diaz</td><td>30</td><td>Mktg Lead</td></tr>
+    <tr><td>4</td><td>Dave Okafor</td><td>10</td><td>Engineer</td></tr>
+    <tr><td>5</td><td>Eve Strand</td><td><em>NULL</em></td><td>Recruiter</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>dept_id</th><th>dept_name</th><th>location</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Engineering</td><td>Dublin</td></tr>
+    <tr><td>20</td><td>Sales</td><td>London</td></tr>
+    <tr><td>30</td><td>Marketing</td><td>Berlin</td></tr>
+    <tr><td>40</td><td>Research</td><td>Remote</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases: Eve has a <em>NULL</em> <code>dept_id</code> (unassigned), and department 40 (Research) has <em>no employees</em>. An inner join will lose both.</p>
+
+<h4>2. The SQL &mdash; inner join on the department key</h4>
+<pre><code>SELECT e.name, d.dept_name
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>dept_name</th></tr></thead>
+  <tbody>
+    <tr><td>Dave Okafor</td><td>Engineering</td></tr>
+    <tr><td>Alice Ng</td><td>Engineering</td></tr>
+    <tr><td>Bob Reilly</td><td>Sales</td></tr>
+    <tr><td>Carol Diaz</td><td>Marketing</td></tr>
+  </tbody>
+</table>
+<p>Four rows out of five employees. <strong>Eve is gone</strong> &mdash; her NULL <code>dept_id</code> matches nothing. And Research never appears: no employee points to it. The inner join keeps only rows that match on <em>both</em> sides.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>JOIN</code> means <code>INNER JOIN</code></h5>
+<p>Bare <code>JOIN</code> is shorthand for <code>INNER JOIN</code> in every major dialect. It returns the intersection: a row appears only when the <code>ON</code> predicate is true. <code>e.dept_id = d.dept_id</code> is never true when <code>e.dept_id</code> is NULL &mdash; NULL never equals anything, not even another NULL &mdash; so Eve is excluded by the three-valued logic, not by a bug.</p>
+
+<h5>The dropped-rows trap &mdash; pick the join that matches the question</h5>
+<p>If the dashboard must list <em>every</em> employee, including the unassigned, use a left join so employee rows survive even without a department match:</p>
+<pre><code>SELECT e.name, d.dept_name
+FROM employees e
+LEFT JOIN departments d ON e.dept_id = d.dept_id;</code></pre>
+<p>Eve then appears with <code>dept_name = NULL</code>. If instead you must list every <em>department</em> including empty ones, flip it (<code>departments LEFT JOIN employees</code>) or use a <code>FULL OUTER JOIN</code> to keep both unmatched sides. Naming which entity must be complete is the senior move.</p>
+
+<h5>Ordering is not guaranteed</h5>
+<p>Notice the result led with Dave, not Alice &mdash; without an <code>ORDER BY</code>, row order reflects the join's physical execution and can change between runs or after an index is added. For a real roster, add <code>ORDER BY d.dept_name, e.name</code>. Never rely on incidental ordering.</p>
+
+<h5>Ambiguous columns and the schema overlap</h5>
+<p>Both tables carry <code>dept_name</code> (and <code>name</code>, and <code>manager_id</code>). Selecting <code>dept_name</code> unqualified would raise an "ambiguous column" error. Always table-qualify columns when the schemas overlap &mdash; <code>d.dept_name</code>, <code>e.name</code> &mdash; both for correctness and so the next reader knows the source.</p>
+
+<h5>Common mistakes</h5>
+<p>Joining on the wrong key (e.g. <code>manager_id</code>) compiles fine and returns plausible nonsense. A missing <code>ON</code> clause yields a cross join &mdash; every employee paired with every department. And if <code>dept_id</code> values are non-unique in <code>departments</code>, the join multiplies rows; confirm the join key is a primary or unique key on at least one side.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> call out that an inner join silently drops the NULL-department employee and the employee-less department, then offer the correct outer join for whichever side the business needs complete &mdash; and always table-qualify columns when schemas overlap.</div>

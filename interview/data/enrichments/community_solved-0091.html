@@ -1,0 +1,73 @@
+<p>A retail analytics team wants, for each product, the single best sale: the highest <code>SaleAmount</code> together with the <em>store and date that achieved it</em>, breaking ties toward the earliest date. The reference solution uses a correlated subquery to find the max amount &mdash; the right idea &mdash; but then applies <code>MAX(storeid)</code> and <code>MIN(saledate)</code> independently, which silently stitches together values from different rows. The interviewer is testing whether you understand that "attributes of the winning row" must come from <em>one</em> row.</p>
+
+<h4>1. The source data &mdash; <code>product_sales</code></h4>
+<table>
+  <thead><tr><th>ProductID</th><th>StoreID</th><th>SaleDate</th><th>SaleAmount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>2025-03-01</td><td>500</td></tr>
+    <tr><td>1</td><td>12</td><td>2025-03-05</td><td>500</td></tr>
+    <tr><td>1</td><td>11</td><td>2025-03-02</td><td>300</td></tr>
+    <tr><td>2</td><td>10</td><td>2025-03-01</td><td>800</td></tr>
+    <tr><td>2</td><td>13</td><td>2025-03-04</td><td>800</td></tr>
+    <tr><td>3</td><td>14</td><td>2025-03-03</td><td>250</td></tr>
+    <tr><td>4</td><td>15</td><td>2025-03-06</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>Product 1 is the trap: it peaks at 500 in <em>two</em> rows &mdash; store 10 on Mar 1 and store 12 on Mar 5. The tie-breaker says "earliest date wins", so the correct answer is store 10, Mar 1. Product 2 has the same tie shape (800 at store 10 and store 13).</p>
+
+<h4>2. The SQL</h4>
+<p><strong>Original solution (flagged broken):</strong></p>
+<pre><code>select productid,
+    max(storeid) as store_id,
+    min(saledate) as saledate,
+    max(saleamount) as max_saleamount
+from product_sales as p1
+where p1.saleamount = (select max(saleamount) from product_sales as p2
+            where p2.productid = p1.productid)
+group by productid;</code></pre>
+<p>For product 1 this returns <code>max(storeid) = 12</code> but <code>min(saledate) = 2025-03-01</code> &mdash; store 12 sold on Mar 5, not Mar 1. The store and the date come from <em>different rows</em>; the output describes a sale that never happened.</p>
+<p><strong>Corrected solution &mdash; pin every attribute to one row:</strong></p>
+<pre><code>SELECT p1.productid,
+       p1.storeid   AS store_id,
+       p1.saledate,
+       p1.saleamount AS max_saleamount
+FROM product_sales AS p1
+WHERE p1.saleamount = (SELECT MAX(saleamount) FROM product_sales AS p2
+                       WHERE p2.productid = p1.productid)
+  AND p1.saledate = (SELECT MIN(p3.saledate) FROM product_sales AS p3
+                     WHERE p3.productid = p1.productid
+                       AND p3.saleamount = p1.saleamount)
+ORDER BY p1.productid;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>productid</th><th>store_id</th><th>saledate</th><th>max_saleamount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>2025-03-01</td><td>500</td><td>tie at 500 &rarr; earliest date wins</td></tr>
+    <tr><td>2</td><td>10</td><td>2025-03-01</td><td>800</td><td>tie at 800 &rarr; earliest date wins</td></tr>
+    <tr><td>3</td><td>14</td><td>2025-03-03</td><td>250</td><td>single peak</td></tr>
+    <tr><td>4</td><td>15</td><td>2025-03-06</td><td>100</td><td>single peak</td></tr>
+  </tbody>
+</table>
+<p>Both tie cases now resolve to a real row: store 10. The broken query reported store 12 / Mar 1 for product 1 &mdash; a row that does not exist.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why independent aggregates corrupt the answer</h5>
+<p><code>GROUP BY productid</code> collapses all peak rows of a product into one output row. <code>MAX(storeid)</code> and <code>MIN(saledate)</code> are evaluated <em>separately</em> over that group, so the result is a Frankenstein record &mdash; the largest store id glued to the smallest date, even if they come from unrelated sales. Any time you aggregate columns that should describe the <em>same</em> row, you must instead identify that row.</p>
+
+<h5>The two-predicate fix</h5>
+<p>The corrected query keeps a row only if (a) its amount equals the product's max, <em>and</em> (b) its date equals the earliest date <em>among that product's peak rows</em>. The second correlated subquery enforces the tie-breaker. The row that survives is genuine &mdash; <code>storeid</code>, <code>saledate</code>, <code>saleamount</code> all come from it.</p>
+
+<h5>The window-function answer is cleaner &mdash; <code>ROW_NUMBER</code> with a tie-breaking sort</h5>
+<pre><code>SELECT productid, storeid AS store_id, saledate, saleamount AS max_saleamount
+FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY productid
+                ORDER BY saleamount DESC, saledate ASC) AS rn
+      FROM product_sales) t
+WHERE rn = 1;</code></pre>
+<p><code>ORDER BY saleamount DESC, saledate ASC</code> encodes the whole rule in one clause: highest amount first, earliest date as the tie-break. <code>ROW_NUMBER() = 1</code> picks exactly one row, so even a remaining same-amount/same-date tie yields a single deterministic record &mdash; whereas the correlated version would return both.</p>
+
+<h5>NULL amounts and the strict equality</h5>
+<p>If <code>SaleAmount</code> can be NULL, <code>MAX</code> ignores it, and a NULL-amount row can never satisfy <code>p1.saleamount = (&hellip;MAX&hellip;)</code> &mdash; it is excluded, which is usually correct. State that assumption; if NULL means "amount unknown" the business may want it treated differently.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>MAX(storeid)</code> + <code>MIN(saledate)</code> over a group fabricates a row from unrelated values, and instead identify the actual winning row &mdash; via a tie-breaking correlated predicate or, more cleanly, <code>ROW_NUMBER() OVER (PARTITION BY productid ORDER BY saleamount DESC, saledate ASC)</code> filtered to <code>= 1</code>.</div>

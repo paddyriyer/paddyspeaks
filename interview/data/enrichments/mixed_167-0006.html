@@ -1,0 +1,57 @@
+<p>An operations analyst needs Q1 orders: <em>"give me everything placed between January 1 and March 31."</em> The query is a <code>WHERE</code> filter with <code>BETWEEN</code>. It looks like a one-liner, but the interviewer is probing whether you understand that <code>BETWEEN</code> is <em>inclusive on both ends</em>, and the subtle date-vs-timestamp bug that follows from that.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2024-12-15</td><td>before the window</td></tr>
+    <tr><td>2025-01-05</td><td>inside Q1</td></tr>
+    <tr><td>2025-01-20</td><td>inside Q1</td></tr>
+    <tr><td>2025-02-14</td><td>inside Q1</td></tr>
+    <tr><td>2025-03-10</td><td>inside Q1</td></tr>
+    <tr><td>2025-03-31</td><td>boundary &mdash; the exact upper bound</td></tr>
+    <tr><td>2025-04-05</td><td>after the window</td></tr>
+    <tr><td>2025-06-01</td><td>after the window</td></tr>
+  </tbody>
+</table>
+<p>The row to watch is <code>2025-03-31</code> &mdash; the exact upper bound. Whether it is kept or dropped is the entire test.</p>
+
+<h4>2. The SQL &mdash; range filter with <code>BETWEEN</code></h4>
+<pre><code>SELECT *
+FROM orders
+WHERE order_date BETWEEN '2025-01-01' AND '2025-03-31';</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_date</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-05</td><td>kept</td></tr>
+    <tr><td>2025-01-20</td><td>kept</td></tr>
+    <tr><td>2025-02-14</td><td>kept</td></tr>
+    <tr><td>2025-03-10</td><td>kept</td></tr>
+    <tr><td>2025-03-31</td><td>kept &mdash; the upper bound is included</td></tr>
+  </tbody>
+</table>
+<p>Five rows. <code>2025-03-31</code> survived: <code>BETWEEN</code> includes both endpoints. The December and April/June rows fell outside the range.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>BETWEEN</code> is inclusive on both sides</h5>
+<p><code>x BETWEEN a AND b</code> is exactly equivalent to <code>x &gt;= a AND x &lt;= b</code> &mdash; a closed interval. Both endpoints qualify. That is convenient when the column is a pure <code>DATE</code>, as here: <code>2025-03-31</code> is one value and it is included.</p>
+
+<h5>The timestamp trap &mdash; the classic <code>BETWEEN</code> date bug</h5>
+<p>If <code>order_date</code> were a <code>TIMESTAMP</code> instead of a <code>DATE</code>, the literal <code>'2025-03-31'</code> coerces to <code>2025-03-31 00:00:00</code> &mdash; <em>midnight</em>. An order placed at <code>2025-03-31 14:30</code> is then <em>after</em> the upper bound and silently excluded. You would lose almost an entire day of orders. The robust pattern for timestamps is a half-open interval:</p>
+<pre><code>WHERE order_date &gt;= '2025-01-01'
+  AND order_date &lt;  '2025-04-01'</code></pre>
+<p>Lower bound inclusive, upper bound exclusive on the <em>next</em> day. This is correct regardless of time component and is the form a senior engineer reaches for by default.</p>
+
+<h5>Half-open ranges compose cleanly</h5>
+<p>Beyond correctness, <code>&gt;= start AND &lt; next_start</code> tiles without gaps or overlaps: Q1's <code>&lt; '2025-04-01'</code> is exactly Q2's <code>&gt;= '2025-04-01'</code>. No order is double-counted or missed at a quarter boundary. Inclusive-inclusive ranges (<code>&lt;= '2025-03-31'</code> then <code>&gt;= '2025-04-01'</code>) leave the gap of March 31's afternoon ambiguous.</p>
+
+<h5>Sargability &mdash; keep the index usable</h5>
+<p><code>WHERE order_date &gt;= ... AND order_date &lt; ...</code> is <em>sargable</em>: an index on <code>order_date</code> can do a range scan. Wrapping the column in a function &mdash; <code>WHERE EXTRACT(QUARTER FROM order_date) = 1</code> or <code>DATE_TRUNC('quarter', order_date) = ...</code> &mdash; defeats the index and forces a full scan. Filter the raw column against literal bounds.</p>
+
+<h5>Common mistakes</h5>
+<p><code>SELECT *</code> is fine for an ad-hoc check but list explicit columns in production code. Reversed bounds (<code>BETWEEN '2025-03-31' AND '2025-01-01'</code>) return zero rows silently &mdash; <code>BETWEEN</code> does not auto-swap. And string comparison only behaves like date comparison when dates are zero-padded <code>YYYY-MM-DD</code>; rely on a real <code>DATE</code> type, not lexical luck.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>BETWEEN</code> is inclusive on both endpoints, then immediately raise the timestamp pitfall &mdash; prefer the half-open <code>&gt;= start AND &lt; next_start</code> form, which is correct for timestamps, tiles without gaps, and stays sargable.</div>

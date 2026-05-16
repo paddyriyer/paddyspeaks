@@ -1,0 +1,57 @@
+<p>A logistics platform stores city adjacency as directed rows: each city points at one neighbour with a recorded distance. The ask is to surface only the <em>mutual</em> pairs &mdash; A names B as its neighbour, B names A back, and both rows agree on the distance. The interviewer is probing whether you can self-join a table to itself and express a bidirectional relationship, rather than naively returning every one-way edge.</p>
+
+<h4>1. The source data &mdash; <code>cities</code></h4>
+<table>
+  <thead><tr><th>cityid</th><th>cityname</th><th>distance</th><th>neighborcityid</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Mumbai</td><td>150</td><td>2</td></tr>
+    <tr><td>2</td><td>Pune</td><td>150</td><td>1</td></tr>
+    <tr><td>3</td><td>Delhi</td><td>200</td><td>4</td></tr>
+    <tr><td>4</td><td>Agra</td><td>200</td><td>3</td></tr>
+    <tr><td>5</td><td>Chennai</td><td>300</td><td>6</td></tr>
+    <tr><td>6</td><td>Bengaluru</td><td>350</td><td>5</td></tr>
+    <tr><td>7</td><td>Kolkata</td><td>400</td><td>8</td></tr>
+    <tr><td>8</td><td>Patna</td><td>400</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>Chennai &harr; Bengaluru is the edge case: they point at each other, but Chennai records 300 km while Bengaluru records 350 km. The relationship is reciprocal yet the <em>distance disagrees</em> &mdash; a correct query must drop this pair.</p>
+
+<h4>2. The SQL &mdash; self-join on a reciprocal condition</h4>
+<pre><code>SELECT src.cityname AS source_city,
+    dest.cityname AS destination_city,
+    src.distance AS distance
+FROM cities AS src
+LEFT JOIN cities AS dest
+  ON src.neighborcityid = dest.cityid
+ AND src.cityid = dest.neighborcityid
+WHERE src.distance = dest.distance;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>source_city</th><th>destination_city</th><th>distance</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Pune</td><td>Mumbai</td><td>150</td><td>mutual, distances agree</td></tr>
+    <tr><td>Mumbai</td><td>Pune</td><td>150</td><td>same pair, other direction</td></tr>
+    <tr><td>Agra</td><td>Delhi</td><td>200</td><td>mutual, distances agree</td></tr>
+    <tr><td>Delhi</td><td>Agra</td><td>200</td><td>same pair, other direction</td></tr>
+    <tr><td>Patna</td><td>Kolkata</td><td>400</td><td>mutual, distances agree</td></tr>
+    <tr><td>Kolkata</td><td>Patna</td><td>400</td><td>same pair, other direction</td></tr>
+  </tbody>
+</table>
+<p>Chennai/Bengaluru is correctly absent &mdash; the join matches them, but <code>WHERE src.distance = dest.distance</code> fails because 300 &ne; 350. Note every surviving pair appears <em>twice</em>, once per direction.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the self-join works</h5>
+<p>Aliasing one table as <code>src</code> and <code>dest</code> lets you treat each row's neighbour pointer as a lookup into a second copy. The two-part <code>ON</code> clause encodes "reciprocal": <code>src.neighborcityid = dest.cityid</code> finds the city <code>src</code> points to, and <code>src.cityid = dest.neighborcityid</code> demands that city point back. Without the second predicate you would return every one-way edge.</p>
+
+<h5>The <code>LEFT JOIN</code> here is effectively an <code>INNER JOIN</code></h5>
+<p>The query writes <code>LEFT JOIN</code> but then filters <code>WHERE src.distance = dest.distance</code>. Any unmatched <code>src</code> row gets <code>dest.distance = NULL</code>, and <code>150 = NULL</code> evaluates to <em>unknown</em>, so the row is dropped &mdash; the same outcome as an <code>INNER JOIN</code>. A WHERE predicate on the right-side table almost always collapses an outer join back to an inner one. Writing <code>INNER JOIN</code> states the intent honestly.</p>
+
+<h5>The duplicate-rows trap</h5>
+<p>Each mutual pair appears in both orientations (Mumbai&rarr;Pune and Pune&rarr;Mumbai). If the spec wants each <em>unordered</em> pair once, add <code>AND src.cityid &lt; dest.cityid</code> to the join &mdash; that keeps only the orientation where the smaller id is the source and halves the output.</p>
+
+<h5>NULL neighbour pointers</h5>
+<p>A city with no neighbour (<code>neighborcityid IS NULL</code>) never matches anything: <code>NULL = dest.cityid</code> is unknown. With the WHERE filter that row simply vanishes, which is correct here, but it is worth saying aloud &mdash; an interviewer wants to hear that you considered the islands in the graph.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name this a self-join expressing a bidirectional edge, point out that the WHERE clause on <code>dest</code> turns the <code>LEFT JOIN</code> into an effective <code>INNER JOIN</code>, and pre-empt the duplicate-pair problem with <code>src.cityid &lt; dest.cityid</code> when only one row per unordered pair is wanted.</div>

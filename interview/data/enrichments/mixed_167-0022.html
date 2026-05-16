@@ -1,0 +1,62 @@
+<p>A compensation review asks: <em>"for each employee, how does their salary compare to their department's average?"</em> The reference solution names a CTE that pre-aggregates the per-department average, then joins it back to the employee rows and subtracts. The interviewer is probing whether you understand the join cardinality and whether you spot the cleaner window-function alternative.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>job_title</th><th>salary</th><th>dept_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ann</td><td>Engineer</td><td>$100,000</td><td>1</td></tr>
+    <tr><td>2</td><td>Bob</td><td>Engineer</td><td>$140,000</td><td>1</td></tr>
+    <tr><td>3</td><td>Cara</td><td>Manager</td><td>$200,000</td><td>2</td></tr>
+    <tr><td>4</td><td>Dan</td><td>Analyst</td><td>$90,000</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>Engineer</td><td>$160,000</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Department 1 has two employees, department 2 has two, and <strong>department 3 has exactly one</strong> (Eve). The single-member department is the edge case &mdash; its average equals that one salary, so the employee's deviation must be exactly zero.</p>
+
+<h4>2. The SQL &mdash; CTE aggregation joined back</h4>
+<pre><code>WITH dept_avg AS (
+  SELECT dept_id, AVG(salary) AS avg_sal
+  FROM employees
+  GROUP BY dept_id
+)
+SELECT e.emp_id, e.salary, d.avg_sal,
+  e.salary - d.avg_sal AS diff
+FROM employees e
+JOIN dept_avg d ON e.dept_id = d.dept_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th><th>avg_sal</th><th>diff</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>$100,000</td><td>$120,000</td><td>-$20,000</td><td>below dept-1 average</td></tr>
+    <tr><td>2</td><td>$140,000</td><td>$120,000</td><td>+$20,000</td><td>above dept-1 average</td></tr>
+    <tr><td>3</td><td>$200,000</td><td>$145,000</td><td>+$55,000</td><td>above dept-2 average</td></tr>
+    <tr><td>4</td><td>$90,000</td><td>$145,000</td><td>-$55,000</td><td>below dept-2 average</td></tr>
+    <tr><td>5</td><td>$160,000</td><td>$160,000</td><td>$0</td><td>sole member &mdash; equals own dept avg</td></tr>
+  </tbody>
+</table>
+<p>Eve (emp 5) is the only person in department 3, so the department average <em>is</em> her salary and her <code>diff</code> is exactly <code>$0</code>. Every employee row survives the join because every <code>dept_id</code> has a matching aggregate.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The CTE pre-aggregates, then the join fans it back out</h5>
+<p><code>dept_avg</code> computes one row per department &mdash; a small summary table. The main query joins each of the five employee rows to its single matching department-average row. The join is <em>many-to-one</em> (many employees, one average per department), so it does not multiply rows: five employees in, five rows out. Recognising that cardinality &mdash; and that it is safe &mdash; is the key reasoning step.</p>
+
+<h5>The window-function rewrite &mdash; no CTE, no join, one scan</h5>
+<p>The whole pattern collapses into a single windowed aggregate:</p>
+<pre><code>SELECT emp_id, salary,
+  AVG(salary) OVER (PARTITION BY dept_id) AS avg_sal,
+  salary - AVG(salary) OVER (PARTITION BY dept_id) AS diff
+FROM employees;</code></pre>
+<p><code>AVG(salary) OVER (PARTITION BY dept_id)</code> computes each department's average and attaches it to every row of that department &mdash; no grouping collapse, no join. This is the senior-preferred form: less code, one pass over the table, and no risk of the join accidentally fanning out if <code>dept_avg</code> ever produced duplicate <code>dept_id</code>s. The CTE-and-join version is fine and very readable; knowing the window equivalent is the differentiator.</p>
+
+<h5>The NULL dept_id trap &mdash; INNER JOIN silently drops rows</h5>
+<p>If an employee had a <code>NULL dept_id</code>, the <code>GROUP BY dept_id</code> would create a NULL-keyed average group, but the join condition <code>e.dept_id = d.dept_id</code> uses <code>=</code>, and <code>NULL = NULL</code> is <em>unknown</em> &mdash; so that employee would vanish from the result entirely. The window-function version keeps them (NULL becomes its own partition). With the join form, decide explicitly: use a <code>LEFT JOIN</code> if unassigned employees must still appear, or filter them out deliberately.</p>
+
+<h5>NULL salaries and integer division</h5>
+<p><code>AVG</code> ignores NULL salaries, so a NULL salary shrinks the denominator rather than counting as zero. And a NULL-salary employee gets <code>diff = NULL</code> because <code>NULL - avg</code> is NULL. Also note <code>AVG</code> on an integer column can truncate in some dialects &mdash; cast to numeric (<code>AVG(salary::numeric)</code>) if fractional cents matter.</p>
+
+<h5>Why a CTE rather than an inline subquery</h5>
+<p>The CTE is purely for readability &mdash; <code>dept_avg</code> reads like a named step. It could equally be an inline derived table. Modern Postgres does not materialise a simple CTE by default, so there is no performance penalty; older versions (pre-12) treated CTEs as optimisation fences, which is worth a sentence if asked about query planning.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> note the CTE-to-employee join is many-to-one so it cannot fan out, then offer <code>AVG(salary) OVER (PARTITION BY dept_id)</code> as the no-join single-scan rewrite &mdash; and flag that an <code>INNER JOIN</code> on <code>dept_id</code> silently drops employees with a NULL department, where the window form keeps them.</div>

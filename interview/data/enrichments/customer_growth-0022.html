@@ -1,0 +1,82 @@
+<p>A product-analytics team has a raw clickstream &mdash; one row per event &mdash; and needs it reconstructed into <em>sessions</em>: bursts of activity separated by 30 minutes of silence. The interviewer is probing whether you reach for the modern single-pass technique (flag every gap, then a running SUM gives each event a session id) instead of an O(n&sup2;) self-join, and whether you can then roll each session up into duration, event count, bounce, and a purchase flag.</p>
+
+<h4>1. The source data &mdash; <code>events</code></h4>
+<table>
+  <thead><tr><th>event_id</th><th>user_id</th><th>event_ts</th><th>event_type</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1&ndash;4</td><td>1</td><td>09:00&ndash;09:25</td><td>view&hellip;</td><td>session 1, no purchase</td></tr>
+    <tr><td>5&ndash;8</td><td>1</td><td>10:10&ndash;10:31</td><td>&hellip;purchase</td><td>45-min gap &rarr; session 2, ends in purchase</td></tr>
+    <tr><td>9</td><td>2</td><td>12:00</td><td>view</td><td>single event &rarr; bounce</td></tr>
+    <tr><td>10&ndash;13</td><td>2</td><td>13:30&ndash;14:14</td><td>view&hellip;</td><td>90-min gap &rarr; new session</td></tr>
+    <tr><td>14&ndash;19</td><td>3</td><td>19:00&ndash;21:00</td><td>view&hellip;</td><td>every gap &lt; 30 min &rarr; one long session</td></tr>
+  </tbody>
+</table>
+<p>User 2 event 9 is the deliberate edge case: a single isolated event. A correct sessionizer must still emit a session for it, with <code>event_count = 1</code> and <code>bounce = 1</code> &mdash; not drop it.</p>
+
+<h4>2. The SQL &mdash; cumulative-flag sessionization with a 30-minute gap rule</h4>
+<pre><code>WITH flagged AS (
+    -- Step 1: mark every event whose gap from the previous event
+    -- exceeds 30 minutes (or which has no previous event) as a boundary.
+    SELECT e.event_id, e.user_id, e.event_ts, e.event_type,
+        CASE
+          WHEN LAG(e.event_ts) OVER w IS NULL                              THEN 1
+          WHEN (julianday(e.event_ts) - julianday(LAG(e.event_ts) OVER w))
+                  * 24 * 60 &gt; 30                                           THEN 1
+          ELSE 0
+        END AS new_session
+    FROM events e
+    WINDOW w AS (PARTITION BY e.user_id ORDER BY e.event_ts)
+),
+sessionized AS (
+    -- Step 2: a running SUM of the boundary flag, per user, gives every
+    -- event a deterministic session_id -- no self-join, single pass.
+    SELECT user_id, event_ts, event_type,
+        SUM(new_session) OVER (PARTITION BY user_id ORDER BY event_ts
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_id
+    FROM flagged
+)
+SELECT user_id, session_id,
+    MIN(event_ts) AS session_start,
+    MAX(event_ts) AS session_end,
+    CAST((julianday(MAX(event_ts)) - julianday(MIN(event_ts))) * 86400 AS INTEGER)
+        AS duration_seconds,
+    COUNT(*)                   AS event_count,
+    COUNT(DISTINCT event_type) AS distinct_event_types,
+    MAX(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END) AS has_purchase,
+    CASE WHEN COUNT(*) = 1 THEN 1 ELSE 0 END AS bounce
+FROM sessionized
+GROUP BY user_id, session_id
+ORDER BY user_id, session_id;</code></pre>
+<p>The solution is written in SQLite dialect &mdash; <code>julianday()</code> returns a fractional day count, so <code>&times; 24 &times; 60</code> converts to minutes and <code>&times; 86400</code> to seconds. PostgreSQL has no <code>julianday()</code>; the equivalent is <code>EXTRACT(EPOCH FROM (event_ts - LAG(event_ts) OVER w)) / 60</code> for minutes. The logic is identical &mdash; this is a dialect translation, not a correction.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>session_id</th><th>session_start</th><th>session_end</th><th>duration_s</th><th>events</th><th>distinct_types</th><th>has_purchase</th><th>bounce</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>09:00:05</td><td>09:25:00</td><td>1495</td><td>4</td><td>3</td><td>0</td><td>0</td></tr>
+    <tr><td>1</td><td>2</td><td>10:10:00</td><td>10:31:15</td><td>1275</td><td>4</td><td>4</td><td>1</td><td>0</td></tr>
+    <tr><td>2</td><td>1</td><td>12:00:00</td><td>12:00:00</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td></tr>
+    <tr><td>2</td><td>2</td><td>13:30:00</td><td>14:14:45</td><td>2685</td><td>4</td><td>4</td><td>0</td><td>0</td></tr>
+    <tr><td>3</td><td>1</td><td>19:00:00</td><td>21:00:00</td><td>7200</td><td>6</td><td>4</td><td>0</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>User 2's bounce session has <code>duration_seconds = 0</code> &mdash; one event means start equals end. User 3's session spans two full hours yet stays a single session because no individual gap reaches 30 minutes; sessionization cares about <em>inter-event</em> gaps, not total elapsed time.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why flag-then-running-SUM beats a self-join</h5>
+<p>The naive sessionizer joins each event to all earlier events to find session boundaries &mdash; O(n&sup2;) and unacceptable at scale. This pattern is O(n log n): one <code>LAG</code> to read the previous timestamp, one boolean flag, one cumulative <code>SUM</code>. The cumulative SUM is the clever bit &mdash; it increments by 1 exactly at each boundary and is otherwise flat, so every event inside a session carries the same id, and every session is numbered 1, 2, 3&hellip; per user. No join, single ordered pass.</p>
+
+<h5>The <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> frame is load-bearing</h5>
+<p>For a running total the frame must be explicit. With an <code>ORDER BY</code> and no frame clause, SQL defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; and <code>RANGE</code> groups all <em>peer rows with the same ORDER BY value</em> together. If two events share an identical timestamp, a RANGE frame would sum them as one step and assign them the same partial total. <code>ROWS</code> counts physical rows, which is what a deterministic running counter needs.</p>
+
+<h5>The edge cases: bounce, ties, and the first event</h5>
+<p><code>LAG(...) OVER w IS NULL</code> handles the first event of every user &mdash; it has no predecessor, so it always opens a session. The bounce case (<code>COUNT(*) = 1</code>) falls out naturally and gets <code>duration_seconds = 0</code>. A real trap is two events at the identical timestamp: the gap is 0, so they correctly stay in one session, but <code>ORDER BY event_ts</code> alone leaves their relative order undefined &mdash; in production you would tie-break on <code>event_id</code> to make <code>LAG</code> deterministic.</p>
+
+<h5>Dialect notes &mdash; timestamp arithmetic is the portability fault line</h5>
+<p>The gap math is the least portable part. SQLite uses <code>julianday()</code> differences. PostgreSQL subtracts timestamps directly to get an <code>interval</code>, then <code>EXTRACT(EPOCH FROM ...)</code> yields seconds. MySQL has <code>TIMESTAMPDIFF(MINUTE, prev, curr)</code>. BigQuery has <code>TIMESTAMP_DIFF(curr, prev, MINUTE)</code>. The sessionization skeleton &mdash; <code>LAG</code>, flag, cumulative <code>SUM</code> &mdash; is identical across all of them; only the duration expression changes.</p>
+
+<h5>What a senior says next</h5>
+<p>"The 30-minute timeout is a business parameter, not a constant &mdash; I would lift it into a CTE or a parameter so analysts can A/B different thresholds. And for an incremental pipeline I would watch the session-boundary case at partition edges: an event at 23:58 and the next at 00:03 belong to one session, so the job cannot naively shard by calendar day."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> describe sessionization as flag-the-gap then cumulative-SUM (O(n log n), no self-join), insist on an explicit <code>ROWS</code> frame so identical timestamps do not collapse the running counter, tie-break <code>LAG</code> on <code>event_id</code>, and note that the 30-minute timeout belongs in a parameter and that day-sharding breaks sessions straddling midnight.</div>

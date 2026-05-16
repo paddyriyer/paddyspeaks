@@ -1,0 +1,65 @@
+<p>An HR analytics team wants the <em>median</em> salary per job title, not the mean &mdash; medians resist distortion from one outsized executive package. SQL has no portable <code>MEDIAN</code> aggregate, so the reference solution computes it from first principles: number the rows within each title, then average the one or two rows that straddle the middle. The interviewer is probing whether you understand the odd/even arithmetic and the single-member edge case.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>job_title</th><th>salary</th><th>dept_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ann</td><td>Engineer</td><td>$100,000</td><td>1</td></tr>
+    <tr><td>2</td><td>Bob</td><td>Engineer</td><td>$120,000</td><td>1</td></tr>
+    <tr><td>3</td><td>Cara</td><td>Engineer</td><td>$140,000</td><td>1</td></tr>
+    <tr><td>4</td><td>Dan</td><td>Engineer</td><td>$160,000</td><td>1</td></tr>
+    <tr><td>5</td><td>Eve</td><td>Manager</td><td>$200,000</td><td>2</td></tr>
+    <tr><td>6</td><td>Fay</td><td>Manager</td><td>$220,000</td><td>2</td></tr>
+    <tr><td>7</td><td>Gus</td><td>Manager</td><td>$240,000</td><td>2</td></tr>
+    <tr><td>8</td><td>Hal</td><td>Analyst</td><td>$90,000</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Three group sizes on purpose: Engineer has <strong>4 rows (even)</strong>, Manager has <strong>3 rows (odd)</strong>, and Analyst has a <strong>single row</strong>. The single-member group is the edge case &mdash; its median must equal that one salary.</p>
+
+<h4>2. The SQL &mdash; median via ROW_NUMBER and COUNT</h4>
+<pre><code>WITH ranked AS (
+  SELECT job_title, salary,
+    ROW_NUMBER() OVER (PARTITION BY job_title ORDER BY salary) AS rn,
+    COUNT(*)    OVER (PARTITION BY job_title)                  AS n
+  FROM employees
+)
+SELECT job_title, AVG(salary) AS median_salary
+FROM ranked
+WHERE rn IN ((n+1)/2, (n+2)/2)
+GROUP BY job_title
+ORDER BY job_title;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>job_title</th><th>median_salary</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>Analyst</td><td>$90,000</td><td>single row &mdash; median is that salary</td></tr>
+    <tr><td>Engineer</td><td>$130,000</td><td>even group: avg of $120k and $140k</td></tr>
+    <tr><td>Manager</td><td>$220,000</td><td>odd group: the lone middle row</td></tr>
+  </tbody>
+</table>
+<p>Engineer's four salaries have no single middle, so the median is the average of the two central values, <code>(120k+140k)/2 = $130k</code>. Manager's three salaries have a clean middle at $220k. Analyst's single row averages to itself.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The integer-division trick &mdash; how <code>(n+1)/2</code> and <code>(n+2)/2</code> pick the middle</h5>
+<p>This is the clever core. With <code>n</code> an integer, division truncates. For an <strong>odd</strong> count (n=3): <code>(3+1)/2 = 2</code> and <code>(3+2)/2 = 2</code> &mdash; both expressions equal <code>2</code>, so <code>rn IN (2,2)</code> selects exactly the one middle row. For an <strong>even</strong> count (n=4): <code>(4+1)/2 = 2</code> and <code>(4+2)/2 = 3</code> &mdash; the two expressions differ, selecting rows 2 and 3, the central pair. One formula handles both parities with no <code>CASE</code>. For the single-row group (n=1): <code>(1+1)/2 = 1</code> and <code>(1+2)/2 = 1</code> &mdash; row 1 only, and <code>AVG</code> of one value is that value.</p>
+
+<h5>Why two window functions in the same CTE</h5>
+<p><code>ROW_NUMBER()</code> orders rows within each title so position has meaning; <code>COUNT(*) OVER (PARTITION BY job_title)</code> attaches the group size <code>n</code> to <em>every</em> row, because the <code>WHERE</code> clause needs <code>n</code> available on the rows it filters. Computing <code>n</code> as a window aggregate (not a separate <code>GROUP BY</code>) avoids an extra join. The final <code>AVG ... GROUP BY</code> then collapses the one or two surviving rows per title into the median.</p>
+
+<h5>NULL salaries silently shift the median</h5>
+<p><code>ROW_NUMBER</code> still numbers a NULL-salary row, but <code>COUNT(*)</code> counts it too &mdash; so a NULL salary inflates <code>n</code> and can drag a NULL into the selected middle, where <code>AVG</code> then ignores it and the result is subtly wrong. The robust fix is <code>WHERE salary IS NOT NULL</code> before the window, or <code>COUNT(salary)</code> instead of <code>COUNT(*)</code> so the denominator reflects only real salaries. Calling this out unprompted is the senior signal.</p>
+
+<h5>The modern alternative &mdash; <code>PERCENTILE_CONT</code></h5>
+<p>Postgres, Oracle, SQL Server, BigQuery, and Snowflake expose an ordered-set aggregate that computes the median directly:</p>
+<pre><code>SELECT job_title,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary) AS median_salary
+FROM employees
+GROUP BY job_title;</code></pre>
+<p><code>PERCENTILE_CONT</code> interpolates between the two middle values (same answer here), while <code>PERCENTILE_DISC</code> returns an actual data point. Prefer it where available &mdash; it is clearer and less error-prone. The <code>ROW_NUMBER</code> manual method is the portable fallback (older MySQL has no percentile aggregate).</p>
+
+<h5>Tie ordering is harmless here</h5>
+<p>If two engineers earned the same salary, <code>ROW_NUMBER</code> would order them arbitrarily &mdash; but since the median averages by <em>value</em>, the result is unaffected. A tiebreaker in <code>ORDER BY</code> only matters if you need reproducible row numbers for another purpose.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that integer-truncating <code>(n+1)/2</code> and <code>(n+2)/2</code> collapse to the same row for odd counts and straddle the middle pair for even counts &mdash; one formula, no <code>CASE</code> &mdash; then note NULL salaries corrupt <code>n</code> unless filtered, and offer <code>PERCENTILE_CONT(0.5)</code> as the modern one-liner.</div>

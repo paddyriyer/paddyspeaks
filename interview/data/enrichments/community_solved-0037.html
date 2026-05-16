@@ -1,0 +1,60 @@
+<p>A community payments dataset asks a classic finance question: <em>"for every transaction, show the customer's largest transaction and how this one stacks up against it."</em> The ratio turns raw dollars into a normalised 0&ndash;1 score &mdash; useful for spotting whether a charge is a customer's biggest spend or pocket change. The interviewer wants three implementations because each reveals whether you understand window functions, correlated subqueries, and joins as interchangeable tools, and which one scales.</p>
+
+<h4>1. The source data &mdash; <code>transaction_tab</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>transaction_id</th><th>transaction_amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>250.00</td><td>small</td></tr>
+    <tr><td>101</td><td>2</td><td>800.00</td><td>this customer's max</td></tr>
+    <tr><td>101</td><td>3</td><td>800.00</td><td>tied at the max</td></tr>
+    <tr><td>102</td><td>4</td><td>1200.00</td><td>single-transaction customer</td></tr>
+    <tr><td>103</td><td>5</td><td>90.00</td><td>tiny</td></tr>
+    <tr><td>103</td><td>6</td><td>450.00</td><td>this customer's max</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has <strong>two transactions tied at 800</strong> &mdash; both must report ratio 1.000. Customer 102 has a <strong>single transaction</strong>, so its ratio is trivially 1.000 (it is its own max). Those two cases are what the interviewer is checking.</p>
+
+<h4>2. The SQL &mdash; <code>MAX</code> as a window function</h4>
+<pre><code>SELECT
+    customer_id,
+    transaction_id,
+    transaction_amount,
+    MAX(transaction_amount) OVER (PARTITION BY customer_id) AS max_customer_txn_amount,
+    ROUND(
+        (1.0 * transaction_amount
+            / MAX(transaction_amount) OVER (PARTITION BY customer_id))::NUMERIC,
+        3
+    ) AS ratio
+FROM transaction_tab
+ORDER BY customer_id, transaction_id;</code></pre>
+<p><code>MAX(...) OVER (PARTITION BY customer_id)</code> computes the per-customer maximum but, unlike <code>GROUP BY</code>, keeps every original row &mdash; so the max sits beside each transaction and the ratio is a plain inline division.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>transaction_id</th><th>transaction_amount</th><th>max_customer_txn_amount</th><th>ratio</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>250.00</td><td>800.00</td><td>0.313</td></tr>
+    <tr><td>101</td><td>2</td><td>800.00</td><td>800.00</td><td>1.000</td></tr>
+    <tr><td>101</td><td>3</td><td>800.00</td><td>800.00</td><td>1.000</td></tr>
+    <tr><td>102</td><td>4</td><td>1200.00</td><td>1200.00</td><td>1.000</td></tr>
+    <tr><td>103</td><td>5</td><td>90.00</td><td>450.00</td><td>0.200</td></tr>
+    <tr><td>103</td><td>6</td><td>450.00</td><td>450.00</td><td>1.000</td></tr>
+  </tbody>
+</table>
+<p>Both of customer 101's 800-dollar rows get ratio 1.000 &mdash; the window <code>MAX</code> does not collapse ties, it simply reports 800 against each. Customer 102's lone transaction is its own maximum, ratio 1.000.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the window form is the one to write</h5>
+<p><code>PARTITION BY customer_id</code> defines a window per customer; <code>MAX</code> is evaluated over that window for every row, with no <code>GROUP BY</code> and therefore no loss of detail. One sort over the table, one pass &mdash; O(n log n). It is the shortest correct answer and the one a senior reaches for first.</p>
+
+<h5>The three methods the question wants</h5>
+<p><strong>Method 1 &mdash; window function</strong> (shown above). <strong>Method 2 &mdash; correlated subquery:</strong> <code>(SELECT MAX(t2.transaction_amount) FROM transaction_tab t2 WHERE t2.customer_id = t1.customer_id)</code> &mdash; correct, but it re-scans the table once per row, O(n&sup2;). <strong>Method 3 &mdash; join to a derived table:</strong> <code>JOIN (SELECT customer_id, MAX(transaction_amount) AS mx FROM transaction_tab GROUP BY customer_id) m USING (customer_id)</code> &mdash; one aggregate pass plus a hash join, O(n). Methods 1 and 3 scale; method 2 is the teaching counter-example. Saying that out loud is the signal.</p>
+
+<h5>The division-by-zero trap</h5>
+<p>If a customer's transactions sum to a <em>maximum of zero</em> &mdash; e.g. a single 0.00 charge, or only refunds &mdash; the divisor is 0 and Postgres raises <code>division by zero</code> (error 22012), aborting the whole query. The robust form wraps the denominator: <code>... / NULLIF(MAX(transaction_amount) OVER (PARTITION BY customer_id), 0)</code>, which turns a zero max into NULL and yields a NULL ratio instead of an error. Mention this unprompted &mdash; real transaction tables contain zero-dollar and negative rows.</p>
+
+<h5>The cast and rounding</h5>
+<p><code>1.0 *</code> forces numeric division (an integer-typed amount would otherwise truncate). The explicit <code>::NUMERIC</code> is needed because <code>ROUND(value, scale)</code> in Postgres only accepts a <code>numeric</code> first argument &mdash; <code>ROUND(double precision, int)</code> does not exist and would error. In MySQL or SQL Server <code>ROUND</code> is more permissive, so the cast is Postgres-specific defensive coding.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> deliver the window-function version as the primary answer, name the correlated subquery as the O(n&sup2;) trap among the three methods, and guard the ratio's denominator with <code>NULLIF(..., 0)</code> before the interviewer asks what happens to a zero-max customer.</div>

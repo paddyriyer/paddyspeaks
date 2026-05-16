@@ -1,0 +1,82 @@
+<p>A community retail dataset logs purchases in order and asks which items were bought <em>three or more times consecutively</em>. It is the same streak-detection problem as the "consecutive numbers" classic. The interviewer is probing whether you can isolate genuine runs of length 3+ &mdash; and the proposed solution is a textbook example of a query that looks clever but quietly returns the wrong answer.</p>
+
+<h4>1. The source data &mdash; <code>items_table</code></h4>
+<table>
+  <thead><tr><th>id</th><th>item</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Pen</td><td>lone Pen</td></tr>
+    <tr><td>2</td><td>Eraser</td><td>single purchase, Pen on both sides</td></tr>
+    <tr><td>3</td><td>Pen</td><td>lone Pen</td></tr>
+    <tr><td>4&ndash;6</td><td>Apple</td><td>run of 3 &mdash; qualifies</td></tr>
+    <tr><td>7</td><td>Mango</td><td>lone Mango</td></tr>
+    <tr><td>8&ndash;10</td><td>Banana</td><td>run of 3 &mdash; qualifies</td></tr>
+    <tr><td>11</td><td>Pear</td><td>lone Pear</td></tr>
+    <tr><td>12&ndash;14</td><td>Apple</td><td>another run of 3 &mdash; Apple again</td></tr>
+    <tr><td>15</td><td>Grape</td><td>lone Grape</td></tr>
+  </tbody>
+</table>
+<p><code>Eraser</code> at id 2 is the trap: it is bought <strong>once</strong>, but its neighbours (Pen at id 1 and Pen at id 3) are identical to each other. Any correct answer returns only <code>Apple</code> and <code>Banana</code>.</p>
+
+<h4>2. The SQL &mdash; original (flagged broken) and corrected</h4>
+<p><strong>Original solution &mdash; produces a wrong result:</strong></p>
+<pre><code>with t1 as(
+select id,item,
+    lag(item) over(order by id asc) lag_item,
+    lead(item) over(order by id asc) lead_item
+from items_table
+)
+select distinct item
+from t1
+where lag_item = lead_item;</code></pre>
+<p>The flaw: <code>lag_item = lead_item</code> tests whether the rows <em>before</em> and <em>after</em> match each other &mdash; it never checks that they equal the <em>current</em> row. For <code>Eraser</code> (id 2), <code>lag = Pen</code> and <code>lead = Pen</code>, so <code>Pen = Pen</code> is true and Eraser is wrongly selected despite appearing only once. The condition detects "same item three rows apart", not "three consecutive identical rows".</p>
+<p><strong>Corrected solution &mdash; gaps-and-islands:</strong></p>
+<pre><code>WITH ordered AS (
+    SELECT id, item,
+           LAG(item) OVER (ORDER BY id) AS prev_item
+    FROM items_table
+),
+flagged AS (
+    SELECT id, item,
+           CASE WHEN item = prev_item THEN 0 ELSE 1 END AS is_break
+    FROM ordered
+),
+grouped AS (
+    SELECT id, item,
+           SUM(is_break) OVER (ORDER BY id) AS group_id
+    FROM flagged
+)
+SELECT DISTINCT item
+FROM grouped
+GROUP BY item, group_id
+HAVING COUNT(*) &gt;= 3
+ORDER BY item;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Corrected query output:</p>
+<table>
+  <thead><tr><th>item</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>Apple</td><td>run at id 4&ndash;6 (and a second run at 12&ndash;14)</td></tr>
+    <tr><td>Banana</td><td>run at id 8&ndash;10</td></tr>
+  </tbody>
+</table>
+<p>Only <code>Apple</code> and <code>Banana</code> &mdash; the two items with a true run of 3+. The broken original would have additionally returned <code>Eraser</code> (and missed nothing only by luck on this data), which is plainly wrong: Eraser was bought once.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the original is wrong, precisely</h5>
+<p>"Three in a row" means rows <em>i</em>, <em>i+1</em>, <em>i+2</em> all carry the same item. The correct test at the middle row is <code>prev_item = item AND item = next_item</code>. The original drops the <code>item</code> term and keeps only <code>prev_item = next_item</code> &mdash; satisfied whenever the item two rows back equals the item two rows forward, even when the middle row is something else entirely. It is a different predicate that coincides with the right answer only by accident.</p>
+
+<h5>The gaps-and-islands fix</h5>
+<p><code>LAG</code> exposes the previous item; <code>is_break</code> flags 1 wherever the item changes; a running <code>SUM</code> of breaks gives every unbroken run its own <code>group_id</code>. Grouping by <code>(item, group_id)</code> isolates each run and <code>HAVING COUNT(*) &gt;= 3</code> keeps the long ones. This generalises &mdash; change the literal 3 for any streak length &mdash; and correctly treats <code>Apple</code>'s two separate runs as distinct islands.</p>
+
+<h5>The minimal fix to the original idiom</h5>
+<p>If you must keep the <code>LAG</code>/<code>LEAD</code> shape, the correct middle-of-run test is:</p>
+<pre><code>SELECT DISTINCT item FROM t1
+WHERE item = lag_item AND item = lead_item;</code></pre>
+<p>This flags the <em>centre</em> row of every 3-run, so it answers "appears in a run of at least 3". But it cannot count run length beyond 3 &mdash; for "exactly 3" or "5+" you still need the island grouping. Showing both the quick patch and the general solution is the senior move.</p>
+
+<h5>Boundary and NULL behaviour</h5>
+<p>The first and last rows have a NULL <code>prev_item</code>/<code>next_item</code>; in the corrected query the leading NULL makes <code>is_break = 1</code>, which is right &mdash; a run always starts at row 1. A NULL <code>item</code> mid-stream also counts as a break since <code>NULL = NULL</code> is unknown; if consecutive NULLs should form a run, use <code>item IS NOT DISTINCT FROM prev_item</code>. The original query is doubly fragile at boundaries: a NULL <code>lag</code> or <code>lead</code> makes the equality unknown, so edge rows are never selected regardless of the data.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that <code>lag_item = lead_item</code> compares the neighbours to each other but never to the current row &mdash; so a single purchase flanked by a matching pair is falsely flagged. Replace it with gaps-and-islands (<code>LAG</code> + break flag + running sum + <code>HAVING COUNT(*) &gt;= 3</code>), which is correct and generalises to any run length.</div>

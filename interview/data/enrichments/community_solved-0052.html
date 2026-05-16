@@ -1,0 +1,60 @@
+<p>A community dataset stores a column of IDs that <em>should</em> be a continuous sequence, and asks which values are missing. This is the data-quality check behind every "find the gaps in invoice numbers / ticket numbers / page IDs" task. The twist here is to also surface the next five IDs after the maximum, so the report is never empty &mdash; even a perfectly contiguous table produces actionable rows. The interviewer wants to see you generate a reference range and anti-join against it.</p>
+
+<h4>1. The source data &mdash; <code>id_tab</code></h4>
+<table>
+  <thead><tr><th>id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>start</td></tr>
+    <tr><td>2</td><td>&hellip;</td></tr>
+    <tr><td>4</td><td>3 is missing</td></tr>
+    <tr><td>5</td><td>&hellip;</td></tr>
+    <tr><td>8</td><td>6 and 7 are missing</td></tr>
+    <tr><td>10</td><td>9 is missing; MAX(id) = 10</td></tr>
+  </tbody>
+</table>
+<p>Six rows with three interior gaps (3; 6&ndash;7; 9). <code>MAX(id)</code> is 10, so the report must also include 11&ndash;15 &mdash; the five IDs that <em>would</em> come next.</p>
+
+<h4>2. The SQL &mdash; <code>generate_series</code> plus an anti-join</h4>
+<pre><code>WITH bounds AS (
+    SELECT MAX(id) + 5 AS upper_bound FROM id_tab
+)
+SELECT g.id AS missing_id
+FROM bounds,
+     LATERAL generate_series(1, bounds.upper_bound) AS g(id)
+LEFT JOIN id_tab t ON t.id = g.id
+WHERE t.id IS NULL
+ORDER BY g.id;</code></pre>
+<p><code>generate_series(1, MAX(id)+5)</code> manufactures the complete reference range; the <code>LEFT JOIN ... WHERE t.id IS NULL</code> keeps only generated values with no match in the table &mdash; the gaps.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>missing_id</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>interior gap</td></tr>
+    <tr><td>6</td><td>interior gap</td></tr>
+    <tr><td>7</td><td>interior gap</td></tr>
+    <tr><td>9</td><td>interior gap</td></tr>
+    <tr><td>11</td><td>tail &mdash; next ID after MAX</td></tr>
+    <tr><td>12</td><td>tail</td></tr>
+    <tr><td>13</td><td>tail</td></tr>
+    <tr><td>14</td><td>tail</td></tr>
+    <tr><td>15</td><td>tail</td></tr>
+  </tbody>
+</table>
+<p>The three interior gaps (3, 6, 7, 9) plus the five-ID tail (11&ndash;15). Even if <code>id_tab</code> were perfectly contiguous, rows 11&ndash;15 would still appear &mdash; that is the point of <code>MAX(id) + 5</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the anti-join finds the gaps</h5>
+<p>The reference range is the universe of <em>expected</em> IDs. A <code>LEFT JOIN</code> from that range to the real table preserves every generated value; rows that found no partner get NULLs on the table side. Filtering <code>WHERE t.id IS NULL</code> is the standard <em>anti-join</em> idiom &mdash; "rows on the left with nothing matching on the right". Equivalent forms are <code>NOT EXISTS</code> and <code>EXCEPT</code>; <code>NOT IN</code> is the one to avoid (see below).</p>
+
+<h5><code>LATERAL</code> and the comma join to <code>bounds</code></h5>
+<p><code>generate_series</code>'s upper argument is <code>bounds.upper_bound</code> &mdash; a value from another table expression &mdash; so the set-returning function must run <em>per row</em> of <code>bounds</code>. That is exactly what <code>LATERAL</code> licenses: a join input that references columns from a sibling to its left. Since <code>bounds</code> yields a single row, the effect is just "generate 1..upper_bound once". In Postgres a set-returning function in <code>FROM</code> that references an earlier table is treated as <code>LATERAL</code> implicitly, but writing it is clearer.</p>
+
+<h5>The <code>NOT IN</code> NULL trap</h5>
+<p>A tempting one-liner is <code>SELECT id FROM generate_series(...) g WHERE g.id NOT IN (SELECT id FROM id_tab)</code>. If <code>id_tab</code> ever contains a NULL <code>id</code>, <code>NOT IN</code> against a list containing NULL evaluates to <em>unknown</em> for every row &mdash; the query returns <strong>zero rows</strong>, silently. <code>LEFT JOIN / IS NULL</code> and <code>NOT EXISTS</code> are NULL-safe; <code>NOT IN</code> is not. This is a top-five SQL interview gotcha.</p>
+
+<h5>The empty-table edge &mdash; <code>MAX</code> of nothing</h5>
+<p>If <code>id_tab</code> is empty, <code>MAX(id)</code> returns NULL, so <code>upper_bound</code> is NULL and <code>generate_series(1, NULL)</code> produces no rows &mdash; the report is empty. If the spec wants a baseline range even on an empty table, wrap it: <code>COALESCE(MAX(id), 0) + 5</code>. Also note <code>generate_series</code> is Postgres-specific; SQL Server uses a recursive CTE or <code>GENERATE_SERIES</code> (2022+), Oracle uses <code>CONNECT BY LEVEL</code>, MySQL 8 uses a recursive CTE.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> frame this as "generate the expected range, anti-join the actual table", insist on <code>LEFT JOIN / IS NULL</code> or <code>NOT EXISTS</code> over <code>NOT IN</code> because a single NULL id makes <code>NOT IN</code> return nothing, and guard the empty-table case with <code>COALESCE(MAX(id), 0)</code>.</div>

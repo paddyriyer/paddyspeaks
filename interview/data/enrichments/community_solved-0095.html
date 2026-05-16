@@ -1,0 +1,85 @@
+<p>A subscription business wants a per-customer profile: average subscription length, average revenue per subscription, and the longest dormant gap between one subscription ending and the next beginning &mdash; restricted to customers with at least two subscriptions. The reference solution uses <code>LAG</code> to reach the previous subscription's end date, but its <code>HAVING</code> filter is off by one: it demands <em>more than</em> two subscriptions instead of <em>at least</em> two.</p>
+
+<h4>1. The source data &mdash; <code>subscriptions</code></h4>
+<table>
+  <thead><tr><th>subscription_id</th><th>customer_id</th><th>start_date</th><th>end_date</th><th>amount_paid</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>501</td><td>2025-01-01</td><td>2025-01-31</td><td>10</td></tr>
+    <tr><td>2</td><td>501</td><td>2025-03-01</td><td>2025-03-31</td><td>12</td></tr>
+    <tr><td>3</td><td>501</td><td>2025-07-01</td><td>2025-07-31</td><td>15</td></tr>
+    <tr><td>4</td><td>502</td><td>2025-01-01</td><td>2025-02-28</td><td>20</td></tr>
+    <tr><td>5</td><td>502</td><td>2025-03-15</td><td>2025-04-15</td><td>22</td></tr>
+    <tr><td>6</td><td>503</td><td>2025-05-01</td><td>2025-05-31</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Customer 502 is the edge case: <em>exactly two</em> subscriptions. The spec says "at least two", so 502 must appear. Customer 503 has only one subscription and is correctly excluded. The buggy <code>HAVING COUNT &gt; 2</code> wrongly drops 502 along with 503.</p>
+
+<h4>2. The SQL</h4>
+<p><strong>Original solution (flagged broken):</strong></p>
+<pre><code>WITH t1 AS (
+  SELECT *,
+    (end_date::date - start_date::date) AS duration,
+    LAG(end_date, 1, NULL) OVER (PARTITION BY customer_id ORDER BY end_date ASC) AS pre_subs_end_date
+  FROM subscriptions
+), t2 AS (
+  SELECT *,
+    (start_date::date - pre_subs_end_date::date) AS subscription_gap
+  FROM t1
+)
+SELECT customer_id,
+       AVG(duration) AS average_subscription_duration,
+       AVG(amount_paid) AS average_amount_paid,
+       MAX(subscription_gap) AS longest_gap_between_subscriptions
+FROM t2
+GROUP BY customer_id
+HAVING COUNT(subscription_id) &gt; 2
+ORDER BY longest_gap_between_subscriptions DESC;</code></pre>
+<p>Requirement 4 says "at least two subscriptions." <code>COUNT(subscription_id) &gt; 2</code> means three or more, so customer 502 &mdash; who has exactly two &mdash; is silently dropped. The fix is a single character: <code>&gt;=</code>.</p>
+<p><strong>Corrected solution:</strong></p>
+<pre><code>WITH t1 AS (
+  SELECT *,
+    (end_date::date - start_date::date) AS duration,
+    LAG(end_date, 1, NULL) OVER (PARTITION BY customer_id ORDER BY end_date ASC) AS pre_subs_end_date
+  FROM subscriptions
+), t2 AS (
+  SELECT *,
+    (start_date::date - pre_subs_end_date::date) AS subscription_gap
+  FROM t1
+)
+SELECT customer_id,
+       AVG(duration) AS average_subscription_duration,
+       AVG(amount_paid) AS average_amount_paid,
+       MAX(subscription_gap) AS longest_gap_between_subscriptions
+FROM t2
+GROUP BY customer_id
+HAVING COUNT(subscription_id) &gt;= 2
+ORDER BY longest_gap_between_subscriptions DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>average_subscription_duration</th><th>average_amount_paid</th><th>longest_gap_between_subscriptions</th></tr></thead>
+  <tbody>
+    <tr><td>501</td><td>30</td><td>12.33</td><td>92</td></tr>
+    <tr><td>502</td><td>44.5</td><td>21.00</td><td>15</td></tr>
+  </tbody>
+</table>
+<p>Customer 502 now appears (corrected). Its longest gap is 15 days &mdash; subscription 4 ended Feb 28, subscription 5 started Mar 15. Customer 501's biggest gap is 92 days (Mar 31 &rarr; Jul 1). Customer 503, single subscription, stays excluded under both versions.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The off-by-one in <code>HAVING</code></h5>
+<p>"At least two" is an inclusive lower bound: <code>COUNT(*) &gt;= 2</code>. The strict <code>&gt; 2</code> means "at least three" and quietly excludes every two-subscription customer. Boundary phrasing &mdash; "at least", "more than", "no fewer than" &mdash; maps to <code>&gt;=</code> vs <code>&gt;</code>, and getting it wrong is a textbook silent bug. Always re-read the requirement and match the operator literally.</p>
+
+<h5><code>LAG</code> reaches the previous subscription</h5>
+<p><code>LAG(end_date) OVER (PARTITION BY customer_id ORDER BY end_date)</code> pulls each subscription's <em>predecessor</em> end date into the same row. The gap is then just <code>start_date - pre_subs_end_date</code>. The first subscription per customer has no predecessor, so <code>LAG</code> returns NULL and its gap is NULL &mdash; which <code>MAX</code> ignores, exactly the desired behaviour.</p>
+
+<h5>The ordering choice inside the window matters</h5>
+<p>The window orders by <code>end_date</code>. If subscriptions can overlap, ordering by <code>start_date</code> instead could give a different &mdash; possibly negative &mdash; gap. With clean non-overlapping data the two orderings agree; with messy data, pick the one the business defines as "consecutive" and say so. A negative gap is a signal of overlapping subscriptions worth surfacing rather than hiding.</p>
+
+<h5><code>AVG</code> ignores NULLs &mdash; know what that means here</h5>
+<p><code>AVG(amount_paid)</code> skips NULL amounts entirely, dividing by the count of <em>non-NULL</em> rows. If a NULL amount should count as a zero-revenue subscription, use <code>AVG(COALESCE(amount_paid, 0))</code>. Same for <code>duration</code> if either date can be NULL. State the assumption explicitly.</p>
+
+<h5>Date subtraction is a dialect minefield</h5>
+<p>In Postgres <code>date - date</code> yields an integer day count, so <code>end_date::date - start_date::date</code> works directly. MySQL needs <code>DATEDIFF(end_date, start_date)</code>; SQL Server <code>DATEDIFF(day, start_date, end_date)</code>; BigQuery <code>DATE_DIFF(end_date, start_date, DAY)</code>. Translate per engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> catch that "at least two" requires <code>HAVING COUNT(*) &gt;= 2</code> not <code>&gt; 2</code>, explain that <code>LAG</code> ordered by <code>end_date</code> yields a NULL (correctly ignored) gap for each customer's first subscription, and flag that overlapping subscriptions can produce negative gaps that deserve surfacing rather than silent inclusion.</div>

@@ -1,0 +1,60 @@
+<p>A courier company wants the drivers who have handled <em>every</em> package type in the catalogue &mdash; the classic "relational division" problem. The interviewer is probing whether you can express "covers all values of a set" without a brittle hardcoded list, using a <code>HAVING</code> count compared against the total distinct count.</p>
+
+<h4>1. The source data &mdash; <code>deliveries</code></h4>
+<table>
+  <thead><tr><th>DeliveryID</th><th>DriverID</th><th>PackageType</th><th>DeliveryDate</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>Letter</td><td>2025-02-01</td></tr>
+    <tr><td>2</td><td>10</td><td>Box</td><td>2025-02-02</td></tr>
+    <tr><td>3</td><td>10</td><td>Pallet</td><td>2025-02-03</td></tr>
+    <tr><td>4</td><td>11</td><td>Letter</td><td>2025-02-01</td></tr>
+    <tr><td>5</td><td>11</td><td>Box</td><td>2025-02-05</td></tr>
+    <tr><td>6</td><td>12</td><td>Letter</td><td>2025-02-04</td></tr>
+    <tr><td>7</td><td>12</td><td>Box</td><td>2025-02-06</td></tr>
+    <tr><td>8</td><td>12</td><td>Pallet</td><td>2025-02-07</td></tr>
+    <tr><td>9</td><td>13</td><td>Pallet</td><td>2025-02-08</td></tr>
+    <tr><td>10</td><td>13</td><td>Pallet</td><td>2025-02-09</td></tr>
+  </tbody>
+</table>
+<p>The catalogue has three types: Letter, Box, Pallet. Driver 13 is the edge case &mdash; two deliveries, but <em>both</em> are Pallet. Counting rows would say "2"; counting <em>distinct</em> types says "1". That distinction is the whole problem.</p>
+
+<h4>2. The SQL &mdash; relational division via <code>HAVING</code></h4>
+<pre><code>SELECT driverid
+FROM deliveries
+GROUP BY driverid
+HAVING COUNT(DISTINCT packagetype) =
+       (SELECT COUNT(DISTINCT packagetype) FROM deliveries);</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>driverid</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Letter + Box + Pallet &mdash; all 3 types</td></tr>
+    <tr><td>12</td><td>Letter + Box + Pallet &mdash; all 3 types</td></tr>
+  </tbody>
+</table>
+<p>Driver 11 covers only 2 of 3 types and is excluded. Driver 13 has two deliveries but only the Pallet type &mdash; <code>COUNT(DISTINCT)</code> = 1, correctly dropped. A <code>COUNT(*)</code> would have mistaken its duplicate Pallets for coverage.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT)</code> is mandatory here</h5>
+<p>The question asks about <em>types</em> covered, not deliveries made. Driver 13's two Pallet rows must count as one type. Plain <code>COUNT(packagetype)</code> counts rows and would inflate to 2; <code>COUNT(DISTINCT packagetype)</code> counts unique types and yields the correct 1. Getting this wrong is the single most common error on this pattern.</p>
+
+<h5>The subquery makes it self-maintaining</h5>
+<p><code>(SELECT COUNT(DISTINCT packagetype) FROM deliveries)</code> computes the catalogue size <em>at query time</em>. When the company adds a fourth type (say "Crate"), the threshold updates automatically &mdash; no edit needed. Hardcoding <code>HAVING COUNT(DISTINCT packagetype) = 3</code> would silently keep passing drivers who never carried a Crate.</p>
+
+<h5>The "available in the system" subtlety</h5>
+<p>This solution defines the universe of package types as <em>whatever appears in</em> <code>deliveries</code>. If the catalogue lives in a separate <code>package_types</code> table, a type with zero deliveries would still count toward "all types", and the subquery must read that master table instead: <code>(SELECT COUNT(*) FROM package_types)</code>. Clarifying which table is the source of truth is a senior-level question to ask.</p>
+
+<h5>The anti-join alternative &mdash; "no type is missing"</h5>
+<p>Relational division can also be phrased as a double negation: a driver qualifies if there is <em>no</em> package type they have <em>not</em> delivered.</p>
+<pre><code>SELECT d.driverid
+FROM (SELECT DISTINCT driverid FROM deliveries) d
+WHERE NOT EXISTS (
+  SELECT 1 FROM (SELECT DISTINCT packagetype FROM deliveries) pt
+  WHERE NOT EXISTS (
+    SELECT 1 FROM deliveries x
+    WHERE x.driverid = d.driverid AND x.packagetype = pt.packagetype));</code></pre>
+<p>It is wordier, but it generalises when "all" is defined by a master table and it can short-circuit. The <code>HAVING</code>-count form is the one to write first; mention the anti-join to show you know the canonical alternative.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify this as relational division, insist on <code>COUNT(DISTINCT packagetype)</code> so a driver's repeated same-type deliveries do not fake full coverage, compute the threshold with a subquery so it self-updates, and ask whether the type universe is the fact table or a separate catalogue.</div>

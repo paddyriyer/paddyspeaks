@@ -1,0 +1,66 @@
+<p>An e-commerce analytics team wants each customer's longest streak of consecutive calendar days with at least one order &mdash; a loyalty/engagement metric. This is the classic "gaps and islands" problem, and the interviewer is probing whether you know the row-number-offset trick that turns a run of consecutive dates into a constant grouping key.</p>
+
+<h4>1. The source data &mdash; <code>customer_order</code></h4>
+<table>
+  <thead><tr><th>CustomerID</th><th>OrderDate</th><th>OrderID</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-05-01</td><td>1001</td></tr>
+    <tr><td>1</td><td>2025-05-02</td><td>1002</td></tr>
+    <tr><td>1</td><td>2025-05-03</td><td>1003</td></tr>
+    <tr><td>1</td><td>2025-05-05</td><td>1004</td></tr>
+    <tr><td>1</td><td>2025-05-06</td><td>1005</td></tr>
+    <tr><td>2</td><td>2025-05-10</td><td>2001</td></tr>
+    <tr><td>2</td><td>2025-05-12</td><td>2002</td></tr>
+    <tr><td>3</td><td>2025-05-01</td><td>3001</td></tr>
+    <tr><td>3</td><td>2025-05-04</td><td>3004</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 has two separate runs &mdash; May 1&ndash;3 (length 3) and May 5&ndash;6 (length 2), broken by a gap on May 4. Customer 2 is the edge case: two orders, but on non-adjacent days, so every "streak" is just length 1.</p>
+
+<h4>2. The SQL &mdash; row-number-offset gaps and islands</h4>
+<pre><code>WITH t1 AS (
+  SELECT customerid, orderdate, orderid,
+         ROW_NUMBER() OVER (PARTITION BY customerid ORDER BY orderdate ASC) AS id
+  FROM customer_order
+), t2 AS (
+  SELECT customerid, orderdate, orderid, id,
+         orderdate::date - id * INTERVAL '1 day' AS streak_window
+  FROM t1
+), t3 AS (
+  SELECT customerid, streak_window, COUNT(orderid) AS consecutive_orders
+  FROM t2
+  GROUP BY customerid, streak_window
+)
+SELECT customerid, MAX(consecutive_orders) AS max_consecutive_days
+FROM t3
+GROUP BY customerid;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customerid</th><th>max_consecutive_days</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>longest run May 1&ndash;3; the May 5&ndash;6 run of 2 loses</td></tr>
+    <tr><td>2</td><td>1</td><td>orders 2 days apart &mdash; no run longer than a single day</td></tr>
+    <tr><td>3</td><td>1</td><td>May 1 and May 4 are isolated</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 correctly reports 3, taking the <em>longest</em> island, not the count of islands. Customer 2 reports 1 &mdash; the query never overstates a streak when days are not adjacent.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The core trick &mdash; date minus row number is constant within a run</h5>
+<p>Within a streak of consecutive dates, the date increases by exactly 1 each step, and <code>ROW_NUMBER()</code> also increases by exactly 1. So <code>orderdate - id</code> stays <em>constant</em> across the whole run &mdash; and changes the moment a gap appears. That constant becomes the island's identity key (<code>streak_window</code>). Grouping by it and counting rows gives each run's length.</p>
+
+<h5>Why <code>id * INTERVAL '1 day'</code></h5>
+<p><code>id</code> is a plain integer; subtracting it directly from a date is ambiguous across engines. Multiplying by <code>INTERVAL '1 day'</code> makes the subtraction an unambiguous date arithmetic operation in Postgres. The resulting <code>streak_window</code> values are not meaningful dates themselves &mdash; they are only labels &mdash; but rows in the same run share the same label.</p>
+
+<h5>The duplicate-date trap &mdash; <code>ROW_NUMBER</code> vs <code>DENSE_RANK</code></h5>
+<p>If a customer places <em>two</em> orders on the same day, <code>ROW_NUMBER</code> still assigns them different sequence numbers, so <code>orderdate - id</code> differs and the run is wrongly split. The robust fix is to either deduplicate dates first (<code>SELECT DISTINCT customerid, orderdate</code>) or use <code>DENSE_RANK() OVER (ORDER BY orderdate)</code>, which gives same-day rows the same rank. With the sample data every (customer, date) is unique so it does not bite here &mdash; but on real order tables it absolutely will. This is the single most important caveat to raise.</p>
+
+<h5>"Consecutive days" vs "consecutive orders"</h5>
+<p>The query counts <em>orders</em> per island. Once dates are deduplicated, that equals the number of consecutive days &mdash; which is what the question wants. Keep the distinction explicit: the metric is calendar-day span, not order volume. Naming it precisely shows you read the requirement carefully.</p>
+
+<h5>The window-function alternative</h5>
+<p>Modern engines can do this without the offset trick: flag each row where <code>orderdate - LAG(orderdate) &gt; 1</code> as a new-island boundary, then <code>SUM</code> those flags as a running total to label islands. It is more explicit about "a gap starts a new group" and extends naturally to "consecutive within 2 days" style rules. The row-number-offset form is the most compact; mention the <code>LAG</code> + running-sum version to show range.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name this gaps-and-islands, explain that <code>orderdate - ROW_NUMBER()</code> is invariant within a consecutive run and so labels each island, take the <code>MAX</code> island length per customer &mdash; and pre-empt the duplicate-date bug by deduplicating dates or switching <code>ROW_NUMBER</code> to <code>DENSE_RANK</code>.</div>

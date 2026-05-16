@@ -1,0 +1,53 @@
+<p>A directory export needs each employee's full name from separate <code>first_name</code> and <code>last_name</code> columns. The query uses the SQL string-concatenation operator <code>||</code>. It is a one-liner, but the interviewer is watching for one specific thing: what happens to the result when one of the name parts is NULL.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>first_name</th><th>last_name</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>Ng</td><td>both parts present</td></tr>
+    <tr><td>2</td><td>Bob</td><td>Reilly</td><td>both parts present</td></tr>
+    <tr><td>3</td><td>Carol</td><td><em>NULL</em></td><td>last name missing</td></tr>
+    <tr><td>4</td><td>Dave</td><td>Okafor</td><td>both parts present</td></tr>
+    <tr><td>5</td><td>Eve</td><td>Strand</td><td>both parts present</td></tr>
+  </tbody>
+</table>
+<p>Carol's <code>last_name</code> is <em>NULL</em>. That single missing value is the entire interview &mdash; it does not just blank one field.</p>
+
+<h4>2. The SQL &mdash; the <code>||</code> concatenation operator</h4>
+<pre><code>SELECT first_name || ' ' || last_name AS full_name
+FROM employees;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>full_name</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>Alice Ng</td><td>both parts present</td></tr>
+    <tr><td>Bob Reilly</td><td>both parts present</td></tr>
+    <tr><td><em>NULL</em></td><td>Carol &mdash; one NULL part nulls the WHOLE name</td></tr>
+    <tr><td>Dave Okafor</td><td>both parts present</td></tr>
+    <tr><td>Eve Strand</td><td>both parts present</td></tr>
+  </tbody>
+</table>
+<p>Carol's row is the lesson: her first name is "Carol", perfectly valid &mdash; yet <code>full_name</code> is entirely <em>NULL</em>. A single NULL operand poisoned the whole expression. Her name vanished from the directory.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why one NULL nulls the entire concatenation</h5>
+<p>In ANSI SQL, <code>||</code> with any NULL operand yields NULL &mdash; NULL is "unknown," and unknown joined to anything is still unknown. <code>'Carol' || ' ' || NULL</code> evaluates to NULL, not to "Carol ". This is the single most common surprise with string building: the failure is silent and total, not partial.</p>
+
+<h5>The fix &mdash; coalesce every nullable part</h5>
+<p>Wrap each nullable column in <code>COALESCE</code> so a missing piece degrades to empty string instead of poisoning the row:</p>
+<pre><code>SELECT COALESCE(first_name, '') || ' ' || COALESCE(last_name, '') AS full_name
+FROM employees;</code></pre>
+<p>Carol now reads "<code>Carol </code>" &mdash; with a trailing space, because the separator is still emitted. To drop the orphan space, wrap the whole thing: <code>TRIM(COALESCE(first_name,'') || ' ' || COALESCE(last_name,''))</code>.</p>
+
+<h5>The cleaner answer &mdash; <code>CONCAT_WS</code></h5>
+<p><code>CONCAT_WS(' ', first_name, last_name)</code> solves both problems at once: it skips NULL parts <em>and</em> does not emit a separator for a skipped part. Carol becomes "<code>Carol</code>" with no trailing space, no coalescing, no trim. When concatenating optionally-missing fields with a delimiter, <code>CONCAT_WS</code> is the senior default; reserve raw <code>||</code> for cases where every operand is guaranteed non-NULL.</p>
+
+<h5>Dialect notes &mdash; <code>||</code> is not universal</h5>
+<p><code>||</code> is the SQL-standard concatenation operator and works in PostgreSQL, Oracle, SQLite, and DB2. <strong>MySQL</strong> by default treats <code>||</code> as logical OR &mdash; <code>'a' || 'b'</code> returns <code>0</code>, not <code>'ab'</code> &mdash; unless <code>PIPES_AS_CONCAT</code> is set in <code>sql_mode</code>; use <code>CONCAT()</code> there. SQL Server uses <code>+</code> for string concat (and <code>+</code> with NULL also yields NULL unless <code>CONCAT_NULL_YIELDS_NULL</code> is off). Know your engine.</p>
+
+<h5>Common mistakes</h5>
+<p>Assuming <code>||</code> behaves like MySQL <code>CONCAT</code> (which treats NULL as ''). Forgetting the literal space separator and getting "AliceNg". And ordering: this query has no <code>ORDER BY</code>, so the directory rows come back in physical-storage order &mdash; add <code>ORDER BY last_name, first_name</code> for a real export.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately flag that <code>||</code> with one NULL operand nulls the <em>entire</em> name, fix it with <code>COALESCE</code> per part or &mdash; better &mdash; <code>CONCAT_WS</code>, and note that <code>||</code> means OR in default-mode MySQL.</div>
