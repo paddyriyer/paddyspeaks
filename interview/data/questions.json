@@ -155,7 +155,7 @@
     "subtopic": null,
     "difficulty": "Easy",
     "language": "sql",
-    "schema": "sales(category, sale_date, amount)",
+    "schema": "CREATE TABLE sales (category TEXT, sale_date DATE, amount INT);\nINSERT INTO sales VALUES\n  ('Electronics', '2026-05-11', 150),\n  ('Electronics', '2026-05-12', 200),\n  ('Electronics', '2026-05-13', 100),\n  ('Clothing', '2026-05-11', 80),\n  ('Clothing', '2026-05-13', 120),\n  ('Clothing', '2026-05-13', 50);",
     "solution": "SELECT\n  category,\n  SUM(CASE WHEN sale_date = '2026-05-11' THEN amount ELSE 0 END) AS monday_sales,\n  SUM(CASE WHEN sale_date = '2026-05-12' THEN amount ELSE 0 END) AS tuesday_sales,\n  SUM(CASE WHEN sale_date = '2026-05-13' THEN amount ELSE 0 END) AS wednesday_sales\nFROM sales\nGROUP BY category\nORDER BY category;",
     "runtime": null,
     "tags": [
@@ -27473,5 +27473,139 @@
     "tags": [
       "schema-design"
     ]
+  },
+  {
+    "id": "pivot_lab-0001",
+    "batch": "pivot_lab",
+    "num": 1,
+    "title": "Unpivot a Wide Quarterly KPI Table",
+    "slug": "unpivot-wide-quarterly-kpi-table",
+    "company": null,
+    "type": "SQL",
+    "subtopic": "Unpivot",
+    "difficulty": "Easy",
+    "language": "sql",
+    "schema": "CREATE TABLE quarterly_kpi (product TEXT, q1_revenue INT, q2_revenue INT, q3_revenue INT, q4_revenue INT);\nINSERT INTO quarterly_kpi VALUES\n  ('Widget', 100, 150, 120, 200),\n  ('Gadget', 80, 0, 90, 110),\n  ('Gizmo', 50, 60, NULL, 70);",
+    "solution": "SELECT product, 'Q1' AS quarter, q1_revenue AS revenue FROM quarterly_kpi\nUNION ALL\nSELECT product, 'Q2', q2_revenue FROM quarterly_kpi\nUNION ALL\nSELECT product, 'Q3', q3_revenue FROM quarterly_kpi\nUNION ALL\nSELECT product, 'Q4', q4_revenue FROM quarterly_kpi\nORDER BY product, quarter;",
+    "runtime": null,
+    "tags": [
+      "unpivot",
+      "union-all",
+      "reshaping"
+    ],
+    "question": "`quarterly_kpi` stores one wide row per product with four revenue columns, one per quarter. Unpivot it into long (tidy) format \u2014 one row per product per quarter, columns `product`, `quarter`, `revenue` \u2014 so it can feed a time-series chart. Order by product, then quarter."
+  },
+  {
+    "id": "pivot_lab-0002",
+    "batch": "pivot_lab",
+    "num": 2,
+    "title": "Unpivot in One Scan with LATERAL VALUES",
+    "slug": "unpivot-one-scan-lateral-values",
+    "company": null,
+    "type": "SQL",
+    "subtopic": "Unpivot",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "CREATE TABLE device_metrics (user_id INT, mobile_sessions INT, desktop_sessions INT, tablet_sessions INT);\nINSERT INTO device_metrics VALUES\n  (1, 12, 3, 0),\n  (2, 0, 0, 5),\n  (3, 7, NULL, 2);",
+    "solution": "SELECT m.user_id, v.device, v.sessions\nFROM device_metrics m\nCROSS JOIN LATERAL (VALUES\n  ('mobile', m.mobile_sessions),\n  ('desktop', m.desktop_sessions),\n  ('tablet', m.tablet_sessions)\n) AS v(device, sessions)\nORDER BY m.user_id, v.device;",
+    "runtime": null,
+    "tags": [
+      "unpivot",
+      "lateral",
+      "values",
+      "reshaping"
+    ],
+    "question": "Reshape `device_metrics` from wide to long: turn the three per-device session columns into rows (`user_id`, `device`, `sessions`). Instead of one `UNION ALL` branch per column \u2014 which scans the table three times \u2014 do it in a single scan with a `CROSS JOIN LATERAL` over a `VALUES` list."
+  },
+  {
+    "id": "pivot_lab-0003",
+    "batch": "pivot_lab",
+    "num": 3,
+    "title": "Pivot an L1\u2013L28 User Engagement Grid",
+    "slug": "pivot-l1-l28-user-engagement-grid",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "CREATE TABLE user_activity (user_id INT, activity_date DATE);\nINSERT INTO user_activity VALUES\n  (101, '2026-05-14'), (101, '2026-05-15'),\n  (102, '2026-05-15'),\n  (103, '2026-05-01'), (103, '2026-05-02'), (103, '2026-05-03');\nINSERT INTO user_activity SELECT 104, d::date FROM generate_series('2026-04-20'::date, '2026-04-29'::date, '1 day') d;\nINSERT INTO user_activity SELECT 105, d::date FROM generate_series('2026-04-18'::date, '2026-05-15'::date, '1 day') d;",
+    "solution": "WITH user_28d_counts AS (\n  SELECT user_id, COUNT(DISTINCT activity_date) AS active_days_count\n  FROM user_activity\n  WHERE activity_date BETWEEN '2026-04-18' AND '2026-05-15'\n  GROUP BY user_id\n)\nSELECT\n  '2026-05-15' AS snapshot_date,\n  COUNT(CASE WHEN active_days_count = 1 THEN 1 END) AS l1_users,\n  COUNT(CASE WHEN active_days_count BETWEEN 2 AND 7 THEN 1 END) AS l2_l7_users,\n  COUNT(CASE WHEN active_days_count BETWEEN 8 AND 27 THEN 1 END) AS l8_l27_users,\n  COUNT(CASE WHEN active_days_count >= 28 THEN 1 END) AS l28_users\nFROM user_28d_counts;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "conditional-aggregation",
+      "cte",
+      "customer-analytics"
+    ],
+    "question": "In product analytics, **L1\u2013L28** counts how many distinct days a user was active inside a trailing 28-day window \u2014 an L28 user opened the app every day for four weeks. For the snapshot date 2026-05-15 (window 2026-04-18 to 2026-05-15), pivot users into engagement buckets: `l1_users` (exactly 1 active day), `l2_l7_users` (2\u20137), `l8_l27_users` (8\u201327), `l28_users` (all 28). Return a single row."
+  },
+  {
+    "id": "pivot_lab-0004",
+    "batch": "pivot_lab",
+    "num": 4,
+    "title": "Pivot a Period-over-Period Growth Matrix",
+    "slug": "pivot-period-over-period-growth-matrix",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "CREATE TABLE monthly_revenue (business_unit TEXT, year_num INT, month_num INT, revenue INT);\nINSERT INTO monthly_revenue VALUES\n  ('SaaS B2B', 2025, 4, 100000),\n  ('SaaS B2B', 2026, 3, 120000),\n  ('SaaS B2B', 2026, 4, 150000),\n  ('Hardware', 2026, 3, 50000),\n  ('Hardware', 2026, 4, 60000);",
+    "solution": "WITH execution_pivot AS (\n  SELECT\n    business_unit,\n    SUM(CASE WHEN year_num = 2026 AND month_num = 4 THEN revenue ELSE 0 END) AS current_month,\n    SUM(CASE WHEN year_num = 2026 AND month_num = 3 THEN revenue ELSE 0 END) AS prior_month,\n    SUM(CASE WHEN year_num = 2025 AND month_num = 4 THEN revenue ELSE 0 END) AS prior_year\n  FROM monthly_revenue\n  GROUP BY business_unit\n)\nSELECT\n  business_unit,\n  current_month AS rev_apr_2026,\n  ROUND(((current_month - prior_month) * 100.0) / NULLIF(prior_month, 0), 2) AS mom_growth_pct,\n  ROUND(((current_month - prior_year) * 100.0) / NULLIF(prior_year, 0), 2) AS yoy_growth_pct\nFROM execution_pivot\nORDER BY business_unit;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "conditional-aggregation",
+      "cte",
+      "financial-analytics",
+      "growth"
+    ],
+    "question": "Build a period-over-period growth matrix for April 2026. From `monthly_revenue`, pivot each business unit's revenue into three horizons \u2014 current month (Apr 2026), prior month (Mar 2026), prior year (Apr 2025) \u2014 then compute month-over-month and year-over-year growth percentages side by side. Guard every denominator with `NULLIF` so a unit with no prior-year revenue yields NULL instead of a divide-by-zero error."
+  },
+  {
+    "id": "pivot_lab-0005",
+    "batch": "pivot_lab",
+    "num": 5,
+    "title": "Pivot a Monthly Cohort-Retention Grid",
+    "slug": "pivot-monthly-cohort-retention-grid",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "CREATE TABLE orders (customer_id INT, order_date DATE, amount NUMERIC);\nINSERT INTO orders VALUES\n  (1, '2026-01-05', 100), (1, '2026-02-10', 50), (1, '2026-03-12', 40),\n  (2, '2026-01-20', 80),  (2, '2026-02-15', 30),\n  (3, '2026-02-08', 200), (3, '2026-04-09', 60);",
+    "solution": "WITH first_order AS (\n  SELECT customer_id, DATE_TRUNC('month', MIN(order_date)) AS cohort_month\n  FROM orders\n  GROUP BY customer_id\n),\nactivity AS (\n  SELECT DISTINCT\n    f.cohort_month,\n    o.customer_id,\n    (EXTRACT(YEAR FROM o.order_date) - EXTRACT(YEAR FROM f.cohort_month)) * 12\n      + (EXTRACT(MONTH FROM o.order_date) - EXTRACT(MONTH FROM f.cohort_month)) AS month_since\n  FROM orders o\n  JOIN first_order f ON f.customer_id = o.customer_id\n),\ncohort_size AS (\n  SELECT cohort_month, COUNT(*) AS n\n  FROM first_order\n  GROUP BY cohort_month\n)\nSELECT\n  TO_CHAR(a.cohort_month, 'YYYY-MM') AS cohort,\n  c.n AS cohort_size,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 0 THEN a.customer_id END) / c.n, 1) AS month_0,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 1 THEN a.customer_id END) / c.n, 1) AS month_1,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 2 THEN a.customer_id END) / c.n, 1) AS month_2\nFROM activity a\nJOIN cohort_size c ON c.cohort_month = a.cohort_month\nGROUP BY a.cohort_month, c.n\nORDER BY cohort;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "cte",
+      "cohort-analysis",
+      "conditional-aggregation",
+      "customer-analytics"
+    ],
+    "question": "Build a monthly cohort-retention grid. Assign each customer to a signup cohort \u2014 the month of their first order \u2014 then pivot 'months since signup' into columns `month_0`, `month_1`, `month_2`, each showing the percentage of the cohort that placed an order that many months later. Use CTEs for the first-order month, the per-order month offset, and cohort sizes. (month_0 is 100% by construction \u2014 every customer ordered in their own cohort month.)"
+  },
+  {
+    "id": "pivot_lab-0006",
+    "batch": "pivot_lab",
+    "num": 6,
+    "title": "Pivot Quarterly Revenue with a Window-Function Running Total",
+    "slug": "pivot-quarterly-revenue-running-total",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "CREATE TABLE sales_ledger (business_unit TEXT, sale_date DATE, amount NUMERIC);\nINSERT INTO sales_ledger VALUES\n  ('North', '2026-02-10', 100), ('North', '2026-05-11', 200),\n  ('North', '2026-08-12', 150), ('North', '2026-11-13', 250),\n  ('South', '2026-01-15', 80),  ('South', '2026-06-20', 120);",
+    "solution": "WITH quarterly AS (\n  SELECT\n    business_unit,\n    EXTRACT(QUARTER FROM sale_date)::INT AS q,\n    SUM(amount) AS revenue\n  FROM sales_ledger\n  WHERE EXTRACT(YEAR FROM sale_date) = 2026\n  GROUP BY business_unit, EXTRACT(QUARTER FROM sale_date)\n),\nranked AS (\n  SELECT\n    business_unit, q, revenue,\n    SUM(revenue) OVER (\n      PARTITION BY business_unit ORDER BY q\n      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n    ) AS running_total\n  FROM quarterly\n)\nSELECT\n  business_unit,\n  SUM(CASE WHEN q = 1 THEN revenue ELSE 0 END) AS q1,\n  SUM(CASE WHEN q = 2 THEN revenue ELSE 0 END) AS q2,\n  SUM(CASE WHEN q = 3 THEN revenue ELSE 0 END) AS q3,\n  SUM(CASE WHEN q = 4 THEN revenue ELSE 0 END) AS q4,\n  MAX(running_total) AS full_year_total\nFROM ranked\nGROUP BY business_unit\nORDER BY business_unit;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "cte",
+      "window-functions",
+      "financial-analytics",
+      "conditional-aggregation"
+    ],
+    "question": "From the transaction-level `sales_ledger`, build a per-business-unit quarterly report for 2026. In a first CTE aggregate revenue per business unit per quarter; in a second CTE add a window-function running total of revenue across quarters; then pivot the four quarters into columns `q1`\u2013`q4` and surface the cumulative `full_year_total`."
   }
 ]
