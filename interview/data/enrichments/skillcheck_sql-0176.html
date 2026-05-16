@@ -1,0 +1,90 @@
+<p>Detecting a run of three or more strictly increasing values in time-ordered data is a sequence-pattern problem that appears in fraud detection (escalating transaction amounts), sports analytics (win streaks), and financial monitoring (sustained growth). The interviewer is probing the <strong>double-LAG</strong> technique: compute the previous two values as window columns, then filter for positions where all three form a strict ascending triple &mdash; a purely set-based approach that avoids recursive CTEs or self-joins.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>10</td><td rowspan="3">10 &rarr; 20 &rarr; 30: strictly increasing run of 3</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>20</td></tr>
+    <tr><td>1</td><td>2025-01-03</td><td>30</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>50</td><td rowspan="4">50, 40, 60, 80: drop then rise; 40&rarr;60&rarr;80 is a run of 3</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>40</td></tr>
+    <tr><td>2</td><td>2025-01-03</td><td>60</td></tr>
+    <tr><td>2</td><td>2025-01-04</td><td>80</td></tr>
+    <tr><td>3</td><td>2025-01-01</td><td>10</td><td rowspan="3">10, 10, 20: tie breaks the run (not strictly increasing)</td></tr>
+    <tr><td>3</td><td>2025-01-02</td><td>10</td></tr>
+    <tr><td>3</td><td>2025-01-03</td><td>20</td></tr>
+    <tr><td>4</td><td>2025-01-01</td><td>5</td><td rowspan="4">5&rarr;15&rarr;25&rarr;35: run of 4, clearly qualifies</td></tr>
+    <tr><td>4</td><td>2025-01-02</td><td>15</td></tr>
+    <tr><td>4</td><td>2025-01-03</td><td>25</td></tr>
+    <tr><td>4</td><td>2025-01-04</td><td>35</td></tr>
+    <tr><td>5</td><td>2025-01-01</td><td>100</td><td>single order &mdash; cannot form a triple</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; double-LAG window function</h4>
+<pre><code>WITH w AS (
+  SELECT customer_id,
+         amount,
+         LAG(amount, 1) OVER (PARTITION BY customer_id ORDER BY order_date) AS prev1,
+         LAG(amount, 2) OVER (PARTITION BY customer_id ORDER BY order_date) AS prev2
+  FROM orders
+)
+SELECT DISTINCT customer_id
+FROM w
+WHERE prev2 IS NOT NULL
+  AND prev2 &lt; prev1
+  AND prev1 &lt; amount
+ORDER BY customer_id;</code></pre>
+<p>For each order row, the CTE computes the one-step-back amount (<code>prev1</code>) and two-steps-back amount (<code>prev2</code>). The outer query filters for any row where the triple <code>(prev2, prev1, amount)</code> is strictly ascending. <code>prev2 IS NOT NULL</code> guards against the first two rows per customer where no complete triple exists. <code>DISTINCT</code> deduplicates customers who have multiple qualifying triples.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>Window values per customer (hand-traced):</p>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th><th>prev1</th><th>prev2</th><th>prev2&lt;prev1&lt;amount?</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>NULL</td><td>NULL</td><td>no (prev2 IS NULL)</td></tr>
+    <tr><td>1</td><td>20</td><td>10</td><td>NULL</td><td>no (prev2 IS NULL)</td></tr>
+    <tr><td>1</td><td>30</td><td>20</td><td>10</td><td><strong>YES</strong> (10&lt;20&lt;30)</td></tr>
+    <tr><td>2</td><td>50</td><td>NULL</td><td>NULL</td><td>no</td></tr>
+    <tr><td>2</td><td>40</td><td>50</td><td>NULL</td><td>no</td></tr>
+    <tr><td>2</td><td>60</td><td>40</td><td>50</td><td>no (50 &gt; 40, not increasing)</td></tr>
+    <tr><td>2</td><td>80</td><td>60</td><td>40</td><td><strong>YES</strong> (40&lt;60&lt;80)</td></tr>
+    <tr><td>3</td><td>10</td><td>NULL</td><td>NULL</td><td>no</td></tr>
+    <tr><td>3</td><td>10</td><td>10</td><td>NULL</td><td>no</td></tr>
+    <tr><td>3</td><td>20</td><td>10</td><td>10</td><td>no (10 = 10, not strictly &lt;)</td></tr>
+    <tr><td>4</td><td>5</td><td>NULL</td><td>NULL</td><td>no</td></tr>
+    <tr><td>4</td><td>15</td><td>5</td><td>NULL</td><td>no</td></tr>
+    <tr><td>4</td><td>25</td><td>15</td><td>5</td><td><strong>YES</strong> (5&lt;15&lt;25)</td></tr>
+    <tr><td>4</td><td>35</td><td>25</td><td>15</td><td>YES (15&lt;25&lt;35)</td></tr>
+    <tr><td>5</td><td>100</td><td>NULL</td><td>NULL</td><td>no</td></tr>
+  </tbody>
+</table>
+<p>Qualifying customers: 1, 2, 4. Customer 3 fails because the tie at 10 breaks strict monotonicity. Customer 5 has only one row. Customer 2 is notable: the first triple (50, 40, 60) does not qualify, but the second (40, 60, 80) does.</p>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why double-LAG is the right tool</h5>
+<p><code>LAG(amount, 1)</code> and <code>LAG(amount, 2)</code> bring the previous two amounts into the current row as regular column values. At that point the condition <code>prev2 &lt; prev1 AND prev1 &lt; amount</code> is a simple scalar comparison that the engine evaluates in a single pass. No self-join (which produces O(n&sup2;) intermediate rows), no recursive CTE (which iterates until convergence), just a sort once per partition and a predicate filter. This is exactly the pattern the question requires and the most efficient approach for detecting fixed-length runs.</p>
+
+<h5>The NULL guard and why it must be on <code>prev2</code></h5>
+<p>The first row per customer has <code>prev1 = NULL, prev2 = NULL</code>; the second row has <code>prev1 = value, prev2 = NULL</code>. Comparing NULL with <code>&lt;</code> returns NULL, not FALSE, so <code>WHERE prev2 &lt; prev1</code> would silently exclude those rows anyway. However, explicitly writing <code>prev2 IS NOT NULL</code> makes the intent clear and avoids relying on the three-valued logic of NULL comparisons. Checking only <code>prev1 IS NOT NULL</code> would be insufficient &mdash; the third row in the partition (the first with a complete triple) has both prev1 and prev2 non-null; the second row has prev1 non-null but prev2 null, and <code>NULL &lt; prev1</code> evaluates to NULL (excluded), so in practice just checking <code>prev2 IS NOT NULL</code> is the minimal correct guard.</p>
+
+<h5>Strict vs non-strict inequality</h5>
+<p>The question asks for <em>strictly</em> increasing, so <code>&lt;</code> is correct. Customer 3's sequence 10, 10, 20 fails because the first pair is not strictly less than. If the requirement were "non-decreasing" (allowing plateaus), <code>&le;</code> would be used instead. Always clarify whether ties break the run.</p>
+
+<h5>Extending to runs of length 4 or more</h5>
+<p>For a run of 4, add <code>LAG(amount, 3)</code> and extend the comparison chain. For a variable-length run of at least <em>k</em>, the double-LAG idiom reaches its limit (you would need <em>k&minus;1</em> LAG calls); at that point a recursive CTE or a gaps-and-islands approach using <code>SUM(CASE WHEN &hellip; THEN 0 ELSE 1 END) OVER (&hellip;)</code> to mark run boundaries becomes more maintainable. For <em>k</em> = 3 the two-LAG solution is idiomatic and preferred.</p>
+
+<h5>Dialect notes</h5>
+<p><code>LAG</code> with an offset argument is standard SQL and supported by PostgreSQL, MySQL 8+, SQL Server 2012+, BigQuery, Snowflake, and Oracle. SQLite 3.25+ supports <code>LAG</code>. The query is fully portable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for double-LAG to detect three-element sequences in a single pass without a self-join or recursive CTE; use <code>prev2 IS NOT NULL</code> explicitly to mark complete triples; use strict <code>&lt;</code> and discuss the non-strict variant; and explain why this pattern is O(n log n) vs the O(n&sup2;) self-join alternative.</div>

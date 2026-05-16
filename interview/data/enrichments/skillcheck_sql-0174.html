@@ -1,0 +1,57 @@
+<p>Fetching the most recent row per group from an append-only log is one of the highest-frequency patterns in production analytics: current account status, latest order state, most recent device telemetry. The interviewer is probing whether you know PostgreSQL's <code>DISTINCT ON</code> extension &mdash; a concise, planner-friendly alternative to the window-function subquery &mdash; and whether you understand its precise semantics: the <code>ORDER BY</code> inside the clause both selects the winning row <em>and</em> drives the output order.</p>
+
+<h4>1. The source data &mdash; <code>status_log</code></h4>
+<table>
+  <thead><tr><th>entity_id</th><th>ts</th><th>status</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 09:00</td><td>open</td><td>earliest for entity 1</td></tr>
+    <tr><td>1</td><td>2025-01-02 10:00</td><td>active</td><td>intermediate</td></tr>
+    <tr><td>1</td><td>2025-01-05 11:00</td><td>closed</td><td>latest for entity 1</td></tr>
+    <tr><td>2</td><td>2025-02-01 09:00</td><td>open</td><td>earliest for entity 2</td></tr>
+    <tr><td>2</td><td>2025-02-10 09:00</td><td>pending</td><td>latest for entity 2</td></tr>
+    <tr><td>3</td><td>2025-03-01 09:00</td><td>open</td><td>tie in ts &mdash; alphabetically later status wins</td></tr>
+    <tr><td>3</td><td>2025-03-01 09:00</td><td>reopened</td><td>same ts as above; "reopened" &gt; "open" lexicographically</td></tr>
+  </tbody>
+</table>
+<p>Entity 3 has two rows with identical timestamps &mdash; the tie-break requirement. Alphabetically, <code>reopened</code> &gt; <code>open</code>, so <code>ORDER BY &hellip; status DESC</code> places <code>reopened</code> first, and <code>DISTINCT ON</code> selects it.</p>
+
+<h4>2. The SQL &mdash; Postgres DISTINCT ON</h4>
+<pre><code>SELECT DISTINCT ON (entity_id) entity_id, ts, status
+FROM status_log
+ORDER BY entity_id, ts DESC, status DESC;</code></pre>
+<p><code>DISTINCT ON (entity_id)</code> keeps exactly one row per <code>entity_id</code> &mdash; whichever comes first in the <code>ORDER BY</code>. With <code>ORDER BY entity_id, ts DESC, status DESC</code>, the row with the largest <code>ts</code> for each entity appears first; ties in <code>ts</code> are broken by <code>status DESC</code> (reverse alphabetical). The output is then sorted by <code>entity_id</code> ASC because that is the leftmost ORDER BY key.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>entity_id</th><th>ts</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-05 11:00</td><td>closed</td></tr>
+    <tr><td>2</td><td>2025-02-10 09:00</td><td>pending</td></tr>
+    <tr><td>3</td><td>2025-03-01 09:00</td><td>reopened</td></tr>
+  </tbody>
+</table>
+<p>Entity 1: three rows; <code>ts DESC</code> puts 2025-01-05 first &rarr; <code>closed</code>. Entity 2: two rows; 2025-02-10 &gt; 2025-02-01 &rarr; <code>pending</code>. Entity 3: two rows with equal <code>ts</code>; <code>status DESC</code> puts <code>reopened</code> before <code>open</code> &rarr; <code>reopened</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How <code>DISTINCT ON</code> works</h5>
+<p>PostgreSQL evaluates <code>DISTINCT ON (cols)</code> after sorting by the full <code>ORDER BY</code> clause: it scans the sorted result and emits only the first row seen for each distinct combination of <code>(cols)</code>. The key rule: <strong>the <code>DISTINCT ON</code> columns must be the leftmost keys in <code>ORDER BY</code></strong>. The remaining ORDER BY keys control which row within each group is selected; they do not impose a separate sort on the output beyond the first key. Violating this constraint &mdash; putting non-DISTINCT-ON keys before the DISTINCT-ON key in ORDER BY &mdash; is a PostgreSQL error.</p>
+
+<h5>Equivalent window-function approach (portable SQL)</h5>
+<p>The portable equivalent uses <code>ROW_NUMBER()</code>:</p>
+<pre><code>SELECT entity_id, ts, status
+FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY ts DESC, status DESC) AS rn
+  FROM status_log
+) t
+WHERE rn = 1
+ORDER BY entity_id;</code></pre>
+<p>This works on PostgreSQL, MySQL 8+, SQL Server, BigQuery, Snowflake, and Oracle. It is slightly more verbose and may require a subquery or CTE, but it is the correct answer on any engine that lacks <code>DISTINCT ON</code>. In an interview, knowing both forms and their trade-offs is the senior signal.</p>
+
+<h5>When <code>DISTINCT ON</code> beats <code>ROW_NUMBER</code> on performance</h5>
+<p>With an index on <code>status_log(entity_id, ts DESC)</code>, the PostgreSQL planner can satisfy <code>DISTINCT ON</code> with an index-only scan: it reads one row per entity from the index tip and stops, never needing to materialise the full sorted set. <code>ROW_NUMBER</code> in a subquery forces the planner to compute all row numbers before filtering &mdash; it cannot short-circuit. For tables with millions of log entries and hundreds of entities, this difference can be an order of magnitude. The index should match the <code>DISTINCT ON</code> key and the leading <code>ORDER BY</code> direction.</p>
+
+<h5>Tie-breaking determinism</h5>
+<p>Append-only logs frequently have rows with the same timestamp (batch imports, clock skew). Without a stable tie-break in <code>ORDER BY</code>, the winner among tied rows is arbitrary and may change between query runs. The <code>status DESC</code> secondary sort makes the result deterministic. In production, a surrogate sequence column (e.g. <code>log_id SERIAL</code>) is often a safer tie-break than a business column, because it reflects insertion order unambiguously.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>DISTINCT ON</code> requires the DISTINCT ON columns to be leftmost in <code>ORDER BY</code>; explain the <code>ROW_NUMBER</code> portable equivalent; mention that an index on <code>(entity_id, ts DESC)</code> lets Postgres short-circuit with one index read per entity rather than sorting the whole table; and always include a deterministic tie-break column.</div>

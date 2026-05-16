@@ -1,0 +1,65 @@
+<p>Macroeconomic analysts ask: <em>"For each country, show the year-over-year GDP growth rate and a 5-year rolling average &mdash; all in one query."</em> This is a multi-window-function problem: <code>LAG</code> fetches the prior year's GDP to compute the growth percentage, while a bounded <code>AVG</code> frame smooths the time series. The interviewer is checking whether you reach for <code>LAG</code> correctly, handle the first-year <code>NULL</code>, guard against division by zero with <code>NULLIF</code>, and can reason about the rolling frame boundary semantics.</p>
+
+<h4>1. The source data &mdash; <code>gdp</code></h4>
+<table>
+  <thead><tr><th>country</th><th>year</th><th>gdp_value</th></tr></thead>
+  <tbody>
+    <tr><td>USA</td><td>2020</td><td>21000</td></tr>
+    <tr><td>USA</td><td>2021</td><td>23000</td></tr>
+    <tr><td>USA</td><td>2022</td><td>25300</td></tr>
+    <tr><td>USA</td><td>2023</td><td>26500</td></tr>
+    <tr><td>USA</td><td>2024</td><td>27800</td></tr>
+    <tr><td>GBR</td><td>2020</td><td>2700</td></tr>
+    <tr><td>GBR</td><td>2021</td><td>2900</td></tr>
+    <tr><td>GBR</td><td>2022</td><td>3100</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; LAG for YoY growth plus rolling 5-year average</h4>
+<pre><code>SELECT country, year, gdp_value,
+       LAG(gdp_value) OVER (PARTITION BY country ORDER BY year) AS prev_gdp,
+       100.0 * (gdp_value - LAG(gdp_value) OVER (PARTITION BY country ORDER BY year))
+             / NULLIF(LAG(gdp_value) OVER (PARTITION BY country ORDER BY year), 0) AS yoy_growth_pct,
+       AVG(gdp_value) OVER (PARTITION BY country ORDER BY year
+                            ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) AS rolling_5yr_avg
+FROM gdp
+ORDER BY country, year;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>country</th><th>year</th><th>gdp_value</th><th>prev_gdp</th><th>yoy_growth_pct</th><th>rolling_5yr_avg</th></tr></thead>
+  <tbody>
+    <tr><td>GBR</td><td>2020</td><td>2700</td><td>NULL</td><td>NULL</td><td>2700.00</td></tr>
+    <tr><td>GBR</td><td>2021</td><td>2900</td><td>2700</td><td>7.407&hellip;</td><td>2800.00</td></tr>
+    <tr><td>GBR</td><td>2022</td><td>3100</td><td>2900</td><td>6.897&hellip;</td><td>2900.00</td></tr>
+    <tr><td>USA</td><td>2020</td><td>21000</td><td>NULL</td><td>NULL</td><td>21000.00</td></tr>
+    <tr><td>USA</td><td>2021</td><td>23000</td><td>21000</td><td>9.524&hellip;</td><td>22000.00</td></tr>
+    <tr><td>USA</td><td>2022</td><td>25300</td><td>23000</td><td>10.000</td><td>23100.00</td></tr>
+    <tr><td>USA</td><td>2023</td><td>26500</td><td>25300</td><td>4.743&hellip;</td><td>23950.00</td></tr>
+    <tr><td>USA</td><td>2024</td><td>27800</td><td>26500</td><td>4.906&hellip;</td><td>24720.00</td></tr>
+  </tbody>
+</table>
+<p>Sample derivations: USA 2021 YoY = 100 &times; (23000 &minus; 21000) / 21000 &asymp; 9.52%. USA rolling_5yr_avg for 2022 = (21000+23000+25300)/3 = 23100 (only 3 rows exist so far for USA, the frame shrinks at the boundary). USA 2024 rolling = (23000+25300+26500+27800+21000? No &mdash; the 5 preceding rows are 2020&ndash;2024: avg(21000,23000,25300,26500,27800) = 124600/5 = 24920 &mdash; note: correcting: GBR partition is separate, USA 2024 frame = years 2020 through 2024 = (21000+23000+25300+26500+27800)/5 = 24720).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>LAG</code> for period-over-period deltas</h5>
+<p><code>LAG(gdp_value) OVER (PARTITION BY country ORDER BY year)</code> fetches the value from the previous row within the same country partition. On the first year for each country there is no prior row, so <code>LAG</code> returns <code>NULL</code>. The YoY calculation then produces <code>NULL</code> for that row, which is correct &mdash; there is no growth rate to compute. An alternative is <code>LAG(gdp_value, 1, 0)</code> where the third argument provides a default, but a default of 0 would produce a division-by-zero or an artificially large growth rate; <code>NULL</code> is the right semantic for "not applicable."</p>
+
+<h5><code>NULLIF</code> &mdash; division-by-zero guard</h5>
+<p><code>NULLIF(LAG(gdp_value) ..., 0)</code> converts a zero prior GDP to <code>NULL</code>, making the division produce <code>NULL</code> rather than a runtime error or infinity. This matters because historical GDP values can be zero (new countries, data gaps). Without the guard, a single zero prior value crashes the entire query in Postgres and SQL Server, though some engines (BigQuery, MySQL) return <code>NULL</code> or <code>Inf</code> silently. Always guard with <code>NULLIF</code> in financial calculations.</p>
+
+<h5>The rolling frame &mdash; <code>ROWS BETWEEN 4 PRECEDING AND CURRENT ROW</code></h5>
+<p>This frame includes up to 5 rows: the current row plus up to 4 preceding rows within the country partition. When fewer than 5 rows exist (e.g., the first 4 years of a country's data), the frame automatically shrinks to however many rows are available &mdash; so the "rolling 5-year average" is effectively a growing average at the start of each country's history. This is the correct behaviour for a standard rolling mean. If you require exactly 5 years of data before producing a result, wrap the whole query and filter <code>WHERE year &gt;= MIN(year) OVER (PARTITION BY country) + 4</code>.</p>
+
+<h5>ROWS vs RANGE framing</h5>
+<p>The query uses <code>ROWS BETWEEN 4 PRECEDING AND CURRENT ROW</code>. The alternative, <code>RANGE BETWEEN</code>, uses logical value distance rather than physical row distance. With <code>RANGE</code> and <code>ORDER BY year</code>, if two rows share the same <code>year</code> they are both treated as the "current" position &mdash; duplicate years would expand the frame unexpectedly. <code>ROWS</code> mode counts physical rows and is deterministic when years are unique per country. Always prefer <code>ROWS</code> for time-series rolling calculations where the ordering column is dense and unique per partition.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Snowflake / Postgres / BigQuery / SQL Server:</strong> all support <code>LAG</code>, <code>NULLIF</code>, and the <code>ROWS BETWEEN ... PRECEDING</code> frame syntax as written.</li>
+  <li><strong>MySQL:</strong> supports window functions from version 8.0; <code>LAG</code> and <code>AVG OVER (ROWS BETWEEN ...)</code> work identically.</li>
+  <li><strong>Repeated LAG expression:</strong> the query calls <code>LAG(...)</code> three times for the same window. In Snowflake/Postgres, optimisers typically common-subexpression-eliminate this. For readability and guaranteed de-duplication, refactor with a CTE: compute <code>LAG(gdp_value) AS prev_gdp</code> once, then reference <code>prev_gdp</code> in the growth calculation.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate that <code>LAG</code> returns <code>NULL</code> for the first partition row (correct, not a bug), explain why <code>NULLIF(..., 0)</code> is mandatory before division, distinguish <code>ROWS</code> from <code>RANGE</code> frames for rolling time-series calculations, and offer the CTE refactor to avoid repeating the <code>LAG</code> expression three times.</div>

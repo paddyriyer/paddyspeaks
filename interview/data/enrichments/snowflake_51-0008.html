@@ -1,0 +1,58 @@
+<p>A customer-support operations team wants a daily call-center dashboard: how many distinct customers called each day, and what was the total call time in both seconds and minutes? The interviewer is probing correct use of <code>DATE()</code> for timestamp truncation, <code>COUNT(DISTINCT)</code> for unique callers (not total calls), and integer arithmetic for unit conversion — a deceptively simple aggregation that trips candidates on the <code>DISTINCT</code> vs plain <code>COUNT</code> distinction.</p>
+
+<h4>1. The source data &mdash; <code>calls</code></h4>
+<table>
+  <thead><tr><th>call_id</th><th>customer_id</th><th>call_ts</th><th>duration_sec</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>C01</td><td>2025-04-01 09:15:00</td><td>300</td></tr>
+    <tr><td>2</td><td>C02</td><td>2025-04-01 10:30:00</td><td>180</td></tr>
+    <tr><td>3</td><td>C01</td><td>2025-04-01 14:00:00</td><td>420</td></tr>
+    <tr><td>4</td><td>C03</td><td>2025-04-02 08:45:00</td><td>600</td></tr>
+    <tr><td>5</td><td>C01</td><td>2025-04-02 11:00:00</td><td>240</td></tr>
+    <tr><td>6</td><td>C03</td><td>2025-04-02 15:30:00</td><td>360</td></tr>
+  </tbody>
+</table>
+<p>April 1st has 3 calls from 2 distinct customers (C01 called twice). April 2nd has 3 calls from 2 distinct customers (C01 and C03, with C03 calling twice). The distinction between "3 calls" and "2 customers" on each day is the core of this question.</p>
+
+<h4>2. The SQL &mdash; daily aggregation with DISTINCT customer count</h4>
+<pre><code>SELECT DATE(call_ts)             AS day,
+       COUNT(DISTINCT customer_id) AS unique_customers,
+       SUM(duration_sec)           AS total_duration_sec,
+       SUM(duration_sec) / 60      AS total_duration_min
+FROM calls
+GROUP BY DATE(call_ts)
+ORDER BY day;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>day</th><th>unique_customers</th><th>total_duration_sec</th><th>total_duration_min</th></tr></thead>
+  <tbody>
+    <tr><td>2025-04-01</td><td>2</td><td>900</td><td>15</td></tr>
+    <tr><td>2025-04-02</td><td>2</td><td>1,200</td><td>20</td></tr>
+  </tbody>
+</table>
+<p>April 1: calls 1, 2, 3 &rarr; C01, C02, C01. Distinct customers = 2. Durations: 300 + 180 + 420 = 900 sec. 900 / 60 = 15 min. April 2: calls 4, 5, 6 &rarr; C03, C01, C03. Distinct customers = 2. Durations: 600 + 240 + 360 = 1200 sec. 1200 / 60 = 20 min.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>DATE() — extracting the calendar day from a timestamp</h5>
+<p><code>DATE(call_ts)</code> truncates the timestamp to the date portion, collapsing all calls within a calendar day into the same group. The same expression appears in both <code>SELECT</code> and <code>GROUP BY</code> — this is required because the GROUP BY must match the aggregation key exactly. An alternative is <code>DATE_TRUNC('day', call_ts)</code>, which returns a timestamp at midnight; <code>DATE()</code> returns a date type, which is preferable for a date-only report. In Snowflake: <code>DATE(call_ts)</code> or <code>CAST(call_ts AS DATE)</code> — both work. In BigQuery: <code>DATE(call_ts)</code> requires a DATE column or explicit timezone: <code>DATE(call_ts, 'America/New_York')</code>.</p>
+
+<h5>COUNT(DISTINCT) vs COUNT(*) &mdash; the semantic fork</h5>
+<p><code>COUNT(*)</code> would return 3 for each day (total calls placed), not 2 (unique callers). The business metric here is <em>unique customers</em> who contacted support — a customer who called three times on the same day counts once for the "how many people did we serve" KPI. <code>COUNT(DISTINCT customer_id)</code> correctly deduplicates. This is also a common performance bottleneck at scale: <code>COUNT(DISTINCT)</code> requires maintaining a set of seen values, whereas <code>COUNT(*)</code> is a simple counter. Snowflake's <code>HLL_COUNT.DISTINCT</code> (HyperLogLog) offers an approximate but very fast alternative at scale.</p>
+
+<h5>Integer division truncation for minutes</h5>
+<p><code>SUM(duration_sec) / 60</code> uses integer division in most SQL engines, truncating toward zero. 900 / 60 = 15 (exact). 901 / 60 = 15, not 15.02. If you want fractional minutes, cast first: <code>SUM(duration_sec)::NUMERIC / 60</code> (PostgreSQL / Snowflake) or <code>SUM(duration_sec) / 60.0</code> (any dialect). For a dashboard displaying "minutes," truncation is usually fine; for a billing system, fractional accuracy matters.</p>
+
+<h5>Missing days in the result</h5>
+<p>The query only returns days on which at least one call was made. If you need a row for every calendar day (including days with zero calls, e.g., weekends), you would generate a date spine and LEFT JOIN the calls aggregation to it. In Snowflake: <code>GENERATOR(ROWCOUNT =&gt; n)</code> or a date dimension table. In PostgreSQL: <code>generate_series</code>. In BigQuery: <code>UNNEST(GENERATE_DATE_ARRAY(...))</code>.</p>
+
+<h5>Dialect notes</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>DATE(call_ts)</code> works; <code>TO_DATE(call_ts)</code> is equivalent.</li>
+  <li><strong>PostgreSQL:</strong> <code>DATE(call_ts)</code> works; <code>call_ts::date</code> also common.</li>
+  <li><strong>BigQuery:</strong> <code>DATE(call_ts)</code> requires timezone awareness for TIMESTAMP columns.</li>
+  <li><strong>MySQL:</strong> <code>DATE(call_ts)</code> works identically.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately distinguish <code>COUNT(DISTINCT customer_id)</code> (unique people) from <code>COUNT(*)</code> (total calls); note that integer division truncates and explain when to cast for fractional minutes; and mention the date-spine LEFT JOIN pattern for filling in days with zero calls — a frequent follow-up requirement in operational dashboards.</div>

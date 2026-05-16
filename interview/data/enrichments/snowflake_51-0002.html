@@ -1,0 +1,59 @@
+<p>An e-commerce analytics team wants a single flat result showing each order line alongside the customer name, product name, and the computed line total — a four-table join that forms the backbone of almost every order-analysis report. The interviewer is probing whether you understand <em>how</em> to chain joins correctly, where each ON clause sits, and what happens if any link in the chain uses the wrong key.</p>
+
+<h4>1. The source data &mdash; <code>customers</code>, <code>orders</code>, <code>order_items</code>, <code>products</code></h4>
+<table>
+  <thead><tr><th>customers</th><th></th><th>orders</th><th></th><th>order_items</th><th></th><th>products</th></tr></thead>
+  <tbody>
+    <tr><td>customer_id=1, Alice</td><td></td><td>order_id=101, cust=1, $0</td><td></td><td>order_id=101, prod=10, qty=2</td><td></td><td>product_id=10, Widget, $25, Electronics</td></tr>
+    <tr><td>customer_id=2, Bob</td><td></td><td>order_id=102, cust=1, $0</td><td></td><td>order_id=101, prod=20, qty=1</td><td></td><td>product_id=20, Gadget, $50, Electronics</td></tr>
+    <tr><td>customer_id=3, Carol</td><td></td><td>order_id=103, cust=2, $0</td><td></td><td>order_id=102, prod=30, qty=3</td><td></td><td>product_id=30, Book, $15, Media</td></tr>
+    <tr><td></td><td></td><td>order_id=104, cust=3, $0</td><td></td><td>order_id=103, prod=10, qty=1</td><td></td><td>product_id=40, Cable, $8, Electronics</td></tr>
+    <tr><td></td><td></td><td></td><td></td><td>order_id=104, prod=40, qty=4</td><td></td><td></td></tr>
+  </tbody>
+</table>
+<p>Alice has two orders; order 101 contains two different products. Bob and Carol each have one order. The key path is <code>customers &rarr; orders</code> via <code>customer_id</code>, <code>orders &rarr; order_items</code> via <code>order_id</code>, and <code>order_items &rarr; products</code> via <code>product_id</code>.</p>
+
+<h4>2. The SQL &mdash; four-table inner join chain</h4>
+<pre><code>SELECT c.name      AS customer,
+       o.order_id,
+       p.name      AS product,
+       oi.qty,
+       oi.qty * p.price AS line_total
+FROM customers   c
+JOIN orders      o  ON c.customer_id = o.customer_id
+JOIN order_items oi ON o.order_id    = oi.order_id
+JOIN products    p  ON oi.product_id = p.product_id
+ORDER BY o.order_id;</code></pre>
+<p>Each <code>JOIN … ON</code> clause connects the preceding derived result to a new table. The computed column <code>oi.qty * p.price</code> folds quantity and unit price into a single line total without requiring a subquery.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer</th><th>order_id</th><th>product</th><th>qty</th><th>line_total</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>101</td><td>Widget</td><td>2</td><td>$50</td></tr>
+    <tr><td>Alice</td><td>101</td><td>Gadget</td><td>1</td><td>$50</td></tr>
+    <tr><td>Alice</td><td>102</td><td>Book</td><td>3</td><td>$45</td></tr>
+    <tr><td>Bob</td><td>103</td><td>Widget</td><td>1</td><td>$25</td></tr>
+    <tr><td>Carol</td><td>104</td><td>Cable</td><td>4</td><td>$32</td></tr>
+  </tbody>
+</table>
+<p>Five rows &mdash; one per (order, product) pair. Order 101 fans out to two rows because it contains two order_items. <code>ORDER BY o.order_id</code> keeps the lines grouped by order naturally.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why inner joins are correct here</h5>
+<p>All four <code>JOIN</code>s are inner joins, meaning a row is included only if it has a match in every table. That is the right choice when the business definition of an "order line" requires that the customer, order, item, and product all exist. An orphaned order_item row with no matching product would silently disappear — which is usually the correct behaviour for an anomalous row. If the requirement were "show all order_items even when the product has been deleted," a <code>LEFT JOIN products</code> at the last step would be needed, with <code>COALESCE(p.name, 'UNKNOWN')</code> for the name and <code>COALESCE(p.price, 0)</code> for the computation.</p>
+
+<h5>Join key correctness &mdash; the most common interview error</h5>
+<p>The key mistake candidates make is joining on the wrong column — for instance writing <code>JOIN order_items oi ON c.customer_id = oi.order_id</code> (crossing customer ID with order ID). A production schema with integer surrogate keys makes this easy to get wrong because the types match even when the semantics do not. Always trace the primary-key &rarr; foreign-key relationship explicitly: <code>customers.customer_id &rarr; orders.customer_id</code>, then <code>orders.order_id &rarr; order_items.order_id</code>, then <code>order_items.product_id &rarr; products.product_id</code>.</p>
+
+<h5>Computed column: arithmetic in the SELECT list</h5>
+<p><code>oi.qty * p.price AS line_total</code> is evaluated after all joins are resolved, so both operands are guaranteed to be non-NULL (given inner joins). If <code>price</code> could be NULL (e.g., a price not yet set), wrap it: <code>oi.qty * COALESCE(p.price, 0)</code>. In Snowflake and PostgreSQL, multiplying an integer by a <code>NUMERIC</code> promotes the result to <code>NUMERIC</code>; in MySQL the result type depends on the column declarations — explicit <code>CAST</code> can prevent surprise truncation.</p>
+
+<h5>Performance: join order and optimizer hints</h5>
+<p>Modern optimizers (Snowflake, Postgres, BigQuery) choose the join order themselves based on statistics. However, the <em>written</em> order matters for readability and for databases with weaker optimizers (older MySQL). A useful heuristic: join the most restrictive filter first to reduce cardinality early. On large tables in Snowflake, a cluster key on <code>orders(customer_id)</code> and <code>order_items(order_id)</code> enables micro-partition pruning for the join columns.</p>
+
+<h5>Dialect notes</h5>
+<p>The <code>JOIN … ON</code> syntax is fully portable across Snowflake, PostgreSQL, BigQuery, and MySQL. The arithmetic expression in the SELECT list is also universal. BigQuery users working with nested data (where order_items might be an <code>ARRAY</code> inside the orders table) would instead use <code>CROSS JOIN UNNEST(o.items) AS oi</code> — a structurally different but semantically equivalent unnest pattern rather than a separate table join.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> trace each join key pair explicitly (PK &rarr; FK), explain why inner vs LEFT joins differ in what rows survive, note that a NULL-able price column requires <code>COALESCE</code> before arithmetic, and mention that Snowflake's optimizer picks join order from statistics — but clustering keys on the join columns make micro-partition pruning effective at scale.</div>

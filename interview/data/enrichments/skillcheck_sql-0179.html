@@ -1,0 +1,78 @@
+<p>Finding the first month where revenue growth exceeded a threshold <em>and</em> the prior month also grew is a compound sequential condition on a time series &mdash; a pattern used in finance for breakout detection and in SaaS for identifying when growth is accelerating, not just spiking. The interviewer is probing whether you can express multi-month lookback conditions concisely using double-LAG and strict inequality, without resorting to a self-join or multiple subqueries.</p>
+
+<h4>1. The source data &mdash; <code>monthly_revenue</code></h4>
+<table>
+  <thead><tr><th>month_start</th><th>revenue</th><th>MoM growth</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>1000</td><td>&mdash;</td><td>baseline</td></tr>
+    <tr><td>2024-02-01</td><td>1050</td><td>+5.00%</td><td>mild growth</td></tr>
+    <tr><td>2024-03-01</td><td>900</td><td>&minus;14.29%</td><td>decline</td></tr>
+    <tr><td>2024-04-01</td><td>950</td><td>+5.56%</td><td>recovery, but prior month declined</td></tr>
+    <tr><td>2024-05-01</td><td>1100</td><td>+15.79%</td><td>strong growth, but prior growth (Apr) &lt; 20%</td></tr>
+    <tr><td>2024-06-01</td><td>1400</td><td>+27.27%</td><td>QUALIFIES: prior (May) grew &amp; current &gt;20%</td></tr>
+    <tr><td>2024-07-01</td><td>1500</td><td>+7.14%</td><td>growth but under 20% threshold</td></tr>
+    <tr><td>2024-08-01</td><td>2100</td><td>+40.00%</td><td>QUALIFIES too, but June is first &rarr; excluded by LIMIT 1</td></tr>
+  </tbody>
+</table>
+<p>May is a near-miss: revenue grew 15.79% which is below the 20% threshold. June breaks through at 27.27%, and May (the prior month) had positive growth, satisfying both conditions. June is the earliest qualifying month.</p>
+
+<h4>2. The SQL &mdash; double LAG for two-month lookback</h4>
+<pre><code>WITH g AS (
+  SELECT month_start, revenue,
+         LAG(revenue) OVER (ORDER BY month_start) AS prev_revenue,
+         LAG(revenue, 2) OVER (ORDER BY month_start) AS prev2_revenue
+  FROM monthly_revenue
+)
+SELECT month_start,
+       prev_revenue,
+       revenue,
+       ROUND(((revenue - prev_revenue) / NULLIF(prev_revenue, 0) * 100)::numeric, 2) AS mom_growth_pct
+FROM g
+WHERE prev_revenue IS NOT NULL AND prev2_revenue IS NOT NULL
+  AND prev_revenue &gt; prev2_revenue
+  AND (revenue - prev_revenue) / NULLIF(prev_revenue, 0) &gt; 0.20
+ORDER BY month_start
+LIMIT 1;</code></pre>
+<p><code>LAG(revenue)</code> is the previous month's revenue; <code>LAG(revenue, 2)</code> is two months back. The condition <code>prev_revenue &gt; prev2_revenue</code> checks that the prior month itself had positive MoM growth. The threshold check <code>&gt; 0.20</code> applies to the current month. <code>NULLIF(prev_revenue, 0)</code> prevents division by zero if any month had zero revenue. <code>LIMIT 1</code> returns only the earliest qualifying month.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>CTE <code>g</code> values (hand-traced):</p>
+<table>
+  <thead><tr><th>month_start</th><th>revenue</th><th>prev_revenue</th><th>prev2_revenue</th><th>prev &gt; prev2?</th><th>growth &gt; 20%?</th><th>qualifies?</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>1000</td><td>NULL</td><td>NULL</td><td>&mdash;</td><td>&mdash;</td><td>no (NULL guard)</td></tr>
+    <tr><td>2024-02-01</td><td>1050</td><td>1000</td><td>NULL</td><td>&mdash;</td><td>&mdash;</td><td>no (NULL guard)</td></tr>
+    <tr><td>2024-03-01</td><td>900</td><td>1050</td><td>1000</td><td>NO (1050&gt;1000)</td><td>no (&minus;14%)</td><td>no (growth &lt; 0)</td></tr>
+    <tr><td>2024-04-01</td><td>950</td><td>900</td><td>1050</td><td>NO (900&lt;1050)</td><td>no</td><td>no (prior declined)</td></tr>
+    <tr><td>2024-05-01</td><td>1100</td><td>950</td><td>900</td><td>YES (950&gt;900)</td><td>no (15.79%)</td><td>no (below 20%)</td></tr>
+    <tr><td>2024-06-01</td><td>1400</td><td>1100</td><td>950</td><td>YES (1100&gt;950)</td><td>YES (27.27%)</td><td><strong>YES</strong></td></tr>
+    <tr><td>2024-07-01</td><td>1500</td><td>1400</td><td>1100</td><td>YES (1400&gt;1100)</td><td>no (7.14%)</td><td>no</td></tr>
+    <tr><td>2024-08-01</td><td>2100</td><td>1500</td><td>1400</td><td>YES (1500&gt;1400)</td><td>YES (40.00%)</td><td>yes, but not first</td></tr>
+  </tbody>
+</table>
+<p>Final output (LIMIT 1, first qualifying month):</p>
+<table>
+  <thead><tr><th>month_start</th><th>prev_revenue</th><th>revenue</th><th>mom_growth_pct</th></tr></thead>
+  <tbody>
+    <tr><td>2024-06-01</td><td>1100</td><td>1400</td><td>27.27</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two LAG calls rather than a self-join</h5>
+<p>The two-condition lookback (current month exceeds 20%, prior month also grew) requires values from three consecutive rows: the current row, one row back, and two rows back. A self-join would require joining <code>monthly_revenue</code> to itself twice (on <code>month_start - interval '1 month'</code> and <code>month_start - interval '2 months'</code>), which is verbose, error-prone around gap months, and typically less readable. The double-LAG approach computes all three values as columns in a single pass over the table.</p>
+
+<h5><code>NULLIF(prev_revenue, 0)</code> &mdash; safe division</h5>
+<p><code>NULLIF(x, 0)</code> returns NULL when <code>x = 0</code>, converting division-by-zero from a runtime error to a NULL result. The NULL propagates through the growth calculation, causing that row to fail all comparison conditions and be excluded from the output &mdash; the correct behaviour when a prior month had zero revenue. Using <code>CASE WHEN prev_revenue = 0 THEN NULL ELSE &hellip; END</code> achieves the same effect but is more verbose.</p>
+
+<h5>What "prior month had positive growth" means precisely</h5>
+<p>The condition <code>prev_revenue &gt; prev2_revenue</code> means the revenue in month M-1 exceeded the revenue in month M-2. This is strictly positive MoM growth for the prior month (i.e., at least some growth, not flat). If the business definition of "positive growth" excluded extremely small increases, you might require a minimum percentage rather than strict inequality on revenue. Raising this distinction in the interview shows production experience.</p>
+
+<h5>Rounding and the display vs filter distinction</h5>
+<p>The threshold comparison uses raw division: <code>(revenue - prev_revenue) / NULLIF(prev_revenue, 0) &gt; 0.20</code>. The <code>ROUND</code> function appears only in the output column <code>mom_growth_pct</code>, not in the filter. Never round before comparing to a threshold &mdash; rounding can push a value that is genuinely 20.004% (above the threshold) to 20.00% and a value that is 20.3% (which should qualify) to display cleanly. Keep the filter on the full-precision value and round only for presentation.</p>
+
+<h5>Dialect notes</h5>
+<p>The <code>::numeric</code> cast in <code>ROUND</code> is PostgreSQL-specific; in other engines use <code>CAST(value AS DECIMAL(10,2))</code>. <code>NULLIF</code> is standard SQL. <code>LIMIT 1</code> is PostgreSQL/MySQL/SQLite; SQL Server uses <code>SELECT TOP 1</code>; BigQuery and Snowflake accept <code>LIMIT 1</code>. The rest of the query is fully portable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use double-LAG to express a two-month lookback cleanly in a single pass; apply <code>NULLIF(prev_revenue, 0)</code> to guard against division-by-zero; keep ROUND out of the filter predicate (round only for display); and verify the NULL guards that exclude the first two rows where no complete lookback window exists.</div>

@@ -1,0 +1,86 @@
+<p>Data Vault 2.0 separates concerns that traditional Kimball star schemas conflate: business keys live in hubs, relationships live in links, and descriptive attributes with their history live in satellites. The interviewer is probing whether you understand those three responsibilities, why hubs are append-only keyed on a hash, why satellites are append-only keyed on (hub_hash, load_ts), and why links capture only relationship structure without carrying descriptive attributes. Getting the hash-key pattern and the record_source lineage column right is the key signal.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Hub:</strong> stores the customer&rsquo;s business key plus load metadata. No descriptive attributes. Append-only.</li>
+  <li><strong>Satellite:</strong> stores descriptive attributes (name, email, country, tier) with full history via (hub_hash, load_ts) PK. Append-only; a <code>hash_diff</code> detects attribute changes without column-by-column comparison.</li>
+  <li><strong>Link:</strong> stores the relationship between the customer hub and an account hub. Append-only. Contains only the hub hashes and load metadata &mdash; no attributes.</li>
+  <li><strong>All tables:</strong> must carry <code>record_source</code> for full lineage to the originating system.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>-- Hub: business key + load metadata only
+CREATE TABLE hub_customer (
+  customer_hk        CHAR(32)     NOT NULL,        -- hash of business key
+  customer_bk        VARCHAR(64)  NOT NULL,        -- business / natural key
+  load_ts            TIMESTAMP    NOT NULL,
+  record_source      VARCHAR(50)  NOT NULL,
+  PRIMARY KEY (customer_hk),
+  UNIQUE (customer_bk)
+);
+
+-- Satellite: descriptive attributes, append-only, versioned by load_ts
+CREATE TABLE sat_customer (
+  customer_hk        CHAR(32)     NOT NULL,
+  load_ts            TIMESTAMP    NOT NULL,
+  load_end_ts        TIMESTAMP,                    -- NULL for current version
+  hash_diff          CHAR(32)     NOT NULL,        -- detect attribute changes
+  full_name          VARCHAR(200),
+  email              VARCHAR(200),
+  country            VARCHAR(2),
+  tier               VARCHAR(20),
+  record_source      VARCHAR(50)  NOT NULL,
+  PRIMARY KEY (customer_hk, load_ts),
+  FOREIGN KEY (customer_hk) REFERENCES hub_customer (customer_hk)
+);
+
+-- Link: relationship between hubs (customer &lt;-&gt; account)
+CREATE TABLE link_customer_account (
+  link_hk            CHAR(32)     NOT NULL,        -- hash(customer_hk, account_hk)
+  customer_hk        CHAR(32)     NOT NULL,
+  account_hk         CHAR(32)     NOT NULL,
+  load_ts            TIMESTAMP    NOT NULL,
+  record_source      VARCHAR(50)  NOT NULL,
+  PRIMARY KEY (link_hk),
+  FOREIGN KEY (customer_hk) REFERENCES hub_customer (customer_hk)
+);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>customer_hk</td><td>Hub hash key (surrogate PK)</td><td>MD5 or SHA-1 of customer_bk; deterministic so any source system can compute it independently and join without a lookup. CHAR(32) for MD5 hex.</td></tr>
+    <tr><td>customer_bk</td><td>Natural / business key</td><td>The source system&rsquo;s customer identifier; stored in the hub but never used as a join key by downstream tables &mdash; they join on the hash.</td></tr>
+    <tr><td>load_ts (hub)</td><td>Load metadata</td><td>Timestamp of the first time this business key was seen; the hub is insert-only so this never changes.</td></tr>
+    <tr><td>record_source (hub)</td><td>Lineage column</td><td>Identifies the originating source system (e.g., &lsquo;CRM&rsquo;, &lsquo;ERP&rsquo;). Critical for auditability and for merging records from multiple sources.</td></tr>
+    <tr><td>customer_hk (sat)</td><td>FK &rarr; hub_customer (part of PK)</td><td>Links satellite rows to their hub. Combined with load_ts, forms the composite PK that allows multiple versions per customer.</td></tr>
+    <tr><td>load_ts (sat)</td><td>Version timestamp (part of PK)</td><td>When this version of attributes was loaded. The current version has the latest load_ts where load_end_ts IS NULL.</td></tr>
+    <tr><td>load_end_ts</td><td>Version window close</td><td>NULL for the current row; set to the next load_ts when a new version supersedes it. Enables point-in-time queries.</td></tr>
+    <tr><td>hash_diff</td><td>Change-detection hash</td><td>Hash of all tracked attribute values; ETL compares incoming hash_diff to current hash_diff to determine whether a new satellite row is needed.</td></tr>
+    <tr><td>full_name &hellip; tier</td><td>Descriptive attributes</td><td>All descriptive data lives here, not in the hub. Separating them allows attributes from different source systems to live in separate satellites.</td></tr>
+    <tr><td>link_hk</td><td>Link hash key (PK)</td><td>Deterministic hash of (customer_hk, account_hk); ensures idempotent loads &mdash; re-processing the same relationship produces the same hash and the UNIQUE PK rejects duplicates.</td></tr>
+    <tr><td>account_hk</td><td>FK &rarr; hub_account (implied)</td><td>Hash key of the related account hub; the link stores only hashes, never descriptive attributes.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The three Data Vault building blocks</h5>
+<p><strong>Hubs</strong> contain exactly one business key per entity. They are insert-only: once a customer_bk is in the hub, it never changes or moves. <strong>Satellites</strong> contain all descriptive attributes and their history; they are also insert-only (new versions are appended, old ones are closed with load_end_ts). <strong>Links</strong> capture relationships between hubs; they too are insert-only. This append-only design means no UPDATE or DELETE statements ever touch the raw vault &mdash; the entire history of data is preserved by construction.</p>
+
+<h5>Hash keys: deterministic surrogates</h5>
+<p>Unlike integer surrogates generated by a sequence, hash keys are computed: <code>customer_hk = MD5(UPPER(TRIM(customer_bk)))</code>. Because any system can compute the same hash from the same business key, multiple source systems can independently generate and load records without a central key-registry lookup. This is the property that makes Data Vault parallelisable across many load processes &mdash; a critical scalability advantage over Kimball surrogates, which require a central sequence or SEQUENCE object lookup.</p>
+
+<h5>Multiple satellites per hub</h5>
+<p>A single customer hub can have multiple satellite tables: <code>sat_customer_crm</code> (attributes from the CRM), <code>sat_customer_erp</code> (financial attributes from ERP), <code>sat_customer_contact</code> (contact preferences from a marketing system). Each satellite has its own load cadence and schema; adding a new source system adds a satellite without altering the hub or existing satellites. This source-system isolation is a core Data Vault advantage over monolithic staging tables.</p>
+
+<h5>hash_diff: efficient change detection in satellites</h5>
+<p>The ETL computes <code>hash_diff = MD5(CONCAT(full_name, email, country, tier))</code> for each incoming row and compares it to the latest satellite row&rsquo;s <code>hash_diff</code>. If equal, no action; if different, a new satellite row is inserted. This is the same pattern as <code>row_hash</code> in SCD2, but in Data Vault it is called <code>hash_diff</code> by convention. The hash function, field ordering, and null-handling must be consistent across all ETL jobs or spurious new versions will be created.</p>
+
+<h5>Links and relationship history</h5>
+<p>The link captures <em>when</em> a relationship was first observed (load_ts) and from which source (record_source). If the relationship ends (customer closes their account), Data Vault does not delete the link; it adds a link-effectivity satellite (<code>sat_link_customer_account_eff</code>) with an end-date attribute. This keeps the raw vault immutable while still modelling relationship termination. Describing this satellite pattern for link history shows deep Data Vault knowledge.</p>
+
+<h5>Data Vault vs. Kimball</h5>
+<p>Data Vault excels when: source systems are numerous and heterogeneous, auditability is paramount (regulatory environments), and schemas change frequently. Kimball star schemas are simpler to query for business users and perform better in OLAP scenarios with fewer source systems. Data Vault typically has a &ldquo;business vault&rdquo; or &ldquo;information mart&rdquo; layer on top that transforms vault structures into star-schema dimensions and facts for consumption.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <em>all three vault table types are insert-only</em> &mdash; never UPDATE or DELETE &mdash; and why (full historical preservation by construction); justify deterministic hash keys as enabling parallel, source-independent loads without a central sequence lookup; describe the multiple-satellite pattern for source-system isolation; and note that Data Vault typically feeds a downstream star-schema information mart rather than being queried directly by analysts.</div>

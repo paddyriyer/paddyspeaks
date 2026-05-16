@@ -1,0 +1,65 @@
+<p>A symbolic-math pipeline needs to decompose free-text arithmetic expressions into their constituent parts: <em>"Extract all numbers, operators, and parentheses from each expression, and count how many numbers and operators it contains."</em> The interviewer is probing advanced regex usage &mdash; correlated subqueries with <code>regexp_matches</code> and <code>array_agg</code>, non-capturing groups for decimal numbers, and the global (<code>'g'</code>) flag. This is a Hard question precisely because the pattern requires multiple correlated subqueries and the regex syntax is non-trivial.</p>
+
+<h4>1. The source data &mdash; <code>math_inputs</code></h4>
+<table>
+  <thead><tr><th>input_id</th><th>expression</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3 + 4.5 * (2 - 1)</td></tr>
+    <tr><td>2</td><td>(10 / 2) + 7</td></tr>
+    <tr><td>3</td><td>100 * 0.05</td></tr>
+    <tr><td>4</td><td>42</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; correlated subqueries with regexp_matches and array_agg</h4>
+<pre><code>SELECT input_id, expression,
+       (SELECT array_agg(m[1])
+        FROM regexp_matches(expression, '(\d+(?:\.\d+)?)', 'g') m) AS numbers,
+       (SELECT array_agg(m[1])
+        FROM regexp_matches(expression, '([+\-*/])', 'g') m)      AS operators,
+       (SELECT array_agg(m[1])
+        FROM regexp_matches(expression, '([()])', 'g') m)          AS parentheses,
+       (SELECT COUNT(*)
+        FROM regexp_matches(expression, '\d+(?:\.\d+)?', 'g'))     AS number_count,
+       (SELECT COUNT(*)
+        FROM regexp_matches(expression, '[+\-*/]', 'g'))            AS operator_count
+FROM math_inputs;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>input_id</th><th>expression</th><th>numbers</th><th>operators</th><th>parentheses</th><th>number_count</th><th>operator_count</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3 + 4.5 * (2 - 1)</td><td>{3,4.5,2,1}</td><td>{+,*,-}</td><td>{(,)}</td><td>4</td><td>3</td></tr>
+    <tr><td>2</td><td>(10 / 2) + 7</td><td>{10,2,7}</td><td>{/,+}</td><td>{(,)}</td><td>3</td><td>2</td></tr>
+    <tr><td>3</td><td>100 * 0.05</td><td>{100,0.05}</td><td>{*}</td><td>NULL</td><td>2</td><td>1</td></tr>
+    <tr><td>4</td><td>42</td><td>{42}</td><td>NULL</td><td>NULL</td><td>1</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>When <code>regexp_matches</code> finds no matches, it returns zero rows; <code>array_agg</code> of zero rows produces NULL (not an empty array). Row 3 has no parentheses &rarr; NULL. Row 4 has no operators and no parentheses &rarr; both NULL. <code>COUNT(*)</code> of zero rows returns 0 (not NULL), hence row 4 has <code>operator_count = 0</code>, not NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The regex pattern for decimal numbers &mdash; <code>\d+(?:\.\d+)?</code></h5>
+<p><code>\d+</code> matches one or more digits. <code>(?:\.\d+)?</code> is a non-capturing group (<code>(?:...)</code>) that optionally (<code>?</code>) matches a literal dot followed by more digits. Non-capturing vs capturing groups matter here: <code>regexp_matches</code> returns an array of <em>captured</em> groups. The outer capturing group <code>(\d+(?:\.\d+)?)</code> captures the whole number (integer or decimal) as group 1 (<code>m[1]</code>). Using a capturing group for the optional decimal part instead &mdash; <code>(\d+)(\.\d+)?</code> &mdash; would return two groups per match, breaking the <code>m[1]</code> reference.</p>
+
+<h5>Correlated subquery per expression &mdash; what <code>regexp_matches</code> returns</h5>
+<p><code>regexp_matches(text, pattern, 'g')</code> is a Postgres set-returning function: it yields one row per match, where each row is an array of captured groups. Wrapping it in a correlated subquery with <code>array_agg(m[1])</code> collapses the rows back to a single array value. This is the Postgres idiom for "collect all regex matches into an array." The <code>'g'</code> flag means "global" &mdash; find all non-overlapping matches, not just the first.</p>
+
+<h5><code>array_agg</code> vs <code>COUNT(*)</code> on zero rows</h5>
+<p>When no matches exist, <code>array_agg</code> returns NULL (because aggregating zero values with no GROUP BY produces NULL). <code>COUNT(*)</code> returns 0 (the count of zero rows is zero). This asymmetry is visible in the result: <code>operator_count</code> for row 4 is 0, while <code>operators</code> (the array) is NULL. If the consumer needs an empty array instead of NULL for the array columns, use <code>COALESCE((...), ARRAY[]::text[])</code>.</p>
+
+<h5>Character class for operators &mdash; <code>[+\-*/]</code></h5>
+<p>Inside a character class <code>[]</code>, the minus sign must be escaped as <code>\-</code> (or placed at the start/end of the class) to prevent it from being interpreted as a range indicator. <code>[+-*/]</code> would be parsed as "characters in the range + through *, then /" which is not what's intended. <code>[+\-*/]</code> is the correct literal match for the four arithmetic operators. The <code>*</code> inside a character class is literal; outside a class it is a quantifier.</p>
+
+<h5>Performance &mdash; five correlated subqueries per row</h5>
+<p>Each of the five correlated subqueries re-scans the <code>expression</code> column for every input row. For a small lookup table this is fine. At scale, a single pass using <code>REGEXP_MATCHES</code> in a lateral join (or a single large pattern with alternation) reduces the regex evaluation from 5&times;N to 1&times;N. Snowflake does not have <code>regexp_matches</code> as a set-returning function; use <code>REGEXP_SUBSTR(expression, '\\d+(?:\\.\\d+)?', 1, n)</code> iteratively or Snowflake's <code>FLATTEN(REGEXP_SPLIT_TO_ARRAY(...))</code> pattern.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Postgres:</strong> This query runs as written. <code>regexp_matches</code> with <code>'g'</code> flag is native.</li>
+  <li><strong>Snowflake:</strong> No direct equivalent of <code>regexp_matches</code> as a set-returning function. Use <code>REGEXP_COUNT</code> for counts and repeated <code>REGEXP_SUBSTR</code> with occurrence parameter for extraction.</li>
+  <li><strong>BigQuery:</strong> <code>REGEXP_EXTRACT_ALL(expression, r'\\d+(?:\\.\\d+)?')</code> returns an array of all matches in a single call &mdash; cleaner than the correlated subquery pattern.</li>
+  <li><strong>MySQL:</strong> <code>REGEXP_EXTRACT_ALL</code> is not available before MySQL 8; the correlated subquery pattern does not exist. Regex extraction typically requires UDFs.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain the non-capturing group <code>(?:...)</code> vs capturing group distinction and why it matters for <code>m[1]</code>, articulate that <code>array_agg</code> returns NULL on zero rows while <code>COUNT(*)</code> returns 0 (use <code>COALESCE</code> if an empty array is required), and immediately flag that this Postgres-specific pattern has no direct Snowflake equivalent &mdash; pivot to <code>REGEXP_COUNT</code> and <code>REGEXP_SUBSTR</code> for the Snowflake rewrite.</div>

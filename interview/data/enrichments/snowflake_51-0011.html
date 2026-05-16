@@ -1,0 +1,65 @@
+<p>A film database's data-quality team wants to find every movie with unreported box-office revenue — either an explicit NULL or a stored zero, which means "not recorded." The interviewer is testing whether you know that <code>NULL</code> cannot be detected with <code>= NULL</code> (it requires <code>IS NULL</code>), and that a zero value stored in a numeric column is semantically distinct from NULL but should also be treated as missing data in this context.</p>
+
+<h4>1. The source data &mdash; <code>movies</code></h4>
+<table>
+  <thead><tr><th>movie_id</th><th>title</th><th>release_year</th><th>box_office</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>The Grand Illusion</td><td>1937</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Parasite</td><td>2019</td><td>258000000</td></tr>
+    <tr><td>3</td><td>Dune: Part Two</td><td>2024</td><td>711000000</td></tr>
+    <tr><td>4</td><td>Short Film A</td><td>2022</td><td>0</td></tr>
+    <tr><td>5</td><td>Festival Documentary</td><td>2021</td><td>NULL</td></tr>
+    <tr><td>6</td><td>Student Project</td><td>2023</td><td>0</td></tr>
+    <tr><td>7</td><td>Blockbuster X</td><td>2020</td><td>500000000</td></tr>
+  </tbody>
+</table>
+<p>Rows 1 and 5 have explicit NULLs; rows 4 and 6 have stored zeros — all four should appear in the result. Rows 2, 3, and 7 have genuine positive revenue and should be excluded.</p>
+
+<h4>2. The SQL &mdash; IS NULL plus zero-detection</h4>
+<pre><code>SELECT movie_id, title, release_year
+FROM movies
+WHERE box_office IS NULL
+   OR NULLIF(regexp_replace(box_office::text, '[^-.0-9]', '', 'g'), '')::numeric = 0
+ORDER BY release_year DESC;</code></pre>
+<p><strong>Note on dialect:</strong> the <code>regexp_replace … ::numeric</code> defensive cast is a PostgreSQL pattern for a text-typed column. If <code>box_office</code> is stored as a clean numeric type (INT or DECIMAL), the query simplifies to: <code>WHERE box_office IS NULL OR box_office = 0</code>. In Snowflake with a text column, use <code>TRY_TO_NUMBER(box_office)</code> instead of the regex cast.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>movie_id</th><th>title</th><th>release_year</th></tr></thead>
+  <tbody>
+    <tr><td>6</td><td>Student Project</td><td>2023</td></tr>
+    <tr><td>4</td><td>Short Film A</td><td>2022</td></tr>
+    <tr><td>5</td><td>Festival Documentary</td><td>2021</td></tr>
+    <tr><td>1</td><td>The Grand Illusion</td><td>1937</td></tr>
+  </tbody>
+</table>
+<p>Four rows qualify, ordered by <code>release_year DESC</code>. Rows 2, 3, and 7 are excluded because <code>box_office IS NULL</code> is false and <code>box_office = 0</code> is false (all have positive revenue).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>= NULL</code> never works</h5>
+<p>NULL represents an unknown value. Any comparison with NULL using <code>=</code>, <code>!=</code>, <code>&lt;</code>, etc. evaluates to NULL (not TRUE or FALSE) — and a WHERE clause requires TRUE to include the row. So <code>WHERE box_office = NULL</code> never returns any rows, even when box_office is NULL. The correct test is <code>IS NULL</code> (or <code>IS NOT NULL</code>). This is one of the most common SQL beginner errors and the first thing to verify in a NULL-handling question.</p>
+
+<h5>NULL vs zero: two different problems, one filter</h5>
+<p>NULL means "the value was never recorded." Zero means "the value was recorded as zero" — possibly a valid box-office figure for a film that did not release commercially, or possibly a data entry error meaning "unknown." The business decision to treat both as "missing" is encoded in the <code>OR</code> clause. A purist would store missing data as NULL and never use 0 as a sentinel; real-world data pipelines are rarely that clean, so defensive <code>OR box_office = 0</code> handling is a practical necessity.</p>
+
+<h5>The defensive regex cast — when and why</h5>
+<p>If <code>box_office</code> is typed as TEXT (a schema smell but common with legacy imports), values like "N/A", "$0", or empty string can all appear. The pattern <code>regexp_replace(box_office::text, '[^-.0-9]', '', 'g')</code> strips all non-numeric characters; <code>NULLIF(..., '')</code> converts an empty result (e.g., the input was "N/A") to NULL; the final <code>::numeric</code> cast converts the cleaned string to a number. This is defensive I/O at the database layer. In Snowflake, <code>TRY_TO_NUMBER(box_office)</code> is the idiomatic equivalent and handles parse failures by returning NULL rather than raising an error.</p>
+
+<h5>Simplification for clean schemas</h5>
+<p>On a properly typed schema where <code>box_office</code> is <code>BIGINT</code> or <code>DECIMAL</code>, the query reduces to a two-predicate OR:</p>
+<pre><code>WHERE box_office IS NULL OR box_office = 0</code></pre>
+<p>This is what a senior candidate proposes first, then qualifies with "if the column is text-typed, we need the defensive cast pattern." Proposing the clean solution first and adding complexity only when justified is a hallmark of senior SQL reasoning.</p>
+
+<h5>ORDER BY release_year DESC</h5>
+<p>Ordering by year descending surfaces the most recently released films with missing data first — useful for triage because recent films with missing box-office figures are more likely data pipeline failures, whereas 1937 films (The Grand Illusion) genuinely lack commercial revenue records. This is a business context observation that elevates the answer.</p>
+
+<h5>Dialect notes</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>TRY_TO_NUMBER(box_office)</code> is null-safe; <code>IS NULL</code> works identically.</li>
+  <li><strong>PostgreSQL:</strong> regex cast with <code>::numeric</code> as shown; or use <code>NULLIF(box_office, 0)</code> if the column is already numeric.</li>
+  <li><strong>BigQuery:</strong> <code>SAFE_CAST(box_office AS INT64)</code> returns NULL on failure.</li>
+  <li><strong>MySQL:</strong> <code>CAST(box_office AS SIGNED) = 0</code> returns 0 for non-numeric strings rather than NULL — use <code>IF(box_office REGEXP '^[0-9]+$', CAST(box_office AS SIGNED), NULL) = 0</code> for safe handling.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> open with why <code>= NULL</code> is always wrong (<code>IS NULL</code> is required); distinguish NULL (never recorded) from zero (recorded as zero, possibly sentinel); propose the clean <code>WHERE box_office IS NULL OR box_office = 0</code> first and escalate to the defensive regex only when the column is text-typed; and call out Snowflake's <code>TRY_TO_NUMBER</code> as the idiomatic null-safe alternative to the regex cast.</div>

@@ -1,0 +1,108 @@
+<p>A restaurant reservation system is the canonical example for Postgres <strong>exclusion constraints</strong>: traditional UNIQUE constraints operate on equality, but a double-booking is two rows whose time intervals <em>overlap</em>, not two rows that are <em>equal</em>. The interviewer is probing whether you know that overlap-prevention requires the <code>btree_gist</code> extension, a <code>TSTZRANGE</code> column, and an <code>EXCLUDE USING gist</code> constraint &mdash; and crucially, whether you know to scope the exclusion to only active reservations via a <code>WHERE</code> predicate, so canceled reservations do not block re-booking the same slot.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Restaurant entity:</strong> includes timezone (IANA format) because reservation times must be interpreted in the restaurant's local timezone; overlapping reservations on the same physical table must be prevented at the database layer.</li>
+  <li><strong>Physical table resource:</strong> the thing being booked is a specific physical table (a "4-top by window"), identified within a restaurant; two parties cannot be seated at the same table at the same time.</li>
+  <li><strong>Half-open range:</strong> <code>TSTZRANGE</code> with <code>[start, end)</code> semantics models the reservation window; a party leaving at 21:00 does not conflict with a party arriving at 21:00.</li>
+  <li><strong>Conditional exclusion:</strong> only <code>confirmed</code> and <code>seated</code> reservations are active; <code>canceled</code> and <code>no_show</code> reservations must not participate in the exclusion check so their slots can be re-booked.</li>
+  <li><strong>Status lifecycle:</strong> reservations progress through confirmed &rarr; seated &rarr; completed; they can be canceled or marked no-show at any point before seating.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TABLE restaurant (
+  restaurant_id    BIGSERIAL    PRIMARY KEY,
+  name             VARCHAR(256) NOT NULL,
+  timezone         VARCHAR(64)  NOT NULL,                  -- IANA tz, e.g., 'America/New_York'
+  city             VARCHAR(128),
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE TABLE table_resource (
+  table_id         BIGSERIAL    PRIMARY KEY,
+  restaurant_id    BIGINT       NOT NULL REFERENCES restaurant(restaurant_id) ON DELETE CASCADE,
+  label            VARCHAR(32)  NOT NULL,                  -- '4-top by window'
+  seats            SMALLINT     NOT NULL CHECK (seats &gt; 0),
+  is_active        BOOLEAN      NOT NULL DEFAULT TRUE,
+  UNIQUE (restaurant_id, label)
+);
+CREATE INDEX ix_table_resource_restaurant ON table_resource (restaurant_id);
+
+CREATE TABLE reservation (
+  reservation_id   BIGSERIAL    PRIMARY KEY,
+  table_id         BIGINT       NOT NULL REFERENCES table_resource(table_id),
+  party_id         BIGINT       NOT NULL,                  -- FK to guest/party table omitted
+  party_size       SMALLINT     NOT NULL CHECK (party_size &gt; 0),
+  reservation_range TSTZRANGE   NOT NULL,                  -- [start_ts, end_ts) inclusive-exclusive
+  status           VARCHAR(16)  NOT NULL DEFAULT 'confirmed',  -- 'confirmed','seated','canceled','no_show'
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  canceled_at      TIMESTAMPTZ,
+  -- Prevent overlapping confirmed reservations on the same physical table:
+  EXCLUDE USING gist (
+    table_id WITH =,
+    reservation_range WITH &amp;&amp;
+  ) WHERE (status IN ('confirmed','seated'))
+);
+CREATE INDEX ix_reservation_table_range ON reservation USING gist (table_id, reservation_range);
+CREATE INDEX ix_reservation_party ON reservation (party_id);
+
+-- Insertion path: the database refuses any reservation whose range overlaps an existing
+-- confirmed/seated reservation on the same table; the loser gets a unique-violation that the
+-- application maps to HTTP 409 Conflict.</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+
+<p><em>restaurant</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>restaurant_id</code></td><td>Surrogate PK</td><td>Stable internal FK target; restaurants can be renamed without cascading updates.</td></tr>
+    <tr><td><code>timezone</code></td><td>Locale dimension</td><td>IANA timezone string; reservation times displayed and interpreted in the restaurant's local time to avoid DST bugs.</td></tr>
+  </tbody>
+</table>
+
+<p><em>table_resource</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>table_id</code></td><td>Surrogate PK</td><td>The entity being reserved; referenced by <code>reservation</code> rows.</td></tr>
+    <tr><td><code>label</code></td><td>Natural key within restaurant (UNIQUE)</td><td><code>UNIQUE (restaurant_id, label)</code> prevents duplicate table names within a restaurant.</td></tr>
+    <tr><td><code>seats</code></td><td>Capacity measure</td><td>Allows the booking engine to filter tables with sufficient capacity; <code>CHECK (seats &gt; 0)</code> prevents degenerate rows.</td></tr>
+    <tr><td><code>is_active</code></td><td>Soft-delete flag</td><td>Closed or removed tables are marked inactive without deleting historical reservation records.</td></tr>
+  </tbody>
+</table>
+
+<p><em>reservation</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>reservation_id</code></td><td>Surrogate PK</td><td>Stable identifier for the reservation; returned to the guest and used in URLs.</td></tr>
+    <tr><td><code>table_id</code></td><td>FK &rarr; table_resource</td><td>The physical table being reserved; the exclusion constraint operates on this column.</td></tr>
+    <tr><td><code>party_id</code></td><td>FK &rarr; guest entity</td><td>References the guest party making the reservation; not detailed here but required for guest lookup.</td></tr>
+    <tr><td><code>party_size</code></td><td>Capacity utilization measure</td><td>Must not exceed the table's <code>seats</code>; a CHECK or trigger can enforce this.</td></tr>
+    <tr><td><code>reservation_range</code></td><td>Time interval / exclusion constraint key</td><td><code>TSTZRANGE</code> with <code>[)</code> semantics; the <code>&amp;&amp;</code> operator tests for interval overlap; GiST-indexed for the exclusion constraint and the lookup index.</td></tr>
+    <tr><td><code>status</code></td><td>State machine / exclusion predicate</td><td>Drives the <code>WHERE (status IN ('confirmed','seated'))</code> predicate on the exclusion constraint; canceled reservations exit the exclusion check.</td></tr>
+    <tr><td><code>canceled_at</code></td><td>Audit column (nullable)</td><td>Records when cancellation occurred; required for refund policy logic and analytics.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>btree_gist</code> is required</h5>
+<p>Postgres's built-in GiST operator classes handle range types natively (<code>TSTZRANGE &amp;&amp; TSTZRANGE</code> is a GiST-supported operation). However, the exclusion constraint needs to combine a scalar column (<code>table_id WITH =</code>) with a range column (<code>reservation_range WITH &amp;&amp;</code>) in a <em>single</em> GiST index. The scalar equality operator for integers is not in the default GiST operator class &mdash; <code>btree_gist</code> adds it. Without this extension the <code>EXCLUDE USING gist</code> statement fails with "operator class ... not found for access method gist."</p>
+
+<h5>The <code>WHERE</code> predicate on the exclusion constraint</h5>
+<p>This is the most important subtlety. Without <code>WHERE (status IN ('confirmed','seated'))</code>, canceling a reservation and re-booking the same slot would fail because the canceled row would still participate in the overlap check. The partial exclusion constraint is the database equivalent of a partial index: it is smaller, faster, and semantically correct. When a reservation is canceled, the row remains in the table (for audit purposes) but its status change removes it from the exclusion predicate, freeing the slot for re-booking.</p>
+
+<h5>Application response to exclusion violation</h5>
+<p>A concurrent double-booking attempt raises a <code>PostgreSQL exclusion violation</code> (SQLSTATE 23P01, distinct from a unique violation at 23505). The application must catch this error and return HTTP 409 Conflict to the client, along with a "no availability" message. This is strict serializability for the resource acquisition pattern &mdash; no advisory locks, no SELECT-FOR-UPDATE check-then-insert race; the database enforces it atomically.</p>
+
+<h5>GiST index duality</h5>
+<p>The <code>EXCLUDE USING gist</code> constraint implicitly creates a GiST index that also serves availability queries: <code>SELECT * FROM reservation WHERE table_id = ? AND reservation_range &amp;&amp; tstzrange('2025-05-16 19:00', '2025-05-16 21:00', '[)')</code> is an index scan on the same GiST structure. The additional explicit GiST index (<code>ix_reservation_table_range</code>) is shown for documentation clarity; in practice Postgres may merge these.</p>
+
+<h5>Dialect notes</h5>
+<p><code>TSTZRANGE</code> and <code>EXCLUDE USING gist</code> are Postgres-specific. In <strong>MySQL</strong> and <strong>SQL Server</strong>, there are no range types or exclusion constraints; you must enforce non-overlap with a check-then-insert stored procedure under explicit locking, or with a serializable transaction. In <strong>CockroachDB</strong>, range types are supported as of v22.2 but exclusion constraints are not yet available; the recommended workaround is an advisory lock or an application-level serialized booking service.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that preventing interval overlap requires <code>EXCLUDE USING gist</code> with <code>btree_gist</code> &mdash; not a UNIQUE constraint &mdash; and that the <code>WHERE (status IN ('confirmed','seated'))</code> predicate is not optional: without it, every canceled reservation permanently blocks its time slot, making the system unusable.</div>

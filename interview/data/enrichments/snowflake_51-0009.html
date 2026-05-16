@@ -1,0 +1,59 @@
+<p>An academic citation system needs to display co-authors in a canonical, reproducible order for each paper &mdash; numbered 1, 2, 3 &hellip; according to a declared <code>author_order</code> field, with <code>author_id</code> as a deterministic tiebreaker when two authors share the same declared position. The interviewer is probing whether you can use <code>ROW_NUMBER()</code> with a composite <code>ORDER BY</code> inside a window partition, and whether you understand why <code>ROW_NUMBER</code> is the right function here (vs <code>RANK</code> or <code>DENSE_RANK</code>, which can produce gaps or ties).</p>
+
+<h4>1. The source data &mdash; <code>paper_authors</code></h4>
+<table>
+  <thead><tr><th>paper_id</th><th>author_id</th><th>contribution_score</th><th>author_order</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>A10</td><td>0.8</td><td>1</td></tr>
+    <tr><td>P1</td><td>A20</td><td>0.6</td><td>2</td></tr>
+    <tr><td>P1</td><td>A30</td><td>0.4</td><td>2</td></tr>
+    <tr><td>P2</td><td>A10</td><td>0.9</td><td>1</td></tr>
+    <tr><td>P2</td><td>A40</td><td>0.5</td><td>2</td></tr>
+    <tr><td>P3</td><td>A20</td><td>0.7</td><td>1</td></tr>
+    <tr><td>P3</td><td>A50</td><td>0.3</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Paper P1 has authors A20 and A30 tied at <code>author_order=2</code>. Paper P3 has authors A20 and A50 both at <code>author_order=1</code>. These ties exercise the secondary sort on <code>author_id</code> — A20 &lt; A30 alphabetically, and A20 &lt; A50, so they get the lower sequence number.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER with composite ORDER BY per partition</h4>
+<pre><code>SELECT paper_id, author_id,
+       ROW_NUMBER() OVER (
+         PARTITION BY paper_id
+         ORDER BY author_order, author_id
+       ) AS author_seq
+FROM paper_authors
+ORDER BY paper_id, author_seq;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>paper_id</th><th>author_id</th><th>author_seq</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>A10</td><td>1</td></tr>
+    <tr><td>P1</td><td>A20</td><td>2</td></tr>
+    <tr><td>P1</td><td>A30</td><td>3</td></tr>
+    <tr><td>P2</td><td>A10</td><td>1</td></tr>
+    <tr><td>P2</td><td>A40</td><td>2</td></tr>
+    <tr><td>P3</td><td>A20</td><td>1</td></tr>
+    <tr><td>P3</td><td>A50</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>P1: A10 is unambiguously first (order=1). A20 and A30 share order=2; the tiebreaker is <code>author_id</code> alphabetically, so A20 gets seq=2 and A30 gets seq=3. P3: A20 and A50 both have order=1; A20 &lt; A50 alphabetically, so A20 gets seq=1. Numbering restarts at 1 for each paper because of the PARTITION BY.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why ROW_NUMBER, not RANK or DENSE_RANK</h5>
+<p>The requirement is a <em>gapless sequence</em> starting at 1 for each paper, with no two authors sharing the same sequence number. <code>RANK()</code> would assign seq=2 to both A20 and A30 in paper P1 and then skip to seq=4 for the next author — gaps in the sequence. <code>DENSE_RANK()</code> would assign seq=2 to both and seq=3 next — no gaps but duplicate numbers. Only <code>ROW_NUMBER()</code> guarantees strictly unique, gapless integers, which is exactly what a citation system needs to display "Author 1, Author 2, Author 3."</p>
+
+<h5>Composite ORDER BY as a deterministic tiebreaker</h5>
+<p><code>ORDER BY author_order, author_id</code> is a two-level sort. The primary key is the declared order; the secondary key (<code>author_id</code>) breaks ties deterministically. Without the secondary sort, <code>ROW_NUMBER</code> would still assign unique numbers to tied rows, but the assignment would be non-deterministic — the same query could return a different ordering on repeated runs depending on the physical storage order. A deterministic tiebreaker is required in any production system where the output must be reproducible.</p>
+
+<h5>PARTITION BY resets the counter per group</h5>
+<p><code>PARTITION BY paper_id</code> means the ROW_NUMBER counter resets to 1 for each distinct <code>paper_id</code>. Without the partition, ROW_NUMBER would number all rows globally across all papers (1, 2, 3, 4, 5, 6, 7), which is not the intent. This is the most common beginner mistake with window functions: forgetting the PARTITION BY when the business context is per-group.</p>
+
+<h5>The column <code>contribution_score</code> is unused</h5>
+<p>The schema includes <code>contribution_score</code> but the query sorts by <code>author_order</code> and <code>author_id</code>. A follow-up interviewer question is often: "What if you wanted to rank by contribution score instead?" The answer is simply swap the ORDER BY: <code>ORDER BY contribution_score DESC, author_id</code>. Another follow-up: "How would you also show the author's contribution as a percentage of total paper contribution?" — <code>contribution_score / SUM(contribution_score) OVER (PARTITION BY paper_id)</code>.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)</code> is ANSI SQL:2003 and supported identically in Snowflake, PostgreSQL, BigQuery, MySQL 8+, and SQL Server. There are no dialect differences for this specific pattern. MySQL before version 8.0 does not support window functions at all — a workaround using user-defined variables or correlated subqueries was required, but that is now historical.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain why <code>ROW_NUMBER</code> is the only function that guarantees a unique gapless sequence (vs <code>RANK</code> with gaps and <code>DENSE_RANK</code> with duplicates); stress that the secondary <code>author_id</code> tiebreaker is <em>required</em> for query reproducibility; and offer the contribution-percentage extension (<code>score / SUM(score) OVER (PARTITION BY paper_id)</code>) as a natural follow-on.</div>

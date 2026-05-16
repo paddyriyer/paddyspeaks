@@ -1,0 +1,68 @@
+<p>The monthly cohort retention triangle is a visual staple of growth dashboards: a matrix where rows are signup cohorts and columns are calendar months, with each cell showing what fraction of the original cohort was still active. This question tests whether you can (1) compute the correct month offset using year-month arithmetic rather than raw date subtraction, and (2) deduplicate daily activity rows into distinct monthly presence before grouping.</p>
+
+<h4>1. The source data &mdash; <code>activity</code></h4>
+<table>
+  <thead><tr><th>activity_date</th><th>user_id</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-05</td><td>A</td></tr>
+    <tr><td>2025-01-20</td><td>A</td></tr>
+    <tr><td>2025-02-10</td><td>A</td></tr>
+    <tr><td>2025-03-03</td><td>A</td></tr>
+    <tr><td>2025-01-12</td><td>B</td></tr>
+    <tr><td>2025-02-15</td><td>B</td></tr>
+    <tr><td>2025-02-08</td><td>C</td></tr>
+    <tr><td>2025-03-20</td><td>C</td></tr>
+    <tr><td>2025-03-09</td><td>D</td></tr>
+  </tbody>
+</table>
+<p>Cohort map: A &rarr; Jan 2025 (two rows in January, correctly deduped to one monthly presence); B &rarr; Jan 2025; C &rarr; Feb 2025; D &rarr; Mar 2025. A appears twice in January &mdash; the <code>DISTINCT</code> in the <code>monthly</code> CTE collapses this to one row.</p>
+
+<h4>2. The SQL &mdash; first_month CTE + monthly CTE + year-month offset</h4>
+<pre><code>WITH first_month AS (
+  SELECT user_id, DATE_TRUNC('month', MIN(activity_date))::date AS first_month
+  FROM activity GROUP BY user_id
+),
+monthly AS (
+  SELECT DISTINCT DATE_TRUNC('month', activity_date)::date AS month, user_id FROM activity
+)
+SELECT f.first_month, m.month,
+       (EXTRACT(YEAR FROM m.month) * 12 + EXTRACT(MONTH FROM m.month))
+       - (EXTRACT(YEAR FROM f.first_month) * 12 + EXTRACT(MONTH FROM f.first_month)) AS months_since_first,
+       COUNT(DISTINCT m.user_id) AS active_users
+FROM monthly m JOIN first_month f ON m.user_id = f.user_id
+GROUP BY 1,2,3
+ORDER BY 1,2;</code></pre>
+<p>The month-offset formula converts each date to an absolute month index (year &times; 12 + month), then subtracts &mdash; giving an exact integer offset regardless of month length differences.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>first_month</th><th>month</th><th>months_since_first</th><th>active_users</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>2025-01-01</td><td>0</td><td>2</td></tr>
+    <tr><td>2025-01-01</td><td>2025-02-01</td><td>1</td><td>2</td></tr>
+    <tr><td>2025-01-01</td><td>2025-03-01</td><td>2</td><td>1</td></tr>
+    <tr><td>2025-02-01</td><td>2025-02-01</td><td>0</td><td>1</td></tr>
+    <tr><td>2025-02-01</td><td>2025-03-01</td><td>1</td><td>1</td></tr>
+    <tr><td>2025-03-01</td><td>2025-03-01</td><td>0</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Hand-trace: Jan cohort (A, B). Month 0 = Jan: both active &rarr; 2. Month 1 = Feb: A active, B active &rarr; 2. Month 2 = Mar: A active, B not active &rarr; 1. Feb cohort (C). Month 0 = Feb: C active &rarr; 1. Month 1 = Mar: C active &rarr; 1. Mar cohort (D). Month 0 = Mar: D active &rarr; 1. Note A's two January rows collapse to one distinct monthly record, so A counts once for month 0 of the Jan cohort.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why raw date subtraction gives wrong offsets</h5>
+<p>Subtracting two <code>DATE</code> values in PostgreSQL gives a number of <em>days</em>, not months. February has 28 days, March has 31 &mdash; so "one month later" measured in days varies. The formula <code>year * 12 + month</code> converts both dates to a linear month index and the difference is always an exact integer count of calendar months. This is the central trap in the question; candidates who try <code>(m.month - f.first_month) / 30</code> will get wrong offsets for many pairs.</p>
+
+<h5>DATE_TRUNC to the month</h5>
+<p><code>DATE_TRUNC('month', …)</code> maps any date to the first day of its month &mdash; the canonical representation for both cohort and activity month. Casting to <code>::date</code> strips the timestamp, giving a clean <code>DATE</code>. In BigQuery the equivalent is <code>DATE_TRUNC(date_col, MONTH)</code>; in MySQL it is <code>DATE_FORMAT(date_col, '%Y-%m-01')</code>.</p>
+
+<h5>DISTINCT in the monthly CTE</h5>
+<p>A user active on 10 days in a month should count as one active user for that month &mdash; <code>SELECT DISTINCT … month, user_id</code> enforces this at the CTE level. Without it, the final <code>COUNT(DISTINCT m.user_id)</code> would still deduplicate, but the DISTINCT in the CTE is a self-documenting declaration of intent: "each (month, user) pair appears exactly once." Both work; the CTE DISTINCT is marginally cheaper because it avoids duplicating join output rows.</p>
+
+<h5>Building the retention triangle in the application layer</h5>
+<p>This query produces the raw data (first_month, month, offset, users). In practice a BI tool (Looker, Tableau) or Python (pandas pivot_table) pivots the offsets into columns, colours cells by a retention % relative to month-0, and displays the triangle heat-map. The SQL intentionally stays in the "tall" format, which is the right separation of concerns &mdash; dynamic pivoting belongs in the presentation layer.</p>
+
+<h5>Dialect notes</h5>
+<p>PostgreSQL, BigQuery, Snowflake, and DuckDB all support <code>DATE_TRUNC</code>. SQL Server uses <code>DATEFROMPARTS(YEAR(date_col), MONTH(date_col), 1)</code>. MySQL uses <code>DATE_FORMAT</code>. The year&times;12+month arithmetic is universally portable &mdash; the only "portability" risk is the cast <code>::date</code>, which is PostgreSQL syntax; standard SQL uses <code>CAST(… AS DATE)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute month offsets as <code>(year * 12 + month)</code> differences &mdash; never raw date subtraction, which yields days; use <code>DATE_TRUNC</code> to collapse daily rows to month-level before joining; add <code>DISTINCT</code> in the monthly CTE to deduplicate multi-day activity; and explain that the "tall" SQL output is the right format, with the triangle pivot delegated to the BI or application layer.</div>

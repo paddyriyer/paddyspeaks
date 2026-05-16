@@ -1,0 +1,60 @@
+<p>Data warehouses that ingest product catalogs from multiple upstream systems routinely accumulate duplicate records for the same SKU &mdash; differing only in timestamps or minor field variations. The task is classic deduplication: <em>"For each (sku, product_name) combination, keep only the most recently updated record and discard older duplicates."</em> This tests the <code>ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ... DESC)</code> pattern, which is the industry-standard idiomatic deduplication approach in SQL.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>sku</th><th>product_name</th><th>price</th><th>updated_at</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>SKU-A</td><td>Widget Pro</td><td>29.99</td><td>2025-01-15 10:00:00</td><td>Tools</td></tr>
+    <tr><td>2</td><td>SKU-A</td><td>Widget Pro</td><td>34.99</td><td>2025-03-20 14:30:00</td><td>Tools</td></tr>
+    <tr><td>3</td><td>SKU-A</td><td>Widget Pro</td><td>34.99</td><td>2025-04-01 09:00:00</td><td>Hardware</td></tr>
+    <tr><td>4</td><td>SKU-B</td><td>Gadget Lite</td><td>12.50</td><td>2025-02-10 08:00:00</td><td>Electronics</td></tr>
+    <tr><td>5</td><td>SKU-B</td><td>Gadget Lite</td><td>12.50</td><td>2025-02-10 08:00:00</td><td>Electronics</td></tr>
+    <tr><td>6</td><td>SKU-C</td><td>Mega Bolt</td><td>5.00</td><td>2025-05-01 12:00:00</td><td>Fasteners</td></tr>
+  </tbody>
+</table>
+<p>SKU-A / Widget Pro has three versions; the most recent (<code>updated_at = 2025-04-01</code>) should survive. SKU-B / Gadget Lite has two rows with identical timestamps &mdash; the edge case where <code>ROW_NUMBER</code> breaks the tie arbitrarily. SKU-C / Mega Bolt has one row and should pass through unchanged.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER</code> deduplication pattern</h4>
+<pre><code>SELECT * FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY sku, product_name ORDER BY updated_at DESC) AS rn
+  FROM products
+) t
+WHERE rn = 1;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>sku</th><th>product_name</th><th>price</th><th>updated_at</th><th>category</th><th>rn</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>SKU-A</td><td>Widget Pro</td><td>34.99</td><td>2025-04-01 09:00:00</td><td>Hardware</td><td>1</td></tr>
+    <tr><td>4 <em>or</em> 5</td><td>SKU-B</td><td>Gadget Lite</td><td>12.50</td><td>2025-02-10 08:00:00</td><td>Electronics</td><td>1</td></tr>
+    <tr><td>6</td><td>SKU-C</td><td>Mega Bolt</td><td>5.00</td><td>2025-05-01 12:00:00</td><td>Fasteners</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Three rows survive. Product_id 3 wins for SKU-A because it has the latest <code>updated_at</code>. For SKU-B the tie means either row 4 or row 5 can be rank 1 &mdash; the result is non-deterministic without a tiebreaker. SKU-C passes through unchanged. Note: the <code>rn</code> column appears in <code>SELECT *</code> because the outer SELECT is <code>SELECT *</code> from the subquery that includes <code>rn</code>; in practice, callers would list columns explicitly to exclude it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The ROW_NUMBER deduplication pattern &mdash; and its guarantee</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY dedup_keys ORDER BY recency DESC)</code> assigns rank 1 to exactly one row per partition regardless of ties. This is the right tool when the business rule is "give me <em>one</em> row, I don't care which when there's a tie." When a tie needs to be resolved (e.g. pick the row with the lowest <code>product_id</code> as a stable tiebreaker), add a secondary ORDER BY: <code>ORDER BY updated_at DESC, product_id ASC</code>. Always ask the interviewer whether tie-breaking matters; the answer changes the ORDER BY.</p>
+
+<h5>Partition key choice: why <code>(sku, product_name)</code></h5>
+<p>The schema carries both <code>sku</code> and <code>product_name</code> as the deduplication identity. Using only <code>sku</code> could incorrectly collapse rows for the same SKU assigned to different products (a data-quality scenario). Including both columns makes the identity more specific. In practice, the analyst should verify with the data owner whether the natural key is <code>sku</code> alone, <code>product_name</code> alone, or the composite &mdash; this question surfaces that intent.</p>
+
+<h5>Snowflake's <code>QUALIFY</code> shorthand</h5>
+<p>Snowflake supports the <code>QUALIFY</code> clause that filters on window function results without a subquery wrapper:</p>
+<pre><code>SELECT * FROM products
+QUALIFY ROW_NUMBER() OVER (PARTITION BY sku, product_name ORDER BY updated_at DESC) = 1;</code></pre>
+<p>This is the idiomatic Snowflake deduplication pattern &mdash; one fewer level of nesting, same semantics. Postgres requires the subquery or CTE form.</p>
+
+<h5><code>SELECT *</code> in deduplication queries &mdash; the <code>rn</code> column leak</h5>
+<p>The outer <code>SELECT *</code> includes the synthetic <code>rn</code> column in the result. For an intermediate CTE this is harmless, but inserting into a target table or exposing via a view will include <code>rn</code>. Best practice: list columns explicitly in the outer SELECT, or use <code>SELECT * EXCLUDE (rn)</code> (Snowflake / DuckDB syntax) to drop it cleanly.</p>
+
+<h5>Portability notes</h5>
+<ul>
+  <li><strong>Snowflake:</strong> prefer <code>QUALIFY</code>; <code>SELECT * EXCLUDE (rn)</code> available to drop the synthetic column.</li>
+  <li><strong>Postgres:</strong> subquery or CTE; list columns explicitly to omit <code>rn</code>.</li>
+  <li><strong>BigQuery:</strong> supports <code>QUALIFY</code>; also supports <code>EXCEPT(rn)</code> in the outer SELECT.</li>
+  <li><strong>MySQL:</strong> no <code>QUALIFY</code>; subquery form required.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> call out the tie-breaking risk with <code>ROW_NUMBER</code> when <code>updated_at</code> values are identical, add <code>product_id ASC</code> as a stable secondary sort, name the <code>QUALIFY</code> shorthand in Snowflake, and know that <code>SELECT *</code> leaks the synthetic <code>rn</code> column &mdash; use explicit column lists or <code>EXCLUDE</code> in Snowflake to avoid it.</div>

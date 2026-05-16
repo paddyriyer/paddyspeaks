@@ -1,0 +1,64 @@
+<p>An org-chart tool needs to enumerate every ancestor&ndash;descendant pair in the management hierarchy along with the number of hops between them &mdash; not just immediate manager&ndash;report links but transitive ones at any depth. The interviewer is probing whether you can write a <strong>recursive CTE</strong> that walks the tree upward from every employee, correctly seeds the base case, and accumulates the hop counter without duplicating or losing chains.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>manager_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL (root)</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carla</td><td>1</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td></tr>
+    <tr><td>5</td><td>Erin</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Tree structure: Alice (1) &rarr; Bob (2) &rarr; Dan (4) &rarr; Erin (5); Alice (1) &rarr; Carla (3). Alice is the root (NULL manager_id). Every non-root employee has exactly one chain of ancestors up to Alice.</p>
+
+<h4>2. The SQL &mdash; recursive CTE walking upward</h4>
+<pre><code>WITH RECURSIVE chains AS (
+  SELECT manager_id AS ancestor_id, emp_id AS descendant_id, 1 AS hops
+  FROM employee
+  WHERE manager_id IS NOT NULL
+  UNION ALL
+  SELECT e.manager_id, c.descendant_id, c.hops + 1
+  FROM chains c
+  JOIN employee e ON e.emp_id = c.ancestor_id
+  WHERE e.manager_id IS NOT NULL
+)
+SELECT ancestor_id, descendant_id, hops
+FROM chains
+ORDER BY ancestor_id, descendant_id;</code></pre>
+<p>The base case seeds one row per direct manager&ndash;report edge. Each recursive step climbs one level: it takes the current ancestor and looks up <em>that employee's</em> manager, extending the chain by 1 hop. Recursion stops when the current ancestor is the root (manager_id IS NULL).</p>
+
+<h4>3. The resulting analysis</h4>
+<p>Trace all chains by starting from each non-root employee and climbing:</p>
+<table>
+  <thead><tr><th>ancestor_id</th><th>descendant_id</th><th>hops</th><th>path</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>1</td><td>Bob's direct manager is Alice</td></tr>
+    <tr><td>1</td><td>3</td><td>1</td><td>Carla's direct manager is Alice</td></tr>
+    <tr><td>1</td><td>4</td><td>2</td><td>Dan &rarr; Bob &rarr; Alice</td></tr>
+    <tr><td>1</td><td>5</td><td>3</td><td>Erin &rarr; Dan &rarr; Bob &rarr; Alice</td></tr>
+    <tr><td>2</td><td>4</td><td>1</td><td>Dan's direct manager is Bob</td></tr>
+    <tr><td>2</td><td>5</td><td>2</td><td>Erin &rarr; Dan &rarr; Bob</td></tr>
+    <tr><td>4</td><td>5</td><td>1</td><td>Erin's direct manager is Dan</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Base case design &mdash; edges, not nodes</h5>
+<p>The base case starts with every direct manager&ndash;report edge (one row per non-NULL manager_id). It does <em>not</em> start with every node &mdash; that would require a dummy self-pair (0 hops) to bootstrap the walk, and the question explicitly excludes (X, X) pairs. Starting with edges and hop = 1 is cleaner and directly matches "immediate (hops=1)" in the spec.</p>
+
+<h5>Recursive step &mdash; climbing the tree</h5>
+<p>In each iteration, <code>chains</code> holds paths whose upper end is some ancestor. The recursive SELECT joins <code>employee e</code> on <code>e.emp_id = c.ancestor_id</code> to find that ancestor's own manager. If that manager is non-NULL, a new row extends the path: ancestor becomes the grandparent, descendant stays the same, hops increments by 1. When the current ancestor is Alice (emp_id = 1, manager_id NULL), the WHERE clause <code>e.manager_id IS NOT NULL</code> drops that row, terminating the recursion for paths that have reached the root.</p>
+
+<h5>Correctness check &mdash; no self-pairs, no duplicates</h5>
+<p>The base case uses direct edges (manager_id &ne; emp_id by construction in a valid org tree). The recursive step always moves <em>upward</em> (toward the root), and the tree is acyclic, so no chain can revisit a node. The result set contains exactly one row per (ancestor, descendant) pair: no duplicate paths exist because each distinct <code>(ancestor_id, descendant_id)</code> combination is produced by exactly one root-to-descendant walk.</p>
+
+<h5>Performance &mdash; depth and breadth</h5>
+<p>The recursion depth equals the depth of the deepest chain in the tree (4 hops for Alice&rarr;Erin in this example). Total rows produced is O(D &times; E) where D is tree depth and E is employee count &mdash; in balanced trees this is O(N log N). For wide, flat hierarchies (few levels) this is fast. PostgreSQL enforces a default recursion limit of 100 levels; for very deep trees, set <code>SET max_recursive_iterations = ...</code>. An index on <code>employee(emp_id)</code> is critical for the join in the recursive step.</p>
+
+<h5>Dialect notes</h5>
+<p>PostgreSQL uses <code>WITH RECURSIVE</code>. SQL Server uses <code>WITH ... AS (... UNION ALL ...)</code> without the RECURSIVE keyword. Oracle and MySQL 8+ use <code>WITH RECURSIVE</code>. BigQuery supports recursive CTEs since 2022 with <code>WITH RECURSIVE</code>. Snowflake supports recursive CTEs. The WHERE termination condition is identical across dialects. An alternative without recursive CTEs (available in all engines) is a stored procedure or application-side BFS, but recursive CTEs are the canonical single-query answer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> seed the recursive CTE with direct edges (hops=1) rather than self-pairs (hops=0) to avoid (X,X) rows naturally; terminate by filtering <code>WHERE e.manager_id IS NOT NULL</code> on the ancestor; and explain that tree acyclicity guarantees no duplicate paths, but that you would add a depth guard or cycle detection (<code>CYCLE emp_id SET is_cycle</code> in PostgreSQL 14+) in production to be safe.</div>

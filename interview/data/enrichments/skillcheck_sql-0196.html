@@ -1,0 +1,76 @@
+<p>Cumulative LTV (lifetime value) curves by cohort are the cornerstone metric of subscription and marketplace businesses. The interviewer is probing whether you can (1) identify each user's signup cohort as the week of their first activity, (2) compute a per-cohort-per-offset activity summary, and (3) generate a <em>running cumulative</em> without window functions &mdash; instead using a semi-cartesian self-join of the cohort aggregates to accumulate all weeks up to the current offset.</p>
+
+<h4>1. The source data &mdash; <code>wau</code></h4>
+<table>
+  <thead><tr><th>week</th><th>user_id</th><th>inc_amt</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-06</td><td>A</td><td>20</td></tr>
+    <tr><td>2025-01-06</td><td>B</td><td>10</td></tr>
+    <tr><td>2025-01-13</td><td>A</td><td>15</td></tr>
+    <tr><td>2025-01-13</td><td>C</td><td>30</td></tr>
+    <tr><td>2025-01-20</td><td>A</td><td>5</td></tr>
+    <tr><td>2025-01-20</td><td>B</td><td>8</td></tr>
+    <tr><td>2025-01-20</td><td>C</td><td>12</td></tr>
+  </tbody>
+</table>
+<p>First-week lookup: A and B first appeared 2025-01-06 (cohort Jan 06); C first appeared 2025-01-13 (cohort Jan 13). The key insight to trace: user B is absent in week 2 (2025-01-13) but returns in week 3 (2025-01-20) &mdash; the per-week user count for the Jan-06 cohort at offset 1 is 1 (only A), not 2.</p>
+
+<h4>2. The SQL &mdash; cohort aggregation + semi-cartesian self-join for running totals</h4>
+<pre><code>WITH first_week AS (
+  SELECT user_id, MIN(week) AS first_week FROM wau GROUP BY user_id
+),
+wau_d AS (
+  SELECT w.week, w.user_id, w.inc_amt, f.first_week
+  FROM wau w JOIN first_week f ON w.user_id = f.user_id
+),
+cohorts AS (
+  SELECT first_week, (week - first_week)/7 AS weeks_since_first,
+         COUNT(DISTINCT user_id) AS users, SUM(inc_amt) AS inc_amt
+  FROM wau_d GROUP BY 1,2
+),
+cohort_sizes AS (
+  SELECT first_week, users FROM cohorts WHERE weeks_since_first = 0
+)
+SELECT c1.first_week, c1.weeks_since_first, c1.users,
+       cs.users AS cohort_num_users,
+       ROUND(1.0*c1.users/cs.users, 3) AS retained_pctg,
+       SUM(c2.inc_amt) AS cum_amt,
+       ROUND(1.0*SUM(c2.inc_amt)/cs.users, 2) AS cum_amt_per_user
+FROM cohorts c1
+JOIN cohort_sizes cs ON cs.first_week = c1.first_week
+JOIN cohorts c2 ON c1.first_week = c2.first_week AND c2.weeks_since_first &lt;= c1.weeks_since_first
+GROUP BY 1,2,3,4
+ORDER BY 1,2;</code></pre>
+<p>The trick is the final JOIN: <code>c2.weeks_since_first &lt;= c1.weeks_since_first</code> pulls in all earlier offsets for the same cohort, and the outer <code>SUM(c2.inc_amt)</code> accumulates them into a running total without any window function.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>first_week</th><th>weeks_since_first</th><th>users</th><th>cohort_num_users</th><th>retained_pctg</th><th>cum_amt</th><th>cum_amt_per_user</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-06</td><td>0</td><td>2</td><td>2</td><td>1.000</td><td>30</td><td>15.00</td></tr>
+    <tr><td>2025-01-06</td><td>1</td><td>1</td><td>2</td><td>0.500</td><td>45</td><td>22.50</td></tr>
+    <tr><td>2025-01-06</td><td>2</td><td>2</td><td>2</td><td>1.000</td><td>58</td><td>29.00</td></tr>
+    <tr><td>2025-01-13</td><td>0</td><td>1</td><td>1</td><td>1.000</td><td>30</td><td>30.00</td></tr>
+    <tr><td>2025-01-13</td><td>1</td><td>1</td><td>1</td><td>1.000</td><td>42</td><td>42.00</td></tr>
+  </tbody>
+</table>
+<p>Hand-trace cohort Jan 06: offset 0 &rarr; A(20)+B(10)=30 inc_amt, 2 users; offset 1 (week Jan 13) &rarr; only A active, inc_amt=15; cumulative = 30+15=45; offset 2 (week Jan 20) &rarr; A(5)+B(8)=13; cumulative = 45+13=58. Cohort Jan 13: offset 0 &rarr; only C, inc_amt=30; offset 1 (week Jan 20) &rarr; C(12); cumulative=30+12=42, retained_pctg=1/1=1.000.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The semi-cartesian self-join as a running total</h5>
+<p>The join condition <code>c2.weeks_since_first &lt;= c1.weeks_since_first</code> within the same cohort creates a triangular pairing: for the row at offset 2, <code>c2</code> contributes offsets 0, 1, and 2. Summing <code>c2.inc_amt</code> then aggregating gives the cumulative through each offset. This is the same logic as a triangular self-join for running sums, but applied at the cohort-aggregate level rather than the raw event level &mdash; far cheaper because <code>cohorts</code> has only one row per (cohort, offset) pair.</p>
+
+<h5>Why date arithmetic gives weeks cleanly</h5>
+<p><code>(week - first_week) / 7</code> works because both columns are <code>DATE</code> in PostgreSQL, so subtraction gives an integer number of days; integer division by 7 then gives the zero-based week offset. The schema guarantees each row's <code>week</code> is already a Monday (or consistent weekly boundary), so the division is always exact. If dates were arbitrary timestamps, you would use <code>DATE_TRUNC</code> first. In BigQuery use <code>DATE_DIFF(week, first_week, WEEK)</code>.</p>
+
+<h5>cohort_sizes at offset 0</h5>
+<p>The cohort size (denominator for retention and per-user metrics) is the number of distinct users at offset 0. Defining it from the <code>cohorts</code> CTE where <code>weeks_since_first = 0</code> is clean and consistent. A common mistake is re-counting from the raw table, which can give different numbers if the same user appears more than once in the same week.</p>
+
+<h5>retained_pctg at offset 2 for Jan 06 cohort</h5>
+<p>User B was absent at offset 1 but returned at offset 2, so the users count jumps from 1 back to 2, yielding retained_pctg = 1.000 &mdash; which looks surprising but is correct. In product analytics this week-over-week count is "weekly active users in cohort" not "strictly retained since week 0"; if the question wanted monotonically decreasing retention, one would track users who were active at <em>every</em> week up to the current offset, which is a harder query.</p>
+
+<h5>Dialect and performance notes</h5>
+<p>The semi-cartesian self-join scales as O(k&sup2;) in the number of offsets per cohort &mdash; typically small (tens of weeks). An equivalent using <code>SUM(...) OVER (PARTITION BY first_week ORDER BY weeks_since_first ROWS UNBOUNDED PRECEDING)</code> on the <code>cohorts</code> CTE is often cleaner and more readable in PostgreSQL, BigQuery, and Snowflake, but the self-join form is portable to MySQL 5.x and SQLite which lack window functions. Both approaches are valid; mentioning both earns the senior mark.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build cohort aggregates first (one row per cohort per offset), then use a semi-cartesian self-join on <code>c2.weeks_since_first &lt;= c1.weeks_since_first</code> to accumulate running totals without window functions; anchor cohort size at offset 0; and note the window-function alternative (<code>SUM OVER ROWS UNBOUNDED PRECEDING</code>) as the more readable production version.</div>

@@ -1,0 +1,92 @@
+<p>Finding the Lowest Common Ancestor (LCA) in an org-chart hierarchy is a classic tree-algorithm question that SQL interviewers use to test recursive CTEs and set intersection. The real-world problem: given two employees, who is the most specific manager (not just "everyone reports to the CEO") that oversees both? The approach &mdash; walk each employee's ancestor chain to the root, then intersect and pick the shallowest common ancestor &mdash; generalises to any directed tree stored as an adjacency list.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>manager_id</th><th>(tree position)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL</td><td>root / CEO</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>level 1</td></tr>
+    <tr><td>3</td><td>Carla</td><td>1</td><td>level 1</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>level 2, reports to Bob</td></tr>
+    <tr><td>5</td><td>Erin</td><td>2</td><td>level 2, reports to Bob</td></tr>
+    <tr><td>6</td><td>Finn</td><td>4</td><td>level 3, reports to Dan &mdash; TARGET 1</td></tr>
+    <tr><td>7</td><td>Gita</td><td>5</td><td>level 3, reports to Erin &mdash; TARGET 2</td></tr>
+    <tr><td>8</td><td>Hugo</td><td>3</td><td>level 2, reports to Carla</td></tr>
+  </tbody>
+</table>
+<p>Ancestor chain for emp_id 6 (Finn): 6 &rarr; 4 (Dan) &rarr; 2 (Bob) &rarr; 1 (Alice). Ancestor chain for emp_id 7 (Gita): 7 &rarr; 5 (Erin) &rarr; 2 (Bob) &rarr; 1 (Alice). Common ancestors: {2 (Bob), 1 (Alice)}. The lowest (deepest, smallest depth) common ancestor is Bob (depth 2 from each target). The query sorts by <code>depth ASC</code> and takes the first row &mdash; the one found soonest in the ancestor walk from the target, which is the deepest common node.</p>
+
+<h4>2. The SQL &mdash; recursive CTE ancestor chains then intersection</h4>
+<pre><code>WITH RECURSIVE ancestors AS (
+  SELECT emp_id AS start_id, emp_id AS anc_id, 0 AS depth
+  FROM employee
+  UNION ALL
+  SELECT a.start_id, e.manager_id, a.depth + 1
+  FROM ancestors a
+  JOIN employee e ON e.emp_id = a.anc_id
+  WHERE e.manager_id IS NOT NULL
+)
+SELECT a1.anc_id AS lca_emp_id, e.name AS lca_name
+FROM ancestors a1
+JOIN ancestors a2 ON a1.anc_id = a2.anc_id
+JOIN employee e ON e.emp_id = a1.anc_id
+WHERE a1.start_id = 6 AND a2.start_id = 7
+ORDER BY a1.depth ASC
+LIMIT 1;</code></pre>
+<p>The recursive CTE seeds with every employee as their own ancestor at depth 0, then walks up: at each step, it replaces the current node (<code>anc_id</code>) with its manager, incrementing depth. The recursion stops when <code>manager_id IS NULL</code> (the root). The outer query filters to the two target chains, joins on the shared ancestor node, orders by ascending depth (so the deepest common ancestor &mdash; the one closest to the targets &mdash; appears first), and returns only the first row.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>Ancestor rows for start_id = 6 (Finn):</p>
+<table>
+  <thead><tr><th>start_id</th><th>anc_id</th><th>depth</th></tr></thead>
+  <tbody>
+    <tr><td>6</td><td>6</td><td>0</td></tr>
+    <tr><td>6</td><td>4</td><td>1</td></tr>
+    <tr><td>6</td><td>2</td><td>2</td></tr>
+    <tr><td>6</td><td>1</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Ancestor rows for start_id = 7 (Gita):</p>
+<table>
+  <thead><tr><th>start_id</th><th>anc_id</th><th>depth</th></tr></thead>
+  <tbody>
+    <tr><td>7</td><td>7</td><td>0</td></tr>
+    <tr><td>7</td><td>5</td><td>1</td></tr>
+    <tr><td>7</td><td>2</td><td>2</td></tr>
+    <tr><td>7</td><td>1</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Common ancestor rows after the join on <code>a1.anc_id = a2.anc_id</code>:</p>
+<table>
+  <thead><tr><th>anc_id</th><th>a1.depth</th></tr></thead>
+  <tbody>
+    <tr><td>2 (Bob)</td><td>2</td></tr>
+    <tr><td>1 (Alice)</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Ordered by <code>a1.depth ASC</code>, first row is anc_id = 2. Final output:</p>
+<table>
+  <thead><tr><th>lca_emp_id</th><th>lca_name</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Bob</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Recursive CTE structure: seed + recursive step + termination</h5>
+<p>Every recursive CTE has three parts. The <em>anchor</em> (before <code>UNION ALL</code>) defines the base case: here, every employee is their own ancestor at depth 0. The <em>recursive member</em> extends each row one step up the tree: given a current node, it looks up that node's manager and adds a new row with depth + 1. The <em>termination condition</em> is the <code>WHERE e.manager_id IS NOT NULL</code> guard: when the current node is the root (Alice, manager_id NULL), the join finds no parent, no new rows are added, and recursion ends. Without this guard the CTE would loop indefinitely once it reached the root.</p>
+
+<h5>Why <code>depth ASC LIMIT 1</code> gives the LCA and not the root</h5>
+<p>Depth measures how many edges separate the ancestor from the starting employee. The LCA is the common ancestor that is <em>closest</em> to the two targets, which means the <em>smallest</em> depth among common ancestors &mdash; <code>ORDER BY a1.depth ASC LIMIT 1</code>. It is tempting to think "deepest in the tree" means largest depth number, but depth is measured from the target downward to the root, so depth 2 is closer (deeper in the tree, further from the root) than depth 3.</p>
+
+<h5>Edge case: one employee is an ancestor of the other</h5>
+<p>If emp_id 6 were instead emp_id 4 (Dan), the anchor clause seeds Dan as his own ancestor at depth 0, so the chain for emp_id 4 includes row (4, 4, 0). The chain for emp_id 7 (Gita) passes through node 4 at depth 1 (4 &rarr; 2 &rarr; 1). The intersection at anc_id = 4 yields depth 0 for the chain starting at 4, which is the minimum. So Dan himself is returned as the LCA &mdash; correct, because the question specifies "if one is an ancestor of the other, return that employee."</p>
+
+<h5>Performance considerations</h5>
+<p>This CTE generates ancestor rows for <em>all</em> employees in the table even though only two chains are needed. A more efficient approach filters in the anchor: replace <code>FROM employee</code> with <code>FROM employee WHERE emp_id IN (6, 7)</code>. This limits recursion to only two chains, dramatically reducing work on large hierarchies. For very deep trees (corporate hierarchies with 10+ levels), also consider adding a depth-limit guard (<code>AND a.depth &lt; 20</code>) to prevent infinite loops caused by data errors (cycles).</p>
+
+<h5>Dialect notes</h5>
+<p><code>WITH RECURSIVE</code> is standard SQL:1999 and supported by PostgreSQL, MySQL 8.0+, SQL Server (using <code>WITH &hellip; UNION ALL</code>, no <code>RECURSIVE</code> keyword required), Snowflake, BigQuery, and Oracle 11g+. SQLite 3.8.3+ supports it. The termination condition syntax and <code>LIMIT</code> clause are consistent across these engines.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> seed the recursive CTE with only the two target employees for efficiency; know that depth 0 = the node itself (enabling ancestor-of-the-other detection); explain that <code>ORDER BY depth ASC LIMIT 1</code> picks the deepest common ancestor (not the root); and add a depth cap to defend against data cycles in production hierarchies.</div>

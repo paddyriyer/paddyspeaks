@@ -1,0 +1,66 @@
+<p>Private-equity back-office teams ask this daily: <em>"What was the total marked-to-market value of each portfolio on each reporting date?"</em> The answer requires joining position snapshots (holdings) to daily price ticks (prices) on a composite key &mdash; both <code>asset_id</code> and date must match. The interviewer is probing whether you understand the point-in-time join pattern, the <code>NULLIF(regexp_replace(...)::numeric)</code> defensive cast for dirty numeric columns, and the aggregation that sums per-position values up to a portfolio total.</p>
+
+<h4>1. The source data &mdash; <code>holdings</code> and <code>prices</code></h4>
+<table>
+  <thead><tr><th>portfolio_id</th><th>asset_id</th><th>shares</th><th>as_of_date</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>AAPL</td><td>100</td><td>2025-01-31</td></tr>
+    <tr><td>P1</td><td>MSFT</td><td>50</td><td>2025-01-31</td></tr>
+    <tr><td>P1</td><td>AAPL</td><td>120</td><td>2025-02-28</td></tr>
+    <tr><td>P2</td><td>AAPL</td><td>200</td><td>2025-01-31</td></tr>
+    <tr><td>P2</td><td>MSFT</td><td>80</td><td>2025-01-31</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>asset_id</th><th>price_date</th><th>close_price</th></tr></thead>
+  <tbody>
+    <tr><td>AAPL</td><td>2025-01-31</td><td>185.00</td></tr>
+    <tr><td>MSFT</td><td>2025-01-31</td><td>415.00</td></tr>
+    <tr><td>AAPL</td><td>2025-02-28</td><td>190.00</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; composite-key JOIN to compute portfolio value</h4>
+<pre><code>SELECT h.portfolio_id, h.as_of_date AS day,
+       SUM(NULLIF(regexp_replace(h.shares::text, '[^-.0-9]', '', 'g'), '')::numeric
+           * p.close_price) AS portfolio_value
+FROM holdings h
+JOIN prices p
+  ON h.asset_id   = p.asset_id
+ AND h.as_of_date = p.price_date
+GROUP BY h.portfolio_id, h.as_of_date
+ORDER BY h.portfolio_id, day;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>portfolio_id</th><th>day</th><th>portfolio_value</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>2025-01-31</td><td>39,250.00</td></tr>
+    <tr><td>P1</td><td>2025-02-28</td><td>22,800.00</td></tr>
+    <tr><td>P2</td><td>2025-01-31</td><td>70,200.00</td></tr>
+  </tbody>
+</table>
+<p>Derivation: P1/Jan-31 = (100 &times; 185.00) + (50 &times; 415.00) = 18,500 + 20,750 = 39,250. P1/Feb-28 = 120 &times; 190.00 = 22,800 (MSFT had no Feb-28 price row, so that position is absent from the JOIN; the query implicitly treats it as unpriced on that date). P2/Jan-31 = (200 &times; 185.00) + (80 &times; 415.00) = 37,000 + 33,200 = 70,200.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The composite-key JOIN &mdash; both asset and date must match</h5>
+<p>Joining on <code>asset_id</code> alone would pair every price row for AAPL (Jan-31, Feb-28, &hellip;) with every holding of AAPL regardless of date, producing a Cartesian explosion and wrong values. Adding <code>AND h.as_of_date = p.price_date</code> makes this a <em>point-in-time join</em>: each holding is valued at exactly the price on the same date it was recorded. This is the canonical pattern for mark-to-market valuation and for slowly-changing-dimension lookups.</p>
+
+<h5>Silent data loss &mdash; INNER JOIN drops unpriced positions</h5>
+<p>When P1 holds MSFT on 2025-02-28 but <code>prices</code> has no MSFT row for that date, the INNER JOIN silently omits that holding from the portfolio value calculation. For financial reporting this is usually incorrect &mdash; the portfolio value becomes understated. Production systems handle this with either a <code>LEFT JOIN prices p ON ... COALESCE(p.close_price, prior_close)</code> using a fill-forward price, or by guaranteeing a complete prices table before running valuation. At the interview, flag this data-quality risk immediately.</p>
+
+<h5>Defensive numeric cast &mdash; <code>NULLIF(regexp_replace(...)::numeric)</code></h5>
+<p>The <code>shares</code> column may arrive as text with non-numeric characters (unit labels, commas as thousands separators). The regex strips everything except digits, decimal point, and minus sign; <code>NULLIF</code> turns the resulting empty string into <code>NULL</code>; the final <code>::numeric</code> cast parses the clean string. <code>SUM</code> ignores <code>NULL</code>, so a corrupted shares value contributes zero rather than crashing the query. In Snowflake, prefer <code>TRY_TO_NUMBER(h.shares, 10, 4)</code> which returns <code>NULL</code> on parse failure without any regex.</p>
+
+<h5>Aggregation level &mdash; SUM collapses per-position rows to portfolio totals</h5>
+<p>Without the <code>GROUP BY h.portfolio_id, h.as_of_date</code>, the query would return one row per (portfolio, asset, date) triple. The <code>SUM(...)</code> + group-by is what converts individual position market values into a single portfolio-level number. If the downstream consumer needs both the position detail and the portfolio total, use a window function: <code>SUM(shares * close_price) OVER (PARTITION BY portfolio_id, as_of_date)</code> alongside the per-row detail, avoiding a second query.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>TRY_TO_NUMBER(h.shares)</code> replaces the regex cast. Snowflake date equality in joins works identically.</li>
+  <li><strong>BigQuery:</strong> <code>SAFE_CAST(h.shares AS FLOAT64)</code>. Date columns are <code>DATE</code> type; equality join on date works natively.</li>
+  <li><strong>MySQL:</strong> The <code>regexp_replace</code> with <code>'g'</code> flag is not supported; use a different sanitisation approach or ensure column types.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify this as a point-in-time composite-key JOIN pattern, immediately flag that INNER JOIN silently drops unpriced positions (understated portfolio value), explain the <code>NULLIF(regexp_replace(...)::numeric)</code> sanitisation chain and its Snowflake equivalent (<code>TRY_TO_NUMBER</code>), and offer the window-function variant that delivers per-position detail alongside the portfolio total in a single pass.</div>

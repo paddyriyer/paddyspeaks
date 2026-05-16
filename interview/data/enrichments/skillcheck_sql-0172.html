@@ -1,0 +1,74 @@
+<p>Funnel analysis is one of the most common product-analytics queries: which users started a journey and completed every step in order? The interviewer is probing whether you understand that "in order" means comparing the <em>first occurrence</em> of each step &mdash; not any occurrence &mdash; and that a user who viewed after carting, or carted after purchasing, should fail the funnel. The CTE-with-conditional-aggregation approach using <code>MIN(ts) FILTER (WHERE &hellip;)</code> is the clean, readable idiom; knowing its edge cases is what separates senior from mid-level candidates.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_type</th><th>ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>view</td><td>09:00</td><td rowspan="3">correct order: view &rarr; cart &rarr; purchase</td></tr>
+    <tr><td>1</td><td>cart</td><td>10:00</td></tr>
+    <tr><td>1</td><td>purchase</td><td>11:00</td></tr>
+    <tr><td>2</td><td>cart</td><td>09:00</td><td rowspan="3">wrong order: cart before view</td></tr>
+    <tr><td>2</td><td>view</td><td>10:00</td></tr>
+    <tr><td>2</td><td>purchase</td><td>11:00</td></tr>
+    <tr><td>3</td><td>view</td><td>09:00</td><td rowspan="3">wrong order: purchase before cart</td></tr>
+    <tr><td>3</td><td>purchase</td><td>10:00</td></tr>
+    <tr><td>3</td><td>cart</td><td>11:00</td></tr>
+    <tr><td>4</td><td>view</td><td>Jan-02 09:00</td><td rowspan="2">incomplete &mdash; no purchase</td></tr>
+    <tr><td>4</td><td>cart</td><td>Jan-02 10:00</td></tr>
+    <tr><td>5</td><td>view</td><td>Jan-03 09:00</td><td rowspan="4">two views; earliest view is 09:00 &rarr; funnel passes</td></tr>
+    <tr><td>5</td><td>view</td><td>Jan-03 09:30</td></tr>
+    <tr><td>5</td><td>cart</td><td>Jan-03 10:00</td></tr>
+    <tr><td>5</td><td>purchase</td><td>Jan-03 11:00</td></tr>
+  </tbody>
+</table>
+<p>User 2 fails because their <em>first</em> cart (09:00) precedes their <em>first</em> view (10:00). User 3 fails because their first purchase (10:00) precedes their first cart (11:00). User 4 is incomplete. User 5 passes &mdash; the duplicate view does not matter because the CTE uses <code>MIN(ts)</code>.</p>
+
+<h4>2. The SQL &mdash; MIN-per-event-type then strict timestamp ordering</h4>
+<pre><code>WITH firsts AS (
+  SELECT user_id,
+         MIN(ts) FILTER (WHERE event_type = 'view')     AS first_view,
+         MIN(ts) FILTER (WHERE event_type = 'cart')     AS first_cart,
+         MIN(ts) FILTER (WHERE event_type = 'purchase') AS first_purchase
+  FROM event
+  GROUP BY user_id
+)
+SELECT user_id FROM firsts
+WHERE first_view IS NOT NULL
+  AND first_cart IS NOT NULL
+  AND first_purchase IS NOT NULL
+  AND first_view &lt; first_cart
+  AND first_cart &lt; first_purchase
+ORDER BY user_id;</code></pre>
+<p>The CTE collapses each user's event history into three timestamps using <code>MIN(ts) FILTER (WHERE &hellip;)</code>. The outer query then applies three NULL guards (all three steps must have occurred) and two strict inequality checks to enforce the required temporal ordering.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>first_view</th><th>first_cart</th><th>first_purchase</th><th>passes?</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>09:00</td><td>10:00</td><td>11:00</td><td>YES &mdash; 09:00 &lt; 10:00 &lt; 11:00</td></tr>
+    <tr><td>2</td><td>10:00</td><td>09:00</td><td>11:00</td><td>NO &mdash; first_view (10:00) &gt; first_cart (09:00)</td></tr>
+    <tr><td>3</td><td>09:00</td><td>11:00</td><td>10:00</td><td>NO &mdash; first_cart (11:00) &gt; first_purchase (10:00)</td></tr>
+    <tr><td>4</td><td>Jan-02 09:00</td><td>Jan-02 10:00</td><td>NULL</td><td>NO &mdash; first_purchase IS NULL</td></tr>
+    <tr><td>5</td><td>Jan-03 09:00</td><td>Jan-03 10:00</td><td>Jan-03 11:00</td><td>YES &mdash; 09:00 &lt; 10:00 &lt; 11:00</td></tr>
+  </tbody>
+</table>
+<p>Final output: <strong>user_id 1 and 5</strong>, ordered ascending.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>MIN(ts) FILTER (WHERE event_type = &hellip;)</code> &mdash; conditional aggregation in one pass</h5>
+<p>The <code>FILTER</code> clause is a PostgreSQL (SQL:2003) extension that applies a condition inside an aggregate without requiring a separate <code>CASE WHEN</code>. It is equivalent to <code>MIN(CASE WHEN event_type = 'view' THEN ts END)</code>, which returns <code>NULL</code> when no matching row exists in the group. The <code>IS NOT NULL</code> guards in the outer query therefore serve double duty: they check that all three steps happened. This conditional-aggregation approach is a single group-by pass over the table, more efficient than joining three subqueries.</p>
+
+<h5>Why "earliest occurrence" is the right semantics</h5>
+<p>Users may view a product page multiple times before adding to cart. Using <code>MIN</code> captures intent from the first touchpoint, which is the most meaningful signal for funnel attribution. Using <code>MAX</code> would be wrong: a user who viewed, purchased, then viewed again would have <code>MAX(view) &gt; MAX(purchase)</code>, failing the funnel despite having completed it. The "earliest occurrence" semantics are standard in product analytics.</p>
+
+<h5>Strict vs non-strict inequality</h5>
+<p>The predicate uses strict <code>&lt;</code>, so two steps at the exact same timestamp fail the funnel. Whether ties should pass is a business decision: a user who viewed and added to cart in the same database write (e.g. a synchronised import) might legitimately deserve credit. If same-instant is acceptable, change <code>&lt;</code> to <code>&le;</code>. Most real schemas have sub-second timestamps that make this moot, but raising it in an interview shows thoroughness.</p>
+
+<h5>Alternative: CASE WHEN &hellip; THEN for non-Postgres engines</h5>
+<p>The <code>FILTER</code> clause is standard SQL:2003 but not universally implemented. MySQL 5.x and older SQL Server versions require: <code>MIN(CASE WHEN event_type = 'view' THEN ts END)</code>. BigQuery and Snowflake both support <code>FILTER</code> in recent versions. The logic is identical; only syntax changes.</p>
+
+<h5>Alternative approach: EXISTS / self-join</h5>
+<p>An alternative is three correlated <code>EXISTS</code> subqueries or self-joins to find users where a view record exists before a cart record before a purchase record. This is more verbose and hits the event table multiple times. The CTE approach's single-pass aggregation is preferable in most engines.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>MIN(ts) FILTER (WHERE event_type = &hellip;)</code> for a single-pass conditional aggregation; apply <code>IS NOT NULL</code> guards to handle users missing steps; use strict <code>&lt;</code> and explicitly discuss whether simultaneous timestamps should qualify; call out the <code>CASE WHEN</code> fallback for non-Postgres engines.</div>

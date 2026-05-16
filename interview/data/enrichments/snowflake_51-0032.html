@@ -1,0 +1,71 @@
+<p>GitHub&rsquo;s amusement park division (think enterprise analytics on ride-quality data) wants to flag reviews that are statistical outliers: ratings that fall more than two standard deviations from their ride&rsquo;s mean. This is the z-score anomaly-detection pattern &mdash; compute per-group mean and standard deviation in a CTE, join back to the detail rows, filter on the absolute z-score, and guard the division by NULLIF to handle rides with only one rating (where stddev = 0).</p>
+
+<h4>1. The source data &mdash; <code>ratings</code></h4>
+<table>
+  <thead><tr><th>rating_id</th><th>ride_id</th><th>user_id</th><th>rating</th></tr></thead>
+  <tbody>
+    <tr><td>R01</td><td>1</td><td>U01</td><td>4</td></tr>
+    <tr><td>R02</td><td>1</td><td>U02</td><td>4</td></tr>
+    <tr><td>R03</td><td>1</td><td>U03</td><td>5</td></tr>
+    <tr><td>R04</td><td>1</td><td>U04</td><td>4</td></tr>
+    <tr><td>R05</td><td>1</td><td>U05</td><td>1</td></tr>
+    <tr><td>R06</td><td>2</td><td>U06</td><td>3</td></tr>
+    <tr><td>R07</td><td>2</td><td>U07</td><td>3</td></tr>
+    <tr><td>R08</td><td>2</td><td>U08</td><td>3</td></tr>
+    <tr><td>R09</td><td>3</td><td>U09</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Ride 1: ratings [4,4,5,4,1] &mdash; mean = 3.6, stddev &asymp; 1.497. Ride 2: ratings [3,3,3] &mdash; mean = 3.0, stddev = 0. Ride 3: one rating only &mdash; stddev = NULL (sample stddev of 1 value is undefined). The outlier threshold is &plusmn;2 standard deviations.</p>
+
+<h4>2. The SQL &mdash; z-score anomaly detection with NULLIF guard</h4>
+<pre><code>WITH stats AS (
+  SELECT ride_id,
+         AVG(rating::numeric) AS mu,
+         STDDEV(rating::numeric) AS sd
+  FROM ratings
+  GROUP BY ride_id
+)
+SELECT r.rating_id, r.ride_id, r.user_id, r.rating, s.mu, s.sd,
+       (r.rating::numeric - s.mu) / NULLIF(s.sd, 0) AS z_score
+FROM ratings r
+JOIN stats s USING (ride_id)
+WHERE s.sd IS NOT NULL AND ABS(r.rating::numeric - s.mu) &gt; 2 * s.sd
+ORDER BY ABS((r.rating::numeric - s.mu) / NULLIF(s.sd, 0)) DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Stats CTE results:</p>
+<table>
+  <thead><tr><th>ride_id</th><th>mu</th><th>sd</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3.6</td><td>&asymp;1.497</td></tr>
+    <tr><td>2</td><td>3.0</td><td>0</td></tr>
+    <tr><td>3</td><td>5.0</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Filtering: ride 2 is excluded by <code>s.sd IS NOT NULL</code> (sd=0 passes the NULL check but fails <code>ABS(...) &gt; 2 * 0 = 0</code> unless there is an actual deviation). Ride 3 is excluded by <code>s.sd IS NOT NULL</code>. For ride 1, the threshold is 2 &times; 1.497 &asymp; 2.994. Rating 1 deviates by |1 - 3.6| = 2.6 which is &lt; 2.994 &mdash; does not qualify. Rating 5 deviates by |5 - 3.6| = 1.4 &mdash; does not qualify. All ride 1 ratings fall within &plusmn;2 sd.</p>
+<table>
+  <thead><tr><th colspan="7">Final result (with sample data above)</th></tr></thead>
+  <tbody>
+    <tr><td colspan="7"><em>(empty &mdash; no row exceeds the 2-sigma threshold with this dataset)</em></td></tr>
+  </tbody>
+</table>
+<p>To illustrate a non-empty result, replace rating R05 with rating = 0. Then deviation = |0 - 3.6| = 3.6 &gt; 2.994 &mdash; z_score = (0 - 3.6) / 1.497 &asymp; -2.40. That row would appear in the output, sorted descending by |z_score|.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a CTE for stats &mdash; not a subquery or window function</h5>
+<p>The CTE approach computes one row per ride (aggregated stats) and joins to the detail table. A correlated subquery would recompute <code>AVG</code> and <code>STDDEV</code> for every rating row &mdash; O(n) per row = O(n&sup2;) total. A window function approach (<code>AVG(...) OVER (PARTITION BY ride_id)</code>) would work but requires a wrapping query to filter on the computed value, which is functionally equivalent to the CTE. The CTE is the clearest decomposition for interview purposes.</p>
+
+<h5>NULLIF(s.sd, 0) &mdash; two failure modes, one guard</h5>
+<p><code>NULLIF(s.sd, 0)</code> converts sd=0 to NULL before dividing, preventing a division-by-zero error. But there is also the case where <code>STDDEV</code> of a single value returns NULL (sample standard deviation is undefined for n=1). The <code>WHERE s.sd IS NOT NULL</code> clause eliminates both: sd=0 <em>rides with no variance</em> pass the NULL check but their deviation ABS(...) is never strictly greater than <code>2 * 0 = 0</code> (unless they all equal the mean, which they do by definition). Rides with one rating get sd=NULL and are excluded by the IS NOT NULL filter. This two-layer defense prevents both errors.</p>
+
+<h5>STDDEV vs STDDEV_POP</h5>
+<p><code>STDDEV</code> (also written <code>STDDEV_SAMP</code>) uses the sample formula &mdash; divides by n-1. <code>STDDEV_POP</code> divides by n. For anomaly detection on a sample of reviews, the sample stddev is more conservative (slightly larger), so the &plusmn;2&sigma; threshold is slightly harder to breach &mdash; fewer false positives. For a complete census of all ratings ever recorded, <code>STDDEV_POP</code> would be appropriate. In practice the difference is negligible for large n but the distinction should be stated.</p>
+
+<h5>The 2-sigma threshold is a convention, not a law</h5>
+<p>Under a normal distribution, &plusmn;2&sigma; captures ~95.4% of observations, so ~4.6% of ratings would be "anomalous" by this definition on any normally distributed dataset. Interviewers sometimes follow up: "What if the distribution of ratings is heavily skewed?" In that case a z-score cutoff is misleading; alternatives include IQR-based outlier detection (<code>rating &lt; Q1 - 1.5 &times; IQR OR rating &gt; Q3 + 1.5 &times; IQR</code>) or Median Absolute Deviation (MAD). Mentioning this shows statistical depth.</p>
+
+<h5>Dialect notes</h5>
+<p><code>STDDEV()</code> is standard in Postgres, Snowflake, BigQuery, and MySQL (8.0+). In BigQuery it is written identically. SQL Server uses <code>STDEV()</code> (no second D). Snowflake supports both <code>STDDEV</code> and <code>STDDEV_SAMP</code>. The <code>USING (ride_id)</code> join shorthand is supported in Postgres and Snowflake but not in SQL Server (which requires <code>ON r.ride_id = s.ride_id</code>).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the CTE-then-join pattern for per-group statistics as the O(n) alternative to correlated subqueries, explain the double-defense (NULLIF for zero-sd, IS NOT NULL for single-row sd=NULL), distinguish sample vs population stddev and when each applies, and note that z-score assumes normality &mdash; IQR or MAD are more robust for skewed rating distributions.</div>

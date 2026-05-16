@@ -1,0 +1,83 @@
+<p>Computing the gap between the top and second-highest salary per department is a classic window-function question with a subtle wrinkle: departments where every employee earns the same salary have <em>no</em> genuine second-place value, and the gap must surface as <code>NULL</code> rather than zero or disappearing from the result. The interviewer is probing whether you use <code>DENSE_RANK</code> (so tied top earners still allow a true #2 distinct salary), deduplicate to distinct salaries first, and use conditional aggregation rather than a correlated subquery.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Eng</td><td>200</td><td>tied top in Eng</td></tr>
+    <tr><td>2</td><td>Eng</td><td>200</td><td>tied top in Eng</td></tr>
+    <tr><td>3</td><td>Eng</td><td>170</td><td>rank 2 distinct salary in Eng</td></tr>
+    <tr><td>4</td><td>Eng</td><td>150</td><td>rank 3 in Eng</td></tr>
+    <tr><td>5</td><td>Sales</td><td>300</td><td>top in Sales</td></tr>
+    <tr><td>6</td><td>Sales</td><td>280</td><td>second in Sales</td></tr>
+    <tr><td>7</td><td>Sales</td><td>250</td><td>third in Sales</td></tr>
+    <tr><td>8</td><td>Ops</td><td>120</td><td>all three Ops employees earn 120</td></tr>
+    <tr><td>9</td><td>Ops</td><td>120</td><td>same salary &mdash; only one distinct value exists</td></tr>
+    <tr><td>10</td><td>Ops</td><td>120</td><td>same salary &mdash; gap must be NULL</td></tr>
+    <tr><td>11</td><td>HR</td><td>95</td><td>sole HR employee &mdash; gap must be NULL</td></tr>
+  </tbody>
+</table>
+<p>Eng has two people tied at rank 1 (salary 200); despite the tie, salary 170 is genuinely the second-distinct salary. Ops has only one distinct salary value so there is no second; same for HR with one employee. Both must produce a NULL gap.</p>
+
+<h4>2. The SQL &mdash; DENSE_RANK on distinct salaries then conditional aggregation</h4>
+<pre><code>WITH d AS (
+  SELECT dept, salary,
+         DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rk
+  FROM employee
+  GROUP BY dept, salary
+)
+SELECT dept,
+       MAX(salary) FILTER (WHERE rk = 1) AS top_salary,
+       MAX(salary) FILTER (WHERE rk = 2) AS second_salary,
+       (MAX(salary) FILTER (WHERE rk = 1) - MAX(salary) FILTER (WHERE rk = 2)) AS gap
+FROM d
+WHERE rk &lt;= 2
+GROUP BY dept
+ORDER BY dept;</code></pre>
+<p>The CTE first deduplicates to distinct <code>(dept, salary)</code> pairs, then ranks them with <code>DENSE_RANK</code>. The outer query pivots ranks 1 and 2 into separate columns using <code>FILTER</code>; when no rank-2 row exists, <code>MAX(&hellip;) FILTER (WHERE rk = 2)</code> returns NULL, and arithmetic with NULL propagates NULL to the gap column.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>CTE <code>d</code> after deduplication and ranking:</p>
+<table>
+  <thead><tr><th>dept</th><th>salary</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>200</td><td>1</td></tr>
+    <tr><td>Eng</td><td>170</td><td>2</td></tr>
+    <tr><td>Eng</td><td>150</td><td>3</td></tr>
+    <tr><td>HR</td><td>95</td><td>1</td></tr>
+    <tr><td>Ops</td><td>120</td><td>1</td></tr>
+    <tr><td>Sales</td><td>300</td><td>1</td></tr>
+    <tr><td>Sales</td><td>280</td><td>2</td></tr>
+    <tr><td>Sales</td><td>250</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>After <code>WHERE rk &lt;= 2</code> and the outer <code>GROUP BY dept</code>:</p>
+<table>
+  <thead><tr><th>dept</th><th>top_salary</th><th>second_salary</th><th>gap</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>200</td><td>170</td><td>30</td></tr>
+    <tr><td>HR</td><td>95</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>Ops</td><td>120</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>Sales</td><td>300</td><td>280</td><td>20</td></tr>
+  </tbody>
+</table>
+<p>Eng: 200 &minus; 170 = 30. Sales: 300 &minus; 280 = 20. HR and Ops have no rank-2 row so second_salary is NULL and gap is NULL. Note that the two rank-1 Eng employees (both at 200) are deduplicated in the CTE to a single row; the rank-2 salary (170) is correctly preserved.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>GROUP BY dept, salary</code> before <code>DENSE_RANK</code></h5>
+<p>Without deduplication, <code>DENSE_RANK</code> on the raw employee table would give both emp_id 1 and emp_id 2 (both earning 200) rank 1, and emp_id 3 (earning 170) rank 2 &mdash; which is actually the correct ranking. However, the outer aggregation would then see two rank-1 rows for Eng, making <code>MAX(salary) FILTER (WHERE rk = 1)</code> still correct. But for correctness guarantees across all inputs, pre-deduplicating to distinct (dept, salary) pairs before ranking is cleaner and more explicit. It also reduces the window-function input size.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> vs <code>ROW_NUMBER</code></h5>
+<p><code>DENSE_RANK</code> assigns consecutive integers to distinct values: ties at rank 1 do not create a gap to rank 3. <code>RANK</code> would skip: two rank-1 rows would make the next row rank 3, skipping rank 2 &mdash; so a <code>WHERE rk = 2</code> filter would find nothing. <code>ROW_NUMBER</code> assigns unique numbers regardless of value, so two identical salaries at the top would get row numbers 1 and 2, making the &ldquo;second&rdquo; row another instance of the same salary &mdash; wrong. <code>DENSE_RANK</code> is the only correct choice here.</p>
+
+<h5>NULL arithmetic for the "no second salary" case</h5>
+<p>Any arithmetic with NULL returns NULL in SQL: <code>200 - NULL = NULL</code>. This is exactly the desired behaviour: the gap for HR and Ops is genuinely undefined (not zero), and NULL communicates that clearly. Using <code>COALESCE(gap, 0)</code> would be wrong: a zero gap would imply the top and second salary are equal, which is different from "there is no second salary".</p>
+
+<h5>Alternative: correlated subquery</h5>
+<p>A correlated subquery can find the second-distinct salary: <code>SELECT MAX(salary) FROM employee e2 WHERE e2.dept = e.dept AND e2.salary &lt; top_salary</code>. This is O(n&sup2;) in the number of departments &times; employees, whereas the window-function CTE approach is O(n log n). For small tables either works; the window function approach is the canonical modern answer.</p>
+
+<h5>Dialect portability</h5>
+<p><code>DENSE_RANK()</code> and the <code>FILTER</code> clause are both PostgreSQL/SQL:2003 features. <code>FILTER</code> is not available in MySQL 5.x or SQL Server before 2022; the equivalent is <code>MAX(CASE WHEN rk = 1 THEN salary END)</code>. <code>DENSE_RANK</code> itself is supported in MySQL 8+, SQL Server 2008+, Snowflake, and BigQuery.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> deduplicate to distinct <code>(dept, salary)</code> before ranking; use <code>DENSE_RANK</code> (not <code>RANK</code> or <code>ROW_NUMBER</code>) so ties at the top do not swallow the rank-2 slot; rely on NULL arithmetic to produce a NULL gap when no second salary exists (never coerce to 0); and note <code>FILTER</code> vs <code>CASE WHEN</code> dialect portability.</div>

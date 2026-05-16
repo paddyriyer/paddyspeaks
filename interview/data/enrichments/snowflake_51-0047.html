@@ -1,0 +1,74 @@
+<p>A flooring installation company needs a job costing report: <em>"For every job, show the customer name, the material used, the square footage, and the total cost &mdash; sorted by most expensive jobs first."</em> This is a three-table JOIN exercise combining a transaction table (jobs) with two dimension tables (customers, materials). The interviewer is probing whether you can chain multiple JOINs correctly, derive a computed column from two table attributes, and handle the <code>NULLIF(regexp_replace(...)::numeric)</code> cast when the source columns may be stored as text.</p>
+
+<h4>1. The source data &mdash; <code>jobs</code>, <code>customers</code>, <code>materials</code></h4>
+<table>
+  <thead><tr><th>job_id</th><th>customer_id</th><th>material_id</th><th>sqft</th></tr></thead>
+  <tbody>
+    <tr><td>J1</td><td>C1</td><td>MAT1</td><td>500</td></tr>
+    <tr><td>J2</td><td>C2</td><td>MAT2</td><td>200</td></tr>
+    <tr><td>J3</td><td>C1</td><td>MAT3</td><td>750</td></tr>
+    <tr><td>J4</td><td>C3</td><td>MAT1</td><td>300</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>customer_id</th><th>customer_name</th><th>email</th></tr></thead>
+  <tbody>
+    <tr><td>C1</td><td>Acme Corp</td><td>acme@example.com</td></tr>
+    <tr><td>C2</td><td>BrightHome</td><td>bright@example.com</td></tr>
+    <tr><td>C3</td><td>Cedar Living</td><td>cedar@example.com</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>material_id</th><th>material_name</th><th>cost_per_sqft</th></tr></thead>
+  <tbody>
+    <tr><td>MAT1</td><td>Oak Hardwood</td><td>12.50</td></tr>
+    <tr><td>MAT2</td><td>Luxury Vinyl</td><td>8.00</td></tr>
+    <tr><td>MAT3</td><td>Marble Tile</td><td>25.00</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; three-table JOIN with derived cost column</h4>
+<pre><code>SELECT j.job_id, c.customer_name, m.material_name, j.sqft,
+       NULLIF(regexp_replace(j.sqft::text,           '[^-.0-9]', '', 'g'), '')::numeric
+       * NULLIF(regexp_replace(m.cost_per_sqft::text, '[^-.0-9]', '', 'g'), '')::numeric AS total_cost
+FROM jobs j
+JOIN customers c ON j.customer_id = c.customer_id
+JOIN materials m ON j.material_id = m.material_id
+ORDER BY total_cost DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>job_id</th><th>customer_name</th><th>material_name</th><th>sqft</th><th>total_cost</th></tr></thead>
+  <tbody>
+    <tr><td>J3</td><td>Acme Corp</td><td>Marble Tile</td><td>750</td><td>18750.00</td></tr>
+    <tr><td>J1</td><td>Acme Corp</td><td>Oak Hardwood</td><td>500</td><td>6250.00</td></tr>
+    <tr><td>J4</td><td>Cedar Living</td><td>Oak Hardwood</td><td>300</td><td>3750.00</td></tr>
+    <tr><td>J2</td><td>BrightHome</td><td>Luxury Vinyl</td><td>200</td><td>1600.00</td></tr>
+  </tbody>
+</table>
+<p>Derivation: J3 = 750 &times; 25.00 = 18750; J1 = 500 &times; 12.50 = 6250; J4 = 300 &times; 12.50 = 3750; J2 = 200 &times; 8.00 = 1600. Sorted descending by total_cost.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Chaining multiple INNER JOINs</h5>
+<p>Two INNER JOINs are applied in sequence: <code>jobs</code> &rarr; <code>customers</code> on <code>customer_id</code>, then the result &rarr; <code>materials</code> on <code>material_id</code>. The join order in the SQL text is a hint to the optimiser but the engine is free to reorder them. If any job's <code>customer_id</code> or <code>material_id</code> has no match in the respective dimension table, that job row is silently dropped from the result. In a production system, referential integrity constraints (foreign keys) prevent orphaned job rows at write time; in a data warehouse where FK enforcement is often disabled (Snowflake, BigQuery), the query can silently lose rows. A LEFT JOIN version with <code>WHERE c.customer_id IS NULL OR m.material_id IS NULL</code> surfaces orphans for data-quality investigation.</p>
+
+<h5>Derived column multiplication &mdash; NULLs propagate</h5>
+<p>The expression <code>sqft_clean * cost_per_sqft_clean</code> produces NULL if either operand is NULL. This arises when the regex cast returns NULL because the value was non-numeric. NULL propagation in arithmetic is correct behaviour &mdash; a cost computed from a missing price is undefined. The output row appears but with <code>total_cost = NULL</code>. In <code>ORDER BY total_cost DESC</code>, NULLs sort last in Postgres (NULLS LAST is the default for DESC); in Snowflake and BigQuery NULLs sort first by default for DESC &mdash; use <code>ORDER BY total_cost DESC NULLS LAST</code> for portable, explicit behaviour.</p>
+
+<h5>When to aggregate vs not</h5>
+<p>This query has no <code>GROUP BY</code> &mdash; it returns one row per job. If the requirement were "total revenue per customer," a <code>GROUP BY c.customer_name</code> with <code>SUM(total_cost)</code> would be needed. Recognising when aggregation is and is not required is a basic but frequently tested competency: the absence of <code>GROUP BY</code> is deliberate here because "list every job" is the requirement.</p>
+
+<h5>Defensive cast &mdash; <code>NULLIF(regexp_replace(...)::numeric)</code></h5>
+<p>Both <code>sqft</code> and <code>cost_per_sqft</code> may be stored as text if imported from CSV or a legacy system. The regex strips non-numeric characters; <code>NULLIF</code> handles the empty-string case; <code>::numeric</code> does the final parse. In Snowflake the equivalent is <code>TRY_TO_NUMBER(j.sqft) * TRY_TO_NUMBER(m.cost_per_sqft)</code>. BigQuery uses <code>SAFE_CAST(j.sqft AS FLOAT64)</code>.</p>
+
+<h5>ORDER BY NULL behaviour by dialect</h5>
+<ul>
+  <li><strong>Postgres:</strong> <code>DESC</code> sorts NULLs last by default.</li>
+  <li><strong>Snowflake / BigQuery:</strong> <code>DESC</code> sorts NULLs first by default.</li>
+  <li><strong>MySQL:</strong> NULLs sort first regardless of direction.</li>
+  <li><strong>SQL Server:</strong> NULLs sort first with <code>ASC</code>, last with <code>DESC</code>.</li>
+  <li>Use <code>ORDER BY total_cost DESC NULLS LAST</code> for portable, explicit behaviour (supported by Postgres, Snowflake, and BigQuery).</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that chained INNER JOINs silently drop rows with missing dimension matches (flag for data-quality checking), note that NULL propagates through the multiplication (a missing sqft or price yields NULL total_cost), and cite the cross-dialect difference in NULL ordering for DESC sorts &mdash; <code>NULLS LAST</code> makes it explicit and portable.</div>

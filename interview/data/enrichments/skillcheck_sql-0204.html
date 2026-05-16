@@ -1,0 +1,50 @@
+<p>Leaderboard queries that truncate at a hard row limit silently drop tied players at the boundary, creating an unfair and confusing user experience. <code>FETCH FIRST … ROWS WITH TIES</code> is the SQL:2008 standard solution: it extends the result to include all rows that are tied with the last returned row. The interviewer is testing whether you know this alternative to the more common (and flawed) <code>LIMIT 2</code>.</p>
+
+<h4>1. The source data &mdash; <code>score</code></h4>
+<table>
+  <thead><tr><th>player</th><th>points</th></tr></thead>
+  <tbody>
+    <tr><td>Ana</td><td>95</td></tr>
+    <tr><td>Ben</td><td>95</td></tr>
+    <tr><td>Cy</td><td>88</td></tr>
+    <tr><td>Dee</td><td>88</td></tr>
+    <tr><td>Eli</td><td>70</td></tr>
+  </tbody>
+</table>
+<p>The top score is 95, shared by Ana and Ben. If you ask for "top 2 rows" with a plain <code>LIMIT 2</code>, you get exactly Ana and Ben &mdash; but only because they happen to sit at the top. If instead the top 2 positions were occupied by three players all at 95, a plain LIMIT would arbitrarily exclude one. The question uses 95 with two players to illustrate the mechanism cleanly.</p>
+
+<h4>2. The SQL &mdash; FETCH FIRST 2 ROWS WITH TIES</h4>
+<pre><code>SELECT player, points
+FROM score
+ORDER BY points DESC
+FETCH FIRST 2 ROWS WITH TIES;</code></pre>
+<p>The engine sorts by <code>points DESC</code>, then returns the first 2 rows (Ana and Ben, both 95) <em>and</em> any additional rows that tie with the last returned score. Since 88 (Cy and Dee) is below 95, they are excluded. If a third player also had 95, <code>WITH TIES</code> would include all three.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>player</th><th>points</th></tr></thead>
+  <tbody>
+    <tr><td>Ana</td><td>95</td></tr>
+    <tr><td>Ben</td><td>95</td></tr>
+  </tbody>
+</table>
+<p>Two rows returned. Both have the highest score (95). The question specifies a secondary sort of <code>player ASC</code> &mdash; Ana (A) sorts before Ben (B) within the tied score group. Cy and Dee (88) are below the tie threshold and are excluded. Eli (70) is excluded. Note: the solution as written does not include <code>player ASC</code> in the ORDER BY, so the tie-breaking between Ana and Ben is engine-dependent; adding <code>, player ASC</code> would make it deterministic.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>WITH TIES vs LIMIT / OFFSET</h5>
+<p><code>LIMIT 2</code> is a non-standard shorthand that always returns at most 2 rows regardless of ties. <code>FETCH FIRST 2 ROWS ONLY</code> is the ISO SQL:2008 equivalent of <code>LIMIT 2</code> &mdash; also always exactly 2 rows (or fewer). <code>FETCH FIRST 2 ROWS WITH TIES</code> is the inclusive variant: it keeps all rows that compare equal to the Nth row by the ORDER BY key. The word "ONLY" and "WITH TIES" are the two legal options after <code>ROWS</code>; omitting one defaults to <code>ONLY</code> in PostgreSQL.</p>
+
+<h5>What "tied with the last returned row" means precisely</h5>
+<p>The engine conceptually fills its 2-row bucket, notes the ORDER BY key value of the last row placed in the bucket (95 in this case), then scans further and includes all subsequent rows whose ORDER BY key equals that value. This means the actual returned count can exceed the requested N &mdash; it is unbounded in the worst case (e.g., if all 1 million rows have the same score). Production code should always pair <code>WITH TIES</code> with a deterministic secondary sort to control which rows are emitted when the primary key value is tied.</p>
+
+<h5>Relation to RANK() vs ROW_NUMBER()</h5>
+<p><code>FETCH FIRST N ROWS WITH TIES</code> is semantically equivalent to <code>WHERE RANK() OVER (ORDER BY points DESC) &lt;= N</code>. Both return every row whose rank is at or below N. By contrast, <code>WHERE ROW_NUMBER() OVER (ORDER BY points DESC) &lt;= N</code> is the LIMIT 2 equivalent &mdash; exactly N rows, ties broken arbitrarily. Knowing this mapping demonstrates deep understanding of window-function semantics.</p>
+
+<h5>Dialect support</h5>
+<p><code>FETCH FIRST … ROWS WITH TIES</code> is supported in PostgreSQL (since 13), SQL Server (since 2012 via <code>TOP N WITH TIES</code> syntax), Oracle (since 12c), and BigQuery. MySQL and MariaDB do <em>not</em> support it; the workaround is the RANK() window function. Snowflake supports <code>LIMIT … WITH TIES</code> (non-standard spelling). SQLite does not support it. This patchy support is why it remains a less-known feature despite being the correct tool.</p>
+
+<h5>SQL Server's alternative syntax</h5>
+<p>SQL Server uses <code>SELECT TOP 2 WITH TIES player, points FROM score ORDER BY points DESC</code> &mdash; the <code>TOP</code> keyword comes before the column list. PostgreSQL and Oracle use the <code>FETCH FIRST … ROWS WITH TIES</code> form in the trailing clause. Both are valid ISO extensions; knowing both syntaxes distinguishes candidates who have used multiple platforms.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>FETCH FIRST 2 ROWS WITH TIES</code> instead of <code>LIMIT 2</code> whenever ties at the boundary must be preserved; explain the semantic equivalence to <code>RANK() &lt;= N</code> vs <code>ROW_NUMBER() &lt;= N</code>; always add a deterministic secondary sort key to control output when the primary sort has ties; and note the absence of <code>WITH TIES</code> in MySQL and SQLite, where the RANK() workaround is required.</div>

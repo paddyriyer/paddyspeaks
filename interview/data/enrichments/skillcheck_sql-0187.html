@@ -1,0 +1,82 @@
+<p>A growth team wants to identify customers who convert to their second purchase faster than the typical buyer &mdash; a signal of high intent. The interviewer is probing three distinct skills in sequence: <strong>ROW_NUMBER to isolate ordinal purchases</strong>, a self-join to pair first and second, and <code>PERCENTILE_CONT</code> to compute a statistical median for filtering.</p>
+
+<h4>1. The source data &mdash; <code>purchase</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>purchased_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 10:00</td></tr>
+    <tr><td>1</td><td>2025-01-08 10:00</td></tr>
+    <tr><td>1</td><td>2025-02-01 10:00</td></tr>
+    <tr><td>2</td><td>2025-01-10 10:00</td></tr>
+    <tr><td>2</td><td>2025-01-12 10:00</td></tr>
+    <tr><td>3</td><td>2025-01-05 10:00</td></tr>
+    <tr><td>3</td><td>2025-03-10 10:00</td></tr>
+    <tr><td>4</td><td>2025-02-01 10:00</td></tr>
+    <tr><td>4</td><td>2025-02-15 10:00</td></tr>
+    <tr><td>5</td><td>2025-02-20 10:00</td></tr>
+  </tbody>
+</table>
+<p>Customer 5 has only one purchase &mdash; excluded. Customers 1&ndash;4 qualify. Latency in days (truncated): cust 1 = 7, cust 2 = 2, cust 3 = 63, cust 4 = 14.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER, self-join, PERCENTILE_CONT</h4>
+<pre><code>WITH numbered AS (
+  SELECT customer_id, purchased_at,
+         ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY purchased_at) AS rn
+  FROM purchase
+),
+paired AS (
+  SELECT n1.customer_id,
+         n1.purchased_at AS first_at,
+         n2.purchased_at AS second_at,
+         FLOOR(EXTRACT(EPOCH FROM (n2.purchased_at - n1.purchased_at)) / 86400)::int AS latency_days
+  FROM numbered n1
+  JOIN numbered n2
+    ON n1.customer_id = n2.customer_id
+    AND n1.rn = 1 AND n2.rn = 2
+),
+m AS (
+  SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_days) AS med FROM paired
+)
+SELECT customer_id, first_at, second_at, latency_days
+FROM paired, m
+WHERE latency_days &lt; m.med
+ORDER BY customer_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Latency calculations (all timestamps are at 10:00, so epoch differences are exact multiples of 86400 s):</p>
+<table>
+  <thead><tr><th>customer_id</th><th>first_at</th><th>second_at</th><th>latency_days</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 10:00</td><td>2025-01-08 10:00</td><td>7</td></tr>
+    <tr><td>2</td><td>2025-01-10 10:00</td><td>2025-01-12 10:00</td><td>2</td></tr>
+    <tr><td>3</td><td>2025-01-05 10:00</td><td>2025-03-10 10:00</td><td>63</td></tr>
+    <tr><td>4</td><td>2025-02-01 10:00</td><td>2025-02-15 10:00</td><td>14</td></tr>
+  </tbody>
+</table>
+<p>Four qualifying customers. Sorted latencies: 2, 7, 14, 63. <code>PERCENTILE_CONT(0.5)</code> on 4 values interpolates between the 2nd and 3rd values: (7 + 14) / 2 = 10.5. Filter: <code>latency_days &lt; 10.5</code> &rarr; customers with latency 2 and 7 qualify.</p>
+<table>
+  <thead><tr><th>customer_id</th><th>first_at</th><th>second_at</th><th>latency_days</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 10:00</td><td>2025-01-08 10:00</td><td>7</td></tr>
+    <tr><td>2</td><td>2025-01-10 10:00</td><td>2025-01-12 10:00</td><td>2</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>ROW_NUMBER for ordinal purchase isolation</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY purchased_at)</code> assigns 1 to the first purchase and 2 to the second for each customer, without any ambiguity. The self-join <code>n1.rn = 1 AND n2.rn = 2</code> then cleanly extracts the first and second timestamps per customer. An alternative using <code>LAG</code> or <code>LEAD</code> would work but produces a result table with one row per purchase rather than one row per customer, requiring an extra filter step.</p>
+
+<h5>FLOOR(EXTRACT(EPOCH ...) / 86400) for truncated-day latency</h5>
+<p>Subtracting two PostgreSQL timestamps produces an interval. <code>EXTRACT(EPOCH FROM interval)</code> converts it to total seconds as a float. Dividing by 86400 (seconds per day) and applying <code>FLOOR</code> gives integer days truncated toward zero &mdash; exactly what "truncated toward zero" means for positive durations. An alternative is <code>DATE_PART('day', second_at - first_at)</code> in PostgreSQL, which extracts only the day component of the interval without accumulating hours; for timestamps at the same time of day this produces the same result, but for cross-midnight timestamps <code>EPOCH/86400</code> is more accurate.</p>
+
+<h5>PERCENTILE_CONT vs PERCENTILE_DISC</h5>
+<p><code>PERCENTILE_CONT(0.5)</code> returns a linearly interpolated value (10.5 in this example), which may not be an integer. <code>PERCENTILE_DISC(0.5)</code> returns the nearest actual data point (7 in this example). The question asks for "median latency" without specifying interpolation, but <code>PERCENTILE_CONT</code> is the statistical standard. Noting both options and their difference is a strong interview signal. The strict <code>&lt;</code> (not <code>&le;</code>) in the filter means that customers exactly at the median are excluded; if you used <code>PERCENTILE_DISC</code> (returning 7), customer 1 would be excluded too.</p>
+
+<h5>The cross join to <code>m</code></h5>
+<p>The comma in <code>FROM paired, m</code> is a CROSS JOIN &mdash; valid because <code>m</code> is guaranteed to return exactly one row. An explicit <code>CROSS JOIN</code> keyword is clearer. An alternative is a scalar subquery in the WHERE clause: <code>WHERE latency_days &lt; (SELECT med FROM m)</code>; that expresses the same logic but prevents the CTE from being referenced twice in complex plans.</p>
+
+<h5>Dialect notes</h5>
+<p><code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ...)</code> is ANSI SQL:2003 and is available in PostgreSQL, Snowflake, BigQuery, and SQL Server (as <code>PERCENTILE_CONT</code> inside <code>OVER</code> or as an aggregate). MySQL 8+ provides <code>PERCENTILE_CONT</code> as a window function only, not as an aggregate; computing a single-value median requires a workaround. SQLite does not support it natively.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>ROW_NUMBER</code> + a self-join on rn=1/rn=2 to cleanly extract first-and-second-purchase pairs; prefer <code>EPOCH/86400</code> + <code>FLOOR</code> over interval day-extraction for cross-midnight accuracy; and distinguish <code>PERCENTILE_CONT</code> (interpolated) from <code>PERCENTILE_DISC</code> (nearest data point) &mdash; the choice changes which customers fall exactly on the median boundary.</div>

@@ -1,0 +1,61 @@
+<p>A junk dimension consolidates several low-cardinality flag columns into a single pre-enumerated lookup table, replacing multiple FK columns on the fact table with one. The interviewer is probing whether you know <em>why</em> junk dimensions exist (reduced fact-table width, centralised attribute management), what their cardinality ceiling is, and how to enforce completeness with a UNIQUE constraint on the combination. The question also asks for the referencing pattern, so your answer must include how <code>fact_order</code> uses it.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Flags to consolidate:</strong> <code>channel</code> (4 values), <code>payment_status</code> (4 values), <code>is_gift</code> (2 values), <code>is_fraud_reviewed</code> (2 values).</li>
+  <li><strong>Maximum distinct combinations:</strong> 4 &times; 4 &times; 2 &times; 2 = 64 rows &mdash; a tiny, cacheable table.</li>
+  <li><strong>Surrogate PK:</strong> <code>order_junk_sk</code> is the single FK placed on the fact table.</li>
+  <li><strong>Uniqueness:</strong> the combination of all four flags must be unique; enforced by a UNIQUE constraint on the four columns.</li>
+  <li><strong>Fact-table reference:</strong> one FK column replaces four separate columns on <code>fact_order</code>.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE dim_order_junk (
+  order_junk_sk        BIGINT      NOT NULL,
+  channel              VARCHAR(20) NOT NULL,        -- web / mobile / store / partner
+  payment_status       VARCHAR(20) NOT NULL,        -- pending / paid / refunded / chargeback
+  is_gift              BOOLEAN     NOT NULL,
+  is_fraud_reviewed    BOOLEAN     NOT NULL,
+  PRIMARY KEY (order_junk_sk),
+  UNIQUE (channel, payment_status, is_gift, is_fraud_reviewed)
+);
+
+-- fact_order carries a single FK column: order_junk_sk BIGINT NOT NULL.
+-- One row per distinct combination of the flags (~4 * 4 * 2 * 2 = 64 rows max).
+-- Avoids four extra columns on every fact row; queries filter / group by
+-- attributes on the junk dim instead.</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>order_junk_sk</td><td>Surrogate PK</td><td>The only column that fact_order stores; a compact integer handle for the entire flag combination.</td></tr>
+    <tr><td>channel</td><td>Consolidated low-cardinality attribute</td><td>Four possible values (web, mobile, store, partner); storing as VARCHAR avoids a separate dim_channel table for such a small set.</td></tr>
+    <tr><td>payment_status</td><td>Consolidated low-cardinality attribute</td><td>Four possible values; status that changes over an order&rsquo;s life should ideally be on the fact or a snapshot, but at the time of order creation it is a classification flag suitable for a junk dim.</td></tr>
+    <tr><td>is_gift</td><td>Consolidated Boolean flag</td><td>Two values only; storing as a standalone dimension would be absurd &mdash; a classic junk-dimension candidate.</td></tr>
+    <tr><td>is_fraud_reviewed</td><td>Consolidated Boolean flag</td><td>Two values; pairs with channel and payment_status to allow combined analysis (&ldquo;mobile orders that were fraud-reviewed&rdquo;) without joining multiple tables.</td></tr>
+    <tr><td>UNIQUE constraint</td><td>Combination key</td><td>Prevents duplicate rows for the same flag combination. ETL checks this constraint to UPSERT: &ldquo;if this combination doesn&rsquo;t exist, insert it and return the new SK; otherwise return the existing SK.&rdquo;</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why junk dimensions exist</h5>
+<p>Without a junk dimension, each flag lands as its own column on the fact table: <code>channel VARCHAR(20)</code>, <code>payment_status VARCHAR(20)</code>, <code>is_gift BOOLEAN</code>, <code>is_fraud_reviewed BOOLEAN</code>. For a fact table with hundreds of millions of rows, those four columns add up to tens of gigabytes of redundantly repeated string values. The junk dimension replaces them with one 8-byte integer FK per fact row. Beyond storage, it also centralises the controlled vocabulary: new channel values are added to the dimension, not directly to every tool that reads the fact table.</p>
+
+<h5>Cardinality ceiling and when junk dimensions are appropriate</h5>
+<p>The pattern is only viable when the cross product of all flags is small enough to pre-populate. Here: 4 &times; 4 &times; 2 &times; 2 = 64 rows &mdash; trivially small. If one flag had 1,000 values the cross product would be 16,000 rows; still manageable. If you reach millions of combinations, the junk dimension is no longer efficient and you should revert to individual FK columns or a sparse attribute table. As a rule of thumb, junk dimensions work when the combination count stays below ~10,000.</p>
+
+<h5>Population strategy</h5>
+<p>The junk dimension can be fully pre-populated at load time (64 INSERT statements for all combinations), or populated lazily as the ETL encounters new combinations. The UNIQUE constraint enables the lazy approach: INSERT the combination, let the constraint reject duplicates, and use <code>ON CONFLICT DO NOTHING RETURNING order_junk_sk</code> in PostgreSQL (or an equivalent MERGE in other engines) to retrieve the SK for whichever path executed. Pre-population is simpler and avoids concurrency issues in high-throughput ETL.</p>
+
+<h5>Query pattern</h5>
+<p>Fact queries filter and group on junk-dimension attributes with a single join: <code>JOIN dim_order_junk j ON j.order_junk_sk = f.order_junk_sk WHERE j.channel = &lsquo;mobile&rsquo; AND j.is_fraud_reviewed = TRUE</code>. Because the junk table has at most 64 rows, the join result set is tiny and the planner will choose a hash join or nested loop with an index scan &mdash; effectively free.</p>
+
+<h5>What should NOT go into a junk dimension</h5>
+<p>Attributes that change slowly over time (and need SCD2 versioning) do not belong in a junk dimension &mdash; put them in a proper slowly-changing dimension. High-cardinality attributes (customer region, product category) should get their own dimension. The junk dim is specifically for flags and codes that are: low-cardinality, not independently analysed, and not slowly changing.</p>
+
+<h5>Warehouse dialect notes</h5>
+<p>In <strong>BigQuery</strong> there are no enforced UNIQUE constraints; document the invariant and enforce it in ETL. In <strong>Redshift</strong>, declare the UNIQUE constraint for documentation but note it is not enforced; rely on a pre-load deduplication step. In <strong>Snowflake</strong> and <strong>PostgreSQL</strong>, the UNIQUE constraint is enforced and enables the UPSERT pattern reliably.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state the maximum combination count (4 &times; 4 &times; 2 &times; 2 = 64) to justify the pattern; explain the storage benefit (&ldquo;one 8-byte integer per fact row replaces ~60 bytes of repeated string values&rdquo;); describe the lazy-UPSERT population strategy enabled by the UNIQUE constraint; and articulate the limits of the pattern (&ldquo;if the cross product exceeded ~10,000 rows I&rsquo;d revert to individual FK columns or a sparse attribute table&rdquo;) &mdash; knowing the pattern&rsquo;s failure mode is as important as knowing the pattern itself.</div>

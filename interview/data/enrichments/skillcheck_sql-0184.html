@@ -1,0 +1,72 @@
+<p>A sales analyst wants to find the inflection point where momentum has built enough to lift the cumulative average above the long-run mean &mdash; the first sale row (by date) where the running average crosses at or above the global average. The interviewer is probing <strong>window-function layering</strong>: computing two different window aggregates in the same CTE, then filtering and picking the first qualifying row with <code>ROW_NUMBER</code>.</p>
+
+<h4>1. The source data &mdash; <code>sale</code></h4>
+<table>
+  <thead><tr><th>sale_id</th><th>sale_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>10</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>20</td></tr>
+    <tr><td>3</td><td>2025-01-03</td><td>15</td></tr>
+    <tr><td>4</td><td>2025-01-04</td><td>80</td></tr>
+    <tr><td>5</td><td>2025-01-05</td><td>60</td></tr>
+    <tr><td>6</td><td>2025-01-06</td><td>45</td></tr>
+    <tr><td>7</td><td>2025-01-07</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Global average: (10+20+15+80+60+45+30) / 7 = 260 / 7 &asymp; 37.14. The running average starts low (small early amounts) and spikes upward at row 4 when the 80-unit sale arrives.</p>
+
+<h4>2. The SQL &mdash; dual window aggregates + first-qualifying-row filter</h4>
+<pre><code>WITH base AS (
+  SELECT sale_date, amount,
+         AVG(amount) OVER (ORDER BY sale_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_avg,
+         AVG(amount) OVER () AS global_avg
+  FROM sale
+),
+flagged AS (
+  SELECT sale_date, amount, running_avg, global_avg,
+         ROW_NUMBER() OVER (PARTITION BY (running_avg &gt;= global_avg) ORDER BY sale_date) AS first_above_rn
+  FROM base
+  WHERE running_avg &gt;= global_avg
+)
+SELECT sale_date,
+       amount,
+       ROUND(running_avg::numeric, 2) AS running_avg,
+       ROUND(global_avg::numeric, 2) AS global_avg
+FROM flagged
+WHERE first_above_rn = 1
+ORDER BY sale_date;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Hand-trace the running average for each row (all dates in 2025-01, amounts cumulative):</p>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th><th>running sum</th><th>n</th><th>running_avg</th><th>global_avg</th><th>&ge; global?</th></tr></thead>
+  <tbody>
+    <tr><td>Jan 01</td><td>10</td><td>10</td><td>1</td><td>10.00</td><td>37.14</td><td>No</td></tr>
+    <tr><td>Jan 02</td><td>20</td><td>30</td><td>2</td><td>15.00</td><td>37.14</td><td>No</td></tr>
+    <tr><td>Jan 03</td><td>15</td><td>45</td><td>3</td><td>15.00</td><td>37.14</td><td>No</td></tr>
+    <tr><td>Jan 04</td><td>80</td><td>125</td><td>4</td><td>31.25</td><td>37.14</td><td>No</td></tr>
+    <tr><td>Jan 05</td><td>60</td><td>185</td><td>5</td><td>37.00</td><td>37.14</td><td>No</td></tr>
+    <tr><td><strong>Jan 06</strong></td><td><strong>45</strong></td><td><strong>230</strong></td><td><strong>6</strong></td><td><strong>38.33</strong></td><td><strong>37.14</strong></td><td><strong>YES &mdash; first time</strong></td></tr>
+    <tr><td>Jan 07</td><td>30</td><td>260</td><td>7</td><td>37.14</td><td>37.14</td><td>Yes (second time)</td></tr>
+  </tbody>
+</table>
+<p>The final output is a single row: <code>2025-01-06 | 45 | 38.33 | 37.14</code>. Jan 07 also satisfies <code>running_avg &ge; global_avg</code> (ties exactly), but <code>first_above_rn = 1</code> picks only the earliest qualifying row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two window specs on the same table scan</h5>
+<p>The <code>base</code> CTE defines two window functions in one SELECT. The ROWS frame gives the cumulative running average; the frameless <code>OVER ()</code> is a full-table aggregate producing the same global_avg on every row. Most optimizers can satisfy both in a single pass over the sorted data. Splitting them into separate CTEs or subqueries is unnecessary and can force two scans.</p>
+
+<h5>Why <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> instead of default</h5>
+<p>The default frame for <code>ORDER BY</code> in a window function is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. On dates, RANGE groups ties: if two sales share the same date, both get the cumulative average including both. ROWS counts physical rows regardless of value ties, which is the correct "running average up to and including this row" semantics the question specifies. Getting the frame clause right is a key senior signal.</p>
+
+<h5>The <code>ROW_NUMBER</code> inside <code>flagged</code> trick</h5>
+<p>After filtering to rows where <code>running_avg &ge; global_avg</code>, the remaining rows may be more than one (Jan 06 and Jan 07 both qualify). <code>ROW_NUMBER() OVER (PARTITION BY (running_avg &ge; global_avg) ORDER BY sale_date)</code> assigns 1 to the earliest such row. The PARTITION BY expression is a boolean constant within the filtered CTE &mdash; all rows have the same partition value (TRUE), so the window ranks them purely by date. An alternative is a simpler <code>LIMIT 1 ORDER BY sale_date</code> after the WHERE; the ROW_NUMBER approach is portable to dialects that don't support LIMIT in subqueries.</p>
+
+<h5>Floating-point precision</h5>
+<p>The global average 260/7 is irrational in decimal. The comparison <code>running_avg &ge; global_avg</code> is done on the raw <code>double precision</code> (or <code>numeric</code>) values before rounding &mdash; rounding happens only in the final SELECT. If both window functions run at the same precision the comparison is consistent. Applying ROUND before the comparison would introduce artefacts.</p>
+
+<h5>Dialect notes</h5>
+<p>The ROWS frame syntax is ANSI SQL and is supported by PostgreSQL, Snowflake, BigQuery, and SQL Server. MySQL 8+ supports window frames. SQLite supports ROWS frames since 3.25. BigQuery requires explicit <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; it does not infer the frame from ORDER BY alone. The boolean PARTITION BY expression works in PostgreSQL and Snowflake; in SQL Server wrap it in a CASE expression or filter via a sub-CTE instead.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> (not the default RANGE frame) for a true row-by-row cumulative average; compute global_avg in the same CTE with a frameless <code>OVER ()</code>; and isolate the first crossing with <code>ROW_NUMBER</code> rather than a fragile outer <code>LIMIT 1</code> so the logic survives in subquery contexts.</div>

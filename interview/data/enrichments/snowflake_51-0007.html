@@ -1,0 +1,76 @@
+<p>The revenue team needs to highlight the top-3 products by revenue within each category — a leaderboard query. The interviewer is probing whether you know the difference between <code>RANK</code>, <code>DENSE_RANK</code>, and <code>ROW_NUMBER</code> for tie-breaking, whether you can correctly apply a window function on top of a GROUP BY aggregate, and whether you know that Snowflake supports <code>QUALIFY</code> to avoid the outer subquery.</p>
+
+<h4>1. The source data &mdash; <code>sales</code> and <code>products</code></h4>
+<table>
+  <thead><tr><th>sale_id</th><th>product_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>500</td></tr>
+    <tr><td>2</td><td>10</td><td>300</td></tr>
+    <tr><td>3</td><td>20</td><td>900</td></tr>
+    <tr><td>4</td><td>30</td><td>200</td></tr>
+    <tr><td>5</td><td>40</td><td>700</td></tr>
+    <tr><td>6</td><td>40</td><td>400</td></tr>
+    <tr><td>7</td><td>50</td><td>600</td></tr>
+    <tr><td>8</td><td>60</td><td>150</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Widget</td><td>Electronics</td></tr>
+    <tr><td>20</td><td>Gadget</td><td>Electronics</td></tr>
+    <tr><td>30</td><td>Book</td><td>Media</td></tr>
+    <tr><td>40</td><td>Cable</td><td>Electronics</td></tr>
+    <tr><td>50</td><td>T-Shirt</td><td>Apparel</td></tr>
+    <tr><td>60</td><td>Poster</td><td>Media</td></tr>
+  </tbody>
+</table>
+<p>Electronics has 3 products: Widget ($800 total), Gadget ($900), Cable ($1100). Media has 2: Book ($200), Poster ($150). Apparel has 1: T-Shirt ($600). All categories fit within the top-3 window, so all rows appear — but the ranking within each category is the key result to verify.</p>
+
+<h4>2. The SQL &mdash; RANK over a per-category aggregate in a subquery filter</h4>
+<pre><code>SELECT category, product_id, name, revenue, rk
+FROM (
+  SELECT p.category, p.product_id, p.name,
+         SUM(s.amount) AS revenue,
+         RANK() OVER (PARTITION BY p.category
+                      ORDER BY SUM(s.amount) DESC) AS rk
+  FROM sales s
+  JOIN products p ON s.product_id = p.product_id
+  GROUP BY p.category, p.product_id, p.name
+)
+WHERE rk &lt;= 3
+ORDER BY category, rk;</code></pre>
+<p>The inner query joins, aggregates revenue per product, and applies <code>RANK()</code> within each category. The outer query filters to the top 3. In Snowflake, the subquery wrapper can be replaced with <code>QUALIFY RANK() OVER (…) &lt;= 3</code> directly in the GROUP BY query — no derived table needed.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>product_id</th><th>name</th><th>revenue</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>Apparel</td><td>50</td><td>T-Shirt</td><td>600</td><td>1</td></tr>
+    <tr><td>Electronics</td><td>40</td><td>Cable</td><td>1,100</td><td>1</td></tr>
+    <tr><td>Electronics</td><td>20</td><td>Gadget</td><td>900</td><td>2</td></tr>
+    <tr><td>Electronics</td><td>10</td><td>Widget</td><td>800</td><td>3</td></tr>
+    <tr><td>Media</td><td>30</td><td>Book</td><td>200</td><td>1</td></tr>
+    <tr><td>Media</td><td>60</td><td>Poster</td><td>150</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Cable: 700 + 400 = $1,100 (rank 1). Gadget: $900 (rank 2). Widget: 500 + 300 = $800 (rank 3). Both Media products rank within the top 3. Apparel only has one product. All 6 products survive the <code>rk &lt;= 3</code> filter because no category has more than 3 products in this dataset — a realistic interviewer will ask you to add a 4th Electronics product to stress-test the cutoff.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Window function on an aggregate: the subquery is required (except in Snowflake)</h5>
+<p>You cannot write <code>RANK() OVER (PARTITION BY p.category ORDER BY SUM(s.amount) DESC)</code> directly in a query alongside <code>GROUP BY</code> and then filter it in the same <code>WHERE</code> clause. The window function is evaluated after GROUP BY but before the outer WHERE, so filtering on the window result requires either a subquery/CTE or — in Snowflake — the <code>QUALIFY</code> clause, which is evaluated after window functions and avoids the derived table entirely.</p>
+
+<h5>RANK vs DENSE_RANK vs ROW_NUMBER</h5>
+<p>If two products in the same category had equal revenue, <code>RANK()</code> would assign the same rank to both and skip the next rank (e.g., two products at rank 1, nothing at rank 2). A <code>WHERE rk &lt;= 3</code> filter would then return 4 rows for that category — two tied at rank 1 plus two more. <code>DENSE_RANK()</code> would not skip: both ties get rank 1, next gets rank 2. <code>ROW_NUMBER()</code> assigns a unique rank to each row, breaking ties arbitrarily. For a strict "top 3 products" limit regardless of ties, use <code>ROW_NUMBER</code>; for "all products that are in top-3 revenue," use <code>RANK</code>. Knowing which one the business requires is the question to ask before writing any code.</p>
+
+<h5>Snowflake's QUALIFY clause</h5>
+<p>Snowflake (and BigQuery's <code>QUALIFY</code> extension) allows: <code>GROUP BY p.category, p.product_id, p.name QUALIFY RANK() OVER (PARTITION BY p.category ORDER BY SUM(s.amount) DESC) &lt;= 3</code>. This eliminates the derived table and makes the intent clearer. PostgreSQL and MySQL do not support <code>QUALIFY</code> — the subquery wrapper is required. Mentioning this in a Snowflake interview is the "knows the platform" signal.</p>
+
+<h5>Products with zero sales</h5>
+<p>The INNER JOIN drops products with no sales rows. If the requirement includes "show all products in their category ranking even if they have $0 revenue," change to <code>LEFT JOIN sales s ON s.product_id = p.product_id</code> and use <code>COALESCE(SUM(s.amount), 0)</code>. Zero-revenue products would rank last within their category.</p>
+
+<h5>Performance</h5>
+<p>In Snowflake, the optimizer pushes the GROUP BY into the distributed aggregation layer before the window function runs. The subquery (or QUALIFY) does not add a separate scan — it is a filter on the window output. A composite sort key on <code>sales(product_id)</code> and a cluster key on <code>products(category)</code> improve micro-partition pruning for the join and the PARTITION BY, respectively.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish RANK (ties get same rank, next skipped), DENSE_RANK (ties share rank, no skip), and ROW_NUMBER (always unique) &mdash; and ask the business which tie-breaking rule applies; cite Snowflake's <code>QUALIFY</code> as the subquery-free alternative; and note that an INNER JOIN silently drops zero-sale products that might be relevant for the ranking.</div>

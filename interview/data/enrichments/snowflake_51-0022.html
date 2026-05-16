@@ -1,0 +1,80 @@
+<p>SaaS billing teams need monthly recurring revenue (MRR) sliced by country and plan: <em>"For every active subscription as of today, count subscribers and sum up the plan&rsquo;s monthly price, broken down by user country and plan name."</em> This question tests the correct active-subscription filter (handling NULL <code>ended_at</code> meaning "never cancelled"), multi-table JOIN chaining, and GROUP BY on a joined dimension attribute.</p>
+
+<h4>1. The source data &mdash; <code>subscriptions</code>, <code>users</code>, <code>plans</code></h4>
+<table>
+  <thead><tr><th>sub_id</th><th>user_id</th><th>plan_id</th><th>started_at</th><th>ended_at</th></tr></thead>
+  <tbody>
+    <tr><td>S1</td><td>U1</td><td>P1</td><td>2025-01-01</td><td>NULL</td></tr>
+    <tr><td>S2</td><td>U2</td><td>P2</td><td>2025-02-15</td><td>NULL</td></tr>
+    <tr><td>S3</td><td>U3</td><td>P1</td><td>2025-03-01</td><td>2025-04-30</td></tr>
+    <tr><td>S4</td><td>U4</td><td>P1</td><td>2025-01-10</td><td>NULL</td></tr>
+    <tr><td>S5</td><td>U5</td><td>P2</td><td>2026-06-01</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>user_id</th><th>country</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>U1</td><td>US</td><td>Alice</td></tr>
+    <tr><td>U2</td><td>UK</td><td>Bob</td></tr>
+    <tr><td>U3</td><td>US</td><td>Carol</td></tr>
+    <tr><td>U4</td><td>US</td><td>Dan</td></tr>
+    <tr><td>U5</td><td>CA</td><td>Eve</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>plan_id</th><th>name</th><th>monthly_price</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>Basic</td><td>9.99</td></tr>
+    <tr><td>P2</td><td>Pro</td><td>29.99</td></tr>
+  </tbody>
+</table>
+<p>Assuming today is 2025-05-16: S1, S2, S4 are active (started &le; today, NULL ended_at). S3 expired on 2025-04-30. S5 has not started yet (starts 2026-06-01). These last two test the two branches of the WHERE filter.</p>
+
+<h4>2. The SQL &mdash; active subscription filter with NULL-safe ended_at check</h4>
+<pre><code>SELECT u.country, p.name AS plan,
+       COUNT(*) AS active_subs,
+       SUM(p.monthly_price) AS mrr
+FROM subscriptions s
+JOIN users u ON s.user_id = u.user_id
+JOIN plans p ON s.plan_id = p.plan_id
+WHERE s.started_at &lt;= CURRENT_DATE
+  AND (s.ended_at IS NULL OR s.ended_at &gt; CURRENT_DATE)
+GROUP BY u.country, p.name
+ORDER BY u.country, mrr DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>(As of 2025-05-16; active subscriptions: S1, S2, S4)</p>
+<table>
+  <thead><tr><th>country</th><th>plan</th><th>active_subs</th><th>mrr</th></tr></thead>
+  <tbody>
+    <tr><td>UK</td><td>Pro</td><td>1</td><td>29.99</td></tr>
+    <tr><td>US</td><td>Basic</td><td>2</td><td>19.98</td></tr>
+  </tbody>
+</table>
+<p>S1 (Alice/US/Basic), S4 (Dan/US/Basic) &rarr; US Basic: count=2, MRR=2&times;9.99=19.98. S2 (Bob/UK/Pro) &rarr; UK Pro: count=1, MRR=29.99. S3 excluded (ended_at=2025-04-30 &lt; today). S5 excluded (started_at=2026-06-01 &gt; today). Within each country, ORDER BY mrr DESC: UK has only Pro; US has only Basic. The CA row (Eve/S5) is excluded.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The active-subscription predicate &mdash; the NULL trap</h5>
+<p>The most common interview mistake is writing <code>WHERE s.ended_at &gt; CURRENT_DATE</code> without the NULL branch. A NULL <code>ended_at</code> means "never cancelled" &mdash; an indefinitely active subscription. But <code>NULL &gt; CURRENT_DATE</code> evaluates to NULL (not TRUE), so those subscriptions are silently dropped. The correct predicate is always:</p>
+<pre><code>s.ended_at IS NULL OR s.ended_at &gt; CURRENT_DATE</code></pre>
+<p>This is the textbook NULL-handling interview trap for subscription/session data.</p>
+
+<h5>The future-start guard: <code>started_at &le; CURRENT_DATE</code></h5>
+<p>Pre-provisioned subscriptions may have a future <code>started_at</code>. Without the started_at guard, S5 (starting 2026-06-01) would count as active today because its <code>ended_at</code> is NULL. The two-sided filter correctly brackets the active window: <code>[started_at, ended_at)</code> semantics using <code>started_at &le; today AND (ended_at IS NULL OR ended_at &gt; today)</code>.</p>
+
+<h5>MRR as SUM of plan price &mdash; the plan-based model</h5>
+<p>The query computes MRR as <code>SUM(p.monthly_price)</code> across active subscriptions. This is correct when all subscribers on the same plan pay the same price. If pricing is per-subscriber (discounts, trials, usage-based), the <code>monthly_price</code> should be a column on <code>subscriptions</code> rather than <code>plans</code>. Identifying this modelling assumption is a senior data-modelling signal.</p>
+
+<h5>GROUP BY on a joined dimension: country and plan name</h5>
+<p>The GROUP BY groups on <code>u.country</code> and <code>p.name</code> &mdash; both from joined dimension tables, not from the fact table. This is clean: each subscription row resolves to exactly one country and one plan name through the INNER JOINs, so aggregation is unambiguous. Grouping by <code>p.plan_id</code> and selecting <code>p.name</code> would also work in standard SQL (since plan_id functionally determines name), but most engines require p.name to appear in GROUP BY unless it is in a functional dependency that the engine can prove.</p>
+
+<h5>Dialect notes</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>CURRENT_DATE</code> is a keyword (no parentheses needed). <code>CURRENT_DATE()</code> also works.</li>
+  <li><strong>Postgres:</strong> <code>CURRENT_DATE</code> (no parentheses). The solution runs as-is.</li>
+  <li><strong>BigQuery:</strong> <code>CURRENT_DATE()</code> (parentheses required).</li>
+  <li><strong>MySQL:</strong> <code>CURDATE()</code> or <code>CURRENT_DATE</code>.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately name the NULL trap in subscription filters &mdash; <code>ended_at &gt; today</code> silently drops never-cancelled subscriptions because <code>NULL &gt; date</code> is NULL, not TRUE. Add the started_at guard to exclude future-provisioned subscriptions, and flag that the plan-price MRR model breaks when per-subscriber pricing exists (move the price column to the subscriptions table).</div>
