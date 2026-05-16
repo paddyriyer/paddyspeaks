@@ -1,0 +1,59 @@
+<p>A pricing system stores <code>product_dim</code> as a slowly-changing dimension: every price change appends a new row stamped with an <code>effective_date</code>, and old rows are kept for history. A downstream report needs only the <em>current</em> state &mdash; one row per product, the one with the latest <code>effective_date</code>. The interviewer is testing the latest-per-entity pattern over an SCD, and whether you treat the effective-dated history correctly.</p>
+
+<h4>1. The source data &mdash; <code>product_dim</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th><th>effective_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Widget</td><td>9.99</td><td>2024-01-01</td><td>original price</td></tr>
+    <tr><td>1</td><td>Widget</td><td>11.99</td><td>2024-06-01</td><td>first hike</td></tr>
+    <tr><td>1</td><td>Widget Pro</td><td>14.99</td><td>2025-01-01</td><td>current &mdash; rename + hike</td></tr>
+    <tr><td>2</td><td>Gadget</td><td>19.99</td><td>2024-03-01</td><td>original price</td></tr>
+    <tr><td>2</td><td>Gadget</td><td>17.99</td><td>2024-09-01</td><td>current &mdash; price cut</td></tr>
+    <tr><td>3</td><td>Gizmo</td><td>4.99</td><td>2024-02-15</td><td>single row &mdash; never changed</td></tr>
+  </tbody>
+</table>
+<p>Product 1 has three versions &mdash; the latest is also a <em>rename</em> (Widget &rarr; Widget Pro), so picking the wrong row corrupts the name, not just the price. Product 3 is the edge case: a product whose price never changed has a single row, and it must still appear in the current snapshot.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER()</code> per product, keep the newest</h4>
+<pre><code>SELECT product_id, name, price, effective_date
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY product_id
+               ORDER BY effective_date DESC
+           ) AS rn
+    FROM product_dim
+)
+WHERE rn = 1
+ORDER BY product_id;</code></pre>
+<p><code>PARTITION BY product_id</code> restarts numbering for each product; <code>ORDER BY effective_date DESC</code> puts the most recent version first, giving it <code>rn = 1</code>. The outer query keeps only those current rows.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th><th>effective_date</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Widget Pro</td><td>14.99</td><td>2025-01-01</td><td>latest of 3 &mdash; name <em>and</em> price updated</td></tr>
+    <tr><td>2</td><td>Gadget</td><td>17.99</td><td>2024-09-01</td><td>latest of 2 &mdash; the price cut</td></tr>
+    <tr><td>3</td><td>Gizmo</td><td>4.99</td><td>2024-02-15</td><td>single row passes straight through</td></tr>
+  </tbody>
+</table>
+<p>One row per product. Product 1 correctly carries <code>Widget Pro / 14.99</code> &mdash; the whole row from the latest version, so the rename rides along with the price. Product 3's lone row survives because a one-member partition still has an <code>rn = 1</code>. History rows are discarded but the table itself is untouched.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Picking the whole row, not just the max date</h5>
+<p>The naive instinct is <code>SELECT product_id, MAX(effective_date) GROUP BY product_id</code> &mdash; but that gives you only the id and date; you cannot also select <code>name</code> and <code>price</code>, because they are not in the <code>GROUP BY</code> and not aggregated. <code>ROW_NUMBER</code> ranks <em>whole rows</em> and lets you keep every column of the winning row intact. That is why the rename travels with the price: you select the row, not a recomputed scalar.</p>
+
+<h5>The self-join alternative and its multi-row trap</h5>
+<p>The commented form joins back to a <code>MAX(effective_date)</code> subquery &mdash; valid on legacy MySQL without window functions. But it has a defect: if a product had <em>two rows sharing the same</em> <code>effective_date</code> (a same-day double-write), the join matches both and the product appears twice. <code>ROW_NUMBER</code> with a tie-breaking secondary sort returns exactly one. For an SCD that should have unique effective dates, either is fine &mdash; but name the assumption.</p>
+
+<h5>The tie-break gap on duplicate effective dates</h5>
+<p><code>ORDER BY effective_date DESC</code> alone leaves two rows with an identical latest <code>effective_date</code> in undefined order &mdash; the engine may pick either, and the result is non-deterministic. A well-formed SCD enforces one row per (entity, effective_date), so this should not arise; if it can, add a tie-breaker that <em>varies</em> within the partition, such as a surrogate <code>id</code> or a load timestamp: <code>ORDER BY effective_date DESC, id DESC</code>.</p>
+
+<h5>"Current" vs "current as of a date"</h5>
+<p>This query returns the absolute latest version. Real SCD queries often need "the version effective on a given <em>as-of</em> date" &mdash; the row where <code>effective_date &lt;= :as_of</code> with the maximum such date. The senior extension adds <code>WHERE effective_date &lt;= :as_of</code> <em>inside</em> the subquery before ranking. And if the table also has an <code>end_date</code> (a true SCD Type 2), "current" is simply <code>WHERE end_date IS NULL</code> &mdash; no window needed. Knowing which SCD shape you are on is the differentiator.</p>
+
+<h5>Dialect notes</h5>
+<p>Window functions are standard in Postgres, MySQL 8+, SQLite 3.25+, Snowflake, and SQL Server. Postgres requires the derived table to have an alias. The Postgres-idiomatic shortcut is <code>SELECT DISTINCT ON (product_id) * FROM product_dim ORDER BY product_id, effective_date DESC</code>, which picks the first row per <code>product_id</code> directly &mdash; terser, but Postgres-only.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> get the current SCD snapshot with <code>ROW_NUMBER() OVER (PARTITION BY entity ORDER BY effective_date DESC)</code> + <code>rn = 1</code> so the whole winning row (rename and all) is kept, prefer it over a <code>MAX</code> self-join which can return duplicates on tied dates, add a within-partition tie-breaker for determinism, and recognise the "as-of date" and SCD-Type-2 <code>end_date IS NULL</code> variants of "current".</div>

@@ -1,0 +1,67 @@
+<p>A finance team wants a year-over-year growth report per product: each year's total spend, the prior year's total, and the percentage change. The interviewer is testing the <code>LAG</code> window function for fetching a previous period's value, plus two classic traps &mdash; the first year of any product has no prior to compare against, and a zero prior would divide by zero.</p>
+
+<h4>1. The source data &mdash; <code>txn</code></h4>
+<table>
+  <thead><tr><th>transaction_id</th><th>product_id</th><th>spend</th><th>occurred_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>1000</td><td>2023-03-01</td><td>product 1, 2023 (two txns)</td></tr>
+    <tr><td>2</td><td>1</td><td>500</td><td>2023-09-01</td><td>2023 total = 1500</td></tr>
+    <tr><td>3</td><td>1</td><td>2000</td><td>2024-04-01</td><td>2024 total = 2000</td></tr>
+    <tr><td>4</td><td>1</td><td>1800</td><td>2025-04-01</td><td>2025 total = 1800 (a decline)</td></tr>
+    <tr><td>5</td><td>2</td><td>400</td><td>2024-05-01</td><td>product 2 starts in 2024</td></tr>
+    <tr><td>6</td><td>2</td><td>600</td><td>2025-05-01</td><td>&nbsp;</td></tr>
+    <tr><td>7</td><td>3</td><td>300</td><td>2025-06-01</td><td>product 3 &mdash; only one year ever</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are the first-year rows. Product 1's earliest year is 2023 &mdash; no 2022 to compare. Product 2 debuts in 2024. Product 3 exists in <em>only</em> 2025 and has no prior year at all. Each of these must appear in the output with <code>prev_year_spend</code> and <code>yoy_growth</code> as <code>NULL</code>, not omitted.</p>
+
+<h4>2. The SQL &mdash; yearly rollup, then LAG over years per product</h4>
+<pre><code>WITH yearly AS (
+  SELECT EXTRACT(YEAR FROM occurred_at)::int AS year,
+         product_id,
+         SUM(spend) AS curr_year_spend
+  FROM txn
+  GROUP BY EXTRACT(YEAR FROM occurred_at), product_id
+)
+SELECT year, product_id, curr_year_spend,
+       LAG(curr_year_spend) OVER (PARTITION BY product_id ORDER BY year) AS prev_year_spend,
+       ROUND(
+         (curr_year_spend - LAG(curr_year_spend) OVER (PARTITION BY product_id ORDER BY year))
+         / NULLIF(LAG(curr_year_spend) OVER (PARTITION BY product_id ORDER BY year), 0) * 100,
+         2) AS yoy_growth
+FROM yearly
+ORDER BY year, product_id;</code></pre>
+<p><code>yearly</code> rolls transactions up to one row per (product, year). <code>LAG(curr_year_spend) OVER (PARTITION BY product_id ORDER BY year)</code> reaches back to the previous year's total for the same product. The growth formula subtracts, divides by the prior total, and scales by 100 &mdash; with <code>NULLIF(..., 0)</code> guarding the denominator.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>product_id</th><th>curr_year_spend</th><th>prev_year_spend</th><th>yoy_growth</th></tr></thead>
+  <tbody>
+    <tr><td>2023</td><td>1</td><td>1500</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>2024</td><td>1</td><td>2000</td><td>1500</td><td>33.33</td></tr>
+    <tr><td>2024</td><td>2</td><td>400</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>2025</td><td>1</td><td>1800</td><td>2000</td><td>-10.00</td></tr>
+    <tr><td>2025</td><td>2</td><td>600</td><td>400</td><td>50.00</td></tr>
+    <tr><td>2025</td><td>3</td><td>300</td><td>NULL</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Every product's debut year shows <code>NULL</code> for prior spend and growth &mdash; products 1 (2023), 2 (2024), and 3 (2025) all qualify. Product 1's 2025 figure is <code>-10.00</code>: spend fell from 2000 to 1800, and the formula correctly yields a <em>negative</em> growth. Product 3 appears as a single row despite having only one year of history, exactly as the spec requires.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> partitioned by product is the right reach-back</h5>
+<p>Year-over-year means comparing a row to the <em>same product's</em> previous year. <code>LAG(curr_year_spend) OVER (PARTITION BY product_id ORDER BY year)</code> does exactly that: <code>PARTITION BY product_id</code> isolates each product's timeline, <code>ORDER BY year</code> defines "previous", and <code>LAG</code> with the default offset of 1 fetches the immediately prior year. No self-join on <code>year = year - 1</code> is needed &mdash; and <code>LAG</code> is robust even if a product skips a year (it returns the previous <em>row</em>, not literally year minus one).</p>
+
+<h5>Why first-year rows naturally become NULL</h5>
+<p><code>LAG</code> returns <code>NULL</code> when there is no preceding row in the partition &mdash; precisely the situation for each product's earliest year. The arithmetic then propagates that <code>NULL</code>: <code>curr - NULL</code> is <code>NULL</code>, and <code>NULL / anything</code> is <code>NULL</code>, so <code>yoy_growth</code> is <code>NULL</code> too. The query needs no special <code>CASE</code> for the first year &mdash; SQL's three-valued logic handles it. This is why the rows still appear instead of being filtered out: nothing removes them.</p>
+
+<h5><code>NULLIF(prev, 0)</code> &mdash; the divide-by-zero guard</h5>
+<p>If a product had a real prior-year total of <code>0</code>, dividing by it would raise a division-by-zero error and abort the whole query. <code>NULLIF(LAG(...), 0)</code> converts a zero denominator into <code>NULL</code>, so the division yields <code>NULL</code> instead of crashing. It is defensive: the sample data has no zero year, but a robust YoY query must assume one could occur. Note that "growth from zero" is mathematically undefined anyway &mdash; <code>NULL</code> is the honest answer.</p>
+
+<h5>The cost of repeating <code>LAG</code> three times</h5>
+<p>The query writes <code>LAG(curr_year_spend) OVER (...)</code> three times &mdash; once for the column, twice in the formula. It is correct (the optimizer typically computes the window once), but a cleaner form wraps <code>yearly</code> in a second CTE that materialises <code>prev_year_spend</code> as a named column, then the growth formula references that name. That removes the repetition, makes the divide-by-zero guard read as <code>NULLIF(prev_year_spend, 0)</code>, and is the refactor a senior reviewer would suggest.</p>
+
+<h5>Dialect &mdash; year extraction and rounding</h5>
+<p><code>EXTRACT(YEAR FROM occurred_at)</code> is standard and portable. SQL Server prefers <code>YEAR(occurred_at)</code> or <code>DATEPART(year, ...)</code>; MySQL also has <code>YEAR()</code>. <code>LAG</code> and <code>NULLIF</code> are ANSI and work everywhere with window-function support. One caveat: integer division &mdash; if <code>spend</code> were an integer type, the growth ratio could truncate before <code>* 100</code>; here <code>spend</code> is <code>NUMERIC</code> so the division is exact, but multiplying by <code>100.0</code> would be a safe habit.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute period-over-period change with <code>LAG(...) OVER (PARTITION BY entity ORDER BY period)</code> &mdash; it fetches the prior value without a self-join and returns <code>NULL</code> for the first period, so debut rows survive with null growth automatically. Always wrap the denominator in <code>NULLIF(prev, 0)</code> to turn a divide-by-zero into a clean <code>NULL</code>, and factor the repeated <code>LAG</code> into a named column for readability.</div>

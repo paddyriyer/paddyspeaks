@@ -1,0 +1,61 @@
+<p>A finance team in the UK reports on a fiscal year that starts on 1 April, not 1 January: <em>"aggregate revenue by fiscal quarter."</em> An order in January 2025 belongs to FY2024 Q4, while April 2025 opens FY2025 Q1. The interviewer is probing whether you can shift the calendar &mdash; map a real date onto a fiscal year and quarter with arithmetic rather than a wall of <code>CASE</code> branches.</p>
+
+<h4>1. The source data &mdash; <code>revenue</code></h4>
+<table>
+  <thead><tr><th>order_date</th><th>amount</th><th>fiscal mapping</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-15</td><td>100</td><td>Jan &rarr; FY2024 Q4 (boundary: prior fiscal year)</td></tr>
+    <tr><td>2025-04-15</td><td>200</td><td>Apr &rarr; FY2025 Q1 (fiscal year opens)</td></tr>
+    <tr><td>2025-07-15</td><td>300</td><td>Jul &rarr; FY2025 Q2</td></tr>
+    <tr><td>2025-10-15</td><td>400</td><td>Oct &rarr; FY2025 Q3</td></tr>
+    <tr><td>2026-01-15</td><td>500</td><td>Jan &rarr; FY2025 Q4 (boundary: prior fiscal year)</td></tr>
+    <tr><td>2026-04-15</td><td>600</td><td>Apr &rarr; FY2026 Q1</td></tr>
+  </tbody>
+</table>
+<p>The Jan&ndash;Mar rows are the edge case: calendar January 2025 is <em>fiscal</em> Q4 of <em>FY2024</em>. Any solution that uses the raw calendar year or calendar quarter gets these wrong.</p>
+
+<h4>2. The SQL &mdash; modular date arithmetic</h4>
+<pre><code>SELECT
+  CASE WHEN EXTRACT(MONTH FROM order_date) &gt;= 4
+       THEN EXTRACT(YEAR FROM order_date)::int
+       ELSE EXTRACT(YEAR FROM order_date)::int - 1
+  END AS fiscal_year,
+  ((EXTRACT(MONTH FROM order_date)::int - 4 + 12) % 12) / 3 + 1 AS fiscal_quarter,
+  SUM(amount) AS total
+FROM revenue
+GROUP BY fiscal_year, fiscal_quarter
+ORDER BY fiscal_year, fiscal_quarter;</code></pre>
+<p>The fiscal year is the calendar year, minus one if the month is before April. The fiscal quarter shifts each month back by 4 (April&rarr;0), wraps with <code>+ 12) % 12</code> so January&ndash;March land at 9&ndash;11, then integer-divides by 3 and adds 1 to give 1&ndash;4.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>fiscal_year</th><th>fiscal_quarter</th><th>total</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2024</td><td>4</td><td>100</td><td>Jan 2025 correctly rolled back into FY2024</td></tr>
+    <tr><td>2025</td><td>1</td><td>200</td><td>Apr&ndash;Jun</td></tr>
+    <tr><td>2025</td><td>2</td><td>300</td><td>Jul&ndash;Sep</td></tr>
+    <tr><td>2025</td><td>3</td><td>400</td><td>Oct&ndash;Dec</td></tr>
+    <tr><td>2025</td><td>4</td><td>500</td><td>Jan 2026 is FY2025 Q4, not FY2026</td></tr>
+    <tr><td>2026</td><td>1</td><td>600</td><td>Apr 2026 opens FY2026</td></tr>
+  </tbody>
+</table>
+<p>The two January rows land in different fiscal years (FY2024 and FY2025) and both in Q4 &mdash; exactly the calendar shift the question demands. A naive <code>EXTRACT(QUARTER ...)</code> would have put them in Q1.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the modular formula beats a 12-way <code>CASE</code></h5>
+<p>You <em>could</em> write twelve <code>WHEN month = 1 THEN 4</code> branches, but it is verbose and easy to mistype. The arithmetic <code>((month - 4 + 12) % 12) / 3 + 1</code> encodes the same mapping in one expression: subtracting 4 makes April the origin, <code>+ 12) % 12</code> handles the wrap for Jan&ndash;Mar without negative numbers, and dividing by 3 buckets three months per quarter. One formula, no branches to get out of sync.</p>
+
+<h5>The <code>+ 12) % 12</code> guard against negative modulo</h5>
+<p>For January, <code>month - 4 = -3</code>. In PostgreSQL <code>-3 % 12</code> is <code>-3</code> &mdash; the result keeps the sign of the dividend, unlike a true mathematical modulo. Without the <code>+ 12</code>, <code>(-3) / 3 + 1 = 0</code>, a nonsense quarter. Adding 12 first makes the value non-negative (<code>9</code>) before the modulo, so the division is well-defined. This sign-of-modulo subtlety is a classic interview trap and differs across languages and SQL dialects.</p>
+
+<h5>Integer division is doing real work</h5>
+<p><code>9 / 3</code> must be <code>3</code>, not <code>3.0</code>. Because both operands are integers (the <code>::int</code> casts matter), PostgreSQL performs integer division and truncates &mdash; that truncation is exactly the "bucket into quarters" step. If a stray cast made either side <code>numeric</code>, you would get <code>3.0</code> and <code>+ 1</code> would yield <code>4.0</code>, breaking the integer quarter label.</p>
+
+<h5>Grouping by a <code>SELECT</code> alias</h5>
+<p>The query groups by <code>fiscal_year</code> and <code>fiscal_quarter</code> &mdash; the output aliases. PostgreSQL permits a <code>GROUP BY</code> to reference <code>SELECT</code>-list aliases (an extension to the SQL standard, also allowed in MySQL). Strict engines &mdash; SQL Server, Oracle &mdash; do <em>not</em>: there you must repeat the full <code>CASE</code>/arithmetic expressions in <code>GROUP BY</code>, or wrap the projection in a subquery and group outside.</p>
+
+<h5>Dialect notes</h5>
+<p>SQL Server has no <code>EXTRACT</code>; use <code>MONTH(order_date)</code> and <code>YEAR(order_date)</code>. Many shops keep a dedicated <strong>date dimension table</strong> with a pre-computed <code>fiscal_year</code>/<code>fiscal_quarter</code> column &mdash; then this becomes a simple join, the fiscal-calendar rules live in one governed place, and irregular calendars (4-4-5, 53-week years) that pure arithmetic cannot express are handled by data.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> shift the calendar with one modular formula instead of a 12-branch <code>CASE</code>, guard the negative-modulo case with <code>+ 12) % 12</code>, rely on integer division to bucket months into quarters, and note that production fiscal reporting usually lives in a date-dimension table so irregular calendars are data, not code.</div>

@@ -1,0 +1,60 @@
+<p>A payments processor wants a fraud-adjacent metric: how many <em>duplicate</em> charges slipped through per merchant? A duplicate is a charge that exactly matches an earlier one &mdash; same card, same merchant, same amount &mdash; landing within a 10-minute window. The interviewer is testing whether you can use <code>LAG</code> to compare each row to its predecessor within a carefully chosen partition, and whether you spot the subtlety of chained duplicates.</p>
+
+<h4>1. The source data &mdash; <code>payment</code></h4>
+<table>
+  <thead><tr><th>payment_id</th><th>merchant_id</th><th>card</th><th>amount</th><th>paid_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>100</td><td>25.00</td><td>2025-03-01 10:00:00</td><td>first charge &mdash; original</td></tr>
+    <tr><td>2</td><td>1</td><td>100</td><td>25.00</td><td>2025-03-01 10:03:00</td><td>+3m &rarr; duplicate</td></tr>
+    <tr><td>3</td><td>1</td><td>100</td><td>25.00</td><td>2025-03-01 10:30:00</td><td>+27m from 2 &rarr; NOT a duplicate</td></tr>
+    <tr><td>4</td><td>1</td><td>101</td><td>50.00</td><td>2025-03-01 11:00:00</td><td>different card/amount</td></tr>
+    <tr><td>5</td><td>2</td><td>200</td><td>99.99</td><td>2025-03-02 12:00:00</td><td>original</td></tr>
+    <tr><td>6</td><td>2</td><td>200</td><td>99.99</td><td>2025-03-02 12:09:30</td><td>+9m30s &rarr; duplicate</td></tr>
+    <tr><td>7</td><td>2</td><td>200</td><td>99.99</td><td>2025-03-02 12:18:30</td><td>+9m from 6 &rarr; duplicate (chain)</td></tr>
+    <tr><td>8</td><td>3</td><td>300</td><td>10.00</td><td>2025-03-03 09:00:00</td><td>lone charge &mdash; merchant excluded</td></tr>
+  </tbody>
+</table>
+<p>The interesting cases are payment 3 and the merchant-2 chain. Payment 3 is 30 minutes after the original (payment 1) but only 27 minutes after payment 2 &mdash; still outside the 10-minute window from its immediate predecessor, so it is not a duplicate. Merchant 2's payments 5, 6, 7 form a chain: 6 is within 10m of 5, and 7 is within 10m of 6, even though 7 is 18m30s after the original.</p>
+
+<h4>2. The SQL &mdash; LAG within (merchant, card, amount), gap test</h4>
+<pre><code>WITH lagged AS (
+  SELECT merchant_id, credit_card_id, amount, paid_at,
+         LAG(paid_at) OVER (PARTITION BY merchant_id, credit_card_id, amount ORDER BY paid_at) AS prev_paid_at
+  FROM payment
+)
+SELECT merchant_id, COUNT(*) AS duplicate_count
+FROM lagged
+WHERE prev_paid_at IS NOT NULL
+  AND paid_at - prev_paid_at &lt;= INTERVAL '10 minutes'
+GROUP BY merchant_id
+ORDER BY merchant_id;</code></pre>
+<p><code>LAG(paid_at)</code> partitioned by <code>(merchant_id, credit_card_id, amount)</code> gives each charge the timestamp of the previous matching charge. A row is a duplicate when that predecessor exists (<code>prev_paid_at IS NOT NULL</code>, so the first charge of a cluster is skipped) and the gap is &le; 10 minutes. The outer query counts duplicates per merchant.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>merchant_id</th><th>duplicate_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>only payment 2 (payment 3 is 27m after 2)</td></tr>
+    <tr><td>2</td><td>2</td><td>payments 6 and 7 &mdash; chained duplicates</td></tr>
+  </tbody>
+</table>
+<p>Merchant 1 records <strong>1</strong> duplicate: payment 2 is 3 minutes after payment 1, but payment 3 is 27 minutes after payment 2 so it fails the 10-minute test. Merchant 2 records <strong>2</strong>: each of payments 6 and 7 sits within 10 minutes of <em>its immediate predecessor</em>. Merchant 3 has a single isolated charge &mdash; <code>prev_paid_at</code> is <code>NULL</code>, no duplicate, and the merchant drops out entirely (no zero row).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the partition key encodes the "same-ness" rule</h5>
+<p>The definition of a duplicate is "same card, same merchant, same amount". That triple becomes the <code>PARTITION BY merchant_id, credit_card_id, amount</code> clause &mdash; <code>LAG</code> then only ever looks back at a charge that already matches on all three attributes. Within a partition, ordering by <code>paid_at</code> means the predecessor is the most recent prior matching charge. Getting the partition key right <em>is</em> getting the duplicate definition right.</p>
+
+<h5>The chained-duplicate subtlety</h5>
+<p>Merchant 2's payment 7 is 18m30s after the original payment 5 &mdash; outside 10 minutes from the <em>original</em>. Yet it counts, because <code>LAG</code> compares it to payment 6 (9 minutes earlier), not to 5. The question says "an earlier payment ... within 10 minutes before it", and payment 6 <em>is</em> such an earlier payment. The <code>LAG</code>-to-immediate-predecessor approach happens to capture this correctly: in a tight cluster, every charge after the first has a qualifying predecessor. (If the rule were strictly "within 10 min of the cluster's <em>first</em> charge", you would instead carry the cluster start forward &mdash; a different query.)</p>
+
+<h5>Why <code>prev_paid_at IS NOT NULL</code> excludes the original</h5>
+<p><code>LAG</code> returns <code>NULL</code> for the first row of every partition &mdash; the original charge in each cluster has no earlier match. The <code>WHERE prev_paid_at IS NOT NULL</code> filter drops exactly those originals, so the count reflects "extra" charges only. This directly implements the spec's "exclude the first occurrence of each cluster". Omitting this filter would not silently over-count &mdash; <code>NULL &lt;= INTERVAL</code> is <code>UNKNOWN</code> so the row is dropped anyway &mdash; but stating the filter makes intent explicit and robust.</p>
+
+<h5>Interval arithmetic and the boundary</h5>
+<p><code>paid_at - prev_paid_at</code> yields an <code>interval</code>, compared directly against <code>INTERVAL '10 minutes'</code>. The spec says "within 10 minutes (600 seconds)", and <code>&lt;=</code> makes a gap of <em>exactly</em> 10 minutes count as a duplicate. If the rule were "strictly less than 10 minutes" you would use <code>&lt;</code>. Comparing intervals avoids the error-prone <code>EXTRACT(EPOCH FROM ...)</code> conversion &mdash; though that form (<code>... &lt;= 600</code>) is equivalent and common in dialects without rich interval support.</p>
+
+<h5>Only merchants with duplicates appear &mdash; by design</h5>
+<p>The <code>WHERE</code> clause removes all non-duplicate rows <em>before</em> the <code>GROUP BY</code>, so a merchant with zero duplicates contributes no rows and never reaches the output. That satisfies "only include merchants whose count is &gt; 0" for free &mdash; no <code>HAVING COUNT(*) &gt; 0</code> needed, because a group cannot exist with zero members. Merchant 3 disappears precisely this way. If the report needed a zero row per merchant, you would <code>LEFT JOIN</code> from a merchant list instead.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> encode a duplicate-detection rule directly in the <code>LAG</code> partition key (here merchant + card + amount), use <code>prev_paid_at IS NOT NULL</code> to exclude each cluster's original, and compare intervals (<code>&lt;= INTERVAL '10 minutes'</code>) rather than converting to seconds. Recognise the chained-duplicate case &mdash; <code>LAG</code> measures against the immediate predecessor, which is right for "an earlier payment within 10 min" but wrong if the rule anchors on the cluster's first charge.</div>

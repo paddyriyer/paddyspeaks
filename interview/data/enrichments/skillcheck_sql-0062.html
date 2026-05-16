@@ -1,0 +1,78 @@
+<p>A revenue-ops team wants month-over-month growth by region for a board deck: <em>"each month's revenue, the prior month's revenue, and the percentage change."</em> The subtle requirement: if a region is missing a month, the "prior month" must be a true <em>calendar</em> predecessor &mdash; not just whatever row happens to sort before it. The interviewer is probing <code>LAG</code> plus gap detection.</p>
+
+<h4>1. The source data &mdash; <code>monthly_sales</code></h4>
+<table>
+  <thead><tr><th>month_start</th><th>region</th><th>revenue</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>NA</td><td>1000</td><td>first NA observation</td></tr>
+    <tr><td>2025-02-01</td><td>NA</td><td>1100</td><td></td></tr>
+    <tr><td>2025-03-01</td><td>NA</td><td>1320</td><td></td></tr>
+    <tr><td>2025-05-01</td><td>NA</td><td>1500</td><td>April is MISSING for NA &mdash; a gap</td></tr>
+    <tr><td>2025-01-01</td><td>EU</td><td>800</td><td>first EU observation</td></tr>
+    <tr><td>2025-02-01</td><td>EU</td><td>900</td><td></td></tr>
+  </tbody>
+</table>
+<p>The edge case is NA's <strong>missing April</strong>. The row before May (by sort order) is March &mdash; but March is not May's calendar predecessor. The question demands that growth for May be NULL, because there is no <em>April</em> to compare against.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> with a calendar-gap check</h4>
+<p><strong>Original solution (flagged &mdash; <code>prior_month_revenue</code> not nulled on a gap):</strong></p>
+<pre><code>SELECT month_start, region, revenue,
+       LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) AS prior_month_revenue,
+       CASE
+         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)
+              = (month_start - INTERVAL '1 month')::date
+         THEN ROUND((revenue / LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) - 1) * 100, 2)
+         ELSE NULL
+       END AS mom_growth_pct
+FROM monthly_sales
+ORDER BY region, month_start;</code></pre>
+<p><strong>Corrected solution &mdash; gate <code>prior_month_revenue</code> on the same gap check:</strong></p>
+<pre><code>SELECT month_start, region, revenue,
+       CASE
+         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)
+              = (month_start - INTERVAL '1 month')::date
+         THEN LAG(revenue) OVER (PARTITION BY region ORDER BY month_start)
+         ELSE NULL
+       END AS prior_month_revenue,
+       CASE
+         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)
+              = (month_start - INTERVAL '1 month')::date
+         THEN ROUND((revenue / LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) - 1) * 100, 2)
+         ELSE NULL
+       END AS mom_growth_pct
+FROM monthly_sales
+ORDER BY region, month_start;</code></pre>
+<p>The question states that on a gap, <em>both</em> <code>prior_month_revenue</code> and <code>mom_growth_pct</code> must be NULL. The original nulls only the growth percentage; <code>prior_month_revenue</code> still leaks the wrong month's value (March's 1320 against May). The corrected version applies the identical calendar-gap <code>CASE</code> to both columns.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month_start</th><th>region</th><th>revenue</th><th>prior_month_revenue</th><th>mom_growth_pct</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>EU</td><td>800</td><td>NULL</td><td>NULL</td><td>first observation &rarr; no prior</td></tr>
+    <tr><td>2025-02-01</td><td>EU</td><td>900</td><td>800</td><td>12.50</td><td>(900/800 &minus; 1) &times; 100</td></tr>
+    <tr><td>2025-01-01</td><td>NA</td><td>1000</td><td>NULL</td><td>NULL</td><td>first observation</td></tr>
+    <tr><td>2025-02-01</td><td>NA</td><td>1100</td><td>1000</td><td>10.00</td><td></td></tr>
+    <tr><td>2025-03-01</td><td>NA</td><td>1320</td><td>1100</td><td>20.00</td><td></td></tr>
+    <tr><td>2025-05-01</td><td>NA</td><td>1500</td><td>NULL</td><td>NULL</td><td>April missing &rarr; both NULL (corrected)</td></tr>
+  </tbody>
+</table>
+<p>NA's May row shows <strong>NULL</strong> for <em>both</em> prior revenue and growth. The original query would have shown <code>prior_month_revenue = 1320</code> there &mdash; March's figure mislabelled as April's &mdash; which is exactly the bug the question's spec rules out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> alone is not enough</h5>
+<p><code>LAG</code> returns the previous <em>row</em> in the window, not the previous <em>month</em>. When April is missing, <code>LAG</code> over NA's May row hands back March &mdash; the rows are adjacent in sort order but a month apart on the calendar. The fix is to also <code>LAG</code> the <code>month_start</code> and verify it equals <code>current_month &minus; 1 month</code>. Only when that holds is the previous row a genuine calendar predecessor; otherwise the comparison is meaningless and the result must be NULL.</p>
+
+<h5>The bug: NULL the value, not just the percentage</h5>
+<p>The original solution correctly NULLs <code>mom_growth_pct</code> on a gap but leaves <code>prior_month_revenue</code> as the raw <code>LAG(revenue)</code>. The spec is explicit that on a gap <em>both</em> columns are NULL &mdash; a report showing "prior month revenue: 1320" next to a NULL growth is internally inconsistent and invites a reader to assume 1320 belongs to April. Any gap-aware derived column must apply the gap test uniformly. The corrected query wraps both columns in the same <code>CASE</code>.</p>
+
+<h5>First observation vs mid-series gap &mdash; same handling, different cause</h5>
+<p>For the first month of any region, <code>LAG</code> returns NULL, so <code>LAG(month_start) = month_start - 1 month</code> is <code>NULL = ...</code>, which is <em>unknown</em> &mdash; the <code>CASE</code> falls to <code>ELSE NULL</code>. For a mid-series gap, <code>LAG(month_start)</code> is a real date but the wrong one, so the equality is <em>false</em> &mdash; again <code>ELSE NULL</code>. One <code>CASE</code> elegantly covers both "no prior at all" and "prior exists but isn't last month".</p>
+
+<h5>Repeating window functions and the cleaner form</h5>
+<p><code>LAG(revenue) OVER (...)</code> and <code>LAG(month_start) OVER (...)</code> appear several times with an identical window. PostgreSQL lets you name it once with a <code>WINDOW</code> clause &mdash; <code>WINDOW w AS (PARTITION BY region ORDER BY month_start)</code> &mdash; then write <code>LAG(revenue) OVER w</code>. The optimizer already computes a shared window once, so this is about readability, not speed; a senior would factor it out.</p>
+
+<h5>Division-by-zero on the growth ratio</h5>
+<p><code>revenue / LAG(revenue)</code> divides by the prior month's revenue. If a region ever posted 0 revenue in a month, the next month's growth raises <em>division by zero</em>. Guard with <code>NULLIF(LAG(revenue) OVER w, 0)</code> so a zero base yields NULL growth instead of an error. The demo data has no zeros, but a real revenue series eventually will &mdash; flag it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>LAG</code> for period-over-period, but verify the previous row is a true calendar predecessor by also lagging <code>month_start</code> &mdash; and apply that gap test to <em>every</em> derived column (prior value <em>and</em> growth), not just the percentage, so a gap never leaks a mislabelled neighbour. Guard the ratio with <code>NULLIF(..., 0)</code>.</div>

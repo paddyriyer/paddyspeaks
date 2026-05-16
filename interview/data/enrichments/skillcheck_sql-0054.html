@@ -1,0 +1,55 @@
+<p>A retention analyst wants to find customers who shop across the working week rather than always on the same day: <em>"which customers placed orders on at least three distinct weekdays?"</em> Five orders all on Mondays still count as one weekday. The interviewer is probing whether you can collapse dates down to a coarser granularity (day-of-week) and then count <em>distinct</em> values of that derived attribute &mdash; not distinct dates.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>weekday</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-06</td><td>Mon</td></tr>
+    <tr><td>1</td><td>2025-01-07</td><td>Tue</td></tr>
+    <tr><td>1</td><td>2025-01-08</td><td>Wed</td></tr>
+    <tr><td>1</td><td>2025-01-13</td><td>Mon &mdash; duplicate weekday, different date</td></tr>
+    <tr><td>2</td><td>2025-01-06</td><td>Mon</td></tr>
+    <tr><td>2</td><td>2025-01-07</td><td>Tue</td></tr>
+    <tr><td>3</td><td>2025-01-06 / 08 / 10 / 12</td><td>Mon, Wed, Fri, Sun</td></tr>
+    <tr><td>4</td><td>2025-01-06</td><td>Mon only</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 has <em>four</em> orders but two of them fall on a Monday &mdash; the dedup edge case. Customer 4 is a single-order group. Both test whether the count is over weekdays, not over rows or dates.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(DISTINCT EXTRACT(ISODOW))</code> with <code>HAVING</code></h4>
+<pre><code>SELECT customer_id,
+       COUNT(DISTINCT EXTRACT(ISODOW FROM order_date)) AS weekdays_covered
+FROM orders
+GROUP BY customer_id
+HAVING COUNT(DISTINCT EXTRACT(ISODOW FROM order_date)) &gt;= 3
+ORDER BY weekdays_covered DESC, customer_id;</code></pre>
+<p><code>EXTRACT(ISODOW FROM order_date)</code> maps each date to 1&ndash;7 (Mon&ndash;Sun). <code>COUNT(DISTINCT &hellip;)</code> over that derived value counts unique weekdays per customer; <code>HAVING</code> keeps only customers clearing the threshold of 3.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>weekdays_covered</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>4</td><td>Mon/Wed/Fri/Sun &mdash; four distinct weekdays</td></tr>
+    <tr><td>1</td><td>3</td><td>4 orders but Mon counted once &rarr; Mon/Tue/Wed = 3</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 makes the cut at exactly <strong>3</strong> even with four orders &mdash; the second Monday collapses. Customers 2 (Mon/Tue = 2) and 4 (Mon = 1) fall below the threshold and are filtered out by <code>HAVING</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT)</code> is the heart of the query</h5>
+<p>The business rule is "distinct weekdays", and the order of operations is: first <em>derive</em> the weekday from each date, then <em>deduplicate</em>. A plain <code>COUNT(*)</code> would count rows (customer 1 &rarr; 4); <code>COUNT(DISTINCT order_date)</code> would count calendar days (still 4 &mdash; the two Mondays are different dates). Only <code>COUNT(DISTINCT EXTRACT(ISODOW &hellip;))</code> counts the thing the question asks for. Choosing what to apply <code>DISTINCT</code> to <em>is</em> the problem.</p>
+
+<h5>Why <code>ISODOW</code> and not <code>DOW</code></h5>
+<p>PostgreSQL has two day-of-week extractors. <code>DOW</code> returns 0&ndash;6 with <strong>Sunday = 0</strong>; <code>ISODOW</code> returns 1&ndash;7 with <strong>Monday = 1, Sunday = 7</strong>. The question explicitly specifies ISO numbering, so <code>ISODOW</code> is correct. The distinct <em>count</em> happens to be identical either way &mdash; both still distinguish seven weekdays &mdash; but if any downstream logic compares against specific numbers (e.g. "weekends"), picking the wrong one silently shifts every day by one slot.</p>
+
+<h5><code>HAVING</code> vs <code>WHERE</code></h5>
+<p>The threshold filters on an <em>aggregate</em> (a per-group count), so it must live in <code>HAVING</code>, which runs after <code>GROUP BY</code>. <code>WHERE</code> runs before grouping and cannot see <code>COUNT(...)</code> &mdash; putting the condition there raises <em>"aggregate functions are not allowed in WHERE"</em>. A cleaner alternative that avoids repeating the expression is to compute it once in a subquery/CTE and filter the outer query: <code>SELECT * FROM (&hellip;) t WHERE weekdays_covered &gt;= 3</code>.</p>
+
+<h5>The repeated expression &mdash; a real-world smell</h5>
+<p>The <code>COUNT(DISTINCT EXTRACT(...))</code> expression appears twice: once in <code>SELECT</code>, once in <code>HAVING</code>. That works but is brittle &mdash; change the rule in one place and forget the other. PostgreSQL does <em>not</em> let <code>HAVING</code> reference the <code>SELECT</code> alias <code>weekdays_covered</code>. Wrapping the aggregation in a CTE and filtering outside removes the duplication and is what a senior would write for maintainability.</p>
+
+<h5>NULL dates</h5>
+<p>If <code>order_date</code> can be NULL, <code>EXTRACT</code> yields NULL and <code>COUNT(DISTINCT)</code> silently ignores it &mdash; a NULL-dated order simply does not contribute a weekday. Usually harmless here, but worth stating: a customer whose only "extra" orders have NULL dates will not reach the threshold on those.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that the count must be over the <em>derived</em> weekday and deduplicated &mdash; <code>COUNT(DISTINCT EXTRACT(ISODOW FROM order_date))</code>, not rows or dates &mdash; use <code>ISODOW</code> for Monday-based 1&ndash;7 numbering, put the aggregate threshold in <code>HAVING</code>, and prefer a CTE to avoid repeating the expression in both <code>SELECT</code> and <code>HAVING</code>.</div>

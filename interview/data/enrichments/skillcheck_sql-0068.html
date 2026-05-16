@@ -1,0 +1,54 @@
+<p>A subscription business wants a daily active-users curve for the first work-week of January. Each row in <code>subscription</code> is one user's active interval, and the question asks: on each calendar day, how many distinct users had a live subscription? The interviewer is testing the <strong>calendar-spine</strong> pattern &mdash; you must report <em>every</em> day in the range, including days with zero users, which a plain <code>GROUP BY</code> over the data can never do.</p>
+
+<h4>1. The source data &mdash; <code>subscription</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>start_date</th><th>end_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>2025-01-04</td><td>active Jan 1, 2, 3</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>2025-01-06</td><td>active Jan 2, 3, 4, 5</td></tr>
+    <tr><td>3</td><td>2025-01-03</td><td>2025-01-04</td><td>active Jan 3 only</td></tr>
+    <tr><td>3</td><td>2025-01-05</td><td>2025-01-10</td><td>same user, second interval</td></tr>
+    <tr><td>4</td><td>2024-12-30</td><td>2025-01-02</td><td>starts before range &mdash; active Jan 1 only</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases are deliberately planted. User 3 appears in <em>two</em> rows &mdash; on Jan 3 both intervals could overlap the window, so a naive count would double-count them; <code>COUNT(DISTINCT)</code> is mandatory. User 4's interval starts in December but is end-exclusive at Jan 2, so they count only on Jan 1.</p>
+
+<h4>2. The SQL &mdash; calendar spine left-joined to intervals</h4>
+<pre><code>SELECT d, COUNT(DISTINCT s.user_id) AS active_users
+FROM GENERATE_SERIES(DATE '2025-01-01', DATE '2025-01-05', INTERVAL '1 day') AS gs(d)
+LEFT JOIN subscription s ON d &gt;= s.start_date AND d &lt; s.end_date
+GROUP BY d
+ORDER BY d;</code></pre>
+<p><code>GENERATE_SERIES</code> manufactures one row per day from Jan 1 to Jan 5 &mdash; this is the spine. Each spine day <code>LEFT JOIN</code>s to every subscription whose half-open interval covers it (<code>start_date &lt;= d &lt; end_date</code>). The <code>LEFT JOIN</code> guarantees a day with no matches still survives as a row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th><th>active_users</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>2</td><td>users 1 and 4</td></tr>
+    <tr><td>2025-01-02</td><td>2</td><td>users 1 and 2 (4 expired)</td></tr>
+    <tr><td>2025-01-03</td><td>3</td><td>users 1, 2, 3 &mdash; user 3 counted once</td></tr>
+    <tr><td>2025-01-04</td><td>1</td><td>only user 2 (1 and 3 expired)</td></tr>
+    <tr><td>2025-01-05</td><td>2</td><td>users 2 and 3 (second interval)</td></tr>
+  </tbody>
+</table>
+<p>On Jan 3 the answer is <strong>3, not 4</strong>: user 3's first interval covers Jan 3, and although their second interval (starting Jan 5) does not, <code>COUNT(DISTINCT user_id)</code> would still have suppressed any duplication. The half-open boundary shows up on Jan 4 &mdash; user 1's interval <code>end_date</code> of Jan 4 means they are <em>not</em> active that day.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a plain <code>GROUP BY</code> cannot do this</h5>
+<p>If you grouped the <code>subscription</code> rows directly, you could only ever emit days that <em>some interval mentions</em>. A day on which the entire customer base churned would simply be missing from the output &mdash; silently, with no zero row. The spine inverts the logic: you start from the complete set of days you must report and attach data to them. Any "include every period even when empty" requirement is a spine signal.</p>
+
+<h5>Why the <code>LEFT JOIN</code> direction matters</h5>
+<p>The spine must be the <em>left</em> table. A plain <code>JOIN</code> would drop spine days with no matching subscription, defeating the entire purpose. With <code>LEFT JOIN</code>, an unmatched day still produces one row whose <code>s.user_id</code> is <code>NULL</code> &mdash; and crucially, <code>COUNT(DISTINCT s.user_id)</code> ignores <code>NULL</code>, so that day correctly reports <code>0</code> rather than <code>1</code>. Using <code>COUNT(*)</code> here would be a bug: it counts the <code>NULL</code> row and reports <code>1</code> for an empty day.</p>
+
+<h5>The half-open interval and the join predicate</h5>
+<p>The spec says active when <code>start_date &lt;= D &lt; end_date</code>, so the join uses <code>d &gt;= s.start_date AND d &lt; s.end_date</code>. The strict <code>&lt;</code> on the upper bound is what makes Jan 4 exclude user 1. If the data used inclusive end dates you would write <code>d &lt;= s.end_date</code>. Half-open intervals are the safer convention &mdash; adjacent intervals tile the timeline with no gap or overlap &mdash; but you must match the predicate to whichever convention the data uses.</p>
+
+<h5>Dialect &mdash; generating the spine elsewhere</h5>
+<p><code>GENERATE_SERIES</code> with a <code>DATE</code> range is Postgres-specific. SQL Server uses a recursive CTE (<code>WITH dates AS (SELECT @start ... UNION ALL SELECT DATEADD(day,1,d) ...)</code>) or a permanent calendar/dimension table. BigQuery has <code>GENERATE_DATE_ARRAY</code> + <code>UNNEST</code>; Snowflake has <code>GENERATOR</code> with <code>DATEADD</code>. Data warehouses almost always keep a persistent <code>dim_date</code> table &mdash; mentioning that as the production pattern shows warehouse maturity.</p>
+
+<h5>Performance &mdash; the join can explode</h5>
+<p>A range-predicate join (<code>d BETWEEN start AND end</code>) cannot use a simple equality hash join; the planner may resort to a nested loop. For a wide date range against millions of intervals, index <code>subscription(start_date, end_date)</code> so each spine day range-scans only relevant intervals. An alternative for huge data is the "delta" trick &mdash; emit +1 at each start and -1 at each end, then take a running sum &mdash; which is O(n log n) instead of days&times;intervals.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for a calendar spine (<code>GENERATE_SERIES</code> or a <code>dim_date</code> table) whenever every period must appear including empty ones, <code>LEFT JOIN</code> data onto the spine so zero-rows survive, and pair it with <code>COUNT(DISTINCT user_id)</code> &mdash; not <code>COUNT(*)</code> &mdash; so unmatched <code>NULL</code> rows report 0 and multi-interval users are never double-counted.</div>

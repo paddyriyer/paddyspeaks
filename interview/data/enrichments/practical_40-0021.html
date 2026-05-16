@@ -1,0 +1,56 @@
+<p>An auditor at an e-commerce company flags that the <code>orders</code> table looks bloated &mdash; a billing reconciliation found the same charge appearing several times. The task is to surface the offending <em>composite keys</em>: a row counts as a duplicate when <code>(customer_id, order_date, order_total)</code> already exists. The interviewer is checking whether you can define "duplicate" precisely against a multi-column key, and whether you return only the keys that actually repeat &mdash; not every row.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_total</th><th>order_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>49.99</td><td>2025-01-10</td><td>triple &mdash; copy 1</td></tr>
+    <tr><td>2</td><td>100</td><td>49.99</td><td>2025-01-10</td><td>triple &mdash; copy 2</td></tr>
+    <tr><td>3</td><td>100</td><td>49.99</td><td>2025-01-10</td><td>triple &mdash; copy 3</td></tr>
+    <tr><td>4</td><td>101</td><td>19.50</td><td>2025-01-12</td><td>pair &mdash; copy 1</td></tr>
+    <tr><td>5</td><td>101</td><td>19.50</td><td>2025-01-12</td><td>pair &mdash; copy 2</td></tr>
+    <tr><td>6</td><td>102</td><td>75.00</td><td>2025-02-01</td><td>unique &mdash; not a duplicate</td></tr>
+    <tr><td>7</td><td>103</td><td>200.00</td><td>2025-02-15</td><td>pair &mdash; copy 1</td></tr>
+    <tr><td>8</td><td>103</td><td>200.00</td><td>2025-02-15</td><td>pair &mdash; copy 2</td></tr>
+    <tr><td>9</td><td>104</td><td>12.34</td><td>2025-03-01</td><td>unique &mdash; not a duplicate</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the <strong>triple</strong> at customer 100: a duplicate group is not always exactly two rows. A correct answer must report the multiplicity (3), not just a yes/no flag, and must <em>exclude</em> the genuinely unique rows 6 and 9.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY</code> the key, filter with <code>HAVING</code></h4>
+<pre><code>SELECT customer_id, order_date, order_total, COUNT(*) AS copies
+FROM orders
+GROUP BY customer_id, order_date, order_total
+HAVING COUNT(*) &gt; 1
+ORDER BY copies DESC, customer_id;</code></pre>
+<p>The <code>GROUP BY</code> lists exactly the columns that define a duplicate, collapsing every matching row into one group. <code>COUNT(*)</code> measures the group size, and <code>HAVING COUNT(*) &gt; 1</code> keeps only groups that repeat &mdash; <code>HAVING</code> filters <em>after</em> aggregation, which <code>WHERE</code> cannot do.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>order_total</th><th>copies</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>2025-01-10</td><td>49.99</td><td>3</td><td>two rows are surplus &mdash; keep one, delete two</td></tr>
+    <tr><td>101</td><td>2025-01-12</td><td>19.50</td><td>2</td><td>one surplus row</td></tr>
+    <tr><td>103</td><td>2025-02-15</td><td>200.00</td><td>2</td><td>one surplus row</td></tr>
+  </tbody>
+</table>
+<p>Three keys come back, not nine rows. Customers 102 and 104 vanish &mdash; their groups have <code>COUNT(*) = 1</code>, so <code>HAVING</code> drops them. The triple reports <code>copies = 3</code>, telling the cleanup job two of those three rows are surplus.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>HAVING</code> and not <code>WHERE</code></h5>
+<p><code>WHERE</code> is evaluated before rows are grouped, so it cannot see <code>COUNT(*)</code> &mdash; the aggregate does not exist yet. <code>HAVING</code> runs after the <code>GROUP BY</code> has formed groups and computed aggregates, so it is the only clause that can filter on "group size &gt; 1". Mixing them up &mdash; <code>WHERE COUNT(*) &gt; 1</code> &mdash; is a syntax error in every engine.</p>
+
+<h5>The key must match the business definition exactly</h5>
+<p>Duplicate is defined here as <code>(customer_id, order_date, order_total)</code> &mdash; deliberately <em>not</em> <code>order_id</code>, which is unique by construction and would put every row in its own group. Whatever columns the business calls "the same order" must be the exact <code>GROUP BY</code> list. Add a column and you under-report; drop one and you over-report. The <code>GROUP BY</code> list <em>is</em> the definition of duplicate.</p>
+
+<h5>NULLs in the key &mdash; a quiet trap</h5>
+<p><code>GROUP BY</code> treats all NULLs in a column as one group (unlike <code>=</code>, which never matches NULL). So two rows with a NULL <code>order_total</code> but the same customer and date <em>would</em> be flagged as duplicates here. That is usually what an audit wants, but state it: if NULL means "unknown amount" you may not want to call two unknowns identical, in which case filter <code>WHERE order_total IS NOT NULL</code> first or treat the NULL rows as a separate review bucket.</p>
+
+<h5>Finding the keys vs deleting the rows</h5>
+<p>This query <em>identifies</em> duplicates; it does not remove them. Deletion is the harder follow-up because you must keep one row per group. The senior answer is <code>ROW_NUMBER() OVER (PARTITION BY customer_id, order_date, order_total ORDER BY order_id)</code> and delete where <code>rn &gt; 1</code> &mdash; that keeps the lowest <code>order_id</code> deterministically. Mentioning the keep-one strategy unprompted shows you have actually run a dedup, not just spotted one.</p>
+
+<h5>Dialect notes</h5>
+<p>This query is fully portable &mdash; <code>GROUP BY</code>, <code>COUNT(*)</code>, and <code>HAVING</code> behave identically in Postgres, MySQL, SQLite, Snowflake, and SQL Server. The only variance is ordering by an alias: <code>ORDER BY copies</code> works because <code>ORDER BY</code> is evaluated after the <code>SELECT</code> list; if an engine objected you would repeat <code>ORDER BY COUNT(*) DESC</code> instead.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> define "duplicate" as an exact composite <code>GROUP BY</code> key, filter repeating groups with <code>HAVING COUNT(*) &gt; 1</code> (never <code>WHERE</code>), report the multiplicity so cleanup knows how many rows are surplus, flag that <code>GROUP BY</code> folds NULL keys together, and know the <code>ROW_NUMBER</code> follow-up for actually deleting duplicates while keeping one.</div>

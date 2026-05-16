@@ -1,0 +1,60 @@
+<p>A card issuer wants a launch-performance report: for each card product, how many cards were issued in its very first month on the market? This is a <strong>first-row-per-group</strong> problem &mdash; pick, for each card, the chronologically earliest monthly record and read one column off it. The interviewer is checking whether you know a clean way to do this without an unnecessary join back to the table.</p>
+
+<h4>1. The source data &mdash; <code>card_issuance</code></h4>
+<table>
+  <thead><tr><th>card_name</th><th>issue_year</th><th>issue_month</th><th>issued_cards</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>SapphireGo</td><td>2023</td><td>1</td><td>12000</td><td>launch month &rarr; 12000</td></tr>
+    <tr><td>SapphireGo</td><td>2023</td><td>2</td><td>15000</td><td>later month</td></tr>
+    <tr><td>SapphireGo</td><td>2023</td><td>3</td><td>20000</td><td>peak, but not launch</td></tr>
+    <tr><td>VelocityX</td><td>2024</td><td>6</td><td>8000</td><td>launch month &rarr; 8000</td></tr>
+    <tr><td>VelocityX</td><td>2024</td><td>7</td><td>11000</td><td>&nbsp;</td></tr>
+    <tr><td>AmberOne</td><td>2023</td><td>12</td><td>4500</td><td>launch &mdash; Dec 2023 precedes Jan 2024</td></tr>
+    <tr><td>AmberOne</td><td>2024</td><td>1</td><td>9000</td><td>year rollover within one card</td></tr>
+    <tr><td>NorthLite</td><td>2025</td><td>3</td><td>12000</td><td>single-month card</td></tr>
+  </tbody>
+</table>
+<p>Two cases stress the logic. AmberOne spans a year boundary: its launch month is December 2023, which must sort <em>before</em> January 2024 &mdash; a year-then-month ordering, not month alone. NorthLite has only one row, so it is its own launch month. And SapphireGo's launch value (12000) is deliberately <em>not</em> its largest month (20000), so a query that grabbed the max would be wrong.</p>
+
+<h4>2. The SQL &mdash; DISTINCT ON to pick the earliest row per card</h4>
+<pre><code>SELECT card_name, launch_issued FROM (
+  SELECT DISTINCT ON (card_name)
+         card_name,
+         issued_cards AS launch_issued,
+         issue_year, issue_month
+  FROM card_issuance
+  ORDER BY card_name, issue_year, issue_month
+) t
+ORDER BY launch_issued DESC, card_name;</code></pre>
+<p><code>DISTINCT ON (card_name)</code> keeps exactly one row per card &mdash; the <em>first</em> row each card produces under the inner <code>ORDER BY card_name, issue_year, issue_month</code>. Sorting by year then month means that first row is the launch month. The outer query just re-sorts the one-row-per-card result for presentation.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>card_name</th><th>launch_issued</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>NorthLite</td><td>12000</td><td>only month = launch month</td></tr>
+    <tr><td>SapphireGo</td><td>12000</td><td>Jan 2023, not the 20000 peak</td></tr>
+    <tr><td>VelocityX</td><td>8000</td><td>June 2024</td></tr>
+    <tr><td>AmberOne</td><td>4500</td><td>Dec 2023 &mdash; correctly before Jan 2024</td></tr>
+  </tbody>
+</table>
+<p>SapphireGo reports <strong>12000</strong> &mdash; its January 2023 launch &mdash; not the 20000 it hit in March, confirming the query picks the earliest month, not the biggest. AmberOne reports <strong>4500</strong> from December 2023, proving the year-then-month sort correctly placed Dec 2023 ahead of Jan 2024. NorthLite's single row is trivially its own launch. The outer <code>ORDER BY launch_issued DESC</code> then ranks the four results.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DISTINCT ON</code> is the cleanest first-per-group tool</h5>
+<p><code>DISTINCT ON (card_name)</code> is a Postgres feature that, given an <code>ORDER BY</code> starting with <code>card_name</code>, keeps the first row of each <code>card_name</code> group and discards the rest. It expresses "one row per card, specifically the earliest" in a single construct &mdash; no window function, no self-join, no subquery to find the min and join back. The <code>ORDER BY</code> inside the <code>DISTINCT ON</code> query is not optional decoration: it <em>defines</em> which row survives.</p>
+
+<h5>The ORDER BY must lead with the group key</h5>
+<p><code>DISTINCT ON</code> requires its expressions to be the leftmost <code>ORDER BY</code> terms. So the inner sort is <code>card_name, issue_year, issue_month</code>: <code>card_name</code> first to satisfy <code>DISTINCT ON</code>, then <code>issue_year, issue_month</code> to make "first row" mean "earliest month". Reverse the year/month terms or drop one and the surviving row would no longer be the launch month. This is also why a separate outer query handles the final <code>launch_issued DESC</code> sort &mdash; that ordering is incompatible with what <code>DISTINCT ON</code> needs internally.</p>
+
+<h5>Why sort by (year, month) and not a combined value</h5>
+<p>"Earliest month" across a year boundary means December 2023 precedes January 2024. Ordering by <code>issue_month</code> alone would wrongly rank January (1) before December (12) and pick the wrong launch for AmberOne. Sorting by <code>issue_year</code> first, then <code>issue_month</code>, gives correct chronological order. Equivalently you could sort on <code>issue_year * 12 + issue_month</code> or a constructed date &mdash; but the two-column sort is clearest and needs no arithmetic.</p>
+
+<h5>The portable alternative &mdash; <code>ROW_NUMBER</code></h5>
+<p><code>DISTINCT ON</code> is Postgres-only. The cross-dialect equivalent is a window function: <code>ROW_NUMBER() OVER (PARTITION BY card_name ORDER BY issue_year, issue_month)</code> in a subquery, then <code>WHERE rn = 1</code>. It produces the identical result and works in SQL Server, MySQL 8+, Oracle, and BigQuery. Knowing both &mdash; <code>DISTINCT ON</code> for terse Postgres, <code>ROW_NUMBER</code> for portability &mdash; and being able to convert between them is the senior signal.</p>
+
+<h5>Why not <code>MIN</code> with a <code>GROUP BY</code></h5>
+<p>A natural-looking but wrong attempt is <code>SELECT card_name, issued_cards WHERE (year,month) = (MIN per card)</code>. The flaw: <code>MIN(issue_year)</code> and <code>MIN(issue_month)</code> taken independently do not identify a single real row &mdash; for AmberOne that would be year 2023 and month 1, a (2023, January) combination that does not exist. You need the issued count <em>from the row that has the minimum month</em>, which requires either <code>DISTINCT ON</code>, <code>ROW_NUMBER</code>, or a correlated subquery matching the full (year, month) tuple &mdash; not independent column minimums.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> for "first row per group", use Postgres <code>DISTINCT ON (group_key)</code> with an <code>ORDER BY</code> that leads with that key and then the tiebreaker columns &mdash; or the portable <code>ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...) = 1</code>. Sort by (year, month) so launches across a year boundary land correctly, and avoid independent column <code>MIN</code>s, which can synthesise a tuple that matches no real row.</div>

@@ -1,0 +1,63 @@
+<p>A messaging platform wants its two most prolific senders for August 2025 &mdash; a leaderboard query. The catch: if several senders tie at the second spot, all of them must appear. The interviewer is probing whether you reach for <code>DENSE_RANK</code> rather than <code>LIMIT 2</code> or <code>ROW_NUMBER</code>, because only ranking-with-ties returns "all tied users" without arbitrarily truncating the list.</p>
+
+<h4>1. The source data &mdash; <code>messages</code></h4>
+<table>
+  <thead><tr><th>sender_id</th><th>August 2025 messages</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>4 (Aug 1, 2, 15, 20)</td><td>tied at the top</td></tr>
+    <tr><td>11</td><td>4 (Aug 3, 4, 5, 6)</td><td>tied at the top</td></tr>
+    <tr><td>14</td><td>4 (Aug 10, 11, 12, 13)</td><td>tied at the top</td></tr>
+    <tr><td>12</td><td>3 (Aug 7, 8, 9)</td><td>second place &mdash; just below the tie</td></tr>
+    <tr><td>13</td><td>0 in August (Jul 30, 31 only)</td><td>July-only sender &mdash; out of range</td></tr>
+  </tbody>
+</table>
+<p>The scenario is engineered to break naive solutions. Three senders (10, 11, 14) tie at 4 messages. Sender 13's only messages are in July, so the date filter must zero them out &mdash; they should not appear at all. The genuine "rank 2" sender is 12, with 3 messages, sitting directly below a three-way tie.</p>
+
+<h4>2. The SQL &mdash; count in range, DENSE_RANK, keep rank &le; 2</h4>
+<pre><code>WITH cnt AS (
+  SELECT sender_id, COUNT(*) AS message_count
+  FROM messages
+  WHERE sent_at &gt;= TIMESTAMP '2025-08-01' AND sent_at &lt; TIMESTAMP '2025-09-01'
+  GROUP BY sender_id
+),
+rk AS (
+  SELECT sender_id, message_count,
+         DENSE_RANK() OVER (ORDER BY message_count DESC) AS r
+  FROM cnt
+)
+SELECT sender_id, message_count
+FROM rk
+WHERE r &lt;= 2
+ORDER BY message_count DESC, sender_id;</code></pre>
+<p><code>cnt</code> counts each sender's August messages. <code>rk</code> assigns a dense rank by descending count. The filter <code>r &lt;= 2</code> keeps the top two count <em>levels</em>; because <code>DENSE_RANK</code> gives every tied sender the same rank, all three top senders fall under rank 1 and survive together.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sender_id</th><th>message_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>4</td><td>rank 1 (tied)</td></tr>
+    <tr><td>11</td><td>4</td><td>rank 1 (tied)</td></tr>
+    <tr><td>14</td><td>4</td><td>rank 1 (tied)</td></tr>
+    <tr><td>12</td><td>3</td><td>rank 2</td></tr>
+  </tbody>
+</table>
+<p>Four rows, not two. The three-way tie at the top all sit at rank 1, and sender 12 at rank 2 &mdash; so <code>r &lt;= 2</code> returns all four. Sender 13 is absent: every July message was excluded by the range filter, so 13 produces no row in <code>cnt</code> at all. This is exactly what "return ALL tied users" demands.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code> beats <code>LIMIT 2</code> and <code>ROW_NUMBER</code></h5>
+<p><code>ORDER BY message_count DESC LIMIT 2</code> would return exactly two rows &mdash; arbitrarily two of the three tied leaders &mdash; and never reach sender 12. <code>ROW_NUMBER</code> has the same flaw: it assigns 1, 2, 3, 4 unconditionally, breaking the tie by physical order. <code>DENSE_RANK</code> assigns tied rows the <em>same</em> rank, so a "top 2" filter naturally expands to include every tied member. The phrase "return ALL tied users" is the signal that a ranking-with-ties function is required.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> &mdash; the gap matters here</h5>
+<p>With three senders tied at rank 1, <code>RANK</code> would assign the next sender rank <strong>4</strong> (it skips 2 and 3), so <code>WHERE r &lt;= 2</code> would return <em>only the three tied leaders</em> and miss sender 12 entirely. <code>DENSE_RANK</code> assigns no gaps &mdash; the next sender is rank 2 &mdash; so the query correctly captures the top two <em>distinct</em> volumes. For a "top 2 levels" requirement, <code>DENSE_RANK</code> is the right choice; <code>RANK</code> would silently shrink the result.</p>
+
+<h5>The tie-break instruction is partly redundant &mdash; say so</h5>
+<p>The prompt says "break ties by lower sender_id first". With <code>DENSE_RANK() OVER (ORDER BY message_count DESC)</code>, tied senders genuinely <em>share</em> a rank &mdash; there is no tie to break for inclusion, and all of them are returned. The <code>sender_id</code> ordering only affects the <em>display order</em> of the final rows, handled by the outer <code>ORDER BY message_count DESC, sender_id</code>. A senior candidate names this: the tie-break is a presentation rule here, not a selection rule, because we are told to keep all ties anyway.</p>
+
+<h5>The half-open month range</h5>
+<p><code>sent_at &gt;= '2025-08-01' AND sent_at &lt; '2025-09-01'</code> is the correct way to bound a month on a <code>TIMESTAMP</code> column. <code>BETWEEN '2025-08-01' AND '2025-08-31'</code> would drop any message timestamped after midnight on Aug 31 &mdash; a real and common bug. The half-open <code>[month-start, next-month-start)</code> form catches every August instant and excludes July (so sender 13 vanishes) and September.</p>
+
+<h5>COUNT(*) is correct here &mdash; and so is the grouping</h5>
+<p><code>COUNT(*)</code> counts message rows per sender, which is exactly "message volume". There is no distinct-counting subtlety &mdash; each message is one row. The <code>GROUP BY sender_id</code> in <code>cnt</code> runs before the window function in <code>rk</code>; you must aggregate to one row per sender first, then rank those counts. Window functions execute after <code>GROUP BY</code>, so the two-CTE split (aggregate, then rank) is the natural structure and also lets you filter on the rank in the outer query.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a leaderboard that must "return all tied users" calls for <code>DENSE_RANK</code> filtered by <code>r &lt;= N</code> &mdash; <code>LIMIT</code> and <code>ROW_NUMBER</code> truncate ties, and <code>RANK</code>'s gaps can drop a real runner-up. Recognise when a stated tie-break only governs display order, and bound the month with a half-open timestamp range so boundary messages land correctly.</div>

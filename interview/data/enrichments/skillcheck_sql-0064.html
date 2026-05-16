@@ -1,0 +1,63 @@
+<p>A merchandising team wants each customer's favourite product: <em>"return every customer's most-purchased product &mdash; and if two products tie for the top, return them both."</em> The interviewer is probing the per-group <strong>mode with ties</strong>: can you find the maximum count within each group and keep <em>all</em> rows that reach it, rather than arbitrarily picking one?</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>products purchased</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A, A, B, C</td><td>A bought twice &mdash; clear single winner</td></tr>
+    <tr><td>2</td><td>X, X, Y, Y</td><td>X and Y both twice &mdash; a tie for the top</td></tr>
+    <tr><td>3</td><td>P, Q, R</td><td>all bought once &mdash; three-way tie</td></tr>
+    <tr><td>4</td><td>A</td><td>single purchase &mdash; trivially the mode</td></tr>
+  </tbody>
+</table>
+<p>Customer 2 is the headline edge case: a genuine tie that must return <em>both</em> X and Y. Customer 3 stretches it to a three-way tie. Customer 4 is a single-row group. A naive "pick one" solution fails 2 and 3.</p>
+
+<h4>2. The SQL &mdash; count, <code>RANK</code>, keep rank 1</h4>
+<pre><code>WITH counts AS (
+  SELECT customer_id, product, COUNT(*) AS purchase_count
+  FROM sales
+  GROUP BY customer_id, product
+),
+ranked AS (
+  SELECT *, RANK() OVER (PARTITION BY customer_id ORDER BY purchase_count DESC) AS rk
+  FROM counts
+)
+SELECT customer_id, product, purchase_count
+FROM ranked
+WHERE rk = 1
+ORDER BY customer_id, product;</code></pre>
+<p>The first CTE counts purchases per customer/product. The second ranks products within each customer by that count, descending. Keeping <code>rk = 1</code> returns the top &mdash; and because <code>RANK</code> gives tied rows the <em>same</em> rank, every tied product survives.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>product</th><th>purchase_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>2</td><td>single winner</td></tr>
+    <tr><td>2</td><td>X</td><td>2</td><td>tie &mdash; both X and Y returned</td></tr>
+    <tr><td>2</td><td>Y</td><td>2</td><td>tie &mdash; both share rank 1</td></tr>
+    <tr><td>3</td><td>P</td><td>1</td><td>three-way tie &mdash; all kept</td></tr>
+    <tr><td>3</td><td>Q</td><td>1</td><td></td></tr>
+    <tr><td>3</td><td>R</td><td>1</td><td></td></tr>
+    <tr><td>4</td><td>A</td><td>1</td><td>single-row group</td></tr>
+  </tbody>
+</table>
+<p>Customer 2 returns <strong>two</strong> rows and customer 3 returns <strong>three</strong> &mdash; exactly the "return all tied" requirement. Customers 1 and 4 yield one row each. The result has one row per (customer, winning product).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>RANK</code> and not <code>ROW_NUMBER</code></h5>
+<p>This is the single decision the question tests. <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY purchase_count DESC)</code> assigns 1, 2, 3&hellip; even to tied rows &mdash; for customer 2 it would label X as 1 and Y as 2, and <code>WHERE rk = 1</code> would return only X, dropping a genuine co-winner by physical accident. <code>RANK</code> gives every tied row the <em>same</em> rank, so all tied products carry <code>rk = 1</code> and survive the filter. "Return all ties" maps exactly to <code>RANK</code>.</p>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> &mdash; identical here, and why</h5>
+<p>For this query both behave the same: we only ever keep <code>rk = 1</code>, and both <code>RANK</code> and <code>DENSE_RANK</code> assign 1 to every top-count row. They diverge only at rank 2+ (<code>RANK</code> skips after a tie, <code>DENSE_RANK</code> does not), which this filter never inspects. Worth knowing so you can explain the choice confidently rather than guessing.</p>
+
+<h5>The two-CTE shape: aggregate, then rank</h5>
+<p>You cannot rank by <code>COUNT(*)</code> and filter in one step &mdash; window functions cannot sit in a <code>WHERE</code> clause, and the count must exist before it can be ranked. The first CTE does the <code>GROUP BY</code> aggregation; the second adds the window <code>RANK</code> over those aggregates; the outer query filters on the window result. This "aggregate in a CTE, rank in the next, filter outside" pattern is the standard structure for top-N-per-group and per-group-mode problems.</p>
+
+<h5>Edge cases fall out for free</h5>
+<p>The single-row groups (customer 4) need no special handling &mdash; one product, count 1, <code>RANK</code> 1, kept. The three-way tie (customer 3) works because <code>RANK</code> does not care how many rows share the top; all get rank 1. A correct mode-with-ties query should require zero branches for "what if everything ties" or "what if there's only one row" &mdash; if yours needs them, the approach is wrong.</p>
+
+<h5>Dialect notes</h5>
+<p>Window functions including <code>RANK</code> are ANSI SQL &mdash; PostgreSQL, SQL Server, Oracle, Snowflake, BigQuery, MySQL 8+. Pre-8.0 MySQL lacks them; there the per-group mode with ties needs a correlated subquery (<code>HAVING COUNT(*) = (SELECT MAX(cnt) ...)</code>), which is wordier and slower. PostgreSQL also has a <code>mode()</code> ordered-set aggregate, but <code>mode()</code> returns <em>only one</em> value and silently discards ties &mdash; so it is the <em>wrong</em> tool for this exact question.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> for per-group mode that must "return all ties", count per group in a CTE then apply <code>RANK() OVER (PARTITION BY group ORDER BY count DESC)</code> and keep <code>rk = 1</code> &mdash; <code>RANK</code> gives tied rows the same rank so co-winners all survive, whereas <code>ROW_NUMBER</code> would arbitrarily keep one. Note PostgreSQL's <code>mode()</code> drops ties and is wrong here.</div>

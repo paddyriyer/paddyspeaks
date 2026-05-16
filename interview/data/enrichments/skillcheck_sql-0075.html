@@ -1,0 +1,62 @@
+<p>A brokerage's analytics team wants a running profit-and-loss line for each user's holdings: after every trade, what is the cumulative cash position for that user and ticker? The interviewer is testing a <strong>running total within a partition</strong> &mdash; a window <code>SUM</code> with the right <code>PARTITION BY</code>, the right ordering, and a sign convention that makes buys outflows and sells inflows.</p>
+
+<h4>1. The source data &mdash; <code>trade</code></h4>
+<table>
+  <thead><tr><th>trade_id</th><th>user_id</th><th>ticker</th><th>action</th><th>qty</th><th>price</th><th>executed_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>AAPL</td><td>buy</td><td>10</td><td>150</td><td>2025-01-02 09:30</td></tr>
+    <tr><td>2</td><td>1</td><td>AAPL</td><td>sell</td><td>5</td><td>160</td><td>2025-01-05 10:00</td></tr>
+    <tr><td>3</td><td>1</td><td>AAPL</td><td>buy</td><td>3</td><td>140</td><td>2025-01-10 11:00</td></tr>
+    <tr><td>4</td><td>1</td><td>TSLA</td><td>buy</td><td>2</td><td>200</td><td>2025-01-03 09:30</td></tr>
+    <tr><td>5</td><td>1</td><td>TSLA</td><td>sell</td><td>2</td><td>250</td><td>2025-01-04 09:30</td></tr>
+    <tr><td>6</td><td>2</td><td>AAPL</td><td>buy</td><td>8</td><td>155</td><td>2025-01-02 09:30</td></tr>
+    <tr><td>7</td><td>2</td><td>AAPL</td><td>sell</td><td>8</td><td>180</td><td>2025-01-15 09:30</td></tr>
+  </tbody>
+</table>
+<p>The structural test is that user 1 trades <em>two</em> tickers. AAPL and TSLA running totals must be tracked independently &mdash; a TSLA buy must not pollute the AAPL P&amp;L. Note user 1's AAPL trades are not inserted in time order (trade 3 is dated after trade 2 but they are adjacent); the window's <code>ORDER BY executed_at</code> must impose chronology, not row insertion order.</p>
+
+<h4>2. The SQL &mdash; signed window SUM partitioned by user and ticker</h4>
+<pre><code>SELECT user_id, ticker, executed_at,
+       ROUND(
+         SUM(CASE WHEN action='sell' THEN qty*price ELSE -qty*price END)
+           OVER (PARTITION BY user_id, ticker
+                 ORDER BY executed_at
+                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW),
+         2) AS running_pnl
+FROM trade
+ORDER BY user_id, ticker, executed_at;</code></pre>
+<p>The <code>CASE</code> assigns each trade a signed cash flow: a sell adds <code>+qty*price</code> (cash in), a buy adds <code>-qty*price</code> (cash out). The window <code>SUM</code> accumulates those signed flows within each <code>(user_id, ticker)</code> partition, ordered by execution time, from the partition's first row through the current one.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>ticker</th><th>executed_at</th><th>running_pnl</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>AAPL</td><td>2025-01-02 09:30</td><td>-1500.00</td><td>buy 10&times;150 out</td></tr>
+    <tr><td>1</td><td>AAPL</td><td>2025-01-05 10:00</td><td>-700.00</td><td>+800 from sell 5&times;160</td></tr>
+    <tr><td>1</td><td>AAPL</td><td>2025-01-10 11:00</td><td>-1120.00</td><td>-420 from buy 3&times;140</td></tr>
+    <tr><td>1</td><td>TSLA</td><td>2025-01-03 09:30</td><td>-400.00</td><td>separate partition resets</td></tr>
+    <tr><td>1</td><td>TSLA</td><td>2025-01-04 09:30</td><td>100.00</td><td>+500 from sell 2&times;250</td></tr>
+    <tr><td>2</td><td>AAPL</td><td>2025-01-02 09:30</td><td>-1240.00</td><td>user 2's own partition</td></tr>
+    <tr><td>2</td><td>AAPL</td><td>2025-01-15 09:30</td><td>200.00</td><td>+1440 from sell 8&times;180</td></tr>
+  </tbody>
+</table>
+<p>User 1's TSLA line starts fresh at <code>-400</code> &mdash; the AAPL running total of <code>-1500</code> does not carry over, because <code>ticker</code> is in the partition key. Each partition's accumulation is independent: user 2's AAPL P&amp;L resets to its own first trade. The final TSLA figure of <code>+100</code> reflects a clean round-trip profit (bought at 200, sold at 250).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the running total needs a window <code>SUM</code>, not a self-join</h5>
+<p>A pre-window-function approach would self-join each trade to all earlier trades of the same user/ticker and sum &mdash; an O(n&sup2;) pattern. <code>SUM(...) OVER (PARTITION BY ... ORDER BY ...)</code> does it in a single ordered pass per partition, O(n log n) dominated by the sort. The window function is both clearer and the only scalable option for a real trade table.</p>
+
+<h5>The partition key defines what "running" means</h5>
+<p><code>PARTITION BY user_id, ticker</code> is the heart of the query. It restarts the accumulator for every distinct user/ticker combination, so user 1's TSLA P&amp;L is computed in total isolation from their AAPL P&amp;L. Drop <code>ticker</code> from the partition and you would get a per-user blended cash position across all instruments &mdash; a different, usually wrong, metric. The partition key <em>is</em> the grain of the running total.</p>
+
+<h5><code>ORDER BY executed_at</code> &mdash; chronology, not row order</h5>
+<p>A running total is only meaningful in a defined sequence. Without <code>ORDER BY</code> inside the <code>OVER</code> clause, the <code>SUM</code> would be an unordered total over the whole partition &mdash; every row would show the same final number. <code>ORDER BY executed_at</code> imposes chronological accumulation. It also means the result does not depend on physical row insertion order: the engine sorts by timestamp regardless of how rows were stored.</p>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; and the timestamp-tie subtlety</h5>
+<p><code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> sums row-by-row. The default frame for an ordered window is <code>RANGE</code>, which treats rows with an <em>equal</em> <code>executed_at</code> as peers and gives them the <em>same</em> cumulative value. If a user fired two AAPL trades at the identical timestamp, <code>RANGE</code> would show both with the post-both total &mdash; not a true step-by-step P&amp;L. Writing <code>ROWS</code> explicitly guarantees each row reflects exactly the trades up to and including itself. Adding a tiebreaker like <code>ORDER BY executed_at, trade_id</code> makes the ordering fully deterministic.</p>
+
+<h5>The cash-flow sign convention &mdash; state it explicitly</h5>
+<p>The <code>CASE</code> encodes the definition the question gave: a sell is positive (cash in), a buy is negative (cash out), so the running sum is cumulative <code>cash_in - cash_out</code>. This is a <em>simple cash-flow</em> P&amp;L &mdash; not a cost-basis or FIFO realized P&amp;L, which would require matching sold lots to specific buy lots. A senior candidate names which definition is in use; <code>ROUND(..., 2)</code> finally trims the result to cents.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement a running total with <code>SUM(...) OVER (PARTITION BY grain ORDER BY time ROWS UNBOUNDED PRECEDING)</code> &mdash; the partition key sets the grain (here user&times;ticker, so tickers don't bleed together), the <code>ORDER BY</code> imposes chronology, and explicit <code>ROWS</code> avoids <code>RANGE</code>'s timestamp-tie merging. State the cash-flow sign convention so the metric's definition is unambiguous.</div>
