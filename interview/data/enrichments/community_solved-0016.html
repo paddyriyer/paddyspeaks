@@ -1,0 +1,71 @@
+<p>A Community marketing-analytics question: count the users whose <em>second-ever</em> purchase was a product they had never bought before. Marketing wants to size the audience that a campaign genuinely cross-sold &mdash; people who came back and tried something new, not people who just re-ordered the same item. The whole problem is encoding "second purchase" and "new product" precisely, and the reference does it with two cooperating <code>RANK()</code> windows.</p>
+
+<h4>1. The source data &mdash; <code>marketing_campaign</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>created_at</th><th>product_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2023-01-01</td><td>10</td></tr>
+    <tr><td>1</td><td>2023-01-05</td><td>10</td></tr>
+    <tr><td>1</td><td>2023-01-10</td><td>20</td></tr>
+    <tr><td>2</td><td>2023-01-02</td><td>30</td></tr>
+    <tr><td>2</td><td>2023-01-06</td><td>30</td></tr>
+    <tr><td>3</td><td>2023-01-03</td><td>40</td></tr>
+    <tr><td>4</td><td>2023-01-01</td><td>50</td></tr>
+    <tr><td>4</td><td>2023-01-08</td><td>60</td></tr>
+  </tbody>
+</table>
+<p>User 2 only ever re-buys product 30 &mdash; never a new product. User 3 has a single purchase. Users 1 and 4 both eventually buy something new on a non-first day. The mix is deliberate: each user exercises a different branch of the logic.</p>
+
+<h4>2. The SQL &mdash; <code>two RANK windows</code></h4>
+<pre><code>with t1 as
+(
+select user_id,
+    created_at,
+    product_id,
+    rank() over(partition by user_id order by created_at asc) as date_rank,
+    rank() over(partition by user_id, product_id order by created_at) as product_rank
+from marketing_campaign
+)
+
+select count(distinct user_id) as cnt
+from t1
+where product_rank &lt; 2 and date_rank &lt;&gt; 1</code></pre>
+<p><code>date_rank</code> orders each user's purchases over time; <code>product_rank</code> orders purchases <em>within a user-and-product</em>. A row with <code>product_rank = 1</code> is the first time that user bought that product; <code>date_rank &lt;&gt; 1</code> means it was not their very first purchase overall.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cnt</th></tr></thead>
+  <tbody>
+    <tr><td>2</td></tr>
+  </tbody>
+</table>
+<p>Two users qualify &mdash; user 1 (product 20 on Jan 10 is new, and Jan 10 is not their first day) and user 4 (product 60 on Jan 8). User 2's only non-first purchase is a repeat of product 30, so its <code>product_rank</code> is 2, filtered out. User 3 never has a <code>date_rank &lt;&gt; 1</code> row at all. The answer matches the campaign question.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How the two windows interlock</h5>
+<p>The clever part is the different <code>PARTITION BY</code> clauses on the same rows. <code>product_rank &lt; 2</code> (i.e. <code>= 1</code>) selects only rows that are a <em>first encounter</em> with a product. <code>date_rank &lt;&gt; 1</code> drops the user's opening purchase &mdash; a first purchase is trivially "new" and would count everyone. The intersection is precisely "a new product, bought on some later visit". Two windows, one pass, no self-join.</p>
+
+<h5>The <code>RANK</code>-vs-<code>ROW_NUMBER</code> tie hazard on identical timestamps</h5>
+<p>If a user buys the <em>same</em> product twice at the exact same <code>created_at</code>, <code>RANK()</code> assigns both rows <code>product_rank = 1</code> &mdash; so a pure repeat could slip through as "new". <code>ROW_NUMBER()</code> would force one to 1 and the other to 2, which is what the logic actually wants:</p>
+<pre><code>row_number() over(partition by user_id, product_id order by created_at) as product_rank</code></pre>
+<p>On distinct timestamps the two agree; on ties they diverge. For "is this the first occurrence" semantics, <code>ROW_NUMBER</code> is the safer primitive. Flag it.</p>
+
+<h5>An <code>EXISTS</code> alternative that reads more directly</h5>
+<pre><code>SELECT COUNT(DISTINCT m.user_id) AS cnt
+FROM marketing_campaign m
+WHERE m.created_at &gt; (SELECT MIN(created_at)
+                      FROM marketing_campaign x WHERE x.user_id = m.user_id)
+  AND NOT EXISTS (SELECT 1 FROM marketing_campaign y
+                  WHERE y.user_id = m.user_id
+                    AND y.product_id = m.product_id
+                    AND y.created_at &lt; m.created_at);</code></pre>
+<p>This spells out "after the first purchase" and "no earlier buy of this product" literally. It is more readable but fires correlated subqueries per row; the window version is one sorted pass and scales better. Knowing both, and when each wins, is the senior move.</p>
+
+<h5>The "second purchase" wording trap</h5>
+<p>The title says <em>second</em> purchase, but the SQL accepts <em>any</em> non-first purchase (<code>date_rank &lt;&gt; 1</code> &mdash; could be the 3rd, 4th, …). If the campaign strictly means the 2nd order specifically, the filter must be <code>date_rank = 2</code>. These give different counts the moment a user has three or more orders. Pin the definition with the interviewer before coding &mdash; "any later purchase" vs "exactly the second" is a real ambiguity.</p>
+
+<h5>Edge cases: single-purchase users and NULL products</h5>
+<p>A user with one row has <code>date_rank = 1</code> only, so they are correctly excluded &mdash; no special handling needed. But if <code>product_id</code> can be NULL, all NULL-product rows for a user share one <code>product_rank</code> partition, and NULLs compare oddly; decide whether a NULL product is a real product or junk to filter.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain how two differently-partitioned <code>RANK()</code> windows combine to mean "new product on a later visit", flag that <code>RANK</code> mis-handles same-timestamp duplicates where <code>ROW_NUMBER</code> would not, and challenge whether "second purchase" means <em>exactly the second</em> or <em>any non-first</em> before writing a line.</div>

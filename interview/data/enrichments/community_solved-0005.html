@@ -1,0 +1,72 @@
+<p>A Community window-function exercise: from a yearly sales table, list the brand-years where revenue went <em>up</em> versus the previous year. The reference solution uses <code>LAG</code> &mdash; the right tool &mdash; but it ships with a default-value choice that quietly invents a fake "increase" in every brand's first year. The interviewer wants to see whether you catch it.</p>
+
+<h4>1. The source data &mdash; <code>brand_amount</code></h4>
+<table>
+  <thead><tr><th>year</th><th>brand</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>apple</td><td>100</td></tr>
+    <tr><td>2021</td><td>apple</td><td>150</td></tr>
+    <tr><td>2022</td><td>apple</td><td>120</td></tr>
+    <tr><td>2020</td><td>nike</td><td>80</td></tr>
+    <tr><td>2021</td><td>nike</td><td>60</td></tr>
+    <tr><td>2021</td><td>sony</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>apple rises then falls; nike only falls; <strong>sony has a single year</strong> &mdash; no previous year to compare against. That lone sony row is the edge case the <code>LAG</code> default mishandles.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> then filter on the delta</h4>
+<pre><code>with t1 as
+(
+select  brand
+    ,year as current_year
+    ,(year-1) as previous_year
+    ,amount
+    ,LAG(amount,1,0) OVER(PARTITION BY brand ORDER BY year asc) as amount_previous_yr
+    ,(amount - LAG(amount,1,0) OVER(PARTITION BY brand ORDER BY year asc)) as amount_change
+from brand_amount
+)
+select brand,concat(previous_year,'-',current_year) as years
+    ,amount_change
+from t1
+where amount_change &gt; 0</code></pre>
+<p><code>LAG(amount, 1, 0)</code> fetches the prior year's amount within each brand; the <code>0</code> is the <em>default</em> used when there is no prior row. <code>amount_change</code> is the year-over-year delta, and the outer query keeps only positive deltas.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>brand</th><th>years</th><th>amount_change</th></tr></thead>
+  <tbody>
+    <tr><td>apple</td><td>2019-2020</td><td>100</td></tr>
+    <tr><td>apple</td><td>2020-2021</td><td>50</td></tr>
+    <tr><td>nike</td><td>2019-2020</td><td>80</td></tr>
+    <tr><td>sony</td><td>2020-2021</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>The genuine increase is real: apple 2020&rarr;2021 was 100&rarr;150, a +50. But look at the other three rows &mdash; <code>apple 2019-2020</code>, <code>nike 2019-2020</code>, <code>sony 2020-2021</code> are all <strong>first-year artefacts</strong>. There is no year 2019 in the data. <code>LAG</code> returned its default <code>0</code>, so the delta is <em>the entire first-year amount</em>, which is always positive, so every brand's debut row passes the <code>&gt; 0</code> filter. Three of the four "increases" are noise.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>LAG(..., 1, 0)</code> default trap</h5>
+<p>The third argument to <code>LAG</code> is the value used when the offset row does not exist. Choosing <code>0</code> means "treat the year before a brand's first as $0 revenue" &mdash; which fabricates a 0&rarr;first-amount jump and labels it growth. The fix is to drop the default so the missing row yields <strong>NULL</strong>:</p>
+<pre><code>LAG(amount, 1) OVER (PARTITION BY brand ORDER BY year)</code></pre>
+<p>Then <code>amount - NULL</code> is NULL, NULL fails <code>&gt; 0</code>, and first-year rows fall out cleanly. apple 2020&rarr;2021 stays; the three phantom rows vanish. Same data, correct answer &mdash; purely from one argument.</p>
+
+<h5>The <code>previous_year</code> column lies too</h5>
+<p>The solution computes <code>previous_year</code> as <code>year - 1</code>, then labels rows <code>2019-2020</code>. But 2019 is not in the table &mdash; the label asserts a comparison that never happened. If years can have <em>gaps</em> (a brand skips 2021), <code>year - 1</code> is simply wrong. Derive the real prior year from the window instead:</p>
+<pre><code>LAG(year) OVER (PARTITION BY brand ORDER BY year) AS previous_year</code></pre>
+<p>so the label always names the actual compared years. The reference even left this exact line commented out &mdash; it knew.</p>
+
+<h5>Interviewer follow-up: "show the percentage change"</h5>
+<p>Absolute deltas favour big brands. Recruiters usually want growth rate:</p>
+<pre><code>ROUND(100.0 * (amount - LAG(amount) OVER w)
+       / LAG(amount) OVER w, 1) AS pct_change
+FROM brand_amount
+WINDOW w AS (PARTITION BY brand ORDER BY year)</code></pre>
+<p>Guard the denominator: if a prior amount can be 0, percentage change is undefined &mdash; <code>NULLIF(LAG(amount) OVER w, 0)</code>.</p>
+
+<h5>Edge case: ties (flat years) and the <code>&gt;</code> operator</h5>
+<p>A year where revenue is unchanged gives <code>amount_change = 0</code>, which fails <code>&gt; 0</code> &mdash; correctly excluded, since flat is not an increase. Be deliberate about the boundary: <code>&gt; 0</code> means "strictly grew", <code>&gt;= 0</code> would mean "did not shrink". The interviewer may be probing exactly that wording.</p>
+
+<h5>Sorting and determinism</h5>
+<p>The final query has no <code>ORDER BY</code>, so row order is whatever the planner returns. For a report, sort explicitly &mdash; <code>ORDER BY brand, current_year</code> &mdash; so the output is stable across runs and engines.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>LAG(..., 1, 0)</code> manufactures a fake first-year increase, switch the default to NULL so debut rows drop out, derive <code>previous_year</code> from <code>LAG(year)</code> rather than <code>year - 1</code> to survive gaps, and state whether "increase" means strictly greater or merely non-decreasing.</div>

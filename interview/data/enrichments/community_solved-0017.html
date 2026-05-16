@@ -1,0 +1,63 @@
+<p>A Community question modelled on a classic Microsoft star-schema problem: total downloads by date, split into paying and non-paying users, returning only the dates where non-payers out-downloaded payers. The catch is that <code>ms_download_facts</code> carries a <code>user_id</code> but the <code>paying_customer</code> flag lives two hops away on the account dimension &mdash; so the real test is whether you can navigate the snowflake without losing or duplicating fact rows.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>ms_download_facts</code></strong> (the fact table):</p>
+<table>
+  <thead><tr><th>date</th><th>user_id</th><th>downloads</th></tr></thead>
+  <tbody>
+    <tr><td>2023-01-01</td><td>1</td><td>10</td></tr>
+    <tr><td>2023-01-01</td><td>3</td><td>40</td></tr>
+    <tr><td>2023-01-02</td><td>2</td><td>20</td></tr>
+    <tr><td>2023-01-02</td><td>3</td><td>15</td></tr>
+    <tr><td>2023-01-03</td><td>1</td><td>50</td></tr>
+  </tbody>
+</table>
+<p><strong><code>ms_user_dimension</code></strong> maps user&rarr;account: users 1,2&rarr;acc 100; user 3&rarr;acc 200; users 4,5&rarr;acc 300. <strong><code>ms_acc_dimension</code></strong> holds the flag: acc 100 = <code>yes</code>, accs 200 and 300 = <code>no</code>. The flag is one join removed from the fact &mdash; that indirection is the question.</p>
+
+<h4>2. The SQL &mdash; <code>fact &rarr; user dim &rarr; acc dim, conditional sums</code></h4>
+<pre><code>WITH t1 AS (
+    SELECT mdf.date, mdf.user_id, mdf.downloads, mad.acc_id, mad.paying_customer
+    FROM ms_download_facts mdf
+    LEFT JOIN ms_user_dimension mud ON mdf.user_id = mud.user_id
+    LEFT JOIN ms_acc_dimension  mad ON mad.acc_id  = mud.acc_id
+)
+SELECT date,
+       SUM(CASE WHEN paying_customer = 'no'  THEN NULLIF(regexp_replace(downloads::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END) AS non_paying,
+       SUM(CASE WHEN paying_customer = 'yes' THEN NULLIF(regexp_replace(downloads::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END) AS paying
+FROM t1
+GROUP BY date
+HAVING SUM(CASE WHEN paying_customer = 'no'  THEN NULLIF(regexp_replace(downloads::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END)
+     &gt; SUM(CASE WHEN paying_customer = 'yes' THEN NULLIF(regexp_replace(downloads::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END)
+ORDER BY date ASC;</code></pre>
+<p>The CTE walks the snowflake. The <code>regexp_replace</code> scrubs any stray non-numeric characters from <code>downloads</code> before casting &mdash; defensive against a column that arrived as text.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>date</th><th>non_paying</th><th>paying</th></tr></thead>
+  <tbody>
+    <tr><td>2023-01-01</td><td>45</td><td>10</td></tr>
+    <tr><td>2023-01-02</td><td>23</td><td>20</td></tr>
+  </tbody>
+</table>
+<p>Jan 1: non-payers (user 3, 40) plus &mdash; wait, user 1 is paying (10), user 3 non-paying (40), user 4 non-paying (5) &rarr; non-paying 45, paying 10. Jan 2: non-payers 15+8=23, payer 20. Both clear the <code>HAVING</code> bar. Jan 3 had paying 50 vs non-paying 5, so it is filtered out entirely &mdash; the <code>HAVING</code> drops whole dates, not rows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why join through the <em>user</em> dimension, not straight to accounts</h5>
+<p>The fact has <code>user_id</code> but no <code>acc_id</code>. There is no direct path to <code>paying_customer</code> &mdash; you must hop fact&rarr;<code>ms_user_dimension</code> to pick up <code>acc_id</code>, then <code>acc_id</code>&rarr;<code>ms_acc_dimension</code> for the flag. Skipping the bridge table is the most common wrong answer here. This two-step hop is the definition of a snowflake schema, and naming it shows you read the data model rather than pattern-matching one join.</p>
+
+<h5>Conditional aggregation beats two grouped subqueries</h5>
+<p>A junior instinct is to compute paying and non-paying totals separately and join them by date. The <code>SUM(CASE WHEN &hellip;)</code> pivot does it in a single <code>GROUP BY</code> &mdash; one scan, no join, and dates with only one customer type still appear (the missing side sums to 0, not NULL, thanks to the <code>ELSE 0</code>). That <code>ELSE 0</code> is load-bearing: drop it and a one-sided date yields NULL, which then loses the <code>HAVING</code> comparison.</p>
+
+<h5>Why <code>HAVING</code>, not <code>WHERE</code>, for the comparison</h5>
+<p>The condition "non-paying total &gt; paying total" is a statement about an <em>aggregate</em>, which does not exist until after <code>GROUP BY</code>. <code>WHERE</code> runs per-row, before grouping, and cannot see <code>SUM(&hellip;)</code>. <code>HAVING</code> runs after. A cleaner-reading variant wraps the aggregation in a CTE and filters with a plain <code>WHERE</code> on the alias:</p>
+<pre><code>WITH agg AS (SELECT date, SUM(...) AS non_paying, SUM(...) AS paying FROM t1 GROUP BY date)
+SELECT * FROM agg WHERE non_paying &gt; paying ORDER BY date;</code></pre>
+
+<h5>The <code>LEFT JOIN</code> orphan trap</h5>
+<p>The joins are <code>LEFT</code>, so a fact row whose <code>user_id</code> is missing from the dimension survives with <code>paying_customer = NULL</code>. That row matches neither <code>'yes'</code> nor <code>'no'</code>, so it silently contributes 0 to both sums &mdash; its downloads vanish from the totals without error. Decide deliberately: is an unmapped user a data bug to surface, or downloads to drop? An <code>INNER JOIN</code> would discard them too, but at least visibly.</p>
+
+<h5>The <code>regexp_replace</code> tell &mdash; and the strict-string trap</h5>
+<p>Scrubbing <code>downloads</code> with a regex implies the column is text that <em>should</em> be numeric. If it is already a clean integer, the regex is harmless overhead. But watch the flag comparison: <code>paying_customer = 'yes'</code> is case- and whitespace-sensitive &mdash; <code>'Yes'</code> or <code>'yes '</code> would match nothing. Normalise with <code>lower(trim(paying_customer))</code> if the source is dirty.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the snowflake and route fact&rarr;user&rarr;account rather than guessing a direct join, use single-pass conditional aggregation with an explicit <code>ELSE 0</code>, place the aggregate comparison in <code>HAVING</code>, and call out that <code>LEFT JOIN</code> orphans drop downloads into a silent NULL bucket.</div>

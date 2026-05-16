@@ -1,0 +1,65 @@
+<p>A Community question on the Flipkart transactions table: find "returning active users" &mdash; people who made a repeat purchase within seven days of a previous one. Retention teams use this to size the genuinely sticky cohort. The crux is comparing each purchase to the <em>same user's prior</em> purchase, which is a textbook <code>LAG</code>, and then being precise about how a date difference is measured.</p>
+
+<h4>1. The source data &mdash; <code>flipkart_transactions</code></h4>
+<table>
+  <thead><tr><th>id</th><th>user_id</th><th>item</th><th>created_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>a</td><td>2023-01-01</td></tr>
+    <tr><td>2</td><td>1</td><td>b</td><td>2023-01-04</td></tr>
+    <tr><td>3</td><td>2</td><td>c</td><td>2023-01-01</td></tr>
+    <tr><td>4</td><td>2</td><td>d</td><td>2023-01-31</td></tr>
+    <tr><td>5</td><td>3</td><td>e</td><td>2023-02-01</td></tr>
+    <tr><td>7</td><td>3</td><td>g</td><td>2023-03-01</td></tr>
+    <tr><td>8</td><td>4</td><td>h</td><td>2023-01-10</td></tr>
+  </tbody>
+</table>
+<p>User 1's two buys are 3 days apart &mdash; inside the window. User 2's are 30 days apart &mdash; outside. User 3 has three purchases (one row omitted above): a 4-day gap then a long gap, so they qualify on one of the pairs. User 4 has a single purchase &mdash; no prior to compare. Four users, four distinct behaviours.</p>
+
+<h4>2. The SQL &mdash; <code>LAG then 7-day filter</code></h4>
+<pre><code>WITH t1 AS (
+    SELECT ft.*,
+           LAG(created_at) OVER (PARTITION BY user_id ORDER BY created_at ASC) AS previous_purchase_date
+    FROM flipkart_transactions ft
+),
+t2 AS (
+    SELECT t1.*,
+           EXTRACT(DAY FROM (created_at::timestamp - previous_purchase_date::timestamp))::int AS date_diff
+    FROM t1
+    WHERE EXTRACT(DAY FROM (created_at::timestamp - previous_purchase_date::timestamp))::int &lt;= 7
+)
+SELECT user_id
+FROM t2
+GROUP BY user_id
+ORDER BY user_id ASC;</code></pre>
+<p><code>LAG</code> pulls each user's previous purchase date into the same row. <code>t2</code> keeps only rows where the gap to that prior purchase is 7 days or fewer. The final <code>GROUP BY</code> dedupes to one row per qualifying user.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>Users 1 and 3 qualify. User 1's Jan-04 buy is 3 days after Jan-01. User 3 has a 4-day gap somewhere in their three purchases. User 2's only gap is 30 days &mdash; filtered out. User 4's lone purchase has <code>previous_purchase_date = NULL</code>, the subtraction is NULL, and a NULL fails <code>&lt;= 7</code>, so they drop out cleanly without a special case.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> over a self-join</h5>
+<p>"Compare each purchase to the same user's previous one" is the canonical <code>LAG</code> use. The window <code>PARTITION BY user_id ORDER BY created_at</code> means the previous row is the previous <em>purchase for that user</em>, never bleeding across users. The self-join alternative &mdash; join the table to itself on <code>user_id</code> and "earlier date" &mdash; works but matches every earlier purchase, not just the immediately preceding one, so you would need a <code>MAX</code> correlation to recover "the latest before this". <code>LAG</code> says it in one clause.</p>
+
+<h5>The <code>EXTRACT(DAY FROM interval)</code> trap &mdash; this is the real interview point</h5>
+<p><code>created_at::timestamp - previous_purchase_date::timestamp</code> is an <code>interval</code>, and <code>EXTRACT(DAY FROM interval)</code> returns only the <em>days component</em> of that interval &mdash; not the total span. For gaps under a month it equals the total days, so it is fine here. But an interval of <code>'1 mon 2 days'</code> yields <strong>2</strong>, not ~32. The robust way to get whole elapsed days is plain <code>date</code> subtraction, which returns an integer count directly:</p>
+<pre><code>WHERE created_at::date - previous_purchase_date::date &lt;= 7</code></pre>
+<p>On this dataset both give the same answer; on month-spanning gaps they diverge badly. Naming this is the senior move.</p>
+
+<h5>The boundary: is day 7 in or out?</h5>
+<p><code>&lt;= 7</code> includes a purchase exactly 7 days later; <code>&lt; 7</code> would exclude it. "Within a week" is genuinely ambiguous &mdash; 7 days inclusive, or strictly under 7? Confirm with the interviewer; an off-by-one on the boundary silently shifts the cohort. Also note the difference is always &ge; 0 here because <code>LAG</code> orders ascending, so a same-day repeat (diff 0) also qualifies &mdash; intended or not, say so.</p>
+
+<h5>Why the final <code>GROUP BY</code> is needed</h5>
+<p>A user with several quick repeats produces several qualifying rows in <code>t2</code>. The question asks <em>which users</em>, so the answer must be one row per user &mdash; <code>GROUP BY user_id</code> (or <code>SELECT DISTINCT user_id</code>) collapses the duplicates. Skip it and a hyper-active user appears multiple times, breaking any downstream count.</p>
+
+<h5>Edge cases: single-purchase users and tied timestamps</h5>
+<p>A one-purchase user has a NULL <code>previous_purchase_date</code>; the subtraction is NULL and fails the <code>WHERE</code> &mdash; correctly excluded, no guard required. If two purchases share an identical <code>created_at</code>, <code>LAG</code>'s ordering between them is arbitrary (a tie in the <code>ORDER BY</code>); add a tiebreaker like <code>ORDER BY created_at, id</code> for deterministic output.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LAG</code> to fetch the prior purchase per user, and above all flag that <code>EXTRACT(DAY FROM interval)</code> returns only the days field &mdash; preferring integer <code>date</code> subtraction for true elapsed days &mdash; while pinning the inclusive/exclusive boundary of "within 7 days" before coding.</div>

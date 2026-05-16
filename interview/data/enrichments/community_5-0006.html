@@ -1,0 +1,74 @@
+<p>A Community subscription business wants to measure win-back: <em>for each customer who lapsed, when did they go quiet and when did they come back?</em> "Lapsed" here means a gap of more than 90 days between consecutive orders. The interviewer is probing whether you can detect gaps with <code>LAG</code>, why you keep only the <em>first</em> churn per customer, and what happens to customers who never lapsed or never returned.</p>
+
+<h4>1. The source data &mdash; <code>customer_orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order pattern (key dates)</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Jan&ndash;Feb, then Jun</td><td>~129-day gap &rarr; churned &amp; recovered</td></tr>
+    <tr><td>102</td><td>monthly Jan&ndash;Apr</td><td>no gap over 90 days &mdash; never churned</td></tr>
+    <tr><td>103</td><td>Jan, then May, then Dec</td><td>two gaps over 90 days &mdash; first one wins</td></tr>
+    <tr><td>104</td><td>Jan, Apr, Aug</td><td>first gap (Jan&rarr;Apr) is 94 days &mdash; churned</td></tr>
+    <tr><td>105</td><td>Jan, then Apr</td><td>one 90-day gap &mdash; boundary case</td></tr>
+  </tbody>
+</table>
+<p>Customer 102 is the control &mdash; orders never more than ~40 days apart, so they must <em>not</em> appear. Customer 103 lapsed twice; the query must report only their <em>first</em> churn. Customer 105's single gap is exactly 90 days &mdash; the test of whether the threshold is strict (<code>&gt; 90</code> excludes them) or inclusive.</p>
+
+<h4>2. The SQL &mdash; <code>LAG gap + first-churn ROW_NUMBER</code></h4>
+<pre><code>WITH gaps AS (
+    SELECT customer_id, order_date,
+           LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date) AS previous_order_date,
+           (order_date - LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)) AS days_since_last
+    FROM customer_orders
+),
+churned_customers AS (
+    SELECT customer_id, order_date, previous_order_date
+    FROM gaps
+    WHERE days_since_last &gt; 90
+),
+first_churn AS (
+    SELECT customer_id, previous_order_date, order_date,
+           ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY previous_order_date ASC) AS flag
+    FROM churned_customers
+)
+SELECT customer_id,
+       previous_order_date AS first_churn_date,
+       order_date          AS recovery_order_date,
+       (order_date - previous_order_date) AS num_days_churn_recovery
+FROM first_churn
+WHERE flag = 1
+ORDER BY customer_id;</code></pre>
+<p>Three stages: <code>LAG</code> attaches each order's previous order date and the day-gap; <code>WHERE days_since_last &gt; 90</code> keeps only orders that <em>ended</em> a lapse; <code>ROW_NUMBER</code> then numbers each customer's lapse-ending orders so <code>flag = 1</code> picks the earliest.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>first_churn_date</th><th>recovery_order_date</th><th>num_days_churn_recovery</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2023-02-01</td><td>2023-06-10</td><td>129</td></tr>
+    <tr><td>103</td><td>2023-01-10</td><td>2023-05-20</td><td>130</td></tr>
+    <tr><td>104</td><td>2023-01-01</td><td>2023-04-05</td><td>94</td></tr>
+  </tbody>
+</table>
+<p>Three customers churned and recovered. Customer 102 is absent &mdash; no gap ever exceeded 90 days. Customer 105 is also absent: their single gap is exactly 90 days, and <code>&gt; 90</code> is strict. Customer 103 lapsed twice (Jan&rarr;May and May&rarr;Dec) but only the first lapse is reported, because <code>flag = 1</code> keeps the earliest <code>previous_order_date</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> over a self-join</h5>
+<p><code>LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)</code> pulls the previous order's date onto the current row in a single ordered pass &mdash; O(n log n). The pre-window-function equivalent is a correlated subquery ("max order_date for this customer that is less than the current one"), which re-scans the partition per row and goes quadratic. On a real orders table the window function is the only viable form. The same query appears as <code>days_since_last</code> being driven by a second <code>LAG</code> call &mdash; most planners compute the identical window once and reuse it.</p>
+
+<h5>The <code>ROW_NUMBER</code> &mdash; "first churn" needs deduplication</h5>
+<p>Customer 103 has two lapse-ending orders. Without the <code>first_churn</code> CTE the query would emit both, double-reporting them. <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY previous_order_date)</code> ranks a customer's lapses chronologically; <code>WHERE flag = 1</code> keeps the earliest. Note the choice of <code>ROW_NUMBER</code> over <code>RANK</code>: two lapses cannot share a <code>previous_order_date</code> (a customer has one order per date), so there is no tie to worry about &mdash; but <code>ROW_NUMBER</code> guarantees exactly one row even if duplicate-dated orders existed.</p>
+
+<h5>The strict-vs-inclusive boundary &mdash; customer 105</h5>
+<p><code>days_since_last &gt; 90</code> excludes a gap of exactly 90 days. Customer 105's Jan&rarr;Apr gap is precisely 90, so they do not count as churned. If the business defines churn as "90 days or more", the predicate becomes <code>&gt;= 90</code> and customer 105 joins the result. This is a definition to confirm with the stakeholder, not a number to guess &mdash; a one-day shift in the threshold changes who counts as a churned customer.</p>
+
+<h5>Customers who churned but never came back</h5>
+<p>This query's structure has a built-in bias worth naming: a lapse is only detected when a <em>later</em> order exists to compute the gap against. A customer whose last-ever order was in January 2023 and who never returned has <strong>no next row</strong>, so <code>LAG</code> on a future order never fires &mdash; they are invisible here. That is correct for a "churn <em>and recovery</em>" report, but if the question were "who has churned (returned or not)", you would instead compare each customer's most recent order date against the report date:</p>
+<pre><code>SELECT customer_id, MAX(order_date) AS last_order
+FROM customer_orders
+GROUP BY customer_id
+HAVING (DATE '2023-12-31' - MAX(order_date)) &gt; 90;</code></pre>
+
+<h5>The <code>amount</code> column and tied dates</h5>
+<p>The schema carries <code>amount</code>, unused here &mdash; a follow-up might ask for revenue lost during the lapse, or whether the win-back order was larger than the pre-churn order. Also note <code>ORDER BY order_date</code> inside the window: if a customer placed two orders on the <em>same</em> day, their relative order is non-deterministic. With <code>DATE</code>-grain data and a 90-day threshold that does not change the answer, but on timestamp data you would add a tiebreaker like <code>order_id</code> to the <code>ORDER BY</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LAG</code> rather than a quadratic self-join to compute consecutive-order gaps, use <code>ROW_NUMBER</code> partitioned per customer to isolate the <em>first</em> lapse, confirm whether the 90-day churn threshold is strict or inclusive, and recognise that a <code>LAG</code>-based design only sees customers who eventually returned &mdash; a true churn census needs a max-date-vs-today comparison instead.</div>

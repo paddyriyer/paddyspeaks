@@ -1,0 +1,72 @@
+<p>A Community member poses a market-surveillance question: in a feed of trades, find pairs on the <em>same stock</em> that happened within a 10-second window and moved the price by more than 10%. That pattern hunts for a flash spike or a possible manipulation. The reference solution computes a price difference &mdash; but quietly forgets two of the three conditions in the question, and the interviewer is watching whether you catch it.</p>
+
+<h4>1. The source data &mdash; <code>trade_tbl</code></h4>
+<table>
+  <thead><tr><th>Trade_Id</th><th>Trade_Timestamp</th><th>Trade_Stock</th><th>Quantity</th><th>Price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01 09:00:00</td><td>AAPL</td><td>100</td><td>150.00</td></tr>
+    <tr><td>2</td><td>2024-01-01 09:00:05</td><td>AAPL</td><td>50</td><td>170.00</td></tr>
+    <tr><td>3</td><td>2024-01-01 09:00:08</td><td>AAPL</td><td>75</td><td>151.00</td></tr>
+    <tr><td>4</td><td>2024-01-01 09:10:00</td><td>MSFT</td><td>60</td><td>300.00</td></tr>
+    <tr><td>5</td><td>2024-01-01 09:10:04</td><td>MSFT</td><td>40</td><td>360.00</td></tr>
+  </tbody>
+</table>
+<p>Trades 1&ndash;3 are AAPL within an 8-second span; 4&ndash;5 are MSFT, ten minutes later. The genuine alerts are AAPL 1&rarr;2 (a 13% jump in 5s) and MSFT 4&rarr;5 (a 20% jump in 4s). Comparing trade 1 (AAPL) against trade 4 (MSFT) is meaningless &mdash; different stocks, ten minutes apart &mdash; yet that is exactly what the reference produces.</p>
+
+<h4>2. The SQL &mdash; <code>self-join on stock + 10s window</code></h4>
+<pre><code>SELECT a.trade_id AS trade_1, b.trade_id AS trade_2,
+       a.trade_stock,
+       ROUND(ABS((b.price - a.price) / a.price) * 100, 2) AS price_diff_pct
+FROM trade_tbl a
+JOIN trade_tbl b
+  ON a.trade_stock = b.trade_stock
+ AND a.trade_id &lt; b.trade_id
+ AND ABS(EXTRACT(EPOCH FROM (b.trade_timestamp - a.trade_timestamp))) &lt;= 10
+WHERE ABS((b.price - a.price) / a.price) * 100 &gt; 10
+ORDER BY a.trade_id, b.trade_id;</code></pre>
+<p>This is the <em>corrected</em> query. The join enforces all three conditions the question states: <code>a.trade_stock = b.trade_stock</code> (same stock), the <code>EXTRACT(EPOCH ...)</code> term (within 10 seconds), and the <code>WHERE</code> (price difference over 10%). <code>a.trade_id &lt; b.trade_id</code> keeps each pair once.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>trade_1</th><th>trade_2</th><th>trade_stock</th><th>price_diff_pct</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>AAPL</td><td>13.33</td></tr>
+    <tr><td>2</td><td>3</td><td>AAPL</td><td>11.18</td></tr>
+    <tr><td>4</td><td>5</td><td>MSFT</td><td>20.00</td></tr>
+  </tbody>
+</table>
+<p>Three flagged pairs, all same-stock and all inside 10 seconds. AAPL 1&rarr;3 is <em>not</em> flagged: although 150&rarr;151 is within 8 seconds, it is under 1% &mdash; below the threshold. No cross-stock pair appears, because the join now requires <code>trade_stock</code> to match.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug &mdash; the reference dropped two of the three conditions</h5>
+<p>The original reference solution cross-joins every trade pair on <code>t1.trade_id &lt; t2.trade_id</code> alone:</p>
+<pre><code>-- ORIGINAL (broken): no stock match, no time window
+FROM trade_tbl t1 CROSS JOIN trade_tbl t2
+WHERE t1.trade_id &lt; t2.trade_id
+... ABS((1.0*(price_2-price_1)/price_1)*100) &gt;= 10</code></pre>
+<p>It never compares <code>Trade_Stock</code> and never touches <code>Trade_Timestamp</code>. So it pairs AAPL trade&nbsp;1 with MSFT trade&nbsp;4 &mdash; comparing the price of <em>two different companies</em>, ten minutes apart &mdash; and reports a "100% difference". That answers a question nobody asked. The title is explicit: "<em>same stock</em>", "<em>range of 10 sec</em>". A surveillance query that ignores both is not a stricter filter, it is wrong: it floods analysts with false positives and the real same-stock spikes drown in noise. The fix is to move both conditions into the join.</p>
+
+<h5>The <code>INT</code> cast also corrupts the number</h5>
+<p>A second flaw: the original wraps the percentage in <code>CAST(... AS INT)</code>, truncating 13.33% to 13 and 11.18% to 11. For a threshold comparison at exactly 10% that truncation can flip an 10.6% move (a real alert) to 10 &mdash; or push a 9.8% non-event nowhere useful. Surveillance thresholds need the real fractional value; keep it <code>numeric</code> and <code>ROUND</code> only for display.</p>
+
+<h5>The asymmetry decision &mdash; <code>trade_id &lt; trade_id</code></h5>
+<p><code>a.trade_id &lt; b.trade_id</code> does two jobs: it stops a trade pairing with itself, and it emits each pair <em>once</em> rather than twice (1&ndash;2 and 2&ndash;1). It also gives a natural "earlier vs later" reading. Note this orders by <code>trade_id</code>, not timestamp &mdash; fine if ids are assigned in time order; if not, compare on <code>trade_timestamp</code> instead so "first" really means first.</p>
+
+<h5>The window-function alternative for adjacency</h5>
+<p>If the question meant only <em>consecutive</em> trades on a stock (not every pair within 10s), <code>LAG</code> is cheaper than a self-join:</p>
+<pre><code>SELECT * FROM (
+  SELECT trade_id, trade_stock, price, trade_timestamp,
+         LAG(price)          OVER w AS prev_price,
+         LAG(trade_timestamp) OVER w AS prev_ts
+  FROM trade_tbl
+  WINDOW w AS (PARTITION BY trade_stock ORDER BY trade_timestamp)
+) s
+WHERE ABS((price - prev_price) / prev_price) &gt; 0.10
+  AND EXTRACT(EPOCH FROM (trade_timestamp - prev_ts)) &lt;= 10;</code></pre>
+<p>Clarify with the interviewer: <em>any</em> two trades within 10s (self-join), or strictly back-to-back trades (<code>LAG</code>)? They give different answers when three trades cluster.</p>
+
+<h5>The division-by-zero and direction edges</h5>
+<p>The denominator is <code>a.price</code>. A trade at price 0 (a bad tick, a halted symbol) would divide by zero &mdash; guard with <code>a.price &lt;&gt; 0</code> or <code>NULLIF(a.price, 0)</code>. Also note <code>ABS(...)</code> catches both a spike <em>and</em> a crash; if surveillance only cares about upward jumps, drop the <code>ABS</code> and test the signed ratio.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> read every clause of the prompt &mdash; "same stock" and "within 10 seconds" are join conditions, not optional; never truncate a threshold metric with an <code>INT</code> cast; use <code>trade_id &lt; trade_id</code> to make pairs single and directed; and guard the price denominator against zero.</div>

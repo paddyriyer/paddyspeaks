@@ -1,0 +1,63 @@
+<p>A Community data-cleaning question with a twist: a routes table where <code>A&rarr;B</code> and <code>B&rarr;A</code> are logically the same trip, and the distance column is dirty text. Compute the average distance <em>per undirected route</em>. The interviewer is probing two skills at once &mdash; canonicalising a pair so direction does not matter, and scrubbing free-text numbers safely.</p>
+
+<h4>1. The source data &mdash; <code>locations</code></h4>
+<table>
+  <thead><tr><th>source</th><th>destination</th><th>distance</th></tr></thead>
+  <tbody>
+    <tr><td>Mumbai</td><td>Delhi</td><td>1400</td></tr>
+    <tr><td>Delhi</td><td>Mumbai</td><td>1390</td></tr>
+    <tr><td>Bangalore</td><td>Chennai</td><td>350 km</td></tr>
+    <tr><td>Chennai</td><td>Bangalore</td><td>360</td></tr>
+    <tr><td>Hyderabad</td><td>Pune</td><td>560</td></tr>
+    <tr><td>Kolkata</td><td>Patna</td><td>580</td></tr>
+  </tbody>
+</table>
+<p>Mumbai&ndash;Delhi appears <strong>twice</strong> with slightly different distances (1400 vs 1390) &mdash; the same road measured imperfectly. One distance is dirty: <code>'350 km'</code> carries a unit suffix. And Kolkata&ndash;Patna appears only once. All three are deliberate edge cases.</p>
+
+<h4>2. The SQL &mdash; canonical route key + cleaned average</h4>
+<pre><code>SELECT
+    CASE WHEN source &gt; destination THEN concat(source, '-', destination)
+         ELSE concat(destination, '-', source) END AS unique_route,
+    AVG(NULLIF(regexp_replace(distance::text, '[^-.0-9]', '', 'g'), '')::numeric) AS average_distance
+FROM locations
+GROUP BY CASE WHEN source &gt; destination THEN concat(source, '-', destination)
+              ELSE concat(destination, '-', source) END;</code></pre>
+<p>The <code>CASE</code> always puts the alphabetically-larger city first, so <code>Mumbai&rarr;Delhi</code> and <code>Delhi&rarr;Mumbai</code> both collapse to the key <code>Mumbai-Delhi</code>. <code>regexp_replace(..., '[^-.0-9]', '', 'g')</code> strips every character that is not a digit, dot, or minus &mdash; turning <code>'350 km'</code> into <code>'350'</code> &mdash; and <code>NULLIF(..., '')</code> guards against a value that cleans down to nothing.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>unique_route</th><th>average_distance</th></tr></thead>
+  <tbody>
+    <tr><td>Patna-Kolkata</td><td>580.0000000000000000</td></tr>
+    <tr><td>Mumbai-Delhi</td><td>1395.0000000000000000</td></tr>
+    <tr><td>Pune-Hyderabad</td><td>560.0000000000000000</td></tr>
+    <tr><td>Chennai-Bangalore</td><td>355.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Four routes from six rows &mdash; the two-row pairs were folded. <code>Mumbai-Delhi</code> averages 1400 and 1390 to <strong>1395</strong>; <code>Chennai-Bangalore</code> averages the clean 360 and the de-suffixed <code>'350 km'</code> &rarr; 350 to <strong>355</strong>, proving the scrub worked. Single-row routes (Patna&ndash;Kolkata, Pune&ndash;Hyderabad) just report their lone value. The result is a <code>numeric</code>, hence the long decimal tail &mdash; cosmetic only.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The canonical-key trick &mdash; why <code>GREATEST/LEAST</code> is cleaner</h5>
+<p>Sorting the two endpoints into a fixed order is the heart of "undirected pair" problems. The <code>CASE</code> works but is verbose and repeated in both <code>SELECT</code> and <code>GROUP BY</code>. Postgres has a one-liner:</p>
+<pre><code>concat(LEAST(source, destination), '-', GREATEST(source, destination)) AS unique_route</code></pre>
+<p>Same result, no duplicated expression. You can also <code>GROUP BY 1</code> to reference the select-list position and avoid restating it at all.</p>
+
+<h5>The "$0 vs NULL" question hiding in <code>regexp_replace</code></h5>
+<p>A distance like <code>'N/A'</code> or <code>'unknown'</code> strips down to the empty string. Without the <code>NULLIF(..., '')</code>, <code>''::numeric</code> throws an error and the whole query fails. With it, the value becomes NULL &mdash; and <code>AVG</code> skips NULLs, so a missing distance is excluded from both numerator and denominator. That is usually right, but say it: a route with one real reading and one <code>'N/A'</code> averages to the real reading, not to half of it.</p>
+
+<h5>The regex keeps <code>-</code> and <code>.</code> &mdash; a double-edged choice</h5>
+<p>The character class <code>[^-.0-9]</code> preserves minus and decimal point so <code>'-12.5'</code> survives intact. But <code>'12-15 km'</code> (a range) cleans to <code>'12-15'</code>, which fails the <code>::numeric</code> cast. And a stray dot &mdash; <code>'1.400 km'</code> in a locale that uses dot as a thousands separator &mdash; would be misread as 1.4. Free-text numbers are genuinely ambiguous; flag that the cleaner assumes a single well-formed number per cell.</p>
+
+<h5>Interviewer follow-up: flag the inconsistent duplicates</h5>
+<p>Averaging 1400 and 1390 hides a data-quality problem. A senior surfaces it rather than smoothing it over:</p>
+<pre><code>SELECT unique_route, MIN(d) AS lo, MAX(d) AS hi, MAX(d) - MIN(d) AS spread
+FROM ( ... cleaned d ... ) x
+GROUP BY unique_route
+HAVING MIN(d) &lt;&gt; MAX(d);</code></pre>
+<p>That isolates routes whose two directions disagree &mdash; the rows worth a human's attention.</p>
+
+<h5>Self-referential routes and the <code>&gt;</code> tie</h5>
+<p>If a row has <code>source = destination</code> (a degenerate "trip" from a city to itself), the <code>CASE</code>'s <code>&gt;</code> is false, so it falls to the <code>ELSE</code> and keys as <code>City-City</code> &mdash; harmless, but probably should be filtered with <code>WHERE source &lt;&gt; destination</code>. Equal city names land in the <code>ELSE</code> branch deterministically, so there is no key ambiguity.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> canonicalise the undirected pair with <code>LEAST</code>/<code>GREATEST</code> instead of a repeated <code>CASE</code>, explain that <code>NULLIF(regexp_replace(...), '')</code> both prevents an empty-string cast error and makes <code>AVG</code> skip unparseable distances, and treat disagreeing reverse-pair distances as a data-quality finding rather than silently averaging them.</div>

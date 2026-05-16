@@ -1,0 +1,64 @@
+<p>A Community follow-up to the year-over-year delta question: instead of listing individual increase rows, return the brands that grew in <em>every</em> year &mdash; the all-time risers, with no down year. The reference solution flips the logic to <code>NOT EXISTS</code> ("keep the brand if no year shows a drop"), which is the elegant way to express "for all" in SQL. The interviewer wants to see whether you know why the negation is cleaner than a positive check.</p>
+
+<h4>1. The source data &mdash; <code>brand_amount</code></h4>
+<table>
+  <thead><tr><th>year</th><th>brand</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>apple</td><td>100</td></tr>
+    <tr><td>2021</td><td>apple</td><td>150</td></tr>
+    <tr><td>2022</td><td>apple</td><td>180</td></tr>
+    <tr><td>2020</td><td>nike</td><td>80</td></tr>
+    <tr><td>2021</td><td>nike</td><td>60</td></tr>
+    <tr><td>2022</td><td>nike</td><td>90</td></tr>
+    <tr><td>2021</td><td>sony</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>apple climbs every year; nike <em>dips</em> in 2021 (80&rarr;60) before recovering &mdash; one bad year disqualifies it; <strong>sony has a single year</strong>, a one-row group with no comparison possible at all.</p>
+
+<h4>2. The SQL &mdash; <code>NOT EXISTS</code> with a "down year" probe</h4>
+<pre><code>WITH t1 AS (
+    SELECT brand, year AS current_year, (year - 1) AS previous_year, amount,
+           LAG(amount, 1, 0) OVER (PARTITION BY brand ORDER BY year ASC) AS amount_previous_yr,
+           (amount - LAG(amount, 1, 0) OVER (PARTITION BY brand ORDER BY year ASC)) AS amount_change
+    FROM brand_amount
+)
+SELECT * FROM brand_amount
+WHERE NOT EXISTS (
+    SELECT brand FROM t1
+    WHERE amount_change &lt; 0 AND brand_amount.brand = t1.brand
+);</code></pre>
+<p><code>t1</code> computes each brand-year's delta with <code>LAG</code>. The outer query keeps a row only if its brand has <strong>no</strong> year in <code>t1</code> with a negative delta &mdash; "no down year anywhere" implies "up every year".</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>brand</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>apple</td><td>100</td></tr>
+    <tr><td>2021</td><td>apple</td><td>150</td></tr>
+    <tr><td>2022</td><td>apple</td><td>180</td></tr>
+    <tr><td>2021</td><td>sony</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>apple survives &mdash; 100, 150, 180, no drop &mdash; and all three of its rows are returned. nike is gone: its 2021 row has <code>amount_change = 60 - 80 = -20 &lt; 0</code>, so the <code>NOT EXISTS</code> probe finds a match and excludes <em>every</em> nike row. sony also survives, but for a subtler reason worth unpacking below.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>NOT EXISTS</code> is the natural "for all" pattern</h5>
+<p>SQL has no direct "every row satisfies P" quantifier. The standard trick is double negation: "every year increased" &equiv; "there does <em>not</em> exist a year that decreased". <code>NOT EXISTS</code> expresses that literally, and it short-circuits &mdash; the moment one down year is found, the brand is rejected. A positive formulation ("count of up years = count of comparison years") works too but needs careful off-by-one counting; the negation sidesteps that.</p>
+
+<h5>The single-row group &mdash; why sony slips through</h5>
+<p>sony has one year. There is no prior year, so it can have no <em>down</em> year, so <code>NOT EXISTS</code> finds nothing and keeps it. Is a brand with one data point "increasing every year"? Almost certainly not &mdash; it is "vacuously true", the classic boundary of universally-quantified logic. Decide deliberately: if a brand must have at least two years to qualify, add a guard:</p>
+<pre><code>AND (SELECT COUNT(*) FROM brand_amount b2
+     WHERE b2.brand = brand_amount.brand) &gt; 1</code></pre>
+<p>Naming the vacuous-truth case unprompted is the senior tell.</p>
+
+<h5>The flat-year subtlety &mdash; <code>&lt; 0</code> vs <code>&lt;= 0</code></h5>
+<p>This solution rejects a brand only on a <em>strict</em> decrease (<code>amount_change &lt; 0</code>). A brand that goes 100 &rarr; 150 &rarr; <strong>150</strong> &mdash; flat in the last year &mdash; has no negative delta, so it is <em>kept</em>. But "increased every year" arguably rules out a flat year. If strict growth is required, the probe must be <code>amount_change &lt;= 0</code>. This is precisely the difference between this solution and its sibling (which uses an <code>amount &gt; LAG</code> flag and so excludes flat years). Confirm with the interviewer whether flat counts.</p>
+
+<h5>The <code>LAG(..., 1, 0)</code> default and the first year</h5>
+<p>The default <code>0</code> makes every brand's first-year delta equal to its (positive) first amount &mdash; never negative &mdash; so the debut year never triggers a false rejection. Here that is harmless. But it is harmless by luck: if a brand could legitimately start at a negative amount, the default would matter. Cleaner intent is <code>LAG(amount, 1)</code> with no default, letting the first year be NULL (and <code>NULL &lt; 0</code> is unknown, so it never matches the probe either).</p>
+
+<h5>Output shape: rows vs. brand names</h5>
+<p><code>SELECT * FROM brand_amount</code> returns every <em>row</em> of qualifying brands. If the question wants just the brand list, use <code>SELECT DISTINCT brand</code> &mdash; or build the answer entirely from <code>t1</code> with a <code>GROUP BY brand HAVING MIN(amount_change) &gt;= 0</code>, which is arguably the tightest formulation of all.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise <code>NOT EXISTS</code> as the idiomatic encoding of "for all", flag that single-year brands pass vacuously and decide whether that is wanted, and call out that <code>&lt; 0</code> tolerates a flat year whereas the question may demand strict growth.</div>

@@ -1,0 +1,61 @@
+<p>A Community member models a bank ledger: every row is a transaction, tagged <code>Credit</code> or <code>Debit</code>, and the task is to derive the running net balance after each one. It is a signed running total &mdash; and the interviewer is watching whether you fold the sign into the accumulation cleanly, and whether you notice what an unexpected transaction type would do.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code></h4>
+<table>
+  <thead><tr><th>TranDate</th><th>TranID</th><th>TranType</th><th>Amount</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>1</td><td>Credit</td><td>1000</td></tr>
+    <tr><td>2024-01-02</td><td>2</td><td>Debit</td><td>300</td></tr>
+    <tr><td>2024-01-03</td><td>3</td><td>Credit</td><td>500</td></tr>
+    <tr><td>2024-01-04</td><td>4</td><td>Debit</td><td>800</td></tr>
+    <tr><td>2024-01-05</td><td>5</td><td>Credit</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>The <code>Amount</code> column is always stored positive &mdash; the direction lives in <code>TranType</code>. A debit must be <em>subtracted</em>, so the query has to translate the label into a sign before accumulating, not just sum the column.</p>
+
+<h4>2. The SQL &mdash; <code>signed SUM() OVER (ORDER BY date)</code></h4>
+<pre><code>SELECT trandate, tranid, trantype, amount,
+       SUM(CASE WHEN trantype = 'Credit' THEN amount
+                WHEN trantype = 'Debit'  THEN -amount END)
+       OVER (ORDER BY trandate ASC) AS net_balance
+FROM transactions;</code></pre>
+<p>The inner <code>CASE</code> turns each amount into a signed value &mdash; positive for a credit, negative for a debit. <code>SUM() OVER (ORDER BY trandate)</code> then accumulates those signed values into a running balance, one figure per transaction.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>trandate</th><th>tranid</th><th>trantype</th><th>amount</th><th>net_balance</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>1</td><td>Credit</td><td>1000</td><td>1000</td></tr>
+    <tr><td>2024-01-02</td><td>2</td><td>Debit</td><td>300</td><td>700</td></tr>
+    <tr><td>2024-01-03</td><td>3</td><td>Credit</td><td>500</td><td>1200</td></tr>
+    <tr><td>2024-01-04</td><td>4</td><td>Debit</td><td>800</td><td>400</td></tr>
+    <tr><td>2024-01-05</td><td>5</td><td>Credit</td><td>200</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>The balance walks 1000 &rarr; 700 (&minus;300) &rarr; 1200 (+500) &rarr; 400 (&minus;800) &rarr; 600 (+200). Each debit pulls the running figure down, each credit lifts it &mdash; the closing balance of 600 equals total credits (1700) minus total debits (1100).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The unmatched-type trap &mdash; the silent NULL</h5>
+<p>The <code>CASE</code> has branches for <code>'Credit'</code> and <code>'Debit'</code> but no <code>ELSE</code>. If a row carries any other <code>TranType</code> &mdash; <code>'Reversal'</code>, <code>'Fee'</code>, a lower-case <code>'credit'</code>, a stray space &mdash; the <code>CASE</code> returns NULL. <code>SUM</code> skips NULLs, so that transaction is silently <em>omitted</em> from the balance: the ledger no longer reconciles, and nothing errors. Defend it explicitly:</p>
+<pre><code>SUM(CASE WHEN trantype = 'Credit' THEN amount
+         WHEN trantype = 'Debit'  THEN -amount
+         ELSE 0 END) OVER (ORDER BY trandate)</code></pre>
+<p>Better yet, in a real pipeline add a <code>CHECK</code> constraint or a validation query so an unknown type fails loudly rather than quietly distorting the balance.</p>
+
+<h5>The ordering ambiguity &mdash; same-day transactions</h5>
+<p><code>ORDER BY trandate</code> alone is ambiguous when two transactions share a date &mdash; and a bank balance is order-sensitive (a debit before a credit can mean an overdraft that the reverse order avoids). Two issues compound: the running total needs a deterministic order, and the default <code>RANGE</code> frame treats same-date rows as peers, giving them an <em>identical</em> balance. Order by a tiebreaker and switch to <code>ROWS</code>:</p>
+<pre><code>SUM(...) OVER (ORDER BY trandate, tranid
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code></pre>
+<p><code>tranid</code> (or a transaction timestamp) makes the sequence reproducible; <code>ROWS</code> makes each transaction step the balance individually.</p>
+
+<h5>The opening-balance question</h5>
+<p>The query assumes the account starts at zero. Real accounts carry an opening balance from before the visible window. Seed it &mdash; either add a synthetic opening row, or add a constant: <code>opening_balance + SUM(...) OVER (...)</code>. Confirm with the interviewer whether the first row is genuinely the account's first transaction ever.</p>
+
+<h5>The single-column alternative &mdash; store the sign</h5>
+<p>If you control the schema, a cleaner design stores <code>Amount</code> already signed (debits negative), or adds a generated <code>signed_amount</code> column. Then the running balance is simply <code>SUM(signed_amount) OVER (ORDER BY ...)</code> &mdash; no <code>CASE</code>, no chance of an unmatched type. Translating a label to a sign at query time is fine for a fixed two-value domain, but it is logic that belongs in the data model when you can put it there.</p>
+
+<h5>Per-account balances</h5>
+<p>The demo has one implicit account. A real ledger has many &mdash; the schema even hints at a <code>customer_id</code>. The balance must then reset per account: add <code>PARTITION BY customer_id</code> to the <code>OVER</code> clause. Without it, one customer's debits would wrongly eat into another's balance.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> fold the credit/debit sign into the accumulation with a <code>CASE</code> that has an explicit <code>ELSE</code> (so an unknown type cannot silently drop a row), pin a deterministic tiebreaker with a <code>ROWS</code> frame for an order-sensitive balance, and add <code>PARTITION BY</code> the account plus an opening-balance seed for any real ledger.</div>

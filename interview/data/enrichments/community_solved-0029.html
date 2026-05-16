@@ -1,0 +1,82 @@
+<p>A Community web product logs raw <code>page_load</code> and <code>page_exit</code> events and wants each user's average session length. The catch buried in the data: a user can fire several <code>page_load</code> events in one day (reloads, multiple tabs) and several exits too. You must decide which load pairs with which exit before any duration arithmetic makes sense &mdash; and the interviewer is watching that decision, not the <code>AVG</code>.</p>
+
+<h4>1. The source data &mdash; <code>users_web_log</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>timestamp</th><th>action</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-03-01 09:00:00</td><td>page_load</td></tr>
+    <tr><td>1</td><td>2024-03-01 09:10:00</td><td>page_exit</td></tr>
+    <tr><td>1</td><td>2024-03-02 14:00:00</td><td>page_load</td></tr>
+    <tr><td>1</td><td>2024-03-02 14:30:00</td><td>page_exit</td></tr>
+    <tr><td>2</td><td>2024-03-01 10:00:00</td><td>page_load</td></tr>
+    <tr><td>2</td><td>2024-03-01 10:05:00</td><td>page_load</td></tr>
+    <tr><td>2</td><td>2024-03-01 10:20:00</td><td>page_exit</td></tr>
+    <tr><td>3</td><td>2024-03-01 11:00:00</td><td>page_load</td></tr>
+  </tbody>
+</table>
+<p>User 2 has <strong>two loads</strong> on the same day &mdash; the query must pick one. User 3 loaded a page but <strong>never exited</strong> &mdash; an incomplete session that should be dropped, not counted as zero.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER</code> picks one event per action per day</h4>
+<pre><code>WITH t1 AS (
+  SELECT user_id, action, timestamp,
+         ROW_NUMBER() OVER (PARTITION BY user_id, action, CAST(timestamp AS date) ORDER BY timestamp DESC) AS flag
+  FROM users_web_log
+  WHERE action IN ('page_load','page_exit')
+), t2 AS (
+  SELECT user_id, CAST(timestamp AS date) AS date_dd,
+         MAX(CASE WHEN action = 'page_load' THEN timestamp END) AS login_time,
+         MAX(CASE WHEN action = 'page_exit' THEN timestamp END) AS logout_time
+  FROM t1
+  WHERE flag = 1
+  GROUP BY user_id, CAST(timestamp AS date)
+), t3 AS (
+  SELECT user_id, date_dd,
+         EXTRACT(EPOCH FROM (logout_time - login_time)) AS session_time
+  FROM t2
+  WHERE login_time IS NOT NULL AND logout_time IS NOT NULL
+)
+SELECT user_id, AVG(session_time) AS session_time
+FROM t3
+GROUP BY user_id;</code></pre>
+<p><code>ROW_NUMBER</code> partitioned by user, action <em>and</em> day, ordered <code>DESC</code>, tags the <strong>latest</strong> event of each action per day as <code>flag = 1</code>. The next CTE pivots that single load and single exit onto one row; <code>t3</code> turns the pair into seconds; the final query averages per user.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>session_time</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1200.0000000000000000</td></tr>
+    <tr><td>2</td><td>900.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>User 1 had two clean days &mdash; 600 s and 1800 s &mdash; averaging 1200 s. User 2's two loads were 10:00 and 10:05; <code>flag = 1</code> kept the <em>later</em> one (10:05), so the session is 10:05&rarr;10:20 = 900 s. User 3 has a load but no exit, so <code>logout_time IS NULL</code> filters them out entirely &mdash; they never reach the average.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The pairing decision is the whole question</h5>
+<p>With multiple loads per day, "session length" is ambiguous. <code>ORDER BY timestamp DESC</code> + <code>flag = 1</code> encodes the rule <em>"the session starts at the last load and ends at the last exit."</em> A defensible alternative is <em>first load to last exit</em> (the full presence window) &mdash; just flip to <code>ORDER BY timestamp ASC</code> for the load. Either is fine; stating which rule you chose, and why, is the senior behaviour.</p>
+
+<h5>Why the incomplete session is dropped, not zeroed</h5>
+<p>User 3's missing exit yields <code>logout_time = NULL</code> from the <code>MAX(CASE ...)</code>. The <code>WHERE login_time IS NOT NULL AND logout_time IS NOT NULL</code> guard discards that day. This matters: counting it as a 0-second session would drag the user's average down with a fabricated value. NULL-then-filter is the correct treatment for "we don't know."</p>
+
+<h5>The cross-midnight trap</h5>
+<p>Partitioning by <code>CAST(timestamp AS date)</code> assumes a session never crosses midnight. A load at 23:55 and an exit at 00:10 land on different calendar days, so the load's day has no exit and the exit's day has no load &mdash; both get filtered, and a real 15-minute session vanishes. If overnight sessions exist, pair events by sequence (a <code>LEAD</code> from each load to the next exit) rather than by date bucket.</p>
+
+<h5>An interleaved-events alternative</h5>
+<p>The robust general pattern ignores days entirely and matches each load to the next exit in time order:</p>
+<pre><code>WITH ordered AS (
+  SELECT user_id, action, timestamp,
+         LEAD(timestamp) OVER (PARTITION BY user_id ORDER BY timestamp) AS next_ts,
+         LEAD(action)    OVER (PARTITION BY user_id ORDER BY timestamp) AS next_action
+  FROM users_web_log
+)
+SELECT user_id,
+       AVG(EXTRACT(EPOCH FROM (next_ts - timestamp))) AS session_time
+FROM ordered
+WHERE action = 'page_load' AND next_action = 'page_exit'
+GROUP BY user_id;</code></pre>
+<p>This handles multiple sessions per day and overnight spans, at the cost of assuming events strictly alternate load/exit.</p>
+
+<h5>Negative durations &mdash; a data-quality check</h5>
+<p>If an exit timestamp predates its load (clock skew, bad logging), <code>EXTRACT(EPOCH ...)</code> goes negative and silently corrupts the average. A senior answer adds <code>AND logout_time &gt; login_time</code> or surfaces a count of such anomalies rather than trusting the feed blindly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the load/exit pairing rule explicitly instead of letting it be implicit, drop incomplete sessions via NULL filtering rather than zeroing them, flag the cross-midnight bug that date-bucketing introduces, and validate that durations are non-negative before averaging.</div>

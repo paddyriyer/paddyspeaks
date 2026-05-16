@@ -1,0 +1,66 @@
+<p>A Community macro-economics dataset lists the world's largest companies, and an analyst wants the total market value per country &mdash; but only for countries that clear a $500B bar. It is a textbook <code>GROUP BY</code>, and the interviewer is checking one specific reflex: do you filter the <em>aggregate</em> with <code>HAVING</code>, or do you wrongly try to do it in <code>WHERE</code>?</p>
+
+<h4>1. The source data &mdash; <code>global_companies</code></h4>
+<table>
+  <thead><tr><th>company</th><th>country</th><th>marketvalue</th></tr></thead>
+  <tbody>
+    <tr><td>Apple</td><td>USA</td><td>400</td></tr>
+    <tr><td>Microsoft</td><td>USA</td><td>350</td></tr>
+    <tr><td>Toyota</td><td>Japan</td><td>280</td></tr>
+    <tr><td>Sony</td><td>Japan</td><td>240</td></tr>
+    <tr><td>Tata</td><td>India</td><td>150</td></tr>
+    <tr><td>Saudi Aramco</td><td>Saudi Arabia</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>The values are in billions. Note <strong>India</strong>: its only company is worth 150 &mdash; below the 500 threshold &mdash; so India must <em>not</em> appear in the result. Saudi Arabia is the single-company-country edge case: one row clears the bar on its own.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY</code> with a <code>HAVING</code> filter</h4>
+<pre><code>SELECT country, SUM(marketvalue) AS total_marketvalue
+FROM global_companies
+GROUP BY country
+HAVING SUM(marketvalue) &gt; 500
+ORDER BY total_marketvalue DESC;</code></pre>
+<p>Group the rows by country, sum each group's market value, keep only the groups whose sum exceeds 500, and order the survivors largest-first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>country</th><th>total_marketvalue</th></tr></thead>
+  <tbody>
+    <tr><td>USA</td><td>750</td></tr>
+    <tr><td>Saudi Arabia</td><td>600</td></tr>
+    <tr><td>Japan</td><td>520</td></tr>
+  </tbody>
+</table>
+<p>USA sums to 750, Japan to 520, Saudi Arabia to 600 &mdash; all three clear 500 and appear, sorted descending. India's 150 falls short and is gone. The threshold is applied to the <em>group total</em>, which is exactly what <code>HAVING</code> is for.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>WHERE</code> vs <code>HAVING</code> &mdash; the core distinction</h5>
+<p><code>WHERE</code> filters individual rows <em>before</em> grouping; <code>HAVING</code> filters whole groups <em>after</em> aggregation. You cannot reference <code>SUM(marketvalue)</code> in <code>WHERE</code> &mdash; the sum does not exist yet at that stage of evaluation. This query needs a per-country total, which only exists post-<code>GROUP BY</code>, so the filter must be <code>HAVING</code>. Putting an aggregate in <code>WHERE</code> is a hard error: <em>aggregate functions are not allowed in WHERE</em>.</p>
+
+<h5>The trap: filtering rows when you meant to filter groups</h5>
+<p>A subtle wrong answer keeps <em>companies</em> worth more than 500 instead of <em>countries</em>:</p>
+<pre><code>-- WRONG intent: keeps individual big companies, then sums
+SELECT country, SUM(marketvalue) AS total_marketvalue
+FROM global_companies
+WHERE marketvalue &gt; 500
+GROUP BY country;</code></pre>
+<p>On this data that returns only Saudi Arabia (600) &mdash; USA's 750 total vanishes because neither Apple nor Microsoft individually exceeds 500. <code>WHERE marketvalue &gt; 500</code> answers a completely different question. Always ask: is the threshold on a row, or on a group?</p>
+
+<h5>Combining both clauses</h5>
+<p><code>WHERE</code> and <code>HAVING</code> coexist and run in order. To total only <em>tech</em> companies and then keep big-tech countries:</p>
+<pre><code>SELECT country, SUM(marketvalue) AS total_marketvalue
+FROM global_companies
+WHERE sector = 'Technology'   -- prune rows first
+GROUP BY country
+HAVING SUM(marketvalue) &gt; 500 -- then prune groups
+ORDER BY total_marketvalue DESC;</code></pre>
+<p>Filtering rows in <code>WHERE</code> first is also a performance win &mdash; fewer rows reach the grouping step.</p>
+
+<h5>NULL market values</h5>
+<p>If any <code>marketvalue</code> is NULL, <code>SUM</code> skips it &mdash; NULLs do not contribute and do not poison the total. A country whose companies are <em>all</em> NULL sums to NULL, and <code>NULL &gt; 500</code> is <em>unknown</em>, so <code>HAVING</code> drops that country. That is usually the desired behaviour, but worth saying aloud.</p>
+
+<h5>Ties on the threshold and the boundary</h5>
+<p><code>&gt; 500</code> is strict: a country totalling exactly 500 is excluded. Confirm whether the business wants <code>&gt;=</code>. And if two countries tie on <code>total_marketvalue</code>, <code>ORDER BY total_marketvalue DESC</code> leaves their relative order unspecified &mdash; add a tiebreaker like <code>, country ASC</code> for a deterministic, reproducible report.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate that <code>WHERE</code> filters rows pre-aggregation and <code>HAVING</code> filters groups post-aggregation, recognise that <code>WHERE marketvalue &gt; 500</code> silently answers a different question, and tighten the report with a deterministic tiebreaker and an explicit decision on the strict-vs-inclusive boundary.</div>

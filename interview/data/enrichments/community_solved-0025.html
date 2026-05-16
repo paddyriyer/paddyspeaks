@@ -1,0 +1,66 @@
+<p>A Community question on the HackerRank-style hackers/challenges schema: list the hackers who either created the <em>most</em> challenges, or created a number of challenges that <em>no other hacker</em> matched. Two acceptance rules, OR-ed together. The reference packs both into one CTE using a window <em>over an aggregate</em> &mdash; a <code>COUNT</code> partitioned by another <code>COUNT</code> &mdash; which is the part an interviewer will want you to unpack.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>challenges</code></strong> &mdash; one row per challenge authored:</p>
+<table>
+  <thead><tr><th>challenge_id</th><th>hacker_id</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td></tr>
+    <tr><td>102</td><td>1</td></tr>
+    <tr><td>103</td><td>1</td></tr>
+    <tr><td>104</td><td>2</td></tr>
+    <tr><td>105</td><td>2</td></tr>
+    <tr><td>106</td><td>3</td></tr>
+    <tr><td>108</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Per-hacker totals: hacker 1 = 3, hackers 2 and 3 = 2 each, hacker 4 = 1. Hacker 1 is the sole maximum. Hacker 4's count of 1 is <em>unique</em> &mdash; nobody else made exactly one. Hackers 2 and 3 <em>share</em> a count of 2, so they are neither the max nor unique. <code>hackers</code> just supplies names.</p>
+
+<h4>2. The SQL &mdash; <code>window-over-aggregate</code></h4>
+<pre><code>with t1 as(
+select hacker_id,
+      count(challenge_id) as n,
+      count(1) over(partition by count(challenge_id)) as nw_window,
+      rank() over(order by count(challenge_id) desc) as n_rank
+from challenges
+group by hacker_id
+)
+
+select t1.hacker_id, h.name, n
+from t1 left join hackers h
+on t1.hacker_id = h.hacker_id
+where nw_window = 1 or n_rank = 1;</code></pre>
+<p>Inside <code>t1</code>: <code>count(challenge_id)</code> is the per-hacker total; <code>count(1) OVER (PARTITION BY count(challenge_id))</code> counts how many hackers share each total; <code>RANK() OVER (ORDER BY count(...) DESC)</code> ranks hackers by volume.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>hacker_id</th><th>name</th><th>n</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ann</td><td>3</td></tr>
+    <tr><td>4</td><td>Di</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Hacker 1 (Ann) qualifies via <code>n_rank = 1</code> &mdash; the most challenges. Hacker 4 (Di) qualifies via <code>nw_window = 1</code> &mdash; her count of 1 is unique to her. Hackers 2 and 3 are excluded: they share a count of 2 (<code>nw_window = 2</code>) and neither tops the leaderboard. The OR pulls in two hackers for two different reasons.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The window-over-aggregate &mdash; the move that confuses people</h5>
+<p>The line <code>count(1) OVER (PARTITION BY count(challenge_id))</code> looks like nested aggregates, which SQL forbids &mdash; but it is legal. Postgres evaluates the <code>GROUP BY</code> aggregate <code>count(challenge_id)</code> <em>first</em>, producing one row per hacker; the window function then runs <em>over those grouped rows</em>. So <code>PARTITION BY count(challenge_id)</code> partitions hackers by their total, and <code>count(1)</code> within each partition tells you how many hackers landed on that total. Window functions execute after <code>GROUP BY</code> &mdash; that ordering is what makes this work.</p>
+
+<h5>Decoding the two filter conditions</h5>
+<p><code>nw_window = 1</code> means "exactly one hacker has this challenge count" &mdash; a hacker whose productivity nobody else equalled. <code>n_rank = 1</code> means "this hacker is tied-or-sole top by volume". They are independent: the maximum could be shared (then <code>n_rank = 1</code> for several but <code>nw_window &gt; 1</code>), and a unique count could be a low one (Di's single challenge). The OR captures both senses of "stands out". Naming each clause's meaning out loud is the senior move.</p>
+
+<h5>Hackers with zero challenges &mdash; the silent omission</h5>
+<p>The query reads only <code>challenges</code>, so a hacker who authored <em>nothing</em> has no row and never appears &mdash; even though "0" might itself be a unique count. If the brief includes inactive hackers, you must drive from <code>hackers</code> and <code>LEFT JOIN</code> challenges:</p>
+<pre><code>SELECT h.hacker_id, COUNT(c.challenge_id) AS n
+FROM hackers h LEFT JOIN challenges c ON c.hacker_id = h.hacker_id
+GROUP BY h.hacker_id;</code></pre>
+<p>Then <code>COUNT(c.challenge_id)</code> correctly yields 0 for the idle ones. The current query's grain assumes "hacker" means "hacker who authored at least one challenge" &mdash; flag that assumption.</p>
+
+<h5>Why the join is <code>LEFT</code>, and the orphan risk</h5>
+<p><code>t1 LEFT JOIN hackers</code> keeps a hacker_id even if it is missing from the <code>hackers</code> table &mdash; the name would come back NULL. That is defensive: a referential gap shows up as a visible NULL rather than a dropped row. With clean data an <code>INNER JOIN</code> behaves identically; the <code>LEFT</code> just refuses to lose a qualifying hacker to a dimension gap.</p>
+
+<h5>Edge cases: count-of-1 ambiguity and ordering</h5>
+<p>Watch the wording: <code>nw_window = 1</code> selects hackers whose <em>total</em> is unique among hackers &mdash; not hackers who made exactly one challenge. The two coincide here only by accident of the data. Also, the query has no <code>ORDER BY</code>; for a stable leaderboard add <code>ORDER BY n DESC, hacker_id</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that a window function can partition by a <code>GROUP BY</code> aggregate because windows run after grouping, decode <code>nw_window = 1</code> as "unique challenge count" and <code>n_rank = 1</code> as "top by volume", and flag that the query silently omits zero-challenge hackers unless you drive from the <code>hackers</code> table.</div>

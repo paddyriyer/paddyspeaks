@@ -1,0 +1,69 @@
+<p>A Community layout puzzle: a cookbook has one recipe title per page, and the task is to render it the way an open book reads &mdash; a left page beside its facing right page, one row per spread. The reference solution generates a page sequence with a recursive CTE and joins titles onto the even (left) and odd (right) slots. It works, but it quietly produces a "page 0" spread that an interviewer will ask about.</p>
+
+<h4>1. The source data &mdash; <code>cookbook_titles</code></h4>
+<table>
+  <thead><tr><th>page_number</th><th>title</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Introduction</td></tr>
+    <tr><td>2</td><td>Soups</td></tr>
+    <tr><td>3</td><td>Salads</td></tr>
+    <tr><td>4</td><td>Mains</td></tr>
+    <tr><td>5</td><td>Desserts</td></tr>
+  </tbody>
+</table>
+<p>Five pages, numbered 1&ndash;5. The catch: <strong>5 is odd, so the last page has no facing partner</strong> &mdash; and the book starts at page 1, but the solution's generated sequence starts at 0. Both boundaries surface in the output.</p>
+
+<h4>2. The SQL &mdash; generate a page sequence, join left/right</h4>
+<pre><code>WITH RECURSIVE seq AS (
+    SELECT 0 AS page_num
+    UNION ALL
+    SELECT page_num + 1 FROM seq
+    WHERE page_num &lt; (SELECT MAX(NULLIF(regexp_replace(page_number::text, '[^-.0-9]', '', 'g'), '')::numeric::int) FROM cookbook_titles)
+),
+left_page AS (
+    SELECT page_num AS left_page_num FROM seq WHERE page_num % 2 = 0
+)
+SELECT left_page.left_page_num,
+       ct_left.title AS left_page_title,
+       ct_right.title AS right_page_title
+FROM left_page
+LEFT JOIN cookbook_titles ct_left
+       ON left_page.left_page_num = NULLIF(regexp_replace(ct_left.page_number::text, '[^-.0-9]', '', 'g'), '')::numeric::int
+LEFT JOIN cookbook_titles ct_right
+       ON (left_page.left_page_num + 1) = NULLIF(regexp_replace(ct_right.page_number::text, '[^-.0-9]', '', 'g'), '')::numeric::int;</code></pre>
+<p><code>seq</code> generates every integer from 0 to the max page. <code>left_page</code> keeps the even numbers as the left page of each spread. The two <code>LEFT JOIN</code>s attach the title at <code>left_page_num</code> and at <code>left_page_num + 1</code> &mdash; the facing right page. <code>LEFT JOIN</code> (not inner) is what lets a half-empty spread survive.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>left_page_num</th><th>left_page_title</th><th>right_page_title</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Soups</td><td>Salads</td></tr>
+    <tr><td>4</td><td>Mains</td><td>Desserts</td></tr>
+    <tr><td>0</td><td><em>NULL</em></td><td>Introduction</td></tr>
+  </tbody>
+</table>
+<p>The two real spreads are correct: pages 2&ndash;3 (Soups / Salads) and 4&ndash;5 (Mains / Desserts). But spread <code>0</code> is an <strong>artefact</strong>: <code>seq</code> started at 0, there is no page 0, so its left title is <code>NULL</code> &mdash; and it pulls page 1 ("Introduction") into the <em>right</em> slot. The <code>LEFT JOIN</code> kept this half-empty row instead of dropping it. The query also has no <code>ORDER BY</code>, which is why spread 0 lands last rather than first.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The page-0 artefact &mdash; the off-by-one the interviewer is waiting for</h5>
+<p><code>seq</code> seeds at <code>SELECT 0</code>, so the even-page filter yields 0, 2, 4&hellip; and page 1 becomes the <em>right</em> half of a non-existent spread 0. Real books open with page 1 alone on the right (a recto), then pages 2&ndash;3 face each other. There are two clean fixes depending on the desired layout. If page 1 should stand alone first, seed the sequence at 2 and add a separate "page 1 alone" row. If the intent is simply pages paired (1,2), (3,4), (5), then the left page is <em>odd</em>, not even:</p>
+<pre><code>SELECT page_num AS left_page_num FROM seq WHERE page_num % 2 = 1
+-- left = 1,3,5 ... right = left+1</code></pre>
+<p>Either way, starting <code>seq</code> at 0 and not filtering it out is the bug to name. The cleanest sequence generator avoids it entirely &mdash; <code>generate_series(1, (SELECT MAX(page_number) FROM cookbook_titles))</code> &mdash; no recursion, no stray 0.</p>
+
+<h5>Why <code>generate_series</code> beats the recursive CTE here</h5>
+<p>The recursive CTE is just reinventing a number range. Postgres has a purpose-built function:</p>
+<pre><code>WITH seq AS (SELECT generate_series(1, (SELECT MAX(page_number) FROM cookbook_titles)) AS page_num)</code></pre>
+<p>It is shorter, faster, and cannot accidentally start at the wrong number. Recursive CTEs earn their keep for genuine graph/tree walking &mdash; not for "1 to N".</p>
+
+<h5>The odd-last-page edge case &mdash; why <code>LEFT JOIN</code> matters</h5>
+<p>With 5 pages, the final spread has a left page (5) but no page 6. An <strong>inner</strong> join on the right side would silently <em>drop the entire last spread</em> &mdash; the lone page vanishes. The <code>LEFT JOIN</code> keeps it with a <code>NULL</code> right title, which is correct: an open book's last leaf often has a blank facing page. Choosing <code>LEFT</code> over <code>INNER</code> here is a deliberate, explainable decision.</p>
+
+<h5>The <code>regexp_replace</code> wrapper &mdash; defensive, possibly unnecessary</h5>
+<p><code>page_number</code> is joined through <code>NULLIF(regexp_replace(page_number::text, '[^-.0-9]', '', 'g'), '')::numeric::int</code> &mdash; scrubbing non-numeric characters in case page numbers arrive as dirty text ("p. 12", "12a"). If the column is a clean integer, this is a no-op and the join is just <code>ON left_page.left_page_num = ct.page_number</code>. Mention that you would drop the wrapper on clean data rather than carrying it by reflex.</p>
+
+<h5>Gaps and duplicate page numbers</h5>
+<p>If a page number is missing (the book skips 3), the <code>LEFT JOIN</code> yields a <code>NULL</code> title for that slot &mdash; a blank page, arguably correct. But a <em>duplicate</em> <code>page_number</code> is dangerous: the join would match both rows and that spread would appear twice. Real page numbers should be unique &mdash; a senior notes the assumption and would enforce it with a key.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that seeding the sequence at 0 manufactures a phantom "page 0" spread and fix the parity (or use <code>generate_series(1, N)</code>), explain that the <code>LEFT JOIN</code> is what preserves an odd last page instead of dropping it, and add an explicit <code>ORDER BY</code> so spreads render in reading order.</div>

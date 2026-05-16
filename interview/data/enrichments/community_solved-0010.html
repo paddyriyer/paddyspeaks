@@ -1,0 +1,70 @@
+<p>A Community warm-up on self-joins: a routes table holds both <code>A&rarr;B</code> and <code>B&rarr;A</code> as separate rows, and the task is to find the pairs that have a mirror. The solution joins the table to itself with the endpoints swapped. It works &mdash; but the interviewer is watching whether you notice that this query <em>matches</em> reverse pairs without actually <em>deduplicating</em> them.</p>
+
+<h4>1. The source data &mdash; <code>src_dest</code></h4>
+<table>
+  <thead><tr><th>source</th><th>destination</th><th>distance</th></tr></thead>
+  <tbody>
+    <tr><td>Mumbai</td><td>Delhi</td><td>1400</td></tr>
+    <tr><td>Delhi</td><td>Mumbai</td><td>1400</td></tr>
+    <tr><td>Bangalore</td><td>Chennai</td><td>350</td></tr>
+    <tr><td>Chennai</td><td>Bangalore</td><td>350</td></tr>
+    <tr><td>Hyderabad</td><td>Pune</td><td>560</td></tr>
+    <tr><td>Pune</td><td>Hyderabad</td><td>560</td></tr>
+    <tr><td>Kolkata</td><td>Patna</td><td>580</td></tr>
+  </tbody>
+</table>
+<p>Three routes appear in <strong>both directions</strong> (Mumbai&ndash;Delhi, Bangalore&ndash;Chennai, Hyderabad&ndash;Pune). Kolkata&ndash;Patna appears <strong>only once</strong> &mdash; it has no reverse partner. That asymmetric row is the edge case that proves the join is doing real work.</p>
+
+<h4>2. The SQL &mdash; self-join on swapped endpoints</h4>
+<pre><code>select * from
+src_dest t1
+join
+src_dest t2
+on t1.source = t2.destination and t1.destination = t2.source;</code></pre>
+<p>The table is joined to a second copy of itself. The condition pairs each row <code>t1</code> with the row <code>t2</code> whose <code>source</code>/<code>destination</code> are <em>reversed</em>. A route with no mirror finds no <code>t2</code> match and, under the inner <code>JOIN</code>, drops out.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>source</th><th>destination</th><th>distance</th><th>source</th><th>destination</th><th>distance</th></tr></thead>
+  <tbody>
+    <tr><td>Chennai</td><td>Bangalore</td><td>350</td><td>Bangalore</td><td>Chennai</td><td>350</td></tr>
+    <tr><td>Bangalore</td><td>Chennai</td><td>350</td><td>Chennai</td><td>Bangalore</td><td>350</td></tr>
+    <tr><td>Mumbai</td><td>Delhi</td><td>1400</td><td>Delhi</td><td>Mumbai</td><td>1400</td></tr>
+    <tr><td>Pune</td><td>Hyderabad</td><td>560</td><td>Hyderabad</td><td>Pune</td><td>560</td></tr>
+    <tr><td>Delhi</td><td>Mumbai</td><td>1400</td><td>Mumbai</td><td>Delhi</td><td>1400</td></tr>
+    <tr><td>Hyderabad</td><td>Pune</td><td>560</td><td>Pune</td><td>Hyderabad</td><td>560</td></tr>
+  </tbody>
+</table>
+<p>Six rows &mdash; and that number is the lesson. Kolkata&ndash;Patna is correctly <strong>absent</strong> (no mirror). But each of the three two-way routes appears <em>twice</em>: once as <code>Mumbai&rarr;Delhi</code> paired with <code>Delhi&rarr;Mumbai</code>, and again as <code>Delhi&rarr;Mumbai</code> paired with <code>Mumbai&rarr;Delhi</code>. The join finds the partner from both sides, so the result is symmetric &mdash; not the deduplicated route list a reader might expect.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>"Finds reverse pairs" &ne; "removes reverse pairs"</h5>
+<p>This is the trap. The query <em>identifies</em> routes that have a mirror, but it returns both orientations &mdash; 3 routes become 6 rows. If the goal is one canonical row per undirected route, add a tie-breaker that keeps only one side:</p>
+<pre><code>select t1.* from src_dest t1
+join src_dest t2
+  on t1.source = t2.destination and t1.destination = t2.source
+where t1.source &lt; t1.destination;</code></pre>
+<p><code>t1.source &lt; t1.destination</code> keeps exactly the orientation where the first city sorts earlier &mdash; one row per pair. State which output the question wants before writing the join.</p>
+
+<h5>The canonical-key alternative &mdash; no self-join at all</h5>
+<p>Self-joins are O(n&sup2;)-ish without the right index. The set-based way to dedupe undirected pairs is to sort the endpoints into a key and group:</p>
+<pre><code>SELECT LEAST(source, destination) AS a,
+       GREATEST(source, destination) AS b,
+       MIN(distance) AS distance, COUNT(*) AS directions
+FROM src_dest
+GROUP BY 1, 2;</code></pre>
+<p><code>directions = 2</code> marks routes present both ways; <code>= 1</code> marks one-way routes like Kolkata&ndash;Patna. One pass, no join, and it scales.</p>
+
+<h5>Interviewer follow-up: find the routes <em>missing</em> a reverse</h5>
+<p>The mirror of "has a reverse" is often what is really wanted &mdash; data-quality gaps. Swap the inner join for an anti-join:</p>
+<pre><code>SELECT t1.* FROM src_dest t1
+LEFT JOIN src_dest t2
+  ON t1.source = t2.destination AND t1.destination = t2.source
+WHERE t2.source IS NULL;</code></pre>
+<p>That returns Kolkata&ndash;Patna &mdash; the route entered in only one direction.</p>
+
+<h5>Edge cases: mismatched distances and self-loops</h5>
+<p>The join matches on city names only, not distance &mdash; so <code>Mumbai&rarr;Delhi 1400</code> would still pair with <code>Delhi&rarr;Mumbai 1390</code>. If a reverse pair must also <em>agree</em> on distance, add <code>AND t1.distance = t2.distance</code>. And a self-loop row (<code>source = destination</code>) trivially satisfies the swap condition and joins to itself &mdash; exclude it with <code>WHERE t1.source &lt;&gt; t1.destination</code> if such rows exist.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that the swapped self-join <em>matches</em> reverse pairs but returns both orientations &mdash; n routes become 2n rows &mdash; and add a <code>source &lt; destination</code> filter to deduplicate, or skip the join entirely with a <code>LEAST</code>/<code>GREATEST</code> group-by key that also scales.</div>

@@ -1,0 +1,72 @@
+<p>A Community crypto-exchange wants a 2020 trading report broken down by mining algorithm and quarter: a wide grid with one row per algorithm and four columns Q1&ndash;Q4. The catch is that <code>volume</code> is stored as messy text &mdash; thousands separators, stray symbols &mdash; and the algorithm lives on a separate <code>coins</code> table. The interviewer is watching whether you join cleanly, pivot quarters with conditional aggregation, and defuse the dirty-text column without crashing.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code> (joined to <code>coins</code>)</h4>
+<table>
+  <thead><tr><th>coin_code</th><th>dt</th><th>volume</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>BTC</td><td>2020-02-10</td><td>1,200.50</td><td>Q1 &mdash; comma in the number</td></tr>
+    <tr><td>BTC</td><td>2020-05-15</td><td>800</td><td>Q2</td></tr>
+    <tr><td>LTC</td><td>2020-03-01</td><td>300.00</td><td>Q1</td></tr>
+    <tr><td>DOGE</td><td>2020-08-20</td><td>5000</td><td>Q3</td></tr>
+    <tr><td>LTC</td><td>2020-11-11</td><td>150.25</td><td>Q4</td></tr>
+    <tr><td>ETH</td><td>2019-12-31</td><td>999</td><td><strong>2019</strong> &mdash; filtered out</td></tr>
+    <tr><td>BTC</td><td>2020-11-30</td><td>N/A</td><td>Q4 &mdash; non-numeric junk</td></tr>
+    <tr><td>DOGE</td><td>2020-04-01</td><td>2,000</td><td>Q2</td></tr>
+  </tbody>
+</table>
+<p>The <code>coins</code> table maps <code>code</code> &rarr; <code>algorithm</code>: BTC&rarr;SHA-256, LTC and DOGE&rarr;Scrypt, ETH&rarr;Ethash. Three edge cases are deliberate: the <strong>2019</strong> row must be excluded by the year filter, the <code>'N/A'</code> volume must not crash the numeric cast, and LTC + DOGE both being Scrypt means the algorithm-level totals must <em>aggregate across coins</em>.</p>
+
+<h4>2. The SQL &mdash; <code>join + clean + quarter pivot</code></h4>
+<pre><code>SELECT
+    C.algorithm,
+    SUM(CASE WHEN C.Quarter = 1 THEN NULLIF(regexp_replace(C.volume::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END) AS transactions_Q1,
+    SUM(CASE WHEN C.Quarter = 2 THEN NULLIF(regexp_replace(C.volume::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END) AS transactions_Q2,
+    SUM(CASE WHEN C.Quarter = 3 THEN NULLIF(regexp_replace(C.volume::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END) AS transactions_Q3,
+    SUM(CASE WHEN C.Quarter = 4 THEN NULLIF(regexp_replace(C.volume::text, '[^-.0-9]', '', 'g'), '')::numeric ELSE 0 END) AS transactions_Q4
+FROM (
+    SELECT b.algorithm, a.volume, a.Quarter
+    FROM (
+        SELECT coin_code, volume, EXTRACT(QUARTER FROM dt)::int AS Quarter
+        FROM transactions
+        WHERE EXTRACT(YEAR FROM dt)::int = 2020
+    ) A
+    JOIN (SELECT algorithm, code FROM coins) B
+      ON A.coin_code = B.code
+) C
+GROUP BY C.algorithm;</code></pre>
+<p>Innermost: filter <code>transactions</code> to 2020 and derive the quarter from <code>dt</code>. Next: join to <code>coins</code> to attach the algorithm. Outermost: group by algorithm and pivot, with four <code>SUM(CASE WHEN Quarter = n ...)</code> buckets.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>algorithm</th><th>transactions_q1</th><th>transactions_q2</th><th>transactions_q3</th><th>transactions_q4</th></tr></thead>
+  <tbody>
+    <tr><td>SHA-256</td><td>1200.50</td><td>800</td><td>0</td><td>0</td></tr>
+    <tr><td>Scrypt</td><td>300.00</td><td>2000</td><td>5000</td><td>150.25</td></tr>
+  </tbody>
+</table>
+<p>Two algorithm rows. SHA-256 (BTC only): Q1 = 1200.50 &mdash; the comma was stripped &mdash; Q2 = 800, and the <code>'N/A'</code> Q4 transaction contributed <strong>0</strong> rather than crashing. Scrypt is the interesting row: LTC's 300 (Q1) and DOGE's 2000 (Q2) and 5000 (Q3) and LTC's 150.25 (Q4) are <em>summed across two different coins</em> into one algorithm line. ETH never appears &mdash; its only transaction was in 2019.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The quarter pivot &mdash; conditional aggregation</h5>
+<p>There is no portable <code>PIVOT</code> for "turn four quarter <em>values</em> into four <em>columns</em>". The idiom is <code>SUM(CASE WHEN Quarter = n THEN amount ELSE 0 END)</code> once per quarter. The <code>ELSE 0</code> matters here (unlike a label-pivot, where you want NULL): a quarter with no transactions for an algorithm should read <code>0</code>, not NULL &mdash; see SHA-256's empty Q3/Q4. Each row falls into exactly one quarter bucket; the others receive 0; <code>SUM</code> per group totals them.</p>
+
+<h5>Cleaning dirty text &mdash; <code>regexp_replace</code> + <code>NULLIF</code> + cast</h5>
+<p>The chain <code>NULLIF(regexp_replace(volume, '[^-.0-9]', '', 'g'), '')::numeric</code> is three defensive steps stacked:</p>
+<ul>
+<li><code>regexp_replace(volume, '[^-.0-9]', '', 'g')</code> &mdash; strip every character that is not a digit, minus, or dot. <code>'1,200.50'</code> &rarr; <code>'1200.50'</code>; <code>'N/A'</code> &rarr; <code>''</code> (empty string).</li>
+<li><code>NULLIF(..., '')</code> &mdash; turn that empty string into NULL. Without this, <code>''::numeric</code> throws "invalid input syntax for type numeric" and kills the whole query.</li>
+<li><code>::numeric</code> &mdash; now safe: a real number casts, a NULL stays NULL.</li>
+</ul>
+<p>A NULL inside <code>SUM</code> is silently skipped, so the <code>'N/A'</code> row neither crashes nor distorts the total &mdash; it contributes nothing. This "strip &rarr; nullify-empty &rarr; cast" pattern is the senior way to survive a text column that should have been numeric.</p>
+
+<h5>Aggregating across coins &mdash; the grain of the question</h5>
+<p>The report is per <em>algorithm</em>, not per coin. LTC and DOGE are different coins but the same Scrypt algorithm, so their volumes must merge. <code>GROUP BY C.algorithm</code> does exactly that &mdash; the Scrypt row is the sum of LTC and DOGE activity. A common mistake is grouping by <code>coin_code</code> (or by both), which would split Scrypt into two rows and answer a different question. Match the <code>GROUP BY</code> to the requested grain.</p>
+
+<h5>Deriving the quarter &mdash; and the year filter</h5>
+<p><code>EXTRACT(QUARTER FROM dt)</code> returns 1&ndash;4 directly &mdash; cleaner than a hand-rolled <code>CASE</code> on month ranges. The <code>WHERE EXTRACT(YEAR FROM dt) = 2020</code> filter is applied in the innermost subquery, <em>before</em> the join and pivot &mdash; correct, because it is a per-row predicate and filtering early shrinks the join input. One performance note: wrapping <code>dt</code> in <code>EXTRACT(...)</code> makes the predicate non-sargable &mdash; an index on <code>dt</code> cannot be used. On a large table a half-open range <code>dt &gt;= '2020-01-01' AND dt &lt; '2021-01-01'</code> is index-friendly and preferable.</p>
+
+<h5>Edge cases: missing coins, negative volume, the schema noise</h5>
+<p>The query uses an <code>INNER JOIN</code> to <code>coins</code>, so a transaction whose <code>coin_code</code> has no matching coin row is <em>dropped</em> &mdash; if unmapped coins should still surface (under an "Unknown" algorithm), switch to a <code>LEFT JOIN</code> with <code>COALESCE(algorithm, 'Unknown')</code>. The regex keeps a leading <code>-</code>, so a genuinely negative volume survives as a negative number &mdash; intended if refunds exist, worth flagging if not. Finally, the schema signature lists many columns (<code>qq</code>, <code>yy</code>, <code>transaction_time</code>, <code>txn_type</code>, <code>status</code>&hellip;) the solution never touches &mdash; ignore the noise and use only <code>coin_code</code>, <code>dt</code>, <code>volume</code>, and the <code>coins</code> mapping.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot quarters with <code>SUM(CASE WHEN Quarter = n ... ELSE 0)</code>, defuse a dirty text column with the <code>regexp_replace</code> &rarr; <code>NULLIF(...,'')</code> &rarr; <code>::numeric</code> chain so junk values become harmless NULLs, group strictly at the requested grain (algorithm, aggregating across coins), and note that wrapping the date in <code>EXTRACT</code> defeats an index where a half-open range would not.</div>

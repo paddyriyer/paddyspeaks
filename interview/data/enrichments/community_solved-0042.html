@@ -1,0 +1,63 @@
+<p>A Community member wants a classic cumulative metric: for each product, a running total of quantity sold as the dates advance. It is the canonical window-function exercise &mdash; and the interviewer uses it to check whether you reach for a window function or fall back to a self-join, and whether you understand the default frame you just inherited.</p>
+
+<h4>1. The source data &mdash; <code>product_sales</code></h4>
+<table>
+  <thead><tr><th>product_name</th><th>product_code</th><th>quantity</th><th>sales_date</th></tr></thead>
+  <tbody>
+    <tr><td>Widget</td><td>P1</td><td>10</td><td>2024-01-01</td></tr>
+    <tr><td>Widget</td><td>P1</td><td>5</td><td>2024-01-03</td></tr>
+    <tr><td>Widget</td><td>P1</td><td>8</td><td>2024-01-05</td></tr>
+    <tr><td>Gadget</td><td>P2</td><td>20</td><td>2024-01-02</td></tr>
+    <tr><td>Gadget</td><td>P2</td><td>15</td><td>2024-01-04</td></tr>
+  </tbody>
+</table>
+<p>Two products interleaved by date. The running total must reset at each <code>product_code</code> boundary &mdash; P2's accumulation must not pick up where P1 left off, even though P2's first sale falls between two P1 sales.</p>
+
+<h4>2. The SQL &mdash; <code>SUM() OVER (PARTITION BY ... ORDER BY ...)</code></h4>
+<pre><code>SELECT *,
+    SUM(quantity) OVER (PARTITION BY product_code
+                        ORDER BY sales_date ASC) AS running_total
+FROM product_sales;</code></pre>
+<p><code>PARTITION BY product_code</code> restarts the accumulation for each product; <code>ORDER BY sales_date</code> defines the direction it grows. No <code>GROUP BY</code> &mdash; every input row is preserved, with the cumulative figure attached.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_name</th><th>product_code</th><th>quantity</th><th>sales_date</th><th>running_total</th></tr></thead>
+  <tbody>
+    <tr><td>Widget</td><td>P1</td><td>10</td><td>2024-01-01</td><td>10</td></tr>
+    <tr><td>Widget</td><td>P1</td><td>5</td><td>2024-01-03</td><td>15</td></tr>
+    <tr><td>Widget</td><td>P1</td><td>8</td><td>2024-01-05</td><td>23</td></tr>
+    <tr><td>Gadget</td><td>P2</td><td>20</td><td>2024-01-02</td><td>20</td></tr>
+    <tr><td>Gadget</td><td>P2</td><td>15</td><td>2024-01-04</td><td>35</td></tr>
+  </tbody>
+</table>
+<p>P1 climbs 10 &rarr; 15 &rarr; 23; P2 climbs 20 &rarr; 35 independently. P2's run starts fresh at 20 even though its first sale (Jan&nbsp;2) sits chronologically between P1's Jan&nbsp;1 and Jan&nbsp;3 &mdash; that is <code>PARTITION BY</code> isolating the two series.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The default frame you silently accepted</h5>
+<p>An <code>ORDER BY</code> inside an <code>OVER</code> with no explicit frame defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. For a running total that is what you want &mdash; sum everything up to and including the current row. Worth stating out loud, because the alternative bites in the next paragraph.</p>
+
+<h5>The <code>RANGE</code>-vs-<code>ROWS</code> trap on duplicate dates</h5>
+<p>The default frame is <code>RANGE</code>, not <code>ROWS</code>. If a product has two sales on the <em>same</em> <code>sales_date</code>, <code>RANGE</code> treats them as <em>peers</em> &mdash; both rows get the same running total, the sum through the end of that date. <code>ROWS</code> would give them stepped, distinct totals. For a cumulative quantity that is genuinely a judgement call:</p>
+<pre><code>SUM(quantity) OVER (PARTITION BY product_code
+                    ORDER BY sales_date
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code></pre>
+<p>If two sales can share a date, decide whether you want them to share a total (<code>RANGE</code>) or step (<code>ROWS</code>), and write the frame explicitly so the next reader knows it was a choice.</p>
+
+<h5>The pre-window-function answer &mdash; and why it's worse</h5>
+<p>Before window functions, the running total was a correlated self-join:</p>
+<pre><code>SELECT a.product_code, a.sales_date, a.quantity,
+       (SELECT SUM(b.quantity) FROM product_sales b
+        WHERE b.product_code = a.product_code
+          AND b.sales_date &lt;= a.sales_date) AS running_total
+FROM product_sales a;</code></pre>
+<p>It returns the same numbers but is O(n&sup2;): the subquery rescans the table for every row. The window version sorts once and accumulates in a single pass. On a real sales table the self-join is the wrong answer purely on cost.</p>
+
+<h5>The tiebreaker the demo hides</h5>
+<p><code>ORDER BY sales_date</code> alone is ambiguous when a product sells twice on one day &mdash; and under <code>ROWS</code> the running total then depends on arbitrary row order. Add a deterministic tiebreaker, e.g. <code>ORDER BY sales_date, product_name</code> or a surrogate id, so the result is reproducible run to run.</p>
+
+<h5>NULL quantities</h5>
+<p><code>SUM</code> ignores NULLs, so a row with a NULL <code>quantity</code> leaves the running total flat across that row &mdash; the cumulative value simply does not advance, and the row itself still appears (it is not a <code>GROUP BY</code>). If a NULL should count as zero that is already the effect; if it signals missing data you may want to <code>COALESCE</code> or exclude it deliberately.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach straight for <code>SUM() OVER (PARTITION BY ... ORDER BY ...)</code> over a self-join, know that the default frame is <code>RANGE</code> and switch to <code>ROWS</code> when duplicate dates would otherwise share a total, and pin a deterministic tiebreaker so the running total is reproducible.</div>

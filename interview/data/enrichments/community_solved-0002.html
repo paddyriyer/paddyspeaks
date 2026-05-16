@@ -1,0 +1,72 @@
+<p>A Community HR tool needs an org-chart query: <em>given a manager's name, list everyone beneath them &mdash; direct reports, their reports, all the way down.</em> The depth is unknown, so a fixed number of joins cannot work. This is the canonical recursive-CTE problem. The interviewer is watching whether you structure the anchor and recursive members correctly, name the termination condition, and guard against infinite loops.</p>
+
+<h4>1. The source data &mdash; <code>emp_details</code></h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>manager_id</th><th>designation</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>asha</td><td><em>NULL</em></td><td>CEO</td></tr>
+    <tr><td>2</td><td>ravi</td><td>1</td><td>VP Eng</td></tr>
+    <tr><td>3</td><td>meena</td><td>1</td><td>VP Sales</td></tr>
+    <tr><td>4</td><td>kiran</td><td>2</td><td>Eng Manager</td></tr>
+    <tr><td>5</td><td>sunil</td><td>2</td><td>Eng Manager</td></tr>
+    <tr><td>6</td><td>priya</td><td>4</td><td>Engineer</td></tr>
+    <tr><td>7</td><td>arjun</td><td>4</td><td>Engineer</td></tr>
+    <tr><td>8</td><td>divya</td><td>3</td><td>Sales Rep</td></tr>
+  </tbody>
+</table>
+<p>This is a four-level tree rooted at <code>asha</code> (CEO, NULL manager). The hierarchy branches: asha &rarr; {ravi, meena}; ravi &rarr; {kiran, sunil}; kiran &rarr; {priya, arjun}; meena &rarr; {divya}. Querying for <code>asha</code> should pull the whole company; querying for <code>kiran</code> should pull only kiran + priya + arjun &mdash; the test of whether the recursion correctly walks a <em>subtree</em>, not the whole table.</p>
+
+<h4>2. The SQL &mdash; <code>WITH RECURSIVE</code> downward walk</h4>
+<pre><code>WITH RECURSIVE cte AS (
+    SELECT name, designation, id, manager_id, 1 AS hier_level FROM emp_details
+    WHERE name = 'asha'
+    UNION ALL
+    SELECT ed.name, ed.designation, ed.id, ed.manager_id, (cte.hier_level + 1) AS hier_level
+    FROM cte
+    JOIN emp_details ed ON cte.id = ed.manager_id
+)
+SELECT * FROM cte;</code></pre>
+<p>The <strong>anchor member</strong> (before <code>UNION ALL</code>) seeds the recursion with the named manager at level 1. The <strong>recursive member</strong> (after) joins the working set back to <code>emp_details</code> on <code>cte.id = ed.manager_id</code> &mdash; "find everyone whose manager is someone I have already found" &mdash; incrementing the level each hop. It repeats until a hop adds no new rows.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>designation</th><th>id</th><th>manager_id</th><th>hier_level</th></tr></thead>
+  <tbody>
+    <tr><td>asha</td><td>CEO</td><td>1</td><td><em>NULL</em></td><td>1</td></tr>
+    <tr><td>ravi</td><td>VP Eng</td><td>2</td><td>1</td><td>2</td></tr>
+    <tr><td>meena</td><td>VP Sales</td><td>3</td><td>1</td><td>2</td></tr>
+    <tr><td>kiran</td><td>Eng Manager</td><td>4</td><td>2</td><td>3</td></tr>
+    <tr><td>sunil</td><td>Eng Manager</td><td>5</td><td>2</td><td>3</td></tr>
+    <tr><td>divya</td><td>Sales Rep</td><td>8</td><td>3</td><td>3</td></tr>
+    <tr><td>priya</td><td>Engineer</td><td>6</td><td>4</td><td>4</td></tr>
+    <tr><td>arjun</td><td>Engineer</td><td>7</td><td>4</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>All 8 employees, because <code>asha</code> is the root. <code>hier_level</code> tells the story: asha at 1, the two VPs at 2, the managers and the sales rep at 3, the engineers at 4. Rows emerge in breadth-first waves &mdash; the whole of level <em>n</em> before level <em>n+1</em> &mdash; which is how <code>UNION ALL</code> recursion naturally iterates. The output order is not guaranteed without an explicit <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Anchor + recursive member &mdash; the two halves</h5>
+<p>Every recursive CTE has exactly this shape: an <strong>anchor</strong> that runs once to seed the result, <code>UNION ALL</code>, and a <strong>recursive member</strong> that references the CTE by name. Execution: run the anchor; then repeatedly run the recursive member against just the rows produced by the <em>previous</em> iteration; stop when an iteration yields zero rows. Here the anchor is "the employee named asha"; each iteration finds the direct reports of whoever was found last round. Termination is automatic and implicit: once the recursion reaches the leaf engineers, the next join finds nobody whose manager is an engineer, returns empty, and the loop ends.</p>
+
+<h5>Walk direction &mdash; the join condition is everything</h5>
+<p>The recursion walks <em>down</em> because the join is <code>cte.id = ed.manager_id</code>: "rows whose manager is in my current set." To walk <em>up</em> instead &mdash; an employee's chain of managers to the CEO &mdash; you flip the join to <code>cte.manager_id = ed.id</code> and seed the anchor with the employee. Same skeleton, reversed join, opposite direction. Knowing this is one toggle, not a rewrite, is the senior insight.</p>
+
+<h5>The infinite-loop risk &mdash; <code>UNION ALL</code> has no built-in cycle guard</h5>
+<p><code>UNION ALL</code> never deduplicates, so if the data has a cycle &mdash; employee A reports to B and B reports to A, a corrupt record &mdash; the recursion <em>never terminates</em>. Real org tables should be acyclic, but defensive code handles it. Two standard guards:</p>
+<pre><code>-- (a) depth cap: stop after N levels
+... WHERE cte.hier_level &lt; 20
+
+-- (b) Postgres CYCLE clause: detect and halt on revisited ids
+WITH RECURSIVE cte AS ( ... )
+  CYCLE id SET is_cycle USING path
+SELECT * FROM cte WHERE NOT is_cycle;</code></pre>
+<p>Switching <code>UNION ALL</code> to <code>UNION</code> would dedupe identical rows but does <em>not</em> reliably stop a cycle, since the <code>hier_level</code> column makes each revisit a distinct row. A depth cap or an explicit cycle/path check is the real fix.</p>
+
+<h5>Including or excluding the manager themselves</h5>
+<p>The anchor selects <code>asha</code>, so the result <em>includes</em> the queried manager (at level 1). If the question is strictly "employees <em>under</em> the manager", exclude the root with a final <code>WHERE hier_level &gt; 1</code>, or seed the anchor with the manager's direct reports instead. Confirm whether the manager belongs in their own subtree &mdash; a small ambiguity that changes the row count.</p>
+
+<h5>Edge cases: unknown name, leaf node, duplicate names</h5>
+<p>If no employee matches the anchor's <code>WHERE name = '...'</code>, the anchor is empty, the recursion never starts, and the result is zero rows &mdash; correct, not an error. Querying a leaf (e.g. <code>priya</code>, who manages nobody) returns just that one row. And the anchor filters on <code>name</code>, which is not a key: two employees named "asha" would <em>both</em> seed the recursion and merge two subtrees into one result. Seed on the primary key (<code>WHERE id = ?</code>) whenever the caller can supply it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> structure the recursive CTE as anchor + <code>UNION ALL</code> + recursive member, articulate that termination happens when an iteration adds no rows, know the join condition alone flips the walk up vs down, and proactively guard against cycles with a depth cap or <code>CYCLE</code> clause rather than trusting the data to be acyclic.</div>

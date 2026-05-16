@@ -1,0 +1,73 @@
+<p>A Community member asks for every prime number between 1 and 10, computed purely in SQL. A prime is a natural number greater than 1 divisible only by 1 and itself. There is no table &mdash; the candidates must be generated &mdash; and the interviewer is checking whether you can express "has no smaller divisor" as a set operation rather than a loop.</p>
+
+<h4>1. The source data &mdash; <code>(none)</code></h4>
+<table>
+  <thead><tr><th>candidate</th><th>divisors below it (excl. 1)</th><th>prime?</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>&mdash;</td><td>yes</td></tr>
+    <tr><td>3</td><td>2 (does not divide)</td><td>yes</td></tr>
+    <tr><td>4</td><td>2 divides</td><td>no</td></tr>
+    <tr><td>5</td><td>2,3,4 (none divide)</td><td>yes</td></tr>
+    <tr><td>6</td><td>2,3 divide</td><td>no</td></tr>
+    <tr><td>7</td><td>2..6 (none divide)</td><td>yes</td></tr>
+  </tbody>
+</table>
+<p>The candidates 2&ndash;10 are generated, not stored. The edge that matters: the test must compare each number against divisors <em>strictly smaller</em> than itself &mdash; every number divides itself evenly, so an unguarded modulo test would reject every candidate, including the primes.</p>
+
+<h4>2. The SQL &mdash; <code>generate candidates, exclude composites</code></h4>
+<pre><code>WITH cte AS (
+  SELECT 2 AS prime_num
+  UNION ALL
+  SELECT (prime_num + 1) AS prime_num
+  FROM cte
+  WHERE prime_num &lt; 10
+)
+SELECT t1.prime_num
+FROM cte t1
+WHERE NOT EXISTS (
+  SELECT 1 FROM cte t2
+  WHERE 1 = 1
+    AND t1.prime_num % t2.prime_num = 0
+    AND t1.prime_num &gt; t2.prime_num
+);</code></pre>
+<p>The recursive CTE produces the integers 2 through 10. The outer query keeps a candidate only when <code>NOT EXISTS</code> a smaller number that divides it evenly &mdash; the definition of prime, expressed as a self-join.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>prime_num</th></tr></thead>
+  <tbody>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>5</td></tr>
+    <tr><td>7</td></tr>
+  </tbody>
+</table>
+<p>4, 6, 8, 9, 10 are filtered out &mdash; each has a smaller divisor (4%2, 6%2, 8%2, 9%3, 10%2). 2, 3, 5, 7 survive: no integer strictly between 1 and themselves divides them. The result correctly excludes 1, because the candidate set starts at 2 &mdash; 1 is not prime by definition.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>t1.prime_num &gt; t2.prime_num</code> is load-bearing</h5>
+<p>This predicate is the whole trick. Drop it and <code>t2</code> ranges over <em>all</em> candidates &mdash; including <code>t2 = t1</code> itself. Since <code>t1.prime_num % t1.prime_num = 0</code> is always true, the <code>NOT EXISTS</code> would fail for every candidate and the query would return <em>nothing</em>. The <code>&gt;</code> restricts the divisor search to numbers strictly below the candidate, which also implicitly excludes the divisor 1 (since the candidates start at 2). The reference's commented-out <code>!= </code> line was an earlier, weaker attempt at the same guard &mdash; <code>&gt;</code> is the correct one.</p>
+
+<h5>The set-based mindset &mdash; <code>NOT EXISTS</code> is "for all"</h5>
+<p>"A prime has no divisor below it" is a universally-quantified statement. SQL has no <code>FOR ALL</code>, so you express it as <code>NOT EXISTS (a counterexample)</code> &mdash; "there does not exist a smaller divisor". Recognising that universal claims map to <code>NOT EXISTS</code> over the negation is a reusable pattern: "every order shipped", "no failed test", "all dependencies met" are all the same shape.</p>
+
+<h5>The dialect note &mdash; recursion keyword and modulo</h5>
+<p>Standard SQL and Postgres require <code>WITH RECURSIVE cte AS (...)</code>; SQL Server and Oracle omit <code>RECURSIVE</code>. The <code>%</code> operator is the modulo in Postgres, SQL Server and MySQL; Oracle uses the <code>MOD(a, b)</code> function instead. The algorithm is identical &mdash; only the keyword and the modulo spelling change between engines.</p>
+
+<h5>The set-generation alternative</h5>
+<p>In Postgres the candidate CTE is just a series:</p>
+<pre><code>SELECT n FROM generate_series(2, 10) AS n
+WHERE NOT EXISTS (
+  SELECT 1 FROM generate_series(2, n - 1) AS d
+  WHERE n % d = 0
+);</code></pre>
+<p>Cleaner: no anchor, no termination predicate. Note the inner generator runs <code>2 .. n-1</code> &mdash; the upper bound itself enforces "strictly smaller", so no extra <code>&gt;</code> guard is needed.</p>
+
+<h5>Scaling and the &radic;n optimisation</h5>
+<p>This is O(n&sup2;): each candidate is tested against every smaller number. For 1&ndash;10 that is trivial; for 1&ndash;1,000,000 it is not. The number-theory fact is that a composite <em>n</em> always has a divisor &le; &radic;<em>n</em>, so the inner search can stop at <code>d * d &lt;= n</code> &mdash; a quadratic-to-near-linear improvement. Mentioning the &radic;n bound shows you see SQL puzzles as algorithms with a cost, not just syntax.</p>
+
+<h5>The boundary cases &mdash; 1 and 2</h5>
+<p>Two classic off-by-one traps. <strong>1 is not prime</strong> &mdash; starting the candidate set at 2 handles that for free; starting at 1 would wrongly emit it (1 has no smaller divisor above 1). <strong>2 is prime</strong> and is the only even prime &mdash; it has no candidate strictly between 1 and 2, so <code>NOT EXISTS</code> is trivially true and 2 is correctly kept. A naive "skip all even numbers" optimisation would wrongly drop 2.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express "prime" as <code>NOT EXISTS (a smaller divisor)</code> &mdash; the SQL idiom for a universal claim &mdash; with a strict <code>&gt;</code> guard so a number is never tested against itself, handle the 1-is-not-prime and 2-is-prime boundaries deliberately, and note the &radic;n bound that turns the quadratic scan near-linear at scale.</div>

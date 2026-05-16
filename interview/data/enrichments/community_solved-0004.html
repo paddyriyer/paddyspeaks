@@ -1,0 +1,63 @@
+<p>A Community genealogy puzzle: given a parent/child table with each child's birth year, compute how old each parent was when that child was born. It looks like simple subtraction, but it hides a quiet trap &mdash; the very first generation has no parent in the table, so you cannot subtract anything, and the solution has to decide what to do about it.</p>
+
+<h4>1. The source data &mdash; <code>tab_parent</code></h4>
+<table>
+  <thead><tr><th>parent</th><th>child</th><th>birthyear</th></tr></thead>
+  <tbody>
+    <tr><td>carol</td><td>dave</td><td>1975</td></tr>
+    <tr><td>dave</td><td>erin</td><td>2000</td></tr>
+    <tr><td>erin</td><td>frank</td><td>2025</td></tr>
+  </tbody>
+</table>
+<p>Each row records a child and the year that child was born. The chain is carol &rarr; dave &rarr; erin &rarr; frank. The catch: <strong>carol never appears as a <code>child</code></strong>, so her own birth year is unknown &mdash; and "how old was carol when dave was born" is genuinely unanswerable from this data.</p>
+
+<h4>2. The SQL &mdash; <code>WITH RECURSIVE</code> chaining birth years</h4>
+<pre><code>WITH RECURSIVE cte AS (
+    SELECT parent, child, birthyear, 0 AS parent_age FROM tab_parent
+    WHERE parent = 'carol'
+    UNION ALL
+    SELECT tp.parent, tp.child, tp.birthyear,
+           (tp.birthyear::int - cte.birthyear::int) AS parent_age
+    FROM cte
+    JOIN tab_parent tp ON cte.child = tp.parent
+)
+SELECT * FROM cte;</code></pre>
+<p>The anchor seeds the root generation (carol &rarr; dave) with <code>parent_age = 0</code> &mdash; a placeholder, because carol's age is unknowable. Each recursive step joins <code>cte.child = tp.parent</code>: the previous row's child becomes the next row's parent, and <code>tp.birthyear - cte.birthyear</code> is the new parent's age &mdash; the new child's birth year minus the parent's own birth year (which the previous row carried).</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>parent</th><th>child</th><th>birthyear</th><th>parent_age</th></tr></thead>
+  <tbody>
+    <tr><td>carol</td><td>dave</td><td>1975</td><td>0</td></tr>
+    <tr><td>dave</td><td>erin</td><td>2000</td><td>25</td></tr>
+    <tr><td>erin</td><td>frank</td><td>2025</td><td>25</td></tr>
+  </tbody>
+</table>
+<p>dave was born 1975; erin (his child) was born 2000, so dave was <strong>25</strong>. erin was born 2000; frank arrived 2025, so erin was <strong>25</strong> too. The carol row reads <code>parent_age = 0</code> &mdash; not because carol was a newborn, but because the anchor literally hardcoded 0. That row is the honest "unknown" of the dataset.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>cte.birthyear</code> is the <em>parent's</em> birth year, not the child's</h5>
+<p>This is the subtle part. In the recursive step, <code>tp</code> is the <em>new</em> row (parent &rarr; grandchild) and <code>cte</code> is the <em>previous</em> row. The previous row's <code>birthyear</code> is the birth year of <em>its</em> child &mdash; who is exactly the new row's parent. So <code>tp.birthyear - cte.birthyear</code> = (grandchild's birth year) &minus; (parent's birth year) = the parent's age. The join condition <code>cte.child = tp.parent</code> is what makes that alignment hold. Trace one hop slowly in the interview; that is the whole question.</p>
+
+<h5>The unanswerable root &mdash; name it, do not fake it</h5>
+<p>carol's <code>parent_age</code> of 0 is a placeholder for "no data". A junior reports 0 as if it were real; a senior says out loud: "the root generation has no parent record, so its age is NULL/unknown &mdash; I am seeding it with 0 only as a sentinel." If the consumer should never see a fake 0, anchor with <code>NULL</code> instead:</p>
+<pre><code>SELECT parent, child, birthyear, NULL::int AS parent_age
+FROM tab_parent WHERE parent = 'carol'</code></pre>
+<p>and the root row honestly reads NULL rather than a misleading 0.</p>
+
+<h5>Do you even need recursion here?</h5>
+<p>If every parent's own birth year is recoverable, this is a plain self-join &mdash; no recursion required:</p>
+<pre><code>SELECT p.parent, p.child, p.birthyear,
+       p.birthyear - g.birthyear AS parent_age
+FROM tab_parent p
+LEFT JOIN tab_parent g ON g.child = p.parent;</code></pre>
+<p>Each row's parent is looked up as somebody else's child in <code>g</code>; <code>p.birthyear - g.birthyear</code> is the age. Rows whose parent is a root (carol) get NULL from the <code>LEFT JOIN</code> &mdash; the same honest "unknown". Recursion only earns its keep if the question demands <em>cumulative</em> walking (e.g. ancestor depth). Knowing the set-based shortcut is the senior move; reaching for <code>WITH RECURSIVE</code> reflexively is not.</p>
+
+<h5>Edge cases: missing links and impossible ages</h5>
+<p>If a child's parent is absent (a broken link mid-tree), the recursive join finds nothing and that branch silently stops &mdash; rows downstream vanish. A <code>LEFT JOIN</code> self-join would keep them with NULL age. Also guard the arithmetic: a parent "born" after their child (dirty data) yields a negative age &mdash; surface those with <code>WHERE parent_age &lt; 0</code> rather than trusting the input.</p>
+
+<h5>String birth years &mdash; the <code>::int</code> casts</h5>
+<p>The solution casts <code>birthyear::int</code> defensively, implying the column may arrive as text ("1975" or even " 1975 "). If the raw data is messy, scrub it first: <code>NULLIF(regexp_replace(birthyear, '\\D', '', 'g'), '')::int</code>. Subtracting two text values would either error or, worse, do something unexpected.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate that <code>tp.birthyear - cte.birthyear</code> aligns to the parent's age <em>because</em> of the <code>cte.child = tp.parent</code> join, treat the rootless first generation as an honest NULL rather than a fake 0, and recognise that a plain self-join solves this unless the question genuinely needs cumulative tree-walking.</div>

@@ -1,0 +1,88 @@
+<p>A Community streaming service wants an engagement signal: <em>which users watched something on three consecutive days?</em> A three-day "binge streak" is a retention leading indicator. The interviewer is watching whether you dedupe to one row per user-per-day first, whether you detect consecutiveness with <code>LAG</code> or with gaps-and-islands, and whether you notice the solution leans on a SQLite-only date function.</p>
+
+<h4>1. The source data &mdash; <code>watch_history</code></h4>
+<table>
+  <thead><tr><th>watch_id</th><th>user_id</th><th>watch_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>501</td><td>2025-12-01</td></tr>
+    <tr><td>2</td><td>501</td><td>2025-12-02</td></tr>
+    <tr><td>3</td><td>501</td><td>2025-12-03</td></tr>
+    <tr><td>4</td><td>502</td><td>2025-12-01</td></tr>
+    <tr><td>5</td><td>502</td><td>2025-12-03</td></tr>
+    <tr><td>6</td><td>503</td><td>2025-12-10</td></tr>
+    <tr><td>7</td><td>503</td><td>2025-12-11</td></tr>
+    <tr><td>8</td><td>503</td><td>2025-12-12</td></tr>
+  </tbody>
+</table>
+<p>User 501 watches Dec 1&ndash;2&ndash;3: a clean streak. User 503 watches Dec 10&ndash;11&ndash;12: also a streak. User 502 watches Dec 1 and Dec 3 but <em>skips Dec 2</em> &mdash; two days, not consecutive &mdash; and is the trap that separates "watched on three days" from "watched on three days <em>in a row</em>".</p>
+
+<h4>2. The SQL &mdash; <code>LAG triple-check</code></h4>
+<pre><code>WITH recent AS (
+    SELECT user_id, watch_date
+    FROM watch_history
+    WHERE watch_date BETWEEN '2025-11-29' AND '2025-12-15'
+),
+daily AS (
+    SELECT user_id, watch_date
+    FROM recent
+    GROUP BY user_id, watch_date
+),
+triplet AS (
+    SELECT
+        user_id,
+        watch_date AS d3,
+        LAG(watch_date, 1) OVER w AS d2,
+        LAG(watch_date, 2) OVER w AS d1
+    FROM daily
+    WINDOW w AS (PARTITION BY user_id ORDER BY watch_date)
+)
+SELECT user_id
+FROM triplet
+WHERE julianday(d3) - julianday(d2) = 1
+  AND julianday(d3) - julianday(d1) = 2
+GROUP BY user_id
+ORDER BY user_id;</code></pre>
+<p>The <code>daily</code> CTE collapses multiple same-day plays into one row. <code>triplet</code> lines up today (<code>d3</code>), yesterday (<code>d2</code>), and the day before (<code>d1</code>) using two <code>LAG</code> offsets. The final filter keeps users where those three dates are exactly one and two days apart.</p>
+<p><em>Dialect note:</em> <code>julianday()</code> is a <strong>SQLite</strong> function &mdash; it converts a date to a Julian day number so the subtraction yields an integer day-count. Postgres has no <code>julianday()</code>; there you cast to <code>date</code> and subtract directly: <code>(d3::date - d2::date) = 1</code>. The logic is identical; only the date-difference idiom changes.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th></tr></thead>
+  <tbody>
+    <tr><td>501</td></tr>
+    <tr><td>503</td></tr>
+  </tbody>
+</table>
+<p>Users 501 and 503 each have a row where <code>d3 - d2 = 1</code> and <code>d3 - d1 = 2</code> &mdash; three consecutive calendar days. User 502 is correctly absent: their two watch days are Dec 1 and Dec 3, so <code>d2</code> is Dec 1 when <code>d3</code> is Dec 3, the gap is 2, and they fail the test. They watched on two days, never three in a row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Dedupe first &mdash; the <code>daily</code> CTE is not optional</h5>
+<p>If a user watches three shows on Dec 1, raw <code>watch_history</code> has three Dec-1 rows. <code>LAG</code> over those would compare Dec 1 to Dec 1 (gap 0) and never see a real streak &mdash; or worse, manufacture a false one. Collapsing to one row per <code>(user_id, watch_date)</code> first is mandatory. The solution uses <code>GROUP BY user_id, watch_date</code> rather than <code>SELECT DISTINCT</code>; they are semantically identical, and the inline comment's claim that <code>GROUP BY</code> is faster is a folk optimisation &mdash; on most planners they produce the same plan. Either is fine; the point is that <em>some</em> dedup must happen.</p>
+
+<h5>The gaps-and-islands alternative &mdash; the cleaner generalisation</h5>
+<p>The <code>LAG</code> triple-check is hard-wired to exactly 3. For a parameterised "<em>N</em> days in a row" the gaps-and-islands trick scales without adding more <code>LAG</code> columns:</p>
+<pre><code>WITH daily AS (
+    SELECT DISTINCT user_id, watch_date::date AS d FROM watch_history
+),
+grp AS (
+    SELECT user_id, d,
+           d - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY d))::int AS streak_key
+    FROM daily
+)
+SELECT user_id
+FROM grp
+GROUP BY user_id, streak_key
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>The insight: within a run of consecutive dates, <code>date - row_number</code> is <em>constant</em> &mdash; each step adds 1 to both, so the difference holds. That constant becomes a group key; counting rows per key gives the streak length. Change <code>&gt;= 3</code> to <code>&gt;= N</code> and it answers any streak length &mdash; that flexibility is the senior reason to know this pattern.</p>
+
+<h5>The <code>WINDOW</code> clause and the partition prune</h5>
+<p>Two details worth voicing. First, <code>WINDOW w AS (...)</code> names a window spec so both <code>LAG</code> calls reuse it &mdash; cleaner than repeating <code>OVER (PARTITION BY user_id ORDER BY watch_date)</code> twice, and a hint that the engine evaluates it once. Second, the <code>recent</code> CTE's date filter (<code>BETWEEN '2025-11-29' AND '2025-12-15'</code>) is a deliberate scan-reduction: a 3-day streak detector only needs a short lookback, so on a partitioned billion-row table this prunes whole partitions. Just make sure the window is wide enough &mdash; trimming it too tight could chop the first day off a streak that straddles the boundary.</p>
+
+<h5>The final <code>GROUP BY user_id</code> &mdash; dedupe the output</h5>
+<p>A user who watches for <em>five</em> straight days produces three qualifying triplet rows (days 3, 4, and 5 each close a 3-streak). Without the trailing <code>GROUP BY user_id</code> the same user would be listed three times. The group collapses them to one. <code>SELECT DISTINCT user_id</code> would do the same job.</p>
+
+<h5>Edge cases: data types and same-day boundaries</h5>
+<p><code>watch_date</code> is stored as <code>TEXT</code> here. String <code>BETWEEN</code> works only because ISO <code>YYYY-MM-DD</code> sorts lexically the same as chronologically &mdash; a non-ISO format (<code>MM/DD/YYYY</code>) would break the filter silently. Casting to a real <code>date</code> early is safer. Also: if <code>watch_date</code> were a full timestamp, two watches at 23:00 and 01:00 are different calendar days but close in time &mdash; you must truncate to the date (<code>watch_date::date</code>) before deduping, or the streak logic misfires.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> collapse to one row per user-per-day <em>before</em> any consecutiveness logic, know both the <code>LAG</code> triple-check (fixed length) and the <code>date - ROW_NUMBER</code> gaps-and-islands trick (parameterised length), dedupe the final output so a long streak is not double-counted, and recognise <code>julianday()</code> as a SQLite idiom that becomes plain <code>date</code> subtraction in Postgres.</div>

@@ -1,0 +1,69 @@
+<p>A Community civic dataset records ballots, but with a twist: a single voter may name several candidates on one ballot, and their vote is meant to be <em>split equally</em> across the names they picked. The task is to total the fractional votes per candidate and rank them. The interviewer is checking whether you compute the per-voter split with a window function and handle the rounding honestly.</p>
+
+<h4>1. The source data &mdash; <code>election_result</code></h4>
+<table>
+  <thead><tr><th>voter</th><th>candidate</th></tr></thead>
+  <tbody>
+    <tr><td>Voter1</td><td>Alice</td></tr>
+    <tr><td>Voter1</td><td>Bob</td></tr>
+    <tr><td>Voter2</td><td>Alice</td></tr>
+    <tr><td>Voter3</td><td>Bob</td></tr>
+    <tr><td>Voter3</td><td>Carol</td></tr>
+    <tr><td>Voter3</td><td>Alice</td></tr>
+    <tr><td>Voter4</td><td>Carol</td></tr>
+  </tbody>
+</table>
+<p>Voter1 named two candidates, so each gets <strong>&frac12; a vote</strong>. Voter2 named one &mdash; a full vote. Voter3 named three, so each gets <strong>&#8531;</strong>. Voter3 is the edge case: a three-way split yields <code>0.333</code> repeating, which forces a rounding decision.</p>
+
+<h4>2. The SQL &mdash; split the vote with a window <code>SUM</code></h4>
+<pre><code>with vote_split as(
+select voter,
+    candidate,
+    cast(1.0/sum(1) over(partition by voter) as decimal(10,3)) as num_votes
+from election_result
+)
+select candidate, sum(num_votes) as votes
+from vote_split
+where candidate is not null
+group by candidate
+order by votes desc;</code></pre>
+<p><code>sum(1) over (partition by voter)</code> counts how many rows &mdash; candidates &mdash; that voter has, <em>without</em> collapsing the rows. <code>1.0 / that count</code> is each candidate's share of that ballot. The outer query sums every fractional share a candidate received.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>candidate</th><th>votes</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>1.833</td></tr>
+    <tr><td>Carol</td><td>1.333</td></tr>
+    <tr><td>Bob</td><td>0.833</td></tr>
+  </tbody>
+</table>
+<p>Alice = 0.5 (Voter1) + 1.0 (Voter2) + 0.333 (Voter3) = <strong>1.833</strong>. Carol = 0.333 (Voter3) + 1.0 (Voter4) = <strong>1.333</strong>. Bob = 0.5 (Voter1) + 0.333 (Voter3) = <strong>0.833</strong>. Alice wins. The totals are slightly under what the headcount implies, for a reason worth understanding.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a window <code>SUM</code> instead of <code>GROUP BY</code></h5>
+<p>You need two things at once: each candidate's row must <em>survive</em>, and each must know <em>how many</em> candidates shared its voter's ballot. A plain <code>GROUP BY voter</code> would collapse the rows and lose the candidate detail. <code>sum(1) OVER (PARTITION BY voter)</code> &mdash; equivalent to <code>COUNT(*) OVER (PARTITION BY voter)</code> &mdash; attaches the per-voter headcount to every row while keeping all rows. That is the defining use of a window aggregate.</p>
+
+<h5>The rounding leak &mdash; why totals do not sum to the voter count</h5>
+<p>Four voters cast one vote each, so the grand total <em>should</em> be 4.000. But 1.833 + 1.333 + 0.833 = 3.999. The missing 0.001 is Voter3's three-way split: <code>1/3</code> rounded to <code>0.333</code> three times reconstitutes 0.999, not 1.000. Rounding <em>before</em> aggregating leaks precision. The fix is to round only at the very end:</p>
+<pre><code>select candidate,
+       round(sum(1.0 / cnt), 3) as votes
+from (
+  select candidate, count(*) over (partition by voter) as cnt
+  from election_result
+) s
+where candidate is not null
+group by candidate;</code></pre>
+<p>Keep full precision through the <code>SUM</code>, round once for display. Naming this leak is the senior catch.</p>
+
+<h5>Why <code>1.0 /</code> and not <code>1 /</code></h5>
+<p><code>1 / 3</code> in integer arithmetic is <code>0</code> &mdash; every split candidate would score zero. Writing <code>1.0</code> makes the numerator numeric, so the division produces a real fraction. The same integer-division hazard that bites percentage queries bites vote-splitting.</p>
+
+<h5>The <code>WHERE candidate IS NOT NULL</code> guard</h5>
+<p>A ballot row with a NULL candidate &mdash; a blank or spoiled entry &mdash; would still be counted by <code>sum(1) OVER (PARTITION BY voter)</code>, shrinking every <em>other</em> candidate's share on that ballot, and then <code>GROUP BY</code> would create a phantom NULL "candidate" in the results. Filtering NULL candidates in the outer query removes the phantom row &mdash; but note it does <em>not</em> retroactively fix the denominator. If spoiled entries should not dilute a ballot at all, filter them in the inner query <em>before</em> the window count runs.</p>
+
+<h5>Dialect note &mdash; <code>decimal(10,3)</code></h5>
+<p><code>CAST(... AS decimal(10,3))</code> is standard SQL and runs in Postgres (<code>decimal</code> is a synonym for <code>numeric</code>). Some engines spell precision differently or require <code>numeric</code> explicitly; the construct is portable enough, but on an unfamiliar engine prefer <code>ROUND(x, 3)</code> for display formatting rather than relying on a column type cast.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(*) OVER (PARTITION BY voter)</code> to keep rows while attaching the per-ballot headcount, force numeric division with <code>1.0</code>, and &mdash; the over-the-bar move &mdash; round only after the final <code>SUM</code> so a three-way split does not silently leak 0.001 from the totals.</div>

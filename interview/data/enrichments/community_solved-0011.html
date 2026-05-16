@@ -1,0 +1,54 @@
+<p>A Community string-processing question, Google-flavoured: a file store holds documents in a single <code>contents</code> column, and the task is to count how often the words "bull" and "bear" appear across all of them. The trick is that the words live <em>inside</em> a text blob &mdash; you cannot count rows, you have to count tokens, which means turning one string into many rows.</p>
+
+<h4>1. The source data &mdash; <code>google_file_store</code></h4>
+<table>
+  <thead><tr><th>filename</th><th>contents</th></tr></thead>
+  <tbody>
+    <tr><td>news1.txt</td><td>the bull is strong and the bear is weak bull bull</td></tr>
+    <tr><td>news2.txt</td><td>bear market continues bear bear bull</td></tr>
+    <tr><td>news3.txt</td><td>no animal words here</td></tr>
+  </tbody>
+</table>
+<p>Each row is a whole document. "bull" appears three times in news1 and once in news2; "bear" once in news1 and three times in news2. news3 has <strong>neither word</strong> &mdash; it must contribute nothing, not a zero row.</p>
+
+<h4>2. The SQL &mdash; split to tokens, then aggregate</h4>
+<pre><code>SELECT word AS value, COUNT(*) AS word_count
+FROM google_file_store, UNNEST(string_to_array(contents, ' ')) AS word
+WHERE word IN ('bull', 'bear')
+GROUP BY word;</code></pre>
+<p><code>string_to_array(contents, ' ')</code> splits each document on spaces into an array of words; <code>UNNEST</code> explodes that array so each word becomes its own row. The comma is a lateral cross join &mdash; every document row fans out into one row per token. The <code>WHERE</code> keeps only the two words of interest, and <code>GROUP BY</code> counts them.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>value</th><th>word_count</th></tr></thead>
+  <tbody>
+    <tr><td>bear</td><td>4</td></tr>
+    <tr><td>bull</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>"bear" totals 4 (1 + 3), "bull" totals 4 (3 + 1) &mdash; counted across <em>all</em> documents, not per file. news3 contributed nothing: its tokens were all filtered out before the <code>GROUP BY</code>, so it produces no row rather than a <code>0</code>. Note also there is no <code>ORDER BY</code> &mdash; the two rows could come back in either order.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNNEST</code> is the heart of the answer</h5>
+<p>The data is "one document per row" but the question is "per word". That mismatch &mdash; a collection packed into a single cell &mdash; is exactly what <code>UNNEST</code> exists for: it converts array elements into rows so ordinary aggregation can see them. <code>string_to_array</code> + <code>UNNEST</code> is the canonical Postgres tokeniser. Other engines spell it differently &mdash; Spark's <code>explode(split(...))</code>, Snowflake's <code>LATERAL FLATTEN(SPLIT(...))</code>, SQL Server's <code>STRING_SPLIT</code> &mdash; but the shape is identical.</p>
+
+<h5>The case-sensitivity trap</h5>
+<p><code>word IN ('bull', 'bear')</code> is an exact, case-<em>sensitive</em> match. A document containing "Bull" at the start of a sentence, or "BEAR" in a headline, would be missed entirely. News text is full of capitalised words. Normalise before matching:</p>
+<pre><code>WHERE lower(word) IN ('bull', 'bear')</code></pre>
+<p>and <code>GROUP BY lower(word)</code> so "Bull" and "bull" land in the same bucket.</p>
+
+<h5>The punctuation trap &mdash; the bigger one</h5>
+<p>Splitting on a single space leaves punctuation glued to words: <code>"bull,"</code>, <code>"bear."</code>, <code>"(bull)"</code> are all <em>different</em> tokens from <code>"bull"</code>, and the <code>IN</code> list misses every one. Real prose breaks this query badly. Two fixes: split on a regex of non-word characters, or strip punctuation from each token:</p>
+<pre><code>FROM google_file_store,
+     regexp_split_to_table(lower(contents), '\\W+') AS word
+WHERE word IN ('bull', 'bear')</code></pre>
+<p><code>regexp_split_to_table</code> splits and explodes in one step, and <code>\\W+</code> treats any run of non-word characters as the delimiter. This is the version that survives contact with actual documents.</p>
+
+<h5>Substring matching is the wrong instinct</h5>
+<p>A tempting shortcut is <code>WHERE contents LIKE '%bull%'</code> &mdash; but that counts <em>rows</em>, not occurrences (it cannot tell one "bull" from three), and it fires on "bullish", "bulldozer", "bullet". Whole-word tokenising is the only correct approach for an occurrence count; <code>LIKE</code> answers a different question.</p>
+
+<h5>Edge cases: missing words and empty contents</h5>
+<p>If a target word appears <em>nowhere</em>, it simply will not appear in the output &mdash; there is no row to count. If a dashboard needs an explicit <code>bull = 0</code>, drive the query from a small literal list of target words <code>LEFT JOIN</code>ed to the token counts. Also, a NULL or empty <code>contents</code> yields an empty array, <code>UNNEST</code> produces no rows for it, and it harmlessly drops out &mdash; no special handling needed.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>UNNEST</code>/<code>regexp_split_to_table</code> to turn packed text into countable rows, pre-empt the case-sensitivity and punctuation traps that wreck a naive space-split on real prose, and explain why <code>LIKE '%word%'</code> counts the wrong thing.</div>

@@ -1,0 +1,63 @@
+<p>A Community question in the Amazon-logistics mould: count shipments per calendar month. It looks like a two-second <code>GROUP BY</code>, but the schema hides a sharp edge &mdash; a shipment is identified by the <em>pair</em> <code>(shipment_id, sub_id)</code>, not <code>shipment_id</code> alone. Miss that and you either double-count split shipments or collapse distinct ones. The interviewer is checking whether you read the grain before you write the aggregate.</p>
+
+<h4>1. The source data &mdash; <code>amazon_shipment</code></h4>
+<table>
+  <thead><tr><th>shipment_id</th><th>sub_id</th><th>weight</th><th>shipment_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>2.5</td><td>2023-01-10</td></tr>
+    <tr><td>1</td><td>2</td><td>1.0</td><td>2023-01-15</td></tr>
+    <tr><td>2</td><td>1</td><td>3.0</td><td>2023-01-20</td></tr>
+    <tr><td>1</td><td>1</td><td>2.5</td><td>2023-01-10</td></tr>
+    <tr><td>3</td><td>1</td><td>0.5</td><td>2023-02-01</td></tr>
+    <tr><td>5</td><td>1</td><td>1.2</td><td>2024-01-05</td></tr>
+  </tbody>
+</table>
+<p>Two things to spot. <code>shipment_id = 1</code> appears with <code>sub_id</code> 1 and 2 &mdash; one order split into two parcels, so two distinct shipments. And row 4 is an <em>exact duplicate</em> of row 1: same <code>(1, 1)</code> pair. <code>COUNT(DISTINCT (shipment_id, sub_id))</code> must treat the split as two and the duplicate as one.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY year, month</code></h4>
+<pre><code>SELECT
+    EXTRACT(YEAR  FROM shipment_date)::INT AS year,
+    EXTRACT(MONTH FROM shipment_date)::INT AS month,
+    COUNT(DISTINCT (shipment_id, sub_id)) AS shipment_count
+FROM amazon_shipment
+GROUP BY EXTRACT(YEAR FROM shipment_date), EXTRACT(MONTH FROM shipment_date)
+ORDER BY year, month;</code></pre>
+<p><code>EXTRACT</code> pulls the year and month numbers; grouping on <em>both</em> keeps January 2023 and January 2024 separate. <code>COUNT(DISTINCT (a, b))</code> counts distinct row-value tuples.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>month</th><th>shipment_count</th></tr></thead>
+  <tbody>
+    <tr><td>2023</td><td>1</td><td>3</td></tr>
+    <tr><td>2023</td><td>2</td><td>2</td></tr>
+    <tr><td>2024</td><td>1</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Jan 2023 shows <strong>3</strong>: the pairs <code>(1,1)</code>, <code>(1,2)</code>, <code>(2,1)</code> &mdash; the duplicate <code>(1,1)</code> collapsed. Feb 2023 shows 2, and Jan 2024 is its own row, not merged with Jan 2023. If we had grouped on month alone, the two Januaries would have summed into a meaningless "6 in January".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why group on year <em>and</em> month</h5>
+<p><code>EXTRACT(MONTH FROM &hellip;)</code> returns 1&ndash;12 with no year attached, so grouping by month alone folds every January of every year into one bucket. "Shipments per month" almost always means per calendar month <em>within a year</em> &mdash; a time series, not a seasonal average. An equivalent, often tidier formulation is <code>date_trunc('month', shipment_date)</code>, which yields one timestamp per month and sorts naturally:</p>
+<pre><code>SELECT date_trunc('month', shipment_date) AS month, COUNT(DISTINCT (shipment_id, sub_id))
+FROM amazon_shipment GROUP BY 1 ORDER BY 1;</code></pre>
+
+<h5>The grain trap &mdash; <code>COUNT(*)</code> vs <code>COUNT(DISTINCT shipment_id)</code></h5>
+<p>Three tempting wrong counts: <code>COUNT(*)</code> counts <em>rows</em>, so it inflates Jan 2023 to 4 by including the exact duplicate. <code>COUNT(DISTINCT shipment_id)</code> counts <em>orders</em>, collapsing the <code>(1,1)</code>/<code>(1,2)</code> split into one and undercounting to 2. Only <code>COUNT(DISTINCT (shipment_id, sub_id))</code> matches the stated unit &mdash; a parcel. The lesson: pin down what one row of the answer represents before choosing the count.</p>
+
+<h5>How <code>COUNT(DISTINCT (a, b))</code> handles NULLs</h5>
+<p>Postgres treats the row constructor specially: a tuple is excluded from <code>COUNT(DISTINCT)</code> only if <em>every</em> field is NULL. A pair like <code>(7, NULL)</code> still counts. So a missing <code>sub_id</code> on a real shipment is preserved &mdash; usually what you want &mdash; but two rows that are both <code>(7, NULL)</code> are treated as one. Worth a sentence if <code>sub_id</code> is nullable.</p>
+
+<h5>The missing-month gap</h5>
+<p>March 2023 has no shipments, so it produces <em>no row</em> &mdash; the result skips straight from February to the next populated month. A dashboard plotting this will draw a misleading continuous line. If gap-free output is required, generate the month spine and <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT g.m, COUNT(DISTINCT (s.shipment_id, s.sub_id)) AS shipment_count
+FROM generate_series('2023-01-01'::date, '2024-01-01', '1 month') g(m)
+LEFT JOIN amazon_shipment s
+  ON date_trunc('month', s.shipment_date) = g.m
+GROUP BY g.m ORDER BY g.m;</code></pre>
+<p>Aggregation can only count rows that exist; absent months need a spine.</p>
+
+<h5>Casting and ordering</h5>
+<p><code>EXTRACT</code> returns <code>numeric</code> in Postgres; the <code>::INT</code> cast just tidies the output type. And <code>ORDER BY year, month</code> is essential &mdash; without an explicit sort the result set has no guaranteed order, and a time series out of order is worse than useless.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify the shipment grain as the <code>(shipment_id, sub_id)</code> pair and reject both <code>COUNT(*)</code> and <code>COUNT(DISTINCT shipment_id)</code>, group on year <em>and</em> month so calendar years stay distinct, and pre-empt the missing-month gap with a <code>generate_series</code> spine when the output feeds a chart.</div>
