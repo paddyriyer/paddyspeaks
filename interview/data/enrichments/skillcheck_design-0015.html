@@ -1,0 +1,65 @@
+<p>A time-bucketed metrics table is the foundational pattern for observability backends: rather than storing one row per event, each row pre-aggregates all events that occurred within a fixed time window for a given service+endpoint combination. The interviewer is probing your understanding of <strong>time-series grain selection</strong> (1-minute buckets), <strong>pre-aggregation vs. raw storage</strong>, <strong>percentile approximation</strong> (why you cannot simply store p95 values and later re-aggregate them across buckets without a sketch), <strong>range partitioning for retention</strong>, and <strong>composite primary key design</strong> that also serves as the clustering key for dashboard reads.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Grain:</strong> one row per (<code>service_name</code>, <code>endpoint</code>, 1-minute bucket); the bucket timestamp is always a floored minute, never a raw event timestamp.</li>
+  <li><strong>Additive count measures:</strong> <code>request_count</code> and <code>error_count</code> can be summed across buckets without loss of accuracy.</li>
+  <li><strong>Non-additive latency percentiles:</strong> <code>p50_ms</code>, <code>p95_ms</code>, <code>p99_ms</code> are meaningful only within a single bucket; they cannot be naively averaged across buckets. A mergeable sketch (<code>td_digest</code>) enables accurate re-aggregation.</li>
+  <li><strong>Retention:</strong> ~30-day window; old partitions must be droppable without expensive deletes.</li>
+  <li><strong>Dashboard read pattern:</strong> queries filter on <code>service_name</code>, <code>endpoint</code>, and a recent time range; the PK must match this access pattern exactly.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE metric_request (
+  service_name      VARCHAR(64)  NOT NULL,
+  endpoint          VARCHAR(128) NOT NULL,
+  bucket_ts         TIMESTAMP    NOT NULL,                  -- floor(event_ts, '1 minute')
+  request_count     BIGINT       NOT NULL,
+  error_count       BIGINT       NOT NULL,
+  p50_ms            DOUBLE,
+  p95_ms            DOUBLE,
+  p99_ms            DOUBLE,
+  -- (optionally a t-digest blob for re-aggregation across buckets)
+  td_digest         BYTEA,
+  ingested_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (service_name, endpoint, bucket_ts)
+)
+PARTITION BY RANGE (bucket_ts);
+
+-- Daily partitions, easy retention via DROP PARTITION.
+-- CREATE TABLE metric_request_20250512 PARTITION OF metric_request
+--   FOR VALUES FROM ('2025-05-12') TO ('2025-05-13');</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>service_name</code></td><td>Dimension / PK part 1</td><td>Leading key component; all dashboard queries filter on this first, so it prunes the most data at the index level.</td></tr>
+    <tr><td><code>endpoint</code></td><td>Dimension / PK part 2</td><td>Second-level grouping; combined with <code>service_name</code> it uniquely identifies a metric stream.</td></tr>
+    <tr><td><code>bucket_ts</code></td><td>Partition key / PK part 3 / time dimension</td><td>Floored to the minute; the range-partition key; trailing PK position drives an index scan over a narrow time range after service+endpoint filtering.</td></tr>
+    <tr><td><code>request_count</code></td><td>Additive measure</td><td>Total requests in this 1-minute window; safe to SUM across any time range.</td></tr>
+    <tr><td><code>error_count</code></td><td>Additive measure</td><td>Error count; error rate = <code>error_count / request_count</code>; both components must be stored to remain computable at any rollup granularity.</td></tr>
+    <tr><td><code>p50_ms</code>, <code>p95_ms</code>, <code>p99_ms</code></td><td>Non-additive pre-computed measures</td><td>Approximate percentiles valid for the single bucket; they cannot be averaged across buckets to yield a correct multi-minute percentile.</td></tr>
+    <tr><td><code>td_digest</code></td><td>Sketch blob (optional)</td><td>A serialized t-digest or DDSketch; these sketches are mergeable, enabling accurate percentile computation across multiple buckets by merging their digests rather than their scalar summaries.</td></tr>
+    <tr><td><code>ingested_at</code></td><td>Audit column</td><td>System ingestion time; useful for detecting pipeline lag vs. event time; not part of any dimension.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Grain: the 1-minute bucket</h5>
+<p>The grain is one row per (service, endpoint, minute). This is a <strong>periodic-snapshot</strong> fact-table pattern: state is captured at regular intervals. The bucket timestamp must be computed as <code>date_trunc('minute', event_ts)</code> (or equivalent) at write time, not stored raw, so the PK uniqueness constraint can enforce exactly one row per combination and <code>INSERT ... ON CONFLICT DO UPDATE</code> can accumulate counts within the bucket transactionally.</p>
+
+<h5>Percentiles are non-additive &mdash; the sketch solution</h5>
+<p>This is the crux of the design. If you have p95 = 120 ms for minute 1 and p95 = 80 ms for minute 2, there is no arithmetic formula to compute the correct 2-minute p95 from those two scalars alone &mdash; you need the underlying distribution. The <code>td_digest</code> column stores a serialized t-digest or DDSketch, which are <em>mergeable</em>: you can merge any number of digests and compute an accurate percentile from the result. The scalar p-values remain useful for single-minute dashboards and are fast to read; the digest supports cross-bucket analysis.</p>
+
+<h5>Range partitioning + retention</h5>
+<p>Daily partitions make 30-day retention trivial: <code>DROP TABLE metric_request_20250411</code> removes 24 hours of data instantly with no heap bloat, no vacuum pressure, and no DELETE lock. Creating partitions in advance (via a scheduled job or Postgres <code>pg_partman</code> extension) avoids insert failures on day boundaries. Contrast with a single-table design where a <code>DELETE WHERE bucket_ts &lt; now() - INTERVAL '30 days'</code> runs row-by-row, generates dead tuples, and requires subsequent vacuum work.</p>
+
+<h5>Composite PK as the clustering key</h5>
+<p>The PK <code>(service_name, endpoint, bucket_ts)</code> is not just a uniqueness constraint &mdash; it is the physical sort order of each partition. The leading columns match the <code>WHERE service_name = ? AND endpoint = ? AND bucket_ts &gt;= ?</code> predicate of every dashboard query, so Postgres can satisfy it with a single B-tree range scan on the PK index. No secondary index is needed for the primary access pattern.</p>
+
+<h5>Dialect notes</h5>
+<p>In <strong>Postgres</strong>, declarative partitioning with <code>PARTITION BY RANGE (bucket_ts)</code> and <code>pg_partman</code> for automation is the standard approach. In <strong>BigQuery</strong>, partition on <code>bucket_ts</code> (DATE or TIMESTAMP) and cluster by <code>(service_name, endpoint)</code>; clustering handles the leading-column filter without a separate index. In <strong>Snowflake</strong>, define a <code>CLUSTER BY (service_name, endpoint, DATE(bucket_ts))</code> micro-partition strategy rather than explicit partitions. In <strong>Redshift</strong>, set <code>DISTKEY(service_name)</code> and <code>SORTKEY(service_name, endpoint, bucket_ts)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> clearly articulate that percentiles are non-additive &mdash; scalar p-values cannot be merged across buckets &mdash; and that a mergeable sketch column (t-digest, DDSketch) is the correct fix; design the PK so its leading columns exactly match the dashboard filter pattern; and choose daily range partitions for zero-cost retention via <code>DROP PARTITION</code> rather than row-level deletes.</div>

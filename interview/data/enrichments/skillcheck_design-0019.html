@@ -1,0 +1,100 @@
+<p>A feature-flag service is a foundational piece of SaaS infrastructure: it decouples feature releases from deployments and enables per-tenant customization. The interviewer is probing whether you can design a <strong>three-layer evaluation hierarchy</strong> &mdash; global flag default, ordered rules, tenant override &mdash; with the correct FK relationships and uniqueness constraints, and whether you understand the tradeoffs of a <code>JSONB</code> rule-payload column vs. a typed-columns approach. Three tables and their interactions need to be designed together coherently.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Flag registry:</strong> each flag has a name (unique, the public identifier), a global default on/off state, an archived flag for soft-delete, and timestamps.</li>
+  <li><strong>Ordered rules:</strong> flags can have zero or more rules (cohort match, percentage rollout, attribute match); rules have a priority that determines evaluation order; the first matching rule wins.</li>
+  <li><strong>Tenant overrides:</strong> a specific tenant can override a flag's computed state entirely, or pin evaluation to a specific rule, or both.</li>
+  <li><strong>Referential integrity:</strong> rules belong to flags (cascade delete); overrides reference both flags and optionally a specific rule (restrict delete on the rule to avoid dangling references).</li>
+  <li><strong>CHECK constraint on override:</strong> an override row must specify at least one of <code>override_state</code> or <code>override_rule_id</code> &mdash; a completely empty override row is invalid.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE flag (
+  flag_id          BIGSERIAL    PRIMARY KEY,
+  name             VARCHAR(128) NOT NULL UNIQUE,
+  description      TEXT,
+  default_state    BOOLEAN      NOT NULL DEFAULT FALSE,
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  is_archived      BOOLEAN      NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE flag_rule (
+  rule_id          BIGSERIAL    PRIMARY KEY,
+  flag_id          BIGINT       NOT NULL REFERENCES flag(flag_id) ON DELETE CASCADE,
+  priority         INT          NOT NULL,                   -- evaluation order, lower = first
+  rule_type        VARCHAR(32)  NOT NULL,                   -- 'cohort', 'percentage', 'attribute_match'
+  payload          JSONB        NOT NULL,                   -- rule-specific parameters
+  result_state     BOOLEAN      NOT NULL,                   -- state when this rule matches
+  is_active        BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  UNIQUE (flag_id, priority)
+);
+CREATE INDEX ix_flag_rule_flag_active ON flag_rule (flag_id) WHERE is_active;
+
+CREATE TABLE flag_tenant_override (
+  flag_id          BIGINT       NOT NULL REFERENCES flag(flag_id) ON DELETE CASCADE,
+  tenant_id        BIGINT       NOT NULL,
+  override_state   BOOLEAN,                                 -- NULL means 'inherit, but override the rule set'
+  override_rule_id BIGINT       REFERENCES flag_rule(rule_id),
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  PRIMARY KEY (flag_id, tenant_id),
+  CHECK (override_state IS NOT NULL OR override_rule_id IS NOT NULL)
+);
+CREATE INDEX ix_flag_tenant_override_tenant ON flag_tenant_override (tenant_id);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+
+<p><em>flag table</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>flag_id</code></td><td>Surrogate PK</td><td>Internal stable identifier; the public handle is <code>name</code>. Surrogate key allows renaming the flag without cascading FK updates.</td></tr>
+    <tr><td><code>name</code></td><td>Natural key (UNIQUE)</td><td>The string identifier used in application code (<code>ff.is_enabled("new-checkout")</code>); must be unique and immutable once in use.</td></tr>
+    <tr><td><code>default_state</code></td><td>Global default measure</td><td>The fallback state when no rule matches and no tenant override exists; most flags start as FALSE (off).</td></tr>
+    <tr><td><code>is_archived</code></td><td>Soft-delete flag</td><td>Allows retiring a flag without foreign-key violations from existing overrides; archived flags evaluate to their <code>default_state</code> and are hidden from the management UI.</td></tr>
+  </tbody>
+</table>
+
+<p><em>flag_rule table</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>rule_id</code></td><td>Surrogate PK</td><td>Referenced by <code>flag_tenant_override.override_rule_id</code>; a stable integer FK is safer than a JSONB document reference.</td></tr>
+    <tr><td><code>flag_id</code></td><td>FK &rarr; flag</td><td>Parent flag; ON DELETE CASCADE removes rules when the flag is deleted.</td></tr>
+    <tr><td><code>priority</code></td><td>Ordinal / evaluation order</td><td>Unique per <code>(flag_id, priority)</code>; the evaluator iterates rules in ascending priority order and stops at the first match.</td></tr>
+    <tr><td><code>rule_type</code></td><td>Rule-type dimension</td><td>Drives which evaluation function to invoke; stored as a VARCHAR rather than an ENUM for forward compatibility.</td></tr>
+    <tr><td><code>payload</code></td><td>Schema-flexible rule parameters</td><td>JSONB avoids a separate table per rule type; a cohort rule stores <code>{"cohort_id": 42}</code>, a percentage rule stores <code>{"pct": 10, "salt": "abc"}</code>.</td></tr>
+    <tr><td><code>result_state</code></td><td>Output measure</td><td>The boolean state to return when this rule matches; allows rules that turn a flag <em>off</em> for specific cohorts even when the default is on.</td></tr>
+    <tr><td><code>is_active</code></td><td>Soft-delete / partial-index key</td><td>Inactive rules are excluded from evaluation; the partial index on <code>flag_id WHERE is_active</code> makes the rule lookup for a given flag fast and small.</td></tr>
+  </tbody>
+</table>
+
+<p><em>flag_tenant_override table</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>flag_id</code></td><td>Composite PK part 1 / FK &rarr; flag</td><td>One override row per (flag, tenant) pair; composite PK enforces this uniqueness.</td></tr>
+    <tr><td><code>tenant_id</code></td><td>Composite PK part 2</td><td>The tenant being overridden; a secondary index on <code>tenant_id</code> allows "fetch all overrides for this tenant" without a full scan.</td></tr>
+    <tr><td><code>override_state</code></td><td>Direct state override (nullable)</td><td>NULL means "do not override the final state, but the presence of a row with <code>override_rule_id</code> still overrides which rule is applied."</td></tr>
+    <tr><td><code>override_rule_id</code></td><td>Rule pin (nullable FK)</td><td>Forces evaluation to use a specific rule for this tenant, bypassing the priority-ordered rule evaluation.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The three-tier evaluation hierarchy</h5>
+<p>The evaluation algorithm is: (1) Check for a <code>flag_tenant_override</code> row for this tenant. If it exists and <code>override_state IS NOT NULL</code>, return that state immediately. If it exists and <code>override_rule_id IS NOT NULL</code>, evaluate only that specific rule. (2) If no tenant override, evaluate <code>flag_rule</code> rows for the flag in ascending <code>priority</code> order; return the first matching rule's <code>result_state</code>. (3) If no rule matches, return <code>flag.default_state</code>. This hierarchy is standard in LaunchDarkly-style systems.</p>
+
+<h5>UNIQUE <code>(flag_id, priority)</code> and its implications</h5>
+<p>The uniqueness constraint prevents two rules from competing at the same priority level, which would make evaluation non-deterministic. Reordering rules requires a multi-row update that avoids transient conflicts; the standard technique is a deferred unique constraint or a two-step update (shift priorities first, then set new values). In Postgres, <code>UNIQUE ... DEFERRABLE INITIALLY DEFERRED</code> handles this cleanly within a transaction.</p>
+
+<h5>JSONB payload vs. typed-column alternatives</h5>
+<p>The alternative to JSONB is a separate table per rule type (e.g., <code>cohort_rule</code>, <code>percentage_rule</code>). That approach gives column-level constraints and indexes on individual rule parameters at the cost of complex JOINs and a schema migration for every new rule type. JSONB is the pragmatic choice for a flag service where rule types evolve rapidly and the payload is only consumed by the evaluation engine &mdash; not queried ad hoc. If specific rule parameters need indexing (e.g., find all flags that target cohort 42), a GIN index on the payload column covers it.</p>
+
+<h5>Dialect notes</h5>
+<p>This schema is Postgres-native. In <strong>MySQL</strong>, use <code>JSON</code> instead of <code>JSONB</code> and note that MySQL JSON indexes require generated columns. In <strong>Snowflake</strong>, VARIANT replaces JSONB and there is no GIN equivalent &mdash; use <code>FLATTEN</code> in queries. The deferrable unique constraint on <code>(flag_id, priority)</code> is Postgres-specific; in other engines, wrap priority reordering in an application-level transaction that temporarily assigns out-of-range values.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the three-tier evaluation hierarchy (tenant override &rarr; ordered rules &rarr; global default) explicitly, justify JSONB for the rule payload as the right tradeoff for a rapidly-evolving rule type set, flag the deferrable unique constraint on <code>(flag_id, priority)</code> as the safe way to reorder rules transactionally, and explain the CHECK on <code>flag_tenant_override</code> that prevents a vacuous override row.</div>

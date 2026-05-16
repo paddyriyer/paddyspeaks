@@ -1,0 +1,69 @@
+<p>An exoplanet catalogue team asks: <em>"For every star, show how many planets orbit it, the average planet mass, and the shortest and longest orbital periods &mdash; including stars with no known planets."</em> The "including stars with no known planets" clause is the key signal &mdash; it demands a LEFT JOIN from the star dimension to the planet fact table, so that solitary stars still appear in the output. The interviewer is also checking whether the candidate applies the <code>NULLIF(regexp_replace(...)::numeric)</code> defensive cast for text-stored numeric columns and sorts by planet count to surface the richest systems first.</p>
+
+<h4>1. The source data &mdash; <code>stars</code> and <code>planets</code></h4>
+<table>
+  <thead><tr><th>star_id</th><th>name</th><th>spectral_type</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Sol</td><td>G</td></tr>
+    <tr><td>2</td><td>Proxima Centauri</td><td>M</td></tr>
+    <tr><td>3</td><td>Tau Ceti</td><td>G</td></tr>
+    <tr><td>4</td><td>Vega</td><td>A</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>planet_id</th><th>star_id</th><th>name</th><th>mass_earth</th><th>orbital_period_days</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>1</td><td>Mercury</td><td>0.055</td><td>88</td></tr>
+    <tr><td>P2</td><td>1</td><td>Venus</td><td>0.815</td><td>225</td></tr>
+    <tr><td>P3</td><td>1</td><td>Earth</td><td>1.000</td><td>365</td></tr>
+    <tr><td>P4</td><td>2</td><td>Proxima b</td><td>1.270</td><td>11</td></tr>
+    <tr><td>P5</td><td>3</td><td>Tau Ceti e</td><td>3.930</td><td>168</td></tr>
+    <tr><td>P6</td><td>3</td><td>Tau Ceti f</td><td>5.590</td><td>642</td></tr>
+  </tbody>
+</table>
+<p>Vega (star_id=4) has no planets. It should appear in the output with <code>planet_count = 0</code> and NULL aggregates.</p>
+
+<h4>2. The SQL &mdash; LEFT JOIN with grouped multi-aggregate and defensive casts</h4>
+<pre><code>SELECT s.name AS star, s.spectral_type,
+       COUNT(p.planet_id) AS planet_count,
+       AVG(NULLIF(regexp_replace(p.mass_earth::text,           '[^-.0-9]', '', 'g'), '')::numeric) AS avg_planet_mass,
+       MIN(NULLIF(regexp_replace(p.orbital_period_days::text,  '[^-.0-9]', '', 'g'), '')::numeric) AS shortest_orbit_days,
+       MAX(NULLIF(regexp_replace(p.orbital_period_days::text,  '[^-.0-9]', '', 'g'), '')::numeric) AS longest_orbit_days
+FROM stars s
+LEFT JOIN planets p ON s.star_id = p.star_id
+GROUP BY s.name, s.spectral_type
+ORDER BY planet_count DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>star</th><th>spectral_type</th><th>planet_count</th><th>avg_planet_mass</th><th>shortest_orbit_days</th><th>longest_orbit_days</th></tr></thead>
+  <tbody>
+    <tr><td>Sol</td><td>G</td><td>3</td><td>0.623</td><td>88</td><td>365</td></tr>
+    <tr><td>Tau Ceti</td><td>G</td><td>2</td><td>4.760</td><td>168</td><td>642</td></tr>
+    <tr><td>Proxima Centauri</td><td>M</td><td>1</td><td>1.270</td><td>11</td><td>11</td></tr>
+    <tr><td>Vega</td><td>A</td><td>0</td><td>NULL</td><td>NULL</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Derivation: Sol = (0.055+0.815+1.000)/3 = 1.870/3 &asymp; 0.623; MIN orbit = 88 (Mercury), MAX = 365 (Earth). Tau Ceti = (3.930+5.590)/2 = 4.760; MIN = 168, MAX = 642. Proxima Centauri = single planet: avg = 1.270, MIN = MAX = 11. Vega = LEFT JOIN NULL row; <code>COUNT(p.planet_id)</code> = 0; AVG/MIN/MAX of NULLs = NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>LEFT JOIN &mdash; retaining planetless stars</h5>
+<p>A LEFT JOIN returns all rows from the left table (stars) regardless of whether a matching row exists in planets. For Vega, the LEFT JOIN contributes a row where all planets columns are NULL. An INNER JOIN would silently exclude Vega, understating the number of stars in the catalogue and giving a skewed view that only well-studied systems appear. Whenever the requirement uses the phrase "including X with no Y," LEFT JOIN from the parent to the child is the required pattern.</p>
+
+<h5><code>COUNT(p.planet_id)</code> vs <code>COUNT(*)</code> for outer joins</h5>
+<p>With a LEFT JOIN, the NULL-padded row for Vega has <code>p.planet_id = NULL</code>. <code>COUNT(p.planet_id)</code> ignores NULL values and returns 0. <code>COUNT(*)</code> counts the NULL row and returns 1, incorrectly suggesting Vega has one planet. Always count a specific NOT NULL column from the right (optional) side of a LEFT JOIN. This is the canonical LEFT JOIN aggregation trap tested at every level.</p>
+
+<h5>AVG / MIN / MAX of all-NULL groups return NULL</h5>
+<p>Standard SQL aggregate functions skip NULL values. When the entire group consists of NULL values (Vega's case), <code>AVG</code>, <code>MIN</code>, and <code>MAX</code> return NULL. This is semantically correct &mdash; there is no average mass or orbital period when there are no planets. If a sentinel like 0 or &minus;1 is required for downstream systems, use <code>COALESCE(AVG(...), 0)</code>, but prefer NULL as the truthful representation.</p>
+
+<h5>Defensive cast pattern</h5>
+<p>The <code>mass_earth</code> and <code>orbital_period_days</code> columns may be stored as VARCHAR with unit strings or measurement notes. The triple <code>regexp_replace / NULLIF / ::numeric</code> sanitises them: strip non-numeric characters globally, convert empty string to NULL, then parse as numeric. In Snowflake the equivalent is <code>TRY_TO_NUMBER(p.mass_earth, 10, 4)</code> or <code>TRY_CAST(p.mass_earth AS FLOAT)</code>, which return NULL on any parse failure without the regex overhead.</p>
+
+<h5>GROUP BY functional dependency &mdash; (name, spectral_type)</h5>
+<p>Since <code>star_id</code> is the primary key, <code>s.name</code> and <code>s.spectral_type</code> are functionally determined by it. The query groups by both anyway for portability &mdash; Snowflake and BigQuery require all non-aggregated SELECT columns to appear in GROUP BY even when a PK dependency is obvious. If two stars happened to share the same name and spectral_type (unusual but possible), they would be merged into a single output row, which would be wrong; adding <code>s.star_id</code> to the GROUP BY prevents that edge case.</p>
+
+<h5>ORDER BY with tie-breaking</h5>
+<p><code>ORDER BY planet_count DESC</code> leaves ties (e.g., two stars each with 1 planet) in undefined order. Add <code>, s.name</code> as a deterministic tiebreaker for stable, reproducible output.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate why LEFT JOIN is required to include planetless stars, use <code>COUNT(p.planet_id)</code> not <code>COUNT(*)</code> to return 0 for unmatched outer-join rows, explain that AVG/MIN/MAX of an all-NULL group returns NULL (semantically correct), and substitute <code>TRY_CAST</code> or <code>TRY_TO_NUMBER</code> for the Snowflake rewrite of the defensive numeric cast.</div>

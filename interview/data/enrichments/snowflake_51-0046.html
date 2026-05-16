@@ -1,0 +1,63 @@
+<p>A materials science lab needs a catalogue view: <em>"List every material we track, along with how many experiments have been run on it and when the most recent test occurred &mdash; including materials that have never been tested."</em> The key word is "including materials never tested" &mdash; that demands a <code>LEFT JOIN</code>. The interviewer is checking whether you recognise the LEFT JOIN requirement, understand how <code>MAX</code> and <code>COUNT</code> behave on NULL values from the outer join, and can correctly sort by experiment count to surface the most-tested materials first.</p>
+
+<h4>1. The source data &mdash; <code>materials</code> and <code>experiments</code></h4>
+<table>
+  <thead><tr><th>material_id</th><th>name</th><th>density</th></tr></thead>
+  <tbody>
+    <tr><td>M1</td><td>Titanium</td><td>4.51</td></tr>
+    <tr><td>M2</td><td>Graphene</td><td>0.77</td></tr>
+    <tr><td>M3</td><td>Borosilicate</td><td>2.23</td></tr>
+    <tr><td>M4</td><td>Aerogel</td><td>0.002</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>exp_id</th><th>material_id</th><th>tested_on</th><th>result</th></tr></thead>
+  <tbody>
+    <tr><td>E1</td><td>M1</td><td>2025-01-10</td><td>pass</td></tr>
+    <tr><td>E2</td><td>M1</td><td>2025-02-14</td><td>pass</td></tr>
+    <tr><td>E3</td><td>M1</td><td>2025-03-01</td><td>fail</td></tr>
+    <tr><td>E4</td><td>M2</td><td>2025-01-20</td><td>pass</td></tr>
+    <tr><td>E5</td><td>M3</td><td>2025-02-28</td><td>pass</td></tr>
+  </tbody>
+</table>
+<p>M4 (Aerogel) has no matching rows in <code>experiments</code>. With a LEFT JOIN it should still appear in the output with <code>experiments_run = 0</code> and <code>last_tested = NULL</code>.</p>
+
+<h4>2. The SQL &mdash; LEFT JOIN with aggregate and NULL-safe count</h4>
+<pre><code>SELECT m.material_id, m.name, m.density,
+       COUNT(e.exp_id)  AS experiments_run,
+       MAX(e.tested_on) AS last_tested
+FROM materials   m
+LEFT JOIN experiments e ON m.material_id = e.material_id
+GROUP BY m.material_id, m.name, m.density
+ORDER BY experiments_run DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>material_id</th><th>name</th><th>density</th><th>experiments_run</th><th>last_tested</th></tr></thead>
+  <tbody>
+    <tr><td>M1</td><td>Titanium</td><td>4.51</td><td>3</td><td>2025-03-01</td></tr>
+    <tr><td>M2</td><td>Graphene</td><td>0.77</td><td>1</td><td>2025-01-20</td></tr>
+    <tr><td>M3</td><td>Borosilicate</td><td>2.23</td><td>1</td><td>2025-02-28</td></tr>
+    <tr><td>M4</td><td>Aerogel</td><td>0.002</td><td>0</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Derivation: M1 has three experiment rows (E1, E2, E3); <code>MAX(tested_on)</code> = 2025-03-01. M2 and M3 have one each. M4 has no matching experiment rows; the LEFT JOIN contributes a row of NULLs for the <code>experiments</code> columns. <code>COUNT(e.exp_id)</code> ignores NULLs and returns 0; <code>MAX(e.tested_on)</code> of all-NULLs is NULL. The <code>ORDER BY experiments_run DESC</code> puts M1 first (3), then M2/M3 (1 each, tie &mdash; order within the tie is unspecified by the query), then M4 (0).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>LEFT JOIN &mdash; preserving unmatched parent rows</h5>
+<p>A LEFT JOIN returns all rows from the left table (materials) regardless of whether a matching row exists in the right table (experiments). Where no match exists, the right-table columns are filled with <code>NULL</code>. An INNER JOIN would silently drop M4 (Aerogel) &mdash; giving the appearance that it doesn't exist in the catalogue. For any "list all X with their Y statistics, including X with no Y" requirement, LEFT JOIN is mandatory.</p>
+
+<h5><code>COUNT(e.exp_id)</code> vs <code>COUNT(*)</code> &mdash; the classic LEFT JOIN trap</h5>
+<p>When the LEFT JOIN produces a NULL placeholder row for M4, <code>COUNT(*)</code> would count that row and return 1 instead of 0 &mdash; incorrectly suggesting M4 has been tested once. <code>COUNT(e.exp_id)</code> counts only non-NULL values of <code>exp_id</code>. Since the LEFT JOIN NULL row has <code>exp_id = NULL</code>, it is not counted, and the result is correctly 0. This is one of the most common bugs in SQL involving LEFT JOINs and aggregation.</p>
+
+<h5><code>MAX</code> of all-NULLs returns NULL</h5>
+<p><code>MAX</code> (and <code>MIN</code>, <code>SUM</code>, <code>AVG</code>) ignore NULL values. When all values in the group are NULL &mdash; as for M4's <code>tested_on</code> &mdash; <code>MAX</code> returns NULL. This is the correct semantic: "never tested" is represented as NULL, not as some sentinel date like <code>'1900-01-01'</code>. In reporting queries, use <code>COALESCE(MAX(e.tested_on), 'Never')</code> if a human-readable label is needed.</p>
+
+<h5>GROUP BY functional dependency</h5>
+<p>The query groups by <code>m.material_id, m.name, m.density</code>. Since <code>material_id</code> is the primary key, <code>name</code> and <code>density</code> are functionally dependent on it. Postgres allows grouping by only <code>m.material_id</code> when the PK is declared, but Snowflake, BigQuery, and MySQL require all non-aggregated SELECT columns to appear in GROUP BY. Listing all three is portable.</p>
+
+<h5>Tie-breaking in ORDER BY</h5>
+<p>M2 and M3 both have <code>experiments_run = 1</code>; the query doesn't add a tiebreaker. This means their relative order in the output is non-deterministic across runs. In a production context add a secondary sort &mdash; <code>ORDER BY experiments_run DESC, m.material_id</code> &mdash; to ensure a stable, reproducible result set.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify LEFT JOIN for the "include never-tested materials" requirement, use <code>COUNT(e.exp_id)</code> not <code>COUNT(*)</code> to correctly return 0 rather than 1 for unmatched outer-join rows, and explain that <code>MAX</code> of all NULLs is NULL (correct representation of "never tested"). Add a deterministic tiebreaker to ORDER BY for reproducible output.</div>

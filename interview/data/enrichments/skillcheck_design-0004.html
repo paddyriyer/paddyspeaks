@@ -1,0 +1,64 @@
+<p>A bridge table is the dimensional modeling solution to many-to-many (M:N) relationships between a fact table and a dimension. Here, a clinical visit can carry multiple diagnoses and a diagnosis applies to many visits &mdash; a many-to-many that cannot be collapsed into the fact row. The interviewer is probing whether you know when to introduce a bridge, how to define its composite PK, the semantics of the weight (apportionment) column, and the indexing needed to join efficiently from both sides.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>M:N resolution:</strong> one visit maps to many diagnoses; one diagnosis appears in many visits.</li>
+  <li><strong>Composite PK:</strong> (visit_sk, diagnosis_sk) &mdash; each pair appears at most once.</li>
+  <li><strong>Rank:</strong> distinguishes primary from secondary diagnoses without a separate Boolean column for every position.</li>
+  <li><strong>Primary flag:</strong> explicit Boolean so queries for primary diagnoses need no rank-comparison arithmetic.</li>
+  <li><strong>Weight:</strong> an apportionment factor (0&ndash;1, sums to 1.0 per visit) so numeric fact measures (charges, RVUs) can be allocated across diagnoses in proportion.</li>
+  <li><strong>Provenance:</strong> who coded the diagnosis and when &mdash; audit trail for clinical and billing compliance.</li>
+  <li><strong>Index on diagnosis side:</strong> to support queries that start from a diagnosis (&ldquo;all visits with ICD code X&rdquo;) without a full bridge scan.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE bridge_visit_diagnosis (
+  visit_sk         BIGINT       NOT NULL,           -- FK -&gt; fact_clinical_visit
+  diagnosis_sk     BIGINT       NOT NULL,           -- FK -&gt; dim_diagnosis
+  diagnosis_rank   SMALLINT     NOT NULL,           -- 1 = primary, 2 = secondary, ...
+  is_primary       BOOLEAN      NOT NULL DEFAULT FALSE,
+  weight           DECIMAL(6,4) NOT NULL DEFAULT 1.0, -- apportionment factor (sums to 1.0 per visit)
+  coded_by         VARCHAR(64),                       -- ICD coder / system
+  coded_at         TIMESTAMP,
+  ingested_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (visit_sk, diagnosis_sk)
+);
+
+CREATE INDEX ix_bridge_diagnosis ON bridge_visit_diagnosis (diagnosis_sk);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>visit_sk</td><td>FK &rarr; fact_clinical_visit (part of composite PK)</td><td>Left side of the M:N. Joining back to the fact table retrieves visit-level measures to be apportioned.</td></tr>
+    <tr><td>diagnosis_sk</td><td>FK &rarr; dim_diagnosis (part of composite PK)</td><td>Right side of the M:N. Joining to dim_diagnosis retrieves ICD code, description, category.</td></tr>
+    <tr><td>diagnosis_rank</td><td>Ordering attribute</td><td>Integer rank within a visit (1 = primary). Enables &ldquo;primary diagnosis only&rdquo; filters without an extra column, and supports ordered display of multi-diagnosis visits.</td></tr>
+    <tr><td>is_primary</td><td>Convenience flag</td><td>Redundant with <code>diagnosis_rank = 1</code> but eliminates a comparison expression in the most common query predicate. Must be kept consistent with rank by ETL.</td></tr>
+    <tr><td>weight</td><td>Apportionment measure</td><td>DECIMAL(6,4) so weights like 0.3333 can be expressed with sufficient precision. Default 1.0 handles the single-diagnosis case naturally. Constraint: should sum to 1.0 per visit_sk, enforced by ETL or a CHECK constraint.</td></tr>
+    <tr><td>coded_by</td><td>Provenance / audit</td><td>Name or system ID of the entity that assigned the diagnosis; required for billing compliance and audit trails.</td></tr>
+    <tr><td>coded_at</td><td>Provenance / audit timestamp</td><td>When the diagnosis code was assigned; useful for detecting late coding that arrives after the visit fact was loaded.</td></tr>
+    <tr><td>ingested_at</td><td>Audit column</td><td>Pipeline watermark for incremental load detection.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a bridge table rather than a multi-valued fact column</h5>
+<p>Some designers are tempted to add <code>diagnosis_sk_1</code>, <code>diagnosis_sk_2</code>, &hellip; <code>diagnosis_sk_N</code> columns to the fact table. This breaks down immediately: N is unbounded (some visits have 15 diagnoses), most columns will be NULL, and adding a diagnosis requires an ALTER TABLE. A bridge table is the correct relational pattern: it has one row per (visit, diagnosis) pair and scales to any cardinality without schema changes.</p>
+
+<h5>Grain and composite PK</h5>
+<p>The grain of the bridge is <em>one row per (visit, diagnosis) pair</em>. The composite primary key <code>(visit_sk, diagnosis_sk)</code> enforces uniqueness at the database level &mdash; a given diagnosis can appear at most once per visit. If the business allows the same diagnosis code to be recorded twice (e.g., with different rank or coder), the PK would need to include <code>diagnosis_rank</code>.</p>
+
+<h5>The weight (apportionment) column</h5>
+<p>When a visit has three diagnoses with weights 0.5, 0.3, and 0.2, a charge of $1,000 can be attributed as $500, $300, and $200 across the respective diagnosis codes. This is critical in clinical billing, where payers reimburse by diagnosis. The default value of 1.0 means a single-diagnosis visit apportions 100% of its measures without special-casing. Equal apportionment (1/N) is another common default. The constraint that weights sum to 1.0 per visit should be enforced by an ETL-level assertion or a per-group CHECK (not natively supported in most engines, but testable in dbt).</p>
+
+<h5>Querying through the bridge</h5>
+<p>To roll up visit charges by diagnosis, the pattern is: <code>JOIN bridge_visit_diagnosis b ON b.visit_sk = f.visit_sk JOIN dim_diagnosis d ON d.diagnosis_sk = b.diagnosis_sk</code>, then <code>SUM(f.charge_amount * b.weight)</code>. The weight multiplication ensures apportioned measures are used when grouping by diagnosis, rather than double-counting the full charge against every linked diagnosis.</p>
+
+<h5>Index strategy</h5>
+<p>The composite PK creates an index on <code>(visit_sk, diagnosis_sk)</code>, which efficiently supports joins starting from the fact table (&ldquo;given a visit, find its diagnoses&rdquo;). The explicit <code>ix_bridge_diagnosis</code> index on <code>diagnosis_sk</code> supports the reverse direction (&ldquo;given a diagnosis code, find all visits&rdquo;) &mdash; this is the typical epidemiology query pattern and would be a full bridge scan without the index.</p>
+
+<h5>Star vs. snowflake considerations</h5>
+<p>The bridge table sits between the fact and the dimension; it is not itself a fact or a dimension. In a strict star schema the fact table would directly reference dimensions. The bridge adds a layer but preserves the star&rsquo;s query simplicity by making the join pattern predictable: fact &rarr; bridge &rarr; dimension, always. This is sometimes called a <em>fact constellation</em> pattern when multiple fact tables share the bridge.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify the bridge table by explaining why multi-valued FK columns on the fact are untenable, define the composite PK correctly as <code>(visit_sk, diagnosis_sk)</code>, explain the weight apportionment pattern with the <code>SUM(measure * weight)</code> idiom and the 1.0-sum invariant, and mention that the reverse-direction index on <code>diagnosis_sk</code> is what makes diagnosis-first queries performant &mdash; these moves show you understand the bridge not just as a schema artifact but as a query-time mechanism.</div>

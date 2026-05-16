@@ -1,0 +1,72 @@
+<p>Skip-level reporting &mdash; the practice of a manager meeting with employees two levels below them &mdash; is a common HR concept, and counting those skip-level reports is a useful org-chart metric. The interviewer is probing whether you can navigate a two-hop path in a self-referential adjacency-list table without a recursive CTE, using a plain double-join instead. Getting the join chain right and understanding why this is exactly two levels (not one, not three) is the crux.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>manager_id</th><th>(tree position)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL</td><td>root / CEO</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>level 1, reports to Alice</td></tr>
+    <tr><td>3</td><td>Carla</td><td>1</td><td>level 1, reports to Alice</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>level 2, reports to Bob</td></tr>
+    <tr><td>5</td><td>Erin</td><td>2</td><td>level 2, reports to Bob</td></tr>
+    <tr><td>6</td><td>Finn</td><td>3</td><td>level 2, reports to Carla</td></tr>
+    <tr><td>7</td><td>Gita</td><td>4</td><td>level 3, reports to Dan</td></tr>
+    <tr><td>8</td><td>Hugo</td><td>5</td><td>level 3, reports to Erin</td></tr>
+    <tr><td>9</td><td>Iris</td><td>7</td><td>level 4, reports to Gita</td></tr>
+  </tbody>
+</table>
+<p>Tree: Alice &rarr; {Bob, Carla}; Bob &rarr; {Dan, Erin}; Carla &rarr; {Finn}; Dan &rarr; {Gita}; Erin &rarr; {Hugo}; Gita &rarr; {Iris}. Skip-level counts: Alice has 5 direct reports at L1+L2 but skip-level is exactly 2 hops (Dan, Erin, Finn). Bob's skip-levels are Gita and Hugo. Dan's skip-level is Iris. Carla and Erin have no skip-level reports (their direct reports have no direct reports).</p>
+
+<h4>2. The SQL &mdash; double-join for exactly two hops</h4>
+<pre><code>SELECT m.emp_id AS manager_id,
+       m.name AS manager_name,
+       COUNT(skip.emp_id)::int AS skip_level_count
+FROM employee m
+JOIN employee mid ON mid.manager_id = m.emp_id
+JOIN employee skip ON skip.manager_id = mid.emp_id
+GROUP BY m.emp_id, m.name
+ORDER BY m.emp_id;</code></pre>
+<p>The query aliases the employee table three times. <code>m</code> is the manager at the top. <code>mid</code> is the intermediate employee who reports directly to <code>m</code>. <code>skip</code> is the skip-level report who reports directly to <code>mid</code>. The chain <code>m &rarr; mid &rarr; skip</code> is exactly two hops. <code>COUNT(skip.emp_id)</code> counts skip-level employees per manager; using <code>INNER JOIN</code> means managers with no skip-level reports (like Carla and Erin) are excluded by the join, satisfying the "only include managers with at least one" requirement.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>Join trace for each qualifying manager:</p>
+<table>
+  <thead><tr><th>m (manager)</th><th>mid (direct report)</th><th>skip (skip-level)</th></tr></thead>
+  <tbody>
+    <tr><td>Alice (1)</td><td>Bob (2)</td><td>Dan (4)</td></tr>
+    <tr><td>Alice (1)</td><td>Bob (2)</td><td>Erin (5)</td></tr>
+    <tr><td>Alice (1)</td><td>Carla (3)</td><td>Finn (6)</td></tr>
+    <tr><td>Bob (2)</td><td>Dan (4)</td><td>Gita (7)</td></tr>
+    <tr><td>Bob (2)</td><td>Erin (5)</td><td>Hugo (8)</td></tr>
+    <tr><td>Dan (4)</td><td>Gita (7)</td><td>Iris (9)</td></tr>
+  </tbody>
+</table>
+<p>Carla: mid = Finn(6), but Finn has no reports &rarr; no rows. Erin: mid = Hugo(8), Hugo has no reports &rarr; no rows. Gita: mid = Iris(9), Iris has no reports &rarr; no rows. These are excluded by the INNER JOIN.</p>
+<p>Aggregated output:</p>
+<table>
+  <thead><tr><th>manager_id</th><th>manager_name</th><th>skip_level_count</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>3</td></tr>
+    <tr><td>2</td><td>Bob</td><td>2</td></tr>
+    <tr><td>4</td><td>Dan</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a double-join rather than a recursive CTE</h5>
+<p>The problem specifies <em>exactly</em> two hops. A recursive CTE traverses <em>all</em> depths and would require a depth column and a <code>WHERE depth = 2</code> filter &mdash; more complex and slower for a fixed-depth query. Two INNER JOINs express the fixed depth directly and are typically optimised as a straightforward nested-loop or hash join rather than an iterative process. Use recursive CTEs for variable-depth traversal; use multiple joins for fixed-depth traversal.</p>
+
+<h5>INNER JOIN semantics automatically enforce "at least one"</h5>
+<p>The problem asks to include only managers with at least one skip-level report. Because all three joins are INNER JOINs, any <code>m</code> that has no matching <code>mid</code>, or any <code>mid</code> that has no matching <code>skip</code>, produces no rows in the join and is excluded from the GROUP BY output entirely. There is no need for a <code>HAVING COUNT(&hellip;) &ge; 1</code> clause. If the requirement were to show all managers including zero-count ones, <code>LEFT JOIN</code> both joins and use <code>COUNT(skip.emp_id)</code> (which returns 0 for NULLs) rather than <code>COUNT(*)</code>.</p>
+
+<h5>The <code>::int</code> cast</h5>
+<p>In PostgreSQL, <code>COUNT</code> returns a <code>bigint</code>. The <code>::int</code> cast (equivalent to <code>CAST(COUNT(skip.emp_id) AS int)</code>) narrows it to a 32-bit integer, which is consistent with the <code>emp_id INT</code> column type. This is a minor style choice but shows attention to type consistency. In most other engines (MySQL, SQL Server, BigQuery), <code>COUNT</code> returns a standard integer type and no cast is needed.</p>
+
+<h5>Adapting for exactly <em>k</em> levels</h5>
+<p>For exactly 3 hops (granddirect reports), add a fourth alias: <code>JOIN employee skip2 ON skip2.manager_id = skip.emp_id</code>. For variable depth, switch to the recursive CTE approach. The double-join idiom is elegant precisely because org-chart hop counts in HR use cases are typically small and fixed (skip-level is almost always exactly 2).</p>
+
+<h5>Dialect notes</h5>
+<p>The query uses no PostgreSQL-specific features beyond <code>::int</code>. The core double-join with GROUP BY is portable to MySQL, SQL Server, BigQuery, Snowflake, Oracle, and SQLite. Replace <code>::int</code> with <code>CAST(&hellip; AS INT)</code> for SQL Server and MySQL compatibility.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a double INNER JOIN (not a recursive CTE) for a fixed two-hop traversal; explain that INNER JOIN implicitly filters to managers with at least one skip-level report; contrast with the LEFT JOIN + COALESCE pattern for including zero-count managers; and note the linear scalability advantage over recursive approaches for fixed-depth problems.</div>

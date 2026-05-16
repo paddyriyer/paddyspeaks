@@ -1,0 +1,69 @@
+<p>Mining and natural resources companies need to aggregate extraction volumes by site and mineral: <em>"For each mine location and mineral type, how much total tonnage was extracted and how many extraction events occurred?"</em> This is a clean JOIN + GROUP BY pattern, but it includes a defensive <code>NULLIF(regexp_replace(...))</code> cast guard on the tonnage column, signalling awareness that production schemas often have dirty numeric fields stored as text.</p>
+
+<h4>1. The source data &mdash; <code>extractions</code> and <code>mines</code></h4>
+<table>
+  <thead><tr><th>extraction_id</th><th>mine_id</th><th>mineral</th><th>tonnage</th><th>extracted_on</th></tr></thead>
+  <tbody>
+    <tr><td>E1</td><td>M1</td><td>Gold</td><td>12.5</td><td>2025-01-10</td></tr>
+    <tr><td>E2</td><td>M1</td><td>Gold</td><td>8.0</td><td>2025-02-15</td></tr>
+    <tr><td>E3</td><td>M1</td><td>Silver</td><td>45.0</td><td>2025-01-20</td></tr>
+    <tr><td>E4</td><td>M2</td><td>Gold</td><td>30.0</td><td>2025-03-01</td></tr>
+    <tr><td>E5</td><td>M2</td><td>Copper</td><td>200.0</td><td>2025-01-05</td></tr>
+    <tr><td>E6</td><td>M2</td><td>Copper</td><td>175.5</td><td>2025-02-28</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>mine_id</th><th>location</th></tr></thead>
+  <tbody>
+    <tr><td>M1</td><td>Kalgoorlie</td></tr>
+    <tr><td>M2</td><td>Pilbara</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; join + aggregate with defensive numeric cast</h4>
+<pre><code>SELECT m.location, e.mineral,
+       SUM(NULLIF(regexp_replace(e.tonnage::text, '[^-.0-9]', '', 'g'), '')::numeric) AS total_tonnage,
+       COUNT(*) AS extraction_events
+FROM extractions e
+JOIN mines m ON e.mine_id = m.mine_id
+GROUP BY m.location, e.mineral
+ORDER BY m.location, total_tonnage DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>location</th><th>mineral</th><th>total_tonnage</th><th>extraction_events</th></tr></thead>
+  <tbody>
+    <tr><td>Kalgoorlie</td><td>Silver</td><td>45.0</td><td>1</td></tr>
+    <tr><td>Kalgoorlie</td><td>Gold</td><td>20.5</td><td>2</td></tr>
+    <tr><td>Pilbara</td><td>Copper</td><td>375.5</td><td>2</td></tr>
+    <tr><td>Pilbara</td><td>Gold</td><td>30.0</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Kalgoorlie Gold: E1 12.5 + E2 8.0 = 20.5, 2 events. Kalgoorlie Silver: E3 45.0, 1 event. ORDER BY location then total_tonnage DESC within location: Silver (45) before Gold (20.5). Pilbara Copper: E5 200.0 + E6 175.5 = 375.5, 2 events. Pilbara Gold: E4 30.0, 1 event. 375.5 &gt; 30.0 so Copper is listed first.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>regexp_replace / NULLIF / ::numeric</code> defensive cast pipeline</h5>
+<p>The tonnage column is cast through three steps: <code>regexp_replace(e.tonnage::text, '[^-.0-9]', '', 'g')</code> strips any non-numeric characters (e.g., " mt", "t", commas in European notation). <code>NULLIF(..., '')</code> converts empty strings (fully non-numeric values) to NULL rather than throwing a cast error. <code>::numeric</code> completes the conversion. This pipeline is the production-grade pattern for any column that might contain units, commas, or stray characters. Without it, a single dirty value like "12.5 mt" would cause a runtime error on <code>SUM</code>.</p>
+
+<h5>INNER JOIN semantics &mdash; mines with no extractions are excluded</h5>
+<p>The INNER JOIN means any mine that has no extraction records will not appear in the output. In an audit context (e.g., "list all mines and their production") a LEFT JOIN from <code>mines</code> to <code>extractions</code> with <code>COALESCE(total_tonnage, 0)</code> would include idle mines. Always clarify with the interviewer whether "mines with no extractions" should appear in the report.</p>
+
+<h5>ORDER BY within groups &mdash; the two-column sort</h5>
+<p><code>ORDER BY m.location, total_tonnage DESC</code> produces a within-group descending sort: all rows for a given location are sorted by total tonnage descending. This is the natural output for a "top minerals per mine" report. An alternative would be <code>ORDER BY total_tonnage DESC</code> globally, which would interleave locations. The choice depends on the reporting consumer (dashboards usually prefer the grouped form).</p>
+
+<h5>Extension: percentage of total tonnage per location</h5>
+<p>A window function over the grouped result computes each mineral&rsquo;s share of its mine&rsquo;s total production &mdash; a common analytical extension:</p>
+<pre><code>SUM(total_tonnage) OVER (PARTITION BY location) AS location_total,
+total_tonnage * 100.0 / SUM(total_tonnage) OVER (PARTITION BY location) AS pct_of_location</code></pre>
+<p>This wraps the GROUP BY output in another SELECT with window functions &mdash; the double-aggregation pattern (GROUP BY first, then window on the aggregate).</p>
+
+<h5>Dialect portability of the regex cast</h5>
+<ul>
+  <li><strong>Postgres (solution dialect):</strong> <code>regexp_replace(col::text, pattern, '', 'g')</code> with the <code>'g'</code> flag for global replace.</li>
+  <li><strong>Snowflake:</strong> <code>REGEXP_REPLACE(col::text, '[^-.0-9]', '')</code> &mdash; no flag needed; Snowflake replaces all matches by default. Then <code>NULLIF(..., '')::numeric</code>.</li>
+  <li><strong>BigQuery:</strong> <code>REGEXP_REPLACE(CAST(col AS STRING), r'[^0-9.-]', '')</code>.</li>
+  <li><strong>MySQL:</strong> <code>REGEXP_REPLACE(col, '[^0-9.-]', '')</code> (MySQL 8.0+). Note: no <code>'g'</code> flag; it replaces all occurrences by default.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the three-step cast pipeline (strip non-numeric &rarr; NULLIF empty &rarr; cast) as the standard guard for dirty numeric text columns, state that INNER JOIN hides idle mines and offer the LEFT JOIN alternative for complete coverage, and show the window-over-aggregate pattern for computing each mineral&rsquo;s share of its location&rsquo;s total tonnage.</div>

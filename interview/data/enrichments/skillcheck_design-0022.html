@@ -1,0 +1,127 @@
+<p>A double-entry ledger is the accounting invariant that every financial system must enforce: every transaction must produce ledger entries that sum to exactly zero across debits and credits. The interviewer is probing whether you understand <strong>the separation of transaction (the intent) from ledger entries (the execution)</strong>, how to enforce the zero-sum invariant <em>at the database layer</em> rather than relying on application code, and how to handle the <strong>reversal pattern</strong> correctly (reversals are new transactions, not mutations to existing ones). This is a Hard-difficulty question because the constraint trigger and deferral mechanics are non-trivial.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Account types:</strong> asset, liability, revenue, expense, equity &mdash; the classic accounting equation; the type determines the sign convention in reports.</li>
+  <li><strong>Transaction as a unit of work:</strong> every business event (a transfer, a fee, a payout) is one transaction; it groups two or more ledger entries that must net to zero.</li>
+  <li><strong>Ledger entry immutability:</strong> once posted, entries are never updated or deleted; corrections are new reversing transactions.</li>
+  <li><strong>Zero-sum enforcement:</strong> a deferred constraint trigger fires after all entries for a transaction are inserted, then verifies the balance; if not zero, the entire transaction is rolled back.</li>
+  <li><strong>Reversal pattern:</strong> a reversed transaction is corrected by a new transaction whose entries are the mirror image (debits become credits) of the original; the original is flagged as reversed via <code>reversed_by_txn_id</code>.</li>
+  <li><strong>Idempotency:</strong> <code>transaction.external_ref</code> is a UNIQUE idempotency key from the upstream payment system; re-processing the same event is a no-op.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE account (
+  account_id        BIGSERIAL    PRIMARY KEY,
+  external_ref      VARCHAR(64)  NOT NULL UNIQUE,             -- e.g., user-wallet ID or system-account name
+  account_type      VARCHAR(16)  NOT NULL,                    -- 'asset','liability','revenue','expense','equity'
+  currency          CHAR(3)      NOT NULL,
+  is_active         BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE TABLE transaction (
+  transaction_id    BIGSERIAL    PRIMARY KEY,
+  external_ref      VARCHAR(64)  NOT NULL UNIQUE,             -- idempotency key from upstream
+  description       TEXT,
+  occurred_at       TIMESTAMPTZ  NOT NULL,                    -- business time
+  recorded_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),      -- system time
+  status            VARCHAR(16)  NOT NULL DEFAULT 'posted',   -- 'posted','reversed'
+  reversed_by_txn_id BIGINT      REFERENCES transaction(transaction_id)
+);
+
+CREATE TABLE ledger_entry (
+  entry_id          BIGSERIAL    PRIMARY KEY,
+  transaction_id    BIGINT       NOT NULL REFERENCES transaction(transaction_id) ON DELETE RESTRICT,
+  account_id        BIGINT       NOT NULL REFERENCES account(account_id),
+  direction         CHAR(1)      NOT NULL CHECK (direction IN ('D','C')),
+  amount_cents      BIGINT       NOT NULL CHECK (amount_cents &gt; 0),
+  currency          CHAR(3)      NOT NULL,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_ledger_entry_txn ON ledger_entry (transaction_id);
+CREATE INDEX ix_ledger_entry_account_time ON ledger_entry (account_id, created_at);
+
+-- Enforce zero-sum per transaction using a deferred constraint trigger.
+CREATE OR REPLACE FUNCTION assert_ledger_balanced() RETURNS trigger AS $$
+DECLARE
+  imbalance NUMERIC;
+BEGIN
+  SELECT
+    SUM(CASE WHEN direction = 'D' THEN amount_cents ELSE -amount_cents END)
+    INTO imbalance
+  FROM ledger_entry
+  WHERE transaction_id = NEW.transaction_id;
+  IF imbalance IS NULL OR imbalance &lt;&gt; 0 THEN
+    RAISE EXCEPTION 'Ledger entries for transaction % do not balance: %', NEW.transaction_id, imbalance;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER trg_ledger_balanced
+  AFTER INSERT OR UPDATE OR DELETE ON ledger_entry
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION assert_ledger_balanced();
+
+-- Reversal pattern: insert a NEW transaction (status='posted') whose entries are the inverse of the
+-- original (debits become credits and vice versa), and set the original.status = 'reversed' and
+-- original.reversed_by_txn_id = new_txn_id.</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+
+<p><em>account</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>account_id</code></td><td>Surrogate PK</td><td>Internal FK target; stable even if external account identifiers change.</td></tr>
+    <tr><td><code>external_ref</code></td><td>Natural key (UNIQUE)</td><td>The wallet ID, customer ID, or system account name from the business domain; UNIQUE constraint enforces no duplicate accounts.</td></tr>
+    <tr><td><code>account_type</code></td><td>Classification dimension</td><td>Drives sign conventions in balance-sheet reports; assets increase with debits, liabilities with credits.</td></tr>
+    <tr><td><code>currency</code></td><td>Currency dimension</td><td>Each account holds a single currency; cross-currency transfers require a clearing account and FX transaction entries.</td></tr>
+  </tbody>
+</table>
+
+<p><em>transaction</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>transaction_id</code></td><td>Surrogate PK</td><td>Groups all ledger entries for one business event.</td></tr>
+    <tr><td><code>external_ref</code></td><td>Natural key / idempotency key (UNIQUE)</td><td>Prevents double-posting if the upstream payment system retries; <code>INSERT ... ON CONFLICT DO NOTHING</code> is the safe upsert pattern.</td></tr>
+    <tr><td><code>occurred_at</code></td><td>Business event time</td><td>The legal/accounting timestamp of the event; may differ from <code>recorded_at</code> (e.g., for backdated adjustments).</td></tr>
+    <tr><td><code>recorded_at</code></td><td>System time / audit column</td><td>When the row was written; useful for distinguishing late-arriving events from on-time ones.</td></tr>
+    <tr><td><code>status</code></td><td>State machine column</td><td>'posted' for active transactions; 'reversed' after a reversal transaction has been applied.</td></tr>
+    <tr><td><code>reversed_by_txn_id</code></td><td>Self-referential FK (nullable)</td><td>Links a reversed transaction to its reversal; NULL for active transactions. A self-referential FK on the same table is valid in Postgres.</td></tr>
+  </tbody>
+</table>
+
+<p><em>ledger_entry</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>entry_id</code></td><td>Surrogate PK</td><td>Unique identifier for each ledger line; entries are never deleted.</td></tr>
+    <tr><td><code>transaction_id</code></td><td>FK &rarr; transaction (ON DELETE RESTRICT)</td><td><code>RESTRICT</code> (not CASCADE) prevents accidental deletion of a transaction that has already been posted.</td></tr>
+    <tr><td><code>account_id</code></td><td>FK &rarr; account dimension</td><td>The account being debited or credited.</td></tr>
+    <tr><td><code>direction</code></td><td>Debit/credit flag</td><td>'D' = debit, 'C' = credit; together with <code>amount_cents</code> it expresses the signed value without storing negative numbers.</td></tr>
+    <tr><td><code>amount_cents</code></td><td>Additive monetary measure (always positive)</td><td><code>CHECK (amount_cents &gt; 0)</code> enforces that the sign is captured exclusively in <code>direction</code>, not in the amount field &mdash; a common bookkeeping convention that prevents double-sign bugs.</td></tr>
+    <tr><td><code>currency</code></td><td>Currency dimension</td><td>Recorded on each entry to support multi-currency ledgers where entries on the same transaction may be in different currencies (with a clearing account).</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Deferred constraint trigger &mdash; why deferred</h5>
+<p>A double-entry transaction requires inserting <em>at least two</em> ledger entries. If the trigger fired <code>INITIALLY IMMEDIATE</code>, the first insert would always fail the balance check (one debit with no matching credit yet sums to a non-zero value). <code>DEFERRABLE INITIALLY DEFERRED</code> defers the trigger check to the end of the transaction, by which point all entries have been inserted and the balance can be verified as a whole. The entire transaction is rolled back atomically if the check fails.</p>
+
+<h5>Why amounts are always positive with a direction flag</h5>
+<p>Storing negative <code>amount_cents</code> for credits is a tempting shortcut but causes silent bugs: a developer might pass a negative amount for a debit, creating an entry that appears to be a very large credit. The <code>CHECK (amount_cents &gt; 0)</code> + <code>direction IN ('D','C')</code> pattern makes the sign explicit and computable: <code>SUM(CASE WHEN direction = 'D' THEN amount_cents ELSE -amount_cents END)</code> produces the signed balance. This is the accounting convention.</p>
+
+<h5>Reversal, not mutation</h5>
+<p>Correcting a posted transaction by UPDATEing or DELETEing its ledger entries would destroy the audit trail. The correct pattern is to insert a new <em>reversal transaction</em> whose entries are the mirror of the original (every D becomes a C and vice versa, same amounts). This preserves every historical row intact. The original transaction is marked <code>status = 'reversed'</code> and linked to the reversal transaction via <code>reversed_by_txn_id</code>. Balance queries should exclude reversed transactions (or include both the original and its reversal, which cancel out).</p>
+
+<h5>Computing account balances</h5>
+<p>A point-in-time balance for an account is: <code>SELECT SUM(CASE WHEN direction = 'D' THEN amount_cents ELSE -amount_cents END) FROM ledger_entry JOIN transaction USING (transaction_id) WHERE account_id = ? AND transaction.status = 'posted' AND occurred_at &lt;= ?</code>. For performance, materialize running balances in a <code>account_balance_snapshot</code> table (updated after each transaction) and compute incremental deltas from the snapshot forward. This avoids a full ledger scan for every balance query.</p>
+
+<h5>Dialect notes</h5>
+<p>Constraint triggers (<code>CREATE CONSTRAINT TRIGGER</code>) are Postgres-specific. In <strong>MySQL</strong>, enforce the invariant in a stored procedure or at the application layer within a transaction. In <strong>Oracle</strong>, deferred constraints on triggers are supported. In <strong>Snowflake</strong>, there are no triggers; the zero-sum invariant must be enforced by the ingestion service before committing rows. In all non-Postgres dialects, this is a strong argument for having a dedicated ledger service that owns the invariant.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a deferred constraint trigger (not an immediate one) to allow multi-entry inserts within a single transaction before the balance check fires; enforce <code>amount_cents &gt; 0</code> and capture sign in a <code>direction</code> flag to prevent double-sign bugs; and treat every reversal as a new transaction &mdash; never mutate posted entries &mdash; so the complete audit trail is always reconstructible from the ledger alone.</div>

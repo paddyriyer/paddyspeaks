@@ -1,0 +1,126 @@
+<p>Subscription billing with proration is one of the most nuanced schema design problems in SaaS: a mid-cycle plan change means the billing period must be split into segments, each priced at a different rate. The interviewer is probing whether you understand <strong>immutable event sourcing</strong> (the subscription_event log is the source of truth; the subscription table is a projection), <strong>segment-based proration</strong> (each invoice line item covers exactly one time segment at one plan price), and why denormalizing the current state into the subscription table is a useful but secondary concern. Four cooperating tables must be designed coherently.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Plan catalog:</strong> plans have a price, billing cycle length in days, and currency; <code>plan_code</code> is the stable external identifier.</li>
+  <li><strong>Subscription snapshot:</strong> the subscription table holds the current live state for fast reads; it is derived from the event log but should not be the only source.</li>
+  <li><strong>Event log:</strong> every state transition (created, upgraded, downgraded, paused, resumed, canceled) is appended as an immutable event with the effective timestamp; this is the durable record of truth.</li>
+  <li><strong>Segment-based invoice lines:</strong> when a plan change occurs mid-cycle, the billing cycle is split; each sub-period gets its own <code>invoice_line_item</code> row with a prorated amount.</li>
+  <li><strong>Proration formula:</strong> <code>amount = plan.unit_price_cents &times; (segment_days / cycle_days)</code>; both segment boundaries and cycle boundaries must be stored on the line item for auditability.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE plan (
+  plan_id           BIGSERIAL    PRIMARY KEY,
+  plan_code         VARCHAR(64)  NOT NULL UNIQUE,
+  name              VARCHAR(128) NOT NULL,
+  cycle_days        INT          NOT NULL,                    -- 30 = monthly, 365 = annual
+  unit_price_cents  INT          NOT NULL,
+  currency          CHAR(3)      NOT NULL,                    -- ISO 4217
+  is_active         BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE TABLE subscription (
+  subscription_id   BIGSERIAL    PRIMARY KEY,
+  customer_id       BIGINT       NOT NULL,
+  current_plan_id   BIGINT       NOT NULL REFERENCES plan(plan_id),
+  current_state     VARCHAR(16)  NOT NULL,                    -- 'active','paused','canceled'
+  current_cycle_start TIMESTAMPTZ NOT NULL,
+  current_cycle_end   TIMESTAMPTZ NOT NULL,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_subscription_customer ON subscription (customer_id);
+
+CREATE TABLE subscription_event (
+  event_id          BIGSERIAL    PRIMARY KEY,
+  subscription_id   BIGINT       NOT NULL REFERENCES subscription(subscription_id) ON DELETE CASCADE,
+  event_type        VARCHAR(32)  NOT NULL,                    -- 'created','upgraded','downgraded','paused','resumed','canceled'
+  from_plan_id      BIGINT       REFERENCES plan(plan_id),
+  to_plan_id        BIGINT       REFERENCES plan(plan_id),
+  effective_at      TIMESTAMPTZ  NOT NULL,                    -- when the change takes effect
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  reason            TEXT
+);
+CREATE INDEX ix_subscription_event_sub_effective ON subscription_event (subscription_id, effective_at);
+
+CREATE TABLE invoice_line_item (
+  line_item_id      BIGSERIAL    PRIMARY KEY,
+  subscription_id   BIGINT       NOT NULL REFERENCES subscription(subscription_id),
+  invoice_id        BIGINT       NOT NULL,
+  cycle_start       TIMESTAMPTZ  NOT NULL,                    -- the cycle this line item belongs to
+  cycle_end         TIMESTAMPTZ  NOT NULL,
+  segment_start     TIMESTAMPTZ  NOT NULL,                    -- the sub-period within the cycle
+  segment_end       TIMESTAMPTZ  NOT NULL,                    -- segment_end &gt; segment_start
+  plan_id           BIGINT       NOT NULL REFERENCES plan(plan_id),
+  amount_cents      INT          NOT NULL,                    -- prorated: plan_price * (segment_days / cycle_days)
+  currency          CHAR(3)      NOT NULL,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_invoice_line_item_invoice ON invoice_line_item (invoice_id);
+
+-- Proration: when a customer upgrades on day D of a 30-day cycle starting S,
+-- close the existing line item at D (amount = old_price * (D-S)/30),
+-- open a new line item from D to S+30 (amount = new_price * (30-(D-S))/30).
+-- All proration logic operates over `subscription_event` between (cycle_start, cycle_end).</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+
+<p><em>plan</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>plan_id</code></td><td>Surrogate PK</td><td>Internal stable FK target; <code>plan_code</code> is the external identifier.</td></tr>
+    <tr><td><code>plan_code</code></td><td>Natural key (UNIQUE)</td><td>Human-readable code used in APIs and contracts; immutable once issued.</td></tr>
+    <tr><td><code>cycle_days</code></td><td>Billing period measure</td><td>Stored as integer days to make proration arithmetic precise: <code>segment_days / cycle_days</code> avoids month-length ambiguity.</td></tr>
+    <tr><td><code>unit_price_cents</code></td><td>Additive measure</td><td>Integer cents avoids floating-point rounding errors in monetary arithmetic.</td></tr>
+    <tr><td><code>currency</code></td><td>Currency dimension</td><td>ISO 4217 code; required to prevent incorrect cross-currency arithmetic in multi-currency products.</td></tr>
+  </tbody>
+</table>
+
+<p><em>subscription</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>current_plan_id</code></td><td>FK &rarr; plan dimension</td><td>Denormalized current-state for fast reads; must always agree with the latest event in <code>subscription_event</code>.</td></tr>
+    <tr><td><code>current_state</code></td><td>Lifecycle state machine</td><td>Active/paused/canceled; drives whether billing events are generated for this subscription.</td></tr>
+    <tr><td><code>current_cycle_start</code> / <code>current_cycle_end</code></td><td>Billing cycle window</td><td>Defines the current billing window; required to correctly scope proration arithmetic.</td></tr>
+  </tbody>
+</table>
+
+<p><em>subscription_event</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>event_type</code></td><td>Event type dimension</td><td>Drives downstream logic; 'upgraded'/'downgraded' both reference <code>from_plan_id</code> and <code>to_plan_id</code>.</td></tr>
+    <tr><td><code>from_plan_id</code> / <code>to_plan_id</code></td><td>FK &rarr; plan (nullable)</td><td>Captures the plan transition; NULL for events that are not plan changes (pause, resume, cancel).</td></tr>
+    <tr><td><code>effective_at</code></td><td>Business event time / sort key</td><td>The moment the change takes effect (may differ from <code>created_at</code> for future-dated changes); used to order events within a cycle for proration computation.</td></tr>
+  </tbody>
+</table>
+
+<p><em>invoice_line_item</em></p>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>cycle_start</code> / <code>cycle_end</code></td><td>Billing cycle boundaries</td><td>Stored on each line item for audit completeness; the full cycle is needed to verify the proration math independently.</td></tr>
+    <tr><td><code>segment_start</code> / <code>segment_end</code></td><td>Sub-period boundaries</td><td>The actual time window this line item covers; <code>segment_days = segment_end - segment_start</code> is the numerator in the proration formula.</td></tr>
+    <tr><td><code>amount_cents</code></td><td>Additive monetary measure</td><td>Pre-computed prorated amount; <code>SUM(amount_cents)</code> over an invoice produces the total due.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Event sourcing + projection pattern</h5>
+<p>The <code>subscription_event</code> table is the immutable ledger of truth. The <code>subscription</code> table is a mutable projection (a "current state" cache). At any point in time, replaying all events for a subscription in <code>effective_at</code> order must reproduce the current state. This means: always write an event <em>before</em> updating the subscription row, and update both in the same transaction. The event log also enables time-travel: "what was this subscription's state on 2025-03-15?" is answered by filtering events with <code>effective_at &le; '2025-03-15'</code>.</p>
+
+<h5>Why <code>cycle_days</code> is safer than calendar months</h5>
+<p>A 30-day billing cycle is unambiguous. A "monthly" cycle is not: February has 28 or 29 days; the proration formula <code>amount = price * (segment_days / cycle_days)</code> requires a fixed denominator. Storing <code>cycle_days = 30</code> (or 365 for annual) makes arithmetic deterministic and avoids the edge cases of month-end billing (what is "one month" from January 31?). Stripe uses this approach; it is a deliberate product decision.</p>
+
+<h5>Proration mechanics in the line-item table</h5>
+<p>When a customer upgrades on day 10 of a 30-day cycle: (1) the billing job queries <code>subscription_event</code> for all events with <code>effective_at</code> between <code>cycle_start</code> and <code>cycle_end</code>; (2) it produces line items for each continuous same-plan segment: segment A covers days 1&ndash;10 at the old plan price &times; (10/30); segment B covers days 10&ndash;30 at the new plan price &times; (20/30); (3) these are inserted into <code>invoice_line_item</code> and their sum is the invoice total. Downgrades may produce a credit line item (negative <code>amount_cents</code>) rather than a charge.</p>
+
+<h5>Dialect notes</h5>
+<p>In <strong>Postgres</strong>, use <code>TIMESTAMPTZ</code> for all billing timestamps to avoid DST bugs when customers are in different timezones. Integer cents (<code>INT</code>) is sufficient for most currencies; for high-precision currencies (e.g., currencies with more than 2 decimal places), use <code>BIGINT</code>. In <strong>Snowflake</strong> or <strong>BigQuery</strong>, the event log is often landed into a partitioned table (by <code>effective_at</code> month) and the proration logic runs as a SQL job that inserts into an <code>invoice_line_item</code> fact table.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat <code>subscription_event</code> as the immutable source of truth and <code>subscription</code> as a projection; store <code>cycle_days</code> as an integer not a calendar-month abstraction; and model each prorated segment as its own <code>invoice_line_item</code> row with explicit <code>segment_start</code>/<code>segment_end</code> boundaries so any auditor can verify the arithmetic independently without replaying events.</div>

@@ -1,0 +1,54 @@
+<p>Regional subtotals with a grand-total row are a classic reporting requirement. The complication this question injects is that <code>GROUP BY ROLLUP</code> signals its summary rows with <code>NULL</code> in the grouped columns &mdash; identical to a real <code>NULL</code> region value in production data. The interviewer is probing whether you know the <code>GROUPING()</code> function, which distinguishes "NULL because it's a ROLLUP summary" from "NULL because the data is missing".</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>product</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>A</td><td>100</td></tr>
+    <tr><td>North</td><td>B</td><td>50</td></tr>
+    <tr><td>South</td><td>A</td><td>70</td></tr>
+    <tr><td>South</td><td>C</td><td>30</td></tr>
+    <tr><td>East</td><td>B</td><td>40</td></tr>
+  </tbody>
+</table>
+<p>Three regions, totals: North 150, South 100, East 40, grand total 290. The <code>product</code> column is not grouped &mdash; <code>ROLLUP(region)</code> only introduces one extra summary level (the grand total), not per-product subtotals.</p>
+
+<h4>2. The SQL &mdash; GROUP BY ROLLUP with GROUPING() to label the grand total</h4>
+<pre><code>SELECT
+  CASE WHEN GROUPING(region) = 1 THEN 'Grand Total' ELSE region END AS region,
+  SUM(amount) AS total
+FROM sales
+GROUP BY ROLLUP (region)
+ORDER BY GROUPING(region), region;</code></pre>
+<p><code>ROLLUP(region)</code> produces one row per distinct region plus one extra super-aggregate row. The <code>GROUPING(region)</code> function returns 1 for the super-aggregate row and 0 for normal rows, enabling the <code>CASE</code> to inject the label <code>'Grand Total'</code> in place of <code>NULL</code>. The <code>ORDER BY GROUPING(region), region</code> sorts normal regions alphabetically first, then the grand total last.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>40</td></tr>
+    <tr><td>North</td><td>150</td></tr>
+    <tr><td>South</td><td>100</td></tr>
+    <tr><td>Grand Total</td><td>290</td></tr>
+  </tbody>
+</table>
+<p>East: 40. North: 100+50=150. South: 70+30=100. Grand Total: 40+150+100=290. The grand total row sorts last because <code>GROUPING(region) = 1</code> sorts after 0. The three region rows sort alphabetically within the 0-grouping partition.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How ROLLUP works</h5>
+<p><code>GROUP BY ROLLUP(region)</code> is shorthand for <code>GROUP BY GROUPING SETS ((region), ())</code>. It produces one group per distinct region value (the normal aggregation) plus one group for the empty set <code>()</code> &mdash; the grand total. The empty-set group has <code>NULL</code> in the <code>region</code> column of the output. With two dimensions <code>ROLLUP(region, product)</code> would add a subtotal level per region across products, and then the grand total &mdash; three levels in all.</p>
+
+<h5>GROUPING() vs IS NULL for distinguishing summary rows</h5>
+<p>A naive <code>CASE WHEN region IS NULL THEN 'Grand Total' ELSE region END</code> misidentifies real <code>NULL</code> regions as summary rows. <code>GROUPING(region)</code> returns a bit-flag: 1 means "this column was collapsed in a ROLLUP/CUBE summary", 0 means it is a real group value (which may itself be <code>NULL</code>). This distinction is the entire point of the question; the wrong answer is functionally correct only when your data can never have a NULL region, which is an unsafe assumption to build a report on.</p>
+
+<h5>ORDER BY with GROUPING() to push grand total last</h5>
+<p><code>ORDER BY GROUPING(region), region</code> works because <code>GROUPING()</code> is allowed in the ORDER BY clause (it evaluates on the already-grouped result set). The value is 0 for all real groups and 1 for the grand total, so they sort in that order. An alternative is <code>ORDER BY CASE WHEN GROUPING(region) = 1 THEN 1 ELSE 0 END, region</code> &mdash; identical in effect. Adding <code>NULLS LAST</code> to <code>region</code> is redundant here because <code>GROUPING(region) = 1</code> already sends that row to the bottom, but it would matter if real NULL regions existed.</p>
+
+<h5>CUBE and GROUPING SETS for multi-dimensional reports</h5>
+<p><code>CUBE(region, product)</code> adds subtotals for every subset of dimensions; <code>GROUPING SETS((region),(product),(region,product),())</code> lets you choose exactly which combinations. For this question &mdash; one dimension, one grand total &mdash; ROLLUP is the minimal correct tool. Demonstrating awareness of the full GROUPING SETS family shows you understand the generalisation.</p>
+
+<h5>Dialect notes</h5>
+<p><code>GROUP BY ROLLUP</code> and <code>GROUPING()</code> are part of SQL:1999 and are supported by PostgreSQL, Oracle, SQL Server, DB2, Snowflake, BigQuery, and MySQL 8.0+. SQLite does not support ROLLUP. In older MySQL (5.x) ROLLUP syntax differs slightly: <code>GROUP BY region WITH ROLLUP</code>, and <code>GROUPING()</code> was added in MySQL 8.0.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>GROUPING(col) = 1</code> &mdash; not <code>col IS NULL</code> &mdash; to detect ROLLUP summary rows, because production data may contain legitimate NULLs that would be misclassified; sort the grand total last with <code>ORDER BY GROUPING(region), region</code>; and know that ROLLUP is syntactic sugar for <code>GROUPING SETS((region), ())</code>, which generalises to CUBE and arbitrary GROUPING SETS for multi-dimensional reports.</div>

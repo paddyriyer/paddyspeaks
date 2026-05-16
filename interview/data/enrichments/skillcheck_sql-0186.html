@@ -1,0 +1,78 @@
+<p>A compensation analyst wants to surface the lowest-paid employees within departments that are large enough for relative ranking to be statistically meaningful. The interviewer is probing whether you know that <code>PERCENT_RANK</code> returns exactly <strong>0 for the lowest-ranked row(s)</strong> in every partition, and whether you can combine it cleanly with a <code>COUNT(*) OVER (PARTITION BY dept)</code> filter in one CTE pass &mdash; rather than a more cumbersome multi-join.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th><th>dept_size</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Eng</td><td>200</td><td>4</td></tr>
+    <tr><td>2</td><td>Eng</td><td>150</td><td>4</td></tr>
+    <tr><td>3</td><td>Eng</td><td>100</td><td>4</td></tr>
+    <tr><td>4</td><td>Eng</td><td>180</td><td>4</td></tr>
+    <tr><td>5</td><td>Sales</td><td>300</td><td>2</td></tr>
+    <tr><td>6</td><td>Sales</td><td>280</td><td>2</td></tr>
+    <tr><td>7</td><td>Ops</td><td>120</td><td>4</td></tr>
+    <tr><td>8</td><td>Ops</td><td>110</td><td>4</td></tr>
+    <tr><td>9</td><td>Ops</td><td>100</td><td>4</td></tr>
+    <tr><td>10</td><td>Ops</td><td>90</td><td>4</td></tr>
+    <tr><td>11</td><td>HR</td><td>95</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Eng (4 members, qualifies) &mdash; lowest salary is emp 3 at 100. Ops (4 members, qualifies) &mdash; lowest salary is emp 10 at 90. Sales (2 members) and HR (1 member) are excluded by the <code>dept_size &gt; 2</code> rule.</p>
+
+<h4>2. The SQL &mdash; PERCENT_RANK + dept-size guard in one CTE</h4>
+<pre><code>WITH r AS (
+  SELECT emp_id, dept, salary,
+         PERCENT_RANK() OVER (PARTITION BY dept ORDER BY salary) AS pr,
+         COUNT(*) OVER (PARTITION BY dept) AS dept_size
+  FROM employee
+)
+SELECT emp_id, dept, salary
+FROM r
+WHERE pr = 0 AND dept_size &gt; 2
+ORDER BY dept, emp_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Intermediate window values for each employee (pr = 0 means lowest salary in dept):</p>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th><th>pr</th><th>dept_size</th><th>included?</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>Eng</td><td>100</td><td>0.000</td><td>4</td><td>Yes &mdash; pr=0, size&gt;2</td></tr>
+    <tr><td>2</td><td>Eng</td><td>150</td><td>0.333</td><td>4</td><td>No &mdash; pr&ne;0</td></tr>
+    <tr><td>4</td><td>Eng</td><td>180</td><td>0.667</td><td>4</td><td>No</td></tr>
+    <tr><td>1</td><td>Eng</td><td>200</td><td>1.000</td><td>4</td><td>No</td></tr>
+    <tr><td>6</td><td>Sales</td><td>280</td><td>0.000</td><td>2</td><td>No &mdash; size not &gt;2</td></tr>
+    <tr><td>5</td><td>Sales</td><td>300</td><td>1.000</td><td>2</td><td>No</td></tr>
+    <tr><td>10</td><td>Ops</td><td>90</td><td>0.000</td><td>4</td><td>Yes &mdash; pr=0, size&gt;2</td></tr>
+    <tr><td>9</td><td>Ops</td><td>100</td><td>0.333</td><td>4</td><td>No</td></tr>
+    <tr><td>8</td><td>Ops</td><td>110</td><td>0.667</td><td>4</td><td>No</td></tr>
+    <tr><td>7</td><td>Ops</td><td>120</td><td>1.000</td><td>4</td><td>No</td></tr>
+    <tr><td>11</td><td>HR</td><td>95</td><td>0.000</td><td>1</td><td>No &mdash; size not &gt;2</td></tr>
+  </tbody>
+</table>
+<p>Final output:</p>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>Eng</td><td>100</td></tr>
+    <tr><td>10</td><td>Ops</td><td>90</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>PERCENT_RANK definition and the guaranteed 0</h5>
+<p><code>PERCENT_RANK</code> is defined as <code>(rank - 1) / (N - 1)</code> where rank is the 1-based row rank within the partition and N is the partition size. The formula guarantees that the lowest-ranked row always has rank = 1, giving <code>(1 - 1) / (N - 1) = 0</code> exactly &mdash; regardless of N. This makes <code>pr = 0</code> a clean predicate for "the minimum salary in this partition," including all tied minimums because PERCENT_RANK assigns the same value to ties (like RANK, not ROW_NUMBER). For a department with 1 member, <code>(N - 1) = 0</code> would produce a 0/0 division; most engines define it as 0 in that case (single-row partition), but the question's <code>dept_size &gt; 2</code> guard makes this moot.</p>
+
+<h5>Why not use <code>MIN(salary) OVER (PARTITION BY dept)</code> instead</h5>
+<p>You could filter <code>salary = MIN(salary) OVER (PARTITION BY dept)</code>. That works but requires materialising an extra column. <code>pr = 0</code> is more semantically self-documenting &mdash; "this person is at the bottom of their dept's salary distribution" &mdash; and is the natural use of PERCENT_RANK. In an interview, framing the choice between the two and explaining the subtle 0/0 edge case on single-member departments is a strong differentiator.</p>
+
+<h5>Computing dept_size in the same window pass</h5>
+<p><code>COUNT(*) OVER (PARTITION BY dept)</code> is a constant per partition &mdash; every row in the same department gets the same dept_size value. Adding it to the CTE avoids a separate subquery or self-join to find department sizes. The engine can compute both window functions in a single partitioned pass.</p>
+
+<h5>Edge case &mdash; tied minimums</h5>
+<p>If two employees in the same department share the lowest salary, both receive <code>pr = 0</code> and both are returned. The question asks for the lowest-paid employees (plural is natural), and <code>PERCENT_RANK</code> handles this correctly without any special casing.</p>
+
+<h5>Dialect notes</h5>
+<p><code>PERCENT_RANK</code> is ANSI SQL and is available in PostgreSQL, SQL Server, Oracle, Snowflake, BigQuery, and MySQL 8+. It is notably <em>absent</em> from SQLite (which has no PERCENT_RANK implementation). In Snowflake the integer equality check <code>pr = 0</code> on a <code>FLOAT</code> column may occasionally fail due to floating-point rounding; use <code>pr &lt; 1e-9</code> as a defensive alternative. BigQuery returns 0.0 as <code>FLOAT64</code> and the equality is safe.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> <code>PERCENT_RANK = 0</code> is the exact, tie-aware predicate for the lowest-ranked row(s) in a partition; pair it with <code>COUNT(*) OVER (PARTITION BY dept)</code> in the same CTE to filter small departments in one table pass; and mention the 0/0 definition for single-member partitions and potential float equality issues in Snowflake.</div>

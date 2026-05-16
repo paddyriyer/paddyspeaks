@@ -1,0 +1,63 @@
+<p>Intel&rsquo;s core banking team needs a simple enriched transaction ledger: join each transaction to its account holder&rsquo;s name and sort the result by account then newest-first within that account. This is the foundational one-to-many join pattern &mdash; every transaction belongs to exactly one account, and the join inflates the account row into one row per transaction. The question tests correct join key selection, column projection, and meaningful result ordering.</p>
+
+<h4>1. The source data &mdash; <code>accounts</code> and <code>transactions</code></h4>
+<table>
+  <thead><tr><th>account_id</th><th>holder_name</th></tr></thead>
+  <tbody>
+    <tr><td>A1</td><td>Alice Nguyen</td></tr>
+    <tr><td>A2</td><td>Bob Patel</td></tr>
+    <tr><td>A3</td><td>Carol Kim</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>txn_id</th><th>account_id</th><th>txn_type</th><th>amount</th><th>txn_ts</th></tr></thead>
+  <tbody>
+    <tr><td>T001</td><td>A1</td><td>deposit</td><td>1000.00</td><td>2025-04-01 09:00:00</td></tr>
+    <tr><td>T002</td><td>A1</td><td>withdrawal</td><td>250.00</td><td>2025-04-02 14:00:00</td></tr>
+    <tr><td>T003</td><td>A2</td><td>deposit</td><td>5000.00</td><td>2025-04-01 10:30:00</td></tr>
+    <tr><td>T004</td><td>A2</td><td>transfer</td><td>1500.00</td><td>2025-04-03 08:45:00</td></tr>
+    <tr><td>T005</td><td>A1</td><td>deposit</td><td>200.00</td><td>2025-04-05 16:00:00</td></tr>
+  </tbody>
+</table>
+<p>Carol Kim (A3) has no transactions. An INNER JOIN will exclude her from the result.</p>
+
+<h4>2. The SQL &mdash; INNER JOIN with account-then-time sort</h4>
+<pre><code>SELECT a.account_id, a.holder_name, t.txn_id, t.txn_type, t.amount, t.txn_ts
+FROM accounts     a
+JOIN transactions t ON a.account_id = t.account_id
+ORDER BY a.account_id, t.txn_ts DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>account_id</th><th>holder_name</th><th>txn_id</th><th>txn_type</th><th>amount</th><th>txn_ts</th></tr></thead>
+  <tbody>
+    <tr><td>A1</td><td>Alice Nguyen</td><td>T005</td><td>deposit</td><td>200.00</td><td>2025-04-05 16:00:00</td></tr>
+    <tr><td>A1</td><td>Alice Nguyen</td><td>T002</td><td>withdrawal</td><td>250.00</td><td>2025-04-02 14:00:00</td></tr>
+    <tr><td>A1</td><td>Alice Nguyen</td><td>T001</td><td>deposit</td><td>1000.00</td><td>2025-04-01 09:00:00</td></tr>
+    <tr><td>A2</td><td>Bob Patel</td><td>T004</td><td>transfer</td><td>1500.00</td><td>2025-04-03 08:45:00</td></tr>
+    <tr><td>A2</td><td>Bob Patel</td><td>T003</td><td>deposit</td><td>5000.00</td><td>2025-04-01 10:30:00</td></tr>
+  </tbody>
+</table>
+<p>Five rows: Alice&rsquo;s three transactions sorted newest first, then Bob&rsquo;s two. Carol&rsquo;s account (A3) is absent because the INNER JOIN found no matching transactions. Alice&rsquo;s <code>holder_name</code> is repeated on each of her three rows &mdash; this is the normal denormalized output of a one-to-many join.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>INNER JOIN semantics &mdash; accounts without transactions are excluded</h5>
+<p>The <code>JOIN</code> keyword (equivalent to <code>INNER JOIN</code>) only returns rows where a match exists in both tables. Carol Kim has no matching row in <code>transactions</code>, so she is silently dropped. This is the correct behavior for a "show me transactions" report, but wrong for a "show me all accounts" report. If Carol should appear with a NULL or empty transaction section, use <code>LEFT JOIN accounts a &hellip;</code> (keeping all accounts) or <code>LEFT JOIN transactions t &hellip;</code> (keeping all accounts, NULLing the transaction columns where absent).</p>
+
+<h5>One account row fans into multiple transaction rows</h5>
+<p>This is the canonical one-to-many join result: for each account row, the join produces <em>one output row per matching transaction</em>. Alice&rsquo;s single account row becomes three rows. The account columns (<code>account_id</code>, <code>holder_name</code>) are repeated verbatim on each row &mdash; this is not an error, it is the expected structure of a denormalized join output. If the output were to be aggregated (total deposits per account), you would add <code>GROUP BY a.account_id, a.holder_name</code>.</p>
+
+<h5>The two-level ORDER BY</h5>
+<p><code>ORDER BY a.account_id, t.txn_ts DESC</code> produces a bank-statement view: all transactions for each account grouped together, newest first within each account. The first key (<code>account_id</code> ASC) clusters by account; the second key (<code>txn_ts DESC</code>) inverts time within each cluster. Mixed sort directions are common and underappreciated in interviews &mdash; <code>ASC</code> and <code>DESC</code> are per-column in <code>ORDER BY</code>.</p>
+
+<h5>Column projection &mdash; what to select and why</h5>
+<p>The query selects exactly the columns needed for a transaction ledger view: account identity (<code>account_id</code>, <code>holder_name</code>), transaction identity (<code>txn_id</code>), and transaction detail (<code>txn_type</code>, <code>amount</code>, <code>txn_ts</code>). Avoid <code>SELECT *</code> in production: both tables likely contain columns irrelevant to the report (plan, signup_date, status, etc.), and joining on overlapping column names (both tables have <code>account_id</code>) can cause ambiguity or doubled columns in <code>SELECT *</code>.</p>
+
+<h5>Performance and indexing</h5>
+<p>An index on <code>transactions(account_id, txn_ts DESC)</code> serves both the join condition and the ORDER BY in one index scan. Without it, the engine performs a hash join on <code>account_id</code> followed by a full sort on the result. On large transaction tables this index is standard for any account-based ledger query.</p>
+
+<h5>Dialect notes</h5>
+<p><code>JOIN ... ON</code> is universal ANSI SQL. The <code>ORDER BY col1 ASC, col2 DESC</code> mixed-direction syntax is supported identically in Snowflake, Postgres, BigQuery, MySQL, and SQL Server. In Snowflake you can also use <code>QUALIFY</code> with a window function to limit to the most recent transaction per account without a subquery, e.g. <code>QUALIFY ROW_NUMBER() OVER (PARTITION BY a.account_id ORDER BY t.txn_ts DESC) = 1</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> call out that INNER JOIN silently excludes Carol&rsquo;s account and explain when LEFT JOIN is the right alternative, describe the one-to-many fan-out as expected behavior (not a data quality issue), emphasize that <code>ORDER BY</code> direction is per-column (the nested newest-first sort), and recommend the composite index on <code>(account_id, txn_ts DESC)</code> for production workloads.</div>

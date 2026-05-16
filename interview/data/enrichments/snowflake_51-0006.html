@@ -1,0 +1,59 @@
+<p>A social platform's trust-and-safety team needs to scrub prohibited keywords from user-generated post text before it is surfaced in a feed API. The requirement: replace any occurrence of a banned word — case-insensitively, at a word boundary — with three asterisks, in a single SQL expression with no looping or application code. The interviewer is testing knowledge of <code>REGEXP_REPLACE</code> with alternation, the word-boundary metacharacter <code>\b</code>, and the case-insensitive flag &mdash; plus awareness of how these differ between Snowflake and PostgreSQL.</p>
+
+<h4>1. The source data &mdash; <code>posts</code></h4>
+<table>
+  <thead><tr><th>post_id</th><th>content</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>This is a spam message with abuse in it</td></tr>
+    <tr><td>2</td><td>I hate everything about this. Pure profanity.</td></tr>
+    <tr><td>3</td><td>Have a great day! Nothing wrong here.</td></tr>
+    <tr><td>4</td><td>SPAM and HATE are capitalized here</td></tr>
+    <tr><td>5</td><td>spammy is not the same as spam</td></tr>
+  </tbody>
+</table>
+<p>Row 3 contains no banned words and should pass through unchanged. Row 4 tests case-insensitivity. Row 5 tests word-boundary correctness: "spammy" must <em>not</em> be replaced because the word does not end at a boundary after "spam".</p>
+
+<h4>2. The SQL &mdash; word-boundary regex replacement</h4>
+<pre><code>SELECT post_id,
+       REGEXP_REPLACE(content,
+                      '\\b(spam|abuse|hate|profanity)\\b',
+                      '***', 1, 0, 'i') AS cleaned_content
+FROM posts;</code></pre>
+<p><strong>Dialect note:</strong> this is Snowflake syntax. The arguments are: <em>subject</em>, <em>pattern</em>, <em>replacement</em>, <em>position</em> (start at character 1), <em>occurrence</em> (0 = all), <em>parameters</em> (<code>'i'</code> = case-insensitive). The PostgreSQL equivalent uses a flags argument in a different position: <code>REGEXP_REPLACE(content, '\\m(spam|abuse|hate|profanity)\\M', '***', 'gi')</code> — and the global flag <code>'g'</code> is required for multi-occurrence replacement. PostgreSQL also uses <code>\m</code>/<code>\M</code> for word boundaries rather than <code>\b</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>post_id</th><th>cleaned_content</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>This is a *** message with *** in it</td></tr>
+    <tr><td>2</td><td>I *** everything about this. Pure ***.</td></tr>
+    <tr><td>3</td><td>Have a great day! Nothing wrong here.</td></tr>
+    <tr><td>4</td><td>*** and *** are capitalized here</td></tr>
+    <tr><td>5</td><td>spammy is not the same as ***</td></tr>
+  </tbody>
+</table>
+<p>Row 1: "spam" and "abuse" both replaced. Row 2: "hate" and "profanity" replaced; the period after "profanity" is not part of the word. Row 3: no match, content unchanged. Row 4: case-insensitive flag matches "SPAM" and "HATE". Row 5: "spammy" is not replaced (word boundary after 'm' in "spammy" is not hit by the pattern ending with <code>\\b</code>), but "spam" at the end of the sentence is replaced correctly.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The word-boundary metacharacter <code>\b</code></h5>
+<p><code>\b</code> is a zero-width assertion that matches at the transition between a word character (<code>[A-Za-z0-9_]</code>) and a non-word character (space, punctuation, start/end of string). It ensures "spam" matches as a standalone word but not as a prefix inside "spammy" or a suffix inside "instagram". Without <code>\b</code>, every occurrence of the substring fires — including embedded occurrences in innocent words. This single metacharacter is the difference between a production-safe content filter and one that silently damages legitimate text.</p>
+
+<h5>Alternation <code>(a|b|c|d)</code> vs multiple passes</h5>
+<p>The four banned words are joined with <code>|</code> inside a capture group, so the engine makes a single pass through the string and matches any of the four alternatives at each position. An alternative implementation with four nested <code>REGEXP_REPLACE</code> calls would make four passes — quadratic risk when the list grows. Using alternation also makes it easy to add new banned words by extending the pattern string, which in practice is stored in a config table and injected dynamically.</p>
+
+<h5>Case-insensitive flag: Snowflake vs PostgreSQL</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>REGEXP_REPLACE(subject, pattern, replacement, 1, 0, 'i')</code> — the sixth argument is a parameter string; <code>'i'</code> means case-insensitive, <code>'c'</code> (default) means case-sensitive.</li>
+  <li><strong>PostgreSQL:</strong> <code>REGEXP_REPLACE(subject, pattern, replacement, 'gi')</code> — the fourth argument is a flag string; <code>'g'</code> = global (all occurrences), <code>'i'</code> = case-insensitive. Without <code>'g'</code>, only the first match is replaced.</li>
+  <li><strong>BigQuery:</strong> <code>REGEXP_REPLACE(subject, pattern, replacement)</code> — always replaces all non-overlapping matches; case-insensitive flag uses <code>(?i)</code> inline: <code>'(?i)\\b(spam|abuse|hate|profanity)\\b'</code>.</li>
+  <li><strong>MySQL 8+:</strong> <code>REGEXP_REPLACE(subject, pattern, replacement)</code> — global by default; no flag argument; use <code>(?i)</code> inline for case-insensitivity.</li>
+</ul>
+
+<h5>Performance and indexing</h5>
+<p>Regex replacement on a text column always requires a full table scan — no index can accelerate it. For a high-volume feed table, pre-filtering with a full-text index (<code>ts_vector</code> in PostgreSQL, or a SEARCH optimization service) to identify posts containing any banned word before running the regex is the practical production approach. Alternatively, the replacement is done at write time (in the insert/update pipeline) rather than at query time.</p>
+
+<h5>The pattern escaping subtlety</h5>
+<p>The pattern string <code>'\\b(spam|abuse|hate|profanity)\\b'</code> uses double backslashes because one layer of backslash escaping is consumed by the SQL string parser, leaving <code>\b(spam|abuse|hate|profanity)\b</code> as the actual regex string handed to the regex engine. Single backslash in a SQL string literal (<code>'\b'</code>) is treated as a literal backslash-b in some engines (a no-op in most regex flavours), not a word boundary. Always double the backslashes in SQL regex patterns.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> anchor the pattern with <code>\\b</code> on both sides to prevent substring matches inside longer words; use alternation <code>(a|b|c)</code> for a single-pass replacement; know the Snowflake <code>REGEXP_REPLACE(s, p, r, 1, 0, 'i')</code> signature vs PostgreSQL's <code>'gi'</code> flag string; and note that regex on a large text column requires a full scan — production content filtering belongs in the write pipeline or a search layer, not a cold SELECT.</div>

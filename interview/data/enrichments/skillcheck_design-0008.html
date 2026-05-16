@@ -1,0 +1,65 @@
+<p>A factless fact table records the intersection of dimension keys at a point in time without carrying any numeric measure &mdash; the <em>fact</em> is the event itself (a student was in class on a given date). The interviewer is probing whether you know when to use this pattern and, critically, how to answer questions that sound like they need a measure but do not: &ldquo;How many students attended?&rdquo; is answered by <code>COUNT(*)</code> on the factless fact, not by summing a column. The composite PK and the partition column are also under scrutiny.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Grain:</strong> one row per (student, class, date) combination &mdash; one row per attendance event.</li>
+  <li><strong>Dimension FKs:</strong> student, class, teacher, school, and date &mdash; five keys covering the full context of an attendance event.</li>
+  <li><strong>No additive measure:</strong> the table records presence, not a count or dollar amount.</li>
+  <li><strong>Attendance type:</strong> a classification flag (present / tardy / excused / unexcused) kept on the fact as a low-cardinality degenerate dimension.</li>
+  <li><strong>Attended flag:</strong> a Boolean shortcut for fast &ldquo;present vs. absent&rdquo; filtering without parsing <code>attendance_type</code>.</li>
+  <li><strong>Composite PK:</strong> (student_sk, class_sk, date_sk) enforces one record per student per class per day.</li>
+  <li><strong>Partition:</strong> by <code>date_sk</code> to prune date-range queries efficiently.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE fact_attendance (
+  student_sk        BIGINT      NOT NULL,           -- FK -&gt; dim_student
+  class_sk          BIGINT      NOT NULL,           -- FK -&gt; dim_class
+  teacher_sk        BIGINT      NOT NULL,           -- FK -&gt; dim_teacher
+  school_sk         BIGINT      NOT NULL,           -- FK -&gt; dim_school
+  date_sk           INT         NOT NULL,           -- FK -&gt; dim_date
+  attended_flag     BOOLEAN     NOT NULL DEFAULT TRUE,
+  attendance_type   VARCHAR(20) NOT NULL,           -- present / tardy / excused / unexcused
+  recorded_at       TIMESTAMP,
+  ingested_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (student_sk, class_sk, date_sk)
+)
+PARTITION BY (date_sk);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>student_sk</td><td>FK &rarr; dim_student (part of PK)</td><td>Identifies the student; joins to dim_student for demographics, grade, special-education status.</td></tr>
+    <tr><td>class_sk</td><td>FK &rarr; dim_class (part of PK)</td><td>Identifies the specific class period; joins to dim_class for subject, period, schedule type.</td></tr>
+    <tr><td>teacher_sk</td><td>FK &rarr; dim_teacher</td><td>Not part of the PK because a class always has the same teacher (teacher is a class attribute); included for convenience to avoid joining through dim_class in teacher-level attendance reports.</td></tr>
+    <tr><td>school_sk</td><td>FK &rarr; dim_school</td><td>Similarly a class attribute but denormalised onto the fact for direct school-district roll-up queries without multi-hop joins.</td></tr>
+    <tr><td>date_sk</td><td>FK &rarr; dim_date; partition key (part of PK)</td><td>Integer surrogate for the calendar date; the PK&rsquo;s date component ensures at most one attendance record per student per class per day. Doubles as the partition key for efficient time-range scans.</td></tr>
+    <tr><td>attended_flag</td><td>Convenience Boolean</td><td>TRUE for present/tardy rows, FALSE for absent rows. Allows fast COUNT / SUM without a CASE expression on attendance_type. Default TRUE because most records represent attendance, not absence.</td></tr>
+    <tr><td>attendance_type</td><td>Degenerate dimension</td><td>Four-value classification; low enough cardinality to avoid a separate dimension table. Provides the detail behind the attended_flag (e.g., tardy vs. excused absent).</td></tr>
+    <tr><td>recorded_at</td><td>Event timestamp</td><td>When the teacher or system recorded attendance; NULL if recorded after the fact (batch upload). Useful for detecting late-entry patterns.</td></tr>
+    <tr><td>ingested_at</td><td>Audit column</td><td>Pipeline watermark.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why factless? The event IS the measure</h5>
+<p>In a traditional fact table, numeric measures give the row analytical value. In a factless fact, the <em>existence</em> of a row is the datum. &ldquo;How many students attended on Tuesday?&rdquo; &rarr; <code>SELECT COUNT(*) FROM fact_attendance WHERE date_sk IN (&hellip;Tuesday dates&hellip;) AND attended_flag = TRUE</code>. There is no SUM to perform. The pattern also answers questions about events that did <em>not</em> happen: &ldquo;Which enrolled students did NOT attend class X on date Y?&rdquo; requires joining an enrollment coverage table to fact_attendance and finding the complement &mdash; a query structure that dimensional designers call a <em>coverage/event pair</em>.</p>
+
+<h5>Grain declaration and the composite PK</h5>
+<p>The grain is <em>one row per student per class per calendar day</em>. The composite PK <code>(student_sk, class_sk, date_sk)</code> enforces this at the database level. A student who is both present for half a period and then absent is ambiguous under this grain; if the business needs sub-period granularity, the grain would change to (student, class, date, period_sk) and the PK would expand accordingly. Stating the grain explicitly before choosing the PK is the critical design step.</p>
+
+<h5>Absent rows: include or exclude?</h5>
+<p>Two design philosophies exist: (1) only record <em>present</em> rows and derive absences as missing rows against an enrollment table, or (2) record both present and absent rows explicitly. Approach 1 keeps the table smaller (absent rows can dominate). Approach 2 makes absence queries trivial (<code>WHERE attended_flag = FALSE</code>) without requiring an enrollment join. For a school district, approach 2 is usually preferred: absence is a first-class analytical event (truancy tracking, early-warning systems), and the enrollment roster is a separate data source whose join adds complexity and potential for orphaned records.</p>
+
+<h5>teacher_sk and school_sk: denormalisation on the fact</h5>
+<p>Strictly, teacher and school are attributes of the class, not the attendance event. A pure star schema would derive them by joining dim_class. They are denormalised onto the fact here for two reasons: (1) teacher-level and school-level roll-up queries are extremely common (district dashboards), and (2) the additional columns are a small cost (8 bytes each) compared to the join elimination benefit at hundreds of millions of rows.</p>
+
+<h5>Partition by date_sk</h5>
+<p>School-attendance queries almost always include a date range (&ldquo;this week,&rdquo; &ldquo;this semester&rdquo;). Partitioning on <code>date_sk</code> prunes these scans to the relevant time window. One consideration: date_sk is an integer (e.g., 20250516 for 2025-05-16), not a DATE. Partitioning on an integer is supported in PostgreSQL range partitioning but not natively in BigQuery, which prefers a DATE column. For BigQuery, add a <code>date_actual DATE NOT NULL</code> column and partition on that.</p>
+
+<h5>Warehouse dialect notes</h5>
+<p>In <strong>BigQuery</strong>, replace <code>PARTITION BY (date_sk)</code> with a DATE column and <code>PARTITION BY date_actual</code>. In <strong>Snowflake</strong>, use <code>CLUSTER BY (date_sk, school_sk)</code>. In <strong>Redshift</strong>, use <code>DISTKEY(student_sk)</code> if most queries are student-centric and <code>SORTKEY(date_sk, school_sk)</code> for zone-map pruning.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the factless fact table records presence by existence &mdash; <code>COUNT(*)</code> is the only &ldquo;measure&rdquo; &mdash; and then describe the coverage/event-pair pattern (&ldquo;join the enrollment table to fact_attendance and take the set difference to find non-attenders&rdquo;); justify the decision to store absent rows explicitly as a first-class event; and note that teacher_sk and school_sk are deliberately denormalised onto the fact for roll-up query performance even though they are technically class attributes.</div>

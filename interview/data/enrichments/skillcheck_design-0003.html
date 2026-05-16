@@ -1,0 +1,87 @@
+<p>An accumulating snapshot fact table models a multi-stage business process where a single row tracks an entity (here, an order) through every milestone from birth to resolution. The interviewer is probing three things: whether you know when to choose an accumulating snapshot over a transaction fact, how to represent nullable milestone timestamps and their corresponding dimension date FKs, and how derived duration measures relate to those timestamps. Getting the &ldquo;one row per order, updated in place&rdquo; grain right is the crux.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Grain:</strong> one row per order, representing the order&rsquo;s full lifecycle &mdash; not one row per event.</li>
+  <li><strong>Milestones:</strong> placed &rarr; paid &rarr; shipped &rarr; delivered &rarr; returned. Each milestone may or may not have occurred.</li>
+  <li><strong>Milestone date FKs:</strong> integer FKs into <code>dim_date</code> for each milestone, allowing calendar-dimension joins (e.g., &ldquo;orders delivered on a Sunday&rdquo;).</li>
+  <li><strong>Milestone timestamps:</strong> full TIMESTAMP precision for sub-day analysis (e.g., &ldquo;average hours from placed to shipped&rdquo;).</li>
+  <li><strong>Duration measures:</strong> computed elapsed-time measures between milestone pairs; NULL until both endpoints exist.</li>
+  <li><strong>Additive measures:</strong> order amount and refunded amount.</li>
+  <li><strong>Current status:</strong> a snapshot of the order&rsquo;s latest state.</li>
+  <li><strong>Row update timestamp:</strong> <code>updated_at</code> to track when the row was last mutated by the ETL.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE fact_order_fulfillment (
+  order_sk            BIGINT      NOT NULL,         -- surrogate PK
+  order_nk            VARCHAR(64) NOT NULL,         -- natural key (order_id)
+  customer_sk         BIGINT      NOT NULL,
+  product_sk          BIGINT      NOT NULL,
+  -- milestone date FKs (NULL until milestone occurs)
+  placed_date_sk      INT         NOT NULL,
+  paid_date_sk        INT,
+  shipped_date_sk     INT,
+  delivered_date_sk   INT,
+  returned_date_sk    INT,
+  -- milestone timestamps for sub-day analysis
+  placed_ts           TIMESTAMP   NOT NULL,
+  paid_ts             TIMESTAMP,
+  shipped_ts          TIMESTAMP,
+  delivered_ts        TIMESTAMP,
+  returned_ts         TIMESTAMP,
+  -- duration measures (computed, NULL until both endpoints set)
+  hours_to_pay        DECIMAL(10,2),
+  hours_to_ship       DECIMAL(10,2),
+  hours_to_deliver    DECIMAL(10,2),
+  -- additive measures
+  order_amount        DECIMAL(12,2),
+  refunded_amount     DECIMAL(12,2),
+  current_status      VARCHAR(20),                   -- placed / paid / shipped / delivered / returned
+  updated_at          TIMESTAMP   NOT NULL,
+  PRIMARY KEY (order_sk)
+);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>order_sk</td><td>Surrogate PK</td><td>Single-row identity for this order in the warehouse; immutable once created.</td></tr>
+    <tr><td>order_nk</td><td>Natural / degenerate dimension</td><td>Source order ID kept for drill-through and reconciliation.</td></tr>
+    <tr><td>customer_sk</td><td>FK &rarr; dim_customer</td><td>Ties the order to the customer dimension for demographic analysis.</td></tr>
+    <tr><td>product_sk</td><td>FK &rarr; dim_product</td><td>Links to the product dimension; simplification for a single-product-per-order model.</td></tr>
+    <tr><td>placed_date_sk</td><td>FK &rarr; dim_date (milestone)</td><td>NOT NULL because an order always has a placed date; enables calendar joins for the placed milestone.</td></tr>
+    <tr><td>paid_date_sk &hellip; returned_date_sk</td><td>FK &rarr; dim_date (milestone, nullable)</td><td>NULL until the milestone occurs. The date SK enables grouping by calendar attributes (weekday, month) at the milestone level without sub-day precision.</td></tr>
+    <tr><td>placed_ts</td><td>Degenerate dimension / anchor timestamp</td><td>NOT NULL; the precise moment the order was placed. Serves as the reference point for duration calculations.</td></tr>
+    <tr><td>paid_ts &hellip; returned_ts</td><td>Degenerate dimension (nullable milestone timestamps)</td><td>Null until the milestone is reached; paired with placed_ts (or each other) to derive duration measures.</td></tr>
+    <tr><td>hours_to_pay</td><td>Measure &mdash; semi-additive derived</td><td>Elapsed hours from placed_ts to paid_ts. NULL while paid_ts is NULL. Stored pre-computed to avoid recalculation in queries; should average across orders, not sum.</td></tr>
+    <tr><td>hours_to_ship</td><td>Measure &mdash; semi-additive derived</td><td>Elapsed hours from placed_ts to shipped_ts; key SLA metric for fulfillment teams.</td></tr>
+    <tr><td>hours_to_deliver</td><td>Measure &mdash; semi-additive derived</td><td>Elapsed hours from placed_ts to delivered_ts; the end-to-end customer experience metric.</td></tr>
+    <tr><td>order_amount</td><td>Measure &mdash; additive</td><td>Gross order value; additive across all dimensions &mdash; sums correctly by date, product, customer.</td></tr>
+    <tr><td>refunded_amount</td><td>Measure &mdash; additive</td><td>Amount refunded so far; 0 until a return is processed. Additive.</td></tr>
+    <tr><td>current_status</td><td>Degenerate dimension / status flag</td><td>Low-cardinality current state of the order lifecycle; useful for filtering (&ldquo;all orders not yet delivered&rdquo;) without a join.</td></tr>
+    <tr><td>updated_at</td><td>Audit / update watermark</td><td>Set by ETL each time the row is updated; used by downstream incremental loads to detect changed rows.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why an accumulating snapshot, not a transaction fact</h5>
+<p>A <em>transaction fact</em> inserts one row per event (order placed, order paid, order shipped) and never updates existing rows. That design is ideal for event-level analysis but requires awkward self-joins or window functions to compute &ldquo;time from placed to shipped&rdquo; across separate rows. An <em>accumulating snapshot</em> consolidates all milestones for one business process into a single row that is updated in place as milestones occur. The tradeoff: ETL must find and update the existing row (no append-only simplicity), but queries that span milestones become trivial single-row reads.</p>
+
+<h5>Dual milestone representation: date SK + timestamp</h5>
+<p>Each milestone appears twice: as an INT FK into <code>dim_date</code> and as a full TIMESTAMP. The date SK enables fast joins to the date dimension for calendar-based grouping (quarter, weekday). The timestamp supports sub-day calculations (hours, minutes) and SLA breach detection. Storing both is not redundancy &mdash; they serve different query patterns. The date SK is derived from the timestamp during ETL.</p>
+
+<h5>Duration measures: semi-additive and pre-computed</h5>
+<p><code>hours_to_pay</code> and siblings are <strong>semi-additive</strong>: averaging across orders is valid, summing is not (sum of durations is meaningless). They are stored pre-computed because duration calculation (TIMESTAMPDIFF) is non-trivial in columnar queries, and the values are needed in nearly every fulfillment report. Storing them trades a little storage for significant query simplicity. NULL while either endpoint is missing &mdash; ETL must handle the partial-update case.</p>
+
+<h5>Handling updates in the data warehouse</h5>
+<p>Most analytical platforms are append-optimised, but accumulating snapshots require in-place UPDATEs. In Redshift and BigQuery, the pattern is a MERGE (UPSERT) on the natural key. In Snowflake, MERGE works natively. In BigQuery streaming inserts, a common workaround is to maintain a separate events log and materialise the snapshot as a view or scheduled MERGE query. The <code>updated_at</code> column enables incremental MERGE by acting as a change watermark.</p>
+
+<h5>Partition strategy</h5>
+<p>Partition on <code>placed_date_sk</code> (or an equivalent date column derived from <code>placed_ts</code>) so that historical analysis of order cohorts scans only relevant partitions. Clustering on <code>customer_sk</code> or <code>product_sk</code> accelerates the most common analytical slice. In Snowflake, <code>CLUSTER BY (placed_date_sk, current_status)</code> also prunes scans for &ldquo;all open orders from last month.&rdquo;</p>
+
+<h5>Fact-table type in the Kimball taxonomy</h5>
+<p>Kimball names three fact-table types: <em>transaction</em> (one row per event), <em>periodic snapshot</em> (one row per entity per time period), and <em>accumulating snapshot</em> (one row per business process lifecycle, updated). This table is an accumulating snapshot. Interviewers expect you to name the type and justify it against the alternatives, not just produce DDL.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the fact-table type (&ldquo;accumulating snapshot&rdquo;), justify it vs. a transaction fact (&ldquo;milestone-spanning queries would require self-joins across event rows&rdquo;), explain dual milestone representation (date SK for calendar joins, timestamp for duration math), classify duration measures as semi-additive, and discuss the MERGE/UPSERT requirement that accumulating snapshots impose on the ETL pipeline &mdash; these four points together show senior-level dimensional modeling depth.</div>

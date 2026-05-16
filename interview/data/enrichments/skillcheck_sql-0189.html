@@ -1,0 +1,74 @@
+<p>A retail analytics team tracks daily revenue per store, but only on days when the store made any sales (sparse data). They want a 7-day trailing average that treats <em>missing</em> days as zero &mdash; a "calendar window," not just a "N-rows" window. The interviewer is probing the critical distinction between <code>ROWS BETWEEN</code> (physical row count) and <strong><code>RANGE BETWEEN INTERVAL '6 days' PRECEDING</code></strong> (calendar span), and the correct denominator (always 7, not the count of present rows).</p>
+
+<h4>1. The source data &mdash; <code>daily_sales</code></h4>
+<table>
+  <thead><tr><th>store_id</th><th>sale_date</th><th>revenue</th><th>notes</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>100</td><td>&nbsp;</td></tr>
+    <tr><td>1</td><td>2025-01-05</td><td>200</td><td>gap: Jan 02&ndash;04 missing (treated as 0)</td></tr>
+    <tr><td>1</td><td>2025-01-07</td><td>300</td><td>within 6 days of Jan 05</td></tr>
+    <tr><td>1</td><td>2025-01-08</td><td>400</td><td>&nbsp;</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>50</td><td>&nbsp;</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>60</td><td>&nbsp;</td></tr>
+    <tr><td>2</td><td>2025-01-03</td><td>70</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; RANGE frame with date interval</h4>
+<pre><code>SELECT store_id,
+       sale_date,
+       revenue,
+       ROUND((SUM(revenue) OVER (
+          PARTITION BY store_id
+          ORDER BY sale_date
+          RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW
+       ) / 7.0)::numeric, 2) AS rolling_7d_avg
+FROM daily_sales
+ORDER BY store_id, sale_date;</code></pre>
+<p>The RANGE frame includes all rows for the same store where <code>sale_date &ge; current_row_date - 6 days</code>. The denominator is always 7.0 because missing days contribute 0 to the sum &mdash; they are absent from the table so they don't appear in the SUM, but the window still covers exactly 7 calendar days.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>Hand-trace for store 1 (dates in Jan 2025):</p>
+<ul>
+  <li>Jan 01: window = [Dec 26, Jan 01] &cap; store 1 rows = {Jan 01 = 100}. Sum = 100. Avg = 100/7 = <strong>14.29</strong>.</li>
+  <li>Jan 05: window = [Dec 30, Jan 05] &cap; store 1 rows = {Jan 01 = 100, Jan 05 = 200}. Sum = 300. Avg = 300/7 = <strong>42.86</strong>.</li>
+  <li>Jan 07: window = [Jan 01, Jan 07] &cap; store 1 rows = {Jan 01 = 100, Jan 05 = 200, Jan 07 = 300}. Sum = 600. Avg = 600/7 = <strong>85.71</strong>.</li>
+  <li>Jan 08: window = [Jan 02, Jan 08] &cap; store 1 rows = {Jan 05 = 200, Jan 07 = 300, Jan 08 = 400}. Jan 01 falls outside (Jan 01 &lt; Jan 02). Sum = 900. Avg = 900/7 = <strong>128.57</strong>.</li>
+</ul>
+<p>For store 2 (consecutive days):</p>
+<ul>
+  <li>Jan 01: sum = 50, avg = 50/7 = <strong>7.14</strong>.</li>
+  <li>Jan 02: sum = 110, avg = 110/7 = <strong>15.71</strong>.</li>
+  <li>Jan 03: sum = 180, avg = 180/7 = <strong>25.71</strong>.</li>
+</ul>
+<table>
+  <thead><tr><th>store_id</th><th>sale_date</th><th>revenue</th><th>rolling_7d_avg</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>100</td><td>14.29</td></tr>
+    <tr><td>1</td><td>2025-01-05</td><td>200</td><td>42.86</td></tr>
+    <tr><td>1</td><td>2025-01-07</td><td>300</td><td>85.71</td></tr>
+    <tr><td>1</td><td>2025-01-08</td><td>400</td><td>128.57</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>50</td><td>7.14</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>60</td><td>15.71</td></tr>
+    <tr><td>2</td><td>2025-01-03</td><td>70</td><td>25.71</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>RANGE vs ROWS &mdash; the central distinction</h5>
+<p><code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> counts exactly 7 physical rows (or fewer at the start of the partition). For store 1, Jan 08 would look back to Jan 05 (the 6th prior row), capturing Jan 05, Jan 07, Jan 08 &mdash; 3 present rows, but the window would span only 3 days. The denominator would then be 3, not 7, giving a very different (higher) average. <code>RANGE BETWEEN INTERVAL '6 days' PRECEDING</code> uses the date <em>value</em> to bound the window, so it always spans exactly 7 calendar days regardless of how many rows are present in that span.</p>
+
+<h5>Dividing by 7.0, not COUNT(*)</h5>
+<p>The question specifies "missing days count as 0." A missing day contributes 0 to the numerator (it is not in the table) but 1 to the denominator (it is a real calendar day). Dividing the RANGE-windowed SUM by 7.0 implements this exactly. Dividing by <code>COUNT(*) OVER (...same RANGE...)</code> would give the average over <em>present</em> days only, ignoring the missing zeros.</p>
+
+<h5>RANGE frame requirements in PostgreSQL</h5>
+<p>An <code>INTERVAL</code> RANGE frame in PostgreSQL requires the ORDER BY column to be a date or timestamp type &mdash; numeric offsets use <code>ROWS</code> or numeric RANGE. The frame boundary <code>INTERVAL '6 days' PRECEDING</code> means the window starts at the greatest date &le; <code>current_date - INTERVAL '6 days'</code>. Frames are evaluated per partition, so the <code>PARTITION BY store_id</code> ensures store 1 and store 2 windows never mix.</p>
+
+<h5>Edge cases</h5>
+<p>The first row of each store has fewer than 7 calendar days of history &mdash; the window simply extends from the first available row to the current row. The sum of fewer rows divided by 7 gives a lower average than if the prior days had data. This is the correct "sparse-data" interpretation. If you instead wanted to exclude rows where the window has fewer than 7 days of history, add a HAVING or WHERE filter on the window start date.</p>
+
+<h5>Dialect notes</h5>
+<p>Interval RANGE frames are supported in PostgreSQL and Snowflake with the same syntax. BigQuery uses <code>RANGE BETWEEN 6 PRECEDING AND CURRENT ROW</code> where the ORDER BY column is a numeric offset (e.g., <code>DATE_DIFF(sale_date, start_date, DAY)</code>); it does not support interval-typed RANGE bounds natively, requiring a workaround with numeric epoch values. SQL Server supports <code>ROWS</code> frames but not interval RANGE bounds &mdash; calendar windows require a different approach (e.g., a correlated subquery or a calendar table join). MySQL 8+ supports RANGE with numeric bounds only.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW</code> (not ROWS) to get a calendar-based 7-day window over sparse data, and always divide by 7.0 (the fixed calendar denominator) rather than <code>COUNT(*)</code> over the window &mdash; explain that BigQuery and SQL Server lack interval RANGE support and need workarounds.</div>

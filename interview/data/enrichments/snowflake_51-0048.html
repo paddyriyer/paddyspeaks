@@ -1,0 +1,66 @@
+<p>An aviation data team needs a name-length leaderboard: <em>"For each country, which airport has the longest name?"</em> This combines a JOIN between airports and their countries, a string-length calculation, and a top-1-per-group selection using a window-function rank. The interviewer is checking the ranked-subquery pattern for per-partition topN, and whether the candidate knows the Snowflake <code>QUALIFY</code> shortcut that eliminates the subquery entirely.</p>
+
+<h4>1. The source data &mdash; <code>airports</code> and <code>countries</code></h4>
+<table>
+  <thead><tr><th>airport_id</th><th>code</th><th>name</th><th>country_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>LHR</td><td>London Heathrow Airport</td><td>UK</td></tr>
+    <tr><td>2</td><td>LGW</td><td>London Gatwick</td><td>UK</td></tr>
+    <tr><td>3</td><td>MAN</td><td>Manchester Airport</td><td>UK</td></tr>
+    <tr><td>4</td><td>JFK</td><td>John F. Kennedy International Airport</td><td>US</td></tr>
+    <tr><td>5</td><td>LAX</td><td>Los Angeles International Airport</td><td>US</td></tr>
+    <tr><td>6</td><td>ORD</td><td>Chicago O'Hare International Airport</td><td>US</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>country_id</th><th>country_name</th></tr></thead>
+  <tbody>
+    <tr><td>UK</td><td>United Kingdom</td></tr>
+    <tr><td>US</td><td>United States</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; RANK per country on name length, filter to top 1</h4>
+<pre><code>SELECT code, name, country_name, name_length FROM (
+  SELECT a.code, a.name, c.country_name, LENGTH(a.name) AS name_length,
+         RANK() OVER (PARTITION BY c.country_name ORDER BY LENGTH(a.name) DESC) AS rk
+  FROM airports a
+  JOIN countries c ON a.country_id = c.country_id
+) t
+WHERE rk = 1
+ORDER BY country_name;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>code</th><th>name</th><th>country_name</th><th>name_length</th></tr></thead>
+  <tbody>
+    <tr><td>LHR</td><td>London Heathrow Airport</td><td>United Kingdom</td><td>23</td></tr>
+    <tr><td>JFK</td><td>John F. Kennedy International Airport</td><td>United States</td><td>36</td></tr>
+  </tbody>
+</table>
+<p>Derivation (UK): LHR = 23 chars, LGW = 14, MAN = 18 &rarr; LHR is longest (rk=1). Derivation (US): JFK = 36 chars, LAX = 32, ORD = 35 &rarr; JFK is longest (rk=1). Note: if two airports tied for longest name within a country, both would receive rk=1 and both would appear in the output. The result is ordered alphabetically by country_name.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The top-1-per-group pattern &mdash; aggregate first, rank, then filter</h5>
+<p>The query follows the standard ranked-subquery template for per-group top-N: compute the rank inside a subquery or CTE, then filter on <code>rk = 1</code> in the outer query. The window function <code>RANK() OVER (PARTITION BY country_name ORDER BY LENGTH(name) DESC)</code> assigns rank 1 to the airport(s) with the greatest name length within each country. The outer <code>WHERE rk = 1</code> then keeps only the leader(s). This works because window functions are computed after GROUP BY but before WHERE in the outer query.</p>
+
+<h5><code>RANK</code> vs <code>ROW_NUMBER</code> for ties</h5>
+<p><code>RANK</code> assigns the same rank to tied rows. If two airports in the same country had identical name lengths (the maximum), both receive rk=1 and both appear in the output &mdash; a correct "co-winners" result. <code>ROW_NUMBER</code> would arbitrarily pick one, silently discarding the other. For a "longest name" query where ties should be visible, <code>RANK</code> is the right choice.</p>
+
+<h5>Snowflake QUALIFY shortcut &mdash; eliminating the subquery</h5>
+<p>The <code>dialect_token</code> for this question is <code>QUALIFY</code>, flagging that the Snowflake (and BigQuery) rewrite is:</p>
+<pre><code>SELECT a.code, a.name, c.country_name, LENGTH(a.name) AS name_length
+FROM airports a
+JOIN countries c ON a.country_id = c.country_id
+QUALIFY RANK() OVER (PARTITION BY c.country_name ORDER BY LENGTH(a.name) DESC) = 1
+ORDER BY country_name;</code></pre>
+<p><code>QUALIFY</code> filters on window-function results without a wrapping subquery, much like <code>HAVING</code> filters on aggregate results. It is not part of the SQL standard and is not supported in Postgres, MySQL, or SQL Server &mdash; those engines require the subquery pattern.</p>
+
+<h5>LENGTH vs character_length vs len</h5>
+<p><code>LENGTH(name)</code> counts characters in Postgres (and Snowflake, BigQuery). In Postgres with multi-byte UTF-8 strings, <code>LENGTH</code> counts characters (code points), while <code>OCTET_LENGTH</code> counts bytes. For airport names using only ASCII, the two are identical. In SQL Server, the equivalent is <code>LEN(name)</code> (which also counts characters and ignores trailing spaces). Always clarify whether "longest" means most characters or most bytes when dealing with non-ASCII data.</p>
+
+<h5>JOIN type &mdash; airports without a country are silently dropped</h5>
+<p>The INNER JOIN drops any airport whose <code>country_id</code> has no matching row in <code>countries</code>. For a well-maintained reference table this is acceptable. In a data warehouse where FK constraints are not enforced, it is worth running a data-quality check: <code>SELECT COUNT(*) FROM airports WHERE country_id NOT IN (SELECT country_id FROM countries)</code> to confirm no orphan airports exist before trusting the result.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the ranked-subquery top-N pattern, choose <code>RANK</code> over <code>ROW_NUMBER</code> so ties are not silently discarded, demonstrate the Snowflake <code>QUALIFY</code> shortcut that eliminates the subquery wrapper, and flag that the INNER JOIN drops airports without a matching country &mdash; a data-quality risk in schema-on-read warehouses.</div>

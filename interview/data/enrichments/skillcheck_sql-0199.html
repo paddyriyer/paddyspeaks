@@ -1,0 +1,59 @@
+<p>Reporting dashboards must show every time-period for every dimension, even when the underlying data has gaps. A naive <code>GROUP BY</code> silently drops (region, month) combinations with no sales. The interviewer is probing whether you can build a complete grid by <code>CROSS JOIN</code>-ing the dimension set against a generated date spine, then <code>LEFT JOIN</code>ing the data &mdash; a pattern called "sparse-to-dense" or "date spine join".</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>sold_on</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>2025-01-10</td><td>100</td></tr>
+    <tr><td>North</td><td>2025-03-05</td><td>40</td></tr>
+    <tr><td>South</td><td>2025-02-20</td><td>70</td></tr>
+  </tbody>
+</table>
+<p>Two regions, three months. Missing combinations: North-February (no sales), South-January, South-March &mdash; all three must appear with <code>total = 0</code>, not be absent.</p>
+
+<h4>2. The SQL &mdash; CROSS JOIN of regions &times; date spine, then LEFT JOIN sales</h4>
+<pre><code>SELECT
+  r.region,
+  gs::date AS month_start,
+  COALESCE(SUM(s.amount), 0) AS total
+FROM (SELECT DISTINCT region FROM sales) r
+CROSS JOIN generate_series(DATE '2025-01-01', DATE '2025-03-01', INTERVAL '1 month') AS gs
+LEFT JOIN sales s
+  ON s.region = r.region
+ AND date_trunc('month', s.sold_on) = gs
+GROUP BY r.region, gs
+ORDER BY r.region, month_start;</code></pre>
+<p><code>generate_series</code> produces three month-start dates (Jan 1, Feb 1, Mar 1). The CROSS JOIN with the two distinct regions yields 6 (region, month) combinations. The LEFT JOIN attaches matching sales rows; where there are none, <code>SUM(s.amount)</code> aggregates over no rows and returns <code>NULL</code>, which <code>COALESCE(..., 0)</code> converts to 0.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>month_start</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>2025-01-01</td><td>100</td></tr>
+    <tr><td>North</td><td>2025-02-01</td><td>0</td></tr>
+    <tr><td>North</td><td>2025-03-01</td><td>40</td></tr>
+    <tr><td>South</td><td>2025-01-01</td><td>0</td></tr>
+    <tr><td>South</td><td>2025-02-01</td><td>70</td></tr>
+    <tr><td>South</td><td>2025-03-01</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>All 6 (region, month) combinations appear. North-Jan: 100 (one row, Jan 10 maps to Jan 1). North-Feb: 0 (no rows join). North-Mar: 40. South-Jan: 0. South-Feb: 70. South-Mar: 0.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why CROSS JOIN + LEFT JOIN, not just GROUP BY</h5>
+<p>A plain <code>SELECT region, DATE_TRUNC('month', sold_on), SUM(amount) FROM sales GROUP BY 1,2</code> returns only 3 rows &mdash; the (region, month) pairs that actually have data. The dashboard consumer sees North with no February entry and assumes data is missing or the report is broken. The CROSS JOIN creates the full grid of expected cells up front; the LEFT JOIN then fills in data where it exists and leaves NULLs (zeroed by COALESCE) where it does not. This is the canonical "sparse-to-dense" pattern.</p>
+
+<h5>generate_series as the date spine</h5>
+<p><code>generate_series(start, stop, interval)</code> is a PostgreSQL set-returning function (SRF) that produces one row per step. Here it yields 2025-01-01, 2025-02-01, 2025-03-01. The <code>gs::date</code> cast converts the default <code>TIMESTAMPTZ</code> output to plain <code>DATE</code>. If the date range were dynamic (e.g., derived from MIN/MAX of <code>sold_on</code>), you would pass those expressions as the start and stop arguments. In BigQuery the equivalent is <code>GENERATE_DATE_ARRAY</code>; in SQL Server, a recursive CTE or a numbers table; Snowflake has <code>GENERATOR()</code>.</p>
+
+<h5>Matching sales to the spine with date_trunc</h5>
+<p>The JOIN predicate <code>date_trunc('month', s.sold_on) = gs</code> maps each sale to its month-start bucket. This is equivalent to <code>s.sold_on &gt;= gs AND s.sold_on &lt; gs + INTERVAL '1 month'</code> but more concise. Either form works; the range predicate is friendlier to an index on <code>sold_on</code>. Using <code>date_trunc</code> in a JOIN condition typically prevents index use unless there is a functional index on <code>date_trunc('month', sold_on)</code>.</p>
+
+<h5>COALESCE on a SUM, not on a column</h5>
+<p><code>COALESCE(SUM(s.amount), 0)</code> wraps the aggregate, not the individual column. When no sales rows join, <code>SUM</code> over an empty set returns <code>NULL</code> (SQL standard); COALESCE converts it to 0. A common mistake is writing <code>SUM(COALESCE(s.amount, 0))</code> &mdash; that correctly handles NULL amount values in the source but still returns 0 only if there is at least one joined row; an empty join set still gives a <code>NULL</code> SUM. You need both layers if the source contains NULLable amounts and the grid must show 0 for missing months.</p>
+
+<h5>Dialect and portability notes</h5>
+<p><code>generate_series</code> is PostgreSQL and DuckDB. BigQuery: <code>GENERATE_DATE_ARRAY('2025-01-01', '2025-03-01', INTERVAL 1 MONTH)</code> inside an <code>UNNEST</code>. SQL Server: recursive CTE or a calendar dimension table. Snowflake: <code>DATEADD</code> inside a GENERATOR. Redshift: <code>generate_series</code> is available. Knowing the alternatives is essential because "give me a date spine" is a recurring pattern in any data warehouse.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build the complete (dimension &times; time) grid with <code>CROSS JOIN generate_series(…)</code> before touching the data table, then use <code>LEFT JOIN</code> + <code>COALESCE(SUM(…), 0)</code> to fill gaps with zero; explain why a plain <code>GROUP BY</code> silently drops absent cells; and name the equivalent spine-generation function in BigQuery, SQL Server, and Snowflake.</div>

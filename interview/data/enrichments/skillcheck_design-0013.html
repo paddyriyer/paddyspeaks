@@ -1,0 +1,87 @@
+<p>Designing a simplified Iceberg-style metastore reveals whether a candidate understands how table formats achieve snapshot isolation and time travel without locking: every write creates a new snapshot that references a set of manifest entries, which in turn reference immutable data files in object storage. The interviewer is probing whether you can separate the three layers (snapshots, manifests, data files), model the parent-snapshot chain for time travel, represent the file-level column statistics that enable predicate pushdown, and enforce referential integrity within the metastore itself.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Snapshots:</strong> a table-level version history. Each snapshot is immutable once committed; reading at a past snapshot_id gives an isolated, consistent view of the table.</li>
+  <li><strong>Manifest entries:</strong> the bridge between a snapshot and its constituent data files. Each entry records whether a file was ADDED, is EXISTING (carried over from the parent snapshot), or was DELETED (logically removed) in this snapshot.</li>
+  <li><strong>Data files:</strong> the physical Parquet files in object storage. Stored with file-level statistics (row count, size, per-column min/max/null counts) to enable predicate pushdown without reading the files.</li>
+  <li><strong>Time travel:</strong> supported by the parent_snapshot_id chain &mdash; walking back gives the set of files visible at any historical moment.</li>
+  <li><strong>Schema and partition evolution:</strong> tracked via <code>schema_id</code> and <code>partition_spec_id</code> on the snapshot (references to separate versioning tables, implied).</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE table_snapshot (
+  table_id          BIGINT       NOT NULL,
+  snapshot_id       BIGINT       NOT NULL,                  -- monotonic per table
+  parent_snapshot_id BIGINT,                                -- nullable for the first snapshot
+  committed_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  committed_by      VARCHAR(64)  NOT NULL,
+  summary           JSONB,                                  -- e.g. files-added, rows-added
+  schema_id         INT          NOT NULL,                  -- references a schema-version table
+  partition_spec_id INT          NOT NULL,                  -- references a partition-spec-version table
+  PRIMARY KEY (table_id, snapshot_id),
+  FOREIGN KEY (table_id, parent_snapshot_id) REFERENCES table_snapshot (table_id, snapshot_id)
+);
+
+CREATE TABLE table_manifest_entry (
+  table_id          BIGINT       NOT NULL,
+  snapshot_id       BIGINT       NOT NULL,                  -- which snapshot owns this entry
+  data_file_id      BIGINT       NOT NULL,                  -- references table_data_file
+  status            SMALLINT     NOT NULL,                  -- 0 = EXISTING, 1 = ADDED, 2 = DELETED
+  added_in_snapshot BIGINT       NOT NULL,
+  deleted_in_snapshot BIGINT,
+  PRIMARY KEY (table_id, snapshot_id, data_file_id),
+  FOREIGN KEY (table_id, snapshot_id) REFERENCES table_snapshot (table_id, snapshot_id),
+  FOREIGN KEY (data_file_id) REFERENCES table_data_file (data_file_id)
+);
+
+CREATE TABLE table_data_file (
+  data_file_id      BIGSERIAL    PRIMARY KEY,
+  table_id          BIGINT       NOT NULL,
+  file_path         TEXT         NOT NULL,                  -- s3://... or hdfs://...
+  file_size_bytes   BIGINT       NOT NULL,
+  row_count         BIGINT       NOT NULL,
+  partition_values  JSONB        NOT NULL,                  -- e.g. {"event_date":"2025-05-12"}
+  column_stats      JSONB        NOT NULL,                  -- per-column min/max/null counts
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ix_manifest_by_table_snapshot ON table_manifest_entry (table_id, snapshot_id);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>table_snapshot.table_id</td><td>Table identity (part of PK)</td><td>This metastore serves multiple tables; table_id scopes all snapshot and manifest data to a specific logical table.</td></tr>
+    <tr><td>table_snapshot.snapshot_id</td><td>Snapshot version (part of PK)</td><td>Monotonically increasing per table; the &ldquo;current&rdquo; snapshot is the one with the highest snapshot_id for a given table. Readers pin a snapshot_id at query start for isolation.</td></tr>
+    <tr><td>parent_snapshot_id</td><td>Version chain (self-referential FK)</td><td>Nullable for the first snapshot (no parent). Forms a linked list enabling time travel: walk the parent chain to find the snapshot at any historical commit time. The self-referential FK enforces referential integrity within the snapshot chain.</td></tr>
+    <tr><td>committed_at</td><td>Commit timestamp</td><td>When this snapshot was committed to the metastore. Enables time-travel by timestamp: &ldquo;give me the latest snapshot committed before 2025-01-15 09:00.&rdquo;</td></tr>
+    <tr><td>summary</td><td>Snapshot-level statistics</td><td>JSONB containing counts like files-added, files-removed, rows-added, rows-deleted &mdash; useful for commit auditing and monitoring table growth without reading manifest entries.</td></tr>
+    <tr><td>schema_id / partition_spec_id</td><td>Schema and partition evolution references</td><td>Point to external schema-version and partition-spec-version tables (not shown). A reader must know the schema at the time of the snapshot to deserialise Parquet files correctly. These IDs enable schema evolution without rewriting existing files.</td></tr>
+    <tr><td>table_manifest_entry.status</td><td>File lifecycle flag</td><td>0 = EXISTING (carried from parent, not changed), 1 = ADDED (new in this snapshot), 2 = DELETED (logically removed in this snapshot). A file with status 2 is not physically deleted &mdash; it is invisible to readers of this and later snapshots until a compaction/GC job removes it from object storage.</td></tr>
+    <tr><td>added_in_snapshot / deleted_in_snapshot</td><td>File visibility window</td><td>Tracks in which snapshots each file became visible and (optionally) in which it was deleted. Enables GC: a file is safe to delete from object storage only when no live snapshot has it in ADDED or EXISTING status.</td></tr>
+    <tr><td>table_data_file.file_path</td><td>Object storage URI</td><td>The canonical location of the Parquet file in S3, GCS, or HDFS. Immutable once created &mdash; data files are never overwritten; only the manifest references to them change.</td></tr>
+    <tr><td>partition_values</td><td>Partition metadata</td><td>JSONB map of partition column name to value (e.g., <code>{&ldquo;event_date&rdquo;: &ldquo;2025-05-12&rdquo;}</code>). Enables partition pruning at the metastore level: a query for event_date = &lsquo;2025-05-12&rsquo; reads only files whose partition_values match, without listing the entire object store prefix.</td></tr>
+    <tr><td>column_stats</td><td>Column-level statistics for predicate pushdown</td><td>Per-column min/max/null counts stored as JSONB. A query with <code>WHERE amount &gt; 1000</code> can skip entire Parquet files whose <code>column_stats.amount.max &lt; 1000</code> without reading a single row. This is the key mechanism behind Iceberg&rsquo;s dramatic scan reduction at scale.</td></tr>
+    <tr><td>ix_manifest_by_table_snapshot</td><td>Query-path index</td><td>The most common metastore query is &ldquo;give me all data files for snapshot X of table Y&rdquo;; this index makes it a fast index seek rather than a full manifest scan.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How snapshot isolation works</h5>
+<p>A reader issues <code>SELECT MAX(snapshot_id) FROM table_snapshot WHERE table_id = :t</code> and pins that value for the duration of its query. It then reads manifest entries for exactly that snapshot_id, following only ADDED and EXISTING (non-DELETED) files. A concurrent writer commits a new snapshot_id; the reader sees none of it &mdash; full read isolation without row-level locking. This is the core of optimistic multi-version concurrency: writes never block reads because the data files are immutable and new writes produce new snapshots.</p>
+
+<h5>Time travel mechanics</h5>
+<p>Time travel has two access patterns: (1) by snapshot_id &mdash; query the manifest for that exact snapshot_id; (2) by timestamp &mdash; <code>SELECT MAX(snapshot_id) FROM table_snapshot WHERE table_id = :t AND committed_at &lt;= :target_ts</code>. The parent_snapshot_id chain is needed for GC (to determine which snapshots are reachable from the current snapshot) but not for the read path, which goes directly to the manifest by snapshot_id.</p>
+
+<h5>Column statistics: the predicate pushdown engine</h5>
+<p><code>column_stats</code> stores a per-column min/max/null-count map. For a query <code>WHERE revenue &gt; 500000</code>, the metastore scan filters <code>column_stats-&gt;&gt;&lsquo;revenue&rsquo;-&gt;&gt;&lsquo;max&rsquo; &gt; 500000</code> before returning any file paths to the query engine. Files whose max revenue is below the threshold are excluded without ever opening the Parquet file. In real Iceberg these statistics are stored in manifest files (Avro) rather than a Postgres table, but the logical structure is identical: per-column bounds per data file, evaluated at plan time.</p>
+
+<h5>Immutability and the garbage collection problem</h5>
+<p>Data files are never overwritten or deleted by normal write operations. A DELETE or UPDATE in the logical table produces a new snapshot with new data files and marks old files with status 2 (DELETED) in the manifest. The old files remain in object storage until a garbage collection (GC) job identifies files that are: (a) not referenced by any non-expired snapshot, and (b) older than the retention window. The <code>deleted_in_snapshot</code> column enables this: a file is GC-eligible when its deleted_in_snapshot is older than the oldest live snapshot. Without this tracking, GC would require scanning all manifest entries for every file.</p>
+
+<h5>Optimistic concurrency for writes</h5>
+<p>Two concurrent writers each read the current snapshot, produce new data files, and attempt to commit a new snapshot with <code>parent_snapshot_id = current_snapshot_id</code>. The PK <code>(table_id, snapshot_id)</code> does not prevent both from choosing the same next snapshot_id unless sequence generation is centralised. The standard approach: use a CAS (compare-and-swap) operation on a <code>table_current_snapshot</code> pointer table &mdash; <code>UPDATE table_current SET snapshot_id = :new WHERE snapshot_id = :expected</code>. If the update affects 0 rows, a concurrent writer has committed; the loser aborts, re-reads the new current snapshot, and retries. This is exactly the optimistic concurrency pattern that Iceberg uses at the metastore level.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that snapshot isolation is achieved by readers pinning a snapshot_id and following only that snapshot&rsquo;s manifest entries &mdash; writes never block reads because data files are immutable; describe column_stats as the predicate-pushdown mechanism that lets the engine skip entire Parquet files without opening them; and articulate the GC eligibility condition (&ldquo;a file is safe to delete when it is not referenced by any snapshot newer than the retention boundary&rdquo;) using <code>deleted_in_snapshot</code> &mdash; these three points reveal that you understand the table format as a distributed systems protocol, not just a metadata schema.</div>

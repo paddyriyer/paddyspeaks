@@ -1,0 +1,68 @@
+<p>Market-basket analysis &mdash; finding which items are frequently purchased together &mdash; is foundational to e-commerce recommendation engines and retail planogramming. The interviewer is probing the <strong>self-join with a canonical-pair guard</strong> pattern: joining a table to itself on basket_id while enforcing <code>a.item &lt; b.item</code> to produce each unordered pair exactly once, then aggregating to find frequency. Getting the deduplication logic right and understanding why <code>&lt;</code> rather than <code>&ne;</code> is the crux.</p>
+
+<h4>1. The source data &mdash; <code>basket_item</code></h4>
+<table>
+  <thead><tr><th>basket_id</th><th>items in basket</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>bread, milk, eggs</td></tr>
+    <tr><td>2</td><td>bread, milk</td></tr>
+    <tr><td>3</td><td>bread, butter</td></tr>
+    <tr><td>4</td><td>milk, cookies</td></tr>
+    <tr><td>5</td><td>bread, milk, butter</td></tr>
+    <tr><td>6</td><td>bread, jam</td></tr>
+    <tr><td>7</td><td>bread, milk</td></tr>
+  </tbody>
+</table>
+<p>All raw pairs present in the data (alphabetically ordered): bread-butter appears in baskets 3, 5; bread-eggs in basket 1; bread-jam in basket 6; bread-milk in baskets 1, 2, 5, 7; bread-cookies is absent; milk-butter in basket 5; milk-cookies in basket 4; milk-eggs in basket 1. The top pair by frequency should be bread-milk at 4 occurrences.</p>
+
+<h4>2. The SQL &mdash; self-join with canonical-pair guard</h4>
+<pre><code>SELECT a.item AS item_a, b.item AS item_b, COUNT(*) AS frequency
+FROM basket_item a JOIN basket_item b
+  ON a.basket_id = b.basket_id AND a.item &lt; b.item
+GROUP BY a.item, b.item
+ORDER BY frequency DESC, a.item, b.item
+LIMIT 3;</code></pre>
+<p>The table joins to itself on <code>basket_id</code> to generate all co-occurrence pairs within the same basket. The <code>a.item &lt; b.item</code> guard does two things simultaneously: it eliminates self-pairs (an item paired with itself) and it fixes the canonical ordering so (A, B) and (B, A) collapse into the single row where <code>item_a &lt; item_b</code> alphabetically. <code>COUNT(*)</code> counts baskets containing that pair; the result is ordered by descending frequency, then alphabetically for deterministic tie-breaking.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>All co-occurrence pairs and their counts (hand-traced):</p>
+<table>
+  <thead><tr><th>item_a</th><th>item_b</th><th>frequency</th><th>baskets</th></tr></thead>
+  <tbody>
+    <tr><td>bread</td><td>milk</td><td>4</td><td>1, 2, 5, 7</td></tr>
+    <tr><td>bread</td><td>butter</td><td>2</td><td>3, 5</td></tr>
+    <tr><td>bread</td><td>eggs</td><td>1</td><td>1</td></tr>
+    <tr><td>bread</td><td>jam</td><td>1</td><td>6</td></tr>
+    <tr><td>butter</td><td>milk</td><td>1</td><td>5</td></tr>
+    <tr><td>cookies</td><td>milk</td><td>1</td><td>4</td></tr>
+    <tr><td>eggs</td><td>milk</td><td>1</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>After <code>LIMIT 3</code> the query returns only the top three rows. Bread-butter (2) is unambiguously second. Third place is a four-way tie (bread-eggs, bread-jam, butter-milk, cookies-milk all have frequency 1); the secondary sort <code>ORDER BY a.item, b.item</code> picks <strong>bread-eggs</strong> as the third row (b comes before bu alphabetically, and bread-eggs &lt; bread-jam).</p>
+<table>
+  <thead><tr><th>item_a</th><th>item_b</th><th>frequency</th></tr></thead>
+  <tbody>
+    <tr><td>bread</td><td>milk</td><td>4</td></tr>
+    <tr><td>bread</td><td>butter</td><td>2</td></tr>
+    <tr><td>bread</td><td>eggs</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>a.item &lt; b.item</code> rather than <code>a.item &ne; b.item</code></h5>
+<p><code>&ne;</code> eliminates self-pairs but still emits both (bread, milk) and (milk, bread) as separate rows, each with their own count, requiring a later <code>LEAST/GREATEST</code> re-canonicalisation or a <code>HAVING item_a &lt; item_b</code> post-filter that throws away half the work. The <code>&lt;</code> predicate does the canonicalisation at join time: because string comparison is total and antisymmetric, exactly one of <code>a.item &lt; b.item</code> and <code>b.item &lt; a.item</code> is true for any two distinct items, so each unordered pair appears in precisely one join row. This is cleaner, cheaper, and harder to mis-implement.</p>
+
+<h5>What <code>COUNT(*)</code> is counting</h5>
+<p><code>COUNT(*)</code> counts the number of rows in each <code>(a.item, b.item)</code> group after the self-join. Because each row in the self-join corresponds to one basket where both items appear, it is counting baskets &mdash; which is exactly the definition of <em>support</em> in market-basket analysis. If the same item appeared twice in one basket row (e.g. a basket listing &lsquo;milk&rsquo; twice), self-join would inflate counts; the schema here has one row per (basket, item) so this is not a problem, but noting it shows depth.</p>
+
+<h5>Scaling beyond two items &mdash; the apriori principle</h5>
+<p>Pair mining with a self-join is O(k&sup2;) in the number of distinct items k per basket. For large catalogues (thousands of SKUs), the apriori algorithm prunes the candidate space: any frequent pair must have both members individually frequent. In SQL this means pre-filtering to items above a support threshold before the self-join, dramatically shrinking k. For triple-item sets, a second self-join or a recursive approach is needed; most production systems move to specialised libraries (Spark MLlib FPGrowth) beyond pairs.</p>
+
+<h5>Tie-breaking with secondary sorts</h5>
+<p>The <code>ORDER BY frequency DESC, a.item, b.item</code> is essential for deterministic <code>LIMIT</code> results. Without it, any row among the four frequency-1 pairs could appear as the third result &mdash; the output would be correct by the frequency criterion but non-deterministic across runs and engines. In interviews, always ask &ldquo;how should ties be broken?&rdquo; and encode the answer in the <code>ORDER BY</code>.</p>
+
+<h5>Dialect notes</h5>
+<p>The <code>a.item &lt; b.item</code> string comparison relies on the database's default collation for alphabetical ordering, which is consistent across PostgreSQL, MySQL, SQL Server, BigQuery, and Snowflake for ASCII text. <code>LIMIT 3</code> is PostgreSQL/MySQL/SQLite syntax; SQL Server uses <code>TOP 3</code> in the <code>SELECT</code> clause; BigQuery and Snowflake also accept <code>LIMIT</code>. The rest of the query is fully portable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>a.item &lt; b.item</code> &mdash; not <code>&ne;</code> &mdash; to deduplicate unordered pairs at join time; know that this produces each pair exactly once with O(items&sup2;) cost per basket; name <em>support</em> as the market-basket metric being computed; and mention the apriori pre-filter and FPGrowth as the scalable path for large catalogues.</div>

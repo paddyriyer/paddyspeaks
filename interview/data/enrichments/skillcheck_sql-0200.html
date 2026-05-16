@@ -1,0 +1,61 @@
+<p>Finding "fully complete" projects is a universal completeness check in task-management and workflow systems. The twist here is two-part: (1) the boolean aggregate <code>BOOL_AND</code> must be used instead of a more common <code>COUNT(done = false) = 0</code> approach, and (2) projects with <em>zero</em> tasks must be included as trivially complete &mdash; which requires an outer join from the project table and careful NULL handling so their NULL-joined <code>done</code> column does not accidentally disqualify them.</p>
+
+<h4>1. The source data &mdash; <code>project</code> and <code>task</code></h4>
+<table>
+  <thead><tr><th>project_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>project_id</th><th>task_id</th><th>done</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>true</td></tr>
+    <tr><td>1</td><td>11</td><td>true</td></tr>
+    <tr><td>2</td><td>20</td><td>true</td></tr>
+    <tr><td>2</td><td>21</td><td>false</td></tr>
+    <tr><td>3</td><td>30</td><td>false</td></tr>
+  </tbody>
+</table>
+<p>Project 1: two tasks, both done &rarr; complete. Project 2: two tasks, one incomplete &rarr; not complete. Project 3: one task, incomplete &rarr; not complete. Project 4: no tasks at all &rarr; trivially complete (must be included).</p>
+
+<h4>2. The SQL &mdash; LEFT JOIN + BOOL_AND with COALESCE</h4>
+<pre><code>SELECT p.project_id
+FROM project p
+LEFT JOIN task t ON t.project_id = p.project_id
+GROUP BY p.project_id
+HAVING BOOL_AND(COALESCE(t.done, true))
+ORDER BY p.project_id;</code></pre>
+<p>The LEFT JOIN keeps all projects, including project 4 with no tasks (it joins with <code>NULL</code> in every task column). <code>COALESCE(t.done, true)</code> converts the <code>NULL</code> done value to <code>true</code>, so for project 4 the BOOL_AND aggregates over a single synthetic <code>true</code> &mdash; correctly classifying it as complete. For projects with real tasks, COALESCE is a no-op.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>project_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+<p>Project 1: BOOL_AND(true, true) = true &rarr; included. Project 2: BOOL_AND(true, false) = false &rarr; excluded. Project 3: BOOL_AND(false) = false &rarr; excluded. Project 4: LEFT JOIN produces one row with t.done = NULL; COALESCE converts to true; BOOL_AND(true) = true &rarr; included.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>BOOL_AND &mdash; the boolean aggregate</h5>
+<p><code>BOOL_AND(expr)</code> returns <code>true</code> if every value in the group is <code>true</code>, <code>false</code> if any value is <code>false</code>, and <code>NULL</code> if the group is empty. It is the boolean analogue of <code>MIN</code> over a boolean column (and in fact PostgreSQL implements it the same way). The equivalent without <code>BOOL_AND</code> is <code>HAVING SUM(CASE WHEN done = false THEN 1 ELSE 0 END) = 0</code> or <code>HAVING COUNT(*) FILTER (WHERE NOT COALESCE(done, true)) = 0</code> &mdash; more verbose and easier to get wrong.</p>
+
+<h5>COALESCE to handle the NULL-task project</h5>
+<p>Without <code>COALESCE(t.done, true)</code>, project 4's single NULL value causes <code>BOOL_AND(NULL)</code> to return NULL, and a HAVING clause filters out NULL &mdash; so project 4 would be silently excluded. The COALESCE argument is: a project with no tasks satisfies "all tasks done" vacuously, so the missing done value should be treated as <code>true</code>. This is the vacuous-truth convention from logic, and recognising it is the key to the correct answer.</p>
+
+<h5>Why LEFT JOIN from project, not from task</h5>
+<p>An INNER JOIN (or joining from task rather than project) would drop project 4 entirely before aggregation because it has no matching task rows. You must start from the authoritative list of projects (the <code>project</code> table) and LEFT JOIN tasks so that zero-task projects survive into the GROUP BY. This "left table is the master" pattern applies whenever you need to preserve entities that lack related rows.</p>
+
+<h5>Alternative approaches and their tradeoffs</h5>
+<p>Three common alternatives: (1) <code>NOT EXISTS (SELECT 1 FROM task WHERE project_id = p.project_id AND NOT done)</code> &mdash; readable but does not include zero-task projects without an additional <code>OR NOT EXISTS (SELECT 1 FROM task WHERE …)</code> clause; (2) two separate queries unioned (all-done projects UNION zero-task projects) &mdash; correct but verbose; (3) <code>HAVING MIN(done::int) = 1</code> in PostgreSQL (casting bool to int: true=1, false=0) &mdash; works but less idiomatic than BOOL_AND. The LEFT JOIN + BOOL_AND + COALESCE form handles both cases in a single clean query.</p>
+
+<h5>Dialect notes</h5>
+<p><code>BOOL_AND</code> is a PostgreSQL and DuckDB extension. In SQL Server and MySQL use <code>HAVING MIN(CAST(done AS INT)) = 1</code>. In BigQuery use <code>LOGICAL_AND(done)</code> with a similar COALESCE wrapper. Snowflake has <code>BOOLOR_AGG</code> (OR) but no native BOOL_AND &mdash; use <code>HAVING MIN(IFF(done, 1, 0)) = 1</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> drive the query from the <code>project</code> table with a LEFT JOIN so zero-task projects survive; use <code>COALESCE(t.done, true)</code> inside <code>BOOL_AND</code> to encode the vacuous-truth convention that an empty task set is trivially complete; and be ready to translate to <code>LOGICAL_AND</code> (BigQuery) or <code>MIN(CAST(done AS INT)) = 1</code> (SQL Server/MySQL) for cross-dialect portability.</div>

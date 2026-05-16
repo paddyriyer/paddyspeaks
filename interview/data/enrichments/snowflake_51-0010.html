@@ -1,0 +1,77 @@
+<p>An operations analyst wants a single product report combining units sold from transactions, current stock from the warehouse, and a reorder flag — all in one query across three tables. The interviewer is testing three-table LEFT JOIN aggregation, COALESCE for products with no sales, and the CASE WHEN comparison that drives the reorder decision. The query's use of <code>NULLIF(regexp_replace(…))</code> is a defensive pattern for dirty numeric data; understanding it is itself a signal.</p>
+
+<h4>1. The source data &mdash; <code>products</code>, <code>sales</code>, <code>inventory</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>category</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Widget</td><td>Electronics</td><td>25.00</td></tr>
+    <tr><td>2</td><td>Gadget</td><td>Electronics</td><td>50.00</td></tr>
+    <tr><td>3</td><td>Book</td><td>Media</td><td>15.00</td></tr>
+    <tr><td>4</td><td>Cable</td><td>Electronics</td><td>8.00</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>sale_id</th><th>product_id</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>S1</td><td>1</td><td>10</td></tr>
+    <tr><td>S2</td><td>1</td><td>5</td></tr>
+    <tr><td>S3</td><td>2</td><td>3</td></tr>
+    <tr><td>S4</td><td>3</td><td>8</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_id</th><th>on_hand</th><th>reorder_point</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>12</td><td>20</td></tr>
+    <tr><td>2</td><td>50</td><td>10</td></tr>
+    <tr><td>3</td><td>5</td><td>5</td></tr>
+    <tr><td>4</td><td>30</td><td>15</td></tr>
+  </tbody>
+</table>
+<p>Product 4 (Cable) has no sales rows — its <code>units_sold</code> should be 0. Product 1 (Widget) has <code>on_hand=12</code> and <code>reorder_point=20</code>: stock is at or below the threshold, so it should show REORDER. Product 3 (Book) has <code>on_hand = reorder_point = 5</code>, which also triggers REORDER (the CASE uses <code>&le;</code>).</p>
+
+<h4>2. The SQL &mdash; three-table LEFT JOIN with CASE WHEN reorder logic</h4>
+<pre><code>SELECT p.product_id, p.name,
+       COALESCE(SUM(s.qty), 0)  AS units_sold,
+       MAX(i.on_hand)            AS current_stock,
+       MAX(i.reorder_point)      AS reorder_point,
+       CASE
+         WHEN MAX(i.on_hand) &lt;= MAX(i.reorder_point) THEN 'REORDER'
+         ELSE 'OK'
+       END                       AS stock_status
+FROM products  p
+LEFT JOIN sales     s ON p.product_id = s.product_id
+LEFT JOIN inventory i ON p.product_id = i.product_id
+GROUP BY p.product_id, p.name;</code></pre>
+<p><strong>Note on the production query:</strong> the original solution wraps inventory columns in <code>MAX(NULLIF(regexp_replace(i.on_hand::text, '[^-.0-9]', '', 'g'), '')::numeric)</code>. This is a defensive pattern for when the inventory table stores on_hand as TEXT with potential non-numeric characters (e.g., "12 units" or empty strings). The simplified version above assumes clean INTEGER columns — which is the appropriate schema. The defensive regex is worth explaining as a real-world data-quality pattern.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>units_sold</th><th>current_stock</th><th>reorder_point</th><th>stock_status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Widget</td><td>15</td><td>12</td><td>20</td><td>REORDER</td></tr>
+    <tr><td>2</td><td>Gadget</td><td>3</td><td>50</td><td>10</td><td>OK</td></tr>
+    <tr><td>3</td><td>Book</td><td>8</td><td>5</td><td>5</td><td>REORDER</td></tr>
+    <tr><td>4</td><td>Cable</td><td>0</td><td>30</td><td>15</td><td>OK</td></tr>
+  </tbody>
+</table>
+<p>Widget: 10+5=15 sold. Stock 12 &le; reorder 20 &rarr; REORDER. Gadget: 3 sold. 50 &gt; 10 &rarr; OK. Book: 8 sold. 5 &le; 5 &rarr; REORDER (the CASE uses &le;, so equality triggers reorder). Cable: no sales &rarr; COALESCE gives 0. 30 &gt; 15 &rarr; OK.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why both joins are LEFT JOIN</h5>
+<p>A product with no sales rows (Cable) would be dropped by an INNER JOIN to sales. Similarly, a product not yet in the inventory table would be dropped by an INNER JOIN to inventory. LEFT JOINs ensure every product appears in the result regardless of whether it has sales history or an inventory record. The COALESCE on <code>SUM(s.qty)</code> converts the NULL aggregate (no sales rows) to 0.</p>
+
+<h5>Why MAX instead of plain column reference for inventory</h5>
+<p>Once <code>LEFT JOIN inventory</code> is added to a query that already has <code>GROUP BY p.product_id, p.name</code>, the inventory columns must either appear in the GROUP BY or be wrapped in an aggregate. Since inventory has exactly one row per product, <code>MAX(i.on_hand)</code> and <code>MIN(i.on_hand)</code> are equivalent — both return the single value. Using MAX is the conventional pattern for a 1:1 join attribute when the GROUP BY is driven by the many-side table (sales). An alternative is to aggregate sales first in a subquery, then JOIN that to products and inventory without a GROUP BY.</p>
+
+<h5>The CASE WHEN &le; boundary</h5>
+<p>The condition is <code>MAX(i.on_hand) &lt;= MAX(i.reorder_point)</code>. Using strict <code>&lt;</code> instead would leave Book (on_hand = reorder_point = 5) as "OK" — but the business intent is typically "trigger reorder when stock is at or below the threshold," which requires <code>&le;</code>. Always clarify the boundary with the stakeholder before coding.</p>
+
+<h5>The defensive regex in the original query</h5>
+<p><code>NULLIF(regexp_replace(i.on_hand::text, '[^-.0-9]', '', 'g'), '')::numeric</code> strips all non-numeric characters from a text representation, converts empty result to NULL via <code>NULLIF</code>, then casts to numeric. This handles dirty data like "12 units", "$30", or completely empty strings. In Snowflake, <code>TRY_TO_NUMBER(i.on_hand)</code> is a cleaner built-in alternative that returns NULL on parse failure without a regex. The fact that this pattern is in the original query signals the table was inherited with a poorly typed schema.</p>
+
+<h5>Dialect notes</h5>
+<p>The CASE WHEN expression is ANSI SQL. In Snowflake, <code>IFF(on_hand &lt;= reorder_point, 'REORDER', 'OK')</code> is a shorter single-condition alternative. <code>COALESCE</code> is universally supported. The regex defensive cast uses PostgreSQL syntax; in Snowflake use <code>TRY_CAST(i.on_hand AS NUMBER)</code> or <code>TRY_TO_NUMBER(i.on_hand)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that both LEFT JOINs are required to preserve zero-sale and no-inventory products, clarify that MAX on a 1:1 join attribute is the idiom for "unwrap a 1:1 join inside a GROUP BY," explicitly state whether the CASE uses <code>&lt;</code> or <code>&le;</code> and why the business intent determines the answer, and mention Snowflake's <code>TRY_TO_NUMBER</code> as the clean replacement for the defensive regex cast.</div>

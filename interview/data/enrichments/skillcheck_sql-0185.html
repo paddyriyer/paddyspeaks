@@ -1,0 +1,77 @@
+<p>An HR system wants to know which departments have the deepest salary parity at the top &mdash; the most people who all share the maximum salary in their department. The interviewer is probing the <strong>double-ranking pattern</strong>: first RANK to find who is tied at the top within each department, then an outer aggregation to count those ties, then a final filter to find the department(s) with the largest count (with ties at the dept level kept).</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Eng</td><td>200</td></tr>
+    <tr><td>2</td><td>Eng</td><td>200</td></tr>
+    <tr><td>3</td><td>Eng</td><td>200</td></tr>
+    <tr><td>4</td><td>Eng</td><td>150</td></tr>
+    <tr><td>5</td><td>Sales</td><td>300</td></tr>
+    <tr><td>6</td><td>Sales</td><td>300</td></tr>
+    <tr><td>7</td><td>Sales</td><td>250</td></tr>
+    <tr><td>8</td><td>Ops</td><td>120</td></tr>
+    <tr><td>9</td><td>Ops</td><td>110</td></tr>
+    <tr><td>10</td><td>HR</td><td>90</td></tr>
+    <tr><td>11</td><td>HR</td><td>90</td></tr>
+    <tr><td>12</td><td>HR</td><td>90</td></tr>
+  </tbody>
+</table>
+<p>Eng: max salary = 200, tied by emp_ids 1, 2, 3 (3 top earners). Sales: max = 300, tied by 5 and 6 (2 top earners). Ops: max = 120, only emp 8 (1 top earner). HR: max = 90, tied by 10, 11, 12 (3 top earners). Both Eng and HR tie for the highest top-earner count of 3.</p>
+
+<h4>2. The SQL &mdash; RANK then count then max-filter</h4>
+<pre><code>WITH ranked AS (
+  SELECT dept, salary,
+         RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rk
+  FROM employee
+),
+per_dept AS (
+  SELECT dept, COUNT(*) AS top_earner_count
+  FROM ranked
+  WHERE rk = 1
+  GROUP BY dept
+)
+SELECT dept, top_earner_count
+FROM per_dept
+WHERE top_earner_count = (SELECT MAX(top_earner_count) FROM per_dept)
+ORDER BY dept;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Intermediate <code>per_dept</code> values:</p>
+<table>
+  <thead><tr><th>dept</th><th>top_earner_count</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>3</td></tr>
+    <tr><td>HR</td><td>3</td></tr>
+    <tr><td>Ops</td><td>1</td></tr>
+    <tr><td>Sales</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>MAX(top_earner_count) = 3. Final output (both departments with count = 3):</p>
+<table>
+  <thead><tr><th>dept</th><th>top_earner_count</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>3</td></tr>
+    <tr><td>HR</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why RANK and not DENSE_RANK or ROW_NUMBER</h5>
+<p><code>RANK</code> assigns the same rank to all rows that share the maximum salary within the department. <code>rk = 1</code> therefore captures every tied top earner. <code>DENSE_RANK</code> behaves identically for the max (rank 1 goes to all highest-salary rows regardless of function), so either works here. <code>ROW_NUMBER</code> would assign distinct numbers even to ties, leaving only one "top earner" per department &mdash; incorrect.</p>
+
+<h5>The subquery vs. window function for the outer max</h5>
+<p>The final filter uses a scalar subquery <code>SELECT MAX(...) FROM per_dept</code>. An equivalent window approach would add <code>RANK() OVER (ORDER BY top_earner_count DESC) AS outer_rk</code> to <code>per_dept</code> and filter where <code>outer_rk = 1</code>. Both are correct; the subquery is marginally simpler. Note that using <code>LIMIT 1</code> instead of the subquery would silently drop the Eng&ndash;HR tie, which is the key edge case this question tests.</p>
+
+<h5>COUNT(*) vs COUNT(salary) in the second CTE</h5>
+<p>After filtering <code>rk = 1</code>, all retained rows have a non-NULL salary (salary is defined as INT). <code>COUNT(*)</code> and <code>COUNT(salary)</code> are equivalent here. In general, prefer <code>COUNT(*)</code> when counting rows rather than non-NULL values in a specific column &mdash; it is clearer in intent.</p>
+
+<h5>Departments with a single employee</h5>
+<p>If a department has one employee, that person is trivially the sole top earner with top_earner_count = 1. The query handles this correctly without any special case.</p>
+
+<h5>Dialect notes</h5>
+<p>The RANK window function and scalar subquery pattern are ANSI SQL and work in PostgreSQL, Snowflake, BigQuery, SQL Server, and MySQL 8+. BigQuery requires the outer query to be a standard <code>SELECT</code> &mdash; no special changes. SQL Server supports CTEs with window functions identically. In MySQL 5.7 (no window functions), you would compute the max salary per department with a self-join and count via a nested GROUP BY.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>RANK() OVER (PARTITION BY dept ORDER BY salary DESC)</code> (not <code>ROW_NUMBER</code>) to capture all salary ties at rank 1, aggregate those into a per-dept count, and use a scalar <code>MAX</code> subquery (not <code>LIMIT 1</code>) to retrieve all departments that tie for the highest count.</div>

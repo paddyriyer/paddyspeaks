@@ -1,0 +1,64 @@
+<p>A mountaineering records platform needs to show, for each mountain, which climber summited it most recently. The task is a classic "latest event per group" query — one of the most frequently asked SQL interview patterns. The interviewer is probing whether you can select one row per partition ordered by time, using <code>ROW_NUMBER()</code> in a subquery, and whether you know Snowflake's native <code>QUALIFY</code> clause that eliminates the outer wrapper entirely.</p>
+
+<h4>1. The source data &mdash; <code>climbs</code></h4>
+<table>
+  <thead><tr><th>climb_id</th><th>mountain_id</th><th>climber_id</th><th>summit_ts</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>M1</td><td>C10</td><td>2025-01-15 08:30:00</td></tr>
+    <tr><td>2</td><td>M1</td><td>C20</td><td>2025-03-22 09:15:00</td></tr>
+    <tr><td>3</td><td>M1</td><td>C10</td><td>2025-04-10 07:45:00</td></tr>
+    <tr><td>4</td><td>M2</td><td>C30</td><td>2025-02-01 10:00:00</td></tr>
+    <tr><td>5</td><td>M2</td><td>C20</td><td>2025-02-28 11:30:00</td></tr>
+    <tr><td>6</td><td>M3</td><td>C10</td><td>2025-05-01 06:00:00</td></tr>
+  </tbody>
+</table>
+<p>Mountain M1 has three climbs — the most recent is C10 on 2025-04-10. Mountain M2 has two climbs — the most recent is C20 on 2025-02-28. Mountain M3 has exactly one climb. Climber C10 summited M1 twice (2025-01-15 and 2025-04-10) — only the later one should appear.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER in subquery, filter on rn = 1</h4>
+<pre><code>SELECT mountain_id, climber_id, summit_ts
+FROM (
+  SELECT mountain_id, climber_id, summit_ts,
+         ROW_NUMBER() OVER (
+           PARTITION BY mountain_id
+           ORDER BY summit_ts DESC
+         ) AS rn
+  FROM climbs
+) t
+WHERE rn = 1
+ORDER BY mountain_id;</code></pre>
+<p><strong>Snowflake native shortcut:</strong> replace the subquery + WHERE with a single <code>QUALIFY</code> clause: <code>SELECT mountain_id, climber_id, summit_ts FROM climbs QUALIFY ROW_NUMBER() OVER (PARTITION BY mountain_id ORDER BY summit_ts DESC) = 1 ORDER BY mountain_id;</code></p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>mountain_id</th><th>climber_id</th><th>summit_ts</th></tr></thead>
+  <tbody>
+    <tr><td>M1</td><td>C10</td><td>2025-04-10 07:45:00</td></tr>
+    <tr><td>M2</td><td>C20</td><td>2025-02-28 11:30:00</td></tr>
+    <tr><td>M3</td><td>C10</td><td>2025-05-01 06:00:00</td></tr>
+  </tbody>
+</table>
+<p>M1: three climbs, rn=1 is 2025-04-10 (C10). M2: two climbs, rn=1 is 2025-02-28 (C20). M3: one climb, that one row gets rn=1 (C10). Exactly one row per mountain.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The "latest row per group" pattern — three approaches</h5>
+<p>This pattern appears constantly in analytics. Three standard approaches:</p>
+<ul>
+  <li><strong>ROW_NUMBER subquery (this query):</strong> assign rn=1 to the latest row per partition, filter in the outer query. Works universally.</li>
+  <li><strong>Correlated subquery:</strong> <code>WHERE summit_ts = (SELECT MAX(summit_ts) FROM climbs c2 WHERE c2.mountain_id = c.mountain_id)</code>. Simpler to write but can return multiple rows when two climbers summit at the exact same timestamp (a tie), and is less efficient on large tables.</li>
+  <li><strong>DISTINCT ON (PostgreSQL only):</strong> <code>SELECT DISTINCT ON (mountain_id) mountain_id, climber_id, summit_ts FROM climbs ORDER BY mountain_id, summit_ts DESC</code>. Elegant and efficient in PostgreSQL but non-standard — not available in Snowflake, BigQuery, or MySQL.</li>
+</ul>
+
+<h5>ROW_NUMBER vs RANK for tie handling</h5>
+<p>If two climbers summited the same mountain at exactly the same timestamp, <code>ROW_NUMBER()</code> assigns rn=1 to one of them arbitrarily (implementation-defined ordering for ties). <code>RANK()</code> would assign rn=1 to both, so the outer <code>WHERE rn = 1</code> would return both rows — not a single winner. If you need exactly one row even in a tie, <code>ROW_NUMBER</code> is correct. If you need to surface all tied "winners," use <code>RANK() OVER … WHERE rk = 1</code>. The choice depends on the business requirement; a senior candidate always asks before coding.</p>
+
+<h5>Why the subquery wrapper is needed (except in Snowflake)</h5>
+<p>The window function <code>ROW_NUMBER()</code> is evaluated after the WHERE clause in the logical query processing order. Therefore you cannot filter on <code>rn = 1</code> in the same query that defines <code>rn</code>. A subquery (or CTE) that materializes the window result first, followed by an outer filter, is the portable solution. Snowflake's <code>QUALIFY</code> clause is a dedicated post-window filter, evaluated after window functions — it makes the subquery unnecessary and makes the intent crystal clear.</p>
+
+<h5>QUALIFY: Snowflake (and BigQuery) specific</h5>
+<p><code>QUALIFY</code> is evaluated in the order: FROM &rarr; WHERE &rarr; GROUP BY &rarr; HAVING &rarr; window functions &rarr; QUALIFY &rarr; ORDER BY &rarr; LIMIT. It filters on window function results directly, removing the need for a subquery or CTE. It is available in Snowflake and BigQuery. PostgreSQL, MySQL, and SQL Server do not support it — use the subquery pattern there. Knowing which engines support QUALIFY is a reliable Snowflake-specific interview differentiator.</p>
+
+<h5>Performance</h5>
+<p>On a large <code>climbs</code> table, an index on <code>(mountain_id, summit_ts DESC)</code> allows the engine to seek to the top entry per mountain without scanning the full table. In Snowflake, a cluster key on <code>mountain_id</code> enables micro-partition pruning for the PARTITION BY. The ROW_NUMBER subquery approach typically performs better than the correlated subquery on large data because it makes a single pass rather than one correlated lookup per outer row.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the "latest row per group" pattern, contrast ROW_NUMBER (exactly one winner even with ties) vs RANK (all tied winners) and explain when each is correct, immediately cite Snowflake's <code>QUALIFY ROW_NUMBER() OVER (…) = 1</code> as the idiomatic subquery-free solution, and contrast with PostgreSQL's <code>DISTINCT ON</code> as the engine-specific alternative. Mentioning the cluster key on <code>mountain_id</code> for Snowflake performance is the over-the-bar move.</div>

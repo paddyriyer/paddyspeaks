@@ -1,0 +1,63 @@
+<p>Facilities managers asking <em>"Is our ceiling height adequate for warehouse racking on each floor of each building?"</em> need both a numeric average and a categorical label. The interviewer is probing two things: can you aggregate over a composite group key, and can you apply a multi-tier <code>CASE WHEN</code> bucket to an aggregate expression? The twist here is the <code>NULLIF(regexp_replace(...)::numeric)</code> defensive cast &mdash; a signal that the column may contain non-numeric noise and that you need to sanitise before averaging.</p>
+
+<h4>1. The source data &mdash; <code>rooms</code></h4>
+<table>
+  <thead><tr><th>room_id</th><th>building_id</th><th>floor</th><th>ceiling_height_m</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>1</td><td>2.4</td></tr>
+    <tr><td>2</td><td>A</td><td>1</td><td>2.6</td></tr>
+    <tr><td>3</td><td>A</td><td>2</td><td>3.2</td></tr>
+    <tr><td>4</td><td>A</td><td>2</td><td>3.0</td></tr>
+    <tr><td>5</td><td>B</td><td>1</td><td>2.5</td></tr>
+    <tr><td>6</td><td>B</td><td>1</td><td>2.8</td></tr>
+    <tr><td>7</td><td>B</td><td>2</td><td>4.1</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; per-floor average with categorical classification</h4>
+<pre><code>SELECT building_id, floor,
+       AVG(NULLIF(regexp_replace(ceiling_height_m::text, '[^-.0-9]', '', 'g'), '')::numeric) AS avg_height_m,
+       CASE
+         WHEN AVG(NULLIF(regexp_replace(ceiling_height_m::text, '[^-.0-9]', '', 'g'), '')::numeric) &gt;= 3   THEN 'High'
+         WHEN AVG(NULLIF(regexp_replace(ceiling_height_m::text, '[^-.0-9]', '', 'g'), '')::numeric) &gt;= 2.5 THEN 'Standard'
+         ELSE 'Low'
+       END AS height_class
+FROM rooms
+GROUP BY building_id, floor
+ORDER BY building_id, floor;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>building_id</th><th>floor</th><th>avg_height_m</th><th>height_class</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>1</td><td>2.50</td><td>Standard</td></tr>
+    <tr><td>A</td><td>2</td><td>3.10</td><td>High</td></tr>
+    <tr><td>B</td><td>1</td><td>2.65</td><td>Standard</td></tr>
+    <tr><td>B</td><td>2</td><td>4.10</td><td>High</td></tr>
+  </tbody>
+</table>
+<p>Derivation: A/floor-1 = (2.4+2.6)/2 = 2.50 (exactly at the Standard threshold, &ge;2.5 but &lt;3 &rarr; Standard); A/floor-2 = (3.2+3.0)/2 = 3.10 (&ge;3 &rarr; High); B/floor-1 = (2.5+2.8)/2 = 2.65 (&ge;2.5 &rarr; Standard); B/floor-2 = 4.10 (single room, &ge;3 &rarr; High).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Composite GROUP BY &mdash; why both columns matter</h5>
+<p>Grouping by <code>building_id, floor</code> creates one row per (building, floor) pair. Grouping by <code>building_id</code> alone would conflate ground-floor low rooms with upper-floor high ones. Grouping by <code>floor</code> alone would average across all buildings &mdash; useless if buildings differ structurally. The composite key reflects the real-world unit of analysis: a single floor of a single building.</p>
+
+<h5>The defensive <code>NULLIF(regexp_replace(...)::numeric)</code> cast</h5>
+<p>The <code>ceiling_height_m</code> column is likely typed as <code>TEXT</code> or <code>VARCHAR</code> because upstream data may include unit suffixes like <code>"3.2m"</code>, currency characters, or empty strings. The pipeline: strip everything not a digit, minus sign, or decimal point with <code>regexp_replace(val::text, '[^-.0-9]', '', 'g')</code>; then <code>NULLIF(..., '')</code> converts the empty string that remains when the whole value was non-numeric into <code>NULL</code>; finally <code>::numeric</code> does the actual cast. <code>AVG</code> ignores <code>NULL</code>s, so corrupted rows drop out of the average rather than crashing the query. This pattern is a Postgres idiom &mdash; Snowflake's <code>TRY_CAST(val AS FLOAT)</code> is the cleaner equivalent in that dialect.</p>
+
+<h5><code>CASE WHEN</code> on an aggregate &mdash; evaluated once or twice?</h5>
+<p>The <code>CASE WHEN</code> references the <code>AVG(...)</code> expression verbatim rather than the alias <code>avg_height_m</code>. SQL's logical processing order means <code>SELECT</code> aliases are not available inside the same <code>SELECT</code>'s expressions (in most engines). To avoid repeating the long expression you can wrap the query in a subquery or CTE and reference the alias in the outer <code>CASE</code>. Snowflake and BigQuery relax this restriction in some positions, but the subquery approach is universally portable. In the query as written the engine computes the same <code>AVG</code> expression up to three times in the worst case &mdash; though optimisers typically common-subexpression-eliminate it into one pass.</p>
+
+<h5>Threshold boundary semantics &mdash; <code>&ge;3</code> is checked first</h5>
+<p><code>CASE WHEN</code> evaluates clauses in order and returns on the first match. A room averaging exactly 3.00 m hits the first branch (<code>&ge; 3 &rarr; High</code>) and never reaches the second. If the branches were reversed &mdash; <code>&ge;2.5</code> first &mdash; a 3.10 m average would be misclassified as Standard. Always place the highest threshold first in a descending classification like this.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Snowflake:</strong> use <code>TRY_CAST(ceiling_height_m AS FLOAT)</code> instead of the <code>regexp_replace / NULLIF / ::numeric</code> triple; it returns <code>NULL</code> on any non-parseable value cleanly.</li>
+  <li><strong>BigQuery:</strong> <code>SAFE_CAST(ceiling_height_m AS FLOAT64)</code> is the equivalent safe-cast function.</li>
+  <li><strong>MySQL:</strong> no native safe cast; <code>CASE WHEN val REGEXP '^-?[0-9]+\\.?[0-9]*$' THEN CAST(val AS DECIMAL(10,2)) ELSE NULL END</code> is the workaround.</li>
+  <li><code>regexp_replace</code> with the <code>'g'</code> (global) flag is Postgres-specific; Snowflake's <code>REGEXP_REPLACE</code> applies globally by default.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the composite group key as the real unit of analysis, explain the <code>NULLIF(regexp_replace(...)::numeric)</code> sanitisation idiom and its Snowflake equivalent (<code>TRY_CAST</code>), and flag that the <code>CASE WHEN</code> branches must descend from the highest threshold to avoid misclassification at boundaries. Offer the CTE refactor to eliminate the repeated aggregate expression.</div>

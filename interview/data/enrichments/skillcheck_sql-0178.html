@@ -1,0 +1,87 @@
+<p>Tracking when an employee crosses a compensation tier boundary &mdash; moving from the bottom third of their pay history to the middle, or from middle to top &mdash; is a novel use of two window functions composed in sequence. The interviewer is probing whether you understand that <code>NTILE</code> ranks by <em>value</em> (salary magnitude) while <code>LAG</code> then looks at the chronological sequence of those tier labels, and that these two orderings are different axes that must be applied in a specific order.</p>
+
+<h4>1. The source data &mdash; <code>salary_history</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>effective_date</th><th>salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td><td>100</td><td>emp 1 row 1 (salary-ranked 1st of 4)</td></tr>
+    <tr><td>1</td><td>2024-04-01</td><td>110</td><td>emp 1 row 2 (salary-ranked 2nd of 4)</td></tr>
+    <tr><td>1</td><td>2024-07-01</td><td>180</td><td>emp 1 row 3 (salary-ranked 3rd of 4)</td></tr>
+    <tr><td>1</td><td>2024-10-01</td><td>200</td><td>emp 1 row 4 (salary-ranked 4th of 4)</td></tr>
+    <tr><td>2</td><td>2024-01-01</td><td>60</td><td>emp 2 row 1 (salary-ranked 2nd of 3)</td></tr>
+    <tr><td>2</td><td>2024-04-01</td><td>55</td><td>emp 2 row 2 (salary-ranked 1st of 3)</td></tr>
+    <tr><td>2</td><td>2024-07-01</td><td>90</td><td>emp 2 row 3 (salary-ranked 3rd of 3)</td></tr>
+    <tr><td>3</td><td>2024-01-01</td><td>300</td><td>emp 3 row 1 (salary-ranked 1st of 3)</td></tr>
+    <tr><td>3</td><td>2024-04-01</td><td>310</td><td>emp 3 row 2 (salary-ranked 2nd of 3)</td></tr>
+    <tr><td>3</td><td>2024-07-01</td><td>320</td><td>emp 3 row 3 (salary-ranked 3rd of 3)</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; NTILE then LAG on tier label</h4>
+<pre><code>WITH t AS (
+  SELECT emp_id, effective_date, salary,
+         NTILE(3) OVER (PARTITION BY emp_id ORDER BY salary) AS tier
+  FROM salary_history
+),
+lag_t AS (
+  SELECT emp_id, effective_date, salary, tier,
+         LAG(tier) OVER (PARTITION BY emp_id ORDER BY effective_date) AS prev_tier
+  FROM t
+)
+SELECT emp_id, effective_date, salary, prev_tier, tier AS new_tier
+FROM lag_t
+WHERE prev_tier IS NOT NULL AND tier &gt; prev_tier
+ORDER BY emp_id, effective_date;</code></pre>
+<p>CTE <code>t</code> assigns a compensation tier (1=lowest third, 3=highest third) to each row using <code>NTILE(3)</code> ordered by salary magnitude. CTE <code>lag_t</code> then looks at those tier labels in chronological order and fetches the previous row's tier with <code>LAG</code>. The final filter <code>tier &gt; prev_tier</code> isolates upward transitions only.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>Step 1 &mdash; tier assignment via <code>NTILE(3) OVER (PARTITION BY emp_id ORDER BY salary)</code>:</p>
+<p>Employee 1 has 4 rows; NTILE(3) with 4 rows distributes as [2, 1, 1] (first bucket gets the extra row): salary 100 &rarr; tier 1, salary 110 &rarr; tier 1, salary 180 &rarr; tier 2, salary 200 &rarr; tier 3.</p>
+<p>Employee 2 has 3 rows, evenly distributed: salary 55 &rarr; tier 1, salary 60 &rarr; tier 2, salary 90 &rarr; tier 3.</p>
+<p>Employee 3 has 3 rows, evenly distributed: salary 300 &rarr; tier 1, salary 310 &rarr; tier 2, salary 320 &rarr; tier 3.</p>
+
+<p>Step 2 &mdash; after CTE <code>t</code> with tier labels (note: ordered by salary, not by date):</p>
+<table>
+  <thead><tr><th>emp_id</th><th>effective_date</th><th>salary</th><th>tier</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td><td>100</td><td>1</td></tr>
+    <tr><td>1</td><td>2024-04-01</td><td>110</td><td>1</td></tr>
+    <tr><td>1</td><td>2024-07-01</td><td>180</td><td>2</td></tr>
+    <tr><td>1</td><td>2024-10-01</td><td>200</td><td>3</td></tr>
+    <tr><td>2</td><td>2024-01-01</td><td>60</td><td>2</td></tr>
+    <tr><td>2</td><td>2024-04-01</td><td>55</td><td>1</td></tr>
+    <tr><td>2</td><td>2024-07-01</td><td>90</td><td>3</td></tr>
+    <tr><td>3</td><td>2024-01-01</td><td>300</td><td>1</td></tr>
+    <tr><td>3</td><td>2024-04-01</td><td>310</td><td>2</td></tr>
+    <tr><td>3</td><td>2024-07-01</td><td>320</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<p>Step 3 &mdash; after <code>lag_t</code> (LAG ordered by effective_date) and final filter <code>tier &gt; prev_tier</code>:</p>
+<table>
+  <thead><tr><th>emp_id</th><th>effective_date</th><th>salary</th><th>prev_tier</th><th>new_tier</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-07-01</td><td>180</td><td>1</td><td>2</td></tr>
+    <tr><td>1</td><td>2024-10-01</td><td>200</td><td>2</td><td>3</td></tr>
+    <tr><td>2</td><td>2024-07-01</td><td>90</td><td>1</td><td>3</td></tr>
+    <tr><td>3</td><td>2024-04-01</td><td>310</td><td>1</td><td>2</td></tr>
+    <tr><td>3</td><td>2024-07-01</td><td>320</td><td>2</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Employee 1 has two upward transitions (tier 1&rarr;2 then 2&rarr;3) because salaries rose consistently. Employee 2 had a pay cut in April (60&rarr;55, tier 2&rarr;1 chronologically), then a big jump in July (55&rarr;90) that skips from tier 1 directly to tier 3 &mdash; one upward transition. Employee 3 has two transitions as salary increases monotonically. Employee 2's April row (tier 1, prev_tier 2) is a downward move and is correctly excluded by <code>tier &gt; prev_tier</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The critical insight: two different orderings</h5>
+<p><code>NTILE</code> ranks by salary <em>value</em> to assign tiers &mdash; a value-based ordering. <code>LAG</code> then examines those tier labels in <em>chronological</em> order to detect transitions &mdash; a time-based ordering. These two orderings are independent and must not be conflated. In particular, do <em>not</em> use a single window <code>ORDER BY effective_date</code> for the NTILE: that would number rows by arrival time rather than salary magnitude, turning the tier into a "when did this raise happen" rank rather than "how big is this salary" rank. The two-CTE structure enforces the correct separation.</p>
+
+<h5>NTILE(3) bucket sizes with remainder rows</h5>
+<p>With 4 rows and 3 buckets: 4 &divide; 3 = 1 remainder 1. The first <code>remainder</code> buckets (bucket 1) each get one extra row, making them size 2. Buckets 2 and 3 get size 1. So for employee 1, the two lowest salaries (100 and 110) both land in tier 1; the next (180) in tier 2; the highest (200) in tier 3. This is not a mistake &mdash; it is the defined behaviour of NTILE &mdash; but it means tier 1 can be wider than the other tiers when the row count is not evenly divisible. In practice with many salary history rows per employee this effect averages out.</p>
+
+<h5>Downward transitions are correctly excluded</h5>
+<p>Employee 2's April entry (pay cut from 60 to 55) creates a tier 2 &rarr; tier 1 chronological transition. The filter <code>tier &gt; prev_tier</code> strictly excludes this. The question asks only for <em>upward</em> transitions; lateral moves (<code>tier = prev_tier</code>) are also excluded. If the question were "any tier change," the filter would be <code>tier &ne; prev_tier</code>.</p>
+
+<h5>Dialect notes</h5>
+<p>Both <code>NTILE</code> and <code>LAG</code> are standard SQL window functions available in PostgreSQL, MySQL 8+, SQL Server, Snowflake, BigQuery, and Oracle. The <code>FILTER</code> clause is not used here; the two-CTE approach is fully portable. In MySQL 5.x, neither window function is available; the equivalent requires a user-defined variable trick or an application-layer computation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate that NTILE orders by value (salary) while LAG orders by time (effective_date) &mdash; two distinct axes requiring two separate window specifications; know NTILE's remainder-row distribution rule; and confirm that a pay cut creating a downward tier transition is correctly excluded by <code>tier &gt; prev_tier</code>.</div>

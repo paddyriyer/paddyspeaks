@@ -1,0 +1,84 @@
+<p>A property-management platform's finance team needs a single report per landlord showing how many properties they manage, how many active leases exist, and their total and average rental income — including landlords who currently have no payments at all. The interviewer is testing multi-level LEFT JOIN chaining, the <code>COUNT(DISTINCT …)</code> pattern for avoiding over-counting across multiple joined tables, and the correct use of <code>COALESCE</code> to turn NULL aggregates into zeros.</p>
+
+<h4>1. The source data &mdash; <code>landlords</code>, <code>properties</code>, <code>leases</code>, <code>payments</code></h4>
+<table>
+  <thead><tr><th>landlords</th></tr></thead>
+  <tbody>
+    <tr><td>landlord_id=1, name=Aria Patel</td></tr>
+    <tr><td>landlord_id=2, name=Ben Osei</td></tr>
+    <tr><td>landlord_id=3, name=Clara Ng (no properties)</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>properties (property_id, landlord_id)</th></tr></thead>
+  <tbody>
+    <tr><td>prop_id=101, landlord=1</td></tr>
+    <tr><td>prop_id=102, landlord=1</td></tr>
+    <tr><td>prop_id=103, landlord=2</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>leases (lease_id, property_id)</th></tr></thead>
+  <tbody>
+    <tr><td>lease_id=1001, prop=101</td></tr>
+    <tr><td>lease_id=1002, prop=101 (second lease on same property)</td></tr>
+    <tr><td>lease_id=1003, prop=102</td></tr>
+    <tr><td>lease_id=1004, prop=103</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>payments (payment_id, lease_id, amount)</th></tr></thead>
+  <tbody>
+    <tr><td>pay=1, lease=1001, $1200</td></tr>
+    <tr><td>pay=2, lease=1001, $1200</td></tr>
+    <tr><td>pay=3, lease=1002, $900</td></tr>
+    <tr><td>pay=4, lease=1003, $1500</td></tr>
+    <tr><td>pay=5, lease=1004, $800</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; four-level LEFT JOIN with COUNT DISTINCT and COALESCE</h4>
+<pre><code>SELECT l.landlord_id, l.name,
+       COUNT(DISTINCT p.property_id)    AS properties,
+       COUNT(DISTINCT le.lease_id)      AS active_leases,
+       COALESCE(SUM(pay.amount), 0)     AS total_income,
+       COALESCE(AVG(pay.amount), 0)     AS avg_payment
+FROM landlords  l
+LEFT JOIN properties p   ON l.landlord_id = p.landlord_id
+LEFT JOIN leases    le   ON p.property_id  = le.property_id
+LEFT JOIN payments  pay  ON le.lease_id    = pay.lease_id
+GROUP BY l.landlord_id, l.name
+ORDER BY total_income DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>landlord_id</th><th>name</th><th>properties</th><th>active_leases</th><th>total_income</th><th>avg_payment</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aria Patel</td><td>2</td><td>3</td><td>4,800</td><td>1,200</td></tr>
+    <tr><td>2</td><td>Ben Osei</td><td>1</td><td>1</td><td>800</td><td>800</td></tr>
+    <tr><td>3</td><td>Clara Ng</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>Aria: 2 properties (101, 102), 3 distinct leases (1001, 1002, 1003), payments of $1200 + $1200 + $900 + $1500 = $4800, average over 4 payment rows = $1200. Ben: 1 property, 1 lease, 1 payment = $800. Clara: all NULLs from the left joins, converted to 0 by COALESCE.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why every JOIN must be LEFT JOIN</h5>
+<p>Inner joins would silently drop Clara (no properties) and would drop any landlord whose properties have no leases, or whose leases have no payments. The LEFT JOIN chain preserves all landlords through every level. This is the key insight: when you want "all rows from the anchor table, with aggregates from the right side defaulting to zero," every join in the chain must be a LEFT JOIN — not just the first one.</p>
+
+<h5><code>COUNT(DISTINCT …)</code> vs plain <code>COUNT</code> — why it matters</h5>
+<p>Without <code>DISTINCT</code>, joining multiple payments per lease causes each payment row to duplicate the property and lease IDs. A plain <code>COUNT(p.property_id)</code> for Aria would return 4 (one per payment row), not 2. <code>COUNT(DISTINCT p.property_id)</code> collapses the duplicates introduced by the downstream join fan-out. This is one of the most common silent correctness bugs in multi-join aggregation queries — and spotting it is a reliable senior differentiator.</p>
+
+<h5>NULL propagation and COALESCE</h5>
+<p><code>SUM</code> over zero rows returns NULL, not 0. <code>AVG</code> also returns NULL. <code>COALESCE(SUM(pay.amount), 0)</code> replaces that NULL with 0 for landlords with no payment history. Some teams prefer <code>ISNULL</code> (SQL Server / Snowflake alternative) or <code>NVL</code> (Oracle), but <code>COALESCE</code> is ANSI SQL and portable everywhere. The <code>COUNT(DISTINCT …)</code> functions return 0 for NULL inputs natively — they do not need wrapping.</p>
+
+<h5>Join fan-out arithmetic</h5>
+<p>Before aggregation, the raw join produces one row per (landlord, property, lease, payment) tuple. For Aria: 2 properties × ~2 leases each × ~2 payments each = up to 4 payment rows. The GROUP BY collapses them back; DISTINCT handles the inflated counts. Whenever you see more than one "to-many" relationship in a join chain, always ask: "will this inflate my aggregates?"</p>
+
+<h5>Performance in Snowflake</h5>
+<p>In Snowflake this pattern runs efficiently because the <code>GROUP BY</code> is pushed into the scan layer and the DISTINCT bitmaps are built during aggregation. For very large payment tables, a pre-aggregated CTE per level (first aggregate payments to lease-level totals, then join) can reduce the join cardinality before the GROUP BY step. This is a valid optimization to mention if the interviewer asks about scale.</p>
+
+<h5>Dialect portability</h5>
+<p><code>COALESCE</code>, <code>COUNT(DISTINCT)</code>, <code>SUM</code>, <code>AVG</code>, and <code>LEFT JOIN</code> are all ANSI SQL — identical on Snowflake, PostgreSQL, BigQuery, and MySQL. BigQuery's variant of this pattern sometimes uses <code>COUNTIF</code> or <code>APPROX_COUNT_DISTINCT</code> for performance at scale, trading exactness for speed.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately spot that every join in the chain must be LEFT JOIN (not just the first), explain why <code>COUNT(DISTINCT)</code> is mandatory once there are multiple "to-many" hops (plain COUNT inflates due to join fan-out), and know that <code>SUM</code>/<code>AVG</code> over zero rows return NULL — not 0 — so <code>COALESCE</code> is required for clean reporting.</div>

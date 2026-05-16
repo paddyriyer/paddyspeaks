@@ -1,0 +1,70 @@
+<p>SEO teams routinely ask: <em>"For each domain we crawl, which page has the highest SEO score, and when was it last seen?"</em> When multiple pages tie for the top score within a domain, all tied pages must be returned &mdash; not just an arbitrary one. This question tests the candidate's ability to distinguish <code>ROW_NUMBER</code> (picks one winner arbitrarily) from <code>RANK</code> (preserves ties), and to filter the result correctly using either a subquery or Snowflake's first-class <code>QUALIFY</code> clause.</p>
+
+<h4>1. The source data &mdash; <code>pages</code></h4>
+<table>
+  <thead><tr><th>page_id</th><th>domain</th><th>page_url</th><th>seo_score</th><th>last_crawled</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>example.com</td><td>example.com/home</td><td>92</td><td>2025-05-01</td></tr>
+    <tr><td>2</td><td>example.com</td><td>example.com/about</td><td>85</td><td>2025-05-02</td></tr>
+    <tr><td>3</td><td>example.com</td><td>example.com/pricing</td><td>92</td><td>2025-04-30</td></tr>
+    <tr><td>4</td><td>techblog.io</td><td>techblog.io/intro</td><td>78</td><td>2025-05-03</td></tr>
+    <tr><td>5</td><td>techblog.io</td><td>techblog.io/advanced</td><td>95</td><td>2025-05-01</td></tr>
+    <tr><td>6</td><td>techblog.io</td><td>techblog.io/faq</td><td>80</td><td>2025-05-02</td></tr>
+  </tbody>
+</table>
+<p>example.com has two pages tied at score 92 &mdash; the key edge case that distinguishes <code>RANK</code> from <code>ROW_NUMBER</code>. techblog.io has a clear winner at 95.</p>
+
+<h4>2. The SQL &mdash; <code>RANK()</code> in a subquery, filter on <code>rk = 1</code></h4>
+<pre><code>SELECT domain, page_url, seo_score, last_crawled FROM (
+  SELECT domain, page_url, seo_score, last_crawled,
+         RANK() OVER (PARTITION BY domain ORDER BY seo_score::numeric DESC) AS rk
+  FROM pages
+) t
+WHERE rk = 1
+ORDER BY domain;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>domain</th><th>page_url</th><th>seo_score</th><th>last_crawled</th></tr></thead>
+  <tbody>
+    <tr><td>example.com</td><td>example.com/home</td><td>92</td><td>2025-05-01</td></tr>
+    <tr><td>example.com</td><td>example.com/pricing</td><td>92</td><td>2025-04-30</td></tr>
+    <tr><td>techblog.io</td><td>techblog.io/advanced</td><td>95</td><td>2025-05-01</td></tr>
+  </tbody>
+</table>
+<p>Both tied example.com pages surface because <code>RANK</code> assigns rank 1 to both. techblog.io returns exactly one row. The about page (score 85) and the faq/intro pages are correctly excluded.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>RANK</code> vs <code>ROW_NUMBER</code> vs <code>DENSE_RANK</code> &mdash; the decision tree</h5>
+<p>All three are ranking functions, but they handle ties differently:</p>
+<ul>
+  <li><strong><code>ROW_NUMBER()</code>:</strong> assigns a unique integer to every row regardless of ties &mdash; the "winner" is arbitrary when scores are equal. Use when you genuinely want exactly one row per partition (e.g. deduplication).</li>
+  <li><strong><code>RANK()</code>:</strong> assigns the same rank to ties, then skips ranks. Rank 1 is shared by both 92-score pages; rank 3 would be the next distinct score (85). Filtering <code>WHERE rk = 1</code> returns all co-winners.</li>
+  <li><strong><code>DENSE_RANK()</code>:</strong> same tie assignment but no gaps &mdash; after two rank-1 rows the next is rank 2, not 3. For a "top-1" filter the result is identical to <code>RANK</code>; the difference matters when filtering for rank 2, rank N.</li>
+</ul>
+<p>The interviewer chose <code>RANK</code> to ensure ties are preserved. Switching to <code>ROW_NUMBER</code> would silently drop one of the two example.com winners &mdash; a data-correctness bug, not a performance choice.</p>
+
+<h5>The <code>::numeric</code> cast on <code>seo_score</code></h5>
+<p>The cast <code>seo_score::numeric</code> suggests the column is stored as text or a mixed type (common in NoSQL-derived schemas loaded into Snowflake). Without the cast, lexicographic ordering would make "92" &lt; "95" correctly but "9" &gt; "85" &mdash; a silent correctness failure. Always cast before numeric window-function ordering when column types are uncertain.</p>
+
+<h5>Snowflake's <code>QUALIFY</code> clause &mdash; the idiomatic alternative</h5>
+<p>The solution uses a subquery to filter on the window result, which is required in Postgres and most ANSI-SQL engines (window functions cannot appear in WHERE). Snowflake (and DuckDB) add a <code>QUALIFY</code> clause that filters on window results inline, eliminating the subquery wrapper:</p>
+<pre><code>SELECT domain, page_url, seo_score, last_crawled
+FROM pages
+QUALIFY RANK() OVER (PARTITION BY domain ORDER BY seo_score::numeric DESC) = 1
+ORDER BY domain;</code></pre>
+<p><code>QUALIFY</code> executes after the window computation but before ORDER BY, exactly mirroring HAVING's position relative to GROUP BY. It is cleaner and often marginally faster (one less materialisation). Naming this as the Snowflake-native pattern signals platform fluency.</p>
+
+<h5>Portability notes</h5>
+<ul>
+  <li><strong>Snowflake:</strong> both the subquery form and <code>QUALIFY</code> work. Prefer <code>QUALIFY</code>.</li>
+  <li><strong>Postgres:</strong> subquery form only; no <code>QUALIFY</code> clause. Use a CTE or subquery.</li>
+  <li><strong>BigQuery:</strong> supports <code>QUALIFY</code> (added 2021). The subquery form also works.</li>
+  <li><strong>MySQL:</strong> no <code>QUALIFY</code>; subquery or CTE required.</li>
+</ul>
+
+<h5>Performance consideration</h5>
+<p>The window function scans the <code>pages</code> table once, computing the rank for every row. The outer <code>WHERE rk = 1</code> then filters. An index on <code>(domain, seo_score DESC)</code> can help the optimiser if the table is large and domain cardinality is high. In Snowflake the micro-partition pruning architecture often makes full scans cheap; explicit indexes are not available, but clustering keys on <code>domain</code> can guide micro-partition elimination.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the <code>RANK</code> vs <code>ROW_NUMBER</code> choice as a data-correctness decision (not a style preference), explain that the <code>::numeric</code> cast prevents silent lexicographic-ordering bugs, and name Snowflake's <code>QUALIFY</code> clause as the idiomatic one-pass alternative to the subquery pattern. Bonus: note that <code>QUALIFY</code> is also available in BigQuery and DuckDB.</div>

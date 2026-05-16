@@ -1,0 +1,70 @@
+<p>Elastic&rsquo;s aerospace-equipment catalogue needs a report that combines three tables: a piece of equipment belongs to exactly one category (inner join), and may have zero or more free-form tags (left join). The result must collapse each equipment&rsquo;s tags into a single comma-separated string. The pattern tests multi-table join composition, the difference between <code>JOIN</code> and <code>LEFT JOIN</code> when multiplicity differs, and string aggregation &mdash; which is spelled differently across SQL dialects.</p>
+
+<h4>1. The source data &mdash; <code>equipment</code>, <code>categories</code>, <code>tags</code></h4>
+<table>
+  <thead><tr><th>equipment_id</th><th>name</th><th>category_id</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>Turbine Alpha</td><td>C1</td></tr>
+    <tr><td>E02</td><td>Sensor Array</td><td>C2</td></tr>
+    <tr><td>E03</td><td>Landing Gear</td><td>C1</td></tr>
+    <tr><td>E04</td><td>Navigation Pod</td><td>C3</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>category_id</th><th>label</th></tr></thead>
+  <tbody>
+    <tr><td>C1</td><td>Propulsion</td></tr>
+    <tr><td>C2</td><td>Avionics</td></tr>
+    <tr><td>C3</td><td>Navigation</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>equipment_id</th><th>tag</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>critical</td></tr>
+    <tr><td>E01</td><td>hot-section</td></tr>
+    <tr><td>E01</td><td>FAA-certified</td></tr>
+    <tr><td>E02</td><td>redundant</td></tr>
+    <tr><td>E03</td><td></td></tr>
+  </tbody>
+</table>
+<p>E01 has three tags, E02 has one, E03 has a tag row with an empty string, E04 has no tag rows at all.</p>
+
+<h4>2. The SQL &mdash; inner join + left join + STRING_AGG</h4>
+<pre><code>SELECT e.equipment_id, e.name, c.label AS category,
+       STRING_AGG(t.tag, ', ' ORDER BY t.tag) AS tags
+FROM equipment   e
+JOIN categories  c ON e.category_id = c.category_id
+LEFT JOIN tags   t ON e.equipment_id = t.equipment_id
+GROUP BY e.equipment_id, e.name, c.label;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>equipment_id</th><th>name</th><th>category</th><th>tags</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>Turbine Alpha</td><td>Propulsion</td><td>FAA-certified, critical, hot-section</td></tr>
+    <tr><td>E02</td><td>Sensor Array</td><td>Avionics</td><td>redundant</td></tr>
+    <tr><td>E03</td><td>Landing Gear</td><td>Propulsion</td><td>(empty string)</td></tr>
+    <tr><td>E04</td><td>Navigation Pod</td><td>Navigation</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>E01&rsquo;s tags are sorted alphabetically (FAA-certified &lt; critical &lt; hot-section in lexicographic order: uppercase F before lowercase c). E04 has no tag rows so the LEFT JOIN returns NULL for <code>t.tag</code>; <code>STRING_AGG</code> of NULLs returns NULL. E03&rsquo;s tag row has an empty string &mdash; <code>STRING_AGG</code> includes it (producing an empty-string result, not NULL).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why inner JOIN for categories but LEFT JOIN for tags</h5>
+<p>A piece of equipment that has no category is a data-integrity violation &mdash; it should not appear in the report. The <code>JOIN categories c</code> acts as an implicit integrity check: equipment without a valid category is excluded. Tags, by contrast, are optional metadata. Using <code>LEFT JOIN tags t</code> keeps all equipment in the result even if it has no tags, correctly returning NULL in the tags column rather than dropping the row.</p>
+
+<h5>GROUP BY must include all non-aggregated SELECT columns</h5>
+<p>The <code>GROUP BY</code> clause lists <code>e.equipment_id, e.name, c.label</code> &mdash; every column that appears in <code>SELECT</code> outside of an aggregate function. If you omit any of these, most engines raise an error. Snowflake is strict here; MySQL with <code>ONLY_FULL_GROUP_BY</code> disabled is notoriously permissive (silently picks an arbitrary value), which is a known source of query bugs.</p>
+
+<h5>STRING_AGG with ORDER BY &mdash; the Postgres/Snowflake form</h5>
+<p><code>STRING_AGG(expr, delimiter ORDER BY sort_col)</code> is the ANSI SQL 2016 form and is supported natively in Snowflake and Postgres. The dialect equivalent in Snowflake is also <code>LISTAGG(t.tag, ', ') WITHIN GROUP (ORDER BY t.tag)</code> &mdash; the form the <code>dialect_token</code> field hints at. These are functionally identical; Snowflake accepts both. MySQL uses <code>GROUP_CONCAT(t.tag ORDER BY t.tag SEPARATOR ', ')</code>. BigQuery uses <code>STRING_AGG(t.tag, ', ' ORDER BY t.tag)</code> (same as Postgres). SQL Server uses <code>STRING_AGG(t.tag, ', ') WITHIN GROUP (ORDER BY t.tag)</code> from v2017+.</p>
+
+<h5>NULL vs empty-string in STRING_AGG</h5>
+<p><code>STRING_AGG</code> skips NULL values &mdash; it aggregates only non-NULL inputs. An equipment with no tag rows has <code>t.tag = NULL</code> from the LEFT JOIN; <code>STRING_AGG</code> of all-NULLs returns NULL. An equipment with a tag row containing an empty string has a non-NULL input; <code>STRING_AGG</code> includes it. This distinction matters when tag rows exist but are blank &mdash; you may want to add a <code>WHERE t.tag IS NOT NULL AND t.tag &lt;&gt; ''</code> filter inside the aggregation or in the JOIN to clean upstream noise.</p>
+
+<h5>Performance on large tag tables</h5>
+<p>An index on <code>tags(equipment_id, tag)</code> serves the LEFT JOIN and provides the ORDER BY sort without a separate sort step. The GROUP BY requires a hash or sort aggregate; with the index already sorted by <code>equipment_id</code>, Postgres and Snowflake can use a streaming aggregate without materializing the full hash table.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate why the two joins have different types (inner enforces FK integrity, left preserves optional many-side rows), state that <code>STRING_AGG</code> skips NULLs so no-tag equipment returns NULL not an empty string, and give the dialect spelling table: Snowflake accepts both <code>STRING_AGG</code> and <code>LISTAGG...WITHIN GROUP</code>, Postgres uses <code>STRING_AGG</code>, MySQL uses <code>GROUP_CONCAT</code>, SQL Server uses <code>STRING_AGG...WITHIN GROUP</code> from 2017+.</div>

@@ -1,0 +1,81 @@
+<p>Wildlife survey teams need a leaderboard: <em>"At each observation site, which reptile species were spotted most often? Return the top 5."</em> The pattern is classic ranked-aggregation &mdash; aggregate first to get per-(location, species) counts, then apply a window-function rank over the count within each location, then filter to the top-5 tier. The interviewer is checking whether the candidate knows that window functions cannot appear in a <code>WHERE</code> clause (hence the subquery), and whether they reach for <code>RANK</code> vs <code>ROW_NUMBER</code> deliberately.</p>
+
+<h4>1. The source data &mdash; <code>observations</code> and <code>species</code></h4>
+<table>
+  <thead><tr><th>obs_id</th><th>species_id</th><th>observed_at</th><th>location_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>2025-01-05</td><td>L1</td></tr>
+    <tr><td>2</td><td>10</td><td>2025-01-06</td><td>L1</td></tr>
+    <tr><td>3</td><td>10</td><td>2025-01-07</td><td>L1</td></tr>
+    <tr><td>4</td><td>20</td><td>2025-01-05</td><td>L1</td></tr>
+    <tr><td>5</td><td>20</td><td>2025-01-08</td><td>L1</td></tr>
+    <tr><td>6</td><td>30</td><td>2025-01-05</td><td>L1</td></tr>
+    <tr><td>7</td><td>10</td><td>2025-01-05</td><td>L2</td></tr>
+    <tr><td>8</td><td>30</td><td>2025-01-06</td><td>L2</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>species_id</th><th>common_name</th><th>class</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Nile Monitor</td><td>Reptilia</td></tr>
+    <tr><td>20</td><td>Green Iguana</td><td>Reptilia</td></tr>
+    <tr><td>30</td><td>Saltwater Crocodile</td><td>Reptilia</td></tr>
+    <tr><td>40</td><td>Red-tailed Hawk</td><td>Aves</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; aggregate then rank, filter in outer query</h4>
+<pre><code>SELECT location_id, species_id, common_name, observation_count
+FROM (
+  SELECT o.location_id, o.species_id, s.common_name,
+         COUNT(*) AS observation_count,
+         RANK() OVER (PARTITION BY o.location_id ORDER BY COUNT(*) DESC) AS rk
+  FROM observations o
+  JOIN species      s ON o.species_id = s.species_id
+  WHERE s.class = 'Reptilia'
+  GROUP BY o.location_id, o.species_id, s.common_name
+)
+WHERE rk &lt;= 5
+ORDER BY location_id, rk;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>location_id</th><th>species_id</th><th>common_name</th><th>observation_count</th></tr></thead>
+  <tbody>
+    <tr><td>L1</td><td>10</td><td>Nile Monitor</td><td>3</td></tr>
+    <tr><td>L1</td><td>20</td><td>Green Iguana</td><td>2</td></tr>
+    <tr><td>L1</td><td>30</td><td>Saltwater Crocodile</td><td>1</td></tr>
+    <tr><td>L2</td><td>10</td><td>Nile Monitor</td><td>1</td></tr>
+    <tr><td>L2</td><td>30</td><td>Saltwater Crocodile</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Derivation: species 40 (Red-tailed Hawk) is filtered out by <code>WHERE s.class = 'Reptilia'</code> before aggregation. At L1: Nile Monitor has 3 observations (rk=1), Green Iguana has 2 (rk=2), Saltwater Crocodile has 1 (rk=3) &mdash; all &le;5, so all appear. At L2: Nile Monitor and Saltwater Crocodile both have 1 observation &mdash; they tie, both receive rk=1. All rk&le;5 rows pass the outer filter.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the subquery is mandatory &mdash; window functions and WHERE</h5>
+<p>Window functions are computed after <code>GROUP BY</code> but before <code>ORDER BY</code> in the logical processing order. They cannot appear in a <code>WHERE</code> clause because <code>WHERE</code> filters <em>before</em> aggregation. The only standard way to filter on a window-function result is to push the window into a subquery (or CTE) and apply the filter in the outer query's <code>WHERE</code>. Snowflake offers the non-standard <code>QUALIFY</code> clause as a syntactic shortcut: <code>QUALIFY RANK() OVER (...) &lt;= 5</code> eliminates the subquery entirely, but it is Snowflake / BigQuery-specific and not portable to Postgres or MySQL.</p>
+
+<h5><code>RANK</code> vs <code>ROW_NUMBER</code> vs <code>DENSE_RANK</code></h5>
+<p>The choice between ranking functions is a frequent follow-up:</p>
+<ul>
+  <li><strong><code>RANK</code>:</strong> tied rows get the same rank; the next rank after a tie of two skips a number (1, 1, 3). "Top 5" means all tied-for-5th are included, and there may be more than 5 output rows per location.</li>
+  <li><strong><code>DENSE_RANK</code>:</strong> tied rows get the same rank; no gaps (1, 1, 2). "Top 5 tiers" semantics.</li>
+  <li><strong><code>ROW_NUMBER</code>:</strong> no ties &mdash; arbitrary tiebreak gives strictly distinct ranks. "Exactly 5 rows per location" but silently breaks ties arbitrarily, which can be misleading in a leaderboard context.</li>
+</ul>
+<p>For a leaderboard, <code>RANK</code> is the fairest choice: tied species at position 5 both appear. Using <code>ROW_NUMBER</code> here would silently drop equally-observed species, which is a business-logic bug.</p>
+
+<h5>Pre-filter vs post-filter &mdash; WHERE class = 'Reptilia' before GROUP BY</h5>
+<p>The <code>WHERE s.class = 'Reptilia'</code> is in the inner query, applied before <code>GROUP BY</code>. This is correct: it reduces the number of rows the aggregation has to process. Placing it in the outer query's <code>WHERE</code> (after computing ranks for all classes) would produce wrong ranks &mdash; a non-reptile that dominated a location would push reptile ranks downward. Always filter the population before ranking it.</p>
+
+<h5>Performance considerations</h5>
+<p>The inner query must aggregate all qualifying observations before the window function can rank them. On large observation tables, an index on <code>observations(location_id, species_id)</code> accelerates the GROUP BY. The join to <code>species</code> for the class filter benefits from an index on <code>species(species_id, class)</code>. Snowflake's micro-partition pruning helps when <code>location_id</code> is clustered.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Snowflake:</strong> replace the subquery with <code>QUALIFY rk &lt;= 5</code> at the end of the inner query for cleaner syntax.</li>
+  <li><strong>BigQuery:</strong> also supports <code>QUALIFY</code>.</li>
+  <li><strong>Postgres / MySQL / SQL Server:</strong> require the subquery pattern shown.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain why window functions cannot appear in <code>WHERE</code> (logical processing order), choose <code>RANK</code> over <code>ROW_NUMBER</code> deliberately for a leaderboard that must include all tied positions, apply the class filter <em>before</em> ranking to avoid rank displacement, and offer <code>QUALIFY</code> as the Snowflake/BigQuery shortcut that eliminates the subquery wrapper.</div>

@@ -1,0 +1,60 @@
+<p>Set-returning functions like <code>generate_series</code> are a PostgreSQL superpower for building date spines and numbered sequences without application code. The <code>WITH ORDINALITY</code> modifier is a lesser-known SQL:2003 extension that appends an automatically incremented row number to any SRF output &mdash; the interviewer is testing whether you know this clean alternative to a <code>ROW_NUMBER()</code> window function on an already-generated series.</p>
+
+<h4>1. The source data &mdash; generated (no base table)</h4>
+<p>There is no source table; the query is self-contained. <code>generate_series</code> synthesises five month-start dates. The conceptual "data" before ordinality is attached:</p>
+<table>
+  <thead><tr><th>m (from generate_series)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01 00:00:00+00</td></tr>
+    <tr><td>2025-02-01 00:00:00+00</td></tr>
+    <tr><td>2025-03-01 00:00:00+00</td></tr>
+    <tr><td>2025-04-01 00:00:00+00</td></tr>
+    <tr><td>2025-05-01 00:00:00+00</td></tr>
+  </tbody>
+</table>
+<p>WITH ORDINALITY appends an integer column <code>ord</code> starting at 1, giving exactly the 1-based position requested.</p>
+
+<h4>2. The SQL &mdash; generate_series WITH ORDINALITY</h4>
+<pre><code>SELECT
+  ord AS month_num,
+  m::date AS month_start
+FROM generate_series(DATE '2025-01-01', DATE '2025-05-01', INTERVAL '1 month')
+     WITH ORDINALITY AS t(m, ord)
+ORDER BY ord;</code></pre>
+<p><code>WITH ORDINALITY</code> is placed immediately after the SRF call, before the alias. The <code>AS t(m, ord)</code> names the two output columns: <code>m</code> for the generated timestamp and <code>ord</code> for the ordinal counter. The cast <code>m::date</code> strips the time zone component, yielding clean date values.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month_num</th><th>month_start</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td></tr>
+    <tr><td>2</td><td>2025-02-01</td></tr>
+    <tr><td>3</td><td>2025-03-01</td></tr>
+    <tr><td>4</td><td>2025-04-01</td></tr>
+    <tr><td>5</td><td>2025-05-01</td></tr>
+  </tbody>
+</table>
+<p>Five rows, month_num 1 through 5, month_start the first of each month from January through May 2025. The ordinality counter starts at 1 by definition of the SQL standard; there is no way to choose a different start without wrapping in a CASE or arithmetic.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>WITH ORDINALITY vs ROW_NUMBER()</h5>
+<p>The equivalent without <code>WITH ORDINALITY</code>:</p>
+<pre><code>SELECT ROW_NUMBER() OVER (ORDER BY m) AS month_num, m::date AS month_start
+FROM generate_series(DATE '2025-01-01', DATE '2025-05-01', INTERVAL '1 month') AS t(m)
+ORDER BY m;</code></pre>
+<p>Both produce the same result. <code>WITH ORDINALITY</code> is cleaner because it avoids a window function on a set that is already ordered by construction. It also computes the counter at the SRF level, before any filter or ORDER BY, which makes it semantically unambiguous: the ordinal reflects the position in the generated sequence, not a post-filter rank.</p>
+
+<h5>Column naming with AS t(m, ord)</h5>
+<p>When a SRF is used with <code>WITH ORDINALITY</code>, the output has two columns: the original SRF output(s) and the ordinality counter. Naming them via <code>AS t(m, ord)</code> is required to reference them in the SELECT list. If you omit the names, PostgreSQL falls back to default column names (<code>generate_series</code> and <code>ordinality</code>), which work but are less readable.</p>
+
+<h5>Data type of generate_series output</h5>
+<p>When called with <code>DATE</code> arguments and an <code>INTERVAL</code>, PostgreSQL returns <code>TIMESTAMPTZ</code> by default (the interval may cross DST boundaries). Casting to <code>::date</code> is necessary to get a plain date. Calling <code>generate_series</code> with <code>TIMESTAMP</code> arguments instead avoids the timezone coercion, but in either case the cast is good practice for readability.</p>
+
+<h5>Portability of WITH ORDINALITY</h5>
+<p><code>WITH ORDINALITY</code> is a SQL:2003 feature supported by PostgreSQL (since 9.4), DuckDB, and CockroachDB. MySQL, SQL Server, BigQuery, and Snowflake do not support <code>WITH ORDINALITY</code> on SRFs &mdash; because most of them lack native SRFs like <code>generate_series</code> entirely. On those platforms you use <code>GENERATE_DATE_ARRAY</code> (BigQuery) + <code>WITH ORDINALITY</code>-equivalent unnest syntax, or a recursive CTE with an explicit counter column. The portability gap is significant; knowing it demonstrates dialect awareness.</p>
+
+<h5>Zero-based vs one-based ordinality</h5>
+<p>The SQL standard mandates that ordinality starts at 1. If you need 0-based positions, subtract 1: <code>ord - 1 AS offset</code>. This is common when the ordinal represents a date offset (week 0, week 1, &hellip;) rather than a human-readable position.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> place <code>WITH ORDINALITY</code> immediately after the SRF (before the alias) to get a 1-based counter from the function itself rather than a post-hoc window function; name both columns with <code>AS t(m, ord)</code>; cast the timestamp to <code>::date</code>; and note that <code>WITH ORDINALITY</code> is a SQL:2003 feature not available in MySQL, SQL Server, BigQuery, or Snowflake, where a recursive CTE with an explicit counter is the fallback.</div>

@@ -1,0 +1,76 @@
+<p>An SCD Type 2 customer dimension is the canonical slowly-changing dimension question. The interviewer is probing whether you can distinguish a surrogate key from a natural key, structure a validity window correctly, use a current-flag efficiently, and add a row-hash to make change detection cheap during ETL. Getting the effective-to sentinel value right (&ldquo;9999-12-31 or NULL?&rdquo;) and providing a partial unique index for the current row are the details that separate a competent answer from an excellent one.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Grain:</strong> one row per version of a customer &mdash; a customer with three address changes has three rows.</li>
+  <li><strong>Surrogate key:</strong> a warehouse-generated integer PK that fact tables reference; must not change when customer attributes change.</li>
+  <li><strong>Natural key:</strong> the source system&rsquo;s customer identifier, stable across versions.</li>
+  <li><strong>Tracked attributes:</strong> name, email, country, tier, signup date &mdash; any change to these triggers a new version row.</li>
+  <li><strong>Validity window:</strong> <code>effective_from</code> / <code>effective_to</code> columns to allow point-in-time joins from fact tables.</li>
+  <li><strong>Current flag:</strong> <code>is_current</code> boolean for fast &ldquo;latest version&rdquo; lookups without date arithmetic.</li>
+  <li><strong>Row hash:</strong> a hash of tracked attributes to make ETL change detection O(1) per row.</li>
+  <li><strong>Audit column:</strong> <code>ingested_at</code> for pipeline lineage.</li>
+  <li><strong>Constraint:</strong> exactly one current row per natural key, enforced by a partial unique index.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE dim_customer (
+  customer_sk     BIGINT      NOT NULL,            -- surrogate PK
+  customer_nk     VARCHAR(64) NOT NULL,            -- natural key from source
+  full_name       VARCHAR(200),
+  email           VARCHAR(200),
+  country         VARCHAR(2),
+  tier            VARCHAR(20),
+  signup_date     DATE,
+  effective_from  TIMESTAMP NOT NULL,
+  effective_to    TIMESTAMP,                       -- NULL or 9999-12-31 for current row
+  is_current      BOOLEAN   NOT NULL DEFAULT TRUE,
+  row_hash        CHAR(64),                        -- to detect attribute change
+  ingested_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (customer_sk)
+);
+
+CREATE UNIQUE INDEX ux_dim_customer_current
+  ON dim_customer (customer_nk)
+  WHERE is_current = TRUE;</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>customer_sk</td><td>Surrogate PK</td><td>Warehouse-generated BIGINT; fact tables join on this. A new SK is minted for every new version row so fact rows pinned to an old version remain historically accurate.</td></tr>
+    <tr><td>customer_nk</td><td>Natural key</td><td>Source system identifier. Constant across all version rows for the same customer; used by ETL to locate existing rows and by analysts to group all versions together.</td></tr>
+    <tr><td>full_name</td><td>Tracked attribute</td><td>A change to the name triggers a new SCD2 row and a new SK; the old row&rsquo;s effective_to is closed.</td></tr>
+    <tr><td>email</td><td>Tracked attribute</td><td>Same treatment as full_name; whether email triggers a new version is a business decision that must be documented.</td></tr>
+    <tr><td>country</td><td>Tracked attribute</td><td>Two-character ISO code; changing country is a common SCD2 trigger (pricing, tax jurisdiction).</td></tr>
+    <tr><td>tier</td><td>Tracked attribute</td><td>Loyalty or pricing tier; versioning allows historical analysis of &ldquo;revenue while Gold vs. Silver.&rdquo;</td></tr>
+    <tr><td>signup_date</td><td>Tracked attribute (stable)</td><td>Typically immutable, but included in the row to keep the dimension self-contained; does not usually trigger a new version.</td></tr>
+    <tr><td>effective_from</td><td>Validity window &mdash; start</td><td>NOT NULL; the timestamp from which this version is authoritative. Used in point-in-time joins: <code>fact.event_ts BETWEEN d.effective_from AND COALESCE(d.effective_to, NOW())</code>.</td></tr>
+    <tr><td>effective_to</td><td>Validity window &mdash; end</td><td>NULL (or 9999-12-31) for the current row; set to the next version&rsquo;s effective_from when the row is superseded.</td></tr>
+    <tr><td>is_current</td><td>Current-version flag</td><td>Boolean shortcut; avoids date arithmetic in the common case of &ldquo;give me the latest customer attributes.&rdquo; Must be kept consistent with effective_to.</td></tr>
+    <tr><td>row_hash</td><td>Change-detection hash</td><td>SHA-256 or MD5 of all tracked attribute values; ETL compares incoming hash to stored hash to decide whether a new version is needed &mdash; O(1) instead of column-by-column comparison.</td></tr>
+    <tr><td>ingested_at</td><td>Audit column</td><td>Pipeline watermark; useful for debugging load timing and for distinguishing ETL runs.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Grain and versioning mechanics</h5>
+<p>Every time a tracked attribute changes, the ETL: (1) closes the current row by setting <code>effective_to = new_effective_from</code> and <code>is_current = FALSE</code>; (2) inserts a new row with a fresh <code>customer_sk</code>, <code>effective_from = now()</code>, <code>effective_to = NULL</code>, and <code>is_current = TRUE</code>. Fact tables already joined to the old SK are unaffected &mdash; historical accuracy is preserved automatically.</p>
+
+<h5>Surrogate vs. natural key &mdash; why both are needed</h5>
+<p>The <em>natural key</em> (<code>customer_nk</code>) is stable and meaningful but not unique across versions. The <em>surrogate key</em> (<code>customer_sk</code>) is unique per version row and is what fact tables reference. Fact rows are pinned to the SK that was current at the time of the event, giving correct historical analysis: &ldquo;revenue for this customer while they were a Gold member.&rdquo; Without surrogates, point-in-time accuracy requires every fact query to do an expensive range join on <code>effective_from/effective_to</code>.</p>
+
+<h5>effective_to: NULL vs. 9999-12-31 sentinel</h5>
+<p>Both conventions are widely used. NULL is semantically precise (&ldquo;no end date yet&rdquo;) but requires <code>COALESCE</code> in every range predicate. The sentinel <code>9999-12-31</code> allows <code>BETWEEN</code> directly but wastes four bytes per row and is an artificial value. A practical rule: use NULL in Postgres (COALESCE is cheap) and the sentinel in Redshift / older engines that handle NULL comparison poorly in sort keys. Whatever you choose, document it and enforce it consistently.</p>
+
+<h5>Partial unique index &mdash; enforcing the one-current-row invariant</h5>
+<p><code>CREATE UNIQUE INDEX ux_dim_customer_current ON dim_customer (customer_nk) WHERE is_current = TRUE</code> prevents two current rows for the same natural key at the database level, not just at the ETL layer. This is a Postgres-specific feature (partial indexes are not universally supported); in data warehouses like Snowflake or BigQuery that do not enforce unique constraints, the invariant must be guarded by ETL logic and tested with data-quality checks.</p>
+
+<h5>row_hash &mdash; efficient change detection</h5>
+<p>The ETL pipeline computes a hash (e.g., SHA-256) of all tracked attribute values for each incoming source row and compares it to the stored <code>row_hash</code>. If equal, no action is needed; if different, a new version is inserted. This collapses a multi-column comparison into a single string equality check, making the ETL pattern scale to wide customer records without repeated CASE expressions.</p>
+
+<h5>Warehouse dialect notes</h5>
+<p>In <strong>BigQuery</strong> there is no partial index; enforce the invariant with a scheduled data-quality assertion. In <strong>Snowflake</strong>, cluster the dimension on <code>(customer_nk, is_current)</code> to accelerate both point-in-time and current-row lookups. In <strong>Redshift</strong>, use <code>SORTKEY(customer_nk, effective_from)</code> and <code>DISTKEY(customer_nk)</code> to co-locate all versions of the same customer for merge operations.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain <em>why</em> a new surrogate key is minted for each version (historical fact accuracy), choose a clear effective_to convention and justify it, add the partial unique index to enforce the one-current-row invariant at the database level, and introduce the row-hash as the ETL change-detection mechanism &mdash; together these show you understand not just the table structure but the full load pattern that keeps it correct over time.</div>

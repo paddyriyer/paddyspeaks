@@ -1,0 +1,83 @@
+<p>A webhook delivery table is a persistent work queue backed by Postgres: it must handle exponential backoff, bounded retry counts, and eventual dead-lettering, all without a separate message broker. The interviewer is probing your understanding of <strong>polling-queue patterns</strong> (<code>SELECT ... FOR UPDATE SKIP LOCKED</code> is the key), <strong>exponential backoff math</strong> (the <code>next_attempt_at</code> column is a computed future timestamp), <strong>idempotency</strong> (the same event must not be delivered twice to the same endpoint), and <strong>partial indexes</strong> that make the scheduler query fast on a table that grows to millions of dead rows.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Delivery record per (endpoint, event):</strong> one row tracks all attempts to deliver one event to one endpoint; the UNIQUE constraint on <code>(endpoint_id, event_id)</code> prevents re-queuing the same delivery.</li>
+  <li><strong>Retry state machine:</strong> status progresses pending &rarr; succeeded or pending &rarr; failed &rarr; dead; each failed attempt increments <code>attempt_count</code> and sets <code>next_attempt_at</code> to an exponentially growing future time.</li>
+  <li><strong>Scheduler query:</strong> the worker polls for <code>WHERE status = 'pending' AND next_attempt_at &lt;= now()</code>; a partial index on this predicate makes the poll fast regardless of how large the dead/succeeded tail is.</li>
+  <li><strong>Dead-lettering:</strong> after <code>max_attempts</code>, the status transitions to 'dead'; the row itself is the dead-letter record &mdash; no separate DLQ table needed.</li>
+  <li><strong>Last-N-hours query for monitoring:</strong> <code>WHERE endpoint_id = ? AND status = 'failed' AND last_attempt_at &gt;= now() - INTERVAL '1 day'</code>; the second index on <code>(endpoint_id, status, last_attempt_at DESC)</code> serves this.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE webhook_delivery (
+  delivery_id       BIGSERIAL    PRIMARY KEY,
+  endpoint_id       BIGINT       NOT NULL,                       -- FK to webhook_endpoint(s) elsewhere
+  event_id          VARCHAR(128) NOT NULL,                       -- the upstream business event being notified
+  event_type        VARCHAR(64)  NOT NULL,
+  payload_jsonb     JSONB        NOT NULL,
+  attempt_count     INT          NOT NULL DEFAULT 0,
+  max_attempts      INT          NOT NULL DEFAULT 8,             -- 2^8 minutes &asymp; 4 hours max backoff
+  status            VARCHAR(16)  NOT NULL DEFAULT 'pending',     -- 'pending','succeeded','failed','dead'
+  last_attempt_at   TIMESTAMPTZ,
+  next_attempt_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),         -- scheduler picks rows where next_attempt_at &lt;= now
+  last_http_status  SMALLINT,
+  last_error        TEXT,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  completed_at      TIMESTAMPTZ,                                  -- terminal state timestamp
+  UNIQUE (endpoint_id, event_id)                                  -- idempotency: don't re-deliver same event to same endpoint
+);
+
+CREATE INDEX ix_webhook_pending ON webhook_delivery (next_attempt_at)
+  WHERE status = 'pending';
+CREATE INDEX ix_webhook_endpoint_status_time ON webhook_delivery (endpoint_id, status, last_attempt_at DESC);
+
+-- Backoff schedule (computed by worker after each failed attempt):
+--   next_attempt_at = now() + INTERVAL '1 minute' * power(2, attempt_count) + random_jitter(0..30s)
+-- After max_attempts, status -&gt; 'dead' (the row is the dead-letter record itself).
+--
+-- Worker query (each tick):
+-- SELECT * FROM webhook_delivery
+-- WHERE status='pending' AND next_attempt_at &lt;= now()
+-- ORDER BY next_attempt_at LIMIT 100
+-- FOR UPDATE SKIP LOCKED;</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>delivery_id</code></td><td>Surrogate PK</td><td>Stable internal identifier; used in logs, monitoring, and manual retry tooling.</td></tr>
+    <tr><td><code>endpoint_id</code></td><td>FK &rarr; webhook_endpoint / composite unique key part 1</td><td>Identifies which customer endpoint this delivery targets; leading column of the monitoring index.</td></tr>
+    <tr><td><code>event_id</code></td><td>Natural key / composite unique key part 2</td><td>Upstream business event ID; combined with <code>endpoint_id</code> enforces "one delivery record per event per endpoint" idempotency.</td></tr>
+    <tr><td><code>event_type</code></td><td>Degenerate dimension</td><td>Stored inline (e.g., "payment.succeeded") so the worker can route without deserializing the payload.</td></tr>
+    <tr><td><code>payload_jsonb</code></td><td>Event payload</td><td>JSONB allows structured access; stored on the delivery row so the worker does not need to join back to the event source on every retry.</td></tr>
+    <tr><td><code>attempt_count</code></td><td>Retry counter / backoff input</td><td>Incremented after each attempt; used in the backoff formula: <code>power(2, attempt_count)</code> minutes of delay.</td></tr>
+    <tr><td><code>max_attempts</code></td><td>Per-delivery retry budget</td><td>Configurable per delivery (different event types may warrant different retry horizons); default 8 gives 2^8 = 256 minutes &asymp; 4 hours total backoff.</td></tr>
+    <tr><td><code>status</code></td><td>State machine / partial-index predicate</td><td>The partial index on <code>next_attempt_at WHERE status = 'pending'</code> excludes the large terminal (succeeded/dead) tail from the hot index.</td></tr>
+    <tr><td><code>last_attempt_at</code></td><td>Audit / monitoring column (nullable)</td><td>NULL until the first attempt; used as the trailing sort key in the endpoint monitoring index.</td></tr>
+    <tr><td><code>next_attempt_at</code></td><td>Scheduling key / partial-index leading column</td><td>The future timestamp when the worker should next attempt delivery; initialized to <code>now()</code> so the first attempt runs immediately.</td></tr>
+    <tr><td><code>last_http_status</code></td><td>Delivery outcome measure</td><td>The HTTP status code returned by the endpoint; allows distinguishing 5xx (server error, retry) from 4xx (client error, may not be retryable).</td></tr>
+    <tr><td><code>last_error</code></td><td>Diagnostic text</td><td>Stores network errors, timeouts, TLS failures; essential for debugging dead-lettered deliveries.</td></tr>
+    <tr><td><code>created_at</code></td><td>Audit column</td><td>When the delivery was first enqueued; combined with <code>completed_at</code> gives end-to-end delivery latency.</td></tr>
+    <tr><td><code>completed_at</code></td><td>Terminal timestamp (nullable)</td><td>Set when status transitions to succeeded or dead; used to compute P99 delivery time SLOs.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The partial index is the critical performance decision</h5>
+<p>The <code>ix_webhook_pending</code> partial index on <code>(next_attempt_at) WHERE status = 'pending'</code> is the heart of the design. Without it, the scheduler query must scan all rows &mdash; including potentially millions of succeeded and dead rows &mdash; to find the pending ones due for delivery. With the partial index, the index contains only pending rows, typically a tiny fraction of the total. The worker's poll query <code>WHERE status='pending' AND next_attempt_at &lt;= now()</code> becomes an index range scan on this small structure, completing in microseconds regardless of historical row count.</p>
+
+<h5><code>FOR UPDATE SKIP LOCKED</code> for concurrent workers</h5>
+<p>Multiple worker processes polling the same table simultaneously would compete to process the same rows. <code>SELECT ... FOR UPDATE SKIP LOCKED</code> causes each worker to atomically lock a batch of rows and skip any that are already locked by another worker. This distributes work across workers without serialization errors or starvation, and without an external coordination layer. After processing, the worker updates the row's status and <code>next_attempt_at</code> within the same transaction &mdash; on commit, the lock is released.</p>
+
+<h5>Backoff formula and jitter</h5>
+<p><code>next_attempt_at = now() + INTERVAL '1 minute' * power(2, attempt_count) + random_jitter(0..30s)</code>. The exponential component (1, 2, 4, 8, 16 &hellip; minutes) gives the endpoint time to recover. The random jitter is essential: without it, all deliveries that failed at the same time would retry simultaneously, creating a retry thundering herd that can overwhelm the endpoint. Adding a uniformly random 0&ndash;30 second jitter spreads retries over a window. This is the standard pattern used by AWS SQS, Stripe, and Twilio.</p>
+
+<h5>Dead-lettering: the row is the dead-letter record</h5>
+<p>When <code>attempt_count &gt;= max_attempts</code>, the worker sets <code>status = 'dead'</code> and <code>completed_at = now()</code>. The row itself contains the full history (<code>last_http_status</code>, <code>last_error</code>, <code>attempt_count</code>, the original payload) &mdash; it is its own dead-letter record. A separate dead-letter table would duplicate this data. An alert on <code>WHERE status = 'dead' AND completed_at &gt;= now() - INTERVAL '1 hour'</code> triggers on-call if dead-letter rate spikes.</p>
+
+<h5>Dialect notes</h5>
+<p><code>FOR UPDATE SKIP LOCKED</code> is supported in Postgres (since 9.5), MySQL (since 8.0), and Oracle. Partial indexes are Postgres-specific; in MySQL, use a filtered index on a generated column. For very high throughput (millions of events/hour), consider partitioning <code>webhook_delivery</code> by day on <code>created_at</code> and moving old partitions to cold storage &mdash; the pending partial index naturally stays small but old terminal rows accumulate indefinitely without pruning.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> the partial index on <code>next_attempt_at WHERE status = 'pending'</code> is the load-bearing decision &mdash; without it the scheduler degrades linearly with history; use <code>FOR UPDATE SKIP LOCKED</code> for concurrent-safe polling without a broker; and add random jitter to the backoff formula to prevent retry thundering-herds when a batch of deliveries fails simultaneously.</div>

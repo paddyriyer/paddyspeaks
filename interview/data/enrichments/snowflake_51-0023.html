@@ -1,0 +1,59 @@
+<p>ML platform teams need to benchmark model performance in production: <em>"For each model type, how many predictions were made, what fraction were correct, and what are the average and 95th-percentile latencies?"</em> This question probes the <code>AVG(CASE WHEN ... THEN 1.0 ELSE 0.0 END)</code> accuracy pattern, the <code>PERCENTILE_CONT</code> ordered-set aggregate, and defensive <code>NULLIF(regexp_replace(...))</code> casting for dirty numeric columns.</p>
+
+<h4>1. The source data &mdash; <code>model_predictions</code></h4>
+<table>
+  <thead><tr><th>prediction_id</th><th>model_type</th><th>predicted</th><th>actual</th><th>latency_ms</th><th>predicted_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>ResNet</td><td>cat</td><td>cat</td><td>42</td><td>2025-05-01 10:00:00</td></tr>
+    <tr><td>2</td><td>ResNet</td><td>dog</td><td>cat</td><td>38</td><td>2025-05-01 10:01:00</td></tr>
+    <tr><td>3</td><td>ResNet</td><td>bird</td><td>bird</td><td>55</td><td>2025-05-01 10:02:00</td></tr>
+    <tr><td>4</td><td>ResNet</td><td>cat</td><td>cat</td><td>41</td><td>2025-05-01 10:03:00</td></tr>
+    <tr><td>5</td><td>BERT</td><td>positive</td><td>positive</td><td>120</td><td>2025-05-01 10:00:00</td></tr>
+    <tr><td>6</td><td>BERT</td><td>negative</td><td>positive</td><td>135</td><td>2025-05-01 10:01:00</td></tr>
+    <tr><td>7</td><td>BERT</td><td>positive</td><td>positive</td><td>110</td><td>2025-05-01 10:02:00</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; accuracy via conditional average, P95 latency via <code>PERCENTILE_CONT</code></h4>
+<pre><code>SELECT model_type,
+       COUNT(*) AS calls,
+       AVG(CASE WHEN predicted = actual THEN 1.0 ELSE 0.0 END) AS accuracy,
+       AVG(NULLIF(regexp_replace(latency_ms::text, '[^-.0-9]', '', 'g'), '')::numeric) AS avg_latency_ms,
+       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY NULLIF(regexp_replace(latency_ms::text, '[^-.0-9]', '', 'g'), '')::numeric) AS p95_latency_ms
+FROM model_predictions
+GROUP BY model_type
+ORDER BY calls DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>model_type</th><th>calls</th><th>accuracy</th><th>avg_latency_ms</th><th>p95_latency_ms</th></tr></thead>
+  <tbody>
+    <tr><td>ResNet</td><td>4</td><td>0.75</td><td>44.0</td><td>53.65</td></tr>
+    <tr><td>BERT</td><td>3</td><td>0.6667</td><td>121.67</td><td>133.5</td></tr>
+  </tbody>
+</table>
+<p>ResNet: 3 correct out of 4 &rarr; accuracy=0.75. Latencies [38, 41, 42, 55], avg=44.0, P95 via linear interpolation: 0.95 &times; (4&minus;1)=2.85, so interpolate between position 2 (42) and 3 (55): 42+0.85&times;(55&minus;42)=42+11.05=53.05 &mdash; exact value varies by engine&rsquo;s interpolation implementation, ~53&ndash;54. BERT: 2 correct out of 3 &rarr; 0.6667. Latencies [110, 120, 135], avg=121.67, P95: 0.95&times;2=1.9, interpolate between index 1 (120) and 2 (135): 120+0.9&times;15=133.5.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>AVG(CASE WHEN ... THEN 1.0 ELSE 0.0 END)</code> accuracy pattern</h5>
+<p>Dividing "correct count" by "total count" is the definition of accuracy. The <code>CASE WHEN predicted = actual THEN 1.0 ELSE 0.0 END</code> converts each row into a binary indicator (1=correct, 0=wrong). <code>AVG</code> of those indicators equals the fraction of 1s &mdash; which is the accuracy rate. Using <code>1.0</code> (float) rather than <code>1</code> (integer) avoids integer-division truncation in engines that return integers from integer division. This is the canonical SQL accuracy pattern; an alternative is <code>SUM(CASE ...) * 1.0 / COUNT(*)</code>, but <code>AVG</code> is more concise.</p>
+
+<h5>The <code>NULLIF(regexp_replace(...), '')</code> cast guard</h5>
+<p>The <code>latency_ms</code> column appears to be stored as text or a variant type with possible non-numeric characters (e.g., "42ms", "120 ms"). The <code>regexp_replace(col::text, '[^-.0-9]', '', 'g')</code> strips all characters that are not digits, decimal points, minus signs, or scientific-notation markers. <code>NULLIF(..., '')</code> then converts any empty result to NULL before the <code>::numeric</code> cast, preventing a cast error when the column is empty or fully non-numeric after stripping. This defensive pipeline (strip &rarr; NULLIF &rarr; cast) is a robust pattern for untrustworthy numeric columns.</p>
+
+<h5><code>PERCENTILE_CONT</code> &mdash; ordered-set aggregates</h5>
+<p><code>PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY value)</code> computes the 95th percentile with linear interpolation between adjacent values. Its sibling <code>PERCENTILE_DISC</code> returns the actual value at or just above the percentile (no interpolation). For latency SLAs, <code>PERCENTILE_CONT</code> is standard; for discrete categories (e.g., rank percentiles), <code>PERCENTILE_DISC</code> is appropriate. Both are ordered-set aggregates &mdash; they take an ORDER BY inside the function, which is a different syntax from window functions.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Postgres (solution dialect):</strong> <code>PERCENTILE_CONT</code> and <code>PERCENTILE_DISC</code> are built-in ordered-set aggregates. Works as written.</li>
+  <li><strong>Snowflake native:</strong> <code>PERCENTILE_CONT</code> is supported. Alternatively: <code>APPROX_PERCENTILE(value, 0.95)</code> for approximate results on large datasets (HyperLogLog-based, much faster).</li>
+  <li><strong>BigQuery:</strong> <code>APPROX_QUANTILES(value, 100)[OFFSET(95)]</code> for approximate; <code>PERCENTILE_CONT(value, 0.95) OVER ()</code> as a window function (not an aggregate).</li>
+  <li><strong>MySQL:</strong> No <code>PERCENTILE_CONT</code> before 8.0. Use <code>ROW_NUMBER</code> + math to approximate.</li>
+</ul>
+
+<h5>Snowflake&rsquo;s IFF alternative for accuracy</h5>
+<p>Snowflake has the <code>IFF(condition, true_val, false_val)</code> shorthand: <code>AVG(IFF(predicted = actual, 1.0, 0.0))</code>. This is purely stylistic &mdash; same semantics as <code>CASE WHEN</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <code>AVG(CASE WHEN ...)</code> trick as the canonical accuracy pattern (equivalent to proportion of 1s in a 0/1 indicator), explain the <code>NULLIF(regexp_replace(...))</code> cast guard for dirty columns, distinguish <code>PERCENTILE_CONT</code> (interpolated) from <code>PERCENTILE_DISC</code> (actual value), and mention Snowflake&rsquo;s <code>APPROX_PERCENTILE</code> for large-scale latency monitoring where approximate results suffice.</div>

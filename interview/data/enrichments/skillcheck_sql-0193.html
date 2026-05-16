@@ -1,0 +1,76 @@
+<p>A compensation equity team wants to flag salary compression: situations where junior employees earn as much as or more than some senior employees within the same department. The interviewer is probing <strong>self-join aggregation</strong> on a structured level ordering: aggregate min/max per (dept, level), join adjacent level pairs, and filter on the compression condition &mdash; a pattern that requires correctly mapping "junior" and "senior" to adjacent level labels.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>dept</th><th>level</th><th>employees (salaries)</th><th>min_s</th><th>max_s</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>L1</td><td>emp 1 (80), emp 2 (90)</td><td>80</td><td>90</td></tr>
+    <tr><td>Eng</td><td>L2</td><td>emp 3 (95), emp 4 (110)</td><td>95</td><td>110</td></tr>
+    <tr><td>Eng</td><td>L3</td><td>emp 5 (150), emp 6 (170)</td><td>150</td><td>170</td></tr>
+    <tr><td>Sales</td><td>L1</td><td>emp 7 (60), emp 8 (75)</td><td>60</td><td>75</td></tr>
+    <tr><td>Sales</td><td>L2</td><td>emp 9 (70), emp 10 (95)</td><td>70</td><td>95</td></tr>
+    <tr><td>Sales</td><td>L3</td><td>emp 11 (100), emp 12 (105)</td><td>100</td><td>105</td></tr>
+    <tr><td>Ops</td><td>L1</td><td>emp 13 (50)</td><td>50</td><td>50</td></tr>
+    <tr><td>Ops</td><td>L2</td><td>emp 14 (80)</td><td>80</td><td>80</td></tr>
+    <tr><td>Ops</td><td>L3</td><td>emp 15 (120)</td><td>120</td><td>120</td></tr>
+  </tbody>
+</table>
+<p>Check compression (junior_max &ge; senior_min) for each adjacent pair per dept: Eng L1&ndash;L2: 90 &ge; 95? No. Eng L2&ndash;L3: 110 &ge; 150? No. Sales L1&ndash;L2: 75 &ge; 70? <strong>Yes.</strong> Sales L2&ndash;L3: 95 &ge; 100? No. Ops L1&ndash;L2: 50 &ge; 80? No. Ops L2&ndash;L3: 80 &ge; 120? No. Only Sales L1&ndash;L2 has compression.</p>
+
+<h4>2. The SQL &mdash; aggregate by (dept, level), self-join adjacent pairs, filter</h4>
+<pre><code>WITH agg AS (
+  SELECT dept, level, MIN(salary) AS min_s, MAX(salary) AS max_s
+  FROM employee
+  GROUP BY dept, level
+),
+pairs AS (
+  SELECT j.dept, j.level AS junior_level, j.max_s AS junior_max,
+         s.level AS senior_level, s.min_s AS senior_min
+  FROM agg j JOIN agg s
+    ON j.dept = s.dept
+   AND ((j.level = 'L1' AND s.level = 'L2') OR (j.level = 'L2' AND s.level = 'L3'))
+)
+SELECT dept, junior_level, junior_max, senior_level, senior_min
+FROM pairs
+WHERE junior_max &gt;= senior_min
+ORDER BY dept, junior_level;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>All pairs evaluated (before compression filter):</p>
+<table>
+  <thead><tr><th>dept</th><th>junior_level</th><th>junior_max</th><th>senior_level</th><th>senior_min</th><th>compressed?</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>L1</td><td>90</td><td>L2</td><td>95</td><td>No (90 &lt; 95)</td></tr>
+    <tr><td>Eng</td><td>L2</td><td>110</td><td>L3</td><td>150</td><td>No (110 &lt; 150)</td></tr>
+    <tr><td>Ops</td><td>L1</td><td>50</td><td>L2</td><td>80</td><td>No</td></tr>
+    <tr><td>Ops</td><td>L2</td><td>80</td><td>L3</td><td>120</td><td>No</td></tr>
+    <tr><td>Sales</td><td>L1</td><td>75</td><td>L2</td><td>70</td><td><strong>Yes (75 &ge; 70)</strong></td></tr>
+    <tr><td>Sales</td><td>L2</td><td>95</td><td>L3</td><td>100</td><td>No (95 &lt; 100)</td></tr>
+  </tbody>
+</table>
+<p>Final output (only the Sales L1&ndash;L2 compression row):</p>
+<table>
+  <thead><tr><th>dept</th><th>junior_level</th><th>junior_max</th><th>senior_level</th><th>senior_min</th></tr></thead>
+  <tbody>
+    <tr><td>Sales</td><td>L1</td><td>75</td><td>L2</td><td>70</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why max of junior vs min of senior</h5>
+<p>Compression is defined as any junior earning as much as or more than any senior. The worst-case combination is the highest junior salary against the lowest senior salary. If <code>junior_max &lt; senior_min</code>, then <em>every</em> junior earns less than <em>every</em> senior &mdash; no compression. If <code>junior_max &ge; senior_min</code>, at least one junior earns at or above at least one senior &mdash; compression exists. Using max&ndash;min is the correct boundary check without enumerating all individual pairs.</p>
+
+<h5>Encoding the adjacent-level predicate</h5>
+<p>The OR condition in the JOIN &mdash; <code>(L1,L2) OR (L2,L3)</code> &mdash; is the most explicit and readable way to specify exactly which pairs to evaluate. Alternatives include a numeric mapping table (L1&rarr;1, L2&rarr;2, L3&rarr;3) joined on <code>j.level_num + 1 = s.level_num</code>. With only three levels, the explicit OR is preferable for clarity; with many levels a mapping table scales better and avoids a large OR chain.</p>
+
+<h5>The aggregation is lightweight</h5>
+<p>The <code>agg</code> CTE computes only two values per (dept, level) group. This is far cheaper than the alternative of joining the raw employee rows and computing max/min in the WHERE clause. With an index on <code>(dept, level, salary)</code>, the GROUP BY can be resolved with an index-only scan.</p>
+
+<h5>Edge cases &mdash; missing levels within a dept</h5>
+<p>Ops has L1, L2, L3 but only one employee each. The aggregation handles single-employee groups fine: min = max = that employee's salary. If a department were missing an intermediate level (e.g., no L2 employees), the JOIN would produce no row for the L1&ndash;L2 pair in that department, and the L1&ndash;L3 pair would not be evaluated because the predicate only covers adjacent levels. This is correct behavior &mdash; the question defines compression only between adjacent levels.</p>
+
+<h5>Dialect notes</h5>
+<p>The aggregate + self-join pattern is ANSI SQL and portable to all major engines. No window functions are used, so MySQL 5.7 handles it correctly. The OR predicate in the JOIN ON clause is standard. If you use a level-number mapping table instead of the OR, it is even more portable &mdash; just a numeric equality join. The output column names (<code>junior_level</code>, <code>junior_max</code>, <code>senior_level</code>, <code>senior_min</code>) match the question specification exactly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compare <code>MAX(junior_salary) &ge; MIN(senior_salary)</code> rather than joining individual rows, because that boundary check is both sufficient and necessary for compression detection; encode the adjacent-level constraint explicitly in the JOIN predicate; and mention the numeric level-mapping alternative for systems with more than three levels.</div>
