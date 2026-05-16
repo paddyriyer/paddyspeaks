@@ -1,0 +1,52 @@
+<p>A registrar wants the students who have <em>completed</em> every required course &mdash; not merely enrolled, but passed: a grade that is present and not an&nbsp;F. This is relational division with a predicate twist: you divide by the course catalog, but only enrollments that count as a genuine pass should feed the division. The interviewer is probing whether you filter <em>before</em> counting, and whether you handle the NULL "in progress" grade correctly.</p>
+
+<h4>1. The source data &mdash; <code>course</code> and <code>enrollment</code></h4>
+<table>
+  <thead><tr><th>student_id</th><th>course_id</th><th>grade</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101 / 102 / 103</td><td>A / B / C</td><td>all three passed &mdash; qualifies</td></tr>
+    <tr><td>2</td><td>101 / 102 / 103</td><td>A / F / B</td><td>102 is an F &mdash; not completed, fails</td></tr>
+    <tr><td>3</td><td>101 / 102 / 103</td><td>A / NULL / A</td><td>102 in progress (NULL) &mdash; not completed, fails</td></tr>
+    <tr><td>4</td><td>101 / 102 / 103</td><td>A / A / A</td><td>all three passed &mdash; qualifies</td></tr>
+    <tr><td>5</td><td>101</td><td>A</td><td>only one course passed &mdash; fails</td></tr>
+  </tbody>
+</table>
+<p>The catalog (<code>course</code>) has three required courses. Student&nbsp;2 has an <code>F</code> in Physics; student&nbsp;3 has a <code>NULL</code> (still in progress) in Physics &mdash; two distinct ways to <em>not</em> complete a course. Student&nbsp;5 has only one enrollment. Only students&nbsp;1 and&nbsp;4 have a genuine pass in all three.</p>
+
+<h4>2. The SQL &mdash; filter to passes, then divide</h4>
+<pre><code>SELECT student_id
+FROM enrollment
+WHERE grade IS NOT NULL AND grade &lt;&gt; 'F'
+GROUP BY student_id
+HAVING COUNT(DISTINCT course_id) = (SELECT COUNT(*) FROM course)
+ORDER BY student_id;</code></pre>
+<p>The <code>WHERE</code> keeps only rows that count as a pass &mdash; grade present (<code>IS NOT NULL</code>) and not an F. <code>GROUP BY student_id</code> then buckets the survivors, and <code>HAVING COUNT(DISTINCT course_id) = (SELECT COUNT(*) FROM course)</code> keeps students whose passed-course set covers the whole catalog.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>student_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>passed {101,102,103} &mdash; 3 distinct courses = catalog size</td></tr>
+    <tr><td>4</td><td>passed {101,102,103} &mdash; 3 distinct courses = catalog size</td></tr>
+  </tbody>
+</table>
+<p>Students&nbsp;2,&nbsp;3,&nbsp;5 are absent. Student&nbsp;2's F-row is removed by <code>grade &lt;&gt; 'F'</code>, leaving only 2 passed courses. Student&nbsp;3's NULL-row is removed by <code>grade IS NOT NULL</code>, also leaving 2. Student&nbsp;5 only ever had one enrollment. Each falls short of the count of&nbsp;3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Filter first, then count &mdash; the <code>WHERE</code> defines "completed"</h5>
+<p>The whole correctness of this division hinges on filtering <em>before</em> the aggregate. The <code>WHERE</code> clause removes non-passing rows, so by the time <code>COUNT(DISTINCT course_id)</code> runs it is counting <em>only completed courses</em>. A student who enrolled in all three but failed one is left with two passing rows, and <code>2 &lt;&gt; 3</code> excludes them. Putting the grade test anywhere else &mdash; or omitting it &mdash; would count mere enrollment as completion, which the spec explicitly rejects.</p>
+
+<h5><code>grade IS NOT NULL</code> &mdash; why <code>&lt;&gt; 'F'</code> alone is not enough</h5>
+<p>This is the NULL trap. <code>grade &lt;&gt; 'F'</code> evaluates to <em>unknown</em> when <code>grade</code> is NULL, and <code>WHERE</code> discards unknown rows &mdash; so it might seem the explicit <code>IS NOT NULL</code> is redundant. It is not redundant <em>conceptually</em>: it documents intent and guards against any engine or rewrite where the NULL handling differs. More importantly it makes the predicate's two cases explicit &mdash; "in progress" (NULL) and "failed" (F) are both non-completion, and the code should say so. Relying on three-valued logic implicitly is fragile; stating <code>IS NOT NULL AND grade &lt;&gt; 'F'</code> is self-documenting and unambiguous.</p>
+
+<h5>Why <code>COUNT(DISTINCT course_id)</code>, not <code>COUNT(*)</code></h5>
+<p>If a student could have two passing rows for the same course (a retake, say), <code>COUNT(*)</code> would over-count and a student missing a course could be wrongly admitted. <code>COUNT(DISTINCT course_id)</code> measures how many <em>distinct required courses</em> were passed &mdash; the coverage, not the row volume. The fixture has one row per student/course, so the two would agree here, but <code>DISTINCT</code> is the defensively correct choice for a division and costs nothing in correctness.</p>
+
+<h5>The subset assumption &mdash; courses must be required</h5>
+<p>The count-equality test works because a student's passed courses are assumed to be a subset of the required catalog: subset cardinality equals full-set cardinality only when the subset <em>is</em> the full set. If <code>enrollment</code> could reference an elective not in <code>course</code>, that passed elective would inflate the count and could falsely qualify a student. To be safe against that you would <code>JOIN enrollment TO course</code> on <code>course_id</code> first, so only required courses are counted. With a clean schema the simple form holds.</p>
+
+<h5>The double-<code>NOT EXISTS</code> alternative and the empty catalog</h5>
+<p>The rigorous division form is "no required course exists that the student has not completed", a nested <code>NOT EXISTS</code> over <code>course</code> and a passing-enrollment subquery. It handles the empty-catalog edge case correctly (every student qualifies when there are no required courses), whereas the counting form returns nobody if <code>course</code> is empty, since <code>COUNT(DISTINCT course_id) &gt;= 1</code> can never equal 0. With a non-empty catalog the counting form is simpler and correct; knowing the divergence is the senior nuance.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> push the "is this a pass" predicate into <code>WHERE</code> so the division counts only completed courses, write <code>grade IS NOT NULL AND grade &lt;&gt; 'F'</code> explicitly so the NULL "in progress" and F "failed" cases are both visibly excluded, use <code>COUNT(DISTINCT course_id)</code> for coverage, and note the subset assumption and empty-catalog behaviour that separate the counting form from rigorous double-<code>NOT EXISTS</code> division.</div>

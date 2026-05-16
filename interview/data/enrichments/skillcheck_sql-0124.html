@@ -1,0 +1,56 @@
+<p>A gaming team wants each player's "first device" &mdash; the device they used on their earliest recorded session. The twist the interviewer plants: a player can have <em>several</em> sessions on that same earliest date, on different devices. The tie-break rule ("smallest device_id") is the whole point &mdash; it forces a deterministic <code>ROW_NUMBER</code> ordering rather than an ambiguous <code>MIN</code>.</p>
+
+<h4>1. The source data &mdash; <code>activity</code></h4>
+<table>
+  <thead><tr><th>player_id</th><th>device_id</th><th>event_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>2025-01-01</td><td>player 1's earliest date &mdash; this device wins</td></tr>
+    <tr><td>1</td><td>20</td><td>2025-01-02</td><td>later date &mdash; loses</td></tr>
+    <tr><td>2</td><td>30</td><td>2025-02-01</td><td>player 2, earliest date &mdash; tie on date with the next row</td></tr>
+    <tr><td>2</td><td>40</td><td>2025-02-01</td><td>SAME earliest date &mdash; tie-break picks the smaller device_id</td></tr>
+    <tr><td>3</td><td>50</td><td>2025-03-05</td><td>single session &mdash; trivially the first device</td></tr>
+  </tbody>
+</table>
+<p>Player <strong>2</strong> is the edge case: two sessions, both on 2025-02-01, devices 30 and 40. "Earliest date" alone is a tie, so the rule "smallest device_id" decides &mdash; device 30 must win. Player 3 (a single session) tests the single-member-group path.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER with a two-key ordering</h4>
+<pre><code>WITH ranked AS (
+  SELECT player_id, device_id, event_date,
+         ROW_NUMBER() OVER (
+           PARTITION BY player_id
+           ORDER BY event_date, device_id
+         ) AS rn
+  FROM activity
+)
+SELECT player_id, device_id
+FROM ranked
+WHERE rn = 1
+ORDER BY player_id;</code></pre>
+<p><code>PARTITION BY player_id</code> restarts the numbering per player. <code>ORDER BY event_date, device_id</code> sorts each player's sessions earliest-date-first, then smallest-device-first; <code>rn = 1</code> plucks the single winning row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>player_id</th><th>device_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>earliest date 2025-01-01, no contest</td></tr>
+    <tr><td>2</td><td>30</td><td>date tie on 2025-02-01 &rarr; tie-break picks device 30 over 40</td></tr>
+    <tr><td>3</td><td>50</td><td>only session &mdash; rn = 1 trivially</td></tr>
+  </tbody>
+</table>
+<p>Player 2 returns device <strong>30</strong>, not 40: both sessions share the earliest date, so the second sort key <code>device_id</code> breaks the tie toward the smaller value, exactly as the spec demands.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code>, not <code>RANK</code> or <code>MIN</code></h5>
+<p>The task wants <em>exactly one</em> row per player. <code>ROW_NUMBER</code> guarantees that &mdash; even a tie gets distinct numbers 1, 2, 3&hellip;, so <code>rn = 1</code> is always a single row. <code>RANK</code> would give both of player 2's tied-date sessions <code>rk = 1</code> (if the order only considered date) and return two rows. And a naive <code>MIN(device_id) WHERE event_date = MIN(event_date)</code>-style aggregate can be written, but it is clumsier and easy to get wrong; <code>ROW_NUMBER</code> with a compound <code>ORDER BY</code> states the tie-break declaratively.</p>
+
+<h5>The second ORDER BY key <em>is</em> the tie-break rule</h5>
+<p><code>ORDER BY event_date, device_id</code> encodes two rules in priority order: first the earliest date, then &mdash; only among rows that tie on date &mdash; the smallest <code>device_id</code>. Drop the second key and player 2's result becomes non-deterministic: the engine could return device 30 or 40 on different runs. Any "earliest / latest, break ties by X" requirement must carry X as a trailing sort key, or the answer is silently unstable.</p>
+
+<h5>Why the CTE &mdash; you cannot filter a window function in WHERE</h5>
+<p><code>ROW_NUMBER()</code> is computed <em>after</em> <code>WHERE</code> in SQL's logical evaluation order, so <code>WHERE rn = 1</code> in the same query level is a syntax error &mdash; <code>rn</code> does not exist yet. The CTE (or a subquery) materialises <code>rn</code> as an ordinary column that the outer <code>WHERE</code> can then filter. This two-step shape &mdash; assign row numbers in a CTE, filter <code>rn = 1</code> outside &mdash; is the standard "top-N-per-group" idiom.</p>
+
+<h5>NULL dates &mdash; the trap this clean data hides</h5>
+<p>Every row here has a real <code>event_date</code>, but production data may not. In Postgres <code>ORDER BY event_date</code> puts NULLs <em>last</em> by default for ascending order &mdash; so a player whose only session has a NULL date still gets <code>rn = 1</code> on that row, which may or may not be intended. If a NULL date should never win, be explicit: <code>ORDER BY event_date NULLS LAST</code> documents intent, or filter <code>WHERE event_date IS NOT NULL</code> upstream. Naming this is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>ROW_NUMBER</code> (not <code>RANK</code>) when you need exactly one row per group, encode the "break ties by smallest device" rule as a trailing <code>ORDER BY</code> key so the result is deterministic, wrap it in a CTE because window functions cannot be filtered in <code>WHERE</code>, and state how NULL dates sort.</div>

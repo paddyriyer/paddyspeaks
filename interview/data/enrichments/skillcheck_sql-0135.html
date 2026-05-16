@@ -1,0 +1,62 @@
+<p>A product team measuring engagement wants to flag "streak" users &mdash; people who logged in three or more days in a row &mdash; for a retention cohort. The interviewer pins the implementation: solve it with <code>LAG</code> by checking whether the two <em>preceding</em> login rows fall exactly one and two calendar days back. The probe is whether you understand that a gap of one missing day breaks the streak, and that <code>LAG</code> walks rows, not dates.</p>
+
+<h4>1. The source data &mdash; <code>login</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>login_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>start of a clean 3-day run</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>consecutive</td></tr>
+    <tr><td>1</td><td>2025-01-03</td><td>third day &mdash; streak confirmed here</td></tr>
+    <tr><td>2</td><td>2025-02-01</td><td>then a gap &mdash; Feb 2 is missing</td></tr>
+    <tr><td>2</td><td>2025-02-03</td><td>only 2 in a row (Feb 3&ndash;4) follow</td></tr>
+    <tr><td>2</td><td>2025-02-04</td><td>run length 2 &mdash; never reaches 3</td></tr>
+    <tr><td>3</td><td>2025-03-10</td><td>start of a 4-day run</td></tr>
+    <tr><td>4</td><td>2025-04-01</td><td>only 2 logins total &mdash; cannot qualify</td></tr>
+  </tbody>
+</table>
+<p>User&nbsp;2 is the trap: three login rows, but the Feb&nbsp;2 gap means the longest consecutive run is only two days. User&nbsp;4 has just two rows &mdash; the degenerate too-short group. Only users&nbsp;1 and&nbsp;3 ever have three calendar days in a row.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> over a 3-row window</h4>
+<pre><code>WITH dt AS (
+  SELECT DISTINCT user_id, login_date FROM login
+),
+shifted AS (
+  SELECT user_id, login_date,
+         LAG(login_date, 1) OVER (PARTITION BY user_id ORDER BY login_date) AS d1,
+         LAG(login_date, 2) OVER (PARTITION BY user_id ORDER BY login_date) AS d2
+  FROM dt
+)
+SELECT DISTINCT user_id
+FROM shifted
+WHERE login_date - d1 = 1 AND login_date - d2 = 2
+ORDER BY user_id;</code></pre>
+<p><code>LAG(login_date, 1)</code> and <code>LAG(login_date, 2)</code> pull the previous and second-previous login dates within each user, ordered by date. If the current row is the tip of a three-in-a-row run, those two neighbours are exactly 1 and 2 days behind &mdash; so <code>login_date - d1 = 1 AND login_date - d2 = 2</code> marks a streak.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jan 3 sees Jan 2 and Jan 1 one and two days back &mdash; streak</td></tr>
+    <tr><td>3</td><td>Mar 12 (and Mar 13) satisfy the 3-row pattern &mdash; streak</td></tr>
+  </tbody>
+</table>
+<p>Users&nbsp;2 and&nbsp;4 are absent. User&nbsp;2's Feb&nbsp;3 row has <code>d1 = Feb 1</code>, so <code>login_date - d1 = 2</code>, not&nbsp;1 &mdash; the missing Feb&nbsp;2 row poisons the pattern. User&nbsp;4 never has a second-previous row at all, so <code>d2</code> is NULL and the predicate is never true.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> compares rows, and why <code>DISTINCT</code> first matters</h5>
+<p><code>LAG(col, n)</code> returns the value <em>n rows</em> earlier in the ordered partition &mdash; it counts rows, not days. The arithmetic <code>login_date - d1</code> then converts that row offset into a day difference. The <code>dt</code> CTE's <code>SELECT DISTINCT</code> is essential: if a user could log in twice on the same date, two identical rows would make <code>LAG</code> see a zero-day gap and the whole 3-row alignment would shift. The question says logins are distinct daily, but normalising first makes the query robust regardless.</p>
+
+<h5>The boundary rows are NULL &mdash; and that is correct</h5>
+<p>The first row of every partition has no predecessor, so <code>d1</code> is NULL; the second row has no second-predecessor, so <code>d2</code> is NULL. Any comparison against NULL yields <em>unknown</em>, which <code>WHERE</code> treats as false &mdash; so those rows simply cannot be flagged. That is exactly right: a streak of three needs a third row to even be evaluated. User&nbsp;4 with two logins is filtered out for free, no special-casing required.</p>
+
+<h5>One streak day is enough &mdash; <code>DISTINCT</code> on the output</h5>
+<p>In user&nbsp;3's 4-day run, both Mar&nbsp;12 and Mar&nbsp;13 satisfy the 3-row pattern, so the user matches twice. The outer <code>SELECT DISTINCT user_id</code> collapses that to one row. The question asks "which users", not "how many streak days", so de-duplication is the right final step &mdash; though a <code>GROUP BY user_id</code> would do the same job.</p>
+
+<h5>The gaps-and-islands alternative</h5>
+<p>The fixed 3-row <code>LAG</code> pattern answers "exactly 3 consecutive" cheaply, but it does not generalise: "5 or more in a row" would need five <code>LAG</code> calls. The scalable technique is gaps-and-islands &mdash; subtract <code>ROW_NUMBER()</code> from the date to give every consecutive run a constant group key, then <code>GROUP BY</code> that key and filter <code>COUNT(*) &gt;= N</code>. Mention it as the general tool; the <code>LAG</code> form here is the pragmatic answer for a small fixed N.</p>
+
+<h5>Dialect &mdash; date subtraction is not portable</h5>
+<p><code>login_date - d1 = 1</code> works because PostgreSQL subtracts two <code>date</code>s into an integer number of days. SQL Server needs <code>DATEDIFF(day, d1, login_date) = 1</code>; MySQL uses <code>DATEDIFF(login_date, d1) = 1</code>; Oracle subtracts dates into a number like Postgres. The <code>LAG</code> window function itself is ANSI-standard and portable &mdash; only the date arithmetic needs translation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>LAG(date, 1)</code> and <code>LAG(date, 2)</code> to inspect the two preceding rows, convert the row offset to a day gap with date subtraction, rely on the NULL boundary rows to exclude users with too few logins automatically, de-duplicate the final user list, and name gaps-and-islands as the technique that scales when N is not fixed.</div>

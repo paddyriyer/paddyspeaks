@@ -1,0 +1,69 @@
+<p>An HR analytics report wants each employee's longest run of consecutive workdays &mdash; calendar-adjacent dates with no gap. This is the classic <strong>gaps-and-islands</strong> problem, and the interviewer is checking whether you know the elegant trick: subtract a row number from the date, and every consecutive run collapses to a constant key you can group on.</p>
+
+<h4>1. The source data &mdash; <code>attendance</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>work_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>emp 1 &mdash; run A starts</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>emp 1 &mdash; run A</td></tr>
+    <tr><td>1</td><td>2025-01-03</td><td>emp 1 &mdash; run A ends (length 3)</td></tr>
+    <tr><td>1</td><td>2025-01-05</td><td>emp 1 &mdash; Jan 4 missing, run B starts</td></tr>
+    <tr><td>1</td><td>2025-01-06</td><td>emp 1 &mdash; run B ends (length 2)</td></tr>
+    <tr><td>2</td><td>2025-02-10</td><td>emp 2 &mdash; isolated day, then gap</td></tr>
+    <tr><td>2</td><td>2025-02-12 .. 02-15</td><td>emp 2 &mdash; four-day run</td></tr>
+    <tr><td>3</td><td>2025-03-01</td><td>emp 3 &mdash; a single attendance day</td></tr>
+    <tr><td>4</td><td>2025-04-01, 04-02</td><td>emp 4 &mdash; one two-day run</td></tr>
+  </tbody>
+</table>
+<p>The edge cases that decide the interview: emp 1 has <em>two separate</em> runs and we want the longer (3, not 2); emp 2's longest run is <em>not</em> its first appearance; and emp 3 has a <em>single</em> day &mdash; a streak of length 1, which the query must still report.</p>
+
+<h4>2. The SQL &mdash; the date-minus-rownumber islands trick</h4>
+<pre><code>WITH dt AS (
+  SELECT DISTINCT emp_id, work_date FROM attendance
+),
+grouped AS (
+  SELECT emp_id, work_date,
+         work_date - (ROW_NUMBER() OVER (PARTITION BY emp_id ORDER BY work_date))::int AS streak_key
+  FROM dt
+),
+streaks AS (
+  SELECT emp_id, streak_key, COUNT(*) AS streak_len
+  FROM grouped
+  GROUP BY emp_id, streak_key
+)
+SELECT emp_id, MAX(streak_len) AS longest_streak
+FROM streaks
+GROUP BY emp_id
+ORDER BY emp_id;</code></pre>
+<p><code>ROW_NUMBER()</code> numbers each employee's dates 1, 2, 3, ... in date order. Subtracting that counter from the date yields a value that stays <em>constant</em> across a consecutive run and <em>jumps</em> at every gap &mdash; that constant is the island key. Grouping by it gives each run's length; the outer <code>MAX</code> picks the longest per employee.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>longest_streak</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>run A (3) beats run B (2)</td></tr>
+    <tr><td>2</td><td>4</td><td>Feb 12-15 &mdash; not the isolated Feb 10</td></tr>
+    <tr><td>3</td><td>1</td><td>single attendance day still counts</td></tr>
+    <tr><td>4</td><td>2</td><td>one clean two-day run</td></tr>
+  </tbody>
+</table>
+<p>Emp 1 returns <strong>3</strong> &mdash; the <code>MAX</code> over its two islands. Emp 3 returns <strong>1</strong>: a lone day is a degenerate run of length 1, and the query handles it without special-casing.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why subtracting the row number works</h5>
+<p>Within a consecutive run, the date increases by exactly 1 each step &mdash; and so does <code>ROW_NUMBER()</code>. Two quantities that march in lockstep have a constant <em>difference</em>. So <code>work_date - row_number</code> is identical for every date in a run. The instant there is a gap, the date jumps by 2+ while the row number still increments by 1, so the difference changes &mdash; a new island begins. The difference value itself is meaningless; only its <em>constancy</em> matters, which is why it makes a perfect <code>GROUP BY</code> key.</p>
+
+<h5>Why <code>::int</code> on the row number</h5>
+<p><code>work_date</code> is a <code>DATE</code>. In PostgreSQL <code>date - integer</code> yields a <code>date</code> shifted by that many days &mdash; exactly what we want. But <code>ROW_NUMBER()</code> returns <code>bigint</code>, and <code>date - bigint</code> is not a defined operator; the explicit <code>::int</code> cast makes the subtraction type-check. (The resulting <code>streak_key</code> is itself a <code>date</code> &mdash; a perfectly valid grouping value.) Engines vary here: in some you would instead convert the date to an integer day-count. The cast is small but its absence is a hard error.</p>
+
+<h5>The <code>SELECT DISTINCT</code> guard against duplicate dates</h5>
+<p>The first CTE deduplicates <code>(emp_id, work_date)</code>. If an employee had the same <code>work_date</code> twice (a double clock-in), <code>ROW_NUMBER()</code> would assign them <em>different</em> counters while the date is identical &mdash; breaking the lockstep and splitting or corrupting the island key. Deduplicating first guarantees one row per employee-day, which is the precondition the trick relies on. The demo data has no duplicates, but a robust solution defends against them anyway.</p>
+
+<h5>Single-day runs and ties</h5>
+<p>A lone date forms an island of size 1 &mdash; the grouping produces a one-row group, <code>COUNT(*)</code> is 1, and emp 3 is correctly reported. Ties are handled for free: if an employee had two separate runs both of length 4, there would be two <code>streak_len = 4</code> rows and <code>MAX</code> simply returns 4. The question only asks for the longest <em>length</em>, so no tiebreak is needed; if it asked <em>which</em> run, you would add the run's start date via <code>MIN(work_date)</code> per island.</p>
+
+<h5>Dialect notes</h5>
+<p>The date-minus-rownumber idiom is portable wherever <code>ROW_NUMBER()</code> exists &mdash; PostgreSQL, SQL Server, Oracle, MySQL 8+, BigQuery. The only thing that changes is the date arithmetic: SQL Server uses <code>DATEADD(DAY, -ROW_NUMBER()..., work_date)</code>; MySQL uses <code>DATE_SUB</code>; BigQuery uses <code>DATE_SUB(work_date, INTERVAL ROW_NUMBER()... DAY)</code>. An alternative formulation uses <code>LAG()</code> to flag gaps then a running <code>SUM</code> of the gap-flags as the island id &mdash; equivalent, and sometimes preferred when "adjacent" is defined by something other than a fixed +1 day step.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve consecutive-run problems with the gaps-and-islands trick &mdash; subtract <code>ROW_NUMBER()</code> from the date so each run shares a constant key &mdash; deduplicate dates first so the row-number stays in lockstep, cast the row number to <code>int</code> for the date subtraction, and know the <code>LAG</code>+running-sum variant for non-+1 adjacency rules.</div>

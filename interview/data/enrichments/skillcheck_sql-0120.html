@@ -1,0 +1,49 @@
+<p>A payroll reconciliation job compares the HR roster against the salary-paid ledger &mdash; the two should always agree. The task is to surface the discrepancies: employee IDs that appear in <em>exactly one</em> table, meaning someone was enrolled but never paid, or paid but never enrolled. The interviewer wants a <code>FULL OUTER JOIN</code>, because that is the one join that keeps unmatched rows from <em>both</em> sides at once.</p>
+
+<h4>1. The source data &mdash; <code>enrolled_employee</code> and <code>paid_salary</code></h4>
+<table>
+  <thead><tr><th>side</th><th>emp_id</th><th>detail</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>enrolled_employee</td><td>1</td><td>Alice</td><td>in both tables &mdash; in sync</td></tr>
+    <tr><td>enrolled_employee</td><td>2</td><td>Bob</td><td>in both tables &mdash; in sync</td></tr>
+    <tr><td>enrolled_employee</td><td>3</td><td>Cara</td><td>enrolled, never paid &rarr; discrepancy</td></tr>
+    <tr><td>enrolled_employee</td><td>5</td><td>Eve</td><td>in both tables &mdash; in sync</td></tr>
+    <tr><td>paid_salary</td><td>1, 2, 5</td><td>paid</td><td>matched on the other side</td></tr>
+    <tr><td>paid_salary</td><td>4</td><td>70000</td><td>paid, never enrolled &rarr; discrepancy</td></tr>
+  </tbody>
+</table>
+<p>The two edge cases are mirror images: emp_id <strong>3</strong> exists only in <code>enrolled_employee</code>, emp_id <strong>4</strong> exists only in <code>paid_salary</code>. A LEFT or RIGHT join would catch one direction and miss the other &mdash; the FULL OUTER JOIN catches both in a single pass.</p>
+
+<h4>2. The SQL &mdash; FULL OUTER JOIN, keep the NULL-on-either-side rows</h4>
+<pre><code>SELECT COALESCE(e.emp_id, p.emp_id) AS emp_id
+FROM enrolled_employee e
+FULL OUTER JOIN paid_salary p ON e.emp_id = p.emp_id
+WHERE e.emp_id IS NULL OR p.emp_id IS NULL
+ORDER BY emp_id;</code></pre>
+<p>The FULL OUTER JOIN emits one row per matched pair <em>plus</em> one row for every unmatched left row (right side all NULL) <em>plus</em> every unmatched right row (left side all NULL). <code>WHERE e.emp_id IS NULL OR p.emp_id IS NULL</code> discards the matched pairs and keeps only the orphans.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>which side it came from</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td><code>p.emp_id</code> is NULL &mdash; enrolled but never paid</td></tr>
+    <tr><td>4</td><td><code>e.emp_id</code> is NULL &mdash; paid but never enrolled</td></tr>
+  </tbody>
+</table>
+<p>IDs 1, 2 and 5 are correctly excluded &mdash; each matched on both sides, so neither key is NULL and the <code>WHERE</code> filters them out. Only the two true discrepancies remain.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COALESCE</code> is mandatory, not decorative</h5>
+<p>For an orphan row, exactly one of <code>e.emp_id</code> / <code>p.emp_id</code> holds the value &mdash; the other is NULL. Selecting just <code>e.emp_id</code> would return NULL for every paid-but-not-enrolled employee (id 4 would vanish into a NULL). <code>COALESCE(e.emp_id, p.emp_id)</code> picks whichever side is populated, so each orphan reports its real ID. This pairing &mdash; <code>FULL OUTER JOIN</code> plus <code>COALESCE</code> on the join key &mdash; is the canonical idiom.</p>
+
+<h5>This is a symmetric difference</h5>
+<p>The query computes the <em>symmetric difference</em> of the two ID sets: members of either set but not both. Drop the <code>WHERE</code> entirely and you get a full reconciliation (the union, with matches and mismatches side by side). Keep only <code>p.emp_id IS NULL</code> and you get a one-directional anti-join (enrolled but unpaid). The clause <code>e.emp_id IS NULL OR p.emp_id IS NULL</code> is what makes it symmetric &mdash; choose the variant the question actually asks for.</p>
+
+<h5>Test the join keys for NULL, not other columns</h5>
+<p><code>WHERE</code> filters on <code>emp_id</code>, the join keys &mdash; correct, because a join key is NULL precisely when that side had no matching row. Testing a different nullable column (say <code>e.name</code>) would also work <em>if</em> that column happens to be non-nullable in real rows, but it is fragile: a genuine NULL name would be misread as a missing row. The join key is the reliable witness of "no match".</p>
+
+<h5>Dialect &mdash; MySQL has no FULL OUTER JOIN</h5>
+<p>PostgreSQL, SQL Server, and Oracle support <code>FULL OUTER JOIN</code> natively. MySQL does not &mdash; you emulate it with <code>LEFT JOIN &hellip; UNION &hellip; RIGHT JOIN</code>, or here more simply with the symmetric anti-join <code>(SELECT emp_id FROM enrolled_employee WHERE emp_id NOT IN (SELECT emp_id FROM paid_salary)) UNION (SELECT emp_id FROM paid_salary WHERE emp_id NOT IN (SELECT emp_id FROM enrolled_employee))</code>. Knowing the portable fallback &mdash; and that <code>NOT IN</code> needs non-nullable keys to be safe &mdash; is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>FULL OUTER JOIN</code> when you need unmatched rows from both sides at once, always <code>COALESCE</code> the two join keys so orphans report a real ID, recognise <code>e.key IS NULL OR p.key IS NULL</code> as the symmetric difference, and know MySQL lacks the operator so you can offer the <code>UNION</code> fallback.</div>

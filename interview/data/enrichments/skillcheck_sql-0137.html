@@ -1,0 +1,52 @@
+<p>A growth team building a year-end engagement report needs each user's most recent login <em>within calendar 2025</em> &mdash; and users who never logged in during 2025 must drop off the report entirely. The interviewer is probing two things: whether you filter the year with a clean half-open range rather than a fragile <code>EXTRACT(YEAR ...)</code>, and whether you understand that filtering <em>before</em> the aggregate naturally excludes the no-activity users.</p>
+
+<h4>1. The source data &mdash; <code>logins</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>time_stamp</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-12-31 22:00:00</td><td>just outside 2025 &mdash; must be excluded</td></tr>
+    <tr><td>1</td><td>2025-01-15 10:00:00</td><td>inside 2025</td></tr>
+    <tr><td>1</td><td>2025-09-01 18:00:00</td><td>inside 2025 &mdash; the latest for user 1</td></tr>
+    <tr><td>2</td><td>2025-06-06 06:06:00</td><td>user 2's only login, inside 2025</td></tr>
+    <tr><td>3</td><td>2024-11-11 11:11:00</td><td>user 3's only login &mdash; entirely in 2024</td></tr>
+  </tbody>
+</table>
+<p>User&nbsp;1's earliest row sits at 2024-12-31 22:00 &mdash; the boundary edge case, hours short of 2025. User&nbsp;3 has <em>no</em> 2025 activity at all and must vanish from the output, not appear with a NULL.</p>
+
+<h4>2. The SQL &mdash; range-filter the year, then <code>MAX</code> per user</h4>
+<pre><code>SELECT user_id, MAX(time_stamp) AS last_stamp
+FROM logins
+WHERE time_stamp &gt;= TIMESTAMP '2025-01-01'
+  AND time_stamp &lt;  TIMESTAMP '2026-01-01'
+GROUP BY user_id
+ORDER BY user_id;</code></pre>
+<p>The <code>WHERE</code> keeps only rows inside the half-open interval <code>[2025-01-01, 2026-01-01)</code>. <code>GROUP BY user_id</code> then buckets the survivors per user, and <code>MAX(time_stamp)</code> picks the latest within each bucket. A user with no surviving rows forms no group and produces no output line.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>last_stamp</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-09-01 18:00:00</td><td>Sep beats Jan; the 2024-12-31 row was filtered out first</td></tr>
+    <tr><td>2</td><td>2025-06-06 06:06:00</td><td>only login, trivially the max</td></tr>
+  </tbody>
+</table>
+<p>User&nbsp;3 is absent &mdash; correctly. Its single login is in 2024, so <code>WHERE</code> discards it before grouping; with no rows left, there is no group and no row. The report shows only users who were genuinely active in 2025.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Half-open range beats <code>EXTRACT(YEAR ...)</code></h5>
+<p><code>time_stamp &gt;= '2025-01-01' AND time_stamp &lt; '2026-01-01'</code> is sargable &mdash; the optimiser can use a B-tree index on <code>time_stamp</code> as a range scan. Wrapping the column in a function, <code>EXTRACT(YEAR FROM time_stamp) = 2025</code>, applies that function to every row and defeats a plain index. The range form is also correct at the edges: <code>&lt; '2026-01-01'</code> excludes exactly midnight on New Year while including the last microsecond of 2025-12-31. Functionally equivalent on a 5-row demo, materially faster at scale.</p>
+
+<h5>Filter-then-aggregate is what drops the inactive users</h5>
+<p>The requirement "users with no 2025 logins must NOT appear" is satisfied for free by ordering: <code>WHERE</code> runs first and deletes all of user&nbsp;3's rows, so <code>GROUP BY</code> never sees that user. Contrast a <code>LEFT JOIN</code> approach or a post-aggregation <code>HAVING</code> &mdash; those could surface user&nbsp;3 with a NULL <code>last_stamp</code> that you would then have to filter again. Filtering individual rows before grouping is both simpler and exactly the semantics the spec wants.</p>
+
+<h5>Why this is <code>MAX</code>, not <code>ROW_NUMBER</code></h5>
+<p>The task asks for a single scalar &mdash; the latest timestamp &mdash; not the whole latest row with its other columns. <code>MAX(time_stamp)</code> in a <code>GROUP BY</code> is the direct, cheap answer. If the spec needed the full row (say, the device used on the last login) you would switch to <code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY time_stamp DESC)</code> filtered to 1. Here, with only <code>user_id</code> and the timestamp requested, the aggregate is the right and lighter tool.</p>
+
+<h5>NULL timestamps and the strict comparisons</h5>
+<p>If a <code>time_stamp</code> were NULL, both <code>&gt;=</code> and <code>&lt;</code> comparisons evaluate to <em>unknown</em>, so the row fails <code>WHERE</code> and is dropped &mdash; a NULL-timestamp login simply never counts as "in 2025", which is the sensible default. And <code>MAX</code> itself ignores NULLs. The fixture has no NULLs, but stating that the range filter quietly handles them shows you have considered the dirty-data case.</p>
+
+<h5>Dialect &mdash; the year-filtering idiom elsewhere</h5>
+<p>The <code>TIMESTAMP '2025-01-01'</code> literal and half-open range are portable to every major engine. SQL Server would write <code>'2025-01-01'</code> as a plain string literal that implicitly casts; MySQL accepts the same. The anti-pattern <code>YEAR(time_stamp) = 2025</code> exists in MySQL and SQL Server too &mdash; and is non-sargable everywhere. Prefer the range; it is the one form that is both correct and index-friendly across all dialects.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> bound the year with a sargable half-open range <code>[2025-01-01, 2026-01-01)</code> instead of <code>EXTRACT(YEAR ...)</code>, let <code>WHERE</code>-before-<code>GROUP BY</code> drop inactive users naturally rather than filtering a NULL afterwards, pick <code>MAX</code> over <code>ROW_NUMBER</code> when only a scalar is needed, and note that the range filter also disposes of NULL timestamps cleanly.</div>

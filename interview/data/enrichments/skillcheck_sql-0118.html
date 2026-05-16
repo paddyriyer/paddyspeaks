@@ -1,0 +1,47 @@
+<p>An HR analytics team stores a turnstile feed: every clock-in/clock-out pair is one row, holding minutes-since-midnight. Someone steps out for lunch and badges back in &mdash; that is a second row for the same person on the same day. The interviewer asks for total minutes worked per employee per day, and is really checking whether you understand that the grain of the table is the <em>session</em>, not the day, so the answer is a straightforward <code>GROUP BY</code> over a per-row arithmetic expression.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>event_day</th><th>in_time</th><th>out_time</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-07-01</td><td>60</td><td>120</td><td>morning session &mdash; 60 min</td></tr>
+    <tr><td>1</td><td>2025-07-01</td><td>180</td><td>240</td><td>after-lunch session, same day &mdash; 60 min</td></tr>
+    <tr><td>2</td><td>2025-07-01</td><td>60</td><td>300</td><td>one long session &mdash; 240 min</td></tr>
+    <tr><td>1</td><td>2025-07-02</td><td>0</td><td>60</td><td>different day &mdash; separate group</td></tr>
+  </tbody>
+</table>
+<p>The edge case that decides the interview: employee 1 has <em>two rows on 2025-07-01</em>. A naive query that returns one row per session, or that picks <code>MAX(out_time) - MIN(in_time)</code>, gets the wrong number. The grain is a session; the answer must roll sessions up to the day.</p>
+
+<h4>2. The SQL &mdash; sum per-row durations, grouped by day and employee</h4>
+<pre><code>SELECT event_day, emp_id, SUM(out_time - in_time)::int AS total_time
+FROM employees
+GROUP BY event_day, emp_id
+ORDER BY event_day, emp_id;</code></pre>
+<p><code>out_time - in_time</code> is evaluated <em>per row</em> &mdash; the length of one session. <code>SUM</code> then adds those session lengths within each <code>(event_day, emp_id)</code> group, so employee 1's two Tuesday sessions (60 + 60) collapse into one total.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>event_day</th><th>emp_id</th><th>total_time</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-07-01</td><td>1</td><td>120</td><td>two sessions summed: 60 + 60</td></tr>
+    <tr><td>2025-07-01</td><td>2</td><td>240</td><td>single session, 300 &minus; 60</td></tr>
+    <tr><td>2025-07-02</td><td>1</td><td>60</td><td>same employee, separate day &rarr; own group</td></tr>
+  </tbody>
+</table>
+<p>Employee 1 on 2025-07-01 shows <strong>120</strong>, not 60: both sessions count. The same employee on 2025-07-02 is a <em>distinct</em> group because <code>event_day</code> is part of the <code>GROUP BY</code> key &mdash; the day is not folded away.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the expression goes inside the aggregate, not outside</h5>
+<p><code>SUM(out_time - in_time)</code> computes each row's duration first, then totals them &mdash; correct. The tempting wrong form is <code>SUM(out_time) - SUM(in_time)</code>, which happens to give the same answer here only because every row is a clean pair. The principled reason it is still fine: subtraction distributes over summation. But <code>MAX(out_time) - MIN(in_time)</code> does <em>not</em> &mdash; that measures span-of-day including the lunch gap (240 &minus; 60 = 180 for employee 1), not minutes worked. State that you are summing session lengths, deliberately, so the lunch break is excluded.</p>
+
+<h5>The grouping key must match the requested grain</h5>
+<p>The question asks for one row per <code>(day, employee)</code>, so both columns belong in <code>GROUP BY</code>. Drop <code>event_day</code> and you would sum across all of an employee's days into one number; drop <code>emp_id</code> and you would merge employees. Every non-aggregated column in the <code>SELECT</code> must appear in <code>GROUP BY</code> &mdash; Postgres enforces this; MySQL historically did not and would silently return an arbitrary value.</p>
+
+<h5>NULL clock-outs &mdash; the trap this data hides</h5>
+<p>Here every session is closed, but real turnstile data has open sessions: someone clocked in and never clocked out, leaving <code>out_time</code> NULL. <code>out_time - in_time</code> is then NULL, and <code>SUM</code> silently skips it &mdash; the day's total quietly understates. Decide explicitly: exclude open sessions with <code>WHERE out_time IS NOT NULL</code>, or treat an open session as running to end-of-shift with <code>COALESCE(out_time, 1440)</code>. Mention midnight-spanning shifts too &mdash; if <code>out_time &lt; in_time</code> the shift crossed midnight and needs <code>+ 1440</code>.</p>
+
+<h5>The <code>::int</code> cast &mdash; cosmetic but intentional</h5>
+<p><code>SUM</code> over <code>integer</code> columns returns <code>bigint</code> in Postgres (to avoid overflow on huge tables). The <code>::int</code> downcast just keeps the output type tidy as <code>integer</code>; it is safe here because daily minutes never approach the <code>int</code> ceiling. On a genuinely large sum you would leave it as <code>bigint</code>. Knowing <em>why</em> the cast is there &mdash; not blindly copying it &mdash; is the senior tell.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the table's grain is the clock-in/out session, sum <code>out_time - in_time</code> per row inside the aggregate (never <code>MAX - MIN</code>, which leaks the lunch gap), group by exactly the requested <code>(day, employee)</code> key, and call out unprompted how NULL clock-outs and midnight-spanning shifts would corrupt the total.</div>

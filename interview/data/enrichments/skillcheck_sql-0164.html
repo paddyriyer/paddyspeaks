@@ -1,0 +1,69 @@
+<p>A growth team wants a cohort-retention grid: group customers by the month they signed up, then for each later month count how many of that cohort came back to order. This is a foundational analytics query, and the interviewer is checking two things &mdash; whether you join the cohort definition (signup month) to the activity table correctly, and whether you use <code>COUNT(DISTINCT ...)</code> so a customer who orders twice in a month is counted <strong>once</strong>.</p>
+
+<h4>1. The source data</h4>
+<p><code>customer</code> &mdash; defines each customer's cohort:</p>
+<table>
+  <thead><tr><th>cust_code</th><th>signup_month</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>C01</td><td>2025-01-01</td><td>Jan cohort</td></tr>
+    <tr><td>C02</td><td>2025-01-01</td><td>Jan cohort</td></tr>
+    <tr><td>C03</td><td>2025-01-01</td><td>Jan cohort</td></tr>
+    <tr><td>C04</td><td>2025-02-01</td><td>Feb cohort</td></tr>
+    <tr><td>C05</td><td>2025-02-01</td><td>Feb cohort</td></tr>
+  </tbody>
+</table>
+<p><code>orders</code> &mdash; activity, note C01 orders three months running and C05 orders only once:</p>
+<table>
+  <thead><tr><th>ord_num</th><th>cust_code</th><th>ord_month</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1,2,3</td><td>C01</td><td>Jan, Feb, Mar</td><td>active every month</td></tr>
+    <tr><td>4,5</td><td>C02</td><td>Jan, Mar</td><td>skips Feb &mdash; a gap</td></tr>
+    <tr><td>6</td><td>C03</td><td>Feb</td><td>never orders in own signup month</td></tr>
+    <tr><td>7,8</td><td>C04</td><td>Feb, Mar</td><td>Feb cohort, active</td></tr>
+    <tr><td>9</td><td>C05</td><td>Apr</td><td>single late order</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: C02 has a <em>gap</em> (active Jan and Mar, silent in Feb), and C03 never orders in its own signup month &mdash; its first activity is the month after. The grid must reflect both honestly.</p>
+
+<h4>2. The SQL &mdash; cohort grid via join + <code>COUNT(DISTINCT)</code></h4>
+<pre><code>SELECT c.signup_month AS cohort,
+       o.ord_month,
+       COUNT(DISTINCT c.cust_code) AS retained_users
+FROM customer c
+JOIN orders o ON o.cust_code = c.cust_code
+GROUP BY c.signup_month, o.ord_month
+ORDER BY cohort, o.ord_month;</code></pre>
+<p>The join attaches each order to its customer's <code>signup_month</code> (the cohort label). <code>GROUP BY cohort, ord_month</code> forms one cell per (cohort, activity-month) pair, and <code>COUNT(DISTINCT cust_code)</code> counts how many <em>different</em> customers of that cohort were active that month.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cohort</th><th>ord_month</th><th>retained_users</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>2025-01-01</td><td>2</td><td>C01, C02 &mdash; C03 not active in Jan</td></tr>
+    <tr><td>2025-01-01</td><td>2025-02-01</td><td>2</td><td>C01, C03 &mdash; C02 has its gap month</td></tr>
+    <tr><td>2025-01-01</td><td>2025-03-01</td><td>2</td><td>C01, C02 &mdash; C03 gone again</td></tr>
+    <tr><td>2025-02-01</td><td>2025-02-01</td><td>1</td><td>C04 only</td></tr>
+    <tr><td>2025-02-01</td><td>2025-03-01</td><td>1</td><td>C04 only</td></tr>
+    <tr><td>2025-02-01</td><td>2025-04-01</td><td>1</td><td>C05 surfaces &mdash; sparse cohort</td></tr>
+  </tbody>
+</table>
+<p>The Jan cohort holds steady at 2 retained users each month &mdash; but it is a <em>different</em> 2 each time (C02 drops in Feb, C03 drops in Jan and Mar). The grid is sparse: only cells with at least one retained user appear, exactly as the question asks.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT cust_code)</code> and not <code>COUNT(*)</code></h5>
+<p><code>COUNT(*)</code> counts <em>order rows</em>. If C01 placed three orders in March, <code>COUNT(*)</code> would report 3 retained users for that cell &mdash; wildly wrong, since retention measures <em>people</em>, not transactions. <code>COUNT(DISTINCT cust_code)</code> counts unique customers, so a customer who orders ten times in a month still contributes exactly 1. In this demo each customer happens to have one order per month, but the moment real data has repeat buyers, the <code>DISTINCT</code> is the difference between a correct retention number and an inflated one.</p>
+
+<h5>The cohort label rides along on the join</h5>
+<p>The cohort is a property of the <em>customer</em>, not the order. Joining <code>orders</code> to <code>customer</code> pulls <code>signup_month</code> onto every order row, so each transaction is tagged with the cohort it belongs to. Grouping by that tagged <code>signup_month</code> together with <code>ord_month</code> produces the two-dimensional grid. This is why the join is to <code>customer</code> and not, say, a self-join on <code>orders</code>.</p>
+
+<h5>Sparse grid vs dense grid &mdash; a deliberate choice</h5>
+<p>This query only emits cells that have activity &mdash; the question explicitly says "only emit cells with retained_users &gt;= 1". That is why there is no row for, e.g., (Feb cohort, no March-skip placeholder). A <em>dense</em> retention grid &mdash; every cohort crossed with every calendar month, zeros included &mdash; needs a generated month spine <code>LEFT JOIN</code>ed in, because an inner join can never produce a zero. Knowing which shape the consumer wants (sparse for storage, dense for a heatmap) is the senior call. Here, sparse is specified.</p>
+
+<h5>Month 0 and the C03 subtlety</h5>
+<p>Notice the Jan cohort's January cell is 2, not 3 &mdash; C03 never ordered in its own signup month. A common cohort-analysis assumption is "everyone is active in month 0 by definition", but that is only true if signup itself counts as activity. Here activity means <em>placing an order</em>, and C03's first order is in February. Whether month-0 retention should be forced to 100% is a definitional question to raise with the stakeholder, not assume.</p>
+
+<h5>Dialect notes</h5>
+<p>This query is fully ANSI-standard &mdash; <code>JOIN</code>, <code>GROUP BY</code>, and <code>COUNT(DISTINCT ...)</code> behave identically in PostgreSQL, MySQL, SQL Server, Oracle, and BigQuery. The only caution: on very large fact tables <code>COUNT(DISTINCT ...)</code> can be expensive (it must deduplicate); warehouses like BigQuery offer <code>APPROX_COUNT_DISTINCT</code> for a fast, slightly inexact alternative when the cohort sizes are huge and exactness is not critical.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build cohort retention by joining activity to the customer's <code>signup_month</code> and grouping by (cohort, activity-month), always use <code>COUNT(DISTINCT cust_code)</code> so repeat orders do not inflate the count, and state whether the grid should be sparse (inner join) or dense with zeros (month-spine left join).</div>

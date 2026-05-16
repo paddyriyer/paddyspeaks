@@ -1,0 +1,50 @@
+<p>A retail analytics team wants the "completionist" customers &mdash; people who have bought <em>every</em> product in the catalog at least once &mdash; for a loyalty tier. This is the textbook <strong>relational division</strong> problem: divide the purchase set by the full product set. The interviewer is probing whether you can express "for all products" in SQL, which has no native universal quantifier, and whether your <code>COUNT(DISTINCT)</code> correctly tolerates repeat purchases.</p>
+
+<h4>1. The source data &mdash; <code>product</code> and <code>purchase</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>products bought</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1, 2, 3, 1</td><td>all 3 products &mdash; product 1 bought twice</td></tr>
+    <tr><td>2</td><td>1, 2</td><td>missing product 3 &mdash; does not qualify</td></tr>
+    <tr><td>3</td><td>1, 2, 3</td><td>all 3 products, each once &mdash; qualifies</td></tr>
+    <tr><td>4</td><td>2, 3</td><td>missing product 1 &mdash; does not qualify</td></tr>
+  </tbody>
+</table>
+<p>The catalog (<code>product</code>) has exactly three items: 1, 2, 3. Customer&nbsp;1 is the duplicate edge case &mdash; they bought product&nbsp;1 <em>twice</em>, so a raw <code>COUNT(*)</code> of their rows would be 4, overstating their distinct coverage. Customers&nbsp;2 and&nbsp;4 each miss exactly one product.</p>
+
+<h4>2. The SQL &mdash; count distinct products vs catalog size</h4>
+<pre><code>SELECT customer_id
+FROM purchase
+GROUP BY customer_id
+HAVING COUNT(DISTINCT product_id) = (SELECT COUNT(*) FROM product)
+ORDER BY customer_id;</code></pre>
+<p>Group purchases per customer; <code>COUNT(DISTINCT product_id)</code> counts the <em>distinct</em> products that customer ever bought. <code>HAVING</code> keeps a customer only when that distinct count equals <code>(SELECT COUNT(*) FROM product)</code> &mdash; the total catalog size. Equal distinct counts mean the customer's product set covers the whole catalog.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>distinct products {1,2,3} = 3 = catalog size &mdash; the duplicate of product 1 collapsed</td></tr>
+    <tr><td>3</td><td>distinct products {1,2,3} = 3 = catalog size &mdash; qualifies</td></tr>
+  </tbody>
+</table>
+<p>Customer&nbsp;1 survives despite having four purchase rows: <code>COUNT(DISTINCT product_id)</code> folds the two product-1 rows into one, giving 3 &mdash; exactly the catalog size. Customers&nbsp;2 and&nbsp;4 have distinct counts of 2, short of 3, so <code>HAVING</code> drops them.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why counting equals "for all" &mdash; the division trick</h5>
+<p>SQL has no <code>FOR ALL</code> quantifier, so relational division is done by counting. The logic: a customer's distinct products are always a <em>subset</em> of the catalog, so the subset equals the whole set <em>if and only if</em> the two have the same cardinality. <code>COUNT(DISTINCT product_id) = catalog size</code> is therefore an exact test for "bought every product" &mdash; provided <code>purchase.product_id</code> values are guaranteed to exist in the catalog. If <code>purchase</code> could contain a product not in <code>product</code>, that foreign product would inflate the count, and you would need a join to <code>product</code> first to filter it out.</p>
+
+<h5><code>COUNT(DISTINCT)</code> is load-bearing &mdash; not <code>COUNT(*)</code></h5>
+<p>Customer&nbsp;1 bought product&nbsp;1 twice; <code>COUNT(*)</code> would return 4 and <code>4 = 3</code> is false &mdash; the query would wrongly exclude a customer who genuinely owns every product. <code>COUNT(DISTINCT product_id)</code> measures <em>coverage</em>, not purchase volume. The question explicitly allows duplicates ("duplicates allowed"), which is the signpost that <code>DISTINCT</code> inside the count is mandatory, not optional polish.</p>
+
+<h5>The scalar subquery runs once</h5>
+<p><code>(SELECT COUNT(*) FROM product)</code> is an uncorrelated scalar subquery: it depends on nothing in the outer query, so the planner evaluates it a single time and reuses the constant for every group. There is no per-customer re-execution and no performance concern &mdash; it is just a clean way to inline the catalog size. You could equally compute it in a CTE; the effect is identical.</p>
+
+<h5>The empty-catalog edge case</h5>
+<p>The question raises it: if <code>product</code> were empty, <code>(SELECT COUNT(*) FROM product)</code> is 0. A customer with any purchases has <code>COUNT(DISTINCT product_id) &gt;= 1</code>, which never equals 0 &mdash; so this query would return <em>nobody</em>, contradicting the stated "every customer trivially qualifies". A purist division (using <code>NOT EXISTS ... NOT EXISTS</code>) returns all customers for an empty divisor. With a non-empty catalog the counting form is correct and simpler; flag the empty-catalog divergence as a known limitation if the interviewer pushes.</p>
+
+<h5>The double-<code>NOT EXISTS</code> alternative</h5>
+<p>The canonical relational-division form is "no product exists that this customer did not buy": <code>WHERE NOT EXISTS (SELECT 1 FROM product p WHERE NOT EXISTS (SELECT 1 FROM purchase pu WHERE pu.customer_id = c.customer_id AND pu.product_id = p.product_id))</code>. It is the rigorous, textbook answer &mdash; handles the empty catalog correctly and needs no assumption that purchases reference valid products &mdash; but it is verbose and harder to read. The counting form is the pragmatic choice when the catalog is known non-empty and purchases are clean; knowing both, and when each applies, is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "bought every product" as relational division and implement it by comparing <code>COUNT(DISTINCT product_id)</code> to the catalog size, insist on <code>DISTINCT</code> so repeat purchases do not inflate coverage, and name both the counting form's assumptions (non-empty catalog, purchases reference real products) and the rigorous double-<code>NOT EXISTS</code> alternative that handles the empty-divisor edge case.</div>

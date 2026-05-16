@@ -1,0 +1,55 @@
+<p>A room-booking system needs to detect double-bookings: pairs of reservations for the same room whose time intervals overlap. The interviewer is probing the <strong>interval-overlap predicate</strong> &mdash; the deceptively simple <code>a.start &lt; b.end AND b.start &lt; a.end</code> &mdash; and whether you understand half-open <code>[start, end)</code> semantics, where a booking ending at 11:00 does <em>not</em> clash with one starting at 11:00.</p>
+
+<h4>1. The source data &mdash; <code>booking</code></h4>
+<table>
+  <thead><tr><th>id</th><th>room_id</th><th>start_ts</th><th>end_ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>09:00</td><td>11:00</td><td>room 10</td></tr>
+    <tr><td>2</td><td>10</td><td>10:00</td><td>12:00</td><td>overlaps 1 (10:00&ndash;11:00 shared)</td></tr>
+    <tr><td>3</td><td>10</td><td>11:00</td><td>13:00</td><td>touches 1 at 11:00 &mdash; NOT an overlap</td></tr>
+    <tr><td>4</td><td>10</td><td>15:00</td><td>16:00</td><td>isolated &mdash; clashes with nobody</td></tr>
+    <tr><td>5</td><td>20</td><td>09:00</td><td>12:00</td><td>room 20</td></tr>
+    <tr><td>6</td><td>20</td><td>11:00</td><td>13:00</td><td>overlaps 5 (11:00&ndash;12:00 shared)</td></tr>
+  </tbody>
+</table>
+<p>All times are on 2025-01-01. The edge cases that decide the interview: bookings 1 and 3 <em>touch</em> exactly at 11:00 &mdash; under half-open <code>[start, end)</code> semantics that is <em>not</em> a conflict; booking 4 is isolated; and the same room 10 hosts both a real clash (1&ndash;2) and a non-clash (1&ndash;3).</p>
+
+<h4>2. The SQL &mdash; self-join with the overlap predicate</h4>
+<pre><code>SELECT a.room_id, a.id AS id_a, b.id AS id_b
+FROM booking a JOIN booking b
+  ON a.room_id = b.room_id
+ AND a.id &lt; b.id
+ AND a.start_ts &lt; b.end_ts
+ AND b.start_ts &lt; a.end_ts
+ORDER BY a.room_id, a.id, b.id;</code></pre>
+<p>The table joins to itself: every booking <code>a</code> is paired with every booking <code>b</code>. <code>a.room_id = b.room_id</code> keeps pairs in the same room; <code>a.id &lt; b.id</code> ensures each pair is emitted once; and the two strict inequalities are the overlap test &mdash; two intervals intersect exactly when each starts before the other ends.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>room_id</th><th>id_a</th><th>id_b</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>1</td><td>2</td><td>09&ndash;11 vs 10&ndash;12 &mdash; genuine overlap</td></tr>
+    <tr><td>10</td><td>2</td><td>3</td><td>10&ndash;12 vs 11&ndash;13 &mdash; overlap on 11&ndash;12</td></tr>
+    <tr><td>20</td><td>5</td><td>6</td><td>09&ndash;12 vs 11&ndash;13 &mdash; overlap on 11&ndash;12</td></tr>
+  </tbody>
+</table>
+<p>Three conflicting pairs. The pair (1, 3) is <strong>absent</strong> &mdash; booking 1 ends at exactly 11:00 and booking 3 starts at exactly 11:00; with strict <code>&lt;</code> the test <code>b.start_ts &lt; a.end_ts</code> becomes <code>11:00 &lt; 11:00</code>, which is false. Booking 4 appears in no pair: it clashes with nothing.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>a.start &lt; b.end AND b.start &lt; a.end</code> is the whole test</h5>
+<p>It is far easier to characterise when intervals <em>do not</em> overlap: either <code>a</code> ends before <code>b</code> begins (<code>a.end &le; b.start</code>) or <code>b</code> ends before <code>a</code> begins (<code>b.end &le; a.start</code>). Overlap is the negation of that disjunction, and De Morgan turns it into a conjunction: <code>a.start &lt; b.end AND b.start &lt; a.end</code>. Trying to enumerate overlap cases directly &mdash; a inside b, b inside a, partial left, partial right &mdash; is error-prone; the "negate the non-overlap" derivation gets it right in two clean clauses every time.</p>
+
+<h5>Half-open intervals and the choice of <code>&lt;</code> vs <code>&le;</code></h5>
+<p>The question specifies <code>[start, end)</code> &mdash; the start instant belongs to the interval, the end instant does not. Under that model a booking ending at 11:00 occupies the room <em>up to but not including</em> 11:00, so a new booking starting at 11:00 is fine. <strong>Strict</strong> <code>&lt;</code> encodes exactly this: equal boundary timestamps fail the test. If the intervals were closed <code>[start, end]</code> (touching counts as a clash), you would use <code>&le;</code> instead. This single operator choice is the crux &mdash; getting <code>&lt;</code> vs <code>&le;</code> wrong silently mis-classifies every boundary-touching pair.</p>
+
+<h5><code>a.id &lt; b.id</code> &mdash; dedupe and self-pair elimination in one stroke</h5>
+<p>An unconstrained self-join produces every pair twice (as (1,2) and (2,1)) <em>and</em> pairs every row with itself (1,1) &mdash; and a row trivially "overlaps" itself. The predicate <code>a.id &lt; b.id</code> fixes both at once: it is false when <code>a.id = b.id</code> (kills self-pairs) and admits only the ordered version of each pair (kills the mirror duplicate). It also conveniently delivers the requested <code>id_a &lt; id_b</code> output ordering for free.</p>
+
+<h5>Performance &mdash; the self-join is quadratic</h5>
+<p>A self-join compares every booking against every other &mdash; O(n&sup2;) pairs before filtering. Fine for six rows, punishing for a year of bookings. The <code>a.id &lt; b.id</code> predicate roughly halves the work but does not change the complexity class. On a large table, an index on <code>booking(room_id, start_ts)</code> lets the optimiser restrict the inner scan to the same room and a relevant time window. For heavy interval workloads PostgreSQL offers a genuinely better tool: a <code>tstzrange</code> column with a GiST index and the <code>&amp;&amp;</code> overlap operator, which can answer overlap queries without the full cross product. Mentioning this scaling path unprompted is the senior signal.</p>
+
+<h5>Dialect notes &mdash; range types</h5>
+<p>The <code>&lt;</code>/<code>&le;</code> two-inequality predicate is portable to every SQL engine. PostgreSQL additionally has first-class <em>range types</em>: model the booking as <code>tsrange(start_ts, end_ts, '[)')</code> &mdash; the <code>'[)'</code> literally declares half-open bounds &mdash; and test conflicts with the <code>&amp;&amp;</code> operator. That makes the half-open semantics self-documenting and, with a GiST index, fast. It is also the foundation for an <code>EXCLUDE</code> constraint that <em>prevents</em> double-bookings at write time rather than detecting them after the fact &mdash; a stronger design than a detection query. Other engines (MySQL, SQL Server) have no range types and rely on the explicit inequalities.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express interval overlap as <code>a.start &lt; b.end AND b.start &lt; a.end</code> (derived by negating non-overlap), use strict <code>&lt;</code> for half-open <code>[start, end)</code> so touching intervals do not clash, add <code>a.id &lt; b.id</code> to kill self-pairs and mirror duplicates at once, and know the self-join is O(n&sup2;) &mdash; Postgres range types with a GiST index (and an <code>EXCLUDE</code> constraint) are the scalable answer.</div>

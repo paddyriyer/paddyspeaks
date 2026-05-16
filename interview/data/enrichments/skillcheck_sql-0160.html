@@ -1,0 +1,63 @@
+<p>A finance team wants a year-over-year revenue view: every monthly row annotated with the same month from the prior year and a YoY growth percentage. The interviewer is probing two things at once &mdash; can you join a table to itself on a <em>shifted date key</em>, and do you handle the rows that have <strong>no prior-year partner</strong> (the first year of data, or a region that did not exist last year) without crashing on a divide-by-zero or fabricating a misleading 0%.</p>
+
+<h4>1. The source data &mdash; <code>monthly</code></h4>
+<table>
+  <thead><tr><th>region</th><th>month_start</th><th>revenue</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>NA</td><td>2024-01-01</td><td>100</td><td>oldest NA &mdash; no 2023 partner</td></tr>
+    <tr><td>NA</td><td>2024-02-01</td><td>150</td><td>no 2023 partner</td></tr>
+    <tr><td>NA</td><td>2025-01-01</td><td>120</td><td>partners with 2024-01</td></tr>
+    <tr><td>NA</td><td>2025-02-01</td><td>180</td><td>partners with 2024-02</td></tr>
+    <tr><td>EU</td><td>2024-06-01</td><td>200</td><td>only 2024 EU row</td></tr>
+    <tr><td>EU</td><td>2025-06-01</td><td>300</td><td>partners with 2024-06</td></tr>
+    <tr><td>EU</td><td>2025-07-01</td><td>400</td><td>no 2024-07 row &mdash; gap month</td></tr>
+  </tbody>
+</table>
+<p>The edge cases that decide the interview: the entire 2024 data has no prior year, so those rows must return NULL; and EU has a 2025-07 row but <em>no</em> matching 2024-07 &mdash; a gap, not a zero. A correct query must report NULL for both, never 0%.</p>
+
+<h4>2. The SQL &mdash; self-join on a one-year-shifted date</h4>
+<pre><code>SELECT m.region, m.month_start, m.revenue,
+       p.revenue AS prev_year_revenue,
+       CASE WHEN p.revenue IS NULL OR p.revenue = 0 THEN NULL
+            ELSE ROUND(((m.revenue / p.revenue - 1) * 100)::numeric, 2)
+       END AS yoy_pct
+FROM monthly m
+LEFT JOIN monthly p
+  ON p.region = m.region
+ AND p.month_start = (m.month_start - INTERVAL '1 year')::date
+ORDER BY m.region, m.month_start;</code></pre>
+<p>The table is joined to itself: alias <code>m</code> is the current month, alias <code>p</code> is the prior-year month. The join key shifts <code>m.month_start</code> back exactly one year and looks for a row at that date. <code>LEFT JOIN</code> keeps <code>m</code>'s row even when no <code>p</code> exists; the <code>CASE</code> then guards the division.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>month_start</th><th>revenue</th><th>prev_year_revenue</th><th>yoy_pct</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>EU</td><td>2024-06-01</td><td>200</td><td>NULL</td><td>NULL</td><td>no 2023 partner</td></tr>
+    <tr><td>EU</td><td>2025-06-01</td><td>300</td><td>200</td><td>50.00</td><td>300/200 - 1 = +50%</td></tr>
+    <tr><td>EU</td><td>2025-07-01</td><td>400</td><td>NULL</td><td>NULL</td><td>no 2024-07 row &mdash; gap, not 0%</td></tr>
+    <tr><td>NA</td><td>2024-01-01</td><td>100</td><td>NULL</td><td>NULL</td><td>first year</td></tr>
+    <tr><td>NA</td><td>2024-02-01</td><td>150</td><td>NULL</td><td>NULL</td><td>first year</td></tr>
+    <tr><td>NA</td><td>2025-01-01</td><td>120</td><td>100</td><td>20.00</td><td>120/100 - 1 = +20%</td></tr>
+    <tr><td>NA</td><td>2025-02-01</td><td>180</td><td>150</td><td>20.00</td><td>180/150 - 1 = +20%</td></tr>
+  </tbody>
+</table>
+<p>Every 2024 row and the EU 2025-07 gap row carry NULL in both annotation columns &mdash; the report honestly says "no comparison available" rather than inventing a number.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a self-join, and why on a shifted key</h5>
+<p>"Same month last year" is a relationship between two rows of the <em>same</em> table, so the table appears twice under two aliases. The join condition encodes the relationship: <code>p.month_start = m.month_start - INTERVAL '1 year'</code>. Because both columns are first-of-month <code>DATE</code>s, the shifted value lands exactly on a stored key when a partner exists &mdash; no range logic, no <code>BETWEEN</code>, just equality. The <code>::date</code> cast trims the <code>interval</code> arithmetic result back to a clean <code>date</code>.</p>
+
+<h5>The <code>LEFT JOIN</code> is load-bearing</h5>
+<p>An inner join would silently <em>delete</em> every row without a prior-year partner &mdash; all of 2024 and the EU gap month would disappear, and the report would understate its own row count. <code>LEFT JOIN</code> preserves every current-month row and supplies NULL for <code>p.*</code> when no match exists. The question demands those rows be present with NULL annotations, so the join type is not a stylistic choice &mdash; it is the requirement.</p>
+
+<h5>The divide-by-zero / divide-by-NULL guard</h5>
+<p>The growth formula divides by <code>p.revenue</code>. Two things can go wrong: <code>p.revenue</code> is NULL (no partner) &mdash; the arithmetic would yield NULL anyway, but explicitly is clearer &mdash; or <code>p.revenue</code> is <code>0</code>, which raises <em>division by zero</em> in Postgres and aborts the whole query. The <code>CASE WHEN p.revenue IS NULL OR p.revenue = 0 THEN NULL</code> catches both before the division is ever attempted. Forgetting the <code>= 0</code> branch is the classic bug: it works on demo data and explodes the first month a region had zero revenue.</p>
+
+<h5>The window-function alternative &mdash; and why it is risky here</h5>
+<p>A tempting one-liner is <code>LAG(revenue, 12) OVER (PARTITION BY region ORDER BY month_start)</code>. That only works if every region has a <em>dense, gap-free</em> monthly series &mdash; "12 rows back" must literally be 12 months back. EU violates this: its 2024 series is a single June row, so <code>LAG(...,12)</code> would line up the wrong months or nothing at all. The shifted-key self-join matches on the actual date, so gaps and uneven histories are handled correctly. Mention this trade-off: <code>LAG</code> is cleaner only when the data is guaranteed contiguous.</p>
+
+<h5>Dialect notes</h5>
+<p><code>INTERVAL '1 year'</code> date arithmetic is portable to Oracle and works in MySQL as <code>month_start - INTERVAL 1 YEAR</code>. SQL Server uses <code>DATEADD(YEAR, -1, month_start)</code>. The divide-by-zero behaviour differs: Postgres and Oracle raise an error, while SQL Server also errors by default &mdash; so the <code>CASE</code> guard (or <code>NULLIF(p.revenue, 0)</code>) is good practice everywhere. <code>NULLIF(p.revenue,0)</code> is a terser alternative to the <code>= 0</code> branch and is fully portable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement period-over-period as a self-join on a date key shifted by exactly one year, use <code>LEFT JOIN</code> so unmatched rows survive with NULL, guard the growth division against both NULL and zero denominators, and explain that <code>LAG(...,12)</code> is only safe when the monthly series is guaranteed gap-free.</div>

@@ -1,0 +1,71 @@
+<p>A catalog team stores categories as a tree (each category points at its parent) and wants every product under "Electronics" &mdash; including products filed in deep sub-categories like Phones or Laptops. The interviewer is probing the <strong>recursive CTE</strong>: can you walk a parent/child hierarchy of unknown depth, collect the whole subtree of category ids, and then join products onto it?</p>
+
+<h4>1. The source data</h4>
+<p><code>category</code> &mdash; a tree, <code>parent_id</code> points upward (<code>NULL</code> at the root):</p>
+<table>
+  <thead><tr><th>category_id</th><th>parent_id</th><th>name</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>NULL</td><td>All</td><td>root</td></tr>
+    <tr><td>2</td><td>1</td><td>Electronics</td><td>our search target</td></tr>
+    <tr><td>3</td><td>2</td><td>Phones</td><td>child of Electronics</td></tr>
+    <tr><td>4</td><td>2</td><td>Laptops</td><td>child of Electronics</td></tr>
+    <tr><td>5</td><td>1</td><td>Apparel</td><td>sibling of Electronics &mdash; must be excluded</td></tr>
+    <tr><td>6</td><td>5</td><td>Shoes</td><td>under Apparel &mdash; excluded</td></tr>
+  </tbody>
+</table>
+<p><code>product</code> &mdash; note product 104 sits directly on Electronics, others on descendants:</p>
+<table>
+  <thead><tr><th>product_id</th><th>category_id</th><th>name</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>3</td><td>iPhone</td><td>in Phones (descendant)</td></tr>
+    <tr><td>102</td><td>3</td><td>Pixel</td><td>in Phones (descendant)</td></tr>
+    <tr><td>103</td><td>4</td><td>MacBook</td><td>in Laptops (descendant)</td></tr>
+    <tr><td>104</td><td>2</td><td>Charger</td><td>directly on Electronics</td></tr>
+    <tr><td>105</td><td>6</td><td>Sneaker</td><td>in Shoes &mdash; under Apparel, excluded</td></tr>
+    <tr><td>106</td><td>5</td><td>Tee</td><td>directly on Apparel, excluded</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: product 104 is filed <em>directly</em> on Electronics (the "direct" half of "directly or indirectly"), and the Apparel branch is a sibling subtree that must <em>not</em> leak in &mdash; the recursion must stop at the right boundary.</p>
+
+<h4>2. The SQL &mdash; recursive subtree walk</h4>
+<pre><code>WITH RECURSIVE elec AS (
+  SELECT category_id FROM category WHERE name = 'Electronics'
+  UNION ALL
+  SELECT c.category_id FROM category c JOIN elec e ON c.parent_id = e.category_id
+)
+SELECT p.product_id, p.name
+FROM product p
+JOIN elec e ON e.category_id = p.category_id
+ORDER BY p.product_id;</code></pre>
+<p>The <em>anchor</em> seeds the CTE with the Electronics category itself. The <em>recursive</em> term repeatedly finds categories whose <code>parent_id</code> is already in <code>elec</code> &mdash; pulling in children, then grandchildren, until nothing new appears. The final join keeps products whose <code>category_id</code> is anywhere in that collected subtree.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>iPhone</td><td>via Phones (descendant)</td></tr>
+    <tr><td>102</td><td>Pixel</td><td>via Phones (descendant)</td></tr>
+    <tr><td>103</td><td>MacBook</td><td>via Laptops (descendant)</td></tr>
+    <tr><td>104</td><td>Charger</td><td>directly on Electronics &mdash; the "direct" case</td></tr>
+  </tbody>
+</table>
+<p>Four products. Charger (104) is included because the anchor row puts Electronics itself into <code>elec</code>. Sneaker and Tee are absent &mdash; they live under Apparel, a branch the recursion never touches because no Apparel category has a parent in <code>elec</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Anatomy of the recursive CTE</h5>
+<p>A <code>WITH RECURSIVE</code> CTE has two halves joined by <code>UNION ALL</code>. The <strong>anchor</strong> (before the <code>UNION</code>) runs once and supplies the starting rows &mdash; here, the single Electronics category. The <strong>recursive term</strong> (after the <code>UNION</code>) references the CTE name itself; the engine runs it repeatedly, each iteration seeing only the rows produced by the previous iteration, appending results until an iteration produces zero new rows. That fixpoint is what lets one query traverse a tree of <em>arbitrary, unknown</em> depth &mdash; something a fixed number of <code>JOIN</code>s cannot do.</p>
+
+<h5>Why the anchor handles the "directly" case for free</h5>
+<p>The phrase is "directly or indirectly". The anchor <code>SELECT category_id ... WHERE name = 'Electronics'</code> puts Electronics' own id into <code>elec</code>, so a product filed straight onto Electronics (Charger) joins and is returned &mdash; that is the "directly" half. The recursive term then adds every descendant id, covering "indirectly". One CTE, both halves, no <code>UNION</code> with a separate direct-match query needed.</p>
+
+<h5>Direction of the join matters &mdash; descendants, not ancestors</h5>
+<p>The recursive join is <code>c.parent_id = e.category_id</code>: "find category <code>c</code> whose parent is something we already have." That walks <em>downward</em> &mdash; from Electronics to its children. Flip it to <code>c.category_id = e.parent_id</code> and you would walk <em>upward</em> toward the root instead, collecting ancestors. Getting this direction right is the single most common recursive-CTE mistake; state out loud which way you are traversing.</p>
+
+<h5>Cycle safety &mdash; <code>UNION ALL</code> vs <code>UNION</code></h5>
+<p>This query uses <code>UNION ALL</code>, which does not deduplicate. That is fine for a <em>true tree</em> where each category has exactly one parent &mdash; no node is reachable twice. But if the data were corrupted into a cycle (A's parent is B, B's parent is A), <code>UNION ALL</code> would loop forever. Defenses: switch to <code>UNION</code> (deduplicates, so a revisited node stops the branch), add an explicit visited-path array and exclude already-seen ids, or use PostgreSQL 14+'s <code>CYCLE</code> clause. Mentioning cycle protection unprompted &mdash; even though this data is a clean tree &mdash; is the senior signal.</p>
+
+<h5>Dialect notes</h5>
+<p><code>WITH RECURSIVE</code> is SQL-standard &mdash; PostgreSQL, MySQL 8+, SQLite, and recent MariaDB use exactly this syntax. SQL Server writes <code>WITH</code> (the <code>RECURSIVE</code> keyword is omitted, recursion is implicit) and caps recursion at 100 levels unless you add <code>OPTION (MAXRECURSION n)</code>. Oracle supports the standard form and also a legacy proprietary <code>CONNECT BY ... START WITH</code> hierarchical syntax. The pattern &mdash; anchor, recurse on the parent link, join facts to the collected ids &mdash; is universal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> walk a category tree with a <code>WITH RECURSIVE</code> CTE whose anchor seeds the target node (covering the "direct" case) and whose recursive term joins <code>child.parent_id = collected.id</code> to descend, be deliberate about traversal direction, and call out cycle protection (<code>UNION</code> or a visited set) even when the data is a clean tree.</div>

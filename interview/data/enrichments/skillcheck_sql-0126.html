@@ -1,0 +1,51 @@
+<p>A pricing table stores the same product's price across three stores as three side-by-side columns. Downstream analytics &mdash; charts, joins, aggregations &mdash; want the data in <em>long</em> format: one row per (product, store, price). That rotation of columns into rows is an <strong>unpivot</strong>, and the interviewer is checking whether you can do it portably and whether you correctly drop the NULLs that mean "not sold here".</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>store1</th><th>store2</th><th>store3</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>20</td><td>NULL</td><td>sold in stores 1 and 2 only</td></tr>
+    <tr><td>2</td><td>NULL</td><td>NULL</td><td>30</td><td>sold only in store 3</td></tr>
+    <tr><td>3</td><td>5</td><td>NULL</td><td>5</td><td>two stores, same price &mdash; a genuine duplicate price</td></tr>
+    <tr><td>4</td><td>NULL</td><td>NULL</td><td>NULL</td><td>sold nowhere &mdash; must vanish entirely</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases drive the interview. Product <strong>4</strong> has all-NULL prices &mdash; after unpivoting it must produce <em>zero</em> rows, not three NULL rows. Product <strong>3</strong> has the same price (5) in two stores &mdash; both legs are real data and must both survive; this is not a duplicate to dedupe.</p>
+
+<h4>2. The SQL &mdash; unpivot via UNION ALL, one branch per column</h4>
+<pre><code>SELECT product_id, 'store1' AS store, store1 AS price FROM products WHERE store1 IS NOT NULL
+UNION ALL
+SELECT product_id, 'store2',        store2        FROM products WHERE store2 IS NOT NULL
+UNION ALL
+SELECT product_id, 'store3',        store3        FROM products WHERE store3 IS NOT NULL
+ORDER BY product_id, store;</code></pre>
+<p>Each branch peels off one store column, labels it with a literal store name, and &mdash; via its own <code>WHERE &hellip; IS NOT NULL</code> &mdash; emits a row only where that store actually has a price. <code>UNION ALL</code> stacks the three branches into the long-format result.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>store</th><th>price</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>store1</td><td>10</td><td>store1 priced</td></tr>
+    <tr><td>1</td><td>store2</td><td>20</td><td>store2 priced; store3 NULL &rarr; no row</td></tr>
+    <tr><td>2</td><td>store3</td><td>30</td><td>only store3 priced</td></tr>
+    <tr><td>3</td><td>store1</td><td>5</td><td>both legs of product 3 kept&hellip;</td></tr>
+    <tr><td>3</td><td>store3</td><td>5</td><td>&hellip;identical price 5 is real data, not a dupe</td></tr>
+  </tbody>
+</table>
+<p>Product <strong>4</strong> produces no rows at all &mdash; every branch's <code>IS NOT NULL</code> filter rejects its three NULLs. Product 3 contributes <em>two</em> rows even though both prices are 5, because each is a legitimate (store, price) fact.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why this is an unpivot, and why <code>UNION ALL</code></h5>
+<p>A pivot rotates row values into columns; an <em>unpivot</em> does the reverse &mdash; it turns the column headers <code>store1/store2/store3</code> into values of a new <code>store</code> column. The portable way is one <code>SELECT</code> per source column, stacked with <code>UNION ALL</code>. It must be <code>UNION ALL</code>, never <code>UNION</code>: <code>UNION</code> deduplicates, and product 3's two rows <code>(3,'store1',5)</code> and <code>(3,'store3',5)</code> are distinct anyway &mdash; but if the spec only projected <code>(product_id, price)</code>, <code>UNION</code> would silently merge two real prices into one. Default to <code>UNION ALL</code> and only dedupe deliberately.</p>
+
+<h5>The NULL filter belongs in each branch's WHERE</h5>
+<p>The spec says skip rows where price is NULL. Each branch carries its own <code>WHERE storeN IS NOT NULL</code> so a "not sold here" cell never becomes an output row &mdash; that is why product 4 disappears and product 1 yields two rows, not three. Filtering after the <code>UNION ALL</code> with one outer <code>WHERE price IS NOT NULL</code> also works and is equivalent, but per-branch filters let each branch be index-friendly and make the intent local to each column.</p>
+
+<h5>Column names and types must line up across branches</h5>
+<p><code>UNION ALL</code> matches columns <em>by position</em>, and the result's column names come from the <em>first</em> branch &mdash; hence <code>AS store</code> and <code>AS price</code> appear only in branch one. The <code>'store1'</code>/<code>'store2'</code>/<code>'store3'</code> literals must all be the same text type, and <code>store1/2/3</code> are all <code>NUMERIC</code>, so the stacked types are consistent. A type clash between branches (say one column <code>int</code>, another <code>text</code>) would either fail or force a surprising implicit cast.</p>
+
+<h5>Dialect &mdash; native UNPIVOT and the modern alternatives</h5>
+<p>The question is tagged "Recursive CTEs / Pivoting", but no recursion is needed &mdash; recognise the unpivot for what it is. SQL Server and Oracle offer a native <code>UNPIVOT</code> operator; Postgres does not, so the <code>UNION ALL</code> idiom is the portable answer. Postgres can also unpivot more compactly with a lateral <code>VALUES</code>: <code>SELECT product_id, v.store, v.price FROM products CROSS JOIN LATERAL (VALUES ('store1',store1),('store2',store2),('store3',store3)) AS v(store,price) WHERE v.price IS NOT NULL</code> &mdash; one pass over <code>products</code> instead of three. Offering that is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the operation an unpivot, implement it portably with one <code>UNION ALL</code> branch per column (never <code>UNION</code> &mdash; it would dedupe real prices), filter <code>IS NOT NULL</code> so "not sold here" cells vanish, and know the compact <code>CROSS JOIN LATERAL (VALUES &hellip;)</code> rewrite that scans the table once.</div>

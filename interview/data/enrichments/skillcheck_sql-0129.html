@@ -1,0 +1,52 @@
+<p>HR wants the highest earner in each department &mdash; and if two people tie at the department's top salary, both should appear. The interviewer explicitly bans window functions, so they are testing whether you know the classic pre-window idiom: a <em>tuple-match</em> subquery that pairs each department with its max salary and selects the rows matching that pair.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>1</td><td>100</td><td>dept 1, not the max</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>120</td><td>dept 1 max &mdash; tied&hellip;</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td><td>120</td><td>&hellip;tied with Bob at 120 &mdash; both must appear</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>80</td><td>dept 2 max, sole winner</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td><td>75</td><td>dept 2, not the max</td></tr>
+    <tr><td>6</td><td>Finn</td><td>3</td><td>500</td><td>dept 3 has one employee &mdash; trivially the max</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Department 1 has a <strong>tie</strong>: Bob and Cara both earn 120, and both must be returned. Department 3 is a <strong>single-member</strong> group: Finn is the only employee, so he is trivially the top earner &mdash; the query must not drop him.</p>
+
+<h4>2. The SQL &mdash; tuple-match against per-department maxima</h4>
+<pre><code>SELECT dept_id, name, salary
+FROM employee
+WHERE (dept_id, salary) IN (
+  SELECT dept_id, MAX(salary) FROM employee GROUP BY dept_id
+)
+ORDER BY dept_id, name;</code></pre>
+<p>The subquery yields one <code>(dept_id, max_salary)</code> pair per department. The outer <code>WHERE (dept_id, salary) IN (&hellip;)</code> keeps an employee only if their department-and-salary pair exactly matches one of those maxima &mdash; so every employee sitting at their department's top salary survives, ties included.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>name</th><th>salary</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Bob</td><td>120</td><td>tied dept-1 max &mdash; both tied rows kept&hellip;</td></tr>
+    <tr><td>1</td><td>Cara</td><td>120</td><td>&hellip;Cara matches the same (1, 120) pair</td></tr>
+    <tr><td>2</td><td>Dan</td><td>80</td><td>sole dept-2 top earner</td></tr>
+    <tr><td>3</td><td>Finn</td><td>500</td><td>single-member dept &mdash; trivially the max</td></tr>
+  </tbody>
+</table>
+<p>Department 1 returns <strong>two</strong> rows: both Bob and Cara satisfy the <code>(1, 120)</code> pair, so the tie surfaces naturally. Finn appears because <code>(3, 500)</code> is department 3's max even though he is the only member &mdash; <code>GROUP BY</code> still forms a one-row group for him.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the row-value (tuple) <code>IN</code>, not a scalar comparison</h5>
+<p><code>(dept_id, salary) IN (SELECT dept_id, MAX(salary) &hellip;)</code> compares a <em>pair</em> to a set of pairs. The naive scalar form <code>WHERE salary IN (SELECT MAX(salary) FROM employee GROUP BY dept_id)</code> is a classic bug: it would match anyone whose salary equals <em>any</em> department's max. If dept 2's max (80) coincidentally equalled some employee's salary in dept 1, that employee would be wrongly returned. Binding <code>dept_id</code> <em>and</em> <code>salary</code> together as a tuple ties the max to its own department.</p>
+
+<h5>Why this returns ties for free</h5>
+<p>The subquery produces one pair per department, but the outer <code>WHERE</code> keeps <em>every</em> employee row whose pair matches. Bob and Cara both have <code>(1, 120)</code>, so both pass &mdash; no special tie handling needed. This is the behaviour the question wants. A correlated alternative &mdash; <code>WHERE salary = (SELECT MAX(salary) FROM employee e2 WHERE e2.dept_id = employee.dept_id)</code> &mdash; gives the identical result and also surfaces ties; both are valid pre-window idioms.</p>
+
+<h5>The window-function answer, and why it is banned here</h5>
+<p>The modern phrasing is <code>RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC)</code> then filter <code>rk = 1</code> &mdash; <code>RANK</code> (not <code>ROW_NUMBER</code>) so tied top earners share rank 1 and both appear. The question forbids window functions precisely to test the older tuple-match technique. A senior names the window-function solution as the production-preferred form &mdash; one table scan, no self-reference &mdash; while still delivering the requested subquery version.</p>
+
+<h5>NULL salaries and empty-department traps</h5>
+<p><code>MAX(salary)</code> ignores NULLs, so a department where everyone has a NULL salary yields <code>(dept_id, NULL)</code>, and <code>(dept_id, salary) IN ((dept_id, NULL))</code> never matches &mdash; that department silently produces no winner (NULL is not equal to anything, even another NULL). Decide whether that is acceptable or whether such departments need surfacing separately. Also: the tuple-<code>IN</code> form needs the subquery's <code>dept_id</code> to be non-nullable to stay clean &mdash; another reason a senior reaches for the window function on messy data.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> match the composite <code>(dept_id, salary)</code> tuple against per-department maxima &mdash; never a scalar <code>salary IN (&hellip;)</code>, which leaks across departments &mdash; understand the pattern returns tied top earners for free, and name <code>RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC)</code> as the production-preferred form the question deliberately rules out.</div>

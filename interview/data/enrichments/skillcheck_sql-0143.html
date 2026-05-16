@@ -1,0 +1,68 @@
+<p>A sales-operations team wants a per-region commission scorecard: how many agents work each area, what their average, minimum, and maximum commission rates are, the spread between best and worst, and where each region ranks by average. The interviewer is probing whether you can combine grouped aggregates with a window-function ranking in the right order, and whether you pick the ranking function whose tie behaviour the spec actually names.</p>
+
+<h4>1. The source data &mdash; <code>agent</code></h4>
+<table>
+  <thead><tr><th>agent_code</th><th>working_area</th><th>commission</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>A001 / A003 / A007</td><td>Bangalore</td><td>0.14 / 0.13 / 0.15</td><td>3-agent area &mdash; avg 0.14, spread 0.02</td></tr>
+    <tr><td>A005 / A006</td><td>London</td><td>0.13 / 0.15</td><td>2 agents &mdash; avg 0.14, ties Bangalore</td></tr>
+    <tr><td>A010</td><td>Chennai</td><td>0.14</td><td>single-agent area &mdash; avg 0.14, ties too</td></tr>
+    <tr><td>A004</td><td>Toronto</td><td>0.15</td><td>single agent &mdash; avg 0.15, the top rank</td></tr>
+    <tr><td>A002</td><td>Mumbai</td><td>0.11</td><td>single agent &mdash; avg 0.11, ties Hampshair</td></tr>
+    <tr><td>A009</td><td>Hampshair</td><td>0.11</td><td>single agent &mdash; avg 0.11, the bottom rank</td></tr>
+  </tbody>
+</table>
+<p>The fixture has 12 agents across 9 areas. The decisive edge case: three different regions &mdash; Bangalore, Chennai, London &mdash; all average exactly <strong>0.14</strong>. That three-way tie is what tests the ranking function. Single-agent areas (Chennai, Toronto, Mumbai...) are the degenerate one-member groups, where min, max, and avg all coincide and the spread is 0.</p>
+
+<h4>2. The SQL &mdash; aggregate in a CTE, then <code>DENSE_RANK</code></h4>
+<pre><code>WITH g AS (
+  SELECT working_area,
+         COUNT(*) AS num_agents,
+         ROUND(AVG(commission)::numeric, 4) AS avg_commission,
+         MIN(commission) AS min_commission,
+         MAX(commission) AS max_commission,
+         MAX(commission) - MIN(commission) AS commission_spread
+  FROM agent
+  GROUP BY working_area
+)
+SELECT working_area, num_agents, avg_commission, min_commission, max_commission, commission_spread,
+       DENSE_RANK() OVER (ORDER BY avg_commission DESC) AS rk
+FROM g
+ORDER BY rk, working_area;</code></pre>
+<p>The <code>g</code> CTE collapses agents into one row per area with all five aggregates. The outer query then applies <code>DENSE_RANK() OVER (ORDER BY avg_commission DESC)</code> to those per-area rows, assigning the rank, and orders the output by rank then area name.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>working_area</th><th>num_agents</th><th>avg_commission</th><th>min</th><th>max</th><th>spread</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>Toronto</td><td>1</td><td>0.1500</td><td>0.15</td><td>0.15</td><td>0.00</td><td>1</td></tr>
+    <tr><td>Bangalore</td><td>3</td><td>0.1400</td><td>0.13</td><td>0.15</td><td>0.02</td><td>2</td></tr>
+    <tr><td>Chennai</td><td>1</td><td>0.1400</td><td>0.14</td><td>0.14</td><td>0.00</td><td>2</td></tr>
+    <tr><td>London</td><td>2</td><td>0.1400</td><td>0.13</td><td>0.15</td><td>0.02</td><td>2</td></tr>
+    <tr><td>Brisban</td><td>1</td><td>0.1300</td><td>0.13</td><td>0.13</td><td>0.00</td><td>3</td></tr>
+    <tr><td>New York</td><td>1</td><td>0.1200</td><td>0.12</td><td>0.12</td><td>0.00</td><td>4</td></tr>
+    <tr><td>San Jose</td><td>1</td><td>0.1200</td><td>0.12</td><td>0.12</td><td>0.00</td><td>4</td></tr>
+    <tr><td>Hampshair</td><td>1</td><td>0.1100</td><td>0.11</td><td>0.11</td><td>0.00</td><td>5</td></tr>
+    <tr><td>Mumbai</td><td>1</td><td>0.1100</td><td>0.11</td><td>0.11</td><td>0.00</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>The three 0.14 areas all share <strong>rank 2</strong>, and the very next rank is <strong>3</strong> (Brisban), not 5 &mdash; that gap-free jump after a tie is the signature of <code>DENSE_RANK</code>. Note <code>commission_spread</code> is 0.00 for every single-agent area: with one row, <code>MAX = MIN</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why aggregate first, then rank &mdash; the two-stage shape</h5>
+<p>You cannot rank regions by a per-region average in one pass: <code>AVG(commission)</code> is computed by <code>GROUP BY</code>, while <code>DENSE_RANK</code> is a window function that needs those averages as <em>input rows</em>. The <code>g</code> CTE produces one row per area; only then can the window function rank them. Trying to write <code>DENSE_RANK() OVER (ORDER BY AVG(commission) DESC)</code> directly is actually legal in PostgreSQL &mdash; window functions may take aggregates as arguments &mdash; but the CTE form is far clearer about the "summarise, then rank" intent and is what an interviewer wants to see.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> &mdash; the spec dictates the choice</h5>
+<p>The question says "ties get the same rank, no gaps &mdash; use DENSE_RANK". That clause is decisive. <code>RANK()</code> would also give the three 0.14 areas rank 2, but the next area would jump to rank <strong>5</strong> (1 + the number of rows at or above it), leaving a gap. <code>DENSE_RANK()</code> compresses ranks so the next distinct value is always exactly one higher &mdash; 1, 2, 2, 2, 3, 4, 4, 5, 5. And <code>ROW_NUMBER()</code> would be wrong outright: it would give the three tied areas different numbers, arbitrarily breaking a tie the business considers equal.</p>
+
+<h5>Why <code>commission_spread</code> is <code>MAX - MIN</code>, and the single-member case</h5>
+<p><code>MAX(commission) - MIN(commission)</code> is the range &mdash; a one-line dispersion measure. For a single-agent area there is exactly one value, so <code>MAX</code> and <code>MIN</code> are that same value and the spread is 0 &mdash; correct, not a bug: a region with one agent has no internal variation. Recomputing <code>MIN</code>/<code>MAX</code> inside the subtraction (rather than referencing the aliases) is necessary because SQL does not let you use a select-list alias in a sibling select expression; the engine evaluates them independently and cheaply in the same group pass.</p>
+
+<h5>The <code>::numeric</code> cast inside <code>ROUND</code> &mdash; a real correctness guard</h5>
+<p><code>AVG(commission)</code> on a <code>numeric</code> column already returns <code>numeric</code>, but PostgreSQL's two-argument <code>ROUND(value, scale)</code> is <em>only</em> defined for <code>numeric</code> &mdash; there is no <code>ROUND(double precision, int)</code>. If <code>AVG</code> ever produced a <code>double precision</code> (for instance if the column were <code>float</code>), <code>ROUND(x, 4)</code> would throw "function round(double precision, integer) does not exist". The explicit <code>::numeric</code> cast makes the call type-safe regardless of the column's type &mdash; load-bearing, not decorative.</p>
+
+<h5>The <code>num_agents &gt;= 1</code> filter is a no-op &mdash; and the question admits it</h5>
+<p>The spec asks to "return only areas where <code>num_agents &gt;= 1</code> (i.e. all of them)". <code>GROUP BY</code> only ever produces a group when at least one row exists, so every grouped row already has <code>COUNT(*) &gt;= 1</code> &mdash; a <code>HAVING COUNT(*) &gt;= 1</code> would filter nothing. The phrasing is a deliberate tell: a region with <em>zero</em> agents cannot appear in a <code>GROUP BY</code> over <code>agent</code> at all. To list empty regions you would need a separate <code>region</code> table and a <code>LEFT JOIN</code>. Recognising that a <code>&gt;= 1</code> group filter is always vacuous is a small but real senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> structure region scorecards as aggregate-in-a-CTE then rank-with-a-window, choose <code>DENSE_RANK</code> when the spec wants tied groups to share a rank with no gaps (vs <code>RANK</code>'s gaps or <code>ROW_NUMBER</code>'s arbitrary tie-break), keep the <code>::numeric</code> cast that makes two-argument <code>ROUND</code> type-safe, and recognise that a <code>num_agents &gt;= 1</code> filter over a <code>GROUP BY</code> is always a no-op since empty groups never materialise.</div>
