@@ -12816,7 +12816,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "fact_events(client_id, event_type, iif, t1, top)",
-    "solution": "WITH t1 AS (\n    SELECT client_id,\n           SUM(CASE WHEN event_type IN ('video call received', 'video call sent', 'voice call received', 'voice call sent')\n                    THEN 1 ELSE 0 END) AS specific_event_count\n    FROM fact_events\n    GROUP BY client_id\n)\nSELECT client_id FROM t1\nWHERE specific_event_count > 0.5 * (SELECT SUM(specific_event_count) FROM t1)\nLIMIT 1;",
+    "solution": "WITH t1 AS (\n    SELECT client_id,\n           SUM(CASE WHEN event_type IN ('video call received', 'video call sent', 'voice call received', 'voice call sent')\n                    THEN 1 ELSE 0 END) AS specific_event_count\n    FROM fact_events\n    GROUP BY client_id\n)\nSELECT client_id FROM t1\nORDER BY specific_event_count DESC\nLIMIT 1;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/101_Most%20Popular%20Client_Id%20Among%20Users%20Using%20Video%20and%20Voice%20Calls%20%28stratascratch%29.sql"
@@ -13547,7 +13547,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "sales(Customer_Name, Sales_Amount, Year, pivot_result, pr)",
-    "solution": "WITH pivot_result AS (\n  SELECT Customer_Name,\n         SUM(CASE WHEN Year = 2022 THEN Sales_Amount END) AS y2022,\n         SUM(CASE WHEN Year = 2023 THEN Sales_Amount END) AS y2023,\n         SUM(CASE WHEN Year = 2024 THEN Sales_Amount END) AS y2024\n  FROM sales\n  GROUP BY Customer_Name\n)\nSELECT Customer_Name,\n       CASE WHEN y2023 >= y2022 THEN y2023\n            WHEN y2024 >= y2023 THEN y2024 END AS Sales,\n       CASE WHEN y2023 >= y2022 THEN '2023'\n            WHEN y2024 >= y2023 THEN '2024' END AS Yr,\n       CASE WHEN y2023 >= y2022 THEN y2022\n            WHEN y2024 >= y2023 THEN y2023 END AS Prev_Yr_Sales\nFROM pivot_result;",
+    "solution": "WITH pivot_result AS (\n  SELECT Customer_Name,\n         SUM(CASE WHEN Year = 2022 THEN Sales_Amount END) AS y2022,\n         SUM(CASE WHEN Year = 2023 THEN Sales_Amount END) AS y2023,\n         SUM(CASE WHEN Year = 2024 THEN Sales_Amount END) AS y2024\n  FROM sales\n  GROUP BY Customer_Name\n)\nSELECT Customer_Name,\n       CASE WHEN y2023 >= y2022 THEN y2023\n            WHEN y2024 >= y2023 THEN y2024 END AS Sales,\n       CASE WHEN y2023 >= y2022 THEN '2023'\n            WHEN y2024 >= y2023 THEN '2024' END AS Yr,\n       CASE WHEN y2023 >= y2022 THEN y2022\n            WHEN y2024 >= y2023 THEN y2023 END AS Prev_Yr_Sales\nFROM pivot_result\nWHERE y2023 >= y2022 OR y2024 >= y2023\nORDER BY Customer_Name;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/128_sales%20amount%20is%20greater%20than%20or%20equal%20to%20previous%20year%20sales%20%28multple%20year%20in%20table%29.sql"
@@ -13752,7 +13752,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "trade_tbl(Trade_Id, Trade_Timestamp, Trade_Stock, Quantity, Price, price_1, price_2, second, t1, t2, trade_1, trade_2)",
-    "solution": "WITH t1 AS (\n  SELECT t1.trade_id AS trade_1,\n         CAST(NULLIF(regexp_replace(t1.price::text,'[^0-9.-]','','g'),'') AS numeric) AS price_1,\n         t2.trade_id AS trade_2,\n         CAST(NULLIF(regexp_replace(t2.price::text,'[^0-9.-]','','g'),'') AS numeric) AS price_2\n  FROM trade_tbl t1\n  CROSS JOIN trade_tbl t2\n  WHERE t1.trade_id < t2.trade_id\n)\nSELECT trade_1, trade_2,\n       ABS(CAST((1.0*(price_2-price_1)/price_1)*100 AS INT)) AS price_diff\nFROM t1\nWHERE price_1 > 0 AND ABS((1.0*(price_2-price_1)/price_1)*100) >= 10;",
+    "solution": "SELECT a.trade_id AS trade_1, b.trade_id AS trade_2,\n       a.trade_stock,\n       ROUND(ABS((b.price - a.price) / a.price) * 100, 2) AS price_diff_pct\nFROM trade_tbl a\nJOIN trade_tbl b\n  ON a.trade_stock = b.trade_stock\n AND a.trade_id < b.trade_id\n AND ABS(EXTRACT(EPOCH FROM (b.trade_timestamp - a.trade_timestamp))) <= 10\nWHERE a.price <> 0\n  AND ABS((b.price - a.price) / a.price) * 100 > 10\nORDER BY a.trade_id, b.trade_id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/136_find%20the%20trade%20for%20the%20same%20stock%20that%20happened%20in%20a%20range%20of%2010%20sec%20and%20price%20difference%20more%20than%2010%20percent.sql"
@@ -13781,7 +13781,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "bank_account(amount, date_stamp, partition, t1, t2, t3)",
-    "solution": "WITH t1 AS (\n  SELECT amount, date_stamp,\n         ROW_NUMBER() OVER (PARTITION BY amount ORDER BY date_stamp ASC) AS flag\n  FROM bank_account\n)\nSELECT amount,\n       MIN(date_stamp) OVER (PARTITION BY amount) AS bank_start_date,\n       MAX(date_stamp) OVER (PARTITION BY amount) AS bank_end_date\nFROM t1\nORDER BY date_stamp ASC;",
+    "solution": "WITH grouped AS (\n  SELECT amount, date_stamp,\n         ROW_NUMBER() OVER (ORDER BY date_stamp)\n           - ROW_NUMBER() OVER (PARTITION BY amount ORDER BY date_stamp) AS grp\n  FROM bank_account\n)\nSELECT amount,\n       MIN(date_stamp) AS bank_start_date,\n       MAX(date_stamp) AS bank_end_date\nFROM grouped\nGROUP BY amount, grp\nORDER BY bank_start_date;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/137_derive%20start_date%20and%20end_date%20column%20when%20there%20is%20continuous%20amount%20in%20bank%20balance%20column.sql"
