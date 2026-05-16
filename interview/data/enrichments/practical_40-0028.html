@@ -1,0 +1,61 @@
+<p>A growth analyst stares at a jagged daily-revenue chart and wants the trend, not the noise: each date annotated with its 7-day trailing average &mdash; the day itself plus the six before it. That smoothing is the textbook use of a <strong>moving-window aggregate</strong>, and the interviewer is checking whether you can frame a window with <code>ROWS BETWEEN</code>, and whether you understand it counts <em>rows</em>, not calendar days.</p>
+
+<h4>1. The source data &mdash; <code>daily_metrics</code></h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-01</td><td>100</td><td>window has only 1 row available</td></tr>
+    <tr><td>2025-03-02</td><td>120</td><td>window: 2 rows</td></tr>
+    <tr><td>2025-03-03</td><td>140</td><td>window: 3 rows</td></tr>
+    <tr><td>2025-03-04</td><td>80</td><td>window: 4 rows</td></tr>
+    <tr><td>2025-03-05</td><td>200</td><td>window: 5 rows</td></tr>
+    <tr><td>2025-03-09</td><td>60</td><td>03-06..03-08 missing &mdash; gap</td></tr>
+    <tr><td>2025-03-10</td><td>300</td><td>window still counts ROWS, not days</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases shape the result. At the <em>start</em> (<code>03-01</code> to <code>03-05</code>) there are fewer than 7 prior rows, so the window is short. And there is a 3-day <em>gap</em> before <code>03-09</code> &mdash; revealing that a <code>ROWS</code> window walks physical rows, so its 7 rows can span far more than 7 calendar days.</p>
+
+<h4>2. The SQL &mdash; <code>AVG</code> over a <code>ROWS BETWEEN</code> frame</h4>
+<pre><code>SELECT metric_date,
+       value,
+       AVG(value) OVER (
+           ORDER BY metric_date
+           ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+       ) AS avg_7d
+FROM daily_metrics
+ORDER BY metric_date;</code></pre>
+<p><code>ORDER BY metric_date</code> sequences the rows; <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> defines a sliding 7-row frame &mdash; the current row plus the six before it. <code>AVG(value)</code> recomputes over that frame for every row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>avg_7d</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-01</td><td>100</td><td>100.00</td><td>1 row in frame &mdash; avg = value</td></tr>
+    <tr><td>2025-03-02</td><td>120</td><td>110.00</td><td>2 rows: (100+120)/2</td></tr>
+    <tr><td>2025-03-03</td><td>140</td><td>120.00</td><td>3 rows</td></tr>
+    <tr><td>2025-03-04</td><td>80</td><td>110.00</td><td>4 rows</td></tr>
+    <tr><td>2025-03-05</td><td>200</td><td>128.00</td><td>5 rows: (100+120+140+80+200)/5</td></tr>
+    <tr><td>2025-03-09</td><td>60</td><td>116.67</td><td>6 rows &mdash; spans 03-01..03-09</td></tr>
+    <tr><td>2025-03-10</td><td>300</td><td>142.86</td><td>7 rows &mdash; spans a 10-day calendar range</td></tr>
+  </tbody>
+</table>
+<p>The opening rows average only what exists &mdash; <code>03-01</code> equals its own value. The crucial row is <code>03-10</code>: its "7-day" average covers <code>03-01</code> through <code>03-10</code>, a <em>10-day</em> calendar span, because three days are missing and <code>ROWS</code> counts rows, not dates.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROWS</code> is a count of rows, not days &mdash; the headline trap</h5>
+<p><code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> is a <em>physical</em> frame: the six rows immediately before, regardless of their dates. On gap-free daily data that is identical to a 7-calendar-day window. The instant a day is missing, the two diverge: at <code>03-10</code> the frame reaches back to <code>03-01</code>. If the metric must be a true calendar week, this is wrong &mdash; and quietly wrong, since the output still looks plausible.</p>
+
+<h5>The calendar-correct alternative &mdash; <code>RANGE</code> with an interval</h5>
+<p>For a genuine 7-<em>day</em> average use <code>RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW</code>. <code>RANGE</code> frames by the <em>value</em> of the <code>ORDER BY</code> column &mdash; here the date &mdash; so it includes exactly the rows whose date falls in the trailing 6 days and naturally excludes the gap. The honest senior answer is: choose <code>ROWS</code> when the data is dense and you mean "last 7 observations"; choose <code>RANGE</code> when you mean "last 7 calendar days". State which definition the business wants.</p>
+
+<h5>The ramp-up at the start is a feature, not a bug</h5>
+<p>The first six rows have fewer than seven rows behind them, so their average is computed over a <em>partial</em> frame &mdash; <code>03-01</code> averages just itself. That is correct windowing behaviour. If a partial average is misleading for the consumer (a "7-day average" of one day is barely a trend), the senior move is to <code>NULL</code> it out: wrap in a <code>CASE</code> on <code>COUNT(*) OVER (same frame) = 7</code>, or filter the warm-up rows. Decide deliberately rather than shipping noisy early values.</p>
+
+<h5>The implicit default frame trap</h5>
+<p>If you write <code>AVG(value) OVER (ORDER BY metric_date)</code> with <em>no</em> frame clause, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; a running cumulative average from the start, not a 7-row trailing one. Omitting the explicit <code>ROWS BETWEEN</code> silently gives a completely different metric. Always spell out the frame when you want a fixed trailing window.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ROWS BETWEEN n PRECEDING AND CURRENT ROW</code> is supported everywhere with window functions &mdash; Postgres, MySQL 8+, SQLite 3.28+, Snowflake, SQL Server. The calendar-correct <code>RANGE &hellip; INTERVAL</code> form is <em>not</em> universal: Postgres and Snowflake support it, SQLite does not, and SQL Server does not allow interval offsets in <code>RANGE</code>. On those engines a true date window needs a self-join or a pre-densified calendar table.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build a moving average with an explicit <code>AVG(value) OVER (ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)</code>, know that <code>ROWS</code> counts observations not days so gaps distort it, reach for <code>RANGE &hellip; INTERVAL</code> when a true calendar window is required, and handle the partial-frame warm-up rows deliberately instead of shipping them as noise.</div>

@@ -1,0 +1,60 @@
+<p>A warehouse-management system records every stock movement as a signed delta &mdash; positive for receipts, negative for shipments &mdash; and the ops dashboard needs the <em>running on-hand</em> quantity after each event. The <code>inventory_event</code> table is partitioned by warehouse and SKU. The interviewer is probing whether you reach for a windowed cumulative <code>SUM</code> with the correct partitioning and frame, rather than a self-join or a procedural loop.</p>
+
+<h4>1. The source data &mdash; <code>inventory_event</code></h4>
+<table>
+  <thead><tr><th>warehouse_id</th><th>sku</th><th>ts</th><th>delta</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>2025-01-01 09:00</td><td>+100</td><td>opening receipt</td></tr>
+    <tr><td>1</td><td>A</td><td>2025-01-02 10:00</td><td>-30</td><td>shipment &mdash; running total drops</td></tr>
+    <tr><td>1</td><td>A</td><td>2025-01-03 11:00</td><td>-20</td><td>another shipment</td></tr>
+    <tr><td>1</td><td>A</td><td>2025-01-04 12:00</td><td>+50</td><td>restock</td></tr>
+    <tr><td>1</td><td>B</td><td>2025-01-01 09:00</td><td>+40</td><td>different SKU &mdash; separate balance</td></tr>
+    <tr><td>1</td><td>B</td><td>2025-01-02 09:00</td><td>-10</td><td>...</td></tr>
+    <tr><td>2</td><td>A</td><td>2025-01-01 09:00</td><td>+200</td><td>same SKU, different warehouse</td></tr>
+    <tr><td>2</td><td>A</td><td>2025-01-03 09:00</td><td>-50</td><td>...</td></tr>
+  </tbody>
+</table>
+<p>The edge case is SKU <code>A</code> existing in <em>both</em> warehouse 1 and warehouse 2. The running balance must track each <code>(warehouse, sku)</code> stream independently &mdash; warehouse 2's 200 units must never leak into warehouse 1's on-hand. SKU <code>B</code> confirms the same isolation across SKUs within one warehouse.</p>
+
+<h4>2. The SQL &mdash; cumulative SUM over a partitioned window</h4>
+<pre><code>SELECT warehouse_id, sku, ts, delta,
+       SUM(delta) OVER (PARTITION BY warehouse_id, sku ORDER BY ts
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS on_hand
+FROM inventory_event
+ORDER BY warehouse_id, sku, ts;</code></pre>
+<p><code>PARTITION BY warehouse_id, sku</code> gives every <code>(warehouse, sku)</code> pair its own independent accumulator. <code>ORDER BY ts</code> sequences the events. <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> sums every event from the first up to and including the current one &mdash; the running total.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>warehouse_id</th><th>sku</th><th>ts</th><th>delta</th><th>on_hand</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>2025-01-01 09:00</td><td>100</td><td>100</td></tr>
+    <tr><td>1</td><td>A</td><td>2025-01-02 10:00</td><td>-30</td><td>70</td></tr>
+    <tr><td>1</td><td>A</td><td>2025-01-03 11:00</td><td>-20</td><td>50</td></tr>
+    <tr><td>1</td><td>A</td><td>2025-01-04 12:00</td><td>50</td><td>100</td></tr>
+    <tr><td>1</td><td>B</td><td>2025-01-01 09:00</td><td>40</td><td>40</td></tr>
+    <tr><td>1</td><td>B</td><td>2025-01-02 09:00</td><td>-10</td><td>30</td></tr>
+    <tr><td>2</td><td>A</td><td>2025-01-01 09:00</td><td>200</td><td>200</td></tr>
+    <tr><td>2</td><td>A</td><td>2025-01-03 09:00</td><td>-50</td><td>150</td></tr>
+  </tbody>
+</table>
+<p>Warehouse 1 / SKU A walks 100 &rarr; 70 &rarr; 50 &rarr; 100. Warehouse 2 / SKU A starts fresh at <strong>200</strong>, not 300 &mdash; the partition boundary resets the accumulator, so the two warehouses' stocks of the same SKU never commingle.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a window function beats a self-join</h5>
+<p>The pre-window approach &mdash; <code>SUM(e2.delta)</code> from a correlated subquery joining every prior row &mdash; is O(n&sup2;): each row re-scans all rows before it. <code>SUM(delta) OVER (... ORDER BY ts)</code> sorts each partition once and accumulates in a single pass, O(n log n). For an event log that grows without bound, the window function is not just cleaner &mdash; it is the only approach that scales.</p>
+
+<h5>The frame is what makes it "running"</h5>
+<p><code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> is the explicit running-total frame. As it happens, this is also Postgres' <em>default</em> frame when an <code>ORDER BY</code> is present (the default is the <code>RANGE</code> variant, which here yields the same numbers because timestamps are unique). Writing the frame explicitly removes all ambiguity &mdash; and protects you if two events ever share a timestamp, where <code>RANGE</code> and <code>ROWS</code> diverge.</p>
+
+<h5>Composite partition key &mdash; the isolation that matters</h5>
+<p><code>PARTITION BY warehouse_id, sku</code> &mdash; both columns &mdash; is the heart of correctness. SKU A lives in two warehouses; partitioning by <code>sku</code> alone would sum 100 and 200 into one nonsensical 300-unit balance. The accumulator must reset at every distinct <code>(warehouse, sku)</code> stream. The demo's shared-SKU rows are placed precisely to expose this if the partition key is wrong.</p>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> when timestamps collide</h5>
+<p>If two events on the same SKU shared an identical <code>ts</code>, <code>RANGE</code> (the default) would treat them as <em>peers</em> and give both rows the <em>same</em> running total &mdash; the sum through the end of that timestamp group. <code>ROWS</code> processes them one at a time, producing a distinct intermediate total per row. For an inventory ledger you almost always want <code>ROWS</code>; if simultaneous events are possible, add a deterministic tiebreaker like <code>ORDER BY ts, event_id</code>.</p>
+
+<h5>Dialect notes &mdash; broadly portable</h5>
+<p>Windowed cumulative <code>SUM</code> with <code>PARTITION BY</code>, <code>ORDER BY</code>, and an explicit <code>ROWS</code> frame is SQL-standard and behaves identically in Postgres, SQL Server, BigQuery, Snowflake, Oracle, and MySQL 8+/SQLite 3.25+. There is nothing dialect-specific in this query &mdash; it ports verbatim, which is part of why the window function is the canonical answer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute a running balance with a windowed cumulative <code>SUM</code> &mdash; O(n log n), not the O(n&sup2;) self-join &mdash; partition by the <em>full</em> stream key (<code>warehouse_id, sku</code>) so independent ledgers never merge, and state the explicit <code>ROWS</code> frame plus a tiebreaker so simultaneous events stay deterministic.</div>

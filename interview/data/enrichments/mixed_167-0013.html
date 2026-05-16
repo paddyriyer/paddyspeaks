@@ -1,0 +1,52 @@
+<p>A finance team reviews the annual P&amp;L and asks: <em>"for each year, what was revenue growth versus the prior year, as a percentage?"</em> The query uses the <code>LAG</code> window function to pull last year's revenue onto the current row, then computes the growth ratio. The interviewer is probing whether you reach for a window function rather than a self-join, and whether you defend the division against a zero or NULL prior year.</p>
+
+<h4>1. The source data &mdash; <code>annual_revenue</code></h4>
+<table>
+  <thead><tr><th>year</th><th>revenue</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>500000</td><td>first year &mdash; no prior</td></tr>
+    <tr><td>2021</td><td>650000</td><td>up from 2020</td></tr>
+    <tr><td>2022</td><td>650000</td><td>flat &mdash; same as 2021</td></tr>
+    <tr><td>2023</td><td>520000</td><td>down from 2022</td></tr>
+    <tr><td>2024</td><td>910000</td><td>sharp recovery</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: 2020 has <em>no prior year</em> (LAG returns NULL), and 2022 is <em>flat</em> &mdash; a 0% growth row that must not be confused with a NULL.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> for prior-year revenue</h4>
+<pre><code>SELECT year, revenue,
+  100.0 * (revenue - LAG(revenue) OVER (ORDER BY year))
+        / NULLIF(LAG(revenue) OVER (ORDER BY year), 0) AS yoy_pct
+FROM annual_revenue;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>revenue</th><th>yoy_pct</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>500000</td><td><em>NULL</em></td><td>no prior year to compare</td></tr>
+    <tr><td>2021</td><td>650000</td><td>30.00</td><td>(650k &minus; 500k) / 500k</td></tr>
+    <tr><td>2022</td><td>650000</td><td>0.00</td><td>flat &mdash; genuine zero, not NULL</td></tr>
+    <tr><td>2023</td><td>520000</td><td>&minus;20.00</td><td>decline shows as negative</td></tr>
+    <tr><td>2024</td><td>910000</td><td>75.00</td><td>(910k &minus; 520k) / 520k</td></tr>
+  </tbody>
+</table>
+<p>2020 is <em>NULL</em> &mdash; correct, there is nothing before it. 2022 is <code>0.00</code> &mdash; also correct, revenue was genuinely flat. The query distinguishes "no comparison possible" from "comparison says no change."</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> is the right tool</h5>
+<p><code>LAG(revenue) OVER (ORDER BY year)</code> returns the <code>revenue</code> value from the row one position earlier in the ordering. It places this year's and last year's figures on the <em>same row</em>, so a simple arithmetic expression computes the delta. The pre-window alternative &mdash; <code>annual_revenue a JOIN annual_revenue b ON b.year = a.year - 1</code> &mdash; works but is more code, breaks if a year is missing, and reads less clearly. <code>LAG</code> states the intent directly.</p>
+
+<h5>The <code>ORDER BY</code> inside <code>OVER</code> is mandatory</h5>
+<p><code>LAG</code> has no meaning without an ordering &mdash; "the previous row" is undefined otherwise. <code>OVER (ORDER BY year)</code> defines the sequence. If the data spanned multiple business units, you would add <code>PARTITION BY unit</code> so <code>LAG</code> never bleeds the last year of one unit into the first year of another. Here a single series needs only the <code>ORDER BY</code>.</p>
+
+<h5>The <code>NULLIF</code> guard &mdash; division-by-zero defence</h5>
+<p>If a prior year's revenue were <code>0</code>, the denominator would be zero and the query would error. <code>NULLIF(LAG(...), 0)</code> converts a zero divisor to NULL, and dividing by NULL yields NULL instead of crashing &mdash; the row degrades to "undefined growth" gracefully. This guard is the senior reflex on <em>any</em> ratio. (Note: a zero <em>base</em> also makes percentage growth mathematically meaningless &mdash; NULL is the honest answer.)</p>
+
+<h5>The NULL-vs-zero distinction</h5>
+<p>2020's <code>yoy_pct</code> is NULL because <code>LAG</code> has no prior row &mdash; <code>revenue - NULL</code> is NULL, the whole expression is NULL. 2022's is <code>0.00</code> because revenue truly did not change. Conflating them is a real reporting bug: a dashboard that renders NULL as <code>0%</code> would falsely claim 2020 was a flat year. Keep them distinct, or label the first row explicitly as "baseline."</p>
+
+<h5>The integer-division trap and dialect notes</h5>
+<p>Multiplying by <code>100.0</code> (not <code>100</code>) forces floating-point math; with integer revenue and a bare <code>100</code>, some engines would truncate <code>30.00</code> toward an integer or compute <code>0</code> for sub-100% changes. <code>LAG</code>, <code>NULLIF</code>, and the window <code>OVER</code> clause are standard and portable across Postgres, MySQL 8+, SQL Server, BigQuery, Snowflake, and Oracle. <code>LAG(revenue, 1, 0)</code> with a third argument would substitute a default for the missing prior year &mdash; usually <em>not</em> what you want for a percentage, since it manufactures a misleading number.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>LAG ... OVER (ORDER BY year)</code> instead of a self-join, always wrap a ratio denominator in <code>NULLIF(..., 0)</code>, and articulate that the first-year NULL ("no comparison") and a flat-year 0% ("no change") are different facts a dashboard must not merge.</div>

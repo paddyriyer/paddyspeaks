@@ -1,0 +1,63 @@
+<p>An analytics team runs weekly KPIs by customer <code>segment</code> and wants an automated alert: flag every (segment, week) where the metric swung more than 20% versus the <em>same segment's</em> prior week, showing the old value and the percent change. This is a <strong>period-over-period comparison</strong> &mdash; the interviewer is probing partitioned <code>LAG</code>, and the two arithmetic landmines hiding in the threshold test.</p>
+
+<h4>1. The source data &mdash; <code>weekly_metrics</code></h4>
+<table>
+  <thead><tr><th>week_start</th><th>segment</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-06</td><td>enterprise</td><td>1000</td><td>first week &mdash; no prior, can't compare</td></tr>
+    <tr><td>2025-01-13</td><td>enterprise</td><td>1100</td><td>+10% &mdash; under threshold</td></tr>
+    <tr><td>2025-01-20</td><td>enterprise</td><td>1500</td><td>+36% &mdash; flagged</td></tr>
+    <tr><td>2025-01-27</td><td>enterprise</td><td>1450</td><td>&minus;3% &mdash; under threshold</td></tr>
+    <tr><td>2025-01-06</td><td>smb</td><td>500</td><td>first week for smb &mdash; no prior</td></tr>
+    <tr><td>2025-01-13</td><td>smb</td><td>300</td><td>&minus;40% &mdash; flagged</td></tr>
+    <tr><td>2025-01-20</td><td>smb</td><td>310</td><td>+3% &mdash; under threshold</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Each segment's <em>first</em> week (<code>2025-01-06</code>) has no prior row, so <code>LAG</code> yields NULL &mdash; it must not be flagged. And the change can be negative (<code>smb</code> drops 40%): the test has to catch swings in <em>both</em> directions, not just growth.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> partitioned by segment, threshold in <code>WHERE</code></h4>
+<pre><code>WITH lagged AS (
+    SELECT week_start, segment, value,
+           LAG(value) OVER (PARTITION BY segment ORDER BY week_start) AS prev_value
+    FROM weekly_metrics
+)
+SELECT week_start,
+       segment,
+       prev_value,
+       value,
+       ROUND(100.0 * (value - prev_value) / prev_value, 2) AS pct_change
+FROM lagged
+WHERE prev_value IS NOT NULL
+  AND prev_value &lt;&gt; 0
+  AND ABS(value - prev_value) * 1.0 / prev_value &gt; 0.20
+ORDER BY segment, week_start;</code></pre>
+<p><code>LAG(value)</code> with <code>PARTITION BY segment</code> fetches the previous week's value <em>within the same segment</em>. The <code>WHERE</code> then keeps only rows where the absolute relative change exceeds 0.20 &mdash; with two guards in front of that test.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>week_start</th><th>segment</th><th>prev_value</th><th>value</th><th>pct_change</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-20</td><td>enterprise</td><td>1100</td><td>1500</td><td>36.36</td><td>jump &mdash; above +20%</td></tr>
+    <tr><td>2025-01-13</td><td>smb</td><td>500</td><td>300</td><td>-40.00</td><td>drop &mdash; <code>ABS</code> catches it</td></tr>
+  </tbody>
+</table>
+<p>Only two rows survive. Both segments' <code>2025-01-06</code> rows are gone &mdash; <code>prev_value</code> is NULL, the guard removes them. The <code>+10%</code> and <code>&minus;3%</code> and <code>+3%</code> weeks fall under the 20% bar. The <code>smb</code> 40% <em>fall</em> is flagged because <code>ABS</code> measures magnitude regardless of sign.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>PARTITION BY segment</code> is load-bearing</h5>
+<p>Drop the <code>PARTITION BY</code> and <code>LAG</code> reaches across segment boundaries: <code>smb</code>'s first week would be compared to <code>enterprise</code>'s last week &mdash; a meaningless cross-segment delta. The partition resets <code>LAG</code> at each segment so "prior week" always means the same segment. The <code>ORDER BY week_start</code> inside the window defines what "prior" means; both clauses are mandatory for a correct period-over-period.</p>
+
+<h5>The NULL guard &mdash; the first row of every partition</h5>
+<p><code>LAG</code> has no previous row for the earliest week in each segment, so <code>prev_value</code> is NULL. <code>WHERE prev_value IS NOT NULL</code> drops those rows explicitly. Even without it the arithmetic would be NULL and the <code>&gt; 0.20</code> test would be <em>unknown</em> (so the row would not pass) &mdash; but relying on that is fragile and obscure. The explicit guard documents intent and is the senior habit.</p>
+
+<h5>The division-by-zero guard</h5>
+<p>If a segment's prior week had <code>value = 0</code>, then <code>(value - prev_value) / prev_value</code> divides by zero &mdash; an error in Postgres, or a NULL/Inf in laxer engines. <code>WHERE prev_value &lt;&gt; 0</code> filters those rows before the division runs. Realise the semantic gap too: a jump from 0 to anything is an <em>infinite</em> percent change. Excluding it is one choice; flagging it via a separate "was zero, now non-zero" rule is another &mdash; state which the business wants.</p>
+
+<h5><code>ABS</code> &mdash; catching drops as well as spikes</h5>
+<p>The brief says "changed by more than 20%", not "grew by". <code>ABS(value - prev_value) / prev_value &gt; 0.20</code> measures the <em>magnitude</em> of the swing, so a 40% collapse is flagged exactly like a 40% surge. Without <code>ABS</code>, the test catches only increases and silently ignores every decline &mdash; usually the more urgent alert. The <code>pct_change</code> column still shows the sign (<code>-40.00</code>) so a reader sees direction.</p>
+
+<h5>The integer-division trap &mdash; <code>* 1.0</code> and <code>100.0</code></h5>
+<p>If <code>value</code> and <code>prev_value</code> are integers, <code>(value - prev_value) / prev_value</code> does integer division in SQLite and MySQL: a 36% change truncates to <code>0</code>, fails <code>&gt; 0.20</code>, and the alert silently never fires. The <code>* 1.0</code> in the <code>WHERE</code> and the <code>100.0</code> literal in the <code>SELECT</code> force float division. Postgres avoids this only because the column here is <code>NUMERIC</code>; on integer columns the coercion is essential. This is the most dangerous bug in the query because it fails <em>quietly</em>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute period-over-period with <code>LAG(value) OVER (PARTITION BY segment ORDER BY week)</code>, then defend the threshold test with three guards &mdash; <code>prev_value IS NOT NULL</code> for first rows, <code>&lt;&gt; 0</code> against division-by-zero, and <code>* 1.0</code>/<code>100.0</code> to force float division &mdash; and use <code>ABS</code> so the alert catches drops as well as spikes.</div>

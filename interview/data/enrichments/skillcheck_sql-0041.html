@@ -1,0 +1,65 @@
+<p>An HR analytics team needs an org-chart breadcrumb for every employee: <em>"show me the chain of command from the CEO down to this person."</em> The <code>employee</code> table is self-referential &mdash; each row points at its manager &mdash; so the depth of the tree is unknown at query time. The interviewer is testing whether you can write a recursive CTE that walks a hierarchy, accumulating both a depth counter and a human-readable path string as it descends.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>manager_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td><em>NULL</em></td><td>the CEO &mdash; recursion's anchor</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>reports to Alice</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td><td>reports to Alice</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>reports to Bob</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td><td>reports to Bob</td></tr>
+    <tr><td>6</td><td>Finn</td><td>3</td><td>reports to Cara</td></tr>
+    <tr><td>7</td><td>Gwen</td><td>4</td><td>deepest node &mdash; four levels down</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the root: Alice has <code>manager_id = NULL</code>, the single node with no parent. Gwen sits at the opposite extreme &mdash; the deepest leaf &mdash; and exercises the recursion to its full depth of three.</p>
+
+<h4>2. The SQL &mdash; recursive CTE accumulating depth and path</h4>
+<pre><code>WITH RECURSIVE chain AS (
+  SELECT id, name, 0 AS depth, name AS path
+  FROM employee
+  WHERE manager_id IS NULL
+  UNION ALL
+  SELECT e.id, e.name, c.depth + 1, c.path || ' &gt; ' || e.name
+  FROM employee e
+  JOIN chain c ON e.manager_id = c.id
+)
+SELECT id, name, depth, path
+FROM chain
+ORDER BY depth, id;</code></pre>
+<p>The <strong>anchor</strong> selects the CEO &mdash; depth 0, path is just the name. The <strong>recursive member</strong> joins every employee onto rows already in <code>chain</code> by matching <code>e.manager_id = c.id</code>, incrementing depth and appending the name to the parent's path. <code>UNION ALL</code> stacks each generation; recursion stops naturally when no employee's manager appears in the latest batch.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>depth</th><th>path</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>0</td><td>Alice</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>Alice &gt; Bob</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td><td>Alice &gt; Cara</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>Alice &gt; Bob &gt; Dan</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td><td>Alice &gt; Bob &gt; Eve</td></tr>
+    <tr><td>6</td><td>Finn</td><td>2</td><td>Alice &gt; Cara &gt; Finn</td></tr>
+    <tr><td>7</td><td>Gwen</td><td>3</td><td>Alice &gt; Bob &gt; Dan &gt; Gwen</td></tr>
+  </tbody>
+</table>
+<p>Each path is built incrementally: Gwen's <code>Alice &gt; Bob &gt; Dan &gt; Gwen</code> is her manager Dan's path with <code>&gt; Gwen</code> appended. Depth equals the number of edges from the root, so the count of <code>&gt;</code> separators in <code>path</code> always equals <code>depth</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a recursive CTE and not a fixed set of joins</h5>
+<p>You cannot self-join the table N times because N &mdash; the org's depth &mdash; is unknown and may change as people are hired. A recursive CTE iterates: the anchor produces level 0, the recursive member consumes the previous level to produce the next, and Postgres repeats until the recursive query returns no rows. It is the only construct that walks an arbitrary-depth tree in standard SQL.</p>
+
+<h5>The path string is a running accumulator</h5>
+<p>Carrying <code>path</code> as a column means each level appends one name to its parent's already-complete string &mdash; no post-processing, no array flattening. The same column could just as easily accumulate an array (<code>c.id_path || e.id</code>) for programmatic use; the string form is for display. Either way, the principle is identical: state that must persist down the recursion travels <em>as a column in the CTE</em>.</p>
+
+<h5>Cycle safety &mdash; the trap recursion can fall into</h5>
+<p>If the data were corrupt &mdash; say Dan's manager pointed back to Gwen &mdash; the recursion would loop forever (or until Postgres' default depth limit aborts it). Production hierarchy queries defend against this: carry the visited ids in an array and add <code>WHERE e.id &lt;&gt; ALL(c.id_path)</code> to the recursive member, or use Postgres 14+'s <code>CYCLE id SET is_cycle USING cycle_path</code> clause. Mentioning cycle detection unprompted is the senior signal &mdash; clean demo data hides a real production risk.</p>
+
+<h5>Ordering and orphan rows</h5>
+<p>The final <code>ORDER BY depth, id</code> is applied <em>outside</em> the CTE &mdash; a recursive CTE produces rows generation by generation, not in any guaranteed order, so the sort must be external. Note also that if a non-CEO row had a <code>manager_id</code> pointing to a non-existent manager, that subtree would simply never be reached &mdash; it would vanish from the output. A data-quality check (every non-NULL <code>manager_id</code> exists in <code>employee.id</code>) belongs alongside this query.</p>
+
+<h5>Dialect notes &mdash; RECURSIVE keyword and string concat</h5>
+<p>Postgres, SQL Server, and Oracle require <code>WITH RECURSIVE</code> (SQL Server omits the <code>RECURSIVE</code> word but the mechanism is the same). MySQL 8+ supports it identically to Postgres. String concatenation <code>||</code> is standard SQL but SQL Server uses <code>+</code> and MySQL needs <code>CONCAT()</code> unless <code>PIPES_AS_CONCAT</code> is set. Oracle additionally offers the older <code>CONNECT BY ... PRIOR</code> proprietary syntax for the same job.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for a recursive CTE when tree depth is unbounded, carry per-path state (depth, path string) as CTE columns so it accumulates one level at a time, sort outside the recursion, and proactively raise cycle detection and orphaned-manager data-quality risks that clean sample data conceals.</div>

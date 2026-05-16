@@ -1,0 +1,50 @@
+<p>A retention analyst wants the list of customers who placed <em>more than three</em> orders during 2025 &mdash; the kind of cohort that feeds a loyalty programme. It looks like a one-line <code>GROUP BY</code>, but the interviewer is watching two things: how you fence the year boundary, and whether "more than 3" goes in <code>WHERE</code> or <code>HAVING</code>. Both have a wrong answer that still <em>looks</em> right on small data.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1&ndash;4</td><td>100</td><td>2025 (Jan&ndash;Apr)</td><td>&hellip;</td><td>4 orders, all in 2025</td></tr>
+    <tr><td>5&ndash;6</td><td>101</td><td>2025 (Jan&ndash;Feb)</td><td>&hellip;</td><td>only 2 orders</td></tr>
+    <tr><td>7&ndash;10</td><td>102</td><td>2025 (May&ndash;Aug)</td><td>&hellip;</td><td>4 orders, all in 2025</td></tr>
+    <tr><td>11</td><td>103</td><td>2024-12-31</td><td>500</td><td>boundary &mdash; just outside 2025</td></tr>
+    <tr><td>12&ndash;16</td><td>104</td><td>2025 (Jan&ndash;May)</td><td>&hellip;</td><td>5 orders, all in 2025</td></tr>
+  </tbody>
+</table>
+<p>Two deliberate traps. Customer 100 and 102 each sit <em>exactly</em> at 4 &mdash; testing strict vs inclusive comparison. Customer 103 has a single order dated <strong>2024-12-31</strong>: a careless year filter (or a <code>BETWEEN</code> with the wrong end) can let that boundary row leak into 2025.</p>
+
+<h4>2. The SQL &mdash; half-open range filter then <code>HAVING</code></h4>
+<pre><code>SELECT customer_id, COUNT(*) AS order_count
+FROM orders
+WHERE order_date &gt;= '2025-01-01' AND order_date &lt; '2026-01-01'
+GROUP BY customer_id
+HAVING COUNT(*) &gt; 3
+ORDER BY customer_id;</code></pre>
+<p><code>WHERE</code> runs first, keeping only 2025 rows. <code>GROUP BY customer_id</code> collapses each customer's surviving rows into one group, <code>COUNT(*)</code> counts them, and <code>HAVING COUNT(*) &gt; 3</code> filters the <em>groups</em> &mdash; you cannot use an aggregate in <code>WHERE</code> because no group exists yet at that stage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>4</td><td>4 &gt; 3 &mdash; qualifies</td></tr>
+    <tr><td>102</td><td>4</td><td>4 &gt; 3 &mdash; qualifies</td></tr>
+    <tr><td>104</td><td>5</td><td>5 &gt; 3 &mdash; qualifies</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 (2 orders) and 103 (its lone order is in 2024) never reach the threshold &mdash; 103's row is dropped by the <code>WHERE</code> before counting even begins. Customers 100 and 102 land on exactly 4 and qualify because the bar is strict <code>&gt; 3</code>; had the prompt said "at least 3" you would write <code>&gt;= 3</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The half-open range beats <code>BETWEEN</code> for dates</h5>
+<p><code>order_date &gt;= '2025-01-01' AND order_date &lt; '2026-01-01'</code> is a half-open interval: it includes all of 2025 and excludes everything from 2026 onward. The naive alternative, <code>BETWEEN '2025-01-01' AND '2025-12-31'</code>, is inclusive on both ends &mdash; fine for a pure <code>DATE</code>, but if <code>order_date</code> is ever a <code>TIMESTAMP</code> it silently drops anything timestamped on 2025-12-31 after midnight. The <code>&lt; next-year</code> pattern is correct regardless of whether the column is a date or a timestamp.</p>
+
+<h5><code>WHERE</code> vs <code>HAVING</code> &mdash; they filter different things</h5>
+<p><code>WHERE</code> filters <em>rows</em> before grouping; <code>HAVING</code> filters <em>groups</em> after aggregation. The date predicate is a per-row test, so it belongs in <code>WHERE</code> &mdash; and putting it there also shrinks the data <em>before</em> the expensive grouping. The count threshold is a per-group test on an aggregate, so it can only live in <code>HAVING</code>. Writing <code>WHERE COUNT(*) &gt; 3</code> is a hard error: the aggregate is not yet computed when <code>WHERE</code> runs.</p>
+
+<h5>Comparing date strings &mdash; why it works here</h5>
+<p><code>order_date</code> is declared <code>TEXT</code>, yet the comparison still works because the dates are in ISO-8601 (<code>YYYY-MM-DD</code>), and ISO dates sort identically as text and as dates. This is a lucky property of the format, not a general rule &mdash; <code>'01/15/2025'</code> or <code>'15-Jan-2025'</code> would compare wrongly. The robust move is to store dates in a real <code>DATE</code> column; if you must keep text, cast it (<code>order_date::date</code>) so intent is explicit and non-ISO strings fail loudly.</p>
+
+<h5>Edge case: the boundary row and "exactly N"</h5>
+<p>Customer 103's order on 2024-12-31 is the classic off-by-one trap &mdash; an inclusive lower bound of <code>&gt;= '2025-01-01'</code> correctly excludes it; a sloppy <code>&gt; '2024-12-31'</code> would too, but <code>BETWEEN '2024-12-31' ...</code> would not. Separately, customers at exactly 4 orders qualify only because the test is strict <code>&gt;</code>. Always pin down whether the spec means "more than 3" (<code>&gt; 3</code>) or "3 or more" (<code>&gt;= 3</code>) &mdash; they differ by a whole cohort.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> fence the year with a half-open <code>&gt;= start AND &lt; next-year</code> range instead of an inclusive <code>BETWEEN</code>, put the row-level date test in <code>WHERE</code> and the aggregate threshold in <code>HAVING</code>, know that ISO-8601 text dates sort correctly only by luck of format, and confirm whether "more than 3" is strict <code>&gt;</code> or inclusive <code>&gt;=</code>.</div>

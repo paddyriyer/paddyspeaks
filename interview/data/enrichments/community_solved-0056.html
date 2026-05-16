@@ -1,0 +1,73 @@
+<p>This is LeetCode's "Consecutive Numbers" in community form: scanning <code>num_log</code> in <code>seq_id</code> order, find every value that appears <em>three or more times in a row</em>. It is the signal-detection pattern &mdash; a sustained streak, not a scattered total. The interviewer wants to see the gaps-and-islands technique, and to confirm you do not confuse "appears 3 times consecutively" with "appears 3 times overall".</p>
+
+<h4>1. The source data &mdash; <code>num_log</code></h4>
+<table>
+  <thead><tr><th>seq_id</th><th>user_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>7</td><td>run of 7 begins</td></tr>
+    <tr><td>2</td><td>7</td><td>&hellip;</td></tr>
+    <tr><td>3</td><td>7</td><td>run of 7 = length 3 &mdash; qualifies</td></tr>
+    <tr><td>4</td><td>3</td><td>lone 3</td></tr>
+    <tr><td>5</td><td>9</td><td>run of 9 begins</td></tr>
+    <tr><td>6</td><td>9</td><td>&hellip;</td></tr>
+    <tr><td>7</td><td>9</td><td>&hellip;</td></tr>
+    <tr><td>8</td><td>9</td><td>run of 9 = length 4 &mdash; qualifies</td></tr>
+    <tr><td>9</td><td>3</td><td>3 appears again &mdash; but not consecutively with seq_id 4</td></tr>
+    <tr><td>10</td><td>3</td><td>this run of 3 is only length 2</td></tr>
+  </tbody>
+</table>
+<p>Value 3 appears three times overall (<code>seq_id</code> 4, 9, 10) &mdash; but never three <em>in a row</em>. It must <strong>not</strong> qualify. That is the trap separating "consecutive" from "total count".</p>
+
+<h4>2. The SQL &mdash; canonical gaps-and-islands</h4>
+<pre><code>WITH ordered AS (
+    SELECT seq_id, user_id,
+           LAG(user_id) OVER (ORDER BY seq_id) AS prev_user_id
+    FROM num_log
+),
+flagged AS (
+    SELECT seq_id, user_id,
+           CASE WHEN user_id = prev_user_id THEN 0 ELSE 1 END AS is_break
+    FROM ordered
+),
+grouped AS (
+    SELECT seq_id, user_id,
+           SUM(is_break) OVER (ORDER BY seq_id) AS group_id
+    FROM flagged
+)
+SELECT user_id
+FROM grouped
+GROUP BY user_id, group_id
+HAVING COUNT(*) &gt;= 3
+ORDER BY user_id;</code></pre>
+<p><code>LAG</code> looks at the previous row's value; a "break" is flagged whenever the value changes; a running <code>SUM</code> of those breaks gives each unbroken run a distinct <code>group_id</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>7</td><td>run at seq_id 1&ndash;3, length 3</td></tr>
+    <tr><td>9</td><td>run at seq_id 5&ndash;8, length 4</td></tr>
+  </tbody>
+</table>
+<p>Only 7 and 9 qualify. Value 3 is correctly excluded: its longest consecutive run is just two rows (<code>seq_id</code> 9&ndash;10), even though it occurs three times in total.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How the running-sum builds island IDs</h5>
+<p><code>is_break</code> is 1 exactly where the value differs from the row before it &mdash; the start of a new run. The cumulative <code>SUM(is_break) OVER (ORDER BY seq_id)</code> therefore increments by 1 at each run boundary and holds steady inside a run. Every row of a single unbroken run shares one <code>group_id</code>. Grouping by <code>(user_id, group_id)</code> isolates each run; <code>HAVING COUNT(*) &gt;= 3</code> keeps the long ones. Including <code>user_id</code> in the <code>GROUP BY</code> guards against the rare case of two separate runs accidentally landing on the same <code>group_id</code>.</p>
+
+<h5>Why "consecutive" is not "total" &mdash; the core trap</h5>
+<p>A naive <code>GROUP BY user_id HAVING COUNT(*) &gt;= 3</code> counts <em>every</em> occurrence and would wrongly return value 3. Consecutiveness is a property of <em>adjacency in <code>seq_id</code> order</em>, and only an ordered window function (<code>LAG</code>, or a running sum) can see adjacency. Recognising that the ordering column is load-bearing &mdash; not decoration &mdash; is the senior insight here.</p>
+
+<h5>The classic three-self-join alternative</h5>
+<p>The textbook LeetCode answer joins the table to itself twice:</p>
+<pre><code>SELECT DISTINCT a.user_id
+FROM num_log a
+JOIN num_log b ON b.seq_id = a.seq_id + 1 AND b.user_id = a.user_id
+JOIN num_log c ON c.seq_id = a.seq_id + 2 AND c.user_id = a.user_id;</code></pre>
+<p>It works, but it is hardwired to a streak of exactly 3 &mdash; checking for 5-in-a-row needs four joins. The gaps-and-islands version generalises by changing one literal in <code>HAVING</code>, and it does one ordered pass instead of an n-way join. Note this self-join also assumes <code>seq_id</code> has no gaps; <code>LAG</code> does not.</p>
+
+<h5>The gap-in-<code>seq_id</code> and NULL traps</h5>
+<p><code>LAG(user_id) OVER (ORDER BY seq_id)</code> reads the <em>previous row by sort order</em>, regardless of whether <code>seq_id</code> values are contiguous &mdash; so it tolerates gaps, unlike the <code>seq_id + 1</code> self-join. Two subtleties: the very first row has <code>prev_user_id = NULL</code>, so <code>user_id = NULL</code> is unknown and <code>is_break</code> is correctly 1 (a run always starts there); and a NULL <code>user_id</code> mid-stream would also break the run, since <code>NULL = NULL</code> is unknown. If consecutive NULLs should count as a run, switch to <code>user_id IS NOT DISTINCT FROM prev_user_id</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name this gaps-and-islands, stress that "consecutive" depends on <code>seq_id</code> ordering so a plain <code>COUNT</code> is wrong, and prefer the <code>LAG</code> + running-sum solution over the triple self-join because it generalises to any streak length and tolerates gaps in <code>seq_id</code>.</div>

@@ -1,0 +1,47 @@
+<p>A pizza chain wants to find customers who have tried <em>every</em> pizza on the menu &mdash; the textbook <strong>relational division</strong> problem ("find rows related to <em>all</em> values in a set"). The interviewer is probing whether you know the count-matching idiom and whether you handle the two traps: a customer who ordered the same pizza twice, and an empty menu.</p>
+
+<h4>1. The source data &mdash; <code>pizzas</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>pizzas ordered</th><th>distinct pizzas</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1, 2, 3, 1</td><td>3</td><td>all 3 &mdash; but pizza 1 ordered twice (the edge case)</td></tr>
+    <tr><td>2</td><td>1, 2</td><td>2</td><td>missing Vegetarian &mdash; does not qualify</td></tr>
+    <tr><td>3</td><td>1, 2, 3</td><td>3</td><td>all 3, cleanly</td></tr>
+    <tr><td>4</td><td>3</td><td>1</td><td>only one pizza</td></tr>
+  </tbody>
+</table>
+<p>The menu has 3 pizzas (Margherita, Meatlovers, Vegetarian). Customer 1 placed <em>four</em> orders but only <em>three distinct</em> pizzas &mdash; the duplicate Margherita must not be counted twice, or a customer could "qualify" by ordering one pizza three times.</p>
+
+<h4>2. The SQL &mdash; relational division by count matching</h4>
+<pre><code>SELECT customer_id
+FROM orders
+GROUP BY customer_id
+HAVING COUNT(DISTINCT pizza_id) = (SELECT COUNT(*) FROM pizzas)
+ORDER BY customer_id;</code></pre>
+<p>Group orders by customer; <code>COUNT(DISTINCT pizza_id)</code> is how many <em>different</em> pizzas that customer has tried. The <code>HAVING</code> keeps a customer only when that count equals the total number of pizzas on the menu &mdash; i.e. they have covered the full set.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3 distinct pizzas = 3 on menu &mdash; duplicate Margherita collapsed by DISTINCT</td></tr>
+    <tr><td>3</td><td>3 distinct = 3 &mdash; qualifies</td></tr>
+  </tbody>
+</table>
+<p>Customers 1 and 3 qualify. Customer 1 makes the point: four order rows, but <code>COUNT(DISTINCT pizza_id)</code> = 3, so the duplicate does not inflate the count and does not falsely exclude or include anyone. Customer 2 (only 2 distinct) and customer 4 (only 1) are correctly dropped.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DISTINCT</code> inside <code>COUNT</code> is non-negotiable</h5>
+<p>Plain <code>COUNT(pizza_id)</code> counts order <em>rows</em>. Customer 1 has 4 rows, which would falsely exceed the menu size of 3 &mdash; and the <code>=</code> test would fail, wrongly excluding a customer who genuinely tried everything. Worse, a customer who ordered one pizza three times would have <code>COUNT = 3</code> and falsely qualify. <code>COUNT(DISTINCT pizza_id)</code> counts <em>coverage</em>, which is what "at least one of every pizza" means.</p>
+
+<h5>Why count-matching implements "for all"</h5>
+<p>Relational division asks: does this customer's pizza set <em>contain</em> the menu set? Since a customer can only order pizzas that exist, their distinct-pizza set is always a subset of the menu. A subset that has the <em>same cardinality</em> as the superset must <em>be</em> the superset. So <code>COUNT(DISTINCT pizza_id) = (SELECT COUNT(*) FROM pizzas)</code> is exactly the "ordered all of them" test &mdash; no need to enumerate which ones.</p>
+
+<h5>The double-NOT-EXISTS alternative</h5>
+<p>The pure-logic form is "no pizza exists that this customer has not ordered": <code>WHERE NOT EXISTS (SELECT 1 FROM pizzas p WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.pizza_id = p.pizza_id))</code>. It is the literal translation of universal quantification and handles the empty-menu case naturally, but it is harder to read and often slower. The count-matching idiom is the idiomatic, performant answer when the divisor is a simple table.</p>
+
+<h5>The empty-menu edge case</h5>
+<p>If <code>pizzas</code> is empty, <code>(SELECT COUNT(*) FROM pizzas)</code> is 0. The <code>HAVING</code> becomes <code>COUNT(DISTINCT pizza_id) = 0</code> &mdash; but any customer in the <code>GROUP BY</code> has at least one order, so their count is &ge; 1, and <em>nobody</em> is returned. The spec says every customer should "trivially qualify" when the menu is empty. The count idiom does <em>not</em> deliver that &mdash; it only sees customers who appear in <code>orders</code>. The double-<code>NOT-EXISTS</code> form, driven off a <code>customers</code> table, correctly returns everyone (the inner "for all" over an empty set is vacuously true). Worth naming this gap in an interview.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve relational division with <code>HAVING COUNT(DISTINCT key) = (SELECT COUNT(*) FROM divisor)</code> &mdash; the <code>DISTINCT</code> turns row counts into set coverage so duplicates can neither inflate nor exclude; know the double-<code>NOT-EXISTS</code> equivalent and that it, not count-matching, handles the vacuous empty-divisor case.</div>

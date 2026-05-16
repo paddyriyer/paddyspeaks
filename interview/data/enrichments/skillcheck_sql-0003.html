@@ -1,0 +1,61 @@
+<p>A product team wants to flag "sticky" users &mdash; anyone who has ever logged in on three or more <em>consecutive calendar days</em>. There is no built-in "consecutive run" operator, so the interviewer is probing whether you know the <strong>gaps-and-islands</strong> trick: the difference between a date and its row number is constant inside a run, which turns "consecutive" into a plain <code>GROUP BY</code>.</p>
+
+<h4>1. The source data &mdash; <code>login</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>login_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 / 01-02 / 01-03</td><td>a 3-day run &mdash; qualifies</td></tr>
+    <tr><td>1</td><td>2025-01-05</td><td>isolated, one day after a gap</td></tr>
+    <tr><td>2</td><td>2025-02-01 / 02-02</td><td>run of 2</td></tr>
+    <tr><td>2</td><td>2025-02-04 / 02-05</td><td>another run of 2 &mdash; longest streak still only 2</td></tr>
+    <tr><td>3</td><td>2025-03-10 &hellip; 03-13</td><td>a 4-day run &mdash; qualifies</td></tr>
+    <tr><td>4</td><td>2025-04-01</td><td>single login &mdash; streak of 1</td></tr>
+  </tbody>
+</table>
+<p>The traps: user 2 logs in on four days but never three <em>in a row</em> (a one-day gap splits it into 2+2), and user 4 has just one login. A correct query must reject both while accepting user 1, whose qualifying run sits alongside a separate isolated day.</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands via date minus row number</h4>
+<pre><code>WITH dt AS (
+  SELECT DISTINCT user_id, login_date::date AS d FROM login
+),
+grouped AS (
+  SELECT user_id, d,
+         d - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY d))::integer AS streak_key
+  FROM dt
+),
+streaks AS (
+  SELECT user_id, streak_key, COUNT(*) AS streak_len
+  FROM grouped
+  GROUP BY user_id, streak_key
+)
+SELECT DISTINCT user_id FROM streaks WHERE streak_len &gt;= 3 ORDER BY user_id;</code></pre>
+<p>The <code>dt</code> CTE de-duplicates dates per user. In <code>grouped</code>, each user's dates are numbered 1, 2, 3&hellip; by date order; subtracting that counter from the date yields <code>streak_key</code> &mdash; constant for every date in an unbroken run, because date and counter both step by exactly 1. <code>streaks</code> then counts dates per <code>streak_key</code>; any group of 3+ is a qualifying run.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>(why it qualifies)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jan 1&ndash;3 share one streak_key &rarr; streak_len 3</td></tr>
+    <tr><td>3</td><td>Mar 10&ndash;13 share one streak_key &rarr; streak_len 4</td></tr>
+  </tbody>
+</table>
+<p>Users 2 and 4 are correctly absent. User 2's four logins fall into two streak_keys (Feb 1&ndash;2 and Feb 4&ndash;5), each only length 2 &mdash; the one-day gap on Feb 3 shifts the row counter relative to the date, breaking the constant difference. User 4's single login is a streak of 1. User 1 qualifies on the Jan 1&ndash;3 island even though Jan 5 forms a separate length-1 island.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why "date minus row number" isolates runs</h5>
+<p>Walk a consecutive run: the dates increase by 1 each step, and <code>ROW_NUMBER</code> also increases by 1 each step. Their difference therefore stays <em>fixed</em> across the whole run. The instant there is a gap &mdash; a missing day &mdash; the date jumps by 2 or more while the row number still only advances by 1, so the difference changes and a new island begins. That difference is a synthetic key that is identical within a run and different between runs &mdash; exactly what <code>GROUP BY</code> needs.</p>
+
+<h5>The <code>DISTINCT</code> on dates is essential</h5>
+<p>If a user logs in twice on the same calendar day, two rows share a date but <code>ROW_NUMBER</code> still gives them different counters &mdash; so <code>date - rownum</code> differs, and the duplicate silently fractures the run. <code>SELECT DISTINCT user_id, login_date::date</code> in the first CTE collapses same-day logins to one row <em>before</em> numbering, so the counter advances once per distinct day. Skipping this is the single most common bug in gaps-and-islands solutions.</p>
+
+<h5>Why date arithmetic works &mdash; and the dialect catch</h5>
+<p>In PostgreSQL, <code>date - integer</code> yields a date, and <code>date_a - date_b</code> yields an integer number of days &mdash; clean arithmetic that makes this idiom terse. Other engines differ: SQL Server needs <code>DATEADD(day, -rn, d)</code>, and MySQL needs <code>DATE_SUB(d, INTERVAL rn DAY)</code>. The <em>technique</em> is universal; only the date-math syntax is dialect-specific. An alternative that sidesteps date math entirely is <code>DENSE_RANK() OVER (ORDER BY d)</code> as the counter, or <code>ROW_NUMBER</code> over a contiguous integer sequence.</p>
+
+<h5>Edge cases: single logins, same-day repeats, and "at least 3"</h5>
+<p>A user with one login forms a length-1 island and is correctly excluded by <code>&gt;= 3</code>. The threshold is inclusive &mdash; "at least 3 consecutive days" is <code>&gt;= 3</code>, not <code>&gt; 3</code>; a strict <code>&gt;</code> would demand four-day runs and wrongly drop user 1. Note also that the final <code>DISTINCT user_id</code> matters: a user could have several qualifying islands and would otherwise appear multiple times.</p>
+
+<h5>What to say next &mdash; weekly streaks and gap tolerance</h5>
+<p>Real "engagement streak" features rarely mean strictly back-to-back days. If the rule were "consecutive weeks", you would group by <code>date_trunc('week', d)</code> first. If a one-day lapse should be forgiven, the row-number trick no longer applies directly &mdash; you move to a comparison against <code>LAG(d)</code> with a tolerance, marking a new island only when the gap exceeds N days. Naming how the idiom generalises (and where it stops) is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "consecutive days" as a gaps-and-islands problem, key each run by <code>date - ROW_NUMBER()</code> which stays constant within an unbroken run, de-duplicate same-day logins <em>before</em> numbering, use an inclusive <code>&gt;= 3</code> threshold, and know the technique extends to weekly streaks or gap-tolerant runs via <code>LAG</code>.</div>

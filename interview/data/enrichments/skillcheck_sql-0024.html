@@ -1,0 +1,74 @@
+<p>A growth team wants the cohort of users who got off to a strong start: their <strong>first event was a signup</strong> and their <strong>second event happened within 24 hours</strong> of it &mdash; a proxy for activation. The interviewer is probing whether you can pin down the first and second events <em>per user</em> by timestamp order, then compare them, and whether you correctly exclude users who never produced a second event at all.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>id</th><th>user_id</th><th>event_type</th><th>ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>signup</td><td>2025-01-01 10:00</td><td>user 1 &mdash; signup first&hellip;</td></tr>
+    <tr><td>2</td><td>1</td><td>view</td><td>2025-01-01 11:00</td><td>&hellip;second event 1 h later &mdash; qualifies</td></tr>
+    <tr><td>3</td><td>2</td><td>view</td><td>2025-01-01 10:00</td><td>user 2 &mdash; first event is a <em>view</em>, not signup</td></tr>
+    <tr><td>4</td><td>2</td><td>signup</td><td>2025-01-01 11:00</td><td>signup comes second &mdash; disqualified</td></tr>
+    <tr><td>5</td><td>3</td><td>signup</td><td>2025-01-01 10:00</td><td>user 3 &mdash; signup first&hellip;</td></tr>
+    <tr><td>6</td><td>3</td><td>view</td><td>2025-01-03 11:00</td><td>&hellip;second event &gt; 24 h later &mdash; disqualified</td></tr>
+    <tr><td>7</td><td>4</td><td>signup</td><td>2025-01-01 10:00</td><td>user 4 &mdash; signup first&hellip;</td></tr>
+    <tr><td>8</td><td>4</td><td>cart</td><td>2025-01-02 10:00</td><td>&hellip;second event at <em>exactly</em> 24 h &mdash; boundary</td></tr>
+    <tr><td>9</td><td>5</td><td>signup</td><td>2025-01-01 10:00</td><td>user 5 &mdash; signup first, but <em>no second event</em></td></tr>
+  </tbody>
+</table>
+<p>The fixture is built around the traps: user 2's signup is second (disqualified), user 3's gap exceeds 24 h, user 4's gap is <em>exactly</em> 24 h (the boundary &mdash; the rule is "within 24 hours", so it qualifies), and user 5 has a signup but no second event at all.</p>
+
+<h4>2. The SQL &mdash; rank events per user, pivot the first two, compare</h4>
+<pre><code>WITH ordered AS (
+  SELECT
+    user_id,
+    event_type,
+    ts,
+    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts) AS rn
+  FROM event
+),
+first_two AS (
+  SELECT
+    user_id,
+    MAX(CASE WHEN rn=1 THEN event_type END) AS first_type,
+    MAX(CASE WHEN rn=1 THEN ts END) AS first_ts,
+    MAX(CASE WHEN rn=2 THEN ts END) AS second_ts
+  FROM ordered
+  WHERE rn &lt;= 2
+  GROUP BY user_id
+)
+SELECT user_id
+FROM first_two
+WHERE first_type = 'signup'
+  AND second_ts IS NOT NULL
+  AND EXTRACT(EPOCH FROM (second_ts::timestamp - first_ts::timestamp))/3600 &lt;= 24
+ORDER BY user_id;</code></pre>
+<p><code>ordered</code> numbers each user's events by timestamp. <code>first_two</code> collapses the first two into one row per user &mdash; <code>first_type</code>, <code>first_ts</code>, <code>second_ts</code>. The final filter keeps users whose first event was a signup and whose second event exists and falls within 24 hours.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>signup first, second event +1 h &rarr; qualifies</td></tr>
+    <tr><td>4</td><td>signup first, second event +exactly 24 h &rarr; <code>&lt;= 24</code> passes</td></tr>
+  </tbody>
+</table>
+<p>Only users 1 and 4 survive. User 2 fails <code>first_type = 'signup'</code> (their first event was a view). User 3 fails the 24-hour test. User 5 fails <code>second_ts IS NOT NULL</code> &mdash; there is no second event. User 4 is the boundary case and <em>passes</em> because the rule is inclusive.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> to identify "first" and "second"</h5>
+<p>"First" and "second" are positional, defined by timestamp order &mdash; not by the row's <code>id</code> and not by physical storage. <code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts)</code> assigns each user's events a strict 1, 2, 3&hellip; in chronological order. The <code>WHERE rn &lt;= 2</code> then narrows to just the two events that matter, before the comparison logic runs. This is the standard way to reach the k-th event per group.</p>
+
+<h5>The conditional-aggregation pivot &mdash; getting two rows side by side</h5>
+<p>The first and second events are two separate <em>rows</em>; to compare them you need them in one row. <code>MAX(CASE WHEN rn=1 THEN ...)</code> and <code>MAX(CASE WHEN rn=2 THEN ...)</code>, grouped by <code>user_id</code>, pivot them into columns. <code>MAX</code> is just the aggregate that survives the <code>GROUP BY</code> &mdash; within a user only one row has <code>rn=1</code>, so <code>MAX</code> simply returns its value (the others are NULL and ignored). The alternative is a self-join of <code>ordered</code> to itself on <code>rn=1</code> vs <code>rn=2</code>; the pivot is tidier.</p>
+
+<h5>The <code>second_ts IS NOT NULL</code> guard is the user-5 fix</h5>
+<p>User 5 has only a signup. In <code>first_two</code> their <code>second_ts</code> is NULL &mdash; there was no <code>rn=2</code> row. Without the explicit <code>second_ts IS NOT NULL</code> check, the time-difference expression would compute <code>NULL - first_ts</code>, the comparison would evaluate to <em>unknown</em>, and the <code>WHERE</code> would correctly drop the row anyway &mdash; but relying on that is fragile and unclear. Stating <code>IS NOT NULL</code> makes "must have a second event" an explicit, readable requirement rather than a side effect of three-valued logic.</p>
+
+<h5>The 24-hour boundary &mdash; <code>&lt;= 24</code> is deliberate</h5>
+<p>"Within 24 hours" includes the 24-hour mark, so the predicate is <code>&lt;= 24</code>, not <code>&lt; 24</code>. User 4's second event lands at <em>exactly</em> 24 hours &mdash; the test case that distinguishes the two operators. With <code>&lt;=</code> they qualify; with strict <code>&lt;</code> they would be wrongly excluded. Whenever a window is phrased "within X", confirm whether the endpoint counts and pick the operator to match &mdash; this is a classic off-by-one.</p>
+
+<h5>Dialect &mdash; timestamp difference and a <code>LEAD</code> alternative</h5>
+<p><code>ts</code> is <code>TEXT</code>, so the cast to <code>timestamp</code> is needed; <code>EXTRACT(EPOCH FROM interval)/3600</code> converts the gap to hours. SQL Server would write <code>DATEDIFF(HOUR, first_ts, second_ts)</code> (note <code>DATEDIFF</code> counts boundary crossings, which behaves differently &mdash; prefer comparing against an interval); MySQL has <code>TIMESTAMPDIFF</code>. A neat one-CTE variant skips the pivot entirely: keep only <code>rn=1</code> rows and use <code>LEAD(ts) OVER (PARTITION BY user_id ORDER BY ts)</code> to pull the second timestamp onto the first row directly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify "first" and "second" events with <code>ROW_NUMBER</code> ordered by timestamp, pivot them onto one row with conditional <code>MAX(CASE ...)</code>, explicitly guard <code>second_ts IS NOT NULL</code> so users with no second event are dropped clearly, and make the boundary operator <code>&lt;= 24</code> because "within 24 hours" includes the endpoint.</div>

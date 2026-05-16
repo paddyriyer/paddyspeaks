@@ -1,0 +1,58 @@
+<p>A product analytics team wants the two products that earn the most revenue <em>per unique buyer</em> &mdash; not raw revenue, but revenue normalised by how many distinct people bought. A product can gross a lot simply by having many customers; this metric surfaces the ones where each customer is worth the most. The interviewer is checking <code>COUNT(DISTINCT)</code> in a ratio and whether you handle the "previous year" window precisely.</p>
+
+<h4>1. The source data &mdash; <code>purchases</code></h4>
+<table>
+  <thead><tr><th>purchase_id</th><th>user_id</th><th>product_id</th><th>purchase_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>500</td><td>2025-06-01</td><td>$100</td><td>product 500, user 10</td></tr>
+    <tr><td>2</td><td>11</td><td>500</td><td>2025-07-01</td><td>$200</td><td>product 500, user 11</td></tr>
+    <tr><td>3</td><td>10</td><td>500</td><td>2025-08-01</td><td>$150</td><td>user 10 buys 500 again &mdash; repeat buyer</td></tr>
+    <tr><td>4</td><td>12</td><td>600</td><td>2025-06-15</td><td>$900</td><td>product 600, one big buyer</td></tr>
+    <tr><td>5</td><td>13</td><td>700</td><td>2025-09-01</td><td>$50</td><td>product 700, three different users</td></tr>
+    <tr><td>6</td><td>14</td><td>700</td><td>2025-09-02</td><td>$60</td><td></td></tr>
+    <tr><td>7</td><td>15</td><td>700</td><td>2025-09-03</td><td>$70</td><td>low revenue per user</td></tr>
+    <tr><td>8</td><td>16</td><td>800</td><td>2024-01-01</td><td>$9999</td><td>2024 &mdash; outside the date window</td></tr>
+  </tbody>
+</table>
+<p>Product 500 has a repeat buyer (user 10 appears twice) &mdash; the test of <code>COUNT(DISTINCT)</code>. Product 800's huge sale is dated 2024, outside the rolling window, and must be excluded.</p>
+
+<h4>2. The SQL &mdash; revenue divided by distinct buyers</h4>
+<pre><code>SELECT product_id,
+       SUM(amount) AS total_amount,
+       COUNT(DISTINCT user_id) AS unique_users,
+       SUM(amount)/COUNT(DISTINCT user_id) AS revenue_per_unique_user
+FROM purchases
+WHERE purchase_date &gt;= CURRENT_DATE - INTERVAL '1 year'
+GROUP BY product_id
+ORDER BY revenue_per_unique_user DESC
+LIMIT 2;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Evaluated with <code>CURRENT_DATE = 2026-05-16</code>, so the window keeps purchases on or after 2025-05-16:</p>
+<table>
+  <thead><tr><th>product_id</th><th>total_amount</th><th>unique_users</th><th>revenue_per_unique_user</th></tr></thead>
+  <tbody>
+    <tr><td>600</td><td>900</td><td>1</td><td>900.0000000000000000</td></tr>
+    <tr><td>500</td><td>450</td><td>2</td><td>225.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Product 600 wins: $900 from a single buyer. Product 500 grossed $450 across <em>two</em> distinct users (user 10's two purchases collapse to one) &mdash; $225 each. Product 700 grossed $180 from three users ($60 each) and misses the top 2. Product 800's $9999 is filtered out by the date window.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT user_id)</code> is the crux</h5>
+<p>The metric is revenue <em>per unique buyer</em>. <code>COUNT(user_id)</code> would count purchase rows, double-counting a repeat buyer &mdash; product 500 would show 3 "users" and a misleadingly low $150/user. <code>COUNT(DISTINCT user_id)</code> counts distinct people: 2. The whole question hinges on choosing the distinct count, and the repeat-buyer row exists precisely to catch a candidate who forgets it.</p>
+
+<h5>Integer vs numeric division &mdash; check the column types</h5>
+<p><code>SUM(amount)/COUNT(DISTINCT user_id)</code> is safe here because <code>amount</code> is numeric, so the division is numeric. But if <code>amount</code> were an integer column, <code>SUM</code> would be a <code>bigint</code> and <code>bigint / bigint</code> truncates &mdash; $450 / 2 would still be 225, but $451 / 2 would silently become 225, not 225.5. Defensive habit: write <code>SUM(amount) * 1.0 / COUNT(DISTINCT user_id)</code> or cast, so the ratio is always exact regardless of column type.</p>
+
+<h5>The single-buyer edge &mdash; division by one, and division by zero</h5>
+<p>Product 600 has exactly one unique buyer, so the ratio equals the revenue &mdash; fine. The risk is a denominator of <em>zero</em>: with this aggregation it cannot happen (a product only appears in a group if it has at least one purchase, hence at least one user). But the moment the query is changed &mdash; an outer join, a different grouping &mdash; a zero denominator becomes possible. Wrapping it as <code>/ NULLIF(COUNT(DISTINCT user_id), 0)</code> is cheap insurance and shows you anticipate the failure mode.</p>
+
+<h5>"Previous year" &mdash; rolling window vs calendar year</h5>
+<p><code>purchase_date &gt;= CURRENT_DATE - INTERVAL '1 year'</code> is a <em>rolling</em> trailing-12-months window: from 2026-05-16 it keeps everything back to 2025-05-16. But "previous year" often means the prior <em>calendar</em> year &mdash; all of 2025, i.e. <code>EXTRACT(YEAR FROM purchase_date) = EXTRACT(YEAR FROM CURRENT_DATE) - 1</code>. The two windows give different results (a purchase from 2025-03 is in the calendar year but not the rolling window). Always pin down which definition the stakeholder means &mdash; this ambiguity is a classic interview probe.</p>
+
+<h5>What to say next &mdash; <code>LIMIT</code> ties and the metric's blind spot</h5>
+<p><code>ORDER BY revenue_per_unique_user DESC LIMIT 2</code> is non-deterministic if products tie on the ratio &mdash; add a tie-breaker (<code>, total_amount DESC, product_id</code>) or use <code>RANK()</code> if all tied products should be returned. Deeper point: revenue-per-unique-user rewards niche products with one whale and punishes broad-reach products &mdash; product 600 "wins" on a sample of one customer. A senior answer flags this small-sample fragility and suggests a minimum-buyer threshold (<code>HAVING COUNT(DISTINCT user_id) &gt;= 10</code>) before ranking.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(DISTINCT user_id)</code> so repeat buyers are not double-counted, force numeric division and guard the denominator with <code>NULLIF</code>, and pin down "previous year" &mdash; rolling 12 months vs prior calendar year are different windows. Flag that a per-unique-user metric is fragile on tiny buyer counts.</div>

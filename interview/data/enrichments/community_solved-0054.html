@@ -1,0 +1,59 @@
+<p>A community dataset stores ranges as pairs &mdash; <code>start_range</code> and <code>end_range</code> &mdash; and asks you to <em>expand</em> them into the individual numbers they cover. Turning a compact range into one row per value is a routine ETL move: think of unpacking date ranges into days, or seat ranges into seats. The interviewer wants to see a number-generator &mdash; either a recursive CTE or a series function &mdash; rather than a hardcoded list.</p>
+
+<h4>1. The source data &mdash; <code>sequence_tab</code></h4>
+<table>
+  <thead><tr><th>start_range</th><th>end_range</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>covers 1,2,3</td></tr>
+    <tr><td>7</td><td>10</td><td>covers 7,8,9,10 &mdash; note the gap (4,5,6 absent)</td></tr>
+  </tbody>
+</table>
+<p>The two ranges do not touch &mdash; there is a <strong>gap between 3 and 7</strong>. That gap is the edge case: it exposes whether the query expands each range on its own or, as written, spans one continuous block from the global minimum to the global maximum.</p>
+
+<h4>2. The SQL &mdash; recursive CTE counting from <code>MIN</code> to <code>MAX</code></h4>
+<pre><code>WITH RECURSIVE bounds AS (
+  SELECT MIN(CASE WHEN start_range::text ~ '^-?[0-9]+$' THEN start_range::int END) AS lo,
+         MAX(CASE WHEN end_range::text   ~ '^-?[0-9]+$' THEN end_range::int   END) AS hi
+  FROM sequence_tab
+),
+rcte(n) AS (
+  SELECT lo FROM bounds
+  UNION ALL
+  SELECT n + 1 FROM rcte, bounds WHERE n &lt; hi
+)
+SELECT n FROM rcte;</code></pre>
+<p><code>bounds</code> collapses the table to one row holding the smallest start and the largest end. The recursive <code>rcte</code> then walks <code>lo, lo+1, lo+2, &hellip;</code> until it reaches <code>hi</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>n</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>from range (1,3)</td></tr>
+    <tr><td>2</td><td>&hellip;</td></tr>
+    <tr><td>3</td><td>end of range (1,3)</td></tr>
+    <tr><td>4</td><td>not in any stored range &mdash; spanned because lo..hi is continuous</td></tr>
+    <tr><td>5</td><td>not in any stored range</td></tr>
+    <tr><td>6</td><td>not in any stored range</td></tr>
+    <tr><td>7</td><td>from range (7,10)</td></tr>
+    <tr><td>8</td><td>&hellip;</td></tr>
+    <tr><td>9</td><td>&hellip;</td></tr>
+    <tr><td>10</td><td>end of range (7,10)</td></tr>
+  </tbody>
+</table>
+<p>The output is the unbroken sequence 1&hellip;10. Note 4, 5, 6 appear even though no stored range contains them &mdash; this query bridges <code>MIN(start)</code> to <code>MAX(end)</code>, it does not expand each range independently.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How a recursive CTE generates numbers</h5>
+<p>A recursive CTE has two arms joined by <code>UNION ALL</code>: an <em>anchor</em> (<code>SELECT lo FROM bounds</code> &mdash; the seed row) and a <em>recursive</em> arm (<code>SELECT n+1 ... WHERE n &lt; hi</code>) that feeds on the previous iteration's output. Each pass adds one row; the <code>WHERE</code> is the termination guard. Drop it and the recursion never stops &mdash; Postgres would eventually error or hang.</p>
+
+<h5>The gap behaviour &mdash; one block, not per-range expansion</h5>
+<p>This solution does <em>not</em> answer "expand each range" &mdash; it answers "list every integer from the overall lowest start to the overall highest end". With non-contiguous ranges it invents the in-between values (4, 5, 6). If the spec wants only numbers truly inside some stored range, expand each row instead: <code>SELECT t.start_range, gs FROM sequence_tab t, LATERAL generate_series(t.start_range::int, t.end_range::int) gs</code> &mdash; that skips the gap entirely. Knowing which interpretation the question wants is the senior judgement call.</p>
+
+<h5>The simpler Postgres idiom &mdash; <code>generate_series</code></h5>
+<p>For a single span, the recursive CTE is overkill: <code>SELECT generate_series(MIN(start_range::int), MAX(end_range::int)) FROM sequence_tab</code> produces the same 1&hellip;10 in one line. Recursive CTEs earn their keep for hierarchies and graph walks; for a plain integer run, <code>generate_series</code> is clearer and faster. Other dialects: SQL Server uses a recursive CTE (or <code>GENERATE_SERIES</code> in 2022+), Oracle <code>CONNECT BY LEVEL</code>, MySQL 8 a recursive CTE.</p>
+
+<h5>The TEXT-cast guard and recursion limits</h5>
+<p><code>start_range</code>/<code>end_range</code> are <code>TEXT</code>, so the <code>CASE ... ~ '^-?[0-9]+$'</code> regex validates each value is an integer before <code>::int</code> &mdash; a stray non-numeric string would otherwise abort the query. Also watch the blast radius: if <code>hi - lo</code> is huge, the CTE materialises that many rows. Postgres has no default recursion cap, so a bad <code>hi</code> can exhaust memory; production code adds a sanity bound like <code>WHERE n &lt; hi AND n &lt; lo + 1000000</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> note that this query bridges <code>MIN(start)</code>&hellip;<code>MAX(end)</code> as one block &mdash; it invents the gap values &mdash; and offer the per-range <code>LATERAL generate_series</code> expansion if the spec actually wants only stored values. For a single contiguous span, prefer plain <code>generate_series</code> over a recursive CTE.</div>

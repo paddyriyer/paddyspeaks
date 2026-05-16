@@ -1,0 +1,102 @@
+<p>A loyalty program wants to identify its genuine long-standing customers off a 2025-04-01 snapshot &mdash; not just anyone with old orders, but accounts with real <em>tenure</em>, <em>breadth</em> of active months, and a sustained <em>streak</em> of consecutive activity. The interviewer is probing two things: can you compute a "longest run of consecutive months" with the gaps-and-islands pattern, and can you stack a dozen conditional-aggregation buckets (Y1/Y2, quarterly, L28) without the windows overlapping or leaking.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order span</th><th>orders</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2023-03-15 &rarr; 2025-03-25</td><td>19</td><td>tenure 741d, 19 active months, 14-month streak &mdash; qualifies</td></tr>
+    <tr><td>2</td><td>2023-05-01 &rarr; 2025-03-15</td><td>4</td><td>long tenure but only 4 active months &mdash; fails months_active</td></tr>
+    <tr><td>3</td><td>2023-04-12 &rarr; 2025-03-28</td><td>23</td><td>tenure exactly 716d &mdash; fails the &ge; 730 boundary</td></tr>
+  </tbody>
+</table>
+<p>Customer 3 is the trap. It has 23 active months and a 15-month streak &mdash; clearly "loyal" by any intuition &mdash; but its first and last orders are 716 days apart, just shy of two full years. The <code>tenure_days &gt;= 730</code> filter correctly excludes it. Customer 2 fails the opposite way: two years of calendar span but only four months with any order.</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands streak plus stacked conditional aggregation</h4>
+<pre><code>WITH params AS (SELECT DATE '2025-04-01' AS snapshot),
+e AS (
+    SELECT o.customer_id, o.order_date, o.amount,
+           TO_CHAR(o.order_date, 'YYYY-MM') AS ym,
+           (p.snapshot - o.order_date) AS days_back
+    FROM orders o, params p
+),
+monthly AS (SELECT DISTINCT customer_id, ym FROM e),
+indexed AS (
+    SELECT customer_id, ym,
+           (EXTRACT(YEAR FROM TO_DATE(ym||'-01','YYYY-MM-DD'))::INT - 2000) * 12
+             + EXTRACT(MONTH FROM TO_DATE(ym||'-01','YYYY-MM-DD'))::INT AS m_idx,
+           ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY ym) AS rn
+    FROM monthly
+),
+islands AS (
+    SELECT customer_id, (m_idx - rn) AS island_id, COUNT(*) AS streak_len
+    FROM indexed GROUP BY customer_id, (m_idx - rn)
+),
+streak_per_cust AS (
+    SELECT customer_id, MAX(streak_len) AS longest_streak
+    FROM islands GROUP BY customer_id
+),
+idle_gaps AS (
+    SELECT customer_id,
+           m_idx - LAG(m_idx) OVER (PARTITION BY customer_id ORDER BY m_idx) - 1 AS idle_months
+    FROM indexed
+),
+idle_per_cust AS (
+    SELECT customer_id, COALESCE(MAX(idle_months), 0) AS max_idle_months
+    FROM idle_gaps GROUP BY customer_id
+),
+agg AS (
+    SELECT e.customer_id,
+           MIN(order_date) AS first_order_date, MAX(order_date) AS last_order_date,
+           COUNT(DISTINCT ym) AS months_active, COUNT(*) AS lifetime_orders,
+           ROUND(SUM(amount), 2) AS lifetime_spend,
+           (MAX(order_date) - MIN(order_date)) AS tenure_days,
+           ROUND(SUM(CASE WHEN days_back &lt; 365 THEN amount ELSE 0 END), 2) AS y1_spend,
+           ROUND(SUM(CASE WHEN days_back &gt;= 365 AND days_back &lt; 730 THEN amount ELSE 0 END), 2) AS y2_spend,
+           ROUND(SUM(CASE WHEN days_back &lt; 90 THEN amount ELSE 0 END), 2) AS q1_spend,
+           ROUND(SUM(CASE WHEN days_back &gt;= 90 AND days_back &lt; 180 THEN amount ELSE 0 END), 2) AS q2_spend,
+           ROUND(SUM(CASE WHEN days_back &gt;= 180 AND days_back &lt; 270 THEN amount ELSE 0 END), 2) AS q3_spend,
+           ROUND(SUM(CASE WHEN days_back &gt;= 270 AND days_back &lt; 365 THEN amount ELSE 0 END), 2) AS q4_spend,
+           ROUND(SUM(CASE WHEN days_back &lt; 28 THEN amount ELSE 0 END), 2) AS l28_spend,
+           ROUND(SUM(CASE WHEN days_back &gt;= 28 AND days_back &lt; 56 THEN amount ELSE 0 END), 2) AS prior_l28_spend
+    FROM e GROUP BY e.customer_id
+)
+SELECT a.customer_id, first_order_date, last_order_date,
+       months_active, longest_streak, max_idle_months,
+       lifetime_orders, lifetime_spend, y1_spend, y2_spend,
+       CASE WHEN y2_spend &gt; 0 THEN ROUND(100.0*(y1_spend - y2_spend)/y2_spend, 1) END AS yoy_growth_pct,
+       q1_spend, q2_spend, q3_spend, q4_spend, l28_spend, prior_l28_spend,
+       CASE WHEN prior_l28_spend &gt; 0 THEN ROUND(l28_spend/prior_l28_spend, 2) END AS l28_velocity,
+       DENSE_RANK() OVER (ORDER BY y1_spend DESC) AS loyalty_rank
+FROM agg a
+JOIN streak_per_cust sp ON sp.customer_id = a.customer_id
+JOIN idle_per_cust   ip ON ip.customer_id = a.customer_id
+WHERE tenure_days &gt;= 730 AND months_active &gt;= 12 AND longest_streak &gt;= 6
+ORDER BY y1_spend DESC, yoy_growth_pct DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>months_active</th><th>longest_streak</th><th>max_idle_months</th><th>tenure (implied)</th><th>y1_spend</th><th>y2_spend</th><th>yoy_growth_pct</th><th>l28_velocity</th><th>loyalty_rank</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>19</td><td>14</td><td>2</td><td>741 days</td><td>615.00</td><td>2100.00</td><td>-70.7</td><td>0.94</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Only customer 1 survives all three gates. Notice the loyalty paradox the report exposes: customer 1 <em>qualifies</em> as long-standing and loyal, yet its Y1 spend fell 70.7% versus Y2. "Loyal" and "growing" are different axes &mdash; this customer is tenured but decaying, and the side metrics (l28_velocity 0.94, max_idle 2) tell the retention team to act before the streak breaks.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The gaps-and-islands trick: <code>m_idx - rn</code></h5>
+<p>To find the longest run of <em>consecutive</em> calendar months, convert each year-month into a dense integer index (<code>m_idx</code> = year&times;12 + month) and number the distinct active months per customer with <code>ROW_NUMBER()</code> (<code>rn</code>). For any unbroken run, <code>m_idx</code> and <code>rn</code> both increase by exactly 1 each step, so their difference <code>m_idx - rn</code> stays constant. That constant becomes the island identifier; <code>GROUP BY (m_idx - rn)</code> then <code>MAX(COUNT(*))</code> gives the longest streak. A one-month gap bumps the difference and starts a new island. This is the canonical pattern and saying its name is the senior move.</p>
+
+<h5>Why <code>DISTINCT</code> on months is mandatory</h5>
+<p>The <code>monthly</code> CTE collapses orders to one row per (customer, month) <em>before</em> indexing. If you skip the <code>DISTINCT</code>, two orders in the same month each get a separate <code>rn</code>, the <code>m_idx - rn</code> arithmetic desynchronises, and the streak count is silently wrong. Streak logic operates on the calendar grid, not on raw transactions.</p>
+
+<h5>The quarterly buckets are rolling 90-day slices, not calendar quarters</h5>
+<p><code>q1_spend</code>&hellip;<code>q4_spend</code> are defined by <code>days_back</code> bands (0&ndash;89, 90&ndash;179, 180&ndash;269, 270&ndash;364) anchored on the snapshot. They are "the four quarters of the most recent rolling year", not Jan&ndash;Mar / Apr&ndash;Jun. The bands are half-open and non-overlapping by construction, so <code>q1+q2+q3+q4</code> exactly equals <code>y1_spend</code> &mdash; a useful invariant to assert. An interviewer may ask you to prove the bands cannot double-count; the answer is that every <code>&gt;=</code> lower bound equals the previous band's <code>&lt;</code> upper bound.</p>
+
+<h5><code>NULL</code> guards on the two ratios</h5>
+<p><code>yoy_growth_pct</code> and <code>l28_velocity</code> both divide, and both are wrapped in <code>CASE WHEN &hellip; &gt; 0</code>. A customer with no Y2 spend or no prior-L28 spend would otherwise trigger a division-by-zero error in Postgres (unlike some engines that return NULL). Returning <code>NULL</code> for "cannot be computed" is the correct, honest output &mdash; do not coalesce it to 0, which would falsely read as "flat".</p>
+
+<h5>Dialect note &mdash; the <code>2000</code> epoch and date math</h5>
+<p><code>m_idx</code> subtracts 2000 from the year purely to keep the integer small and readable; any fixed epoch works. <code>(MAX(order_date) - MIN(order_date))</code> yields an integer day count in Postgres; in SQL Server you would need <code>DATEDIFF(day, ...)</code> and in BigQuery <code>DATE_DIFF(..., DAY)</code>. <code>TO_CHAR(date,'YYYY-MM')</code> is the Postgres month key; SQLite uses <code>strftime('%Y-%m', ...)</code>. The streak logic itself is dialect-agnostic once you have an integer month index.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <code>m_idx - rn</code> gaps-and-islands pattern and explain why consecutive runs hold the difference constant, insist on <code>DISTINCT</code> months before indexing, clarify that the quarterly columns are rolling 90-day bands that sum to Y1, and guard every ratio against a zero denominator with an honest <code>NULL</code> rather than a misleading 0.</div>

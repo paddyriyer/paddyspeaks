@@ -1,0 +1,65 @@
+<p>A product team wants its strongest performers: products averaging at least 4 stars, ranked by total sales, with average rating and review count as tie-breakers. The interviewer is probing a clean two-step &mdash; aggregate per product in a CTE, then rank and filter &mdash; and whether you order your multi-key sort to match the stated priority.</p>
+
+<h4>1. The source data &mdash; <code>product_reviews</code></h4>
+<table>
+  <thead><tr><th>ProductID</th><th>ReviewID</th><th>ReviewRating</th><th>SaleAmount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>5</td><td>200</td></tr>
+    <tr><td>1</td><td>102</td><td>4</td><td>200</td></tr>
+    <tr><td>2</td><td>201</td><td>5</td><td>300</td></tr>
+    <tr><td>2</td><td>202</td><td>5</td><td>300</td></tr>
+    <tr><td>3</td><td>301</td><td>4</td><td>150</td></tr>
+    <tr><td>3</td><td>302</td><td>4</td><td>150</td></tr>
+    <tr><td>4</td><td>401</td><td>3</td><td>500</td></tr>
+    <tr><td>5</td><td>501</td><td>5</td><td>100</td></tr>
+    <tr><td>5</td><td>502</td><td>5</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Product 4 averages 3.0 &mdash; below the 4-star bar &mdash; so even with the largest single sale ($500) it must be filtered out. Products 2 and 5 <em>both</em> average a perfect 5.0, so the tie-breaker on total sales decides their order.</p>
+
+<h4>2. The SQL &mdash; aggregate in a CTE, then rank</h4>
+<pre><code>with t1 as (
+  select productid, avg(reviewrating) as avg_review,
+      count(reviewid) as review_count,
+      sum(saleamount) as total_sales
+  from product_reviews
+  group by productid
+)
+select productid,
+    avg_review,
+    review_count,
+    total_sales,
+    rank() over (order by total_sales desc, avg_review desc, review_count desc) as product_rank
+from t1
+where avg_review &gt;= 4;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>productid</th><th>avg_review</th><th>review_count</th><th>total_sales</th><th>product_rank</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>5.00</td><td>2</td><td>600</td><td>1</td></tr>
+    <tr><td>1</td><td>4.50</td><td>2</td><td>400</td><td>2</td></tr>
+    <tr><td>3</td><td>4.00</td><td>2</td><td>300</td><td>3</td></tr>
+    <tr><td>5</td><td>5.00</td><td>2</td><td>200</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Product 4 (avg 3.0) is correctly excluded despite its $500 sale. Products 2 and 5 tie on rating but rank 1 vs 4 &mdash; total sales ($600 vs $200) breaks the tie, exactly as the primary sort key dictates.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the CTE comes first</h5>
+<p>You cannot reference an aggregate alias like <code>avg_review</code> in a <code>WHERE</code> clause on the same query level &mdash; <code>WHERE</code> is evaluated before <code>GROUP BY</code> finishes. The <code>t1</code> CTE materialises the per-product aggregates, and the outer query then treats them as ordinary columns it can both filter (<code>WHERE avg_review &gt;= 4</code>) and rank. This is the standard "aggregate then post-process" shape.</p>
+
+<h5><code>WHERE</code> here is the right tool, not <code>HAVING</code></h5>
+<p>Because the filter runs in the <em>outer</em> query against an already-aggregated column, a plain <code>WHERE avg_review &gt;= 4</code> is correct and idiomatic. <code>HAVING AVG(reviewrating) &gt;= 4</code> would be the equivalent if you filtered inside the aggregating query itself. Both work; splitting aggregation and filtering across CTE boundaries keeps each step readable.</p>
+
+<h5>Filter-then-rank vs rank-then-filter &mdash; an important ordering choice</h5>
+<p>Here the <code>WHERE avg_review &gt;= 4</code> and the <code>RANK()</code> are in the same <code>SELECT</code>. SQL applies <code>WHERE</code> <em>before</em> window functions, so <code>RANK()</code> only sees the four qualifying products &mdash; product 4 never enters the ranking and consumes no rank number. If the spec wanted ranks assigned across <em>all</em> products and then the list trimmed to 4-star ones, you would rank in the CTE and filter outside it. The two readings give different rank numbers; confirm which the business wants.</p>
+
+<h5>Multi-key sort must mirror the stated priority</h5>
+<p><code>ORDER BY total_sales DESC, avg_review DESC, review_count DESC</code> encodes the priority literally: sales first, rating as the first tie-break, review count as the second. SQL evaluates keys left to right, so the order of the columns <em>is</em> the business rule. Swapping them would silently rank by the wrong primary metric.</p>
+
+<h5><code>RANK</code> and the genuine-tie caveat</h5>
+<p>If two products tie on <em>all three</em> keys, <code>RANK()</code> gives them the same number and skips the next (e.g. 1, 2, 2, 4). <code>DENSE_RANK()</code> would not skip. With distinct <code>total_sales</code> in this dataset no tie survives, but state which semantics the leaderboard wants. Also note <code>SUM(saleamount)</code> repeats the sale figure across a product's review rows &mdash; if <code>SaleAmount</code> is a per-product attribute rather than per-review, summing double-counts it; an interviewer will want you to question that schema.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a CTE so the aggregate can be filtered and ranked as a plain column, recognise that <code>WHERE</code> before the window means excluded products consume no rank number (vs rank-then-filter), order the multi-key sort to mirror the stated priority exactly, and question whether <code>SUM(saleamount)</code> double-counts a per-product value.</div>

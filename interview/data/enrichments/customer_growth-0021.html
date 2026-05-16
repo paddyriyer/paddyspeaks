@@ -1,0 +1,94 @@
+<p>A customer-success team tracks each account's RFM tier month by month and wants to know who is <em>stable</em> versus who <em>oscillates</em>: a customer who held Tier 1 for a year and just dropped is an urgent save; a customer who flickers between tiers every month is noise. The interviewer is probing the canonical "two ROW_NUMBERs" gaps-and-islands variant &mdash; the DIFFERENCE method &mdash; and then whether you can pivot the streak table into one summary row per customer covering current streak, longest streak, and total transition count.</p>
+
+<h4>1. The source data &mdash; <code>monthly_tier</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>ym</th><th>tier</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01 &hellip; 2024-12</td><td>Tier 1</td><td>12-month run, then&hellip;</td></tr>
+    <tr><td>1</td><td>2025-01 &hellip; 2025-03</td><td>Tier 2</td><td>recently dropped &mdash; at-risk</td></tr>
+    <tr><td>2</td><td>15 months</td><td>oscillates 1/2/3</td><td>longest run only 2 months</td></tr>
+    <tr><td>3</td><td>2024-06 &hellip; 2025-03</td><td>Tier 3&rarr;2&rarr;1</td><td>steady climb, three streaks</td></tr>
+    <tr><td>4</td><td>2025-01 &hellip; 2025-03</td><td>Tier 3&rarr;2</td><td>brand-new, only 3 months of history</td></tr>
+  </tbody>
+</table>
+<p>Customer 2 is the edge case: a tier change almost every month. Its longest streak is a mere 2 months and it has 10 distinct streaks &mdash; the DIFFERENCE method must produce many short islands rather than collapsing them.</p>
+
+<h4>2. The SQL &mdash; DIFFERENCE-method islands, then a per-customer summary</h4>
+<pre><code>WITH diffed AS (
+    -- streak_id = rn over full timeline  -  rn over (customer, tier) timeline.
+    -- Inside a same-tier run both march up in lock-step, so the spread is
+    -- constant; any tier change shifts it and opens a fresh streak.
+    SELECT customer_id, ym, tier,
+        ROW_NUMBER() OVER (PARTITION BY customer_id       ORDER BY ym) -
+        ROW_NUMBER() OVER (PARTITION BY customer_id, tier ORDER BY ym) AS streak_id
+    FROM monthly_tier
+),
+streaks AS (
+    SELECT customer_id, tier, streak_id,
+        COUNT(*) AS streak_months,
+        MIN(ym)  AS streak_start,
+        MAX(ym)  AS streak_end
+    FROM diffed
+    GROUP BY customer_id, tier, streak_id
+),
+longest AS (
+    SELECT customer_id,
+        tier          AS longest_tier,
+        streak_months AS longest_streak_months,
+        streak_start  AS longest_streak_start,
+        streak_end    AS longest_streak_end,
+        ROW_NUMBER() OVER (PARTITION BY customer_id
+                           ORDER BY streak_months DESC, streak_end DESC) AS rn
+    FROM streaks
+),
+current_streak AS (
+    SELECT customer_id,
+        tier          AS current_tier,
+        streak_months AS current_streak_months,
+        ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY streak_end DESC) AS rn
+    FROM streaks
+),
+streak_count AS (
+    SELECT customer_id, COUNT(*) AS total_distinct_streaks
+    FROM streaks GROUP BY customer_id
+)
+SELECT l.customer_id, c.current_tier, c.current_streak_months,
+    l.longest_tier, l.longest_streak_months,
+    l.longest_streak_start, l.longest_streak_end,
+    sc.total_distinct_streaks
+FROM longest l
+JOIN current_streak c ON c.customer_id = l.customer_id AND c.rn = 1
+JOIN streak_count   sc ON sc.customer_id = l.customer_id
+WHERE l.rn = 1
+ORDER BY l.longest_streak_months DESC, l.customer_id ASC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>current_tier</th><th>current_months</th><th>longest_tier</th><th>longest_months</th><th>longest_start</th><th>longest_end</th><th>total_streaks</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Tier 2</td><td>3</td><td>Tier 1</td><td>12</td><td>2024-01</td><td>2024-12</td><td>2</td></tr>
+    <tr><td>3</td><td>Tier 1</td><td>3</td><td>Tier 2</td><td>4</td><td>2024-09</td><td>2024-12</td><td>3</td></tr>
+    <tr><td>2</td><td>Tier 1</td><td>2</td><td>Tier 1</td><td>2</td><td>2025-02</td><td>2025-03</td><td>10</td></tr>
+    <tr><td>4</td><td>Tier 2</td><td>2</td><td>Tier 2</td><td>2</td><td>2025-02</td><td>2025-03</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 surfaces at the top: a 12-month Tier-1 streak that just broke &mdash; the headline at-risk account. Customer 2's row tells the opposite story: longest streak 2 months but <strong>10 distinct streaks</strong>, the unmistakable signature of an oscillator.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two ROW_NUMBERs identify a streak</h5>
+<p><code>rn_all</code> counts the customer's months 1, 2, 3&hellip; over their whole timeline. <code>rn_tier</code> counts months 1, 2, 3&hellip; but only within rows of the same tier. While the tier does not change, both counters advance by exactly 1 each month, so <code>rn_all - rn_tier</code> stays fixed &mdash; that fixed value is the streak key. When the tier changes, <code>rn_tier</code> restarts its own count (or jumps to a different per-tier sequence) while <code>rn_all</code> keeps going, so the difference shifts and a new streak begins. The key is only unique <em>within a (customer, tier)</em> pair, which is why <code>GROUP BY customer_id, tier, streak_id</code> needs all three columns.</p>
+
+<h5>String <code>ym</code> sorts correctly &mdash; but only because of zero-padding</h5>
+<p><code>ym</code> is <code>TEXT</code> in <code>'YYYY-MM'</code> form, and <code>ORDER BY ym</code> works because that format is lexicographically monotonic &mdash; <code>'2024-09' &lt; '2024-10' &lt; '2025-01'</code>. This silently breaks if anyone stores <code>'2024-9'</code> without the leading zero. A senior would either enforce the padded format with a check constraint or, more robustly, store a real <code>DATE</code> (the first of the month) and order on that.</p>
+
+<h5>The current streak: <code>ORDER BY streak_end DESC</code>, not by recency of any row</h5>
+<p>"Current streak" must be the streak containing the customer's most recent month. Picking <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY streak_end DESC)</code> and keeping <code>rn = 1</code> grabs exactly that streak. The longest streak uses a different ordering &mdash; <code>streak_months DESC</code> with <code>streak_end DESC</code> as a deterministic tie-break &mdash; so two streaks of equal length resolve to the more recent one rather than to an arbitrary row. Without that tie-break the result is non-deterministic.</p>
+
+<h5>Dialect notes &mdash; QUALIFY collapses the boilerplate</h5>
+<p>This query needs three "pick rn = 1" CTEs (<code>longest</code>, <code>current_streak</code>) plus an aggregate. In BigQuery, Snowflake, or DuckDB, <code>QUALIFY</code> lets you filter on a window result inline &mdash; <code>QUALIFY ROW_NUMBER() OVER (&hellip;) = 1</code> &mdash; eliminating the wrapping CTE entirely. PostgreSQL and SQLite have no <code>QUALIFY</code>, so the CTE-then-<code>WHERE</code> pattern shown here is the portable form. The DIFFERENCE method itself works identically everywhere.</p>
+
+<h5>What a senior says next</h5>
+<p>"<code>total_distinct_streaks</code> is effectively a stability score &mdash; one streak means a rock-solid account, ten means a flapper. I would expose <code>streak_months / total_distinct_streaks</code> as a single 'tier volatility' metric so success managers can sort their book by who actually needs intervention versus who just looks noisy."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the two ROW_NUMBERs march in lock-step within a same-tier run so their difference is the streak key, flag that the <code>'YYYY-MM'</code> string only orders correctly because it is zero-padded, give the longest-streak ROW_NUMBER a deterministic tie-break, and mention <code>QUALIFY</code> as the engine-specific way to drop the wrapper CTEs.</div>

@@ -1,0 +1,53 @@
+<p>A finance team wants a running total of revenue: <em>"for each sale, show the cumulative dollars booked up to and including that day."</em> The reference solution is a windowed <code>SUM</code> with <code>ORDER BY</code> &mdash; the canonical running-total pattern. The interviewer is probing whether you understand the <em>default window frame</em> and what it does when two sales share a date.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$120</td><td>sale</td></tr>
+    <tr><td>2026-04-01</td><td>$200</td><td>same-day second sale &mdash; a tie</td></tr>
+    <tr><td>2026-04-02</td><td>-$50</td><td>refund</td></tr>
+    <tr><td>2026-04-03</td><td>$300</td><td>sale</td></tr>
+    <tr><td>2026-04-04</td><td>$80</td><td>same-day pair</td></tr>
+    <tr><td>2026-04-04</td><td>$450</td><td>same-day pair</td></tr>
+  </tbody>
+</table>
+<p>Two dates (Apr 1 and Apr 4) carry <strong>two rows each</strong> &mdash; ties in the <code>ORDER BY</code> key. That tie is the whole interview: it decides what the cumulative value is on a multi-sale day.</p>
+
+<h4>2. The SQL &mdash; windowed SUM with ORDER BY</h4>
+<pre><code>SELECT sale_date, amount,
+  SUM(amount) OVER (ORDER BY sale_date) AS cumulative
+FROM sales;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th><th>cumulative</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$120</td><td>$320</td><td>both Apr-1 rows show 320, not 120</td></tr>
+    <tr><td>2026-04-01</td><td>$200</td><td>$320</td><td>tie &mdash; whole day summed</td></tr>
+    <tr><td>2026-04-02</td><td>-$50</td><td>$270</td><td>refund pulls the total down</td></tr>
+    <tr><td>2026-04-03</td><td>$300</td><td>$570</td><td>&nbsp;</td></tr>
+    <tr><td>2026-04-04</td><td>$80</td><td>$1100</td><td>both Apr-4 rows show 1100</td></tr>
+    <tr><td>2026-04-04</td><td>$450</td><td>$1100</td><td>tie collapses to one cumulative</td></tr>
+  </tbody>
+</table>
+<p>The surprise: the first Apr-1 row shows <code>$320</code>, not <code>$120</code>. Both same-date rows get the cumulative <em>through the end of that date</em>. Same on Apr 4 &mdash; both rows read $1100. That is the default frame at work.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The default frame is RANGE, not ROWS &mdash; this is the key insight</h5>
+<p>When a window has <code>ORDER BY</code> but no explicit frame clause, the implicit frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. Under <code>RANGE</code>, "current row" means <em>every peer that ties on the ORDER BY key</em>. So all rows sharing a <code>sale_date</code> see the same cumulative &mdash; the sum through that entire date. If you intended a strict row-by-row running total, you must say so:</p>
+<pre><code>SUM(amount) OVER (ORDER BY sale_date
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code></pre>
+<p>With <code>ROWS</code>, Apr 1 would read 120 then 320 &mdash; but the order between the two tied rows is then arbitrary unless you add a tiebreaker to <code>ORDER BY</code>.</p>
+
+<h5>RANGE is actually correct for a daily running total</h5>
+<p>If the deliverable is "end-of-day cumulative revenue," the default <code>RANGE</code> behaviour is exactly right &mdash; you genuinely want one cumulative number per day, and intra-day row order is meaningless. The senior move is to recognise that the "weird" 320 is a feature, not a bug, and to name it. Many candidates "fix" it with <code>ROWS</code> without realising they have just made the result order-dependent.</p>
+
+<h5>Make the order total when you need a row-level total</h5>
+<p>For a true per-transaction running balance, sort on something unique &mdash; a timestamp or an id &mdash; so no two rows tie: <code>OVER (ORDER BY sale_date, sale_id ROWS UNBOUNDED PRECEDING)</code>. A non-deterministic <code>ORDER BY</code> plus <code>ROWS</code> gives results that can change between runs.</p>
+
+<h5>NULL amounts and output ordering</h5>
+<p><code>SUM</code> skips NULL amounts, so a NULL <em>amount</em> leaves the cumulative flat for that row rather than blanking it. Separately, the query has no outer <code>ORDER BY</code> &mdash; the window orders the <em>computation</em>, but row display order is not guaranteed. Add a final <code>ORDER BY sale_date</code> if the consumer needs sorted output.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>ORDER BY</code> with no frame defaults to <code>RANGE UNBOUNDED PRECEDING</code>, so tied dates all show the end-of-day cumulative; explain that this is correct for a daily total but wrong for a per-row running balance, where you need <code>ROWS</code> plus a unique tiebreaker in <code>ORDER BY</code>.</div>

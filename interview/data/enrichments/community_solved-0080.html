@@ -1,0 +1,75 @@
+<p>A building-management system needs a comma-separated manifest of which passengers can safely board each lift without exceeding its weight capacity, filling lightest-first. The interviewer is probing two things: can you build a running total with a window function and string-aggregate per group &mdash; and, more subtly, do you know that the default window frame mishandles tied weights, silently corrupting the answer.</p>
+
+<h4>1. The source data &mdash; <code>lift_passengers</code> + <code>lift</code></h4>
+<table>
+  <thead><tr><th>passenger_name</th><th>weight_kg</th><th>lift_id</th><th>capacity_kg</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>50</td><td>1</td><td>200</td><td>lightest in lift 1</td></tr>
+    <tr><td>Bob</td><td>60</td><td>1</td><td>200</td><td>running 110</td></tr>
+    <tr><td>Carol</td><td>70</td><td>1</td><td>200</td><td>running 180 &mdash; still fits</td></tr>
+    <tr><td>Dave</td><td>90</td><td>1</td><td>200</td><td>running 270 &mdash; over capacity</td></tr>
+    <tr><td>Erin</td><td>80</td><td>2</td><td>150</td><td>tied weight</td></tr>
+    <tr><td>Frank</td><td>80</td><td>2</td><td>150</td><td>tied weight &mdash; the trap</td></tr>
+    <tr><td>Grace</td><td>120</td><td>3</td><td>100</td><td>single passenger, already over</td></tr>
+  </tbody>
+</table>
+<p>Erin and Frank both weigh exactly 80 kg in a 150 kg lift &mdash; one of them clearly fits. Whether the query agrees is the entire interview.</p>
+
+<h4>2. The SQL &mdash; running weight, then string-aggregate per lift</h4>
+<p><strong>Original solution (flagged &mdash; tie bug):</strong></p>
+<pre><code>WITH lift_cte AS (
+  SELECT lp.lift_id, lp.passenger_name, lp.weight_kg, l.capacity_kg,
+    SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC) AS running_weight,
+    CASE WHEN SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC) &gt; l.capacity_kg
+         THEN 1 ELSE 0 END AS flag
+  FROM lift_passengers lp
+  LEFT JOIN lift l ON lp.lift_id = l.id
+)
+SELECT lift_id,
+       STRING_AGG(passenger_name, ',' ORDER BY passenger_name ASC) AS passenger_list
+FROM lift_cte
+WHERE flag &lt;&gt; 1
+GROUP BY lift_id;</code></pre>
+<p>The window <code>SUM(weight_kg) OVER (ORDER BY weight_kg)</code> has <em>no frame clause</em>, so it defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. Under <code>RANGE</code>, all rows that <em>tie</em> on the order-by value are summed together as one peer group. Erin and Frank therefore both get <code>running_weight = 160</code> (80 + 80), both exceed 150, both are flagged, and lift 2 vanishes from the output &mdash; even though a single 80 kg passenger fits comfortably.</p>
+<p><strong>Corrected solution &mdash; explicit <code>ROWS</code> frame:</strong></p>
+<pre><code>WITH lift_cte AS (
+  SELECT lp.lift_id, lp.passenger_name, lp.weight_kg, l.capacity_kg,
+    SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_weight
+  FROM lift_passengers lp
+  LEFT JOIN lift l ON lp.lift_id = l.id
+)
+SELECT lift_id,
+       STRING_AGG(passenger_name, ',' ORDER BY weight_kg ASC) AS passenger_list
+FROM lift_cte
+WHERE running_weight &lt;= capacity_kg
+GROUP BY lift_id;</code></pre>
+
+<h4>3. The resulting analysis (corrected query)</h4>
+<table>
+  <thead><tr><th>lift_id</th><th>passenger_list</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice,Bob,Carol</td><td>50+60+70 = 180 &le; 200; Dave's 270 over</td></tr>
+    <tr><td>2</td><td>Erin</td><td>one 80 kg passenger fits in 150 kg &mdash; tie resolved</td></tr>
+  </tbody>
+</table>
+<p>The corrected query keeps lift 2 with Erin (80 kg, within 150 kg). Lift 3 is correctly absent &mdash; Grace alone is 120 kg against a 100 kg cap, so no one boards. The original query returned only lift 1.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug &mdash; <code>RANGE</code> vs <code>ROWS</code> framing</h5>
+<p>When an <code>OVER</code> clause has an <code>ORDER BY</code> but no frame, SQL defaults to <code>RANGE UNBOUNDED PRECEDING</code>. <code>RANGE</code> defines the window by <em>value</em>: every row sharing the current order-by value is inside the frame together. So a running <code>SUM</code> ordered by <code>weight_kg</code> gives all tied-weight rows the <em>same</em> cumulative total &mdash; useless for a greedy lightest-first fill. <code>ROWS</code> defines the window by <em>position</em>: each row sees itself and the rows physically before it, so a tie still advances the total one passenger at a time. For any running-total-with-a-cutoff problem, write <code>ROWS</code> explicitly.</p>
+
+<h5>The greedy-fill semantics &mdash; and its limit</h5>
+<p>Ordering by ascending weight and cutting off at the first over-capacity row implements a greedy "pack the lightest passengers" heuristic. That maximises <em>headcount</em>, which is the natural reading of the question. It does <em>not</em> maximise total weight carried, and it is not a true knapsack optimum &mdash; worth stating so the interviewer knows you chose the heuristic deliberately rather than missing the optimisation problem.</p>
+
+<h5>Sort the output list by weight, not by name</h5>
+<p>The question explicitly says the passenger list must be ordered by increasing weight. The original <code>STRING_AGG(passenger_name, ',' ORDER BY passenger_name)</code> sorts alphabetically &mdash; a second, quieter deviation from the spec. The corrected query uses <code>ORDER BY weight_kg</code> inside <code>STRING_AGG</code> so the manifest reads lightest-to-heaviest as required. <code>STRING_AGG</code> is Postgres syntax; MySQL spells it <code>GROUP_CONCAT</code>, Oracle <code>LISTAGG</code>, SQL Server <code>STRING_AGG</code> (with <code>WITHIN GROUP</code>).</p>
+
+<h5>The <code>LEFT JOIN</code> and the NULL-capacity trap</h5>
+<p><code>LEFT JOIN lift</code> keeps passengers even if their <code>lift_id</code> has no matching lift row &mdash; but then <code>capacity_kg</code> is <code>NULL</code>, and <code>running_weight &lt;= NULL</code> is unknown, so every such passenger is dropped. That may or may not be intended. If an unknown lift should be treated as an error, an <code>INNER JOIN</code> makes the assumption explicit; if it should never happen, assert it.</p>
+
+<h5>What to say next &mdash; the cutoff must be monotonic</h5>
+<p>Filtering on <code>running_weight &lt;= capacity</code> only works because the running total is monotonically increasing &mdash; once you cross the cap you never come back under it, so "keep rows under the cap" and "keep a contiguous prefix" coincide. Point this out: it is why a simple <code>WHERE</code> suffices and you do not need to find the cutoff row and slice. If weights could be negative (refunds, credits in the analogous money problem), that invariant breaks and you would need <code>row-number &le; cutoff</code> logic instead.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that a frame-less <code>SUM() OVER (ORDER BY weight)</code> uses <code>RANGE</code> and double-counts tied weights &mdash; fix it with an explicit <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. Then honour the spec's weight ordering inside <code>STRING_AGG</code>, and note the greedy prefix only works because the running total is monotonic.</div>

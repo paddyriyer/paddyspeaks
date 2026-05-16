@@ -1,0 +1,58 @@
+<p>A merchandising analyst wants two contribution metrics for every product at once: <em>"what share of revenue does each product hold within its segment, and within its category?"</em> The interviewer is probing whether you can compute two independent group-totals in a single pass with window aggregates &mdash; without two self-joins or two separate <code>GROUP BY</code> queries stitched back together.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>segment</th><th>category</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>jeans</td><td>mens</td><td>1000</td></tr>
+    <tr><td>2</td><td>jeans</td><td>mens</td><td>2000</td></tr>
+    <tr><td>3</td><td>shirts</td><td>mens</td><td>500</td></tr>
+    <tr><td>4</td><td>shirts</td><td>mens</td><td>1500</td></tr>
+    <tr><td>5</td><td>tops</td><td>womens</td><td>1500</td></tr>
+    <tr><td>6</td><td>tops</td><td>womens</td><td>2500</td></tr>
+    <tr><td>7</td><td>jeans</td><td>womens</td><td>1000</td></tr>
+  </tbody>
+</table>
+<p>The crucial edge case: <strong>segment "jeans" spans two categories</strong> &mdash; mens (products 1, 2) and womens (product 7). Segment and category are <em>crossing</em> groupings, not nested. A product's segment-share and category-share have different denominators.</p>
+
+<h4>2. The SQL &mdash; two window aggregates, one scan</h4>
+<pre><code>SELECT product_id, segment, category, revenue,
+       ROUND(100.0 * revenue / SUM(revenue) OVER (PARTITION BY segment)::numeric, 2) AS pct_of_segment,
+       ROUND(100.0 * revenue / SUM(revenue) OVER (PARTITION BY category)::numeric, 2) AS pct_of_category
+FROM sales
+ORDER BY category, segment, product_id;</code></pre>
+<p>Each <code>SUM(revenue) OVER (PARTITION BY &hellip;)</code> computes a group total <em>without collapsing rows</em> &mdash; every product row keeps its detail and also sees its segment total and its category total. The product's revenue divided by each total gives the two shares.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>segment</th><th>category</th><th>revenue</th><th>pct_of_segment</th><th>pct_of_category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>jeans</td><td>mens</td><td>1000</td><td>25.00</td><td>20.00</td></tr>
+    <tr><td>2</td><td>jeans</td><td>mens</td><td>2000</td><td>50.00</td><td>40.00</td></tr>
+    <tr><td>3</td><td>shirts</td><td>mens</td><td>500</td><td>25.00</td><td>10.00</td></tr>
+    <tr><td>4</td><td>shirts</td><td>mens</td><td>1500</td><td>75.00</td><td>30.00</td></tr>
+    <tr><td>7</td><td>jeans</td><td>womens</td><td>1000</td><td>25.00</td><td>20.00</td></tr>
+    <tr><td>5</td><td>tops</td><td>womens</td><td>1500</td><td>37.50</td><td>30.00</td></tr>
+    <tr><td>6</td><td>tops</td><td>womens</td><td>2500</td><td>62.50</td><td>30.00</td></tr>
+  </tbody>
+</table>
+<p>Product 1's segment total is <strong>4000</strong> &mdash; the whole "jeans" segment (1000 + 2000 + 1000), including product 7 from a different category &mdash; so its segment share is 1000/4000 = 25%. Its category total is 5000 (all of "mens"), giving 20%. The two denominators genuinely differ because the groupings cross.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why window aggregates and not <code>GROUP BY</code></h5>
+<p>A plain <code>GROUP BY segment</code> would collapse the jeans rows into one and lose <code>product_id</code> &mdash; you cannot then attach the total back to each product without a join. <code>SUM(...) OVER (PARTITION BY ...)</code> is the right tool precisely because it computes the group total <em>and keeps every detail row</em>. Two partitions, two totals, one table scan &mdash; no self-join, no stitching.</p>
+
+<h5>Segment and category are crossing, not nested &mdash; the conceptual trap</h5>
+<p>It is tempting to assume each segment lives inside one category. Here "jeans" appears under both mens and womens. <code>PARTITION BY segment</code> therefore pools all jeans regardless of category, and the segment-share denominator (4000) is <em>not</em> the sum of any single category. If the business actually meant "share within segment-and-category", the partition would be <code>PARTITION BY segment, category</code> &mdash; a different number. Confirm which grouping the stakeholder means; the column name alone is the literal answer.</p>
+
+<h5>Operator precedence in the percentage expression</h5>
+<p><code>100.0 * revenue / SUM(...) OVER (...)::numeric</code> evaluates left-to-right for equal-precedence <code>*</code> and <code>/</code>: <code>(100.0 * revenue) / total</code> &mdash; correct. The <code>::numeric</code> cast binds tightly to the <code>SUM(...) OVER (...)</code> immediately before it. Using the literal <code>100.0</code> (not <code>100</code>) forces numeric arithmetic so the division does not truncate; with an integer <code>100</code> and integer revenue you would risk integer division flooring the share to 0.</p>
+
+<h5>Division-by-zero and NULL revenue</h5>
+<p>If a partition's revenue summed to 0 (every product free, or all-NULL revenue), the division raises <em>division by zero</em>. Guard with <code>NULLIF(SUM(revenue) OVER (...), 0)</code> &mdash; that turns a zero denominator into NULL, so the share becomes NULL rather than erroring. Separately, <code>SUM</code> skips NULL revenues, so a NULL-revenue product contributes nothing to the total and its own share is NULL &mdash; usually fine, but state it.</p>
+
+<h5>Dialect notes</h5>
+<p>Window aggregates with <code>PARTITION BY</code> are ANSI SQL and work in PostgreSQL, SQL Server, Oracle, Snowflake, BigQuery, and MySQL 8+. Pre-8.0 MySQL had no window functions &mdash; the fallback there is a join to two derived tables of group totals (<code>GROUP BY segment</code> and <code>GROUP BY category</code>), which is more code and more scans for the same result.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute both group totals with <code>SUM(revenue) OVER (PARTITION BY ...)</code> in a single scan, recognise that segment and category are <em>crossing</em> groupings so their denominators legitimately differ, force numeric division with a <code>100.0</code> literal, and guard the denominator with <code>NULLIF(..., 0)</code> against an all-zero partition.</div>

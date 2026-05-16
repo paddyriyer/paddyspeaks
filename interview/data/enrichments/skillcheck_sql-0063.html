@@ -1,0 +1,64 @@
+<p>A subscriptions team wants to find loyal customers: <em>"who ordered in at least three consecutive calendar months?"</em> Jan&ndash;Feb&ndash;Mar qualifies; Jan, Mar, May does not. The interviewer is probing the <strong>gaps-and-islands</strong> technique &mdash; identifying runs of consecutive values, the canonical hard SQL pattern that has no single built-in.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order months (distinct)</th><th>longest streak</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jan, Feb, Mar 2025</td><td>3 &rarr; qualifies</td></tr>
+    <tr><td>2</td><td>Jan, Feb, [gap], Apr, May</td><td>2 then 2 &rarr; fails</td></tr>
+    <tr><td>3</td><td>Jan, Mar, May 2025</td><td>1, 1, 1 &rarr; fails</td></tr>
+    <tr><td>4</td><td>Jul, Aug, Sep, Oct 2025</td><td>4 &rarr; qualifies</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are deliberate. Customer 2 has <em>two</em> separate 2-month runs &mdash; neither reaches 3, and they must not be added together. Customer 1 lands exactly on the threshold. Multiple orders in the same month must collapse to one (handled by <code>DISTINCT</code>).</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands by date offset</h4>
+<pre><code>WITH months AS (
+  SELECT DISTINCT customer_id,
+         date_trunc('month', order_date)::date AS m
+  FROM orders
+),
+numbered AS (
+  SELECT customer_id, m,
+         (m - (ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY m) || ' months')::interval)::date AS streak_key
+  FROM numbered_input
+),
+streaks AS (
+  SELECT customer_id, streak_key, COUNT(*) AS streak_len
+  FROM numbered
+  GROUP BY customer_id, streak_key
+)
+SELECT DISTINCT customer_id
+FROM streaks
+WHERE streak_len &gt;= 3
+ORDER BY customer_id;</code></pre>
+<p>(In the actual solution the second CTE reads <code>FROM months</code>.) Distinct order-months are numbered 1, 2, 3&hellip; per customer. Subtracting <em>that many months</em> from each month value makes every month inside one consecutive run collapse to the <em>same</em> anchor date &mdash; the <code>streak_key</code>. Grouping by it counts each run's length.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jan/Feb/Mar collapse to one streak_key, length 3 &mdash; qualifies</td></tr>
+    <tr><td>4</td><td>Jul&ndash;Oct collapse to one streak_key, length 4 &mdash; qualifies</td></tr>
+  </tbody>
+</table>
+<p>Customers 2 and 3 are <strong>absent</strong>. Customer 2's two runs (Jan&ndash;Feb, Apr&ndash;May) each get a <em>different</em> <code>streak_key</code> and a length of 2 &mdash; below the threshold, and correctly not summed. Customer 3's three isolated months produce three distinct keys, each length 1.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The core trick: row number as a "consecutiveness ruler"</h5>
+<p>If months are truly consecutive, they advance by exactly one month per step &mdash; and so does <code>ROW_NUMBER()</code>. Subtract the row number (as months) from the month value and every member of a consecutive run maps to the <em>same</em> constant: month and counter move in lockstep, so their difference is invariant within a run. A gap makes the month jump ahead while the counter does not, shifting the difference &mdash; a new run, a new key. Grouping by that difference <em>is</em> the island detection.</p>
+
+<h5>Why <code>DISTINCT</code> on months is essential first</h5>
+<p>Two orders in the same month would otherwise be numbered as two consecutive steps, fabricating a streak from a single month. The first CTE does <code>SELECT DISTINCT customer_id, date_trunc('month', order_date)</code> so each customer/month appears once before numbering. Collapsing to monthly granularity up front is what makes "consecutive months" &mdash; rather than "consecutive orders" &mdash; the thing being measured.</p>
+
+<h5>Why the offset is in months, not days</h5>
+<p>Months have unequal lengths, so you cannot subtract a fixed number of days. The expression <code>(ROW_NUMBER() || ' months')::interval</code> builds a genuine month interval (<code>'3 months'::interval</code>) and subtracts that. Because every <code>m</code> is already the first of a month (from <code>date_trunc</code>), subtracting whole-month intervals keeps the anchor on a clean month boundary and the lockstep logic exact regardless of February or 31-day months.</p>
+
+<h5>Why <code>SELECT DISTINCT</code> at the end</h5>
+<p>A customer with two qualifying runs (say Jan&ndash;Mar and Jul&ndash;Oct) would produce two rows in <code>streaks</code> with <code>streak_len &gt;= 3</code>. The question wants the customer listed once, so the final <code>SELECT DISTINCT customer_id</code> deduplicates. Forgetting it would list such a customer twice &mdash; a subtle correctness bug that only shows up for customers with multiple long streaks.</p>
+
+<h5>The modern alternative &mdash; and why this form still matters</h5>
+<p>This is the classic "row-number difference" gaps-and-islands solution. A more readable variant uses <code>LAG</code> to flag where a new island starts, then a running <code>SUM</code> of those flags as a group id. Either is fine; both beat any attempt to do this with self-joins. Knowing the technique by name &mdash; "gaps and islands" &mdash; and that no engine has a built-in for consecutive-run detection is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "consecutive months" as a gaps-and-islands problem &mdash; collapse to distinct months first, then subtract a per-customer <code>ROW_NUMBER()</code> (as a month interval) so every month in a run shares an anchor key, group to measure run length, and <code>SELECT DISTINCT</code> at the end so a customer with two long streaks is listed once.</div>

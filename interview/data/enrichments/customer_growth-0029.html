@@ -1,0 +1,73 @@
+<p>A merchandising team wants each customer's "go-to" products &mdash; their top 3 by total spend &mdash; to drive personalised recommendations. The interviewer is probing two things: the standard "rank then filter" pattern (a window function cannot be filtered in <code>WHERE</code>, so it must be wrapped in a CTE), and whether you know the modern <code>QUALIFY</code> shortcut and which engines support it. The ranking-function choice &mdash; <code>DENSE_RANK</code> here &mdash; quietly decides how ties at the boundary behave.</p>
+
+<h4>1. The source data &mdash; <code>order_items</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>product_id</th><th>qty</th><th>unit_price</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>101</td><td>2</td><td>30.00</td><td>product 101, order 1</td></tr>
+    <tr><td>2</td><td>1</td><td>101</td><td>1</td><td>30.00</td><td>product 101 again &mdash; spend must sum across orders</td></tr>
+    <tr><td>3</td><td>1</td><td>102</td><td>1</td><td>80.00</td><td>$80</td></tr>
+    <tr><td>4</td><td>1</td><td>103</td><td>3</td><td>15.00</td><td>$45 &mdash; wins rank 3</td></tr>
+    <tr><td>6</td><td>1</td><td>105</td><td>1</td><td>40.00</td><td>$40 &mdash; rank 4, just misses the cut</td></tr>
+    <tr><td>7&ndash;8</td><td>2</td><td>201</td><td>2,1</td><td>50.00</td><td>customer 2, product 201 spread over two orders</td></tr>
+  </tbody>
+</table>
+<p>The edge case is customer 1's products 103 ($45) and 105 ($40): close in spend but distinct, so 103 takes rank 3 and 105 lands at rank 4 and is excluded. Product 101 also appears in two separate order rows &mdash; the per-product spend must aggregate before ranking, or the same product would be ranked twice.</p>
+
+<h4>2. The SQL &mdash; top-3 per customer via DENSE_RANK + WHERE</h4>
+<pre><code>WITH per_product AS (
+    SELECT customer_id, product_id,
+           ROUND(SUM(qty * unit_price), 2) AS total_spend
+    FROM order_items
+    GROUP BY customer_id, product_id
+),
+ranked AS (
+    SELECT customer_id, product_id, total_spend,
+           DENSE_RANK() OVER (PARTITION BY customer_id
+                              ORDER BY total_spend DESC) AS rk
+    FROM per_product
+)
+SELECT customer_id, product_id, total_spend, rk
+FROM ranked
+WHERE rk &lt;= 3
+ORDER BY customer_id ASC, rk ASC;</code></pre>
+<p>The <code>QUALIFY</code> equivalent collapses the <code>ranked</code> CTE entirely &mdash; on engines that support it (BigQuery, Snowflake, DuckDB, Databricks):</p>
+<pre><code>SELECT customer_id, product_id, total_spend,
+       DENSE_RANK() OVER (PARTITION BY customer_id
+                          ORDER BY total_spend DESC) AS rk
+FROM per_product
+QUALIFY rk &lt;= 3
+ORDER BY customer_id, rk;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>product_id</th><th>total_spend</th><th>rk</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>90.00</td><td>1</td><td>2&times;30 + 1&times;30 summed across orders</td></tr>
+    <tr><td>1</td><td>102</td><td>80.00</td><td>2</td><td></td></tr>
+    <tr><td>1</td><td>103</td><td>45.00</td><td>3</td><td>edges out product 105</td></tr>
+    <tr><td>2</td><td>201</td><td>150.00</td><td>1</td><td>2&times;50 + 1&times;50 summed across orders</td></tr>
+    <tr><td>2</td><td>202</td><td>100.00</td><td>2</td><td></td></tr>
+    <tr><td>2</td><td>204</td><td>50.00</td><td>3</td><td>product 203 ($40) drops to rank 4</td></tr>
+  </tbody>
+</table>
+<p>Six rows &mdash; three per customer. Customer 1's product 105 ($40) and customer 2's product 203 ($40) both finish at rank 4 and are correctly excluded by <code>WHERE rk &lt;= 3</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the window function must be wrapped in a CTE</h5>
+<p>Window functions are evaluated <em>after</em> the <code>WHERE</code> clause &mdash; that is fixed by SQL's logical processing order (<code>FROM</code> &rarr; <code>WHERE</code> &rarr; <code>GROUP BY</code> &rarr; <code>SELECT</code>/window &rarr; <code>ORDER BY</code>). So <code>WHERE rk &lt;= 3</code> in the same query that computes <code>rk</code> fails: <code>rk</code> does not exist yet when <code>WHERE</code> runs. The fix is to compute the rank in an inner CTE (or subquery), then filter in the outer query where <code>rk</code> is now an ordinary column. This rank-then-filter pattern is one of the most common window-function idioms.</p>
+
+<h5><code>QUALIFY</code> &mdash; the purpose-built shortcut, and its reach</h5>
+<p><code>QUALIFY</code> is to window functions what <code>HAVING</code> is to aggregates: it filters on a window result without a wrapping layer. <code>QUALIFY rk &lt;= 3</code> reads cleaner and lets the optimiser see the intent directly. But it is <em>not</em> standard SQL &mdash; it exists in BigQuery, Snowflake, DuckDB, Databricks, and Teradata, but <strong>not</strong> in PostgreSQL, MySQL, SQLite, SQL Server, or Oracle. On those, the CTE-plus-<code>WHERE</code> form is the portable answer. A senior names both and states the support boundary.</p>
+
+<h5>DENSE_RANK vs RANK vs ROW_NUMBER &mdash; the tie behaviour decides the result</h5>
+<p>All three would return 1, 2, 3 on this tie-free data, but they diverge the moment two products share a spend. Suppose two products tie for 2nd at $80: <code>DENSE_RANK</code> gives 1, 2, 2, 3 &mdash; so <code>rk &lt;= 3</code> returns <em>four</em> products. <code>RANK</code> gives 1, 2, 2, 4 &mdash; <code>rk &lt;= 3</code> returns three, and the 4th product is excluded by the skipped rank. <code>ROW_NUMBER</code> gives 1, 2, 3, 4 &mdash; exactly three, but it breaks the tie <em>arbitrarily</em> by physical row order, so which tied product makes the cut is non-deterministic. The right pick depends on the product question: "top 3 distinct spend levels" wants <code>DENSE_RANK</code>; "at most 3 rows, ties broken deterministically" wants <code>ROW_NUMBER</code> with an explicit tie-breaker like <code>ORDER BY total_spend DESC, product_id</code>.</p>
+
+<h5>Aggregate before you rank</h5>
+<p>Product 101 appears in two order rows. Ranking <code>order_items</code> directly would treat each row as a separate contender and rank product 101 twice. The <code>per_product</code> CTE collapses to one row per <code>(customer_id, product_id)</code> with <code>SUM(qty * unit_price)</code> first &mdash; grain correctness before ranking. A common mistake is to skip this step and rank raw line items, producing duplicate products in the "top 3."</p>
+
+<h5>What a senior says next</h5>
+<p>"I would confirm the tie policy with the product owner before shipping. If two products genuinely tie for the 3rd slot, do we show both (a 4-row result with <code>DENSE_RANK</code>), or do we force exactly 3 and break the tie by recency or margin? That is a business decision, and the ranking-function choice is just how we encode the answer."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that window functions run after <code>WHERE</code> so rank-then-filter needs a CTE, present <code>QUALIFY</code> as the shortcut while stating it is absent from Postgres/MySQL/SQLite, walk through how <code>DENSE_RANK</code>/<code>RANK</code>/<code>ROW_NUMBER</code> each return a different row count at a boundary tie, and aggregate to per-product grain before ranking.</div>

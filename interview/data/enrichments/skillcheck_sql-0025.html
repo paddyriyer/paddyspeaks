@@ -1,0 +1,61 @@
+<p>An academic-analytics team wants to flag <strong>high-variance students</strong> &mdash; those whose best exam score sits at least 20 points above their worst, a sign of uneven performance across subjects. The interviewer is probing the bread-and-butter of aggregation: <code>GROUP BY</code> with <code>MIN</code>/<code>MAX</code>, and crucially the difference between <code>WHERE</code> and <code>HAVING</code> when the filter is on an aggregate.</p>
+
+<h4>1. The source data &mdash; <code>score</code></h4>
+<table>
+  <thead><tr><th>student</th><th>exam</th><th>points</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>math</td><td>50</td><td>Alice &mdash; min</td></tr>
+    <tr><td>Alice</td><td>english</td><td>95</td><td>Alice &mdash; max; spread 45</td></tr>
+    <tr><td>Bob</td><td>math</td><td>80</td><td>Bob &mdash; max</td></tr>
+    <tr><td>Bob</td><td>english</td><td>75</td><td>Bob &mdash; min; spread only 5 &rarr; excluded</td></tr>
+    <tr><td>Cara</td><td>math</td><td>30</td><td>Cara &mdash; min</td></tr>
+    <tr><td>Cara</td><td>english</td><td>95</td><td>Cara &mdash; max; spread 65</td></tr>
+    <tr><td>Cara</td><td>science</td><td>85</td><td>Cara &mdash; three exams</td></tr>
+    <tr><td>Dan</td><td>math</td><td>60</td><td>Dan &mdash; single exam; min = max, spread 0</td></tr>
+    <tr><td>Eve</td><td>math</td><td>40</td><td>Eve &mdash; min</td></tr>
+    <tr><td>Eve</td><td>english</td><td>85</td><td>Eve &mdash; max; spread 45 (ties Alice)</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases. Bob's spread is only 5 &mdash; he must be filtered out. Dan has a <em>single</em> exam, so his min equals his max and spread is 0 &mdash; also excluded. And Alice and Eve both have a spread of exactly 45 &mdash; a tie in the <code>ORDER BY spread DESC</code>.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY</code> with <code>HAVING</code> on the spread</h4>
+<pre><code>SELECT
+  student,
+  MIN(points) AS min_pts,
+  MAX(points) AS max_pts,
+  MAX(points) - MIN(points) AS spread
+FROM score
+GROUP BY student
+HAVING MAX(points) - MIN(points) &gt;= 20
+ORDER BY spread DESC;</code></pre>
+<p><code>GROUP BY student</code> collapses each student's exams into one row; <code>MIN</code> and <code>MAX</code> find their worst and best scores. <code>HAVING</code> filters those grouped rows, keeping only students whose <code>MAX - MIN</code> is at least 20. <code>ORDER BY spread DESC</code> ranks the survivors widest-first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>student</th><th>min_pts</th><th>max_pts</th><th>spread</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Cara</td><td>30</td><td>95</td><td>65</td><td>widest spread</td></tr>
+    <tr><td>Eve</td><td>40</td><td>85</td><td>45</td><td>spread 45 &mdash; tied with Alice</td></tr>
+    <tr><td>Alice</td><td>50</td><td>95</td><td>45</td><td>spread 45 &mdash; tied with Eve</td></tr>
+  </tbody>
+</table>
+<p>Bob is absent &mdash; his spread of 5 fails <code>HAVING ... &gt;= 20</code>. Dan is absent too &mdash; with one exam, <code>MIN</code> and <code>MAX</code> are both 60, spread 0. Eve and Alice both show <strong>45</strong>; their relative order is arbitrary because <code>ORDER BY spread DESC</code> has no tiebreaker.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>HAVING</code> vs <code>WHERE</code> &mdash; the central distinction</h5>
+<p><code>WHERE</code> filters <em>rows before</em> grouping; <code>HAVING</code> filters <em>groups after</em> aggregation. The condition here is on <code>MAX(points) - MIN(points)</code> &mdash; an aggregate that does not exist until the group is formed &mdash; so it <em>must</em> be in <code>HAVING</code>. Writing <code>WHERE MAX(points) - MIN(points) &gt;= 20</code> is a hard error: aggregates are not allowed in <code>WHERE</code> because <code>WHERE</code> runs before any group exists. Knowing exactly which clause an aggregate filter belongs in is the core competency this question tests.</p>
+
+<h5>The single-exam group &mdash; why Dan's spread is 0</h5>
+<p>For a group of one row, <code>MIN</code> and <code>MAX</code> both return that row's value, so <code>MAX - MIN = 0</code>. Dan therefore fails <code>&gt;= 20</code> and drops out &mdash; correct, since one exam carries no variance. This is worth saying aloud: aggregates are perfectly well-defined on single-member groups, they just collapse to that member. No special-casing is needed; the <code>HAVING</code> threshold handles it.</p>
+
+<h5>The tie in <code>ORDER BY</code> &mdash; add a tiebreaker for determinism</h5>
+<p>Alice and Eve both have spread 45. <code>ORDER BY spread DESC</code> places them adjacent but in an <em>unspecified</em> order &mdash; rerun the query and they may swap. If the output must be reproducible (a snapshot test, a paginated report), add a deterministic tiebreaker: <code>ORDER BY spread DESC, student</code>. Volunteering that a sort key with duplicate values is non-deterministic, and fixing it, is a senior signal.</p>
+
+<h5>NULL points and the empty edge</h5>
+<p><code>MIN</code> and <code>MAX</code> silently skip NULLs, so a NULL exam score does not poison the spread &mdash; but a student whose scores are <em>all</em> NULL would have <code>MIN</code> and <code>MAX</code> both NULL, <code>spread</code> NULL, and <code>NULL &gt;= 20</code> is unknown, so they drop out. That is usually the right behaviour, but state it. Likewise, a student is in the result only if they have at least one row; students absent from <code>score</code> entirely never form a group.</p>
+
+<h5>Recomputing the aggregate vs aliasing it</h5>
+<p>The query repeats <code>MAX(points) - MIN(points)</code> in both the <code>SELECT</code> and the <code>HAVING</code>. That is required by standard SQL &mdash; <code>HAVING</code> cannot reference a <code>SELECT</code>-list alias (<code>spread</code>) because <code>HAVING</code> is logically evaluated before the <code>SELECT</code> projection. <code>ORDER BY</code> <em>can</em> use the alias, which is why <code>ORDER BY spread</code> works. PostgreSQL and MySQL tolerate aliases in <code>HAVING</code> as an extension, but the portable form recomputes the expression &mdash; the optimiser collapses the duplication anyway.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> filter on an aggregate with <code>HAVING</code>, never <code>WHERE</code> (aggregates do not exist before grouping); know that <code>MIN</code>/<code>MAX</code> on a single-row group collapse to that value (spread 0); add a tiebreaker to <code>ORDER BY</code> when the sort key has duplicates; and recall that <code>HAVING</code> cannot see <code>SELECT</code> aliases while <code>ORDER BY</code> can.</div>

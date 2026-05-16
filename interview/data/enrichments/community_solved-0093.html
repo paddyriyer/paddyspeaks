@@ -1,0 +1,72 @@
+<p>A retail-banking team needs a daily balance ledger: for every account, the running balance after each day's transactions, with same-day credits and debits netted first, then laid out as one column per account. The interviewer is probing three layered skills &mdash; converting a transaction type into a signed amount, computing a running total with a window function, and pivoting the long result into a wide report.</p>
+
+<h4>1. The source data &mdash; <code>bank_txn</code></h4>
+<table>
+  <thead><tr><th>TransactionID</th><th>AccountID</th><th>TransactionDate</th><th>Amount</th><th>TransactionType</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>401</td><td>2026-01-01</td><td>1000</td><td>Credit</td></tr>
+    <tr><td>2</td><td>401</td><td>2026-01-01</td><td>200</td><td>Debit</td></tr>
+    <tr><td>3</td><td>401</td><td>2026-01-02</td><td>500</td><td>Credit</td></tr>
+    <tr><td>4</td><td>402</td><td>2026-01-01</td><td>800</td><td>Credit</td></tr>
+    <tr><td>5</td><td>402</td><td>2026-01-03</td><td>300</td><td>Debit</td></tr>
+    <tr><td>6</td><td>403</td><td>2026-01-02</td><td>250</td><td>Credit</td></tr>
+    <tr><td>7</td><td>403</td><td>2026-01-02</td><td>250</td><td>Credit</td></tr>
+    <tr><td>8</td><td>404</td><td>2026-01-01</td><td>150</td><td>Debit</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases: account 401 has a credit <em>and</em> a debit on the same day (Jan 1) that must net to +800; account 404 only ever has a debit, so its balance goes <em>negative</em> &mdash; the query must not assume balances stay positive.</p>
+
+<h4>2. The SQL &mdash; sign, running sum, then pivot</h4>
+<pre><code>WITH account_txn AS (
+  SELECT accountid, transactiondate, amount, transactiontype,
+         CASE WHEN transactiontype = 'Credit' THEN amount ELSE -amount END AS credit_debit
+  FROM bank_txn
+),
+account_balance AS (
+  SELECT accountid, transactiondate, SUM(credit_debit) AS amount
+  FROM account_txn
+  GROUP BY accountid, transactiondate
+),
+account_running AS (
+  SELECT accountid, transactiondate, amount,
+         SUM(amount) OVER (PARTITION BY accountid ORDER BY transactiondate ASC) AS daily_account_balance
+  FROM account_balance
+)
+SELECT transactiondate,
+       MAX(CASE WHEN accountid = 401 THEN daily_account_balance END) AS account_401,
+       MAX(CASE WHEN accountid = 402 THEN daily_account_balance END) AS account_402,
+       MAX(CASE WHEN accountid = 403 THEN daily_account_balance END) AS account_403,
+       MAX(CASE WHEN accountid = 404 THEN daily_account_balance END) AS account_404
+FROM account_running
+GROUP BY transactiondate
+ORDER BY transactiondate;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>transactiondate</th><th>account_401</th><th>account_402</th><th>account_403</th><th>account_404</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>800</td><td>800</td><td><em>NULL</em></td><td>-150</td></tr>
+    <tr><td>2026-01-02</td><td>1300</td><td><em>NULL</em></td><td>500</td><td><em>NULL</em></td></tr>
+    <tr><td>2026-01-03</td><td><em>NULL</em></td><td>500</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Account 401 on Jan 1 nets 1000 &minus; 200 = 800, then Jan 2 adds 500 &rarr; 1300. Account 404 sits at &minus;150. The NULLs mark days an account had no transaction &mdash; the query reports a sparse grid, not a forward-filled one.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Step 1 &mdash; signing with <code>CASE</code></h5>
+<p><code>CASE WHEN transactiontype = 'Credit' THEN amount ELSE -amount END</code> turns the type/amount pair into a single signed number. Once every row is signed, "balance" is just a sum &mdash; no special-casing downstream. This is the move that makes the rest of the query trivial.</p>
+
+<h5>Step 2 &mdash; netting same-day rows before the running sum</h5>
+<p>The <code>account_balance</code> CTE does <code>GROUP BY accountid, transactiondate</code> <em>first</em>. This is essential: account 401's two Jan-1 rows collapse to one net row (+800) before the window function runs. Without it the running sum would still total correctly, but you would emit two output rows for the same account/date and the pivot's <code>MAX</code> would have to mask the duplicate.</p>
+
+<h5>Step 3 &mdash; the running balance window</h5>
+<p><code>SUM(amount) OVER (PARTITION BY accountid ORDER BY transactiondate)</code> accumulates per account in date order. With an <code>ORDER BY</code> and no explicit frame, the default frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; exactly a running total. Each row shows the balance <em>as of</em> that day.</p>
+
+<h5>Step 4 &mdash; conditional aggregation as a pivot, and the NULL gaps</h5>
+<p><code>MAX(CASE WHEN accountid = 401 THEN daily_account_balance END)</code> is the portable pivot idiom: per date, only the matching account's value survives the CASE, the rest are NULL, and <code>MAX</code> picks the one real value. The downside is hardcoded account ids &mdash; a fifth account silently won't appear. The NULL cells (e.g. 403 on Jan 1) mean "no activity that day"; if the report needs the balance <em>carried forward</em>, you would generate a full date spine per account and forward-fill with <code>LAST_VALUE</code> / a gaps-and-islands fill, which is a meaningfully harder query worth flagging.</p>
+
+<h5>Dialect note &mdash; native <code>PIVOT</code></h5>
+<p>SQL Server, Oracle, and Snowflake offer a <code>PIVOT</code> operator that expresses step 4 declaratively. Postgres (this engine) and BigQuery rely on the <code>CASE</code> idiom shown. Either way the account list must be enumerated at query time; a truly dynamic column set needs procedural SQL or <code>crosstab</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> decompose this into sign &rarr; net same-day &rarr; running window &rarr; pivot, explain why the same-day <code>GROUP BY</code> must precede the window function, note that NULL cells mean "no activity" and forward-filling them is a separate harder problem, and flag the hardcoded-account-id fragility of the conditional-aggregation pivot.</div>

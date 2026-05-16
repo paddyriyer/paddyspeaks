@@ -1,0 +1,50 @@
+<p>An operations analyst wants every order whose SKU is either a promotional code or stamped with the 2025 vintage &mdash; a quick segmentation for a campaign post-mortem. The reference solution uses two <code>LIKE</code> patterns joined by <code>OR</code>: a prefix match and a suffix match. The interviewer is probing whether you know how anchored wildcards behave, how <code>NULL</code> SKUs are treated, and why this pattern cannot use a normal index.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th><th>sku</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2026-01-10</td><td>shipped</td><td>50.00</td><td>PROMO-WINTER</td></tr>
+    <tr><td>2</td><td>102</td><td>2026-02-15</td><td>pending</td><td>30.00</td><td>STD-1099-2025</td></tr>
+    <tr><td>3</td><td>103</td><td>2026-03-01</td><td>shipped</td><td>120.00</td><td>PROMO-SPRING-2025</td></tr>
+    <tr><td>4</td><td>104</td><td>2026-03-12</td><td>shipped</td><td>75.00</td><td>STD-4400</td></tr>
+    <tr><td>5</td><td>105</td><td>2026-04-08</td><td>shipped</td><td>95.00</td><td>BULK-2025</td></tr>
+    <tr><td>6</td><td>106</td><td>2026-05-01</td><td>cancelled</td><td>20.00</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Two rows decide the interview. Order 3's SKU <em>matches both</em> patterns (starts with <code>PROMO-</code> <em>and</em> ends with <code>-2025</code>). Order 6 has a <em>NULL</em> SKU. A correct answer must handle the double match without duplicating the row, and explain why NULL drops out.</p>
+
+<h4>2. The SQL &mdash; anchored <code>LIKE</code> with <code>OR</code></h4>
+<pre><code>SELECT * FROM orders WHERE sku LIKE 'PROMO-%' OR sku LIKE '%-2025';</code></pre>
+<p><code>'PROMO-%'</code> matches any string that <em>begins</em> with <code>PROMO-</code> (<code>%</code> trails). <code>'%-2025'</code> matches any string that <em>ends</em> with <code>-2025</code> (<code>%</code> leads). <code>OR</code> accepts a row if either pattern matches.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th><th>sku</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2026-01-10</td><td>shipped</td><td>50.00</td><td>PROMO-WINTER</td><td>prefix match only</td></tr>
+    <tr><td>2</td><td>102</td><td>2026-02-15</td><td>pending</td><td>30.00</td><td>STD-1099-2025</td><td>suffix match only</td></tr>
+    <tr><td>3</td><td>103</td><td>2026-03-01</td><td>shipped</td><td>120.00</td><td>PROMO-SPRING-2025</td><td>matches both &mdash; still one row</td></tr>
+    <tr><td>5</td><td>105</td><td>2026-04-08</td><td>shipped</td><td>95.00</td><td>BULK-2025</td><td>suffix match only</td></tr>
+  </tbody>
+</table>
+<p>Four rows return. Order 3 satisfies <em>both</em> patterns but appears <strong>once</strong> &mdash; <code>WHERE</code> filters rows, it does not multiply them, and <code>OR</code> is a single boolean test. Order 4 (<code>STD-4400</code>) matches neither. Order 6's NULL SKU is excluded: <code>NULL LIKE anything</code> is unknown, and <code>unknown OR unknown</code> is still unknown &mdash; not true.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>A double match does not duplicate the row</h5>
+<p>A frequent worry is that an order matching both <code>LIKE</code> clauses gets returned twice. It does not. <code>WHERE</code> evaluates one boolean per row; <code>OR</code> short-circuits to true and the row is emitted once. Duplication only happens with <code>JOIN</code>s or <code>UNION ALL</code> &mdash; never from <code>OR</code> in a single-table filter. (If you had written this as two <code>SELECT</code>s combined with <code>UNION ALL</code>, order 3 <em>would</em> appear twice; plain <code>UNION</code> would dedupe it.)</p>
+
+<h5>NULL SKUs vanish &mdash; three-valued logic</h5>
+<p>Order 6's NULL SKU produces <code>NULL LIKE 'PROMO-%'</code> &rarr; unknown and <code>NULL LIKE '%-2025'</code> &rarr; unknown; <code>unknown OR unknown</code> &rarr; unknown, which <code>WHERE</code> treats as "exclude". So NULL-SKU orders silently disappear. That is usually correct here, but if "uncategorised" orders must be surfaced, add an explicit <code>OR sku IS NULL</code>. Never let NULL filtering be accidental.</p>
+
+<h5>Anchored vs unanchored wildcards &mdash; and the index consequence</h5>
+<p><code>'PROMO-%'</code> is <em>left-anchored</em>: the pattern's fixed text is at the start, so a B-tree index on <code>sku</code> can range-scan the <code>PROMO-</code> prefix &mdash; fast. <code>'%-2025'</code> is <em>right-anchored</em> with a leading <code>%</code>: a B-tree index is useless because the engine cannot know where matching strings start, so it scans every row. The mixed query therefore degrades to a full scan overall. Knowing which wildcard placement preserves index usability is the senior point.</p>
+
+<h5>Making the suffix match index-friendly</h5>
+<p>If <code>'%-2025'</code> matters at scale, two Postgres options help. An expression index on the reversed string &mdash; <code>CREATE INDEX ON orders (reverse(sku))</code> with the predicate rewritten as <code>reverse(sku) LIKE reverse('-2025') || '%'</code> &mdash; turns the suffix search into a prefix search. Or a trigram GIN index (<code>pg_trgm</code>) accelerates arbitrary substring and suffix matches directly. Either beats a repeated sequential scan.</p>
+
+<h5>Case sensitivity and the underscore wildcard</h5>
+<p><code>LIKE</code> is case-sensitive in Postgres, so <code>promo-winter</code> would not match <code>'PROMO-%'</code>; use <code>ILIKE</code> if SKUs are entered inconsistently. Also note <code>_</code> is a single-character wildcard in <code>LIKE</code> &mdash; if a SKU literally contains an underscore you must escape it (<code>LIKE '%\_2025'</code>). SKUs here use hyphens, so it is moot, but it is the kind of detail an interviewer rewards you for raising.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>OR</code> in a <code>WHERE</code> clause filters without duplicating &mdash; a row matching both <code>LIKE</code> patterns returns once &mdash; that NULL SKUs drop out via three-valued logic, and that a left-anchored <code>'PROMO-%'</code> can use a B-tree index while a leading-wildcard <code>'%-2025'</code> forces a scan unless you add a reverse-expression or trigram index.</div>

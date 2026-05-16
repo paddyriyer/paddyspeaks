@@ -1,0 +1,55 @@
+<p>A finance team wants every customer with their order count and lifetime spend &mdash; including customers who have never ordered, so the report covers the whole base. The reference solution <code>LEFT JOIN</code>s <code>orders</code> onto <code>customers</code> and aggregates. The interviewer is probing the most-tested asymmetry in SQL: on a <code>LEFT JOIN</code> with no matches, <code>COUNT</code> and <code>SUM</code> behave differently, and a cancelled order with a NULL amount adds a second twist.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>table</th><th>row</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>customers</td><td>101 Alice, 102 Bob, 103 Carol, 104 Dave</td><td>four customers</td></tr>
+    <tr><td>orders</td><td>1 &rarr; cust 101, amount 50.00, shipped</td><td>Alice's first order</td></tr>
+    <tr><td>orders</td><td>2 &rarr; cust 101, amount 75.00, shipped</td><td>Alice's second order</td></tr>
+    <tr><td>orders</td><td>3 &rarr; cust 102, amount 120.00, shipped</td><td>Bob's only order</td></tr>
+    <tr><td>orders</td><td>4 &rarr; cust 103, amount NULL, cancelled</td><td>Carol &mdash; cancelled, amount NULL</td></tr>
+    <tr><td>&mdash;</td><td>cust 104 Dave has no orders at all</td><td>the LEFT JOIN edge case</td></tr>
+  </tbody>
+</table>
+<p>Two customers carry the interview. Dave has <em>no orders</em> &mdash; he must still appear, with a count of 0. Carol has <em>one order with a NULL amount</em> &mdash; her count and her total must not contradict each other.</p>
+
+<h4>2. The SQL &mdash; customer aggregation over a <code>LEFT JOIN</code></h4>
+<pre><code>SELECT c.customer_id, c.name,
+       COUNT(o.order_id) AS orders,
+       SUM(o.amount)     AS total
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, c.name;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every customer; non-ordering customers get a synthetic all-NULL <code>orders</code> row. <code>GROUP BY</code> then collapses each customer's rows and the aggregates summarise them.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>orders</th><th>total</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Alice</td><td>2</td><td>125.00</td><td>two real orders, summed</td></tr>
+    <tr><td>102</td><td>Bob</td><td>1</td><td>120.00</td><td>one order</td></tr>
+    <tr><td>103</td><td>Carol</td><td>1</td><td>NULL</td><td>1 order, but amount NULL &rarr; SUM is NULL</td></tr>
+    <tr><td>104</td><td>Dave</td><td>0</td><td>NULL</td><td>no orders &rarr; COUNT 0, SUM NULL</td></tr>
+  </tbody>
+</table>
+<p>Dave shows <code>orders = 0</code> but <code>total = NULL</code> &mdash; the headline asymmetry. <code>COUNT(o.order_id)</code> counts non-null <code>order_id</code>s, and Dave has none, so it returns the integer <code>0</code>. <code>SUM</code> over zero rows (or all-NULL rows) returns <code>NULL</code>, not <code>0</code>. Carol shows the same <code>total = NULL</code> for a different reason: she has one real order, but its <code>amount</code> is NULL, and <code>SUM</code> of a single NULL is NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT</code> says 0 but <code>SUM</code> says NULL</h5>
+<p>This is the single most-tested <code>LEFT JOIN</code> fact. For a non-matching customer the join fabricates one row with every <code>orders</code> column NULL. <code>COUNT(o.order_id)</code> counts <em>non-null</em> values of that column &mdash; the fabricated NULL is not counted, so the result is a true <code>0</code>. <code>SUM(o.amount)</code> adds non-null values, and when there are none the SQL standard defines the result as <code>NULL</code> (not <code>0</code> &mdash; "the sum of nothing" is undefined, not zero). The two aggregates disagree by design.</p>
+
+<h5><code>COUNT(o.order_id)</code> vs <code>COUNT(*)</code> &mdash; a critical distinction on a <code>LEFT JOIN</code></h5>
+<p><code>COUNT(*)</code> counts <em>rows</em>, including the fabricated all-NULL row, so Dave would wrongly show <code>1</code>. <code>COUNT(o.order_id)</code> counts non-null <code>order_id</code>s, correctly giving Dave <code>0</code>. On a <code>LEFT JOIN</code> you must count a column from the <em>right</em> (optional) table &mdash; ideally its primary key, which is never NULL for a real row. Using <code>COUNT(*)</code> here is the classic silent bug.</p>
+
+<h5>Make <code>total</code> read 0 with <code>COALESCE</code></h5>
+<p>If the report should show <code>0.00</code> rather than NULL for non-spending customers, wrap the aggregate: <code>COALESCE(SUM(o.amount), 0) AS total</code>. <code>COALESCE</code> goes <em>outside</em> <code>SUM</code> &mdash; it converts the final NULL result to 0. Putting it inside, <code>SUM(COALESCE(o.amount, 0))</code>, also yields 0 here but means something subtly different (it treats each NULL amount as a 0 contribution); for a pure "show 0 not NULL" display, the outer form is the clear choice.</p>
+
+<h5>The Carol case &mdash; a count/total mismatch that looks like a bug</h5>
+<p>Carol has <code>orders = 1</code> but <code>total = NULL</code>, which a reader may flag as inconsistent. It is not a join artefact &mdash; it is a genuine NULL <code>amount</code> on a real (cancelled) order. The business question is whether a cancelled order should count at all. If only completed revenue matters, filter inside the join condition &mdash; <code>LEFT JOIN orders o ON c.customer_id = o.customer_id AND o.status = 'shipped'</code> &mdash; <em>not</em> in a <code>WHERE</code> clause, because <code>WHERE o.status = 'shipped'</code> would discard Dave's NULL row and silently turn the <code>LEFT JOIN</code> back into an inner join.</p>
+
+<h5><code>GROUP BY</code> must list every non-aggregated column</h5>
+<p>The query groups by <code>c.customer_id, c.name</code> &mdash; both selected non-aggregated columns. PostgreSQL would reject <code>GROUP BY c.customer_id</code> alone while selecting <code>c.name</code> (some engines like MySQL permit it and pick an arbitrary name). Because <code>customer_id</code> is the primary key, grouping by it alone is functionally sufficient, and Postgres actually allows <code>GROUP BY c.customer_id</code> to also carry <code>c.name</code> <em>if</em> <code>customer_id</code> is the declared PK &mdash; but listing both is the portable, unambiguous habit.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that on a <code>LEFT JOIN</code> with no match <code>COUNT(right_pk)</code> returns 0 while <code>SUM</code> returns NULL &mdash; use <code>COUNT(o.order_id)</code> not <code>COUNT(*)</code>, wrap with <code>COALESCE(SUM(...), 0)</code> for a 0 display, and put any status filter in the <code>ON</code> clause so a <code>WHERE</code> predicate does not silently demote the <code>LEFT JOIN</code> to an inner join.</div>

@@ -1,0 +1,66 @@
+<p>An HR data team has an <code>employees</code> table carrying a denormalised <code>dept_name</code> column that has drifted out of sync with the authoritative <code>departments</code> dimension. The task is a MERGE-style sync: overwrite each employee's <code>dept_name</code> from the matching department. The interviewer is probing whether you know Postgres's <code>UPDATE ... FROM</code> idiom, how it handles non-matching and stale rows, and the join-multiplicity hazard that makes <code>UPDATE FROM</code> dangerous if you are careless.</p>
+
+<h4>1. The source data &mdash; <code>employees</code> and <code>departments</code></h4>
+<table>
+  <thead><tr><th>table</th><th>columns</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>departments</td><td>1 Engineering, 2 Sales, 3 Marketing, 4 Finance</td><td>the authoritative dimension</td></tr>
+    <tr><td>employees</td><td>101 Alice, dept_id 1, dept_name NULL</td><td>never populated</td></tr>
+    <tr><td>employees</td><td>102 Bob, dept_id 2, dept_name NULL</td><td>never populated</td></tr>
+    <tr><td>employees</td><td>103 Carol, dept_id 3, dept_name 'Mktg'</td><td>stale value &mdash; should become 'Marketing'</td></tr>
+    <tr><td>employees</td><td>104 Dave, dept_id 9, dept_name NULL</td><td>dept_id 9 has no match &mdash; the edge case</td></tr>
+  </tbody>
+</table>
+<p>Dave is the trap: his <code>dept_id</code> 9 does not exist in <code>departments</code>. The interview turns on what happens to a row whose key finds no match in the source &mdash; does it error, blank out, or stay untouched?</p>
+
+<h4>2. The SQL &mdash; the MERGE-equivalent <code>UPDATE ... FROM</code></h4>
+<pre><code>-- Setup: departments dimension
+CREATE TABLE departments (dept_id INT PRIMARY KEY, dept_name TEXT NOT NULL);
+INSERT INTO departments VALUES (1,'Engineering'),(2,'Sales'),(3,'Marketing'),(4,'Finance');
+
+CREATE TABLE employees (emp_id INT PRIMARY KEY, name TEXT, dept_id INT, dept_name TEXT);
+INSERT INTO employees VALUES
+  (101,'Alice',1,NULL),
+  (102,'Bob',  2,NULL),
+  (103,'Carol',3,'Mktg'),   -- stale
+  (104,'Dave', 9,NULL);     -- dept_id 9 absent from departments
+
+-- The sync
+UPDATE employees e
+   SET dept_name = d.dept_name
+  FROM departments d
+ WHERE e.dept_id = d.dept_id;
+
+SELECT emp_id, name, dept_id, dept_name FROM employees ORDER BY emp_id;</code></pre>
+<p><code>UPDATE ... FROM</code> joins the target <code>employees</code> to <code>departments</code> on <code>dept_id</code>; the <code>WHERE</code> is the join condition. Only rows that find a partner are touched.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>dept_name</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Alice</td><td>1</td><td>Engineering</td><td>NULL filled from dimension</td></tr>
+    <tr><td>102</td><td>Bob</td><td>2</td><td>Sales</td><td>NULL filled from dimension</td></tr>
+    <tr><td>103</td><td>Carol</td><td>3</td><td>Marketing</td><td>stale 'Mktg' overwritten</td></tr>
+    <tr><td>104</td><td>Dave</td><td>9</td><td>NULL</td><td>no match &mdash; row left untouched</td></tr>
+  </tbody>
+</table>
+<p>Carol's stale <code>'Mktg'</code> is corrected to <code>'Marketing'</code>; Alice and Bob's NULLs are filled. Dave's row is <strong>not modified at all</strong> &mdash; <code>dept_id 9</code> joins to nothing, so the <code>WHERE</code> excludes his row from the update. His <code>dept_name</code> stays NULL; the statement did not error and did not blank a different column.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>WHERE</code> in <code>UPDATE ... FROM</code> is a join filter &mdash; non-matches are skipped, not erased</h5>
+<p>This is the key insight. Rows of <code>employees</code> that fail the join condition are simply not part of the update set &mdash; they keep their existing values. So a missing dimension key (Dave) leaves the row alone; it does <em>not</em> set <code>dept_name</code> to NULL. If the business rule were "blank out unknown departments", you would need a separate <code>UPDATE ... WHERE dept_id NOT IN (SELECT dept_id FROM departments)</code>. <code>UPDATE FROM</code> is an inner-join update by nature.</p>
+
+<h5>The hidden danger &mdash; a non-unique join key silently corrupts data</h5>
+<p><code>UPDATE ... FROM</code> has no protection against fan-out. If <code>departments</code> had two rows with <code>dept_id = 3</code>, each target row would join twice and Postgres would apply <em>one arbitrary</em> matched value &mdash; non-deterministic, with no error. Here <code>dept_id</code> is the primary key of <code>departments</code>, so each employee matches at most one row and the update is well-defined. Always confirm the source side of an <code>UPDATE FROM</code> is unique on the join key; this is the senior caveat.</p>
+
+<h5>ANSI <code>MERGE</code> &mdash; the same intent, more explicit</h5>
+<p>SQL Server, Oracle, and PostgreSQL 15+ support standard <code>MERGE</code>, which spells out each branch: <code>MERGE INTO employees e USING departments d ON e.dept_id = d.dept_id WHEN MATCHED THEN UPDATE SET dept_name = d.dept_name;</code>. <code>MERGE</code> lets you also handle <code>WHEN NOT MATCHED</code> explicitly &mdash; insert a row, or set a sentinel &mdash; which is exactly the Dave case. On older Postgres or for a pure update, <code>UPDATE ... FROM</code> is the established equivalent.</p>
+
+<h5>Idempotency &mdash; this sync is safe to re-run</h5>
+<p>Running the statement twice produces the same table state: the second run re-sets each <code>dept_name</code> to the value it already holds. That makes it safe in a scheduled job. A senior answer adds <code>AND e.dept_name IS DISTINCT FROM d.dept_name</code> to the <code>WHERE</code> &mdash; this skips rows that already match, so the statement only writes (and only fires triggers / generates WAL) for rows that genuinely changed.</p>
+
+<h5>Dialect &mdash; the <code>FROM</code>-in-<code>UPDATE</code> syntax is not portable</h5>
+<p>Postgres and SQL Server both allow a <code>FROM</code> clause in <code>UPDATE</code>, but the syntax differs (SQL Server: <code>UPDATE e SET ... FROM employees e JOIN departments d ...</code>). MySQL uses a multi-table <code>UPDATE</code> with the join in the <code>UPDATE</code> clause itself. Oracle historically used a correlated subquery: <code>SET dept_name = (SELECT d.dept_name FROM departments d WHERE d.dept_id = e.dept_id)</code> &mdash; but that form sets NULL for non-matches, unlike the join-filtered Postgres version. Know that the "obvious" syntax changes per engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> understand that <code>UPDATE ... FROM</code> is an inner-join update &mdash; unmatched target rows are left untouched, not nulled &mdash; insist that the source table be unique on the join key (a non-unique key applies an arbitrary value with no error), reach for ANSI <code>MERGE</code> when you also need a <code>NOT MATCHED</code> branch, and add <code>IS DISTINCT FROM</code> to make the sync write only genuinely-changed rows.</div>

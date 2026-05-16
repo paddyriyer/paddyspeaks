@@ -1,0 +1,68 @@
+<p>A logistics team wants delivery lead time: for each customer, how many days elapsed between their first shipment and a delivery. The interviewer is probing a two-step pattern &mdash; isolate a per-customer anchor date with a window function, then date-subtract every relevant event against that anchor &mdash; plus the NULL behaviour when a customer has a delivery but no shipment on record.</p>
+
+<h4>1. The source data &mdash; <code>customer_orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2024-01-01</td><td>Shipped</td></tr>
+    <tr><td>2</td><td>100</td><td>2024-01-10</td><td>Delivered</td></tr>
+    <tr><td>3</td><td>100</td><td>2024-01-20</td><td>Delivered</td></tr>
+    <tr><td>4</td><td>200</td><td>2024-02-01</td><td>Shipped</td></tr>
+    <tr><td>5</td><td>200</td><td>2024-02-05</td><td>Shipped</td></tr>
+    <tr><td>6</td><td>200</td><td>2024-02-15</td><td>Delivered</td></tr>
+    <tr><td>7</td><td>300</td><td>2024-03-01</td><td>Delivered</td></tr>
+    <tr><td>8</td><td>400</td><td>2024-04-01</td><td>Shipped</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases: customer 200 has <em>two</em> shipments (only the earliest is the anchor); customer 300 has a delivery but <strong>no shipment at all</strong>; customer 400 shipped but was never delivered. Each tests a different join/NULL path.</p>
+
+<h4>2. The SQL &mdash; <code>FIRST_VALUE</code> anchor, then date diff</h4>
+<pre><code>WITH customer_frst_ship_date AS (
+  SELECT DISTINCT customer_id,
+         FIRST_VALUE(order_date) OVER (PARTITION BY customer_id
+                                       ORDER BY order_date ASC) AS first_ship_date
+  FROM customer_orders
+  WHERE status = 'Shipped'
+),
+shipped_delivered_date AS (
+  SELECT c.*, s.first_ship_date
+  FROM customer_orders c
+  LEFT JOIN customer_frst_ship_date s ON c.customer_id = s.customer_id
+  WHERE c.status = 'Delivered'
+    AND c.order_date &gt; s.first_ship_date
+)
+SELECT customer_id,
+       order_date AS first_delivered_date,
+       first_ship_date,
+       (order_date::date - first_ship_date::date) AS diff
+FROM shipped_delivered_date;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>first_delivered_date</th><th>first_ship_date</th><th>diff (days)</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>2024-01-10</td><td>2024-01-01</td><td>9</td></tr>
+    <tr><td>100</td><td>2024-01-20</td><td>2024-01-01</td><td>19</td></tr>
+    <tr><td>200</td><td>2024-02-15</td><td>2024-02-01</td><td>14</td></tr>
+  </tbody>
+</table>
+<p>Customer 200's anchor is correctly the Feb-01 shipment (the earlier of two). Customer 300 is absent &mdash; a delivery with no shipment yields a NULL anchor and is filtered out. Customer 400 never appears: no <code>Delivered</code> row. Note customer 100 produces <em>two</em> rows despite the <code>first_delivered_date</code> alias &mdash; the query returns every delivery after the ship date, not just the first.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>FIRST_VALUE</code> + <code>DISTINCT</code> isolates the anchor</h5>
+<p><code>FIRST_VALUE(order_date) OVER (PARTITION BY customer_id ORDER BY order_date ASC)</code> evaluated over only the <code>Shipped</code> rows returns each customer's earliest shipment date. But a window function does not collapse rows &mdash; customer 200 with two shipments gets that same first date stamped on <em>both</em> rows. <code>SELECT DISTINCT</code> then dedupes to one row per customer. It works, but it is a slightly indirect idiom: <code>MIN(order_date) ... GROUP BY customer_id</code> expresses "earliest ship date" more directly and needs no <code>DISTINCT</code>. Naming that the aggregate is the cleaner equivalent is a senior observation.</p>
+
+<h5>The NULL filter that quietly excludes customer 300</h5>
+<p>Customer 300 has a delivery but no shipment, so the <code>LEFT JOIN</code> leaves <code>first_ship_date</code> as <code>NULL</code>. The predicate <code>c.order_date &gt; s.first_ship_date</code> then becomes <code>date &gt; NULL</code>, which evaluates to <em>unknown</em> &mdash; and <code>WHERE</code> keeps only rows that are <em>true</em>, so customer 300 is dropped. That is the desired outcome here (you cannot measure lead time without a ship date), but it is happening as a side effect of three-valued logic, not an explicit rule. A senior states it: "the <code>&gt;</code> comparison silently filters delivered-but-never-shipped customers because comparing to NULL is unknown." If you wanted to surface them as anomalies instead, you would test <code>first_ship_date IS NULL</code> explicitly.</p>
+
+<h5>The <code>LEFT JOIN</code> is effectively an <code>INNER JOIN</code> here</h5>
+<p>Because the very next line filters <code>order_date &gt; first_ship_date</code> &mdash; which is never true when <code>first_ship_date</code> is NULL &mdash; the unmatched (NULL) rows a <code>LEFT JOIN</code> preserves are immediately discarded. So this <code>LEFT JOIN</code> behaves like an <code>INNER JOIN</code>. That is not wrong, but it is worth recognising: if the intent were to keep no-shipment customers visible (with a NULL diff), the filter would have to move into the join's <code>ON</code> clause or be guarded.</p>
+
+<h5>Date subtraction &mdash; dialect-dependent</h5>
+<p><code>order_date::date - first_ship_date::date</code> returns an integer day count in PostgreSQL &mdash; subtracting two <code>date</code> values yields days directly. Other engines differ: SQL Server needs <code>DATEDIFF(day, first_ship_date, order_date)</code>; MySQL uses <code>DATEDIFF(order_date, first_ship_date)</code>; BigQuery uses <code>DATE_DIFF(order_date, first_ship_date, DAY)</code>. If the columns were <code>TIMESTAMP</code> rather than <code>DATE</code>, the Postgres subtraction would return an <code>interval</code> (with hours/minutes), not a plain integer &mdash; cast to <code>date</code> first, exactly as the solution does, to get whole days.</p>
+
+<h5>The misleading alias &mdash; <code>first_delivered_date</code></h5>
+<p>The output column is aliased <code>first_delivered_date</code>, but customer 100 returns two delivery rows &mdash; the query lists <em>every</em> delivery after the ship date. If the spec truly wants only the first delivery per customer, add a <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date)</code> and keep rank 1, or aggregate with <code>MIN(order_date)</code>. Always check that an alias's promise matches the query's grain.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise <code>FIRST_VALUE</code>+<code>DISTINCT</code> as a per-customer anchor (and that <code>MIN ... GROUP BY</code> is the cleaner equivalent), then explain that <code>order_date &gt; NULL</code> is <em>unknown</em> &mdash; which is what silently drops the delivered-but-never-shipped customer and makes the <code>LEFT JOIN</code> behave like an <code>INNER JOIN</code>. Flagging the over-promising <code>first_delivered_date</code> alias is the finishing touch.</div>

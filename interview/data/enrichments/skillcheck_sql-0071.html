@@ -1,0 +1,69 @@
+<p>A retailer's merchandising team wants each category's two best-selling products by total 2025 revenue &mdash; a per-group top-N report. The twist: if two products tie for second place, both must be shown. The interviewer is probing whether you reach for <code>DENSE_RANK</code> rather than <code>ROW_NUMBER</code> or <code>LIMIT</code>, because only ranking-with-ties returns "all tied products" correctly.</p>
+
+<h4>1. The source data &mdash; <code>purchases</code></h4>
+<table>
+  <thead><tr><th>txn</th><th>category</th><th>product</th><th>spend</th><th>purchase_ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>appliance</td><td>refrigerator</td><td>1200</td><td>2025-02-01</td><td>refrigerator total 2000</td></tr>
+    <tr><td>2</td><td>appliance</td><td>refrigerator</td><td>800</td><td>2025-04-15</td><td>&nbsp;</td></tr>
+    <tr><td>3</td><td>appliance</td><td>washer</td><td>900</td><td>2025-06-01</td><td>washer total 1800</td></tr>
+    <tr><td>4</td><td>appliance</td><td>washer</td><td>900</td><td>2025-08-20</td><td>&nbsp;</td></tr>
+    <tr><td>5</td><td>appliance</td><td>toaster</td><td>150</td><td>2025-03-12</td><td>low-spend product</td></tr>
+    <tr><td>6</td><td>appliance</td><td>blender</td><td>400</td><td>2025-07-08</td><td>&nbsp;</td></tr>
+    <tr><td>7</td><td>electronics</td><td>tv</td><td>1500</td><td>2025-05-10</td><td>category leader</td></tr>
+    <tr><td>8</td><td>electronics</td><td>headphones</td><td>250</td><td>2025-05-11</td><td>headphones total 500</td></tr>
+    <tr><td>9</td><td>electronics</td><td>headphones</td><td>250</td><td>2025-09-21</td><td>&nbsp;</td></tr>
+    <tr><td>10</td><td>electronics</td><td>laptop</td><td>900</td><td>2024-12-31</td><td>2024 &mdash; out of range</td></tr>
+    <tr><td>11</td><td>electronics</td><td>laptop</td><td>900</td><td>2025-11-30</td><td>laptop 2025 total = 900 only</td></tr>
+  </tbody>
+</table>
+<p>The boundary case is laptop transaction 10, dated 2024-12-31 &mdash; it must be excluded by the year filter, dropping laptop's 2025 total to 900. The tie case is harder to spot at first glance but emerges after aggregation.</p>
+
+<h4>2. The SQL &mdash; aggregate, DENSE_RANK per category, keep rank &le; 2</h4>
+<pre><code>WITH yr AS (
+  SELECT category, product, SUM(spend) AS total_spend
+  FROM purchases
+  WHERE purchase_ts &gt;= TIMESTAMP '2025-01-01' AND purchase_ts &lt; TIMESTAMP '2026-01-01'
+  GROUP BY category, product
+),
+rk AS (
+  SELECT category, product, total_spend,
+         DENSE_RANK() OVER (PARTITION BY category ORDER BY total_spend DESC) AS rnk
+  FROM yr
+)
+SELECT category, product, ROUND(total_spend)::int AS total_spend
+FROM rk
+WHERE rnk &lt;= 2
+ORDER BY category, total_spend DESC, product;</code></pre>
+<p><code>yr</code> sums 2025 spend per (category, product). <code>rk</code> ranks products within each category by descending total. The final filter <code>rnk &lt;= 2</code> keeps the top two rank <em>levels</em>; because <code>DENSE_RANK</code> assigns ties the same rank, a tie at second place yields multiple rows that all pass.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>product</th><th>total_spend</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>appliance</td><td>refrigerator</td><td>2000</td><td>rank 1</td></tr>
+    <tr><td>appliance</td><td>washer</td><td>1800</td><td>rank 2</td></tr>
+    <tr><td>electronics</td><td>tv</td><td>1500</td><td>rank 1</td></tr>
+    <tr><td>electronics</td><td>laptop</td><td>900</td><td>rank 2 &mdash; 2024 sale excluded</td></tr>
+  </tbody>
+</table>
+<p>In <code>electronics</code>, laptop wins second place at 900 because its 2024-12-31 transaction was filtered out &mdash; had it counted, laptop would total 1800. Headphones (500) sits at rank 3 and is dropped. The appliance category's toaster (150) and blender (400) never reach the top two. Each category independently gets exactly two rank levels here, since no ties occurred at the cut line.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code> and not <code>ROW_NUMBER</code></h5>
+<p>The requirement "if there is a tie for second place, include all tied products" is the deciding clause. <code>ROW_NUMBER</code> assigns 1, 2, 3, 4 unconditionally &mdash; it would arbitrarily pick one of two tied products for slot 2 and silently drop the other. <code>DENSE_RANK</code> gives tied rows the <em>same</em> rank, so <code>WHERE rnk &lt;= 2</code> admits every product tied at rank 2. This is precisely the behaviour the question demands.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> &mdash; a subtle but real difference</h5>
+<p>Both share ranks among ties, but they differ <em>after</em> a tie. If two products tie at rank 1, <code>RANK</code> assigns the next product rank 3 (gap), whereas <code>DENSE_RANK</code> assigns it rank 2 (no gap). With <code>RANK</code>, a tie at first place would mean <code>rnk &lt;= 2</code> returns only those two tied leaders and excludes the genuine runner-up. <code>DENSE_RANK</code> keeps "the top two distinct spend levels" intact regardless of ties higher up &mdash; the correct semantics for a "top 2 products" report.</p>
+
+<h5>Why <code>PARTITION BY category</code> makes it per-group</h5>
+<p>The window's <code>PARTITION BY category</code> restarts the ranking for every category independently &mdash; refrigerator's rank-1 has nothing to do with tv's rank-1. Without the partition you would get a single global ranking and the result would be the two highest-grossing products <em>overall</em>, not per category. The partition clause is what converts a global top-N into a per-group top-N.</p>
+
+<h5>Aggregate first, then rank &mdash; order of operations</h5>
+<p>You cannot rank raw purchase rows; the question ranks <em>products</em> by their <em>summed</em> spend. So the <code>yr</code> CTE must <code>SUM</code> and <code>GROUP BY</code> first, producing one row per (category, product), and only then does <code>DENSE_RANK</code> operate on those totals. Trying to combine <code>SUM</code> and a window function in a single <code>SELECT</code> level fails &mdash; window functions execute after <code>GROUP BY</code>, but you cannot also filter on the window result in the same level without another nesting.</p>
+
+<h5>The year filter and rounding</h5>
+<p><code>purchase_ts &gt;= '2025-01-01' AND purchase_ts &lt; '2026-01-01'</code> is the half-open range, correct for a <code>TIMESTAMP</code> column &mdash; it catches a sale at <code>2025-12-31 23:59</code> while excluding anything in 2024 or 2026. <code>ROUND(total_spend)::int</code> rounds the <code>NUMERIC</code> sum to the nearest integer then casts; rounding before casting avoids truncation. The final <code>ORDER BY category, total_spend DESC, product</code> just controls presentation &mdash; it does not affect which rows survive.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> when a top-N spec says "include all tied products", use <code>DENSE_RANK</code> &mdash; <code>ROW_NUMBER</code> drops ties and <code>RANK</code> leaves gaps that can exclude a real runner-up. Aggregate to one row per group first, rank with <code>PARTITION BY</code> to make it per-category, then filter on the rank level; and use a half-open timestamp range so boundary sales fall on the right side.</div>

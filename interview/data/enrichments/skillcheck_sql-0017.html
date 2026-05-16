@@ -1,0 +1,58 @@
+<p>A regional sales lead wants the classic quarterly grid: <em>"one row per region, four columns Q1 through Q4."</em> The source stores sales in <strong>long form</strong> &mdash; one row per region/quarter &mdash; so the task is a <strong>pivot</strong>: rotate the distinct <code>quarter</code> values up into column headers. There is no portable <code>PIVOT</code> keyword, so the interviewer wants the conditional-aggregation idiom and wants to see it survive missing quarters and duplicate rows.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>quarter</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>NA</td><td>Q1</td><td>100</td><td>NA Q1 &mdash; first entry</td></tr>
+    <tr><td>NA</td><td>Q1</td><td>40</td><td>NA Q1 &mdash; second entry, same quarter</td></tr>
+    <tr><td>NA</td><td>Q2</td><td>150</td><td></td></tr>
+    <tr><td>NA</td><td>Q3</td><td>120</td><td></td></tr>
+    <tr><td>NA</td><td>Q4</td><td>180</td><td></td></tr>
+    <tr><td>EU</td><td>Q1</td><td>80</td><td></td></tr>
+    <tr><td>EU</td><td>Q2</td><td>90</td><td></td></tr>
+    <tr><td>EU</td><td>Q4</td><td>130</td><td>EU has <em>no Q3 row at all</em></td></tr>
+  </tbody>
+</table>
+<p>Two details decide the interview. NA has <em>two</em> Q1 rows, and EU has <em>no</em> Q3 row. A correct pivot must fold the duplicates together and supply a value for the missing cell.</p>
+
+<h4>2. The SQL &mdash; pivot via conditional aggregation</h4>
+<pre><code>SELECT
+  region,
+  SUM(CASE WHEN quarter = 'Q1' THEN amount ELSE 0 END) AS q1,
+  SUM(CASE WHEN quarter = 'Q2' THEN amount ELSE 0 END) AS q2,
+  SUM(CASE WHEN quarter = 'Q3' THEN amount ELSE 0 END) AS q3,
+  SUM(CASE WHEN quarter = 'Q4' THEN amount ELSE 0 END) AS q4
+FROM sales
+GROUP BY region
+ORDER BY region;</code></pre>
+<p>One <code>CASE</code> per target column lets a row's <code>amount</code> through only when it belongs to that quarter, contributing <code>0</code> otherwise. <code>GROUP BY region</code> collapses each region's rows into one output row, and <code>SUM</code> totals whatever every <code>CASE</code> admitted.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>q1</th><th>q2</th><th>q3</th><th>q4</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>EU</td><td>80</td><td>90</td><td>0</td><td>130</td><td>no Q3 row &rarr; ELSE 0 fills the cell</td></tr>
+    <tr><td>NA</td><td>140</td><td>150</td><td>120</td><td>180</td><td>two Q1 rows folded: 100 + 40</td></tr>
+  </tbody>
+</table>
+<p>NA's <code>q1</code> is <strong>140</strong>, not 100 or 40 &mdash; both Q1 rows satisfy the Q1 <code>CASE</code> and <code>SUM</code> adds them. EU's <code>q3</code> is <strong>0</strong> because no EU row matches the Q3 <code>CASE</code> and <code>ELSE 0</code> supplies the blank.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why this is a pivot, not a plain <code>GROUP BY</code></h5>
+<p><code>SELECT region, quarter, SUM(amount) ... GROUP BY region, quarter</code> returns the same numbers as <em>rows</em> &mdash; long format, one row per region/quarter pair. A pivot turns the <code>quarter</code> <em>values</em> into <em>column headers</em>: it is a rotation. The <code>SUM(CASE WHEN ...)</code> idiom &mdash; one expression per output column &mdash; is the universal way to rotate, because <code>CASE</code> exists in every SQL engine.</p>
+
+<h5><code>ELSE 0</code> versus no <code>ELSE</code> &mdash; a deliberate choice</h5>
+<p>With <code>ELSE 0</code>, a region with no sales in a quarter shows <code>0</code>. Drop the <code>ELSE</code> and non-matching rows become NULL; <code>SUM</code> ignores NULLs, so a region that sold nothing all quarter would yield NULL rather than 0. For a financial grid <code>0</code> is usually right &mdash; the sale genuinely was zero. A coverage report might prefer NULL to keep "no data" distinct from a real zero. EU's Q3 is the case in point: here we want it to read 0.</p>
+
+<h5>Duplicate rows fold in &mdash; by design</h5>
+<p>NA's two Q1 rows are not an error to dedupe; <code>SUM</code> over the group adds every matching row, so 100 + 40 = 140. If the requirement were "how many distinct selling quarters" you would switch to <code>COUNT(DISTINCT quarter)</code>; if the duplicates were genuine data-quality noise you would dedupe in a CTE first. The aggregate you choose <em>is</em> the business rule &mdash; state which one you mean.</p>
+
+<h5>The hard limit: the columns are static</h5>
+<p>The four quarters are hard-coded. A row tagged <code>'Q5'</code> or a typo'd <code>'q1'</code> would match no <code>CASE</code> and silently vanish from the report. Pure SQL cannot grow columns from data: a truly dynamic pivot needs a procedural step (build the SQL text from <code>SELECT DISTINCT quarter</code>, then execute it) or PostgreSQL's <code>crosstab()</code> from the <code>tablefunc</code> extension. Naming this limitation unprompted is the senior signal.</p>
+
+<h5>Dialect &mdash; the dedicated <code>PIVOT</code> operator</h5>
+<p>Snowflake, Oracle, and SQL Server ship a <code>PIVOT</code> clause &mdash; e.g. Snowflake: <code>SELECT * FROM sales PIVOT(SUM(amount) FOR quarter IN ('Q1','Q2','Q3','Q4'))</code>. PostgreSQL, MySQL, and SQLite have no <code>PIVOT</code> keyword, so the <code>SUM(CASE)</code> form shown here is the portable answer &mdash; and it still makes you enumerate the values, exactly like that explicit <code>IN</code> list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise a pivot as rotating row values into columns, implement it portably with one <code>SUM(CASE WHEN ...)</code> per column, choose <code>ELSE 0</code> versus NULL deliberately, know that <code>SUM</code> folds duplicate cells together by design, and call out unprompted that the column list is static.</div>

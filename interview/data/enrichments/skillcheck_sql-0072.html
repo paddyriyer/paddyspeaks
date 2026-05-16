@@ -1,0 +1,72 @@
+<p>A messaging app's growth team wants to know how each age cohort splits its time between sending messages and reading them. For every age bucket, what percentage of engagement time went to <code>send</code> versus <code>open</code>? The interviewer is testing a <strong>percentage-of-group</strong> pattern: you need a per-bucket-per-activity numerator and a per-bucket denominator, and the denominator must be scoped to exactly the activities in scope &mdash; not all activity types.</p>
+
+<h4>1. The source data &mdash; <code>activities</code> and <code>user_age</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>activity_type</th><th>time_spent</th><th>age_bucket</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>send</td><td>30</td><td>21-25</td><td>&nbsp;</td></tr>
+    <tr><td>1</td><td>open</td><td>20</td><td>21-25</td><td>&nbsp;</td></tr>
+    <tr><td>1</td><td>chat</td><td>999</td><td>21-25</td><td><code>chat</code> &mdash; must be excluded</td></tr>
+    <tr><td>2</td><td>send</td><td>10</td><td>21-25</td><td>&nbsp;</td></tr>
+    <tr><td>2</td><td>open</td><td>40</td><td>21-25</td><td>&nbsp;</td></tr>
+    <tr><td>3</td><td>send</td><td>45</td><td>26-30</td><td>&nbsp;</td></tr>
+    <tr><td>4</td><td>open</td><td>95</td><td>26-30</td><td>&nbsp;</td></tr>
+    <tr><td>5</td><td>send</td><td>60</td><td>31-35</td><td>single-user bucket</td></tr>
+    <tr><td>5</td><td>open</td><td>60</td><td>31-35</td><td>50/50 split</td></tr>
+  </tbody>
+</table>
+<p>The trap is user 1's <code>chat</code> row with a deliberately huge <code>time_spent</code> of 999. If the denominator accidentally includes <code>chat</code>, every percentage in the 21-25 bucket collapses. Bucket 31-35 is a single-user control where <code>send</code> and <code>open</code> are equal &mdash; the answer must be exactly 50/50.</p>
+
+<h4>2. The SQL &mdash; per-activity totals, per-bucket totals, divide</h4>
+<pre><code>WITH tot AS (
+  SELECT u.age_bucket,
+         a.activity_type,
+         SUM(a.time_spent) AS act_time
+  FROM activities a
+  JOIN user_age u ON u.user_id = a.user_id
+  WHERE a.activity_type IN ('send','open')
+  GROUP BY u.age_bucket, a.activity_type
+),
+bk AS (
+  SELECT age_bucket, SUM(act_time) AS bucket_time FROM tot GROUP BY age_bucket
+)
+SELECT t.age_bucket,
+       t.activity_type,
+       ROUND(100.0 * t.act_time / b.bucket_time, 2) AS percentage
+FROM tot t
+JOIN bk b USING (age_bucket)
+ORDER BY t.age_bucket, t.activity_type;</code></pre>
+<p><code>tot</code> filters to the two activities of interest, joins each activity to its user's bucket, and sums time per (bucket, activity). <code>bk</code> re-aggregates <code>tot</code> to a per-bucket total. The final query divides each activity's time by its bucket total &mdash; and because <code>bk</code> is built from the already-filtered <code>tot</code>, the <code>chat</code> time can never leak into the denominator.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>age_bucket</th><th>activity_type</th><th>percentage</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>21-25</td><td>open</td><td>60.00</td><td>(20+40) / (40+60) &mdash; chat 999 ignored</td></tr>
+    <tr><td>21-25</td><td>send</td><td>40.00</td><td>(30+10) / 100</td></tr>
+    <tr><td>26-30</td><td>open</td><td>68.75</td><td>95 / (45+95)</td></tr>
+    <tr><td>26-30</td><td>send</td><td>31.25</td><td>45 / 140</td></tr>
+    <tr><td>31-35</td><td>open</td><td>50.00</td><td>single user, equal split</td></tr>
+    <tr><td>31-35</td><td>send</td><td>50.00</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+<p>The 21-25 bucket reads 40/60 &mdash; if <code>chat</code> had been counted, the denominator would have been 1099 and every figure would be a fraction of a percent. Each bucket's two percentages sum to exactly 100, the signature of a correct percentage-of-group calculation. Bucket 31-35 returns the expected 50/50.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the denominator must be derived from the filtered set</h5>
+<p>The single most important decision is where the <code>WHERE activity_type IN ('send','open')</code> filter lives. It is applied in <code>tot</code>, and <code>bk</code> sums <code>tot</code> &mdash; so the per-bucket denominator is the sum of <em>only</em> send and open time. If you instead computed <code>bk</code> directly from <code>activities</code> without the filter, <code>chat</code>'s 999 would inflate every denominator and the percentages would no longer sum to 100. The numerator and denominator must both be scoped to the same universe.</p>
+
+<h5><code>100.0</code> forces floating-point division</h5>
+<p><code>time_spent</code> here is <code>NUMERIC</code>, so division is exact &mdash; but the literal <code>100.0</code> (not <code>100</code>) is a defensive habit. If the columns were <code>INTEGER</code>, <code>100 * act_time / bucket_time</code> could do integer division and round each ratio toward zero before scaling, yielding nonsense like <code>40</code> becoming <code>0</code>. Writing <code>100.0</code> guarantees the whole expression evaluates in a fractional type. <code>ROUND(..., 2)</code> then trims to the two decimal places the spec asks for.</p>
+
+<h5>The two-CTE structure vs a window function</h5>
+<p>This split into <code>tot</code> then <code>bk</code> is the classic "detail then total" pattern. An elegant alternative collapses it into one level with a window function: <code>SUM(act_time) OVER (PARTITION BY age_bucket)</code> computes the bucket total alongside each detail row, with no second CTE and no self-join. Both are correct; the window version is usually faster (one scan, no extra join) and is the answer a senior engineer would offer as the refinement.</p>
+
+<h5>The JOIN can lose rows &mdash; know the failure mode</h5>
+<p>An inner <code>JOIN</code> between <code>activities</code> and <code>user_age</code> silently drops any activity whose user has no age bucket, and any user whose activities are all non-<code>send</code>/<code>open</code>. Here every user is present in <code>user_age</code>, so it is safe &mdash; but in real data you would decide consciously: a <code>LEFT JOIN</code> with a <code>COALESCE(age_bucket, 'unknown')</code> bucket keeps orphan activity time visible rather than silently discarding it.</p>
+
+<h5>Dialect &mdash; <code>JOIN ... USING</code> and rounding</h5>
+<p><code>JOIN bk b USING (age_bucket)</code> is standard SQL and works in Postgres, MySQL, and Oracle; SQL Server lacks <code>USING</code> and needs an explicit <code>ON t.age_bucket = b.age_bucket</code>. <code>ROUND(x, 2)</code> is portable, though SQL Server's <code>ROUND</code> returns the input's type so you may need an explicit <code>CAST</code> to <code>decimal(5,2)</code> for clean display. The aggregation and percentage logic are identical everywhere.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> in a percentage-of-group query, scope the numerator <em>and</em> the denominator to the exact same filtered universe &mdash; deriving the bucket total from the already-filtered detail (or a <code>SUM(...) OVER (PARTITION BY bucket)</code> window) is what stops an out-of-scope category from poisoning the ratio. Use a <code>100.0</code> literal to force fractional division, and verify each group's percentages sum to 100.</div>

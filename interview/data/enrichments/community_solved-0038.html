@@ -1,0 +1,60 @@
+<p>A community dataset hands you a sequence of numbers split into named partitions and asks for the <em>start and end of each unbroken run</em>. This is the canonical gaps-and-islands problem dressed up: within each partition, find every maximal stretch of consecutive integers and report its min and max. The interviewer is probing whether you know the <em>row-number-minus-value</em> trick &mdash; the single most reused pattern in SQL interviews.</p>
+
+<h4>1. The source data &mdash; <code>tab_sequence</code></h4>
+<table>
+  <thead><tr><th>partition</th><th>sequence</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>1</td><td>run 1 starts</td></tr>
+    <tr><td>A</td><td>2</td><td>&hellip;</td></tr>
+    <tr><td>A</td><td>3</td><td>run 1 ends (gap: 4 missing)</td></tr>
+    <tr><td>A</td><td>5</td><td>run 2 starts</td></tr>
+    <tr><td>A</td><td>6</td><td>run 2 ends</td></tr>
+    <tr><td>B</td><td>10</td><td>run starts</td></tr>
+    <tr><td>B</td><td>11</td><td>run ends (gap: 12 missing)</td></tr>
+    <tr><td>B</td><td>13</td><td>single-element run</td></tr>
+  </tbody>
+</table>
+<p>Partition B's <code>13</code> is a <strong>run of length one</strong> &mdash; an isolated value with gaps on both sides. The query must still emit it as an island where min equals max, not drop it.</p>
+
+<h4>2. The SQL &mdash; row-number-minus-value islands</h4>
+<pre><code>WITH flag_query AS (
+  SELECT "partition" AS grp,
+         "sequence",
+         ROW_NUMBER() OVER (PARTITION BY "partition" ORDER BY "sequence" ASC) AS flag,
+         CASE WHEN "sequence"::text ~ '^-?[0-9]+$' THEN "sequence"::int ELSE 0 END
+           - ROW_NUMBER() OVER (PARTITION BY "partition" ORDER BY "sequence" ASC) AS diff
+  FROM tab_sequence
+)
+SELECT DISTINCT grp,
+  MIN("sequence") OVER (PARTITION BY grp, diff) AS min_seq,
+  MAX("sequence") OVER (PARTITION BY grp, diff) AS max_seq
+FROM flag_query;</code></pre>
+<p>Inside a consecutive run the value and the row number both increase by 1 each step, so <code>value - row_number</code> stays <em>constant</em>; it jumps only at a gap. That constant <code>diff</code> is the island identifier.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>grp</th><th>min_seq</th><th>max_seq</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>1</td><td>3</td></tr>
+    <tr><td>A</td><td>5</td><td>6</td></tr>
+    <tr><td>B</td><td>10</td><td>11</td></tr>
+    <tr><td>B</td><td>13</td><td>13</td></tr>
+  </tbody>
+</table>
+<p>Four islands. Partition B's single value 13 surfaces as its own island with <code>min_seq = max_seq = 13</code> &mdash; exactly the behaviour you want, and the reason the demo includes it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>value - row_number</code> identifies an island</h5>
+<p>Order the values; assign each a 1,2,3&hellip; row number. Where the values are consecutive, both series advance in lockstep, so their difference is invariant. A missing value makes the value jump while the row number does not &mdash; the difference shifts. Rows sharing a difference therefore belong to the same unbroken run. <code>PARTITION BY grp, diff</code> turns that into a window, and <code>MIN</code>/<code>MAX</code> over it give the run's endpoints.</p>
+
+<h5>Why <code>DISTINCT</code> is required here</h5>
+<p><code>MIN</code>/<code>MAX</code> as <em>window</em> functions (not aggregates) attach the same island min and max to every row of the island without collapsing rows. A 3-row island therefore produces three identical output rows; <code>SELECT DISTINCT</code> dedupes them down to one per island. The cleaner alternative is to aggregate instead: <code>GROUP BY grp, diff</code> with plain <code>MIN</code>/<code>MAX</code> &mdash; one row per island by construction, no <code>DISTINCT</code> needed.</p>
+
+<h5>The TEXT-column trap &mdash; lexicographic ordering</h5>
+<p><code>sequence</code> is stored as <code>TEXT</code>, so <code>ORDER BY "sequence"</code> and <code>MIN</code>/<code>MAX</code> sort as <em>strings</em>: <code>'10'</code> sorts before <code>'9'</code>, and <code>'13'</code> before <code>'2'</code>. With this dataset the strings happen to match numeric order, so the result is correct &mdash; but on a partition containing both <code>'9'</code> and <code>'10'</code> the islands would be wrong. The <code>CASE ... ~ '^-?[0-9]+$'</code> regex already extracts a clean integer for <code>diff</code>; the fix is to also sort and aggregate on that integer: <code>ORDER BY "sequence"::int</code> and <code>MIN("sequence"::int)</code>. Naming this latent bug is the senior move.</p>
+
+<h5>The regex guard against dirty data</h5>
+<p><code>"sequence"::text ~ '^-?[0-9]+$'</code> tests that the value is a pure (optionally negative) integer before casting. A stray <code>'N/A'</code> would otherwise abort the whole query with an <code>invalid input syntax for type integer</code> error. The <code>ELSE 0</code> branch keeps non-numeric rows from crashing the run &mdash; though it silently lumps them into the <code>diff = -row_number</code> bucket, which a stricter design would route to a NULL or an error instead.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise this instantly as gaps-and-islands, explain that <code>value - row_number</code> is constant within a run, prefer <code>GROUP BY grp, diff</code> over <code>SELECT DISTINCT</code> for one clean row per island, and flag that ordering a <code>TEXT</code> sequence column sorts lexicographically &mdash; cast to <code>int</code> before sorting.</div>

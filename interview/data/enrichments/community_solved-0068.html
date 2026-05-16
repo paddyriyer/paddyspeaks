@@ -1,0 +1,62 @@
+<p>An education platform stores exam marks in long format &mdash; one row per student per subject &mdash; and the registrar needs a pass/fail verdict per student against two compound rules: a per-subject floor (&ge; 40 in every subject) <em>and</em> an overall threshold (&ge; 50% across all four). The interviewer is testing whether you can pivot long rows into a wide per-student shape with conditional aggregation, and then encode a multi-condition gate without missing the "<em>every</em> subject" semantics.</p>
+
+<h4>1. The source data &mdash; <code>exam_score</code></h4>
+<table>
+  <thead><tr><th>studentid</th><th>subjectid</th><th>marks</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1&hellip;4</td><td>80, 70, 90, 60</td></tr>
+    <tr><td>2</td><td>1&hellip;4</td><td>40, 40, 40, 40</td></tr>
+    <tr><td>3</td><td>1&hellip;4</td><td>95, 95, 95, 35</td></tr>
+    <tr><td>4</td><td>1&hellip;4</td><td>55, 60, 50, 45</td></tr>
+  </tbody>
+</table>
+<p>Student 2 hits exactly the 40 floor in every subject but a low total; student 3 is a top scorer in three subjects yet flunks one with a 35. These two boundary students &mdash; one failing the overall rule, one failing the per-subject rule &mdash; are the whole point of the question.</p>
+
+<h4>2. The SQL &mdash; conditional-aggregation pivot, then a compound CASE</h4>
+<pre><code>WITH marks_cte AS (
+  SELECT studentid,
+         COALESCE(SUM(CASE WHEN subjectid::text = '1' THEN marks::int END), 0) AS subject1,
+         COALESCE(SUM(CASE WHEN subjectid::text = '2' THEN marks::int END), 0) AS subject2,
+         COALESCE(SUM(CASE WHEN subjectid::text = '3' THEN marks::int END), 0) AS subject3,
+         COALESCE(SUM(CASE WHEN subjectid::text = '4' THEN marks::int END), 0) AS subject4,
+         COALESCE(SUM(marks::int), 0) AS total_marks
+  FROM exam_score
+  WHERE marks::text ~ '^-?[0-9]+$'
+  GROUP BY studentid
+)
+SELECT studentid, subject1, subject2, subject3, subject4, total_marks,
+  CASE WHEN LEAST(subject1, subject2, subject3, subject4) &gt;= 40
+        AND (1.0*total_marks/400) &gt;= 0.5 THEN 'pass'
+       ELSE 'fail' END AS result
+FROM marks_cte;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>studentid</th><th>subject1</th><th>subject2</th><th>subject3</th><th>subject4</th><th>total_marks</th><th>result</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>80</td><td>70</td><td>90</td><td>60</td><td>300</td><td>pass</td></tr>
+    <tr><td>2</td><td>40</td><td>40</td><td>40</td><td>40</td><td>160</td><td>fail</td></tr>
+    <tr><td>3</td><td>95</td><td>95</td><td>95</td><td>35</td><td>320</td><td>fail</td></tr>
+    <tr><td>4</td><td>55</td><td>60</td><td>50</td><td>45</td><td>210</td><td>pass</td></tr>
+  </tbody>
+</table>
+<p>Student 2 fails the <em>overall</em> rule (160/400 = 40% &lt; 50%) despite clearing every per-subject floor. Student 3 fails the <em>per-subject</em> rule (a 35 in subject 4) despite the highest total in the cohort. Student 4 passes narrowly &mdash; lowest mark 45, total 52.5%. The two rules catch different failure modes, exactly as designed.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The pivot &mdash; <code>SUM(CASE WHEN subjectid = n)</code></h5>
+<p>Long-to-wide reshaping uses conditional aggregation: <code>SUM(CASE WHEN subjectid = '1' THEN marks END)</code> collapses to a single <code>subject1</code> column per student because, after <code>GROUP BY studentid</code>, only that student's subject-1 row is non-NULL inside the SUM. This is the universal pivot idiom &mdash; portable to every dialect, unlike a vendor <code>PIVOT</code> operator. <code>SUM</code> (rather than <code>MAX</code>) is the safe aggregate here: if a student somehow has duplicate subject rows, <code>SUM</code> exposes the inflated mark instead of silently hiding it.</p>
+
+<h5><code>LEAST(...)</code> is the elegant "every subject" test</h5>
+<p>The per-subject rule is "&ge; 40 in <em>each</em> of the four". Rather than four chained <code>AND</code> comparisons, <code>LEAST(subject1, subject2, subject3, subject4) &gt;= 40</code> says it once: if the <em>minimum</em> subject clears 40, all of them do. This is the senior shortcut for an all-of-N condition &mdash; and its mirror, <code>GREATEST(...) &lt; threshold</code>, encodes a none-of-N condition just as compactly.</p>
+
+<h5>The NULL trap that <code>LEAST</code> hides &mdash; a missing subject</h5>
+<p>This is the question's deepest subtlety. <code>LEAST</code> in Postgres <em>ignores</em> NULL arguments &mdash; <code>LEAST(80, NULL, 90, 60)</code> returns 60, not NULL. So if a student is missing a subject row entirely, the <code>COALESCE(..., 0)</code> turns that subject into <code>0</code> &mdash; which correctly fails the floor. But drop the <code>COALESCE</code> and the subject stays NULL; <code>LEAST</code> skips it, and a student who never sat subject 3 could be marked "pass" on three subjects. The <code>COALESCE(..., 0)</code> is not cosmetic &mdash; it is what forces an absent subject to fail rather than vanish. Worth saying out loud: a missing row and a genuine zero are treated identically here, which is the right call for a pass gate but should be a deliberate decision.</p>
+
+<h5>The percentage arithmetic &mdash; why <code>1.0 *</code> and why <code>400</code></h5>
+<p><code>total_marks / 400</code> in pure integer arithmetic would truncate to 0 for everyone, so the <code>CASE</code> would always fail the overall rule. <code>1.0 * total_marks / 400</code> forces floating-point division. The divisor is <code>400</code> because the maximum is 100 per subject &times; 4 subjects; "50% overall" then means <code>&ge; 0.5</code>. If the rubric instead meant "average mark &ge; 50", that is the same arithmetic &mdash; but confirm the interpretation, because "50% overall" and "average of 50" only coincide when every subject has the same maximum.</p>
+
+<h5>Common mistake &mdash; checking only the total</h5>
+<p>A frequent wrong answer tests <code>total_marks &gt;= 200</code> alone and declares student 3 a pass &mdash; missing that one subject is below 40. Compound pass rules need <em>both</em> gates ANDed; the per-subject floor is not implied by a healthy total. Reading "at least 40 in <em>each</em> subject" as a separate, non-negotiable condition is what the question rewards.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot with <code>SUM(CASE)</code>, then compress the "&ge; 40 in every subject" rule into a single <code>LEAST(...) &gt;= 40</code> &mdash; and crucially explain that <code>LEAST</code> silently skips NULLs, so the <code>COALESCE(..., 0)</code> is what forces a missing subject to fail instead of disappearing. Forcing float division with <code>1.0 *</code> and ANDing both gates separately is the complete answer.</div>

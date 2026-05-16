@@ -1,0 +1,61 @@
+<p>An e-commerce team wants each customer's most recent order &mdash; the canonical "latest record per group" problem. The reference solution uses a correlated subquery that, for every row, finds that customer's maximum order date and keeps the row only if it matches. The interviewer is probing whether you understand <em>why</em> this returns more than one row per customer when dates tie, and whether you know the window-function alternative.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2026-01-10</td><td>shipped</td><td>50.00</td></tr>
+    <tr><td>2</td><td>101</td><td>2026-03-22</td><td>shipped</td><td>75.00</td></tr>
+    <tr><td>3</td><td>102</td><td>2026-02-15</td><td>pending</td><td>30.00</td></tr>
+    <tr><td>4</td><td>103</td><td>2026-04-01</td><td>shipped</td><td>120.00</td></tr>
+    <tr><td>5</td><td>103</td><td>2026-04-01</td><td>cancelled</td><td>15.00</td></tr>
+    <tr><td>6</td><td>104</td><td>2026-05-09</td><td>shipped</td><td>200.00</td></tr>
+  </tbody>
+</table>
+<p>Customer 103 is the trap: <em>two orders on the same date</em>, 2026-04-01. "Latest order" is now ambiguous &mdash; the query has to do something with that, and what it does tells the interviewer how well you understand the pattern.</p>
+
+<h4>2. The SQL &mdash; correlated subquery on <code>MAX(order_date)</code></h4>
+<pre><code>SELECT * FROM orders o
+WHERE order_date = (SELECT MAX(order_date) FROM orders
+                    WHERE customer_id = o.customer_id);</code></pre>
+<p>For each outer row <code>o</code>, the subquery computes the maximum <code>order_date</code> among orders with the same <code>customer_id</code>. The row survives only if its own date equals that maximum.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>101</td><td>2026-03-22</td><td>shipped</td><td>75.00</td><td>single latest order</td></tr>
+    <tr><td>3</td><td>102</td><td>2026-02-15</td><td>pending</td><td>30.00</td><td>only one order &mdash; trivially latest</td></tr>
+    <tr><td>4</td><td>103</td><td>2026-04-01</td><td>shipped</td><td>120.00</td><td>tie &mdash; both 04-01 rows kept</td></tr>
+    <tr><td>5</td><td>103</td><td>2026-04-01</td><td>cancelled</td><td>15.00</td><td>tie &mdash; both 04-01 rows kept</td></tr>
+    <tr><td>6</td><td>104</td><td>2026-05-09</td><td>shipped</td><td>200.00</td><td>single latest order</td></tr>
+  </tbody>
+</table>
+<p>Customer 103 returns <strong>two</strong> rows. Both orders share the maximum date 2026-04-01, so both satisfy <code>order_date = MAX(...)</code>. If the report assumed exactly one row per customer, this duplicate would silently break a downstream join or count.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why ties produce multiple rows &mdash; and whether that is acceptable</h5>
+<p>The filter is an equality against a date, and a date is not unique within a customer. Two orders on the same day both equal the max, so both pass. This is not a bug in the SQL &mdash; it is the SQL faithfully answering "rows whose date is the latest". If the business needs <em>exactly one</em> row per customer, you must break the tie deterministically, e.g. by <code>order_id</code> or <code>amount</code>. State the tie-breaker explicitly; "the latest order" is underspecified until you do.</p>
+
+<h5>The window-function alternative &mdash; clearer and tie-controllable</h5>
+<p>The modern idiom ranks rows per customer and keeps rank 1:</p>
+<pre><code>SELECT order_id, customer_id, order_date, status, amount
+FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY customer_id
+                               ORDER BY order_date DESC, order_id DESC) AS rn
+  FROM orders
+) t
+WHERE rn = 1;</code></pre>
+<p><code>ROW_NUMBER</code> guarantees one row per customer because the <code>ORDER BY order_id DESC</code> tie-breaker makes the ordering total. Swap it for <code>RANK()</code> if you deliberately <em>want</em> all tied rows &mdash; then the choice is explicit, not accidental.</p>
+
+<h5>Postgres has an even terser tool &mdash; <code>DISTINCT ON</code></h5>
+<p>PostgreSQL offers <code>SELECT DISTINCT ON (customer_id) * FROM orders ORDER BY customer_id, order_date DESC, order_id DESC</code>. It keeps the first row of each <code>customer_id</code> group as defined by the <code>ORDER BY</code> &mdash; exactly one row per customer, tie broken by the trailing key. It is concise and fast, but Postgres-only; <code>ROW_NUMBER</code> is the portable equivalent.</p>
+
+<h5>The correlated subquery runs once per row</h5>
+<p><code>WHERE customer_id = o.customer_id</code> makes the subquery correlated: it re-executes for every outer row. Without an index on <code>(customer_id, order_date)</code> that is repeated scanning &mdash; quadratic in the worst case. With that index each <code>MAX</code> is an index lookup, and the pattern is fine. The window-function version sorts once, O(n log n), and does not depend on the planner caching the subquery.</p>
+
+<h5>NULL order dates &mdash; the silent dropout</h5>
+<p>If a customer's only order has a NULL <code>order_date</code>, <code>MAX</code> ignores NULLs and returns NULL, and <code>order_date = NULL</code> is never true &mdash; that customer vanishes from the result entirely. If unscheduled orders must still appear, coalesce to a sentinel or handle NULL dates explicitly. The window form has the same issue unless you specify <code>NULLS LAST</code> in the <code>ORDER BY</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>order_date = MAX(order_date)</code> returns every tied row, not one per customer, pick <code>ROW_NUMBER</code> (one row, total order) vs <code>RANK</code> (all ties) deliberately, reach for <code>DISTINCT ON</code> in Postgres, and note that NULL dates silently drop customers from the answer.</div>

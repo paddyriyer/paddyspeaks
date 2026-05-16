@@ -1,0 +1,72 @@
+<p>A community dataset gives you a <code>source_tab</code> and a <code>target_tab</code> and asks for a reconciliation report &mdash; the bread-and-butter of every data-migration and ETL-validation job. You must classify each key into three buckets: present only on the source, present only on the target, or present on both but with a mismatched value. The interviewer is watching whether you cover all three cases cleanly and whether your NULL handling is sound.</p>
+
+<h4>1. The source data &mdash; <code>source_tab</code> and <code>target_tab</code></h4>
+<table>
+  <thead><tr><th>source_tab.id</th><th>source.letter</th><th>target_tab.id</th><th>target.letter</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>1</td><td>A</td><td>match &mdash; not reported</td></tr>
+    <tr><td>2</td><td>B</td><td>2</td><td>X</td><td>same id, different letter &rarr; Mismatch</td></tr>
+    <tr><td>3</td><td>C</td><td>3</td><td>C</td><td>match &mdash; not reported</td></tr>
+    <tr><td>4</td><td>D</td><td>&mdash;</td><td>&mdash;</td><td>id 4 only in source</td></tr>
+    <tr><td>5</td><td>E</td><td>&mdash;</td><td>&mdash;</td><td>id 5 only in source</td></tr>
+    <tr><td>&mdash;</td><td>&mdash;</td><td>6</td><td>F</td><td>id 6 only in target</td></tr>
+    <tr><td>&mdash;</td><td>&mdash;</td><td>7</td><td>G</td><td>id 7 only in target</td></tr>
+  </tbody>
+</table>
+<p>Id 2 is the trap: it exists on <em>both</em> sides, so it is neither "only in source" nor "only in target" &mdash; it is a value <strong>mismatch</strong> and needs its own branch.</p>
+
+<h4>2. The SQL &mdash; three-way <code>UNION ALL</code> of join results</h4>
+<pre><code>select s.id, 'Only in Source' as Comment
+from source_tab s left join target_tab t
+on s.id = t.id
+where t.id is null
+
+union all
+
+select t.id,'Only in Target' as Comment
+from target_tab t left join source_tab s
+on s.id = t.id
+where s.id is null
+
+union all
+
+select s.id, 'Mismatch' as Comment
+from source_tab s inner join target_tab t
+on s.id = t.id and s.letter &lt;&gt; t.letter;</code></pre>
+<p>Three independent queries stacked: a left-anti-join for source-only ids, the mirror for target-only ids, and an inner join keyed on equal id but unequal letter for mismatches.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>comment</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>Only in Source</td></tr>
+    <tr><td>5</td><td>Only in Source</td></tr>
+    <tr><td>6</td><td>Only in Target</td></tr>
+    <tr><td>7</td><td>Only in Target</td></tr>
+    <tr><td>2</td><td>Mismatch</td></tr>
+  </tbody>
+</table>
+<p>Ids 1 and 3 (perfect matches) are correctly absent &mdash; the report only surfaces discrepancies. Id 2 is flagged once, as a <code>Mismatch</code>, not duplicated across buckets.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEFT JOIN ... IS NULL</code> isolates "only in X"</h5>
+<p>A <code>LEFT JOIN</code> keeps every left-side row; rows with no partner get NULLs on the right. Filtering <code>WHERE t.id IS NULL</code> keeps exactly the unmatched left rows &mdash; the <em>anti-join</em>. The second block flips source and target to find target-only ids. Two anti-joins plus one inner join cover all three discrepancy types.</p>
+
+<h5><code>UNION ALL</code> vs <code>UNION</code> &mdash; pick the cheap one deliberately</h5>
+<p>The three branches produce disjoint id sets by construction, so there is nothing to deduplicate. <code>UNION ALL</code> simply concatenates them; plain <code>UNION</code> would add a pointless distinct-sort over the whole result. When you can prove the inputs are disjoint, <code>UNION ALL</code> is both correct and faster &mdash; saying <em>why</em> you chose it is the signal.</p>
+
+<h5>The <code>FULL OUTER JOIN</code> alternative &mdash; one pass, all three cases</h5>
+<p>The whole report is one statement if you use a full outer join:</p>
+<pre><code>SELECT COALESCE(s.id, t.id) AS id,
+  CASE WHEN t.id IS NULL                  THEN 'Only in Source'
+       WHEN s.id IS NULL                  THEN 'Only in Target'
+       WHEN s.letter &lt;&gt; t.letter           THEN 'Mismatch'
+       ELSE 'Match' END AS comment
+FROM source_tab s FULL OUTER JOIN target_tab t ON s.id = t.id;</code></pre>
+<p>One join, one scan of each table, every id classified. Filter out <code>'Match'</code> if matches should not appear. This scales better than three separate joins and keeps the logic in one readable <code>CASE</code>.</p>
+
+<h5>The NULL-letter trap in the mismatch branch</h5>
+<p><code>s.letter &lt;&gt; t.letter</code> evaluates to <em>unknown</em> &mdash; not true &mdash; whenever either letter is NULL. So an id whose letter is <code>'A'</code> on the source and NULL on the target would <strong>not</strong> be flagged as a mismatch, even though the values genuinely differ. NULL-safe comparison fixes it: Postgres <code>s.letter IS DISTINCT FROM t.letter</code>, or <code>COALESCE</code> both sides to a sentinel. On a real reconciliation job this silent miss is the bug that ships.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> collapse the three-way <code>UNION ALL</code> into a single <code>FULL OUTER JOIN</code> with a <code>CASE</code>, justify <code>UNION ALL</code> over <code>UNION</code> by proving the branches are disjoint, and replace <code>&lt;&gt;</code> with <code>IS DISTINCT FROM</code> so a NULL on one side is still caught as a mismatch.</div>

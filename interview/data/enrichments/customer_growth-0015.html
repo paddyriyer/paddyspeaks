@@ -1,0 +1,116 @@
+<p>A risk-operations team gates a win-back campaign on a fraud check: before re-engaging churned customers with an incentive, score each one's recent fraud signals and route them to <em>eligible</em>, <em>manual_review</em>, or <em>hard_excluded</em>. The question (campaign <code>win_back_q2_2025</code>, snapshot 2025-05-01) layers severity-weighted L7/L28/L90 windows, a consecutive-day "burst" detector, and a campaign-eligibility join. The interviewer is probing conditional aggregation with mixed time windows, a gaps-and-islands burst, and string-rank tier filtering.</p>
+
+<h4>1. The source data &mdash; <code>customers</code>, <code>fraud_signals</code>, <code>campaigns</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>tier / state</th><th>fraud signals</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Tier 1 / churned</td><td>none</td><td>clean &mdash; <strong>eligible</strong></td></tr>
+    <tr><td>2</td><td>Tier 1 / churned</td><td>1 HIGH (Mar 2)</td><td>any HIGH in 90d &rarr; <strong>hard_excluded</strong></td></tr>
+    <tr><td>3</td><td>Tier 2 / churned</td><td>1 MEDIUM (Apr 12)</td><td>MEDIUM in 30d &rarr; <strong>manual_review</strong></td></tr>
+    <tr><td>4</td><td>Tier 1 / churned</td><td>4 LOW + 1 MEDIUM (Mar 26)</td><td>MEDIUM is 36d back &mdash; falls outside the 30d band</td></tr>
+    <tr><td>5</td><td>Tier 2 / churned</td><td>7 LOW + 2 MEDIUM</td><td>risk_score 17 &rarr; <strong>hard_excluded</strong></td></tr>
+    <tr><td>6</td><td>Tier 1 / active</td><td>&mdash;</td><td><code>active</code> &ne; campaign target_state &mdash; filtered out</td></tr>
+    <tr><td>7</td><td>Tier 3 / churned</td><td>&mdash;</td><td>Tier 3 ranks below min_tier 'Tier 2' &mdash; filtered out</td></tr>
+    <tr><td>8</td><td>Tier 2 / churned</td><td>1 LOW (Sep 2024)</td><td>signal &gt; 90d old &mdash; pruned by the date filter</td></tr>
+  </tbody>
+</table>
+<p>Customer 4 is the subtle one: its MEDIUM signal is dated 2025-03-26, which is 36 days before the 2025-05-01 snapshot &mdash; <em>outside</em> the 30-day MEDIUM band. So that MEDIUM scores zero, and the 4 LOW signals (all within 28 days) give <code>risk_score = 4</code>, just under the <code>&ge; 5</code> review threshold. Customer 4 stays <code>eligible</code>. A different time-window for the MEDIUM would flip the verdict.</p>
+
+<h4>2. The SQL &mdash; severity-weighted windows, burst islands, tier-rank filter</h4>
+<pre><code>WITH params AS (SELECT DATE '2025-05-01' AS snapshot),
+cmp AS (SELECT * FROM campaigns WHERE name = 'win_back_q2_2025'),
+sig AS (
+    SELECT f.customer_id, f.severity, f.signal_ts,
+           ((SELECT snapshot FROM params) - f.signal_ts) AS days_back
+    FROM fraud_signals f
+    WHERE f.signal_ts &gt;= (SELECT snapshot FROM params) - INTERVAL '90 days'
+),
+sig_days AS (
+    SELECT customer_id, signal_ts AS signal_day
+    FROM sig GROUP BY customer_id, signal_ts
+),
+sig_indexed AS (
+    SELECT customer_id, signal_day,
+           (signal_day - DATE '2000-01-01')
+             - ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY signal_day) AS island_id
+    FROM sig_days
+),
+sig_islands AS (
+    SELECT customer_id, island_id, COUNT(*) AS streak_len
+    FROM sig_indexed GROUP BY customer_id, island_id
+),
+burst_per_cust AS (
+    SELECT customer_id, MAX(streak_len) AS longest_burst
+    FROM sig_islands GROUP BY customer_id
+),
+fraud_summary AS (
+    SELECT customer_id,
+        SUM(CASE WHEN days_back &lt; 7  THEN 1 ELSE 0 END) AS l7_signals,
+        SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) AS l28_signals,
+        SUM(CASE WHEN days_back &lt; 90 THEN 1 ELSE 0 END) AS l90_signals,
+        SUM(CASE WHEN severity='HIGH'   AND days_back &lt;= 90 THEN 1 ELSE 0 END) AS high_l90,
+        SUM(CASE WHEN severity='MEDIUM' AND days_back &lt;= 30 THEN 1 ELSE 0 END) AS medium_l30,
+        SUM(CASE WHEN severity='LOW'    AND days_back &lt;= 28 THEN 1 ELSE 0 END) AS low_l28,
+        SUM(CASE WHEN severity='HIGH'   AND days_back &lt;= 90 THEN 10
+                 WHEN severity='MEDIUM' AND days_back &lt;= 30 THEN 5
+                 WHEN severity='LOW'    AND days_back &lt;= 28 THEN 1
+                 ELSE 0 END) AS risk_score
+    FROM sig GROUP BY customer_id
+)
+SELECT c.customer_id, c.tier, c.lifecycle_state,
+    COALESCE(fs.l7_signals,0)  AS l7_signals,
+    COALESCE(fs.l28_signals,0) AS l28_signals,
+    COALESCE(fs.l90_signals,0) AS l90_signals,
+    COALESCE(fs.high_l90,0)    AS high_l90,
+    COALESCE(fs.medium_l30,0)  AS medium_l30,
+    COALESCE(fs.low_l28,0)     AS low_l28,
+    COALESCE(bp.longest_burst,0) AS longest_burst,
+    COALESCE(fs.risk_score,0)  AS risk_score,
+    CASE
+        WHEN COALESCE(fs.high_l90,0) &gt; 0
+          OR COALESCE(fs.risk_score,0) &gt;= 15
+          OR COALESCE(bp.longest_burst,0) &gt;= 5 THEN 'hard_excluded'
+        WHEN COALESCE(fs.medium_l30,0) &gt; 0
+          OR COALESCE(fs.risk_score,0) &gt;= 5
+          OR COALESCE(bp.longest_burst,0) &gt;= 3 THEN 'manual_review'
+        ELSE 'eligible'
+    END AS status
+FROM customers c
+JOIN cmp ON c.lifecycle_state = cmp.target_state
+LEFT JOIN fraud_summary  fs ON fs.customer_id = c.customer_id
+LEFT JOIN burst_per_cust bp ON bp.customer_id = c.customer_id
+WHERE CAST(substr(c.tier, 6) AS INTEGER) &lt;= CAST(substr(cmp.min_tier, 6) AS INTEGER)
+ORDER BY risk_score DESC, c.customer_id ASC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>tier</th><th>l90_signals</th><th>high_l90</th><th>medium_l30</th><th>low_l28</th><th>longest_burst</th><th>risk_score</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>Tier 2</td><td>9</td><td>0</td><td>2</td><td>7</td><td>2</td><td>17</td><td>hard_excluded</td></tr>
+    <tr><td>2</td><td>Tier 1</td><td>1</td><td>1</td><td>0</td><td>0</td><td>1</td><td>10</td><td>hard_excluded</td></tr>
+    <tr><td>3</td><td>Tier 2</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td>5</td><td>manual_review</td></tr>
+    <tr><td>4</td><td>Tier 1</td><td>5</td><td>0</td><td>0</td><td>4</td><td>1</td><td>4</td><td>eligible</td></tr>
+    <tr><td>1</td><td>Tier 1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>eligible</td></tr>
+    <tr><td>8</td><td>Tier 2</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>eligible</td></tr>
+  </tbody>
+</table>
+<p>Customer 2 is hard-excluded on a single HIGH signal even though its <code>risk_score</code> (10) is lower than customer 5's (17): the <code>high_l90 &gt; 0</code> rule is an absolute veto. And note hard-excluded customers <em>are</em> returned &mdash; risk-ops audits the rejection queue, so the campaign filter never drops them from the result. Customers 6 and 7 are gone (wrong lifecycle state, insufficient tier), and customer 8's lone LOW signal from September 2024 is pruned by the 90-day filter, leaving it at risk_score 0.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Each severity has its own time window &mdash; the windows differ on purpose</h5>
+<p>HIGH counts over 90 days, MEDIUM over 30, LOW over 28. The conditional aggregation encodes three different lookbacks in one <code>SUM(CASE ...)</code> per metric, and the <code>risk_score</code> bundles weight (10/5/1) <em>and</em> window into a single <code>CASE</code>. The design rationale: a severe signal stays relevant longer, a minor one decays fast. Customer 4's expired MEDIUM (36 days back) is the live demonstration &mdash; same signal, wrong window, zero contribution.</p>
+
+<h5>The burst detector: distinct days, then <code>signal_day - ROW_NUMBER</code></h5>
+<p><code>longest_burst</code> is "longest run of consecutive calendar days with at least one signal" &mdash; a gaps-and-islands problem. <code>sig_days</code> first collapses to one row per (customer, day) so two signals on the same day do not desync the count. Then for each customer the day is converted to an integer (<code>signal_day - '2000-01-01'</code>) and numbered with <code>ROW_NUMBER</code>; for a consecutive run both increase by 1, so their difference is a constant island id. <code>MAX(COUNT(*))</code> over islands gives the longest streak.</p>
+
+<h5>String-rank tier filtering &mdash; clever but fragile</h5>
+<p><code>CAST(substr(c.tier, 6) AS INTEGER) &lt;= CAST(substr(cmp.min_tier, 6) AS INTEGER)</code> rips the digit out of <code>'Tier 2'</code> (character 6 onward) and compares numerically. The <code>&lt;=</code> is correct because a <em>lower</em> tier number is a <em>better</em> tier &mdash; "ranks at or above min_tier" means tier number &le; min_tier number. It works, but it is brittle: rename a tier to <code>'Platinum'</code> or <code>'Tier 10'</code> and <code>substr(...,6)</code> breaks. A senior would flag that a proper <code>tier_rank</code> lookup table is the maintainable design and the string surgery is interview-grade only.</p>
+
+<h5><code>LEFT JOIN</code> + <code>COALESCE</code>: clean customers must still appear</h5>
+<p>Customers 1 and 8 have no rows in <code>fraud_summary</code> (no signals in the 90-day window). The query starts from <code>customers</code>, inner-joins the campaign to apply the state filter, then <code>LEFT JOIN</code>s the fraud aggregates. Every fraud column is wrapped in <code>COALESCE(..., 0)</code> so a missing match reads as zero risk &rarr; <code>eligible</code>. An inner join would silently drop the cleanest, most campaign-worthy customers &mdash; the exact opposite of intent.</p>
+
+<h5>The status <code>CASE</code> is OR-of-thresholds, severity-ordered</h5>
+<p><code>hard_excluded</code> fires if <em>any</em> of three conditions hold (a HIGH signal, score &ge; 15, or a 5-day burst); <code>manual_review</code> if any of a softer set holds. Because the branches are evaluated top-down, a customer meeting both tiers is correctly hard-excluded &mdash; the strictest verdict wins. Each branch is an independent veto, which is why customer 2 (one HIGH, score only 10) is excluded while a higher-scoring-but-no-HIGH customer might merely hit review.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> encode per-severity lookback windows in conditional aggregation and explain why severe signals decay slower, build the burst metric with distinct-day collapsing before the <code>signal_day - ROW_NUMBER</code> islands trick, justify the <code>&lt;=</code> direction of the string-rank tier filter while flagging it as fragile versus a <code>tier_rank</code> table, and drive the result from <code>customers</code> with <code>LEFT JOIN</code>+<code>COALESCE</code> so zero-signal customers still surface as eligible.</div>

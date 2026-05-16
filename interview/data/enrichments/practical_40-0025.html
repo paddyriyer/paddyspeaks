@@ -1,0 +1,59 @@
+<p>A data pipeline writes one <code>daily_metrics</code> row per calendar day &mdash; or it should. An on-call engineer suspects the loader skipped some days and needs to find every gap: the day after a gap <em>starts</em> and the day before it <em>ends</em>, plus how many days went missing. The interviewer is testing the <strong>gaps-and-islands</strong> idiom &mdash; reasoning about the row that comes <em>next</em>, not the current one.</p>
+
+<h4>1. The source data &mdash; <code>daily_metrics</code></h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-01</td><td>100</td><td>start of run</td></tr>
+    <tr><td>2025-03-02</td><td>110</td><td>consecutive &mdash; no gap</td></tr>
+    <tr><td>2025-03-03</td><td>105</td><td>then nothing until 03-07</td></tr>
+    <tr><td>2025-03-07</td><td>130</td><td>gap of 3 days (04, 05, 06)</td></tr>
+    <tr><td>2025-03-08</td><td>120</td><td>consecutive &mdash; no gap</td></tr>
+    <tr><td>2025-03-15</td><td>140</td><td>last row &mdash; gap of 6 days before it</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. <code>2025-03-01</code>&rarr;<code>02</code> is a one-day step &mdash; <em>not</em> a gap, and must not be reported. And <code>2025-03-15</code> is the last row: it has no following day, so it cannot itself <em>start</em> a gap &mdash; the query must not invent a phantom gap after it.</p>
+
+<h4>2. The SQL &mdash; <code>LEAD()</code> to peek at the next date</h4>
+<pre><code>WITH ordered AS (
+    SELECT metric_date,
+           LEAD(metric_date) OVER (ORDER BY metric_date) AS next_date
+    FROM daily_metrics
+)
+SELECT metric_date AS gap_starts_after,
+       next_date  AS gap_ends_before,
+       (next_date::date - metric_date::date - 1) AS missing_days
+FROM ordered
+WHERE next_date IS NOT NULL
+  AND (next_date::date - metric_date::date) &gt; 1
+ORDER BY metric_date;</code></pre>
+<p><code>LEAD(metric_date)</code> pulls the <em>following</em> row's date onto the current row. If the difference between a date and its successor exceeds one day, the days in between were never loaded &mdash; that pair brackets a gap.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>gap_starts_after</th><th>gap_ends_before</th><th>missing_days</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-03-03</td><td>2025-03-07</td><td>3</td><td>04, 05, 06 missing</td></tr>
+    <tr><td>2025-03-08</td><td>2025-03-15</td><td>6</td><td>09&ndash;14 missing</td></tr>
+  </tbody>
+</table>
+<p>Two gaps. The <code>03-01</code>&rarr;<code>02</code> step has a difference of exactly 1, fails the <code>&gt; 1</code> test, and is correctly silent. <code>2025-03-15</code> has a NULL <code>next_date</code> (no row after it), is filtered by <code>next_date IS NOT NULL</code>, and produces no false gap. <code>missing_days</code> subtracts the extra 1 so a 4-day jump reports 3 absent days.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEAD</code> beats a self-join</h5>
+<p>The pre-window way to find "the next row" is a correlated subquery &mdash; <code>SELECT MIN(metric_date) FROM daily_metrics d2 WHERE d2.metric_date &gt; d1.metric_date</code> &mdash; which scans the table once per row. <code>LEAD</code> sorts the data once and reads the neighbour for free in a single pass: O(n log n) instead of O(n&sup2;), and far clearer about intent. For any ordered-neighbour question, <code>LEAD</code>/<code>LAG</code> is the senior tool.</p>
+
+<h5>The last row and the NULL guard</h5>
+<p><code>LEAD</code> returns NULL for the final row of the partition &mdash; there is no next date. Without <code>WHERE next_date IS NOT NULL</code>, the arithmetic <code>next_date - metric_date</code> would be NULL, the <code>&gt; 1</code> comparison would be <em>unknown</em>, and the row would be dropped anyway &mdash; but relying on that is fragile. Stating the guard explicitly documents the intent and protects against an engine that handles NULL comparisons differently.</p>
+
+<h5>The off-by-one in <code>missing_days</code></h5>
+<p>From <code>03-03</code> to <code>03-07</code> the raw date difference is 4, but only <strong>3</strong> days (04, 05, 06) are actually missing &mdash; the endpoints exist. Subtracting the extra <code>1</code> converts "span between two present dates" into "count of absent dates". Forgetting that <code>-1</code> over-reports every gap by one day; it is the single most common mistake on this question.</p>
+
+<h5>This finds gap <em>boundaries</em>, not the missing dates themselves</h5>
+<p>The output is one row per gap with its endpoints &mdash; it does <em>not</em> list <code>2025-03-04</code>, <code>05</code>, <code>06</code> individually. If the business wants the actual missing dates, the senior follow-up is to <code>generate_series(min_date, max_date, '1 day')</code> and <code>LEFT JOIN</code> the real table, keeping the unmatched calendar days. Knowing both shapes &mdash; gap boundaries vs enumerated missing days &mdash; and which the consumer needs is the differentiator.</p>
+
+<h5>Dialect notes</h5>
+<p>The date subtraction <code>date - date &rarr; integer</code> is Postgres-specific. SQLite would use <code>julianday(next_date) - julianday(metric_date)</code>; MySQL <code>DATEDIFF(next_date, metric_date)</code>; Snowflake <code>DATEDIFF('day', metric_date, next_date)</code>. <code>LEAD</code> and the CTE are standard across all of them &mdash; only the date arithmetic needs translation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve sequence-gap detection with <code>LEAD</code> to compare each row to its successor, guard the final row with <code>next_date IS NOT NULL</code>, subtract one to turn a date span into a missing-day count, and know the <code>generate_series</code> + anti-join follow-up when the consumer needs the actual missing dates rather than just the gap boundaries.</div>

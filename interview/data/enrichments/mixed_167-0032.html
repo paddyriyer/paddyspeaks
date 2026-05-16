@@ -1,0 +1,61 @@
+<p>A pricing analyst wants the five product categories with the highest average price &mdash; a quick read on which segments anchor the premium end of the catalogue. The reference solution groups by category, averages the price, and takes the top five by descending average. It runs without error, but it has a subtle correctness flaw the interviewer is hunting for: a category whose prices are all NULL sorts to the <em>top</em>.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>category</th><th>price</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Diamond Ring</td><td>Jewelry</td><td>2400.00</td><td>&mdash;</td></tr>
+    <tr><td>2</td><td>Gold Chain</td><td>Jewelry</td><td>1800.00</td><td>Jewelry avg = 2100</td></tr>
+    <tr><td>3</td><td>Leather Sofa</td><td>Furniture</td><td>1200.00</td><td>&mdash;</td></tr>
+    <tr><td>4</td><td>Oak Desk</td><td>Furniture</td><td>600.00</td><td>Furniture avg = 900</td></tr>
+    <tr><td>5</td><td>Laptop</td><td>Electronics</td><td>950.00</td><td>&mdash;</td></tr>
+    <tr><td>6</td><td>Phone</td><td>Electronics</td><td>700.00</td><td>Electronics avg = 825</td></tr>
+    <tr><td>7</td><td>T-Shirt</td><td>Apparel</td><td>25.00</td><td>single-product category</td></tr>
+    <tr><td>8</td><td>Notebook</td><td>Stationery</td><td>3.25</td><td>single-product category</td></tr>
+    <tr><td>9</td><td>Rare Coin</td><td>Collectibles</td><td>NULL</td><td>price unset &mdash; the trap</td></tr>
+  </tbody>
+</table>
+<p>Collectibles is the trap: its only product has a <em>NULL</em> price. <code>AVG</code> over an all-NULL group returns NULL &mdash; and the interview turns on where that NULL lands once you sort descending.</p>
+
+<h4>2. The SQL &mdash; group, average, take top five</h4>
+<pre><code>-- original solution (flagged: NULL avg sorts first under DESC)
+SELECT category, AVG(price) AS avg_price FROM products
+GROUP BY category ORDER BY avg_price DESC LIMIT 5;
+
+-- corrected: push NULL averages to the bottom
+SELECT category, AVG(price) AS avg_price FROM products
+GROUP BY category ORDER BY avg_price DESC NULLS LAST LIMIT 5;</code></pre>
+<p><code>GROUP BY category</code> forms one row per category; <code>AVG(price)</code> averages each group's non-null prices; <code>ORDER BY ... DESC LIMIT 5</code> keeps the five highest.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>Result of the <strong>corrected</strong> query &mdash; <code>NULLS LAST</code> keeps the all-NULL Collectibles group out of the top five:</p>
+<table>
+  <thead><tr><th>category</th><th>avg_price</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Jewelry</td><td>2100.00</td><td>genuine #1</td></tr>
+    <tr><td>Furniture</td><td>900.00</td><td>&mdash;</td></tr>
+    <tr><td>Electronics</td><td>825.00</td><td>&mdash;</td></tr>
+    <tr><td>Apparel</td><td>25.00</td><td>single-product category &mdash; avg = the one price</td></tr>
+    <tr><td>Stationery</td><td>3.25</td><td>correctly takes the 5th slot</td></tr>
+  </tbody>
+</table>
+<p>With the original query, <code>Collectibles</code> (avg <code>NULL</code>) appeared <strong>first</strong> and <code>Stationery</code> was pushed out of the top five &mdash; because Postgres treats NULL as the largest value under <code>DESC</code>. The corrected <code>NULLS LAST</code> demotes the empty category, and <code>Stationery</code> correctly fills the fifth slot.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the original is broken &mdash; NULL is "largest" under <code>DESC</code></h5>
+<p><code>AVG</code> of a group whose prices are all NULL is NULL, not 0 &mdash; <code>AVG</code> ignores NULLs and has nothing left to average. Under <code>ORDER BY avg_price DESC</code>, Postgres sorts NULLs <em>first</em> (its default for descending). So a category with no priced products at all ranks above Jewelry &mdash; a clearly wrong "top categories" answer. The fix is one keyword, <code>NULLS LAST</code>, or a <code>HAVING COUNT(price) &gt; 0</code> to drop priceless categories outright.</p>
+
+<h5><code>AVG</code> ignores NULL prices within a group too</h5>
+<p>The NULL hazard is not only about all-NULL groups. If Jewelry had a third product with a NULL price, <code>AVG(price)</code> would still return 2100 &mdash; it divides the sum of the two real prices by 2, not by 3. That is usually the desired behaviour ("average of known prices"), but if a NULL price should count as zero you must write <code>AVG(COALESCE(price, 0))</code>. State which definition of "average" the business means.</p>
+
+<h5>Single-product categories average to that one price</h5>
+<p>Apparel and Stationery each have exactly one product, so their <code>AVG</code> is simply that product's price &mdash; 25.00 and 3.25. That is mathematically fine but often <em>not</em> what a "top categories" report wants: a single-item category can dominate or vanish on the strength of one SKU. A senior answer adds a volume guard, e.g. <code>HAVING COUNT(*) &gt;= 3</code>, so the ranking reflects categories with enough products to be meaningful.</p>
+
+<h5><code>LIMIT</code> with ties at the boundary is non-deterministic</h5>
+<p><code>LIMIT 5</code> takes five rows, but if the 5th and 6th categories had an <em>equal</em> average, which one is kept is arbitrary &mdash; <code>ORDER BY avg_price</code> alone does not break that tie. Add a deterministic secondary key (<code>ORDER BY avg_price DESC NULLS LAST, category</code>) so the result is reproducible. For "include all ties at the cutoff" semantics, <code>RANK() OVER (ORDER BY avg_price DESC)</code> filtered to <code>&lt;= 5</code> is the correct tool instead of <code>LIMIT</code>.</p>
+
+<h5>NULL category &mdash; <code>GROUP BY</code> keeps it as its own bucket</h5>
+<p>If some products had a NULL <code>category</code>, <code>GROUP BY category</code> would collect them into a single group keyed by NULL (all NULLs group together, even though <code>NULL = NULL</code> is never true &mdash; grouping uses "not distinct" semantics). That phantom NULL-category row could occupy a top-five slot. If uncategorised products should be excluded, add <code>WHERE category IS NOT NULL</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>AVG</code> over an all-NULL group returns NULL and Postgres sorts NULL <em>first</em> under <code>DESC</code> &mdash; so the naive query ranks a priceless category #1; fix it with <code>NULLS LAST</code> or <code>HAVING COUNT(price) &gt; 0</code>, guard single-product categories with a <code>HAVING COUNT(*)</code> threshold, and add a tie-breaker so <code>LIMIT</code> is deterministic.</div>

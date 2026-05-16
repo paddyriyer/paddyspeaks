@@ -1,0 +1,72 @@
+<p>A data engineer inherits a <code>user_profiles</code> table and wants a fast health check before trusting it: which columns are mostly or entirely empty? The deliverable is one row per column showing its NULL count <em>and</em> NULL percentage, sorted nulls-first so dead columns surface at the top. The interviewer is probing whether you can compute a per-column profile when SQL aggregates work down rows, not across columns.</p>
+
+<h4>1. The source data &mdash; <code>user_profiles</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>age</th><th>gender</th><th>country</th><th>signup_source</th><th>last_login</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>34</td><td>F</td><td>US</td><td>NULL</td><td>2025-05-01 10:00</td></tr>
+    <tr><td>2</td><td>NULL</td><td>M</td><td>GB</td><td>NULL</td><td>2025-05-02 11:00</td></tr>
+    <tr><td>3</td><td>28</td><td>NULL</td><td>IN</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>4</td><td>41</td><td>F</td><td>CA</td><td>NULL</td><td>2025-05-04 09:00</td></tr>
+    <tr><td>5</td><td>NULL</td><td>NULL</td><td>AU</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>6</td><td>52</td><td>M</td><td>DE</td><td>NULL</td><td>2025-05-06 08:00</td></tr>
+  </tbody>
+</table>
+<p>The edge case is <code>signup_source</code>: it is NULL in <em>every</em> row &mdash; a 100%-NULL column, exactly the kind of dead field this audit must catch. <code>country</code> is the opposite extreme: fully populated, 0% NULL. The check has to span both ends cleanly.</p>
+
+<h4>2. The SQL &mdash; transpose with <code>UNION ALL</code> over conditional counts</h4>
+<p>The reference solution returns the null <em>count</em> and the table <em>total</em>, but the question explicitly asks for the null <strong>percent</strong> too &mdash; that column is missing, so the solution does not fully answer the brief. The corrected version below adds it.</p>
+<pre><code>-- ORIGINAL (incomplete &mdash; no percent column)
+WITH totals AS (SELECT COUNT(*) AS n FROM user_profiles)
+SELECT 'age' AS col, SUM(CASE WHEN age IS NULL THEN 1 ELSE 0 END) AS nulls,
+       (SELECT n FROM totals) AS total FROM user_profiles
+UNION ALL SELECT 'gender', SUM(CASE WHEN gender IS NULL THEN 1 ELSE 0 END),
+       (SELECT n FROM totals) FROM user_profiles
+-- &hellip; one branch per column &hellip;
+ORDER BY nulls DESC;</code></pre>
+<pre><code>-- CORRECTED &mdash; adds null_pct so the result answers "count and percent"
+WITH totals AS (SELECT COUNT(*) AS n FROM user_profiles),
+counts AS (
+  SELECT 'age' AS col, SUM(CASE WHEN age IS NULL THEN 1 ELSE 0 END) AS nulls FROM user_profiles
+  UNION ALL SELECT 'gender',        SUM(CASE WHEN gender        IS NULL THEN 1 ELSE 0 END) FROM user_profiles
+  UNION ALL SELECT 'country',       SUM(CASE WHEN country       IS NULL THEN 1 ELSE 0 END) FROM user_profiles
+  UNION ALL SELECT 'signup_source', SUM(CASE WHEN signup_source IS NULL THEN 1 ELSE 0 END) FROM user_profiles
+  UNION ALL SELECT 'last_login',    SUM(CASE WHEN last_login    IS NULL THEN 1 ELSE 0 END) FROM user_profiles
+)
+SELECT c.col, c.nulls, t.n AS total,
+       ROUND(100.0 * c.nulls / t.n, 1) AS null_pct
+FROM counts c CROSS JOIN totals t
+ORDER BY c.nulls DESC;</code></pre>
+<p>Each <code>SUM(CASE WHEN col IS NULL THEN 1 ELSE 0 END)</code> counts NULLs in one column; <code>UNION ALL</code> stacks those one-number results into rows, transposing columns into rows. The corrected query joins the row total once and divides to get the percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>col</th><th>nulls</th><th>total</th><th>null_pct</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>signup_source</td><td>6</td><td>6</td><td>100.0</td><td>dead column &mdash; drop or backfill</td></tr>
+    <tr><td>age</td><td>2</td><td>6</td><td>33.3</td><td>partially sparse</td></tr>
+    <tr><td>gender</td><td>2</td><td>6</td><td>33.3</td><td>partially sparse</td></tr>
+    <tr><td>last_login</td><td>2</td><td>6</td><td>33.3</td><td>partially sparse</td></tr>
+    <tr><td>country</td><td>0</td><td>6</td><td>0.0</td><td>fully populated</td></tr>
+  </tbody>
+</table>
+<p><code>signup_source</code> surfaces at the top with <code>null_pct = 100.0</code> &mdash; the audit's headline finding. <code>country</code> sinks to the bottom at <code>0.0</code>. The percentage is what makes the row comparable across tables of different sizes: a raw count of 2 means nothing without the denominator.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>SUM(CASE&hellip;)</code> and not <code>COUNT</code></h5>
+<p><code>COUNT(col)</code> counts non-NULL values, so NULLs are <code>COUNT(*) - COUNT(col)</code> &mdash; workable but indirect. <code>SUM(CASE WHEN col IS NULL THEN 1 ELSE 0 END)</code> counts the NULLs directly and reads as exactly what it does. The <code>ELSE 0</code> matters: without it, non-NULL rows contribute NULL, and while <code>SUM</code> skips NULLs the explicit <code>0</code> keeps the intent obvious and the result a guaranteed integer.</p>
+
+<h5>The float-division trap in the percentage</h5>
+<p><code>100 * nulls / total</code> with all-integer operands does <em>integer</em> division in Postgres, SQLite, and MySQL: <code>2/6</code> becomes <code>0</code>, and every non-100% column reports <code>0</code>. Writing <code>100.0</code> (a numeric literal) forces the whole expression to numeric, so <code>33.3</code> comes through. This is the single most common bug in any "compute a percentage" query &mdash; one of the operands must be non-integer.</p>
+
+<h5>Why transpose at all &mdash; SQL aggregates go down, not across</h5>
+<p><code>SUM</code>, <code>COUNT</code>, <code>AVG</code> collapse <em>rows</em> within a column; there is no built-in "aggregate across columns of one row". To get a per-column profile you must compute each column's metric separately and then <code>UNION ALL</code> them into a row each. That is the structural reason this query is verbose &mdash; it is rotating a column-wise question into SQL's row-wise model.</p>
+
+<h5>This does not scale by hand &mdash; code-generate it</h5>
+<p>Five columns is fine to type; eighty is not, and the query would be unmaintainable. The senior move is to read column names from <code>information_schema.columns</code> in a host language (or a <code>DO</code> block) and <em>generate</em> the <code>UNION ALL</code> text programmatically, then execute it. The <code>SUM(CASE)</code> + <code>UNION ALL</code> pattern is the right target shape; for wide tables it should be machine-written, not hand-written.</p>
+
+<h5>Dialect notes</h5>
+<p>The pattern is fully portable. Postgres can shortcut the count with <code>count(*) FILTER (WHERE col IS NULL)</code> &mdash; cleaner than <code>SUM(CASE)</code> but Postgres/SQLite-only. <code>ROUND(numeric, 1)</code> is standard; some engines need an explicit cast. The <code>CROSS JOIN totals</code> in the corrected query is a one-row broadcast &mdash; equivalent to the original's scalar subquery, just expressed once instead of per branch.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> profile NULLs per column with <code>SUM(CASE WHEN col IS NULL THEN 1 ELSE 0 END)</code> stacked by <code>UNION ALL</code>, force numeric division with <code>100.0</code> so percentages are not silently zeroed, return the percentage alongside the count so results compare across table sizes, and state that for wide tables this query should be code-generated from <code>information_schema</code> rather than hand-typed.</div>

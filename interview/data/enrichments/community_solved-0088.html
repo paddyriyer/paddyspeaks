@@ -1,0 +1,69 @@
+<p>An engagement team wants customers who bought on back-to-back calendar days &mdash; a same-day-then-next-day pattern that signals an active, sticky shopper &mdash; restricted to meaningful purchases above $100. For each such customer the query returns the span of their consecutive-purchase activity and the combined value. The interviewer is probing the <code>LEAD</code>-and-date-difference technique for detecting adjacency.</p>
+
+<h4>1. The source data &mdash; <code>purchases_info</code></h4>
+<table>
+  <thead><tr><th>purchase_id</th><th>customer_id</th><th>purchase_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>2099-03-01</td><td>$150</td><td>customer 1</td></tr>
+    <tr><td>2</td><td>1</td><td>2099-03-02</td><td>$200</td><td>next day &mdash; consecutive</td></tr>
+    <tr><td>3</td><td>1</td><td>2099-03-03</td><td>$120</td><td>another consecutive day</td></tr>
+    <tr><td>4</td><td>1</td><td>2099-03-10</td><td>$300</td><td>week later &mdash; gap</td></tr>
+    <tr><td>5</td><td>2</td><td>2099-04-01</td><td>$500</td><td>customer 2</td></tr>
+    <tr><td>6</td><td>2</td><td>2099-04-02</td><td>$80</td><td>&le; $100 &mdash; filtered out, breaks the chain</td></tr>
+    <tr><td>7</td><td>2</td><td>2099-04-03</td><td>$600</td><td>now 2 days from purchase 5 &mdash; not consecutive</td></tr>
+    <tr><td>8</td><td>3</td><td>2099-05-01</td><td>$250</td><td>single purchase &mdash; no neighbour</td></tr>
+  </tbody>
+</table>
+<p>Customer 2's middle purchase is only $80: once it is filtered out, the surviving purchases are two days apart, so customer 2 has no consecutive pair. Customer 3 has a lone purchase. Only customer 1 has true back-to-back days.</p>
+
+<h4>2. The SQL &mdash; <code>LEAD</code> to the next purchase, then a date diff</h4>
+<pre><code>WITH lead_purchase AS (
+  SELECT purchase_id, customer_id, purchase_date, amount,
+    LEAD(purchase_date, 1, NULL) OVER (PARTITION BY customer_id ORDER BY purchase_date ASC) AS lead_purchase_date,
+    LEAD(amount, 1, NULL) OVER (PARTITION BY customer_id ORDER BY purchase_date ASC) AS lead_purchase_amount
+  FROM purchases_info
+  WHERE amount &gt; 100
+), with_diff AS (
+  SELECT *,
+    (lead_purchase_date::date - purchase_date::date) AS diff_date
+  FROM lead_purchase
+), base_data AS (
+  SELECT DISTINCT customer_id,
+    MIN(purchase_date) OVER (PARTITION BY customer_id) AS purchase_start_date,
+    FIRST_VALUE(amount) OVER (PARTITION BY customer_id ORDER BY purchase_date ASC) AS purchase_amount,
+    MAX(lead_purchase_date) OVER (PARTITION BY customer_id) AS purchase_end_date,
+    SUM(lead_purchase_amount) OVER (PARTITION BY customer_id) AS lead_purchase_amount
+  FROM with_diff
+  WHERE diff_date = 1
+)
+SELECT customer_id, purchase_start_date, purchase_end_date,
+       (purchase_amount + lead_purchase_amount) AS total_purchase_amount
+FROM base_data;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>purchase_start_date</th><th>purchase_end_date</th><th>total_purchase_amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-03-01</td><td>2099-03-03</td><td>470</td></tr>
+  </tbody>
+</table>
+<p>Only customer 1 surfaces. Their consecutive-day purchases run 2099-03-01 to 2099-03-03 (the Mar-10 purchase is excluded &mdash; a 7-day gap). Customer 2 is gone: the <code>amount &gt; 100</code> filter removed the $80 purchase, leaving a 2-day gap between the survivors. Customer 3's single purchase has no <code>LEAD</code> neighbour, so its <code>diff_date</code> is NULL and it never passes <code>diff_date = 1</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The adjacency test &mdash; <code>LEAD</code> plus a date subtraction</h5>
+<p><code>LEAD(purchase_date) OVER (PARTITION BY customer_id ORDER BY purchase_date)</code> pulls each row's <em>next</em> purchase date for the same customer. Subtracting dates in Postgres yields an integer day count, so <code>diff_date = 1</code> means "the next purchase was exactly the following calendar day". Filtering to <code>diff_date = 1</code> keeps only rows that begin a consecutive-day pair. This <code>LEAD</code>/<code>LAG</code>-then-difference idiom is the standard way to detect adjacency without a self-join.</p>
+
+<h5>The filter-before-window subtlety</h5>
+<p><code>WHERE amount &gt; 100</code> runs <em>before</em> <code>LEAD</code> is computed, so the window function operates only on surviving rows. This is deliberate and consequential: customer 2's $80 purchase is removed first, and <em>then</em> <code>LEAD</code> links purchase 5 directly to purchase 7 &mdash; which are two days apart. Had the filter run after the window, the chain would look different. Knowing that <code>WHERE</code> precedes window evaluation (window functions belong to the <code>SELECT</code> stage) is exactly the kind of execution-order knowledge an interviewer wants to hear stated.</p>
+
+<h5>The first-row / last-row NULL from <code>LEAD</code></h5>
+<p>The final purchase in each customer's sequence has no successor, so <code>LEAD</code> returns the supplied default <code>NULL</code>. Its <code>diff_date</code> is then <code>NULL</code>, and <code>NULL = 1</code> is unknown &mdash; so a trailing purchase never falsely registers as a consecutive pair. Customer 3, with only one purchase, has <em>every</em> <code>LEAD</code> value NULL and is correctly dropped. The NULL handling is load-bearing, not incidental.</p>
+
+<h5>Where this query is fragile &mdash; runs longer than two days</h5>
+<p>Customer 1 actually has a <em>three</em>-day run (Mar 1-2-3). The query collapses the customer to a single row via <code>DISTINCT</code> + partition-wide <code>MIN</code>/<code>MAX</code>/<code>SUM</code>, so <code>total_purchase_amount</code> = <code>FIRST_VALUE(amount)</code> + <code>SUM(lead_purchase_amount over qualifying rows)</code>. For a clean single run that arithmetic happens to total the run's purchases, but the design does not generalise: a customer with <em>two separate</em> consecutive-day runs would have them merged into one span and one sum, which is almost certainly not intended. The robust approach is gaps-and-islands &mdash; assign a run id, then aggregate <em>per run</em>, not per customer.</p>
+
+<h5>What to say next &mdash; name the real shape of the problem</h5>
+<p>"Consecutive purchases" is a runs problem, and the senior answer says so: tag each row with whether it continues the previous day's run, cumulative-sum the breaks into a run id, then <code>GROUP BY (customer_id, run_id)</code> to get each run's start, end, length and value. That correctly handles multiple runs per customer and runs of any length &mdash; the <code>LEAD</code>-and-partition-aggregate shortcut here only survives because the sample has one tidy run per customer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>LEAD</code> + a date subtraction to test day-adjacency, and know that <code>WHERE</code> filters <em>before</em> the window runs &mdash; that is what breaks customer 2's chain. Then flag the real limitation: collapsing per-customer cannot separate multiple runs &mdash; a proper gaps-and-islands run id is the correct general solution.</div>

@@ -1,0 +1,60 @@
+<p>A commerce dashboard needs each customer's <strong>two most recent orders</strong> next to their name &mdash; a "recent activity" panel. This is a <strong>top-N-per-group</strong> problem, the single most common window-function interview question. The interviewer is watching whether you reach for <code>ROW_NUMBER</code> partitioned per user and filter on it, rather than a fragile correlated subquery &mdash; and whether you handle a user with fewer than two orders and a timestamp tie.</p>
+
+<h4>1. The source data &mdash; <code>users</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>order id</th><th>user_id</th><th>ts</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>2025-01-01</td><td>10</td><td>Alice &mdash; oldest, will be dropped</td></tr>
+    <tr><td>102</td><td>1</td><td>2025-01-05</td><td>20</td><td>Alice &mdash; 2nd most recent</td></tr>
+    <tr><td>103</td><td>1</td><td>2025-01-10</td><td>30</td><td>Alice &mdash; most recent</td></tr>
+    <tr><td>104</td><td>2</td><td>2025-01-09</td><td>50</td><td>Bob &mdash; tie on ts with 105</td></tr>
+    <tr><td>105</td><td>2</td><td>2025-01-09</td><td>60</td><td>Bob &mdash; same ts as 104</td></tr>
+    <tr><td>106</td><td>2</td><td>2025-01-02</td><td>15</td><td>Bob &mdash; oldest, dropped</td></tr>
+    <tr><td>107</td><td>3</td><td>2025-01-01</td><td>5</td><td>Cara &mdash; her only order</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Cara (user 3) has just <em>one</em> order &mdash; "top 2" must still return it, not require two. And Bob's orders 104 and 105 share the exact same <code>ts</code> &mdash; a tie that <code>ROW_NUMBER</code> must break somehow. (Users with no orders, like a hypothetical user 4, would simply not appear.)</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER</code> per user, then filter</h4>
+<pre><code>WITH ranked AS (
+  SELECT o.*, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts DESC) AS rn
+  FROM orders o
+)
+SELECT r.user_id, u.name, r.id AS order_id, r.ts, r.amount
+FROM ranked r
+JOIN users u ON u.id = r.user_id
+WHERE r.rn &lt;= 2
+ORDER BY r.user_id, r.ts DESC;</code></pre>
+<p><code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts DESC)</code> numbers each user's orders 1, 2, 3&hellip; newest first. The outer <code>WHERE rn &lt;= 2</code> keeps the top two per user; the join attaches the user's name.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>name</th><th>order_id</th><th>ts</th><th>amount</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>103</td><td>2025-01-10</td><td>30</td><td>rn 1 &mdash; most recent</td></tr>
+    <tr><td>1</td><td>Alice</td><td>102</td><td>2025-01-05</td><td>20</td><td>rn 2 &mdash; order 101 dropped</td></tr>
+    <tr><td>2</td><td>Bob</td><td>104</td><td>2025-01-09</td><td>50</td><td>tied ts &mdash; arbitrarily ranked 1</td></tr>
+    <tr><td>2</td><td>Bob</td><td>105</td><td>2025-01-09</td><td>60</td><td>tied ts &mdash; arbitrarily ranked 2</td></tr>
+    <tr><td>3</td><td>Cara</td><td>107</td><td>2025-01-01</td><td>5</td><td>only one order &mdash; still returned</td></tr>
+  </tbody>
+</table>
+<p>Cara appears with her single order &mdash; <code>rn = 1 &lt;= 2</code> passes regardless of how many orders she has. Bob keeps <em>both</em> 2025-01-09 orders, but which one got <code>rn = 1</code> was decided arbitrarily by the engine &mdash; the <code>ts</code> tie has no tiebreaker.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why filter-on-window beats a correlated subquery</h5>
+<p>The pre-window approach &mdash; "keep an order if fewer than 2 orders for this user are more recent" &mdash; runs a correlated subquery once per order, each scan touching that user's rows: roughly O(n&sup2;) within a user. <code>ROW_NUMBER</code> sorts each partition once and labels rows in a single pass &mdash; O(n log n). You cannot put <code>ROW_NUMBER</code> directly in a <code>WHERE</code> (window functions are evaluated after <code>WHERE</code>), so it goes in a CTE or subquery and the filter wraps it. That two-layer shape is the canonical top-N-per-group answer.</p>
+
+<h5>The timestamp tie &mdash; <code>ROW_NUMBER</code> needs a tiebreaker</h5>
+<p>Bob's two 2025-01-09 orders are indistinguishable to <code>ORDER BY ts DESC</code>, so <code>ROW_NUMBER</code> assigns 1 and 2 in an <em>unspecified</em> order &mdash; rerun the query and the two could swap. Here both survive the <code>rn &lt;= 2</code> cut so the result set is stable, but if the cut were "top 1" the answer would be non-deterministic. Always add a unique tiebreaker for reproducibility: <code>ORDER BY ts DESC, id DESC</code>. Naming this unprompted is the senior move.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> &mdash; pick by what ties should do</h5>
+<p><code>ROW_NUMBER</code> gives every row a distinct number, so "top 2" returns exactly 2 rows even under a tie. <code>RANK</code> would give Bob's two tied orders the <em>same</em> rank 1, then the next order rank 3 &mdash; and <code>rank &lt;= 2</code> could return more or fewer than 2 rows. If the requirement is strictly "at most 2 rows", <code>ROW_NUMBER</code> is correct; if it is "all orders tied for the 2 most recent", <code>RANK</code> is. The spec here says top 2 orders &mdash; <code>ROW_NUMBER</code>.</p>
+
+<h5>The single-order user and why no <code>HAVING</code> is needed</h5>
+<p>Cara has one order; <code>ROW_NUMBER</code> simply labels it <code>rn = 1</code>, which passes <code>&lt;= 2</code>. There is no minimum-count requirement, so nothing filters her out &mdash; "top 2" naturally means "up to 2". A user with <em>zero</em> orders never enters <code>ranked</code> at all, so they are absent; if the panel needed to show them with a blank, you would <code>LEFT JOIN users</code> to the ranked set instead of inner-joining.</p>
+
+<h5>Dialect &mdash; <code>QUALIFY</code> and lateral joins</h5>
+<p>The CTE-then-<code>WHERE</code> form is fully portable. Snowflake, BigQuery, and DuckDB offer <code>QUALIFY ROW_NUMBER() OVER (...) &lt;= 2</code>, which filters on the window function inline &mdash; no wrapper needed. PostgreSQL has no <code>QUALIFY</code>; a slick Postgres alternative is <code>LEFT JOIN LATERAL (SELECT ... FROM orders WHERE user_id = u.id ORDER BY ts DESC LIMIT 2) ON true</code>, which can use an index to fetch just two rows per user. Mention these as the engine-specific upgrades.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve top-N-per-group with <code>ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)</code> in a CTE then filter <code>rn &lt;= N</code>, add a unique tiebreaker to the <code>ORDER BY</code> so ties are deterministic, choose <code>ROW_NUMBER</code> over <code>RANK</code> because the result must be exactly N rows, and know <code>QUALIFY</code> / <code>LATERAL</code> as the dialect-specific shortcuts.</div>

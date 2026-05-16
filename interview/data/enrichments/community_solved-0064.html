@@ -1,0 +1,77 @@
+<p>A loyalty platform stores each member's earned reward codes packed into a single delimited string &mdash; <code>'MM:CI:CD'</code> &mdash; and the business wants total points per club. The interviewer is probing two skills: can you <em>explode</em> a delimited string into rows, and can you map each code to a score with a lookup. The trap is the member whose reward column is <code>NULL</code> or empty &mdash; a careless split makes their entire club vanish from the report.</p>
+
+<h4>1. The source data &mdash; <code>club</code></h4>
+<table>
+  <thead><tr><th>club_id</th><th>member_id</th><th>rewards</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>MM:CI:CD</td></tr>
+    <tr><td>1</td><td>11</td><td>CL:CM</td></tr>
+    <tr><td>2</td><td>10</td><td>CO</td></tr>
+    <tr><td>2</td><td>12</td><td>MM:MM:XX</td></tr>
+    <tr><td>3</td><td>13</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Member 12 has a <em>repeated</em> code (<code>MM:MM</code>) and an <em>unknown</em> code (<code>XX</code>) &mdash; both must be handled. Club 3's only member has <code>NULL</code> rewards: the edge case that decides whether club 3 appears at all. Point scale: MM/CI/CO = 0.5; CD/CL/CM = 1.</p>
+
+<h4>2. The SQL &mdash; split the string, score each code, sum per club</h4>
+<pre><code>WITH cte AS (
+  SELECT club_id, member_id, UNNEST(string_to_array(rewards, ':')) AS reward
+  FROM club
+),
+point_cte AS (
+  SELECT club_id, member_id, reward,
+    CASE reward
+      WHEN 'MM' THEN 0.5 WHEN 'CI' THEN 0.5 WHEN 'CO' THEN 0.5
+      WHEN 'CD' THEN 1   WHEN 'CL' THEN 1   WHEN 'CM' THEN 1
+      ELSE 0 END AS points
+  FROM cte
+)
+SELECT club_id, SUM(points) AS total_points
+FROM point_cte
+GROUP BY club_id;</code></pre>
+<p><strong>This solution runs, but it is subtly wrong:</strong> the question asks for <em>each</em> club, and club 3 silently disappears.</p>
+
+<h4>2b. Corrected &mdash; preserve clubs whose members have NULL rewards</h4>
+<pre><code>WITH cte AS (
+  SELECT c.club_id, c.member_id, r.reward
+  FROM club c
+  LEFT JOIN LATERAL UNNEST(string_to_array(c.rewards, ':')) AS r(reward) ON true
+),
+point_cte AS (
+  SELECT club_id, member_id, reward,
+    CASE reward
+      WHEN 'MM' THEN 0.5 WHEN 'CI' THEN 0.5 WHEN 'CO' THEN 0.5
+      WHEN 'CD' THEN 1   WHEN 'CL' THEN 1   WHEN 'CM' THEN 1
+      ELSE 0 END AS points
+  FROM cte
+)
+SELECT club_id, COALESCE(SUM(points), 0) AS total_points
+FROM point_cte
+GROUP BY club_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>club_id</th><th>total_points</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>4.0</td><td>0.5+0.5+1 (m10) + 1+1 (m11)</td></tr>
+    <tr><td>2</td><td>1.5</td><td>0.5 (m10) + 0.5+0.5+0 (m12, XX scores 0)</td></tr>
+    <tr><td>3</td><td>0</td><td>retained by the corrected query &mdash; dropped by the original</td></tr>
+  </tbody>
+</table>
+<p>The original returns only clubs 1 and 2. The corrected version adds club 3 with <code>0</code> &mdash; which is what "total points by each club" demands.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How <code>string_to_array</code> + <code>UNNEST</code> explodes a delimited string</h5>
+<p><code>string_to_array('MM:CI:CD', ':')</code> builds the Postgres array <code>{MM,CI,CD}</code>; <code>UNNEST</code> turns that array into one row per element. Together they are the Postgres idiom for "split this CSV-in-a-cell into rows". The repeated <code>MM:MM</code> correctly yields two rows &mdash; splitting never deduplicates, which is the desired behaviour here since each earned reward counts.</p>
+
+<h5>Why the original drops club 3 &mdash; the NULL/empty trap</h5>
+<p><code>string_to_array(NULL, ':')</code> returns <code>NULL</code>, and <code>UNNEST(NULL)</code> produces <em>zero rows</em>. Because <code>UNNEST</code> in the <code>SELECT</code> list acts like an implicit cross join, a row that explodes to nothing is dropped entirely. Member 13 vanishes, and since they were club 3's only member, club 3 vanishes too. The fix is <code>LEFT JOIN LATERAL UNNEST(...) ON true</code>: a <code>LEFT JOIN</code> keeps the club row even when the set-returning function yields nothing, substituting <code>NULL</code> for <code>reward</code>. <code>COALESCE(SUM(points), 0)</code> then turns club 3's all-NULL group into a clean <code>0</code>.</p>
+
+<h5>The <code>ELSE 0</code> branch is doing real work</h5>
+<p>Code <code>XX</code> is not in the point scale. The <code>CASE</code>'s <code>ELSE 0</code> catches it so an unknown code contributes nothing rather than erroring or returning NULL. That is defensive &mdash; but a senior would flag it: silently scoring unknown codes as 0 hides data-quality problems. In production you might instead surface <code>SUM(CASE WHEN reward NOT IN (...) THEN 1 ELSE 0 END)</code> as an <code>unknown_code_count</code> and alert if it is ever non-zero.</p>
+
+<h5>Dialect notes &mdash; this is Postgres-specific</h5>
+<p><code>string_to_array</code>/<code>UNNEST</code> are Postgres. The equivalents: MySQL 8 has no native split &mdash; use a recursive CTE or <code>JSON_TABLE</code>; SQL Server uses <code>STRING_SPLIT()</code>; Snowflake uses <code>SPLIT_TO_TABLE()</code> or <code>SPLIT()</code> + <code>LATERAL FLATTEN</code>; BigQuery uses <code>UNNEST(SPLIT(rewards, ':'))</code>. The deeper point in any interview: storing multiple values in one delimited column violates first normal form &mdash; a <code>member_rewards</code> bridge table would make this query a trivial join with no string parsing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <code>string_to_array</code>+<code>UNNEST</code> as the split idiom, then immediately spot that <code>UNNEST(NULL)</code> yields zero rows and silently drops the whole club &mdash; fixing it with <code>LEFT JOIN LATERAL ... ON true</code>. Closing with "this delimited column breaks 1NF; a bridge table removes the parsing entirely" is the over-the-bar finish.</div>

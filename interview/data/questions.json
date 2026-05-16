@@ -155,7 +155,7 @@
     "subtopic": null,
     "difficulty": "Easy",
     "language": "sql",
-    "schema": "sales(category, sale_date, amount)",
+    "schema": "CREATE TABLE sales (category TEXT, sale_date DATE, amount INT);\nINSERT INTO sales VALUES\n  ('Electronics', '2026-05-11', 150),\n  ('Electronics', '2026-05-12', 200),\n  ('Electronics', '2026-05-13', 100),\n  ('Clothing', '2026-05-11', 80),\n  ('Clothing', '2026-05-13', 120),\n  ('Clothing', '2026-05-13', 50);",
     "solution": "SELECT\n  category,\n  SUM(CASE WHEN sale_date = '2026-05-11' THEN amount ELSE 0 END) AS monday_sales,\n  SUM(CASE WHEN sale_date = '2026-05-12' THEN amount ELSE 0 END) AS tuesday_sales,\n  SUM(CASE WHEN sale_date = '2026-05-13' THEN amount ELSE 0 END) AS wednesday_sales\nFROM sales\nGROUP BY category\nORDER BY category;",
     "runtime": null,
     "tags": [
@@ -6315,7 +6315,7 @@
     "difficulty": null,
     "language": "sql",
     "schema": "products(category, price, product_id, name, sku, manufacturer)",
-    "solution": "SELECT category, AVG(price) AS avg_price FROM products\nGROUP BY category ORDER BY avg_price DESC LIMIT 5;",
+    "solution": "SELECT category, AVG(price) AS avg_price FROM products\nGROUP BY category ORDER BY avg_price DESC NULLS LAST LIMIT 5;",
     "runtime": null,
     "tags": [
       "aggregation"
@@ -14026,7 +14026,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "items_table(id, item)",
-    "solution": "DROP TABLE IF EXISTS items_table;\nCREATE TABLE items_table (\n  id INT PRIMARY KEY,\n  item TEXT\n);\nINSERT INTO items_table (id, item) VALUES\n  (1, 'Pen'),\n  (2, 'Eraser'),\n  (3, 'Pen'),\n  (4, 'Apple'),\n  (5, 'Apple'),\n  (6, 'Apple'),\n  (7, 'Mango'),\n  (8, 'Banana'),\n  (9, 'Banana'),\n  (10, 'Banana'),\n  (11, 'Pear'),\n  (12, 'Apple'),\n  (13, 'Apple'),\n  (14, 'Apple'),\n  (15, 'Grape');\n\n--select * from items_table;\nwith t1 as(\nselect id,item,\n    lag(item) over(order by id asc) lag_item,\n    lead(item) over(order by id asc) lead_item\nfrom items_table\n)\nselect distinct item\nfrom t1\nwhere lag_item = lead_item;",
+    "solution": "WITH ordered AS (\n    SELECT id, item,\n           LAG(item) OVER (ORDER BY id) AS prev_item\n    FROM items_table\n),\nflagged AS (\n    SELECT id, item,\n           CASE WHEN item = prev_item THEN 0 ELSE 1 END AS is_break\n    FROM ordered\n),\ngrouped AS (\n    SELECT id, item,\n           SUM(is_break) OVER (ORDER BY id) AS group_id\n    FROM flagged\n)\nSELECT DISTINCT item\nFROM grouped\nGROUP BY item, group_id\nHAVING COUNT(*) >= 3\nORDER BY item;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/146_find%20the%20items%20which%20was%20bought%20consecutively%20three%20or%20more%20time.sql"
@@ -14213,7 +14213,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "club(club_id, member_id, rewards)",
-    "solution": "WITH cte AS (\n  SELECT club_id, member_id, UNNEST(string_to_array(rewards, ':')) AS reward\n  FROM club\n),\npoint_cte AS (\n  SELECT club_id, member_id, reward,\n    CASE reward\n      WHEN 'MM' THEN 0.5 WHEN 'CI' THEN 0.5 WHEN 'CO' THEN 0.5\n      WHEN 'CD' THEN 1   WHEN 'CL' THEN 1   WHEN 'CM' THEN 1\n      ELSE 0 END AS points\n  FROM cte\n)\nSELECT club_id, SUM(points) AS total_points\nFROM point_cte\nGROUP BY club_id;",
+    "solution": "WITH cte AS (\n  SELECT c.club_id, c.member_id, r.reward\n  FROM club c\n  LEFT JOIN LATERAL UNNEST(string_to_array(c.rewards, ':')) AS r(reward) ON true\n),\npoint_cte AS (\n  SELECT club_id, member_id, reward,\n    CASE reward\n      WHEN 'MM' THEN 0.5 WHEN 'CI' THEN 0.5 WHEN 'CO' THEN 0.5\n      WHEN 'CD' THEN 1   WHEN 'CL' THEN 1   WHEN 'CM' THEN 1\n      ELSE 0 END AS points\n  FROM cte\n)\nSELECT club_id, COALESCE(SUM(points), 0) AS total_points\nFROM point_cte\nGROUP BY club_id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/154_calculate%20total%20club%20reward%20points%20%282%20methods%20-%20string%20split%20and%20cross%20apply%29.sql"
@@ -14239,7 +14239,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "Customer(Customer_id, Cus_name, Age, Gender, App, name, email, signup_date, country, city), Transaction_Tbls(Loc_name, Loc_id, Cus_id, Amount_paid, Trans_id)",
-    "solution": "WITH txn AS (\n  SELECT *, DENSE_RANK() OVER (PARTITION BY loc_name ORDER BY amount_paid DESC) AS rnk\n  FROM transaction_tbls\n)\nSELECT COALESCE(app, 'cash') AS mode, COUNT(*) AS num_transaction\nFROM txn\nINNER JOIN customer c ON txn.cus_id = c.customer_id\nWHERE rnk = 1\nGROUP BY app;",
+    "solution": "WITH txn AS (\n  SELECT t.*, COALESCE(c.app, 'cash') AS mode,\n         DENSE_RANK() OVER (PARTITION BY t.loc_name ORDER BY t.amount_paid DESC) AS rnk\n  FROM transaction_tbls t\n  INNER JOIN customer c ON t.cus_id = c.customer_id\n)\nSELECT loc_name, mode, COUNT(*) AS num_transaction\nFROM txn\nWHERE rnk = 1\nGROUP BY loc_name, mode\nORDER BY loc_name, mode;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/155_find%20the%20app%20or%20mode%20and%20the%20count%20for%20highest%20amount%20of%20transactions%20in%20each%20location.sql"
@@ -14354,7 +14354,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "Exam(Id, English, Maths, Science, Geography, History, Sanskrit)",
-    "solution": "WITH marks_cte AS (\n  SELECT id, english::text AS marks, 'English' AS subjects FROM exam\n  UNION ALL SELECT id, maths::text,    'Maths'     FROM exam\n  UNION ALL SELECT id, science::text,  'Science'   FROM exam\n  UNION ALL SELECT id, geography::text,'Geography' FROM exam\n  UNION ALL SELECT id, history::text,  'History'   FROM exam\n  UNION ALL SELECT id, sanskrit::text, 'Sanskrit'  FROM exam\n),\nrank_cte AS (\n  SELECT id, subjects, marks,\n         ROW_NUMBER() OVER (PARTITION BY id ORDER BY marks DESC) AS rnk\n  FROM marks_cte\n),\npercentage_cte AS (\n  SELECT id,\n    ROUND(AVG(CASE WHEN marks ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN marks::numeric END), 2) AS percentage_top5\n  FROM rank_cte\n  WHERE rnk <= 5\n  GROUP BY id\n)\nSELECT e.*, pc.percentage_top5 AS percentage\nFROM exam e\nJOIN percentage_cte pc ON e.id = pc.id;",
+    "solution": "WITH marks_cte AS (\n  SELECT id, english AS marks, 'English' AS subjects FROM exam\n  UNION ALL SELECT id, maths,    'Maths'     FROM exam\n  UNION ALL SELECT id, science,  'Science'   FROM exam\n  UNION ALL SELECT id, geography,'Geography' FROM exam\n  UNION ALL SELECT id, history,  'History'   FROM exam\n  UNION ALL SELECT id, sanskrit, 'Sanskrit'  FROM exam\n),\nrank_cte AS (\n  SELECT id, subjects, marks,\n         ROW_NUMBER() OVER (PARTITION BY id ORDER BY marks DESC) AS rnk\n  FROM marks_cte\n),\npercentage_cte AS (\n  SELECT id, ROUND(AVG(marks), 2) AS percentage_top5\n  FROM rank_cte\n  WHERE rnk <= 5\n  GROUP BY id\n)\nSELECT e.*, pc.percentage_top5 AS percentage\nFROM exam e\nJOIN percentage_cte pc ON e.id = pc.id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/159_write%20a%20query%20to%20calculate%20the%20percentage%20of%20results%20using%20the%20best%20of%20the%20five%20rule%20%28unpivot-row_number%29.sql"
@@ -14651,7 +14651,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "lift_passengers(Passenger_Name, Weight_Kg, Lift_Id), Lift(Id, Capacity_Kg)",
-    "solution": "WITH lift_cte AS (\n  SELECT lp.lift_id, lp.passenger_name, lp.weight_kg, l.capacity_kg,\n    SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC) AS running_weight,\n    CASE WHEN SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC) > l.capacity_kg\n         THEN 1 ELSE 0 END AS flag\n  FROM lift_passengers lp\n  LEFT JOIN lift l ON lp.lift_id = l.id\n)\nSELECT lift_id,\n       STRING_AGG(passenger_name, ',' ORDER BY passenger_name ASC) AS passenger_list\nFROM lift_cte\nWHERE flag <> 1\nGROUP BY lift_id;",
+    "solution": "WITH lift_cte AS (\n  SELECT lp.lift_id, lp.passenger_name, lp.weight_kg, l.capacity_kg,\n    SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC\n        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_weight\n  FROM lift_passengers lp\n  LEFT JOIN lift l ON lp.lift_id = l.id\n)\nSELECT lift_id,\n       STRING_AGG(passenger_name, ',' ORDER BY weight_kg ASC) AS passenger_list\nFROM lift_cte\nWHERE running_weight <= capacity_kg\nGROUP BY lift_id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/170_produces%20a%20comma%20separated%20list%20of%20passengers%20in%20the%20lift.sql"
@@ -14788,7 +14788,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "Customer_Transactions(transaction_id, customer_id, transaction_time, amount, apply, ct2, frequent_txn, frequent_txn_info, minute, partition, transaction_1)",
-    "solution": "WITH frequent_txn_info AS (\n  SELECT ct1.customer_id,\n         ct1.transaction_id AS transaction_1,\n         ct2.transaction_id AS transaction_2,\n         ct1.transaction_time AS transaction_ts1,\n         ct2.transaction_time AS transaction_ts2,\n         EXTRACT(EPOCH FROM (ct2.transaction_time - ct1.transaction_time))/60 AS interval_min\n  FROM customer_transactions ct1\n  INNER JOIN customer_transactions ct2\n    ON ct1.customer_id = ct2.customer_id\n   AND ct1.transaction_time <= ct2.transaction_time\n   AND ct1.transaction_id <> ct2.transaction_id\n),\nfrequent_txn AS (\n  SELECT customer_id,\n         COUNT(*) OVER (PARTITION BY customer_id, transaction_1) AS freq_txn\n  FROM frequent_txn_info\n  WHERE interval_min <= 60\n)\nSELECT DISTINCT customer_id\nFROM frequent_txn\nWHERE freq_txn >= 2;",
+    "solution": "WITH frequent_txn_info AS (\n  SELECT ct1.customer_id,\n         ct1.transaction_id AS transaction_1,\n         ct2.transaction_id AS transaction_2,\n         ct1.transaction_time AS transaction_ts1,\n         ct2.transaction_time AS transaction_ts2,\n         EXTRACT(EPOCH FROM (ct2.transaction_time - ct1.transaction_time))/60 AS interval_min\n  FROM customer_transactions ct1\n  INNER JOIN customer_transactions ct2\n    ON ct1.customer_id = ct2.customer_id\n   AND ct1.transaction_time <= ct2.transaction_time\n   AND ct1.transaction_id <> ct2.transaction_id\n),\nfrequent_txn AS (\n  SELECT customer_id,\n         COUNT(*) OVER (PARTITION BY customer_id, transaction_1) AS freq_txn\n  FROM frequent_txn_info\n  WHERE interval_min <= 60\n)\nSELECT DISTINCT customer_id\nFROM frequent_txn\nWHERE freq_txn >= 3;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/176-find%20customers%20who%20made%20more%20than%203%20transactions%20within%20any%201-hour%20window.sql"
@@ -14891,7 +14891,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "SeatReservations(ReservationID, PassengerName, SeatNumber, BookingDate, FlightID, Status)",
-    "solution": "DROP TABLE IF EXISTS seatreservations;\nCREATE TABLE seatreservations (\n  passengername TEXT,\n  seatnumber INT,\n  bookingdate DATE,\n  flightid INT,\n  status TEXT\n);\nINSERT INTO seatreservations (passengername, seatnumber, bookingdate, flightid, status) VALUES\n  ('Alice', 1, '2026-04-01', 100, 'Confirmed'),\n  ('Bob',   2, '2026-04-01', 100, 'Confirmed'),\n  ('Carol', 3, '2026-04-01', 100, 'Cancelled'),\n  ('Dave',  4, '2026-04-01', 100, 'Confirmed'),\n  ('Eve',   5, '2026-04-01', 100, 'Confirmed'),\n  ('Frank', 1, '2026-04-02', 200, 'Confirmed'),\n  ('Grace', 2, '2026-04-02', 200, 'Cancelled'),\n  ('Helen', 3, '2026-04-02', 200, 'Confirmed'),\n  ('Ivan',  1, '2026-04-03', 300, 'Confirmed'),\n  ('Judy',  3, '2026-04-03', 300, 'Confirmed');\nwith cte1 as(\nselect passengername,\n    seatnumber,\n    bookingdate,\n    flightid,\n    status,\n    row_number() over(partition by flightid, bookingdate order by seatnumber asc) as flag_one\nfrom seatreservations\n), cte2 as(\nselect *,\n  row_number() over(partition by flightid, bookingdate order by seatnumber asc) as flag_two\nfrom seatreservations\nwhere status = 'Confirmed'\n)\nselect one.flightid as Flight_ID,\n    one.passengername as Passenger_One,\n    two.passengername as Passenger_Two\nfrom cte1 as one\ninner join cte2 as two\non one.flightid = two.flightid\n  and one.bookingdate = two.bookingdate\n  and one.passengername <> two.passengername\nwhere one.status = 'Confirmed'\nand (flag_one-flag_two)= 1 ;\n",
+    "solution": "SELECT a.flightid AS flight_id,\n       a.passengername AS passenger_one,\n       b.passengername AS passenger_two\nFROM seatreservations AS a\nJOIN seatreservations AS b\n  ON a.flightid = b.flightid\n AND b.seatnumber = a.seatnumber + 1\nWHERE a.status = 'Confirmed'\n  AND b.status = 'Confirmed'\nORDER BY a.flightid, a.seatnumber;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/181_find%20all%20flights%20where%20at%20least%20two%20passengers%20have%20confirmed%20reservations%20in%20adjacent%20seats.sql"
@@ -14916,7 +14916,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "Product_Sales(ProductID, StoreID, SaleDate, SaleAmount)",
-    "solution": "select * from product_sales;\n\nselect productid,\n    max(storeid) as store_id,\n    min(saledate) as saledate,\n    max(saleamount) as max_saleamount\nfrom product_sales as p1\nwhere p1.saleamount = (select max(saleamount) from product_sales as p2\n            where p2.productid = p1.productid)\ngroup by productid;",
+    "solution": "SELECT p1.productid,\n       p1.storeid   AS store_id,\n       p1.saledate,\n       p1.saleamount AS max_saleamount\nFROM product_sales AS p1\nWHERE p1.saleamount = (SELECT MAX(saleamount) FROM product_sales AS p2\n                       WHERE p2.productid = p1.productid)\n  AND p1.saledate = (SELECT MIN(p3.saledate) FROM product_sales AS p3\n                     WHERE p3.productid = p1.productid\n                       AND p3.saleamount = p1.saleamount)\nORDER BY p1.productid;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/182_find%20the%20highest%20SaleAmount%20for%20each%20ProductID%20using%20correlated%20sub%20query.sql"
@@ -15017,7 +15017,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "Subscriptions(subscription_id, customer_id, start_date, end_date, amount_paid, plan, status)",
-    "solution": "WITH t1 AS (\n  SELECT *,\n    (end_date::date - start_date::date) AS duration,\n    LAG(end_date, 1, NULL) OVER (PARTITION BY customer_id ORDER BY end_date ASC) AS pre_subs_end_date\n  FROM subscriptions\n), t2 AS (\n  SELECT *,\n    (start_date::date - pre_subs_end_date::date) AS subscription_gap\n  FROM t1\n)\nSELECT customer_id,\n       AVG(duration) AS average_subscription_duration,\n       AVG(amount_paid) AS average_amount_paid,\n       MAX(subscription_gap) AS longest_gap_between_subscriptions\nFROM t2\nGROUP BY customer_id\nHAVING COUNT(subscription_id) > 2\nORDER BY longest_gap_between_subscriptions DESC;",
+    "solution": "WITH t1 AS (\n  SELECT *,\n    (end_date::date - start_date::date) AS duration,\n    LAG(end_date, 1, NULL) OVER (PARTITION BY customer_id ORDER BY end_date ASC) AS pre_subs_end_date\n  FROM subscriptions\n), t2 AS (\n  SELECT *,\n    (start_date::date - pre_subs_end_date::date) AS subscription_gap\n  FROM t1\n)\nSELECT customer_id,\n       AVG(duration) AS average_subscription_duration,\n       AVG(amount_paid) AS average_amount_paid,\n       MAX(subscription_gap) AS longest_gap_between_subscriptions\nFROM t2\nGROUP BY customer_id\nHAVING COUNT(subscription_id) >= 2\nORDER BY longest_gap_between_subscriptions DESC;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/186_calculate%20the%20average%20subscription%20duration%2C%20subscription%20gap%20and%20the%20average%20amount%20paid%20per%20subscription%20for%20each%20customer.sql"
@@ -15074,7 +15074,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "productreviews(ProductID, ReviewID, ReviewRating)",
-    "solution": "--select * from ProductReviews;\n\nselect productid,\n    avg(reviewrating) as avg_rating,\n    count(reviewid) as review_count,\n    sum(case when reviewrating = 5 then 1 else 0 end) as five_star_review\n\nfrom productreviews\ngroup by productid",
+    "solution": "SELECT productid,\n       AVG(reviewrating) AS avg_rating,\n       COUNT(reviewid) AS review_count,\n       SUM(CASE WHEN reviewrating = 5 THEN 1 ELSE 0 END) AS five_star_review,\n       RANK() OVER (ORDER BY AVG(reviewrating) DESC,\n                    SUM(CASE WHEN reviewrating = 5 THEN 1 ELSE 0 END) DESC,\n                    COUNT(reviewid) DESC) AS product_rank\nFROM productreviews\nGROUP BY productid\nORDER BY product_rank;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/188_review%20rating%20for%20products.sql"
@@ -16187,7 +16187,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "user_profiles(user_id, age, gender, country, signup_source, last_login)",
-    "solution": "-- The portable approach: one COUNT per column, transposed via UNION ALL.\nWITH totals AS (SELECT COUNT(*) AS n FROM user_profiles)\nSELECT 'age'           AS col, SUM(CASE WHEN age           IS NULL THEN 1 ELSE 0 END) AS nulls, (SELECT n FROM totals) AS total FROM user_profiles\nUNION ALL SELECT 'gender',        SUM(CASE WHEN gender        IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'country',       SUM(CASE WHEN country       IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'signup_source', SUM(CASE WHEN signup_source IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'last_login',    SUM(CASE WHEN last_login    IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nORDER BY nulls DESC;\n\n-- For dozens of columns you'd code-generate this from information_schema\n-- in a script \u2014 but the UNION ALL pattern is what every dialect supports.",
+    "solution": "WITH totals AS (SELECT COUNT(*) AS n FROM user_profiles),\ncounts AS (\n  SELECT 'age' AS col, SUM(CASE WHEN age IS NULL THEN 1 ELSE 0 END) AS nulls FROM user_profiles\n  UNION ALL SELECT 'gender',        SUM(CASE WHEN gender        IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n  UNION ALL SELECT 'country',       SUM(CASE WHEN country       IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n  UNION ALL SELECT 'signup_source', SUM(CASE WHEN signup_source IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n  UNION ALL SELECT 'last_login',    SUM(CASE WHEN last_login    IS NULL THEN 1 ELSE 0 END) FROM user_profiles\n)\nSELECT c.col, c.nulls, t.n AS total,\n       ROUND(100.0 * c.nulls / t.n, 1) AS null_pct\nFROM counts c CROSS JOIN totals t\nORDER BY c.nulls DESC;",
     "source": {
       "name": "PaddySpeaks \u00b7 Practical scenarios",
       "url": "https://paddyspeaks.com/interview.app/"
@@ -20951,7 +20951,7 @@
     "language": "sql",
     "question": "Schema: monthly_sales(month_start, region, revenue) (one row per region per first-of-month). Return month_start, region, revenue, prior_month_revenue, mom_growth_pct (this/prev - 1 in percent, 2 decimals). Ordering: region, month_start. If a month has no prior month for that region (gap or first observation), prior_month_revenue and mom_growth_pct should be NULL.",
     "schema": "CREATE TABLE monthly_sales (month_start DATE, region TEXT, revenue NUMERIC);\nINSERT INTO monthly_sales VALUES\n  ('2025-01-01','NA',1000),\n  ('2025-02-01','NA',1100),\n  ('2025-03-01','NA',1320),\n  ('2025-05-01','NA',1500),  -- April missing for NA\n  ('2025-01-01','EU',800),\n  ('2025-02-01','EU',900);",
-    "solution": "SELECT month_start, region, revenue,\n       LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) AS prior_month_revenue,\n       CASE\n         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)\n              = (month_start - INTERVAL '1 month')::date\n         THEN ROUND((revenue / LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) - 1) * 100, 2)\n         ELSE NULL\n       END AS mom_growth_pct\nFROM monthly_sales\nORDER BY region, month_start;",
+    "solution": "SELECT month_start, region, revenue,\n       CASE\n         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)\n              = (month_start - INTERVAL '1 month')::date\n         THEN LAG(revenue) OVER (PARTITION BY region ORDER BY month_start)\n         ELSE NULL\n       END AS prior_month_revenue,\n       CASE\n         WHEN LAG(month_start) OVER (PARTITION BY region ORDER BY month_start)\n              = (month_start - INTERVAL '1 month')::date\n         THEN ROUND((revenue / LAG(revenue) OVER (PARTITION BY region ORDER BY month_start) - 1) * 100, 2)\n         ELSE NULL\n       END AS mom_growth_pct\nFROM monthly_sales\nORDER BY region, month_start;",
     "runtime": "postgres",
     "tags": [
       "period-over-period-growth"
@@ -27473,5 +27473,139 @@
     "tags": [
       "schema-design"
     ]
+  },
+  {
+    "id": "pivot_lab-0001",
+    "batch": "pivot_lab",
+    "num": 1,
+    "title": "Unpivot a Wide Quarterly KPI Table",
+    "slug": "unpivot-wide-quarterly-kpi-table",
+    "company": null,
+    "type": "SQL",
+    "subtopic": "Unpivot",
+    "difficulty": "Easy",
+    "language": "sql",
+    "schema": "CREATE TABLE quarterly_kpi (product TEXT, q1_revenue INT, q2_revenue INT, q3_revenue INT, q4_revenue INT);\nINSERT INTO quarterly_kpi VALUES\n  ('Widget', 100, 150, 120, 200),\n  ('Gadget', 80, 0, 90, 110),\n  ('Gizmo', 50, 60, NULL, 70);",
+    "solution": "SELECT product, 'Q1' AS quarter, q1_revenue AS revenue FROM quarterly_kpi\nUNION ALL\nSELECT product, 'Q2', q2_revenue FROM quarterly_kpi\nUNION ALL\nSELECT product, 'Q3', q3_revenue FROM quarterly_kpi\nUNION ALL\nSELECT product, 'Q4', q4_revenue FROM quarterly_kpi\nORDER BY product, quarter;",
+    "runtime": null,
+    "tags": [
+      "unpivot",
+      "union-all",
+      "reshaping"
+    ],
+    "question": "`quarterly_kpi` stores one wide row per product with four revenue columns, one per quarter. Unpivot it into long (tidy) format \u2014 one row per product per quarter, columns `product`, `quarter`, `revenue` \u2014 so it can feed a time-series chart. Order by product, then quarter."
+  },
+  {
+    "id": "pivot_lab-0002",
+    "batch": "pivot_lab",
+    "num": 2,
+    "title": "Unpivot in One Scan with LATERAL VALUES",
+    "slug": "unpivot-one-scan-lateral-values",
+    "company": null,
+    "type": "SQL",
+    "subtopic": "Unpivot",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "CREATE TABLE device_metrics (user_id INT, mobile_sessions INT, desktop_sessions INT, tablet_sessions INT);\nINSERT INTO device_metrics VALUES\n  (1, 12, 3, 0),\n  (2, 0, 0, 5),\n  (3, 7, NULL, 2);",
+    "solution": "SELECT m.user_id, v.device, v.sessions\nFROM device_metrics m\nCROSS JOIN LATERAL (VALUES\n  ('mobile', m.mobile_sessions),\n  ('desktop', m.desktop_sessions),\n  ('tablet', m.tablet_sessions)\n) AS v(device, sessions)\nORDER BY m.user_id, v.device;",
+    "runtime": null,
+    "tags": [
+      "unpivot",
+      "lateral",
+      "values",
+      "reshaping"
+    ],
+    "question": "Reshape `device_metrics` from wide to long: turn the three per-device session columns into rows (`user_id`, `device`, `sessions`). Instead of one `UNION ALL` branch per column \u2014 which scans the table three times \u2014 do it in a single scan with a `CROSS JOIN LATERAL` over a `VALUES` list."
+  },
+  {
+    "id": "pivot_lab-0003",
+    "batch": "pivot_lab",
+    "num": 3,
+    "title": "Pivot an L1\u2013L28 User Engagement Grid",
+    "slug": "pivot-l1-l28-user-engagement-grid",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "CREATE TABLE user_activity (user_id INT, activity_date DATE);\nINSERT INTO user_activity VALUES\n  (101, '2026-05-14'), (101, '2026-05-15'),\n  (102, '2026-05-15'),\n  (103, '2026-05-01'), (103, '2026-05-02'), (103, '2026-05-03');\nINSERT INTO user_activity SELECT 104, d::date FROM generate_series('2026-04-20'::date, '2026-04-29'::date, '1 day') d;\nINSERT INTO user_activity SELECT 105, d::date FROM generate_series('2026-04-18'::date, '2026-05-15'::date, '1 day') d;",
+    "solution": "WITH user_28d_counts AS (\n  SELECT user_id, COUNT(DISTINCT activity_date) AS active_days_count\n  FROM user_activity\n  WHERE activity_date BETWEEN '2026-04-18' AND '2026-05-15'\n  GROUP BY user_id\n)\nSELECT\n  '2026-05-15' AS snapshot_date,\n  COUNT(CASE WHEN active_days_count = 1 THEN 1 END) AS l1_users,\n  COUNT(CASE WHEN active_days_count BETWEEN 2 AND 7 THEN 1 END) AS l2_l7_users,\n  COUNT(CASE WHEN active_days_count BETWEEN 8 AND 27 THEN 1 END) AS l8_l27_users,\n  COUNT(CASE WHEN active_days_count >= 28 THEN 1 END) AS l28_users\nFROM user_28d_counts;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "conditional-aggregation",
+      "cte",
+      "customer-analytics"
+    ],
+    "question": "In product analytics, **L1\u2013L28** counts how many distinct days a user was active inside a trailing 28-day window \u2014 an L28 user opened the app every day for four weeks. For the snapshot date 2026-05-15 (window 2026-04-18 to 2026-05-15), pivot users into engagement buckets: `l1_users` (exactly 1 active day), `l2_l7_users` (2\u20137), `l8_l27_users` (8\u201327), `l28_users` (all 28). Return a single row."
+  },
+  {
+    "id": "pivot_lab-0004",
+    "batch": "pivot_lab",
+    "num": 4,
+    "title": "Pivot a Period-over-Period Growth Matrix",
+    "slug": "pivot-period-over-period-growth-matrix",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "CREATE TABLE monthly_revenue (business_unit TEXT, year_num INT, month_num INT, revenue INT);\nINSERT INTO monthly_revenue VALUES\n  ('SaaS B2B', 2025, 4, 100000),\n  ('SaaS B2B', 2026, 3, 120000),\n  ('SaaS B2B', 2026, 4, 150000),\n  ('Hardware', 2026, 3, 50000),\n  ('Hardware', 2026, 4, 60000);",
+    "solution": "WITH execution_pivot AS (\n  SELECT\n    business_unit,\n    SUM(CASE WHEN year_num = 2026 AND month_num = 4 THEN revenue ELSE 0 END) AS current_month,\n    SUM(CASE WHEN year_num = 2026 AND month_num = 3 THEN revenue ELSE 0 END) AS prior_month,\n    SUM(CASE WHEN year_num = 2025 AND month_num = 4 THEN revenue ELSE 0 END) AS prior_year\n  FROM monthly_revenue\n  GROUP BY business_unit\n)\nSELECT\n  business_unit,\n  current_month AS rev_apr_2026,\n  ROUND(((current_month - prior_month) * 100.0) / NULLIF(prior_month, 0), 2) AS mom_growth_pct,\n  ROUND(((current_month - prior_year) * 100.0) / NULLIF(prior_year, 0), 2) AS yoy_growth_pct\nFROM execution_pivot\nORDER BY business_unit;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "conditional-aggregation",
+      "cte",
+      "financial-analytics",
+      "growth"
+    ],
+    "question": "Build a period-over-period growth matrix for April 2026. From `monthly_revenue`, pivot each business unit's revenue into three horizons \u2014 current month (Apr 2026), prior month (Mar 2026), prior year (Apr 2025) \u2014 then compute month-over-month and year-over-year growth percentages side by side. Guard every denominator with `NULLIF` so a unit with no prior-year revenue yields NULL instead of a divide-by-zero error."
+  },
+  {
+    "id": "pivot_lab-0005",
+    "batch": "pivot_lab",
+    "num": 5,
+    "title": "Pivot a Monthly Cohort-Retention Grid",
+    "slug": "pivot-monthly-cohort-retention-grid",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "CREATE TABLE orders (customer_id INT, order_date DATE, amount NUMERIC);\nINSERT INTO orders VALUES\n  (1, '2026-01-05', 100), (1, '2026-02-10', 50), (1, '2026-03-12', 40),\n  (2, '2026-01-20', 80),  (2, '2026-02-15', 30),\n  (3, '2026-02-08', 200), (3, '2026-04-09', 60);",
+    "solution": "WITH first_order AS (\n  SELECT customer_id, DATE_TRUNC('month', MIN(order_date)) AS cohort_month\n  FROM orders\n  GROUP BY customer_id\n),\nactivity AS (\n  SELECT DISTINCT\n    f.cohort_month,\n    o.customer_id,\n    (EXTRACT(YEAR FROM o.order_date) - EXTRACT(YEAR FROM f.cohort_month)) * 12\n      + (EXTRACT(MONTH FROM o.order_date) - EXTRACT(MONTH FROM f.cohort_month)) AS month_since\n  FROM orders o\n  JOIN first_order f ON f.customer_id = o.customer_id\n),\ncohort_size AS (\n  SELECT cohort_month, COUNT(*) AS n\n  FROM first_order\n  GROUP BY cohort_month\n)\nSELECT\n  TO_CHAR(a.cohort_month, 'YYYY-MM') AS cohort,\n  c.n AS cohort_size,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 0 THEN a.customer_id END) / c.n, 1) AS month_0,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 1 THEN a.customer_id END) / c.n, 1) AS month_1,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 2 THEN a.customer_id END) / c.n, 1) AS month_2\nFROM activity a\nJOIN cohort_size c ON c.cohort_month = a.cohort_month\nGROUP BY a.cohort_month, c.n\nORDER BY cohort;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "cte",
+      "cohort-analysis",
+      "conditional-aggregation",
+      "customer-analytics"
+    ],
+    "question": "Build a monthly cohort-retention grid. Assign each customer to a signup cohort \u2014 the month of their first order \u2014 then pivot 'months since signup' into columns `month_0`, `month_1`, `month_2`, each showing the percentage of the cohort that placed an order that many months later. Use CTEs for the first-order month, the per-order month offset, and cohort sizes. (month_0 is 100% by construction \u2014 every customer ordered in their own cohort month.)"
+  },
+  {
+    "id": "pivot_lab-0006",
+    "batch": "pivot_lab",
+    "num": 6,
+    "title": "Pivot Quarterly Revenue with a Window-Function Running Total",
+    "slug": "pivot-quarterly-revenue-running-total",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Pivot",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "CREATE TABLE sales_ledger (business_unit TEXT, sale_date DATE, amount NUMERIC);\nINSERT INTO sales_ledger VALUES\n  ('North', '2026-02-10', 100), ('North', '2026-05-11', 200),\n  ('North', '2026-08-12', 150), ('North', '2026-11-13', 250),\n  ('South', '2026-01-15', 80),  ('South', '2026-06-20', 120);",
+    "solution": "WITH quarterly AS (\n  SELECT\n    business_unit,\n    EXTRACT(QUARTER FROM sale_date)::INT AS q,\n    SUM(amount) AS revenue\n  FROM sales_ledger\n  WHERE EXTRACT(YEAR FROM sale_date) = 2026\n  GROUP BY business_unit, EXTRACT(QUARTER FROM sale_date)\n),\nranked AS (\n  SELECT\n    business_unit, q, revenue,\n    SUM(revenue) OVER (\n      PARTITION BY business_unit ORDER BY q\n      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n    ) AS running_total\n  FROM quarterly\n)\nSELECT\n  business_unit,\n  SUM(CASE WHEN q = 1 THEN revenue ELSE 0 END) AS q1,\n  SUM(CASE WHEN q = 2 THEN revenue ELSE 0 END) AS q2,\n  SUM(CASE WHEN q = 3 THEN revenue ELSE 0 END) AS q3,\n  SUM(CASE WHEN q = 4 THEN revenue ELSE 0 END) AS q4,\n  MAX(running_total) AS full_year_total\nFROM ranked\nGROUP BY business_unit\nORDER BY business_unit;",
+    "runtime": null,
+    "tags": [
+      "pivot",
+      "cte",
+      "window-functions",
+      "financial-analytics",
+      "conditional-aggregation"
+    ],
+    "question": "From the transaction-level `sales_ledger`, build a per-business-unit quarterly report for 2026. In a first CTE aggregate revenue per business unit per quarter; in a second CTE add a window-function running total of revenue across quarters; then pivot the four quarters into columns `q1`\u2013`q4` and surface the cumulative `full_year_total`."
   }
 ]

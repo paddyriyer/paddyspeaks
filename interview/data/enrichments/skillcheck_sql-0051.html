@@ -1,0 +1,69 @@
+<p>A social network builds a "People You May Know" panel: for user 1, surface <em>friends-of-friends</em> &mdash; people exactly two hops away, not already friends &mdash; ranked by how many mutual connections they share. The <code>friendship</code> table stores undirected edges once. The interviewer is probing graph traversal in SQL: symmetrising the edge list, doing a two-hop self-join, and excluding the user and their direct friends.</p>
+
+<h4>1. The source data &mdash; <code>friendship</code></h4>
+<table>
+  <thead><tr><th>a</th><th>b</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>user 1's direct friends: 2, 3, 4</td></tr>
+    <tr><td>1</td><td>3</td><td>...</td></tr>
+    <tr><td>1</td><td>4</td><td>...</td></tr>
+    <tr><td>2</td><td>5</td><td>5 reachable via friend 2</td></tr>
+    <tr><td>2</td><td>6</td><td>6 reachable via friend 2</td></tr>
+    <tr><td>3</td><td>5</td><td>5 reachable via friend 3 too</td></tr>
+    <tr><td>3</td><td>7</td><td>7 reachable via friend 3</td></tr>
+    <tr><td>4</td><td>5</td><td>5 reachable via friend 4 &mdash; 3 mutuals total</td></tr>
+    <tr><td>4</td><td>8</td><td>8 reachable via friend 4</td></tr>
+    <tr><td>5</td><td>9</td><td>9 is THREE hops away &mdash; must be excluded</td></tr>
+  </tbody>
+</table>
+<p>The standout edge case is <strong>user 5</strong>: reachable through friends 2, 3, <em>and</em> 4 &mdash; three distinct mutual connections, so it should top the ranking. User 9 is a trap: it sits three hops from user 1 (via 5) and must <em>not</em> appear. Direct friends 2, 3, 4 must also be excluded even though the join would otherwise reach them.</p>
+
+<h4>2. The SQL &mdash; symmetrise edges, two-hop join, exclude self &amp; friends</h4>
+<pre><code>WITH edges AS (
+  SELECT a AS u, b AS v FROM friendship
+  UNION ALL
+  SELECT b, a FROM friendship
+),
+direct AS (
+  SELECT v FROM edges WHERE u = 1
+)
+SELECT e2.v AS user_id, COUNT(DISTINCT e1.v) AS mutual_count
+FROM edges e1
+JOIN edges e2 ON e1.v = e2.u
+WHERE e1.u = 1
+  AND e2.v &lt;&gt; 1
+  AND e2.v NOT IN (SELECT v FROM direct)
+GROUP BY e2.v
+ORDER BY mutual_count DESC, user_id;</code></pre>
+<p>The <code>edges</code> CTE doubles every undirected row into both directions so traversal works from either endpoint. <code>direct</code> is the set of user 1's friends. The self-join chains <code>e1</code> (1 &rarr; friend) to <code>e2</code> (friend &rarr; friend-of-friend); the <code>WHERE</code> drops user 1 and their direct friends; <code>COUNT(DISTINCT e1.v)</code> counts the bridging friends.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>mutual_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>3</td><td>bridged by friends 2, 3, and 4</td></tr>
+    <tr><td>6</td><td>1</td><td>bridged by friend 2 only</td></tr>
+    <tr><td>7</td><td>1</td><td>bridged by friend 3 only</td></tr>
+    <tr><td>8</td><td>1</td><td>bridged by friend 4 only</td></tr>
+  </tbody>
+</table>
+<p>User <strong>5</strong> ranks first with 3 mutual friends; users 6, 7, 8 tie at 1 and sort by <code>user_id</code>. User 9 is correctly absent &mdash; it is three hops away. Direct friends 2, 3, 4 are absent &mdash; the <code>NOT IN (direct)</code> filter removed them even though the two-hop join reaches them (e.g. 1 &rarr; 2 &rarr; 5 &rarr; ... but also 1 &rarr; 2 &rarr; 1).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Symmetrising the edge list &mdash; the foundational step</h5>
+<p>An undirected graph stored as one row per pair (<code>(1,2)</code> but not <code>(2,1)</code>) cannot be traversed directionally. The <code>UNION ALL</code> with swapped columns builds a directed view containing <em>both</em> <code>1&rarr;2</code> and <code>2&rarr;1</code>. Every traversal query on an undirected graph starts here &mdash; without it, you would only ever find neighbours stored as the <code>a</code> endpoint.</p>
+
+<h5>The two-hop join and why <code>COUNT(DISTINCT)</code> matters</h5>
+<p><code>edges e1 JOIN edges e2 ON e1.v = e2.u</code> with <code>e1.u = 1</code> walks: first hop <code>1 &rarr; e1.v</code> (a friend), second hop <code>e1.v &rarr; e2.v</code> (a friend-of-friend). A friend-of-friend reachable through several friends produces several join rows &mdash; user 5 appears via 2, 3, and 4. <code>COUNT(DISTINCT e1.v)</code> counts the distinct <em>bridging friends</em>, which is exactly "mutual connections". Plain <code>COUNT(*)</code> would also work here but <code>DISTINCT</code> guards against duplicate edges.</p>
+
+<h5>The three exclusions &mdash; self, direct friends, and the implicit back-edge</h5>
+<p>Three things must be filtered. <code>e2.v &lt;&gt; 1</code> drops paths that loop back to user 1 (<code>1 &rarr; 2 &rarr; 1</code>, which the symmetrised edges create). <code>e2.v NOT IN (direct)</code> drops people already friends with user 1 &mdash; "friends-of-friends only". Together they ensure the panel shows genuinely <em>new</em> two-hop people. Forgetting either is the most common bug: you would recommend user 1 to themselves, or recommend existing friends.</p>
+
+<h5>"Shortest path of length 2" &mdash; the subtle correctness point</h5>
+<p>The spec says shortest path <em>exactly</em> 2. The <code>NOT IN (direct)</code> filter is what enforces this: a node that is both a direct friend <em>and</em> a friend-of-friend has a shortest path of 1, so it is excluded. User 9, by contrast, has <em>no</em> two-hop path at all (its shortest path is 3) &mdash; the two-hop join simply never reaches it. The query returns precisely the distance-2 layer, not "distance &le; 2".</p>
+
+<h5>Dialect notes &mdash; and the recursive-CTE alternative</h5>
+<p><code>UNION ALL</code>, self-joins, and <code>COUNT(DISTINCT)</code> are universal. For a <em>fixed</em> depth of 2 this explicit double-join is the clearest form. For variable or deeper traversal (degrees of separation, shortest path of length N) you would switch to <code>WITH RECURSIVE</code>, carrying a hop counter and a visited-set to avoid cycles. Knowing that two hops is fine as a self-join but N hops needs recursion is the senior framing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> traverse an undirected graph by first symmetrising edges with <code>UNION ALL</code>, express a fixed two-hop reach as a self-join, count bridges with <code>COUNT(DISTINCT)</code>, and apply all three exclusions &mdash; self, direct friends, and loop-back edges &mdash; so the result is exactly the shortest-path-2 layer.</div>

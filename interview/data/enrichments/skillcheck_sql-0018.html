@@ -1,0 +1,53 @@
+<p>An analytics engineer inherits a <strong>wide</strong> grades table &mdash; one column per subject &mdash; and needs it in <strong>long form</strong>: one row per (person, subject, score). Long form is what charts, joins, and aggregations want, because the subject becomes <em>data</em> instead of schema. This is an <strong>unpivot</strong>, and most engines have no portable <code>UNPIVOT</code> keyword, so the interviewer is checking whether you can do it with <code>UNION ALL</code> and whether you handle NULL scores correctly.</p>
+
+<h4>1. The source data &mdash; <code>wide</code></h4>
+<table>
+  <thead><tr><th>person</th><th>math</th><th>english</th><th>science</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>90</td><td>85</td><td>92</td><td>all three subjects present</td></tr>
+    <tr><td>Bob</td><td>75</td><td>NULL</td><td>70</td><td>no English score recorded</td></tr>
+  </tbody>
+</table>
+<p>The edge case is Bob's NULL English score. An unpivot must decide: does that become a row with a NULL <code>score</code>, or does it disappear entirely? The two behaviours are different reports, and the choice should be conscious.</p>
+
+<h4>2. The SQL &mdash; unpivot via <code>UNION ALL</code></h4>
+<pre><code>SELECT person, 'english' AS subject, english AS score FROM wide
+UNION ALL
+SELECT person, 'math', math FROM wide
+UNION ALL
+SELECT person, 'science', science FROM wide
+ORDER BY person, subject;</code></pre>
+<p>Each <code>SELECT</code> peels off one subject column, relabels it as a literal <code>subject</code> string, and renames the value column to <code>score</code>. <code>UNION ALL</code> stacks the three result sets vertically; the final <code>ORDER BY</code> sorts the combined output.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>person</th><th>subject</th><th>score</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>english</td><td>85</td><td></td></tr>
+    <tr><td>Alice</td><td>math</td><td>90</td><td></td></tr>
+    <tr><td>Alice</td><td>science</td><td>92</td><td></td></tr>
+    <tr><td>Bob</td><td>english</td><td>NULL</td><td>NULL preserved as a row, not dropped</td></tr>
+    <tr><td>Bob</td><td>math</td><td>75</td><td></td></tr>
+    <tr><td>Bob</td><td>science</td><td>70</td><td></td></tr>
+  </tbody>
+</table>
+<p>Six rows from two input rows &mdash; each subject column became its own row. Bob still has an <strong>english</strong> row; its <code>score</code> is NULL. <code>UNION ALL</code> copies every source row faithfully, including the missing value &mdash; the row is kept, the absence is recorded as NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNION ALL</code> and not <code>UNION</code></h5>
+<p><code>UNION</code> deduplicates its result &mdash; it sorts and drops identical rows. If two people scored the same in the same subject, plain <code>UNION</code> would silently collapse them into one row, losing a real record. <code>UNION ALL</code> keeps every row, which is exactly what an unpivot needs: each subject value is its own fact. <code>UNION ALL</code> is also faster &mdash; no dedup sort. Using <code>UNION</code> here is a classic, quiet correctness bug.</p>
+
+<h5>Column names and types are taken from the <em>first</em> <code>SELECT</code></h5>
+<p>The output column names &mdash; <code>person</code>, <code>subject</code>, <code>score</code> &mdash; come from the first branch; the later branches' aliases are ignored, so they must be in the same order and compatible types. All three value columns are integers here, so the stack is clean. Mixing a <code>TEXT</code> column into the same position would force an implicit cast or an error. Keep the column list identical in shape across every branch.</p>
+
+<h5>NULLs survive &mdash; decide if that is what you want</h5>
+<p>Bob's NULL English score becomes a row <code>('Bob','english',NULL)</code>. That is correct for a coverage report &mdash; you can see the subject was offered but not graded. If the requirement were "only actual scores", you would add <code>WHERE english IS NOT NULL</code> to that branch (and the equivalent to each). Both are valid; the point is to choose, not to let the default decide silently. Keeping the NULL row is the more informative default.</p>
+
+<h5>The <code>ORDER BY</code> applies to the whole union</h5>
+<p>A trailing <code>ORDER BY</code> after the last branch sorts the <em>combined</em> result, not just the final <code>SELECT</code> &mdash; this is what gives the required person-then-subject ordering. Putting <code>ORDER BY</code> inside an earlier branch is either ignored or an error depending on the engine. One sort, at the end, governs everything.</p>
+
+<h5>Dialect &mdash; dedicated unpivot tools</h5>
+<p>SQL Server and Oracle have an <code>UNPIVOT</code> operator; Snowflake too. PostgreSQL has no <code>UNPIVOT</code> keyword but offers a tidy alternative &mdash; a <code>LATERAL</code> join over a <code>VALUES</code> list: <code>... CROSS JOIN LATERAL (VALUES ('math', math), ('english', english), ('science', science)) AS u(subject, score)</code>, which scans the base table once instead of three times. The <code>UNION ALL</code> form shown here is the most portable and the clearest to read; mention <code>LATERAL</code> as the performance-conscious Postgres variant.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> unpivot wide-to-long with <code>UNION ALL</code> (never plain <code>UNION</code>, which would dedupe real rows), keep every branch's column list identical in order and type, decide consciously whether NULL cells become NULL rows or are filtered out, and know <code>LATERAL VALUES</code> as the single-scan Postgres alternative.</div>

@@ -1,0 +1,49 @@
+<p>This is a deliberately minimal warm-up: produce the integers 1 through 10 with no source table at all. The interviewer is checking that you understand the bare mechanics of a recursive CTE &mdash; an anchor seed, a recursive step, and a termination predicate &mdash; stripped of any join or business logic. It is the "hello world" of <code>WITH RECURSIVE</code>.</p>
+
+<h4>1. The source data &mdash; none</h4>
+<table>
+  <thead><tr><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>There is no input table. The schema declares an unused <code>_dummy</code> placeholder; the result is generated entirely from the recursive CTE itself.</td></tr>
+    <tr><td>The "edge cases" here are the <em>boundaries of the sequence</em>: the first value (1, from the anchor) and the last value (10, where the recursion must stop and not overshoot to 11).</td></tr>
+  </tbody>
+</table>
+<p>With no rows to read, every row in the output is <em>synthesised</em>. The whole question is whether the recursion starts at the right number and stops at the right number &mdash; an off-by-one in the predicate is the only way to get this wrong.</p>
+
+<h4>2. The SQL &mdash; a number-generating recursive CTE</h4>
+<pre><code>WITH RECURSIVE nums(n) AS (
+  SELECT 1
+  UNION ALL
+  SELECT n + 1 FROM nums WHERE n &lt; 10
+)
+SELECT n FROM nums ORDER BY n;</code></pre>
+<p>The <strong>anchor</strong> is just <code>SELECT 1</code> &mdash; it seeds the CTE with a single row, <code>n = 1</code>. The <strong>recursive member</strong> reads the previous row's <code>n</code>, adds 1, and emits it &mdash; but only <code>WHERE n &lt; 10</code>. That predicate is the brake: once <code>n</code> reaches 10, the condition <code>10 &lt; 10</code> is false, the recursive member produces no row, and the recursion halts.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>n</th><th>(produced by)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>the anchor</td></tr>
+    <tr><td>2</td><td>iteration 1 &mdash; from n=1, since 1 &lt; 10</td></tr>
+    <tr><td>&hellip;</td><td>&hellip;</td></tr>
+    <tr><td>9</td><td>iteration 8 &mdash; from n=8</td></tr>
+    <tr><td>10</td><td>iteration 9 &mdash; from n=9, since 9 &lt; 10</td></tr>
+  </tbody>
+</table>
+<p>Exactly ten rows, 1 through 10. The value 10 <em>is</em> produced &mdash; it comes from the row <code>n = 9</code>, which satisfies <code>9 &lt; 10</code>. But <code>n = 10</code> itself fails <code>10 &lt; 10</code>, so no 11 is generated. The predicate <code>n &lt; 10</code> therefore yields an <em>inclusive</em> upper bound of 10 &mdash; the classic boundary subtlety.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the brake is <code>n &lt; 10</code> and not <code>n &lt;= 10</code></h5>
+<p>The predicate gates whether the <em>next</em> row is produced, so it is one step ahead of the value you want to stop at. <code>WHERE n &lt; 10</code> lets the row <code>n = 9</code> generate <code>10</code>, then the row <code>n = 10</code> is blocked &mdash; final value 10. Use <code>WHERE n &lt;= 10</code> and the row <code>n = 10</code> would generate <code>11</code>; the sequence runs to 11. The rule: to make the last value <em>k</em>, gate on <code>n &lt; k</code>. This off-by-one is the single thing the question tests.</p>
+
+<h5>The termination guarantee &mdash; and what removes it</h5>
+<p>Recursion stops when an iteration produces zero new rows; here that happens the instant the predicate fails. The danger in number generators is forgetting the predicate entirely &mdash; <code>SELECT n + 1 FROM nums</code> with no <code>WHERE</code> counts upward forever until the engine's recursion limit aborts it. Unlike a tree walk (which terminates naturally when it runs out of nodes), a synthetic sequence has no natural end, so the stop condition is <em>mandatory</em>, not optional.</p>
+
+<h5>Dialect notes &mdash; the idiomatic shortcuts</h5>
+<p>PostgreSQL rarely needs this hand-rolled: <code>SELECT generate_series(1, 10) AS n</code> does the same in one line and is the idiomatic choice. SQL Server has no <code>generate_series</code> before 2022, so the recursive CTE shown here <em>is</em> the standard trick there (often with <code>OPTION (MAXRECURSION 0)</code> to lift the default 100-level cap for longer ranges). Oracle offers <code>SELECT level FROM dual CONNECT BY level &lt;= 10</code>. The recursive-CTE form is the most portable, which is why it is worth knowing cold.</p>
+
+<h5>What a generated sequence is actually <em>for</em></h5>
+<p>Generating 1..10 is never the real goal &mdash; the technique matters because a contiguous number or date series is the scaffold for gap-filling. Need every calendar day in a month even when some have no data? Generate the dates, then <code>LEFT JOIN</code> the facts onto them so missing days surface as zero rows instead of vanishing. Recognising this warm-up as the foundation of "report all buckets, including empty ones" is the senior framing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build a number series with an anchor (<code>SELECT 1</code>), a <code>+1</code> recursive step, and &mdash; critically &mdash; a mandatory termination predicate, gating on <code>n &lt; k</code> to make <em>k</em> the inclusive last value; know <code>generate_series</code> is the Postgres shortcut, and that the real use of a generated series is left-joining to fill reporting gaps.</div>

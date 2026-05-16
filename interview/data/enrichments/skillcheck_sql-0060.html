@@ -1,0 +1,59 @@
+<p>An FP&amp;A team wants a quarterly board summary for 2025: <em>"one row per customer, with columns Q1 through Q4 totalling that customer's sales in each calendar quarter."</em> That shape &mdash; quarters across the top &mdash; is a pivot. The interviewer is probing whether you can pivot in portable SQL, scope the data to one year, and make empty quarters read 0 rather than NULL.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>sale_date</th><th>amount</th><th>quarter</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-15</td><td>100</td><td>Q1</td></tr>
+    <tr><td>1</td><td>2025-02-20</td><td>50</td><td>Q1 &mdash; second Q1 sale</td></tr>
+    <tr><td>1</td><td>2025-07-01</td><td>200</td><td>Q3 (no Q2, no Q4)</td></tr>
+    <tr><td>2</td><td>2025-03-15</td><td>300</td><td>Q1</td></tr>
+    <tr><td>2</td><td>2025-10-15</td><td>400</td><td>Q4</td></tr>
+    <tr><td>2</td><td>2025-12-25</td><td>100</td><td>Q4 &mdash; second Q4 sale</td></tr>
+    <tr><td>3</td><td>2025-06-15</td><td>75</td><td>Q2 only</td></tr>
+    <tr><td>4</td><td>2024-12-31</td><td>999</td><td>not in 2025 &mdash; must be excluded</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Customer 4's only sale is in 2024 &mdash; the whole customer should vanish from the report. Customers 1 and 3 have empty quarters that must show 0, not NULL.</p>
+
+<h4>2. The SQL &mdash; pivot via <code>FILTER</code>ed aggregates</h4>
+<pre><code>SELECT customer_id,
+       COALESCE(SUM(amount) FILTER (WHERE EXTRACT(QUARTER FROM sale_date) = 1), 0) AS q1,
+       COALESCE(SUM(amount) FILTER (WHERE EXTRACT(QUARTER FROM sale_date) = 2), 0) AS q2,
+       COALESCE(SUM(amount) FILTER (WHERE EXTRACT(QUARTER FROM sale_date) = 3), 0) AS q3,
+       COALESCE(SUM(amount) FILTER (WHERE EXTRACT(QUARTER FROM sale_date) = 4), 0) AS q4
+FROM sales
+WHERE sale_date &gt;= DATE '2025-01-01' AND sale_date &lt; DATE '2026-01-01'
+GROUP BY customer_id
+ORDER BY customer_id;</code></pre>
+<p>The <code>WHERE</code> clause restricts to 2025. One <code>SUM(amount) FILTER (WHERE quarter = n)</code> per output column adds only that quarter's sales. <code>COALESCE(..., 0)</code> turns an empty quarter's NULL into 0.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>q1</th><th>q2</th><th>q3</th><th>q4</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>150</td><td>0</td><td>200</td><td>0</td><td>two Q1 sales folded (100+50); empty quarters &rarr; 0</td></tr>
+    <tr><td>2</td><td>300</td><td>0</td><td>0</td><td>500</td><td>two Q4 sales folded (400+100)</td></tr>
+    <tr><td>3</td><td>0</td><td>75</td><td>0</td><td>0</td><td>single-quarter customer, rest 0</td></tr>
+  </tbody>
+</table>
+<p>Customer 4 is <strong>absent</strong> &mdash; the <code>WHERE</code> removed their only (2024) row, so they never reach the <code>GROUP BY</code>. Customer 1's Q1 is 150: both January and February sales satisfy the <code>quarter = 1</code> filter and <code>SUM</code> adds them.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>FILTER</code> vs <code>SUM(CASE WHEN ...)</code></h5>
+<p>The <code>aggregate(...) FILTER (WHERE ...)</code> clause is the modern SQL-standard way to conditionally aggregate. <code>SUM(amount) FILTER (WHERE quarter = 1)</code> is exactly equivalent to <code>SUM(CASE WHEN quarter = 1 THEN amount END)</code> but reads more clearly &mdash; the condition is visibly a row filter, not part of the value. Both produce NULL when no row qualifies, which is why the <code>COALESCE</code> is still needed.</p>
+
+<h5>Why <code>COALESCE</code> is required &mdash; the NULL vs 0 choice</h5>
+<p>When a customer has no sales in a quarter, <code>SUM</code> over zero rows returns <strong>NULL</strong>, not 0 &mdash; <code>SUM</code> of an empty set is undefined. The question explicitly wants 0 ("not NULL"), so each column is wrapped in <code>COALESCE(..., 0)</code>. This is a deliberate business decision: a financial grid wants 0 (the customer genuinely sold nothing), whereas a coverage report might keep NULL to distinguish "no activity" from "real zero". State which you mean.</p>
+
+<h5>The half-open date range</h5>
+<p><code>sale_date &gt;= '2025-01-01' AND sale_date &lt; '2026-01-01'</code> is the robust way to scope a year. It is preferable to <code>BETWEEN '2025-01-01' AND '2025-12-31'</code> because if <code>sale_date</code> were a <code>timestamp</code>, a sale at <code>2025-12-31 14:00</code> is &gt; the date <code>2025-12-31</code> and <code>BETWEEN</code> would silently drop it. The half-open <code>[start, next-year-start)</code> pattern is correct for both <code>date</code> and <code>timestamp</code> columns &mdash; a senior habit.</p>
+
+<h5>Duplicate sales fold in by design</h5>
+<p>Customer 1's two Q1 rows are not an error to dedupe &mdash; <code>SUM</code> over the filtered group adds every matching row (100 + 50 = 150). That is the correct quarterly total. If the question had asked "how many quarters had activity" you would switch to <code>COUNT(*) FILTER (...)</code> or a distinct count. The aggregate you pick encodes the business rule.</p>
+
+<h5>The columns are static &mdash; the hard limit</h5>
+<p>Four quarters are hard-coded, which is fine because a year always has exactly four. But pure SQL pivots cannot grow columns from data &mdash; if the request were "one column per <em>month present in the data</em>", you would need dynamic SQL (build the statement text from <code>SELECT DISTINCT</code>, then execute) or PostgreSQL's <code>crosstab()</code> from the <code>tablefunc</code> extension. Snowflake/Oracle/SQL Server also offer a dedicated <code>PIVOT</code> operator, but it still makes you enumerate the values. Naming the static-column limitation unprompted is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot portably with one <code>SUM(amount) FILTER (WHERE quarter = n)</code> per column, wrap each in <code>COALESCE(..., 0)</code> because <code>SUM</code> of zero rows is NULL not 0, scope the year with a half-open <code>&gt;= start AND &lt; next-year</code> range (timestamp-safe), and know the four columns are static &mdash; a data-driven pivot needs dynamic SQL or <code>crosstab()</code>.</div>

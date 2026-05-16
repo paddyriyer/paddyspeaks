@@ -1,0 +1,76 @@
+<p>A product analytics team wants to understand how users start a session. They define a session as a run of events with no gap longer than 30 minutes between consecutive events, then ask: "for each session, what was the user doing first &mdash; did they <code>open</code> the app, or land mid-flow on a <code>view</code>?" The interviewer is probing two skills at once: <strong>sessionization</strong> (turning a raw event stream into bounded sessions) and <strong>first-per-group</strong> selection. Both are gap-and-island problems, and doing them together is the real test.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>ts</th><th>event_type</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 09:00</td><td>open</td><td>first event &rarr; session 1</td></tr>
+    <tr><td>1</td><td>2025-01-01 09:10</td><td>view</td><td>10m gap &rarr; same session</td></tr>
+    <tr><td>1</td><td>2025-01-01 09:50</td><td>close</td><td>40m gap &rarr; new session 2</td></tr>
+    <tr><td>1</td><td>2025-01-01 09:55</td><td>open</td><td>5m gap &rarr; same session</td></tr>
+    <tr><td>1</td><td>2025-01-01 10:30</td><td>view</td><td>35m gap &rarr; new session 3</td></tr>
+    <tr><td>1</td><td>2025-01-01 11:30</td><td>close</td><td>60m gap &rarr; new session 4</td></tr>
+    <tr><td>2</td><td>2025-01-02 10:00</td><td>open</td><td>single-session user</td></tr>
+    <tr><td>2</td><td>2025-01-02 10:20</td><td>view</td><td>20m gap &rarr; same session</td></tr>
+  </tbody>
+</table>
+<p>The edge case hides in plain sight: the 09:55&rarr;10:30 gap is <em>35 minutes</em>, which exceeds 30. The schema's inline comments only call out the 40m and 60m gaps, but a correct query must split here too. User 1 ends up with <strong>four</strong> sessions, not three.</p>
+
+<h4>2. The SQL &mdash; gap flag, running sum, first-per-session</h4>
+<pre><code>WITH flagged AS (
+  SELECT user_id, ts, event_type,
+         CASE
+           WHEN LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) IS NULL THEN 1
+           WHEN EXTRACT(EPOCH FROM (ts - LAG(ts) OVER (PARTITION BY user_id ORDER BY ts)))/60 &gt; 30 THEN 1
+           ELSE 0
+         END AS is_new_session
+  FROM event
+),
+sessioned AS (
+  SELECT user_id, ts, event_type,
+         SUM(is_new_session) OVER (PARTITION BY user_id ORDER BY ts
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_id
+  FROM flagged
+),
+first_in_session AS (
+  SELECT user_id, session_id, ts, event_type,
+         ROW_NUMBER() OVER (PARTITION BY user_id, session_id ORDER BY ts) AS rn
+  FROM sessioned
+)
+SELECT user_id, session_id, ts, event_type
+FROM first_in_session
+WHERE rn = 1
+ORDER BY user_id, session_id;</code></pre>
+<p>Three stages. <code>flagged</code> marks every row that opens a new session with a <code>1</code> (the first row of a user, or any row more than 30 minutes after its predecessor). <code>sessioned</code> turns those flags into a stable session number with a running <code>SUM</code> &mdash; each <code>1</code> bumps the counter. <code>first_in_session</code> ranks rows inside each session and keeps <code>rn = 1</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>session_id</th><th>ts</th><th>event_type</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>2025-01-01 09:00:00</td><td>open</td><td>opened the app</td></tr>
+    <tr><td>1</td><td>2</td><td>2025-01-01 09:50:00</td><td>close</td><td>session starts on a <code>close</code></td></tr>
+    <tr><td>1</td><td>3</td><td>2025-01-01 10:30:00</td><td>view</td><td>35m gap split &mdash; the hidden case</td></tr>
+    <tr><td>1</td><td>4</td><td>2025-01-01 11:30:00</td><td>close</td><td>60m gap split</td></tr>
+    <tr><td>2</td><td>1</td><td>2025-01-02 10:00:00</td><td>open</td><td>single session</td></tr>
+  </tbody>
+</table>
+<p>User 1 produces four rows because four sessions formed. Session 2's first event is a <code>close</code> and session 3's is a <code>view</code> &mdash; the "first event" is whatever the user happened to do first, not necessarily an <code>open</code>. That is exactly the insight the interviewer wants surfaced.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the running sum produces stable session IDs</h5>
+<p>The trick is that a cumulative <code>SUM</code> of 0/1 flags is monotonic and only increments at boundaries. Every row between two boundaries shares the same partial sum, so rows naturally cluster into "islands" with identical <code>session_id</code>. This is the canonical gaps-and-islands pattern: detect the boundary, then run a sum to label the islands. No self-join, one pass after the sort.</p>
+
+<h5>Why <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> is explicit</h5>
+<p>An ordered window <code>SUM</code> defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. With distinct timestamps <code>RANGE</code> and <code>ROWS</code> agree, but if two events share an exact timestamp, <code>RANGE</code> treats them as peers and gives both the <em>same</em> running total &mdash; which can merge or mislabel sessions. Writing <code>ROWS</code> explicitly makes the frame row-by-row and removes that ambiguity. Stating this distinction unprompted is a senior tell.</p>
+
+<h5>The 30-minute boundary &mdash; strict vs inclusive</h5>
+<p>The rule is "gap longer than 30 minutes" so the code uses <code>&gt; 30</code>. A gap of exactly 30 minutes stays in the same session. If the spec said "30 minutes or more ends the session" you would switch to <code>&gt;= 30</code>. Computing the gap as <code>EXTRACT(EPOCH FROM (ts - LAG(ts)))/60</code> converts an interval to minutes; comparing intervals directly (<code>ts - LAG(ts) &gt; INTERVAL '30 minutes'</code>) is equivalent and arguably cleaner.</p>
+
+<h5>ROW_NUMBER vs RANK for first-per-session</h5>
+<p><code>ROW_NUMBER</code> is correct here: each session has exactly one chronologically-first event, and timestamps within a session are distinct, so <code>rn = 1</code> picks one row deterministically. If two events could share the session's earliest timestamp, <code>ROW_NUMBER</code> would still pick exactly one (arbitrarily), whereas <code>RANK</code> would return both. Choose based on whether ties should yield one row or many &mdash; the question asks for "the first event", singular, so <code>ROW_NUMBER</code> fits.</p>
+
+<h5>Single-member groups and NULL gaps</h5>
+<p>User 2 and the very first row of each user exercise the boundary logic: <code>LAG</code> returns <code>NULL</code> for the first row, and the <code>CASE</code> explicitly catches that with <code>IS NULL THEN 1</code>. Without that branch the first event would get flag <code>0</code>, the running sum would start at 0, and session numbering would be off by one (or zero-based). The <code>IS NULL</code> arm is what guarantees session IDs are 1-based.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise sessionization as gaps-and-islands &mdash; flag boundaries with <code>LAG</code>, label islands with a running <code>SUM</code> of those flags, then apply <code>ROW_NUMBER</code> for first-per-group. Handle the first-row <code>NULL</code> from <code>LAG</code> explicitly so IDs stay 1-based, write <code>ROWS</code> not <code>RANGE</code> to avoid timestamp-tie surprises, and read every gap in the data &mdash; the 35-minute split is easy to miss.</div>

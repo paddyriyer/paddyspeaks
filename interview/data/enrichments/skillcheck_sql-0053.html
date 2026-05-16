@@ -1,0 +1,59 @@
+<p>An analytics team wants to tier its customer base: <em>"for every customer, what fraction of the book sits at or below their lifetime value?"</em> A customer at the 0.90 mark is in the top 10% of spenders. The interviewer is checking whether you reach for the right ranking window function &mdash; specifically one that returns a <em>cumulative fraction</em>, not an ordinal position &mdash; and whether you know how it treats customers tied on LTV.</p>
+
+<h4>1. The source data &mdash; <code>customer</code></h4>
+<table>
+  <thead><tr><th>id</th><th>lifetime_value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>lowest spender</td></tr>
+    <tr><td>2</td><td>150</td><td></td></tr>
+    <tr><td>3</td><td>200</td><td>tied with id 4</td></tr>
+    <tr><td>4</td><td>200</td><td>tied with id 3</td></tr>
+    <tr><td>5</td><td>250</td><td></td></tr>
+    <tr><td>10</td><td>500</td><td>top spender</td></tr>
+  </tbody>
+</table>
+<p>Ten customers in all (ids 1&ndash;10), with one detail that decides the interview: <strong>ids 3 and 4 are tied at 200</strong>. A percentile function must give tied rows the <em>same</em> percentile &mdash; and the rule it uses to do so is the whole question.</p>
+
+<h4>2. The SQL &mdash; <code>CUME_DIST()</code> over LTV</h4>
+<pre><code>SELECT id, lifetime_value,
+       ROUND(CUME_DIST() OVER (ORDER BY lifetime_value)::numeric, 3) AS percentile
+FROM customer
+ORDER BY lifetime_value DESC, id;</code></pre>
+<p><code>CUME_DIST()</code> returns, for each row, the count of rows with a value <em>less than or equal to</em> the current row divided by the total row count. That definition is exactly "fraction of customers with LTV &le; theirs" &mdash; the question's wording mapped one-to-one onto a built-in.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>lifetime_value</th><th>percentile</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>500</td><td>1.000</td><td>everyone is &le; the top &rarr; exactly 1.0</td></tr>
+    <tr><td>9</td><td>450</td><td>0.900</td><td></td></tr>
+    <tr><td>8</td><td>400</td><td>0.800</td><td></td></tr>
+    <tr><td>7</td><td>350</td><td>0.700</td><td></td></tr>
+    <tr><td>6</td><td>300</td><td>0.600</td><td></td></tr>
+    <tr><td>5</td><td>250</td><td>0.500</td><td></td></tr>
+    <tr><td>3</td><td>200</td><td>0.400</td><td>tied: 4 rows are &le; 200, so 4/10</td></tr>
+    <tr><td>4</td><td>200</td><td>0.400</td><td>same value &rarr; identical percentile</td></tr>
+    <tr><td>2</td><td>150</td><td>0.200</td><td></td></tr>
+    <tr><td>1</td><td>100</td><td>0.100</td><td>one row &le; 100, so 1/10</td></tr>
+  </tbody>
+</table>
+<p>The two 200-LTV customers both land at <strong>0.400</strong>: four rows (ids 1,2,3,4) have LTV &le; 200, and 4/10 = 0.4. Note that <code>CUME_DIST</code> counts <em>through the end of the tie group</em> &mdash; both tied rows get the higher fraction, not the lower one.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>CUME_DIST</code> and not <code>PERCENT_RANK</code></h5>
+<p>The two are easy to confuse. <code>CUME_DIST</code> = (rows &le; current) / N &mdash; it always reaches 1.0 at the top and is a genuine "&le; me" fraction. <code>PERCENT_RANK</code> = (rank &minus; 1) / (N &minus; 1) &mdash; it always starts at 0.0 for the minimum and is a "strictly-below me" fraction. The question literally says "less than or equal to", which is the <code>CUME_DIST</code> definition. Picking the function whose definition matches the prose is the senior move.</p>
+
+<h5>Tie handling is the trap</h5>
+<p>Both 200-LTV rows get 0.400, not 0.300 and 0.400. <code>CUME_DIST</code> evaluates the whole peer group at once: every row sharing a value gets the cumulative fraction computed at the <em>last</em> member of that group. If you instead used <code>ROW_NUMBER() / COUNT(*)</code> you would hand the two tied customers different percentiles (0.3 and 0.4) decided arbitrarily by physical order &mdash; almost certainly wrong for a percentile.</p>
+
+<h5>The <code>::numeric</code> cast and <code>ROUND</code></h5>
+<p><code>CUME_DIST</code> returns <code>double precision</code>. PostgreSQL's two-argument <code>ROUND(value, scale)</code> only accepts <code>numeric</code>, so <code>ROUND(some_double, 3)</code> raises <em>"function round(double precision, integer) does not exist"</em>. The explicit <code>::numeric</code> cast is not cosmetic &mdash; it is what makes the rounding compile. Many candidates omit it and get a confusing error.</p>
+
+<h5>NULL LTV and ordering</h5>
+<p>If <code>lifetime_value</code> can be NULL, the default <code>ORDER BY lifetime_value</code> sorts NULLs last, so a NULL-LTV customer would land at percentile 1.000 &mdash; ranked as the top spender, which is nonsense. Decide explicitly: filter <code>WHERE lifetime_value IS NOT NULL</code>, or use <code>ORDER BY lifetime_value NULLS FIRST</code> so missing-value customers sink to the bottom of the distribution.</p>
+
+<h5>Dialect notes</h5>
+<p><code>CUME_DIST</code> is ANSI SQL and works in PostgreSQL, SQL Server, Oracle, Snowflake, BigQuery, and MySQL 8+. Older MySQL (&lt; 8.0) has no window functions at all &mdash; there you would emulate it with a correlated subquery <code>(SELECT COUNT(*) FROM customer c2 WHERE c2.lifetime_value &lt;= c1.lifetime_value)::float / (SELECT COUNT(*) FROM customer)</code>, which is O(n&sup2;) and far slower.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> map "fraction with value &le; mine" directly to <code>CUME_DIST()</code> (not <code>PERCENT_RANK</code>, which is strictly-below and starts at 0), know that tied rows share the cumulative fraction of the last peer, cast to <code>numeric</code> before two-argument <code>ROUND</code>, and decide NULL-LTV placement deliberately instead of letting it default to the 100th percentile.</div>

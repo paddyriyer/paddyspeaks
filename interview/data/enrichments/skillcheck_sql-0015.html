@@ -1,0 +1,52 @@
+<p>A data team wants a smoothed version of a noisy daily metric for a dashboard sparkline &mdash; a <strong>centered 3-day moving average</strong> that damps single-day spikes. The subtlety the interviewer is hunting for: a centered window peeks one row into the <em>future</em>, and the first and last days have no neighbour on one side, so the window is asymmetric there. Getting the frame and the edge behaviour right is the whole question.</p>
+
+<h4>1. The source data &mdash; <code>daily</code></h4>
+<table>
+  <thead><tr><th>d</th><th>v</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10</td><td>first day &mdash; no preceding row</td></tr>
+    <tr><td>2025-01-02</td><td>20</td><td>full 3-row window</td></tr>
+    <tr><td>2025-01-03</td><td>30</td><td>full 3-row window</td></tr>
+    <tr><td>2025-01-04</td><td>40</td><td>full 3-row window</td></tr>
+    <tr><td>2025-01-05</td><td>50</td><td>last day &mdash; no following row</td></tr>
+  </tbody>
+</table>
+<p>The edge cases sit at both ends. The first row has only <em>itself + 1 following</em> (2 rows); the last row has only <em>1 preceding + itself</em> (2 rows). The interesting question is what the average should be when the window cannot be the promised three rows wide.</p>
+
+<h4>2. The SQL &mdash; AVG over a centered ROWS frame</h4>
+<pre><code>SELECT
+  d,
+  v,
+  ROUND(AVG(v) OVER (ORDER BY d ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)::numeric, 2)::float AS ma
+FROM daily
+ORDER BY d;</code></pre>
+<p><code>ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING</code> defines a frame of the row before, the current row, and the row after &mdash; centered on "now". <code>AVG</code> averages whatever rows actually fall inside that frame; at the table edges the frame simply contains fewer rows, with no error.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th><th>v</th><th>ma</th><th>window contents</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10</td><td>15</td><td>(10, 20) &mdash; 2 rows, no preceding</td></tr>
+    <tr><td>2025-01-02</td><td>20</td><td>20</td><td>(10, 20, 30) &mdash; full window</td></tr>
+    <tr><td>2025-01-03</td><td>30</td><td>30</td><td>(20, 30, 40) &mdash; full window</td></tr>
+    <tr><td>2025-01-04</td><td>40</td><td>40</td><td>(30, 40, 50) &mdash; full window</td></tr>
+    <tr><td>2025-01-05</td><td>50</td><td>45</td><td>(40, 50) &mdash; 2 rows, no following</td></tr>
+  </tbody>
+</table>
+<p>The first row's <code>ma</code> is <strong>15</strong> &mdash; the mean of just 10 and 20, because there is no day before it. The last row's <code>ma</code> is <strong>45</strong> &mdash; the mean of 40 and 50. The window <em>shrinks</em> at the edges; it does not pad with zeros or NULLs.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROWS</code> and not <code>RANGE</code></h5>
+<p><code>ROWS</code> counts <em>physical rows</em> &mdash; exactly one before and one after &mdash; which is what "3-row window" means. <code>RANGE</code> counts by the value of the <code>ORDER BY</code> column instead, so <code>RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING</code> over a date would mean "within one unit of this date" and, more dangerously, would lump <em>all rows sharing the current date</em> into one frame. If two readings landed on the same day, <code>RANGE</code> would average them together; <code>ROWS</code> keeps them as distinct positions. For a row-count window, <code>ROWS</code> is the correct and intended choice.</p>
+
+<h5>The frame shrinks at the edges &mdash; by design</h5>
+<p>A window frame is clipped to the partition's bounds. At the first row there is no preceding row, so the frame is just two rows; <code>AVG</code> divides by 2, not 3. This is usually what you want for a sparkline. If the business rule were "only show a moving average once a full window exists", you would wrap it: <code>CASE WHEN COUNT(*) OVER (...) = 3 THEN AVG(...) END</code>, yielding NULL at the edges. Knowing both behaviours &mdash; and that the default is the shrinking window &mdash; is the senior distinction.</p>
+
+<h5>An explicit <code>ORDER BY</code> in the window is mandatory</h5>
+<p>"Preceding" and "following" are meaningless without an ordering. <code>OVER (ORDER BY d ...)</code> is what makes the centered frame well-defined. Omit it and the engine either errors or treats the whole partition as one unordered frame. Note also that if two rows shared a date, the tie-break between them would be arbitrary &mdash; add a unique tiebreaker (<code>ORDER BY d, id</code>) when determinism matters.</p>
+
+<h5>The rounding cast chain</h5>
+<p><code>AVG</code> of integers in PostgreSQL returns <code>numeric</code>; the explicit <code>::numeric</code> makes <code>ROUND(x, 2)</code> unambiguous, and the final <code>::float</code> matches the column type the grader expects. A frequent mistake is <code>ROUND(AVG(v), 2)</code> with no cast in engines where <code>AVG</code> of an <code>int</code> truncates to an integer &mdash; you would silently lose the fractional part. Be explicit about numeric types around averages.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement a centered moving average with <code>AVG(v) OVER (ORDER BY d ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)</code>, choose <code>ROWS</code> over <code>RANGE</code> deliberately, and know that the frame <em>shrinks</em> at the partition edges &mdash; volunteer whether the edge rows should average fewer values or return NULL.</div>

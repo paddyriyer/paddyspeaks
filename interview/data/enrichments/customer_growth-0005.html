@@ -1,0 +1,120 @@
+<p>A trust-and-safety team needs to flag customers whose return behaviour looks fraudulent &mdash; serial returners, refund bursts, customers whose return rate is suddenly spiking. The question (snapshot 2025-04-01) layers L7/L28/L90 return rates with a rolling-7-day "burst" detector and a priority-ordered <code>fraud_flag</code>. The interviewer is probing whether you can join two event streams (orders, returns), compute windowed rates with a zero-safe denominator, and find the densest 7-day cluster with a self-join.</p>
+
+<h4>1. The source data &mdash; <code>orders</code> and <code>returns</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders (L90)</th><th>returns</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>8</td><td>5 returns in a 5-day stretch</td><td>refund <strong>burst</strong> &mdash; 5 inside one 7-day window</td></tr>
+    <tr><td>2</td><td>6</td><td>3 of 5 L28 orders returned</td><td>L28 rate 0.60 &mdash; <strong>high_return_rate</strong></td></tr>
+    <tr><td>3</td><td>3</td><td>0</td><td>only 3 orders in L90 &mdash; <strong>low_volume</strong></td></tr>
+    <tr><td>4</td><td>8</td><td>1</td><td>steady buyer, one return &mdash; <strong>clean</strong></td></tr>
+    <tr><td>5</td><td>10</td><td>3 recent returns, none older</td><td>L28 rate 0.75 dwarfs L90 rate 0.30</td></tr>
+  </tbody>
+</table>
+<p>The edge cases stress the flag priority: customer 3 has zero returns but is still flagged (<code>low_volume</code> &mdash; too few orders to judge). Customer 5 is a designed-in ambiguity: its L28 rate (0.75) clears <em>both</em> the <code>high_return_rate</code> threshold (&gt; 0.40) and the <code>rising_returns</code> rule, so branch order decides which label wins.</p>
+
+<h4>2. The SQL &mdash; windowed return rates with a self-join burst detector</h4>
+<pre><code>WITH params AS (SELECT DATE '2025-04-01' AS snapshot),
+o_e AS (
+    SELECT o.*, ((SELECT snapshot FROM params) - o.order_date::date) AS days_back
+    FROM orders o
+),
+r_e AS (
+    SELECT r.return_id, o.customer_id, r.return_date,
+           ((SELECT snapshot FROM params) - r.return_date::date) AS days_back
+    FROM returns r JOIN orders o ON r.order_id = o.order_id
+),
+return_pairs AS (
+    SELECT a.customer_id, a.return_date AS anchor, COUNT(*) AS burst_count
+    FROM r_e a
+    JOIN r_e b ON b.customer_id = a.customer_id
+              AND b.return_date &gt;= a.return_date
+              AND (b.return_date::date - a.return_date::date) &lt; 7
+    GROUP BY a.customer_id, a.return_date
+),
+burst AS (
+    SELECT customer_id, MAX(burst_count) AS max_7d_return_burst
+    FROM return_pairs GROUP BY customer_id
+),
+order_w AS (
+    SELECT customer_id, COUNT(*) AS lifetime_orders,
+        SUM(CASE WHEN days_back &lt; 7  THEN 1 ELSE 0 END) AS l7_orders,
+        SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) AS l28_orders,
+        SUM(CASE WHEN days_back &lt; 90 THEN 1 ELSE 0 END) AS l90_orders
+    FROM o_e GROUP BY customer_id
+),
+return_w AS (
+    SELECT customer_id, COUNT(*) AS lifetime_returns,
+        SUM(CASE WHEN days_back &lt; 7  THEN 1 ELSE 0 END) AS l7_returns,
+        SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) AS l28_returns,
+        SUM(CASE WHEN days_back &lt; 90 THEN 1 ELSE 0 END) AS l90_returns
+    FROM r_e GROUP BY customer_id
+),
+joined AS (
+    SELECT o.customer_id, o.lifetime_orders,
+        COALESCE(r.lifetime_returns,0) AS lifetime_returns,
+        o.l7_orders,  COALESCE(r.l7_returns,0)  AS l7_returns,
+        o.l28_orders, COALESCE(r.l28_returns,0) AS l28_returns,
+        o.l90_orders, COALESCE(r.l90_returns,0) AS l90_returns,
+        COALESCE(b.max_7d_return_burst,0) AS max_7d_return_burst
+    FROM order_w o
+    LEFT JOIN return_w r ON r.customer_id = o.customer_id
+    LEFT JOIN burst    b ON b.customer_id = o.customer_id
+)
+SELECT customer_id, lifetime_orders, lifetime_returns,
+    ROUND(1.0*lifetime_returns/NULLIF(lifetime_orders,0), 2) AS lifetime_return_rate,
+    l7_orders,  l7_returns,  ROUND(1.0*l7_returns /NULLIF(l7_orders ,0), 2) AS l7_return_rate,
+    l28_orders, l28_returns, ROUND(1.0*l28_returns/NULLIF(l28_orders,0), 2) AS l28_return_rate,
+    l90_orders, l90_returns, ROUND(1.0*l90_returns/NULLIF(l90_orders,0), 2) AS l90_return_rate,
+    max_7d_return_burst,
+    CASE
+        WHEN l90_orders &lt; 5 THEN 'low_volume'
+        WHEN max_7d_return_burst &gt; 4 THEN 'burst'
+        WHEN 1.0*l28_returns/NULLIF(l28_orders,0) &gt; 0.40 THEN 'high_return_rate'
+        WHEN 1.0*l28_returns/NULLIF(l28_orders,0)
+             &gt; 1.5*COALESCE(1.0*l90_returns/NULLIF(l90_orders,0),0)
+             AND l28_returns &gt;= 2 THEN 'rising_returns'
+        ELSE 'clean'
+    END AS fraud_flag
+FROM joined
+ORDER BY
+    CASE WHEN max_7d_return_burst &gt; 4 THEN 1
+         WHEN 1.0*l28_returns/NULLIF(l28_orders,0) &gt; 0.40 THEN 2
+         WHEN 1.0*l28_returns/NULLIF(l28_orders,0)
+              &gt; 1.5*COALESCE(1.0*l90_returns/NULLIF(l90_orders,0),0)
+              AND l28_returns &gt;= 2 THEN 3
+         WHEN l90_orders &lt; 5 THEN 4
+         ELSE 5 END,
+    l28_return_rate DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>l28_orders</th><th>l28_returns</th><th>l28_return_rate</th><th>l90_return_rate</th><th>max_7d_return_burst</th><th>fraud_flag</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>6</td><td>5</td><td>0.83</td><td>0.63</td><td>5</td><td>burst</td></tr>
+    <tr><td>5</td><td>4</td><td>3</td><td>0.75</td><td>0.30</td><td>3</td><td>high_return_rate</td></tr>
+    <tr><td>2</td><td>5</td><td>3</td><td>0.60</td><td>0.50</td><td>2</td><td>high_return_rate</td></tr>
+    <tr><td>3</td><td>2</td><td>0</td><td>0.00</td><td>0.00</td><td>0</td><td>low_volume</td></tr>
+    <tr><td>4</td><td>5</td><td>1</td><td>0.20</td><td>0.13</td><td>1</td><td>clean</td></tr>
+  </tbody>
+</table>
+<p>Customer 5 illustrates the branch-order outcome: its return pattern <em>is</em> rising (L28 0.75 vs L90 0.30, comfortably above 1.5&times;), but because <code>high_return_rate</code> sits earlier in the <code>CASE</code> and 0.75 &gt; 0.40, it is labelled <code>high_return_rate</code>. The more severe flag wins &mdash; that is the intended priority.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The self-join burst detector and the half-open window</h5>
+<p><code>max_7d_return_burst</code> asks: "anchored on each return, how many returns fall in the 7 days starting there?" The self-join pairs every return <code>a</code> with every return <code>b</code> of the same customer where <code>b.return_date &gt;= a.return_date</code> and the gap is <code>&lt; 7</code> days. Grouping by the anchor counts the cluster size; <code>MAX</code> over anchors finds the densest window. The window is one-directional (forward only) so each distinct 7-day span is evaluated exactly once &mdash; a symmetric <code>BETWEEN -7 AND 7</code> would double-count and inflate the burst.</p>
+
+<h5><code>NULLIF</code> is the only thing standing between you and a divide-by-zero</h5>
+<p>Every rate is <code>returns / NULLIF(orders, 0)</code>. A customer with zero L7 orders would otherwise crash the query in Postgres (it raises <code>division by zero</code>, it does not return NULL). <code>NULLIF(orders,0)</code> turns a zero denominator into <code>NULL</code>, and <code>x / NULL = NULL</code> &mdash; the rate is reported as "undefined" rather than fabricated. Customer 4's L7 rate is <code>NULL</code> for exactly this reason: no L7 orders means no L7 rate exists.</p>
+
+<h5>Orders drive the result; <code>LEFT JOIN</code> keeps zero-return customers</h5>
+<p>The final <code>joined</code> CTE starts from <code>order_w</code> and <code>LEFT JOIN</code>s the return aggregates. This is deliberate: a customer with zero returns has no row in <code>return_w</code> at all. An inner join would drop customer 3 entirely &mdash; yet customer 3 must still be flagged <code>low_volume</code>. The <code>COALESCE(..., 0)</code> on every return column converts the missing side to an explicit zero so the rate math and the flag logic both behave.</p>
+
+<h5>The <code>CASE</code> priority ladder is the business spec</h5>
+<p>The flag is a strict hierarchy: <code>low_volume</code> &rarr; <code>burst</code> &rarr; <code>high_return_rate</code> &rarr; <code>rising_returns</code> &rarr; <code>clean</code>. <code>low_volume</code> sits first because with fewer than 5 orders <em>any</em> rate is statistically meaningless &mdash; you suppress noisy signals before evaluating severity. The exact same ladder is repeated verbatim in the <code>ORDER BY</code> so the output is sorted by the same priority it was labelled with. A senior keeps that single source of truth in mind: if the spec reorders, both copies must move together &mdash; a strong argument for factoring the ladder into one expression or a lookup table.</p>
+
+<h5>The <code>l28_returns &gt;= 2</code> floor on rising_returns</h5>
+<p><code>rising_returns</code> additionally requires at least 2 L28 returns. Without it, a customer with 1 L28 return out of 2 orders (rate 0.50) and 0 L90 returns would trip "rate &gt; 1.5&times; the L90 rate" on a single event &mdash; statistical noise dressed up as a trend. The floor is a minimum-sample guard, the same defensive instinct as the <code>low_volume</code> flag, applied one rule deeper.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build the burst detector with a forward-only self-join so each 7-day span is counted once, wrap every rate denominator in <code>NULLIF</code> to dodge Postgres divide-by-zero, drive the <code>LEFT JOIN</code> from orders with <code>COALESCE</code>d returns so zero-return customers survive, and recognise the <code>CASE</code>/<code>ORDER BY</code> priority ladder as a duplicated business spec that should be a single source of truth.</div>

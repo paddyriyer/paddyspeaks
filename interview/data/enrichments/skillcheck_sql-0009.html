@@ -1,0 +1,61 @@
+<p>A growth team wants a monthly signup count for 2025 to plot a bar chart. The query looks like a one-line <code>GROUP BY</code> on a truncated date, but the interviewer is probing two things: how you bucket a date into its month, and &mdash; the deeper trap &mdash; whether you notice that a plain <code>GROUP BY</code> can only return months that <em>have</em> data, so a zero-signup month silently leaves a hole in the chart.</p>
+
+<h4>1. The source data &mdash; <code>signups</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>signup_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-15</td><td>January</td></tr>
+    <tr><td>2</td><td>2025-01-20</td><td>January &mdash; second of the month</td></tr>
+    <tr><td>3</td><td>2025-03-05</td><td>March</td></tr>
+    <tr><td>4</td><td>2025-03-12</td><td>March</td></tr>
+    <tr><td>5</td><td>2025-03-30</td><td>March &mdash; three in the month</td></tr>
+    <tr><td>6</td><td>2025-06-01</td><td>June &mdash; boundary, first day of month</td></tr>
+  </tbody>
+</table>
+<p>The edge case is what is <em>missing</em>: February, April, May and every month after June have <strong>zero signups</strong>. A plain group-and-count will not emit rows for them at all &mdash; the chart would jump straight from January to March with no visual gap.</p>
+
+<h4>2. The SQL &mdash; <code>date_trunc</code> then group</h4>
+<pre><code>SELECT
+  to_char(date_trunc('month', signup_date::date), 'YYYY-MM-DD') AS month_start,
+  COUNT(*)::int AS signup_count
+FROM signups
+WHERE signup_date::date &gt;= '2025-01-01' AND signup_date::date &lt; '2026-01-01'
+GROUP BY date_trunc('month', signup_date::date)
+ORDER BY month_start;</code></pre>
+<p><code>date_trunc('month', ...)</code> snaps every date down to the first of its month, so all of January's dates collapse to <code>2025-01-01</code>. <code>GROUP BY</code> on that truncated value buckets rows by month; <code>COUNT(*)</code> tallies each bucket; <code>to_char</code> formats the bucket label as a string.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month_start</th><th>signup_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>2</td><td>users 1, 2</td></tr>
+    <tr><td>2025-03-01</td><td>3</td><td>users 3, 4, 5</td></tr>
+    <tr><td>2025-06-01</td><td>1</td><td>user 6</td></tr>
+  </tbody>
+</table>
+<p>Only three rows come back &mdash; the three months that actually contain signups. February, April, May and the second half of the year are <strong>absent entirely</strong>, not shown as <code>0</code>. The prompt's parenthetical "assume the table has signups across the year" papers over this on the test data, but the gap is real: this query reports months that have data, not all twelve months.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>date_trunc</code> is the right bucketing tool</h5>
+<p><code>date_trunc('month', d)</code> returns a real date &mdash; the first instant of the month &mdash; so two signups in different parts of January both become <code>2025-01-01</code> and group together. It keeps the result <em>sortable as a date</em>, unlike <code>to_char(d, 'YYYY-MM')</code> which produces a string. Grouping by the truncated date and only formatting at the end (in the <code>SELECT</code>) means <code>ORDER BY</code> still sorts chronologically. Extracting just the month number with <code>EXTRACT(MONTH FROM d)</code> would be wrong if the data ever spanned multiple years &mdash; January 2024 and January 2025 would collide.</p>
+
+<h5>The real gap: missing months need a calendar, not a <code>GROUP BY</code></h5>
+<p>A <code>GROUP BY</code> can only produce a bucket if at least one row falls in it &mdash; it cannot invent a February row from nothing. The prompt asks for missing months at <code>0</code>, which this query does <em>not</em> deliver; it relies on the "assume signups across the year" caveat. The correct, robust pattern generates the twelve month-starts and <code>LEFT JOIN</code>s the counts onto them:</p>
+<pre><code>SELECT to_char(m, 'YYYY-MM-DD') AS month_start,
+       COUNT(s.user_id)::int    AS signup_count
+FROM generate_series('2025-01-01'::date, '2025-12-01'::date,
+                     interval '1 month') AS m
+LEFT JOIN signups s
+  ON date_trunc('month', s.signup_date::date) = m
+GROUP BY m
+ORDER BY m;</code></pre>
+<p>Here <code>COUNT(s.user_id)</code> &mdash; counting a column, not <code>*</code> &mdash; correctly returns <code>0</code> for an unmatched month, because <code>COUNT</code> of all-NULL is zero. Naming this gap unprompted is the senior signal.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(column)</code> in a left join</h5>
+<p>In the calendar version the distinction is decisive. <code>COUNT(*)</code> counts <em>rows</em>, and a left-joined month with no signups still has one row (all-NULL on the signup side), so <code>COUNT(*)</code> would wrongly report <code>1</code>. <code>COUNT(s.user_id)</code> counts non-NULL values of that column, yielding the correct <code>0</code>. In the original group-only query it does not matter because every group has real rows &mdash; but the habit prevents the classic left-join-count bug.</p>
+
+<h5>Edge cases: the boundary date and the year fence</h5>
+<p>User 6's signup on 2025-06-01 sits exactly on a month boundary &mdash; <code>date_trunc</code> maps it to <code>2025-06-01</code> itself, correct. The <code>WHERE</code> uses a half-open range (<code>&gt;= '2025-01-01' AND &lt; '2026-01-01'</code>) so December 31 is included and any 2026 row excluded; an inclusive <code>BETWEEN ... '2025-12-31'</code> would drop a timestamped late-December signup. The explicit <code>::date</code> casts matter because <code>signup_date</code> being compared and truncated consistently as a date avoids text-vs-date ordering surprises.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> bucket months with <code>date_trunc</code> (keeping the value a sortable date), and call out unprompted that a plain <code>GROUP BY</code> cannot emit zero-signup months &mdash; the correct shape is <code>generate_series</code> of the twelve month-starts <code>LEFT JOIN</code>ed to the counts, with <code>COUNT(column)</code> not <code>COUNT(*)</code> so empty months read <code>0</code>.</div>

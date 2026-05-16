@@ -1,0 +1,92 @@
+<p>A growth team wants to spot <em>passive</em> customers &mdash; people browsing the site but who have never bought &mdash; and rank them by how their engagement is trending. The question (snapshot 2025-04-01) restricts to customers with at least 5 sessions and <strong>zero orders</strong>, then compares a 7-day per-day session rate against a 28-day per-day rate to classify each as warming, cooling, stable, or cold. The interviewer is checking an anti-join (<code>NOT EXISTS</code>), per-day rate normalisation, and careful zero-handling.</p>
+
+<h4>1. The source data &mdash; <code>sessions</code> (with <code>orders</code> for the anti-join)</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>sessions</th><th>has order?</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>6 (4 in last 7 days)</td><td>no</td><td>L7 rate spikes &mdash; <strong>warming</strong></td></tr>
+    <tr><td>2</td><td>9 (1 in last 7 days)</td><td>no</td><td>busy in L28, quiet in L7 &mdash; <strong>cooling</strong></td></tr>
+    <tr><td>3</td><td>5 (all older than 28 days)</td><td>no</td><td>L28 sessions = 0 &mdash; <strong>cold</strong></td></tr>
+    <tr><td>4</td><td>4</td><td>no</td><td>only 4 sessions &mdash; fails the &ge; 5 gate</td></tr>
+    <tr><td>5</td><td>5</td><td>yes (1 paid order)</td><td>has an order &mdash; excluded by <code>NOT EXISTS</code></td></tr>
+    <tr><td>6</td><td>6 (evenly spread)</td><td>no</td><td>L7 rate &asymp; L28 rate &mdash; <strong>stable</strong></td></tr>
+  </tbody>
+</table>
+<p>Customers 4 and 5 are the two exclusion traps: 4 has too few sessions, 5 has a purchase so it is no longer "passive". Customer 3 forces the cold branch &mdash; a zero L28 denominator that would otherwise crash a naive rate calculation.</p>
+
+<h4>2. The SQL &mdash; anti-join with per-day rate normalisation</h4>
+<pre><code>WITH params AS (SELECT DATE '2025-04-01' AS snapshot),
+sess AS (
+    SELECT s.session_id, s.customer_id, s.session_date,
+           CASE WHEN s.added_to_cart::text ~ '^-?[0-9]+(\.[0-9]+)?$'
+                THEN s.added_to_cart::numeric ELSE 0 END AS added_to_cart,
+           ((SELECT snapshot FROM params) - s.session_date::date) AS days_back
+    FROM sessions s
+)
+SELECT s.customer_id,
+    COUNT(*) AS lifetime_sessions,
+    SUM(s.added_to_cart) AS lifetime_cart_adds,
+    SUM(CASE WHEN days_back &lt; 7  THEN 1 ELSE 0 END) AS l7_sessions,
+    SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) AS l28_sessions,
+    SUM(CASE WHEN days_back &lt; 90 THEN 1 ELSE 0 END) AS l90_sessions,
+    SUM(CASE WHEN days_back &lt; 7  THEN s.added_to_cart ELSE 0 END) AS l7_cart_adds,
+    SUM(CASE WHEN days_back &lt; 28 THEN s.added_to_cart ELSE 0 END) AS l28_cart_adds,
+    ROUND(1.0 * SUM(CASE WHEN days_back &lt; 7  THEN 1 ELSE 0 END) / 7.0,  2) AS l7_daily_sessions,
+    ROUND(1.0 * SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) / 28.0, 2) AS l28_daily_sessions,
+    ROUND(
+        (1.0 * SUM(CASE WHEN days_back &lt; 7  THEN 1 ELSE 0 END) / 7.0)
+        / NULLIF(1.0 * SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) / 28.0, 0),
+    2) AS cart_velocity,
+    CASE
+        WHEN SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) = 0 THEN 'cold'
+        WHEN (1.0*SUM(CASE WHEN days_back&lt;7  THEN 1 ELSE 0 END)/7.0)
+           &gt; 1.5 * (1.0*SUM(CASE WHEN days_back&lt;28 THEN 1 ELSE 0 END)/28.0) THEN 'warming'
+        WHEN (1.0*SUM(CASE WHEN days_back&lt;7  THEN 1 ELSE 0 END)/7.0)
+           &lt; 0.5 * (1.0*SUM(CASE WHEN days_back&lt;28 THEN 1 ELSE 0 END)/28.0) THEN 'cooling'
+        ELSE 'stable'
+    END AS engagement_trend
+FROM sess s
+WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = s.customer_id)
+GROUP BY s.customer_id
+HAVING COUNT(*) &gt;= 5
+ORDER BY
+    CASE
+        WHEN SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) = 0 THEN 4
+        WHEN (1.0*SUM(CASE WHEN days_back&lt;7 THEN 1 ELSE 0 END)/7.0)
+           &gt; 1.5 * (1.0*SUM(CASE WHEN days_back&lt;28 THEN 1 ELSE 0 END)/28.0) THEN 1
+        WHEN (1.0*SUM(CASE WHEN days_back&lt;7 THEN 1 ELSE 0 END)/7.0)
+           &lt; 0.5 * (1.0*SUM(CASE WHEN days_back&lt;28 THEN 1 ELSE 0 END)/28.0) THEN 3
+        ELSE 2
+    END,
+    l28_sessions DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>lifetime_sessions</th><th>l7_sessions</th><th>l28_sessions</th><th>l7_daily_sessions</th><th>l28_daily_sessions</th><th>cart_velocity</th><th>engagement_trend</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>6</td><td>4</td><td>5</td><td>0.57</td><td>0.18</td><td>3.20</td><td>warming</td></tr>
+    <tr><td>6</td><td>6</td><td>2</td><td>6</td><td>0.29</td><td>0.21</td><td>1.33</td><td>stable</td></tr>
+    <tr><td>2</td><td>9</td><td>1</td><td>9</td><td>0.14</td><td>0.32</td><td>0.44</td><td>cooling</td></tr>
+    <tr><td>3</td><td>5</td><td>0</td><td>0</td><td>0.00</td><td>0.00</td><td>&mdash;</td><td>cold</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 is the actionable lead: 4 sessions in the last week against a thin 28-day baseline gives a 3.2&times; velocity &mdash; a passive customer warming up, ripe for a first-purchase nudge. Customer 3 is cold (no activity at all in 28 days) and its <code>cart_velocity</code> is correctly <code>NULL</code> rather than a crash.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why per-<em>day</em> rates, not raw counts</h5>
+<p>Comparing 4 sessions in 7 days against 5 sessions in 28 days directly would be meaningless &mdash; the windows are different lengths. Dividing each count by its window length (<code>/7.0</code>, <code>/28.0</code>) normalises both to a "sessions per day" rate, making them comparable. Customer 1's 0.57/day in L7 versus 0.18/day in L28 is an apples-to-apples acceleration signal. This length-normalisation is the conceptual heart of the question.</p>
+
+<h5>The <code>NOT EXISTS</code> anti-join and why it beats <code>NOT IN</code></h5>
+<p>"Zero orders" is an anti-join. <code>NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = s.customer_id)</code> is the robust form: it short-circuits on the first match and, critically, behaves correctly even if <code>orders.customer_id</code> contains a <code>NULL</code>. <code>NOT IN (SELECT customer_id FROM orders)</code> looks equivalent but if that subquery yields a single <code>NULL</code>, the entire <code>NOT IN</code> evaluates to <code>UNKNOWN</code> for every row and the result is silently empty. Naming this <code>NOT IN</code>/<code>NULL</code> hazard is a senior tell.</p>
+
+<h5>The <code>cold</code> branch must be checked first</h5>
+<p>A customer with zero L28 sessions has an L28 daily rate of 0. The <code>warming</code> and <code>cooling</code> tests both divide-or-compare against that rate &mdash; <code>cart_velocity</code> would be <code>x / 0</code>. Putting <code>WHEN l28_sessions = 0 THEN 'cold'</code> as the first <code>CASE</code> branch short-circuits before any division is attempted. The separate <code>NULLIF(..., 0)</code> inside <code>cart_velocity</code> is the belt-and-braces guard so the displayed ratio is <code>NULL</code>, not an error. Order-of-branches is correctness, not cosmetics.</p>
+
+<h5>The defensive regex cast on <code>added_to_cart</code></h5>
+<p><code>added_to_cart::text ~ '^-?[0-9]+(\.[0-9]+)?$'</code> checks the value is numeric-looking before casting it. This guards against a dirty column where <code>added_to_cart</code> might hold <code>'true'</code>, <code>'yes'</code>, or an empty string &mdash; a blind <code>::numeric</code> cast would throw and abort the whole query. In a clean schema this is belt-and-braces, but it shows the instinct to defend a cast against bad data rather than assume the column is pristine.</p>
+
+<h5>The duplicated <code>CASE</code> in <code>SELECT</code> and <code>ORDER BY</code></h5>
+<p>The classification logic appears twice &mdash; once to label <code>engagement_trend</code>, once to drive the sort priority (warming=1, stable=2, cooling=3, cold=4). Postgres lets you <code>ORDER BY engagement_trend</code> by alias, but that would sort alphabetically (cold, cooling, stable, warming) &mdash; wrong order. The explicit priority <code>CASE</code> in <code>ORDER BY</code> is necessary. A senior would mention that wrapping the query one level deeper (<code>SELECT ... FROM (subquery) ORDER BY priority</code>) removes the duplication and the bug risk.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> normalise both windows to per-day rates so a 7-day and 28-day count are comparable, use <code>NOT EXISTS</code> for the zero-orders anti-join and call out the <code>NOT IN</code>/<code>NULL</code> trap, order the <code>CASE</code> so the <code>cold</code> (zero-denominator) branch is evaluated before any division, and note that the duplicated classification logic in <code>SELECT</code> and <code>ORDER BY</code> is a maintenance hazard best fixed with a wrapping subquery.</div>

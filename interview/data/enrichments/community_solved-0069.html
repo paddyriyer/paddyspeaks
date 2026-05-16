@@ -1,0 +1,86 @@
+<p>A school board applies a "best of five" rule: each student sits six subjects, but only the top five marks count toward the final percentage. The interviewer is testing two things &mdash; can you unpivot six wide columns into rows so they can be ranked, and can you take a per-student top-N then average it. The hidden landmine is a sorting bug: if marks are compared as <em>text</em>, a single-digit score like 9 outranks 100, and the wrong five get picked.</p>
+
+<h4>1. The source data &mdash; <code>exam</code></h4>
+<table>
+  <thead><tr><th>id</th><th>english</th><th>maths</th><th>science</th><th>geography</th><th>history</th><th>sanskrit</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>90</td><td>85</td><td>70</td><td>60</td><td>95</td><td>40</td></tr>
+    <tr><td>2</td><td>50</td><td>50</td><td>50</td><td>50</td><td>50</td><td>50</td></tr>
+    <tr><td>3</td><td>100</td><td>30</td><td>30</td><td>30</td><td>30</td><td>9</td></tr>
+  </tbody>
+</table>
+<p>Student 2 has a six-way tie at 50; student 3 mixes a perfect 100 with a single-digit 9. Those two rows expose, respectively, the tie-breaking behaviour and the text-vs-numeric sort bug.</p>
+
+<h4>2. The SQL &mdash; unpivot, rank, average top 5 (original, flagged broken)</h4>
+<pre><code>WITH marks_cte AS (
+  SELECT id, english::text AS marks, 'English' AS subjects FROM exam
+  UNION ALL SELECT id, maths::text,    'Maths'     FROM exam
+  UNION ALL SELECT id, science::text,  'Science'   FROM exam
+  UNION ALL SELECT id, geography::text,'Geography' FROM exam
+  UNION ALL SELECT id, history::text,  'History'   FROM exam
+  UNION ALL SELECT id, sanskrit::text, 'Sanskrit'  FROM exam
+),
+rank_cte AS (
+  SELECT id, subjects, marks,
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY marks DESC) AS rnk
+  FROM marks_cte
+),
+percentage_cte AS (
+  SELECT id,
+    ROUND(AVG(CASE WHEN marks ~ '^-?[0-9]+(\.[0-9]+)?$' THEN marks::numeric END), 2) AS percentage_top5
+  FROM rank_cte WHERE rnk &lt;= 5 GROUP BY id
+)
+SELECT e.*, pc.percentage_top5 AS percentage
+FROM exam e JOIN percentage_cte pc ON e.id = pc.id;</code></pre>
+<p><strong>Broken:</strong> <code>marks</code> is cast to <code>text</code>, so <code>ORDER BY marks DESC</code> sorts <em>lexicographically</em>. The string <code>'9'</code> sorts <em>after</em> <code>'100'</code> (character '9' &gt; '1'), so for student 3 the rule keeps 9 and discards 100 &mdash; it averages the wrong five.</p>
+
+<h4>2b. Corrected &mdash; rank on the numeric value</h4>
+<pre><code>WITH marks_cte AS (
+  SELECT id, english AS marks, 'English' AS subjects FROM exam
+  UNION ALL SELECT id, maths,    'Maths'     FROM exam
+  UNION ALL SELECT id, science,  'Science'   FROM exam
+  UNION ALL SELECT id, geography,'Geography' FROM exam
+  UNION ALL SELECT id, history,  'History'   FROM exam
+  UNION ALL SELECT id, sanskrit, 'Sanskrit'  FROM exam
+),
+rank_cte AS (
+  SELECT id, subjects, marks,
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY marks DESC) AS rnk
+  FROM marks_cte
+),
+percentage_cte AS (
+  SELECT id, ROUND(AVG(marks), 2) AS percentage_top5
+  FROM rank_cte WHERE rnk &lt;= 5 GROUP BY id
+)
+SELECT e.*, pc.percentage_top5 AS percentage
+FROM exam e JOIN percentage_cte pc ON e.id = pc.id;</code></pre>
+
+<h4>3. The resulting analysis (corrected query)</h4>
+<table>
+  <thead><tr><th>id</th><th>&hellip;subjects&hellip;</th><th>percentage</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>90,85,70,60,95,40</td><td>80.00</td><td>drops the 40; avg of 95,90,85,70,60</td></tr>
+    <tr><td>2</td><td>all 50</td><td>50.00</td><td>any 5 of 6 fifties &mdash; still 50</td></tr>
+    <tr><td>3</td><td>100,30,30,30,30,9</td><td>44.00</td><td>drops the 9; avg of 100,30,30,30,30</td></tr>
+  </tbody>
+</table>
+<p>Student 3's correct percentage is <strong>44.00</strong>. The broken query keeps 9 and drops 100, producing a wrong, lower figure &mdash; a student penalised by a string-sort artefact.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug &mdash; lexical sort masquerading as numeric</h5>
+<p><code>english::text</code> turns 100 into the string <code>'100'</code> and 9 into <code>'9'</code>. Text comparison is character-by-character: <code>'9'</code> begins with '9', <code>'100'</code> begins with '1', and '9' &gt; '1', so <code>'9' &gt; '100'</code>. The reference data hides this &mdash; all marks happened to be two digits, where lexical and numeric order coincide. Introduce one single-digit or three-digit mark and the ranking inverts. The fix is to never cast to text for ordering: rank on the native <code>int</code>, or if a cast is unavoidable, <code>ORDER BY marks::numeric DESC</code>.</p>
+
+<h5>Why the <code>UNION ALL</code> unpivot is the right shape</h5>
+<p>The marks live in six columns; ranking needs them in six <em>rows</em>. <code>UNION ALL</code> stacks each column into a <code>(id, marks, subject)</code> tuple &mdash; the portable unpivot idiom. <code>UNION ALL</code>, not <code>UNION</code>: two subjects with the same mark must both survive (a plain <code>UNION</code> would dedupe student 2's six identical 50s down to one row, and the average would be computed over too few rows). Postgres also offers <code>UNNEST(ARRAY[english, maths, ...])</code> as a terser unpivot.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> &mdash; the tie at 50</h5>
+<p>Student 2's six identical 50s force the issue. <code>ROW_NUMBER</code> assigns 1..6 arbitrarily among the ties, so "top 5" keeps exactly five rows &mdash; here harmless, since every value is 50 and the average is 50 regardless. But consider five marks tied for the 5th slot: <code>ROW_NUMBER</code> picks one arbitrarily, <code>RANK</code>/<code>DENSE_RANK</code> would keep all of them and "top 5" could become "top 8". For "best of five" the spec wants exactly five marks, so <code>ROW_NUMBER</code> is the correct choice &mdash; just be ready to say why, and to note the tie at the boundary is decided non-deterministically.</p>
+
+<h5>The regex guard &mdash; a symptom, removed by typing</h5>
+<p><code>marks ~ '^-?[0-9]+(\.[0-9]+)?$'</code> only earns its keep if <code>marks</code> could be dirty text. With proper <code>int</code> columns the guard is unnecessary &mdash; the corrected query drops it entirely. Validating numeric format inside a query is a code smell pointing at an untyped schema; fix it at ingestion.</p>
+
+<h5>"Percentage" assumes each subject is out of 100</h5>
+<p>Averaging the top five marks <em>is</em> the percentage only because each subject's maximum is 100. If subjects had different maxima, you would first convert each to a percentage (<code>marks * 100.0 / max_marks</code>), then average the top five of those. Confirm the per-subject maximum before equating "average mark" with "percentage".</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that casting marks to <code>text</code> makes <code>ORDER BY DESC</code> lexical &mdash; <code>'9'</code> outranks <code>'100'</code> &mdash; so the "best of five" silently picks the wrong subjects; the reference data only hides it because all marks are two digits. Ranking on the native numeric type, and choosing <code>ROW_NUMBER</code> (not <code>RANK</code>) so "top 5" stays exactly five, is the complete fix.</div>

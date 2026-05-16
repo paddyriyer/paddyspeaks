@@ -1,0 +1,61 @@
+<p>An analytics team tracking a noisy daily metric &mdash; signups, latency, revenue &mdash; wants a smoothed 7-day moving average so a stand-up chart shows trend rather than jitter. The reference solution uses a windowed <code>AVG</code> with an explicit <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> frame. The interviewer is probing whether you understand the difference between a row frame and a range frame, what the early rows do, and how a NULL day distorts the average.</p>
+
+<h4>1. The source data &mdash; <code>metrics</code></h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2026-05-01</td><td>100</td><td>day 1 &mdash; window not yet full</td></tr>
+    <tr><td>2026-05-02</td><td>120</td><td>day 2</td></tr>
+    <tr><td>2026-05-03</td><td>90</td><td>day 3</td></tr>
+    <tr><td>2026-05-04</td><td>110</td><td>day 4</td></tr>
+    <tr><td>2026-05-05</td><td>NULL</td><td>missing reading &mdash; the trap</td></tr>
+    <tr><td>2026-05-06</td><td>130</td><td>day 6</td></tr>
+    <tr><td>2026-05-07</td><td>140</td><td>day 7 &mdash; first fully-populated window</td></tr>
+    <tr><td>2026-05-08</td><td>160</td><td>day 8</td></tr>
+    <tr><td>2026-05-09</td><td>150</td><td>day 9</td></tr>
+  </tbody>
+</table>
+<p>Two things to watch. The first six rows do <em>not</em> have six prior rows, so their average is over a partial window. And 2026-05-05 has a <em>NULL</em> value &mdash; how the average treats that missing day is the heart of the question.</p>
+
+<h4>2. The SQL &mdash; trailing 7-day average via a row frame</h4>
+<pre><code>SELECT metric_date, value,
+  AVG(value) OVER (ORDER BY metric_date
+                   ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS ma7
+FROM metrics;</code></pre>
+<p>The <code>OVER</code> clause sorts by date and, for each row, defines a frame of itself plus the six rows before it. <code>AVG</code> is computed over the <code>value</code>s inside that sliding frame.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>ma7</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2026-05-01</td><td>100</td><td>100.00</td><td>frame = 1 row</td></tr>
+    <tr><td>2026-05-02</td><td>120</td><td>110.00</td><td>frame = 2 rows</td></tr>
+    <tr><td>2026-05-03</td><td>90</td><td>103.33</td><td>frame = 3 rows</td></tr>
+    <tr><td>2026-05-04</td><td>110</td><td>105.00</td><td>frame = 4 rows</td></tr>
+    <tr><td>2026-05-05</td><td>NULL</td><td>105.00</td><td>NULL value ignored &mdash; avg of 4 numbers</td></tr>
+    <tr><td>2026-05-06</td><td>130</td><td>110.00</td><td>frame = 6 rows, 5 non-null</td></tr>
+    <tr><td>2026-05-07</td><td>140</td><td>115.00</td><td>frame = 7 rows, 6 non-null</td></tr>
+    <tr><td>2026-05-08</td><td>160</td><td>125.00</td><td>full 7-row frame, 6 non-null</td></tr>
+    <tr><td>2026-05-09</td><td>150</td><td>130.00</td><td>full 7-row frame, 6 non-null</td></tr>
+  </tbody>
+</table>
+<p>The 2026-05-05 row has a NULL <code>value</code>, yet its <code>ma7</code> is <strong>105.00</strong> &mdash; the average of the four numbers in its frame (100, 120, 90, 110). <code>AVG</code> skipped the NULL: it divides by the count of non-null values, not by the frame size. From 2026-05-07 on the frame holds 7 rows but only 6 have data, so each <code>ma7</code> is a sum-over-6, not sum-over-7.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; the distinction that matters most</h5>
+<p><code>ROWS BETWEEN 6 PRECEDING</code> counts six physical rows back. If a calendar day is <em>missing</em> entirely (no row at all), this frame still reaches back exactly six rows &mdash; spanning more than seven calendar days. To make the window mean "the last 7 calendar days" regardless of gaps, use a range frame: <code>RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW</code>. Knowing that <code>ROWS</code> counts rows and <code>RANGE</code> counts values along the ordering key is the senior distinction here.</p>
+
+<h5>The early rows are partial averages, not nulls</h5>
+<p>Day 1 has no preceding rows, so its <code>ma7</code> is just its own value; day 2 averages 2 rows, and so on. The result is <em>not</em> NULL &mdash; the frame is simply smaller. Sometimes that ramp-up is undesirable (the first few points look artificially flat). If the chart should only show a true 7-day average, filter to rows where a full window exists, e.g. add <code>COUNT(*) OVER (...) = 7</code> or start the series later.</p>
+
+<h5>NULL values shrink the denominator silently</h5>
+<p><code>AVG</code> ignores NULLs: it sums non-null values and divides by their count. So a missing day does not pull the average toward zero &mdash; it just makes the average over fewer points. That is often acceptable, but it means a 7-row frame with one NULL is really a 6-point average. If a missing reading should count as zero, use <code>AVG(COALESCE(value, 0))</code>; if it should void the whole window, that needs explicit logic. Decide which, and say so.</p>
+
+<h5>The frame default trap &mdash; always specify it with <code>ORDER BY</code></h5>
+<p>If you write <code>AVG(value) OVER (ORDER BY metric_date)</code> with no frame clause, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; a cumulative average from the start, not a 7-day window. Worse, with ties on <code>metric_date</code> the default <code>RANGE</code> includes all peer rows. Explicitly stating <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code>, as this solution does, is exactly right and avoids that silent cumulative behaviour.</p>
+
+<h5>Ties on the ordering column</h5>
+<p>If two rows share a <code>metric_date</code>, the <code>ROWS</code> frame still treats them as distinct physical rows in some order, so "6 preceding" may split a same-date pair arbitrarily. For a daily metric you normally have one row per day; if you do not, pre-aggregate to one row per date first, or add a tie-breaker to the <code>ORDER BY</code> so the frame is deterministic.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>ROWS</code> counts physical rows while <code>RANGE</code> counts along the ordering key &mdash; gaps in the calendar make them differ &mdash; recognise that early rows yield partial averages and that <code>AVG</code> silently drops NULL values from the denominator, and always specify the frame explicitly because the default with <code>ORDER BY</code> is a cumulative average.</div>

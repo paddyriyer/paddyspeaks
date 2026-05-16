@@ -1,0 +1,62 @@
+<p>An e-commerce growth team defines a "returning active user" as anyone who made a second purchase within 7 days of one of their other purchases &mdash; a retention metric that feeds churn dashboards. The interviewer is probing whether you can compute per-user gaps between consecutive events with a window function instead of an expensive self-join, and whether you understand <em>why</em> comparing each purchase to only its immediate successor is sufficient.</p>
+
+<h4>1. The source data &mdash; <code>transactions_ecomm</code></h4>
+<table>
+  <thead><tr><th>id</th><th>userid</th><th>item</th><th>createdat</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>Book</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>100</td><td>Pen</td><td>2024-01-05</td></tr>
+    <tr><td>3</td><td>100</td><td>Mug</td><td>2024-02-20</td></tr>
+    <tr><td>4</td><td>200</td><td>Lamp</td><td>2024-03-01</td></tr>
+    <tr><td>5</td><td>200</td><td>Chair</td><td>2024-03-15</td></tr>
+    <tr><td>6</td><td>300</td><td>Desk</td><td>2024-04-01</td></tr>
+    <tr><td>7</td><td>400</td><td>Phone</td><td>2024-05-01</td></tr>
+    <tr><td>8</td><td>400</td><td>Case</td><td>2024-05-01</td></tr>
+  </tbody>
+</table>
+<p>User 100 has a 4-day gap then a 46-day gap; user 200 a single 14-day gap; user 300 a lone purchase; user 400 made <strong>two purchases on the same day</strong> (gap = 0). The single-purchase user and the same-day pair are the edge cases that decide the filter logic.</p>
+
+<h4>2. The SQL &mdash; <code>LEAD</code> to find the next purchase, then a gap</h4>
+<pre><code>WITH np AS (
+  SELECT id, userid, item, createdat, revenue,
+         LEAD(createdat, 1, NULL) OVER (PARTITION BY userid
+                                        ORDER BY createdat ASC) AS next_purchase_date
+  FROM transactions_ecomm
+), fc AS (
+  SELECT *,
+    CASE WHEN createdat::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+          AND next_purchase_date::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+         THEN next_purchase_date::date - createdat::date
+         ELSE NULL END AS diff_flag
+  FROM np
+)
+SELECT DISTINCT userid FROM fc
+WHERE diff_flag IS NOT NULL AND diff_flag &lt;= 7 AND diff_flag &lt;&gt; 0;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>userid</th><th>verdict</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>returning</td><td>4-day gap between Book and Pen &mdash; &le; 7</td></tr>
+  </tbody>
+</table>
+<p>Only user 100 qualifies. User 200's smallest gap is 14 days; user 300 has no second purchase (<code>LEAD</code> = NULL); user 400's only gap is 0 days &mdash; and the <code>diff_flag &lt;&gt; 0</code> clause deliberately excludes it. Whether 400 <em>should</em> qualify is the discussion point below.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEAD</code> over a sorted partition is enough</h5>
+<p>The definition says "within 7 days of <em>any</em> other purchase" &mdash; which sounds like every pair must be compared. But once a user's purchases are sorted ascending, the <em>smallest</em> possible gap from any purchase is the gap to its immediate next neighbour. If even that consecutive gap exceeds 7 days, no farther purchase can be closer. So <code>LEAD(createdat) OVER (PARTITION BY userid ORDER BY createdat)</code> &mdash; comparing each purchase to the very next one &mdash; provably catches every qualifying user. This is the key insight that turns an O(n&sup2;) self-join into an O(n log n) single sort.</p>
+
+<h5>The <code>diff_flag &lt;&gt; 0</code> clause &mdash; a debatable edge case</h5>
+<p>User 400 bought a phone and a case on the <em>same day</em>: a genuine second purchase, gap 0. The query's <code>&lt;&gt; 0</code> filter excludes them &mdash; an implicit decision that same-day purchases are "one shopping session", not a return visit. That is defensible <em>if</em> the product wants distinct days, but it is a silent assumption. State it explicitly: if a same-day repeat purchase counts as returning (it usually does &mdash; the user came back and transacted), drop <code>&lt;&gt; 0</code> and use <code>diff_flag BETWEEN 0 AND 7</code>. An interviewer notices when you surface a buried business rule instead of copying it.</p>
+
+<h5>The regex guard is defensive scaffolding, not core logic</h5>
+<p>The <code>~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'</code> checks exist because <code>createdat</code> might be stored as text with dirty values. If the column is a proper <code>DATE</code>/<code>TIMESTAMP</code> (as it should be), the guard is dead weight and the CTE simplifies to <code>next_purchase_date - createdat AS diff_flag</code>. In an interview, note this: validating date format inside the query is a symptom of a schema problem &mdash; the fix belongs at ingestion, with a typed column.</p>
+
+<h5><code>LEAD</code>'s default argument handles the last purchase cleanly</h5>
+<p><code>LEAD(createdat, 1, NULL)</code> &mdash; the third argument is the default when there is no next row. User 300's only purchase, and the last purchase of every user, get <code>next_purchase_date = NULL</code>, so <code>diff_flag</code> is <code>NULL</code> and the <code>IS NOT NULL</code> filter drops them. That is correct: a user with no subsequent purchase cannot be "returning". Without the explicit default the behaviour is the same (LEAD returns NULL past the edge anyway), but spelling it out documents intent.</p>
+
+<h5>Common mistake &mdash; using <code>createdat &gt; current_date - 7</code></h5>
+<p>A frequent wrong turn is interpreting "within 7 days" as "in the last 7 days from today". The metric is about the gap <em>between two of the user's own purchases</em>, anchored to each other &mdash; not to the current date. Read retention definitions precisely: the window is relative to the user's events, not the calendar.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate <em>why</em> comparing each purchase only to its immediate <code>LEAD</code> neighbour fully satisfies "within 7 days of any purchase" (sorted &rArr; consecutive gap is minimal), turning a quadratic self-join into one sort. Flagging the <code>&lt;&gt; 0</code> same-day exclusion as a buried, debatable business rule &mdash; rather than copying it &mdash; is the senior move.</div>

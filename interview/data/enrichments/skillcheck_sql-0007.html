@@ -1,0 +1,46 @@
+<p>A revenue dashboard needs two numbers side by side: total billings across <em>all</em> orders, and the portion that has actually been paid. The interviewer is probing whether you can compute a filtered aggregate and an unfiltered one in a <em>single pass</em> &mdash; using <code>SUM(CASE ...)</code> &mdash; instead of running two queries or self-joining the table to itself.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>status</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>paid</td><td>100</td><td>counts toward both totals</td></tr>
+    <tr><td>2</td><td>pending</td><td>50</td><td>in total, not in paid</td></tr>
+    <tr><td>3</td><td>paid</td><td>75</td><td>counts toward both totals</td></tr>
+    <tr><td>4</td><td>cancelled</td><td>200</td><td>in total, not in paid &mdash; a large non-paid order</td></tr>
+    <tr><td>5</td><td>paid</td><td>25</td><td>counts toward both totals</td></tr>
+  </tbody>
+</table>
+<p>The mix of statuses is the point: three <code>paid</code>, one <code>pending</code>, one <code>cancelled</code>. The cancelled order at 200 is a deliberate stressor &mdash; it is the single biggest amount, so any query that accidentally folds it into paid revenue would be off by a very visible 200.</p>
+
+<h4>2. The SQL &mdash; conditional aggregation in one pass</h4>
+<pre><code>SELECT
+  SUM(amount) AS total_revenue,
+  SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS paid_revenue
+FROM orders;</code></pre>
+<p><code>SUM(amount)</code> adds every row's amount &mdash; the unconditional total. The second column wraps each amount in a <code>CASE</code>: an order's amount passes through only when its <code>status</code> is <code>'paid'</code>, otherwise the <code>CASE</code> yields <code>0</code>. <code>SUM</code> then adds those filtered contributions. One scan of the table produces both figures.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>total_revenue</th><th>paid_revenue</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>450</td><td>200</td><td>all five (100+50+75+200+25) vs only the three paid (100+75+25)</td></tr>
+  </tbody>
+</table>
+<p><code>total_revenue</code> = 450 includes the pending 50 and the cancelled 200. <code>paid_revenue</code> = 200 is just the three <code>paid</code> orders; the cancelled 200 and pending 50 each hit the <code>ELSE 0</code> branch and contribute nothing. The single output row carries both metrics &mdash; no join, no second query.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why one pass beats two queries</h5>
+<p>The instinct is to run <code>SELECT SUM(amount) FROM orders</code> and separately <code>SELECT SUM(amount) FROM orders WHERE status = 'paid'</code>. That reads the table twice and forces the caller to stitch the results together. Conditional aggregation computes both during a single scan &mdash; faster, atomic (both numbers reflect the same snapshot), and trivially extensible: add a column per status without re-reading anything.</p>
+
+<h5><code>SUM(CASE ...)</code> vs <code>COUNT</code> vs <code>FILTER</code></h5>
+<p>The <code>CASE</code> idiom generalises. <code>SUM(CASE WHEN cond THEN amount ELSE 0 END)</code> gives a conditional total; <code>SUM(CASE WHEN cond THEN 1 ELSE 0 END)</code> &mdash; or <code>COUNT(CASE WHEN cond THEN 1 END)</code> &mdash; gives a conditional count. PostgreSQL also offers cleaner syntax: <code>SUM(amount) FILTER (WHERE status = 'paid')</code> expresses the exact same thing more readably. The <code>FILTER</code> clause is ANSI SQL but not universal &mdash; SQL Server and MySQL lack it, so <code>SUM(CASE)</code> remains the portable form.</p>
+
+<h5><code>ELSE 0</code> vs omitting it &mdash; a NULL nuance</h5>
+<p>With <code>ELSE 0</code>, non-paid rows contribute a literal zero. Drop the <code>ELSE</code> and the <code>CASE</code> returns <code>NULL</code> for non-paid rows &mdash; but <code>SUM</code> skips NULLs, so the <em>paid total</em> is identical either way. The visible difference appears only in the all-non-matching case: if <em>no</em> order were paid, <code>SUM</code> of all-NULL is <code>NULL</code>, whereas <code>ELSE 0</code> gives <code>0</code>. For a revenue figure, <code>0</code> is the honest answer, so keeping <code>ELSE 0</code> (or wrapping in <code>COALESCE</code>) is the safer habit.</p>
+
+<h5>Edge cases: NULL status, NULL amount, and an empty table</h5>
+<p>A row with <code>status = NULL</code> fails <code>status = 'paid'</code> (the comparison is <em>unknown</em>, not true), so it correctly lands in <code>ELSE 0</code> &mdash; but it still counts in <code>total_revenue</code>, which is usually intended. A <code>NULL</code> amount is ignored by both <code>SUM</code>s. And on an empty table both columns return <code>NULL</code>, not <code>0</code> &mdash; if the dashboard must show zeros, wrap each with <code>COALESCE(..., 0)</code>. Naming these three is the senior touch.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute filtered and unfiltered aggregates in one scan with <code>SUM(CASE WHEN ... THEN amount ELSE 0 END)</code> rather than two queries, know the cleaner Postgres <code>FILTER (WHERE ...)</code> equivalent and that it is not portable, and wrap totals in <code>COALESCE</code> if an empty table must report <code>0</code> instead of <code>NULL</code>.</div>

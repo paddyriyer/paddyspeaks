@@ -1,0 +1,70 @@
+<p>A merchandising team wants to know the two best-selling products inside <em>each</em> category, ranked by total revenue, with ties broken by <code>product_id</code>. That is a <strong>top-N-per-group</strong> problem &mdash; the classic test of whether you reach for a partitioned ranking window rather than a per-category subquery or a hand-written loop. The interviewer also wants to see you separate the aggregation step from the ranking step cleanly.</p>
+
+<h4>1. The source data &mdash; <code>orders</code> joined to <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>order revenue (summed)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Electronics</td><td>300 + 200 = 500</td><td>tied for #1</td></tr>
+    <tr><td>2</td><td>Electronics</td><td>500</td><td>tied for #1 &mdash; same revenue</td></tr>
+    <tr><td>3</td><td>Electronics</td><td>250 + 250 = 500</td><td>also 500 &mdash; loses tie-break, drops out</td></tr>
+    <tr><td>4</td><td>Electronics</td><td>100</td><td>4th, excluded</td></tr>
+    <tr><td>10</td><td>Books</td><td>80</td><td>only product in its category</td></tr>
+    <tr><td>20</td><td>Toys</td><td>60</td><td>top of Toys</td></tr>
+    <tr><td>21</td><td>Toys</td><td>60</td><td>2nd in Toys</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases collide here. Electronics has a <em>three-way revenue tie at 500</em> &mdash; <code>ROW_NUMBER</code> must pick exactly two and break the tie deterministically. And Books has a <em>single</em> product: top-2 of a one-member group must still return that one row, not error or pad.</p>
+
+<h4>2. The SQL &mdash; aggregate, then rank with <code>ROW_NUMBER</code></h4>
+<pre><code>WITH product_revenue AS (
+    SELECT p.category, p.product_id,
+           SUM(o.order_total) AS revenue
+    FROM orders o
+    JOIN products p ON p.product_id = o.product_id
+    GROUP BY p.category, p.product_id
+),
+ranked AS (
+    SELECT category, product_id, revenue,
+           ROW_NUMBER() OVER (
+               PARTITION BY category
+               ORDER BY revenue DESC, product_id ASC
+           ) AS rn
+    FROM product_revenue
+)
+SELECT category, product_id, revenue
+FROM ranked
+WHERE rn &lt;= 2
+ORDER BY category, rn;</code></pre>
+<p>The first CTE collapses orders into one revenue total per product. The second ranks products <em>within</em> each category by revenue. The outer query keeps ranks 1 and 2 &mdash; the top two per category.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>product_id</th><th>revenue</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Books</td><td>10</td><td>80</td><td>single-member category &mdash; one row returned</td></tr>
+    <tr><td>Electronics</td><td>1</td><td>500</td><td>rn 1 &mdash; tie broken by lowest product_id</td></tr>
+    <tr><td>Electronics</td><td>2</td><td>500</td><td>rn 2 &mdash; product 3 (also 500) excluded</td></tr>
+    <tr><td>Toys</td><td>20</td><td>60</td><td>rn 1</td></tr>
+    <tr><td>Toys</td><td>21</td><td>60</td><td>rn 2</td></tr>
+  </tbody>
+</table>
+<p>Electronics returns products 1 and 2; product 3 also grossed 500 but loses the <code>product_id ASC</code> tie-break and is cut. Books returns its single product without trouble &mdash; a partition of size one simply has one ranked row. Five rows total, exactly two per category except where fewer exist.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> here &mdash; and why it is a judgement call</h5>
+<p>The brief says "top 2, ties broken by <code>product_id</code>". <code>ROW_NUMBER</code> returns <em>exactly</em> two rows per category because it assigns distinct 1, 2, 3&hellip; even to revenue ties &mdash; the <code>product_id ASC</code> secondary sort decides who is 1 vs 2. Had the brief said "include all products tied for the top 2 revenue figures", you would switch to <code>RANK</code> or <code>DENSE_RANK</code> and Electronics would return all three 500-grossers. The choice of ranking function <em>is</em> the answer to "what do we do with ties" &mdash; name it explicitly.</p>
+
+<h5>Why two CTEs &mdash; aggregate before you rank</h5>
+<p>You cannot rank by revenue until revenue exists. The first CTE does the <code>GROUP BY</code>; the second applies the window over that aggregated result. Trying to fuse them &mdash; a window function over <code>SUM</code> in one <code>SELECT</code> &mdash; fights SQL's evaluation order and gets messy fast. Separating "compute the measure" from "rank the measure" into named steps is both correct and far more readable.</p>
+
+<h5>The <code>JOIN</code> hides products with zero orders</h5>
+<p>The inner <code>JOIN</code> drops any product that has never been ordered &mdash; it has no row in <code>orders</code>. If the report should show such products at revenue 0, switch to <code>products LEFT JOIN orders</code> and wrap the sum: <code>COALESCE(SUM(o.order_total), 0)</code>, since <code>SUM</code> over zero rows yields NULL. Whether un-ordered products belong in a "top sellers" list is a business call &mdash; surface the assumption rather than letting the <code>JOIN</code> decide silently.</p>
+
+<h5><code>WHERE rn &lt;= 2</code> must be in an outer query</h5>
+<p>A window function cannot be referenced in the same query's <code>WHERE</code> &mdash; <code>WHERE ROW_NUMBER() OVER(&hellip;) &lt;= 2</code> is illegal, because <code>WHERE</code> is evaluated <em>before</em> window functions. The rank must be produced in a subquery or CTE and filtered one level up. That ordering rule is why the <code>ranked</code> CTE exists; it is the most common beginner error on top-N-per-group.</p>
+
+<h5>Dialect notes</h5>
+<p>CTEs and <code>ROW_NUMBER</code> are standard in Postgres, MySQL 8+, SQLite 3.25+, Snowflake, and SQL Server. SQL Server and Snowflake also offer <code>QUALIFY rn &lt;= 2</code>, which filters on a window function inline and removes the need for the outer query &mdash; terser, but not portable. Postgres has no <code>QUALIFY</code>, so the CTE-then-filter form shown here is the portable answer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve top-N-per-group by aggregating in one CTE then ranking with <code>ROW_NUMBER() OVER (PARTITION BY group ORDER BY measure DESC, tiebreak)</code> in the next, filter <code>rn &lt;= N</code> in an outer query because <code>WHERE</code> precedes window functions, justify <code>ROW_NUMBER</code> vs <code>RANK</code> by the tie rule, and flag that an inner <code>JOIN</code> silently excludes never-ordered products.</div>
