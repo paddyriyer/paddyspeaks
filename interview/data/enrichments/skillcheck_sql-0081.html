@@ -1,0 +1,52 @@
+<p>A lifecycle-marketing team wants to know which users confirmed their account by SMS <em>exactly one calendar day</em> after signing up &mdash; a clean "next-day activation" cohort. The data spans two tables and timestamps, not dates. The interviewer is probing two things: can you compare across a join on a <strong>derived date difference</strong>, and do you handle the "a user can get many texts" multiplicity without double-counting or missing a qualifying message?</p>
+
+<h4>1. The source data &mdash; <code>signups</code> and <code>text_messages</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>signup_ts</th><th>text (signup_ack, sent_ts)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-05-01 10:00</td><td>FALSE 05-01 12:00; <strong>TRUE 05-02 09:00</strong></td><td>confirms on day +1 &mdash; qualifies</td></tr>
+    <tr><td>2</td><td>2025-05-02 11:00</td><td>TRUE 05-02 23:59</td><td>confirms same day (+0) &mdash; out</td></tr>
+    <tr><td>3</td><td>2025-05-03 12:00</td><td>FALSE 05-04 09:00; <strong>TRUE 05-04 10:00</strong></td><td>a FALSE and a TRUE both on day +1</td></tr>
+    <tr><td>4</td><td>2025-05-04 09:00</td><td>TRUE 05-04 09:30</td><td>confirms same day (+0) &mdash; out</td></tr>
+    <tr><td>5</td><td>2025-05-05 09:00</td><td>TRUE 05-07 09:30</td><td>confirms on day +2 &mdash; out</td></tr>
+  </tbody>
+</table>
+<p>Three traps. User 2 confirms at <strong>23:59 the same day</strong> &mdash; under an hour-based diff that 23h59m is "less than a day," but the date difference is 0, so it must not qualify. User 3 has a non-confirmation <em>and</em> a confirmation on day +1: only the <code>TRUE</code> row counts. User 5 is a day late.</p>
+
+<h4>2. The SQL &mdash; join on the date difference</h4>
+<pre><code>SELECT DISTINCT s.user_id
+FROM signups s
+JOIN text_messages t ON t.user_id = s.user_id
+WHERE t.signup_ack = TRUE
+  AND (t.sent_ts::date - s.signup_ts::date) = 1
+ORDER BY s.user_id;</code></pre>
+<p>Casting both timestamps to <code>::date</code> drops the time component, and subtracting two <code>date</code> values in PostgreSQL yields an <em>integer number of days</em>. The predicate <code>= 1</code> keeps only confirmations whose calendar day is exactly one after the signup day. <code>signup_ack = TRUE</code> filters to genuine confirmations.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>(why it qualified)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>TRUE text on 05-02, signup 05-01 &rarr; diff = 1</td></tr>
+    <tr><td>3</td><td>TRUE text on 05-04, signup 05-03 &rarr; diff = 1 (the FALSE row ignored)</td></tr>
+  </tbody>
+</table>
+<p>Users 1 and 3 qualify. User 2 is excluded despite being only 23h59m later &mdash; <code>'2025-05-02'::date - '2025-05-02'::date = 0</code>. User 4 confirmed same-day (diff 0); user 5 confirmed two days later (diff 2). The <code>DISTINCT</code> matters most for user 3, whose row would survive once anyway here, but protects against a user with two qualifying <code>TRUE</code> texts appearing twice.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Date subtraction vs timestamp subtraction &mdash; the core trick</h5>
+<p><code>timestamp - timestamp</code> returns an <code>interval</code> (e.g. <code>23:59:00</code>), and "is this interval one day?" is awkward and ambiguous. <code>date - date</code> returns a plain <code>integer</code> &mdash; the count of calendar days between them. By casting first, "exactly the next calendar day" becomes the crisp test <code>= 1</code>. This is why user 2's 23h59m confirmation is correctly rejected: calendar-day arithmetic, not elapsed-time arithmetic, is what the question asks for.</p>
+
+<h5>Why <code>DISTINCT</code> &mdash; the join multiplies rows</h5>
+<p>One signup can have many texts, so the join can produce several rows per user. If a user had two <code>TRUE</code> confirmations both landing on day +1, the <code>user_id</code> would appear twice without <code>DISTINCT</code>. The spec says "if ANY TRUE confirmation falls on day +1, the user qualifies" &mdash; an existence test &mdash; so collapsing duplicates with <code>DISTINCT</code> (or an equivalent <code>EXISTS</code> subquery) is mandatory. An alternative phrasing is <code>WHERE EXISTS (SELECT 1 FROM text_messages t WHERE ... )</code>, which never multiplies rows in the first place.</p>
+
+<h5>The filter must sit in <code>WHERE</code>, not be confused with the join</h5>
+<p>Because this is an <code>INNER JOIN</code>, placing <code>signup_ack = TRUE</code> in the <code>ON</code> clause or the <code>WHERE</code> clause yields the same result &mdash; both restrict to confirmation texts. But the instinct should be deliberate: with an inner join, post-join row filters belong in <code>WHERE</code>. If this were a <code>LEFT JOIN</code> (to also list users with no qualifying text), the placement would change the answer drastically &mdash; an <code>ON</code>-clause condition preserves unmatched left rows, a <code>WHERE</code>-clause condition discards them.</p>
+
+<h5>NULL <code>signup_ack</code> and the boolean test</h5>
+<p>If <code>signup_ack</code> can be <code>NULL</code> (text sent, acknowledgement unknown), <code>signup_ack = TRUE</code> evaluates to <code>UNKNOWN</code> for those rows and they are correctly excluded &mdash; a NULL is not a confirmation. That is the desired behaviour here, but state it: a reviewer wants to see you noticed that <code>= TRUE</code> silently drops NULLs rather than treating them as <code>FALSE</code>.</p>
+
+<h5>Dialect notes</h5>
+<p><code>date - date = integer</code> is PostgreSQL-specific. In MySQL use <code>DATEDIFF(t.sent_ts, s.signup_ts) = 1</code> (which itself compares the date parts). In BigQuery, <code>DATE_DIFF(DATE(t.sent_ts), DATE(s.signup_ts), DAY) = 1</code>. SQL Server: <code>DATEDIFF(day, s.signup_ts, t.sent_ts) = 1</code>. All compute calendar-day differences; only the spelling changes.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> cast timestamps to <code>date</code> so the difference is an integer day count &mdash; making "the next calendar day" the exact test <code>= 1</code> and correctly rejecting a 23h59m same-day confirmation &mdash; and use <code>DISTINCT</code> or <code>EXISTS</code> because the one-to-many join would otherwise duplicate qualifying users.</div>

@@ -1,0 +1,56 @@
+<p>A manufacturing-ops analyst is chasing the work-in-progress board: <em>"which parts are still on the line, and how many steps are left on each?"</em> A part counts as finished only when <strong>every</strong> recorded assembly step has a real <code>finish_at</code> timestamp. The interviewer is probing whether you can express an "all rows satisfy a condition" test as its negation &mdash; "at least one row fails" &mdash; using a filtered aggregate, and whether you understand that <code>NULL</code> means "step not yet done".</p>
+
+<h4>1. The source data &mdash; <code>parts_assembly</code></h4>
+<table>
+  <thead><tr><th>part_name</th><th>assembly_step</th><th>finish_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>wheel</td><td>1</td><td>2025-01-01 09:00</td><td>done</td></tr>
+    <tr><td>wheel</td><td>2</td><td>2025-01-01 10:00</td><td>done</td></tr>
+    <tr><td>wheel</td><td>3</td><td>NULL</td><td>one open step &rarr; wheel unfinished</td></tr>
+    <tr><td>battery</td><td>1</td><td>2025-01-02 09:00</td><td>done</td></tr>
+    <tr><td>battery</td><td>2</td><td>NULL</td><td>open</td></tr>
+    <tr><td>battery</td><td>3</td><td>NULL</td><td>open &mdash; battery has two incomplete steps</td></tr>
+    <tr><td>charger</td><td>1</td><td>2025-01-03 09:00</td><td>done</td></tr>
+    <tr><td>charger</td><td>2</td><td>2025-01-03 10:00</td><td>done &mdash; charger fully finished</td></tr>
+    <tr><td>seat</td><td>1</td><td>NULL</td><td>single-step part, that step is open</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases are baked in: <code>charger</code> has every step done (must be excluded), <code>seat</code> is a single-row group (one NULL step), and <code>battery</code> has more than one open step so the count must exceed 1.</p>
+
+<h4>2. The SQL &mdash; filtered count with a HAVING gate</h4>
+<pre><code>SELECT part_name, COUNT(*) FILTER (WHERE finish_at IS NULL) AS incomplete_steps
+FROM parts_assembly
+GROUP BY part_name
+HAVING COUNT(*) FILTER (WHERE finish_at IS NULL) &gt; 0
+ORDER BY part_name;</code></pre>
+<p><code>COUNT(*) FILTER (WHERE finish_at IS NULL)</code> counts only the open steps inside each part's group. <code>HAVING &hellip; &gt; 0</code> keeps only the parts that have at least one &mdash; the negation of "all steps finished" &mdash; and the same expression in the <code>SELECT</code> reports how many remain.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>part_name</th><th>incomplete_steps</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>battery</td><td>2</td><td>steps 2 and 3 both NULL</td></tr>
+    <tr><td>seat</td><td>1</td><td>single-step part, that one step open</td></tr>
+    <tr><td>wheel</td><td>1</td><td>only step 3 open</td></tr>
+  </tbody>
+</table>
+<p><code>charger</code> is absent: every step has a timestamp, so its filtered count is <code>0</code> and <code>HAVING</code> drops it. <code>seat</code> appears with <code>1</code> even though it has a single row &mdash; a one-member group is still a group.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>"Every row satisfies X" becomes "zero rows fail X"</h5>
+<p>SQL has no direct "for all rows in this group" quantifier, so you flip it: a part is finished iff <em>no</em> step is open, i.e. the count of open steps is <code>0</code>. Asking for the unfinished parts is then simply count <code>&gt; 0</code>. This negation trick &mdash; universal turned into existential &mdash; is the core idea, and it generalises: "all orders shipped" becomes "count of unshipped = 0".</p>
+
+<h5>Why <code>FILTER</code> beats <code>SUM(CASE&hellip;)</code> here</h5>
+<p><code>COUNT(*) FILTER (WHERE finish_at IS NULL)</code> is the standard-SQL aggregate filter and reads as exactly what it does. The portable equivalent is <code>SUM(CASE WHEN finish_at IS NULL THEN 1 ELSE 0 END)</code> or <code>COUNT(*) - COUNT(finish_at)</code> &mdash; the latter exploiting that bare <code>COUNT(column)</code> already skips NULLs. All three give the same number; <code>FILTER</code> is clearest where the dialect supports it.</p>
+
+<h5>The NULL trap &mdash; <code>= NULL</code> never matches</h5>
+<p>You must write <code>finish_at IS NULL</code>, never <code>finish_at = NULL</code>. Equality against <code>NULL</code> evaluates to <em>unknown</em>, not true, so <code>WHERE finish_at = NULL</code> silently filters everything out and the report comes back empty. This is the single most common bug in "find the missing data" queries.</p>
+
+<h5>HAVING, not WHERE &mdash; the filter is on the aggregate</h5>
+<p>The condition "this part has an open step" is a property of the whole group, computed after <code>GROUP BY</code>, so it belongs in <code>HAVING</code>. You cannot move it to <code>WHERE</code>: <code>WHERE finish_at IS NULL</code> would discard the finished steps <em>before</em> grouping, corrupting the count and changing which parts even appear. <code>WHERE</code> filters rows, <code>HAVING</code> filters groups.</p>
+
+<h5>Dialect notes</h5>
+<p><code>FILTER</code> is supported by PostgreSQL and SQLite. MySQL has no <code>FILTER</code> clause &mdash; use <code>SUM(finish_at IS NULL)</code> (MySQL treats the boolean as 1/0) or the portable <code>SUM(CASE WHEN &hellip;)</code>. SQL Server likewise needs <code>SUM(CASE&hellip;)</code>. The <code>HAVING</code> gate is identical everywhere.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reframe "every step finished" as "zero open steps", count open steps with <code>COUNT(*) FILTER (WHERE finish_at IS NULL)</code>, gate unfinished parts with <code>HAVING &gt; 0</code>, and never write <code>= NULL</code> &mdash; use <code>IS NULL</code>, because equality with NULL yields unknown and quietly empties the result.</div>

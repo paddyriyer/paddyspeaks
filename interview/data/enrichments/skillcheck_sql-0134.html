@@ -1,0 +1,53 @@
+<p>An automotive lead-gen platform reports daily volume by manufacturer, and the dashboard must not double-count: the same lead can be logged twice by an integration retry, and partners can submit multiple leads. The interviewer wants to see you reach for <code>COUNT(DISTINCT ...)</code> deliberately &mdash; and explain why a plain <code>COUNT(*)</code> would inflate the numbers.</p>
+
+<h4>1. The source data &mdash; <code>daily_leads</code></h4>
+<table>
+  <thead><tr><th>date_id</th><th>make_name</th><th>lead_id</th><th>partner_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>Toyota</td><td>1</td><td>10</td><td>lead 1</td></tr>
+    <tr><td>2025-01-01</td><td>Toyota</td><td>1</td><td>10</td><td>exact duplicate row &mdash; integration retry</td></tr>
+    <tr><td>2025-01-01</td><td>Toyota</td><td>2</td><td>11</td><td>lead 2</td></tr>
+    <tr><td>2025-01-01</td><td>Honda</td><td>5</td><td>20</td><td>single-lead group</td></tr>
+    <tr><td>2025-01-02</td><td>Toyota</td><td>1</td><td>12</td><td>lead 1 reappears next day, new partner</td></tr>
+  </tbody>
+</table>
+<p>The first two rows are an exact duplicate &mdash; same lead, same partner, same day. A naive count would say Toyota had 3 leads on Jan 1; the truth is 2. Honda is a clean single-member group, and lead 1 legitimately recurs on Jan 2 under a different partner.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(DISTINCT)</code> per group</h4>
+<pre><code>SELECT date_id, make_name,
+       COUNT(DISTINCT lead_id)::int    AS unique_leads,
+       COUNT(DISTINCT partner_id)::int AS unique_partners
+FROM daily_leads
+GROUP BY date_id, make_name
+ORDER BY date_id, make_name;</code></pre>
+<p><code>GROUP BY date_id, make_name</code> forms one bucket per (day, make). Inside each bucket <code>COUNT(DISTINCT lead_id)</code> tallies <em>unique</em> lead identifiers &mdash; the retry duplicate collapses &mdash; and <code>COUNT(DISTINCT partner_id)</code> does the same for partners.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>date_id</th><th>make_name</th><th>unique_leads</th><th>unique_partners</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>Honda</td><td>1</td><td>1</td><td>single row, single lead</td></tr>
+    <tr><td>2025-01-01</td><td>Toyota</td><td>2</td><td>2</td><td>3 rows, but the retry duplicate collapses to 2</td></tr>
+    <tr><td>2025-01-02</td><td>Toyota</td><td>1</td><td>1</td><td>separate day &rarr; separate bucket</td></tr>
+  </tbody>
+</table>
+<p>Toyota on Jan 1 shows <strong>2</strong>, not 3 &mdash; <code>DISTINCT</code> folded the identical (1, 10) rows. Lead 1's reappearance on Jan 2 is a different group entirely, so it is counted independently.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(DISTINCT col)</code> &mdash; rows vs entities</h5>
+<p><code>COUNT(*)</code> answers "how many rows", which here means "how many lead <em>submissions</em>" &mdash; retries included. <code>COUNT(DISTINCT lead_id)</code> answers "how many lead <em>identifiers</em>". The question asks for distinct leads, so the duplicate submission must not inflate the figure. Choosing between the two is choosing between an event count and an entity count &mdash; name which one the metric needs.</p>
+
+<h5>Two independent <code>DISTINCT</code>s, not one combined</h5>
+<p><code>COUNT(DISTINCT lead_id)</code> and <code>COUNT(DISTINCT partner_id)</code> are evaluated separately, each de-duplicating its own column. They are <em>not</em> the same as <code>COUNT(DISTINCT (lead_id, partner_id))</code>, which would count unique <em>pairs</em>. With one lead spread across several partners the three numbers diverge &mdash; be precise about which cardinality the business wants.</p>
+
+<h5><code>DISTINCT</code> and NULL</h5>
+<p><code>COUNT(DISTINCT col)</code> ignores NULLs entirely &mdash; a NULL <code>partner_id</code> contributes nothing and is not counted as a distinct value. If "unknown partner" should register as one bucket, you would need <code>COUNT(DISTINCT COALESCE(partner_id, -1))</code> or count a sentinel. The fixture has no NULLs, but stating this rule shows you have thought past the happy path.</p>
+
+<h5>Performance &mdash; <code>DISTINCT</code> aggregation is not free</h5>
+<p><code>COUNT(DISTINCT)</code> must materialise and de-duplicate the values per group, typically via a sort or hash &mdash; heavier than a plain <code>COUNT(*)</code>, and two of them in one query means two such operations. On large tables this is usually fine, but at extreme scale teams pre-aggregate or use approximate distinct counts (<code>HyperLogLog</code>) &mdash; know the trade-off exists.</p>
+
+<h5>Dialect &mdash; approximate and multi-distinct support</h5>
+<p>Standard <code>COUNT(DISTINCT)</code> works everywhere. MySQL uniquely allows <code>COUNT(DISTINCT a, b)</code> for tuple counts; other engines need <code>COUNT(DISTINCT (a, b))</code> or a row constructor. For huge data, BigQuery offers <code>APPROX_COUNT_DISTINCT</code>, Snowflake <code>APPROX_COUNT_DISTINCT</code>, and PostgreSQL the <code>postgresql-hll</code> extension &mdash; mention these when the interviewer pushes on scale.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(DISTINCT col)</code> &mdash; not <code>COUNT(*)</code> &mdash; when integration retries can duplicate rows, keep separate <code>DISTINCT</code>s for separate columns rather than counting tuples, remember that <code>DISTINCT</code> drops NULLs, and acknowledge that distinct aggregation costs a sort/hash that approximate counters can relieve at scale.</div>

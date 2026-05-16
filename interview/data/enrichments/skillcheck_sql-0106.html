@@ -1,0 +1,55 @@
+<p>A merchandising team wants the customers who bought <em>both</em> staple products A and B but <em>never</em> touched product C &mdash; a classic "has all of these, none of those" segmentation. The interviewer is checking whether you can express set membership and set absence in a single <code>GROUP BY</code>, rather than stitching together <code>INTERSECT</code> and <code>EXCEPT</code> or three subqueries.</p>
+
+<h4>1. The source data &mdash; <code>customer_purchases</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>product</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A, B, C</td><td>has C &rarr; disqualified</td></tr>
+    <tr><td>2</td><td>A, B</td><td>A and B, no C &rarr; qualifies</td></tr>
+    <tr><td>3</td><td>A, B, A</td><td>duplicate A, still A+B no C &rarr; qualifies</td></tr>
+    <tr><td>4</td><td>A, C</td><td>has C, and no B &rarr; disqualified</td></tr>
+    <tr><td>5</td><td>B, B</td><td>only B, missing A &rarr; disqualified</td></tr>
+    <tr><td>6</td><td>A, B, A, B</td><td>duplicates of both, no C &rarr; qualifies</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases are deliberate. Customer 3 and 6 buy the <em>same</em> product more than once &mdash; a correct query must not double-count them out of contention. Customer 5 has rows but is missing A entirely &mdash; "having some products" is not "having the required products."</p>
+
+<h4>2. The SQL &mdash; conditional counts in <code>HAVING</code></h4>
+<pre><code>SELECT customer_id
+FROM customer_purchases
+GROUP BY customer_id
+HAVING COUNT(*) FILTER (WHERE product = 'A') &gt;= 1
+   AND COUNT(*) FILTER (WHERE product = 'B') &gt;= 1
+   AND COUNT(*) FILTER (WHERE product = 'C') = 0
+ORDER BY customer_id;</code></pre>
+<p>Each <code>COUNT(*) FILTER (WHERE &hellip;)</code> tallies, within one customer's group, how many rows match a product. The <code>HAVING</code> clause then asserts: at least one A, at least one B, exactly zero C.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>(why it passed)</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>1 A, 1 B, 0 C</td></tr>
+    <tr><td>3</td><td>2 A, 1 B, 0 C &mdash; the duplicate A still counts as &ge; 1</td></tr>
+    <tr><td>6</td><td>2 A, 2 B, 0 C &mdash; duplicates of both, still no C</td></tr>
+  </tbody>
+</table>
+<p>Customers 1 and 4 are dropped by the <code>C = 0</code> test; customer 5 is dropped by the <code>A &gt;= 1</code> test. Using <code>&gt;= 1</code> rather than <code>= 1</code> is what lets the repeat-buyers 3 and 6 through &mdash; the question asks "bought A," not "bought A exactly once."</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why one <code>GROUP BY</code> beats <code>INTERSECT</code>/<code>EXCEPT</code></h5>
+<p>You <em>could</em> write <code>(SELECT customer_id WHERE product='A') INTERSECT (SELECT &hellip; 'B') EXCEPT (SELECT &hellip; 'C')</code>. It works, but it scans the table three times and the logic is spread across three set operations. The conditional-count form reads the table once, groups once, and states all three rules side by side &mdash; easier to extend (add product D) and easier for a reviewer to verify.</p>
+
+<h5>The presence vs absence asymmetry</h5>
+<p>Presence is <code>&gt;= 1</code>; absence is <code>= 0</code>. A frequent bug is writing the absence test as <code>COUNT(*) FILTER (WHERE product != 'C') = COUNT(*)</code> &mdash; subtly different and easy to get wrong with NULLs. <code>FILTER (WHERE product = 'C') = 0</code> is direct: it counts the forbidden rows and demands there be none.</p>
+
+<h5>NULL products would slip past the absence test</h5>
+<p>If <code>product</code> could be NULL, a row with <code>product IS NULL</code> satisfies neither <code>= 'A'</code> nor <code>= 'C'</code> (both evaluate to <em>unknown</em>). That is harmless for the C-absence check &mdash; a NULL is correctly <em>not</em> counted as a C &mdash; but if the business rule were "NULL means unknown product, treat as possibly C," you would need <code>COUNT(*) FILTER (WHERE product = 'C' OR product IS NULL) = 0</code>. State the assumption.</p>
+
+<h5>Dialect &mdash; <code>FILTER</code> vs <code>CASE</code></h5>
+<p><code>COUNT(*) FILTER (WHERE &hellip;)</code> is standard SQL and supported by PostgreSQL and SQLite (3.30+). MySQL and older engines lack it; there the portable form is <code>SUM(CASE WHEN product = 'A' THEN 1 ELSE 0 END) &gt;= 1</code>. The two are semantically identical &mdash; <code>FILTER</code> is simply the cleaner spelling. Knowing both lets you adapt without changing the logic.</p>
+
+<h5>What to say next</h5>
+<p>Note that the query returns customers who bought A and B <em>among other things</em> &mdash; it does not require A and B to be their <em>only</em> products. If the requirement were "bought exactly A and B and nothing else," you would add <code>AND COUNT(*) FILTER (WHERE product NOT IN ('A','B')) = 0</code>. Clarifying "at least" versus "exactly" before writing the query is the senior move.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> collapse "has all of X, none of Y" into a single <code>GROUP BY</code> with one <code>COUNT(*) FILTER</code> per rule, use <code>&gt;= 1</code> so repeat purchases still count as presence, express absence as <code>= 0</code>, and know the <code>SUM(CASE)</code> fallback for engines without <code>FILTER</code>.</div>

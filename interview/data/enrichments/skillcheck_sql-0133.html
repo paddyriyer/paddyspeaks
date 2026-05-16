@@ -1,0 +1,56 @@
+<p>An observability team wants an event-rate chart with 15-minute granularity &mdash; the classic "bucket the timeline" task behind every dashboard histogram. The interviewer is checking whether you can floor each timestamp to a quarter-hour boundary with arithmetic alone, and whether you understand exactly which side of <code>09:15:00</code> a 09:15:00 event lands on.</p>
+
+<h4>1. The source data &mdash; <code>events</code></h4>
+<table>
+  <thead><tr><th>event_id</th><th>ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-08-01 09:02:30</td><td>bucket 09:00</td></tr>
+    <tr><td>2</td><td>2025-08-01 09:10:00</td><td>bucket 09:00</td></tr>
+    <tr><td>3</td><td>2025-08-01 09:14:59</td><td>bucket 09:00 &mdash; last second before the boundary</td></tr>
+    <tr><td>4</td><td>2025-08-01 09:15:00</td><td>bucket 09:15 &mdash; boundary belongs to the new bucket</td></tr>
+    <tr><td>5</td><td>2025-08-01 09:30:01</td><td>bucket 09:30</td></tr>
+    <tr><td>6</td><td>2025-08-01 09:44:59</td><td>bucket 09:30</td></tr>
+    <tr><td>7</td><td>2025-08-01 10:00:00</td><td>bucket 10:00 &mdash; new hour, no events 09:45&ndash;10:00</td></tr>
+  </tbody>
+</table>
+<p>Events 3 and 4 straddle the 09:15 line one second apart &mdash; the boundary edge case. And the <code>09:45</code> bucket has <em>zero</em> events: a plain <code>GROUP BY</code> simply omits it rather than emitting a 0.</p>
+
+<h4>2. The SQL &mdash; floor the minute, multiply back into an interval</h4>
+<pre><code>SELECT date_trunc('hour', ts)
+       + (EXTRACT(MINUTE FROM ts)::int / 15) * INTERVAL '15 minutes' AS bucket_start,
+       COUNT(*)::int AS event_count
+FROM events
+GROUP BY 1
+ORDER BY 1;</code></pre>
+<p><code>date_trunc('hour', ts)</code> snaps to the top of the hour. <code>EXTRACT(MINUTE&hellip;)::int / 15</code> is <em>integer</em> division &mdash; minutes 0&ndash;14 give 0, 15&ndash;29 give 1, etc. Multiplying that 0&ndash;3 quotient by a 15-minute interval and adding it back reconstructs the bucket's start.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>bucket_start</th><th>event_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-08-01 09:00:00</td><td>3</td><td>events 1, 2, 3 &mdash; 09:14:59 still inside</td></tr>
+    <tr><td>2025-08-01 09:15:00</td><td>1</td><td>event 4 &mdash; 09:15:00 starts the new bucket</td></tr>
+    <tr><td>2025-08-01 09:30:00</td><td>2</td><td>events 5, 6</td></tr>
+    <tr><td>2025-08-01 10:00:00</td><td>1</td><td>event 7 &mdash; the 09:45 bucket is simply missing</td></tr>
+  </tbody>
+</table>
+<p>09:14:59 and 09:15:00 split cleanly into adjacent buckets. Note there is <strong>no 09:45 row</strong>: <code>GROUP BY</code> only produces buckets that have data.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why integer division is the engine of the bucket</h5>
+<p>The whole floor-to-15-minutes trick is one integer division. In PostgreSQL, dividing two integers truncates toward zero, so <code>14/15 = 0</code> and <code>29/15 = 1</code>. That quotient <em>is</em> the bucket index within the hour. If <code>EXTRACT</code> returned a numeric and you forgot <code>::int</code>, the division would be exact (0.933&hellip;) and every event would collapse to the top of the hour &mdash; the cast is load-bearing, not decorative.</p>
+
+<h5>Buckets are half-open <code>[start, start+15)</code></h5>
+<p>An event exactly on a boundary &mdash; 09:15:00 &mdash; has minute 15, quotient 1, and lands in the <em>09:15</em> bucket. So each bucket includes its start instant and excludes its end instant: the half-open interval <code>[09:15, 09:30)</code>. State this convention explicitly; "which bucket owns the boundary" is the single most common source of off-by-one disagreement in time-series work.</p>
+
+<h5>Empty buckets are silently dropped</h5>
+<p>The 09:45&ndash;10:00 window has no events, so it produces no group and no row. If the chart needs a continuous axis &mdash; a visible 0 at 09:45 &mdash; you must <code>generate_series</code> the full set of buckets and <code>LEFT JOIN</code> the counts onto it, coalescing missing counts to 0. Knowing that aggregation cannot invent absent rows, and offering the gap-fill, is the senior move.</p>
+
+<h5><code>GROUP BY 1</code> &mdash; convenience with a caveat</h5>
+<p><code>GROUP BY 1</code> / <code>ORDER BY 1</code> reference the first select-list item by position, avoiding repetition of the long bucket expression. It is concise and supported in PostgreSQL and MySQL, but positional grouping is fragile &mdash; reorder the select list and the query silently groups by the wrong thing. In shared code, repeating the expression or naming it via a CTE is safer.</p>
+
+<h5>Dialect &mdash; <code>date_bin</code> and the bucketing helpers</h5>
+<p>PostgreSQL 14+ offers <code>date_bin('15 minutes', ts, TIMESTAMP '2025-08-01 00:00')</code>, which buckets directly against an origin and is clearer than the arithmetic. TimescaleDB has <code>time_bucket</code>; BigQuery has <code>TIMESTAMP_BUCKET</code>; Snowflake uses <code>TIME_SLICE</code>. The <code>date_trunc</code> + integer-division form shown here is the most portable and works on every PostgreSQL version &mdash; mention <code>date_bin</code> as the modern one-liner.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> floor a timestamp to an N-minute bucket with <code>date_trunc</code> plus integer division (and keep the explicit <code>::int</code> cast that makes the division truncate), state the half-open <code>[start, start+N)</code> convention so boundary events are unambiguous, and proactively gap-fill empty buckets with <code>generate_series</code> &mdash; or reach for <code>date_bin</code> where available.</div>

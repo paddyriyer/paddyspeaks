@@ -1,0 +1,77 @@
+<p>A retention analyst at a subscription business is asked for the classic <strong>cohort grid</strong>: group customers by the month of their first order, then track what fraction of each cohort comes back one month later, two months later, and so on. The triangular table that results is the single most-requested chart in any growth review. It is a <strong>pivot</strong> &mdash; "months since signup" rotates into columns &mdash; layered on cohort assignment. The interviewer is testing whether you can chain CTEs to compute a relative time offset and pivot it correctly.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-05</td><td>100</td><td>first order &rarr; Jan cohort</td></tr>
+    <tr><td>1</td><td>2026-02-10</td><td>50</td><td>month 1</td></tr>
+    <tr><td>1</td><td>2026-03-12</td><td>40</td><td>month 2</td></tr>
+    <tr><td>2</td><td>2026-01-20</td><td>80</td><td>first order &rarr; Jan cohort</td></tr>
+    <tr><td>2</td><td>2026-02-15</td><td>30</td><td>month 1</td></tr>
+    <tr><td>3</td><td>2026-02-08</td><td>200</td><td>first order &rarr; Feb cohort</td></tr>
+    <tr><td>3</td><td>2026-04-09</td><td>60</td><td>month 2 (skipped month 1)</td></tr>
+  </tbody>
+</table>
+<p>Customers 1 and 2 form the January cohort; customer 3 alone forms February. Customer 3 is the trap: they order in their signup month and again two months later but <em>skip month 1 entirely</em> &mdash; the grid must show February's <code>month_1</code> as 0%, not blank and not 100%.</p>
+
+<h4>2. The SQL &mdash; cohort, offset, size, then pivot</h4>
+<pre><code>WITH first_order AS (
+  SELECT customer_id, DATE_TRUNC('month', MIN(order_date)) AS cohort_month
+  FROM orders
+  GROUP BY customer_id
+),
+activity AS (
+  SELECT DISTINCT
+    f.cohort_month,
+    o.customer_id,
+    (EXTRACT(YEAR FROM o.order_date) - EXTRACT(YEAR FROM f.cohort_month)) * 12
+      + (EXTRACT(MONTH FROM o.order_date) - EXTRACT(MONTH FROM f.cohort_month)) AS month_since
+  FROM orders o
+  JOIN first_order f ON f.customer_id = o.customer_id
+),
+cohort_size AS (
+  SELECT cohort_month, COUNT(*) AS n
+  FROM first_order
+  GROUP BY cohort_month
+)
+SELECT
+  TO_CHAR(a.cohort_month, 'YYYY-MM') AS cohort,
+  c.n AS cohort_size,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 0 THEN a.customer_id END) / c.n, 1) AS month_0,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 1 THEN a.customer_id END) / c.n, 1) AS month_1,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN a.month_since = 2 THEN a.customer_id END) / c.n, 1) AS month_2
+FROM activity a
+JOIN cohort_size c ON c.cohort_month = a.cohort_month
+GROUP BY a.cohort_month, c.n
+ORDER BY cohort;</code></pre>
+<p><code>first_order</code> stamps each customer with their cohort. <code>activity</code> computes, per order, how many whole months after signup it fell. <code>cohort_size</code> counts cohort members for the denominator. The final query pivots <code>month_since</code> into columns and divides by cohort size.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cohort</th><th>cohort_size</th><th>month_0</th><th>month_1</th><th>month_2</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01</td><td>2</td><td>100.0</td><td>100.0</td><td>50.0</td><td>both returned in m1; only cust 1 in m2</td></tr>
+    <tr><td>2026-02</td><td>1</td><td>100.0</td><td>0.0</td><td>100.0</td><td>cust 3 skipped m1 &rarr; 0%, then returned m2</td></tr>
+  </tbody>
+</table>
+<p>The January cohort holds 100% through month 1 (both customers ordered in February) then drops to <strong>50.0</strong> in month 2 (only customer 1 ordered in March). February's <code>month_1</code> is <strong>0.0</strong> &mdash; customer 3 placed no order in March &mdash; yet <code>month_2</code> rebounds to 100%. Retention is not monotonic, and the grid captures that honestly.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why three CTEs &mdash; each computes a distinct fact</h5>
+<p>The grid needs three things the raw table does not hold: which cohort each customer belongs to, how far after signup each order fell, and how big each cohort is. <code>first_order</code>, <code>activity</code>, and <code>cohort_size</code> each isolate one. Stacking them keeps every step independently readable and testable &mdash; the senior habit of decomposing a hard query into named, verifiable stages rather than one nested monster.</p>
+
+<h5>The month-offset arithmetic &mdash; why not subtract dates</h5>
+<p><code>month_since</code> is <code>(year diff) * 12 + (month diff)</code>. You cannot just subtract dates: <code>'2026-03-12' - '2026-01-05'</code> is a day count (66), not 2 months. And you cannot subtract raw <code>EXTRACT(MONTH)</code> values alone &mdash; that breaks across a year boundary (December to January would read <code>1 - 12 = -11</code>, not <code>+1</code>). The <code>*12</code> term makes the offset correct across any year gap. <code>DATE_TRUNC('month', &hellip;)</code> on the cohort side ensures both sides compare at month granularity.</p>
+
+<h5>The pivot &mdash; and why <code>COUNT(DISTINCT &hellip;)</code> is mandatory</h5>
+<p>Each <code>month_N</code> column is a <code>COUNT(DISTINCT CASE WHEN month_since = N THEN customer_id END)</code>: the <code>CASE</code> isolates orders at that offset, <code>COUNT</code> tallies them, and <code>DISTINCT</code> ensures a customer who ordered <em>twice</em> in the same offset month counts once &mdash; retention measures <em>people who returned</em>, not order volume. Drop <code>DISTINCT</code> and a heavy repeat buyer inflates the percentage above 100%. The <code>SELECT DISTINCT</code> already in the <code>activity</code> CTE is a second layer of the same guard.</p>
+
+<h5>month_0 is 100% by construction &mdash; and that is a sanity check</h5>
+<p>Every customer ordered in their own cohort month &mdash; that is the definition of the cohort &mdash; so <code>month_0</code> is always 100%. Far from redundant, it is a built-in correctness probe: if your query ever shows <code>month_0</code> below 100%, the cohort assignment or the offset math is wrong. The denominator <code>c.n</code> is the cohort's <em>original</em> size, frozen &mdash; never the count still active in month N &mdash; so each column reads as "percent of the <em>starting</em> cohort", which is what makes columns comparable down a cohort's row.</p>
+
+<h5>Dialect &mdash; date functions and the shape of the grid</h5>
+<p><code>DATE_TRUNC</code>, <code>EXTRACT</code>, and <code>TO_CHAR</code> are PostgreSQL spellings; SQL Server uses <code>DATETRUNC</code>/<code>DATEDIFF</code>/<code>FORMAT</code>, BigQuery <code>DATE_TRUNC</code>/<code>DATE_DIFF</code> &mdash; the logic is identical, only the names move. The pivot itself is the universal <code>COUNT(CASE&hellip;)</code> idiom. A native <code>PIVOT</code> operator could rotate <code>month_since</code>, but real cohort grids run to 12 or 24 columns &mdash; at that width teams generate the column list with dynamic SQL or compute the grid long and pivot in the BI layer, because hand-typing 24 <code>CASE</code> branches does not scale.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> decompose the cohort grid into CTEs for first-order month, per-order month offset, and cohort size; compute the offset as <code>year_diff*12 + month_diff</code> so it survives year boundaries; pivot with <code>COUNT(DISTINCT CASE&hellip;)</code> so repeat buyers cannot push retention past 100%; and treat the always-100% <code>month_0</code> column as a correctness check on your cohort logic.</div>

@@ -1,0 +1,62 @@
+<p>A FP&amp;A analyst is building the monthly board pack and needs the canonical growth table: for each business unit, April 2026 revenue alongside its month-over-month and year-over-year growth. The raw ledger has one row per unit-month, so the three reference periods &mdash; this month, last month, same month last year &mdash; are scattered across rows. The ask is a <strong>pivot</strong>: rotate three time periods into three columns so the deltas can be computed side by side. The interviewer is probing conditional aggregation <em>and</em> whether you defend every division against a zero denominator.</p>
+
+<h4>1. The source data &mdash; <code>monthly_revenue</code></h4>
+<table>
+  <thead><tr><th>business_unit</th><th>year_num</th><th>month_num</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>SaaS B2B</td><td>2025</td><td>4</td><td>100000</td></tr>
+    <tr><td>SaaS B2B</td><td>2026</td><td>3</td><td>120000</td></tr>
+    <tr><td>SaaS B2B</td><td>2026</td><td>4</td><td>150000</td></tr>
+    <tr><td>Hardware</td><td>2026</td><td>3</td><td>50000</td></tr>
+    <tr><td>Hardware</td><td>2026</td><td>4</td><td>60000</td></tr>
+  </tbody>
+</table>
+<p>SaaS B2B has all three reference months &mdash; a full MoM and YoY story. Hardware has March and April 2026 but <em>no April 2025 row at all</em>. That gap is the interview: YoY for Hardware divides by a period that does not exist, and the query must yield a clean NULL rather than crash.</p>
+
+<h4>2. The SQL &mdash; pivot periods, then compute growth</h4>
+<pre><code>WITH execution_pivot AS (
+  SELECT
+    business_unit,
+    SUM(CASE WHEN year_num = 2026 AND month_num = 4 THEN revenue ELSE 0 END) AS current_month,
+    SUM(CASE WHEN year_num = 2026 AND month_num = 3 THEN revenue ELSE 0 END) AS prior_month,
+    SUM(CASE WHEN year_num = 2025 AND month_num = 4 THEN revenue ELSE 0 END) AS prior_year
+  FROM monthly_revenue
+  GROUP BY business_unit
+)
+SELECT
+  business_unit,
+  current_month AS rev_apr_2026,
+  ROUND(((current_month - prior_month) * 100.0) / NULLIF(prior_month, 0), 2) AS mom_growth_pct,
+  ROUND(((current_month - prior_year) * 100.0) / NULLIF(prior_year, 0), 2) AS yoy_growth_pct
+FROM execution_pivot
+ORDER BY business_unit;</code></pre>
+<p>The CTE pivots: three <code>SUM(CASE&hellip;)</code> expressions fold each unit's rows into one row with three period columns. The outer query then does the arithmetic &mdash; deltas over baselines &mdash; on those now-adjacent columns.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>business_unit</th><th>rev_apr_2026</th><th>mom_growth_pct</th><th>yoy_growth_pct</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Hardware</td><td>60000</td><td>20.00</td><td>NULL</td><td>no Apr-2025 baseline &rarr; NULLIF makes YoY NULL, not an error</td></tr>
+    <tr><td>SaaS B2B</td><td>150000</td><td>25.00</td><td>50.00</td><td>full history &mdash; both growth rates computed</td></tr>
+  </tbody>
+</table>
+<p>SaaS B2B grew 25% MoM (120k&rarr;150k) and 50% YoY (100k&rarr;150k). Hardware grew 20% MoM (50k&rarr;60k), but its YoY cell is <strong>NULL</strong>: with no April 2025 row, <code>prior_year</code> pivoted to <code>0</code>, and <code>NULLIF(0,0)</code> turned the divisor into NULL &mdash; the row survives, the query never errors.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why pivot first &mdash; growth needs periods side by side</h5>
+<p>Growth is a ratio between two periods, and SQL arithmetic operates within a row, not across rows. While both periods sit in separate <em>rows</em> you cannot subtract them without a self-join or window function. Pivoting the three periods into three <em>columns</em> of one row makes <code>current_month - prior_month</code> a plain in-row expression. The pivot is not decoration here &mdash; it is what makes the arithmetic expressible at all.</p>
+
+<h5><code>NULLIF</code> &mdash; the load-bearing defence</h5>
+<p>Division by zero is a hard error in SQL: it aborts the whole statement, not just one row. <code>NULLIF(prior_month, 0)</code> returns <code>NULL</code> when the argument is 0 and the value otherwise; dividing by <code>NULL</code> yields <code>NULL</code> &mdash; a quiet, correct "growth is undefined" &mdash; instead of a crash. Every denominator in a growth query must be wrapped. The semantics are also right: if a unit had zero revenue last period, its percentage growth genuinely is not a number.</p>
+
+<h5>The <code>ELSE 0</code> / <code>NULLIF</code> interplay &mdash; subtle but deliberate</h5>
+<p>The pivot uses <code>ELSE 0</code>, so a missing period becomes <code>0</code>, not <code>NULL</code>. That makes <code>current_month - prior_year</code> compute as <code>60000 - 0</code> in the numerator &mdash; harmless &mdash; while <code>NULLIF(prior_year, 0)</code> catches the same 0 in the denominator and produces NULL. The two work as a pair: <code>ELSE 0</code> keeps the numerator arithmetic clean, <code>NULLIF</code> rescues the denominator. Drop <code>ELSE 0</code> and you would instead lean on <code>SUM</code> ignoring NULLs &mdash; same number, but you must still <code>NULLIF</code> the divisor regardless.</p>
+
+<h5>The <code>* 100.0</code> trick &mdash; forcing real division</h5>
+<p><code>revenue</code> is <code>INT</code>. In Postgres <code>integer / integer</code> truncates, so <code>(150000-100000)/100000</code> would be <code>0</code>, not <code>0.5</code>. Multiplying by <code>100.0</code> &mdash; a numeric literal &mdash; promotes the numerator to numeric <em>before</em> the divide, so the result keeps its fractional part and <code>ROUND(&hellip;, 2)</code> has something to round. Writing <code>100</code> instead of <code>100.0</code> is a classic silent bug: every growth figure collapses to a rounded-down integer percentage or zero.</p>
+
+<h5>Dialect &mdash; portability of the pieces</h5>
+<p><code>NULLIF</code> and <code>CASE</code> are SQL-standard and run unchanged in every engine. Snowflake, Oracle, and SQL Server have a <code>PIVOT</code> operator that could rotate the periods, but it pivots on a single column's values &mdash; here the period is a <em>composite</em> of <code>year_num</code> and <code>month_num</code>, so you would first concatenate them into one key, then pivot. The <code>SUM(CASE&hellip;)</code> form sidesteps that and handles the two-column predicate directly &mdash; which is exactly why it stays the portable default.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot the reference periods into columns so growth becomes in-row arithmetic, wrap <em>every</em> denominator in <code>NULLIF(&hellip;, 0)</code> so a missing baseline yields NULL instead of a divide-by-zero abort, and force floating-point division with a <code>100.0</code> literal &mdash; using <code>100</code> truncates every percentage to an integer.</div>
