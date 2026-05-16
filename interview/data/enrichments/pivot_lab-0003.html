@@ -1,0 +1,59 @@
+<p>A growth team at a consumer app reports engagement with the industry-standard <strong>L1&ndash;L28</strong> metric: of the trailing 28 days, how many distinct days did each user open the app? An L28 user showed up all four weeks; an L1 user showed up once. The leadership dashboard wants a single snapshot row that buckets the whole user base into engagement tiers. That is a <strong>pivot</strong>: distinct bucket labels become columns, and the interviewer is checking whether you can collapse a per-user count into a one-row tiered summary.</p>
+
+<h4>1. The source data &mdash; <code>user_activity</code></h4>
+<p>One row per user per active day. Distinct-day counts inside the 28-day window (2026-04-18 to 2026-05-15):</p>
+<table>
+  <thead><tr><th>user_id</th><th>activity rows</th><th>distinct active days in window</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2026-05-14, 2026-05-15</td><td>2</td></tr>
+    <tr><td>102</td><td>2026-05-15</td><td>1</td></tr>
+    <tr><td>103</td><td>2026-05-01, 05-02, 05-03</td><td>3</td></tr>
+    <tr><td>104</td><td>2026-04-20 &hellip; 2026-04-29 (10 days)</td><td>10</td></tr>
+    <tr><td>105</td><td>2026-04-18 &hellip; 2026-05-15 (28 days)</td><td>28</td></tr>
+  </tbody>
+</table>
+<p>Five users span the full spread of buckets: 102 is exactly L1, users 101 and 103 sit in L2&ndash;L7, user 104 lands in L8&ndash;L27, and user 105 hit all 28 days. One user per tier &mdash; a clean test of the bucket boundaries.</p>
+
+<h4>2. The SQL &mdash; count per user, then pivot into buckets</h4>
+<pre><code>WITH user_28d_counts AS (
+  SELECT user_id, COUNT(DISTINCT activity_date) AS active_days_count
+  FROM user_activity
+  WHERE activity_date BETWEEN '2026-04-18' AND '2026-05-15'
+  GROUP BY user_id
+)
+SELECT
+  '2026-05-15' AS snapshot_date,
+  COUNT(CASE WHEN active_days_count = 1 THEN 1 END) AS l1_users,
+  COUNT(CASE WHEN active_days_count BETWEEN 2 AND 7 THEN 1 END) AS l2_l7_users,
+  COUNT(CASE WHEN active_days_count BETWEEN 8 AND 27 THEN 1 END) AS l8_l27_users,
+  COUNT(CASE WHEN active_days_count &gt;= 28 THEN 1 END) AS l28_users
+FROM user_28d_counts;</code></pre>
+<p>Stage one (<code>user_28d_counts</code>) reduces the event log to one row per user holding their distinct-day count. Stage two pivots: each <code>COUNT(CASE&hellip;)</code> tallies users whose count falls in one bucket. With no <code>GROUP BY</code>, the whole CTE collapses to a single summary row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>snapshot_date</th><th>l1_users</th><th>l2_l7_users</th><th>l8_l27_users</th><th>l28_users</th></tr></thead>
+  <tbody>
+    <tr><td>2026-05-15</td><td>1</td><td>2</td><td>1</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>The five users partition cleanly: <strong>1</strong> in L1 (user 102), <strong>2</strong> in L2&ndash;L7 (users 101 and 103), <strong>1</strong> in L8&ndash;L27 (user 104), <strong>1</strong> in L28 (user 105). Every user lands in exactly one bucket and the counts sum to 5 &mdash; the partition is total and disjoint.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two stages &mdash; you cannot bucket what you have not counted</h5>
+<p>The buckets are defined over <em>per-user distinct-day counts</em>, and that count does not exist in the raw table &mdash; it must be derived first. The CTE produces the intermediate metric; the outer query pivots it. Trying to do both at once fails: <code>COUNT(DISTINCT activity_date)</code> is per user, but the bucket <code>COUNT(CASE&hellip;)</code> is over users &mdash; two different grains, so two stages. Naming the grain change is the senior framing.</p>
+
+<h5>This is a pivot &mdash; bucket labels become columns</h5>
+<p>A long-format answer would be <code>SELECT bucket, COUNT(*) GROUP BY bucket</code> &mdash; four <em>rows</em>. The dashboard wants four <em>columns</em> in one row, so the bucket dimension is rotated into the header. <code>COUNT(CASE WHEN &hellip; THEN 1 END)</code> per bucket is the portable pivot idiom: each <code>CASE</code> emits a non-NULL only for its bucket, and <code>COUNT</code> &mdash; which ignores NULLs &mdash; tallies just those.</p>
+
+<h5>Why <code>COUNT</code> with no <code>ELSE</code>, not <code>SUM</code> with <code>ELSE 0</code></h5>
+<p><code>COUNT</code> counts non-NULL values, so <code>CASE WHEN cond THEN 1 END</code> &mdash; which yields <code>NULL</code> when the condition is false &mdash; counts exactly the matching users. <code>SUM(CASE WHEN cond THEN 1 ELSE 0 END)</code> gives the identical number. Both are correct; <code>COUNT</code> without <code>ELSE</code> is the tighter idiom for counting rows, <code>SUM</code> with <code>ELSE 0</code> reads better when you are adding amounts. Pick one and be consistent &mdash; do not write <code>COUNT(CASE &hellip; ELSE 0 END)</code>, which counts <em>every</em> row because 0 is non-NULL.</p>
+
+<h5>The buckets must be exhaustive and non-overlapping</h5>
+<p><code>= 1</code>, <code>BETWEEN 2 AND 7</code>, <code>BETWEEN 8 AND 27</code>, <code>&gt;= 28</code> tile the integers 1 and up with no gap and no overlap, so every user is counted once. Off-by-one errors hide here: write <code>BETWEEN 1 AND 7</code> for L2&ndash;L7 and user 102 is double-counted; stop L8&ndash;L27 at <code>27</code> but start L28 at <code>&gt; 28</code> and a 28-day user falls through a crack. A user inactive in the window produces no CTE row at all, so 0-day users are simply absent &mdash; correct if "L0" is out of scope, a bug if the deck expects them. The boundary <code>&gt;= 28</code> also guards against dirty data: timestamps mis-bucketed could push a count above 28, and <code>&gt;=</code> still catches them.</p>
+
+<h5>Dialect &mdash; <code>FILTER</code> and the <code>PIVOT</code> operator</h5>
+<p>PostgreSQL offers a cleaner spelling: <code>COUNT(*) FILTER (WHERE active_days_count = 1)</code> &mdash; the SQL-standard aggregate <code>FILTER</code> clause, more readable than <code>CASE</code> and identical in result. Snowflake, Oracle, and SQL Server have a <code>PIVOT</code> operator, but it pivots on discrete values, not <em>ranges</em> &mdash; so for bucketed counts like L1&ndash;L28 you would still pre-compute a bucket label, then pivot that. The <code>CASE</code> / <code>FILTER</code> form handles ranges directly and works everywhere.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> split the work into a per-user count CTE and a bucket-pivot outer query because the two live at different grains, implement the pivot with <code>COUNT(CASE WHEN &hellip; THEN 1 END)</code> (or Postgres <code>FILTER</code>), and verify the range buckets are exhaustive and non-overlapping &mdash; off-by-one boundaries and silently-absent 0-day users are the traps an interviewer is hunting for.</div>

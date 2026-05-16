@@ -1,0 +1,59 @@
+<p>A product analyst pulls a per-user device summary: one row per user, three columns counting sessions on mobile, desktop, and tablet. To compare engagement <em>across</em> device types &mdash; group, filter, rank by device &mdash; that wide shape is useless; they need one row per user-per-device. This is an <strong>unpivot</strong>, and the candidate already knows the stacked-<code>UNION ALL</code> trick. The interviewer is now probing the next level: can you unpivot without scanning the table once per column?</p>
+
+<h4>1. The source data &mdash; <code>device_metrics</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>mobile_sessions</th><th>desktop_sessions</th><th>tablet_sessions</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>12</td><td>3</td><td>0</td></tr>
+    <tr><td>2</td><td>0</td><td>0</td><td>5</td></tr>
+    <tr><td>3</td><td>7</td><td>NULL</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>User 1's tablet count is a real <strong>0</strong> (they own a tablet, used the app zero times). User 3's desktop count is <strong>NULL</strong> (no desktop telemetry at all). The reshape must keep those apart, and it must emit a row for every user-device pair regardless &mdash; nine rows out, no matter the values.</p>
+
+<h4>2. The SQL &mdash; unpivot in one scan with <code>CROSS JOIN LATERAL</code></h4>
+<pre><code>SELECT m.user_id, v.device, v.sessions
+FROM device_metrics m
+CROSS JOIN LATERAL (VALUES
+  ('mobile', m.mobile_sessions),
+  ('desktop', m.desktop_sessions),
+  ('tablet', m.tablet_sessions)
+) AS v(device, sessions)
+ORDER BY m.user_id, v.device;</code></pre>
+<p>For each row <code>m</code>, the <code>LATERAL</code> subquery builds a tiny three-row inline table: a literal device label paired with the matching column from <em>that same</em> row. <code>CROSS JOIN</code> then attaches all three rows to the user. One outer scan, three rows manufactured per user &mdash; the table is read exactly once.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>device</th><th>sessions</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>desktop</td><td>3</td><td>&nbsp;</td></tr>
+    <tr><td>1</td><td>mobile</td><td>12</td><td>&nbsp;</td></tr>
+    <tr><td>1</td><td>tablet</td><td>0</td><td>real zero &mdash; row still emitted</td></tr>
+    <tr><td>2</td><td>desktop</td><td>0</td><td>&nbsp;</td></tr>
+    <tr><td>2</td><td>mobile</td><td>0</td><td>&nbsp;</td></tr>
+    <tr><td>2</td><td>tablet</td><td>5</td><td>&nbsp;</td></tr>
+    <tr><td>3</td><td>desktop</td><td>NULL</td><td>missing telemetry &mdash; row kept, value NULL</td></tr>
+    <tr><td>3</td><td>mobile</td><td>7</td><td>&nbsp;</td></tr>
+    <tr><td>3</td><td>tablet</td><td>2</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+<p>Three rows became nine &mdash; 3 users &times; 3 devices. User 1's tablet row carries <strong>0</strong> and user 3's desktop row carries <strong>NULL</strong>: <code>CROSS JOIN</code> emits a row for every pair unconditionally, so neither a zero nor a NULL suppresses its row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>One scan vs four &mdash; the whole point of <code>LATERAL</code></h5>
+<p>The stacked-<code>UNION ALL</code> unpivot names the source table once per column; with three device columns the planner does three full scans and stitches the pieces. The <code>LATERAL VALUES</code> form names <code>device_metrics</code> exactly once and <em>manufactures</em> the extra rows in memory from each scanned row. On a 5-row demo identical; on a billion-row events table the difference is one I/O pass versus three. That scan-count argument is the senior reason to reach for <code>LATERAL</code>.</p>
+
+<h5>What <code>LATERAL</code> actually unlocks</h5>
+<p>A normal subquery in the <code>FROM</code> clause is evaluated once, independent of the outer query &mdash; it cannot see <code>m.mobile_sessions</code>. <code>LATERAL</code> lifts that restriction: the subquery is re-evaluated for each outer row and may reference that row's columns. Here it lets the inline <code>VALUES</code> list pull <code>m.mobile_sessions</code>, <code>m.desktop_sessions</code>, <code>m.tablet_sessions</code> &mdash; the correlation is exactly what makes the per-row expansion work.</p>
+
+<h5><code>CROSS JOIN</code> keeps every row &mdash; including zeros and NULLs</h5>
+<p><code>CROSS JOIN</code> pairs each outer row with every row the <code>LATERAL</code> block produces, with no <code>ON</code> predicate to satisfy &mdash; so all nine rows survive, and a <code>0</code> or <code>NULL</code> in <code>sessions</code> never causes a row to disappear. That matters: if you later need only active devices you filter explicitly with <code>WHERE v.sessions &gt; 0</code> &mdash; and note <code>&gt; 0</code> also discards the NULLs, so decide whether "no telemetry" should be excluded too. The reshape stays lossless; filtering is a separate, deliberate step.</p>
+
+<h5>Type alignment inside the <code>VALUES</code> list</h5>
+<p>Every tuple in the <code>VALUES</code> list must agree column-by-column: first slot text, second slot integer. If one device column were <code>NUMERIC</code> and another <code>INT</code>, Postgres resolves a common type for the <code>sessions</code> column &mdash; usually fine, but mixing genuinely incompatible types (a text column with an int column in the same slot) is an error. When unpivoting columns of differing types, cast them to a shared type inside the <code>VALUES</code> list so the result column has one well-defined type.</p>
+
+<h5>Dialect &mdash; <code>LATERAL</code>, <code>CROSS APPLY</code>, and native <code>UNPIVOT</code></h5>
+<p><code>LATERAL</code> is standard SQL and works in PostgreSQL and MySQL 8+. SQL Server spells the same idea <code>CROSS APPLY</code> over a <code>VALUES</code> table. Oracle, SQL Server, and Snowflake also offer the dedicated <code>UNPIVOT</code> operator, which is the most readable single-scan option where available. SQLite has neither <code>LATERAL</code> nor <code>UNPIVOT</code>, so there the stacked <code>UNION ALL</code> remains the only route &mdash; accepting its repeated scans.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that stacked <code>UNION ALL</code> re-scans the table once per column, and unpivot in a single scan with <code>CROSS JOIN LATERAL (VALUES &hellip;)</code> &mdash; explaining that <code>LATERAL</code> correlates the inline table to each outer row, that <code>CROSS JOIN</code> keeps every pair so zeros and NULLs are preserved, and that the equivalents are <code>CROSS APPLY</code> in SQL Server and the native <code>UNPIVOT</code> operator elsewhere.</div>
