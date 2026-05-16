@@ -1,0 +1,68 @@
+<p>A sales compensation system needs to split a fixed commission pool proportionally among salespeople based on their contribution to the team's revenue. The interviewer is probing whether you can combine a <strong>grouped aggregate CTE</strong> with a <strong>window-function running total</strong> over that CTE &mdash; a pattern that arises any time you need each entity's share of a partition-level total: budget allocation, cost attribution, revenue splits.</p>
+
+<h4>1. The source data &mdash; <code>sale</code></h4>
+<table>
+  <thead><tr><th>sale_id</th><th>salesperson_id</th><th>team_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>1</td><td>500</td></tr>
+    <tr><td>2</td><td>101</td><td>1</td><td>300</td></tr>
+    <tr><td>3</td><td>102</td><td>1</td><td>200</td></tr>
+    <tr><td>4</td><td>103</td><td>2</td><td>1000</td></tr>
+    <tr><td>5</td><td>104</td><td>2</td><td>4000</td></tr>
+    <tr><td>6</td><td>101</td><td>2</td><td>500</td></tr>
+    <tr><td>7</td><td>105</td><td>3</td><td>800</td></tr>
+    <tr><td>8</td><td>105</td><td>3</td><td>200</td></tr>
+  </tbody>
+</table>
+<p>Note that salesperson 101 appears in <em>both</em> team 1 and team 2 &mdash; the question deliberately tests that such a person gets <em>separate rows per team</em>, not a merged aggregate. Team 3 has exactly one salesperson (105) and should receive 100 % of the pool.</p>
+
+<h4>2. The SQL &mdash; per-person CTE + window SUM for team total</h4>
+<pre><code>WITH per_person AS (
+  SELECT team_id, salesperson_id, SUM(amount) AS total_sales
+  FROM sale
+  GROUP BY team_id, salesperson_id
+)
+SELECT team_id,
+       salesperson_id,
+       total_sales,
+       ROUND((10000.0 * total_sales / SUM(total_sales) OVER (PARTITION BY team_id))::numeric, 2)
+         AS commission_share
+FROM per_person
+ORDER BY team_id, salesperson_id;</code></pre>
+<p>The CTE collapses all rows for the same <code>(team_id, salesperson_id)</code> pair into one <code>total_sales</code> figure. The outer <code>SUM(total_sales) OVER (PARTITION BY team_id)</code> then provides the team-level denominator without a second GROUP BY, preserving each salesperson as a separate row in the output.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>team_id</th><th>salesperson_id</th><th>total_sales</th><th>commission_share</th><th>(derivation)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>800</td><td>8000.00</td><td>10000 &times; 800 / 1000</td></tr>
+    <tr><td>1</td><td>102</td><td>200</td><td>2000.00</td><td>10000 &times; 200 / 1000</td></tr>
+    <tr><td>2</td><td>101</td><td>500</td><td>909.09</td><td>10000 &times; 500 / 5500</td></tr>
+    <tr><td>2</td><td>103</td><td>1000</td><td>1818.18</td><td>10000 &times; 1000 / 5500</td></tr>
+    <tr><td>2</td><td>104</td><td>4000</td><td>7272.73</td><td>10000 &times; 4000 / 5500</td></tr>
+    <tr><td>3</td><td>105</td><td>1000</td><td>10000.00</td><td>10000 &times; 1000 / 1000 (sole member)</td></tr>
+  </tbody>
+</table>
+<p>Team 1 total: 800 + 200 = 1000. Team 2 total: 500 + 1000 + 4000 = 5500. Team 3 total: 800 + 200 = 1000, all to salesperson 105. Commission shares within a team sum to exactly 10 000 (subject to rounding: team 2 gives 909.09 + 1818.18 + 7272.73 = 10 000.00).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a CTE then a window function &mdash; not a single query</h5>
+<p>You could write the denominator as a correlated subquery, but that executes once per output row. The two-step approach &mdash; aggregate first, then window-sum over the aggregated result &mdash; is cleaner and typically cheaper: the optimizer scans the base table once for the GROUP BY, then the window SUM scans the small CTE result rather than the raw fact table. It also keeps the formula readable: <code>total_sales / SUM(total_sales) OVER (...)</code> directly expresses the fraction.</p>
+
+<h5>The <code>10000.0</code> literal &mdash; type safety</h5>
+<p>If <code>amount</code> is <code>NUMERIC</code> the division is already exact. But when columns are integers, <code>10000 * total_sales / team_total</code> can truncate to zero for small values. Writing <code>10000.0</code> forces a numeric promotion before division. The explicit <code>::numeric</code> cast before <code>ROUND</code> is required in PostgreSQL because <code>ROUND(double precision, n)</code> does not exist &mdash; only <code>ROUND(numeric, n)</code> does.</p>
+
+<h5>Salesperson 101 across multiple teams</h5>
+<p>The GROUP BY is <code>(team_id, salesperson_id)</code>, not just <code>salesperson_id</code>. That is what keeps person 101's team-1 row and team-2 row independent. If you accidentally grouped by salesperson only, you would merge their sales across teams and break the proportional calculation for both.</p>
+
+<h5>Single-member team edge case</h5>
+<p>When a team has exactly one salesperson, <code>total_sales = SUM(total_sales) OVER (PARTITION BY team_id)</code>, so the share is exactly 10 000.00. Division by zero cannot occur here &mdash; a salesperson row implies at least one sale, so the team total is always positive.</p>
+
+<h5>Rounding and the pool sum</h5>
+<p>Rounding individual shares to 2 decimal places can leave the team total a few cents above or below 10 000.00. In production systems this is often handled by giving the residual cent(s) to the top earner ("largest-remainder method"). The question asks only for per-person rounded shares, so the solution is correct as written &mdash; but naming the rounding artefact in an interview demonstrates real-world awareness.</p>
+
+<h5>Dialect notes</h5>
+<p>The pattern is portable across PostgreSQL, Snowflake, BigQuery, and SQL Server. BigQuery uses <code>ROUND(expr, 2)</code> natively on <code>FLOAT64</code>; no cast is needed. Snowflake and SQL Server also handle the rounding without the <code>::numeric</code> cast. MySQL 8+ supports window functions; in MySQL 5.7 or earlier you must fall back to a correlated subquery or a self-join for the team total.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a GROUP BY CTE to produce one row per (team, person), then apply <code>SUM(...) OVER (PARTITION BY team_id)</code> on that CTE to get the team denominator without a second scan; cast to numeric before <code>ROUND(…, 2)</code> in PostgreSQL; and call out the largest-remainder rounding issue for production commission engines.</div>
