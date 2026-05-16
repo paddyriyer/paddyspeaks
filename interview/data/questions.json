@@ -14026,7 +14026,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "items_table(id, item)",
-    "solution": "DROP TABLE IF EXISTS items_table;\nCREATE TABLE items_table (\n  id INT PRIMARY KEY,\n  item TEXT\n);\nINSERT INTO items_table (id, item) VALUES\n  (1, 'Pen'),\n  (2, 'Eraser'),\n  (3, 'Pen'),\n  (4, 'Apple'),\n  (5, 'Apple'),\n  (6, 'Apple'),\n  (7, 'Mango'),\n  (8, 'Banana'),\n  (9, 'Banana'),\n  (10, 'Banana'),\n  (11, 'Pear'),\n  (12, 'Apple'),\n  (13, 'Apple'),\n  (14, 'Apple'),\n  (15, 'Grape');\n\n--select * from items_table;\nwith t1 as(\nselect id,item,\n    lag(item) over(order by id asc) lag_item,\n    lead(item) over(order by id asc) lead_item\nfrom items_table\n)\nselect distinct item\nfrom t1\nwhere lag_item = lead_item;",
+    "solution": "WITH ordered AS (\n    SELECT id, item,\n           LAG(item) OVER (ORDER BY id) AS prev_item\n    FROM items_table\n),\nflagged AS (\n    SELECT id, item,\n           CASE WHEN item = prev_item THEN 0 ELSE 1 END AS is_break\n    FROM ordered\n),\ngrouped AS (\n    SELECT id, item,\n           SUM(is_break) OVER (ORDER BY id) AS group_id\n    FROM flagged\n)\nSELECT DISTINCT item\nFROM grouped\nGROUP BY item, group_id\nHAVING COUNT(*) >= 3\nORDER BY item;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/146_find%20the%20items%20which%20was%20bought%20consecutively%20three%20or%20more%20time.sql"
@@ -14213,7 +14213,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "club(club_id, member_id, rewards)",
-    "solution": "WITH cte AS (\n  SELECT club_id, member_id, UNNEST(string_to_array(rewards, ':')) AS reward\n  FROM club\n),\npoint_cte AS (\n  SELECT club_id, member_id, reward,\n    CASE reward\n      WHEN 'MM' THEN 0.5 WHEN 'CI' THEN 0.5 WHEN 'CO' THEN 0.5\n      WHEN 'CD' THEN 1   WHEN 'CL' THEN 1   WHEN 'CM' THEN 1\n      ELSE 0 END AS points\n  FROM cte\n)\nSELECT club_id, SUM(points) AS total_points\nFROM point_cte\nGROUP BY club_id;",
+    "solution": "WITH cte AS (\n  SELECT c.club_id, c.member_id, r.reward\n  FROM club c\n  LEFT JOIN LATERAL UNNEST(string_to_array(c.rewards, ':')) AS r(reward) ON true\n),\npoint_cte AS (\n  SELECT club_id, member_id, reward,\n    CASE reward\n      WHEN 'MM' THEN 0.5 WHEN 'CI' THEN 0.5 WHEN 'CO' THEN 0.5\n      WHEN 'CD' THEN 1   WHEN 'CL' THEN 1   WHEN 'CM' THEN 1\n      ELSE 0 END AS points\n  FROM cte\n)\nSELECT club_id, COALESCE(SUM(points), 0) AS total_points\nFROM point_cte\nGROUP BY club_id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/154_calculate%20total%20club%20reward%20points%20%282%20methods%20-%20string%20split%20and%20cross%20apply%29.sql"
@@ -14239,7 +14239,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "Customer(Customer_id, Cus_name, Age, Gender, App, name, email, signup_date, country, city), Transaction_Tbls(Loc_name, Loc_id, Cus_id, Amount_paid, Trans_id)",
-    "solution": "WITH txn AS (\n  SELECT *, DENSE_RANK() OVER (PARTITION BY loc_name ORDER BY amount_paid DESC) AS rnk\n  FROM transaction_tbls\n)\nSELECT COALESCE(app, 'cash') AS mode, COUNT(*) AS num_transaction\nFROM txn\nINNER JOIN customer c ON txn.cus_id = c.customer_id\nWHERE rnk = 1\nGROUP BY app;",
+    "solution": "WITH txn AS (\n  SELECT t.*, COALESCE(c.app, 'cash') AS mode,\n         DENSE_RANK() OVER (PARTITION BY t.loc_name ORDER BY t.amount_paid DESC) AS rnk\n  FROM transaction_tbls t\n  INNER JOIN customer c ON t.cus_id = c.customer_id\n)\nSELECT loc_name, mode, COUNT(*) AS num_transaction\nFROM txn\nWHERE rnk = 1\nGROUP BY loc_name, mode\nORDER BY loc_name, mode;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/155_find%20the%20app%20or%20mode%20and%20the%20count%20for%20highest%20amount%20of%20transactions%20in%20each%20location.sql"
@@ -14354,7 +14354,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "Exam(Id, English, Maths, Science, Geography, History, Sanskrit)",
-    "solution": "WITH marks_cte AS (\n  SELECT id, english::text AS marks, 'English' AS subjects FROM exam\n  UNION ALL SELECT id, maths::text,    'Maths'     FROM exam\n  UNION ALL SELECT id, science::text,  'Science'   FROM exam\n  UNION ALL SELECT id, geography::text,'Geography' FROM exam\n  UNION ALL SELECT id, history::text,  'History'   FROM exam\n  UNION ALL SELECT id, sanskrit::text, 'Sanskrit'  FROM exam\n),\nrank_cte AS (\n  SELECT id, subjects, marks,\n         ROW_NUMBER() OVER (PARTITION BY id ORDER BY marks DESC) AS rnk\n  FROM marks_cte\n),\npercentage_cte AS (\n  SELECT id,\n    ROUND(AVG(CASE WHEN marks ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN marks::numeric END), 2) AS percentage_top5\n  FROM rank_cte\n  WHERE rnk <= 5\n  GROUP BY id\n)\nSELECT e.*, pc.percentage_top5 AS percentage\nFROM exam e\nJOIN percentage_cte pc ON e.id = pc.id;",
+    "solution": "WITH marks_cte AS (\n  SELECT id, english AS marks, 'English' AS subjects FROM exam\n  UNION ALL SELECT id, maths,    'Maths'     FROM exam\n  UNION ALL SELECT id, science,  'Science'   FROM exam\n  UNION ALL SELECT id, geography,'Geography' FROM exam\n  UNION ALL SELECT id, history,  'History'   FROM exam\n  UNION ALL SELECT id, sanskrit, 'Sanskrit'  FROM exam\n),\nrank_cte AS (\n  SELECT id, subjects, marks,\n         ROW_NUMBER() OVER (PARTITION BY id ORDER BY marks DESC) AS rnk\n  FROM marks_cte\n),\npercentage_cte AS (\n  SELECT id, ROUND(AVG(marks), 2) AS percentage_top5\n  FROM rank_cte\n  WHERE rnk <= 5\n  GROUP BY id\n)\nSELECT e.*, pc.percentage_top5 AS percentage\nFROM exam e\nJOIN percentage_cte pc ON e.id = pc.id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/159_write%20a%20query%20to%20calculate%20the%20percentage%20of%20results%20using%20the%20best%20of%20the%20five%20rule%20%28unpivot-row_number%29.sql"
@@ -14651,7 +14651,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "lift_passengers(Passenger_Name, Weight_Kg, Lift_Id), Lift(Id, Capacity_Kg)",
-    "solution": "WITH lift_cte AS (\n  SELECT lp.lift_id, lp.passenger_name, lp.weight_kg, l.capacity_kg,\n    SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC) AS running_weight,\n    CASE WHEN SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC) > l.capacity_kg\n         THEN 1 ELSE 0 END AS flag\n  FROM lift_passengers lp\n  LEFT JOIN lift l ON lp.lift_id = l.id\n)\nSELECT lift_id,\n       STRING_AGG(passenger_name, ',' ORDER BY passenger_name ASC) AS passenger_list\nFROM lift_cte\nWHERE flag <> 1\nGROUP BY lift_id;",
+    "solution": "WITH lift_cte AS (\n  SELECT lp.lift_id, lp.passenger_name, lp.weight_kg, l.capacity_kg,\n    SUM(lp.weight_kg) OVER (PARTITION BY lp.lift_id ORDER BY lp.weight_kg ASC\n        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_weight\n  FROM lift_passengers lp\n  LEFT JOIN lift l ON lp.lift_id = l.id\n)\nSELECT lift_id,\n       STRING_AGG(passenger_name, ',' ORDER BY weight_kg ASC) AS passenger_list\nFROM lift_cte\nWHERE running_weight <= capacity_kg\nGROUP BY lift_id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/170_produces%20a%20comma%20separated%20list%20of%20passengers%20in%20the%20lift.sql"
@@ -14788,7 +14788,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "Customer_Transactions(transaction_id, customer_id, transaction_time, amount, apply, ct2, frequent_txn, frequent_txn_info, minute, partition, transaction_1)",
-    "solution": "WITH frequent_txn_info AS (\n  SELECT ct1.customer_id,\n         ct1.transaction_id AS transaction_1,\n         ct2.transaction_id AS transaction_2,\n         ct1.transaction_time AS transaction_ts1,\n         ct2.transaction_time AS transaction_ts2,\n         EXTRACT(EPOCH FROM (ct2.transaction_time - ct1.transaction_time))/60 AS interval_min\n  FROM customer_transactions ct1\n  INNER JOIN customer_transactions ct2\n    ON ct1.customer_id = ct2.customer_id\n   AND ct1.transaction_time <= ct2.transaction_time\n   AND ct1.transaction_id <> ct2.transaction_id\n),\nfrequent_txn AS (\n  SELECT customer_id,\n         COUNT(*) OVER (PARTITION BY customer_id, transaction_1) AS freq_txn\n  FROM frequent_txn_info\n  WHERE interval_min <= 60\n)\nSELECT DISTINCT customer_id\nFROM frequent_txn\nWHERE freq_txn >= 2;",
+    "solution": "WITH frequent_txn_info AS (\n  SELECT ct1.customer_id,\n         ct1.transaction_id AS transaction_1,\n         ct2.transaction_id AS transaction_2,\n         ct1.transaction_time AS transaction_ts1,\n         ct2.transaction_time AS transaction_ts2,\n         EXTRACT(EPOCH FROM (ct2.transaction_time - ct1.transaction_time))/60 AS interval_min\n  FROM customer_transactions ct1\n  INNER JOIN customer_transactions ct2\n    ON ct1.customer_id = ct2.customer_id\n   AND ct1.transaction_time <= ct2.transaction_time\n   AND ct1.transaction_id <> ct2.transaction_id\n),\nfrequent_txn AS (\n  SELECT customer_id,\n         COUNT(*) OVER (PARTITION BY customer_id, transaction_1) AS freq_txn\n  FROM frequent_txn_info\n  WHERE interval_min <= 60\n)\nSELECT DISTINCT customer_id\nFROM frequent_txn\nWHERE freq_txn >= 3;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/176-find%20customers%20who%20made%20more%20than%203%20transactions%20within%20any%201-hour%20window.sql"
@@ -14891,7 +14891,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "SeatReservations(ReservationID, PassengerName, SeatNumber, BookingDate, FlightID, Status)",
-    "solution": "DROP TABLE IF EXISTS seatreservations;\nCREATE TABLE seatreservations (\n  passengername TEXT,\n  seatnumber INT,\n  bookingdate DATE,\n  flightid INT,\n  status TEXT\n);\nINSERT INTO seatreservations (passengername, seatnumber, bookingdate, flightid, status) VALUES\n  ('Alice', 1, '2026-04-01', 100, 'Confirmed'),\n  ('Bob',   2, '2026-04-01', 100, 'Confirmed'),\n  ('Carol', 3, '2026-04-01', 100, 'Cancelled'),\n  ('Dave',  4, '2026-04-01', 100, 'Confirmed'),\n  ('Eve',   5, '2026-04-01', 100, 'Confirmed'),\n  ('Frank', 1, '2026-04-02', 200, 'Confirmed'),\n  ('Grace', 2, '2026-04-02', 200, 'Cancelled'),\n  ('Helen', 3, '2026-04-02', 200, 'Confirmed'),\n  ('Ivan',  1, '2026-04-03', 300, 'Confirmed'),\n  ('Judy',  3, '2026-04-03', 300, 'Confirmed');\nwith cte1 as(\nselect passengername,\n    seatnumber,\n    bookingdate,\n    flightid,\n    status,\n    row_number() over(partition by flightid, bookingdate order by seatnumber asc) as flag_one\nfrom seatreservations\n), cte2 as(\nselect *,\n  row_number() over(partition by flightid, bookingdate order by seatnumber asc) as flag_two\nfrom seatreservations\nwhere status = 'Confirmed'\n)\nselect one.flightid as Flight_ID,\n    one.passengername as Passenger_One,\n    two.passengername as Passenger_Two\nfrom cte1 as one\ninner join cte2 as two\non one.flightid = two.flightid\n  and one.bookingdate = two.bookingdate\n  and one.passengername <> two.passengername\nwhere one.status = 'Confirmed'\nand (flag_one-flag_two)= 1 ;\n",
+    "solution": "SELECT a.flightid AS flight_id,\n       a.passengername AS passenger_one,\n       b.passengername AS passenger_two\nFROM seatreservations AS a\nJOIN seatreservations AS b\n  ON a.flightid = b.flightid\n AND b.seatnumber = a.seatnumber + 1\nWHERE a.status = 'Confirmed'\n  AND b.status = 'Confirmed'\nORDER BY a.flightid, a.seatnumber;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/181_find%20all%20flights%20where%20at%20least%20two%20passengers%20have%20confirmed%20reservations%20in%20adjacent%20seats.sql"
@@ -14916,7 +14916,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "Product_Sales(ProductID, StoreID, SaleDate, SaleAmount)",
-    "solution": "select * from product_sales;\n\nselect productid,\n    max(storeid) as store_id,\n    min(saledate) as saledate,\n    max(saleamount) as max_saleamount\nfrom product_sales as p1\nwhere p1.saleamount = (select max(saleamount) from product_sales as p2\n            where p2.productid = p1.productid)\ngroup by productid;",
+    "solution": "SELECT p1.productid,\n       p1.storeid   AS store_id,\n       p1.saledate,\n       p1.saleamount AS max_saleamount\nFROM product_sales AS p1\nWHERE p1.saleamount = (SELECT MAX(saleamount) FROM product_sales AS p2\n                       WHERE p2.productid = p1.productid)\n  AND p1.saledate = (SELECT MIN(p3.saledate) FROM product_sales AS p3\n                     WHERE p3.productid = p1.productid\n                       AND p3.saleamount = p1.saleamount)\nORDER BY p1.productid;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/182_find%20the%20highest%20SaleAmount%20for%20each%20ProductID%20using%20correlated%20sub%20query.sql"
@@ -15017,7 +15017,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "Subscriptions(subscription_id, customer_id, start_date, end_date, amount_paid, plan, status)",
-    "solution": "WITH t1 AS (\n  SELECT *,\n    (end_date::date - start_date::date) AS duration,\n    LAG(end_date, 1, NULL) OVER (PARTITION BY customer_id ORDER BY end_date ASC) AS pre_subs_end_date\n  FROM subscriptions\n), t2 AS (\n  SELECT *,\n    (start_date::date - pre_subs_end_date::date) AS subscription_gap\n  FROM t1\n)\nSELECT customer_id,\n       AVG(duration) AS average_subscription_duration,\n       AVG(amount_paid) AS average_amount_paid,\n       MAX(subscription_gap) AS longest_gap_between_subscriptions\nFROM t2\nGROUP BY customer_id\nHAVING COUNT(subscription_id) > 2\nORDER BY longest_gap_between_subscriptions DESC;",
+    "solution": "WITH t1 AS (\n  SELECT *,\n    (end_date::date - start_date::date) AS duration,\n    LAG(end_date, 1, NULL) OVER (PARTITION BY customer_id ORDER BY end_date ASC) AS pre_subs_end_date\n  FROM subscriptions\n), t2 AS (\n  SELECT *,\n    (start_date::date - pre_subs_end_date::date) AS subscription_gap\n  FROM t1\n)\nSELECT customer_id,\n       AVG(duration) AS average_subscription_duration,\n       AVG(amount_paid) AS average_amount_paid,\n       MAX(subscription_gap) AS longest_gap_between_subscriptions\nFROM t2\nGROUP BY customer_id\nHAVING COUNT(subscription_id) >= 2\nORDER BY longest_gap_between_subscriptions DESC;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/186_calculate%20the%20average%20subscription%20duration%2C%20subscription%20gap%20and%20the%20average%20amount%20paid%20per%20subscription%20for%20each%20customer.sql"
@@ -15074,7 +15074,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "productreviews(ProductID, ReviewID, ReviewRating)",
-    "solution": "--select * from ProductReviews;\n\nselect productid,\n    avg(reviewrating) as avg_rating,\n    count(reviewid) as review_count,\n    sum(case when reviewrating = 5 then 1 else 0 end) as five_star_review\n\nfrom productreviews\ngroup by productid",
+    "solution": "SELECT productid,\n       AVG(reviewrating) AS avg_rating,\n       COUNT(reviewid) AS review_count,\n       SUM(CASE WHEN reviewrating = 5 THEN 1 ELSE 0 END) AS five_star_review,\n       RANK() OVER (ORDER BY AVG(reviewrating) DESC,\n                    SUM(CASE WHEN reviewrating = 5 THEN 1 ELSE 0 END) DESC,\n                    COUNT(reviewid) DESC) AS product_rank\nFROM productreviews\nGROUP BY productid\nORDER BY product_rank;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/188_review%20rating%20for%20products.sql"
