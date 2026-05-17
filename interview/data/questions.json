@@ -23675,6 +23675,166 @@
     ]
   },
   {
+    "id": "skillcheck_sql-0206",
+    "batch": "skillcheck_sql",
+    "num": 206,
+    "title": "Running Total Plateaus When the ORDER BY Key Has Ties",
+    "slug": "running-total-plateaus-when-the-order-by-key-has-ties",
+    "company": null,
+    "type": "SQL / Window Functions",
+    "subtopic": "Window Functions / Frame Semantics",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: account_ledger(txn_id, txn_date, amount), where several transactions can share the same txn_date. Produce a strict per-row running total of amount ordered by date. The common attempt SUM(amount) OVER (ORDER BY txn_date) does not give a strict running total when txn_date has duplicates: with no frame clause the default is RANGE (not ROWS), and RANGE treats all rows tied on the ORDER BY key as one peer group, so tied rows share a plateaued total. Use a ROWS frame plus a unique tiebreaker. Return txn_id, txn_date, amount, running_total ordered by txn_id.",
+    "schema": "CREATE TABLE account_ledger (txn_id INT, txn_date DATE, amount NUMERIC);\nINSERT INTO account_ledger VALUES\n  (1,'2025-02-01',100),(2,'2025-02-03',50),(3,'2025-02-03',40),\n  (4,'2025-02-05',30),(5,'2025-02-05',20),(6,'2025-02-08',60);",
+    "solution": "SELECT txn_id, txn_date, amount,\n       SUM(amount) OVER (ORDER BY txn_date, txn_id\n                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total\nFROM account_ledger\nORDER BY txn_id;",
+    "runtime": "postgres",
+    "tags": [
+      "window-functions",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0207",
+    "batch": "skillcheck_sql",
+    "num": 207,
+    "title": "A Window ORDER BY Changes the Frame, Not Just the Sort",
+    "slug": "a-window-order-by-changes-the-frame-not-just-the-sort",
+    "company": null,
+    "type": "SQL / Window Functions",
+    "subtopic": "Window Functions / Running vs Static Aggregate",
+    "difficulty": "Medium",
+    "language": "sql",
+    "question": "Schema: monthly_revenue(month_num, revenue). In one query return each month's revenue, the running total of revenue to date, and the full-period total. A frequent mistake is writing SUM(revenue) OVER (ORDER BY month_num) for the full-period total: adding ORDER BY to a window's OVER() clause is not a sort, it installs a default frame and turns a whole-partition aggregate into a running one. Use OVER () for the static period total and OVER (ORDER BY month_num) for the running total. Return month_num, revenue, running_total, period_total ordered by month_num.",
+    "schema": "CREATE TABLE monthly_revenue (month_num INT, revenue NUMERIC);\nINSERT INTO monthly_revenue VALUES (1,100),(2,200),(3,50),(4,150);",
+    "solution": "SELECT month_num, revenue,\n       SUM(revenue) OVER (ORDER BY month_num) AS running_total,\n       SUM(revenue) OVER ()                   AS period_total\nFROM monthly_revenue\nORDER BY month_num;",
+    "runtime": "postgres",
+    "tags": [
+      "window-functions",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0208",
+    "batch": "skillcheck_sql",
+    "num": 208,
+    "title": "Trailing Moving Average: Partial Windows and the Partition Reset",
+    "slug": "trailing-moving-average-partial-windows-and-the-partition-reset",
+    "company": null,
+    "type": "SQL / Window Functions",
+    "subtopic": "Window Functions / Rolling Window Per Group",
+    "difficulty": "Medium",
+    "language": "sql",
+    "question": "Schema: signups(region, day, cnt). For each region compute a 3-day trailing moving average of cnt (the current day and the two before it), rounded to 2 decimals. Mind the edges: the first rows of each region have fewer than 3 days available and average a partial window rather than returning NULL, and PARTITION BY must reset the window at each region so it never averages across regions. Return region, day, cnt, moving_avg_3d ordered by region, day.",
+    "schema": "CREATE TABLE signups (region TEXT, day INT, cnt INT);\nINSERT INTO signups VALUES\n  ('US',1,10),('US',2,20),('US',3,30),('US',4,40),\n  ('EU',1,7),('EU',2,5),('EU',3,9);",
+    "solution": "SELECT region, day, cnt,\n       ROUND(AVG(cnt) OVER (PARTITION BY region ORDER BY day\n                            ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS moving_avg_3d\nFROM signups\nORDER BY region, day;",
+    "runtime": "postgres",
+    "tags": [
+      "window-functions",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0209",
+    "batch": "skillcheck_sql",
+    "num": 209,
+    "title": "A Running Balance Is Non-Deterministic Without a Tiebreaker",
+    "slug": "a-running-balance-is-non-deterministic-without-a-tiebreaker",
+    "company": null,
+    "type": "SQL / Window Functions",
+    "subtopic": "Window Functions / Frame Semantics",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: transactions(txn_id, account_id, transaction_date, amount, transaction_type), where transaction_type is 'credit' or 'debit' and several transactions can fall on the same transaction_date. Produce a per-transaction ledger giving balance_before and balance_after for each account, where a debit subtracts and a credit adds. A running balance built with SUM(...) OVER (PARTITION BY account_id ORDER BY transaction_date ROWS UNBOUNDED PRECEDING) is non-deterministic for same-day transactions because the ROWS frame is driven by a non-unique ORDER BY key; add txn_id as a tiebreaker. Return txn_id, account_id, transaction_date, transaction_type, amount (absolute), balance_before, balance_after ordered by account_id, transaction_date, txn_id.",
+    "schema": "CREATE TABLE transactions (txn_id INT, account_id TEXT, transaction_date DATE, amount NUMERIC, transaction_type TEXT);\nINSERT INTO transactions VALUES\n  (1,'A100','2025-03-01',500,'credit'),\n  (2,'A100','2025-03-02',200,'credit'),\n  (3,'A100','2025-03-02',100,'debit'),\n  (4,'A100','2025-03-02',300,'debit'),\n  (5,'A100','2025-03-05',400,'credit');",
+    "solution": "WITH signed AS (\n  SELECT txn_id, account_id, transaction_date, amount, transaction_type,\n         CASE WHEN transaction_type = 'debit' THEN -amount ELSE amount END AS signed_amount\n  FROM transactions\n),\nrunning AS (\n  SELECT txn_id, account_id, transaction_date, amount, transaction_type,\n         SUM(signed_amount) OVER (\n           PARTITION BY account_id\n           ORDER BY transaction_date, txn_id\n           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n         ) AS balance_after\n  FROM signed\n)\nSELECT txn_id, account_id, transaction_date, transaction_type, ABS(amount) AS amount,\n       COALESCE(LAG(balance_after) OVER (PARTITION BY account_id\n                                         ORDER BY transaction_date, txn_id), 0) AS balance_before,\n       balance_after\nFROM running\nORDER BY account_id, transaction_date, txn_id;",
+    "runtime": "postgres",
+    "tags": [
+      "window-functions",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0210",
+    "batch": "skillcheck_sql",
+    "num": 210,
+    "title": "Org-Chart Roles and the NOT IN NULL Trap",
+    "slug": "org-chart-roles-and-the-not-in-null-trap",
+    "company": null,
+    "type": "SQL / NULL Semantics",
+    "subtopic": "NULL Semantics",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: employees(emp_id, emp_name, manager_id), where manager_id is NULL for the CEO. Label each employee as 'CEO' (no manager), 'Manager' (at least one employee reports to them), or 'Individual Contributor' (has a manager but no reports). The tempting test for a non-manager, emp_id NOT IN (SELECT manager_id FROM employees), silently matches no rows: manager_id contains a NULL, and NOT IN against a list containing NULL never evaluates to TRUE. Use a NULL-safe approach such as NOT EXISTS. Return emp_id, emp_name, role ordered by emp_id.",
+    "schema": "CREATE TABLE employees (emp_id INT, emp_name TEXT, manager_id INT);\nINSERT INTO employees VALUES\n  (1,'Alice',NULL),(2,'Bob',1),(3,'Carol',1),(4,'Dan',2),(5,'Eve',2);",
+    "solution": "SELECT e.emp_id, e.emp_name,\n       CASE\n         WHEN e.manager_id IS NULL THEN 'CEO'\n         WHEN EXISTS (SELECT 1 FROM employees s WHERE s.manager_id = e.emp_id) THEN 'Manager'\n         ELSE 'Individual Contributor'\n       END AS role\nFROM employees e\nORDER BY e.emp_id;",
+    "runtime": "postgres",
+    "tags": [
+      "null-semantics",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0211",
+    "batch": "skillcheck_sql",
+    "num": 211,
+    "title": "First Reply Time With a Direction-Aware Self-Join",
+    "slug": "first-reply-time-with-a-direction-aware-self-join",
+    "company": null,
+    "type": "SQL / Self-Joins",
+    "subtopic": "Self-Joins",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: messages(msg_id, thread, sender, recipient, sent_at). For every inbound message addressed to 'support@co.com', compute the response time to the first reply: the earliest later message in the same thread travelling the opposite direction (its sender is the inbound recipient and its recipient is the inbound sender). Exclude inbound messages that never received a reply. A self-join on thread alone is wrong; the reply predicate must swap sender/recipient and require the reply to be strictly later, then take the minimum reply time. Return msg_id, thread, response_time ordered by msg_id.",
+    "schema": "CREATE TABLE messages (msg_id INT, thread TEXT, sender TEXT, recipient TEXT, sent_at TIMESTAMP);\nINSERT INTO messages VALUES\n  (1,'T1','alice@x.com','support@co.com','2025-04-01 09:00'),\n  (2,'T1','support@co.com','alice@x.com','2025-04-01 11:30'),\n  (3,'T2','bob@y.com','support@co.com','2025-04-02 14:00'),\n  (4,'T2','support@co.com','bob@y.com','2025-04-02 14:45'),\n  (5,'T2','support@co.com','bob@y.com','2025-04-02 16:00'),\n  (6,'T3','carol@z.com','support@co.com','2025-04-03 10:00');",
+    "solution": "SELECT inbound.msg_id, inbound.thread,\n       MIN(reply.sent_at) - inbound.sent_at AS response_time\nFROM messages inbound\nJOIN messages reply\n  ON reply.thread    = inbound.thread\n AND reply.sender    = inbound.recipient\n AND reply.recipient = inbound.sender\n AND reply.sent_at   > inbound.sent_at\nWHERE inbound.recipient = 'support@co.com'\nGROUP BY inbound.msg_id, inbound.thread, inbound.sent_at\nORDER BY inbound.msg_id;",
+    "runtime": "postgres",
+    "tags": [
+      "self-joins",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0212",
+    "batch": "skillcheck_sql",
+    "num": 212,
+    "title": "Average Rating: Integer Division Truncates the Answer",
+    "slug": "average-rating-integer-division-truncates-the-answer",
+    "company": null,
+    "type": "SQL / Aggregation",
+    "subtopic": "Aggregation",
+    "difficulty": "Medium",
+    "language": "sql",
+    "question": "Schema: ratings(course_id, stars), where stars is an integer from 1 to 5. Return the average rating per course, rounded to 2 decimals. The naive SUM(stars) / COUNT(*) is wrong: both operands are integers, so PostgreSQL performs integer division and truncates the fraction, turning an average of 4.5 into 4. Use AVG (which returns exact numeric) or cast an operand before dividing. Return course_id, avg_rating ordered by course_id.",
+    "schema": "CREATE TABLE ratings (course_id INT, stars INT);\nINSERT INTO ratings VALUES (100,5),(100,4),(200,3),(200,2),(200,2),(300,5);",
+    "solution": "SELECT course_id, ROUND(AVG(stars), 2) AS avg_rating\nFROM ratings\nGROUP BY course_id\nORDER BY course_id;",
+    "runtime": "postgres",
+    "tags": [
+      "aggregation",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0213",
+    "batch": "skillcheck_sql",
+    "num": 213,
+    "title": "Threshold Pairs Without Mirror Duplicates",
+    "slug": "threshold-pairs-without-mirror-duplicates",
+    "company": null,
+    "type": "SQL / Self-Joins",
+    "subtopic": "Self-Joins",
+    "difficulty": "Medium",
+    "language": "sql",
+    "question": "Schema: state_streams(state, total_streams). Return every pair of states whose total_streams differ by less than 1000, each pair listed once. A self-join is required, but the dedup predicate is the trap: joining on a.state <> b.state still yields both (A,B) and (B,A), doubling the result. Join on a.state < b.state instead, since the strict inequality drops self-pairs and keeps exactly one ordering of each pair. Return state_a, state_b, stream_gap ordered by state_a, state_b.",
+    "schema": "CREATE TABLE state_streams (state TEXT, total_streams INT);\nINSERT INTO state_streams VALUES ('NC',34569),('SC',33999),('CA',98324),('MA',19345),('GA',34000);",
+    "solution": "SELECT a.state AS state_a, b.state AS state_b,\n       ABS(a.total_streams - b.total_streams) AS stream_gap\nFROM state_streams a\nJOIN state_streams b ON a.state < b.state\nWHERE ABS(a.total_streams - b.total_streams) < 1000\nORDER BY a.state, b.state;",
+    "runtime": "postgres",
+    "tags": [
+      "self-joins",
+      "tricky"
+    ]
+  },
+  {
     "id": "skillcheck_python-0001",
     "batch": "skillcheck_python",
     "num": 1,

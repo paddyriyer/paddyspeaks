@@ -1,0 +1,69 @@
+<p>This looks like a textbook running total &mdash; and that is the trap. The intuitive answer, <code>SUM(amount) OVER (ORDER BY txn_date)</code>, does <em>not</em> produce a strict per-row running total when <code>txn_date</code> has duplicate values. The cause is the <strong>default window frame</strong>: an <code>ORDER BY</code> with no explicit frame uses <code>RANGE</code>, not <code>ROWS</code> &mdash; and under <code>RANGE</code> the &ldquo;current row&rdquo; silently expands to cover every peer row sharing the same <code>ORDER BY</code> value.</p>
+
+<h4>1. The source data &mdash; <code>account_ledger</code></h4>
+<table>
+  <thead><tr><th>txn_id</th><th>txn_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-02-01</td><td>100</td></tr>
+    <tr><td>2</td><td>2025-02-03</td><td>50</td></tr>
+    <tr><td>3</td><td>2025-02-03</td><td>40</td></tr>
+    <tr><td>4</td><td>2025-02-05</td><td>30</td></tr>
+    <tr><td>5</td><td>2025-02-05</td><td>20</td></tr>
+    <tr><td>6</td><td>2025-02-08</td><td>60</td></tr>
+  </tbody>
+</table>
+<p><code>2025-02-03</code> and <code>2025-02-05</code> each appear on two rows &mdash; those ties are what expose the trap.</p>
+
+<h4>2. The trap &mdash; <code>SUM(amount) OVER (ORDER BY txn_date)</code></h4>
+<pre><code>SELECT txn_id, txn_date, amount,
+       SUM(amount) OVER (ORDER BY txn_date) AS running_total
+FROM account_ledger
+ORDER BY txn_id;</code></pre>
+<p>With no frame clause, the window defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. Under <code>RANGE</code>, <code>CURRENT ROW</code> means &ldquo;this row <em>and every row tied with it</em> on the ORDER BY key.&rdquo; Both <code>2025-02-03</code> rows therefore get the same figure &mdash; the sum through the <em>end</em> of that date &mdash; and likewise for <code>2025-02-05</code>:</p>
+<table>
+  <thead><tr><th>txn_id</th><th>txn_date</th><th>amount</th><th>running_total (RANGE)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-02-01</td><td>100</td><td>100</td></tr>
+    <tr><td>2</td><td>2025-02-03</td><td>50</td><td>190</td></tr>
+    <tr><td>3</td><td>2025-02-03</td><td>40</td><td>190</td></tr>
+    <tr><td>4</td><td>2025-02-05</td><td>30</td><td>240</td></tr>
+    <tr><td>5</td><td>2025-02-05</td><td>20</td><td>240</td></tr>
+    <tr><td>6</td><td>2025-02-08</td><td>60</td><td>300</td></tr>
+  </tbody>
+</table>
+<p>Rows 2 and 3 both read 190; rows 4 and 5 both read 240. That is a plateau, not a running total &mdash; the intermediate values 150 and 220 never appear.</p>
+
+<h4>3. The correct query</h4>
+<pre><code>SELECT txn_id, txn_date, amount,
+       SUM(amount) OVER (ORDER BY txn_date, txn_id
+                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
+FROM account_ledger
+ORDER BY txn_id;</code></pre>
+<p>Two fixes: switch the frame to <code>ROWS</code>, where <code>CURRENT ROW</code> means literally this one row; and add <code>txn_id</code> as a tiebreaker so the order within a date is deterministic.</p>
+<table>
+  <thead><tr><th>txn_id</th><th>txn_date</th><th>amount</th><th>running_total</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-02-01</td><td>100</td><td>100</td></tr>
+    <tr><td>2</td><td>2025-02-03</td><td>50</td><td>150</td></tr>
+    <tr><td>3</td><td>2025-02-03</td><td>40</td><td>190</td></tr>
+    <tr><td>4</td><td>2025-02-05</td><td>30</td><td>220</td></tr>
+    <tr><td>5</td><td>2025-02-05</td><td>20</td><td>240</td></tr>
+    <tr><td>6</td><td>2025-02-08</td><td>60</td><td>300</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>RANGE vs ROWS &mdash; the one-line difference that changes the answer</h5>
+<p><code>ROWS</code> counts physical rows: <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> is exactly &ldquo;every row up to and including this one.&rdquo; <code>RANGE</code> counts <em>logical peers</em>: <code>CURRENT ROW</code> stretches to cover all rows with the same ORDER BY value. The two agree only when the ORDER BY key is unique &mdash; the moment a value repeats, <code>RANGE</code> plateaus across the tie group.</p>
+
+<h5>The default frame is RANGE, not ROWS</h5>
+<p>This is the heart of the trap. <code>SUM(x) OVER (ORDER BY k)</code> is shorthand for <code>SUM(x) OVER (ORDER BY k RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code>. The popular claim that <code>OVER (ORDER BY k)</code> equals <code>OVER (ORDER BY k ROWS UNBOUNDED PRECEDING)</code> holds <em>only</em> for a unique <code>k</code>. Repeated values break the equivalence.</p>
+
+<h5>When RANGE is actually what you want</h5>
+<p><code>RANGE</code> is not a defect &mdash; it is correct for &ldquo;total through end of day&rdquo; reporting, where every transaction on a date should share one cumulative figure. The skill is choosing deliberately: <code>RANGE</code> for peer-aware totals, <code>ROWS</code> for a strict row-by-row ledger.</p>
+
+<h5>Dialect notes</h5>
+<p>The <code>RANGE</code> default is ANSI SQL and holds in PostgreSQL, Oracle, SQL Server, Snowflake, BigQuery, and DuckDB; MySQL 8.0 follows it too. There is no engine where a bare <code>ORDER BY</code> in a window defaults to <code>ROWS</code>, so this tie trap is universal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that an <code>OVER (ORDER BY ...)</code> with no frame clause defaults to <code>RANGE</code>, and that <code>RANGE</code> makes <code>CURRENT ROW</code> include all tied peers &mdash; so a &ldquo;running total&rdquo; over a non-unique key plateaus across ties. Write <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> and add a unique tiebreaker to the ORDER BY for a true per-row running total.</div>

@@ -1,0 +1,50 @@
+<p>Finding pairs of states whose streaming totals are close is a self-join. The trap is the join predicate that removes duplicates. A naive self-join produces every state paired with itself, and every real pair <em>twice</em> &mdash; once as (A,B) and once as (B,A). The fix is one operator: join on <code>a.state &lt; b.state</code>, not <code>a.state &lt;&gt; b.state</code>.</p>
+
+<h4>1. The source data &mdash; <code>state_streams</code></h4>
+<table>
+  <thead><tr><th>state</th><th>total_streams</th></tr></thead>
+  <tbody>
+    <tr><td>NC</td><td>34569</td></tr>
+    <tr><td>SC</td><td>33999</td></tr>
+    <tr><td>CA</td><td>98324</td></tr>
+    <tr><td>MA</td><td>19345</td></tr>
+    <tr><td>GA</td><td>34000</td></tr>
+  </tbody>
+</table>
+<p>Goal: pairs of states whose totals differ by less than 1000, each pair listed once.</p>
+
+<h4>2. The query &mdash; self-join with an ordering predicate</h4>
+<pre><code>SELECT a.state AS state_a, b.state AS state_b,
+       ABS(a.total_streams - b.total_streams) AS stream_gap
+FROM state_streams a
+JOIN state_streams b ON a.state &lt; b.state
+WHERE ABS(a.total_streams - b.total_streams) &lt; 1000
+ORDER BY a.state, b.state;</code></pre>
+<p><code>a.state &lt; b.state</code> does two jobs at once: it drops self-pairs (a state is never <code>&lt;</code> itself) and it keeps only one ordering of each real pair (the alphabetically-earlier state is always <code>a</code>).</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>state_a</th><th>state_b</th><th>stream_gap</th></tr></thead>
+  <tbody>
+    <tr><td>GA</td><td>NC</td><td>569</td></tr>
+    <tr><td>GA</td><td>SC</td><td>1</td></tr>
+    <tr><td>NC</td><td>SC</td><td>570</td></tr>
+  </tbody>
+</table>
+<p>Three pairs. GA (34000) sits within 1000 of both NC (34569) and SC (33999); NC and SC are 570 apart. CA and MA are far from everything.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>&lt;&gt;</code> is not enough</h5>
+<p>An unrestricted self-join is a cross join: 5 states &rarr; 25 ordered pairs. <code>a.state &lt;&gt; b.state</code> removes only the 5 self-pairs, leaving 20 &mdash; still both (GA,NC) <em>and</em> (NC,GA). The result set is doubled. <code>a.state &lt; b.state</code> admits exactly one ordering of each unordered pair, giving the <em>n choose 2</em> distinct combinations and no self-pairs.</p>
+
+<h5>The key must be unique and totally ordered</h5>
+<p>The <code>&lt;</code> trick relies on the join key having a stable, unique ordering. <code>state</code> is a unique text key, so <code>&lt;</code> works. If states could repeat, <code>&lt;</code> would wrongly drop the pair of two equal-keyed-but-distinct rows; you would then compare a unique surrogate id instead (<code>a.id &lt; b.id</code>).</p>
+
+<h5>The predicate cannot live in the SELECT</h5>
+<p>The closeness test <code>ABS(...) &lt; 1000</code> belongs in <code>WHERE</code> (or the <code>ON</code> clause). Computing it as a SELECT column and hoping to filter later does not remove rows; and a window or aggregate cannot stand in for a row-level pair filter. Here it is a plain row predicate.</p>
+
+<h5>Dialect notes</h5>
+<p>The pattern is fully portable &mdash; PostgreSQL, MySQL, SQL Server, Oracle, Snowflake, BigQuery all evaluate <code>a.state &lt; b.state</code> identically for text. An explicit <code>CROSS JOIN ... WHERE a.state &lt; b.state</code> is equivalent to the <code>JOIN ... ON</code> form shown; pick whichever reads more clearly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> to enumerate unordered pairs from a self-join, join on <code>a.key &lt; b.key</code> &mdash; the strict inequality removes self-pairs and the mirror duplicate in one stroke, where <code>&lt;&gt;</code> leaves every pair counted twice. Use a unique, totally-ordered key (a surrogate id if the natural key can repeat).</div>

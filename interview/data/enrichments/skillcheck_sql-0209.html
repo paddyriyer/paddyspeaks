@@ -1,0 +1,70 @@
+<p>This running-balance query is a realistic, well-written pattern &mdash; signed amounts, a windowed cumulative sum, <code>LAG</code> for the opening balance. It is also subtly broken: on any account with more than one transaction on the same date, <code>balance_after</code> is <strong>non-deterministic</strong>. The cause is a <code>ROWS</code> frame driven by an <code>ORDER BY</code> whose key, <code>transaction_date</code>, is not unique.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code></h4>
+<table>
+  <thead><tr><th>txn_id</th><th>account_id</th><th>transaction_date</th><th>amount</th><th>transaction_type</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A100</td><td>2025-03-01</td><td>500</td><td>credit</td></tr>
+    <tr><td>2</td><td>A100</td><td>2025-03-02</td><td>200</td><td>credit</td></tr>
+    <tr><td>3</td><td>A100</td><td>2025-03-02</td><td>100</td><td>debit</td></tr>
+    <tr><td>4</td><td>A100</td><td>2025-03-02</td><td>300</td><td>debit</td></tr>
+    <tr><td>5</td><td>A100</td><td>2025-03-05</td><td>400</td><td>credit</td></tr>
+  </tbody>
+</table>
+<p>Three transactions land on <code>2025-03-02</code>. A debit subtracts, a credit adds.</p>
+
+<h4>2. The trap &mdash; ordering by a non-unique key</h4>
+<pre><code>SUM(signed_amount) OVER (
+  PARTITION BY account_id
+  ORDER BY transaction_date          -- not unique: 3 rows share 2025-03-02
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+) AS balance_after</code></pre>
+<p>A <code>ROWS</code> frame sums every row from the partition start up to &ldquo;this&rdquo; one &mdash; but among the three <code>2025-03-02</code> rows, the query gives SQL no way to decide which is first, second, or third. The engine may visit them in any order, so each same-day row&rsquo;s <code>balance_after</code> is an arbitrary partial sum. The opening balance (500) and the final same-day balance (300) are stable; the two values in between are not. <code>balance_before</code>, computed with <code>LAG</code> over the same ordering, inherits the same instability.</p>
+
+<h4>3. The correct query &mdash; add a unique tiebreaker</h4>
+<pre><code>WITH signed AS (
+  SELECT txn_id, account_id, transaction_date, amount, transaction_type,
+         CASE WHEN transaction_type = 'debit' THEN -amount ELSE amount END AS signed_amount
+  FROM transactions
+),
+running AS (
+  SELECT txn_id, account_id, transaction_date, amount, transaction_type,
+         SUM(signed_amount) OVER (
+           PARTITION BY account_id
+           ORDER BY transaction_date, txn_id
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS balance_after
+  FROM signed
+)
+SELECT txn_id, account_id, transaction_date, transaction_type, ABS(amount) AS amount,
+       COALESCE(LAG(balance_after) OVER (PARTITION BY account_id
+                                         ORDER BY transaction_date, txn_id), 0) AS balance_before,
+       balance_after
+FROM running
+ORDER BY account_id, transaction_date, txn_id;</code></pre>
+<table>
+  <thead><tr><th>txn_id</th><th>transaction_date</th><th>type</th><th>amount</th><th>balance_before</th><th>balance_after</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-03-01</td><td>credit</td><td>500</td><td>0</td><td>500</td></tr>
+    <tr><td>2</td><td>2025-03-02</td><td>credit</td><td>200</td><td>500</td><td>700</td></tr>
+    <tr><td>3</td><td>2025-03-02</td><td>debit</td><td>100</td><td>700</td><td>600</td></tr>
+    <tr><td>4</td><td>2025-03-02</td><td>debit</td><td>300</td><td>600</td><td>300</td></tr>
+    <tr><td>5</td><td>2025-03-05</td><td>credit</td><td>400</td><td>300</td><td>700</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why ROWS over a non-unique key is non-deterministic</h5>
+<p>A <code>ROWS</code> frame is defined by physical row position in the window&rsquo;s sort order. When the <code>ORDER BY</code> key has ties, that sort order is only <em>partially</em> defined &mdash; the engine is free to arrange tied rows however it likes, and may even change between runs, plans, or after a vacuum. Every per-row cumulative value across a tie group is therefore unstable. Only the value at the last row of the tie group (and beyond) is well defined.</p>
+
+<h5>The fix: a tiebreaker that totally orders the rows</h5>
+<p>Appending a unique column &mdash; here <code>txn_id</code> &mdash; to the window&rsquo;s <code>ORDER BY</code> makes the row order total and deterministic. A ledger table should always carry such a key: an autoincrement id or a per-account sequence number. Without one, a &ldquo;running balance&rdquo; is fundamentally ill-defined for same-day activity, and no window clause can rescue it.</p>
+
+<h5>RANGE would be deterministic &mdash; but wrong here</h5>
+<p>Switching the frame to <code>RANGE</code> removes the non-determinism, because <code>RANGE</code> assigns every tied row the same value: the balance through the end of that date. But that is an end-of-day balance, not a per-transaction one &mdash; all three <code>2025-03-02</code> rows would read 300. For a transaction-level ledger you need <code>ROWS</code> plus a tiebreaker, not <code>RANGE</code>.</p>
+
+<h5>Dialect notes</h5>
+<p>The non-determinism is standard behaviour everywhere &mdash; PostgreSQL, Snowflake, BigQuery, SQL Server, Oracle, MySQL 8.0. <code>ROWS UNBOUNDED PRECEDING</code> is accepted as shorthand for <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> in all of them. None will warn you about the missing tiebreaker; the query runs and returns plausible-looking numbers.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a windowed running total over a non-unique <code>ORDER BY</code> key is non-deterministic for the tied rows &mdash; the engine may order them arbitrarily, so intermediate <code>balance_after</code> (and <code>LAG</code>-derived <code>balance_before</code>) values are unstable. Always add a unique tiebreaker (a transaction id or sequence) to the window&rsquo;s ORDER BY; switching to <code>RANGE</code> hides the symptom but yields end-of-day, not per-transaction, balances.</div>
