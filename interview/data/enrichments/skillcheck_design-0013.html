@@ -23,6 +23,17 @@
   FOREIGN KEY (table_id, parent_snapshot_id) REFERENCES table_snapshot (table_id, snapshot_id)
 );
 
+CREATE TABLE table_data_file (
+  data_file_id      BIGSERIAL    PRIMARY KEY,
+  table_id          BIGINT       NOT NULL,
+  file_path         TEXT         NOT NULL,                  -- s3://... or hdfs://...
+  file_size_bytes   BIGINT       NOT NULL,
+  row_count         BIGINT       NOT NULL,
+  partition_values  JSONB        NOT NULL,                  -- e.g. {"event_date":"2025-05-12"}
+  column_stats      JSONB        NOT NULL,                  -- per-column min/max/null counts
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
 CREATE TABLE table_manifest_entry (
   table_id          BIGINT       NOT NULL,
   snapshot_id       BIGINT       NOT NULL,                  -- which snapshot owns this entry
@@ -33,17 +44,6 @@ CREATE TABLE table_manifest_entry (
   PRIMARY KEY (table_id, snapshot_id, data_file_id),
   FOREIGN KEY (table_id, snapshot_id) REFERENCES table_snapshot (table_id, snapshot_id),
   FOREIGN KEY (data_file_id) REFERENCES table_data_file (data_file_id)
-);
-
-CREATE TABLE table_data_file (
-  data_file_id      BIGSERIAL    PRIMARY KEY,
-  table_id          BIGINT       NOT NULL,
-  file_path         TEXT         NOT NULL,                  -- s3://... or hdfs://...
-  file_size_bytes   BIGINT       NOT NULL,
-  row_count         BIGINT       NOT NULL,
-  partition_values  JSONB        NOT NULL,                  -- e.g. {"event_date":"2025-05-12"}
-  column_stats      JSONB        NOT NULL,                  -- per-column min/max/null counts
-  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE INDEX ix_manifest_by_table_snapshot ON table_manifest_entry (table_id, snapshot_id);</code></pre>
