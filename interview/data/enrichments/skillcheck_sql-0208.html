@@ -1,0 +1,54 @@
+<p>A trailing moving average is a common window-function task, and it hides two traps at the edges. First, the rows at the start of each group cannot have a full trailing window &mdash; and the engine does <em>not</em> return NULL or pad with zeros there, it simply averages the rows that exist. Second, <code>PARTITION BY</code> resets the frame at every group boundary, so the window never bleeds across groups. Forgetting either gives wrong numbers.</p>
+
+<h4>1. The source data &mdash; <code>signups</code></h4>
+<table>
+  <thead><tr><th>region</th><th>day</th><th>cnt</th></tr></thead>
+  <tbody>
+    <tr><td>US</td><td>1</td><td>10</td></tr>
+    <tr><td>US</td><td>2</td><td>20</td></tr>
+    <tr><td>US</td><td>3</td><td>30</td></tr>
+    <tr><td>US</td><td>4</td><td>40</td></tr>
+    <tr><td>EU</td><td>1</td><td>7</td></tr>
+    <tr><td>EU</td><td>2</td><td>5</td></tr>
+    <tr><td>EU</td><td>3</td><td>9</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The query &mdash; a 3-day trailing average per region</h4>
+<pre><code>SELECT region, day, cnt,
+       ROUND(AVG(cnt) OVER (PARTITION BY region ORDER BY day
+                            ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS moving_avg_3d
+FROM signups
+ORDER BY region, day;</code></pre>
+<p>The frame <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> asks for this row plus the two before it &mdash; a 3-row trailing window. <code>PARTITION BY region</code> scopes that window to one region at a time.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>region</th><th>day</th><th>cnt</th><th>moving_avg_3d</th><th>window contents</th></tr></thead>
+  <tbody>
+    <tr><td>EU</td><td>1</td><td>7</td><td>7.00</td><td>{7}</td></tr>
+    <tr><td>EU</td><td>2</td><td>5</td><td>6.00</td><td>{7, 5}</td></tr>
+    <tr><td>EU</td><td>3</td><td>9</td><td>7.00</td><td>{7, 5, 9}</td></tr>
+    <tr><td>US</td><td>1</td><td>10</td><td>10.00</td><td>{10}</td></tr>
+    <tr><td>US</td><td>2</td><td>20</td><td>15.00</td><td>{10, 20}</td></tr>
+    <tr><td>US</td><td>3</td><td>30</td><td>20.00</td><td>{10, 20, 30}</td></tr>
+    <tr><td>US</td><td>4</td><td>40</td><td>30.00</td><td>{20, 30, 40}</td></tr>
+  </tbody>
+</table>
+<p>Day 1 of each region averages a single value; day 2 averages two. Only from day 3 onward is the window full. EU day 1 is 7.00, not a blend of US&rsquo;s tail &mdash; the partition reset keeps the regions separate.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Partial windows at the edge &mdash; no NULL, no zero-padding</h5>
+<p><code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> requests up to three rows, but at the partition&rsquo;s first row there are no preceding rows to include. SQL does not error, return NULL, or invent zero rows &mdash; the frame simply contains whatever rows exist (here, just the current one). So day 1&rsquo;s &ldquo;3-day average&rdquo; is the day-1 value itself. Candidates often expect the first two rows to be NULL until a full window is available; they are not.</p>
+
+<h5>PARTITION BY resets the frame</h5>
+<p>The frame is always evaluated <em>within</em> the current partition. EU day 1 cannot reach back into the US rows, even though US day 4 physically precedes it in the table. Drop <code>PARTITION BY region</code> and the bug is silent but real: EU day 1 would average US day 3, US day 4, and EU day 1 &mdash; <code>(30 + 40 + 7) / 3</code> &mdash; a meaningless cross-region blend.</p>
+
+<h5>If you want a strict full-window-only average</h5>
+<p>When a partial-window average is undesirable (an under-counted day-1 figure can mislead), make the partiality explicit: compute <code>COUNT(*) OVER (same frame)</code> and null out rows where the count is below 3, e.g. <code>CASE WHEN COUNT(*) OVER (...) = 3 THEN AVG(...) END</code>. That is a deliberate choice, not the default.</p>
+
+<h5>Dialect notes</h5>
+<p>The frame syntax and partial-edge behaviour are ANSI standard and identical in PostgreSQL, Snowflake, BigQuery, SQL Server, Oracle, and MySQL 8.0. <code>AVG</code> over an integer column returns an exact <code>numeric</code> in PostgreSQL, so <code>ROUND(..., 2)</code> applies cleanly; in engines where <code>AVG</code> yields a float, cast before rounding.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a trailing <code>ROWS BETWEEN n PRECEDING AND CURRENT ROW</code> frame silently shrinks at the partition edge &mdash; the first rows average a partial window rather than returning NULL &mdash; and <code>PARTITION BY</code> hard-stops the frame at group boundaries. Add <code>PARTITION BY</code> to prevent cross-group bleed, and gate on <code>COUNT(*) OVER (...)</code> if partial windows must be excluded.</div>
