@@ -38,19 +38,19 @@ ORDER BY p.category;</code></pre>
   <thead><tr><th>category</th><th>avg_price</th><th>order_count</th><th>units_sold</th></tr></thead>
   <tbody>
     <tr><td>Apparel</td><td>$35.00</td><td>0</td><td>NULL</td></tr>
-    <tr><td>Electronics</td><td>$27.67</td><td>4</td><td>8</td></tr>
+    <tr><td>Electronics</td><td>$27.00</td><td>4</td><td>8</td></tr>
     <tr><td>Media</td><td>$15.00</td><td>1</td><td>3</td></tr>
   </tbody>
 </table>
-<p>Trace for Electronics: products 10 ($25), 20 ($50), 40 ($8) &rarr; AVG = (25+50+8)/3 = $27.67. Order lines: (101,10), (101,20), (103,10), (104,40) = 4 rows &rarr; <code>COUNT(oi.order_id)</code> = 4. Qty: 2+1+1+4 = 8. Apparel: 0 order lines &mdash; <code>COUNT(oi.order_id)</code> returns 0 because COUNT ignores NULLs, but <code>SUM(oi.qty)</code> returns NULL because SUM of NULLs is NULL (no COALESCE applied in the query).</p>
+<p>Trace for Electronics: the LEFT JOIN produces 4 rows for Electronics products &mdash; Widget ($25) matches two order_items (orders 101 and 103), Gadget ($50) matches one, Cable ($8) matches one. <code>AVG(p.price)</code> averages all 4 price values: (25+25+50+8)/4 = $27.00. Order lines: (101,10), (101,20), (103,10), (104,40) = 4 rows &rarr; <code>COUNT(oi.order_id)</code> = 4. Qty: 2+1+1+4 = 8. Apparel: 0 order lines &mdash; <code>COUNT(oi.order_id)</code> returns 0 because COUNT ignores NULLs, but <code>SUM(oi.qty)</code> returns NULL because SUM of NULLs is NULL (no COALESCE applied in the query).</p>
 
 <h4>4. Strategic explanations</h4>
 
 <h5>LEFT JOIN to preserve unordered categories</h5>
 <p>An INNER JOIN would drop the Apparel category entirely because product 50 has no matching order_item rows. The LEFT JOIN preserves all products (and therefore all categories) in the result. The <code>GROUP BY p.category</code> then collapses products within each category. This is the canonical "show all groups, even empty ones" pattern.</p>
 
-<h5><code>AVG(p.price)</code> is a product-level average, not a sales-weighted average</h5>
-<p>There are 3 Electronics products (Widget $25, Gadget $50, Cable $8). <code>AVG(p.price)</code> is (25 + 50 + 8) / 3 = $27.67 — the simple average of the <em>product catalogue</em> prices, one row per product after the join. It is <em>not</em> weighted by sales volume. A sales-weighted average would be <code>SUM(s.amount) / SUM(s.qty)</code> from a sales table. Candidates who confuse these two are answering a different question.</p>
+<h5><code>AVG(p.price)</code> is join-fanout-weighted, not a simple catalogue average</h5>
+<p>There are 3 Electronics products (Widget $25, Gadget $50, Cable $8), but the LEFT JOIN produces 4 Electronics rows because Widget matches two order_items. <code>AVG(p.price)</code> averages the price across all join-result rows, so Widget's $25 is counted twice: (25 + 25 + 50 + 8) / 4 = $27.00. This is not a simple catalogue average — it is order-frequency-weighted by the join. A true unweighted catalogue average would require aggregating prices before joining, e.g., using a subquery or <code>AVG(DISTINCT p.price)</code> per category. A sales-weighted average would be <code>SUM(s.amount) / SUM(s.qty)</code> from a sales table. Candidates should be aware that <code>AVG(p.price)</code> in this query reflects join fanout, not a clean per-product mean.</p>
 
 <h5>COUNT vs SUM for different metrics</h5>
 <p><code>COUNT(oi.order_id)</code> counts the number of order line items (one row per product per order). <code>SUM(oi.qty)</code> sums the quantities on each line. Both are correct but measure different things: order frequency vs units moved. Note that <code>COUNT(oi.order_id)</code> returns 0 when all <code>oi.order_id</code> values are NULL (the LEFT JOIN NULL case), whereas <code>SUM(oi.qty)</code> returns NULL. Wrapping the SUM in <code>COALESCE(SUM(oi.qty), 0)</code> makes both metrics consistently zero for empty categories.</p>
@@ -61,4 +61,4 @@ ORDER BY p.category;</code></pre>
 <h5>Dialect notes</h5>
 <p><code>AVG</code>, <code>COUNT</code>, <code>SUM</code>, and <code>LEFT JOIN</code> are ANSI SQL and identical across Snowflake, PostgreSQL, BigQuery, and MySQL. In BigQuery you must use <code>FLOAT64</code> division for <code>AVG</code> on integer price columns (handled automatically by BigQuery's type inference). MySQL's <code>GROUP BY</code> historically allowed non-aggregated columns without including them in the clause (the infamous <code>ONLY_FULL_GROUP_BY</code> mode off by default pre-5.7) — always verify that mode is enabled.</p>
 
-<div class="takeaway"><strong>Senior signal:</strong> explain that LEFT JOIN is required to keep zero-order categories, distinguish <code>AVG(p.price)</code> (catalogue average) from a sales-weighted average (<code>SUM(revenue) / SUM(qty)</code>), and call out that <code>SUM</code> returns NULL while <code>COUNT</code> returns 0 for empty groups — requiring <code>COALESCE</code> if you want consistent zeros across both columns.</div>
+<div class="takeaway"><strong>Senior signal:</strong> explain that LEFT JOIN is required to keep zero-order categories, note that <code>AVG(p.price)</code> is inflated by join fanout (products with multiple order lines have their price counted multiple times), and call out that <code>SUM</code> returns NULL while <code>COUNT</code> returns 0 for empty groups — requiring <code>COALESCE</code> if you want consistent zeros across both columns.</div>

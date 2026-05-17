@@ -15,7 +15,7 @@
     <tr><td>R09</td><td>3</td><td>U09</td><td>5</td></tr>
   </tbody>
 </table>
-<p>Ride 1: ratings [4,4,5,4,1] &mdash; mean = 3.6, stddev &asymp; 1.497. Ride 2: ratings [3,3,3] &mdash; mean = 3.0, stddev = 0. Ride 3: one rating only &mdash; stddev = NULL (sample stddev of 1 value is undefined). The outlier threshold is &plusmn;2 standard deviations.</p>
+<p>Ride 1: ratings [4,4,5,4,1] &mdash; mean = 3.6, stddev &asymp; 1.517. Ride 2: ratings [3,3,3] &mdash; mean = 3.0, stddev = 0. Ride 3: one rating only &mdash; stddev = NULL (sample stddev of 1 value is undefined). The outlier threshold is &plusmn;2 standard deviations.</p>
 
 <h4>2. The SQL &mdash; z-score anomaly detection with NULLIF guard</h4>
 <pre><code>WITH stats AS (
@@ -37,19 +37,19 @@ ORDER BY ABS((r.rating::numeric - s.mu) / NULLIF(s.sd, 0)) DESC;</code></pre>
 <table>
   <thead><tr><th>ride_id</th><th>mu</th><th>sd</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td>3.6</td><td>&asymp;1.497</td></tr>
+    <tr><td>1</td><td>3.6</td><td>&asymp;1.517</td></tr>
     <tr><td>2</td><td>3.0</td><td>0</td></tr>
     <tr><td>3</td><td>5.0</td><td>NULL</td></tr>
   </tbody>
 </table>
-<p>Filtering: ride 2 is excluded by <code>s.sd IS NOT NULL</code> (sd=0 passes the NULL check but fails <code>ABS(...) &gt; 2 * 0 = 0</code> unless there is an actual deviation). Ride 3 is excluded by <code>s.sd IS NOT NULL</code>. For ride 1, the threshold is 2 &times; 1.497 &asymp; 2.994. Rating 1 deviates by |1 - 3.6| = 2.6 which is &lt; 2.994 &mdash; does not qualify. Rating 5 deviates by |5 - 3.6| = 1.4 &mdash; does not qualify. All ride 1 ratings fall within &plusmn;2 sd.</p>
+<p>Filtering: ride 2 is excluded by <code>s.sd IS NOT NULL</code> (sd=0 passes the NULL check but fails <code>ABS(...) &gt; 2 * 0 = 0</code> unless there is an actual deviation). Ride 3 is excluded by <code>s.sd IS NOT NULL</code>. For ride 1, the threshold is 2 &times; 1.517 &asymp; 3.033. Rating 1 deviates by |1 - 3.6| = 2.6 which is &lt; 3.033 &mdash; does not qualify. Rating 5 deviates by |5 - 3.6| = 1.4 &mdash; does not qualify. All ride 1 ratings fall within &plusmn;2 sd.</p>
 <table>
   <thead><tr><th colspan="7">Final result (with sample data above)</th></tr></thead>
   <tbody>
     <tr><td colspan="7"><em>(empty &mdash; no row exceeds the 2-sigma threshold with this dataset)</em></td></tr>
   </tbody>
 </table>
-<p>To illustrate a non-empty result, replace rating R05 with rating = 0. Then deviation = |0 - 3.6| = 3.6 &gt; 2.994 &mdash; z_score = (0 - 3.6) / 1.497 &asymp; -2.40. That row would appear in the output, sorted descending by |z_score|.</p>
+<p>The empty result here is in fact <em>structural</em>, not just a quirk of these numbers: in a sample of size <code>n</code> the largest possible absolute z-score (using sample stddev) is <code>(n&minus;1)/&radic;n</code> &mdash; for ride 1's <code>n = 5</code> that ceiling is <code>4/&radic;5 &asymp; 1.79</code>, below the 2&sigma; cutoff no matter how extreme one rating is. The reason is self-correcting feedback: a lone outlier also pulls the mean toward itself and inflates the stddev, so it can never travel far in z-units. A genuinely non-empty result needs a ride with many more ratings, where one value can sit far from a mean the rest hold stable.</p>
 
 <h4>4. Strategic explanations</h4>
 

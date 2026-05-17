@@ -48,20 +48,21 @@ ORDER BY total_cost DESC;</code></pre>
 </ul>
 <p>Window function computation:</p>
 <ul>
-  <li>Plant North costs: E1=2950, E2=500, E5=NULL &rarr; RANK by cost DESC: E1=1, E2=2, E5=3 (NULLs sort last)</li>
+  <li>Plant North costs: E1=2950, E2=500, E5=NULL &rarr; RANK by cost DESC: E5=1, E1=2, E2=3 (Postgres sorts NULLs first in DESC)</li>
   <li>Plant South costs: E3=4000, E4=600 &rarr; RANK by cost DESC: E3=1, E4=2</li>
-  <li>Global frequency DENSE_RANK by events DESC: E1(3)=1, E3(2)=2, E2(1)=3, E4(1)=3, E5(0)=5</li>
+  <li>Global frequency DENSE_RANK by events DESC: E1(3)=1, E3(2)=2, E2(1)=3, E4(1)=3, E5(0)=4</li>
 </ul>
 <table>
   <thead><tr><th>equipment_id</th><th>name</th><th>location</th><th>events</th><th>total_cost</th><th>last_maint</th><th>cost_rank</th><th>freq_rank</th></tr></thead>
   <tbody>
+    <tr><td>E5</td><td>Turbine E</td><td>Plant North</td><td>0</td><td>NULL</td><td>NULL</td><td>1</td><td>4</td></tr>
     <tr><td>E3</td><td>Generator C</td><td>Plant South</td><td>2</td><td>4000</td><td>2025-03-05</td><td>1</td><td>2</td></tr>
-    <tr><td>E1</td><td>Compressor A</td><td>Plant North</td><td>3</td><td>2950</td><td>2025-03-20</td><td>1</td><td>1</td></tr>
+    <tr><td>E1</td><td>Compressor A</td><td>Plant North</td><td>3</td><td>2950</td><td>2025-03-20</td><td>2</td><td>1</td></tr>
     <tr><td>E4</td><td>Valve D</td><td>Plant South</td><td>1</td><td>600</td><td>2025-01-15</td><td>2</td><td>3</td></tr>
-    <tr><td>E2</td><td>Pump B</td><td>Plant North</td><td>1</td><td>500</td><td>2025-01-25</td><td>2</td><td>3</td></tr>
-    <tr><td>E5</td><td>Turbine E</td><td>Plant North</td><td>0</td><td>NULL</td><td>NULL</td><td>3</td><td>5</td></tr>
+    <tr><td>E2</td><td>Pump B</td><td>Plant North</td><td>1</td><td>500</td><td>2025-01-25</td><td>3</td><td>3</td></tr>
   </tbody>
 </table>
+<p>The output leads with E5: the final <code>ORDER BY total_cost DESC</code> follows the same Postgres rule, so the unserviced turbine&rsquo;s NULL <code>total_cost</code> floats to the <em>top</em> of the report &mdash; rarely what a cost review wants. Appending <code>NULLS LAST</code> to that ORDER BY (and to the cost-rank window) pushes equipment with no spend to the bottom.</p>
 
 <h4>4. Strategic explanations</h4>
 
@@ -72,7 +73,7 @@ ORDER BY total_cost DESC;</code></pre>
 <p>Within Plant North, <code>RANK() OVER (PARTITION BY location ORDER BY SUM(cost) DESC)</code>: if two items tied at cost they would both get rank 1 and the next item would get rank 3 (a gap). <code>DENSE_RANK() OVER (ORDER BY COUNT(maint_id) DESC)</code> for frequency: E2 and E4 both have 1 event, both get frequency_rank=3; the next rank is 4 (no gap). The choice signals intent: RANK for "there are N-1 equipment that beat you" (gap shows how many ties at the top), DENSE_RANK for "there are N-1 distinct frequency levels above you." For leaderboard display, DENSE_RANK avoids confusing gaps.</p>
 
 <h5>LEFT JOIN to include unserviced equipment</h5>
-<p>E5 has no maintenance records. The <code>LEFT JOIN</code> keeps it in the result with NULL cost and zero events. <code>COUNT(m.maint_id)</code> correctly returns 0 for E5 (COUNT ignores NULLs); <code>SUM(m.cost)</code> returns NULL (SUM of NULLs). For ordering and ranking, NULL sorts after all non-NULL values in ascending order (last when ordering DESC in most engines), so E5 ranks last by cost within Plant North. To treat NULL cost as 0 for ranking, use <code>COALESCE(SUM(m.cost), 0)</code>.</p>
+<p>E5 has no maintenance records. The <code>LEFT JOIN</code> keeps it in the result with NULL cost and zero events. <code>COUNT(m.maint_id)</code> correctly returns 0 for E5 (COUNT ignores NULLs); <code>SUM(m.cost)</code> returns NULL (SUM of NULLs). In Postgres a NULL sorts as larger than every non-NULL value &mdash; last in <code>ASC</code>, first in <code>DESC</code> &mdash; so under <code>ORDER BY SUM(m.cost) DESC</code> the unserviced E5 ranks <em>first</em> within Plant North, ahead of equipment that actually incurred cost. To rank it last instead (usually what a cost leaderboard wants), treat NULL as 0 with <code>COALESCE(SUM(m.cost), 0)</code> or append <code>NULLS LAST</code>.</p>
 
 <h5>NULLs in ORDER BY of a window function</h5>
 <p>By default in Postgres and Snowflake, NULLs sort last in <code>ASC</code> order and first in <code>DESC</code> order. Snowflake supports <code>NULLS LAST</code> / <code>NULLS FIRST</code> modifiers: <code>ORDER BY SUM(m.cost) DESC NULLS LAST</code> explicitly puts unserviced equipment at the bottom regardless of sort direction &mdash; the production-safe form.</p>
