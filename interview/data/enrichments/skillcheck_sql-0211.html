@@ -1,0 +1,55 @@
+<p>&ldquo;Time to first reply&rdquo; on a support inbox is a self-join &mdash; match each inbound message to the reply that answers it. The trap is the join predicate: a reply is not just &ldquo;another message in the same thread.&rdquo; It must travel in the <em>opposite direction</em> (sender and recipient swapped), arrive <em>after</em> the inbound message, and only the <em>earliest</em> such reply counts. Miss any one condition and the answer is silently wrong.</p>
+
+<h4>1. The source data &mdash; <code>messages</code></h4>
+<table>
+  <thead><tr><th>msg_id</th><th>thread</th><th>sender</th><th>recipient</th><th>sent_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>T1</td><td>alice@x.com</td><td>support@co.com</td><td>2025-04-01 09:00</td></tr>
+    <tr><td>2</td><td>T1</td><td>support@co.com</td><td>alice@x.com</td><td>2025-04-01 11:30</td></tr>
+    <tr><td>3</td><td>T2</td><td>bob@y.com</td><td>support@co.com</td><td>2025-04-02 14:00</td></tr>
+    <tr><td>4</td><td>T2</td><td>support@co.com</td><td>bob@y.com</td><td>2025-04-02 14:45</td></tr>
+    <tr><td>5</td><td>T2</td><td>support@co.com</td><td>bob@y.com</td><td>2025-04-02 16:00</td></tr>
+    <tr><td>6</td><td>T3</td><td>carol@z.com</td><td>support@co.com</td><td>2025-04-03 10:00</td></tr>
+  </tbody>
+</table>
+<p>T2 has two support replies (msg 4 and msg 5). T3 has no reply at all.</p>
+
+<h4>2. The query &mdash; a direction-aware self-join</h4>
+<pre><code>SELECT inbound.msg_id, inbound.thread,
+       MIN(reply.sent_at) - inbound.sent_at AS response_time
+FROM messages inbound
+JOIN messages reply
+  ON reply.thread    = inbound.thread
+ AND reply.sender    = inbound.recipient   -- reply goes the other way
+ AND reply.recipient = inbound.sender
+ AND reply.sent_at   &gt; inbound.sent_at     -- and strictly after
+WHERE inbound.recipient = 'support@co.com'
+GROUP BY inbound.msg_id, inbound.thread, inbound.sent_at
+ORDER BY inbound.msg_id;</code></pre>
+<p>The aliases <code>inbound</code> and <code>reply</code> are the same table. The join pairs an inbound message with every later message flowing the opposite way in the thread; <code>MIN(reply.sent_at)</code> then picks the first of those.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>msg_id</th><th>thread</th><th>response_time</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>T1</td><td>02:30:00</td></tr>
+    <tr><td>3</td><td>T2</td><td>00:45:00</td></tr>
+  </tbody>
+</table>
+<p>msg 1 is answered by msg 2 (2h30m later). msg 3 has two candidate replies, msg 4 and msg 5; <code>MIN</code> takes msg 4 (45 minutes). msg 6 has no reply, so the inner join drops it &mdash; which is exactly the requirement (&ldquo;exclude messages that received no response&rdquo;).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The direction swap is the crux</h5>
+<p>Joining only on <code>thread</code> matches every message to every other message in the thread &mdash; including itself, and including same-direction messages. The pair of conditions <code>reply.sender = inbound.recipient AND reply.recipient = inbound.sender</code> enforces that the reply is a genuine response: it goes from the original recipient back to the original sender. Without the swap, an inbound message could &ldquo;answer&rdquo; itself or be answered by a parallel inbound message.</p>
+
+<h5>The time predicate must be strict</h5>
+<p><code>reply.sent_at &gt; inbound.sent_at</code> keeps only replies that came <em>after</em>. Using <code>&gt;=</code> would let a message pair with itself if timestamps tie; omitting the predicate entirely would let an earlier message count as a &ldquo;reply&rdquo; to a later one, producing negative response times.</p>
+
+<h5>MIN handles the multi-reply thread</h5>
+<p>A thread often has several back-and-forth messages. The join produces one row per (inbound, later-reply) pair, so msg 3 joins to both msg 4 and msg 5. Aggregating with <code>MIN(reply.sent_at)</code> collapses those to the <em>first</em> reply &mdash; the response time. Taking <code>MAX</code>, or forgetting to aggregate, would measure the wrong thing.</p>
+
+<h5>INNER JOIN doubles as the &ldquo;had a response&rdquo; filter</h5>
+<p>Because the join is an inner join, an inbound message with no qualifying reply contributes no rows and disappears &mdash; msg 6 is excluded for free. If the task instead wanted <em>all</em> inbound messages with NULL for unanswered ones, a <code>LEFT JOIN</code> would be required, and the <code>GROUP BY</code> would still collapse correctly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a &ldquo;response&rdquo; self-join must pin three things at once &mdash; same thread, swapped sender/recipient (the reply travels the other way), and a strict <code>&gt;</code> on time &mdash; then <code>MIN</code> the reply timestamp to get the first response. The inner join naturally excludes unanswered messages; switch to <code>LEFT JOIN</code> only if unanswered rows must be kept.</div>
