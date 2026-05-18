@@ -652,10 +652,42 @@ export function planRowsForSpec(spec, opts = {}) {
     // the CREATE TABLE.
     if (Array.isArray(t.rows) && t.rows.length > 0) {
       // Build colMeta the same way generateRows would, but skip
-      // generation — just emit the seeded rows.
+      // generation — just emit the seeded rows. When explicit rows are
+      // supplied, the DATA decides the column type: an *_id column may
+      // legitimately hold text keys like "P1", so name-based inference
+      // (which would force INTEGER and break the INSERT) yields to the
+      // actual values.
+      const colTypes = t.columnTypes || {};
       const colMeta = t.columns.map((c) => {
         const role = inferRole(c);
-        return { name: c, ...role };
+        const vals = t.rows.map((r) => r[c]).filter((v) => v != null);
+        let type = role.type;
+        let pgType;
+        if (colTypes[c]) {
+          // Schema extracted from CREATE TABLE DDL — the declared type is
+          // authoritative: it preserves text-stored dates, NUMERIC vs.
+          // float precision, and booleans that the row values can't show.
+          pgType = colTypes[c];
+          type = /INT/i.test(pgType) ? "INTEGER"
+               : /DOUBLE|REAL/i.test(pgType) ? "REAL" : "TEXT";
+        } else if (vals.length) {
+          if (vals.every((v) => typeof v === "boolean")) {
+            type = "TEXT"; pgType = "BOOLEAN";
+          } else if (vals.every((v) => typeof v === "number" && Number.isInteger(v))) {
+            type = "INTEGER"; pgType = "INTEGER";
+          } else if (vals.every((v) => typeof v === "number")) {
+            type = "REAL"; pgType = "DOUBLE PRECISION";
+          } else if (vals.every((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v))) {
+            type = "TEXT"; pgType = "DATE";
+          } else if (vals.every((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(v))) {
+            type = "TEXT"; pgType = "TIMESTAMP";
+          } else {
+            type = "TEXT";
+            pgType = role.role === "date" ? "DATE"
+                   : role.role === "datetime" ? "TIMESTAMP" : "TEXT";
+          }
+        }
+        return { name: c, ...role, type, pgType };
       });
       out.push({ table: t.table, colMeta, rows: t.rows });
       // Register own-PK values into ownedIdMap so FK-resolving tables
@@ -719,6 +751,10 @@ export function generateAndLoad(db, spec, opts = {}) {
 // INTEGER/REAL/TEXT for everything, but Postgres needs DATE/TIMESTAMP for
 // DATE_TRUNC / EXTRACT / interval arithmetic to work on the synthetic data.
 export function pgTypeFor(meta) {
+  // Explicit-rows tables carry a data-derived pgType — it wins over the
+  // name-based role (a "marks" column holding integers must be INTEGER,
+  // not NUMERIC, or `marks::text` yields "80.00" and integer-regex fails).
+  if (meta.pgType) return meta.pgType;
   if (meta.role === "date") return "DATE";
   if (meta.role === "datetime") return "TIMESTAMP";
   if (meta.role === "money") return "NUMERIC(12,2)";

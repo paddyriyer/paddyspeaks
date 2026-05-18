@@ -9,6 +9,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
+import { DatabaseSync } from "node:sqlite";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -108,6 +109,62 @@ function buildDDL(plan) {
   return sql;
 }
 
+// ── SQLite helpers (for runtime:sqlite questions) ────────────────────────
+// node:sqlite runs one statement at a time, so multi-statement solutions
+// (and trailing-comment banners) must be split on real `;` boundaries —
+// quotes and comments are skipped so semicolons inside them don't split.
+function splitStatements(sql) {
+  const stmts = [];
+  let cur = "";
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    if (c === "'" || c === '"') {
+      cur += c;
+      i++;
+      while (i < sql.length) {
+        cur += sql[i];
+        if (sql[i] === c) {
+          if (c === "'" && sql[i + 1] === "'") {
+            cur += sql[++i];
+          } else break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (c === "-" && sql[i + 1] === "-") {
+      while (i < sql.length && sql[i] !== "\n") cur += sql[i++];
+      cur += "\n";
+      continue;
+    }
+    if (c === "/" && sql[i + 1] === "*") {
+      cur += "/*";
+      i += 2;
+      while (i < sql.length && !(sql[i] === "*" && sql[i + 1] === "/")) cur += sql[i++];
+      cur += "*/";
+      i++;
+      continue;
+    }
+    if (c === ";") {
+      stmts.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) stmts.push(cur);
+  return stmts.filter((s) => bareStart(s).length > 0);
+}
+function bareStart(st) {
+  return st.replace(/^(?:\s|--[^\n]*\n?|\/\*[\s\S]*?\*\/)+/, "");
+}
+function isQuery(st) {
+  return /^(SELECT|WITH|VALUES|TABLE)\b/i.test(bareStart(st));
+}
+function toSqliteDDL(ddl) {
+  return ddl.replace(/ WITHOUT TIME ZONE/gi, "");
+}
+
 // ── sweep ────────────────────────────────────────────────────────────────
 const sqlQs = questions.filter((q) => q.language === "sql");
 const db = new PGlite();
@@ -117,9 +174,43 @@ for (const q of sqlQs) {
   n++;
   if (n % 100 === 0) process.stderr.write(`  ${n}/${sqlQs.length}\n`);
   const rec = { id: q.id, batch: q.batch, dialect: !!q.dialect_token };
+  if (/Schema Design/i.test(q.type || "")) {
+    // Schema-design questions ask for a data model, not a runnable query.
+    rec.status = "design";
+    results.push(rec);
+    continue;
+  }
   const spec = schemas[q.id];
   if (!spec || !spec.length) {
-    rec.status = "no-schema";
+    // No schema spec — the solution may still be self-contained (recursive
+    // CTEs, generate_series, its own CREATE TABLE). Run it against an empty
+    // database; only a missing-relation error means a schema is required.
+    try {
+      if (q.runtime === "sqlite") {
+        const sdb = new DatabaseSync(":memory:");
+        try {
+          let rows = 0;
+          for (const st of splitStatements(q.solution || "")) {
+            if (isQuery(st)) rows = sdb.prepare(st).all().length;
+            else sdb.exec(st);
+          }
+          rec.status = "ok";
+          rec.rows = rows;
+        } finally {
+          sdb.close();
+        }
+      } else {
+        await db.exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+        const res = await db.exec(q.solution || "");
+        const last = Array.isArray(res) ? res[res.length - 1] : res;
+        rec.status = "ok";
+        rec.rows = last && last.rows ? last.rows.length : 0;
+      }
+    } catch (e) {
+      const msg = String(e.message || e).split("\n")[0];
+      rec.status = /does not exist|no such table/i.test(msg) ? "no-schema" : "error";
+      rec.msg = msg;
+    }
     results.push(rec);
     continue;
   }
@@ -142,12 +233,41 @@ for (const q of sqlQs) {
     results.push(rec);
     continue;
   }
+  if (q.runtime === "sqlite") {
+    // The playground runs runtime:sqlite questions on SQLite (sql.js), not
+    // Postgres — verify them on the matching engine so SQLite-only syntax
+    // (julianday, strftime) isn't mis-reported as a broken solution.
+    let sdb;
+    try {
+      sdb = new DatabaseSync(":memory:");
+      sdb.exec(toSqliteDDL(ddl));
+      let rows = 0;
+      for (const st of splitStatements(q.solution || "")) {
+        if (isQuery(st)) rows = sdb.prepare(st).all().length;
+        else sdb.exec(st);
+      }
+      rec.status = "ok";
+      rec.rows = rows;
+    } catch (e) {
+      rec.status = "error";
+      rec.msg = String(e.message || e).split("\n")[0];
+    } finally {
+      if (sdb) sdb.close();
+    }
+    results.push(rec);
+    continue;
+  }
   try {
     await db.exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
     await db.exec(ddl);
-    const res = await db.query(q.solution || "");
+    // Mirror the playground (sql.js), which runs solutions through exec()
+    // so self-contained multi-statement solutions (DROP/CREATE/INSERT/
+    // SELECT) execute. exec() yields one result per statement; the final
+    // one is the query whose row count we report.
+    const res = await db.exec(q.solution || "");
+    const last = Array.isArray(res) ? res[res.length - 1] : res;
     rec.status = "ok";
-    rec.rows = res.rows.length;
+    rec.rows = last && last.rows ? last.rows.length : 0;
   } catch (e) {
     rec.status = "error";
     rec.msg = String(e.message || e).split("\n")[0];
@@ -172,6 +292,7 @@ console.log(`    └ dialect-flagged  : ${count((r) => r.status === "error" && r
 console.log(`    └ NOT dialect      : ${count((r) => r.status === "error" && !r.dialect)}`);
 console.log(`  no schema spec       : ${count((r) => r.status === "no-schema")}`);
 console.log(`  plan-error           : ${count((r) => r.status === "plan-error")}`);
+console.log(`  schema-design (skip) : ${count((r) => r.status === "design")}`);
 const byBatch = {};
 for (const r of by((r) => r.status === "error" && !r.dialect)) {
   byBatch[r.batch] = (byBatch[r.batch] || 0) + 1;

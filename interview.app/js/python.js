@@ -96,7 +96,8 @@ async function ensurePandas(autoFromCode = false) {
   state.loadingPandas = true;
   setStatus("Loading pandas + numpy (~10 MB)…");
   try {
-    await state.pyodide.loadPackage(["numpy", "pandas"]);
+    // openpyxl: pandas needs it to read/write .xlsx (df.to_excel / ExcelWriter).
+    await state.pyodide.loadPackage(["numpy", "pandas", "openpyxl"]);
     // Silence the pyarrow DeprecationWarning pandas emits on first import —
     // it's an FYI, not an error, and it would otherwise print as red text
     // in the output panel for any solution that loads pandas.
