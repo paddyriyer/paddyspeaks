@@ -145,9 +145,14 @@ for (const q of sqlQs) {
   try {
     await db.exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
     await db.exec(ddl);
-    const res = await db.query(q.solution || "");
+    // Mirror the playground (sql.js), which runs solutions through exec()
+    // so self-contained multi-statement solutions (DROP/CREATE/INSERT/
+    // SELECT) execute. exec() yields one result per statement; the final
+    // one is the query whose row count we report.
+    const res = await db.exec(q.solution || "");
+    const last = Array.isArray(res) ? res[res.length - 1] : res;
     rec.status = "ok";
-    rec.rows = res.rows.length;
+    rec.rows = last && last.rows ? last.rows.length : 0;
   } catch (e) {
     rec.status = "error";
     rec.msg = String(e.message || e).split("\n")[0];
