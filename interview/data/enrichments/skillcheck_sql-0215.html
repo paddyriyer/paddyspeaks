@@ -1,0 +1,75 @@
+<p>The window-function approach reframes the problem as a roll-up: tag every employee as a Manager or not, then &mdash; for each manager &mdash; count how many of their reports are Managers and how many are Senior Managers. Aggregate window functions partitioned by <code>manager_id</code> do the counting. The trap is believing a window can also do the <em>tagging</em>.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td></tr>
+    <tr><td>4</td><td>Dave</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+    <tr><td>6</td><td>Karl</td><td>2</td></tr>
+    <tr><td>7</td><td>Frank</td><td>3</td></tr>
+    <tr><td>8</td><td>Grace</td><td>4</td></tr>
+    <tr><td>9</td><td>Heidi</td><td>4</td></tr>
+    <tr><td>10</td><td>Ivan</td><td>5</td></tr>
+    <tr><td>11</td><td>Judy</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>Four tiers run Alice (CEO) &rarr; Bob and Carol &rarr; Dave, Eve and Frank &rarr; the individual contributors. Bob&rsquo;s team is deliberately mixed &mdash; Dave and Eve are Managers, but Karl is an IC.</p>
+
+<h4>2. The window-function solution</h4>
+<pre><code>WITH base AS (
+  SELECT e.emp_id, e.emp_name, e.manager_id,
+         CASE WHEN EXISTS (SELECT 1 FROM employees s WHERE s.manager_id = e.emp_id)
+              THEN 1 ELSE 0 END AS is_mgr,
+         CASE WHEN EXISTS (
+                SELECT 1 FROM employees s
+                JOIN employees gs ON gs.manager_id = s.emp_id
+                WHERE s.manager_id = e.emp_id)
+              THEN 1 ELSE 0 END AS manages_a_mgr
+  FROM employees e
+),
+boss_stats AS (
+  SELECT manager_id AS mgr_id,
+         COUNT(*)           OVER (PARTITION BY manager_id) AS direct_reports,
+         SUM(is_mgr)        OVER (PARTITION BY manager_id) AS manager_reports,
+         SUM(manages_a_mgr) OVER (PARTITION BY manager_id) AS sm_reports,
+         ROW_NUMBER()       OVER (PARTITION BY manager_id) AS rn
+  FROM base
+  WHERE manager_id IS NOT NULL
+)
+SELECT emp.emp_name AS senior_manager, bs.direct_reports
+FROM boss_stats bs
+JOIN employees emp ON emp.emp_id = bs.mgr_id
+WHERE bs.rn = 1
+  AND bs.manager_reports &gt;= 1
+  AND bs.sm_reports = 0
+ORDER BY bs.direct_reports DESC, senior_manager ASC;</code></pre>
+<p><code>base</code> flags each employee: <code>is_mgr</code> (has a report) and <code>manages_a_mgr</code> (has a report who themselves has a report). <code>boss_stats</code> then partitions by <code>manager_id</code>, so every report row carries its boss&rsquo;s totals. A manager qualifies when at least one report is a Manager and none is a Senior Manager.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>senior_manager</th><th>direct_reports</th></tr></thead>
+  <tbody>
+    <tr><td>Bob</td><td>3</td></tr>
+    <tr><td>Carol</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>PARTITION BY manager_id rolls the team up to its boss</h5>
+<p>Partitioning by <code>manager_id</code> groups all of one manager&rsquo;s reports together. <code>SUM(is_mgr) OVER (PARTITION BY manager_id)</code> is then &ldquo;how many of this manager&rsquo;s reports are Managers&rdquo; &mdash; a fact about the <em>boss</em>, copied onto each report row. <code>ROW_NUMBER()</code> plus <code>WHERE rn = 1</code> collapses each partition back to one row per manager.</p>
+
+<h5>The trap: MAX(...) OVER (PARTITION BY emp_id) cannot detect a Manager</h5>
+<p>It is tempting to flag managers in &ldquo;one pass&rdquo; with <code>MAX(CASE WHEN manager_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY emp_id)</code>. It does not work. <code>emp_id</code> is unique, so each partition is a single row &mdash; the window sees no one else. The expression collapses to &ldquo;does <em>this</em> row have a manager,&rdquo; the opposite of being a manager: on this data it flags Alice (the CEO) as 0 and the ICs as 1. Identifying a Manager requires relating <code>emp_id</code> to the <code>manager_id</code> column &mdash; a semi-join (<code>EXISTS</code> / <code>IN</code>), which is exactly why <code>base</code> uses <code>EXISTS</code>.</p>
+
+<h5>Window functions annotate; they do not group</h5>
+<p><code>SUM(...) OVER (...)</code> leaves the row count unchanged &mdash; it writes the aggregate onto every row of the partition. Without <code>ROW_NUMBER() ... WHERE rn = 1</code> (or <code>DISTINCT</code>) the result would repeat each Senior Manager once per direct report. Forgetting that collapse step is a classic window-function slip.</p>
+
+<h5>Two flags, two levels</h5>
+<p><code>is_mgr</code> is the first level &mdash; a report is a Manager. <code>manages_a_mgr</code> is the second &mdash; a report is itself a Senior Manager. Requiring <code>manager_reports &gt;= 1</code> and <code>sm_reports = 0</code> encodes both halves of the definition: manage a Manager, but not a manager-of-managers.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> window aggregates with <code>PARTITION BY manager_id</code> are ideal for rolling team facts up to a manager &mdash; but a window partitioned by a unique key sees only its own row. Detecting &ldquo;is a manager&rdquo; needs a semi-join, not a window; and a window annotates rows rather than collapsing them, so you still need a row-picking step.</div>

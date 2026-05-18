@@ -1,0 +1,66 @@
+<p>This is the compact form: one self-joined reporting chain, <code>GROUP BY</code> the manager, and a two-line <code>HAVING</code> clause that encodes both halves of the rule. It is the version to reach for in production &mdash; a single statement the planner optimizes in one shot &mdash; and it generalizes neatly to any tier of the org chart.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td></tr>
+    <tr><td>4</td><td>Dave</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+    <tr><td>6</td><td>Karl</td><td>2</td></tr>
+    <tr><td>7</td><td>Frank</td><td>3</td></tr>
+    <tr><td>8</td><td>Grace</td><td>4</td></tr>
+    <tr><td>9</td><td>Heidi</td><td>4</td></tr>
+    <tr><td>10</td><td>Ivan</td><td>5</td></tr>
+    <tr><td>11</td><td>Judy</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>Four tiers run Alice (CEO) &rarr; Bob and Carol &rarr; Dave, Eve and Frank &rarr; the individual contributors. Bob&rsquo;s team is deliberately mixed &mdash; Dave and Eve are Managers, but Karl is an IC.</p>
+
+<h4>2. The GROUP BY / HAVING solution</h4>
+<pre><code>WITH team_metrics AS (
+  SELECT e1.manager_id AS senior_mgr_id,
+         e1.emp_id     AS report_id,
+         CASE WHEN e2.emp_id IS NOT NULL THEN 1 ELSE 0 END AS report_is_manager,
+         CASE WHEN e3.emp_id IS NOT NULL THEN 1 ELSE 0 END AS report_is_senior_manager
+  FROM employees e1
+  LEFT JOIN employees e2 ON e2.manager_id = e1.emp_id
+  LEFT JOIN employees e3 ON e3.manager_id = e2.emp_id
+  WHERE e1.manager_id IS NOT NULL
+)
+SELECT m.emp_name AS senior_manager,
+       COUNT(DISTINCT tm.report_id) AS direct_reports
+FROM team_metrics tm
+JOIN employees m ON m.emp_id = tm.senior_mgr_id
+GROUP BY m.emp_id, m.emp_name
+HAVING SUM(report_is_manager) &gt;= 1
+   AND SUM(report_is_senior_manager) = 0
+ORDER BY direct_reports DESC, senior_manager ASC;</code></pre>
+<p><code>team_metrics</code> walks two levels below each employee: <code>report_is_manager</code> marks a report who has a report; <code>report_is_senior_manager</code> marks a report who has a <em>grand</em>-report. Grouping by the manager and testing those two sums with <code>HAVING</code> settles the question in one aggregation.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>senior_manager</th><th>direct_reports</th></tr></thead>
+  <tbody>
+    <tr><td>Bob</td><td>3</td></tr>
+    <tr><td>Carol</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>HAVING with a threshold &mdash; the mixed-team fix</h5>
+<p><code>SUM(report_is_manager) &gt;= 1</code> asks for <em>at least one</em> managerial report. A tempting but wrong condition instead demands that <em>every</em> report be a manager (<code>COUNT(managers) = COUNT(reports)</code>). That silently drops a Senior Manager whose team mixes Managers and ICs &mdash; exactly Bob, who manages Dave and Eve (Managers) plus Karl (an IC). The threshold is correct; the equality is the bug.</p>
+
+<h5>The e3 join is the grandparent fix</h5>
+<p><code>report_is_senior_manager</code> depends on the third join, <code>e3</code> &mdash; the report&rsquo;s report. Checking only <code>report_is_manager</code> (one level down) would wrongly keep a VP sitting above a Director: the VP does manage a Manager. The <code>e3</code> join looks one level deeper, so a manager whose report is itself a Senior Manager is correctly excluded.</p>
+
+<h5>The same roll-up classifies every tier</h5>
+<p>Add a fourth join and a <code>report_is_exec</code> flag and the aggregated profile classifies any layer by changing only the <code>HAVING</code>: <code>SUM(report_is_manager) &gt;= 1 AND SUM(report_is_senior_manager) = 0</code> gives Senior Managers; <code>SUM(report_is_senior_manager) &gt;= 1 AND SUM(report_is_exec) = 0</code> gives Directors; <code>SUM(report_is_manager) = 0</code> gives front-line managers. One query shape, a tunable predicate.</p>
+
+<h5>&ldquo;Single statement&rdquo; is real; &ldquo;single scan&rdquo; is not</h5>
+<p>This is one statement, and the planner runs it as a hash self-join feeding one aggregation &mdash; efficient and readable. It is <em>not</em>, however, a &ldquo;single scan of the table.&rdquo; Determining who manages whom inherently relates <code>employees</code> to itself; wrapping the table in a CTE, or writing the self-join as a <code>FULL OUTER JOIN</code>, does not collapse that to one read. The honest win is one statement with no procedural steps &mdash; not one disk pass. In production, also wrap the display name in <code>COALESCE</code> so managers with a missing name are not all folded into a single NULL group.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> <code>GROUP BY</code> + <code>HAVING</code> over a self-joined chain states a hierarchy rule in one optimizer-friendly statement. Use threshold tests (<code>SUM(flag) &gt;= 1</code>), not equalities, so mixed teams survive &mdash; and be precise about &ldquo;single-pass&rdquo;: it means one statement, not one table scan.</div>

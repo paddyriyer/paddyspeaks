@@ -24175,6 +24175,90 @@
     ]
   },
   {
+    "id": "skillcheck_sql-0214",
+    "batch": "skillcheck_sql",
+    "num": 214,
+    "title": "Senior Managers via Set Operations",
+    "slug": "senior-managers-via-set-operations",
+    "company": null,
+    "type": "SQL / Hierarchies",
+    "subtopic": "Tree / Hierarchies",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: employees(emp_id, emp_name, manager_id), a single self-referential org chart where manager_id references emp_id and is NULL only for the top executive. A Manager is any employee with at least one direct report. A Senior Manager is a Manager who manages at least one other Manager but none of whose direct reports is itself a Senior Manager (so a Senior Manager sits exactly one tier above the front-line managers). Return each Senior Manager's name as senior_manager and their direct-report count as direct_reports, ordered by direct_reports descending then senior_manager ascending. Solve it with set operations: build the hierarchy levels in CTEs and use EXCEPT to remove managers who sit above the Senior Manager tier.",
+    "schema": "CREATE TABLE employees (emp_id INT, emp_name TEXT, manager_id INT);\nINSERT INTO employees VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),(3,'Carol',1),\n  (4,'Dave',2),(5,'Eve',2),(6,'Karl',2),(7,'Frank',3),\n  (8,'Grace',4),(9,'Heidi',4),(10,'Ivan',5),(11,'Judy',7);",
+    "solution": "WITH managers AS (\n  SELECT DISTINCT manager_id AS mgr FROM employees WHERE manager_id IS NOT NULL\n),\nmanages_a_manager AS (\n  SELECT DISTINCT e.manager_id AS mgr\n  FROM employees e\n  JOIN managers m ON e.emp_id = m.mgr\n  WHERE e.manager_id IS NOT NULL\n),\nsenior_managers AS (\n  SELECT mgr FROM manages_a_manager\n  EXCEPT\n  SELECT DISTINCT e.manager_id\n  FROM employees e\n  JOIN manages_a_manager mm ON e.emp_id = mm.mgr\n  WHERE e.manager_id IS NOT NULL\n)\nSELECT sm_emp.emp_name AS senior_manager,\n       COUNT(r.emp_id) AS direct_reports\nFROM senior_managers sm\nJOIN employees sm_emp ON sm_emp.emp_id = sm.mgr\nJOIN employees r ON r.manager_id = sm.mgr\nGROUP BY sm_emp.emp_id, sm_emp.emp_name\nORDER BY direct_reports DESC, senior_manager ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "hierarchies",
+      "set-operations",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0215",
+    "batch": "skillcheck_sql",
+    "num": 215,
+    "title": "Senior Managers via Window Functions",
+    "slug": "senior-managers-via-window-functions",
+    "company": null,
+    "type": "SQL / Hierarchies",
+    "subtopic": "Tree / Hierarchies",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: employees(emp_id, emp_name, manager_id), a single self-referential org chart where manager_id references emp_id and is NULL only for the top executive. A Manager is any employee with at least one direct report. A Senior Manager is a Manager who manages at least one other Manager but none of whose direct reports is itself a Senior Manager (so a Senior Manager sits exactly one tier above the front-line managers). Return each Senior Manager's name as senior_manager and their direct-report count as direct_reports, ordered by direct_reports descending then senior_manager ascending. Solve it with window functions: roll up each manager's report statistics with aggregate window functions partitioned by manager.",
+    "schema": "CREATE TABLE employees (emp_id INT, emp_name TEXT, manager_id INT);\nINSERT INTO employees VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),(3,'Carol',1),\n  (4,'Dave',2),(5,'Eve',2),(6,'Karl',2),(7,'Frank',3),\n  (8,'Grace',4),(9,'Heidi',4),(10,'Ivan',5),(11,'Judy',7);",
+    "solution": "WITH base AS (\n  SELECT e.emp_id, e.emp_name, e.manager_id,\n         CASE WHEN EXISTS (SELECT 1 FROM employees s WHERE s.manager_id = e.emp_id)\n              THEN 1 ELSE 0 END AS is_mgr,\n         CASE WHEN EXISTS (\n                SELECT 1 FROM employees s\n                JOIN employees gs ON gs.manager_id = s.emp_id\n                WHERE s.manager_id = e.emp_id)\n              THEN 1 ELSE 0 END AS manages_a_mgr\n  FROM employees e\n),\nboss_stats AS (\n  SELECT manager_id AS mgr_id,\n         COUNT(*)           OVER (PARTITION BY manager_id) AS direct_reports,\n         SUM(is_mgr)        OVER (PARTITION BY manager_id) AS manager_reports,\n         SUM(manages_a_mgr) OVER (PARTITION BY manager_id) AS sm_reports,\n         ROW_NUMBER()       OVER (PARTITION BY manager_id) AS rn\n  FROM base\n  WHERE manager_id IS NOT NULL\n)\nSELECT emp.emp_name AS senior_manager, bs.direct_reports\nFROM boss_stats bs\nJOIN employees emp ON emp.emp_id = bs.mgr_id\nWHERE bs.rn = 1\n  AND bs.manager_reports >= 1\n  AND bs.sm_reports = 0\nORDER BY bs.direct_reports DESC, senior_manager ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "hierarchies",
+      "window-functions",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0216",
+    "batch": "skillcheck_sql",
+    "num": 216,
+    "title": "Senior Managers via Outer-Join Tier Mapping",
+    "slug": "senior-managers-via-outer-join-tier-mapping",
+    "company": null,
+    "type": "SQL / Hierarchies",
+    "subtopic": "Tree / Hierarchies",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: employees(emp_id, emp_name, manager_id), a single self-referential org chart where manager_id references emp_id and is NULL only for the top executive. A Manager is any employee with at least one direct report. A Senior Manager is a Manager who manages at least one other Manager but none of whose direct reports is itself a Senior Manager (so a Senior Manager sits exactly one tier above the front-line managers). Return each Senior Manager's name as senior_manager and their direct-report count as direct_reports, ordered by direct_reports descending then senior_manager ascending. Solve it by mapping the reporting tiers with a chain of LEFT JOINs, then filtering on which tiers exist below each manager.",
+    "schema": "CREATE TABLE employees (emp_id INT, emp_name TEXT, manager_id INT);\nINSERT INTO employees VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),(3,'Carol',1),\n  (4,'Dave',2),(5,'Eve',2),(6,'Karl',2),(7,'Frank',3),\n  (8,'Grace',4),(9,'Heidi',4),(10,'Ivan',5),(11,'Judy',7);",
+    "solution": "WITH chain AS (\n  SELECT e1.emp_id   AS m_id,\n         e1.emp_name AS m_name,\n         e2.emp_id   AS child_id,\n         e3.emp_id   AS grandchild_id,\n         e4.emp_id   AS greatgrandchild_id\n  FROM employees e1\n  LEFT JOIN employees e2 ON e2.manager_id = e1.emp_id\n  LEFT JOIN employees e3 ON e3.manager_id = e2.emp_id\n  LEFT JOIN employees e4 ON e4.manager_id = e3.emp_id\n)\nSELECT m_name AS senior_manager,\n       COUNT(DISTINCT child_id) AS direct_reports\nFROM chain\nWHERE m_id IN (SELECT m_id FROM chain WHERE grandchild_id IS NOT NULL)\n  AND m_id NOT IN (SELECT m_id FROM chain WHERE greatgrandchild_id IS NOT NULL)\nGROUP BY m_id, m_name\nORDER BY direct_reports DESC, senior_manager ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "hierarchies",
+      "joins",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0217",
+    "batch": "skillcheck_sql",
+    "num": 217,
+    "title": "Senior Managers via GROUP BY and HAVING",
+    "slug": "senior-managers-via-group-by-and-having",
+    "company": null,
+    "type": "SQL / Hierarchies",
+    "subtopic": "Tree / Hierarchies",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: employees(emp_id, emp_name, manager_id), a single self-referential org chart where manager_id references emp_id and is NULL only for the top executive. A Manager is any employee with at least one direct report. A Senior Manager is a Manager who manages at least one other Manager but none of whose direct reports is itself a Senior Manager (so a Senior Manager sits exactly one tier above the front-line managers). Return each Senior Manager's name as senior_manager and their direct-report count as direct_reports, ordered by direct_reports descending then senior_manager ascending. Solve it as a single GROUP BY ... HAVING statement over a self-joined reporting chain.",
+    "schema": "CREATE TABLE employees (emp_id INT, emp_name TEXT, manager_id INT);\nINSERT INTO employees VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),(3,'Carol',1),\n  (4,'Dave',2),(5,'Eve',2),(6,'Karl',2),(7,'Frank',3),\n  (8,'Grace',4),(9,'Heidi',4),(10,'Ivan',5),(11,'Judy',7);",
+    "solution": "WITH team_metrics AS (\n  SELECT e1.manager_id AS senior_mgr_id,\n         e1.emp_id     AS report_id,\n         CASE WHEN e2.emp_id IS NOT NULL THEN 1 ELSE 0 END AS report_is_manager,\n         CASE WHEN e3.emp_id IS NOT NULL THEN 1 ELSE 0 END AS report_is_senior_manager\n  FROM employees e1\n  LEFT JOIN employees e2 ON e2.manager_id = e1.emp_id\n  LEFT JOIN employees e3 ON e3.manager_id = e2.emp_id\n  WHERE e1.manager_id IS NOT NULL\n)\nSELECT m.emp_name AS senior_manager,\n       COUNT(DISTINCT tm.report_id) AS direct_reports\nFROM team_metrics tm\nJOIN employees m ON m.emp_id = tm.senior_mgr_id\nGROUP BY m.emp_id, m.emp_name\nHAVING SUM(report_is_manager) >= 1\n   AND SUM(report_is_senior_manager) = 0\nORDER BY direct_reports DESC, senior_manager ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "hierarchies",
+      "aggregation",
+      "tricky"
+    ]
+  },
+  {
     "id": "skillcheck_python-0001",
     "batch": "skillcheck_python",
     "num": 1,
