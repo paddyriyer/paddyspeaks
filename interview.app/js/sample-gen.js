@@ -652,10 +652,21 @@ export function planRowsForSpec(spec, opts = {}) {
     // the CREATE TABLE.
     if (Array.isArray(t.rows) && t.rows.length > 0) {
       // Build colMeta the same way generateRows would, but skip
-      // generation — just emit the seeded rows.
+      // generation — just emit the seeded rows. When explicit rows are
+      // supplied, the DATA decides the column type: an *_id column may
+      // legitimately hold text keys like "P1", so name-based inference
+      // (which would force INTEGER and break the INSERT) yields to the
+      // actual values.
       const colMeta = t.columns.map((c) => {
         const role = inferRole(c);
-        return { name: c, ...role };
+        const vals = t.rows.map((r) => r[c]).filter((v) => v != null);
+        let type = role.type;
+        if (vals.length) {
+          if (vals.every((v) => typeof v === "number" && Number.isInteger(v))) type = "INTEGER";
+          else if (vals.every((v) => typeof v === "number")) type = "REAL";
+          else type = "TEXT";
+        }
+        return { name: c, ...role, type };
       });
       out.push({ table: t.table, colMeta, rows: t.rows });
       // Register own-PK values into ownedIdMap so FK-resolving tables
