@@ -214,6 +214,48 @@
     <tr><td><strong>Data vault</strong></td><td>3-table pattern (hub/link/satellite) for high-change EDWs. Mention; rarely use.</td></tr>
   </tbody>
 </table>
+
+<h3 class="section-head">The decision discipline — knowing when the model breaks down</h3>
+<p>The five moves tell you <em>how</em> to model. Seniority is also knowing <em>when a pattern stops working</em>. Four discipline checks a senior candidate raises unprompted — the layer between "how to model" and "when this model breaks down."</p>
+
+<h4 class="sub-head">1 · When NOT to event-source</h4>
+<p>Event sourcing — an append-only log, current state as a projection — is powerful and badly over-applied. It is a cost as much as a capability.</p>
+<table>
+  <thead><tr><th>Reach for event sourcing when</th><th>Skip it when</th></tr></thead>
+  <tbody>
+    <tr><td>The transition history <em>is</em> the product — trip lifecycle, payment ledger, order pipeline</td><td>Only the current value matters — a display name, a config flag, a preference</td></tr>
+    <tr><td>You must audit or replay "how did we get here"</td><td>A plain SCD1 / SCD2 dimension already answers every question asked</td></tr>
+    <tr><td>Several consumers need different projections of the same events</td><td>There is one reader and one shape, and that will not change</td></tr>
+    <tr><td>Corrections must be non-destructive — finance, regulatory</td><td>High-churn data where the log dwarfs the state 1000:1 and nobody will ever replay it</td></tr>
+  </tbody>
+</table>
+<p>The bill: every read becomes a fold (or a snapshot you must maintain), every schema change must stay backward-compatible <em>forever</em>, and replay infrastructure has to actually exist. Buy event sourcing and never replay, and you have paid the cost without the benefit.</p>
+
+<h4 class="sub-head">2 · The OLTP / OLAP boundary — per entity, not per system</h4>
+<p>Every entity has a transactional home and an analytical mirror; the boundary between them is a deliberate choice, made entity by entity.</p>
+<table>
+  <thead><tr><th>Side</th><th>Optimised for</th><th>Shape</th><th>Trip example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>OLTP</strong></td><td>Point writes, row locks, low latency</td><td>Normalised, current-state</td><td>The live <code>trips</code> row, mutated in place</td></tr>
+    <tr><td><strong>OLAP</strong></td><td>Wide scans, aggregation, columnar reads</td><td>Star schema, history-preserving</td><td><code>fct_trips</code> — append-only snapshot</td></tr>
+  </tbody>
+</table>
+<p>The crossing is a CDC or event stream into the warehouse, governed by a watermark. The senior point: the same entity is normalised in OLTP and dimensional in OLAP <em>on purpose</em>, and the model must name which side each table lives on. A "fact table" the application writes to directly has erased the boundary — a design smell, every time.</p>
+
+<h4 class="sub-head">3 · Consistency contracts — strong vs eventual, per field</h4>
+<p>State, for every field that matters, whether it is strongly or eventually consistent — and never let a single table imply one answer for all of its columns. Money is strong. Engagement counters, ETAs, recommendation scores, denormalised rollups are eventual. Write the contract down <em>before the first column</em>: retrofitting strong consistency onto a field built eventual is a rebuild, not a tweak. (Worked end to end in the Uber trip scenario, Section 13.)</p>
+
+<h4 class="sub-head">4 · Model evolution strategy</h4>
+<p>A schema is never finished — so decide the evolution rules at design time, not at the first breaking change.</p>
+<ul>
+  <li><strong>Schema versioning</strong> — additive changes only: new nullable columns, new event types. Never repurpose an existing column's meaning. Carry a <code>schema_version</code> on every event.</li>
+  <li><strong>Backfills</strong> — every new column needs a plan for historical rows: a default, a recompute, or an explicit "NULL before date X." "We'll figure it out later" is how a column becomes permanently untrustworthy.</li>
+  <li><strong>Migrations</strong> — expansion is cheap; changing grain or key is not. Adding SCD2 to a populated dimension is a months-long migration (see the trap list in §05). Decide grain and SCD strategy <em>before</em> launch.</li>
+</ul>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Before adding a column I ask three things — is the change additive, what is the backfill for history, and does it move the grain? And before reaching for event sourcing I ask one — will anyone actually replay this? Naming the discipline, not just the pattern, is what separates 'can model' from 'has owned a model in production.'"
+</div>
 </section>
 
 <div class="ornament">· · ·</div>
@@ -1717,6 +1759,161 @@ WHERE e.state = 'ACCIDENT_REPORTED';
 <strong>Senior framing for mass-event scale.</strong> "The Journey → Trip → Event hierarchy doesn't change at 20K riders — what changes is the load on three specific SCD2 dimensions: <code>dim_geography</code> for road state, <code>dim_vehicles</code> for insurance, <code>dim_fx_rate</code> for currency. Get those three SCD2s right, use infinity-dates instead of NULLs, and shard H3 to L10 inside the venue, and the rest of the model behaves identically — surge locked, payouts reconciled, growth segmented. The chaos is contained at the dimension layer, not the fact layer."
 </div>
 
+<div class="callout">
+<strong>From the map to the terrain.</strong> Sections 1–11 draw the model — clean grains, a reconciling star schema, the convoy hierarchy. Sections 12–16 add the layer a senior interviewer actually probes: what the model does when it meets production. A model that only describes the happy path is a well-drawn map of a city with nothing marked for where the roads flood or which bridges buckle under load. Entity ownership, consistency contracts, state-machine guards, failure containment, and the shard key are that missing layer — the line between a "system-design explanation" and a design that survives production.
+</div>
+
+<h4 class="sub-head">Section 12 — Entity ownership &amp; boundaries (who owns what, what crosses the line)</h4>
+<p>The model so far names tables. A senior answer names <strong>archetypes</strong> and <strong>owners</strong> — because the boundary between two tables is a contract, not a foreign key. Four archetypes, four write disciplines, four systems of record.</p>
+
+<table>
+  <thead><tr><th>Entity</th><th>Archetype &amp; write discipline</th><th>System of record</th><th>What crosses the boundary</th></tr></thead>
+  <tbody>
+    <tr><td><code>fct_trips</code></td><td><strong>Stateful aggregate.</strong> One row mutated through a known state machine in OLTP; snapshotted append-only to the warehouse.</td><td>Trip service (OLTP) → warehouse mirror</td><td>The <em>terminal</em> state + immutable keys (<code>trip_id</code>, <code>surge_multiplier</code>, <code>fx_rate_to_usd</code>). Never the in-flight state.</td></tr>
+    <tr><td><code>fct_trip_events</code></td><td><strong>Append-only log.</strong> Insert-only, never updated, ordered by <code>event_timestamp</code> within <code>trip_id</code>.</td><td>Dispatch / telemetry service</td><td>Every state transition, immutably. This log <em>is</em> the audit trail.</td></tr>
+    <tr><td><code>total_fare_usd</code> · <code>driver_payout_usd</code></td><td><strong>Financial truth.</strong> Append-only ledger; corrections are new rows, never an in-place <code>UPDATE</code>.</td><td>Payments / ledger service</td><td>A <em>committed</em> amount keyed to <code>trip_id</code> — written only after a terminal state.</td></tr>
+    <tr><td><code>location_h3</code> · raw GPS</td><td><strong>Time-series stream.</strong> High-volume, lossy, latest-write-wins, TTL'd.</td><td>Location service (Redis / Pinot)</td><td>A <em>sampled</em> H3 cell on each event — not the raw 1&nbsp;Hz GPS firehose.</td></tr>
+  </tbody>
+</table>
+
+<p>The ownership rule that signals seniority:</p>
+<blockquote><code>fct_trips</code> is a projection, not a source. The trip's life <em>is</em> the <code>fct_trip_events</code> log; <code>fct_trips</code> is that log folded into its current state. If the two ever disagree, the log wins and <code>fct_trips</code> is rebuilt.</blockquote>
+<p>That is event-sourcing-with-a-snapshot, and it earns the level. The interviewer's follow-up — <em>"so can you rebuild <code>fct_trips</code> from <code>fct_trip_events</code>?"</em> — has one correct answer: yes, and that is the whole point (Section 15).</p>
+
+<div class="trap-box">
+<strong>Boundary violations that disqualify.</strong> A column on <code>fct_trips</code> that a second service writes directly → two writers, no source of truth. Raw GPS inside <code>fct_trip_events</code> → a 1&nbsp;Hz firehose welded to an append-only audit log, now unqueryable. A fare written before the terminal state → finance reads an estimate as if it were committed. Each one collapses a boundary the model depends on.
+</div>
+
+<h4 class="sub-head">Section 13 — Consistency contracts: one model, four consistency regimes</h4>
+<p>A model that does not state its consistency contracts looks architecturally correct but operationally fuzzy. The Uber model spans four subsystems, and <strong>each runs a different consistency regime</strong>. Name them explicitly, per subsystem.</p>
+
+<table>
+  <thead><tr><th>Subsystem</th><th>Regime</th><th>Operational contract</th><th>Mechanism</th></tr></thead>
+  <tbody>
+    <tr><td>Matching / dispatch</td><td><strong>Eventual</strong> — seconds</td><td>✓ two riders may briefly see the same driver as "available" &nbsp;·&nbsp; ✗ a driver permanently double-booked</td><td>Optimistic lock on <code>driver_id</code> + offer expiry; first <code>MATCHED</code> wins</td></tr>
+    <tr><td>Payments / payout</td><td><strong>Strong</strong> — ACID</td><td>✓ payout lands minutes after dropoff &nbsp;·&nbsp; ✗ a charge with no matching ledger entry; <code>SUM(payouts) ≠ SUM(fares − take)</code></td><td>Double-entry ledger, <code>trip_id</code> as idempotency key, single writer</td></tr>
+    <tr><td>Location / GPS</td><td><strong>Lossy</strong> — latest-write-wins</td><td>✓ dropped samples, a stale fix &nbsp;·&nbsp; ✗ blocking a trip write because a GPS packet is late</td><td>Fire-and-forget into a TTL'd store; never on the trip's critical path</td></tr>
+    <tr><td>Analytics / warehouse</td><td><strong>Batch</strong> — bounded staleness</td><td>✓ warehouse <code>fct_trips</code> is 5–60&nbsp;min behind OLTP &nbsp;·&nbsp; ✗ finance closing the books inside an open late-data window</td><td>Watermark + 24–48&nbsp;h backfill window; an explicit "as-of" reporting timestamp</td></tr>
+  </tbody>
+</table>
+
+<p>The framing that lifts the answer a level: <strong>consistency is per-field, not per-system.</strong> On a single <code>fct_trips</code> row —</p>
+<ul>
+  <li><code>surge_multiplier</code>, <code>fx_rate_to_usd</code> — <strong>strong</strong>; locked at request, immutable forever.</li>
+  <li><code>driver_id</code> — <strong>strong at assignment</strong> (the optimistic lock), then immutable.</li>
+  <li>the live ETA the rider sees (derived, not stored on the fact) — <strong>eventual</strong>; a stale value is a harmless UX hint.</li>
+  <li><code>is_flagged_risk</code> — <strong>eventual and slowly-changing</strong>; appended, never blocks anything.</li>
+</ul>
+
+<div class="callout">
+<strong>The trap:</strong> treating the whole trip as one consistency class. The ETA and the fare share a row but nothing operationally — one can be 30 seconds stale at zero cost, the other must be exact or finance breaks. A model that cannot tell those two fields apart will either over-engineer the ETA or under-protect the fare.
+</div>
+
+<h4 class="sub-head">Section 14 — State-machine rigor: legal transitions, idempotency, the races</h4>
+<p>Section 1 lists the states. Seniority is in the <em>edges</em> — which transitions are legal, what guards the illegal ones, and which concurrency races the model must already survive. Interviewers love breaking a state machine; bring the guards before they ask.</p>
+
+<p><strong>The legal transition table</strong> (event states; terminal states mirror <code>fct_trips.terminal_state</code>):</p>
+<table>
+  <thead><tr><th>From state</th><th>Legal next states</th><th>Absorbing?</th></tr></thead>
+  <tbody>
+    <tr><td><code>REQUESTED</code></td><td><code>MATCHED</code> · <code>EXPIRED</code> · <code>CANCELLED</code></td><td>no</td></tr>
+    <tr><td><code>MATCHED</code></td><td><code>ARRIVED</code> · <code>CANCELLED</code></td><td>no</td></tr>
+    <tr><td><code>ARRIVED</code></td><td><code>STARTED</code> · <code>NO_SHOW</code> · <code>CANCELLED</code></td><td>no</td></tr>
+    <tr><td><code>STARTED</code></td><td><code>DROPOFF</code></td><td>no</td></tr>
+    <tr><td><code>DROPOFF</code> · <code>CANCELLED</code> · <code>EXPIRED</code> · <code>NO_SHOW</code></td><td><em>(none)</em></td><td><strong>yes — terminal</strong></td></tr>
+  </tbody>
+</table>
+<p>Anything outside this table is an <strong>invalid transition</strong> and must be rejected, not silently written: <code>STARTED → MATCHED</code> (time travel), <code>DROPOFF → STARTED</code> (a terminal state is absorbing), a second <code>MATCHED</code> on a trip already matched. The guard is a state-rank check plus <code>event_timestamp</code> ordering within <code>trip_id</code> — an event that would lower the rank is routed to a dead-letter queue, not appended.</p>
+
+<p><strong>Idempotency.</strong> <code>fct_trip_events.event_id</code> is the producer's idempotency key. At-least-once delivery (Kafka, retried RPCs) <em>will</em> redeliver; the append must be a no-op on a seen <code>event_id</code>.</p>
+<pre><code>-- Event-log append. At-least-once delivery WILL redeliver; event_id makes it safe.
+INSERT INTO fct_trip_events (event_id, trip_id, state, event_timestamp, location_h3, actor)
+SELECT :event_id, :trip_id, :state, :event_ts, :h3, :actor
+ WHERE NOT EXISTS (SELECT 1 FROM fct_trip_events WHERE event_id = :event_id);
+-- Equivalent: UNIQUE(event_id) + INSERT ... ON CONFLICT DO NOTHING.</code></pre>
+
+<p><strong>The races a senior volunteers</strong> — before the interviewer reaches for them:</p>
+<table>
+  <thead><tr><th>Race</th><th>What goes wrong</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td>Driver accepts twice (double-tap / RPC retry)</td><td>Two <code>MATCHED</code> events, same <code>trip_id</code>, same <code>driver_id</code></td><td>Idempotent on <code>event_id</code>; the assignment <code>UPDATE</code> below is a no-op the second time</td></tr>
+    <tr><td>Duplicate offer — two drivers both accept</td><td>Two <code>MATCHED</code>, same <code>trip_id</code>, <em>different</em> <code>driver_id</code></td><td>Optimistic lock: <code>UPDATE … WHERE driver_id IS NULL</code> — exactly one wins, the loser re-queues</td></tr>
+    <tr><td>Double cancel — rider and driver cancel together</td><td>Two terminal writes on one trip</td><td>Compare-and-set: <code>terminal_state</code> is set once, under <code>WHERE terminal_state IS NULL</code></td></tr>
+    <tr><td>Late event reorders the log</td><td><code>ARRIVED</code> lands after <code>STARTED</code> on network delay</td><td>Sort by <code>event_timestamp</code> within <code>trip_id</code> at read; reject rank-violating writes</td></tr>
+  </tbody>
+</table>
+
+<pre><code>-- OLTP write path. Driver assignment: the optimistic lock that
+-- resolves the duplicate-offer race. Exactly one racing driver wins.
+UPDATE trips
+   SET driver_id = :candidate_driver_id,
+       state     = 'MATCHED'
+ WHERE trip_id   = :trip_id
+   AND state     = 'REQUESTED'     -- guard: trip still offerable
+   AND driver_id IS NULL;          -- guard: only the first writer passes
+-- rows_updated = 0  → another driver already won; release the offer, re-queue.
+-- rows_updated = 1  → this driver is assigned; emit the MATCHED event.</code></pre>
+
+<div class="trap-box">
+<strong>The trap:</strong> drawing the happy-path state diagram and stopping. The junior answer is a picture of states; the senior answer is a <em>guard on every edge</em> — the state-rank check, the <code>event_id</code> dedup, and the compare-and-set that makes "exactly one driver wins" true under concurrency. States are a diagram; legal transitions plus the locks that enforce them are a system.
+</div>
+
+<h4 class="sub-head">Section 15 — Failure scenarios &amp; the reconciliation engine</h4>
+<p>The clean star schema is the steady-state view. Production runs a <strong>reconciliation engine</strong> underneath it — and a senior candidate volunteers the ugliness rather than waiting to be cornered by it.</p>
+
+<table>
+  <thead><tr><th>Failure</th><th>Symptom</th><th>How the model contains it</th></tr></thead>
+  <tbody>
+    <tr><td>Duplicate driver assignment</td><td>Two drivers en route to one rider</td><td>The optimistic lock (§14) blocks it at write. If it still leaks, <code>(driver_id, journey_id)</code> uniqueness flags a DQ violation; the second trip resolves to <code>cancelled_system</code> — no payout.</td></tr>
+    <tr><td>Late GPS → wrong ETA</td><td>Rider sees a stale 12-min ETA; the driver is 2 min away</td><td>The live ETA is eventual-consistency UX (§13) — a wrong ETA costs nothing financial. <code>location_h3</code> is sampled, never authoritative, and never feeds the fare.</td></tr>
+    <tr><td>Payment succeeds, trip then fails</td><td>Rider charged; trip ends <code>cancelled_system</code> after <code>STARTED</code></td><td>The fare is an append-only ledger — the charge is real, so the reversal is a <em>new</em> refund row, not a delete. <code>terminal_state</code> drives the refund rule; net = <code>SUM</code>.</td></tr>
+    <tr><td>Event replay → double charge</td><td>Kafka replays the <code>DROPOFF</code>; the fare is computed twice</td><td><code>event_id</code> idempotency (§14) dedups the replayed event before the fare calc sees it. The fare is keyed to <code>trip_id</code> once; a re-compute is a <code>MERGE</code> no-op.</td></tr>
+    <tr><td>Driver app crashes mid-trip</td><td>No <code>DROPOFF</code> event ever arrives</td><td>Stuck-state sweeper: a trip in <code>STARTED</code> past <code>p99(trip_duration) × 3</code> is force-resolved to <code>cancelled_system</code> and reconciled against its last-known H3.</td></tr>
+  </tbody>
+</table>
+
+<p>The reconciliation engine is <strong>three standing jobs</strong>, not a feature bolted on later:</p>
+<ol>
+  <li><strong>Invariant checks</strong> — the two SUM reconciliations from Section 4, run continuously. A break pages the producing team.</li>
+  <li><strong>Stuck-state sweeper</strong> — trips that miss a terminal state inside their SLA window are force-resolved on a known rule.</li>
+  <li><strong>Ledger reconciliation</strong> — <code>SUM(fct_trips.total_fare_usd)</code> vs the payments ledger, per day. A drift is a real bug, never "rounding."</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "The clean star schema is the steady-state view; production runs a reconciliation engine beneath it. Idempotency keys absorb replays, optimistic locks absorb races, append-only ledgers absorb rollbacks, and a stuck-state sweeper absorbs the events that simply never arrive. The model isn't only <em>correct</em> — it's correct <em>and self-healing</em>."
+</div>
+
+<h4 class="sub-head">Section 16 — Partitioning &amp; shard-key strategy</h4>
+<p>The shard key is the one decision you cannot migrate cheaply later — and the OLTP write path and the warehouse read path want <em>different</em> keys. Conflating them is a classic miss.</p>
+
+<table>
+  <thead><tr><th>Layer · table</th><th>Shard / partition key</th><th>Rationale</th></tr></thead>
+  <tbody>
+    <tr><td><strong>OLTP</strong> · live <code>trips</code></td><td><code>HASH(trip_id)</code></td><td>Lifecycle reads/writes are point lookups by <code>trip_id</code>; hashing spreads load evenly. <strong>Not</strong> by city — NYE Manhattan would melt a single shard.</td></tr>
+    <tr><td><strong>OLTP</strong> · <code>fct_trip_events</code></td><td><code>HASH(trip_id)</code></td><td>Co-located with its trip, so the lifecycle write stays single-shard.</td></tr>
+    <tr><td><strong>OLTP</strong> · location store</td><td>H3 cell</td><td>Reads are spatial — "who is near this hex" — not by trip. L8 normally; sub-divide to L10 in dense cells.</td></tr>
+    <tr><td><strong>Warehouse</strong> · <code>fct_trips</code></td><td>Partition <code>DATE(request_timestamp)</code>, cluster <code>origin_h3_key</code></td><td>Analysts scan a date range, then filter by geography.</td></tr>
+    <tr><td><strong>Warehouse</strong> · <code>fct_trip_events</code></td><td>Partition <code>DATE(event_timestamp)</code></td><td>Append-only, time-series scan pattern.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Hot-partition risk — where production actually fails:</strong></p>
+<table>
+  <thead><tr><th>Hot spot</th><th>Cause</th><th>Counter-move</th></tr></thead>
+  <tbody>
+    <tr><td>Dense city / NYE</td><td>A city-keyed shard puts all of Manhattan on one node</td><td>Never shard the write path by city. <code>HASH(trip_id)</code> for OLTP; <code>HASH(h3_key) MOD N</code> sub-partition in the warehouse.</td></tr>
+    <tr><td>Stadium let-out</td><td>One H3 L8 cell takes 100× its normal request rate</td><td>Adaptive zoom: split that cell to L10 — the hot partition becomes per-gate, not per-stadium (§11.5).</td></tr>
+    <tr><td>Mega-event in analytics</td><td>One <code>origin_h3_key</code> dominates a daily partition</td><td>Salted two-stage aggregation: <code>GROUP BY h3 || salt</code>, then re-roll.</td></tr>
+    <tr><td>Super-driver skew</td><td>A few airport drivers have 100× the trips</td><td>Salt <code>driver_id</code> in the payout rollup; the dimension is fine, the fact aggregation salts.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Why <code>trip_id</code> and not city or <code>driver_id</code>:</strong> a shard key must be <strong>immutable</strong> and <strong>high-cardinality with uniform load</strong>. <code>trip_id</code> is both. City is low-cardinality and skewed (and a trip's city can even change cross-border); <code>driver_id</code> is skewed by super-drivers. <strong>Rebalancing:</strong> consistent hashing on <code>trip_id</code> moves only <code>~1/N</code> of keys when a shard is added — and because trips are short-lived (hours, not years), a rebalance only drains in-flight trips, it never migrates history.</p>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "Pick the shard key for the path that can't tolerate a hotspot — the live write path — and pick it for the property you can't change later: immutability and uniform cardinality. <code>trip_id</code> for OLTP, <code>DATE</code>&nbsp;+&nbsp;H3 for the warehouse. The mistake that pages you at 2&nbsp;a.m. is sharding the live path by city, because the business's best night — New Year's Eve in Manhattan — becomes a single melted node."
+</div>
+
 <div class="senior-signal">
 <strong>Senior framing.</strong> "The Journey → Trip → Event hierarchy is the unlock — Operations runs latency metrics off <code>fct_trip_events</code>, Finance reconciles fares against <em>two</em> invariants (rider-side and driver-side), and Risk replays GPS sequences for phantom-convoy detection. Three stakeholders, three grains, one source of truth — and two invariants on the financial bridge keep producer bugs from ever reaching the audit."
 </div>
@@ -2187,6 +2384,94 @@ ORDER BY pct_under_supplied DESC;
   <li><strong>Skew managed.</strong> H3 L8 cells partition the geography evenly; downtown skew is contained per-cell. Sub-partition by <code>HASH(h3_key) MOD 8</code> for the hottest few cells if needed.</li>
   <li><strong>Cold-start covered.</strong> When a new city launches, <code>brg_zone_cells</code> can map untrained cells to their parent zone's averages until enough data accrues.</li>
 </ul>
+
+<h4 class="sub-head">Section 9 — The fare lifecycle: estimate, commit, and the audit replay</h4>
+<p>Surge sets a multiplier — but a senior answer models the <em>whole fare</em>, and a fare is not one number. It has a lifecycle with two hard time boundaries that an interviewer expects you to separate.</p>
+
+<table>
+  <thead><tr><th>Stage (when)</th><th>Fare object · layer</th><th>Mutability</th><th>Authoritative for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>At request</strong></td><td>Upfront <strong>estimate</strong> · UX / quote service</td><td>Re-quoted every few seconds while the rider drags the pin</td><td>What the rider is <em>shown</em></td></tr>
+    <tr><td><strong>At acceptance</strong></td><td><strong>Quoted fare</strong> · pricing, frozen</td><td>Immutable — surge, base rates, FX all locked here</td><td>The price <em>contract</em></td></tr>
+    <tr><td><strong>At dropoff</strong></td><td><strong>Committed fare</strong> · ledger</td><td>Append-only; corrections are new rows, never an <code>UPDATE</code></td><td>What the rider is <em>charged</em></td></tr>
+  </tbody>
+</table>
+
+<p>The two boundaries are <strong>time-of-decision</strong> (request/accept — surge multiplier, FX rate, pricing-model version all freeze here) and <strong>time-of-charge</strong> (dropoff — the committed fare may differ from the quote: route changed, wait time, tolls, a promo). The delta between quote and committed is itself an auditable fact. They must be separate fields because they live in different consistency regimes: the estimate is fast and eventually-consistent (Redis, re-computed every few seconds); the committed fare is strong-consistency and append-only (the ledger). Fuse them into one column and either the ledger inherits the jitter of the UX quote, or the quote inherits the latency of the ledger.</p>
+
+<p><strong>The audit replay — "recompute exactly what the rider was charged."</strong> Finance and regulators demand reproducibility. Add one FK to <code>fct_trips</code> — <code>pricing_model_version</code> — pointing at a new SCD2 dimension <code>dim_pricing_model</code> (the base-fare / per-km / per-min rate card), exactly parallel to the existing <code>dim_surge_model</code>. With <code>surge_multiplier</code> and <code>fx_rate_to_usd</code> already frozen on the row, the fare becomes a pure function of frozen inputs:</p>
+<pre><code>-- Reproduce the exact fare a rider was charged: join the fare to the pricing
+-- model active AT the trip's request time — never today's rate card.
+SELECT t.trip_id,
+       t.total_fare_usd                                          AS charged,
+       (pm.base_fare + pm.per_km * t.distance_km
+                     + pm.per_min * t.duration_min) * t.surge_multiplier AS recomputed
+FROM   fct_trips t
+JOIN   dim_pricing_model pm
+  ON   pm.pricing_model_version = t.pricing_model_version
+ AND   t.request_timestamp BETWEEN pm.effective_from
+                               AND COALESCE(pm.effective_to, '9999-12-31');
+-- charged = recomputed  → the trip is auditable. A mismatch is a real bug.</code></pre>
+
+<p><strong>Versioned pricing logic</strong> follows the same discipline as the surge model (Section 4): the rate card is an SCD2 <em>row</em>, not code baked into the ETL. Historical recalculation never runs today's formula over yesterday's trips — it joins as-of-trip-time. A/B pricing experiments run two <code>pricing_model_version</code>s at once; <code>fct_trips.pricing_model_version</code> records which one priced each trip, so revenue and conversion compare cleanly per version.</p>
+
+<div class="trap-box">
+<strong>The trap:</strong> a single <code>fare</code> column <code>UPDATE</code>d in place from estimate → final. Now you cannot tell what the rider was quoted from what they were charged, cannot explain a dispute, and cannot A/B a pricing change. Estimate and committed fare are different facts at different consistency levels — model them as such.
+</div>
+
+<h4 class="sub-head">Section 10 — Geospatial indexing: GeoHash vs H3 vs Quadtree</h4>
+<p>The model leans on H3 everywhere — <code>dim_h3_cell</code>, <code>fct_geo_state_minute</code> per cell. A senior interviewer will ask <em>why H3 and not the alternatives</em>. Have the trade-off ready.</p>
+
+<table>
+  <thead><tr><th>Index</th><th>Strength</th><th>Weakness</th><th>Best fit</th></tr></thead>
+  <tbody>
+    <tr><td><strong>GeoHash</strong><br>(rectangles, string-prefix)</td><td>A prefix means containment — trivially range-scannable in any KV store or B-tree index, zero special library</td><td>Non-uniform cell area (distorts toward the poles); 8 neighbors with diagonal ambiguity; adjacent cells can share no prefix (boundary jitter)</td><td>Cheap proximity inside a system you already run (Postgres, DynamoDB)</td></tr>
+    <tr><td><strong>H3</strong><br>(hexagons)</td><td>Six equidistant neighbors, no diagonal ambiguity; near-equal cell area; clean resolution hierarchy</td><td>Hexagons don't perfectly nest (parent/child is approximate); needs the H3 library</td><td>Ride-hailing — supply/demand per cell, surge, ETA. Uber's own choice.</td></tr>
+    <tr><td><strong>Quadtree</strong><br>(adaptive rectangles)</td><td>Depth adapts to density — dense cities get deep nodes, empty ocean stays shallow</td><td>The tree mutates as density shifts; harder to shard and rebalance</td><td>Highly skewed, slowly-changing density (map tiles, static POI)</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Why H3 wins here:</strong> surge is a supply/demand <em>ratio per cell</em>, and the math only behaves if cells are equal-area and neighbors are equidistant — you average a cell against its ring of neighbors. Hexagons give that; GeoHash rectangles do not (a diagonal neighbor sits 1.4× farther than an edge neighbor, biasing the ratio). The choice of <code>dim_h3_cell</code> is not cosmetic — it is what makes <code>driver_to_request_ratio</code> a trustworthy number.</p>
+
+<p><strong>Storage — Redis GEO vs a custom H3 grid:</strong></p>
+<table>
+  <thead><tr><th>Option</th><th>Mechanism</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td>Redis <code>GEO</code></td><td>Sorted set, GeoHash-encoded score; <code>GEOSEARCH</code> by radius</td><td>Zero infra to build, radius search built in — but it is GeoHash underneath (same non-uniformity) and holds no per-cell aggregate state</td></tr>
+    <tr><td>Custom H3 grid</td><td><code>h3_key → {open_requests, available_drivers, …}</code> in Redis hashes / Pinot</td><td>Per-cell state is a first-class key; the surge engine reads one key per cell. More to build — you own the indexing</td></tr>
+  </tbody>
+</table>
+<p>The surge engine reading "a Redis snapshot of the latest minute" keyed by cell <em>is</em> the custom H3 grid — chosen over raw Redis GEO because surge needs per-cell aggregate state, not point-radius search. And resolution is a dial: L10 localizes demand more sharply than L8 but multiplies the cell count (and the per-minute write cost) — so the model picks resolution <em>per zone</em> (L8 cities, L10 venues), never globally.</p>
+
+<h4 class="sub-head">Section 11 — Update amplification &amp; location staleness</h4>
+<p>Two production realities the clean per-minute grain hides — and both are favourite senior probes.</p>
+
+<p><strong>Update amplification.</strong> Each driver app emits a location ping roughly every 4&nbsp;s. With <em>D</em> drivers online that is <em>D</em>/4 writes per second. A naïve design fans every single ping out to the matching index, the surge counter, the rider's live map, and the ETA service — one ping becomes four downstream writes, and matching re-evaluates candidate sets on every ping. The counter-moves:</p>
+<table>
+  <thead><tr><th>Problem</th><th>Counter-move</th></tr></thead>
+  <tbody>
+    <tr><td>One ping → four synchronous downstream writes</td><td>Write the ping once to the location stream; consumers <em>pull</em> or subscribe — they are never <em>pushed</em> to synchronously. The location service is the single fan-in point.</td></tr>
+    <tr><td>Matching re-runs on every ping</td><td>Matching reads the cell snapshot on a fixed cadence (per minute, or on a rider request) — decouple ping rate from match rate.</td></tr>
+    <tr><td><code>fct_geo_state_minute</code> touched per ping</td><td>Pre-aggregate at the edge: count drivers per cell in a tumbling 1-minute window — one row per cell per minute, not one per ping. (This is what the grain already implies; make it explicit.)</td></tr>
+    <tr><td>Hot-cell ping storm (stadium)</td><td>Sub-divide that cell to L10 so the per-cell write rate stays bounded (§8 skew note).</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Location staleness.</strong> A driver's last fix is 25&nbsp;s old — include them in matching, or not? The rule is <strong>degrade, don't exclude</strong> — and degrade by confidence, not a hard cutoff:</p>
+<table>
+  <thead><tr><th>Staleness</th><th>Treatment</th></tr></thead>
+  <tbody>
+    <tr><td>&lt; 5&nbsp;s</td><td>Fresh — full weight in matching and ETA.</td></tr>
+    <tr><td>5–30&nbsp;s</td><td>Stale-but-usable — keep in the candidate set, widen the ETA confidence interval, de-rank vs a fresh driver at equal distance.</td></tr>
+    <tr><td>30–120&nbsp;s</td><td>Suspect — eligible only if the cell is supply-starved (a stale driver beats no driver); flag the ETA low-confidence.</td></tr>
+    <tr><td>&gt; 120&nbsp;s</td><td>Excluded — treat as offline; the driver has likely lost connectivity.</td></tr>
+  </tbody>
+</table>
+<p>A hard 30-second cutoff is the amateur move: dropping every stale driver in a supply-starved cell shrinks the matchable pool, pushes the multiplier higher, and the surge model starts fighting itself. Staleness is a <em>ranking signal weighted against supply pressure</em>, not a binary filter — so carry <code>location_age_sec</code> alongside every location read and let the matcher weight it.</p>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "A location is a value plus an age. The amateur design treats every GPS fix as equally true and fans every ping out synchronously; the senior design writes the ping once, lets consumers pull on their own cadence, and carries <code>location_age_sec</code> so matching can <em>weight</em> a stale driver instead of <em>dropping</em> one — because in a supply-starved cell a 25-second-old driver still beats no driver."
+</div>
 
 <div class="senior-signal">
 <strong>Senior framing.</strong> "The surge model isn't a column — it's a fact table joined to a versioned dimension. <code>fct_surge_decision</code> + frozen <code>input_features_json</code> + SCD2 <code>dim_surge_model</code> is the contract that lets the pricing team A/B-test new models confidently and lets regulators get a defensible answer to 'why was this rider charged 3.2× on this date?' — every time, forever."
@@ -6085,7 +6370,7 @@ ORDER BY first_month, months_since_first;
 <section id="part-04">
 <div class="part-eyebrow">§ 04 — Cross-Cutting Concerns</div>
 <h2 class="part-title">The patterns that show up regardless of domain.</h2>
-<p style="color:#64748b;font-size:14px;margin-top:-4px;">Eleven patterns. <strong>§9 (LAD), §10 (factless facts), §11 (streaming-first)</strong> are the senior-level moves — drop them in interviews and the room shifts.</p>
+<p style="color:#64748b;font-size:14px;margin-top:-4px;">Thirteen patterns. <strong>§9 (LAD), §10 (factless facts), §11 (streaming-first), §13 (how data moves)</strong> are the senior-level moves — drop them in interviews and the room shifts.</p>
 
 <h3 class="section-head">1. SCD Types — the deep dive</h3>
 <table>
@@ -6357,8 +6642,180 @@ WHERE a.student_sk IS NULL;</code></pre>
   <li><strong>Checkpoint storm</strong> — checkpoint duration grows past interval; backpressure cascades. Fix: incremental checkpoints (RocksDB), unaligned checkpoints, smaller state.</li>
 </ul>
 
+<h4 class="sub-head">Event schema evolution — the compatibility contract</h4>
+<p>An event log is forever — a consumer written next year still reads events emitted today. The schema must evolve without breaking either side.</p>
+<ul>
+  <li><strong>Backward compatible</strong> (new code reads old events): only <em>add</em> fields, always with a default. Never remove a field a consumer might read; never promote an optional field to required.</li>
+  <li><strong>Forward compatible</strong> (old code reads new events): consumers must <em>ignore</em> unknown fields, not crash on them.</li>
+  <li><strong>Never repurpose.</strong> Changing <code>status = 3</code> from "shipped" to "cancelled" silently corrupts every historical replay. Add a new value; deprecate the old.</li>
+  <li><strong>Carry <code>schema_version</code></strong> on every event so a consumer can branch deliberately.</li>
+  <li><strong>A schema registry</strong> (Avro / Protobuf + Confluent Schema Registry) enforces compatibility at publish time — the producer literally cannot ship a breaking change.</li>
+</ul>
+<p><strong>Ordering guarantees.</strong> A log is ordered <em>within a partition</em>, never globally. If <code>trip_id</code> is the partition key, all events for one trip are ordered; events across trips are not. The modeling consequence: anything that needs total order must share a partition key, and cross-entity ordering is reconstructed at read via <code>event_timestamp</code> — never assumed from the log.</p>
+
+<h4 class="sub-head">At-least-once is the honest default — exactly-once is a property of the sink</h4>
+<p>Be blunt in the room: true end-to-end exactly-once almost never exists. What you actually run is <strong>at-least-once delivery + an idempotent sink</strong>, and that combination <em>behaves</em> as exactly-once. Duplicates are not an edge case — they are the contract.</p>
+<table>
+  <thead><tr><th>Where the duplicate comes from</th><th>The defense</th></tr></thead>
+  <tbody>
+    <tr><td>Producer retry after an ambiguous timeout it never learned succeeded</td><td>Producer idempotence (Kafka <code>enable.idempotence</code>) + a stable <code>event_id</code></td></tr>
+    <tr><td>Consumer reprocesses after a crash before its offset was committed</td><td>Idempotent sink — natural-key <code>MERGE</code> or a unique constraint</td></tr>
+    <tr><td>Partition rebalance replays an uncommitted range</td><td>Same — the sink dedups; offsets are a hint, not a guarantee</td></tr>
+    <tr><td>Manual replay or backfill re-emits old events</td><td>Same key; a replay must be a no-op on already-seen rows</td></tr>
+  </tbody>
+</table>
+<p>"Exactly-once" frameworks (Flink, Kafka transactions) give exactly-once <em>inside their own boundary</em>. The moment data leaves for an external sink — a warehouse, a payment API — you are back to at-least-once unless that sink dedups on a key. So never ask "is this pipeline exactly-once?" Ask <em>"what is the idempotency key, and does every sink enforce it?"</em></p>
+
+<h4 class="sub-head">Replay — can you rebuild the whole system from events?</h4>
+<p>The question the streaming section sets up: <em>"could you rebuild every downstream table from the event log alone?"</em> The honest senior answer has conditions. Replay is possible only if:</p>
+<ul>
+  <li>The log is <strong>complete</strong> — every state change is an event, with no out-of-band <code>UPDATE</code>s — and <strong>retained</strong> long enough (or tiered to cold storage).</li>
+  <li>Every projection is a <strong>deterministic, pure function</strong> of the events — same events in, same table out. No <code>NOW()</code>, no random, no reading a mutable external service mid-fold.</li>
+  <li>Schemas are <strong>backward-compatible</strong>, so today's code can still read the oldest event.</li>
+  <li>External effects (emails, charges) are <strong>gated</strong> behind an idempotency key or a replay flag — a replay must never re-fire them.</li>
+</ul>
+<table>
+  <thead><tr><th>Replay strategy</th><th>How</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Full rebuild</strong></td><td>Drop the projection, fold the entire log</td><td>A logic-bug fix, or standing up a brand-new projection. Correct, slow.</td></tr>
+    <tr><td><strong>Partitioned replay</strong></td><td>Replay only the affected keys — one city, one date range</td><td>The common case — a localized correction.</td></tr>
+    <tr><td><strong>Snapshot + tail</strong></td><td>Load the most recent snapshot, fold only events since</td><td>Routine recovery — this is what the Kappa "snapshot every N hours" view exists for.</td></tr>
+  </tbody>
+</table>
+<p>The blunt truth: a system is replayable only if it was <em>designed</em> replayable. Bolt-on replay fails on the first non-deterministic projection or the first out-of-band <code>UPDATE</code>. State replay as a design property up front, or you do not have it.</p>
+
 <h4 class="sub-head">Senior signal in the room</h4>
 <p>Drop two phrases: <em>"watermark + allowed lateness handles late-arriving events deterministically"</em> and <em>"exactly-once is end-to-end — sink idempotency is non-negotiable."</em> The interviewer immediately stops asking streaming questions and moves to the hard parts.</p>
+
+<h3 class="section-head">12. Storage modeling — write amplification, indexing, lifecycle</h3>
+<p>A schema names tables; a senior schema names what each layout <em>costs</em>. Three storage decisions every model has to defend.</p>
+
+<h4 class="sub-head">Write amplification vs read optimization — the core trade</h4>
+<p>Every denormalization, every index, every materialized view buys read speed with write cost. Name the trade — do not let it happen by accident.</p>
+<table>
+  <thead><tr><th>Technique</th><th>Buys</th><th>Costs</th></tr></thead>
+  <tbody>
+    <tr><td>Denormalized wide table</td><td>One-scan reads, no joins</td><td>Every source change fans out to rewrite wide rows; drift risk</td></tr>
+    <tr><td>Secondary index</td><td>Fast lookup on a non-key column</td><td>Every write maintains the index too — more write amplification</td></tr>
+    <tr><td>Materialized view / pre-aggregate</td><td>Instant rollups</td><td>Refresh cost; a staleness window</td></tr>
+    <tr><td>Cache</td><td>Sub-millisecond reads</td><td>Invalidation — the genuinely hard part</td></tr>
+  </tbody>
+</table>
+<p><strong>Where caching becomes a source of truth.</strong> A cache is a read optimization — until something writes to it first. Then it has <em>silently become a system of record</em>, and there are now two with no reconciliation between them. The rule: a cache may be authoritative only <em>temporarily and by design</em> — the surge engine's Redis snapshot is authoritative for the current minute, then the warehouse takes over. That hand-off must be explicit; an accidental one is a data-loss bug. <strong>Denormalize</strong> when reads are hot, the join is expensive, and the source changes slowly; <strong>stay normalized</strong> when writes dominate, the data churns, or correctness outranks latency.</p>
+
+<h4 class="sub-head">Index strategy — composite, covering, geo + time hybrid</h4>
+<ul>
+  <li><strong>Composite column order:</strong> equality predicates first, the range predicate last, the sort column matching <code>ORDER BY</code>. <code>WHERE city = ? AND ts BETWEEN ? AND ?</code> wants index <code>(city, ts)</code> — never <code>(ts, city)</code>.</li>
+  <li><strong>Covering index:</strong> include the selected columns so the query never touches the base table. A read win paid for in write and storage cost.</li>
+  <li><strong>Geo + time hybrid:</strong> the trip and surge queries are always "this H3 cell, this time window." Partition by <code>DATE</code>, then cluster / sort by <code>h3_key</code> — geography alone or time alone each scans far too much.</li>
+  <li><strong>Query-path reasoning:</strong> never index speculatively. List the 3–5 real query shapes, design one index per shape, and accept that an ad-hoc query scans. Every index is a tax on every write.</li>
+</ul>
+
+<h4 class="sub-head">Data lifecycle — TTL, archival, compaction</h4>
+<p>Data is not immortal; the model must say how each table ages. A table with no lifecycle policy is a future incident — a storage-cost blowup, or a slow scan over years nobody queries.</p>
+<table>
+  <thead><tr><th>Stage</th><th>Rule</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Hot</strong></td><td>Recent partitions on the fast tier — warehouse active storage / SSD.</td></tr>
+    <tr><td><strong>TTL</strong></td><td>High-volume, low-value-after-a-window data expires automatically — raw GPS pings, location streams, debug events. Set the TTL at table creation, not after the bill arrives.</td></tr>
+    <tr><td><strong>Archival</strong></td><td>Cold but legally or analytically needed — finance facts (7-year retention), aged <code>fct_trips</code>. Move to cheap object storage; queryable on demand, not by default.</td></tr>
+    <tr><td><strong>Compaction</strong></td><td>Append-only logs accumulate small files and many versions. Scheduled compaction merges them — fewer files, faster scans, reclaimed space. Iceberg / Delta automate the merge; you still have to schedule it.</td></tr>
+    <tr><td><strong>Purge</strong></td><td>GDPR / legal deletion — by token invalidation, never a row <code>DELETE</code> (§3).</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">13. How data moves — the end-to-end path</h3>
+<p>The single most important thing a senior answer adds is not the tables — it is <em>how data flows between them</em>: what is synchronous, what is asynchronous, and where authority lives at each moment. A model that cannot trace request → event → processing → storage → projection → analytics is a set of tables, not a system.</p>
+
+<svg viewBox="0 0 1200 410" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1200px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs>
+    <marker id="arrDF" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <text x="600" y="34" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#0f172a" letter-spacing="0.5">HOW DATA MOVES · ONE WRITE PATH, TWO DERIVED PATHS</text>
+
+  <text x="685" y="64" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#92400e">EVENTUAL · derived, async — staleness is acceptable</text>
+  <text x="685" y="182" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#166534">STRONG · the trip's own truth — synchronous</text>
+  <text x="685" y="298" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#1e40af">BATCH · bounded staleness — correctness over freshness</text>
+
+  <g transform="translate(40,192)">
+    <rect width="140" height="66" rx="6" fill="#f1f5f9" stroke="#cbd5e0" stroke-width="1.5"/>
+    <text x="70" y="30" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#0f172a">1 · REQUEST</text>
+    <text x="70" y="48" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#475569">rider taps "request"</text>
+  </g>
+
+  <g transform="translate(240,180)">
+    <rect width="150" height="90" rx="6" fill="#1f2937" stroke="#0f172a" stroke-width="1.5"/>
+    <text x="75" y="36" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#fff">2 · EVENT LOG</text>
+    <text x="75" y="55" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#cbd5e0">append-only</text>
+    <text x="75" y="69" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#00cfff">source of truth</text>
+  </g>
+
+  <g transform="translate(470,74)">
+    <rect width="200" height="70" rx="6" fill="#fef3c7" stroke="#92400e" stroke-width="1.5"/>
+    <text x="100" y="30" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#0f172a">3 · STREAM PROCESSING</text>
+    <text x="100" y="48" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#475569">matching · surge · ETA</text>
+  </g>
+  <g transform="translate(710,74)">
+    <rect width="190" height="70" rx="6" fill="#fef3c7" stroke="#92400e" stroke-width="1.5"/>
+    <text x="95" y="30" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#0f172a">HOT CACHE</text>
+    <text x="95" y="48" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#475569">rider live map · dispatch</text>
+  </g>
+
+  <g transform="translate(470,190)">
+    <rect width="430" height="70" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.5"/>
+    <text x="215" y="30" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#0f172a">4 · OLTP STORAGE</text>
+    <text x="215" y="48" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#475569">live trip row — current state · strongly consistent</text>
+  </g>
+
+  <g transform="translate(470,306)">
+    <rect width="200" height="70" rx="6" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <text x="100" y="30" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#0f172a">5 · WAREHOUSE</text>
+    <text x="100" y="48" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#475569">fct_trips · projections</text>
+  </g>
+  <g transform="translate(710,306)">
+    <rect width="190" height="70" rx="6" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <text x="95" y="30" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#0f172a">6 · ANALYTICS · ML</text>
+    <text x="95" y="48" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#475569">dashboards · features</text>
+  </g>
+
+  <line x1="180" y1="225" x2="236" y2="225" stroke="#64748b" stroke-width="2" marker-end="url(#arrDF)"/>
+  <line x1="392" y1="205" x2="464" y2="120" stroke="#64748b" stroke-width="2" marker-end="url(#arrDF)"/>
+  <line x1="392" y1="225" x2="464" y2="225" stroke="#64748b" stroke-width="2" marker-end="url(#arrDF)"/>
+  <line x1="560" y1="262" x2="560" y2="302" stroke="#64748b" stroke-width="2" marker-end="url(#arrDF)"/>
+  <line x1="670" y1="109" x2="706" y2="109" stroke="#64748b" stroke-width="2" marker-end="url(#arrDF)"/>
+  <line x1="670" y1="341" x2="706" y2="341" stroke="#64748b" stroke-width="2" marker-end="url(#arrDF)"/>
+
+  <text x="206" y="217" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">sync</text>
+  <text x="430" y="150" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">async</text>
+  <text x="428" y="217" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">sync</text>
+  <text x="568" y="287" text-anchor="start" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">async · CDC</text>
+  <text x="688" y="101" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">async</text>
+  <text x="688" y="333" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">batch</text>
+
+  <text x="600" y="400" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="10" font-style="italic" fill="#64748b">One synchronous write path (strong) · two derived paths fan out from the log (eventual, batch) — consistency degrades by design, not by accident.</text>
+</svg>
+
+<p><strong>The path, hop by hop:</strong></p>
+<table>
+  <thead><tr><th>Hop</th><th>Sync / async</th><th>Latency</th><th>Consistency</th></tr></thead>
+  <tbody>
+    <tr><td>Rider request → API</td><td>Synchronous — the rider waits</td><td>tens of ms</td><td>Strong — the call must return a <code>trip_id</code></td></tr>
+    <tr><td>API → event log</td><td>Sync append, async fan-out</td><td>ms to acknowledge</td><td>Strong — the event is durable before the API returns</td></tr>
+    <tr><td>Event log → matching / surge / ETA</td><td>Asynchronous — consumers pull</td><td>sub-second</td><td>Eventual — each consumer reads at its own cadence</td></tr>
+    <tr><td>Event log → OLTP trip row</td><td>Synchronous</td><td>ms</td><td>Strong — the trip's own current state</td></tr>
+    <tr><td>OLTP row → warehouse</td><td>Asynchronous — CDC</td><td>seconds–minutes</td><td>Bounded-stale — a watermark governs the late window</td></tr>
+    <tr><td>Warehouse → projections / ML / dashboards</td><td>Batch / micro-batch</td><td>minutes–hours</td><td>Batch — analysts read an explicit "as-of" timestamp</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Where caching is authoritative — and the hand-off.</strong> While a trip is in flight, its live state lives in the OLTP row plus a hot cache (Redis); that cache is authoritative <em>for the in-flight trip</em>, because the warehouse copy is minutes stale. The instant the trip reaches a terminal state and the ledger commits, authority hands off to the ledger and the warehouse. Two windows of authority, one explicit hand-off — never two writers at once. Naming that hand-off is the difference between "the data is somewhere" and "I know exactly which store is correct at 14:32:05."</p>
+
+<div class="senior-signal">
+<strong>Senior signal in the room.</strong> "The question isn't 'is the system consistent' — it's 'where does authority live at each moment.' In-flight: the OLTP row and the hot cache, strong, authoritative by design. Post-terminal: the ledger and the warehouse. Data moves request → event → stream → storage → projection → analytics, and consistency degrades strong → eventual → batch along the way — on purpose. A senior names which hop is synchronous, which is asynchronous, and exactly where authority hands off."
+</div>
 </section>
 
 <div class="ornament">· · ·</div>
