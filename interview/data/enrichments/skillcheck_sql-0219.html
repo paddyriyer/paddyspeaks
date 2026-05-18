@@ -1,0 +1,66 @@
+<p>A title belongs to exactly one category, but a category&rsquo;s real total should include every nested subcategory beneath it. Because the category tree can be any depth, rolling counts up it is a recursive job &mdash; a <code>WITH RECURSIVE</code> CTE that pairs each category with its whole subtree.</p>
+
+<h4>1. The source data</h4>
+<p><code>categories</code> &mdash; <code>parent_id</code> points at the enclosing category (NULL = a top-level category):</p>
+<table>
+  <thead><tr><th>category_id</th><th>category_name</th><th>parent_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Film</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Action</td><td>1</td></tr>
+    <tr><td>3</td><td>Comedy</td><td>1</td></tr>
+    <tr><td>4</td><td>Series</td><td>NULL</td></tr>
+    <tr><td>5</td><td>Superhero</td><td>2</td></tr>
+    <tr><td>6</td><td>Spy</td><td>2</td></tr>
+    <tr><td>7</td><td>Drama Series</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>titles</code> has 11 rows, each tagged to one <code>category_id</code> with its <code>watch_hours</code>. Titles sit at every level &mdash; some directly under <code>Film</code>, some down in <code>Superhero</code>.</p>
+
+<h4>2. The recursive solution</h4>
+<pre><code>WITH RECURSIVE subtree AS (
+  SELECT category_id AS ancestor_id, category_id AS descendant_id
+  FROM categories
+  UNION ALL
+  SELECT s.ancestor_id, c.category_id
+  FROM subtree s
+  JOIN categories c ON c.parent_id = s.descendant_id
+)
+SELECT cat.category_name,
+       COUNT(t.title_id) AS total_titles,
+       COALESCE(SUM(t.watch_hours), 0) AS total_watch_hours
+FROM subtree s
+JOIN categories cat ON cat.category_id = s.ancestor_id
+LEFT JOIN titles t ON t.category_id = s.descendant_id
+GROUP BY cat.category_id, cat.category_name
+ORDER BY total_watch_hours DESC, cat.category_name ASC;</code></pre>
+<p>The <code>subtree</code> CTE pairs every category (<code>ancestor_id</code>) with every category in its subtree (<code>descendant_id</code>), itself included. Titles join on the descendant; the aggregate groups by the ancestor.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>category_name</th><th>total_titles</th><th>total_watch_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>8</td><td>390</td></tr>
+    <tr><td>Action</td><td>4</td><td>280</td></tr>
+    <tr><td>Series</td><td>3</td><td>185</td></tr>
+    <tr><td>Superhero</td><td>2</td><td>180</td></tr>
+    <tr><td>Drama Series</td><td>2</td><td>160</td></tr>
+    <tr><td>Comedy</td><td>3</td><td>100</td></tr>
+    <tr><td>Spy</td><td>1</td><td>60</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The anchor pairs each category with itself</h5>
+<p>The base case is <code>SELECT category_id AS ancestor_id, category_id AS descendant_id</code> &mdash; every category paired with <em>itself</em>. That self-pair is deliberate: a category&rsquo;s rollup must include the titles tagged directly to it, not only those in its children. Seeding <code>(c, c)</code> makes <code>subtree</code> mean &ldquo;this category and everything under it.&rdquo; Contrast a referral downline, which excludes the referrer and so seeds its anchor with direct referrals only.</p>
+
+<h5>The recursive term descends one level at a time</h5>
+<p><code>JOIN categories c ON c.parent_id = s.descendant_id</code> takes each known <code>(ancestor, descendant)</code> pair, finds the descendant&rsquo;s direct children, and pairs them with the <em>same</em> ancestor. <code>Film</code> reaches <code>Action</code>, then on the next pass <code>Superhero</code> and <code>Spy</code> &mdash; the ancestor stays <code>Film</code> the whole way down.</p>
+
+<h5>Join the facts on the descendant, group by the ancestor</h5>
+<p>This swap is the rollup. <code>titles</code> joins on <code>descendant_id</code> &mdash; a title is physically in that category &mdash; but the query groups by <code>ancestor_id</code>. So a title in <code>Superhero</code> is counted once for <code>Superhero</code>, once for <code>Action</code>, and once for <code>Film</code>: each ancestor up the chain. That is precisely what &ldquo;include nested subcategories&rdquo; means.</p>
+
+<h5>LEFT JOIN so empty branches still report</h5>
+<p>A category whose entire subtree holds no titles should still appear with a total of 0, not vanish. <code>LEFT JOIN titles</code> plus <code>COALESCE(SUM(...), 0)</code> guarantees that. And note the ranking: <code>Comedy</code> has more titles than <code>Superhero</code> (3 vs 2) but far fewer watch hours (100 vs 180) &mdash; counting rows and summing a metric tell different stories.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> to roll a metric up a tree, build an <code>(ancestor, descendant)</code> closure with a recursive CTE whose anchor pairs each node <em>with itself</em>, join the fact table on the descendant, and group by the ancestor. The self-pair in the anchor is what makes a node&rsquo;s own rows count toward its rollup.</div>

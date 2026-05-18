@@ -24259,6 +24259,90 @@
     ]
   },
   {
+    "id": "skillcheck_sql-0218",
+    "batch": "skillcheck_sql",
+    "num": 218,
+    "title": "Referral Network Trip Rollup",
+    "slug": "referral-network-trip-rollup",
+    "company": "Uber",
+    "type": "SQL / Recursive Queries",
+    "subtopic": "Recursive CTEs",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: users(user_id, user_name, referred_by_id), a self-referential table where referred_by_id is the user who referred this user (NULL for an organic signup), and trips(trip_id, user_id, fare) with one row per trip. For each user who has referred at least one other user, return their name as referrer, the size of their entire referral network as downline_size (everyone they referred directly or transitively, not counting themselves), and the total trips taken by that network as downline_trips. A plain GROUP BY sees only direct referrals; the network runs to arbitrary depth, so walk it with a recursive CTE. Order by downline_trips descending, then referrer ascending.",
+    "schema": "CREATE TABLE users (user_id INT, user_name TEXT, referred_by_id INT);\nINSERT INTO users VALUES\n  (1,'Ava',NULL),(2,'Ben',1),(3,'Cara',1),(4,'Dan',2),\n  (5,'Eli',2),(6,'Fay',3),(7,'Gus',NULL),(8,'Hana',7);\nCREATE TABLE trips (trip_id INT, user_id INT, fare NUMERIC);\nINSERT INTO trips VALUES\n  (1,1,20),(2,1,16),(3,2,12),(4,2,30),(5,3,25),(6,4,10),(7,4,40),(8,4,22),\n  (9,6,33),(10,6,19),(11,6,27),(12,7,14),(13,8,11),(14,8,24),(15,8,17),(16,8,29);",
+    "solution": "WITH RECURSIVE downline AS (\n  SELECT referred_by_id AS ancestor_id, user_id AS member_id\n  FROM users\n  WHERE referred_by_id IS NOT NULL\n  UNION ALL\n  SELECT d.ancestor_id, u.user_id\n  FROM downline d\n  JOIN users u ON u.referred_by_id = d.member_id\n),\ntrips_per_user AS (\n  SELECT user_id, COUNT(*) AS trip_count\n  FROM trips\n  GROUP BY user_id\n)\nSELECT a.user_name AS referrer,\n       COUNT(*) AS downline_size,\n       COALESCE(SUM(tpu.trip_count), 0) AS downline_trips\nFROM downline d\nJOIN users a ON a.user_id = d.ancestor_id\nLEFT JOIN trips_per_user tpu ON tpu.user_id = d.member_id\nGROUP BY a.user_id, a.user_name\nORDER BY downline_trips DESC, referrer ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "recursive-cte",
+      "hierarchies",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0219",
+    "batch": "skillcheck_sql",
+    "num": 219,
+    "title": "Category Tree Title Rollup",
+    "slug": "category-tree-title-rollup",
+    "company": "Netflix",
+    "type": "SQL / Recursive Queries",
+    "subtopic": "Recursive CTEs",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: categories(category_id, category_name, parent_id), a self-referential category tree where parent_id is the enclosing category (NULL for a top-level category), and titles(title_id, category_id, watch_hours) with each title tagged to one category. For every category, return its category_name, the total number of titles in that category and all of its nested subcategories at any depth as total_titles, and the total watch_hours across that whole subtree as total_watch_hours. The tree can be any depth, so roll the totals up with a recursive CTE. Order by total_watch_hours descending, then category_name ascending.",
+    "schema": "CREATE TABLE categories (category_id INT, category_name TEXT, parent_id INT);\nINSERT INTO categories VALUES\n  (1,'Film',NULL),(2,'Action',1),(3,'Comedy',1),(4,'Series',NULL),\n  (5,'Superhero',2),(6,'Spy',2),(7,'Drama Series',4);\nCREATE TABLE titles (title_id INT, category_id INT, watch_hours INT);\nINSERT INTO titles VALUES\n  (1,5,100),(2,5,80),(3,6,60),(4,2,40),(5,3,50),(6,3,30),\n  (7,3,20),(8,1,10),(9,7,90),(10,7,70),(11,4,25);",
+    "solution": "WITH RECURSIVE subtree AS (\n  SELECT category_id AS ancestor_id, category_id AS descendant_id\n  FROM categories\n  UNION ALL\n  SELECT s.ancestor_id, c.category_id\n  FROM subtree s\n  JOIN categories c ON c.parent_id = s.descendant_id\n)\nSELECT cat.category_name,\n       COUNT(t.title_id) AS total_titles,\n       COALESCE(SUM(t.watch_hours), 0) AS total_watch_hours\nFROM subtree s\nJOIN categories cat ON cat.category_id = s.ancestor_id\nLEFT JOIN titles t ON t.category_id = s.descendant_id\nGROUP BY cat.category_id, cat.category_name\nORDER BY total_watch_hours DESC, cat.category_name ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "recursive-cte",
+      "hierarchies",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0220",
+    "batch": "skillcheck_sql",
+    "num": 220,
+    "title": "Span of Control and Org Depth",
+    "slug": "span-of-control-and-org-depth",
+    "company": "Amazon",
+    "type": "SQL / Recursive Queries",
+    "subtopic": "Recursive CTEs",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: employees(emp_id, emp_name, manager_id), a self-referential org chart where manager_id is NULL only for the CEO. For every employee, return their emp_name, their level in the hierarchy (the CEO is level 1, direct reports level 2, and so on), and their span_of_control -- the total number of employees anywhere beneath them, directly or indirectly. Span of control is a transitive count, not a count of direct reports, so use a recursive CTE. Order by span_of_control descending, then emp_name ascending.",
+    "schema": "CREATE TABLE employees (emp_id INT, emp_name TEXT, manager_id INT);\nINSERT INTO employees VALUES\n  (1,'Jeff',NULL),(2,'Andy',1),(3,'Dave',1),(4,'Beth',2),(5,'Carl',2),\n  (6,'Dana',3),(7,'Erin',4),(8,'Finn',4),(9,'Gail',5),(10,'Hugo',6);",
+    "solution": "WITH RECURSIVE org_levels AS (\n  SELECT emp_id, emp_name, 1 AS level\n  FROM employees\n  WHERE manager_id IS NULL\n  UNION ALL\n  SELECT e.emp_id, e.emp_name, ol.level + 1\n  FROM employees e\n  JOIN org_levels ol ON e.manager_id = ol.emp_id\n),\nreports AS (\n  SELECT manager_id AS mgr_id, emp_id AS sub_id\n  FROM employees\n  WHERE manager_id IS NOT NULL\n  UNION ALL\n  SELECT r.mgr_id, e.emp_id\n  FROM reports r\n  JOIN employees e ON e.manager_id = r.sub_id\n),\nspan_counts AS (\n  SELECT mgr_id, COUNT(*) AS span_of_control\n  FROM reports\n  GROUP BY mgr_id\n)\nSELECT ol.emp_name,\n       ol.level,\n       COALESCE(sc.span_of_control, 0) AS span_of_control\nFROM org_levels ol\nLEFT JOIN span_counts sc ON sc.mgr_id = ol.emp_id\nORDER BY span_of_control DESC, ol.emp_name ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "recursive-cte",
+      "hierarchies",
+      "tricky"
+    ]
+  },
+  {
+    "id": "skillcheck_sql-0221",
+    "batch": "skillcheck_sql",
+    "num": 221,
+    "title": "Comment Thread Depth and Reply Counts",
+    "slug": "comment-thread-depth-and-reply-counts",
+    "company": "Meta",
+    "type": "SQL / Recursive Queries",
+    "subtopic": "Recursive CTEs",
+    "difficulty": "Hard",
+    "language": "sql",
+    "question": "Schema: comments(comment_id, post_id, author, parent_comment_id), a self-referential reply tree where parent_comment_id is the comment being replied to, NULL for a top-level comment (a thread root replying to the post itself). For each root comment, return the author as root_author, the total number of replies anywhere in its thread as reply_count, and the deepest nesting the thread reaches as max_depth (the root itself is depth 1). Threads nest to arbitrary depth, so walk them with a recursive CTE. Order by reply_count descending, then root_author ascending.",
+    "schema": "CREATE TABLE comments (comment_id INT, post_id INT, author TEXT, parent_comment_id INT);\nINSERT INTO comments VALUES\n  (1,100,'Ana',NULL),(2,100,'Bob',1),(3,100,'Cy',1),(4,100,'Dee',2),\n  (5,100,'Eve',3),(6,100,'Fay',NULL),(7,100,'Gil',4),(8,100,'Hal',6);",
+    "solution": "WITH RECURSIVE thread AS (\n  SELECT comment_id, comment_id AS root_id, 1 AS depth\n  FROM comments\n  WHERE parent_comment_id IS NULL\n  UNION ALL\n  SELECT c.comment_id, t.root_id, t.depth + 1\n  FROM thread t\n  JOIN comments c ON c.parent_comment_id = t.comment_id\n)\nSELECT r.author AS root_author,\n       COUNT(*) - 1 AS reply_count,\n       MAX(t.depth) AS max_depth\nFROM thread t\nJOIN comments r ON r.comment_id = t.root_id\nGROUP BY t.root_id, r.author\nORDER BY reply_count DESC, root_author ASC;",
+    "runtime": "postgres",
+    "tags": [
+      "recursive-cte",
+      "hierarchies",
+      "tricky"
+    ]
+  },
+  {
     "id": "skillcheck_python-0001",
     "batch": "skillcheck_python",
     "num": 1,
