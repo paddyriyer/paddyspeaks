@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <title>Data Modeling for the Modern Warehouse | PaddySpeaks</title>
+    <meta name="description" content="A practitioner's field guide to data modeling: slowly changing dimensions (Type 0-6), the three fact-table grains, factless fact tables (Netflix, Uber), One Big Table vs star schema, Data Vault, CDC, the medallion architecture, and storage maintenance across Redshift, Snowflake, BigQuery and Azure.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<meta property="og:title" content="Data Modeling for the Modern Warehouse">
+<meta property="og:description" content="SCD types 0-6, fact-table grains, factless facts, One Big Table vs star schema, Data Vault, CDC, the medallion architecture, and what maintenance each cloud warehouse actually needs.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://paddyspeaks.com/articles/data-modeling-for-the-modern-warehouse.html">
+<meta property="og:site_name" content="PaddySpeaks">
+<meta property="og:image" content="https://paddyspeaks.com/images/og-default.png">
+<meta property="article:author" content="Paddy Iyer">
+<meta property="article:published_time" content="2026-05-18">
+<meta property="article:section" content="Technology">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Data Modeling for the Modern Warehouse">
+<meta name="twitter:description" content="A field guide to dimensional modeling and the modern cloud warehouse: SCDs, fact grains, factless facts, OBT, Data Vault, CDC, medallion, and storage maintenance.">
+<meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png">
+
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="canonical" href="https://paddyspeaks.com/articles/data-modeling-for-the-modern-warehouse.html">
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Data Modeling for the Modern Warehouse",
+    "description": "A practitioner's field guide to data modeling: slowly changing dimensions, fact-table grains, factless fact tables, One Big Table vs star schema, Data Vault, change data capture, the medallion architecture, and storage maintenance across Redshift, Snowflake, BigQuery and Azure.",
+    "author": {"@type": "Person", "name": "Paddy Iyer", "url": "https://paddyspeaks.com/about.html"},
+    "publisher": {"@type": "Organization", "name": "PaddySpeaks", "url": "https://paddyspeaks.com"},
+    "datePublished": "2026-05-18",
+    "dateModified": "2026-05-18",
+    "mainEntityOfPage": "https://paddyspeaks.com/articles/data-modeling-for-the-modern-warehouse.html",
+    "articleSection": "Technology",
+    "image": "https://paddyspeaks.com/images/og-default.png"
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,300;1,8..60,400&amp;family=JetBrains+Mono:wght@300;400;500&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+
+<div class="page-frame"></div>
+<div class="reading-progress" id="readingProgress"></div>
+<div class="top-bar"><span>Est. 2026</span><span>Philosophy · Technology · Wisdom</span><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn ↗</a></div>
+<header class="masthead"><h2><a href="../index.html">Paddy<span>Speaks</span></a></h2><p class="masthead-tagline">Where ancient wisdom meets the architecture of tomorrow</p>
+<div class="masthead-rule"></div>
+</header>
+<nav class="nav-bar"><a href="../index.html">Journal</a><a href="../index.html#philosophy">Philosophy</a><a href="../index.html#technology">Technology</a><a href="../index.html#ai">AI &amp; Future</a><a href="../index.html#archive">Archive</a><a href="../index.html#sacred-texts">Sacred Texts</a><a href="../about.html">About</a></nav>
+<div class="article-page">
+<a class="back-to-home" href="../index.html">← All Articles</a>
+<div>
+<div class="article-hero"><span class="tag">technology · data engineering</span><h1>Data Modeling for the Modern Warehouse</h1><p class="subtitle">A practitioner's field guide — slowly changing dimensions, the three fact-table grains, factless facts, One Big Table, Data Vault, change data capture, the medallion architecture, and what housekeeping each cloud warehouse actually needs.</p>
+<div class="article-meta"><span>By Paddy</span><span class="dot"></span><span>May 18, 2026</span><span class="dot"></span><span>32 min read</span></div>
+</div>
+<div class="article-content">
+
+<p class="drop-cap">Every data platform is, underneath the dashboards and the dbt graphs, a set of modeling decisions. How do you store an attribute that changes? What is the grain of this table? Should this be one wide table or a star? When the warehouse slows down, what do you actually run to fix it? These questions are old — Ralph Kimball was answering most of them in the 1990s — but the cloud warehouse reshuffled the trade-offs, and a lot of working knowledge is now a confusing mix of timeless principle and obsolete advice.</p>
+
+<p>This is a field guide to the parts that still matter. It is organized in four parts: the grammar of dimensional modeling, how to choose a modeling paradigm, how to load the warehouse, and how to keep it fast. It is a companion to the <a href="../interview.app/sql.html">interview question bank</a>, which has a runnable <em>Data Modeling</em> set drilling every concept below.</p>
+
+<div class="callout">
+  <p><strong>The one idea to keep:</strong> a data model is a contract about <em>grain</em> (what one row means), <em>history</em> (what happens when a value changes), and <em>cost</em> (what each query and each load has to scan). Almost every term below is just a named answer to one of those three questions.</p>
+</div>
+
+<div class="ornament-divider">✦ ✦ ✦</div>
+
+<div class="domain-header">
+  <span class="domain-num">Part I</span>
+  <h2>The Grammar of Dimensional Modeling</h2>
+  <span class="domain-tagline">Facts, dimensions, grain, and the patterns that have a name because you will need them.</span>
+</div>
+
+<h2>1. Facts, Dimensions, and the Star</h2>
+
+<p>Dimensional modeling splits the world into two kinds of table. <strong>Fact tables</strong> hold the measurements of a business process — an order line, a payment, a sensor reading — and are mostly foreign keys plus numbers. <strong>Dimension tables</strong> hold the descriptive context you filter and group by — the customer, the product, the date, the store. A fact surrounded by its dimensions is a <strong>star schema</strong>, and it is still the default shape for analytics because it matches how people ask questions: a measure, sliced by some descriptors.</p>
+
+<p>A <strong>snowflake schema</strong> normalizes those dimensions into sub-dimensions — product points to category points to department, each its own table. It removes redundancy and keeps a shared hierarchy in one place, at the cost of more joins per query. On a columnar warehouse the redundancy of a flat dimension is cheap and the join savings are real, so default to the star; reach for snowflaking only when a dimension is enormous or a sub-hierarchy is genuinely shared across many dimensions.</p>
+
+<p>When several fact tables share the same dimensions — sales and returns both joined to the same date, product and store — you have a <strong>fact constellation</strong> (or galaxy schema). The rule there: never join two fact tables directly. Their grains differ and the join fans out. Instead <em>drill across</em> — aggregate each fact to the common grain separately, then full-outer-join the results on the shared keys.</p>
+
+<h2>2. The Three Fact-Table Grains</h2>
+
+<p>The first decision for any fact table is its <strong>grain</strong>: what exactly does one row represent? Get it wrong and every query downstream is fighting the table. There are three classic grains.</p>
+
+<table class="data-table">
+<thead><tr><th>Grain</th><th>One row per</th><th>Additivity</th><th>Use case</th></tr></thead>
+<tbody>
+<tr><td><strong>Transaction</strong></td><td>event / transaction</td><td>Fully additive</td><td>Order lines, payments, clicks — the atomic source of truth</td></tr>
+<tr><td><strong>Periodic snapshot</strong></td><td>entity, per period</td><td>Semi-additive</td><td>Daily account balance, inventory on hand, subscriber count</td></tr>
+<tr><td><strong>Accumulating snapshot</strong></td><td>process instance</td><td>Mixed; row is updated</td><td>An order moving through ordered → shipped → delivered</td></tr>
+</tbody>
+</table>
+
+<p>The <strong>transaction</strong> grain is the most flexible and the most atomic — one row each time something happens, every measure fully additive. The <strong>periodic snapshot</strong> captures <em>state</em> rather than events: it has a row for every entity every period, even when nothing happened, because a balance still exists on a quiet day. Its measures are semi-additive — a balance sums across customers but not across time. The <strong>accumulating snapshot</strong> has one row per process instance that is <em>updated in place</em> as the instance hits milestones; it is built for pipeline and cycle-time analysis, where a single row read answers "how long did this order take to ship?"</p>
+
+<p>A mature warehouse uses all three. The transaction fact is the source of truth; snapshots are derived from it for the trend and lag questions that are expensive to recompute from raw events every time.</p>
+
+<h2>3. Factless Fact Tables</h2>
+
+<p>A <strong>factless fact table</strong> has no numeric measures at all — it is pure foreign keys. The <em>existence</em> of the row is the fact, and <code>COUNT(*)</code> is the measure. They come in two flavors, and the second is the clever one.</p>
+
+<p>The first flavor is <strong>event tracking</strong>: a row each time a tracked thing happens. On Netflix, a row in <code>fact_title_impression</code> every time a title is shown in a profile's UI, and a row in <code>fact_view_start</code> every time a playback begins. Neither table has a "measure" — but divide one count by the other and you have click-through rate. The model is nothing but keys, and that is the point.</p>
+
+<p>The second flavor is <strong>coverage</strong>, and it exists to answer the negative question — what <em>didn't</em> happen. Consider Uber: a rider opens the app and requests a ride, and sometimes no driver is near. An event-factless <code>fact_ride_request</code> records the demand. A coverage-factless <code>fact_driver_availability</code> records which drivers were online in which geo and time bucket — what supply <em>could</em> have served a request. Anti-join demand against coverage and you have measured unmet demand and supply gaps, without a single additive column anywhere in the model.</p>
+
+<div class="callout">
+  <p>If you ever find yourself inventing a fake <code>count_flag = 1</code> column so a table "has a measure," stop — you have a factless fact table, and <code>COUNT(*)</code> is the honest measure.</p>
+</div>
+
+<h2>4. Slowly Changing Dimensions (Type 0 through 6)</h2>
+
+<p>A dimension attribute can change in the source — a customer moves, a product is recategorized, an account is upgraded. <strong>Slowly Changing Dimension</strong> (SCD) types are the named strategies for that change. The single most common mistake is treating SCD as a property of a <em>table</em>. It is not — it is a decision made <em>per attribute</em>, and one physical dimension routinely mixes several types.</p>
+
+<table class="data-table">
+<thead><tr><th>Type</th><th>Strategy</th><th>Use when</th></tr></thead>
+<tbody>
+<tr><td><strong>0</strong></td><td>Retain the original value; never change it</td><td>The first-seen value is itself a fact — date of birth, account open date, original acquisition channel</td></tr>
+<tr><td><strong>1</strong></td><td>Overwrite in place; keep no history</td><td>Only the current value matters — a corrected spelling, a current phone number</td></tr>
+<tr><td><strong>2</strong></td><td>Add a new versioned row; expire the old one</td><td>Past facts must be explained by the value as it was then</td></tr>
+<tr><td><strong>3</strong></td><td>Add a column for the prior value</td><td>You need exactly one before/after — a single territory realignment</td></tr>
+<tr><td><strong>4</strong></td><td>Current dimension + history table / mini-dimension</td><td>An attribute changes too fast to version inline</td></tr>
+<tr><td><strong>6</strong></td><td>Hybrid 1 + 2 + 3 — versioned rows plus a current-value column</td><td>Reports need both the historical and the current view at once</td></tr>
+</tbody>
+</table>
+
+<p><strong>Type 2</strong> is the workhorse and deserves a closer look, because it is where most real loads live. Each dimension row gets a surrogate key, a natural key, an effective-from / effective-to window and an <code>is_current</code> flag. The load hashes the tracked attributes into a <code>row_hash</code>; for each incoming record it compares that hash to the current version. A new natural key inserts a first version; a changed hash expires the old row and inserts a new one; an unchanged hash is a no-op. Always expire before you insert, and always load from a deduplicated staging table.</p>
+
+<p>The reason a surrogate key is non-negotiable for Type 2 is structural: one natural key now maps to many rows — one per version — so only a meaningless generated key can uniquely identify a row. A fact joined to that surrogate is pinned to a <em>specific version</em> of the customer, which is the whole point of keeping history.</p>
+
+<p>So when an interviewer asks "what SCD type is this dimension?" the strong answer reframes the question. A streaming service's customer dimension might hold date of birth (Type 0 — immutable), email (Type 1 — only the current address matters, and old ones are PII you must purge), subscription tier (Type 2 — revenue must be attributed to the tier in effect at the time), and a nightly-recomputed taste segment (Type 4 mini-dimension — versioning it inline every night would explode the table).</p>
+
+<h2>5. Dimension Patterns Worth Naming</h2>
+
+<p>A handful of dimension patterns recur often enough to have names. Knowing the names is half of using them.</p>
+
+<div class="feature-grid">
+  <div class="feature-item">
+    <h4>Conformed dimension</h4>
+    <p>One dimension defined once and shared identically across many fact tables. It is the only way to compare measures across business processes — and the backbone of an enterprise model. The bus matrix plans them.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Junk dimension</h4>
+    <p>Several low-cardinality flags (is_gift, ship_priority, channel) collapsed into one small dimension of valid combinations, so the fact table carries one key instead of a dozen loose columns.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Degenerate dimension</h4>
+    <p>A dimension key that lives in the fact with no dimension table behind it — an order number, an invoice number. You group by it; there is nothing to look up.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Role-playing dimension</h4>
+    <p>One physical dimension referenced several times by one fact in different roles — a single date dimension used as order date, ship date and delivery date, exposed through per-role views.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Bridge table</h4>
+    <p>Resolves a many-to-many — an account with several owners, a visit with several diagnoses. Carry an allocation weight on the bridge so measures don't double-count when summed across it.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Mini-dimension</h4>
+    <p>Fast-changing attributes pulled out of a large dimension into their own small one, so the main dimension stops churning. The Type 4 answer to volatile attributes.</p>
+  </div>
+</div>
+
+<h2>6. Surrogate Keys vs Natural Keys</h2>
+
+<p>A <strong>natural (business) key</strong> is the identifier the source system uses — a customer ID, a SKU. A <strong>surrogate key</strong> is a meaningless integer the warehouse mints itself. Warehouses join on surrogates for several reasons at once: they make Type 2 history possible (one natural key, many versioned rows, each needing its own key); they decouple the warehouse from sources that renumber, merge or recycle IDs; they unify dimensions assembled from multiple sources; they keep joins to narrow integers; and they let you reserve special members like a <code>-1</code> "Unknown" so facts never carry a NULL foreign key. Keep the natural key as an attribute on the dimension — you still need it for lookups, lineage, and the Type 2 change-detection join.</p>
+
+<p>A modern variant is the <strong>hash key</strong> — a deterministic hash of the business key used as the key itself. It can be computed in parallel on any node with no central sequence, which is why it is the standard key in Data Vault. Its sibling, the <strong>hash diff</strong> — a hash of all descriptive attributes — is the cheap change-detection engine behind both SCD Type 2 and Data Vault satellites: if the hash diff moved, the row changed.</p>
+
+<div class="ornament-divider">✦ ✦ ✦</div>
+
+<div class="domain-header">
+  <span class="domain-num">Part II</span>
+  <h2>Choosing a Modeling Paradigm</h2>
+  <span class="domain-tagline">Kimball, Inmon, Data Vault, One Big Table — four answers, and when each is right.</span>
+</div>
+
+<h2>7. Kimball vs Inmon</h2>
+
+<p>The two classic warehouse philosophies differ in where integration happens. <strong>Inmon</strong> is top-down: build a normalized, third-normal-form enterprise data warehouse first as the single integrated source of truth, then derive dimensional data marts from it. Integration is strong and up front; time-to-first-value is slow. <strong>Kimball</strong> is bottom-up: build dimensional marts per business process first, and integrate them through conformed dimensions and the bus matrix. Value arrives fast; integration depends on the discipline of conforming dimensions.</p>
+
+<p>The modern lakehouse quietly blends both, and the medallion architecture (Part III) is the blend made concrete: a cleaned, integrated, lightly-normalized core — the Inmon idea — feeding dimensional stars and wide tables in a serving layer — the Kimball idea. The argument is mostly over.</p>
+
+<h2>8. Data Vault</h2>
+
+<p><strong>Data Vault</strong> is a modeling style for the raw integration layer, built for warehouses that ingest many volatile sources and need full auditability. It splits every model into three rigid block types:</p>
+
+<ul>
+<li><strong>Hubs</strong> — the list of unique business keys for a core concept (customer, product). Just keys, no context.</li>
+<li><strong>Links</strong> — the relationships and transactions connecting hubs, always modeled many-to-many.</li>
+<li><strong>Satellites</strong> — the descriptive, time-variant attributes hanging off a hub or link, with full history by hash diff.</li>
+</ul>
+
+<p>The payoff is that business keys are stable while relationships and attributes are not — so isolating each means a new source or a new attribute is an <em>additive</em> change (a new satellite or link), never a restructure of existing tables. Loads are insert-only and fully parallel. The cost is verbosity: querying a Vault directly means joining through hubs, links and satellites, so you still build Kimball stars on top for consumption. Choose Data Vault as a raw/integration layer when you are merging many changing sources under audit requirements; a small, stable, single-source warehouse should skip it and go straight to a star.</p>
+
+<h2>9. One Big Table — and When Not to Use It</h2>
+
+<p><strong>One Big Table</strong> (OBT) is the flat alternative to the star: a single wide, fully denormalized table — the fact plus every dimension attribute flattened in, one row per event, often hundreds of columns. It became popular for concrete reasons. Columnar storage means the warehouse scans only the columns a query touches, so three hundred unused columns cost nothing. Joins are the expensive operation on a distributed engine, and OBT removes them from the read path entirely. Analysts and BI tools query one table with no join keys to learn. And dbt makes assembling the wide table cheap.</p>
+
+<p>But OBT is a serving-layer optimization, not a modeling foundation, and the trade-offs are real.</p>
+
+<div class="versus-grid">
+  <div class="versus-col good">
+    <h4>One Big Table — strengths</h4>
+    <ul>
+      <li>Zero joins on read — fast, and simple for analysts</li>
+      <li>Self-contained; trivial to share or export</li>
+      <li>Cheap to scan on columnar storage</li>
+      <li>An obvious fit for the gold / serving layer</li>
+    </ul>
+  </div>
+  <div class="versus-col bad">
+    <h4>One Big Table — what it gives up</h4>
+    <ul>
+      <li>Massive redundancy — every dimension attribute repeated per row</li>
+      <li>A dimension change means rewriting the whole table</li>
+      <li>No clean SCD2 — history would multiply every fact row</li>
+      <li>No conformance — each OBT re-derives its own dimensions and they drift</li>
+    </ul>
+  </div>
+</div>
+
+<p>So keep a dimensional model — and serve from OBTs built on top of it — whenever dimensions have history, when many facts share dimensions and conformance matters, when the same dimension is needed at different grains, or when duplicating wide dimension text across billions of rows is real money. Model in a star; serve with OBTs where read speed and analyst simplicity justify the duplication.</p>
+
+<h2>10. Normalization, and When to Denormalize</h2>
+
+<p>Normalization removes update, insert and delete anomalies by making every non-key column depend on "the key, the whole key, and nothing but the key." <strong>1NF</strong> demands atomic values — no repeating groups. <strong>2NF</strong> removes partial dependencies on a composite key. <strong>3NF</strong> removes transitive dependencies, where a non-key column depends on another non-key column. <strong>BCNF</strong> tightens 3NF so every determinant is a candidate key.</p>
+
+<p>If normalization is "correct," why do warehouses denormalize on purpose? Because normalization and denormalization optimize for opposite workloads. A normalized (3NF/BCNF) schema is right for <strong>OLTP</strong> — write-heavy transactional systems where each fact is stored once, so updates are cheap and structurally cannot create anomalies. A denormalized schema — star dimensions, OBTs — is right for <strong>OLAP</strong>, where reads dominate and writes are controlled batch loads. The update anomalies normalization protects against simply cannot occur when the load pipeline is the single writer. Denormalization is not a sin; it is the correct answer to a read-optimized, batch-written problem.</p>
+
+<div class="ornament-divider">✦ ✦ ✦</div>
+
+<div class="domain-header">
+  <span class="domain-num">Part III</span>
+  <h2>Loading the Warehouse</h2>
+  <span class="domain-tagline">Change capture, late data, staging, layers, and pre-computed results.</span>
+</div>
+
+<h2>11. Change Data Capture and Incremental Loading</h2>
+
+<p>Keeping a warehouse in sync with a source means capturing what changed. There are four approaches, in rough order of fidelity: <strong>log-based</strong> CDC reads the database transaction log (WAL, binlog, redo) and catches every insert, update and delete in order, near real time, with near-zero load on the source — the gold standard. <strong>Trigger-based</strong> CDC writes changes to a shadow table via triggers; it catches deletes but taxes every source write. <strong>Timestamp/query-based</strong> CDC polls <code>WHERE updated_at &gt; last_run</code> — simple, but it misses deletes and any update that fails to bump the timestamp. <strong>Snapshot diff</strong> extracts the whole table and diffs it — trivially correct, but only viable for small tables.</p>
+
+<p>Whatever the capture method, the delta is applied with an idempotent <code>MERGE</code> keyed on the business key — matched-and-deleted, matched-and-changed, not-matched-and-inserted. Idempotency matters because pipelines re-run constantly: retries, catch-up, replays. A <code>MERGE</code> converges to the same state no matter how many times the same delta is applied; a blind <code>INSERT</code> duplicates on every retry. The choice between a full refresh and an incremental load is really a choice of failure mode: full refresh is simple and self-healing but fails loud when it runs long; incremental scales with change but fails quiet, drifting silently from the source. Make incremental loads safe with an overlapping watermark window and periodic full-refresh reconciliation.</p>
+
+<h2>12. Late-Arriving Data and Idempotency</h2>
+
+<p>Real pipelines do not receive data in order. A fact can arrive referencing a dimension member the dimension load has not seen — a <strong>late-arriving dimension</strong>. Do not drop the fact and do not give it a NULL key; create an <strong>inferred member</strong>: insert a placeholder dimension row now, with a minted surrogate key, the natural key, all attributes "Unknown" and an <code>is_inferred</code> flag. The fact loads cleanly, and when the real record arrives the placeholder is updated in place. An inferred member beats a generic "Unknown" because it preserves the distinct identity, so the fact reconnects to the real member later.</p>
+
+<p>The harder case is a <strong>late-arriving fact</strong> against a Type 2 dimension: you must attach the dimension <em>version</em> that was in effect on the event date, not today's version — resolve the surrogate key by the event timestamp against the effective-from / effective-to window. And any aggregate already published for that date is now stale and must be re-derived, which is why fact tables should be partitioned by event date, not load date.</p>
+
+<p>All of this rests on <strong>idempotency</strong>: running a job, or one partition of it, any number of times must produce the same result as running it once. Achieve it with partition overwrite instead of append, <code>MERGE</code> instead of blind insert, and deterministic transforms — no <code>now()</code>, no <code>random()</code>, the logical date passed in as a parameter. A backfill is then just "re-run these partitions," and it is safe to run alongside the daily job.</p>
+
+<h2>13. Temp Tables and the Staging Pattern</h2>
+
+<p>Inside a loading job you constantly need intermediate results, and there is a small decision tree. A <strong>CTE or subquery</strong> is logical only — nothing is stored, and in many engines a CTE referenced several times is evaluated several times; it is for the readability of a single statement. A <strong>temporary table</strong> is physically materialized and session-scoped — computed once, reusable across many statements, and indexable, so downstream joins plan well. A <strong>materialized view</strong> is persisted across sessions for results reused by many users over time. The heuristic: reused once, one statement — CTE; reused many times within one job — temp table; reused across jobs and worth maintaining — materialized view.</p>
+
+<p>Temp and staging tables are also why robust pipelines do not transform straight into the target. The pattern is land → stage → transform → merge: land the raw extract into staging, validate and deduplicate there, transform into the target shape, and only then merge into the target as the last fast step. Staging gives you atomicity (the target stays consistent until the final merge), idempotency (truncate and re-run freely), and a debuggable audit trail of the batch.</p>
+
+<h2>14. The Medallion Architecture</h2>
+
+<p>The <strong>medallion architecture</strong> organizes a lakehouse into three layers, each a durable, queryable checkpoint. <strong>Bronze</strong> is raw ingestion — source data landed as-is, append-only, plus ingestion metadata; its purpose is to be an immutable, replayable record of what arrived. <strong>Silver</strong> is cleansed and conformed — deduplicated, typed, validated, business keys resolved, integrated across sources; the single source of truth. <strong>Gold</strong> is consumption-ready — dimensional stars, OBTs, aggregates and feature tables shaped for specific use cases.</p>
+
+<p>The layers are quality <em>contracts</em>, not just folders, and the common mistakes all come from blurring them: business logic in bronze (filtering on ingest, which destroys replayability), reporting straight off bronze (every dashboard re-inventing cleansing), or cleansing logic copied into many gold models where it drifts. The rule is simple — bronze keeps everything and changes nothing, silver does all the cleansing exactly once, gold only reshapes for consumption.</p>
+
+<h2>15. Materialized Views</h2>
+
+<p>A plain <strong>view</strong> is a stored query — zero storage, always fresh, full cost paid on every read. A <strong>materialized view</strong> is a stored <em>result</em>, refreshed on a schedule or incrementally — fast reads, at the cost of storage, refresh compute and some staleness. A hand-built <strong>summary table</strong> trades that automation for total control over load logic and late-data handling.</p>
+
+<p>The detail that decides whether a materialized view scales is <strong>incremental refresh</strong> — updating only the rows affected by base-table changes, versus recomputing the whole result. It varies sharply by engine: Snowflake refreshes materialized views automatically and incrementally but restricts them to a single table (use Dynamic Tables for joins and aggregates); BigQuery refreshes incrementally and will auto-rewrite base queries onto the view; Redshift supports incremental refresh for many query shapes; PostgreSQL has no incremental refresh at all — <code>REFRESH MATERIALIZED VIEW</code> recomputes everything. Always check whether your engine, and your query shape, qualify for incremental refresh — if not, a hand-built summary table with explicit delta logic will scale better.</p>
+
+<div class="ornament-divider">✦ ✦ ✦</div>
+
+<div class="domain-header">
+  <span class="domain-num">Part IV</span>
+  <h2>Keeping It Fast: Storage Internals &amp; Maintenance</h2>
+  <span class="domain-tagline">"System cleansing" — what each warehouse needs, and why three of the five need no vacuum at all.</span>
+</div>
+
+<p>Every warehouse degrades in some way under deletes, unsorted inserts and small files. What "maintenance" means depends entirely on the storage engine — and a striking fact of the modern stack is that three of the five systems below have no <code>VACUUM</code> at all, because their storage is immutable and the housekeeping is automatic.</p>
+
+<table class="data-table">
+<thead><tr><th>System</th><th>Storage model</th><th>What you actually maintain</th></tr></thead>
+<tbody>
+<tr><td><strong>Redshift</strong></td><td>Mutable columnar, MPP slices</td><td><code>VACUUM</code> + <code>ANALYZE</code>; sort &amp; distribution keys</td></tr>
+<tr><td><strong>Snowflake</strong></td><td>Immutable micro-partitions</td><td>Nothing routine — optional clustering keys; retention</td></tr>
+<tr><td><strong>BigQuery</strong></td><td>Managed columnar, auto-optimized</td><td>Partition &amp; cluster keys (design, not commands)</td></tr>
+<tr><td><strong>Azure Synapse</strong></td><td>Mutable columnstore, MPP</td><td>Statistics; columnstore index rebuilds; distribution</td></tr>
+<tr><td><strong>Delta Lake</strong></td><td>Files + transaction log</td><td><code>OPTIMIZE</code>, Z-order, <code>VACUUM</code></td></tr>
+</tbody>
+</table>
+
+<h3>Redshift — VACUUM and ANALYZE</h3>
+
+<p>Redshift is the system the word "vacuuming" comes from. It is a columnar MPP database with <em>mutable</em> storage, so deleted rows are only marked deleted and new inserts land out of sort order. <code>VACUUM</code> reclaims the space from deleted rows and re-sorts rows back into sort-key order; <code>ANALYZE</code> refreshes the table statistics the query planner depends on. Modern Redshift auto-vacuums in the background, but a large backfill or bulk delete still warrants a manual <code>VACUUM</code>. The two design knobs that decide whether the table is fast in the first place are the <strong>sort key</strong> (the on-disk order, which lets the engine skip blocks for range-filtered columns) and the <strong>distribution style</strong> (KEY to co-locate rows that join, ALL to replicate small dimensions) — a wrong distribution key is the classic cause of skew and slow joins.</p>
+
+<h3>Snowflake — Micro-partitions, No VACUUM</h3>
+
+<p>Snowflake has no <code>VACUUM</code> because its storage is immutable. Tables are stored as <strong>micro-partitions</strong> — small, columnar, compressed files that are never updated in place; every write creates new ones. There is nothing to reclaim and nothing to re-sort. The engine prunes queries using per-partition min/max metadata, so good natural clustering means good pruning. For very large tables whose order has decayed, you can define a clustering key and Snowflake re-clusters in the background — a billed service most tables never need. The flip side of immutable storage is Time Travel (query or restore data as of up to 90 days ago) and Fail-safe (a further recovery window) — both retain old micro-partitions, so the real lever is the data-retention setting, not a cleanup command.</p>
+
+<h3>BigQuery — Partition, Cluster, No VACUUM</h3>
+
+<p>BigQuery is fully managed and continuously optimizes its storage files in the background — again, no <code>VACUUM</code>, no compaction command. Because you pay per byte scanned, performance and cost are governed by table <em>design</em>. <strong>Partitioning</strong> by a date or integer column lets a filter prune whole partitions; <strong>clustering</strong> sorts data within each partition by up to four columns, and BigQuery re-clusters automatically and for free. Round it out with partition expiration to auto-delete old data and <code>require_partition_filter</code> to block accidental full-table scans. The maintenance here is entirely up-front design.</p>
+
+<h3>Azure Synapse — Statistics and Columnstore</h3>
+
+<p>A Synapse dedicated SQL pool is an MPP warehouse spreading data across 60 distributions, and it needs deliberate maintenance. The single biggest plan-quality lever is <strong>statistics</strong> — Synapse does not always keep them current, so <code>CREATE</code> / <code>UPDATE STATISTICS</code> after large loads is essential. Clustered <strong>columnstore</strong> tables accumulate small "delta store" rowgroups on trickle inserts, so index rebuilds are needed to consolidate them to full size. And like Redshift, distribution choice — HASH, ROUND_ROBIN, REPLICATE — decides whether large joins shuffle data across the network.</p>
+
+<h3>Delta Lake — OPTIMIZE, Z-order, VACUUM</h3>
+
+<p>A lakehouse table — Delta Lake, Iceberg, Hudi — is many data files on object storage plus a transaction log, and its characteristic ailment is the <strong>small-file problem</strong>: streaming and frequent micro-batch writes produce thousands of tiny files, and file-open and planning overhead come to dominate scans. The fix is <code>OPTIMIZE</code> — compaction that rewrites many small files into fewer large ones — optionally with <strong>Z-ordering</strong> to co-locate related data so filters skip more files. Delta Lake also has its own <code>VACUUM</code>, which deletes data files no longer referenced by the log and older than a retention window; note that running it limits how far back Time Travel can reach. A lakehouse table, in other words, is not fire-and-forget — compaction and vacuum are its version of the housekeeping Redshift made famous.</p>
+
+<div class="ornament-divider">✦ ✦ ✦</div>
+
+<h2>The Short Version</h2>
+
+<p>Data modeling looks like a vocabulary test — SCD2, factless fact, accumulating snapshot, micro-partition — but every term is an answer to one of three questions. <em>What does one row mean?</em> is grain: the three fact grains, the factless fact, the bridge table. <em>What happens when a value changes?</em> is history: the SCD types, CDC, late-arriving data, idempotency. <em>What does each query and load have to scan?</em> is cost: star versus snowflake versus OBT, normalization, partitioning, and the maintenance each engine needs.</p>
+
+<p>Get those three right and the rest is detail. Get them wrong and no amount of compute will save the platform. To drill any of this hands-on, the <a href="../interview.app/sql.html">interview question bank</a> has a runnable <em>Data Modeling</em> set — every concept above, as an interview question with a worked answer.</p>
+
+</div>
+
+<div class="related-articles">
+  <h3>You Might Also Enjoy</h3>
+  <div class="related-articles-grid">
+    <a href="data-engineering-interview-prep.html" class="related-article-card">
+      <span class="related-article-category">technology</span>
+      <span class="related-article-title">Data Engineering Interview Prep — A Senior-Level Deep Dive</span>
+    </a>
+    <a href="introduction-to-data-engineering-sql-python-100-questions.html" class="related-article-card">
+      <span class="related-article-category">technology</span>
+      <span class="related-article-title">Introduction to Data Engineering — 100 SQL &amp; Python Questions</span>
+    </a>
+    <a href="a-data-catalogue-that-builds-itself.html" class="related-article-card">
+      <span class="related-article-category">technology</span>
+      <span class="related-article-title">A Data Catalogue That Builds Itself</span>
+    </a>
+  </div>
+</div>
+<div class="article-share article-share--padded"><span>Share</span><a class="share-btn" href="https://twitter.com/intent/tweet?text=Data%20Modeling%20for%20the%20Modern%20Warehouse&amp;url=https://paddyspeaks.com/articles/data-modeling-for-the-modern-warehouse.html" target="_blank" rel="noopener">𝕏</a><a class="share-btn" href="https://www.linkedin.com/sharing/share-offsite/?url=https://paddyspeaks.com/articles/data-modeling-for-the-modern-warehouse.html" target="_blank" rel="noopener">in</a></div>
+</div>
+</div>
+<footer class="site-footer">
+<div class="footer-ornament">❧</div>
+<div class="footer-links"><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a><a href="../about.html">About</a><a href="mailto:paddy@paddyspeaks.com">Contact</a></div>
+<p class="footer-copy">© 2026 PaddySpeaks. All rights reserved.</p></footer>
+<script>window.addEventListener('scroll',function(){var b=document.getElementById('readingProgress');b.style.width=(window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100+'%';});</script>
+<script defer src="/lib/ps.js"></script>
+</main>
+</body></html>
