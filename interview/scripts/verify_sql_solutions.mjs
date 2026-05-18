@@ -9,6 +9,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
+import { DatabaseSync } from "node:sqlite";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -108,6 +109,62 @@ function buildDDL(plan) {
   return sql;
 }
 
+// ── SQLite helpers (for runtime:sqlite questions) ────────────────────────
+// node:sqlite runs one statement at a time, so multi-statement solutions
+// (and trailing-comment banners) must be split on real `;` boundaries —
+// quotes and comments are skipped so semicolons inside them don't split.
+function splitStatements(sql) {
+  const stmts = [];
+  let cur = "";
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    if (c === "'" || c === '"') {
+      cur += c;
+      i++;
+      while (i < sql.length) {
+        cur += sql[i];
+        if (sql[i] === c) {
+          if (c === "'" && sql[i + 1] === "'") {
+            cur += sql[++i];
+          } else break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (c === "-" && sql[i + 1] === "-") {
+      while (i < sql.length && sql[i] !== "\n") cur += sql[i++];
+      cur += "\n";
+      continue;
+    }
+    if (c === "/" && sql[i + 1] === "*") {
+      cur += "/*";
+      i += 2;
+      while (i < sql.length && !(sql[i] === "*" && sql[i + 1] === "/")) cur += sql[i++];
+      cur += "*/";
+      i++;
+      continue;
+    }
+    if (c === ";") {
+      stmts.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) stmts.push(cur);
+  return stmts.filter((s) => bareStart(s).length > 0);
+}
+function bareStart(st) {
+  return st.replace(/^(?:\s|--[^\n]*\n?|\/\*[\s\S]*?\*\/)+/, "");
+}
+function isQuery(st) {
+  return /^(SELECT|WITH|VALUES|TABLE)\b/i.test(bareStart(st));
+}
+function toSqliteDDL(ddl) {
+  return ddl.replace(/ WITHOUT TIME ZONE/gi, "");
+}
+
 // ── sweep ────────────────────────────────────────────────────────────────
 const sqlQs = questions.filter((q) => q.language === "sql");
 const db = new PGlite();
@@ -139,6 +196,30 @@ for (const q of sqlQs) {
   } catch (e) {
     rec.status = "plan-error";
     rec.msg = String(e.message || e).split("\n")[0];
+    results.push(rec);
+    continue;
+  }
+  if (q.runtime === "sqlite") {
+    // The playground runs runtime:sqlite questions on SQLite (sql.js), not
+    // Postgres — verify them on the matching engine so SQLite-only syntax
+    // (julianday, strftime) isn't mis-reported as a broken solution.
+    let sdb;
+    try {
+      sdb = new DatabaseSync(":memory:");
+      sdb.exec(toSqliteDDL(ddl));
+      let rows = 0;
+      for (const st of splitStatements(q.solution || "")) {
+        if (isQuery(st)) rows = sdb.prepare(st).all().length;
+        else sdb.exec(st);
+      }
+      rec.status = "ok";
+      rec.rows = rows;
+    } catch (e) {
+      rec.status = "error";
+      rec.msg = String(e.message || e).split("\n")[0];
+    } finally {
+      if (sdb) sdb.close();
+    }
     results.push(rec);
     continue;
   }
