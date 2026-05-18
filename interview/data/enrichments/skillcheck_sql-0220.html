@@ -1,0 +1,83 @@
+<p>The Senior Manager questions counted a manager&rsquo;s <em>direct</em> reports. <strong>Span of control</strong> is the harder cousin: everyone beneath a manager, directly or indirectly, however deep the org runs. Computing it &mdash; along with each person&rsquo;s level in the hierarchy &mdash; takes two recursive passes over the same self-referential table.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jeff</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Andy</td><td>1</td></tr>
+    <tr><td>3</td><td>Dave</td><td>1</td></tr>
+    <tr><td>4</td><td>Beth</td><td>2</td></tr>
+    <tr><td>5</td><td>Carl</td><td>2</td></tr>
+    <tr><td>6</td><td>Dana</td><td>3</td></tr>
+    <tr><td>7</td><td>Erin</td><td>4</td></tr>
+    <tr><td>8</td><td>Finn</td><td>4</td></tr>
+    <tr><td>9</td><td>Gail</td><td>5</td></tr>
+    <tr><td>10</td><td>Hugo</td><td>6</td></tr>
+  </tbody>
+</table>
+<p>Jeff is the CEO (<code>manager_id</code> NULL). The org runs four levels deep: Jeff &rarr; Andy/Dave &rarr; Beth/Carl/Dana &rarr; the four individual contributors.</p>
+
+<h4>2. The recursive solution</h4>
+<pre><code>WITH RECURSIVE org_levels AS (
+  SELECT emp_id, emp_name, 1 AS level
+  FROM employees
+  WHERE manager_id IS NULL
+  UNION ALL
+  SELECT e.emp_id, e.emp_name, ol.level + 1
+  FROM employees e
+  JOIN org_levels ol ON e.manager_id = ol.emp_id
+),
+reports AS (
+  SELECT manager_id AS mgr_id, emp_id AS sub_id
+  FROM employees
+  WHERE manager_id IS NOT NULL
+  UNION ALL
+  SELECT r.mgr_id, e.emp_id
+  FROM reports r
+  JOIN employees e ON e.manager_id = r.sub_id
+),
+span_counts AS (
+  SELECT mgr_id, COUNT(*) AS span_of_control
+  FROM reports
+  GROUP BY mgr_id
+)
+SELECT ol.emp_name,
+       ol.level,
+       COALESCE(sc.span_of_control, 0) AS span_of_control
+FROM org_levels ol
+LEFT JOIN span_counts sc ON sc.mgr_id = ol.emp_id
+ORDER BY span_of_control DESC, ol.emp_name ASC;</code></pre>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>emp_name</th><th>level</th><th>span_of_control</th></tr></thead>
+  <tbody>
+    <tr><td>Jeff</td><td>1</td><td>9</td></tr>
+    <tr><td>Andy</td><td>2</td><td>5</td></tr>
+    <tr><td>Beth</td><td>3</td><td>2</td></tr>
+    <tr><td>Dave</td><td>2</td><td>2</td></tr>
+    <tr><td>Carl</td><td>3</td><td>1</td></tr>
+    <tr><td>Dana</td><td>3</td><td>1</td></tr>
+    <tr><td>Erin</td><td>4</td><td>0</td></tr>
+    <tr><td>Finn</td><td>4</td><td>0</td></tr>
+    <tr><td>Gail</td><td>4</td><td>0</td></tr>
+    <tr><td>Hugo</td><td>4</td><td>0</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two recursive CTEs under one WITH RECURSIVE</h5>
+<p><code>WITH RECURSIVE</code> introduces the whole CTE list; the keyword appears once. A CTE is recursive only if it references itself &mdash; <code>org_levels</code> and <code>reports</code> do, <code>span_counts</code> does not. All three coexist under the single <code>RECURSIVE</code>.</p>
+
+<h5>Level: carry an accumulator down from the root</h5>
+<p>An employee&rsquo;s level is not stored &mdash; it is the number of hops from the CEO. <code>org_levels</code> anchors Jeff at <code>1</code>, and each recursive step emits <code>ol.level + 1</code> as it moves to the next tier. Seed a value, increment it per hop: that accumulator pattern is how recursion measures depth.</p>
+
+<h5>Span: a transitive closure, not a direct count</h5>
+<p><code>reports</code> builds the <code>(manager, subordinate)</code> closure &mdash; every manager paired with every person <em>anywhere</em> below them. The anchor takes direct reports; the recursive term reaches their reports, and onward. <code>COUNT(*)</code> per manager is then the full subtree size: Jeff&rsquo;s span is 9, the whole company. Counting direct reports only &mdash; the Senior Manager problem &mdash; would have given Jeff 2.</p>
+
+<h5>LEFT JOIN, and why level and span are independent</h5>
+<p>The four ICs manage no one, so <code>span_counts</code> has no row for them; <code>LEFT JOIN</code> plus <code>COALESCE</code> reports span 0 instead of dropping them. The two metrics measure different things: Beth (level 3) and Dave (level 2) both have a span of 2 &mdash; sitting higher in the org does not mean managing more people. Span ranks by subtree size; level ranks by distance from the top.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> &ldquo;everyone under X&rdquo; is a transitive closure &mdash; a recursive CTE whose anchor is direct reports and whose recursive term keeps descending &mdash; not a <code>COUNT</code> of direct reports. Depth is a separate recursion that carries an incrementing level accumulator down from the root.</div>

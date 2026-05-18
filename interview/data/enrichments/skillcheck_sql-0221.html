@@ -1,0 +1,62 @@
+<p>A comment replies to a comment, which replies to another comment. Measuring a discussion &mdash; how many replies a thread drew, how deep the back-and-forth went &mdash; means walking the reply chain down from each root. A <code>WITH RECURSIVE</code> CTE does it, carrying both the thread&rsquo;s identity and a depth counter.</p>
+
+<h4>1. The source data &mdash; <code>comments</code></h4>
+<table>
+  <thead><tr><th>comment_id</th><th>post_id</th><th>author</th><th>parent_comment_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>Ana</td><td>NULL</td></tr>
+    <tr><td>2</td><td>100</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>100</td><td>Cy</td><td>1</td></tr>
+    <tr><td>4</td><td>100</td><td>Dee</td><td>2</td></tr>
+    <tr><td>5</td><td>100</td><td>Eve</td><td>3</td></tr>
+    <tr><td>6</td><td>100</td><td>Fay</td><td>NULL</td></tr>
+    <tr><td>7</td><td>100</td><td>Gil</td><td>4</td></tr>
+    <tr><td>8</td><td>100</td><td>Hal</td><td>6</td></tr>
+  </tbody>
+</table>
+<p>A <code>parent_comment_id</code> of NULL marks a top-level comment &mdash; a thread root, replying to the post itself. Ana&rsquo;s comment roots one thread; Fay&rsquo;s roots another.</p>
+
+<h4>2. The recursive solution</h4>
+<pre><code>WITH RECURSIVE thread AS (
+  SELECT comment_id, comment_id AS root_id, 1 AS depth
+  FROM comments
+  WHERE parent_comment_id IS NULL
+  UNION ALL
+  SELECT c.comment_id, t.root_id, t.depth + 1
+  FROM thread t
+  JOIN comments c ON c.parent_comment_id = t.comment_id
+)
+SELECT r.author AS root_author,
+       COUNT(*) - 1 AS reply_count,
+       MAX(t.depth) AS max_depth
+FROM thread t
+JOIN comments r ON r.comment_id = t.root_id
+GROUP BY t.root_id, r.author
+ORDER BY reply_count DESC, root_author ASC;</code></pre>
+<p>The anchor selects the root comments and stamps each with its own id as <code>root_id</code> and a <code>depth</code> of 1. The recursive term follows replies, propagating the same <code>root_id</code> and adding 1 to <code>depth</code>.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>root_author</th><th>reply_count</th><th>max_depth</th></tr></thead>
+  <tbody>
+    <tr><td>Ana</td><td>5</td><td>4</td></tr>
+    <tr><td>Fay</td><td>1</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Ana&rsquo;s thread drew 5 replies (Bob, Cy, Dee, Eve, Gil), and the chain Ana &rarr; Bob &rarr; Dee &rarr; Gil reaches depth 4. Fay&rsquo;s thread: one reply, depth 2.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Carry the root identity all the way down</h5>
+<p>The anchor sets <code>root_id = comment_id</code> for each root. The recursive term then selects <code>t.root_id</code> &mdash; the parent row&rsquo;s root, unchanged &mdash; not <code>c</code>&rsquo;s own id. So every comment, however deep, is stamped with the thread it ultimately belongs to, and a single <code>GROUP BY root_id</code> collapses each thread.</p>
+
+<h5>Depth is an incrementing accumulator</h5>
+<p><code>depth</code> starts at 1 on the root, and the recursive term emits <code>t.depth + 1</code> for each reply. <code>MAX(depth)</code> per thread is how far its longest reply chain runs. The value lives nowhere in the table &mdash; recursion computes it from the shape of the tree.</p>
+
+<h5>reply_count is COUNT(*) minus the root</h5>
+<p>The recursive set includes the root comment itself, so a thread&rsquo;s row count is replies plus one. Subtracting 1 gives the reply count. The alternative &mdash; seeding the anchor with the roots&rsquo; direct children to exclude the root &mdash; works too, but then a thread with zero replies would produce no rows and disappear from the report entirely.</p>
+
+<h5>Roots are defined by a NULL parent</h5>
+<p>A top-level comment replies to the post, not to another comment, so its <code>parent_comment_id</code> is NULL &mdash; and that predicate is exactly what the anchor selects. Recursion terminates because replies form a tree: each comment has one parent, leaves have no children, and the recursive term eventually returns nothing. A reply that somehow pointed back up its own chain would loop forever.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> to analyze threaded replies, recurse from the roots (<code>parent_comment_id IS NULL</code>), carrying the root&rsquo;s id unchanged so every descendant is tagged with its thread, plus a depth accumulator for nesting. Remember the recursive set contains the root itself, so reply counts are <code>COUNT(*) - 1</code>.</div>
