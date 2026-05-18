@@ -174,9 +174,43 @@ for (const q of sqlQs) {
   n++;
   if (n % 100 === 0) process.stderr.write(`  ${n}/${sqlQs.length}\n`);
   const rec = { id: q.id, batch: q.batch, dialect: !!q.dialect_token };
+  if (/Schema Design/i.test(q.type || "")) {
+    // Schema-design questions ask for a data model, not a runnable query.
+    rec.status = "design";
+    results.push(rec);
+    continue;
+  }
   const spec = schemas[q.id];
   if (!spec || !spec.length) {
-    rec.status = "no-schema";
+    // No schema spec — the solution may still be self-contained (recursive
+    // CTEs, generate_series, its own CREATE TABLE). Run it against an empty
+    // database; only a missing-relation error means a schema is required.
+    try {
+      if (q.runtime === "sqlite") {
+        const sdb = new DatabaseSync(":memory:");
+        try {
+          let rows = 0;
+          for (const st of splitStatements(q.solution || "")) {
+            if (isQuery(st)) rows = sdb.prepare(st).all().length;
+            else sdb.exec(st);
+          }
+          rec.status = "ok";
+          rec.rows = rows;
+        } finally {
+          sdb.close();
+        }
+      } else {
+        await db.exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+        const res = await db.exec(q.solution || "");
+        const last = Array.isArray(res) ? res[res.length - 1] : res;
+        rec.status = "ok";
+        rec.rows = last && last.rows ? last.rows.length : 0;
+      }
+    } catch (e) {
+      const msg = String(e.message || e).split("\n")[0];
+      rec.status = /does not exist|no such table/i.test(msg) ? "no-schema" : "error";
+      rec.msg = msg;
+    }
     results.push(rec);
     continue;
   }
@@ -258,6 +292,7 @@ console.log(`    └ dialect-flagged  : ${count((r) => r.status === "error" && r
 console.log(`    └ NOT dialect      : ${count((r) => r.status === "error" && !r.dialect)}`);
 console.log(`  no schema spec       : ${count((r) => r.status === "no-schema")}`);
 console.log(`  plan-error           : ${count((r) => r.status === "plan-error")}`);
+console.log(`  schema-design (skip) : ${count((r) => r.status === "design")}`);
 const byBatch = {};
 for (const r of by((r) => r.status === "error" && !r.dialect)) {
   byBatch[r.batch] = (byBatch[r.batch] || 0) + 1;
