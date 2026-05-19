@@ -1,0 +1,73 @@
+<p>This is the capstone: pivot, then unpivot, in a single query. It chains every move from the earlier exercises &mdash; flatten the tree, pivot with conditional aggregation, melt the result with <code>CROSS JOIN LATERAL</code> &mdash; and it teaches the one thing a round trip reveals that neither half does alone: the transform is <em>lossy</em>.</p>
+
+<h4>1. The source data</h4>
+<p>The familiar <code>categories</code> tree and <code>titles</code> table. Leaf-genre totals: Superhero 180, Spy 60, Comedy 100 under <em>Film</em>; Drama Series 160 and <strong>Reality 25</strong> under <em>Series</em>. Keep an eye on Reality.</p>
+
+<h4>2. The query &mdash; three named stages</h4>
+<pre><code>WITH category_hierarchy AS (
+  SELECT
+    c1.category_id   AS root_id,
+    c1.category_name AS root_name,
+    COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
+    COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
+  FROM categories c1
+  LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
+  LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
+  WHERE c1.parent_id IS NULL
+),
+wide AS (
+  SELECT
+    h.root_name AS main_category,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Superhero'    THEN t.watch_hours END), 0) AS superhero_hours,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Spy'          THEN t.watch_hours END), 0) AS spy_hours,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Comedy'       THEN t.watch_hours END), 0) AS comedy_hours,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Drama Series' THEN t.watch_hours END), 0) AS drama_series_hours
+  FROM category_hierarchy h
+  LEFT JOIN titles t ON t.category_id = h.descendant_id
+  GROUP BY h.root_id, h.root_name
+)
+SELECT
+  w.main_category,
+  u.sub_category,
+  u.watch_hours
+FROM wide w
+CROSS JOIN LATERAL (
+  VALUES
+    ('Superhero',    w.superhero_hours),
+    ('Spy',          w.spy_hours),
+    ('Comedy',       w.comedy_hours),
+    ('Drama Series', w.drama_series_hours)
+) AS u(sub_category, watch_hours)
+WHERE u.watch_hours &gt; 0
+ORDER BY w.main_category, u.watch_hours DESC;</code></pre>
+<p><code>category_hierarchy</code> flattens the tree; <code>wide</code> pivots watch hours into genre columns; the final <code>SELECT</code> unpivots <code>wide</code> straight back into rows.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>main_category</th><th>sub_category</th><th>watch_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>Superhero</td><td>180</td></tr>
+    <tr><td>Film</td><td>Comedy</td><td>100</td></tr>
+    <tr><td>Film</td><td>Spy</td><td>60</td></tr>
+    <tr><td>Series</td><td>Drama Series</td><td>160</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Pivot and unpivot are inverses &mdash; but only over the named columns</h5>
+<p><code>unpivot(pivot(x))</code> does not return <code>x</code>. It returns <code>x</code> restricted to the columns the pivot chose to name. The <code>wide</code> CTE breaks out exactly four genres; the <code>LATERAL</code> step can only melt what those four columns hold. Anything else never makes the round trip.</p>
+
+<h5>Where Reality goes</h5>
+<p><code>Reality</code> has 25 watch hours, but <code>wide</code> has no <code>reality_hours</code> column &mdash; and unlike the share-of-total report, this CTE does not even keep a <code>total</code>. So Reality's hours are aggregated into <em>nothing</em>: they are dropped at the pivot step and cannot reappear at the unpivot step. The output's Series row accounts for 160 hours; the real Series total is 185. The 25 are silently gone.</p>
+
+<h5>The round trip is an approximation of the original long form</h5>
+<p><code>titles</code> is <em>already</em> a long-form table &mdash; <code>(category_id, watch_hours)</code>, one row per title. The pivot-then-unpivot reconstructs a coarser version of it: aggregated to root level, and limited to four named genres. It is a reshape, not a faithful copy.</p>
+
+<h5>Why you would still do this</h5>
+<p>The pattern is legitimate when data <em>arrives</em> wide &mdash; a spreadsheet export, a vendor feed with one column per period &mdash; and a downstream tool wants it long, or vice versa. The query is fine. The senior move is to <em>name the lossiness</em>: state plainly that any category outside the hard-coded column list will not survive.</p>
+
+<h5>The zero-cell filter</h5>
+<p><code>WHERE u.watch_hours &gt; 0</code> drops Film's empty <code>Drama Series</code> cell and Series' three empty genres &mdash; the same dense-ledger choice made in the standalone unpivot. Remove it and the result is a complete 2&times;4 matrix with explicit zeros.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot and unpivot are inverses only across the columns the pivot explicitly names. Any value outside that hard-coded list survives the pivot folded inside an aggregate and is gone after the unpivot &mdash; a round trip is faithful only when the pivot's column list is exhaustive. Always say so out loud.</div>

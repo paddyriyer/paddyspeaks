@@ -1,0 +1,70 @@
+<p>You want a report where each top-level root category &mdash; <em>Film</em>, <em>Series</em> &mdash; gets exactly one row, and the watch hours of individual sub-genres are broken out into their own columns. That row-to-column reshape is a <strong>pivot</strong>, and in standard SQL it is done with <strong>conditional aggregation</strong>: <code>SUM(CASE WHEN ... THEN ... END)</code>.</p>
+
+<h4>1. The source data</h4>
+<p><code>categories</code> is the three-tier taxonomy from the flatten exercise; <code>titles</code> attaches each title's <code>watch_hours</code> to a leaf genre:</p>
+<table>
+  <thead><tr><th>title</th><th>category_id</th><th>genre</th><th>watch_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Iron Crusader</td><td>7</td><td>Superhero</td><td>120</td></tr>
+    <tr><td>Night Sentinel</td><td>7</td><td>Superhero</td><td>60</td></tr>
+    <tr><td>Cold Cipher</td><td>8</td><td>Spy</td><td>35</td></tr>
+    <tr><td>Quiet Asset</td><td>8</td><td>Spy</td><td>25</td></tr>
+    <tr><td>Office Capers</td><td>3</td><td>Comedy</td><td>70</td></tr>
+    <tr><td>The Roommates</td><td>3</td><td>Comedy</td><td>30</td></tr>
+    <tr><td>Royal Court</td><td>5</td><td>Drama Series</td><td>90</td></tr>
+    <tr><td>The Ward</td><td>5</td><td>Drama Series</td><td>70</td></tr>
+    <tr><td>Island Castaways</td><td>6</td><td>Reality</td><td>25</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The query &mdash; flatten, then pivot with SUM(CASE WHEN)</h4>
+<pre><code>WITH category_hierarchy AS (
+  SELECT
+    c1.category_id   AS root_id,
+    c1.category_name AS root_name,
+    COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
+    COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
+  FROM categories c1
+  LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
+  LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
+  WHERE c1.parent_id IS NULL
+)
+SELECT
+  h.root_name AS main_category,
+  COALESCE(SUM(t.watch_hours), 0) AS total_watch_hours,
+  COALESCE(SUM(CASE WHEN h.descendant_name = 'Superhero'    THEN t.watch_hours END), 0) AS superhero_hours,
+  COALESCE(SUM(CASE WHEN h.descendant_name = 'Spy'          THEN t.watch_hours END), 0) AS spy_hours,
+  COALESCE(SUM(CASE WHEN h.descendant_name = 'Comedy'       THEN t.watch_hours END), 0) AS comedy_hours,
+  COALESCE(SUM(CASE WHEN h.descendant_name = 'Drama Series' THEN t.watch_hours END), 0) AS drama_series_hours
+FROM category_hierarchy h
+LEFT JOIN titles t ON t.category_id = h.descendant_id
+GROUP BY h.root_id, h.root_name
+ORDER BY total_watch_hours DESC;</code></pre>
+
+<h4>3. The pivoted result</h4>
+<table>
+  <thead><tr><th>main_category</th><th>total_watch_hours</th><th>superhero_hours</th><th>spy_hours</th><th>comedy_hours</th><th>drama_series_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>340</td><td>180</td><td>60</td><td>100</td><td>0</td></tr>
+    <tr><td>Series</td><td>185</td><td>0</td><td>0</td><td>0</td><td>160</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How SUM(CASE WHEN) becomes a column</h5>
+<p>Each <code>CASE WHEN genre = '...'</code> acts as a filter: it returns <code>watch_hours</code> for the rows of one genre and NULL for the rest. <code>SUM</code> then collapses those values per group, and <code>SUM</code> ignores NULLs &mdash; so each <code>CASE</code> expression yields one genre's total as one column. The <code>GROUP BY</code> on the root is what gives one output row per <em>Film</em> / <em>Series</em>.</p>
+
+<h5>Why every SUM is wrapped in COALESCE</h5>
+<p>A <code>CASE</code> with no <code>ELSE</code> returns NULL when nothing matches. For <em>Film</em>, no row is <code>Drama Series</code>, so every input to that <code>SUM</code> is NULL and the aggregate itself returns NULL. <code>COALESCE(..., 0)</code> turns that empty cell into a clean <code>0</code> &mdash; which is what <code>drama_series_hours = 0</code> for Film shows.</p>
+
+<h5>total_watch_hours is not the sum of the named columns</h5>
+<p><em>Series</em> totals 185, but its named columns sum to only 160. The missing 25 hours are <code>Reality</code> &mdash; a genre with no pivoted column. The pivot's column list is a deliberate <em>choice</em>; it need not be exhaustive. <code>total_watch_hours</code> counts every title; the named columns count only the genres you chose to break out.</p>
+
+<h5>The CASE literals must match exactly</h5>
+<p><code>'Drama Series'</code> must match the data character-for-character. A typo or a casing mismatch (<code>'drama series'</code>) does not error &mdash; it silently produces an all-zero column. Pivot columns are only as trustworthy as their literals.</p>
+
+<h5>Static pivot, and the dialect split</h5>
+<p>Standard SQL has no portable <em>dynamic</em> pivot: the column list is hard-coded, and a new genre means a new <code>CASE</code> line (or application-side dynamic SQL). SQL Server and Oracle offer a dedicated <code>PIVOT</code> operator; PostgreSQL, MySQL and SQLite do not. <code>SUM(CASE WHEN ...)</code> is the one form that runs everywhere.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a pivot is conditional aggregation &mdash; <code>SUM(CASE WHEN dimension = literal THEN measure END)</code>, one expression per target column, <code>GROUP BY</code> the dimension that survives. Wrap each in <code>COALESCE(..., 0)</code> for clean zeros, and treat the column list as a deliberate, static choice rather than an exhaustive one.</div>

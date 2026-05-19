@@ -1,0 +1,68 @@
+<p>A category taxonomy is a tree, and the textbook tool for walking a tree is a recursive CTE. But when the tree has a known, shallow maximum depth &mdash; here three tiers, root &rarr; sub-genre group &rarr; leaf genre &mdash; recursion is overkill. Two <code>LEFT JOIN</code>s and a <code>COALESCE</code> flatten it into a plain (root, descendant) lookup.</p>
+
+<h4>1. The source data &mdash; <code>categories</code></h4>
+<table>
+  <thead><tr><th>category_id</th><th>category_name</th><th>parent_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Film</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Action</td><td>1</td></tr>
+    <tr><td>3</td><td>Comedy</td><td>1</td></tr>
+    <tr><td>4</td><td>Series</td><td>NULL</td></tr>
+    <tr><td>5</td><td>Drama Series</td><td>4</td></tr>
+    <tr><td>6</td><td>Reality</td><td>4</td></tr>
+    <tr><td>7</td><td>Superhero</td><td>2</td></tr>
+    <tr><td>8</td><td>Spy</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>The shape of the tree:</p>
+<pre><code>Film (1)
+  Action (2)
+    Superhero (7)
+    Spy (8)
+  Comedy (3)
+Series (4)
+  Drama Series (5)
+  Reality (6)</code></pre>
+<p>Note the uneven depth: the <code>Action</code> branch reaches tier 3, but <code>Comedy</code> stops at tier 2. The flatten must report <code>Comedy</code> as its own deepest node.</p>
+
+<h4>2. The query &mdash; two LEFT JOINs and COALESCE</h4>
+<pre><code>SELECT
+  c1.category_id   AS root_id,
+  c1.category_name AS root_name,
+  COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
+  COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
+FROM categories c1
+LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
+LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
+WHERE c1.parent_id IS NULL
+ORDER BY root_id, descendant_id;</code></pre>
+<p><code>c1</code> is pinned to roots by <code>WHERE c1.parent_id IS NULL</code>. Each join steps one tier down. <code>COALESCE</code> then reads the chain right-to-left and keeps the deepest node that actually exists.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>root_id</th><th>root_name</th><th>descendant_id</th><th>descendant_name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Film</td><td>3</td><td>Comedy</td></tr>
+    <tr><td>1</td><td>Film</td><td>7</td><td>Superhero</td></tr>
+    <tr><td>1</td><td>Film</td><td>8</td><td>Spy</td></tr>
+    <tr><td>4</td><td>Series</td><td>5</td><td>Drama Series</td></tr>
+    <tr><td>4</td><td>Series</td><td>6</td><td>Reality</td></tr>
+  </tbody>
+</table>
+<p>Five rows &mdash; one per leaf-most node, each mapped back to its root.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why LEFT JOIN, not INNER</h5>
+<p>An <code>INNER JOIN</code> to <code>c3</code> would drop every branch that has no tier-3 node. <code>Comedy</code> has no children, so its <code>c3</code> is empty &mdash; an inner join would erase the <code>(Film, Comedy)</code> row entirely. <code>LEFT JOIN</code> keeps the row with <code>c3</code> as NULL, and <code>COALESCE</code> falls back to <code>c2</code>.</p>
+
+<h5>What COALESCE is doing</h5>
+<p><code>COALESCE(c3, c2, c1)</code> returns its first non-NULL argument. Listed deepest-first, it always yields the lowest node present on the branch: tier 3 if there is one, otherwise tier 2, otherwise the root itself. A root with no children at all would produce a single <code>(root, root)</code> row.</p>
+
+<h5>When this beats a recursive CTE &mdash; and when it does not</h5>
+<p>Use the join chain when depth is <em>bounded and small</em>: it is simpler to read, the planner optimizes plain joins well, and it is portable to engines with weak recursion support. Each extra tier costs exactly one more <code>LEFT JOIN</code>. Switch to <code>WITH RECURSIVE</code> the moment depth is unknown or unbounded &mdash; an org chart, a threaded comment tree &mdash; because you cannot pre-write a join per level you have not counted.</p>
+
+<h5>This returns leaves, not every ancestor pair</h5>
+<p>The query maps each root to its <em>deepest</em> nodes only &mdash; it deliberately omits intermediate rows like <code>(Film, Action)</code>. That is exactly what a title-rollup needs, since titles attach to leaf genres. If you needed every (ancestor, descendant) pair, you would <code>UNION</code> the tiers or recurse.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> when a hierarchy's depth is fixed and shallow, a static chain of <code>LEFT JOIN</code>s collapsed by <code>COALESCE(deepest, ..., root)</code> is simpler, faster and more portable than <code>WITH RECURSIVE</code>. Recursion earns its cost only when the depth is genuinely unknown.</div>

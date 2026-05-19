@@ -1,0 +1,56 @@
+<p>The <code>CROSS JOIN LATERAL</code> unpivot is elegant, but <code>LATERAL</code> is not available on every engine or every version. The lowest-common-denominator unpivot &mdash; the one that runs literally everywhere &mdash; uses nothing but <code>UNION ALL</code>: one <code>SELECT</code> per source column, stacked.</p>
+
+<h4>1. The source data &mdash; <code>category_watch_summary</code></h4>
+<table>
+  <thead><tr><th>main_category</th><th>superhero_hours</th><th>spy_hours</th><th>comedy_hours</th><th>drama_series_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>180</td><td>60</td><td>100</td><td>0</td></tr>
+    <tr><td>Series</td><td>0</td><td>0</td><td>0</td><td>160</td></tr>
+  </tbody>
+</table>
+<p>The same wide report as the <code>LATERAL</code> exercise &mdash; the target output is identical too.</p>
+
+<h4>2. The query &mdash; one SELECT per column, stacked</h4>
+<pre><code>SELECT main_category, 'Superhero' AS sub_category, superhero_hours AS watch_hours
+FROM category_watch_summary WHERE superhero_hours &gt; 0
+UNION ALL
+SELECT main_category, 'Spy', spy_hours
+FROM category_watch_summary WHERE spy_hours &gt; 0
+UNION ALL
+SELECT main_category, 'Comedy', comedy_hours
+FROM category_watch_summary WHERE comedy_hours &gt; 0
+UNION ALL
+SELECT main_category, 'Drama Series', drama_series_hours
+FROM category_watch_summary WHERE drama_series_hours &gt; 0
+ORDER BY main_category, watch_hours DESC;</code></pre>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>main_category</th><th>sub_category</th><th>watch_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>Superhero</td><td>180</td></tr>
+    <tr><td>Film</td><td>Comedy</td><td>100</td></tr>
+    <tr><td>Film</td><td>Spy</td><td>60</td></tr>
+    <tr><td>Series</td><td>Drama Series</td><td>160</td></tr>
+  </tbody>
+</table>
+<p>Identical to the <code>LATERAL</code> output &mdash; same melt, different mechanism.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>One branch per column</h5>
+<p>Each <code>SELECT</code> projects three things: the key column unchanged, a string <em>literal</em> naming the genre, and one metric column aliased to <code>watch_hours</code>. Stacking four such branches with <code>UNION ALL</code> turns four columns into four groups of rows.</p>
+
+<h5>UNION ALL, never UNION</h5>
+<p><code>UNION</code> removes duplicate rows, which forces a sort or hash across the whole result. That work is wasted here &mdash; the branches cannot collide &mdash; and it is outright wrong if two genres legitimately share a value, since one of the rows would vanish. <code>UNION ALL</code> simply concatenates, which is both correct and cheaper.</p>
+
+<h5>The cost: one scan per column</h5>
+<p>Each branch has its own <code>FROM category_watch_summary</code>, so the base table is read four times &mdash; once per column. The <code>LATERAL</code> form reads it once. On this two-row table the difference is nothing; on a wide table with many metric columns, or a large base table, that multiplier is the reason <code>LATERAL</code> or <code>CROSS APPLY</code> exists.</p>
+
+<h5>Only the first SELECT names the output</h5>
+<p>In a <code>UNION</code> chain the result column names come solely from the <em>first</em> <code>SELECT</code>; later branches are matched by position. That is why only branch one writes <code>AS sub_category</code> and <code>AS watch_hours</code> &mdash; the other three rely on column order alone. Mismatched ordering across branches is a classic silent bug.</p>
+
+<h5>Why this is the portable choice</h5>
+<p><code>UNION ALL</code>, string literals and <code>WHERE</code> exist in every SQL engine and every version &mdash; no <code>LATERAL</code>, no <code>VALUES</code> table constructor, no vendor <code>UNPIVOT</code>. When the query must run on an unknown or old target, this is the unpivot that is guaranteed to work.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> the universal unpivot is <code>UNION ALL</code> &mdash; one <code>SELECT</code> per source column, each projecting a literal label and that column. It is portable to every engine, at the cost of one base-table scan per column; reach for <code>LATERAL</code> / <code>CROSS APPLY</code> only when that scan count actually matters.</div>

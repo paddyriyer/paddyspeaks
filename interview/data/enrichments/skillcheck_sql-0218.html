@@ -1,0 +1,66 @@
+<p>A pivot that reports raw hours answers "how much"; a pivot that reports each genre's <em>share</em> of its category total answers "how much, relatively" &mdash; the question a reviewer actually asks. The share is a second stage layered on the pivot, and it hides two traps: integer division, and percentages that refuse to sum to 100.</p>
+
+<h4>1. The source data</h4>
+<p>The same <code>categories</code> tree and <code>titles</code> table as the pivot exercise. The leaf-genre totals: Superhero 180, Spy 60, Comedy 100 (all under <em>Film</em>); Drama Series 160, Reality 25 (under <em>Series</em>).</p>
+
+<h4>2. The query &mdash; pivot in a CTE, divide in the outer SELECT</h4>
+<pre><code>WITH category_hierarchy AS (
+  SELECT
+    c1.category_id   AS root_id,
+    c1.category_name AS root_name,
+    COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
+    COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
+  FROM categories c1
+  LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
+  LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
+  WHERE c1.parent_id IS NULL
+),
+pivoted AS (
+  SELECT
+    h.root_name AS main_category,
+    COALESCE(SUM(t.watch_hours), 0) AS total_watch_hours,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Superhero'    THEN t.watch_hours END), 0) AS superhero_hours,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Spy'          THEN t.watch_hours END), 0) AS spy_hours,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Comedy'       THEN t.watch_hours END), 0) AS comedy_hours,
+    COALESCE(SUM(CASE WHEN h.descendant_name = 'Drama Series' THEN t.watch_hours END), 0) AS drama_series_hours
+  FROM category_hierarchy h
+  LEFT JOIN titles t ON t.category_id = h.descendant_id
+  GROUP BY h.root_id, h.root_name
+)
+SELECT
+  main_category,
+  total_watch_hours,
+  ROUND(100.0 * superhero_hours    / NULLIF(total_watch_hours, 0), 1) AS superhero_pct,
+  ROUND(100.0 * spy_hours          / NULLIF(total_watch_hours, 0), 1) AS spy_pct,
+  ROUND(100.0 * comedy_hours       / NULLIF(total_watch_hours, 0), 1) AS comedy_pct,
+  ROUND(100.0 * drama_series_hours / NULLIF(total_watch_hours, 0), 1) AS drama_series_pct
+FROM pivoted
+ORDER BY total_watch_hours DESC;</code></pre>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>main_category</th><th>total_watch_hours</th><th>superhero_pct</th><th>spy_pct</th><th>comedy_pct</th><th>drama_series_pct</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>340</td><td>52.9</td><td>17.6</td><td>29.4</td><td>0.0</td></tr>
+    <tr><td>Series</td><td>185</td><td>0.0</td><td>0.0</td><td>0.0</td><td>86.5</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the pivot lives in a CTE</h5>
+<p>A <code>SELECT</code> cannot reference one of its own output aliases from a sibling expression &mdash; <code>superhero_pct</code> cannot read a <code>superhero_hours</code> defined in the same <code>SELECT</code> list. So stage one (<code>pivoted</code>) computes the conditional sums and names them; stage two reads those names and divides. The alternative &mdash; repeating every <code>SUM(CASE WHEN ...)</code> inside the division &mdash; works but is unreadable.</p>
+
+<h5>100.0, not 100 &mdash; the integer-division trap</h5>
+<p><code>100 * 180 / 340</code> in integer arithmetic truncates to <code>52</code>. Writing the literal as <code>100.0</code> makes the whole expression numeric, so the division keeps its fractional part: <code>52.94...</code>, which <code>ROUND(..., 1)</code> renders as <code>52.9</code>. The decimal point on the literal is the entire fix.</p>
+
+<h5>NULLIF guards divide-by-zero</h5>
+<p><code>NULLIF(total_watch_hours, 0)</code> returns NULL when the total is zero, and dividing by NULL yields NULL rather than raising an error. A root category with no titles produces a clean empty cell instead of crashing the query.</p>
+
+<h5>The trap: percentages that do not sum to 100</h5>
+<p><em>Series</em> shows <code>86.5</code> for Drama Series and <code>0.0</code> for the other three &mdash; a total of 86.5%, not 100%. The missing 13.5% is the <code>Reality</code> genre: 25 of Series' 185 hours, counted in <code>total_watch_hours</code> but captured by no named column. <em>Film</em>, by contrast, sums to ~100 (52.9 + 17.6 + 29.4 = 99.9, the 0.1 lost to rounding) because its three named columns happen to cover all 340 of its hours.</p>
+
+<h5>Reading the gap correctly</h5>
+<p>When pivoted percentages do not reach 100, that is a signal worth a sentence in your answer: it is either rounding noise (a few tenths) or a genuine residual category outside the column list (a large, clean gap). Here it is the latter, and it is intentional &mdash; the report breaks out four genres and rolls everything else into the total only.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> share-of-total over a pivot is two stages &mdash; aggregate, then divide &mdash; bridged by a CTE because a <code>SELECT</code> cannot see its own sibling aliases. Force numeric division with <code>100.0</code>, guard zero denominators with <code>NULLIF</code>, and treat "doesn't sum to 100" as a question to answer, not a bug to hide.</div>
