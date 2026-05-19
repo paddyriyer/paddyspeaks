@@ -1,0 +1,57 @@
+<p>This is the inverse of a pivot. You inherit a <strong>wide</strong> summary &mdash; one row per category, one column per sub-genre &mdash; and you need to <strong>melt</strong> it vertically into a tall ledger, so each category has multiple rows broken out by a generic <code>sub_category</code> label and a <code>watch_hours</code> value. In PostgreSQL the cleanest tool is <code>CROSS JOIN LATERAL</code> over an inline <code>VALUES</code> list.</p>
+
+<h4>1. The source data &mdash; <code>category_watch_summary</code></h4>
+<table>
+  <thead><tr><th>main_category</th><th>superhero_hours</th><th>spy_hours</th><th>comedy_hours</th><th>drama_series_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>180</td><td>60</td><td>100</td><td>0</td></tr>
+    <tr><td>Series</td><td>0</td><td>0</td><td>0</td><td>160</td></tr>
+  </tbody>
+</table>
+<p>Two rows, four metric columns &mdash; the exact shape a pivot produces. The goal is to turn those four columns back into rows.</p>
+
+<h4>2. The query &mdash; CROSS JOIN LATERAL over VALUES</h4>
+<pre><code>SELECT
+  w.main_category,
+  u.sub_category,
+  u.watch_hours
+FROM category_watch_summary w
+CROSS JOIN LATERAL (
+  VALUES
+    ('Superhero',    w.superhero_hours),
+    ('Spy',          w.spy_hours),
+    ('Comedy',       w.comedy_hours),
+    ('Drama Series', w.drama_series_hours)
+) AS u(sub_category, watch_hours)
+WHERE u.watch_hours &gt; 0
+ORDER BY w.main_category, u.watch_hours DESC;</code></pre>
+
+<h4>3. The unpivoted result</h4>
+<table>
+  <thead><tr><th>main_category</th><th>sub_category</th><th>watch_hours</th></tr></thead>
+  <tbody>
+    <tr><td>Film</td><td>Superhero</td><td>180</td></tr>
+    <tr><td>Film</td><td>Comedy</td><td>100</td></tr>
+    <tr><td>Film</td><td>Spy</td><td>60</td></tr>
+    <tr><td>Series</td><td>Drama Series</td><td>160</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>What LATERAL actually grants</h5>
+<p>A normal subquery in the <code>FROM</code> clause cannot see columns from the other tables in that same <code>FROM</code>. <code>LATERAL</code> lifts that restriction: the <code>VALUES</code> list is re-evaluated <em>for each row</em> of <code>w</code>, and it may reference <code>w.superhero_hours</code>, <code>w.spy_hours</code> and the rest. Without <code>LATERAL</code>, those references are an error.</p>
+
+<h5>The VALUES list is the column-to-row map</h5>
+<p>Each tuple <code>('Superhero', w.superhero_hours)</code> pairs a label with the column it came from. <code>AS u(sub_category, watch_hours)</code> names the two output columns. The four tuples per source row are exactly the four columns being melted &mdash; 2 rows &times; 4 tuples = 8 candidate rows.</p>
+
+<h5>WHERE u.watch_hours &gt; 0 &mdash; a reporting choice</h5>
+<p>Of the 8 candidate rows, four have a zero value (Film has no <code>Drama Series</code>; Series has zero of the other three). The <code>WHERE</code> drops them, leaving 4. Keeping or dropping zero cells is a deliberate decision &mdash; a dense ledger drops them; a complete matrix keeps them.</p>
+
+<h5>One pass over the table</h5>
+<p><code>CROSS JOIN LATERAL</code> scans <code>category_watch_summary</code> exactly once and expands each row in place. The portable <code>UNION ALL</code> form (see the next question) scans the base table once per column. On a small summary that difference is invisible; on a wide or large table it is the reason to prefer <code>LATERAL</code>.</p>
+
+<h5>Dialect notes</h5>
+<p><code>CROSS JOIN LATERAL</code> is PostgreSQL (and standard SQL). SQL Server expresses the same idea as <code>CROSS APPLY</code>; Oracle has a dedicated <code>UNPIVOT</code> operator; the universally portable fallback is <code>UNION ALL</code>. The <code>VALUES</code> table-constructor used here is itself a PostgreSQL strength.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> to unpivot in PostgreSQL, <code>CROSS JOIN LATERAL (VALUES (label, col), ...)</code> &mdash; the column-to-row mapping is declared inline and the base table is scanned once. <code>LATERAL</code> is the keyword that lets the <code>VALUES</code> list reference the outer row.</div>
