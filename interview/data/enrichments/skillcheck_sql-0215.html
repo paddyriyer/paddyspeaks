@@ -1,70 +1,75 @@
-<p>You want a report where each top-level root category &mdash; <em>Film</em>, <em>Series</em> &mdash; gets exactly one row, and the watch hours of individual sub-genres are broken out into their own columns. That row-to-column reshape is a <strong>pivot</strong>, and in standard SQL it is done with <strong>conditional aggregation</strong>: <code>SUM(CASE WHEN ... THEN ... END)</code>.</p>
+<p>The window-function approach reframes the problem as a roll-up: tag every employee as a Manager or not, then &mdash; for each manager &mdash; count how many of their reports are Managers and how many are Senior Managers. Aggregate window functions partitioned by <code>manager_id</code> do the counting. The trap is believing a window can also do the <em>tagging</em>.</p>
 
-<h4>1. The source data</h4>
-<p><code>categories</code> is the three-tier taxonomy from the flatten exercise; <code>titles</code> attaches each title's <code>watch_hours</code> to a leaf genre:</p>
+<h4>1. The source data &mdash; <code>employees</code></h4>
 <table>
-  <thead><tr><th>title</th><th>category_id</th><th>genre</th><th>watch_hours</th></tr></thead>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
   <tbody>
-    <tr><td>Iron Crusader</td><td>7</td><td>Superhero</td><td>120</td></tr>
-    <tr><td>Night Sentinel</td><td>7</td><td>Superhero</td><td>60</td></tr>
-    <tr><td>Cold Cipher</td><td>8</td><td>Spy</td><td>35</td></tr>
-    <tr><td>Quiet Asset</td><td>8</td><td>Spy</td><td>25</td></tr>
-    <tr><td>Office Capers</td><td>3</td><td>Comedy</td><td>70</td></tr>
-    <tr><td>The Roommates</td><td>3</td><td>Comedy</td><td>30</td></tr>
-    <tr><td>Royal Court</td><td>5</td><td>Drama Series</td><td>90</td></tr>
-    <tr><td>The Ward</td><td>5</td><td>Drama Series</td><td>70</td></tr>
-    <tr><td>Island Castaways</td><td>6</td><td>Reality</td><td>25</td></tr>
+    <tr><td>1</td><td>Alice</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td></tr>
+    <tr><td>4</td><td>Dave</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+    <tr><td>6</td><td>Karl</td><td>2</td></tr>
+    <tr><td>7</td><td>Frank</td><td>3</td></tr>
+    <tr><td>8</td><td>Grace</td><td>4</td></tr>
+    <tr><td>9</td><td>Heidi</td><td>4</td></tr>
+    <tr><td>10</td><td>Ivan</td><td>5</td></tr>
+    <tr><td>11</td><td>Judy</td><td>7</td></tr>
   </tbody>
 </table>
+<p>Four tiers run Alice (CEO) &rarr; Bob and Carol &rarr; Dave, Eve and Frank &rarr; the individual contributors. Bob&rsquo;s team is deliberately mixed &mdash; Dave and Eve are Managers, but Karl is an IC.</p>
 
-<h4>2. The query &mdash; flatten, then pivot with SUM(CASE WHEN)</h4>
-<pre><code>WITH category_hierarchy AS (
-  SELECT
-    c1.category_id   AS root_id,
-    c1.category_name AS root_name,
-    COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
-    COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
-  FROM categories c1
-  LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
-  LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
-  WHERE c1.parent_id IS NULL
+<h4>2. The window-function solution</h4>
+<pre><code>WITH base AS (
+  SELECT e.emp_id, e.emp_name, e.manager_id,
+         CASE WHEN EXISTS (SELECT 1 FROM employees s WHERE s.manager_id = e.emp_id)
+              THEN 1 ELSE 0 END AS is_mgr,
+         CASE WHEN EXISTS (
+                SELECT 1 FROM employees s
+                JOIN employees gs ON gs.manager_id = s.emp_id
+                WHERE s.manager_id = e.emp_id)
+              THEN 1 ELSE 0 END AS manages_a_mgr
+  FROM employees e
+),
+boss_stats AS (
+  SELECT manager_id AS mgr_id,
+         COUNT(*)           OVER (PARTITION BY manager_id) AS direct_reports,
+         SUM(is_mgr)        OVER (PARTITION BY manager_id) AS manager_reports,
+         SUM(manages_a_mgr) OVER (PARTITION BY manager_id) AS sm_reports,
+         ROW_NUMBER()       OVER (PARTITION BY manager_id) AS rn
+  FROM base
+  WHERE manager_id IS NOT NULL
 )
-SELECT
-  h.root_name AS main_category,
-  COALESCE(SUM(t.watch_hours), 0) AS total_watch_hours,
-  COALESCE(SUM(CASE WHEN h.descendant_name = 'Superhero'    THEN t.watch_hours END), 0) AS superhero_hours,
-  COALESCE(SUM(CASE WHEN h.descendant_name = 'Spy'          THEN t.watch_hours END), 0) AS spy_hours,
-  COALESCE(SUM(CASE WHEN h.descendant_name = 'Comedy'       THEN t.watch_hours END), 0) AS comedy_hours,
-  COALESCE(SUM(CASE WHEN h.descendant_name = 'Drama Series' THEN t.watch_hours END), 0) AS drama_series_hours
-FROM category_hierarchy h
-LEFT JOIN titles t ON t.category_id = h.descendant_id
-GROUP BY h.root_id, h.root_name
-ORDER BY total_watch_hours DESC;</code></pre>
+SELECT emp.emp_name AS senior_manager, bs.direct_reports
+FROM boss_stats bs
+JOIN employees emp ON emp.emp_id = bs.mgr_id
+WHERE bs.rn = 1
+  AND bs.manager_reports &gt;= 1
+  AND bs.sm_reports = 0
+ORDER BY bs.direct_reports DESC, senior_manager ASC;</code></pre>
+<p><code>base</code> flags each employee: <code>is_mgr</code> (has a report) and <code>manages_a_mgr</code> (has a report who themselves has a report). <code>boss_stats</code> then partitions by <code>manager_id</code>, so every report row carries its boss&rsquo;s totals. A manager qualifies when at least one report is a Manager and none is a Senior Manager.</p>
 
-<h4>3. The pivoted result</h4>
+<h4>3. The result</h4>
 <table>
-  <thead><tr><th>main_category</th><th>total_watch_hours</th><th>superhero_hours</th><th>spy_hours</th><th>comedy_hours</th><th>drama_series_hours</th></tr></thead>
+  <thead><tr><th>senior_manager</th><th>direct_reports</th></tr></thead>
   <tbody>
-    <tr><td>Film</td><td>340</td><td>180</td><td>60</td><td>100</td><td>0</td></tr>
-    <tr><td>Series</td><td>185</td><td>0</td><td>0</td><td>0</td><td>160</td></tr>
+    <tr><td>Bob</td><td>3</td></tr>
+    <tr><td>Carol</td><td>1</td></tr>
   </tbody>
 </table>
 
 <h4>4. Strategic explanations</h4>
 
-<h5>How SUM(CASE WHEN) becomes a column</h5>
-<p>Each <code>CASE WHEN genre = '...'</code> acts as a filter: it returns <code>watch_hours</code> for the rows of one genre and NULL for the rest. <code>SUM</code> then collapses those values per group, and <code>SUM</code> ignores NULLs &mdash; so each <code>CASE</code> expression yields one genre's total as one column. The <code>GROUP BY</code> on the root is what gives one output row per <em>Film</em> / <em>Series</em>.</p>
+<h5>PARTITION BY manager_id rolls the team up to its boss</h5>
+<p>Partitioning by <code>manager_id</code> groups all of one manager&rsquo;s reports together. <code>SUM(is_mgr) OVER (PARTITION BY manager_id)</code> is then &ldquo;how many of this manager&rsquo;s reports are Managers&rdquo; &mdash; a fact about the <em>boss</em>, copied onto each report row. <code>ROW_NUMBER()</code> plus <code>WHERE rn = 1</code> collapses each partition back to one row per manager.</p>
 
-<h5>Why every SUM is wrapped in COALESCE</h5>
-<p>A <code>CASE</code> with no <code>ELSE</code> returns NULL when nothing matches. For <em>Film</em>, no row is <code>Drama Series</code>, so every input to that <code>SUM</code> is NULL and the aggregate itself returns NULL. <code>COALESCE(..., 0)</code> turns that empty cell into a clean <code>0</code> &mdash; which is what <code>drama_series_hours = 0</code> for Film shows.</p>
+<h5>The trap: MAX(...) OVER (PARTITION BY emp_id) cannot detect a Manager</h5>
+<p>It is tempting to flag managers in &ldquo;one pass&rdquo; with <code>MAX(CASE WHEN manager_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY emp_id)</code>. It does not work. <code>emp_id</code> is unique, so each partition is a single row &mdash; the window sees no one else. The expression collapses to &ldquo;does <em>this</em> row have a manager,&rdquo; the opposite of being a manager: on this data it flags Alice (the CEO) as 0 and the ICs as 1. Identifying a Manager requires relating <code>emp_id</code> to the <code>manager_id</code> column &mdash; a semi-join (<code>EXISTS</code> / <code>IN</code>), which is exactly why <code>base</code> uses <code>EXISTS</code>.</p>
 
-<h5>total_watch_hours is not the sum of the named columns</h5>
-<p><em>Series</em> totals 185, but its named columns sum to only 160. The missing 25 hours are <code>Reality</code> &mdash; a genre with no pivoted column. The pivot's column list is a deliberate <em>choice</em>; it need not be exhaustive. <code>total_watch_hours</code> counts every title; the named columns count only the genres you chose to break out.</p>
+<h5>Window functions annotate; they do not group</h5>
+<p><code>SUM(...) OVER (...)</code> leaves the row count unchanged &mdash; it writes the aggregate onto every row of the partition. Without <code>ROW_NUMBER() ... WHERE rn = 1</code> (or <code>DISTINCT</code>) the result would repeat each Senior Manager once per direct report. Forgetting that collapse step is a classic window-function slip.</p>
 
-<h5>The CASE literals must match exactly</h5>
-<p><code>'Drama Series'</code> must match the data character-for-character. A typo or a casing mismatch (<code>'drama series'</code>) does not error &mdash; it silently produces an all-zero column. Pivot columns are only as trustworthy as their literals.</p>
+<h5>Two flags, two levels</h5>
+<p><code>is_mgr</code> is the first level &mdash; a report is a Manager. <code>manages_a_mgr</code> is the second &mdash; a report is itself a Senior Manager. Requiring <code>manager_reports &gt;= 1</code> and <code>sm_reports = 0</code> encodes both halves of the definition: manage a Manager, but not a manager-of-managers.</p>
 
-<h5>Static pivot, and the dialect split</h5>
-<p>Standard SQL has no portable <em>dynamic</em> pivot: the column list is hard-coded, and a new genre means a new <code>CASE</code> line (or application-side dynamic SQL). SQL Server and Oracle offer a dedicated <code>PIVOT</code> operator; PostgreSQL, MySQL and SQLite do not. <code>SUM(CASE WHEN ...)</code> is the one form that runs everywhere.</p>
-
-<div class="takeaway"><strong>Senior signal:</strong> a pivot is conditional aggregation &mdash; <code>SUM(CASE WHEN dimension = literal THEN measure END)</code>, one expression per target column, <code>GROUP BY</code> the dimension that survives. Wrap each in <code>COALESCE(..., 0)</code> for clean zeros, and treat the column list as a deliberate, static choice rather than an exhaustive one.</div>
+<div class="takeaway"><strong>Senior signal:</strong> window aggregates with <code>PARTITION BY manager_id</code> are ideal for rolling team facts up to a manager &mdash; but a window partitioned by a unique key sees only its own row. Detecting &ldquo;is a manager&rdquo; needs a semi-join, not a window; and a window annotates rows rather than collapsing them, so you still need a row-picking step.</div>

@@ -1,73 +1,66 @@
-<p>This is the capstone: pivot, then unpivot, in a single query. It chains every move from the earlier exercises &mdash; flatten the tree, pivot with conditional aggregation, melt the result with <code>CROSS JOIN LATERAL</code> &mdash; and it teaches the one thing a round trip reveals that neither half does alone: the transform is <em>lossy</em>.</p>
+<p>A title belongs to exactly one category, but a category&rsquo;s real total should include every nested subcategory beneath it. Because the category tree can be any depth, rolling counts up it is a recursive job &mdash; a <code>WITH RECURSIVE</code> CTE that pairs each category with its whole subtree.</p>
 
 <h4>1. The source data</h4>
-<p>The familiar <code>categories</code> tree and <code>titles</code> table. Leaf-genre totals: Superhero 180, Spy 60, Comedy 100 under <em>Film</em>; Drama Series 160 and <strong>Reality 25</strong> under <em>Series</em>. Keep an eye on Reality.</p>
+<p><code>categories</code> &mdash; <code>parent_id</code> points at the enclosing category (NULL = a top-level category):</p>
+<table>
+  <thead><tr><th>category_id</th><th>category_name</th><th>parent_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Film</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Action</td><td>1</td></tr>
+    <tr><td>3</td><td>Comedy</td><td>1</td></tr>
+    <tr><td>4</td><td>Series</td><td>NULL</td></tr>
+    <tr><td>5</td><td>Superhero</td><td>2</td></tr>
+    <tr><td>6</td><td>Spy</td><td>2</td></tr>
+    <tr><td>7</td><td>Drama Series</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>titles</code> has 11 rows, each tagged to one <code>category_id</code> with its <code>watch_hours</code>. Titles sit at every level &mdash; some directly under <code>Film</code>, some down in <code>Superhero</code>.</p>
 
-<h4>2. The query &mdash; three named stages</h4>
-<pre><code>WITH category_hierarchy AS (
-  SELECT
-    c1.category_id   AS root_id,
-    c1.category_name AS root_name,
-    COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
-    COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
-  FROM categories c1
-  LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
-  LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
-  WHERE c1.parent_id IS NULL
-),
-wide AS (
-  SELECT
-    h.root_name AS main_category,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Superhero'    THEN t.watch_hours END), 0) AS superhero_hours,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Spy'          THEN t.watch_hours END), 0) AS spy_hours,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Comedy'       THEN t.watch_hours END), 0) AS comedy_hours,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Drama Series' THEN t.watch_hours END), 0) AS drama_series_hours
-  FROM category_hierarchy h
-  LEFT JOIN titles t ON t.category_id = h.descendant_id
-  GROUP BY h.root_id, h.root_name
+<h4>2. The recursive solution</h4>
+<pre><code>WITH RECURSIVE subtree AS (
+  SELECT category_id AS ancestor_id, category_id AS descendant_id
+  FROM categories
+  UNION ALL
+  SELECT s.ancestor_id, c.category_id
+  FROM subtree s
+  JOIN categories c ON c.parent_id = s.descendant_id
 )
-SELECT
-  w.main_category,
-  u.sub_category,
-  u.watch_hours
-FROM wide w
-CROSS JOIN LATERAL (
-  VALUES
-    ('Superhero',    w.superhero_hours),
-    ('Spy',          w.spy_hours),
-    ('Comedy',       w.comedy_hours),
-    ('Drama Series', w.drama_series_hours)
-) AS u(sub_category, watch_hours)
-WHERE u.watch_hours &gt; 0
-ORDER BY w.main_category, u.watch_hours DESC;</code></pre>
-<p><code>category_hierarchy</code> flattens the tree; <code>wide</code> pivots watch hours into genre columns; the final <code>SELECT</code> unpivots <code>wide</code> straight back into rows.</p>
+SELECT cat.category_name,
+       COUNT(t.title_id) AS total_titles,
+       COALESCE(SUM(t.watch_hours), 0) AS total_watch_hours
+FROM subtree s
+JOIN categories cat ON cat.category_id = s.ancestor_id
+LEFT JOIN titles t ON t.category_id = s.descendant_id
+GROUP BY cat.category_id, cat.category_name
+ORDER BY total_watch_hours DESC, cat.category_name ASC;</code></pre>
+<p>The <code>subtree</code> CTE pairs every category (<code>ancestor_id</code>) with every category in its subtree (<code>descendant_id</code>), itself included. Titles join on the descendant; the aggregate groups by the ancestor.</p>
 
 <h4>3. The result</h4>
 <table>
-  <thead><tr><th>main_category</th><th>sub_category</th><th>watch_hours</th></tr></thead>
+  <thead><tr><th>category_name</th><th>total_titles</th><th>total_watch_hours</th></tr></thead>
   <tbody>
-    <tr><td>Film</td><td>Superhero</td><td>180</td></tr>
-    <tr><td>Film</td><td>Comedy</td><td>100</td></tr>
-    <tr><td>Film</td><td>Spy</td><td>60</td></tr>
-    <tr><td>Series</td><td>Drama Series</td><td>160</td></tr>
+    <tr><td>Film</td><td>8</td><td>390</td></tr>
+    <tr><td>Action</td><td>4</td><td>280</td></tr>
+    <tr><td>Series</td><td>3</td><td>185</td></tr>
+    <tr><td>Superhero</td><td>2</td><td>180</td></tr>
+    <tr><td>Drama Series</td><td>2</td><td>160</td></tr>
+    <tr><td>Comedy</td><td>3</td><td>100</td></tr>
+    <tr><td>Spy</td><td>1</td><td>60</td></tr>
   </tbody>
 </table>
 
 <h4>4. Strategic explanations</h4>
 
-<h5>Pivot and unpivot are inverses &mdash; but only over the named columns</h5>
-<p><code>unpivot(pivot(x))</code> does not return <code>x</code>. It returns <code>x</code> restricted to the columns the pivot chose to name. The <code>wide</code> CTE breaks out exactly four genres; the <code>LATERAL</code> step can only melt what those four columns hold. Anything else never makes the round trip.</p>
+<h5>The anchor pairs each category with itself</h5>
+<p>The base case is <code>SELECT category_id AS ancestor_id, category_id AS descendant_id</code> &mdash; every category paired with <em>itself</em>. That self-pair is deliberate: a category&rsquo;s rollup must include the titles tagged directly to it, not only those in its children. Seeding <code>(c, c)</code> makes <code>subtree</code> mean &ldquo;this category and everything under it.&rdquo; Contrast a referral downline, which excludes the referrer and so seeds its anchor with direct referrals only.</p>
 
-<h5>Where Reality goes</h5>
-<p><code>Reality</code> has 25 watch hours, but <code>wide</code> has no <code>reality_hours</code> column &mdash; and unlike the share-of-total report, this CTE does not even keep a <code>total</code>. So Reality's hours are aggregated into <em>nothing</em>: they are dropped at the pivot step and cannot reappear at the unpivot step. The output's Series row accounts for 160 hours; the real Series total is 185. The 25 are silently gone.</p>
+<h5>The recursive term descends one level at a time</h5>
+<p><code>JOIN categories c ON c.parent_id = s.descendant_id</code> takes each known <code>(ancestor, descendant)</code> pair, finds the descendant&rsquo;s direct children, and pairs them with the <em>same</em> ancestor. <code>Film</code> reaches <code>Action</code>, then on the next pass <code>Superhero</code> and <code>Spy</code> &mdash; the ancestor stays <code>Film</code> the whole way down.</p>
 
-<h5>The round trip is an approximation of the original long form</h5>
-<p><code>titles</code> is <em>already</em> a long-form table &mdash; <code>(category_id, watch_hours)</code>, one row per title. The pivot-then-unpivot reconstructs a coarser version of it: aggregated to root level, and limited to four named genres. It is a reshape, not a faithful copy.</p>
+<h5>Join the facts on the descendant, group by the ancestor</h5>
+<p>This swap is the rollup. <code>titles</code> joins on <code>descendant_id</code> &mdash; a title is physically in that category &mdash; but the query groups by <code>ancestor_id</code>. So a title in <code>Superhero</code> is counted once for <code>Superhero</code>, once for <code>Action</code>, and once for <code>Film</code>: each ancestor up the chain. That is precisely what &ldquo;include nested subcategories&rdquo; means.</p>
 
-<h5>Why you would still do this</h5>
-<p>The pattern is legitimate when data <em>arrives</em> wide &mdash; a spreadsheet export, a vendor feed with one column per period &mdash; and a downstream tool wants it long, or vice versa. The query is fine. The senior move is to <em>name the lossiness</em>: state plainly that any category outside the hard-coded column list will not survive.</p>
+<h5>LEFT JOIN so empty branches still report</h5>
+<p>A category whose entire subtree holds no titles should still appear with a total of 0, not vanish. <code>LEFT JOIN titles</code> plus <code>COALESCE(SUM(...), 0)</code> guarantees that. And note the ranking: <code>Comedy</code> has more titles than <code>Superhero</code> (3 vs 2) but far fewer watch hours (100 vs 180) &mdash; counting rows and summing a metric tell different stories.</p>
 
-<h5>The zero-cell filter</h5>
-<p><code>WHERE u.watch_hours &gt; 0</code> drops Film's empty <code>Drama Series</code> cell and Series' three empty genres &mdash; the same dense-ledger choice made in the standalone unpivot. Remove it and the result is a complete 2&times;4 matrix with explicit zeros.</p>
-
-<div class="takeaway"><strong>Senior signal:</strong> pivot and unpivot are inverses only across the columns the pivot explicitly names. Any value outside that hard-coded list survives the pivot folded inside an aggregate and is gone after the unpivot &mdash; a round trip is faithful only when the pivot's column list is exhaustive. Always say so out loud.</div>
+<div class="takeaway"><strong>Senior signal:</strong> to roll a metric up a tree, build an <code>(ancestor, descendant)</code> closure with a recursive CTE whose anchor pairs each node <em>with itself</em>, join the fact table on the descendant, and group by the ancestor. The self-pair in the anchor is what makes a node&rsquo;s own rows count toward its rollup.</div>

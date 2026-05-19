@@ -1,57 +1,66 @@
-<p>This is the inverse of a pivot. You inherit a <strong>wide</strong> summary &mdash; one row per category, one column per sub-genre &mdash; and you need to <strong>melt</strong> it vertically into a tall ledger, so each category has multiple rows broken out by a generic <code>sub_category</code> label and a <code>watch_hours</code> value. In PostgreSQL the cleanest tool is <code>CROSS JOIN LATERAL</code> over an inline <code>VALUES</code> list.</p>
+<p>This approach makes the hierarchy literal: a chain of <code>LEFT JOIN</code>s lays the reporting line out sideways &mdash; manager, child, grandchild, great-grandchild. Once the tiers are columns, a Senior Manager is a simple shape: someone who <em>has</em> a grandchild but <em>no</em> great-grandchild.</p>
 
-<h4>1. The source data &mdash; <code>category_watch_summary</code></h4>
+<h4>1. The source data &mdash; <code>employees</code></h4>
 <table>
-  <thead><tr><th>main_category</th><th>superhero_hours</th><th>spy_hours</th><th>comedy_hours</th><th>drama_series_hours</th></tr></thead>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
   <tbody>
-    <tr><td>Film</td><td>180</td><td>60</td><td>100</td><td>0</td></tr>
-    <tr><td>Series</td><td>0</td><td>0</td><td>0</td><td>160</td></tr>
+    <tr><td>1</td><td>Alice</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td></tr>
+    <tr><td>4</td><td>Dave</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+    <tr><td>6</td><td>Karl</td><td>2</td></tr>
+    <tr><td>7</td><td>Frank</td><td>3</td></tr>
+    <tr><td>8</td><td>Grace</td><td>4</td></tr>
+    <tr><td>9</td><td>Heidi</td><td>4</td></tr>
+    <tr><td>10</td><td>Ivan</td><td>5</td></tr>
+    <tr><td>11</td><td>Judy</td><td>7</td></tr>
   </tbody>
 </table>
-<p>Two rows, four metric columns &mdash; the exact shape a pivot produces. The goal is to turn those four columns back into rows.</p>
+<p>Four tiers run Alice (CEO) &rarr; Bob and Carol &rarr; Dave, Eve and Frank &rarr; the individual contributors. Bob&rsquo;s team is deliberately mixed &mdash; Dave and Eve are Managers, but Karl is an IC.</p>
 
-<h4>2. The query &mdash; CROSS JOIN LATERAL over VALUES</h4>
-<pre><code>SELECT
-  w.main_category,
-  u.sub_category,
-  u.watch_hours
-FROM category_watch_summary w
-CROSS JOIN LATERAL (
-  VALUES
-    ('Superhero',    w.superhero_hours),
-    ('Spy',          w.spy_hours),
-    ('Comedy',       w.comedy_hours),
-    ('Drama Series', w.drama_series_hours)
-) AS u(sub_category, watch_hours)
-WHERE u.watch_hours &gt; 0
-ORDER BY w.main_category, u.watch_hours DESC;</code></pre>
+<h4>2. The tier-mapping solution</h4>
+<pre><code>WITH chain AS (
+  SELECT e1.emp_id   AS m_id,
+         e1.emp_name AS m_name,
+         e2.emp_id   AS child_id,
+         e3.emp_id   AS grandchild_id,
+         e4.emp_id   AS greatgrandchild_id
+  FROM employees e1
+  LEFT JOIN employees e2 ON e2.manager_id = e1.emp_id
+  LEFT JOIN employees e3 ON e3.manager_id = e2.emp_id
+  LEFT JOIN employees e4 ON e4.manager_id = e3.emp_id
+)
+SELECT m_name AS senior_manager,
+       COUNT(DISTINCT child_id) AS direct_reports
+FROM chain
+WHERE m_id IN (SELECT m_id FROM chain WHERE grandchild_id IS NOT NULL)
+  AND m_id NOT IN (SELECT m_id FROM chain WHERE greatgrandchild_id IS NOT NULL)
+GROUP BY m_id, m_name
+ORDER BY direct_reports DESC, senior_manager ASC;</code></pre>
+<p>Each <code>LEFT JOIN</code> steps one level down the org chart. The <code>chain</code> rows expose, for every manager, who their grandchildren and great-grandchildren are &mdash; or NULL where the line runs out. A manager stays in the result if some row has a grandchild and no row has a great-grandchild.</p>
 
-<h4>3. The unpivoted result</h4>
+<h4>3. The result</h4>
 <table>
-  <thead><tr><th>main_category</th><th>sub_category</th><th>watch_hours</th></tr></thead>
+  <thead><tr><th>senior_manager</th><th>direct_reports</th></tr></thead>
   <tbody>
-    <tr><td>Film</td><td>Superhero</td><td>180</td></tr>
-    <tr><td>Film</td><td>Comedy</td><td>100</td></tr>
-    <tr><td>Film</td><td>Spy</td><td>60</td></tr>
-    <tr><td>Series</td><td>Drama Series</td><td>160</td></tr>
+    <tr><td>Bob</td><td>3</td></tr>
+    <tr><td>Carol</td><td>1</td></tr>
   </tbody>
 </table>
 
 <h4>4. Strategic explanations</h4>
 
-<h5>What LATERAL actually grants</h5>
-<p>A normal subquery in the <code>FROM</code> clause cannot see columns from the other tables in that same <code>FROM</code>. <code>LATERAL</code> lifts that restriction: the <code>VALUES</code> list is re-evaluated <em>for each row</em> of <code>w</code>, and it may reference <code>w.superhero_hours</code>, <code>w.spy_hours</code> and the rest. Without <code>LATERAL</code>, those references are an error.</p>
+<h5>Senior Manager = has a grandchild, lacks a great-grandchild</h5>
+<p>Translate the definition into the chain. &ldquo;Manages a Manager&rdquo; means the manager has a <em>grandchild</em> &mdash; a report&rsquo;s report. &ldquo;A report is a Senior Manager&rdquo; means that report manages a Manager &mdash; i.e. the manager has a <em>great-grandchild</em>. So a Senior Manager has at least one grandchild and no great-grandchild. Bob reaches Grace, Heidi and Ivan (grandchildren) but no further; Alice reaches a fourth tier, so she is out.</p>
 
-<h5>The VALUES list is the column-to-row map</h5>
-<p>Each tuple <code>('Superhero', w.superhero_hours)</code> pairs a label with the column it came from. <code>AS u(sub_category, watch_hours)</code> names the two output columns. The four tuples per source row are exactly the four columns being melted &mdash; 2 rows &times; 4 tuples = 8 candidate rows.</p>
+<h5>LEFT JOIN is mandatory &mdash; INNER would undercount</h5>
+<p>The chain must use <code>LEFT JOIN</code>. With <code>INNER JOIN</code>, a manager vanishes the moment the chain ends &mdash; Bob&rsquo;s report Karl has no reports, so the Bob&ndash;Karl branch would be dropped, and Karl would never be counted among Bob&rsquo;s direct reports. The NULLs that <code>LEFT JOIN</code> preserves <em>are</em> the signal that a tier is absent.</p>
 
-<h5>WHERE u.watch_hours &gt; 0 &mdash; a reporting choice</h5>
-<p>Of the 8 candidate rows, four have a zero value (Film has no <code>Drama Series</code>; Series has zero of the other three). The <code>WHERE</code> drops them, leaving 4. Keeping or dropping zero cells is a deliberate decision &mdash; a dense ledger drops them; a complete matrix keeps them.</p>
+<h5>NOT IN is safe here &mdash; because m_id cannot be NULL</h5>
+<p><code>NOT IN</code> is notorious for breaking when its subquery yields a NULL. Here it is safe: <code>m_id</code> is <code>e1.emp_id</code>, a non-nullable key, so the subquery list never contains NULL. Knowing <em>why</em> it is safe is the point &mdash; if that column could be NULL, this would have to become <code>NOT EXISTS</code>.</p>
 
-<h5>One pass over the table</h5>
-<p><code>CROSS JOIN LATERAL</code> scans <code>category_watch_summary</code> exactly once and expands each row in place. The portable <code>UNION ALL</code> form (see the next question) scans the base table once per column. On a small summary that difference is invisible; on a wide or large table it is the reason to prefer <code>LATERAL</code>.</p>
+<h5>COUNT(DISTINCT child_id), not COUNT(*)</h5>
+<p>The join fans out: Bob&rarr;Dave appears twice in the chain, once via Grace and once via Heidi. <code>COUNT(*)</code> would count chain rows and badly inflate the team size. <code>COUNT(DISTINCT child_id)</code> counts each direct report once &mdash; the correct three for Bob.</p>
 
-<h5>Dialect notes</h5>
-<p><code>CROSS JOIN LATERAL</code> is PostgreSQL (and standard SQL). SQL Server expresses the same idea as <code>CROSS APPLY</code>; Oracle has a dedicated <code>UNPIVOT</code> operator; the universally portable fallback is <code>UNION ALL</code>. The <code>VALUES</code> table-constructor used here is itself a PostgreSQL strength.</p>
-
-<div class="takeaway"><strong>Senior signal:</strong> to unpivot in PostgreSQL, <code>CROSS JOIN LATERAL (VALUES (label, col), ...)</code> &mdash; the column-to-row mapping is declared inline and the base table is scanned once. <code>LATERAL</code> is the keyword that lets the <code>VALUES</code> list reference the outer row.</div>
+<div class="takeaway"><strong>Senior signal:</strong> a fixed-depth hierarchy question can be flattened into a chain of <code>LEFT JOIN</code>s, turning &ldquo;tiers&rdquo; into columns you can test for NULL. Keep the joins <code>LEFT</code> so partial chains survive, and de-duplicate join fan-out with <code>COUNT(DISTINCT ...)</code>.</div>

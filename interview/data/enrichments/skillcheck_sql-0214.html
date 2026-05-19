@@ -1,68 +1,72 @@
-<p>A category taxonomy is a tree, and the textbook tool for walking a tree is a recursive CTE. But when the tree has a known, shallow maximum depth &mdash; here three tiers, root &rarr; sub-genre group &rarr; leaf genre &mdash; recursion is overkill. Two <code>LEFT JOIN</code>s and a <code>COALESCE</code> flatten it into a plain (root, descendant) lookup.</p>
+<p>The definition of a Senior Manager is quietly recursive &mdash; &ldquo;a Manager who manages at least one Manager, but none of whose direct reports is itself a Senior Manager.&rdquo; The set-operations approach untangles it in layers: first the Managers, then the Managers who manage a Manager, then &mdash; by subtraction &mdash; remove the ones who sit <em>above</em> the Senior Manager tier.</p>
 
-<h4>1. The source data &mdash; <code>categories</code></h4>
+<h4>1. The source data &mdash; <code>employees</code></h4>
 <table>
-  <thead><tr><th>category_id</th><th>category_name</th><th>parent_id</th></tr></thead>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td>Film</td><td>NULL</td></tr>
-    <tr><td>2</td><td>Action</td><td>1</td></tr>
-    <tr><td>3</td><td>Comedy</td><td>1</td></tr>
-    <tr><td>4</td><td>Series</td><td>NULL</td></tr>
-    <tr><td>5</td><td>Drama Series</td><td>4</td></tr>
-    <tr><td>6</td><td>Reality</td><td>4</td></tr>
-    <tr><td>7</td><td>Superhero</td><td>2</td></tr>
-    <tr><td>8</td><td>Spy</td><td>2</td></tr>
+    <tr><td>1</td><td>Alice</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td></tr>
+    <tr><td>4</td><td>Dave</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+    <tr><td>6</td><td>Karl</td><td>2</td></tr>
+    <tr><td>7</td><td>Frank</td><td>3</td></tr>
+    <tr><td>8</td><td>Grace</td><td>4</td></tr>
+    <tr><td>9</td><td>Heidi</td><td>4</td></tr>
+    <tr><td>10</td><td>Ivan</td><td>5</td></tr>
+    <tr><td>11</td><td>Judy</td><td>7</td></tr>
   </tbody>
 </table>
-<p>The shape of the tree:</p>
-<pre><code>Film (1)
-  Action (2)
-    Superhero (7)
-    Spy (8)
-  Comedy (3)
-Series (4)
-  Drama Series (5)
-  Reality (6)</code></pre>
-<p>Note the uneven depth: the <code>Action</code> branch reaches tier 3, but <code>Comedy</code> stops at tier 2. The flatten must report <code>Comedy</code> as its own deepest node.</p>
+<p>Four tiers run Alice (CEO) &rarr; Bob and Carol &rarr; Dave, Eve and Frank &rarr; the individual contributors. Bob&rsquo;s team is deliberately mixed &mdash; Dave and Eve are Managers, but Karl is an IC.</p>
 
-<h4>2. The query &mdash; two LEFT JOINs and COALESCE</h4>
-<pre><code>SELECT
-  c1.category_id   AS root_id,
-  c1.category_name AS root_name,
-  COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
-  COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
-FROM categories c1
-LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
-LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
-WHERE c1.parent_id IS NULL
-ORDER BY root_id, descendant_id;</code></pre>
-<p><code>c1</code> is pinned to roots by <code>WHERE c1.parent_id IS NULL</code>. Each join steps one tier down. <code>COALESCE</code> then reads the chain right-to-left and keeps the deepest node that actually exists.</p>
+<h4>2. The set-operations solution</h4>
+<pre><code>WITH managers AS (
+  SELECT DISTINCT manager_id AS mgr FROM employees WHERE manager_id IS NOT NULL
+),
+manages_a_manager AS (
+  SELECT DISTINCT e.manager_id AS mgr
+  FROM employees e
+  JOIN managers m ON e.emp_id = m.mgr
+  WHERE e.manager_id IS NOT NULL
+),
+senior_managers AS (
+  SELECT mgr FROM manages_a_manager
+  EXCEPT
+  SELECT DISTINCT e.manager_id
+  FROM employees e
+  JOIN manages_a_manager mm ON e.emp_id = mm.mgr
+  WHERE e.manager_id IS NOT NULL
+)
+SELECT sm_emp.emp_name AS senior_manager,
+       COUNT(r.emp_id) AS direct_reports
+FROM senior_managers sm
+JOIN employees sm_emp ON sm_emp.emp_id = sm.mgr
+JOIN employees r ON r.manager_id = sm.mgr
+GROUP BY sm_emp.emp_id, sm_emp.emp_name
+ORDER BY direct_reports DESC, senior_manager ASC;</code></pre>
+<p><code>managers</code> is every id that appears as someone&rsquo;s <code>manager_id</code>. <code>manages_a_manager</code> joins each Manager back to the table to collect <em>their</em> bosses &mdash; the people who manage a Manager. The final <code>EXCEPT</code> subtracts the bosses of those people: anyone who manages a manager-of-managers sits above the Senior Manager tier and is removed.</p>
 
 <h4>3. The result</h4>
 <table>
-  <thead><tr><th>root_id</th><th>root_name</th><th>descendant_id</th><th>descendant_name</th></tr></thead>
+  <thead><tr><th>senior_manager</th><th>direct_reports</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td>Film</td><td>3</td><td>Comedy</td></tr>
-    <tr><td>1</td><td>Film</td><td>7</td><td>Superhero</td></tr>
-    <tr><td>1</td><td>Film</td><td>8</td><td>Spy</td></tr>
-    <tr><td>4</td><td>Series</td><td>5</td><td>Drama Series</td></tr>
-    <tr><td>4</td><td>Series</td><td>6</td><td>Reality</td></tr>
+    <tr><td>Bob</td><td>3</td></tr>
+    <tr><td>Carol</td><td>1</td></tr>
   </tbody>
 </table>
-<p>Five rows &mdash; one per leaf-most node, each mapped back to its root.</p>
 
 <h4>4. Strategic explanations</h4>
 
-<h5>Why LEFT JOIN, not INNER</h5>
-<p>An <code>INNER JOIN</code> to <code>c3</code> would drop every branch that has no tier-3 node. <code>Comedy</code> has no children, so its <code>c3</code> is empty &mdash; an inner join would erase the <code>(Film, Comedy)</code> row entirely. <code>LEFT JOIN</code> keeps the row with <code>c3</code> as NULL, and <code>COALESCE</code> falls back to <code>c2</code>.</p>
+<h5>The exclusion is &ldquo;manages a manager-of-managers&rdquo;</h5>
+<p>&ldquo;None of their reports is a Senior Manager&rdquo; needs unpacking. A report is a Senior Manager exactly when that report manages a Manager. So the people to exclude are those who manage <em>someone who manages a Manager</em> &mdash; the second <code>SELECT</code> in the <code>EXCEPT</code>. Alice manages Bob, and Bob manages Dave (a Manager), so Alice is removed; Bob manages Dave and Eve, but neither of them manages a Manager, so Bob survives.</p>
 
-<h5>What COALESCE is doing</h5>
-<p><code>COALESCE(c3, c2, c1)</code> returns its first non-NULL argument. Listed deepest-first, it always yields the lowest node present on the branch: tier 3 if there is one, otherwise tier 2, otherwise the root itself. A root with no children at all would produce a single <code>(root, root)</code> row.</p>
+<h5>EXCEPT over NOT IN &mdash; and why it matters here</h5>
+<p><code>EXCEPT</code> is a true set difference: it deduplicates and compares rows structurally, so a NULL on either side is handled cleanly. The obvious alternative, <code>NOT IN (SELECT manager_id ...)</code>, is a trap &mdash; <code>manager_id</code> is nullable (Alice has none), and <code>NOT IN</code> against a list containing NULL never returns true. <code>EXCEPT</code> avoids that failure mode entirely.</p>
 
-<h5>When this beats a recursive CTE &mdash; and when it does not</h5>
-<p>Use the join chain when depth is <em>bounded and small</em>: it is simpler to read, the planner optimizes plain joins well, and it is portable to engines with weak recursion support. Each extra tier costs exactly one more <code>LEFT JOIN</code>. Switch to <code>WITH RECURSIVE</code> the moment depth is unknown or unbounded &mdash; an org chart, a threaded comment tree &mdash; because you cannot pre-write a join per level you have not counted.</p>
+<h5>The rule reaches two levels, not one</h5>
+<p>A frequent wrong answer stops at &ldquo;manages a Manager&rdquo; &mdash; one level down. That keeps every executive in the result, because a VP also manages a Manager. The definition is really two levels deep: manage a Manager, <em>but not</em> a manager-of-managers. The layered CTEs make both levels explicit and separately inspectable.</p>
 
-<h5>This returns leaves, not every ancestor pair</h5>
-<p>The query maps each root to its <em>deepest</em> nodes only &mdash; it deliberately omits intermediate rows like <code>(Film, Action)</code>. That is exactly what a title-rollup needs, since titles attach to leaf genres. If you needed every (ancestor, descendant) pair, you would <code>UNION</code> the tiers or recurse.</p>
+<h5>Mixed teams still qualify</h5>
+<p>Bob manages Dave and Eve (Managers) and Karl (an IC). He is still a Senior Manager: the rule asks for <em>at least one</em> Manager among the reports, not all of them. The final <code>COUNT(r.emp_id)</code> then counts every direct report &mdash; all three &mdash; not only the managerial ones.</p>
 
-<div class="takeaway"><strong>Senior signal:</strong> when a hierarchy's depth is fixed and shallow, a static chain of <code>LEFT JOIN</code>s collapsed by <code>COALESCE(deepest, ..., root)</code> is simpler, faster and more portable than <code>WITH RECURSIVE</code>. Recursion earns its cost only when the depth is genuinely unknown.</div>
+<div class="takeaway"><strong>Senior signal:</strong> a recursive-sounding hierarchy rule often unfolds into plain set operations &mdash; build each tier as a CTE and use <code>EXCEPT</code> to subtract the tier above. Reach for <code>EXCEPT</code> rather than <code>NOT IN</code> whenever the compared column is nullable.</div>

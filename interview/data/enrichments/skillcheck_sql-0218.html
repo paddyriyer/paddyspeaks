@@ -1,66 +1,70 @@
-<p>A pivot that reports raw hours answers "how much"; a pivot that reports each genre's <em>share</em> of its category total answers "how much, relatively" &mdash; the question a reviewer actually asks. The share is a second stage layered on the pivot, and it hides two traps: integer division, and percentages that refuse to sum to 100.</p>
+<p>Counting someone&rsquo;s <em>direct</em> referrals is a simple <code>GROUP BY</code>. Counting their whole referral <em>network</em> &mdash; everyone they brought in directly, plus everyone those people brought in, to any depth &mdash; needs recursion. A <code>WITH RECURSIVE</code> CTE walks the referral tree and rolls trip volume up to each referrer.</p>
 
 <h4>1. The source data</h4>
-<p>The same <code>categories</code> tree and <code>titles</code> table as the pivot exercise. The leaf-genre totals: Superhero 180, Spy 60, Comedy 100 (all under <em>Film</em>); Drama Series 160, Reality 25 (under <em>Series</em>).</p>
+<p><code>users</code> &mdash; each row&rsquo;s <code>referred_by_id</code> points at the user who referred them (NULL = an organic signup):</p>
+<table>
+  <thead><tr><th>user_id</th><th>user_name</th><th>referred_by_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ava</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Ben</td><td>1</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td></tr>
+    <tr><td>5</td><td>Eli</td><td>2</td></tr>
+    <tr><td>6</td><td>Fay</td><td>3</td></tr>
+    <tr><td>7</td><td>Gus</td><td>NULL</td></tr>
+    <tr><td>8</td><td>Hana</td><td>7</td></tr>
+  </tbody>
+</table>
+<p><code>trips</code> has 16 rows; trips per user are Ava 2, Ben 2, Cara 1, Dan 3, Eli 0, Fay 3, Gus 1, Hana 4. There are two referral trees: Ava&rsquo;s (Ben, Cara, and everyone below) and Gus&rsquo;s (Hana).</p>
 
-<h4>2. The query &mdash; pivot in a CTE, divide in the outer SELECT</h4>
-<pre><code>WITH category_hierarchy AS (
-  SELECT
-    c1.category_id   AS root_id,
-    c1.category_name AS root_name,
-    COALESCE(c3.category_id,   c2.category_id,   c1.category_id)   AS descendant_id,
-    COALESCE(c3.category_name, c2.category_name, c1.category_name) AS descendant_name
-  FROM categories c1
-  LEFT JOIN categories c2 ON c2.parent_id = c1.category_id
-  LEFT JOIN categories c3 ON c3.parent_id = c2.category_id
-  WHERE c1.parent_id IS NULL
+<h4>2. The recursive solution</h4>
+<pre><code>WITH RECURSIVE downline AS (
+  SELECT referred_by_id AS ancestor_id, user_id AS member_id
+  FROM users
+  WHERE referred_by_id IS NOT NULL
+  UNION ALL
+  SELECT d.ancestor_id, u.user_id
+  FROM downline d
+  JOIN users u ON u.referred_by_id = d.member_id
 ),
-pivoted AS (
-  SELECT
-    h.root_name AS main_category,
-    COALESCE(SUM(t.watch_hours), 0) AS total_watch_hours,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Superhero'    THEN t.watch_hours END), 0) AS superhero_hours,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Spy'          THEN t.watch_hours END), 0) AS spy_hours,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Comedy'       THEN t.watch_hours END), 0) AS comedy_hours,
-    COALESCE(SUM(CASE WHEN h.descendant_name = 'Drama Series' THEN t.watch_hours END), 0) AS drama_series_hours
-  FROM category_hierarchy h
-  LEFT JOIN titles t ON t.category_id = h.descendant_id
-  GROUP BY h.root_id, h.root_name
+trips_per_user AS (
+  SELECT user_id, COUNT(*) AS trip_count
+  FROM trips
+  GROUP BY user_id
 )
-SELECT
-  main_category,
-  total_watch_hours,
-  ROUND(100.0 * superhero_hours    / NULLIF(total_watch_hours, 0), 1) AS superhero_pct,
-  ROUND(100.0 * spy_hours          / NULLIF(total_watch_hours, 0), 1) AS spy_pct,
-  ROUND(100.0 * comedy_hours       / NULLIF(total_watch_hours, 0), 1) AS comedy_pct,
-  ROUND(100.0 * drama_series_hours / NULLIF(total_watch_hours, 0), 1) AS drama_series_pct
-FROM pivoted
-ORDER BY total_watch_hours DESC;</code></pre>
+SELECT a.user_name AS referrer,
+       COUNT(*) AS downline_size,
+       COALESCE(SUM(tpu.trip_count), 0) AS downline_trips
+FROM downline d
+JOIN users a ON a.user_id = d.ancestor_id
+LEFT JOIN trips_per_user tpu ON tpu.user_id = d.member_id
+GROUP BY a.user_id, a.user_name
+ORDER BY downline_trips DESC, referrer ASC;</code></pre>
+<p>The <code>downline</code> CTE produces one row for every (ancestor, member) pair &mdash; every user paired with everyone beneath them in the referral tree. Trips are pre-aggregated per user, joined on the member, and summed up to the ancestor.</p>
 
 <h4>3. The result</h4>
 <table>
-  <thead><tr><th>main_category</th><th>total_watch_hours</th><th>superhero_pct</th><th>spy_pct</th><th>comedy_pct</th><th>drama_series_pct</th></tr></thead>
+  <thead><tr><th>referrer</th><th>downline_size</th><th>downline_trips</th></tr></thead>
   <tbody>
-    <tr><td>Film</td><td>340</td><td>52.9</td><td>17.6</td><td>29.4</td><td>0.0</td></tr>
-    <tr><td>Series</td><td>185</td><td>0.0</td><td>0.0</td><td>0.0</td><td>86.5</td></tr>
+    <tr><td>Ava</td><td>5</td><td>9</td></tr>
+    <tr><td>Gus</td><td>1</td><td>4</td></tr>
+    <tr><td>Ben</td><td>2</td><td>3</td></tr>
+    <tr><td>Cara</td><td>1</td><td>3</td></tr>
   </tbody>
 </table>
 
 <h4>4. Strategic explanations</h4>
 
-<h5>Why the pivot lives in a CTE</h5>
-<p>A <code>SELECT</code> cannot reference one of its own output aliases from a sibling expression &mdash; <code>superhero_pct</code> cannot read a <code>superhero_hours</code> defined in the same <code>SELECT</code> list. So stage one (<code>pivoted</code>) computes the conditional sums and names them; stage two reads those names and divides. The alternative &mdash; repeating every <code>SUM(CASE WHEN ...)</code> inside the division &mdash; works but is unreadable.</p>
+<h5>Anchor term, then recursive term</h5>
+<p>A recursive CTE has two halves joined by <code>UNION ALL</code>. The <em>anchor</em> &mdash; the first <code>SELECT</code> &mdash; seeds the working set with direct referrals: <code>(referred_by_id, user_id)</code> pairs. The <em>recursive term</em> &mdash; the second <code>SELECT</code>, which references <code>downline</code> itself &mdash; takes each known pair and reaches one level deeper, joining back to <code>users</code> to find who the member referred. The engine repeats the recursive term until it yields no new rows.</p>
 
-<h5>100.0, not 100 &mdash; the integer-division trap</h5>
-<p><code>100 * 180 / 340</code> in integer arithmetic truncates to <code>52</code>. Writing the literal as <code>100.0</code> makes the whole expression numeric, so the division keeps its fractional part: <code>52.94...</code>, which <code>ROUND(..., 1)</code> renders as <code>52.9</code>. The decimal point on the literal is the entire fix.</p>
+<h5>Why the recursion terminates &mdash; and when it would not</h5>
+<p>Each user has exactly one <code>referred_by_id</code>, so the referral graph is a tree: finite and acyclic. The recursive term eventually reaches leaves (users who referred no one), produces nothing, and stops. If the data allowed a cycle &mdash; A referred B who referred A &mdash; the recursion would never terminate; PostgreSQL would need a <code>CYCLE</code> clause or an explicit depth guard.</p>
 
-<h5>NULLIF guards divide-by-zero</h5>
-<p><code>NULLIF(total_watch_hours, 0)</code> returns NULL when the total is zero, and dividing by NULL yields NULL rather than raising an error. A root category with no titles produces a clean empty cell instead of crashing the query.</p>
+<h5>Pre-aggregate the fact table to avoid fan-out</h5>
+<p><code>trips</code> has one row per trip. Joining it straight onto <code>downline</code> would multiply rows &mdash; a member with 3 trips would appear 3 times, inflating <code>downline_size</code> into a trip count rather than a head count. <code>trips_per_user</code> collapses trips to one row per user first, so each member contributes exactly one row: <code>downline_size</code> counts people, <code>downline_trips</code> sums their trips.</p>
 
-<h5>The trap: percentages that do not sum to 100</h5>
-<p><em>Series</em> shows <code>86.5</code> for Drama Series and <code>0.0</code> for the other three &mdash; a total of 86.5%, not 100%. The missing 13.5% is the <code>Reality</code> genre: 25 of Series' 185 hours, counted in <code>total_watch_hours</code> but captured by no named column. <em>Film</em>, by contrast, sums to ~100 (52.9 + 17.6 + 29.4 = 99.9, the 0.1 lost to rounding) because its three named columns happen to cover all 340 of its hours.</p>
+<h5>LEFT JOIN keeps members who took no trips</h5>
+<p>Eli took zero trips, so <code>trips_per_user</code> has no row for him. A <code>LEFT JOIN</code> keeps Eli in Ben&rsquo;s downline &mdash; <code>downline_size</code> for Ben stays 2 &mdash; and <code>COALESCE</code> turns his missing trip sum into 0. An <code>INNER JOIN</code> would silently drop zero-trip members and undercount every network. Notice too that size and value diverge: Ava&rsquo;s network is 5 people, Gus&rsquo;s is 1, yet Gus&rsquo;s lone referral out-rides Ben&rsquo;s two.</p>
 
-<h5>Reading the gap correctly</h5>
-<p>When pivoted percentages do not reach 100, that is a signal worth a sentence in your answer: it is either rounding noise (a few tenths) or a genuine residual category outside the column list (a large, clean gap). Here it is the latter, and it is intentional &mdash; the report breaks out four genres and rolls everything else into the total only.</p>
-
-<div class="takeaway"><strong>Senior signal:</strong> share-of-total over a pivot is two stages &mdash; aggregate, then divide &mdash; bridged by a CTE because a <code>SELECT</code> cannot see its own sibling aliases. Force numeric division with <code>100.0</code>, guard zero denominators with <code>NULLIF</code>, and treat "doesn't sum to 100" as a question to answer, not a bug to hide.</div>
+<div class="takeaway"><strong>Senior signal:</strong> a referral network is a tree &mdash; reach the whole of it with a <code>WITH RECURSIVE</code> CTE whose anchor seeds direct referrals and whose recursive term steps one level down. Pre-aggregate the fact table before joining to avoid fan-out, and <code>LEFT JOIN</code> it so zero-activity members still count toward network size.</div>
