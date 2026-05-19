@@ -129,6 +129,40 @@
     <div class="cp-list" id="cp-list" role="group" aria-label="Companies"></div>
   </section>
 
+  <section class="company-picker" id="filter-picker">
+    <div class="cp-top">
+      <div>
+        <div class="cp-eyebrow">Optional · all three sections</div>
+        <h2 class="cp-title">Refine the question pool</h2>
+        <p class="cp-sub">Drill exactly what you want. Difficulty and format start fully on — click a chip to drop it ("tricky" lives in Hard; drop Multiple-choice to skip pure-theory recall and keep the hands-on Code and Open-ended questions). Topics start empty — add any to focus a section on those subject areas. Each section card shows the resulting pool size.</p>
+      </div>
+      <div class="cp-summary" id="qf-summary">Full pool — no filter</div>
+    </div>
+    <div class="qf-rows">
+      <div class="qf-row">
+        <span class="qf-label">Difficulty</span>
+        <button type="button" class="qf-chip" data-group="difficulty" data-value="easy" aria-pressed="true">Easy</button>
+        <button type="button" class="qf-chip" data-group="difficulty" data-value="medium" aria-pressed="true">Medium</button>
+        <button type="button" class="qf-chip" data-group="difficulty" data-value="hard" aria-pressed="true">Hard</button>
+      </div>
+      <div class="qf-row">
+        <span class="qf-label">Format</span>
+        <button type="button" class="qf-chip" data-group="format" data-value="mc" aria-pressed="true">Multiple-choice</button>
+        <button type="button" class="qf-chip" data-group="format" data-value="code" aria-pressed="true">Code</button>
+        <button type="button" class="qf-chip" data-group="format" data-value="open" aria-pressed="true">Open-ended</button>
+      </div>
+    </div>
+    <div class="qf-topics" id="qf-topics">
+      <div class="qf-row qf-topic-head">
+        <span class="qf-label">Topics</span>
+        <input type="search" id="tp-search" placeholder="Filter topics…" autocomplete="off" aria-label="Filter topics" />
+        <button type="button" id="tp-clear" class="cp-clear">Clear topics</button>
+      </div>
+      <div class="cp-list" id="tp-list" role="group" aria-label="Topics"></div>
+    </div>
+    <p class="qf-note" id="qf-note" hidden>Format and topic filters apply to the topic-randomized pool — company-tagged SQL &amp; Python questions come from a separate code-only bank, so only Difficulty narrows those.</p>
+  </section>
+
   <div class="eval-section-cards" id="section-cards">
     <a class="eval-card" href="./quiz.html?section=sql" data-section="sql">
       <div class="eval-card-tag">Section 01</div>
@@ -169,6 +203,7 @@
     <ul>
       <li><strong>Each attempt draws a fresh random set</strong> of 20 questions from the section pool, with options shuffled — repeats and memorization don't help.</li>
       <li><strong>Company mode (SQL &amp; Python)</strong> — pick one or more companies in the panel above and the quiz is drawn from a pool of real, company-tagged interview questions instead of the topic pool. Those questions are self-rated against a model answer.</li>
+      <li><strong>Refine the pool</strong> — the filter panel narrows every section by difficulty, format and topic. Drop Multiple-choice to skip pure-theory recall; keep Hard for the tricky ones; add topics to focus on specific areas. Each section card shows the filtered pool size live.</li>
       <li><strong>Objective questions</strong> (single / multi) are auto-graded the moment you submit.</li>
       <li><strong>SQL code</strong> runs against a preloaded PostgreSQL schema in your browser (PGlite, ~14 MB on first run — cached afterwards); result table is checked against an expected output.</li>
       <li><strong>Python code</strong> runs in Pyodide (CPython 3.12 / WASM); a hidden test harness reports pass/fail. First load is ~6 MB.</li>
@@ -184,123 +219,225 @@
 </footer>
 
 <script>
-  // ── Section pool sizes + the optional company picker ──────────────────
+  // ── Skill Check landing — company picker + question-pool filters ──────
   // Resume is intentionally NOT advertised — every visit starts a fresh draw.
   (function () {
     const POOL_FILES    = { sql: "./data/sql.json", python: "./data/python.json", design: "./data/design.json" };
     const COMPANY_FILES = { sql: "./data/sql-companies.json", python: "./data/python-companies.json" };
-    const STORE_KEY = "paddyspeaks.skillcheck.companies";
-
-    const cardFor = (slug) => document.querySelector(`.eval-card[data-section="${slug}"]`);
+    const STORE_CO   = "paddyspeaks.skillcheck.companies";
+    const STORE_FILT = "paddyspeaks.skillcheck.filters";
+    const SLUGS   = ["sql", "python", "design"];
+    const DIFFS   = ["easy", "medium", "hard"];
+    const FORMATS = ["mc", "code", "open"];
+    const DIFF_LABEL = { easy: "Easy", medium: "Medium", hard: "Hard" };
+    const FMT_LABEL  = { mc: "Multiple-choice", code: "Code", open: "Open-ended" };
+    const SLUG_ABBR  = { sql: "SQL", python: "Py", design: "Dsn" };
+    // single + multi MCQs collapse to one "multiple-choice" format group.
+    const fmtOf = (t) => (t === "code" ? "code" : t === "open" ? "open" : "mc");
     const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+    const cardFor = (slug) => document.querySelector(`.eval-card[data-section="${slug}"]`);
 
-    // Topic pool size on each section card.
-    Object.entries(POOL_FILES).forEach(async ([slug, path]) => {
-      try {
-        const r = await fetch(path); if (!r.ok) return;
-        const d = await r.json();
-        const card = cardFor(slug);
-        const target = card && card.querySelector("[data-pool-size]");
-        if (!target) return;
-        target.dataset.topicPool = d.questions.length;
-        if (!card.classList.contains("is-company")) {
-          target.innerHTML = `pool: <strong>${d.questions.length}</strong>`;
-        }
-      } catch (e) { /* leave dash */ }
-    });
-
-    // Company picker — sources the company-tagged pools.
-    const picker  = document.getElementById("company-picker");
-    const listEl  = document.getElementById("cp-list");
-    const summary = document.getElementById("cp-summary");
-    const search  = document.getElementById("cp-search");
-    const clearBt = document.getElementById("cp-clear");
-    if (!picker) return;
-
-    let selected = new Set();
+    // ── selection state (persisted) ──
+    let coSel = new Set(), diffSel = new Set(DIFFS), fmtSel = new Set(FORMATS), topicSel = new Set();
+    try { const s = JSON.parse(localStorage.getItem(STORE_CO) || "[]"); if (Array.isArray(s)) coSel = new Set(s); } catch (e) {}
     try {
-      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
-      if (Array.isArray(saved)) selected = new Set(saved);
+      const f = JSON.parse(localStorage.getItem(STORE_FILT) || "null");
+      if (f && typeof f === "object") {
+        if (Array.isArray(f.difficulty)) { const v = f.difficulty.filter(d => DIFFS.includes(d));   if (v.length) diffSel = new Set(v); }
+        if (Array.isArray(f.format))     { const v = f.format.filter(d => FORMATS.includes(d));      if (v.length) fmtSel  = new Set(v); }
+        if (Array.isArray(f.topics))     topicSel = new Set(f.topics.filter(t => typeof t === "string"));
+      }
     } catch (e) {}
 
-    Promise.all(Object.entries(COMPANY_FILES).map(([slug, path]) =>
-      fetch(path).then(r => r.ok ? r.json() : null).then(d => [slug, d]).catch(() => [slug, null])
-    )).then(results => {
-      const index = {};   // company -> { sql, python }
-      results.forEach(([slug, d]) => {
-        if (!d || !Array.isArray(d.questions)) return;
-        d.questions.forEach(q => {
-          if (!q.company) return;
-          (index[q.company] || (index[q.company] = { sql: 0, python: 0 }))[slug]++;
-        });
+    // ── loaded data ──
+    const topicQ = {}, companyQ = {}, sectionTopics = {};
+    let companyIndex = {}, topicIndex = {}, dataReady = false;
+
+    // ── elements ──
+    const coPicker  = document.getElementById("company-picker");
+    const coListEl  = document.getElementById("cp-list");
+    const coSummary = document.getElementById("cp-summary");
+    const coSearch  = document.getElementById("cp-search");
+    const coClear   = document.getElementById("cp-clear");
+    const qfSummary = document.getElementById("qf-summary");
+    const qfNote    = document.getElementById("qf-note");
+    const qfTopics  = document.getElementById("qf-topics");
+    const tpListEl  = document.getElementById("tp-list");
+    const tpSearch  = document.getElementById("tp-search");
+    const tpClear   = document.getElementById("tp-clear");
+
+    const persistCo   = () => { try { localStorage.setItem(STORE_CO, JSON.stringify([...coSel])); } catch (e) {} };
+    const persistFilt = () => { try { localStorage.setItem(STORE_FILT, JSON.stringify({ difficulty: [...diffSel], format: [...fmtSel], topics: [...topicSel] })); } catch (e) {} };
+
+    // ── recompute every card href + pool size + summaries ──
+    function refresh() {
+      const coNames  = [...coSel];
+      const coLower  = new Set(coNames.map(c => c.toLowerCase()));
+      const diffParam = diffSel.size < DIFFS.length   ? "&difficulty=" + [...diffSel].join(",") : "";
+      const fmtParam  = fmtSel.size  < FORMATS.length ? "&format="     + [...fmtSel].join(",")  : "";
+
+      SLUGS.forEach(slug => {
+        const card = cardFor(slug);
+        if (!card) return;
+        const companyMode = !!COMPANY_FILES[slug] && coNames.length > 0;
+        let bank, url = `./quiz.html?section=${slug}`;
+        if (companyMode) {
+          // Company pool is code-only — difficulty applies, format/topic do not.
+          bank = (companyQ[slug] || []).filter(q =>
+            q.company && coLower.has(q.company.toLowerCase()) &&
+            (diffSel.size === DIFFS.length || diffSel.has(q.difficulty)));
+          url += "&companies=" + coNames.map(encodeURIComponent).join(",") + diffParam;
+        } else {
+          // Only constrain a section by the picked topics it actually has.
+          const relTopics = (topicSel.size && sectionTopics[slug])
+            ? [...topicSel].filter(t => sectionTopics[slug].has(t)) : [];
+          const relSet = new Set(relTopics);
+          bank = (topicQ[slug] || []).filter(q =>
+            (diffSel.size === DIFFS.length   || diffSel.has(q.difficulty)) &&
+            (fmtSel.size  === FORMATS.length || fmtSel.has(fmtOf(q.type)))  &&
+            (relSet.size === 0 || relSet.has(q.topic)));
+          url += diffParam + fmtParam +
+            (relTopics.length ? "&topics=" + relTopics.map(encodeURIComponent).join(",") : "");
+        }
+        card.href = url;
+        card.classList.toggle("is-company", companyMode);
+        const ps = card.querySelector("[data-pool-size]");
+        if (ps) {
+          if (!dataReady) {
+            ps.innerHTML = `pool: <strong>—</strong>`;
+          } else {
+            ps.innerHTML = `${companyMode ? "company pool" : "pool"}: <strong>${bank.length}</strong>`;
+            ps.classList.toggle("is-low",  bank.length > 0 && bank.length < 20);
+            ps.classList.toggle("is-zero", bank.length === 0);
+          }
+        }
       });
-      const companies = Object.keys(index);
-      if (!companies.length) return;   // no data → picker stays hidden, page works as before
-      companies.sort((a, b) =>
-        (index[b].sql + index[b].python) - (index[a].sql + index[a].python) || a.localeCompare(b));
-      selected = new Set([...selected].filter(c => index[c]));   // drop stale saved companies
-      render(companies, index);
-      picker.hidden = false;
+
+      if (coSummary) {
+        if (coNames.length) {
+          coSummary.innerHTML = `<strong>Company mode</strong> · ${coNames.length} selected`;
+          coSummary.classList.add("is-active");
+        } else {
+          coSummary.textContent = "Topic-randomized — no company filter";
+          coSummary.classList.remove("is-active");
+        }
+      }
+      if (qfSummary) {
+        const parts = [];
+        if (diffSel.size < DIFFS.length)   parts.push(DIFFS.filter(d => diffSel.has(d)).map(d => DIFF_LABEL[d]).join("/"));
+        if (fmtSel.size  < FORMATS.length) parts.push(FORMATS.filter(f => fmtSel.has(f)).map(f => FMT_LABEL[f]).join("/"));
+        if (topicSel.size) parts.push(topicSel.size + (topicSel.size === 1 ? " topic" : " topics"));
+        qfSummary.textContent = parts.length ? parts.join(" · ") : "Full pool — no filter";
+        qfSummary.classList.toggle("is-active", parts.length > 0);
+      }
+      if (qfNote) qfNote.hidden = !(coNames.length && (fmtSel.size < FORMATS.length || topicSel.size > 0));
+      syncChips();
+    }
+
+    function syncChips() {
+      document.querySelectorAll(".qf-chip").forEach(chip => {
+        const set = chip.dataset.group === "difficulty" ? diffSel : fmtSel;
+        chip.setAttribute("aria-pressed", set.has(chip.dataset.value) ? "true" : "false");
+      });
+    }
+
+    // ── difficulty / format chips — at least one stays on per group ──
+    document.querySelectorAll(".qf-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        const set = chip.dataset.group === "difficulty" ? diffSel : fmtSel;
+        const v = chip.dataset.value;
+        if (set.has(v)) { if (set.size > 1) set.delete(v); } else set.add(v);
+        persistFilt(); refresh();
+      });
     });
 
-    function render(companies, index) {
-      listEl.innerHTML = companies.map(name => {
-        const c = index[name];
-        const counts = [c.sql ? c.sql + " SQL" : "", c.python ? c.python + " Py" : ""].filter(Boolean).join(" · ");
-        return `<label class="cp-item" data-name="${esc(name)}">`
-          + `<input type="checkbox" value="${esc(name)}"${selected.has(name) ? " checked" : ""} />`
-          + `<span class="cp-name">${esc(name)}</span>`
-          + `<span class="cp-count">${counts}</span></label>`;
-      }).join("");
+    // ── searchable checkbox list — shared by the company + topic pickers ──
+    function itemHTML(name, counts, checked) {
+      return `<label class="cp-item" data-name="${esc(name)}">`
+        + `<input type="checkbox" value="${esc(name)}"${checked ? " checked" : ""} />`
+        + `<span class="cp-name">${esc(name)}</span>`
+        + `<span class="cp-count">${esc(counts)}</span></label>`;
+    }
+    function wireList(listEl, searchEl, clearBt, sel, persist) {
       listEl.querySelectorAll("input[type=checkbox]").forEach(cb => {
         cb.addEventListener("change", () => {
-          if (cb.checked) selected.add(cb.value); else selected.delete(cb.value);
-          persist(); apply(index);
+          if (cb.checked) sel.add(cb.value); else sel.delete(cb.value);
+          persist(); refresh();
         });
       });
-      search.addEventListener("input", () => {
-        const q = search.value.trim().toLowerCase();
+      if (searchEl) searchEl.addEventListener("input", () => {
+        const q = searchEl.value.trim().toLowerCase();
         listEl.querySelectorAll(".cp-item").forEach(it => {
           it.style.display = it.dataset.name.toLowerCase().includes(q) ? "" : "none";
         });
       });
-      clearBt.addEventListener("click", () => {
-        selected.clear();
+      if (clearBt) clearBt.addEventListener("click", () => {
+        sel.clear();
         listEl.querySelectorAll("input[type=checkbox]").forEach(cb => { cb.checked = false; });
-        persist(); apply(index);
+        persist(); refresh();
       });
-      apply(index);
     }
 
-    function persist() {
-      try { localStorage.setItem(STORE_KEY, JSON.stringify([...selected])); } catch (e) {}
+    function renderCompanies() {
+      const companies = Object.keys(companyIndex);
+      if (!companies.length || !coPicker) return;
+      companies.sort((a, b) =>
+        (companyIndex[b].sql + companyIndex[b].python) - (companyIndex[a].sql + companyIndex[a].python) || a.localeCompare(b));
+      coListEl.innerHTML = companies.map(name => {
+        const c = companyIndex[name];
+        const counts = [c.sql ? c.sql + " SQL" : "", c.python ? c.python + " Py" : ""].filter(Boolean).join(" · ");
+        return itemHTML(name, counts, coSel.has(name));
+      }).join("");
+      wireList(coListEl, coSearch, coClear, coSel, persistCo);
+      coPicker.hidden = false;
     }
 
-    function apply(index) {
-      const names = [...selected];
-      const param = names.length ? "&companies=" + names.map(encodeURIComponent).join(",") : "";
-      let totSql = 0, totPy = 0;
-      names.forEach(n => { if (index[n]) { totSql += index[n].sql; totPy += index[n].python; } });
-      [["sql", totSql], ["python", totPy]].forEach(([slug, n]) => {
-        const card = cardFor(slug);
-        if (!card) return;
-        card.href = `./quiz.html?section=${slug}` + param;
-        card.classList.toggle("is-company", names.length > 0);
-        const ps = card.querySelector("[data-pool-size]");
-        if (ps) {
-          ps.innerHTML = names.length
-            ? `company pool: <strong>${n}</strong>`
-            : `pool: <strong>${ps.dataset.topicPool || "—"}</strong>`;
+    function renderTopics() {
+      const topics = Object.keys(topicIndex);
+      if (!topics.length) { if (qfTopics) qfTopics.hidden = true; return; }
+      const total = (t) => topicIndex[t].sql + topicIndex[t].python + topicIndex[t].design;
+      topics.sort((a, b) => total(b) - total(a) || a.localeCompare(b));
+      tpListEl.innerHTML = topics.map(name => {
+        const c = topicIndex[name];
+        const counts = SLUGS.map(s => c[s] ? c[s] + " " + SLUG_ABBR[s] : "").filter(Boolean).join(" · ");
+        return itemHTML(name, counts, topicSel.has(name));
+      }).join("");
+      wireList(tpListEl, tpSearch, tpClear, topicSel, persistFilt);
+    }
+
+    // ── load all five pools, build indexes, paint ──
+    refresh();   // initial paint — pool dashes + chip state
+    Promise.all([
+      ...SLUGS.map(slug => fetch(POOL_FILES[slug]).then(r => r.ok ? r.json() : null).then(d => ["t", slug, d]).catch(() => ["t", slug, null])),
+      ...Object.keys(COMPANY_FILES).map(slug => fetch(COMPANY_FILES[slug]).then(r => r.ok ? r.json() : null).then(d => ["c", slug, d]).catch(() => ["c", slug, null])),
+    ]).then(results => {
+      const cIdx = {}, tIdx = {};
+      results.forEach(([kind, slug, d]) => {
+        if (!d || !Array.isArray(d.questions)) return;
+        if (kind === "t") {
+          topicQ[slug] = d.questions;
+          const topics = new Set();
+          d.questions.forEach(q => {
+            if (!q.topic) return;
+            topics.add(q.topic);
+            (tIdx[q.topic] || (tIdx[q.topic] = { sql: 0, python: 0, design: 0 }))[slug]++;
+          });
+          sectionTopics[slug] = topics;
+        } else {
+          companyQ[slug] = d.questions;
+          d.questions.forEach(q => {
+            if (!q.company) return;
+            (cIdx[q.company] || (cIdx[q.company] = { sql: 0, python: 0 }))[slug]++;
+          });
         }
       });
-      if (!names.length) {
-        summary.textContent = "Topic-randomized — no company filter";
-        summary.classList.remove("is-active");
-      } else {
-        summary.innerHTML = `<strong>Company mode</strong> · ${names.length} selected · ${totSql} SQL / ${totPy} Python`;
-        summary.classList.add("is-active");
-      }
-    }
+      companyIndex = cIdx; topicIndex = tIdx; dataReady = true;
+      coSel    = new Set([...coSel].filter(c => companyIndex[c]));   // drop stale saved
+      topicSel = new Set([...topicSel].filter(t => topicIndex[t]));
+      renderCompanies();
+      renderTopics();
+      refresh();
+    });
   })();
 </script>
 </body>
