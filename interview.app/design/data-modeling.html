@@ -6567,6 +6567,243 @@ WHERE a.student_sk IS NULL;</code></pre>
 <h4 class="sub-head">Senior signal in the room</h4>
 <p>Drop the phrase: <em>"this is a factless fact — the existence of the row is the measurement."</em> Junior engineers add a junk <code>count = 1</code> column. Seniors don't.</p>
 
+<h4 class="sub-head">Worked models — factless facts at four companies</h4>
+<p>The class-registration schema above is the canonical shape. Here it is at production scale — two <strong>event-tracking</strong> models (Netflix, Meta) and two <strong>coverage</strong> models (Uber, Amazon). Every fact table below is <strong>pure foreign keys</strong>; each diagram makes the absent measure column the headline.</p>
+
+<p><strong>Netflix — title impressions vs. viewing starts (event-tracking)</strong></p>
+<p>The home screen shows each profile a grid of titles; the profile presses play on some of them. Model "a title was shown" and "a title was started" as two factless facts over the same conformed dimensions — click-through rate falls out as a ratio of two <code>COUNT(*)</code>s.</p>
+<svg viewBox="0 0 1040 430" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1040px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:8px;margin:14px 0;display:block">
+  <defs>
+    <marker id="fk-nf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <text x="520" y="26" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="0.8">NETFLIX · IMPRESSION &amp; VIEW — TWO FACTLESS EVENT TABLES, CONFORMED DIMENSIONS</text>
+  <!-- dimensions -->
+  <g font-family="JetBrains Mono,monospace">
+    <g transform="translate(26,44)"><rect width="230" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="230" height="24" rx="6" fill="#475569"/><rect y="14" width="230" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_profile</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ profile_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ plan · maturity_level</text></g>
+    <g transform="translate(278,44)"><rect width="230" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="230" height="24" rx="6" fill="#475569"/><rect y="14" width="230" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_title</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ title_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ genre · release_year</text></g>
+    <g transform="translate(530,44)"><rect width="230" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="230" height="24" rx="6" fill="#475569"/><rect y="14" width="230" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_date</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ date_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ calendar_date</text></g>
+    <g transform="translate(782,44)"><rect width="232" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="232" height="24" rx="6" fill="#475569"/><rect y="14" width="232" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_device</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ device_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ platform · form_factor</text></g>
+  </g>
+  <!-- connectors dims -> impression -->
+  <g stroke="#cbd5e0" stroke-width="1" marker-end="url(#fk-nf)">
+    <line x1="141" y1="100" x2="250" y2="168"/><line x1="393" y1="100" x2="300" y2="168"/><line x1="645" y1="100" x2="360" y2="168"/><line x1="898" y1="100" x2="420" y2="168"/>
+  </g>
+  <!-- fact_title_impression (factless) -->
+  <g transform="translate(110,168)" font-family="JetBrains Mono,monospace">
+    <rect width="380" height="184" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.6"/>
+    <rect width="380" height="30" rx="6" fill="#1e3a8a"/><rect y="18" width="380" height="12" fill="#1e3a8a"/>
+    <text x="14" y="20" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#fff">▦ fact_title_impression</text>
+    <text x="16" y="52" font-size="11" fill="#475569">⛓ profile_sk   FK → dim_profile</text>
+    <text x="16" y="72" font-size="11" fill="#475569">⛓ title_sk     FK → dim_title</text>
+    <text x="16" y="92" font-size="11" fill="#475569">⛓ date_sk      FK → dim_date</text>
+    <text x="16" y="112" font-size="11" fill="#475569">⛓ device_sk   FK → dim_device</text>
+    <text x="16" y="132" font-size="11" fill="#1e293b">⌖ row_position  degenerate dim</text>
+    <rect x="10" y="144" width="360" height="28" rx="4" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="190" y="162" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">∅ no measure columns — the row IS the impression</text>
+  </g>
+  <!-- fact_title_view (factless) -->
+  <g transform="translate(560,182)" font-family="JetBrains Mono,monospace">
+    <rect width="362" height="156" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.6"/>
+    <rect width="362" height="30" rx="6" fill="#1e3a8a"/><rect y="18" width="362" height="12" fill="#1e3a8a"/>
+    <text x="14" y="20" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#fff">▦ fact_title_view</text>
+    <text x="16" y="52" font-size="11" fill="#475569">⛓ profile_sk · title_sk</text>
+    <text x="16" y="72" font-size="11" fill="#475569">⛓ date_sk · device_sk</text>
+    <text x="16" y="94" font-size="10.5" fill="#64748b">conforms to all four dimensions —</text>
+    <text x="16" y="108" font-size="10.5" fill="#64748b">the started subset of impressions</text>
+    <rect x="10" y="118" width="342" height="28" rx="4" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="181" y="136" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">∅ no measure columns — a started view</text>
+  </g>
+  <line x1="490" y1="250" x2="560" y2="250" stroke="#1d4ed8" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#fk-nf)"/>
+  <text x="525" y="242" text-anchor="middle" font-size="9.5" font-family="JetBrains Mono,monospace" fill="#1d4ed8">subset</text>
+  <text x="520" y="416" text-anchor="middle" font-size="11" font-style="italic" font-family="Helvetica,Arial,sans-serif" fill="#64748b">CTR = COUNT(fact_title_view) / COUNT(fact_title_impression), joined on profile + title + date.</text>
+</svg>
+<pre><code>CREATE TABLE fact_title_impression (   -- a title appeared in a profile's grid
+  profile_sk    BIGINT   NOT NULL,     -- FK -> dim_profile
+  title_sk      BIGINT   NOT NULL,     -- FK -> dim_title
+  date_sk       INT      NOT NULL,     -- FK -> dim_date
+  device_sk     INT      NOT NULL,     -- FK -> dim_device
+  row_position  SMALLINT NOT NULL      -- degenerate dim: which carousel row
+);  -- no measure columns: the row's existence IS the impression
+
+CREATE TABLE fact_title_view (         -- a profile pressed play on a title
+  profile_sk  BIGINT NOT NULL,
+  title_sk    BIGINT NOT NULL,
+  date_sk     INT    NOT NULL,
+  device_sk   INT    NOT NULL
+);  -- factless again -- a started view, with no duration measure here</code></pre>
+<p>A junior adds <code>impression_count = 1</code>; the row already is the count. CTR per title is <code>COUNT(*)</code> on each table joined on the conformed keys — no measure column was ever needed.</p>
+
+<p><strong>Uber — eligible-but-idle driver supply (coverage)</strong></p>
+<p>A coverage factless records that a driver <em>could</em> have been matched — online and eligible in a zone during an hour. Its value is the <em>negative space</em>: LEFT JOIN it to the trip fact and the unmatched rows are wasted supply.</p>
+<svg viewBox="0 0 1040 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1040px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:8px;margin:14px 0;display:block">
+  <defs>
+    <marker id="fk-ub" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <text x="520" y="26" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="0.8">UBER · DRIVER ELIGIBILITY — A COVERAGE FACTLESS FACT</text>
+  <g font-family="JetBrains Mono,monospace">
+    <g transform="translate(120,44)"><rect width="240" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="240" height="24" rx="6" fill="#475569"/><rect y="14" width="240" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_driver</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ driver_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ tier · vehicle_class</text></g>
+    <g transform="translate(400,44)"><rect width="240" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="240" height="24" rx="6" fill="#475569"/><rect y="14" width="240" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_zone</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ zone_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ city · surge_region</text></g>
+    <g transform="translate(680,44)"><rect width="240" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="240" height="24" rx="6" fill="#475569"/><rect y="14" width="240" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_date_hour</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ hour_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ calendar_hour</text></g>
+  </g>
+  <g stroke="#cbd5e0" stroke-width="1" marker-end="url(#fk-ub)">
+    <line x1="240" y1="100" x2="300" y2="166"/><line x1="520" y1="100" x2="340" y2="166"/><line x1="800" y1="100" x2="380" y2="166"/>
+  </g>
+  <!-- factless coverage fact -->
+  <g transform="translate(150,166)" font-family="JetBrains Mono,monospace">
+    <rect width="360" height="170" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.6"/>
+    <rect width="360" height="30" rx="6" fill="#1e3a8a"/><rect y="18" width="360" height="12" fill="#1e3a8a"/>
+    <text x="14" y="20" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#fff">▦ fact_driver_eligibility</text>
+    <text x="16" y="52" font-size="11" fill="#475569">⛓ driver_sk  FK → dim_driver</text>
+    <text x="16" y="72" font-size="11" fill="#475569">⛓ zone_sk    FK → dim_zone</text>
+    <text x="16" y="92" font-size="11" fill="#475569">⛓ hour_sk    FK → dim_date_hour</text>
+    <text x="16" y="112" font-size="10.5" fill="#1e293b">PK (driver_sk, zone_sk, hour_sk)</text>
+    <rect x="10" y="124" width="340" height="36" rx="4" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="180" y="139" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">∅ no measures — a row means "could</text>
+    <text x="180" y="152" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">have taken a trip in this zone-hour"</text>
+  </g>
+  <!-- measured fact (contrast) -->
+  <g transform="translate(640,196)" font-family="JetBrains Mono,monospace">
+    <rect width="288" height="118" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <rect width="288" height="28" rx="6" fill="#94a3b8"/><rect y="16" width="288" height="12" fill="#94a3b8"/>
+    <text x="14" y="19" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#fff">▥ fact_trip  (measured)</text>
+    <text x="16" y="50" font-size="11" fill="#475569">⛓ driver_sk · zone_sk · hour_sk</text>
+    <text x="16" y="70" font-size="11" fill="#1e293b">＄ fare_amount · distance_km</text>
+    <text x="16" y="92" font-size="10" fill="#64748b">the trip that may — or may not —</text>
+    <text x="16" y="104" font-size="10" fill="#64748b">have happened for that eligibility row</text>
+  </g>
+  <line x1="510" y1="250" x2="640" y2="250" stroke="#b91c1c" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#fk-ub)"/>
+  <text x="575" y="242" text-anchor="middle" font-size="9.5" font-family="JetBrains Mono,monospace" fill="#b91c1c">LEFT JOIN</text>
+  <text x="520" y="384" text-anchor="middle" font-size="11" font-style="italic" font-family="Helvetica,Arial,sans-serif" fill="#64748b">Idle supply = eligibility rows with no matching fact_trip — the gap a measured fact alone can never show.</text>
+</svg>
+<pre><code>CREATE TABLE fact_driver_eligibility (  -- coverage: driver online &amp; eligible in a zone-hour
+  driver_sk  BIGINT NOT NULL,           -- FK -> dim_driver
+  zone_sk    INT    NOT NULL,           -- FK -> dim_zone
+  hour_sk    INT    NOT NULL,           -- FK -> dim_date_hour
+  PRIMARY KEY (driver_sk, zone_sk, hour_sk)
+);  -- no measures: a row means "this driver could have been matched here"
+
+-- Eligible but idle: supply that was available and never used.
+SELECT e.zone_sk, e.hour_sk, COUNT(*) AS idle_eligible_drivers
+FROM fact_driver_eligibility e
+LEFT JOIN fact_trip t
+  ON  t.driver_sk = e.driver_sk
+  AND t.zone_sk   = e.zone_sk
+  AND t.hour_sk   = e.hour_sk
+WHERE t.driver_sk IS NULL
+GROUP BY e.zone_sk, e.hour_sk;</code></pre>
+<p>Without the coverage table there is no row for "available but unused" — the measured trip fact only knows about trips that happened. The factless table is the only place the negative space exists.</p>
+
+<p><strong>Amazon — home-page featuring (coverage)</strong></p>
+<p>The Kimball-canonical promotion-coverage pattern, company-framed: record that a product occupied a home-page slot on a day. Join it to the sales fact and the unmatched rows answer "featured but didn't sell."</p>
+<svg viewBox="0 0 1040 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1040px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:8px;margin:14px 0;display:block">
+  <defs>
+    <marker id="fk-az" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <text x="520" y="26" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="0.8">AMAZON · HOME-PAGE FEATURING — A COVERAGE FACTLESS FACT</text>
+  <g font-family="JetBrains Mono,monospace">
+    <g transform="translate(120,44)"><rect width="240" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="240" height="24" rx="6" fill="#475569"/><rect y="14" width="240" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_product</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ product_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ category · brand</text></g>
+    <g transform="translate(400,44)"><rect width="240" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="240" height="24" rx="6" fill="#475569"/><rect y="14" width="240" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_home_slot</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ slot_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ placement · rank</text></g>
+    <g transform="translate(680,44)"><rect width="240" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="240" height="24" rx="6" fill="#475569"/><rect y="14" width="240" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_date</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ date_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ calendar_date</text></g>
+  </g>
+  <g stroke="#cbd5e0" stroke-width="1" marker-end="url(#fk-az)">
+    <line x1="240" y1="100" x2="300" y2="166"/><line x1="520" y1="100" x2="340" y2="166"/><line x1="800" y1="100" x2="380" y2="166"/>
+  </g>
+  <g transform="translate(150,166)" font-family="JetBrains Mono,monospace">
+    <rect width="360" height="170" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.6"/>
+    <rect width="360" height="30" rx="6" fill="#1e3a8a"/><rect y="18" width="360" height="12" fill="#1e3a8a"/>
+    <text x="14" y="20" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#fff">▦ fact_product_feature</text>
+    <text x="16" y="52" font-size="11" fill="#475569">⛓ product_sk  FK → dim_product</text>
+    <text x="16" y="72" font-size="11" fill="#475569">⛓ slot_sk     FK → dim_home_slot</text>
+    <text x="16" y="92" font-size="11" fill="#475569">⛓ date_sk     FK → dim_date</text>
+    <text x="16" y="112" font-size="10.5" fill="#1e293b">PK (product_sk, slot_sk, date_sk)</text>
+    <rect x="10" y="124" width="340" height="36" rx="4" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="180" y="139" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">∅ no measures — featuring is the</text>
+    <text x="180" y="152" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">absence of a sale, not a sale</text>
+  </g>
+  <g transform="translate(640,196)" font-family="JetBrains Mono,monospace">
+    <rect width="288" height="118" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <rect width="288" height="28" rx="6" fill="#94a3b8"/><rect y="16" width="288" height="12" fill="#94a3b8"/>
+    <text x="14" y="19" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#fff">▥ fact_sales  (measured)</text>
+    <text x="16" y="50" font-size="11" fill="#475569">⛓ product_sk · date_sk</text>
+    <text x="16" y="70" font-size="11" fill="#1e293b">＄ units_sold · revenue</text>
+    <text x="16" y="92" font-size="10" fill="#64748b">a featured product with no row here</text>
+    <text x="16" y="104" font-size="10" fill="#64748b">is the "featured but didn't sell" case</text>
+  </g>
+  <line x1="510" y1="250" x2="640" y2="250" stroke="#b91c1c" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#fk-az)"/>
+  <text x="575" y="242" text-anchor="middle" font-size="9.5" font-family="JetBrains Mono,monospace" fill="#b91c1c">LEFT JOIN</text>
+  <text x="520" y="384" text-anchor="middle" font-size="11" font-style="italic" font-family="Helvetica,Arial,sans-serif" fill="#64748b">"Featured but didn't sell" = feature rows with no fact_sales match — merchandising's highest-value query.</text>
+</svg>
+<pre><code>CREATE TABLE fact_product_feature (   -- coverage: product placed on the home page
+  product_sk  BIGINT NOT NULL,        -- FK -> dim_product
+  slot_sk     INT    NOT NULL,        -- FK -> dim_home_slot
+  date_sk     INT    NOT NULL,        -- FK -> dim_date
+  PRIMARY KEY (product_sk, slot_sk, date_sk)
+);  -- no measures: the row records the placement, nothing else
+
+-- Featured but didn't sell:
+SELECT f.product_sk, f.date_sk
+FROM fact_product_feature f
+LEFT JOIN fact_sales s
+  ON s.product_sk = f.product_sk AND s.date_sk = f.date_sk
+WHERE s.product_sk IS NULL;</code></pre>
+<p>The featuring is real spend even when it produces no sale. Only a coverage table makes that wasted placement queryable — the sales fact has no row to point at.</p>
+
+<p><strong>Meta — push-notification delivery and open (event-tracking)</strong></p>
+<p>A notification is delivered, then maybe opened. Two factless event tables over conformed dimensions give the delivery-to-open funnel without storing a single measure.</p>
+<svg viewBox="0 0 1040 430" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1040px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:8px;margin:14px 0;display:block">
+  <defs>
+    <marker id="fk-mt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <text x="520" y="26" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="0.8">META · NOTIFICATION DELIVERY &amp; OPEN — TWO FACTLESS EVENT TABLES</text>
+  <g font-family="JetBrains Mono,monospace">
+    <g transform="translate(26,44)"><rect width="230" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="230" height="24" rx="6" fill="#475569"/><rect y="14" width="230" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_user</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ user_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ cohort · tenure</text></g>
+    <g transform="translate(278,44)"><rect width="230" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="230" height="24" rx="6" fill="#475569"/><rect y="14" width="230" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_notification_type</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ notif_type_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ channel · category</text></g>
+    <g transform="translate(530,44)"><rect width="230" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="230" height="24" rx="6" fill="#475569"/><rect y="14" width="230" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_date</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ date_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ calendar_date</text></g>
+    <g transform="translate(782,44)"><rect width="232" height="56" rx="6" fill="#fff" stroke="#cbd5e0"/><rect width="232" height="24" rx="6" fill="#475569"/><rect y="14" width="232" height="10" fill="#475569"/><text x="12" y="16" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#fff">◇ dim_device</text><text x="14" y="38" font-size="10" fill="#1e293b">⌖ device_sk</text><text x="14" y="50" font-size="10" fill="#64748b">▸ os · app_version</text></g>
+  </g>
+  <g stroke="#cbd5e0" stroke-width="1" marker-end="url(#fk-mt)">
+    <line x1="141" y1="100" x2="250" y2="168"/><line x1="393" y1="100" x2="300" y2="168"/><line x1="645" y1="100" x2="360" y2="168"/><line x1="898" y1="100" x2="420" y2="168"/>
+  </g>
+  <g transform="translate(110,168)" font-family="JetBrains Mono,monospace">
+    <rect width="380" height="166" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.6"/>
+    <rect width="380" height="30" rx="6" fill="#1e3a8a"/><rect y="18" width="380" height="12" fill="#1e3a8a"/>
+    <text x="14" y="20" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#fff">▦ fact_notification_delivery</text>
+    <text x="16" y="52" font-size="11" fill="#475569">⛓ user_sk      FK → dim_user</text>
+    <text x="16" y="72" font-size="11" fill="#475569">⛓ notif_type_sk FK → dim_notification_type</text>
+    <text x="16" y="92" font-size="11" fill="#475569">⛓ date_sk      FK → dim_date</text>
+    <text x="16" y="112" font-size="11" fill="#475569">⛓ device_sk    FK → dim_device</text>
+    <rect x="10" y="126" width="360" height="28" rx="4" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="190" y="144" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">∅ no measure columns — it was delivered</text>
+  </g>
+  <g transform="translate(560,184)" font-family="JetBrains Mono,monospace">
+    <rect width="362" height="150" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.6"/>
+    <rect width="362" height="30" rx="6" fill="#1e3a8a"/><rect y="18" width="362" height="12" fill="#1e3a8a"/>
+    <text x="14" y="20" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#fff">▦ fact_notification_open</text>
+    <text x="16" y="52" font-size="11" fill="#475569">⛓ user_sk · notif_type_sk</text>
+    <text x="16" y="72" font-size="11" fill="#475569">⛓ date_sk · device_sk</text>
+    <text x="16" y="94" font-size="10.5" fill="#64748b">same grain — the opened subset</text>
+    <rect x="10" y="110" width="342" height="28" rx="4" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="181" y="128" text-anchor="middle" font-size="10.5" font-style="italic" fill="#9a3412">∅ no measure columns — it was opened</text>
+  </g>
+  <line x1="490" y1="250" x2="560" y2="250" stroke="#1d4ed8" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#fk-mt)"/>
+  <text x="525" y="242" text-anchor="middle" font-size="9.5" font-family="JetBrains Mono,monospace" fill="#1d4ed8">funnel</text>
+  <text x="520" y="416" text-anchor="middle" font-size="11" font-style="italic" font-family="Helvetica,Arial,sans-serif" fill="#64748b">Open rate = COUNT(fact_notification_open) / COUNT(fact_notification_delivery) per type and cohort.</text>
+</svg>
+<pre><code>CREATE TABLE fact_notification_delivery (  -- a push notification reached the device
+  user_sk       BIGINT NOT NULL,           -- FK -> dim_user
+  notif_type_sk INT    NOT NULL,           -- FK -> dim_notification_type
+  date_sk       INT    NOT NULL,           -- FK -> dim_date
+  device_sk     INT    NOT NULL            -- FK -> dim_device
+);  -- factless: it was delivered, no measure to carry
+
+CREATE TABLE fact_notification_open (      -- the user opened that notification
+  user_sk       BIGINT NOT NULL,
+  notif_type_sk INT    NOT NULL,
+  date_sk       INT    NOT NULL,
+  device_sk     INT    NOT NULL
+);  -- open rate = COUNT(open) / COUNT(delivery)</code></pre>
+<p>Across all four: the fact tables hold nothing but foreign keys, and every interesting number is a <code>COUNT(*)</code> — or a ratio of two of them. State it out loud in the room: <em>"these are factless — the row's existence is the measurement."</em></p>
+
 <h3 class="section-head">11. Streaming-first modeling — Kappa, watermarks, exactly-once</h3>
 <p>The lambda/kappa decision shifts your modeling. Once you commit to streaming-first, your fact tables become <strong>append-only event logs</strong> that the warehouse incrementally materializes.</p>
 
