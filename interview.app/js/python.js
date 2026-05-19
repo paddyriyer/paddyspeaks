@@ -74,7 +74,7 @@ async function initPyodide() {
     throw new Error("Pyodide failed to load — check your network or ad blocker.");
   }
   state.pyodide = await window.loadPyodide({
-    indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/",
+    indexURL: "./vendor/pyodide/",
     stdout: (s) => appendOutput(s + "\n"),
     stderr: (s) => appendOutput(s + "\n", "pg-stderr"),
   });
@@ -96,8 +96,7 @@ async function ensurePandas(autoFromCode = false) {
   state.loadingPandas = true;
   setStatus("Loading pandas + numpy (~10 MB)…");
   try {
-    // openpyxl: pandas needs it to read/write .xlsx (df.to_excel / ExcelWriter).
-    await state.pyodide.loadPackage(["numpy", "pandas", "openpyxl"]);
+    await state.pyodide.loadPackage(["numpy", "pandas"]);
     // Silence the pyarrow DeprecationWarning pandas emits on first import —
     // it's an FYI, not an error, and it would otherwise print as red text
     // in the output panel for any solution that loads pandas.
