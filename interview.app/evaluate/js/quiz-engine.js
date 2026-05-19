@@ -22,6 +22,14 @@ const sectionSlug = params.get("section");
 // pool. Empty → the default topic-randomized bank.
 const selectedCompanies = (params.get("companies") || "")
   .split(",").map(s => s.trim()).filter(Boolean);
+// Question-pool filters from the landing page: ?difficulty=, ?format=, ?topics=
+const csvParam = (key) => (params.get(key) || "")
+  .split(",").map(s => s.trim()).filter(Boolean);
+const filterDiff   = csvParam("difficulty");
+const filterFormat = csvParam("format");
+const filterTopics = csvParam("topics");
+// single + multi MCQs collapse to one "mc" format group.
+const fmtGroupOf = (t) => (t === "code" ? "code" : t === "open" ? "open" : "mc");
 
 const state = {
   section: null,
@@ -79,6 +87,31 @@ async function init() {
       }
       state.section.title = `${sec.label} · ${selectedCompanies.join(", ")}`;
       state.section.tagline = "Company-tagged questions — self-rated against the model answer";
+    }
+    // Apply the landing-page question-pool filters to whichever bank loaded.
+    if (filterDiff.length) {
+      const want = new Set(filterDiff);
+      bank = bank.filter(q => want.has(q.difficulty));
+    }
+    if (filterFormat.length) {
+      const want = new Set(filterFormat);
+      bank = bank.filter(q => want.has(fmtGroupOf(q.type)));
+    }
+    if (filterTopics.length) {
+      const want = new Set(filterTopics);
+      bank = bank.filter(q => want.has(q.topic));
+    }
+    if (bank.length === 0) {
+      renderError(`No ${sec.label} questions match the selected difficulty / format / topic filter. Go back and widen it.`);
+      return;
+    }
+    if (filterDiff.length || filterFormat.length || filterTopics.length) {
+      const bits = [];
+      if (filterDiff.length)   bits.push(filterDiff.join(" / "));
+      if (filterFormat.length) bits.push(filterFormat.map(f => f === "mc" ? "multiple-choice" : f).join(" / "));
+      if (filterTopics.length) bits.push(filterTopics.length + (filterTopics.length > 1 ? " topics" : " topic"));
+      state.section.tagline = (state.section.tagline ? state.section.tagline + " · " : "")
+        + "Filtered: " + bits.join(", ");
     }
     state.bank = bank;
     prepareAttempt();
@@ -158,11 +191,13 @@ function shuffleArray(arr) {
 // localStorage persistence
 // ──────────────────────────────────────────
 function storageKey() {
-  // Each company selection gets its own saved attempt, so switching companies
-  // — or company vs topic mode — never restores a stale, mismatched draw.
-  const suffix = selectedCompanies.length
-    ? ":co=" + selectedCompanies.slice().sort().join(",")
-    : "";
+  // Each company selection AND filter combo gets its own saved attempt, so
+  // switching companies, mode, or filters never restores a stale draw.
+  const suffix =
+    (selectedCompanies.length ? ":co=" + selectedCompanies.slice().sort().join(",") : "") +
+    (filterDiff.length        ? ":d="  + filterDiff.slice().sort().join(",")        : "") +
+    (filterFormat.length      ? ":f="  + filterFormat.slice().sort().join(",")      : "") +
+    (filterTopics.length      ? ":t="  + filterTopics.slice().sort().join(",")      : "");
   return STORAGE_PREFIX + sectionSlug + suffix;
 }
 
