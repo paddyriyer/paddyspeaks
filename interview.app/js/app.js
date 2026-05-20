@@ -536,7 +536,7 @@ function renderSet() {
   list.innerHTML = "";
   $("#qb-set-count").textContent = state.set.size;
   if (!state.set.size) {
-    list.appendChild(el("div", { class: "qb-set-empty" }, "Pick questions to build your set"));
+    list.appendChild(el("li", { class: "qb-set-empty" }, "Pick questions to build your set"));
     return;
   }
   for (const q of state.set.values()) {
