@@ -191,8 +191,9 @@ function buildMetadataFromFilters() {
 
   let title, desc;
   if (!fragments.length && !f.search) {
-    title = "Interview Studio — 888 Real Interview Questions for Google, Amazon, Meta · In-Browser SQL & Python Playgrounds | PaddySpeaks";
-    desc  = "888 real interview questions from Google, Amazon, Meta, Apple, Atlassian and 100+ more, with in-browser SQL (sql.js) & Python (Pyodide) runtimes. Filter by company, topic and difficulty. No backend, no sign-up.";
+    const total = state.manifest?.total || state.questions.length || "1400+";
+    title = `Data Engineer Interview Prep — ${total} SQL, Python & Snowflake Questions | PaddySpeaks`;
+    desc  = `Free data engineer interview prep: ${total} real SQL, Python and Snowflake questions from Google, Amazon, Meta and 100+ companies. In-browser SQL & Python playground, no sign-up.`;
   } else {
     const head = f.search ? `"${f.search}"` : fragments.join(" · ");
     title = `${head} Interview Questions${count ? ` · ${count} ${pluralize(count, "question", "questions")}` : ""} | ${base}`;
@@ -693,7 +694,9 @@ window.addEventListener("popstate", () => {
 });
 
 wire();
-init().catch((err) => {
+init().then(() => {
+  document.documentElement.classList.add("js-ready");
+}).catch((err) => {
   console.error(err);
   $("#qb-list").appendChild(
     el("div", { class: "qb-set-empty" },
