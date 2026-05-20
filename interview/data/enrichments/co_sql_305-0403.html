@@ -1,0 +1,37 @@
+<p>Pinterest Idea Pins are the multi-page, video-first format. Watch-completion bucketing measures whether the storyteller held attention.</p>
+
+<h4>2. The SQL — banded completion histogram</h4>
+<pre><code>WITH banded AS (
+  SELECT pin_id,
+    CASE
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.95 THEN 'completed'
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.50 THEN 'engaged'
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.10 THEN 'sampled'
+      ELSE 'bounced'
+    END AS band
+  FROM idea_pin_views
+)
+SELECT band, COUNT(*) AS plays,
+  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct
+FROM banded GROUP BY band
+ORDER BY plays DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 95/50/10 cuts — same shape as Reels / Spotify</h5>
+<p>Industry-converged thresholds for short-video completion. 95% = "completed" (algorithm boost), 50% = "engaged" (good narrative), 10% = "sampled" (weak hook), &lt; 10% = "bounced" (broken thumbnail or audio).</p>
+
+<h5>Multi-page completion</h5>
+<p>Idea Pins have 5-10 pages. "Completion" can mean "watched all pages" OR "watched current-page through end". Production tracks both:</p>
+<pre><code>... AND pages_watched / total_pages &gt;= 0.8 AS completed_pages</code></pre>
+
+<h5>The autoplay vs intentional view</h5>
+<p>Some "views" are autoplay during scrolling (user not paying attention). Production filters by "intentional" (user paused on the pin) for honest completion analysis.</p>
+
+<h5>Save-after-watch — the conversion signal</h5>
+<p>Idea Pins generate saves: "I want to make this recipe / try this DIY". Save-rate-after-completion is the creator value metric.</p>
+
+<h5>Creator-tier baselines</h5>
+<p>Established creators get 30%+ completion. New creators 10-15%. Comparing them as if equal is unfair. Stratify by creator-tier.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use industry-converged 95/50/10 cuts, distinguish multi-page completion variants, filter to intentional-views, surface save-after-completion as the creator value metric, and stratify by creator-tier.</div>

@@ -1,0 +1,58 @@
+<p>Coinbase's operations team wants a single ops health number: on average, how many minutes does an order take from "received" to "processed"? Easy enough &mdash; subtract two timestamps. But the reference solution wraps the arithmetic in a baroque epoch conversion, and an order still sitting in the queue has a NULL <code>processed_at</code>. The interviewer wants to see you both simplify the math and reason about the unfinished orders.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>received_at</th><th>processed_at</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-05-01 10:00</td><td>2024-05-01 10:30</td><td>done</td></tr>
+    <tr><td>2</td><td>2024-05-01 11:00</td><td>2024-05-01 13:00</td><td>done</td></tr>
+    <tr><td>3</td><td>2024-05-01 12:00</td><td>2024-05-01 12:15</td><td>done</td></tr>
+    <tr><td>4</td><td>2024-05-01 13:00</td><td><em>NULL</em></td><td>pending</td></tr>
+  </tbody>
+</table>
+<p>Three orders are processed (durations 30, 120, 15 minutes); order 4 is still <strong>pending</strong> with a NULL <code>processed_at</code>. That unfinished order is the interview: it must not count as a zero-minute order, and it must not count as anything at all.</p>
+
+<h4>2. The SQL &mdash; <code>EPOCH</code> diff to minutes</h4>
+<pre><code>SELECT AVG(((EXTRACT(EPOCH FROM (processed_at - received_at)) / 86400.0) * 86400)/60)
+         AS avg_minutes_to_process,
+  SUM(CASE WHEN processed_at IS NOT NULL THEN 1 ELSE 0 END) AS processed_count
+FROM orders;</code></pre>
+<p><code>processed_at - received_at</code> is an interval; <code>EXTRACT(EPOCH FROM ...)</code> turns it into seconds. The <code>/ 86400.0 * 86400</code> pair cancels out (a no-op round-trip through days), leaving <code>/ 60</code> &mdash; seconds to minutes.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_minutes_to_process</th><th>processed_count</th></tr></thead>
+  <tbody>
+    <tr><td>55.0</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Durations 30, 120 and 15 sum to 165; 165 &divide; 3 = <strong>55 minutes</strong>. The pending order contributed nothing &mdash; <code>processed_at - received_at</code> is NULL when <code>processed_at</code> is NULL, and <code>AVG</code> skips NULLs. <code>processed_count</code> reports 3, the correct denominator. The query gets the right answer; it just takes a scenic route to get there.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>/ 86400.0 * 86400</code> is dead code</h5>
+<p>Multiplying by 86400 immediately after dividing by it is an identity &mdash; it does nothing but obscure intent. The honest expression is just seconds-to-minutes:</p>
+<pre><code>SELECT AVG(EXTRACT(EPOCH FROM (processed_at - received_at)) / 60)
+         AS avg_minutes_to_process,
+       COUNT(processed_at) AS processed_count
+FROM orders;</code></pre>
+<p>Same 55.0, far clearer. In an interview, calling out the redundant round-trip &mdash; and removing it &mdash; signals you read SQL critically rather than copying it.</p>
+
+<h5><code>COUNT(processed_at)</code> beats the <code>SUM(CASE...)</code></h5>
+<p><code>SUM(CASE WHEN processed_at IS NOT NULL THEN 1 ELSE 0 END)</code> is a verbose way to count non-NULL values &mdash; which is exactly what <code>COUNT(processed_at)</code> does in one token. Both return 3. The <code>CASE</code> form is only needed for <em>conditional</em> counts on a different predicate; for "count the non-NULLs", use <code>COUNT(column)</code>.</p>
+
+<h5>Why the NULL handling is actually correct</h5>
+<p>The crucial point: averaging duration over <em>processed</em> orders is the right denominator. Order 4 has no processing time yet &mdash; including it as 0 minutes would understate the true latency, and there is no honest non-NULL value to give it. Because the interval arithmetic yields NULL and <code>AVG</code> ignores NULLs, the pending order is excluded automatically. The two output columns agree: average over 3, count of 3. Make this explicit to the interviewer &mdash; it is a feature, not an accident.</p>
+
+<h5>The average-vs-median trap for latency</h5>
+<p>Order 2 took 120 minutes against 30 and 15 &mdash; one slow order drags the mean to 55, above two of the three values. Latency distributions are right-skewed, and operations teams usually care about the <em>median</em> or <em>p95</em>, not the mean:</p>
+<pre><code>SELECT percentile_cont(0.5) WITHIN GROUP (
+         ORDER BY EXTRACT(EPOCH FROM (processed_at - received_at)) / 60)
+         AS median_minutes
+FROM orders;</code></pre>
+<p>Offering the percentile alongside the mean shows you understand the metric, not just the syntax.</p>
+
+<h5>Negative durations &mdash; the data-quality check</h5>
+<p>If a clock skew or a bad backfill makes <code>processed_at</code> earlier than <code>received_at</code>, the interval goes negative and silently pulls the average down. Defend with <code>WHERE processed_at &gt;= received_at</code>, or surface the bad rows in a data-quality report. The mean of a metric is only as trustworthy as the rows feeding it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot and delete the <code>/86400*86400</code> no-op, collapse the <code>SUM(CASE...)</code> into <code>COUNT(column)</code>, explain that NULL <code>processed_at</code> correctly excludes pending orders from both numerator and denominator, and recommend a median or p95 for a skewed latency metric.</div>

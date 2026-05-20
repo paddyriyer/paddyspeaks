@@ -1,0 +1,67 @@
+<p>IBM's compensation team runs an annual bonus cycle, and finance wants a single query that turns each employee's performance score into a bonus amount: top performers get 20% of salary, solid performers 10%, everyone else nothing. It looks like trivial arithmetic &mdash; but the interviewer is watching the boundary values and the rows where <code>performance_score</code> is missing.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>performance_score</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Anand</td><td>95</td><td>$100,000</td></tr>
+    <tr><td>2</td><td>Bhavna</td><td>80</td><td>$90,000</td></tr>
+    <tr><td>3</td><td>Chetan</td><td>75</td><td>$80,000</td></tr>
+    <tr><td>4</td><td>Deepa</td><td>60</td><td>$70,000</td></tr>
+    <tr><td>5</td><td>Esha</td><td><em>NULL</em></td><td>$85,000</td></tr>
+    <tr><td>6</td><td>Farhan</td><td>90</td><td>$120,000</td></tr>
+  </tbody>
+</table>
+<p>Two rows are the whole interview. Chetan sits <strong>exactly on the 75 boundary</strong> and Farhan exactly on 90 &mdash; do they get the higher tier? And Esha has a <strong>NULL</strong> score because her review is not yet filed.</p>
+
+<h4>2. The SQL &mdash; <code>tiered CASE</code></h4>
+<pre><code>SELECT emp_id,
+  CASE WHEN performance_score &gt;= 90 THEN salary * 0.20
+       WHEN performance_score &gt;= 75 THEN salary * 0.10
+       ELSE 0 END AS bonus
+FROM employees;</code></pre>
+<p>A searched <code>CASE</code> evaluates its <code>WHEN</code> clauses top to bottom and stops at the first one that is true. Order matters: the <code>&gt;= 90</code> test must come before <code>&gt;= 75</code>, or every high performer would be caught by the 10% rule first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>bonus</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>20000.00</td></tr>
+    <tr><td>2</td><td>9000.00</td></tr>
+    <tr><td>3</td><td>8000.00</td></tr>
+    <tr><td>4</td><td>0</td></tr>
+    <tr><td>5</td><td>0</td></tr>
+    <tr><td>6</td><td>24000.00</td></tr>
+  </tbody>
+</table>
+<p>Because <code>&gt;=</code> is inclusive, Chetan at 75 lands in the 10% tier (8000) and Farhan at 90 in the 20% tier (24000) &mdash; the boundaries belong to the higher band. Deepa at 60 and <strong>Esha at NULL both fall to the <code>ELSE</code> and get 0</strong>. That NULL behaviour is the trap worth naming.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>NULL never matches a <code>WHEN</code> &mdash; it always falls through to <code>ELSE</code></h5>
+<p><code>NULL &gt;= 90</code> evaluates to <em>unknown</em>, not true, so a NULL-score row matches no <code>WHEN</code> branch and lands in <code>ELSE 0</code>. That happens to be sensible here &mdash; an unreviewed employee gets no bonus &mdash; but it is silent. If a missing review should instead block the row entirely or raise a flag, make that explicit:</p>
+<pre><code>SELECT emp_id,
+  CASE WHEN performance_score IS NULL THEN NULL  -- "not yet calculable"
+       WHEN performance_score &gt;= 90 THEN salary * 0.20
+       WHEN performance_score &gt;= 75 THEN salary * 0.10
+       ELSE 0 END AS bonus
+FROM employees;</code></pre>
+<p>A NULL bonus and a 0 bonus mean very different things to finance. Decide which on purpose.</p>
+
+<h5>The branch-ordering trap</h5>
+<p>Flip the two conditions and the logic quietly breaks:</p>
+<pre><code>CASE WHEN performance_score &gt;= 75 THEN salary * 0.10   -- catches 95 too!
+     WHEN performance_score &gt;= 90 THEN salary * 0.20   -- never reached
+     ELSE 0 END</code></pre>
+<p>A score of 95 satisfies <code>&gt;= 75</code> first, so it gets 10% and the 20% branch is dead code. With overlapping ranges, always order the <code>WHEN</code> clauses from most restrictive to least.</p>
+
+<h5>Inclusive vs exclusive boundaries</h5>
+<p>Is a score of <em>exactly</em> 75 a "solid performer" or not? <code>&gt;= 75</code> says yes; <code>&gt; 75</code> would say no. The spec rarely states it, so confirm with the interviewer and write the operator that matches their answer. Off-by-one at a tier boundary is the single most common bug in banding logic.</p>
+
+<h5>If a missing <code>ELSE</code> &mdash; the implicit NULL</h5>
+<p>A <code>CASE</code> with no <code>ELSE</code> returns <code>NULL</code> when nothing matches, not 0. Here the explicit <code>ELSE 0</code> is what makes Deepa's bonus a number. Drop it and her bonus &mdash; and Esha's &mdash; would be NULL, which then poisons any <code>SUM(bonus)</code> downstream unless wrapped in <code>COALESCE</code>.</p>
+
+<h5>Integer division and the multiplier</h5>
+<p><code>salary * 0.20</code> is safe because <code>0.20</code> is a numeric literal, so the result is numeric. But <code>salary * 20 / 100</code> on an integer <code>salary</code> column can truncate intermediate results in some engines. Keep the fractional multiplier, or cast: <code>salary::numeric * 0.20</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that NULL scores fall through to <code>ELSE</code> and decide whether that should be 0 or NULL, order overlapping <code>WHEN</code> branches most-restrictive-first, pin down whether tier boundaries are inclusive, and keep the explicit <code>ELSE</code> so the bonus is never an accidental NULL.</div>

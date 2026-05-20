@@ -1,0 +1,64 @@
+<p>A product analyst wants each user's longest stretch of inactivity &mdash; the biggest gap between leaving the app and coming back. This is a per-user, ordered-row problem: you need each session's end placed next to the following session's start. The interviewer is probing the <code>LAG</code> window function and whether you correctly clamp negative gaps to zero when sessions overlap.</p>
+
+<h4>1. The source data &mdash; <code>app_session</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>started_at</th><th>ended_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>09:00</td><td>09:30</td><td>session A</td></tr>
+    <tr><td>1</td><td>10:00</td><td>10:30</td><td>30-min gap after A</td></tr>
+    <tr><td>1</td><td>14:00</td><td>14:30</td><td>210-min gap after B &mdash; the longest</td></tr>
+    <tr><td>2</td><td>09:00</td><td>09:30</td><td>session A</td></tr>
+    <tr><td>2</td><td>09:20</td><td>09:45</td><td>starts before A ended &mdash; overlap, negative gap</td></tr>
+    <tr><td>2</td><td>09:50</td><td>10:00</td><td>5-min gap after the 09:45 end</td></tr>
+    <tr><td>3</td><td>09:00</td><td>09:30</td><td>single session &mdash; no gap, must not appear</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. User 2 has an <em>overlapping</em> session (starts 09:20, before the 09:30 end) &mdash; the raw gap is negative and must be clamped to 0. User 3 has only one session, so there is no "next" session and they must be absent from the output entirely.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> for the previous end, then clamp and aggregate</h4>
+<pre><code>WITH gaps AS (
+  SELECT user_id,
+         LAG(ended_at) OVER (PARTITION BY user_id ORDER BY started_at) AS prev_end,
+         started_at
+  FROM app_session
+),
+clamped AS (
+  SELECT user_id,
+         GREATEST(EXTRACT(EPOCH FROM (started_at - prev_end))/60, 0) AS gap_min
+  FROM gaps
+  WHERE prev_end IS NOT NULL
+)
+SELECT user_id, MAX(gap_min)::int AS longest_gap_minutes
+FROM clamped
+GROUP BY user_id
+ORDER BY longest_gap_minutes DESC, user_id;</code></pre>
+<p><code>LAG(ended_at)</code> pulls the prior session's end into the current row. <code>started_at - prev_end</code> is the gap; <code>EXTRACT(EPOCH ...)/60</code> converts the interval to minutes; <code>GREATEST(..., 0)</code> floors negative (overlap) gaps at zero. <code>WHERE prev_end IS NOT NULL</code> drops each user's first session, which has no predecessor.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>longest_gap_minutes</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>210</td><td>10:30 &rarr; 14:00 is the largest of {30, 210}</td></tr>
+    <tr><td>2</td><td>5</td><td>overlap gap clamped to 0; max of {0, 5} is 5</td></tr>
+  </tbody>
+</table>
+<p>User 3 is absent &mdash; their single session has <code>prev_end IS NULL</code>, so it is filtered out before the <code>GROUP BY</code> and no row survives. User 2's longest gap is <strong>5</strong>, not a negative number: the 09:20-vs-09:30 overlap produced <code>-10</code> minutes, which <code>GREATEST</code> raised to <code>0</code>, leaving the genuine 5-minute gap as the maximum.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> is the right tool</h5>
+<p>The gap is between <em>consecutive</em> rows within a user, so you need each row to see the one before it. <code>LAG(ended_at) OVER (PARTITION BY user_id ORDER BY started_at)</code> does exactly that: partition isolates each user, the order defines "previous," and <code>LAG</code> reaches back one row. The self-join alternative &mdash; joining the table to itself on "next session" &mdash; is far clumsier and slower; <code>LAG</code> expresses ordered adjacency directly in one pass.</p>
+
+<h5>Clamping with <code>GREATEST</code> &mdash; overlap is not a negative gap</h5>
+<p>If session B starts before session A ends, <code>started_B - ended_A</code> is negative. A "gap of inactivity" cannot be negative &mdash; the user was never inactive. <code>GREATEST(value, 0)</code> floors it at zero, encoding the rule "overlapping sessions mean zero gap." Without the clamp, a heavily overlapping user could show a large negative number that <code>MAX</code> might still pick if every gap were negative &mdash; <code>GREATEST</code> makes the semantics correct, not just tidy.</p>
+
+<h5>Ordering by <code>started_at</code> &mdash; and a subtle overlap caveat</h5>
+<p>The window orders by <code>started_at</code>, so "previous" means "started earlier." For user 2 that gives the sequence A(09:00&ndash;09:30), B(09:20&ndash;09:45), C(09:50&ndash;10:00). Note B is compared to A's end (overlap, clamped) and C to B's end (5 min) &mdash; correct. But if sessions could start in one order and end in another, "previous by start" is a modelling choice; some definitions order by <code>ended_at</code>. State which ordering the gap definition assumes.</p>
+
+<h5>The <code>prev_end IS NULL</code> filter excludes single-session users for free</h5>
+<p>Every user's first session (by start order) has no predecessor, so <code>LAG</code> returns <code>NULL</code>. A user with only one session has <em>only</em> that first row, so after <code>WHERE prev_end IS NOT NULL</code> they have no rows at all and never reach the <code>GROUP BY</code> &mdash; satisfying "users with one session should not appear" without a special case. This is the same mechanism that makes user 3 vanish.</p>
+
+<h5>Dialect notes</h5>
+<p><code>LAG</code> and <code>PARTITION BY</code> are standard window syntax (PostgreSQL, SQL Server, Oracle, MySQL 8+, modern SQLite). The interval maths differs: <code>EXTRACT(EPOCH FROM interval)/60</code> is Postgres; SQL Server uses <code>DATEDIFF(MINUTE, prev_end, started_at)</code>; MySQL <code>TIMESTAMPDIFF(MINUTE, prev_end, started_at)</code>. <code>GREATEST</code> exists in Postgres and MySQL; SQL Server lacks it, so use <code>CASE WHEN gap &lt; 0 THEN 0 ELSE gap END</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LAG(...) OVER (PARTITION BY user ORDER BY time)</code> to compare consecutive rows instead of a self-join, clamp overlapping-session gaps to zero with <code>GREATEST(gap, 0)</code> so a negative interval is not mistaken for inactivity, and rely on the <code>LAG</code>-returns-NULL-for-the-first-row property to drop single-session users automatically.</div>

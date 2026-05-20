@@ -1,0 +1,80 @@
+<p>Stripe's merchant-insights team wants the five best-selling products on a storefront to feature them in a "top picks" widget. The query joins line items to the product catalogue, sums quantities, and takes the top 5 &mdash; but the interviewer is probing whether you sum <em>units</em> or <em>revenue</em>, whether you group on a stable key rather than the product name, and what your <code>LIMIT 5</code> does when sales are tied at the boundary.</p>
+
+<h4>1. The source data &mdash; <code>order_items</code> and <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td></tr>
+    <tr><td>1</td><td>5</td></tr>
+    <tr><td>2</td><td>30</td></tr>
+    <tr><td>3</td><td>8</td></tr>
+    <tr><td>4</td><td>2</td></tr>
+    <tr><td>5</td><td>40</td></tr>
+    <tr><td>5</td><td>5</td></tr>
+    <tr><td>6</td><td>20</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Widget</td><td>9.99</td></tr>
+    <tr><td>2</td><td>Gadget</td><td>19.99</td></tr>
+    <tr><td>3</td><td>Gizmo</td><td>4.99</td></tr>
+    <tr><td>4</td><td>Doohickey</td><td>2.99</td></tr>
+    <tr><td>5</td><td>Thingamajig</td><td>49.99</td></tr>
+    <tr><td>6</td><td>Whatsit</td><td>7.99</td></tr>
+  </tbody>
+</table>
+<p>Products 1 and 5 each appear on <strong>two line items</strong>, so we must <code>SUM</code> per product. There are six products but only five slots &mdash; one product gets cut, and that boundary is the interview.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(qty) + ORDER BY + LIMIT 5</code></h4>
+<pre><code>SELECT p.name, SUM(oi.qty) AS units
+FROM order_items oi JOIN products p ON oi.product_id = p.product_id
+GROUP BY p.name ORDER BY units DESC LIMIT 5;</code></pre>
+<p>Join line items to the catalogue, sum quantities per product, sort descending by units, keep the top five.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>units</th></tr></thead>
+  <tbody>
+    <tr><td>Thingamajig</td><td>45</td></tr>
+    <tr><td>Gadget</td><td>30</td></tr>
+    <tr><td>Whatsit</td><td>20</td></tr>
+    <tr><td>Widget</td><td>15</td></tr>
+    <tr><td>Gizmo</td><td>8</td></tr>
+  </tbody>
+</table>
+<p>Thingamajig's two line items (40 + 5) sum to 45, putting it on top. Doohickey (2 units) is the one product cut by <code>LIMIT 5</code>. "Best-selling" here is by <em>volume</em> &mdash; note that Thingamajig is also the most expensive, so by <em>revenue</em> the order would look very different.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Units vs revenue &mdash; "best-selling" is ambiguous</h5>
+<p>The solution ranks by units sold. But a "top picks" widget for a payments company often cares about revenue contribution. The two rankings diverge sharply &mdash; a cheap high-volume item beats an expensive one on units but loses on revenue:</p>
+<pre><code>SELECT p.name, SUM(oi.qty * p.price) AS revenue
+FROM order_items oi JOIN products p ON oi.product_id = p.product_id
+GROUP BY p.name ORDER BY revenue DESC LIMIT 5;</code></pre>
+<p>Ask which metric the widget should rank on before committing. Naming the ambiguity is the senior move.</p>
+
+<h5>Group on <code>product_id</code>, not <code>name</code></h5>
+<p><code>GROUP BY p.name</code> works only because names happen to be unique here. Two distinct products can share a display name ("Gift Card", regional SKUs), and grouping by name would silently <em>merge their sales into one inflated row</em>. The robust key is the primary key:</p>
+<pre><code>GROUP BY p.product_id, p.name</code></pre>
+<p>Grouping by the id and carrying the name along is functionally safe and still lets you select the name.</p>
+
+<h5>The <code>LIMIT</code>-at-a-tie trap</h5>
+<p><code>ORDER BY units DESC LIMIT 5</code> is non-deterministic at the cut line. If the 5th and 6th products were tied at, say, 8 units each, the engine returns <em>one of them arbitrarily</em> &mdash; and a different one on the next run after a plan change. For a stable "top 5," add a deterministic tiebreaker, or use ranking to keep all ties:</p>
+<pre><code>SELECT name, units FROM (
+  SELECT p.name, SUM(oi.qty) AS units,
+         RANK() OVER (ORDER BY SUM(oi.qty) DESC) AS rk
+  FROM order_items oi JOIN products p ON oi.product_id = p.product_id
+  GROUP BY p.product_id, p.name
+) t WHERE rk &lt;= 5;
+-- RANK keeps every product tied at the boundary; row count may exceed 5</code></pre>
+<p>Decide deliberately: exactly five rows (add <code>ORDER BY units DESC, name</code>) or "all products in the top 5 ranks" (use <code>RANK</code>).</p>
+
+<h5>Products that never sold &mdash; the JOIN choice</h5>
+<p>The inner join means a product with zero line items contributes nothing and cannot appear &mdash; correct for "best-selling," since a never-sold product is not a top seller. But if the ask flips to "rank <em>all</em> products, zero-sellers at the bottom," you need <code>products LEFT JOIN order_items</code> with <code>COALESCE(SUM(oi.qty), 0)</code> so the unsold products surface with 0.</p>
+
+<h5>NULL or negative quantities</h5>
+<p><code>SUM</code> skips NULL <code>qty</code> rows silently &mdash; usually fine, but a product whose only line items are NULL would sum to NULL and sort unpredictably. And returns are sometimes stored as negative <code>qty</code>; if so, <code>SUM</code> nets them out (which may be intended as "net units") &mdash; confirm whether the widget wants gross or net volume.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> ask whether "best-selling" means units or revenue, group on the stable <code>product_id</code> rather than a possibly-duplicated name, recognise that <code>LIMIT 5</code> is non-deterministic at a tie and add a tiebreaker (or <code>RANK</code>), and know the inner join correctly excludes never-sold products.</div>

@@ -1,0 +1,87 @@
+<p>The CFO wants a single daily report that explains <em>where today's revenue came from</em>: not just a total, but a breakdown by growth bucket &mdash; new customers, retained, resurrected, churned &mdash; each with revenue, ARPU, and L1/L7/L28 activity counts. The interviewer is probing whether you can fuse a growth-accounting <code>FULL OUTER JOIN</code> with conditional aggregation, handle the awkward CHURNED bucket (zero revenue, NULL ARPU), and compute window-based recency counts with <code>FILTER</code>.</p>
+
+<h4>1. The source data &mdash; <code>orders</code> and <code>user_state_master</code></h4>
+<table>
+  <thead><tr><th>table</th><th>row</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>orders</td><td>501 spent $150 today; was active_l28=1</td><td>&rarr; RETAINED</td></tr>
+    <tr><td>orders</td><td>502 spent $80 today; was active_l28=0</td><td>&rarr; RESURRECTED</td></tr>
+    <tr><td>orders</td><td>503, 504 spent today; active_l28=1</td><td>&rarr; RETAINED</td></tr>
+    <tr><td>orders</td><td>505, 506 spent today; no master row</td><td>&rarr; NEW</td></tr>
+    <tr><td>user_state_master</td><td>507, 508 &mdash; active_l28=1, no order today</td><td>&rarr; CHURNED</td></tr>
+    <tr><td>user_state_master</td><td>509 &mdash; active_l28=0, no order today</td><td>&rarr; STALE (excluded)</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: the CHURNED bucket (507, 508) has <em>no orders today</em>, so its revenue sum is empty and ARPU must be NULL rather than a divide-by-zero. User 509 is STALE &mdash; inactive both windows &mdash; and the report drops it entirely.</p>
+
+<h4>2. The SQL &mdash; growth-accounting revenue flow with L-window velocity</h4>
+<pre><code>WITH today_activity AS (
+    SELECT user_id, SUM(amount) AS today_spend, COUNT(order_id) AS today_qty
+    FROM orders WHERE order_date = DATE '2026-05-06'
+    GROUP BY user_id
+),
+growth_merge AS (
+    SELECT
+        COALESCE(t.user_id, s.user_id) AS user_id,
+        t.today_spend, t.today_qty,
+        s.last_active_date, s.is_active_l28,
+        CASE
+            WHEN s.user_id IS NULL                                          THEN 'NEW'
+            WHEN t.user_id IS NOT NULL AND COALESCE(s.is_active_l28,0) = 1   THEN 'RETAINED'
+            WHEN t.user_id IS NOT NULL AND COALESCE(s.is_active_l28,0) = 0   THEN 'RESURRECTED'
+            WHEN t.user_id IS NULL     AND COALESCE(s.is_active_l28,0) = 1   THEN 'CHURNED'
+            ELSE 'STALE'
+        END AS growth_status,
+        CASE WHEN t.user_id IS NOT NULL THEN 0
+             ELSE (DATE '2026-05-06' - s.last_active_date)
+        END AS days_since_active
+    FROM user_state_master s
+    FULL OUTER JOIN today_activity t ON s.user_id = t.user_id
+)
+SELECT growth_status,
+    COUNT(DISTINCT user_id)                  AS user_count,
+    COALESCE(ROUND(SUM(today_spend), 2), 0)  AS total_revenue,
+    COALESCE(SUM(today_qty), 0)              AS total_qty,
+    CASE WHEN COALESCE(SUM(today_spend), 0) = 0 THEN NULL
+         ELSE ROUND(SUM(today_spend) / COUNT(DISTINCT user_id), 2) END AS arpu,
+    COUNT(DISTINCT user_id) FILTER (WHERE days_since_active = 0)  AS l1_users,
+    COUNT(DISTINCT user_id) FILTER (WHERE days_since_active &lt;= 7) AS l7_users,
+    COUNT(DISTINCT user_id) FILTER (WHERE days_since_active &lt;= 28) AS l28_users
+FROM growth_merge
+WHERE growth_status &lt;&gt; 'STALE'
+GROUP BY growth_status
+ORDER BY CASE growth_status
+    WHEN 'NEW' THEN 1 WHEN 'RETAINED' THEN 2
+    WHEN 'RESURRECTED' THEN 3 WHEN 'CHURNED' THEN 4
+END;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>growth_status</th><th>user_count</th><th>total_revenue</th><th>total_qty</th><th>arpu</th><th>l1</th><th>l7</th><th>l28</th></tr></thead>
+  <tbody>
+    <tr><td>NEW</td><td>2</td><td>250.00</td><td>2</td><td>125.00</td><td>2</td><td>2</td><td>2</td></tr>
+    <tr><td>RETAINED</td><td>3</td><td>300.00</td><td>3</td><td>100.00</td><td>3</td><td>3</td><td>3</td></tr>
+    <tr><td>RESURRECTED</td><td>1</td><td>80.00</td><td>1</td><td>80.00</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>CHURNED</td><td>2</td><td>0</td><td>0</td><td><em>NULL</em></td><td>0</td><td>2</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>The CHURNED row is the interesting one: zero revenue (no orders today), <code>arpu = NULL</code> by the explicit rule, and <code>l1_users = 0</code> &mdash; they were not active today &mdash; but <code>l7_users = 2</code> because 507 (gap 2 days) and 508 (gap 3 days) both last logged in within the past week. Churn is recent here, which is a louder alarm than long-dormant churn.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why ARPU must be NULL, not zero, for CHURNED</h5>
+<p>ARPU is revenue per user. For CHURNED there is revenue of zero across two users &mdash; arithmetically that is $0.00, but reporting "ARPU = $0" implies the segment was measured and earned nothing, when in fact ARPU is <em>undefined</em> for a segment that did not transact. The query guards with <code>CASE WHEN SUM(today_spend) = 0 THEN NULL</code>, which also doubles as the divide-by-zero protection. A senior distinguishes "zero, a real measurement" from "NULL, not applicable" &mdash; conflating them corrupts every downstream average.</p>
+
+<h5>The L-window counts: pre-compute the gap, then <code>FILTER</code></h5>
+<p><code>days_since_active</code> is computed once per user in <code>growth_merge</code> &mdash; 0 if they ordered today, otherwise <code>today - last_active_date</code>. The outer query then uses <code>COUNT(...) FILTER (WHERE days_since_active &lt;= N)</code> to bucket users into L1/L7/L28 without three separate scans. The windows are nested (every L1 user is also L7 and L28), so the counts are cumulative by design. NEW users get <code>days_since_active = 0</code> because they ordered today &mdash; that satisfies "NEW counts toward L1 by definition."</p>
+
+<h5>The <code>COUNT(DISTINCT)</code> inside <code>FILTER</code> &mdash; and why it matters</h5>
+<p>A customer can place several orders in one day. <code>SUM(today_spend)</code> already aggregates spend per user in the <code>today_activity</code> CTE, so each user contributes one row to <code>growth_merge</code> &mdash; but <code>COUNT(DISTINCT user_id)</code> is still the safe choice for <code>user_count</code> and the L-counts, because it is robust even if the CTE were later changed to keep order-grain rows. <code>COUNT(DISTINCT ...) FILTER (...)</code> composes cleanly in PostgreSQL: the DISTINCT applies only to rows passing the filter predicate.</p>
+
+<h5>Dialect notes &mdash; FILTER and date subtraction</h5>
+<p><code>FILTER (WHERE ...)</code> is standard SQL, supported by PostgreSQL, SQLite 3.30+, BigQuery, and Snowflake; MySQL has no <code>FILTER</code> and needs <code>COUNT(DISTINCT CASE WHEN ... THEN user_id END)</code> instead. <code>DATE '2026-05-06' - last_active_date</code> returning an integer day count is PostgreSQL-specific &mdash; SQLite needs <code>julianday()</code> differences, MySQL <code>DATEDIFF()</code>, BigQuery <code>DATE_DIFF(..., DAY)</code>. The <code>FULL OUTER JOIN</code> is the structural heart and is itself unsupported in MySQL (use <code>LEFT</code> &cup; <code>RIGHT</code> there).</p>
+
+<h5>What a senior says next</h5>
+<p>"Net revenue momentum is what the CFO actually wants on top of this: (NEW + RESURRECTED revenue) is fresh inflow, CHURNED is the revenue you stopped earning. I would add a final summary row computing inflow minus the churned segment's <em>prior</em> daily run-rate, so the report shows whether the business grew or shrank in dollar terms, not just headcount."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> return ARPU as NULL (not 0) for the non-transacting CHURNED bucket and explain the "undefined vs measured-zero" distinction, pre-compute <code>days_since_active</code> once then bucket with <code>COUNT(DISTINCT ...) FILTER</code>, note that NEW users land in L1 because their gap is 0, and propose a dollar-denominated net-momentum line for the CFO.</div>

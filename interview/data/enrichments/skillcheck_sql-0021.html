@@ -1,0 +1,72 @@
+<p>A monitoring team wants an anomaly score for a daily metric: the <strong>z-score</strong> of each day's value against the trailing 7-day window that includes that day. A z-score says "how many standard deviations from the recent norm is today" &mdash; the backbone of spike detection. The interviewer is probing rolling-window aggregates, the population-versus-sample variance distinction, and the divide-by-zero trap when a window is perfectly flat.</p>
+
+<h4>1. The source data &mdash; <code>daily</code></h4>
+<table>
+  <thead><tr><th>d</th><th>v</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10</td><td>flat run begins</td></tr>
+    <tr><td>2025-01-02</td><td>10</td><td>still flat</td></tr>
+    <tr><td>2025-01-03</td><td>10</td><td>still flat</td></tr>
+    <tr><td>2025-01-04</td><td>10</td><td>flat window &mdash; stddev 0</td></tr>
+    <tr><td>2025-01-05</td><td>12</td><td>first variation</td></tr>
+    <tr><td>2025-01-06</td><td>14</td><td></td></tr>
+    <tr><td>2025-01-07</td><td>11</td><td></td></tr>
+    <tr><td>2025-01-08</td><td>50</td><td>the spike &mdash; large positive z</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. The opening flat run means the first four windows have <em>zero variance</em> &mdash; the z-score formula would divide by zero. And 2025-01-08's value of 50 is a deliberate outlier whose z-score should jump.</p>
+
+<h4>2. The SQL &mdash; rolling mean and variance via the E[X&sup2;]&minus;E[X]&sup2; identity</h4>
+<pre><code>WITH stats AS (
+  SELECT
+    d,
+    v,
+    AVG(v)  OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS mu,
+    AVG(v*v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+      - AVG(v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+      * AVG(v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS var_pop
+  FROM daily
+)
+SELECT
+  d,
+  v,
+  CASE WHEN var_pop = 0 THEN NULL
+       ELSE ROUND(((v - mu) / sqrt(var_pop))::numeric, 3)::float END AS z
+FROM stats
+ORDER BY d;</code></pre>
+<p><code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> is the trailing 7-row window. The mean is a plain rolling <code>AVG</code>; the population variance uses the identity <em>Var = E[X&sup2;] &minus; (E[X])&sup2;</em>. The <code>CASE</code> guards against a zero-variance window before the division.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th><th>v</th><th>z</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10</td><td>NULL</td><td>window all 10s &mdash; var 0 &rarr; NULL, not a crash</td></tr>
+    <tr><td>2025-01-02</td><td>10</td><td>NULL</td><td>still flat</td></tr>
+    <tr><td>2025-01-03</td><td>10</td><td>NULL</td><td>still flat</td></tr>
+    <tr><td>2025-01-04</td><td>10</td><td>NULL</td><td>still flat</td></tr>
+    <tr><td>2025-01-05</td><td>12</td><td>2.0</td><td>first non-flat window</td></tr>
+    <tr><td>2025-01-06</td><td>14</td><td>1.964</td><td></td></tr>
+    <tr><td>2025-01-07</td><td>11</td><td>0.0</td><td>value equals the window mean</td></tr>
+    <tr><td>2025-01-08</td><td>50</td><td>2.437</td><td>the spike &mdash; clearly anomalous</td></tr>
+  </tbody>
+</table>
+<p>The first four days return <strong>NULL</strong>, not an error: the <code>CASE</code> catches the zero-variance window. 2025-01-08's z of <strong>2.437</strong> flags the 50 as a multi-sigma outlier &mdash; exactly the alert the team wants.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>E[X&sup2;] &minus; E[X]&sup2;</code> identity instead of <code>STDDEV</code></h5>
+<p>Population variance equals the mean of the squares minus the square of the mean. Expressing it with two <code>AVG</code> windows means the variance is computed over the <em>same</em> rolling frame as the mean &mdash; no separate machinery. Many engines also expose <code>VAR_POP</code>/<code>STDDEV_POP</code> as window functions, which is cleaner where available: <code>STDDEV_POP(v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)</code>. The identity form is the most portable and shows you understand what the function computes underneath.</p>
+
+<h5>Population vs sample variance &mdash; the spec is explicit</h5>
+<p>The question demands <em>population</em> standard deviation, "no Bessel correction". Population variance divides the summed squared deviations by <em>n</em>; sample variance divides by <em>n&minus;1</em> (Bessel's correction) and is what <code>STDDEV</code>/<code>STDDEV_SAMP</code> return by default in most engines. They give different numbers, especially for small windows. Using <code>VAR_SAMP</code> here would be a subtle, marks-losing mistake &mdash; match the requested estimator exactly, and say which one you used.</p>
+
+<h5>The divide-by-zero guard is mandatory</h5>
+<p>When a window is perfectly flat, variance is 0, <code>sqrt(0)</code> is 0, and <code>(v - mu) / 0</code> is a division-by-zero error in PostgreSQL &mdash; the whole query fails. The <code>CASE WHEN var_pop = 0 THEN NULL</code> branch intercepts that: a flat window has no meaningful spread, so "z is undefined" (NULL) is the honest answer. The flat opening run exists precisely to force this path. Never divide by a computed statistic without first asking whether it can be zero.</p>
+
+<h5>The window shrinks at the start &mdash; and that interacts with the flat run</h5>
+<p><code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> wants seven rows but clips to whatever is available, so day 1's window is just itself, day 2's is two rows, and so on. Here every early window also happens to be flat, so they are NULL regardless; but in general a one-row window has variance 0 and would likewise yield NULL. If the rule were "only score once seven days exist", add <code>COUNT(*) OVER (...) = 7</code> to the <code>CASE</code>. Knowing the frame shrinks &mdash; and that a single-row window is trivially zero-variance &mdash; is the senior detail.</p>
+
+<h5>Numeric hygiene around the rounding</h5>
+<p><code>ROUND(x, 3)</code> needs a <code>numeric</code> argument to round to a fixed scale, hence the <code>::numeric</code> cast; the final <code>::float</code> matches the expected column type. Floating-point variance can also produce a tiny negative value instead of an exact 0 from accumulated error &mdash; if that risk is real, guard with <code>var_pop &lt;= 0</code> rather than <code>= 0</code>, or <code>GREATEST(var_pop, 0)</code> before the <code>sqrt</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute a rolling z-score with matched <code>AVG</code> windows for mean and variance (or <code>STDDEV_POP</code> where available), use the <em>population</em> estimator because the spec says so, and always guard the division with <code>CASE WHEN var_pop = 0 THEN NULL</code> &mdash; a flat window must yield NULL, never a divide-by-zero crash.</div>

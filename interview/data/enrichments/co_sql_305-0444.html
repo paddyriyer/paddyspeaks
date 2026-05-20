@@ -1,0 +1,55 @@
+<p>LinkedIn member experience: each position has a <em>started</em> event when added, and an <em>ended</em> event when the member marks it done. Periods can overlap — current full-time job + part-time consulting at the same time. Position deduplication has a twist: the same (member, company) pair can have multiple distinct started/ended events if the member rejoined the same company.</p>
+
+<h4>1. The source data — <code>member_company_events</code></h4>
+<table>
+  <thead><tr><th>member_id</th><th>company_id</th><th>event_type</th><th>event_at</th></tr></thead>
+  <tbody>
+    <tr><td>M_001</td><td>C_010</td><td>started</td><td>2020-01-01</td></tr>
+    <tr><td>M_001</td><td>C_010</td><td>ended</td><td>2022-06-01</td></tr>
+    <tr><td>M_001</td><td>C_020</td><td>started</td><td>2022-07-01</td></tr>
+    <tr><td>M_001</td><td>C_030</td><td>started</td><td>2023-01-01</td></tr>
+    <tr><td>M_001</td><td>C_030</td><td>started</td><td>2023-01-01</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — partition by (member, company) for per-tenure dedup</h4>
+<pre><code>WITH paired AS (
+  SELECT member_id, company_id, event_type, event_at,
+    LAG(event_type) OVER (PARTITION BY member_id, company_id ORDER BY event_at) AS prev_event
+  FROM member_company_events
+),
+filtered AS (
+  SELECT member_id, company_id, event_type, event_at
+  FROM paired
+  WHERE event_type != prev_event OR prev_event IS NULL
+)
+SELECT member_id, company_id,
+  MIN(CASE WHEN event_type = 'started'  THEN event_at END) AS started_at,
+  MAX(CASE WHEN event_type = 'ended'    THEN event_at END) AS ended_at
+FROM filtered
+GROUP BY member_id, company_id
+ORDER BY member_id, started_at;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Composite partition key</h5>
+<p>Most status-period queries partition by a single entity (account_id, order_id). LinkedIn position-tenure is per <code>(member_id, company_id)</code> — multiple companies per member, each with its own lifecycle. The composite partition key keeps each company's events siloed for proper dedup.</p>
+
+<h5>The "current position" semantic</h5>
+<p>A position with <code>ended_at IS NULL</code> is currently active. M_001's role at C_020 and C_030 are both current — the member holds both simultaneously (full-time + advising). LinkedIn's "Current Position" field on a profile is just <code>WHERE ended_at IS NULL</code>.</p>
+
+<h5>The conditional-aggregation idiom</h5>
+<p><code>MIN(CASE WHEN event_type = 'started' THEN event_at END)</code> picks only started rows; <code>MAX(... 'ended' ...)</code> picks only ended rows. NULL-on-no-match flows through naturally. Cleaner than two separate filtered subqueries.</p>
+
+<h5>Re-joined company — the rejoiner pattern</h5>
+<p>What if M_001 was at C_010 from 2018-2020, left, and rejoined in 2024? Two distinct tenures. The query above collapses them into one row (started 2018, ended NULL). To preserve separate tenures, add a <code>tenure_id</code> by counting started events:</p>
+<pre><code>SUM(CASE WHEN event_type = 'started' THEN 1 ELSE 0 END)
+  OVER (PARTITION BY member_id, company_id ORDER BY event_at) AS tenure_id</code></pre>
+
+<h5>Why no LEAD here</h5>
+<p>Standard period queries use LAG for change-detection + LEAD for end_date. Here the schema already encodes "started" and "ended" explicitly — no need to compute end from a future row. The conditional MIN/MAX accomplishes the same thing without a window function. Cleaner when the lifecycle is binary-event-based.</p>
+
+<h5>The graph-of-employment use case</h5>
+<p>The output of this query feeds LinkedIn's "your colleagues" suggestions. Two members who overlapped at the same company in the same period are candidates for the recommendation. Self-join on overlapping (started_at, ended_at) intervals — the same overlap-detection pattern from the bookings / shifts questions.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> composite (member, company) partition key, NULL ended_at as "current", conditional MIN/MAX for binary-event lifecycles (cleaner than LAG+LEAD), tenure_id via SUM-of-started-flag for rejoiner detection, and connect the output to overlap-based "colleagues" recommendations.</div>

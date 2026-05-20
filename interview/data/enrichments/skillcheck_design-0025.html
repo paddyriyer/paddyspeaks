@@ -1,0 +1,78 @@
+<p>A nested comment system is a tree-in-a-table problem that has two classical solutions &mdash; <strong>materialized path</strong> (store each node's full ancestry as a string) and <strong>closure table</strong> (store all ancestor&ndash;descendant pairs) &mdash; and each has a different performance profile for the three core operations: fetch all comments under a post, fetch all descendants of a comment, and order by score. The interviewer is probing which technique you choose, why, and how Postgres's <code>ltree</code> extension makes the materialized-path approach first-class.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Nested hierarchy:</strong> comments have a parent comment (nullable for top-level); the depth can be unbounded in theory, though Reddit-style UIs cap display depth at ~6&ndash;8 levels.</li>
+  <li><strong>Fast subtree retrieval:</strong> "all descendants of comment 42" must be a single indexed query, not a recursive CTE that walks level by level.</li>
+  <li><strong>Fast post-level retrieval:</strong> "all comments under post 123" must be a single indexed query regardless of thread depth.</li>
+  <li><strong>Score ordering:</strong> comments are ordered by vote score within their level; top-level comments and reply threads each need score-ordered retrieval.</li>
+  <li><strong>Soft-delete:</strong> deleted comments are not hard-removed (this would orphan children); they are replaced with "[deleted]" and the row is kept with <code>is_deleted = TRUE</code>.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>-- Required extension for ltree-based path indexing:
+CREATE EXTENSION IF NOT EXISTS ltree;
+
+CREATE TABLE comment (
+  comment_id        BIGSERIAL    PRIMARY KEY,
+  post_id           BIGINT       NOT NULL,
+  parent_comment_id BIGINT       REFERENCES comment(comment_id),
+  author_id         BIGINT       NOT NULL,
+  body              TEXT         NOT NULL,
+  score             INT          NOT NULL DEFAULT 0,             -- upvotes - downvotes (denormalized for ordering)
+  depth             SMALLINT     NOT NULL DEFAULT 0,             -- 0 = top-level
+  path              LTREE        NOT NULL,                       -- materialized-path: e.g., '1.13.42'
+  is_deleted        BOOLEAN      NOT NULL DEFAULT FALSE,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ix_comment_post_score ON comment (post_id, score DESC);
+CREATE INDEX ix_comment_post_created ON comment (post_id, created_at);
+CREATE INDEX ix_comment_path_gist ON comment USING gist (path);
+CREATE INDEX ix_comment_parent ON comment (parent_comment_id) WHERE parent_comment_id IS NOT NULL;
+
+-- Common queries:
+-- All comments under a post, ordered by score:
+--   SELECT * FROM comment WHERE post_id = ? ORDER BY score DESC, created_at;
+-- All descendants of a specific comment (its subtree):
+--   SELECT * FROM comment WHERE path &lt;@ '1.13'::ltree;     -- ltree descendant operator
+-- Direct children:
+--   SELECT * FROM comment WHERE parent_comment_id = ?;</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>comment_id</code></td><td>Surrogate PK</td><td>Stable identifier; used as nodes in the <code>path</code> string and as the FK target for <code>parent_comment_id</code>.</td></tr>
+    <tr><td><code>post_id</code></td><td>FK &rarr; post entity / leading index column</td><td>Every query is scoped to a post; leads every index to enable partition pruning at the B-tree level.</td></tr>
+    <tr><td><code>parent_comment_id</code></td><td>Adjacency list FK (nullable)</td><td>Stores the immediate parent; enables direct-children queries and is the source of truth for tree structure when rebuilding paths. Partial index excludes top-level comments (NULL values).</td></tr>
+    <tr><td><code>author_id</code></td><td>FK &rarr; user dimension</td><td>References the commenting user; a secondary index on <code>(author_id)</code> would support "all comments by user X" queries.</td></tr>
+    <tr><td><code>body</code></td><td>Content payload</td><td>Unbounded TEXT; Postgres TOASTs large values automatically. Full-text search would require an additional <code>tsvector</code> column or FTS index.</td></tr>
+    <tr><td><code>score</code></td><td>Semi-additive denormalized measure</td><td>Denormalized vote tally (upvotes &ndash; downvotes); maintained via an update trigger or application-level update on each vote. Semi-additive: summing scores across comments is not meaningful, but ordering by score within a thread is the primary sort criterion.</td></tr>
+    <tr><td><code>depth</code></td><td>Ordinal dimension</td><td>Pre-computed depth level (0 = root); avoids counting path separators at query time; useful for UI depth limits without string manipulation.</td></tr>
+    <tr><td><code>path</code></td><td>Materialized path / ltree key</td><td>A dot-separated string of ancestor IDs (e.g., <code>1.13.42</code>); the <code>ltree</code> extension provides the <code>&lt;@</code> (descendant of) operator and GiST indexing; enables subtree retrieval in a single index scan.</td></tr>
+    <tr><td><code>is_deleted</code></td><td>Soft-delete flag</td><td>Deleted comments are hidden (<code>body</code> replaced by "[deleted]") but retained as tree nodes so children are not orphaned.</td></tr>
+    <tr><td><code>created_at</code></td><td>Audit / sort column</td><td>Secondary sort key within a score tier; used for "new" feeds and deterministic tie-breaking.</td></tr>
+    <tr><td><code>updated_at</code></td><td>Audit column</td><td>Updated on edits and votes; useful for cache invalidation.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Materialized path (ltree) vs. closure table</h5>
+<p>The two main alternatives: <strong>materialized path</strong> stores the full ancestry as a string on each row; <strong>closure table</strong> stores every ancestor&ndash;descendant pair in a separate table. Materialized path is chosen here because: (1) Postgres's <code>ltree</code> extension makes it first-class with a GiST index and the <code>&lt;@</code> operator; (2) subtree reads are one index scan; (3) it requires no join for retrieval. The tradeoff is that moving a comment subtree requires updating the <code>path</code> of every descendant &mdash; expensive for deep trees. Closure table is better for frequent subtree moves and for engines without <code>ltree</code>, but it doubles write volume (one row per ancestor for every insert) and requires a JOIN for every read.</p>
+
+<h5>The <code>&lt;@</code> ltree operator and GiST index</h5>
+<p><code>SELECT * FROM comment WHERE path &lt;@ '1.13'::ltree</code> retrieves all descendants of comment 13 (which is itself a child of comment 1). The GiST index on <code>path</code> makes this an index scan &mdash; Postgres uses the index to find all rows whose path is a descendant of the given prefix. Without the GiST index this degrades to a sequential scan on a <code>LIKE '1.13.%'</code> equivalent. The <code>~</code> (match) and <code>@</code> (ancestor of) operators are also GiST-accelerated.</p>
+
+<h5>Denormalized score and vote consistency</h5>
+<p><code>score = upvotes - downvotes</code> is stored denormalized on the comment row for fast ORDER BY without a JOIN to a vote-count aggregate. This is correct for read-heavy workloads (Reddit-scale reads dwarf writes). The tradeoff: every vote must atomically update <code>comment.score</code> (<code>UPDATE comment SET score = score + 1 WHERE comment_id = ?</code>), which creates write contention on popular comments. Mitigation: use <code>SELECT ... FOR UPDATE</code> on the vote write, or use Postgres's advisory locks, or accept approximate counts with a reconciliation job.</p>
+
+<h5>Adjacency list + materialized path: belt and suspenders</h5>
+<p>Keeping both <code>parent_comment_id</code> (adjacency list) and <code>path</code> (materialized path) provides redundancy: the adjacency list is the authoritative source of truth for the immediate parent relationship; the path is a derived, performance-oriented artifact. If the path becomes corrupted or needs regeneration, it can always be reconstructed from the adjacency list via a recursive CTE. The partial index on <code>parent_comment_id WHERE parent_comment_id IS NOT NULL</code> excludes top-level comments, keeping the index compact.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ltree</code> is a Postgres extension (bundled in the <code>postgresql-contrib</code> package). In <strong>MySQL</strong>, implement materialized path as a <code>VARCHAR</code> with a <code>LIKE '1.13.%'</code> query &mdash; performant only with a prefix index and shallow trees. In <strong>SQL Server</strong>, use the native <code>hierarchyid</code> type. In <strong>BigQuery</strong>, hierarchical queries use <code>STRUCT</code> arrays or repeated fields; subtree retrieval uses recursive CTEs (available since BigQuery GA 2023). In graph-heavy deployments, export the adjacency list to a graph database (Neo4j, Amazon Neptune) and query depth traversal there.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose and justify your tree encoding &mdash; materialized path with <code>ltree</code> for read-heavy Reddit-style threads, closure table for write-heavy or engine-agnostic contexts; identify <code>score</code> as a semi-additive denormalized measure and name the write-contention risk on popular comments; and explain that <code>parent_comment_id</code> and <code>path</code> are complementary (one is truth, one is performance) and that the path can always be regenerated from the adjacency list.</div>

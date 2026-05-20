@@ -1,0 +1,61 @@
+<p>Expedia's growth team tracks monthly active members of its travel community and wants the month-over-month growth rate on the same dashboard row as the raw count. The query looks like a textbook <code>LAG</code> exercise &mdash; until you notice the reference solution wraps every value in a <code>regexp_replace</code>. That is the tell: the <code>members</code> column is not clean numbers. An interviewer asking this wants to see that you handle the data you actually get, not the data you wish you had.</p>
+
+<h4>1. The source data &mdash; <code>network</code></h4>
+<table>
+  <thead><tr><th>month</th><th>members</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01</td><td>10000</td></tr>
+    <tr><td>2024-02</td><td>11500</td></tr>
+    <tr><td>2024-03</td><td>11500</td></tr>
+    <tr><td>2024-04</td><td>13800</td></tr>
+    <tr><td>2024-05</td><td>12_420</td></tr>
+  </tbody>
+</table>
+<p>Two things make this interview. March is <strong>flat</strong> against February &mdash; a 0% month, which must come out as exactly 0, not NULL. And May arrives as <code>12_420</code> &mdash; a thousands separator (or an import artefact) that would make a plain <code>::numeric</code> cast throw. The <code>members</code> column is text-typed and dirty.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> growth over a scrubbed column</h4>
+<pre><code>SELECT month, members,
+  100.0*(NULLIF(regexp_replace(members::text, '[^-.0-9]', '', 'g'), '')::numeric - LAG(NULLIF(regexp_replace(members::text, '[^-.0-9]', '', 'g'), '')::numeric) OVER (ORDER BY month))/NULLIF(LAG(NULLIF(regexp_replace(members::text, '[^-.0-9]', '', 'g'), '')::numeric) OVER (ORDER BY month), 0) AS mom_growth
+FROM network;</code></pre>
+<p><code>regexp_replace(&hellip;, '[^-.0-9]', '', 'g')</code> deletes every character that is not a digit, minus, or dot &mdash; so <code>12_420</code> becomes <code>12420</code>. <code>NULLIF(&hellip;, '')</code> turns an emptied-out string into NULL instead of a cast error, and the outer <code>NULLIF(&hellip;, 0)</code> guards against dividing by a zero baseline.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>members</th><th>mom_growth</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01</td><td>10000</td><td><em>NULL</em></td></tr>
+    <tr><td>2024-02</td><td>11500</td><td>15.00000000</td></tr>
+    <tr><td>2024-03</td><td>11500</td><td>0.00000000</td></tr>
+    <tr><td>2024-04</td><td>13800</td><td>20.00000000</td></tr>
+    <tr><td>2024-05</td><td>12_420</td><td>-10.00000000</td></tr>
+  </tbody>
+</table>
+<p>January has no prior month, so <code>LAG</code> returns NULL and the growth is NULL &mdash; correct, there is no "growth from nothing". February grows 15%, March is exactly 0% (flat, not NULL), April +20%, and May drops to 12420 for -10%. Note May's value was parsed <em>through</em> the underscore: the regex did its job.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>regexp_replace</code> at all &mdash; and what it costs</h5>
+<p>If <code>members</code> were a clean <code>INTEGER</code> column the whole query collapses to a readable line:</p>
+<pre><code>SELECT month, members,
+  100.0 * (members - LAG(members) OVER (ORDER BY month))
+        / NULLIF(LAG(members) OVER (ORDER BY month), 0) AS mom_growth
+FROM network;</code></pre>
+<p>The scrubbing exists only because the column is text with junk in it. The senior point: scrubbing inside the query is a <em>symptom</em>. The real fix is upstream &mdash; clean the data at ingestion and store <code>members</code> as a typed integer, so every downstream query is simple and a malformed value fails loudly at load time instead of silently becoming a wrong number.</p>
+
+<h5>The divide-by-zero trap</h5>
+<p>If a month legitimately had 0 members, the denominator <code>LAG(members)</code> is 0 and <code>x/0</code> raises <code>division by zero</code>. <code>NULLIF(denominator, 0)</code> converts that into <code>x/NULL = NULL</code> &mdash; the growth rate is undefined when you start from zero, and NULL says exactly that. Dropping the <code>NULLIF</code> is the most common way this query crashes in production.</p>
+
+<h5>Gaps in the month series</h5>
+<p><code>LAG</code> takes the <em>previous row</em>, not the previous calendar month. If March is missing entirely, April's <code>LAG</code> reaches back to February and the "month-over-month" rate silently spans two months. If the series can have holes, generate a complete month spine and left-join the data onto it:</p>
+<pre><code>SELECT m.month, n.members,
+       n.members - LAG(n.members) OVER (ORDER BY m.month) AS delta
+FROM generate_series('2024-01-01'::date, '2024-12-01', '1 month') m(month)
+LEFT JOIN network n ON to_char(m.month,'YYYY-MM') = n.members;</code></pre>
+
+<h5>NULL members rows</h5>
+<p>If a row's <code>members</code> is NULL (or becomes NULL after scrubbing an all-junk value), that month's growth is NULL <em>and</em> the next month's growth is NULL too &mdash; because <code>LAG</code> hands the next row a NULL baseline. One bad row poisons two output rows. Decide deliberately: skip NULL months with a <code>WHERE</code>, or carry the last good value forward with a gap-fill before computing the rate.</p>
+
+<h5>Ordering must be deterministic</h5>
+<p><code>ORDER BY month</code> here works because <code>month</code> sorts lexically as <code>YYYY-MM</code>. If months were stored as <code>'Jan 2024'</code> the ordering would be alphabetical nonsense. Always order a window by a value that sorts chronologically &mdash; a real <code>date</code>, or a zero-padded <code>YYYY-MM</code> string.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the <code>regexp_replace</code> as a data-quality band-aid and name the upstream fix (typed column, fail-at-load), keep the <code>NULLIF(denominator, 0)</code> guard, distinguish "previous row" from "previous month" when the series can have gaps, and ensure the window's <code>ORDER BY</code> is genuinely chronological.</div>

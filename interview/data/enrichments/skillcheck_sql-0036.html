@@ -1,0 +1,54 @@
+<p>A marketing team wants customers who bought something from a target set but are "clean" of a forbidden set &mdash; e.g. people who bought a core product yet never touched a competitor's SKU. This is an <strong>inclusion-minus-exclusion</strong> set query. The interviewer is probing whether you compose a positive filter with an anti-membership subquery, and whether you know the <code>NOT IN</code> NULL trap.</p>
+
+<h4>1. The source data &mdash; <code>purchases</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>products</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A, B, C</td><td>bought A and B, no X/Y/Z &mdash; qualifies</td></tr>
+    <tr><td>2</td><td>A, X</td><td>bought A but also X &mdash; excluded by the forbidden set</td></tr>
+    <tr><td>3</td><td>B, C</td><td>bought B, clean &mdash; qualifies</td></tr>
+    <tr><td>4</td><td>B, D, E</td><td>bought B, only neutral extras &mdash; qualifies</td></tr>
+    <tr><td>5</td><td>C, D</td><td>no A or B at all &mdash; fails the inclusion test</td></tr>
+    <tr><td>6</td><td>A, Y</td><td>bought A but also Y &mdash; excluded</td></tr>
+    <tr><td>7</td><td>B</td><td>single purchase, B, clean &mdash; qualifies</td></tr>
+  </tbody>
+</table>
+<p>The interesting cases: customer 5 bought neither A nor B (fails inclusion despite being "clean"), and customers 2 and 6 satisfy inclusion but are knocked out by exclusion. Customer 7 &mdash; a single-row, single-member group &mdash; must still qualify.</p>
+
+<h4>2. The SQL &mdash; positive filter minus a forbidden-set subquery</h4>
+<pre><code>SELECT DISTINCT customer_id
+FROM purchases
+WHERE product IN ('A','B')
+  AND customer_id NOT IN (
+        SELECT customer_id FROM purchases WHERE product IN ('X','Y','Z')
+      )
+ORDER BY customer_id;</code></pre>
+<p><code>product IN ('A','B')</code> keeps rows for the <em>inclusion</em> set &mdash; a customer surfaces if any of their rows match. <code>customer_id NOT IN (&hellip;)</code> removes anyone whose id appears in the subquery of <em>forbidden</em>-set buyers. <code>DISTINCT</code> collapses a customer who bought both A and B to one output row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>has A,B; not in {X,Y,Z buyers}</td></tr>
+    <tr><td>3</td><td>has B; clean</td></tr>
+    <tr><td>4</td><td>has B; D and E are neutral, not forbidden</td></tr>
+    <tr><td>7</td><td>has B; single-purchase customer still qualifies</td></tr>
+  </tbody>
+</table>
+<p>Customers 2 and 6 are excluded despite owning A &mdash; their X / Y purchase puts their id in the forbidden subquery. Customer 5 never appears: no row matches <code>product IN ('A','B')</code>, so inclusion fails before exclusion is even consulted.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the positive filter and the anti-join are separate steps</h5>
+<p>Inclusion and exclusion operate at different grains. Inclusion is a <em>row</em> test &mdash; "does this row's product fall in {A,B}". Exclusion is a <em>customer</em> test &mdash; "did this customer <em>ever</em> buy a forbidden product, in any row". You cannot fold them into one <code>WHERE product IN (...) AND product NOT IN (...)</code>: that would only check the <em>current</em> row, and customer 2's A-row would sail through because that single row is not X. The forbidden check must scan the customer's <em>whole</em> history &mdash; hence a subquery.</p>
+
+<h5>The <code>NOT IN</code> + NULL trap</h5>
+<p><code>NOT IN</code> against a subquery is dangerous if the subquery can return a <code>NULL</code>. <code>x NOT IN (1, NULL)</code> evaluates to <code>unknown</code> for <em>every</em> <code>x</code> &mdash; so the whole query silently returns zero rows. Here <code>customer_id</code> is non-nullable so it is safe, but a senior candidate states the risk and prefers a NULL-immune form: <code>NOT EXISTS (SELECT 1 FROM purchases f WHERE f.customer_id = p.customer_id AND f.product IN ('X','Y','Z'))</code>. <code>NOT EXISTS</code> is a pure row-existence test and never breaks on NULLs.</p>
+
+<h5><code>DISTINCT</code> vs <code>GROUP BY</code></h5>
+<p>Because a customer can have several matching rows (customer 1 has both A and B), the inclusion filter alone yields duplicate ids. <code>DISTINCT</code> deduplicates the output. Equivalently <code>GROUP BY customer_id</code> with no aggregate. If the question wanted "bought <em>both</em> A and B" rather than "either", you would switch to <code>GROUP BY customer_id HAVING COUNT(DISTINCT product) FILTER (WHERE product IN ('A','B')) = 2</code> &mdash; a different requirement worth clarifying.</p>
+
+<h5>Anti-join alternatives and performance</h5>
+<p><code>NOT EXISTS</code>, <code>NOT IN</code>, and <code>LEFT JOIN ... WHERE forbidden.customer_id IS NULL</code> all express the exclusion. Modern planners optimise <code>NOT EXISTS</code> and the <code>LEFT JOIN</code> anti-join to the same efficient plan; <code>NOT IN</code> can be worse and carries the NULL hazard. Default to <code>NOT EXISTS</code> for correctness and predictable performance &mdash; reserve <code>NOT IN</code> for a small, known-NULL-free literal list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compose set queries as a row-level inclusion filter plus a customer-level anti-membership check &mdash; they sit at different grains and cannot be merged into one row predicate; prefer <code>NOT EXISTS</code> over <code>NOT IN</code> because a single NULL in a <code>NOT IN</code> subquery wipes the entire result.</div>

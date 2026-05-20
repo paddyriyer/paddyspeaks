@@ -1,0 +1,58 @@
+<p>Survey responses arrive in long format &mdash; one row per (question, respondent, answer) &mdash; but the analytics team wants a wide table: one row per respondent, one column per question. That is a <strong>pivot</strong>. The interviewer is probing conditional aggregation, and specifically whether you pick an aggregate that works on <em>text</em> answers and whether you handle respondents who skipped a question.</p>
+
+<h4>1. The source data &mdash; <code>survey</code></h4>
+<table>
+  <thead><tr><th>question_id</th><th>respondent_id</th><th>answer</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>q1</td><td>1</td><td>yes</td><td>respondent 1 answered all three</td></tr>
+    <tr><td>q2</td><td>1</td><td>no</td><td></td></tr>
+    <tr><td>q3</td><td>1</td><td>maybe</td><td></td></tr>
+    <tr><td>q1</td><td>2</td><td>no</td><td>respondent 2 skipped q3</td></tr>
+    <tr><td>q2</td><td>2</td><td>yes</td><td></td></tr>
+    <tr><td>q1</td><td>3</td><td>maybe</td><td>respondent 3 skipped q2</td></tr>
+    <tr><td>q3</td><td>3</td><td>no</td><td></td></tr>
+    <tr><td>q2</td><td>4</td><td>no</td><td>respondent 4 answered only q2</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are partial responders. Respondent 2 has no q3 row, respondent 3 has no q2 row, and respondent 4 answered only q2. A correct pivot must place a <code>NULL</code> in each missing cell &mdash; the absent answer must not disturb the answers that exist.</p>
+
+<h4>2. The SQL &mdash; pivot via MAX(CASE &hellip;)</h4>
+<pre><code>SELECT respondent_id,
+       MAX(CASE WHEN question_id = 'q1' THEN answer END) AS q1,
+       MAX(CASE WHEN question_id = 'q2' THEN answer END) AS q2,
+       MAX(CASE WHEN question_id = 'q3' THEN answer END) AS q3
+FROM survey
+GROUP BY respondent_id
+ORDER BY respondent_id;</code></pre>
+<p>One <code>CASE</code> per target column lets a row's <code>answer</code> through only when it belongs to that question, and yields <code>NULL</code> otherwise (no <code>ELSE</code>). <code>GROUP BY respondent_id</code> collapses each respondent's rows into one; <code>MAX</code> picks out the single non-NULL answer the <code>CASE</code> exposed.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>respondent_id</th><th>q1</th><th>q2</th><th>q3</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>yes</td><td>no</td><td>maybe</td><td>answered all three</td></tr>
+    <tr><td>2</td><td>no</td><td>yes</td><td>NULL</td><td>q3 skipped &rarr; NULL</td></tr>
+    <tr><td>3</td><td>maybe</td><td>NULL</td><td>no</td><td>q2 skipped &rarr; NULL</td></tr>
+    <tr><td>4</td><td>NULL</td><td>no</td><td>NULL</td><td>only q2 answered</td></tr>
+  </tbody>
+</table>
+<p>Respondent 4 shows <code>no</code> under q2 and <code>NULL</code> under q1 and q3 &mdash; the single answered question survives, the skipped ones become blanks. <code>MAX</code> over a group that is all-NULL (q1 for respondent 4) returns <code>NULL</code>, which is exactly the "didn't answer" semantic the question asks for.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>MAX</code> and not <code>SUM</code> &mdash; the answers are text</h5>
+<p><code>SUM</code> only works on numbers; the answers here are strings, so the aggregate must be one that operates on text. <code>MAX</code> (and <code>MIN</code>) accept text, ordering it lexicographically. Within each respondent/question cell the <code>CASE</code> exposes <em>at most one</em> non-NULL value, so "the max of one value" is just that value &mdash; <code>MAX</code> is being used as a NULL-skipping picker, not for any ordering meaning. <code>SUM(CASE &hellip;)</code> would simply error on text.</p>
+
+<h5>No <code>ELSE</code> &rarr; non-matching rows are NULL, and <code>MAX</code> ignores them</h5>
+<p><code>CASE WHEN question_id = 'q1' THEN answer END</code> has no <code>ELSE</code>, so every row that is <em>not</em> q1 produces <code>NULL</code>. Aggregate functions skip NULLs, so <code>MAX</code> over a respondent's rows sees only their actual q1 answer (if any) and returns it &mdash; or <code>NULL</code> if there was none. That NULL-skipping is the entire mechanism: it both isolates the right answer and produces the blank for a skipped question. The question explicitly wants <code>NULL</code> for skips, so <em>not</em> adding an <code>ELSE</code> is the correct, deliberate choice.</p>
+
+<h5>What if a respondent answered the same question twice</h5>
+<p>The fixture has at most one row per (respondent, question), so the cell is unambiguous. If a duplicate existed &mdash; respondent 1 answering q1 both "yes" and "no" &mdash; <code>MAX</code> would silently pick the lexicographically larger ("yes") and the other answer would vanish with no warning. That is a real data-quality risk: if duplicates are possible, dedupe upstream or decide a tie-break rule explicitly rather than letting <code>MAX</code> choose arbitrarily.</p>
+
+<h5>The column list is static &mdash; the title says "dynamic", the data does not</h5>
+<p>The three questions q1/q2/q3 are hard-coded as three <code>CASE</code> expressions. Add a q4 and it appears in <em>no</em> column &mdash; it silently disappears from the report. The question states the question set is "small and known", so static columns are acceptable here. A genuinely dynamic pivot &mdash; columns grown from <code>SELECT DISTINCT question_id</code> &mdash; needs procedural code to build the SQL text, or Postgres's <code>crosstab()</code> from the <code>tablefunc</code> extension. Naming that limit unprompted is the senior signal.</p>
+
+<h5>Dialect &mdash; the <code>PIVOT</code> operator</h5>
+<p>SQL Server, Oracle, and Snowflake ship a dedicated <code>PIVOT</code> clause &mdash; e.g. Snowflake <code>&hellip; PIVOT(MAX(answer) FOR question_id IN ('q1','q2','q3'))</code> &mdash; which is terser but still makes you enumerate the values in the <code>IN</code> list, exactly like the <code>CASE</code> form. Postgres, MySQL, and SQLite have no <code>PIVOT</code> keyword, so <code>MAX(CASE WHEN &hellip;)</code> is the portable answer and is worth knowing as the universal idiom.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot text data with <code>MAX(CASE WHEN &hellip;)</code> &mdash; <code>SUM</code> would fail on strings &mdash; rely on the absent <code>ELSE</code> so skipped questions naturally become <code>NULL</code>, watch that duplicate (respondent, question) rows would let <code>MAX</code> drop an answer silently, and note the columns are static so a truly dynamic question set needs dynamic SQL or <code>crosstab()</code>.</div>

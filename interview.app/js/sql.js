@@ -1,13 +1,16 @@
 // ════════════════════════════════════════════════════════════
-// SQL Playground — sql.js (SQLite-WASM) in-browser
+// SQL Playground — SQLite (sql.js) by default, PostgreSQL (PGlite) on demand
 // ════════════════════════════════════════════════════════════
-import { generateAndLoad, seedFromQid } from "./sample-gen.js";
+import { seedFromQid } from "./sample-gen.js";
+import { SqliteEngine } from "./engines/sqlite-engine.js";
+import { PgliteEngine } from "./engines/pglite-engine.js";
 
 const DATA_BASE = "../interview/data";
 const CSV_BASE = "../interview/sample%20dataset";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const SCHEMAS_URL = `${DATA_BASE}/question_schemas.json`;
 const LS_LAST_Q = "pg.sql.lastQ";
+const LS_RUNTIME = "pg.sql.runtime";  // 'auto' | 'sqlite' | 'postgres'
 // Per-question editor key — one slot per question id so switching questions
 // no longer leaks the previous question's solution into the editor.
 const LS_EDITOR = (qid) => `pg.sql.editor.${qid || "default"}`;
@@ -34,8 +37,9 @@ const CSV_FILES = [
 const $ = (sel) => document.querySelector(sel);
 
 const state = {
-  SQL: null,
-  db: null,
+  engine: null,                // active engine (SqliteEngine | PgliteEngine)
+  enginesByKind: {},           // lazily-instantiated cache so switching back is instant
+  runtimePref: "auto",         // 'auto' | 'sqlite' | 'postgres' from the toolbar
   questions: [],
   sqlQuestions: [],
   schemasByQid: {},
@@ -67,6 +71,18 @@ function setStatus(msg, kind = "") {
   if (!el) return;
   el.textContent = msg;
   el.className = "pg-status" + (kind ? " is-" + kind : "");
+}
+
+function updateEngineBadge() {
+  const el = $("#pg-engine-badge");
+  if (!el) return;
+  if (!state.engine) {
+    el.textContent = "—";
+    el.removeAttribute("data-engine");
+    return;
+  }
+  el.textContent = state.engine.kind === "postgres" ? "PostgreSQL" : "SQLite";
+  el.setAttribute("data-engine", state.engine.kind);
 }
 
 // ─── CSV parser (handles quoted commas + escaped quotes) ───
@@ -144,29 +160,10 @@ async function loadCSVAsTable(filename) {
   const data = rows.slice(1);
   const types = inferColumnTypes(headers, data);
   const tableName = filename.replace(/\.csv$/i, "");
-
-  const colDefs = headers.map((h, i) => `${quoteIdent(h)} ${types[i]}`).join(", ");
-  state.db.run(`DROP TABLE IF EXISTS ${quoteIdent(tableName)};`);
-  state.db.run(`CREATE TABLE ${quoteIdent(tableName)} (${colDefs});`);
-
-  const placeholders = headers.map(() => "?").join(",");
-  const stmt = state.db.prepare(
-    `INSERT INTO ${quoteIdent(tableName)} VALUES (${placeholders})`
-  );
-  state.db.exec("BEGIN");
-  try {
-    for (const row of data) {
-      if (row.length === 1 && row[0] === "") continue;
-      const padded = headers.map((_, i) => castValue(row[i], types[i]));
-      stmt.run(padded);
-    }
-    state.db.exec("COMMIT");
-  } catch (e) {
-    state.db.exec("ROLLBACK");
-    throw e;
-  } finally {
-    stmt.free();
-  }
+  const records = data
+    .filter((row) => !(row.length === 1 && row[0] === ""))
+    .map((row) => headers.map((_, i) => castValue(row[i], types[i])));
+  await state.engine.loadCSV(tableName, headers, types, records);
   state.loadedTables.add(tableName);
 }
 
@@ -178,54 +175,105 @@ async function loadAllCSVs() {
   }
 }
 
-// ─── DB lifecycle ───
-async function initEngine() {
-  setStatus("Loading SQLite engine (~1 MB WASM)…");
-  if (typeof window.initSqlJs !== "function") {
-    throw new Error("sql.js failed to load — check your network or ad blocker.");
+// ─── Engine lifecycle ───
+// Decide which engine should run a given question. Manual override wins; in
+// 'auto' mode looks at the question's runtime tag. The tag was set by the
+// dialect-classifier audit which scans each solution for SQLite-only
+// markers (julianday, strftime, IIF) vs Postgres-only markers (DATE_TRUNC,
+// FILTER WHERE, IS DISTINCT FROM, NULLS LAST, INTERVAL '...', string_agg).
+// PostgreSQL is the priority dialect — auto-mode lands on PGlite for
+// portable queries; SQLite is reserved for solutions that explicitly
+// need julianday/strftime.
+function pickEngineKindFor(q) {
+  if (state.runtimePref === "sqlite") return "sqlite";
+  if (state.runtimePref === "postgres") return "postgres";
+  if (q && q.runtime === "sqlite") return "sqlite";
+  if (q && q.runtime === "postgres") return "postgres";
+  // Untagged: peek at the solution as a final safety net. SQLite-only
+  // markers force SQLite; everything else defaults to Postgres.
+  if (q && q.solution) {
+    if (/\b(julianday|strftime)\s*\(/i.test(q.solution)) return "sqlite";
   }
-  const SQL = await window.initSqlJs({
-    locateFile: (file) => `./vendor/sql.js/${file}`,
-  });
-  state.SQL = SQL;
-  await resetDB();
+  return "postgres";
+}
+
+// SQLite-specific function tokens — used to refuse to run a SQLite-flavored
+// solution on the Postgres engine (and vice versa for the existing Postgres
+// detector below). Without this the user sees a confusing
+// `function julianday(timestamp without time zone) does not exist` from
+// PGlite when they manually picked the wrong engine.
+const SQLITE_ONLY_TOKENS = [
+  /\bjulianday\s*\(/i,
+  /\bstrftime\s*\(/i,
+  /\bIIF\s*\(/i,
+];
+
+function detectSqliteOnly(sql) {
+  const cleaned = stripStringsAndComments(sql);
+  for (const re of SQLITE_ONLY_TOKENS) {
+    const m = re.exec(cleaned);
+    if (m) return m[0];
+  }
+  return null;
+}
+
+async function ensureEngine(kind) {
+  if (state.enginesByKind[kind]) return state.enginesByKind[kind];
+  if (kind === "postgres") {
+    setStatus("Loading PostgreSQL engine (PGlite, ~3 MB)…");
+    const eng = new PgliteEngine();
+    await eng.init();
+    state.enginesByKind[kind] = eng;
+    return eng;
+  }
+  setStatus("Loading SQLite engine (~1 MB WASM)…");
+  const eng = new SqliteEngine();
+  await eng.init();
+  state.enginesByKind[kind] = eng;
+  return eng;
+}
+
+async function activateEngine(kind, { reseed = true } = {}) {
+  const eng = await ensureEngine(kind);
+  if (state.engine === eng) return eng;
+  state.engine = eng;
   setEngineReady(true);
+  updateEngineBadge();
+  if (reseed) {
+    state.loadedTables.clear();
+    state.questionCreatedTables.clear();
+    await loadAllCSVs();
+    await refreshTableList();
+  }
+  return eng;
+}
+
+async function initEngine() {
+  // Boot the SQLite engine eagerly (it's the default for ~90% of questions
+  // and the WASM is local), then the Postgres path lights up lazily when a
+  // question or the toolbar asks for it.
+  await activateEngine("sqlite");
   setStatus(`Ready · ${state.loadedTables.size} tables loaded`, "ok");
 }
 
 async function resetDB() {
-  if (state.db) state.db.close();
-  state.db = new state.SQL.Database();
+  if (!state.engine) return;
+  await state.engine.reset();
   state.loadedTables.clear();
   state.questionCreatedTables.clear();
   await loadAllCSVs();
-  refreshTableList();
+  await refreshTableList();
 }
 
 // ─── Schema sidebar ───
-function getTables() {
-  const r = state.db.exec(
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-  );
-  if (!r.length) return [];
-  return r[0].values.map((row) => row[0]);
-}
-
-function getTableInfo(name) {
-  const cols = state.db.exec(`PRAGMA table_info(${quoteIdent(name)})`);
-  const cnt = state.db.exec(`SELECT COUNT(*) FROM ${quoteIdent(name)}`);
-  return {
-    cols: cols.length ? cols[0].values.map((r) => ({ name: r[1], type: r[2] })) : [],
-    count: cnt.length ? cnt[0].values[0][0] : 0,
-  };
-}
-
-function refreshTableList() {
+async function refreshTableList() {
   const ul = $("#pg-table-list");
+  if (!ul) return;
   ul.innerHTML = "";
-  const tables = getTables();
+  if (!state.engine) return;
+  const tables = await state.engine.listTables();
   for (const t of tables) {
-    const info = getTableInfo(t);
+    const info = await state.engine.tableInfo(t);
     const li = document.createElement("li");
     const head = document.createElement("div");
     head.className = "pg-table-name";
@@ -242,15 +290,80 @@ function refreshTableList() {
   }
 }
 
+// ─── Real-world enrichment loader ───
+// Each question may have an optional HTML fragment at
+// /interview/data/enrichments/<qid>.html with a business-flavoured scenario,
+// sample data table, annotated SQL, result table, and strategic commentary.
+// If the fetch returns 404 (or the network fails), we silently fall back to
+// the bare prompt — nothing breaks for unenriched questions.
+const enrichmentCache = new Map();
+const ENRICHMENTS_BASE = `${DATA_BASE}/enrichments`;
+async function loadEnrichment(qid) {
+  const block = $("#pg-q-enrichment-block");
+  const body = $("#pg-q-enrichment");
+  if (!block || !body) return;
+  // Reset before async work — we don't want a stale enrichment from a
+  // previously selected question to flash before the new one is fetched.
+  block.hidden = true;
+  body.innerHTML = "";
+  if (!qid) return;
+  if (enrichmentCache.has(qid)) {
+    const cached = enrichmentCache.get(qid);
+    if (cached) {
+      body.innerHTML = cached;
+      // Gated: the walkthrough embeds the answer SQL, so it stays hidden
+      // until the reader reveals the solution.
+      block.hidden = !state.solutionShown;
+    }
+    return;
+  }
+  try {
+    const res = await fetch(`${ENRICHMENTS_BASE}/${encodeURIComponent(qid)}.html`);
+    if (!res.ok) {
+      enrichmentCache.set(qid, null);
+      return;
+    }
+    const html = await res.text();
+    enrichmentCache.set(qid, html);
+    // Race-guard: only render if we're still on the same question. Switching
+    // questions fast must not leak the previous question's enrichment.
+    if (state.currentQ && state.currentQ.id === qid) {
+      body.innerHTML = html;
+      block.hidden = !state.solutionShown;
+    }
+  } catch (err) {
+    enrichmentCache.set(qid, null);
+  }
+}
+
 // ─── Question picker ───
 function loadQuestion(qid /* , opts unused */) {
   const q = state.sqlQuestions.find((x) => x.id === qid);
   if (!q) return;
   state.currentQ = q;
+  state.solutionShown = false;
   $("#pg-q-title").textContent = q.title || "(untitled)";
   $("#pg-q-co").textContent = q.company ? "🏢 " + q.company : "";
   $("#pg-q-diff").textContent = q.difficulty || "";
   $("#pg-q-type").textContent = [q.type, q.subtopic].filter(Boolean).join(" · ");
+  // Render auto-detected SQL technique tags (analytical-functions, joins, cte, …).
+  // Tags come from the bulk auto-tagger that scans each question's solution SQL.
+  const tagBox = $("#pg-q-tagchips");
+  if (tagBox) {
+    tagBox.innerHTML = "";
+    const tags = Array.isArray(q.tags) ? q.tags : [];
+    if (tags.length) {
+      for (const t of tags) {
+        const chip = document.createElement("span");
+        chip.className = "pg-q-tagchip pg-q-tag-" + t;
+        chip.textContent = t;
+        tagBox.appendChild(chip);
+      }
+      tagBox.hidden = false;
+    } else {
+      tagBox.hidden = true;
+    }
+  }
   // Show the problem text (community questions ship a real prompt) when present
   const promptBlock = $("#pg-q-prompt-block");
   const promptEl = $("#pg-q-prompt");
@@ -268,6 +381,11 @@ function loadQuestion(qid /* , opts unused */) {
   } else {
     $("#pg-q-schema-block").hidden = true;
   }
+
+  // Load the optional real-world enrichment file. One HTML fragment per qid
+  // under /interview/data/enrichments/<qid>.html. Missing file = no enrichment.
+  loadEnrichment(qid);
+
   $("#pg-question-picker").value = qid;
 
   // Editor: load this question's last saved content, otherwise prefill a
@@ -290,19 +408,28 @@ function loadQuestion(qid /* , opts unused */) {
   url.searchParams.set("q", qid);
   history.replaceState(null, "", url);
 
-  // Auto-load this question's tables. Drop any synthetic tables left over
-  // from the previous question first — otherwise stale shapes (e.g. a
-  // leftover sales_2024 with id/name/value) shadow the new question's
-  // expected schema.
-  if (state.autoLoadQuestionTables && state.engineReady) {
-    dropPreviousQuestionTables(qid);
-    loadQuestionTables(qid);
-  }
+  // Switch to the right engine for this question (lazy-loads PGlite the
+  // first time a Postgres question is opened), then auto-load tables.
+  const wantedKind = pickEngineKindFor(q);
+  const switchAndLoad = async () => {
+    if (state.engine && state.engine.kind !== wantedKind) {
+      await activateEngine(wantedKind);
+    } else if (!state.engine) {
+      await activateEngine(wantedKind);
+    }
+    if (state.autoLoadQuestionTables && state.engineReady) {
+      await dropPreviousQuestionTables(qid);
+      await loadQuestionTables(qid);
+    }
+  };
+  switchAndLoad().catch((err) => {
+    console.error(err);
+    setStatus("Engine switch failed: " + err.message, "error");
+  });
 
-  // Up-front dialect banner if the reference solution uses
-  // Snowflake/PostgreSQL features we can't run. Show the canonical
-  // MySQL/PostgreSQL/Snowflake solution inline so the reader doesn't have
-  // to hunt for the "Show solution" button — the code is the answer.
+  // Dialect notice if the reference solution uses Snowflake/MySQL/Postgres
+  // features the in-browser engine can't run. The solution itself stays
+  // gated behind Show solution — only a notice appears here.
   const body = $("#pg-results-body");
   if (q.runtime === "non-sqlite") {
     body.innerHTML = renderDialectReference(q);
@@ -311,35 +438,29 @@ function loadQuestion(qid /* , opts unused */) {
   }
 }
 
-// Build the inline dialect-reference block shown in the results pane for
-// questions whose canonical solution targets MySQL / PostgreSQL / Snowflake.
-// We display the actual SQL code (not just a warning) so the reader can read
-// and learn from the canonical solution even though it can't execute here.
+// Build the dialect-notice block shown in the results pane for questions
+// whose canonical solution targets MySQL / PostgreSQL / Snowflake. The
+// solution itself stays behind Show solution — never revealed upfront.
 function renderDialectReference(q) {
   const tok = q.dialect_token
     ? ` (<code>${escapeHtml(q.dialect_token)}</code>)`
     : "";
-  const code = (q.solution || "").trim();
-  const codeBlock = code
-    ? `<pre class="pg-dialect-code"><code>${escapeHtml(code)}</code></pre>`
-    : '<div class="pg-dialect-empty">No reference solution shipped with this question.</div>';
   return (
     '<div class="pg-dialect-ref">' +
       '<div class="pg-dialect-banner">' +
-        '<strong>Reference solution — MySQL / PostgreSQL / Snowflake dialect</strong>' + tok +
+        '<strong>Dialect notice — MySQL / PostgreSQL / Snowflake</strong>' + tok +
         '<div class="pg-dialect-note">' +
-          'This is the canonical answer most interviewers expect. ' +
-          'It uses syntax that the in-browser SQLite engine does not support, ' +
-          'so it will not run here — copy it into MySQL, PostgreSQL, or Snowflake to execute.' +
+          "This question's reference solution uses syntax the in-browser engine " +
+          'does not support, so it cannot run here. Click <strong>Show solution</strong> ' +
+          'to view the canonical answer, then run it in MySQL, PostgreSQL, or Snowflake.' +
         '</div>' +
       '</div>' +
-      codeBlock +
     '</div>'
   );
 }
 
 // Track which tables were created by which question so we can clean up.
-function dropPreviousQuestionTables(nextQid) {
+async function dropPreviousQuestionTables(nextQid) {
   const baseCsv = new Set(CSV_FILES.map((f) => f.replace(/\.csv$/i, "")));
   const keepFromNext = new Set(
     (state.schemasByQid[nextQid] || []).map((s) => s.table)
@@ -348,7 +469,7 @@ function dropPreviousQuestionTables(nextQid) {
     if (baseCsv.has(t)) continue;            // never drop CSVs
     if (keepFromNext.has(t)) continue;       // about to be re-created anyway
     try {
-      state.db.run(`DROP TABLE IF EXISTS "${t.replace(/"/g, '""')}"`);
+      await state.engine.dropTable(t);
     } catch (e) {
       console.warn("could not drop", t, e.message);
     }
@@ -356,7 +477,79 @@ function dropPreviousQuestionTables(nextQid) {
   }
 }
 
-function loadQuestionTables(qid) {
+// Extract column names that appear inside `PARTITION BY ...` clauses of the
+// solution SQL. These tell sample-gen which columns should REPEAT across
+// rows so window functions like LAG/LEAD have something to look at — the
+// canonical bug being a `LEAD(date) OVER (PARTITION BY order_id ...)` query
+// against a table where order_id is unique per row, returning all NULLs.
+function extractWindowHints(sql) {
+  const partition = new Set();
+  const orderByInWindow = new Set();
+  // categoryHints maps column-name → Set of string literals the solution
+  // expects to see in that column. The all-null pivot bug: a solution does
+  // `SUM(CASE WHEN region='North' THEN ...)` but sample-gen seeded region
+  // with ['NA','EMEA','APAC'], so the CASE never fires and the column is
+  // structurally NULL. Seeding 'North' into the data fixes the pivot.
+  const categoryHints = {};
+  if (!sql) return { partition, orderByInWindow, categoryHints };
+  // We DELIBERATELY work on the original SQL (NOT comment-stripped) for
+  // PARTITION BY because column names live in code, but we still strip
+  // strings for the partition-column extraction.
+  const stripStrings = (s) => s
+    .replace(/'(?:''|\\'|[^'])*'/g, "''")
+    .replace(/"(?:""|\\"|[^"])*"/g, '""')
+    .replace(/--.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const cleaned = stripStrings(sql);
+  const partRe = /\bPARTITION\s+BY\s+([\s\S]+?)(?=\bORDER\s+BY\b|\bROWS\b|\bRANGE\b|\)|$)/gi;
+  let m;
+  while ((m = partRe.exec(cleaned)) !== null) {
+    splitColList(m[1]).forEach((c) => partition.add(c));
+  }
+  const overRe = /\bOVER\s*\(([\s\S]*?)\)/gi;
+  while ((m = overRe.exec(cleaned)) !== null) {
+    const inside = m[1];
+    const ord = /\bORDER\s+BY\s+([\s\S]+?)(?=\bROWS\b|\bRANGE\b|$)/i.exec(inside);
+    if (ord) splitColList(ord[1]).forEach((c) => orderByInWindow.add(c));
+  }
+  // For category-literal extraction we keep strings intact but strip comments.
+  const noComments = String(sql).replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const addLit = (col, lit) => {
+    if (!col || lit == null) return;
+    const c = col.toLowerCase();
+    if (!categoryHints[c]) categoryHints[c] = new Set();
+    categoryHints[c].add(lit);
+  };
+  // <col> = '<literal>'  or  <col>='<literal>'
+  const eqRe = /\b(\w+)\s*=\s*'((?:[^']|'')*)'/g;
+  while ((m = eqRe.exec(noComments)) !== null) addLit(m[1], m[2].replace(/''/g, "'"));
+  // <col> IN ('a','b','c')
+  const inRe = /\b(\w+)\s+IN\s*\(\s*('(?:[^']|'')*'(?:\s*,\s*'(?:[^']|'')*')*)\s*\)/gi;
+  while ((m = inRe.exec(noComments)) !== null) {
+    const col = m[1];
+    const litList = m[2];
+    const litRe = /'((?:[^']|'')*)'/g;
+    let lm;
+    while ((lm = litRe.exec(litList)) !== null) addLit(col, lm[1].replace(/''/g, "'"));
+  }
+  // CASE WHEN <col> = '<lit>' THEN ... — already covered by the eq pattern.
+  return { partition, orderByInWindow, categoryHints };
+}
+
+function splitColList(text) {
+  // "alias.col, schema.table.col DESC, col2 ASC" → ['col','col','col2']
+  return text
+    .split(",")
+    .map((part) => {
+      const tok = part.trim().replace(/\s+(ASC|DESC|NULLS\s+(FIRST|LAST))\b.*$/i, "").trim();
+      // strip table/alias prefix and quote chars
+      const last = tok.split(".").pop().replace(/[`"\[\]]/g, "").trim();
+      return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(last) ? last.toLowerCase() : null;
+    })
+    .filter(Boolean);
+}
+
+async function loadQuestionTables(qid) {
   const spec = state.schemasByQid[qid];
   const btn = $("#pg-load-q-tables");
   if (!spec || !spec.length) {
@@ -371,12 +564,35 @@ function loadQuestionTables(qid) {
     btn.textContent = `Reload ${spec.length} table(s) for question`;
   }
   if (!state.engineReady) return;
+  // Pull window-clause hints from the question's reference solution so the
+  // sampler clusters on PARTITION BY columns instead of generating unique
+  // PKs that defeat the window function. categoryHints seeds the column
+  // pool with literals the solution expects (region='North', etc.) so
+  // pivot CASE branches actually fire instead of returning all-NULL.
+  const q = state.sqlQuestions.find((x) => x.id === qid);
+  const hints = extractWindowHints(q?.solution || "");
+  // Convert Sets in categoryHints to arrays for serialization across module
+  // boundaries.
+  const categoryHints = {};
+  for (const [col, set] of Object.entries(hints.categoryHints)) {
+    categoryHints[col] = [...set];
+  }
   try {
-    const summary = generateAndLoad(state.db, spec, { seed: seedFromQid(qid), rowsPerTable: 12 });
+    const summary = await state.engine.loadSpec(spec, {
+      seed: seedFromQid(qid),
+      // Don't pin rowsPerTable — let sample-gen pick (25 for dim tables,
+      // 60 for event/fact tables) so streak / multi-streak / cohort
+      // questions get enough rows per user to exercise their CASE
+      // branches. Forcing 12 here collapsed each user to a single
+      // cluster and made gap-classification CASE WHEN logic unreachable.
+      partitionCols: [...hints.partition],
+      windowOrderCols: [...hints.orderByInWindow],
+      categoryHints,
+    });
     for (const s of summary) state.questionCreatedTables.add(s.table);
     const names = summary.map((s) => s.table).join(", ");
     setStatus(`Loaded ${summary.length} synthetic table(s): ${names}`, "ok");
-    refreshTableList();
+    await refreshTableList();
   } catch (err) {
     console.error(err);
     setStatus("Could not generate question tables: " + err.message, "error");
@@ -426,15 +642,36 @@ const NON_SQLITE_TOKENS = [
   /\bEXTRACT\s*\(/i,
 ];
 
+// Strip strings + comments before dialect detection so a string LITERAL
+// like 'Returning' or 'qualify' never trips the regex (the keyword RETURNING
+// in Postgres is a real clause; the word inside quotes is just data).
+function stripStringsAndComments(sql) {
+  // STRIP COMMENTS FIRST. If we strip strings first, an apostrophe inside
+  // a `-- Customer's history` line comment leaves the string regex
+  // unbalanced and it eats through real code (including SQL keywords like
+  // julianday(...)) until it finds another quote — silently defeating
+  // the dialect detector.
+  return sql
+    // line comments
+    .replace(/--.*$/gm, '')
+    // block comments
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    // single-quoted strings (handle '' escape inside)
+    .replace(/'(?:''|\\'|[^'])*'/g, "''")
+    // double-quoted identifiers / strings
+    .replace(/"(?:""|\\"|[^"])*"/g, '""');
+}
+
 function detectNonSqlite(sql) {
+  const cleaned = stripStringsAndComments(sql);
   for (const re of NON_SQLITE_TOKENS) {
-    const m = re.exec(sql);
+    const m = re.exec(cleaned);
     if (m) return m[0];
   }
   return null;
 }
 
-function runQuery() {
+async function runQuery() {
   if (!state.engineReady) {
     setStatus("Still loading the SQL engine — try again in a moment.", "error");
     return;
@@ -449,21 +686,40 @@ function runQuery() {
   // re-render the canonical reference (banner + code) for the active
   // question so the reader sees what the answer actually looks like —
   // that's the value, even when it can't execute here.
-  const incompat = detectNonSqlite(sql);
-  if (incompat) {
-    const body = $("#pg-results-body");
-    if (state.currentQ && state.currentQ.runtime === "non-sqlite") {
-      body.innerHTML = renderDialectReference(state.currentQ);
-    } else {
-      renderError({ message:
-        `This query uses '${incompat}', which is part of MySQL / PostgreSQL / ` +
-        `Snowflake but isn't supported by the in-browser SQLite engine.\n\n` +
-        `The query is valid in those dialects — copy it into MySQL, PostgreSQL, ` +
-        `or Snowflake to execute it as written.`
-      });
+  // Pre-flight dialect checks. Each engine has functions the OTHER engine
+  // doesn't recognize — surfacing a clear banner is much better than the
+  // cryptic `function julianday(timestamp without time zone) does not exist`
+  // PGlite emits when it sees a SQLite-flavored query.
+  if (state.engine?.kind === "sqlite") {
+    const incompat = detectNonSqlite(sql);
+    if (incompat) {
+      const body = $("#pg-results-body");
+      if (state.currentQ && state.currentQ.runtime === "non-sqlite") {
+        body.innerHTML = renderDialectReference(state.currentQ);
+      } else {
+        renderError({ message:
+          `This query uses '${incompat}', which is part of MySQL / PostgreSQL / ` +
+          `Snowflake but isn't supported by the in-browser SQLite engine.\n\n` +
+          `Switch the runtime above to PostgreSQL (PGlite) to execute it ` +
+          `as-written, or copy it into MySQL / Snowflake.`
+        });
+      }
+      setStatus(`MySQL / PostgreSQL / Snowflake dialect: ${incompat} (not in SQLite)`, "error");
+      return;
     }
-    setStatus(`MySQL / PostgreSQL / Snowflake dialect: ${incompat} (not in SQLite)`, "error");
-    return;
+  } else if (state.engine?.kind === "postgres") {
+    const sqliteOnly = detectSqliteOnly(sql);
+    if (sqliteOnly) {
+      renderError({ message:
+        `This query uses '${sqliteOnly}', a SQLite-specific function ` +
+        `that PostgreSQL doesn't have.\n\n` +
+        `Switch the engine to SQLite (via the dropdown above) to run it ` +
+        `as-written, or rewrite the date math using PostgreSQL syntax ` +
+        `(e.g. \`a - b\` returns an INTERVAL, or \`EXTRACT(EPOCH FROM ...)\`).`
+      });
+      setStatus(`SQLite-only function: ${sqliteOnly} — switch engine to SQLite`, "error");
+      return;
+    }
   }
   if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), sql);
   const t0 = performance.now();
@@ -471,16 +727,17 @@ function runQuery() {
   const maxAttempts = 3;
   while (true) {
     try {
-      const results = state.db.exec(sql);
+      const results = await state.engine.exec(sql);
       const ms = (performance.now() - t0).toFixed(1);
       state.lastResult = results;
       renderResults(results, ms);
-      setStatus(`OK · ${ms} ms`, "ok");
+      setStatus(`OK · ${ms} ms · ${state.engine.label}`, "ok");
       break;
     } catch (err) {
       // Auto-create missing tables once or twice if we can guess columns
-      const m = /no such table:\s*(\w+)/i.exec(err.message || "");
-      if (m && attempts < maxAttempts && createTableFromSql(m[1], sql)) {
+      const m = /(?:no such table|relation "?(\w+)"? does not exist):?\s*(\w+)?/i.exec(err.message || "");
+      const missing = m ? (m[1] || m[2]) : null;
+      if (missing && attempts < maxAttempts && (await createTableFromSql(missing, sql))) {
         attempts++;
         continue;
       }
@@ -489,15 +746,70 @@ function runQuery() {
       break;
     }
   }
-  refreshTableList();
+  await refreshTableList();
 }
+
+// Locked canonical column sets for common entity tables. When a user's
+// custom query references one of these tables and it hasn't been loaded
+// for the current question, the auto-create path uses the FULL canonical
+// list — not just the alias-prefixed columns the SQL happened to mention.
+// This stops the "departments lost department_name" class of confusion
+// when a user types `WHERE department_name = 'Engineering'` without
+// having aliased `d.` in front of it.
+const CANONICAL_TABLES = {
+  employees:     ["emp_id", "name", "email", "hire_date", "salary", "dept_id", "manager_id", "job_title"],
+  employee:      ["emp_id", "name", "email", "hire_date", "salary", "dept_id", "manager_id", "job_title"],
+  departments:   ["dept_id", "department_name", "location", "manager_id"],
+  department:    ["dept_id", "department_name", "location", "manager_id"],
+  customers:     ["customer_id", "name", "email", "signup_date", "country", "city"],
+  customer:      ["customer_id", "name", "email", "signup_date", "country", "city"],
+  users:         ["user_id", "name", "email", "signup_date", "country"],
+  user:          ["user_id", "name", "email", "signup_date", "country"],
+  accounts:      ["account_id", "name", "plan", "signup_date", "country"],
+  products:      ["product_id", "name", "category", "price", "sku", "manufacturer"],
+  product:       ["product_id", "name", "category", "price", "sku", "manufacturer"],
+  orders:        ["order_id", "customer_id", "order_date", "status", "amount"],
+  order:         ["order_id", "customer_id", "order_date", "status", "amount"],
+  cities:        ["city_id", "cityname", "country", "state"],
+  stores:        ["store_id", "name", "location", "city", "region"],
+  merchants:     ["merchant_id", "name", "category", "city"],
+  restaurants:   ["restaurant_id", "name", "cuisine", "city"],
+  listings:      ["listing_id", "title", "city", "price", "host_id"],
+  companies:     ["company_id", "name", "industry", "country", "founded_year"],
+  company:       ["company_id", "name", "industry", "country", "founded_year"],
+  suppliers:     ["supplier_id", "name", "country", "city"],
+  invoices:      ["invoice_id", "customer_id", "invoice_date", "amount", "status"],
+  payments:      ["payment_id", "customer_id", "payment_date", "amount", "method", "status"],
+  transactions:  ["transaction_id", "customer_id", "transaction_time", "amount", "txn_type", "status"],
+  projects:      ["project_id", "name", "start_date", "end_date", "status", "manager_id"],
+  tasks:         ["task_id", "project_id", "name", "assignee_id", "status", "due_date"],
+  subscriptions: ["subscription_id", "customer_id", "plan", "start_date", "end_date", "status"],
+  items:         ["item_id", "name", "category", "price"],
+};
 
 /**
  * If the running query references an alias.column for the missing table,
  * create the table on the fly with those columns. Returns true if anything
  * was created (so we can retry).
+ *
+ * Canonical-table rule: if the missing table's name is a known entity
+ * (employees, departments, customers, ...) we ignore the alias-derived
+ * column set and use the locked canonical column list above. That way
+ * `WHERE department_name = 'X'` references in custom SQL — which never
+ * survive alias.col parsing — still resolve to a populated column.
  */
-function createTableFromSql(missingTable, sql) {
+async function createTableFromSql(missingTable, sql) {
+  const lcTable = String(missingTable).toLowerCase();
+  let cols;
+  if (CANONICAL_TABLES[lcTable]) {
+    // Locked canonical shape — every canonical entity always loads with
+    // the same column set, regardless of what the user's query mentioned.
+    cols = new Set(CANONICAL_TABLES[lcTable]);
+    // Also union in any extra alias.col cols the user referenced, so a
+    // user-introduced column (e.g. employees.notes) still works.
+  } else {
+    cols = new Set();
+  }
   // Find aliases in FROM/JOIN clauses
   const fromRe = /(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi;
   const aliasMap = {};
@@ -508,21 +820,20 @@ function createTableFromSql(missingTable, sql) {
     if (a) aliasMap[a.toLowerCase()] = t;
   }
   // Collect alias.col tokens that resolve to the missing table
-  const cols = new Set();
   const aliasColRe = /\b(\w+)\.(\w+)\b/g;
   while ((m = aliasColRe.exec(sql)) !== null) {
     if (aliasMap[m[1].toLowerCase()] === missingTable) cols.add(m[2]);
   }
-  // Or columns referenced bare when the only table in FROM is the missing one
+  // Fallback if we still have nothing AND the table isn't canonical:
+  // create a tiny generic table so the query at least binds.
   if (cols.size === 0) {
     cols.add("id");
     cols.add("name");
     cols.add("value");
   }
   try {
-    // Reuse the synthetic generator for consistent shape
     const spec = [{ table: missingTable, columns: [...cols] }];
-    generateAndLoad(state.db, spec, { seed: seedFromQid(missingTable), rowsPerTable: 12 });
+    await state.engine.loadSpec(spec, { seed: seedFromQid(missingTable), rowsPerTable: 12 });
     setStatus(`Auto-created table "${missingTable}" — re-running…`, "ok");
     return true;
   } catch (e) {
@@ -557,7 +868,7 @@ function renderResults(results, ms) {
       .map((v) =>
         v === null
           ? `<td class="pg-null">NULL</td>`
-          : `<td>${escapeHtml(String(v))}</td>`
+          : `<td>${escapeHtml(formatCell(v))}</td>`
       )
       .join("");
     tbody.appendChild(tr);
@@ -568,6 +879,36 @@ function renderResults(results, ms) {
   const truncated = values.length > 1000 ? ` (showing first 1000 of ${values.length})` : "";
   stats.textContent = `${values.length} rows${truncated} · ${ms} ms`;
   $("#pg-export-csv").hidden = false;
+}
+
+// Result-cell value → display string. Postgres engines return JSONB / JSON
+// columns as parsed JS objects, arrays as JS arrays, dates as JS Date
+// instances. The naive `String(v)` yields '[object Object]' for objects,
+// '1,2,3' for arrays, and locale-formatted noise for Date — none of which
+// belong in a SQL-result table.
+function formatCell(v) {
+  if (v === null || v === undefined) return "";
+  // Date → ISO string (the form Postgres / SQLite both display)
+  if (v instanceof Date) {
+    const iso = v.toISOString();
+    // Trim trailing 'Z' and milliseconds for cleaner display; keep date for DATE cols
+    return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso.replace(/\.\d{3}Z$/, "Z");
+  }
+  // Buffers / typed arrays → hex preview
+  if (v instanceof Uint8Array || (typeof Buffer !== "undefined" && v instanceof Buffer)) {
+    const a = Array.from(v.slice(0, 16));
+    const hex = a.map((b) => b.toString(16).padStart(2, "0")).join("");
+    return `\\x${hex}${v.length > 16 ? "…" : ""}`;
+  }
+  // Arrays and plain objects → pretty JSON
+  if (Array.isArray(v) || (typeof v === "object")) {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
 }
 
 function renderError(err) {
@@ -599,25 +940,35 @@ function exportCSV() {
 }
 function csvCell(v) {
   if (v == null) return "";
-  const s = String(v);
+  const s = formatCell(v);
   if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
 
 // ─── Solution actions ───
+// The enrichment walkthrough embeds the reference SQL, so it is revealed
+// together with the solution — never upfront.
+function revealEnrichment() {
+  const body = $("#pg-q-enrichment");
+  if (body && body.innerHTML.trim()) $("#pg-q-enrichment-block").hidden = false;
+}
 function showSolution() {
   if (!state.currentQ) return;
+  state.solutionShown = true;
   $("#pg-solution").textContent = state.currentQ.solution || "(no reference solution)";
   $("#pg-solution-pane").hidden = false;
   $("#pg-solution-pane").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  revealEnrichment();
 }
 function loadSolution() {
   if (!state.currentQ?.solution) return;
+  state.solutionShown = true;
   $("#pg-editor").value = state.currentQ.solution;
+  revealEnrichment();
 }
 
 // ─── Custom CSV loader ───
-function loadCustomCSV() {
+async function loadCustomCSV() {
   const name = ($("#pg-csv-name").value || "").trim();
   const text = $("#pg-csv-text").value;
   if (!name) { alert("Provide a table name"); return; }
@@ -628,21 +979,13 @@ function loadCustomCSV() {
     const headers = rows[0].map((h) => h.trim());
     const data = rows.slice(1);
     const types = inferColumnTypes(headers, data);
-    const colDefs = headers.map((h, i) => `${quoteIdent(h)} ${types[i]}`).join(", ");
-    state.db.run(`DROP TABLE IF EXISTS ${quoteIdent(name)};`);
-    state.db.run(`CREATE TABLE ${quoteIdent(name)} (${colDefs});`);
-    const placeholders = headers.map(() => "?").join(",");
-    const stmt = state.db.prepare(`INSERT INTO ${quoteIdent(name)} VALUES (${placeholders})`);
-    state.db.exec("BEGIN");
-    for (const row of data) {
-      if (row.length === 1 && row[0] === "") continue;
-      stmt.run(headers.map((_, i) => castValue(row[i], types[i])));
-    }
-    state.db.exec("COMMIT");
-    stmt.free();
+    const records = data
+      .filter((row) => !(row.length === 1 && row[0] === ""))
+      .map((row) => headers.map((_, i) => castValue(row[i], types[i])));
+    await state.engine.loadCSV(name, headers, types, records);
     state.loadedTables.add(name);
-    refreshTableList();
-    setStatus(`Loaded "${name}" (${data.length} rows)`, "ok");
+    await refreshTableList();
+    setStatus(`Loaded "${name}" (${records.length} rows)`, "ok");
   } catch (e) {
     setStatus(e.message, "error");
   }
@@ -687,7 +1030,11 @@ function wire() {
   $("#pg-format").addEventListener("click", formatSQL);
   $("#pg-show-solution").addEventListener("click", showSolution);
   $("#pg-load-solution").addEventListener("click", loadSolution);
-  $("#pg-solution-close").addEventListener("click", () => ($("#pg-solution-pane").hidden = true));
+  $("#pg-solution-close").addEventListener("click", () => {
+    state.solutionShown = false;
+    $("#pg-solution-pane").hidden = true;
+    $("#pg-q-enrichment-block").hidden = true;
+  });
   $("#pg-export-csv").addEventListener("click", exportCSV);
   $("#pg-refresh-schema").addEventListener("click", () => {
     if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
@@ -695,22 +1042,58 @@ function wire() {
   });
   $("#pg-csv-load").addEventListener("click", loadCustomCSV);
 
+  $("#pg-clear-editor")?.addEventListener("click", () => {
+    $("#pg-editor").value = "";
+    if (state.currentQ) localStorage.removeItem(LS_EDITOR(state.currentQ.id));
+    setStatus("Editor cleared", "ok");
+  });
+
+  $("#pg-clear-output")?.addEventListener("click", () => {
+    const body = $("#pg-results-body");
+    if (body) body.innerHTML = '<div class="pg-empty">Run a query to see results.</div>';
+    const stats = $("#pg-results-stats");
+    if (stats) stats.textContent = "";
+    const csvBtn = $("#pg-export-csv");
+    if (csvBtn) csvBtn.hidden = true;
+    state.lastResult = null;
+  });
+
   $("#pg-reset-db").addEventListener("click", safeAsync(async () => {
     if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
     setStatus("Resetting…");
     await resetDB();
-    if (state.autoLoadQuestionTables && state.currentQ) loadQuestionTables(state.currentQ.id);
+    if (state.autoLoadQuestionTables && state.currentQ) await loadQuestionTables(state.currentQ.id);
     setStatus(`Reset · ${state.loadedTables.size} tables loaded`, "ok");
   }));
 
-  $("#pg-load-q-tables")?.addEventListener("click", () => {
+  $("#pg-load-q-tables")?.addEventListener("click", safeAsync(async () => {
     if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
-    if (state.currentQ) loadQuestionTables(state.currentQ.id);
-  });
+    if (state.currentQ) await loadQuestionTables(state.currentQ.id);
+  }));
 
   $("#pg-toggle-autoload")?.addEventListener("change", (e) => {
     state.autoLoadQuestionTables = e.target.checked;
   });
+
+  const runtimeSel = $("#pg-runtime-select");
+  if (runtimeSel) {
+    const saved = localStorage.getItem(LS_RUNTIME) || "auto";
+    state.runtimePref = saved;
+    runtimeSel.value = saved;
+    runtimeSel.addEventListener("change", safeAsync(async (e) => {
+      state.runtimePref = e.target.value;
+      localStorage.setItem(LS_RUNTIME, state.runtimePref);
+      const wantedKind = pickEngineKindFor(state.currentQ);
+      if (state.engine?.kind !== wantedKind) {
+        setStatus(`Switching to ${wantedKind === "postgres" ? "PostgreSQL" : "SQLite"}…`);
+        await activateEngine(wantedKind);
+        if (state.autoLoadQuestionTables && state.currentQ) {
+          await loadQuestionTables(state.currentQ.id);
+        }
+        setStatus(`Ready · ${state.engine.label}`, "ok");
+      }
+    }, "Switching engine…"));
+  }
 
   $("#pg-question-picker").addEventListener("change", (e) => {
     loadQuestion(e.target.value, { prefill: true });
@@ -750,6 +1133,7 @@ function stepQuestion(delta) {
 
 // ─── Init ───
 async function init() {
+  state.runtimePref = localStorage.getItem(LS_RUNTIME) || "auto";
   wire();
   setEngineReady(false);            // start with engine-dependent buttons disabled
   setStatus("Loading question data…");
@@ -764,19 +1148,19 @@ async function init() {
   state.schemasByQid = schemas;
   populateQuestionPicker();
 
-  // Pick question: ?q= → last → first. Render UI immediately;
-  // tables get auto-loaded once the engine is ready. Editor contents are
-  // restored per-question inside loadQuestion() itself.
+  // Pick question first — engine pick-and-load runs inside loadQuestion()
   const params = new URLSearchParams(window.location.search);
   const qid = params.get("q") || localStorage.getItem(LS_LAST_Q) || state.sqlQuestions[0]?.id;
+
+  // Pick the right engine UPFRONT based on the question's runtime tag plus
+  // the user's saved preference, so we don't double-boot SQLite then jump
+  // to Postgres if the question is Postgres-only.
+  const startQ = state.sqlQuestions.find((q) => q.id === qid);
+  const startKind = pickEngineKindFor(startQ);
+  await activateEngine(startKind);
+  setStatus(`Ready · ${state.engine.label} · ${state.loadedTables.size} tables`, "ok");
+
   if (qid) loadQuestion(qid);
-
-  await initEngine();
-
-  // Now that engine is ready, populate this question's tables.
-  if (state.currentQ && state.autoLoadQuestionTables) {
-    loadQuestionTables(state.currentQ.id);
-  }
 }
 
 init().catch((err) => {

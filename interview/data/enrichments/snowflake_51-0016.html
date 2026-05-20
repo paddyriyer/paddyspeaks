@@ -1,0 +1,68 @@
+<p>Payroll calculation is a classic SQL interview scenario for gig-economy and staffing platforms: <em>"Compute each employee's gross pay for the week, splitting hours into regular (up to 40) and overtime (above 40, paid at 1.5&times; the hourly rate)."</em> The interviewer is probing knowledge of <code>LEAST</code> and <code>GREATEST</code> &mdash; two scalar clamping functions that replace verbose <code>CASE WHEN</code> branches and make overtime arithmetic clean and readable.</p>
+
+<h4>1. The source data &mdash; <code>timecards</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>week_start</th><th>hours_worked</th><th>hourly_rate</th></tr></thead>
+  <tbody>
+    <tr><td>E001</td><td>2025-05-05</td><td>35</td><td>20.00</td></tr>
+    <tr><td>E002</td><td>2025-05-05</td><td>40</td><td>25.00</td></tr>
+    <tr><td>E003</td><td>2025-05-05</td><td>48</td><td>30.00</td></tr>
+    <tr><td>E004</td><td>2025-05-05</td><td>55</td><td>18.00</td></tr>
+    <tr><td>E005</td><td>2025-05-05</td><td>0</td><td>22.00</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: E001 is under 40 hours (no overtime); E002 is exactly 40 (no overtime); E003 has 8 hours overtime; E004 has 15 hours overtime; E005 worked zero hours (both overtime columns should be 0, not negative).</p>
+
+<h4>2. The SQL &mdash; <code>LEAST</code> / <code>GREATEST</code> clamping for overtime pay</h4>
+<pre><code>SELECT emp_id, week_start, hours_worked, hourly_rate,
+       LEAST(hours_worked, 40)                    AS regular_hours,
+       GREATEST(hours_worked - 40, 0)             AS overtime_hours,
+       LEAST(hours_worked, 40) * hourly_rate
+       + GREATEST(hours_worked - 40, 0) * hourly_rate * 1.5  AS gross_pay
+FROM timecards;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>week_start</th><th>hours_worked</th><th>hourly_rate</th><th>regular_hours</th><th>overtime_hours</th><th>gross_pay</th></tr></thead>
+  <tbody>
+    <tr><td>E001</td><td>2025-05-05</td><td>35</td><td>20.00</td><td>35</td><td>0</td><td>700.00</td></tr>
+    <tr><td>E002</td><td>2025-05-05</td><td>40</td><td>25.00</td><td>40</td><td>0</td><td>1000.00</td></tr>
+    <tr><td>E003</td><td>2025-05-05</td><td>48</td><td>30.00</td><td>40</td><td>8</td><td>1560.00</td></tr>
+    <tr><td>E004</td><td>2025-05-05</td><td>55</td><td>18.00</td><td>40</td><td>15</td><td>1125.00</td></tr>
+    <tr><td>E005</td><td>2025-05-05</td><td>0</td><td>22.00</td><td>0</td><td>0</td><td>0.00</td></tr>
+  </tbody>
+</table>
+<p>Derivations: E003 &mdash; regular 40&times;30=1200, overtime 8&times;30&times;1.5=360, total 1560. E004 &mdash; regular 40&times;18=720, overtime 15&times;18&times;1.5=405, total 1125. E005 &mdash; GREATEST(0&minus;40, 0)=GREATEST(&minus;40, 0)=0, so gross_pay=0, not negative.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEAST</code> / <code>GREATEST</code> beats <code>CASE WHEN</code> here</h5>
+<p>The equivalent <code>CASE WHEN</code> for regular hours would be:</p>
+<pre><code>CASE WHEN hours_worked &lt; 40 THEN hours_worked ELSE 40 END</code></pre>
+<p>And for overtime hours:</p>
+<pre><code>CASE WHEN hours_worked &gt; 40 THEN hours_worked - 40 ELSE 0 END</code></pre>
+<p><code>LEAST(hours_worked, 40)</code> and <code>GREATEST(hours_worked - 40, 0)</code> express the same idea in half the tokens and are unambiguous about intent: clamp to a floor or ceiling. They also handle the boundary (exactly 40 hours) correctly without any explicit condition. In an interview, reaching for <code>LEAST</code>/<code>GREATEST</code> is a signal of SQL fluency beyond basic <code>CASE</code>.</p>
+
+<h5>The <code>GREATEST(x, 0)</code> floor pattern &mdash; prevents negative values</h5>
+<p><code>hours_worked - 40</code> is negative for any employee under 40 hours. Without the <code>GREATEST(..., 0)</code> floor, overtime hours would be negative and gross_pay would be understated. This is the key correctness guard: any "difference that can go negative but should read as zero" is the textbook use case for <code>GREATEST(expr, 0)</code>. The same pattern appears in inventory deltas, refund calculations, and balance floor checks.</p>
+
+<h5>Arithmetic correctness &mdash; integer vs numeric types</h5>
+<p>If <code>hours_worked</code> and <code>hourly_rate</code> are stored as integers, the product is an integer and the multiplication by 1.5 (a float literal) triggers an implicit cast in most engines. In Snowflake and Postgres this works but results in a FLOAT column. For financial calculations, prefer explicit casts to <code>NUMERIC</code>/<code>DECIMAL</code> to preserve scale and avoid floating-point rounding: <code>hours_worked::numeric * hourly_rate::numeric * 1.5</code>.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>LEAST</code> and <code>GREATEST</code> are built-in; accept multiple arguments.</li>
+  <li><strong>Postgres:</strong> identical support.</li>
+  <li><strong>BigQuery:</strong> identical support.</li>
+  <li><strong>MySQL:</strong> identical support.</li>
+  <li><strong>SQL Server:</strong> no <code>LEAST</code>/<code>GREATEST</code> before SQL Server 2022. Must use <code>CASE WHEN</code> or <code>IIF</code> on older versions. SQL Server 2022 added them.</li>
+</ul>
+
+<h5>Extending to double-time or tiered overtime</h5>
+<p>Many jurisdictions pay double-time above 12 hours in a day or 60 hours in a week. The three-tier version follows the same clamping pattern:</p>
+<pre><code>LEAST(hours_worked, 40)                      * hourly_rate          -- regular
++ LEAST(GREATEST(hours_worked - 40, 0), 20)  * hourly_rate * 1.5   -- OT tier 1 (40-60 hrs)
++ GREATEST(hours_worked - 60, 0)             * hourly_rate * 2.0    -- double time &gt;60 hrs</code></pre>
+<p>Recognising and naming this nested-clamp pattern for multi-tier rates is the senior-level extension.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LEAST</code>/<code>GREATEST</code> instead of <code>CASE WHEN</code> for scalar clamping, explain that <code>GREATEST(hours_worked - 40, 0)</code> is the floor guard that prevents negative overtime values, flag the integer-vs-NUMERIC type risk for financial arithmetic, and extend the pattern to multi-tier overtime rates using nested clamps.</div>

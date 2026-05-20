@@ -1,0 +1,50 @@
+<p>You need the IDs common to two datasets &mdash; say, customers who appear in both a marketing list and a purchase log. The reference solution uses the <code>INTERSECT</code> set operator. It is a one-liner, but the interviewer is probing whether you know how <code>INTERSECT</code> treats <em>duplicates</em> and <em>NULLs</em>, because both differ from a naive <code>JOIN</code>.</p>
+
+<h4>1. The source data &mdash; <code>table_a</code> and <code>table_b</code></h4>
+<table>
+  <thead><tr><th>table_a.id</th><th>table_b.id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td></tr>
+    <tr><td>2</td><td>4</td></tr>
+    <tr><td>3</td><td>5</td></tr>
+    <tr><td>4</td><td>6</td></tr>
+    <tr><td>4 &mdash; <em>duplicate in A</em></td><td><em>NULL</em></td></tr>
+    <tr><td><em>NULL</em></td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+<p>Two deliberate edge cases: the value <code>4</code> appears <strong>twice in table_a</strong>, and <strong>both tables contain a NULL</strong>. They expose two behaviours candidates routinely get wrong.</p>
+
+<h4>2. The SQL &mdash; the INTERSECT set operator</h4>
+<pre><code>SELECT id FROM table_a
+INTERSECT
+SELECT id FROM table_b;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td><em>NULL</em></td><td>NULL is in both tables &mdash; INTERSECT keeps it</td></tr>
+    <tr><td>3</td><td>in both</td></tr>
+    <tr><td>4</td><td>in both &mdash; appears once despite being duplicated in A</td></tr>
+  </tbody>
+</table>
+<p>Three rows. Note what is <em>not</em> there: <code>1</code> and <code>2</code> (A only), <code>5</code> and <code>6</code> (B only). And note the two surprises &mdash; the <code>4</code> that was duplicated in table_a collapses to a single row, and <code>NULL</code> survives even though <code>NULL = NULL</code> is never true.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>INTERSECT</code> de-duplicates &mdash; it is set semantics</h5>
+<p>Plain <code>INTERSECT</code> (without <code>ALL</code>) returns <em>distinct</em> values present in both inputs. Even though <code>4</code> appears twice in table_a, the result has one <code>4</code>. This is the defining difference from a join: an inner join on <code>id</code> would emit a row for <em>every matching pair</em>, multiplying duplicates. If you need that multiplicity preserved, use <code>INTERSECT ALL</code>, which returns <code>min(count_in_a, count_in_b)</code> copies of each value.</p>
+
+<h5>The NULL surprise &mdash; INTERSECT uses NOT-DISTINCT, not equality</h5>
+<p>This is the trap. Set operators compare rows with <em>is-not-distinct-from</em> semantics, not <code>=</code>. Under that comparison, <code>NULL</code> is considered equal to <code>NULL</code>. So because both tables contain a NULL <code>id</code>, the result contains a NULL row. A join written <code>ON a.id = b.id</code> would do the opposite &mdash; <code>NULL = NULL</code> is <em>unknown</em>, so NULLs never match and are dropped. Same intent, opposite NULL outcome. Knowing this divergence cold is the senior signal.</p>
+
+<h5><code>INTERSECT</code> vs <code>INNER JOIN</code> &mdash; pick deliberately</h5>
+<p>Use <code>INTERSECT</code> when you want a clean set of common values, deduplicated, NULLs included. Use a join when you need columns from both sides, or when row multiplicity matters. A common rewrite is <code>WHERE id IN (SELECT id FROM table_b)</code> &mdash; but beware: <code>IN</code> with a subquery does <em>not</em> match NULL to NULL, so it behaves like the join, not like <code>INTERSECT</code>. Three constructs, two different NULL behaviours.</p>
+
+<h5>Column count, order, and type must line up</h5>
+<p>Set operators match columns <em>positionally</em>, not by name, and both <code>SELECT</code>s must have the same number of columns with compatible types. The output column name is taken from the first query. If the two sides had mismatched column counts the statement fails to parse &mdash; a frequent slip when intersecting wider rows.</p>
+
+<h5>Dialect note</h5>
+<p><code>INTERSECT</code> is standard SQL and supported by PostgreSQL, SQL Server, Oracle, SQLite, and modern MySQL (8.0.31+). Older MySQL lacked it &mdash; the portable fallback there is <code>SELECT DISTINCT a.id FROM table_a a JOIN table_b b ON a.id = b.id</code>, which silently drops the NULL match. <code>INTERSECT ALL</code> is not universally available (SQL Server omits it).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>INTERSECT</code> returns distinct values and uses is-not-distinct-from comparison, so duplicates collapse and a NULL present in both inputs survives &mdash; the exact opposite of an <code>ON a.id = b.id</code> join. Reach for <code>INTERSECT ALL</code> only when multiplicity must be preserved.</div>

@@ -1,0 +1,55 @@
+<p>A retail analyst at a multi-category store opens the weekly stand-up deck: <em>"give me each category's sales broken out by day &mdash; one column per day, one row per category."</em> That shape &mdash; categories down the side, days across the top &mdash; is a <strong>pivot</strong>: you are rotating distinct row values (the dates) up into column headers. The interviewer is checking whether you can express a pivot in portable SQL, because most engines have no universal <code>PIVOT</code> keyword.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>category</th><th>sale_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Electronics</td><td>2026-05-11</td><td>150</td><td>Monday</td></tr>
+    <tr><td>Electronics</td><td>2026-05-12</td><td>200</td><td>Tuesday</td></tr>
+    <tr><td>Electronics</td><td>2026-05-13</td><td>100</td><td>Wednesday</td></tr>
+    <tr><td>Clothing</td><td>2026-05-11</td><td>80</td><td>Monday</td></tr>
+    <tr><td>Clothing</td><td>2026-05-13</td><td>120</td><td>Wednesday</td></tr>
+    <tr><td>Clothing</td><td>2026-05-13</td><td>50</td><td>Wednesday &mdash; second entry, same day</td></tr>
+  </tbody>
+</table>
+<p>Two details decide the interview. Clothing has <em>no Tuesday row at all</em>, and Clothing has <em>two</em> Wednesday rows. A correct pivot must handle both &mdash; the missing cell and the colliding cells.</p>
+
+<h4>2. The SQL &mdash; pivot via conditional aggregation</h4>
+<pre><code>SELECT
+  category,
+  SUM(CASE WHEN sale_date = '2026-05-11' THEN amount ELSE 0 END) AS monday_sales,
+  SUM(CASE WHEN sale_date = '2026-05-12' THEN amount ELSE 0 END) AS tuesday_sales,
+  SUM(CASE WHEN sale_date = '2026-05-13' THEN amount ELSE 0 END) AS wednesday_sales
+FROM sales
+GROUP BY category
+ORDER BY category;</code></pre>
+<p>One <code>CASE</code> per target column: it lets a row's <code>amount</code> through only when that row belongs to the column's date, and contributes <code>0</code> otherwise. <code>GROUP BY category</code> collapses every category's rows into a single output row, and <code>SUM</code> adds up whatever each <code>CASE</code> let through.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>monday_sales</th><th>tuesday_sales</th><th>wednesday_sales</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Clothing</td><td>80</td><td>0</td><td>170</td><td>no Tuesday &rarr; 0; two Wednesday rows folded together</td></tr>
+    <tr><td>Electronics</td><td>150</td><td>200</td><td>100</td><td>one row per day, clean</td></tr>
+  </tbody>
+</table>
+<p>Clothing's Wednesday cell is <strong>170</strong>, not 120 or 50: the two same-day rows (120 + 50) both satisfy the Wednesday <code>CASE</code> and <code>SUM</code> adds them. Tuesday is <strong>0</strong> because no Clothing row matches and <code>ELSE 0</code> supplies the blank.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why this is a pivot and a plain <code>GROUP BY</code> is not</h5>
+<p>A plain <code>SELECT category, sale_date, SUM(amount) &hellip; GROUP BY category, sale_date</code> returns the same numbers as <em>rows</em> &mdash; long format, one row per category/day pair. A pivot turns the <code>sale_date</code> <em>values</em> into <em>column headers</em>: it is a rotation, not just an aggregation. The conditional-aggregation idiom &mdash; one <code>SUM(CASE WHEN &hellip;)</code> per column &mdash; is the universal way to do that, because <code>CASE</code> works in every SQL engine.</p>
+
+<h5><code>ELSE 0</code> vs no <code>ELSE</code> &mdash; a deliberate choice</h5>
+<p>With <code>ELSE 0</code>, a category with no sales on a day shows <code>0</code>. Drop the <code>ELSE</code> and non-matching rows become <code>NULL</code>; <code>SUM</code> ignores NULLs, so a category that sold nothing yields <code>NULL</code> rather than <code>0</code>. Both are valid &mdash; choose by intent. A financial grid usually wants <code>0</code> (the sale genuinely was zero); a coverage report may want <code>NULL</code> to keep "no data" distinct from a real zero.</p>
+
+<h5>Duplicate rows fold in &mdash; by design, not a bug</h5>
+<p>Clothing's two Wednesday rows are not an error to dedupe; <code>SUM</code> over the group adds every matching row, so 120 + 50 = 170. If the business rule were "how many selling days" you would switch to <code>COUNT(DISTINCT sale_date)</code>; if the duplicates were genuine data-quality noise you would dedupe in a CTE first. The aggregate you pick <em>is</em> the business rule &mdash; state which one you mean.</p>
+
+<h5>The hard limit: the columns are static</h5>
+<p>The three dates are hard-coded in the query. Sell something on 2026-05-14 and it lands in <em>no</em> column &mdash; it silently vanishes from the report. Pure SQL cannot grow columns from data: a truly dynamic pivot needs a procedural step (build the SQL text from <code>SELECT DISTINCT sale_date</code>, then execute it) or PostgreSQL's <code>crosstab()</code> from the <code>tablefunc</code> extension. Naming this limitation unprompted is the senior signal.</p>
+
+<h5>Dialect &mdash; the dedicated <code>PIVOT</code> operator</h5>
+<p>Snowflake, Oracle, and SQL Server ship a <code>PIVOT</code> clause that is terser than the <code>CASE</code> form &mdash; e.g. Snowflake: <code>SELECT * FROM sales PIVOT(SUM(amount) FOR sale_date IN ('2026-05-11','2026-05-12','2026-05-13'))</code>. PostgreSQL, MySQL, and SQLite have no <code>PIVOT</code> keyword, so the <code>SUM(CASE)</code> idiom shown here is the portable answer &mdash; and it still makes you enumerate the values, exactly like that explicit <code>IN</code> list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise a pivot as rotating row values into columns, implement it portably with one <code>SUM(CASE WHEN &hellip;)</code> per column, choose <code>ELSE 0</code> vs NULL deliberately, know that <code>SUM</code> folds duplicate cells together by design, and call out unprompted that the column list is static &mdash; a data-driven pivot needs dynamic SQL or <code>crosstab()</code>.</div>

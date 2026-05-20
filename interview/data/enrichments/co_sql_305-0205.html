@@ -1,0 +1,66 @@
+<p>JPMorgan launches a new credit card product each month and tracks how many applications each launch pulls in. The analyst wants the month-over-month change in application volume. The twist: the <code>applications</code> column arrived as <em>text</em>, with thousands separators baked in ("1,850"), and some months have no figure at all. The reference cleans the text inline and uses <code>LAG</code> for the delta. The interviewer is watching how you handle the dirty type and the missing rows.</p>
+
+<h4>1. The source data &mdash; <code>cards</code></h4>
+<table>
+  <thead><tr><th>card_id</th><th>launch_date</th><th>applications</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-01</td><td>1200</td></tr>
+    <tr><td>2</td><td>2026-02-01</td><td>1,850</td></tr>
+    <tr><td>3</td><td>2026-03-01</td><td>2100</td></tr>
+    <tr><td>4</td><td>2026-04-01</td><td><em>NULL</em></td></tr>
+    <tr><td>5</td><td>2026-05-01</td><td>2,750</td></tr>
+  </tbody>
+</table>
+<p>The <code>applications</code> values are inconsistent text: some clean ("1200"), some with a comma ("1,850"), and April's is <strong>NULL</strong> &mdash; the launch metrics were never filed. That NULL row in the middle of the series is the whole interview.</p>
+
+<h4>2. The SQL &mdash; <code>regex-clean then LAG delta</code></h4>
+<pre><code>SELECT launch_date, applications,
+  NULLIF(regexp_replace(applications::text, '[^-.0-9]', '', 'g'), '')::numeric
+  - LAG(NULLIF(regexp_replace(applications::text, '[^-.0-9]', '', 'g'), '')::numeric)
+      OVER (ORDER BY launch_date) AS delta
+FROM cards;</code></pre>
+<p><code>regexp_replace(..., '[^-.0-9]', '', 'g')</code> strips every character that is not a digit, minus, or dot &mdash; so "1,850" becomes "1850". <code>NULLIF(..., '')</code> turns an empty result into NULL, then <code>::numeric</code> casts. <code>LAG</code> over <code>launch_date</code> fetches the previous month's cleaned value, and the subtraction gives the change.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>launch_date</th><th>applications</th><th>delta</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>1200</td><td><em>NULL</em></td></tr>
+    <tr><td>2026-02-01</td><td>1,850</td><td>650</td></tr>
+    <tr><td>2026-03-01</td><td>2100</td><td>250</td></tr>
+    <tr><td>2026-04-01</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+    <tr><td>2026-05-01</td><td>2,750</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>February's delta is 1850 &minus; 1200 = 650; March's is 2100 &minus; 1850 = 250 &mdash; both correct. January is NULL because <code>LAG</code> has no prior row. But look at the last two rows: April is NULL because <em>its own</em> value is missing &mdash; expected. <strong>May is also NULL</strong>, even though May (2750) is known &mdash; because <code>LAG</code> returns the <em>immediately preceding row</em>, which is April's NULL. The missing month poisons the month after it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The NULL-propagation trap &mdash; <code>LAG</code> reaches back exactly one row</h5>
+<p>Plain <code>LAG(x)</code> takes the value from the physically previous row, NULL or not. So a single missing month creates <em>two</em> NULL deltas: April's (its own gap) and May's (April was its predecessor). For a month-over-month chart that is usually wrong &mdash; May genuinely grew over the last known reading. If the metric should compare against the last <em>non-NULL</em> month, that is a different query. Postgres 16+ supports the SQL-standard option directly:</p>
+<pre><code>-- Postgres 16+: skip NULL predecessors
+... - LAG(apps_num) IGNORE NULLS OVER (ORDER BY launch_date) ...</code></pre>
+<p>On older Postgres, drop the missing rows before windowing so <code>LAG</code> only ever sees real values:</p>
+<pre><code>WITH parsed AS (
+  SELECT launch_date, applications,
+    NULLIF(regexp_replace(applications::text,'[^-.0-9]','','g'),'')::numeric AS apps_num
+  FROM cards
+)
+SELECT launch_date, applications,
+       apps_num - LAG(apps_num) OVER (ORDER BY launch_date) AS delta
+FROM parsed WHERE apps_num IS NOT NULL;</code></pre>
+<p>With the missing month filtered out, May's delta becomes 2750 &minus; 2100 = 650. Which behaviour is right is a product question &mdash; "should a gap break the series, or should we compare to the last figure we have?" &mdash; and naming it is the senior move. The reference's output (delta NULL on the post-gap month) is defensible only if a gap is meant to interrupt the trend.</p>
+
+<h5>Why the data is text &mdash; and why <code>NULLIF</code> guards the cast</h5>
+<p>A numeric column would never need regex scrubbing. <code>applications</code> being <code>text</code> with thousands separators screams a bad ETL load &mdash; the real fix is upstream: store it as <code>integer</code>. Inline, <code>regexp_replace</code> strips the commas; the <code>NULLIF(..., '')</code> is the safety catch. If a value were <code>'N/A'</code> or <code>'&mdash;'</code>, the regex strips it to the empty string, and <code>''::numeric</code> would <em>throw</em>. <code>NULLIF</code> converts that empty string to NULL first, so the cast succeeds and the bad row simply has no number. Without it, one junk value aborts the whole query.</p>
+
+<h5>Ordering ties &mdash; two launches in the same month</h5>
+<p><code>LAG</code> needs a total order. If two cards launched on the same <code>launch_date</code>, <code>ORDER BY launch_date</code> alone leaves their relative order to the planner, so the delta could pair them in either direction. Add a deterministic tiebreaker: <code>ORDER BY launch_date, card_id</code>. For a strict monthly series this is unlikely, but a real launch calendar can have two products on the same day.</p>
+
+<h5><code>LAG</code> vs a self-join</h5>
+<p>The pre-window way to get "previous month" is a self-join on <code>launch_date = prev.launch_date + interval '1 month'</code>. That is brittle &mdash; it breaks the instant a month is skipped, and it assumes exact monthly spacing. <code>LAG OVER (ORDER BY launch_date)</code> simply takes the prior row regardless of spacing, which is more robust <em>and</em> the source of the NULL-propagation behaviour above. One tool, one trade-off to articulate.</p>
+
+<h5>Edge cases: first row, percentage change, negative deltas</h5>
+<p>The first row's delta is always NULL &mdash; no predecessor &mdash; which is correct, not a bug. If the analyst wants <em>percent</em> change rather than absolute, guard the division: <code>(curr - prev) / NULLIF(prev, 0)</code> so a zero-application month does not divide-by-zero. And deltas can legitimately be negative when a launch underperforms the prior one &mdash; do not <code>ABS()</code> them away; the sign is the signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that plain <code>LAG</code> propagates a missing month into the <em>next</em> month's delta, and decide deliberately between letting a gap break the series or comparing to the last non-NULL value (<code>IGNORE NULLS</code>, or filter-then-window); explain that <code>NULLIF</code> before <code>::numeric</code> is what stops a junk string from aborting the query; and flag that the text column is an upstream ETL defect, not something to scrub forever inline.</div>

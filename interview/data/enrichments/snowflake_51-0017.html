@@ -1,0 +1,80 @@
+<p>Geological and scientific databases frequently store sample descriptions as free-text strings: <em>"Approximately 3.8 billion years old"</em> or <em>"45.2 million years old"</em>. The challenge: extract the numeric magnitude and convert it to a uniform unit (years) so the data can be sorted, filtered, and compared. This question tests regex-based extraction, <code>ILIKE</code> pattern matching for unit detection, and the <code>CASE WHEN</code> / multiplier pattern for unit normalisation.</p>
+
+<h4>1. The source data &mdash; <code>rock_samples</code></h4>
+<table>
+  <thead><tr><th>sample_id</th><th>description</th></tr></thead>
+  <tbody>
+    <tr><td>RS-001</td><td>Granite from Pilbara, approximately 3.5 billion years old</td></tr>
+    <tr><td>RS-002</td><td>Sandstone layer, dated at 450 million years old</td></tr>
+    <tr><td>RS-003</td><td>Limestone deposit, roughly 12 thousand years old</td></tr>
+    <tr><td>RS-004</td><td>Basalt sample, age estimated at 2.1 billion years</td></tr>
+    <tr><td>RS-005</td><td>Obsidian fragment, 800 years old</td></tr>
+    <tr><td>RS-006</td><td>No age information available</td></tr>
+  </tbody>
+</table>
+<p>RS-005 has no unit keyword &mdash; the multiplier defaults to 1. RS-006 has no numeric token &mdash; the regex returns NULL, which propagates through the multiplication. These are the edge cases that exercise both branches of the logic.</p>
+
+<h4>2. The SQL &mdash; regex extraction with unit-multiplier <code>CASE WHEN</code></h4>
+<pre><code>SELECT sample_id, description,
+       NULLIF(substring(description from '\d+(?:\.\d+)?'), '')::numeric AS numeric_age,
+       CASE
+         WHEN description ILIKE '%billion%'  THEN 1e9
+         WHEN description ILIKE '%million%'  THEN 1e6
+         WHEN description ILIKE '%thousand%' THEN 1e3
+         ELSE 1 END AS unit_multiplier,
+       NULLIF(substring(description from '\d+(?:\.\d+)?'), '')::numeric
+         * CASE
+             WHEN description ILIKE '%billion%'  THEN 1e9
+             WHEN description ILIKE '%million%'  THEN 1e6
+             WHEN description ILIKE '%thousand%' THEN 1e3
+             ELSE 1 END AS age_in_years
+FROM rock_samples;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sample_id</th><th>numeric_age</th><th>unit_multiplier</th><th>age_in_years</th></tr></thead>
+  <tbody>
+    <tr><td>RS-001</td><td>3.5</td><td>1000000000</td><td>3500000000</td></tr>
+    <tr><td>RS-002</td><td>450</td><td>1000000</td><td>450000000</td></tr>
+    <tr><td>RS-003</td><td>12</td><td>1000</td><td>12000</td></tr>
+    <tr><td>RS-004</td><td>2.1</td><td>1000000000</td><td>2100000000</td></tr>
+    <tr><td>RS-005</td><td>800</td><td>1</td><td>800</td></tr>
+    <tr><td>RS-006</td><td>NULL</td><td>1</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>RS-006 produces NULL for <code>numeric_age</code> because no digit sequence exists, and NULL propagates through multiplication to <code>age_in_years</code>. RS-005 matches ELSE 1 because no billion/million/thousand keyword appears.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The regex pattern <code>\d+(?:\.\d+)?</code></h5>
+<p><code>\d+</code> matches one or more digits; <code>(?:\.\d+)?</code> is a non-capturing group that optionally matches a decimal point followed by more digits. The <code>?:</code> prefix suppresses capture &mdash; Postgres/Snowflake's <code>substring(text FROM pattern)</code> returns the first full match when the pattern has no capturing group, or the first captured group when one is present. Using <code>?:</code> ensures the whole pattern is returned, not just the decimal part. This regex handles integers (450) and decimals (3.5, 2.1) but not scientific notation &mdash; a stated limitation.</p>
+
+<h5>Why <code>NULLIF(..., '')</code> before the cast</h5>
+<p>When no match is found, <code>substring</code> returns NULL in Postgres but can return an empty string in some contexts. <code>NULLIF(expr, '')</code> converts an empty string to NULL before the <code>::numeric</code> cast &mdash; preventing a cast error on empty strings. It is a defensive pattern when the regex might not match. Without it, a row with no numeric token would throw a runtime error instead of cleanly returning NULL.</p>
+
+<h5><code>ILIKE</code> for case-insensitive unit detection</h5>
+<p><code>ILIKE '%billion%'</code> matches "Billion", "BILLION", "billion" without the need for <code>LOWER(description) LIKE '%billion%'</code>. In Snowflake <code>ILIKE</code> is a first-class operator. In MySQL, <code>LIKE</code> is case-insensitive by default for most collations; in SQL Server, use <code>LIKE</code> with a case-insensitive collation or <code>LOWER()</code>.</p>
+
+<h5>Dialect differences: regex extraction</h5>
+<ul>
+  <li><strong>Postgres (solution dialect):</strong> <code>substring(text FROM pattern)</code> with POSIX regex.</li>
+  <li><strong>Snowflake native:</strong> <code>REGEXP_SUBSTR(description, '\\d+(\\.\\d+)?', 1, 1, 'e', 1)</code> &mdash; the <code>'e'</code> flag enables extraction and the last <code>1</code> picks group 1. Or more simply: <code>REGEXP_SUBSTR(description, '\\d+(?:\\.\\d+)?')</code> for the full match.</li>
+  <li><strong>BigQuery:</strong> <code>REGEXP_EXTRACT(description, r'\d+(?:\.\d+)?')</code>.</li>
+  <li><strong>MySQL:</strong> <code>REGEXP_SUBSTR(description, '[0-9]+(\.[0-9]+)?')</code> (MySQL 8.0+).</li>
+</ul>
+
+<h5>The CASE WHEN multiplier repetition &mdash; and how to avoid it</h5>
+<p>The query repeats the <code>CASE WHEN</code> block twice: once to expose <code>unit_multiplier</code> as a column, and once inside the multiplication for <code>age_in_years</code>. In practice a CTE or subquery eliminates the duplication:</p>
+<pre><code>WITH extracted AS (
+  SELECT sample_id, description,
+         NULLIF(substring(description from '\d+(?:\.\d+)?'), '')::numeric AS numeric_age,
+         CASE WHEN description ILIKE '%billion%'  THEN 1e9
+              WHEN description ILIKE '%million%'  THEN 1e6
+              WHEN description ILIKE '%thousand%' THEN 1e3
+              ELSE 1 END AS unit_multiplier
+  FROM rock_samples
+)
+SELECT *, numeric_age * unit_multiplier AS age_in_years FROM extracted;</code></pre>
+<p>This is cleaner and avoids the engine evaluating the CASE twice (though most optimisers would common-subexpression-eliminate it anyway).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain the non-capturing <code>(?:...)</code> group in the regex and why it matters for <code>substring</code> return semantics, name the <code>NULLIF(..., '')</code> guard against cast errors on non-matching rows, and show how a CTE eliminates the CASE WHEN duplication. Bonus: contrast <code>ILIKE</code> (Snowflake/Postgres) with dialect equivalents in BigQuery and MySQL.</div>

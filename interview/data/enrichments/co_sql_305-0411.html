@@ -1,0 +1,28 @@
+<p>Sales forecasts drive hiring + investment decisions. <strong>Bias</strong> (forecast - actual) and <strong>MAPE</strong> per quarter measure accuracy. Forecasts always over-predict; calibrating the bias is the science.</p>
+
+<h4>2. The SQL — three error metrics</h4>
+<pre><code>SELECT COUNT(*) AS opps,
+  ROUND(AVG(forecast_amount - actual_amount), 2) AS avg_bias,
+  ROUND(AVG(ABS(forecast_amount - actual_amount)), 2) AS mae,
+  ROUND(100.0 * AVG(ABS(forecast_amount - actual_amount) / NULLIF(actual_amount, 0)), 1) AS mape_pct,
+  ROUND(SUM(forecast_amount), 2) AS total_forecast,
+  ROUND(SUM(actual_amount), 2) AS total_actual
+FROM forecasts WHERE actual_amount IS NOT NULL;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Bias direction matters</h5>
+<p>+15% bias = chronic over-forecast. Reps "sandbag low" to avoid disappointing leadership; or "promise high" hoping for raises. Bias direction is itself a cultural signal.</p>
+
+<h5>MAPE vs MAE — which is right</h5>
+<p>MAPE is dimensionless (% error). MAE is in dollars. For comparing across deal sizes, MAPE; for absolute impact, MAE. Production reports both.</p>
+
+<h5>The "miss" classification</h5>
+<p>Forecast $1M, actual $900K = 10% miss. Forecast $100K, actual $0 = 100% miss but only $100K. Weighting matters. Production also computes <em>$$ miss</em> = SUM(ABS(forecast - actual)).</p>
+
+<h5>The category split</h5>
+<p>"Commit" deals (90% probability): expect &lt; 5% bias. "Pipeline" (50%): expect 30-50% bias. Comparing them lumped is unfair. Slice by forecast_category.</p>
+
+<h5>Calibration over time</h5>
+<p>Forecasters who consistently bias +15% can be auto-corrected: subtract 15% from their next forecast. Production does this on rolling 4-quarter MAPE.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> bias direction reveals culture (sandbag vs over-promise), MAPE for cross-size compare, MAE for absolute impact, slice by forecast_category, and apply auto-calibration based on historical bias.</div>

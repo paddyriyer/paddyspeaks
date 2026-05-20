@@ -1,0 +1,78 @@
+<p>Churn rate is the second-most-stared-at SaaS metric after MRR. The CFO asks for it monthly; the board cares about it quarterly; growth teams build their entire roadmap around moving it. The query looks trivial — and it is, until you ask <em>"what counts as churn?"</em> and discover three different valid definitions.</p>
+
+<h4>1. The source data — <code>subscriptions</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>started_at</th><th>ended_at</th><th>(state)</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>2024-01-15</td><td>NULL</td><td>active</td></tr>
+    <tr><td>C_002</td><td>2024-02-03</td><td>2024-09-12</td><td>churned</td></tr>
+    <tr><td>C_003</td><td>2024-03-20</td><td>NULL</td><td>active</td></tr>
+    <tr><td>C_004</td><td>2024-04-08</td><td>2024-11-30</td><td>churned</td></tr>
+    <tr><td>C_005</td><td>2024-05-15</td><td>NULL</td><td>active</td></tr>
+    <tr><td>C_006</td><td>2024-06-22</td><td>2025-01-04</td><td>churned</td></tr>
+    <tr><td>C_007</td><td>2024-07-30</td><td>NULL</td><td>active</td></tr>
+    <tr><td>C_008</td><td>2024-08-15</td><td>NULL</td><td>active</td></tr>
+  </tbody>
+</table>
+<p>8 subscriptions. 3 churned, 5 still active. <code>ended_at IS NOT NULL</code> = churned.</p>
+
+<h4>2. The SQL — conditional aggregation in one pass</h4>
+<pre><code>SELECT
+  100.0 * SUM(CASE WHEN ended_at IS NOT NULL THEN 1 ELSE 0 END)
+        / COUNT(*) AS churn_rate
+FROM subscriptions;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>churn_rate</th></tr></thead>
+  <tbody>
+    <tr><td><strong>37.5%</strong></td></tr>
+  </tbody>
+</table>
+<p>3 of 8 subscriptions ended → 37.5% lifetime churn. <em>(Lifetime churn is a vanity number. The real metric is per-period — see below.)</em></p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The three definitions of churn — pick one and stick with it</h5>
+<ul>
+  <li><strong>Lifetime churn</strong> (the query above): of all subscriptions ever, what % ended? Useful for cohort analysis but useless for trend monitoring — the rate keeps climbing as time passes regardless of whether things are getting better or worse.</li>
+  <li><strong>Period churn</strong>: of subscriptions active at the start of the period, what % ended during it? <em>This is the one CFOs actually want.</em></li>
+  <li><strong>Revenue churn</strong>: of MRR active at start of period, what % was lost (cancellations + downgrades)? Different number entirely — losing one $10K customer hurts more than losing 100 $50 customers.</li>
+</ul>
+
+<h5>The CFO version — monthly churn rate</h5>
+<pre><code>SELECT
+  DATE_TRUNC('month', ended_at) AS churn_month,
+  COUNT(*) AS churned_count,
+  -- denominator: subscriptions that were active at start of that month
+  (SELECT COUNT(*) FROM subscriptions s2
+   WHERE s2.started_at &lt; DATE_TRUNC('month', s.ended_at)
+     AND (s2.ended_at IS NULL OR s2.ended_at &gt;= DATE_TRUNC('month', s.ended_at))
+  ) AS active_at_month_start,
+  ROUND(100.0 * COUNT(*) /
+    (SELECT COUNT(*) FROM subscriptions s2
+     WHERE s2.started_at &lt; DATE_TRUNC('month', s.ended_at)
+       AND (s2.ended_at IS NULL OR s2.ended_at &gt;= DATE_TRUNC('month', s.ended_at))
+    ), 2) AS monthly_churn_pct
+FROM subscriptions s
+WHERE ended_at IS NOT NULL
+GROUP BY DATE_TRUNC('month', ended_at)
+ORDER BY churn_month;</code></pre>
+<p>This gives the trend: <em>"churn was 2.1% in Q1, 2.4% in Q2 — slight uptick, investigate."</em></p>
+
+<h5>The "involuntary churn" carve-out</h5>
+<p>Not all <code>ended_at IS NOT NULL</code> rows are equal. Some subscriptions end because the customer cancelled (voluntary); some end because the credit card expired and dunning failed (involuntary). The remediation is different — voluntary needs product fixes, involuntary needs payment retry logic. Production schema typically has <code>ended_reason</code> and the query branches:</p>
+<pre><code>SELECT
+  100.0 * COUNT(*) FILTER (WHERE ended_reason = 'cancelled')   / COUNT(*) AS voluntary_churn_pct,
+  100.0 * COUNT(*) FILTER (WHERE ended_reason = 'payment_fail') / COUNT(*) AS involuntary_churn_pct
+FROM subscriptions;</code></pre>
+
+<h5>"Active customers" snapshot — the denominator question</h5>
+<p>Many engineers compute churn as <em>"churned this month / active this month"</em> — but "active this month" is ambiguous. Active at start? End? Average? The cleanest answer is <em>"active at start of period"</em>:</p>
+<pre><code>WHERE started_at &lt; '2026-01-01'                              -- existed before period
+  AND (ended_at IS NULL OR ended_at &gt;= '2026-01-01')         -- still active at start</code></pre>
+
+<h5>The Net Revenue Retention (NRR) follow-up</h5>
+<p>The metric that actually correlates with valuation: <em>(starting MRR + expansion − contraction − churn) / starting MRR</em>. NRR &gt; 100% means existing-customer growth offsets churn — the SaaS holy grail. Senior candidates volunteer NRR as the "next-level" metric beyond simple churn rate.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the three definitions of churn (lifetime / period / revenue), default to the period version, distinguish voluntary vs involuntary, and pre-empt the NRR follow-up. The "denominator = active-at-start" precision is the senior detail.</div>

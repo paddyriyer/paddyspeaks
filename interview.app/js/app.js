@@ -104,8 +104,12 @@ function passesFiltersExcept(q, exceptKey) {
   if (exceptKey !== "search") {
     const needle = f.search.trim().toLowerCase();
     if (needle) {
-      const hay = [q.title, q.company, q.type, q.subtopic, q.schema, q.solution]
-        .filter(Boolean).join(" ").toLowerCase();
+      const hay = [
+        q.title, q.company, q.type, q.subtopic, q.schema, q.solution,
+        // Include auto-detected SQL technique tags so searches like
+        // "analytical" or "recursive" actually surface matching questions.
+        Array.isArray(q.tags) ? q.tags.join(" ") : "",
+      ].filter(Boolean).join(" ").toLowerCase();
       if (!hay.includes(needle)) return false;
     }
   }
@@ -127,6 +131,115 @@ function applyFilters() {
   saveFilters();
   refreshFacetCounts();
   renderResults();
+  syncUrlAndMetadata();
+}
+
+// ─── URL ↔ filter sync + dynamic metadata ───
+// Each filter combo gets its own canonical URL (e.g. ?company=Google&topic=SQL)
+// + its own <title> / meta-description / canonical so Google can index the
+// filtered view as a distinct landing page. The state.filters Sets are the
+// source of truth; we serialize → URL on every change and deserialize URL →
+// Sets exactly once on init.
+
+const URL_KEYS = [
+  ["companies",    "company"],
+  ["types",        "topic"],
+  ["languages",    "language"],
+  ["difficulties", "difficulty"],
+  ["batches",      "batch"],
+];
+
+function readFiltersFromUrl() {
+  const p = new URLSearchParams(location.search);
+  for (const [setKey, urlKey] of URL_KEYS) {
+    const values = p.getAll(urlKey);
+    if (values.length) {
+      state.filters[setKey] = new Set(values);
+    }
+  }
+  const q = p.get("q");
+  if (q) state.filters.search = q;
+}
+
+function buildUrlFromFilters() {
+  const p = new URLSearchParams();
+  for (const [setKey, urlKey] of URL_KEYS) {
+    for (const v of state.filters[setKey]) p.append(urlKey, v);
+  }
+  if (state.filters.search) p.set("q", state.filters.search);
+  const qs = p.toString();
+  return location.pathname + (qs ? "?" + qs : "");
+}
+
+function pluralize(n, one, many) { return n === 1 ? one : many; }
+
+function buildMetadataFromFilters() {
+  const f = state.filters;
+  const companies    = [...f.companies];
+  const types        = [...f.types];
+  const languages    = [...f.languages].map((s) => s.toUpperCase());
+  const difficulties = [...f.difficulties];
+
+  const count = state.filtered.length;
+  const base  = "PaddySpeaks Interview Studio";
+  const fragments = [];
+
+  if (languages.length)    fragments.push(languages.join(" / "));
+  if (difficulties.length) fragments.push(difficulties.join(" / "));
+  if (types.length)        fragments.push(types.slice(0, 2).join(" + ") + (types.length > 2 ? ` +${types.length - 2}` : ""));
+  if (companies.length)    fragments.push(`for ${companies.slice(0, 3).join(", ")}${companies.length > 3 ? ` +${companies.length - 3}` : ""}`);
+
+  let title, desc;
+  if (!fragments.length && !f.search) {
+    const total = state.manifest?.total || state.questions.length || "1400+";
+    title = `Data Engineer Interview Prep — ${total} SQL, Python & Snowflake Questions | PaddySpeaks`;
+    desc  = `Free data engineer interview prep: ${total} real SQL, Python and Snowflake questions from Google, Amazon, Meta and 100+ companies. In-browser SQL & Python playground, no sign-up.`;
+  } else {
+    const head = f.search ? `"${f.search}"` : fragments.join(" · ");
+    title = `${head} Interview Questions${count ? ` · ${count} ${pluralize(count, "question", "questions")}` : ""} | ${base}`;
+    const parts = [];
+    if (companies.length)    parts.push(`real interview questions from ${companies.slice(0, 5).join(", ")}${companies.length > 5 ? ` and ${companies.length - 5} more companies` : ""}`);
+    else                     parts.push("real interview questions");
+    if (types.length)        parts.push(`on ${types.slice(0, 3).join(", ")}`);
+    if (languages.length)    parts.push(`in ${languages.join(" / ")}`);
+    if (difficulties.length) parts.push(`at ${difficulties.join(" / ")} difficulty`);
+    desc = `${count} ${parts.join(" ")}. Filter, save your set, and run answers in the in-browser ${languages.includes("PYTHON") ? "Pyodide" : "sql.js"} playground — no backend, no sign-up.`;
+    if (desc.length > 300) desc = desc.slice(0, 297) + "…";
+  }
+  return { title, desc };
+}
+
+let _urlSyncRaf = 0;
+function syncUrlAndMetadata() {
+  // Throttle to once per animation frame — typing in the search box fires
+  // an input event per keystroke, and we don't want to thrash pushState.
+  if (_urlSyncRaf) return;
+  _urlSyncRaf = requestAnimationFrame(() => {
+    _urlSyncRaf = 0;
+    try {
+      const url = buildUrlFromFilters();
+      // Replace state on initial render or no-filter snapshot, push otherwise,
+      // so the back button takes the user to the previous filter combo.
+      const isInitial = !history.state || history.state._qb !== true;
+      const method = isInitial ? "replaceState" : "pushState";
+      history[method]({ _qb: true, ts: Date.now() }, "", url);
+    } catch (e) { /* ignore — privacy mode etc. */ }
+
+    const { title, desc } = buildMetadataFromFilters();
+    document.title = title;
+
+    const set = (id, attr, value) => {
+      const el = document.getElementById(id);
+      if (el) el.setAttribute(attr, value);
+    };
+    set("qb-meta-description",   "content", desc);
+    set("qb-og-title",            "content", title);
+    set("qb-og-description",      "content", desc);
+    set("qb-og-url",              "content", location.origin + buildUrlFromFilters());
+    set("qb-twitter-title",       "content", title);
+    set("qb-twitter-description", "content", desc);
+    set("qb-canonical",           "href",    location.origin + buildUrlFromFilters());
+  });
 }
 
 // Walk the question set with all-but-one filter active and tally a field.
@@ -331,6 +444,7 @@ function buildCard(q, tpl) {
   if (state.set.has(q.id)) node.classList.add("is-selected");
   const cb = node.querySelector(".qb-check input");
   cb.checked = state.set.has(q.id);
+  cb.setAttribute("aria-label", `Add "${q.title || q.id}" to set`);
   cb.addEventListener("change", (e) => toggleSet(q, e.target.checked, node));
 
   node.querySelector(".qb-card-title").textContent = q.title || "(untitled)";
@@ -341,6 +455,34 @@ function buildCard(q, tpl) {
   node.querySelector(".qb-meta-co").textContent = q.company || "—";
   node.querySelector(".qb-meta-type").textContent = [q.type, q.subtopic].filter(Boolean).join(" · ") || "—";
   node.querySelector(".qb-meta-lang").textContent = q.language || "—";
+
+  // Auto-detected technique tags (analytical-functions, joins, cte, …).
+  // Renders a chip strip below the meta-row when q.tags is non-empty.
+  // The chips are clickable and toggle the tag filter.
+  if (Array.isArray(q.tags) && q.tags.length) {
+    const head = node.querySelector(".qb-card-head");
+    if (head) {
+      const strip = document.createElement("div");
+      strip.className = "qb-card-tagchips";
+      for (const t of q.tags) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "qb-card-tagchip qb-tag-" + t;
+        chip.textContent = t;
+        chip.title = "Click to filter by " + t;
+        chip.setAttribute("aria-label", `Filter by ${t}`);
+        chip.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          $("#qb-search").value = t;
+          state.filters.search = t;
+          render();
+        });
+        strip.appendChild(chip);
+      }
+      head.parentNode.insertBefore(strip, head.nextSibling);
+    }
+  }
 
   const schemaEl = node.querySelector(".qb-schema-text");
   const solEl = node.querySelector(".qb-solution-text");
@@ -394,7 +536,7 @@ function renderSet() {
   list.innerHTML = "";
   $("#qb-set-count").textContent = state.set.size;
   if (!state.set.size) {
-    list.appendChild(el("div", { class: "qb-set-empty" }, "Pick questions to build your set"));
+    list.appendChild(el("li", { class: "qb-set-empty" }, "Pick questions to build your set"));
     return;
   }
   for (const q of state.set.values()) {
@@ -526,6 +668,11 @@ function wire() {
 // ─── Init ───
 async function init() {
   loadFilters();
+  // URL params override the persisted filter set when present. This is what
+  // makes the "Browse by company" cloud + the dynamic filter-share URLs work
+  // as deep links — landing on /?company=Google&topic=SQL applies those
+  // filters on first paint, not whatever happened to be in localStorage.
+  if (location.search) readFiltersFromUrl();
   loadSet();
   if (!state.questions.length) await loadData();
   await renderFacets();
@@ -533,8 +680,26 @@ async function init() {
   renderSet();
 }
 
+// Back / forward should re-apply whichever filter combo lived at that URL —
+// otherwise the address bar lies and the question list goes stale.
+window.addEventListener("popstate", () => {
+  state.filters.search = "";
+  state.filters.languages.clear();
+  state.filters.difficulties.clear();
+  state.filters.batches.clear();
+  state.filters.companies.clear();
+  state.filters.types.clear();
+  readFiltersFromUrl();
+  // Re-sync the visible search boxes so they match the URL.
+  const searchEl = document.getElementById("qb-search");
+  if (searchEl) searchEl.value = state.filters.search;
+  applyFilters();
+});
+
 wire();
-init().catch((err) => {
+init().then(() => {
+  document.documentElement.classList.add("js-ready");
+}).catch((err) => {
   console.error(err);
   $("#qb-list").appendChild(
     el("div", { class: "qb-set-empty" },

@@ -1,0 +1,57 @@
+<p>An analytics interviewer hands you a deliberate constraint: compute the <strong>median per category</strong>, but with <code>PERCENTILE_CONT</code>, <code>PERCENTILE_DISC</code>, and every quantile function off the table. This is a classic "do you understand what the function does" probe &mdash; the median is just the middle of a sorted list, and the test is whether you can rebuild it from <code>ROW_NUMBER</code> and <code>COUNT</code>, handling both odd and even group sizes.</p>
+
+<h4>1. The source data &mdash; <code>score</code></h4>
+<table>
+  <thead><tr><th>category</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>10, 20, 30, 40, 50</td><td>odd count (5) &mdash; one true middle</td></tr>
+    <tr><td>B</td><td>5, 7, 9, 11</td><td>even count (4) &mdash; two middles, must average</td></tr>
+    <tr><td>C</td><td>100</td><td>single-member group &mdash; median is the lone value</td></tr>
+  </tbody>
+</table>
+<p>The three groups are chosen to stress the formula: category A has an <em>odd</em> count (the middle row), B has an <em>even</em> count (the average of two middle rows), and C is a <em>single-row</em> group &mdash; the degenerate case where the one value is trivially the median.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER + COUNT, average the middle</h4>
+<pre><code>WITH ranked AS (
+  SELECT category, value,
+         ROW_NUMBER() OVER (PARTITION BY category ORDER BY value) AS rn,
+         COUNT(*)    OVER (PARTITION BY category)                  AS n
+  FROM score
+)
+SELECT category,
+       ROUND(AVG(value)::numeric, 2) AS median
+FROM ranked
+WHERE rn IN ((n + 1) / 2, (n + 2) / 2)   -- integer arithmetic handles odd &amp; even
+GROUP BY category
+ORDER BY category;</code></pre>
+<p>Each row gets its rank within the category (<code>rn</code>) and the category's size (<code>n</code>). The filter <code>rn IN ((n+1)/2, (n+2)/2)</code> selects the middle &mdash; one row when <code>n</code> is odd, two rows when <code>n</code> is even &mdash; and <code>AVG</code> returns either the single middle value or the mean of the two.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>median</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>30.00</td><td>odd: middle of 10..50</td></tr>
+    <tr><td>B</td><td>8.00</td><td>even: avg of 7 and 9</td></tr>
+    <tr><td>C</td><td>100.00</td><td>single row: value is its own median</td></tr>
+  </tbody>
+</table>
+<p>For A (<code>n=5</code>), the formula picks <code>rn IN (3, 3)</code> &mdash; the same row twice &mdash; so <code>AVG</code> sees only row 3, value 30. For B (<code>n=4</code>), it picks <code>rn IN (2, 3)</code> &mdash; values 7 and 9 &mdash; averaging to 8. For C (<code>n=1</code>), <code>rn IN (1, 1)</code> selects the lone row 100.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The integer-division trick &mdash; one formula, both parities</h5>
+<p>The elegance is that <code>(n+1)/2</code> and <code>(n+2)/2</code> use <em>integer</em> division, which truncates. For odd <code>n=5</code>: <code>(6)/2=3</code> and <code>(7)/2=3</code> &mdash; identical, so <code>IN</code> matches one row. For even <code>n=4</code>: <code>(5)/2=2</code> and <code>(6)/2=3</code> &mdash; distinct, so it matches two adjacent rows. A single predicate covers both cases with no <code>CASE</code> on parity. That is the insight the interviewer wants verbalised.</p>
+
+<h5>Why the window functions, and why a CTE</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY category ORDER BY value)</code> imposes the sort order the median definition needs; <code>COUNT(*) OVER (PARTITION BY category)</code> gives every row the group size <em>without</em> collapsing rows. Both must be computed before the filter can run, which is why they live in a CTE: you cannot reference a window function inside the same query's <code>WHERE</code> clause &mdash; window functions are evaluated after <code>WHERE</code>.</p>
+
+<h5>NULL handling &mdash; the silent rank shift</h5>
+<p>If <code>value</code> contained NULLs, <code>ORDER BY value</code> places them last (Postgres default) and <code>COUNT(*)</code> still counts them &mdash; so <code>n</code> includes NULL rows and the middle index points at the wrong place. The statistically correct median ignores NULLs: filter <code>WHERE value IS NOT NULL</code> before ranking, or use <code>COUNT(value)</code> (which skips NULLs) instead of <code>COUNT(*)</code>. Naming this is essential &mdash; the demo data has no NULLs, so the bug stays hidden.</p>
+
+<h5>Ties in value &mdash; ROW_NUMBER vs RANK</h5>
+<p><code>ROW_NUMBER</code> is the right choice here even when values tie: the median formula needs <em>positional</em> indices 1..n with no gaps, and duplicate values must still occupy distinct positions. Using <code>RANK</code> would assign tied values the same rank, leaving holes in the sequence and breaking the <code>(n+1)/2</code> lookup. The median cares about position in the sorted list, not about competition ranking.</p>
+
+<h5>Dialect notes &mdash; the function you were told not to use</h5>
+<p>The idiomatic answer in Postgres/Oracle is <code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)</code>; SQL Server spells it <code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value) OVER (PARTITION BY category)</code>; MySQL 8+ has no percentile function at all, making this manual technique the <em>only</em> portable option there. Knowing the built-in exists &mdash; and that this hand-rolled version is what you fall back to when it is banned or absent &mdash; is the senior framing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> rebuild the median from <code>ROW_NUMBER</code> + <code>COUNT</code> using the integer-division pair <code>(n+1)/2, (n+2)/2)</code> so one predicate handles odd and even sizes, compute the window functions in a CTE because <code>WHERE</code> runs before them, and call out that NULLs must be excluded before ranking or the middle index silently shifts.</div>

@@ -1,0 +1,58 @@
+<p>Shopify's merchant-success team wants a cohort view of how each store owner's spend is trending: is a customer ramping up year over year, or quietly churning? "Year-on-year growth rate" sounds like a single percentage, but the interviewer is really watching three things &mdash; do you collapse to one row per customer-year first, do you handle the customer's <em>first</em> year (which has nothing to compare against), and do you guard against a divide-by-zero when last year's spend was nil.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>year</th><th>amount</th><th>order_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2022</td><td>1000</td><td>1</td><td>completed</td></tr>
+    <tr><td>101</td><td>2022</td><td>500</td><td>2</td><td>completed</td></tr>
+    <tr><td>101</td><td>2023</td><td>2250</td><td>3</td><td>completed</td></tr>
+    <tr><td>101</td><td>2024</td><td>1800</td><td>4</td><td>completed</td></tr>
+    <tr><td>202</td><td>2023</td><td>800</td><td>5</td><td>completed</td></tr>
+    <tr><td>202</td><td>2024</td><td>800</td><td>6</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has <strong>two orders in 2022</strong> &mdash; so the table is at order grain, not customer-year grain, and we must <code>SUM</code> first. Customer 202 spent exactly the same in both years (a flat 0% case), and both customers have a <em>first</em> year with no prior to compare to.</p>
+
+<h4>2. The SQL &mdash; <code>LAG over a pre-aggregated CTE</code></h4>
+<pre><code>WITH spend AS (SELECT customer_id, year, SUM(amount) AS total FROM orders GROUP BY customer_id, year)
+SELECT customer_id, year, total,
+  100.0*(total-LAG(total) OVER (PARTITION BY customer_id ORDER BY year)) /
+   NULLIF(LAG(total) OVER (PARTITION BY customer_id ORDER BY year),0) AS yoy_growth
+FROM spend;</code></pre>
+<p>The CTE collapses orders to one row per customer-year. <code>LAG</code> then reaches back one year <em>within each customer</em>, and the growth is <code>(this &minus; prior) / prior &times; 100</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>year</th><th>total</th><th>yoy_growth</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2022</td><td>1500</td><td><em>NULL</em></td></tr>
+    <tr><td>101</td><td>2023</td><td>2250</td><td>50.0000000000000000</td></tr>
+    <tr><td>101</td><td>2024</td><td>1800</td><td>-20.0000000000000000</td></tr>
+    <tr><td>202</td><td>2023</td><td>800</td><td><em>NULL</em></td></tr>
+    <tr><td>202</td><td>2024</td><td>800</td><td>0.00000000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Customer 101's two 2022 orders summed to 1500 first; then 2023 grew to 2250 (<code>+50%</code>) and 2024 fell to 1800 (<code>&minus;20%</code>). The first year of each customer is <strong>NULL</strong> &mdash; there is no prior year, so <code>LAG</code> returns NULL and the arithmetic propagates it. Customer 202's flat spend yields a clean 0%.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the CTE is not optional</h5>
+<p>If you skip the pre-aggregation and run <code>LAG</code> straight over <code>orders</code>, <code>LAG</code> steps back one <em>row</em>, not one year &mdash; with two 2022 orders for customer 101 it would compare order 2 against order 1, both inside 2022, and produce nonsense. The <code>PARTITION BY customer_id ORDER BY year</code> window only behaves like "year over year" once each year is exactly one row. The CTE guarantees that grain.</p>
+
+<h5>The first-year NULL &mdash; feature, not bug</h5>
+<p>A customer's earliest year has no predecessor, so <code>yoy_growth</code> is NULL. That is honest: you cannot compute growth without a baseline. If a dashboard needs a value, decide deliberately &mdash; <code>COALESCE(&hellip;, 0)</code> reads as "no growth" (misleading), so most teams keep the NULL and label it "n/a (first year)". Do not invent a number.</p>
+
+<h5>The divide-by-zero guard</h5>
+<p><code>NULLIF(prior, 0)</code> is doing real work: if a customer spent 0 last year and something this year, the raw ratio divides by zero. In Postgres integer division by zero <em>errors</em> and aborts the whole query; numeric division by zero also errors. <code>NULLIF</code> converts the 0 denominator to NULL, so that single row's growth becomes NULL instead of killing the report. Note this also means a "0 &rarr; 5000" jump shows as NULL, not <code>+&infin;%</code> &mdash; usually acceptable, but call it out.</p>
+
+<h5>Gap years &mdash; the subtle trap</h5>
+<p><code>LAG</code> returns the <em>previous row in the partition</em>, not literally "year &minus; 1". If a customer ordered in 2022 and 2024 but not 2023, <code>LAG</code> pairs 2024 with 2022 and silently labels a two-year change as one-year growth. If true calendar adjacency matters, either generate a dense year spine and left-join, or compare explicitly:</p>
+<pre><code>... LAG(total) OVER (PARTITION BY customer_id ORDER BY year) AS prev_total,
+    year - LAG(year) OVER (PARTITION BY customer_id ORDER BY year) AS year_gap
+-- then only trust yoy_growth where year_gap = 1</code></pre>
+
+<h5>Status filtering</h5>
+<p>The schema carries a <code>status</code> column. Cancelled or refunded orders inflate spend if left in. "Spend" almost always means realised revenue, so a <code>WHERE status = 'completed'</code> inside (or before) the CTE is the filter the interviewer expects you to raise &mdash; confirm the definition rather than assume.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pre-aggregate to customer-year grain <em>before</em> windowing so <code>LAG</code> means "year", treat the first-year NULL as correct rather than coalescing it away, explain that <code>NULLIF</code> prevents a divide-by-zero abort, and flag that <code>LAG</code> pairs adjacent rows &mdash; not adjacent calendar years &mdash; when gap years are possible.</div>

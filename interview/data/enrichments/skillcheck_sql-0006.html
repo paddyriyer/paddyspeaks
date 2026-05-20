@@ -1,0 +1,58 @@
+<p>A product-analytics team wants each user's two most recent events &mdash; the classic "latest N per group" feed query. The interviewer is checking whether you reach for <code>ROW_NUMBER</code> partitioned per user and filtered to a small <code>rn</code>, rather than something that fails on ties or only returns one row per group.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-05 10:00</td><td>user 1 &mdash; most recent</td></tr>
+    <tr><td>1</td><td>2025-01-04 09:00</td><td>user 1 &mdash; 2nd most recent</td></tr>
+    <tr><td>1</td><td>2025-01-03 08:00</td><td>user 1 &mdash; 3rd, should be dropped</td></tr>
+    <tr><td>2</td><td>2025-01-07 12:00</td><td>user 2 &mdash; most recent</td></tr>
+    <tr><td>2</td><td>2025-01-06 11:00</td><td>user 2 &mdash; 2nd most recent</td></tr>
+    <tr><td>3</td><td>2025-01-01 07:00</td><td>user 3 &mdash; only one event</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. User 1 has <em>three</em> events, so the query must keep two and discard the oldest; user 3 has only <em>one</em> event, so "top 2" must gracefully return just that single row rather than erroring or padding.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER</code> partitioned per user</h4>
+<pre><code>WITH ranked AS (
+  SELECT
+    user_id,
+    event_ts,
+    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_ts DESC) AS rn
+  FROM event
+)
+SELECT user_id, event_ts
+FROM ranked
+WHERE rn &lt;= 2
+ORDER BY user_id, event_ts DESC;</code></pre>
+<p><code>PARTITION BY user_id</code> restarts the numbering for each user; <code>ORDER BY event_ts DESC</code> puts the newest event first, so it receives <code>rn = 1</code>. The outer query keeps only <code>rn &lt;= 2</code> &mdash; the two newest per user &mdash; because a window function cannot be referenced in the same query's <code>WHERE</code>, hence the CTE.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_ts</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-05 10:00</td><td>rn 1 &mdash; kept</td></tr>
+    <tr><td>1</td><td>2025-01-04 09:00</td><td>rn 2 &mdash; kept; rn 3 (Jan 3) dropped</td></tr>
+    <tr><td>2</td><td>2025-01-07 12:00</td><td>rn 1 &mdash; kept</td></tr>
+    <tr><td>2</td><td>2025-01-06 11:00</td><td>rn 2 &mdash; kept</td></tr>
+    <tr><td>3</td><td>2025-01-01 07:00</td><td>rn 1 &mdash; the only event; "top 2" just returns 1</td></tr>
+  </tbody>
+</table>
+<p>User 1's oldest event (2025-01-03) is correctly absent &mdash; it received <code>rn = 3</code> and failed <code>rn &lt;= 2</code>. User 3 returns a single row: the partition has only one event, so <code>rn</code> never exceeds 1 and the <code>&lt;= 2</code> filter passes it through unharmed.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> is the right tool for "top N per group"</h5>
+<p><code>ROW_NUMBER</code> guarantees a strict 1, 2, 3&hellip; sequence within each partition, so <code>WHERE rn &lt;= N</code> returns <em>at most</em> N rows per group &mdash; never more. That bounded count is usually what a feed wants: exactly two cards per user, no surprises. The pattern &mdash; window function in a CTE, integer filter outside &mdash; is the canonical "latest N" idiom across every modern SQL engine.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code>/<code>DENSE_RANK</code> on ties</h5>
+<p>If a user had two events with the <em>identical</em> timestamp competing for the second slot, <code>ROW_NUMBER</code> picks one arbitrarily (some tie-break by physical order) and still returns exactly two rows. <code>RANK</code> would give both tied events <code>rn = 2</code> and return <em>three</em> rows; <code>DENSE_RANK</code> likewise. So the function encodes a policy: <code>ROW_NUMBER</code> = "exactly 2, break ties arbitrarily", <code>RANK</code> = "2 plus anyone tied". State which the product wants &mdash; and if ties must break deterministically, add a tiebreaker to the <code>ORDER BY</code>, e.g. <code>ORDER BY event_ts DESC, event_id DESC</code>.</p>
+
+<h5>Why the CTE is necessary &mdash; window functions and <code>WHERE</code></h5>
+<p>You cannot write <code>WHERE ROW_NUMBER() OVER (...) &lt;= 2</code> directly: window functions are evaluated <em>after</em> <code>WHERE</code> in the logical processing order, so the alias does not yet exist when <code>WHERE</code> runs. Wrapping the calculation in a CTE (or subquery) materialises <code>rn</code> as an ordinary column the outer <code>WHERE</code> can test. This ordering rule is worth being able to recite.</p>
+
+<h5>Edge cases: single-event users and timestamps stored as text</h5>
+<p>User 3 shows that "top 2" must tolerate groups smaller than 2 &mdash; <code>rn &lt;= 2</code> handles it for free, returning whatever exists. One latent risk: <code>event_ts</code> is declared <code>TEXT</code>. The ordering happens to be correct because the values are zero-padded <code>YYYY-MM-DD HH:MM</code>, which sorts identically as text and as a timestamp. With a non-sortable format the <code>ORDER BY</code> would silently mis-rank; the robust fix is a real <code>TIMESTAMP</code> column or an explicit <code>event_ts::timestamp</code> cast.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve "latest N per group" with <code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_ts DESC)</code> filtered to <code>rn &lt;= N</code> in an outer query, explain why the CTE is required (window functions run after <code>WHERE</code>), choose <code>ROW_NUMBER</code> over <code>RANK</code> deliberately for a hard cap on rows, and add an explicit tiebreaker so identical timestamps resolve deterministically.</div>

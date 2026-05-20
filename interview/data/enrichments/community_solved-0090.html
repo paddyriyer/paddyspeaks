@@ -1,0 +1,86 @@
+<p>An airline operations team wants to flag flights where two confirmed passengers sit in <em>adjacent</em> seats &mdash; seat numbers differing by exactly one &mdash; perhaps for contact-tracing or seat-swap analysis. The reference solution reaches for window functions and a self-join, but it contains a subtle, classic bug: it compares <em>row-number positions</em> instead of actual seat numbers. The interviewer is watching whether you spot that "adjacent in rank" is not the same as "adjacent in seat".</p>
+
+<h4>1. The source data &mdash; <code>seatreservations</code></h4>
+<table>
+  <thead><tr><th>passengername</th><th>seatnumber</th><th>bookingdate</th><th>flightid</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>1</td><td>2026-04-01</td><td>100</td><td>Confirmed</td></tr>
+    <tr><td>Bob</td><td>2</td><td>2026-04-01</td><td>100</td><td>Confirmed</td></tr>
+    <tr><td>Carol</td><td>3</td><td>2026-04-01</td><td>100</td><td>Cancelled</td></tr>
+    <tr><td>Dave</td><td>4</td><td>2026-04-01</td><td>100</td><td>Confirmed</td></tr>
+    <tr><td>Eve</td><td>5</td><td>2026-04-01</td><td>100</td><td>Confirmed</td></tr>
+    <tr><td>Helen</td><td>3</td><td>2026-04-02</td><td>200</td><td>Confirmed</td></tr>
+    <tr><td>Ivan</td><td>1</td><td>2026-04-03</td><td>300</td><td>Confirmed</td></tr>
+    <tr><td>Judy</td><td>3</td><td>2026-04-03</td><td>300</td><td>Confirmed</td></tr>
+  </tbody>
+</table>
+<p>Flight 300 is the trap: Ivan in seat 1 and Judy in seat 3 are both confirmed, but seat 2 is empty &mdash; they are <em>not</em> adjacent. Flight 100 has the genuine cases: Alice/Bob (1,2) and Dave/Eve (4,5), with cancelled Carol breaking the visual run at seat 3.</p>
+
+<h4>2. The SQL</h4>
+<p><strong>Original solution (flagged broken):</strong></p>
+<pre><code>with cte1 as (
+  select passengername, seatnumber, bookingdate, flightid, status,
+    row_number() over (partition by flightid, bookingdate order by seatnumber asc) as flag_one
+  from seatreservations
+), cte2 as (
+  select *,
+    row_number() over (partition by flightid, bookingdate order by seatnumber asc) as flag_two
+  from seatreservations
+  where status = 'Confirmed'
+)
+select one.flightid as Flight_ID,
+    one.passengername as Passenger_One,
+    two.passengername as Passenger_Two
+from cte1 as one
+inner join cte2 as two
+  on one.flightid = two.flightid
+ and one.bookingdate = two.bookingdate
+ and one.passengername &lt;&gt; two.passengername
+where one.status = 'Confirmed'
+  and (flag_one - flag_two) = 1;</code></pre>
+<p>This subtracts two <em>independently computed</em> <code>row_number()</code> values &mdash; one over all rows, one over confirmed rows only. A difference of 1 in those rankings has no relationship to seats differing by 1. It returns Ivan/Judy on flight 300 (seats 1 and 3, not adjacent) and <em>misses</em> Dave/Eve on flight 100.</p>
+<p><strong>Corrected solution &mdash; compare the seat numbers themselves:</strong></p>
+<pre><code>SELECT a.flightid AS flight_id,
+       a.passengername AS passenger_one,
+       b.passengername AS passenger_two
+FROM seatreservations AS a
+JOIN seatreservations AS b
+  ON a.flightid = b.flightid
+ AND b.seatnumber = a.seatnumber + 1
+WHERE a.status = 'Confirmed'
+  AND b.status = 'Confirmed'
+ORDER BY a.flightid, a.seatnumber;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>flight_id</th><th>passenger_one</th><th>passenger_two</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>Alice</td><td>Bob</td><td>seats 1 &amp; 2 &mdash; adjacent, both confirmed</td></tr>
+    <tr><td>100</td><td>Dave</td><td>Eve</td><td>seats 4 &amp; 5 &mdash; adjacent across cancelled Carol</td></tr>
+  </tbody>
+</table>
+<p>Flight 300 is correctly absent (Ivan/Judy gap of 2). The corrected query finds both flight-100 pairs; the original missed Dave/Eve and falsely added Ivan/Judy.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the rank-difference approach is wrong</h5>
+<p><code>ROW_NUMBER()</code> produces a dense 1,2,3,&hellip; sequence regardless of the gaps between the values it ranks. Two passengers ranked consecutively could sit in seats 1 and 9 if seats in between were empty. "Adjacency" is a property of the <em>seat number domain</em>, so the comparison must be on <code>seatnumber</code> itself: <code>b.seatnumber = a.seatnumber + 1</code>.</p>
+
+<h5>The self-join is the natural tool</h5>
+<p>Joining the table to itself on <code>b.seatnumber = a.seatnumber + 1</code> pairs every confirmed seat with the confirmed seat one higher. Filtering <code>status = 'Confirmed'</code> on <em>both</em> aliases ensures cancelled rows (Carol) never form or block a pair &mdash; Dave(4) and Eve(5) still match because the join looks at numbers, not physical adjacency in the table.</p>
+
+<h5>The window-function alternative &mdash; <code>LEAD</code></h5>
+<p>You can avoid the self-join entirely. Restrict to confirmed rows, then within each flight look one row ahead by seat:</p>
+<pre><code>WITH conf AS (
+  SELECT flightid, passengername, seatnumber,
+         LEAD(seatnumber)   OVER (PARTITION BY flightid ORDER BY seatnumber) AS next_seat,
+         LEAD(passengername) OVER (PARTITION BY flightid ORDER BY seatnumber) AS next_name
+  FROM seatreservations WHERE status = 'Confirmed')
+SELECT flightid, passengername, next_name
+FROM conf WHERE next_seat = seatnumber + 1;</code></pre>
+<p>Crucially the <code>WHERE status = 'Confirmed'</code> must run <em>before</em> <code>LEAD</code>, so the "next" seat is the next confirmed one. <code>LEAD</code> on the full table would let a cancelled seat sit between two confirmed ones and break detection.</p>
+
+<h5>Duplicates and the "flight list" follow-up</h5>
+<p>The join naturally lists every adjacent pair once (ordered low-to-high seat). If the question only wants the <em>flights</em> that have at least one such pair, wrap it: <code>SELECT DISTINCT flight_id FROM (&hellip;)</code>. If it wants pairs as unordered sets, the <code>+ 1</code> condition already prevents the mirrored duplicate.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> catch that subtracting two <code>ROW_NUMBER()</code> sequences measures rank-adjacency, not seat-adjacency, and rebuild the query to compare <code>seatnumber</code> directly &mdash; via a self-join on <code>seatnumber + 1</code> or a <code>LEAD</code> over confirmed-only rows, filtering status before the window so cancelled seats neither create nor mask a pair.</div>

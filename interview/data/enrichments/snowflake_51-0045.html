@@ -1,0 +1,66 @@
+<p>A lab information system needs a quick summary view: <em>"For each thermodynamics experiment, what were the average temperature and pressure across all runs, and how many measurements were recorded?"</em> The interviewer is probing a straightforward one-to-many JOIN followed by grouped aggregation, with the added nuance of the <code>NULLIF(regexp_replace(...)::numeric)</code> defensive cast for numeric columns stored as text &mdash; a realistic pattern when instrument firmware dumps mixed-format readings into a VARCHAR column.</p>
+
+<h4>1. The source data &mdash; <code>experiments</code> and <code>measurements</code></h4>
+<table>
+  <thead><tr><th>exp_id</th><th>name</th><th>run_at</th></tr></thead>
+  <tbody>
+    <tr><td>E1</td><td>Boyle's Law Run A</td><td>2025-03-01</td></tr>
+    <tr><td>E2</td><td>Charles's Law Run B</td><td>2025-03-05</td></tr>
+    <tr><td>E3</td><td>Gay-Lussac Run C</td><td>2025-03-10</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>meas_id</th><th>exp_id</th><th>temperature_k</th><th>pressure_pa</th></tr></thead>
+  <tbody>
+    <tr><td>M1</td><td>E1</td><td>300.0</td><td>101325</td></tr>
+    <tr><td>M2</td><td>E1</td><td>310.5</td><td>105000</td></tr>
+    <tr><td>M3</td><td>E1</td><td>298.2</td><td>100000</td></tr>
+    <tr><td>M4</td><td>E2</td><td>350.0</td><td>101325</td></tr>
+    <tr><td>M5</td><td>E2</td><td>375.8</td><td>101325</td></tr>
+    <tr><td>M6</td><td>E3</td><td>400.0</td><td>150000</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; JOIN and grouped aggregation with defensive casts</h4>
+<pre><code>SELECT e.exp_id, e.name,
+       AVG(NULLIF(regexp_replace(m.temperature_k::text, '[^-.0-9]', '', 'g'), '')::numeric) AS avg_temp_k,
+       AVG(NULLIF(regexp_replace(m.pressure_pa::text,   '[^-.0-9]', '', 'g'), '')::numeric) AS avg_pressure_pa,
+       COUNT(m.meas_id) AS measurement_count
+FROM experiments e
+JOIN measurements m ON e.exp_id = m.exp_id
+GROUP BY e.exp_id, e.name
+ORDER BY e.exp_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>exp_id</th><th>name</th><th>avg_temp_k</th><th>avg_pressure_pa</th><th>measurement_count</th></tr></thead>
+  <tbody>
+    <tr><td>E1</td><td>Boyle's Law Run A</td><td>302.90</td><td>102108.33</td><td>3</td></tr>
+    <tr><td>E2</td><td>Charles's Law Run B</td><td>362.90</td><td>101325.00</td><td>2</td></tr>
+    <tr><td>E3</td><td>Gay-Lussac Run C</td><td>400.00</td><td>150000.00</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Derivation: E1 avg_temp = (300.0+310.5+298.2)/3 = 908.7/3 = 302.90; avg_pressure = (101325+105000+100000)/3 = 306325/3 &asymp; 102108.33. E2 avg_temp = (350.0+375.8)/2 = 362.90; avg_pressure = (101325+101325)/2 = 101325. E3 single measurement: 400.00 K, 150000 Pa. Note: E3 has no JOIN partner issues &mdash; it has exactly one measurement. Experiment E3 appears because INNER JOIN requires at least one matching measurement row; an experiment with no measurements would be silently dropped.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>INNER JOIN drops experiments with no measurements</h5>
+<p>The query uses an INNER JOIN, which means any experiment in the <code>experiments</code> table that has no rows in <code>measurements</code> will not appear in the results. If the business requirement is "list all experiments, even those not yet run," replace with a <code>LEFT JOIN</code>. With a LEFT JOIN, <code>avg_temp_k</code> and <code>avg_pressure_pa</code> would be <code>NULL</code> and <code>COUNT(m.meas_id)</code> would be 0 for experiments without measurements (because <code>COUNT</code> on a specific non-null column returns 0, not NULL, when all values are NULL due to the outer join). This <code>COUNT(m.meas_id)</code> vs <code>COUNT(*)</code> distinction is precisely why the query counts a specific column rather than <code>*</code>.</p>
+
+<h5><code>COUNT(m.meas_id)</code> vs <code>COUNT(*)</code> &mdash; NULL sensitivity</h5>
+<p><code>COUNT(*)</code> counts every row, including those where all columns are <code>NULL</code> (which happens with a LEFT JOIN when there is no matching measurement). <code>COUNT(m.meas_id)</code> counts only rows where <code>meas_id IS NOT NULL</code>. With a LEFT JOIN and no matching measurements, <code>COUNT(m.meas_id)</code> correctly returns 0, while <code>COUNT(*)</code> would incorrectly return 1 (counting the placeholder NULL row the LEFT JOIN introduces). Using a specific column in COUNT is the correct idiom for LEFT JOIN aggregation.</p>
+
+<h5>Defensive cast pattern &mdash; <code>NULLIF(regexp_replace(...)::numeric)</code></h5>
+<p>The measurement columns may be stored as <code>TEXT</code> because instrument firmware can emit values like <code>"300.0K"</code>, <code>"N/A"</code>, or <code>""</code>. The pipeline: <code>regexp_replace(val::text, '[^-.0-9]', '', 'g')</code> strips non-numeric characters globally; <code>NULLIF(..., '')</code> converts the empty string (from a fully non-numeric value) to <code>NULL</code>; <code>::numeric</code> parses the clean string. <code>AVG</code> ignores NULLs, so corrupt readings drop out of the average. In Snowflake, <code>TRY_CAST(m.temperature_k AS FLOAT)</code> achieves the same result with less syntax.</p>
+
+<h5>GROUP BY includes non-aggregated SELECT columns</h5>
+<p>The query groups by both <code>e.exp_id</code> and <code>e.name</code>. If <code>exp_id</code> is the primary key, <code>e.name</code> is functionally dependent on it and strictly speaking the GROUP BY could list only <code>exp_id</code> in engines that support functional-dependency detection (Postgres does, with a PK declaration; MySQL, Snowflake, and BigQuery generally require all non-aggregated SELECT expressions in GROUP BY). Including <code>e.name</code> explicitly is portable and self-documenting.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>TRY_CAST(temperature_k AS FLOAT)</code> replaces the regex chain. Works for <code>AVG</code> identically.</li>
+  <li><strong>BigQuery:</strong> <code>SAFE_CAST(temperature_k AS FLOAT64)</code>.</li>
+  <li><strong>MySQL:</strong> No <code>regexp_replace</code> with global flag natively (MySQL 8.0 has <code>REGEXP_REPLACE</code> but applies globally by default); use <code>CAST(... AS DECIMAL)</code> for clean numeric columns or a custom UDF for dirty ones.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish INNER from LEFT JOIN and explain what happens to experiments without measurements in each case, use <code>COUNT(m.meas_id)</code> (not <code>COUNT(*)</code>) to correctly return 0 for outer-joined non-matching rows, and explain the <code>NULLIF(regexp_replace(...)::numeric)</code> sanitisation pattern alongside the Snowflake <code>TRY_CAST</code> equivalent.</div>

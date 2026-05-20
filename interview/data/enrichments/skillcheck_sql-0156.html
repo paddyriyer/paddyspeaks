@@ -1,0 +1,69 @@
+<p>A product team wants to chop a raw event stream into <em>sessions</em>: a user's clicks belong to the same session until they go quiet for more than an hour, after which the next click starts a fresh session. The interviewer is probing the classic <strong>gaps-and-islands</strong> pattern &mdash; flag the gaps with <code>LAG</code>, turn the flags into a session id with a running sum, then aggregate per session.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 10:00</td><td>session 1 begins (no prior event)</td></tr>
+    <tr><td>1</td><td>2025-01-01 10:30</td><td>30 min gap &mdash; same session</td></tr>
+    <tr><td>1</td><td>2025-01-01 10:45</td><td>15 min gap &mdash; same session</td></tr>
+    <tr><td>1</td><td>2025-01-01 12:00</td><td>75 min gap &gt; 60 &rarr; session 2</td></tr>
+    <tr><td>1</td><td>2025-01-01 12:15</td><td>15 min gap &mdash; still session 2</td></tr>
+    <tr><td>2</td><td>2025-02-01 09:00</td><td>user 2 session 1 (single event)</td></tr>
+    <tr><td>2</td><td>2025-02-01 11:00</td><td>120 min gap &rarr; session 2</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: the 75-minute gap for user 1 must cut a new session (just over the threshold), user 2's first session has a <em>single</em> event, and the very first event of each user has no predecessor &mdash; <code>LAG</code> returns <code>NULL</code> there and that must count as a session start.</p>
+
+<h4>2. The SQL &mdash; flag gaps with LAG, cumulative-sum into session ids</h4>
+<pre><code>WITH flagged AS (
+  SELECT user_id, ts,
+         CASE WHEN ts - LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) &gt; INTERVAL '60 minutes'
+              OR LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) IS NULL
+              THEN 1 ELSE 0 END AS is_new
+  FROM event
+),
+numbered AS (
+  SELECT user_id, ts,
+         SUM(is_new) OVER (PARTITION BY user_id ORDER BY ts) AS session_id
+  FROM flagged
+)
+SELECT user_id, session_id,
+       MIN(ts) AS session_start,
+       MAX(ts) AS session_end,
+       COUNT(*) AS event_count
+FROM numbered
+GROUP BY user_id, session_id
+ORDER BY user_id, session_id;</code></pre>
+<p>Step 1 (<code>flagged</code>): <code>LAG</code> fetches the previous event's timestamp; the <code>CASE</code> marks <code>is_new = 1</code> when the gap exceeds 60 minutes <em>or</em> there is no previous event. Step 2 (<code>numbered</code>): a running <code>SUM</code> of those flags becomes the 1-based session id &mdash; it increments only at each new-session marker. Step 3 groups by <code>(user_id, session_id)</code> for the per-session stats.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>session_id</th><th>session_start</th><th>session_end</th><th>event_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>2025-01-01 10:00</td><td>2025-01-01 10:45</td><td>3</td><td>three events, gaps &le; 60 min</td></tr>
+    <tr><td>1</td><td>2</td><td>2025-01-01 12:00</td><td>2025-01-01 12:15</td><td>2</td><td>75-min gap cut a new session</td></tr>
+    <tr><td>2</td><td>1</td><td>2025-02-01 09:00</td><td>2025-02-01 09:00</td><td>1</td><td>single-event session &mdash; start = end</td></tr>
+    <tr><td>2</td><td>2</td><td>2025-02-01 11:00</td><td>2025-02-01 11:45</td><td>2</td><td>120-min gap cut a new session</td></tr>
+  </tbody>
+</table>
+<p>User 1 splits into a 3-event session and a 2-event session at the 75-minute gap. User 2's first session has one event, so <code>session_start</code> equals <code>session_end</code> &mdash; the aggregation handles it with no special case. Session ids restart at 1 per user.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Gaps and islands &mdash; the three-step recipe</h5>
+<p>This is the canonical sessionization pattern. (1) Use <code>LAG</code> to compare each row to its predecessor and emit a <em>boundary flag</em>. (2) A running <code>SUM</code> of that 0/1 flag produces a group id that stays constant within a session and bumps at each boundary &mdash; the flags act as "tick marks". (3) <code>GROUP BY</code> that id to collapse each island to one row. The same recipe handles consecutive-streaks, price-regime changes, and downtime windows &mdash; only the boundary condition changes.</p>
+
+<h5>Why the running SUM produces a clean session id</h5>
+<p><code>is_new</code> is 1 exactly at each session's first event and 0 elsewhere. A cumulative <code>SUM</code> over rows in time order therefore reads 1,1,1,2,2 for user 1: it holds steady through a session and steps up by one at each new-session flag. Because the flag is exactly 1 (never 2+), the id increases by exactly one per session &mdash; that is what makes it a clean 1-based ordinal. <code>PARTITION BY user_id</code> resets the sum per user, so session ids restart at 1 for user 2.</p>
+
+<h5>The first-event NULL is a genuine session start</h5>
+<p><code>LAG</code> returns <code>NULL</code> for each user's earliest event &mdash; there is no prior row. The gap test <code>ts - LAG(ts) &gt; INTERVAL '60 minutes'</code> against <code>NULL</code> evaluates to <em>unknown</em>, which is not true, so on its own it would flag <code>is_new = 0</code> and the first event would wrongly inherit session 0. The explicit <code>OR LAG(ts) IS NULL</code> branch fixes that: the first event is always a session start. Forgetting this clause is the most common sessionization bug &mdash; the running sum then starts at 0 and every session id is off by one.</p>
+
+<h5>The boundary is strict &mdash; "more than 60 minutes"</h5>
+<p>The spec says a new session begins after a gap of <em>more than</em> 60 minutes, so the test is <code>&gt; INTERVAL '60 minutes'</code>, strict. A gap of exactly 60 minutes stays in the same session. User 1's 75-minute gap clearly exceeds it; if a gap were exactly 60, <code>&gt;=</code> would wrongly split. Match the inequality to the wording precisely &mdash; "after a gap of more than 60" is strict, "60 or more" would be <code>&gt;=</code>.</p>
+
+<h5>Interval arithmetic, ties, and dialect</h5>
+<p><code>ts - LAG(ts)</code> on two <code>timestamp</code>s yields an <code>interval</code>, compared directly to <code>INTERVAL '60 minutes'</code> &mdash; clean in Postgres. Other engines differ: MySQL uses <code>TIMESTAMPDIFF(MINUTE, prev, ts) &gt; 60</code>, SQL Server <code>DATEDIFF(MINUTE, prev, ts) &gt; 60</code>, BigQuery <code>TIMESTAMP_DIFF(ts, prev, MINUTE)</code>. One unstated risk: if two events share an identical <code>ts</code>, the window <code>ORDER BY ts</code> is non-deterministic &mdash; add a unique tie-break (<code>ORDER BY ts, event_id</code>) so the gap calculation and session assignment are stable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> sessionize with the gaps-and-islands recipe &mdash; <code>LAG</code> to flag boundaries, a running <code>SUM</code> of the 0/1 flag to mint the session id, then <code>GROUP BY</code> &mdash; and never forget the <code>LAG(ts) IS NULL</code> branch so each user's first event counts as a session start; without it every session id is off by one.</div>

@@ -1,0 +1,60 @@
+<p>E-commerce and retail data teams often store promotional details as free-text descriptions rather than structured fields: <em>"A product description says 'Save 20% &mdash; was $89.99, now $71.99, offer valid until 2025-06-30.' Extract the discount percentage, original price, final price, and expiry date as typed columns."</em> This question tests multi-pattern regex extraction, the <code>substring(text FROM pattern)</code> capture-group mechanism, and the <code>NULLIF</code> / cast chain for safe type conversion.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>description</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>30% off spring sale, was $49.99, now $34.99, ends 2025-05-31</td></tr>
+    <tr><td>102</td><td>Save 15%, was $199.00, now $169.15, valid until 2025-06-15</td></tr>
+    <tr><td>103</td><td>No discount available, standard price $29.99</td></tr>
+    <tr><td>104</td><td>20% discount, was $80.00, now $64.00, valid 2025-07-01</td></tr>
+    <tr><td>105</td><td>Clearance item, now $12.50 only</td></tr>
+  </tbody>
+</table>
+<p>Product 103 has no discount percentage, no "was" price, no date &mdash; all four extracted columns should be NULL. Product 105 has a "now" price but no "was" price and no percentage. These NULL cases are the edge cases the interview is testing.</p>
+
+<h4>2. The SQL &mdash; four simultaneous regex extractions</h4>
+<pre><code>SELECT product_id,
+       description,
+       NULLIF(substring(description from '(\d+)\s*%'), '')::numeric AS discount_pct,
+       NULLIF(substring(description from 'was\s*\$([0-9.]+)'), '')::numeric AS original_price,
+       NULLIF(substring(description from 'now\s*\$([0-9.]+)'), '')::numeric AS final_price,
+       NULLIF(substring(description from '\d{4}-\d{2}-\d{2}'), '')::date AS discount_until
+FROM products;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>discount_pct</th><th>original_price</th><th>final_price</th><th>discount_until</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>30</td><td>49.99</td><td>34.99</td><td>2025-05-31</td></tr>
+    <tr><td>102</td><td>15</td><td>199.00</td><td>169.15</td><td>2025-06-15</td></tr>
+    <tr><td>103</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>104</td><td>20</td><td>80.00</td><td>64.00</td><td>2025-07-01</td></tr>
+    <tr><td>105</td><td>NULL</td><td>NULL</td><td>12.50</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Product 103: no "%" character, no "was $", no "now $" preceding a price in the needed format (the $29.99 has no "now" prefix), no date &rarr; all NULL. Product 105: "now $12.50" matches the final_price pattern; no "was $" pattern, no "%" &rarr; original_price and discount_pct are NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Capture groups in <code>substring(text FROM pattern)</code></h5>
+<p>Postgres&rsquo;s <code>substring(text FROM pattern)</code> with POSIX regex has two modes: if the pattern contains no capturing group <code>(...)</code>, the entire match is returned; if a capturing group exists, only the content of the first group is returned. The patterns for <code>discount_pct</code> and prices use explicit groups &mdash; <code>(\d+)\s*%</code> captures just the digits, not the <code>%</code> sign; <code>was\s*\$([0-9.]+)</code> captures just the numeric part, not the "was $" prefix. The date pattern has no group, so the full <code>YYYY-MM-DD</code> match is returned directly. Understanding when to use a group vs no group is the regex literacy the interviewer is testing.</p>
+
+<h5>Why <code>NULLIF(..., '')</code> before casting</h5>
+<p>When a pattern does not match, <code>substring</code> returns NULL in Postgres. However, if the regex matches but the captured group is empty, an empty string is returned. <code>NULLIF(expr, '')</code> normalises both cases: NULL stays NULL, empty strings become NULL, so the subsequent <code>::numeric</code> or <code>::date</code> cast never receives an empty string (which would cause a runtime error). This is a defensive programming pattern worth naming explicitly.</p>
+
+<h5>Pattern design decisions &mdash; anchoring and specificity</h5>
+<p>The "was price" pattern <code>was\s*\$([0-9.]+)</code> is anchored to the keyword "was", so a price appearing without the keyword (like product 103&rsquo;s "$29.99") is not mistakenly captured. Similarly, <code>now\s*\$([0-9.]+)</code> requires the "now" keyword before the price. This keyword-anchoring is essential when descriptions contain multiple numeric values. Greedy vs lazy quantifiers also matter: <code>[0-9.]+</code> is greedy and would consume "49.99.00" incorrectly &mdash; using <code>[0-9]+(?:\.[0-9]+)?</code> would be more precise for prices.</p>
+
+<h5>Computed validation column &mdash; sanity check</h5>
+<p>A useful extension adds a computed validation: <code>ROUND(original_price * (1 - discount_pct/100), 2) AS computed_final</code> and then compares it to <code>final_price</code>. Discrepancies flag data-entry errors or rounding conventions in the source descriptions. This analytical extension turns an extraction query into a data-quality check.</p>
+
+<h5>Dialect notes: regex extraction</h5>
+<ul>
+  <li><strong>Postgres (solution dialect):</strong> <code>substring(col FROM pattern)</code> with POSIX regex and optional capture group. Works as written.</li>
+  <li><strong>Snowflake:</strong> <code>REGEXP_SUBSTR(col, pattern, 1, 1, 'e', group_num)</code>. The <code>'e'</code> flag enables sub-expression extraction. Example: <code>REGEXP_SUBSTR(description, '(\\d+)\\s*%', 1, 1, 'e', 1)</code>.</li>
+  <li><strong>BigQuery:</strong> <code>REGEXP_EXTRACT(col, r'(\d+)\s*%')</code> &mdash; returns the first capture group.</li>
+  <li><strong>MySQL 8+:</strong> <code>REGEXP_SUBSTR(col, '[0-9]+(?:\\.[0-9]+)?')</code> (no group extraction in MySQL 8.0; full-match only).</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that Postgres <code>substring(FROM)</code> returns the capture group content (not the full match) when a <code>(...)</code> group is present, name the <code>NULLIF(..., '')</code> guard for empty-match safety before casting, and point out that keyword-anchoring patterns (e.g., <code>was\s*\$</code>) prevent false positives when descriptions contain multiple numeric values. Add the validation column extension as a data-quality signal.</div>

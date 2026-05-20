@@ -1,0 +1,58 @@
+<p>A restaurant analytics team (think Danny's Diner) wants, for each customer, the first item they ever bought in each menu category &mdash; first dessert, first drink, first main. "First" is by date, with deterministic tiebreaks. This is the classic <strong>first-per-group</strong> problem, and the interviewer is checking whether you reach for <code>ROW_NUMBER()</code> over a fragile <code>GROUP BY</code> + self-join, and whether your tiebreak chain is fully specified.</p>
+
+<h4>1. The source data &mdash; <code>sales</code> joined to <code>menu</code></h4>
+<table>
+  <thead><tr><th>customer</th><th>order_date</th><th>product</th><th>category</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>2025-01-01</td><td>sushi</td><td>main</td><td>10</td></tr>
+    <tr><td>A</td><td>2025-01-01</td><td>tea</td><td>drink</td><td>3</td></tr>
+    <tr><td>A</td><td>2025-01-03</td><td>ramen / curry</td><td>main</td><td>12 / 15</td></tr>
+    <tr><td>A</td><td>2025-01-05</td><td>mochi</td><td>dessert</td><td>5</td></tr>
+    <tr><td>B</td><td>2025-01-02</td><td>ramen, cola</td><td>main, drink</td><td>12, 4</td></tr>
+    <tr><td>C</td><td>2025-01-01</td><td>curry</td><td>main</td><td>15</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. Customer A bought two <em>mains</em> on the same first date (sushi 10 and curry 15) &mdash; the tie must be broken by lower price &rarr; sushi. And customer C only ever bought a main, so C must produce <em>one</em> row, not three: a missing category yields no row.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER per (customer, category)</h4>
+<pre><code>SELECT customer_id, category, name AS product_name, order_date
+FROM (
+  SELECT s.customer_id, m.category, m.name, s.order_date,
+         ROW_NUMBER() OVER (PARTITION BY s.customer_id, m.category
+                            ORDER BY s.order_date, m.price, m.product_id) AS rn
+  FROM sales s JOIN menu m USING (product_id)
+) t
+WHERE rn = 1
+ORDER BY customer_id, category;</code></pre>
+<p><code>ROW_NUMBER()</code> numbers each customer's purchases <em>within each category</em>, ordered earliest-first. Keeping <code>rn = 1</code> in the outer query picks exactly one row per (customer, category) &mdash; the first purchase. Categories the customer never bought simply have no rows to number, so they vanish naturally.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>category</th><th>product_name</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>dessert</td><td>mochi</td><td>2025-01-05</td></tr>
+    <tr><td>A</td><td>drink</td><td>tea</td><td>2025-01-01</td></tr>
+    <tr><td>A</td><td>main</td><td>sushi</td><td>2025-01-01</td></tr>
+    <tr><td>B</td><td>dessert</td><td>cake</td><td>2025-01-04</td></tr>
+    <tr><td>B</td><td>drink</td><td>cola</td><td>2025-01-02</td></tr>
+    <tr><td>B</td><td>main</td><td>ramen</td><td>2025-01-02</td></tr>
+    <tr><td>C</td><td>main</td><td>curry</td><td>2025-01-01</td></tr>
+  </tbody>
+</table>
+<p>A's first main is <strong>sushi</strong>, not curry: both were bought on 2025-01-01, and the <code>m.price</code> tiebreak (10 &lt; 15) picks sushi. C has a single row &mdash; only the <code>main</code> category &mdash; exactly as required.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> is the right tool here</h5>
+<p>"First per group" needs <em>exactly one</em> row per partition. <code>ROW_NUMBER()</code> guarantees a strict 1,2,3,&hellip; sequence, so <code>rn = 1</code> always returns one row. <code>RANK()</code> would return <em>multiple</em> rows for the first position if the full <code>ORDER BY</code> ties &mdash; wrong for "the first product". <code>ROW_NUMBER</code> is the precise instrument: pick one, break all ties.</p>
+
+<h5>Why every tiebreak must be in the <code>ORDER BY</code></h5>
+<p>The spec says: date, then lower price, then <code>product_id</code>. All three must appear in the window's <code>ORDER BY</code>. Stop at <code>order_date</code> alone and A's two same-day mains tie &mdash; the engine picks one arbitrarily, and the result is non-deterministic across runs and plans. Stop at <code>order_date, price</code> and you are safe <em>here</em>, but a future row with an equal price would re-introduce non-determinism; <code>product_id</code> (a unique key) is the final guarantee. A reproducible "first" needs a total order.</p>
+
+<h5>Why missing categories produce no row &mdash; for free</h5>
+<p>The inner query joins <code>sales</code> to <code>menu</code>, so it only contains categories the customer actually purchased. <code>ROW_NUMBER</code> partitions over those; a category with no purchases simply has no partition. No <code>LEFT JOIN</code>, no <code>HAVING COUNT &gt; 0</code> needed &mdash; the absence falls out of the data. If the spec wanted a row-with-NULL for un-purchased categories, you would instead <code>CROSS JOIN</code> customers to the distinct category list and <code>LEFT JOIN</code> the picks.</p>
+
+<h5>The classic alternatives &mdash; and why they are weaker</h5>
+<p>The pre-window idiom is <code>GROUP BY customer, category</code> with <code>MIN(order_date)</code>, then a self-join back to recover <code>name</code>. It works but is verbose, and the self-join can return <em>two</em> products if two share the min date &mdash; you must re-apply the price/id tiebreak in the join, easy to forget. <code>DISTINCT ON (customer_id, category) ... ORDER BY customer_id, category, order_date, price, product_id</code> is the elegant Postgres-specific form &mdash; terse, but not portable. <code>ROW_NUMBER</code> is the portable, unambiguous standard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve first-per-group with <code>ROW_NUMBER() OVER (PARTITION BY group ORDER BY ...)</code> filtered to <code>rn = 1</code>; put <em>every</em> tiebreak &mdash; down to a unique key &mdash; in the <code>ORDER BY</code> so the pick is deterministic; let an inner join, not a <code>LEFT JOIN</code>, drop empty groups when the spec wants no row for them.</div>

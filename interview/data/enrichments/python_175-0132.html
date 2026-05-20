@@ -1,0 +1,99 @@
+<p>The "post-order DFS that returns one value but tracks a second" pattern. The trick is that at every node you compute two different things — the best path that PASSES THROUGH this node (a V-shape with both children), and the best path STARTING AT this node going upward (only one child can continue upward, because a V can't extend further). You record the first as a global candidate and return the second to the parent. Datadog asks this version because their distributed-trace analysis runs the same algorithm over a call tree to find the longest critical-path span — one branch goes up to the parent span, the other branches are "completed siblings" that already contributed to total trace latency.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>Return the maximum sum of any path in a binary tree (path = sequence of nodes connected by edges, no repeats, may start and end anywhere — does not need to include the root). <strong>Insight:</strong> at every node n, the path-through-n is <code>n.val + max(0, gain(left)) + max(0, gain(right))</code> — track that as the answer candidate. But the path you RETURN to your parent is <code>n.val + max(left, right)</code> — only one branch can extend upward. The <code>max(0, ...)</code> prunes branches that would only hurt: a negative-summing subtree is better not used at all.</p>
+
+<h4>2. Worked example — the classic LC tree, traced bottom-up</h4>
+<p>Tree: <code>-10 / (9, 20(15, 7))</code>. Expected answer: 42 (the path 15 → 20 → 7).</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+            -10
+           /    \
+          9      20
+                /  \
+               15   7
+
+Post-order DFS, tracking best (global) and the returned gain:
+
+visit 9:  leaves -> gain(None)=0, gain(None)=0
+          l=0, r=0
+          candidate = 9 + 0 + 0 = 9
+          best = max(-inf, 9) = 9
+          return 9 + max(0,0) = 9
+
+visit 15: same as a leaf
+          candidate = 15
+          best = max(9, 15) = 15
+          return 15
+
+visit 7:  candidate = 7
+          best = max(15, 7) = 15
+          return 7
+
+visit 20: l = max(0, gain(15)) = 15
+          r = max(0, gain(7))  = 7
+          candidate = 20 + 15 + 7 = 42   <-- the answer is born here
+          best = max(15, 42) = 42
+          return 20 + max(15, 7) = 35      <-- only ONE side extends up
+
+visit -10: l = max(0, gain(9)) = 9
+           r = max(0, gain(20)) = 35
+           candidate = -10 + 9 + 35 = 34   <-- LESS than 42
+           best = max(42, 34) = 42
+           return -10 + max(9, 35) = 25    <-- (unused, no parent)
+
+Final answer: best = 42
+</pre>
+<p>The pivotal moment is visit-20: the candidate (42) is the V-shape through 20 with both children. When we walk up to -10, we can only carry ONE of 20's children upward — but the V at 20 is already recorded in <code>best</code>, so we don't lose it.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>def maxPathSum(root):
+    # `best` is the maximum V-shaped path seen anywhere. It is allowed to be
+    # negative (the all-negative tree -3 must return -3, not 0).
+    best = float('-inf')
+
+    def gain(n):
+        # Returns the max ONE-SIDED downward gain starting at n.
+        # The max(0, ...) clamps negative subtrees out — equivalent to
+        # "don't use this subtree at all".
+        nonlocal best
+        if not n: return 0
+        l = max(0, gain(n.left))
+        r = max(0, gain(n.right))
+        # candidate = the V-shaped path passing THROUGH n
+        best = max(best, n.val + l + r)
+        # we return the ONE-SIDED upward path — a V can't extend further up
+        return n.val + max(l, r)
+
+    gain(root)
+    return best
+</code></pre>
+<p><strong>Data structures:</strong> just the recursion stack. <strong>Invariants:</strong> (1) <code>gain(n)</code> never returns a negative number when n is non-None unless the node value itself is negative AND both children would also pull down; (2) <code>best</code> is updated post-order, so when we return from <code>gain(root)</code> every node's V-shape has been considered.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(n) — each node visited once, constant work per visit. <strong>Space:</strong> O(h) where h is the tree height (recursion stack). For a balanced tree h = log n; for a left-skewed chain h = n, which is the iterative-stack motivation in Probe 4.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — Single negative node.</strong> Tree is one node, value -3. <code>gain</code> computes l=r=0; <code>best = max(-inf, -3 + 0 + 0) = -3</code>. The all-negative case is why <code>best</code> starts at -inf, not 0.</p>
+<p><strong>Probe 2 — All negatives.</strong> Tree -1 / (-2, -3). Each leaf updates best to its own value; the root computes candidate = -1 + max(0, -2) + max(0, -3) = -1 + 0 + 0 = -1; best = max(-3, -1) = -1. The clamp prunes the negative children, so a single-node path wins.</p>
+<p><strong>Probe 3 — Generalisation: path must include the root.</strong> Same algorithm, but the answer is just <code>n.val + max(0, gain(left)) + max(0, gain(right))</code> evaluated at the root — no global tracking needed.</p>
+<p><strong>Probe 4 — Iterative version for skewed trees.</strong> A 100k-deep left-skewed chain blows Python's default recursion limit. Convert to an iterative post-order DFS with an explicit stack and a "visited" marker per node, or set <code>sys.setrecursionlimit(2 * 10**5)</code>.</p>
+<p><strong>Probe 5 — N-ary tree variant.</strong> <code>candidate = n.val + sum of top-2 positive gains across children</code>. The "top-2" is because a path can branch at most twice at any one node (one input, one output). Naming "top-k via heap" here is the senior detail.</p>
+<p><strong>Probe 6 — Return the path itself, not just the sum.</strong> Track <code>best_node</code> + the two best children at the time we update <code>best</code>; then do a second walk from best_node going down each side. Adds O(h) reconstruction time.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>Datadog distributed-trace analysis</strong> — find the longest critical-path span chain in a trace tree. Same algorithm: each span is a node, latencies are values, the V-shape is parent-to-child-to-grandchild slack.</li>
+  <li><strong>Compiler register allocation</strong> — Sethi-Ullman labelling computes the minimum-register requirement of an expression tree using essentially this post-order + return-one-side recursion.</li>
+  <li><strong>Network routing (Bellman-Ford on trees)</strong> — for tree topologies, longest-path is the diameter problem; same post-order DFS with two-children sum + one-child return.</li>
+  <li><strong>HierarchicalAgglomerativeClustering dendrograms</strong> — finding the maximum-cohesion subtree in a dendrogram is the V-shape problem; sklearn's tree-aware merge-trace uses this.</li>
+  <li><strong>Game-tree pruning (alpha-beta)</strong> — the "best path through me" vs "best path I can offer my parent" distinction is the alpha-beta cut criterion in disguise.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0133">python_175-0133 — Word Search II</a> (sibling: post-order DFS with backtrack)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0145">python_175-0145 — N-Queens</a> (sibling: backtrack-with-state on a tree of possibilities)</li>
+  <li><a href="/interview.app/design/data-modeling.html">Tree &amp; hierarchical data modeling</a></li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the dual-return pattern out loud — <em>"at each node I track the V-through-me as a global candidate, but I return only the one-sided upward path because a V cannot extend further up."</em> Then mention the negative-clamp (<code>max(0, ...)</code>) and why <code>best</code> must start at -inf (not 0) — the all-negative tree is the giveaway for who has actually thought through the algorithm. Production analogue: Datadog's critical-path span analysis is exactly this recursion applied to a trace tree.</div>

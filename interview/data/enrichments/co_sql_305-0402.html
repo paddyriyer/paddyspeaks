@@ -1,0 +1,35 @@
+<p>Pinterest's promoted pins (ads) come in formats: image / video / collection / story. Per-format CTR is the bidding-team's input — different formats command different CPC.</p>
+
+<h4>2. The SQL — per-format CTR with sample-size gate</h4>
+<pre><code>SELECT pin_format,
+  COUNT(*) AS impressions,
+  SUM(clicked) AS clicks,
+  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct
+FROM promoted_pins GROUP BY pin_format
+HAVING COUNT(*) &gt;= 3
+ORDER BY ctr_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Format-specific CTR baselines</h5>
+<table><thead><tr><th>format</th><th>typical CTR</th></tr></thead>
+<tbody>
+<tr><td>Video</td><td>0.8-1.5%</td></tr>
+<tr><td>Story (multi-page)</td><td>0.6-1.2%</td></tr>
+<tr><td>Image</td><td>0.4-0.8%</td></tr>
+<tr><td>Collection</td><td>0.3-0.7%</td></tr>
+</tbody></table>
+
+<h5>The CPM-to-CPC bridge</h5>
+<p>Advertisers pay CPM (cost per mille); platform cares about CPC (cost per click) = CPM / (CTR × 10). Higher CTR → lower effective CPC for advertiser → more bid pressure → higher CPM. The query feeds the bidding model.</p>
+
+<h5>Saves-as-conversions</h5>
+<p>On Pinterest, "click" is one conversion; "save" is another. Save-through rate (saves / impressions) is often more valuable than CTR for retail advertisers. Production tracks both.</p>
+
+<h5>Format × audience interaction</h5>
+<p>Video performs better with younger audiences. Image does better with 35+. The CTR baseline must control for audience-segment.</p>
+
+<h5>Auto-bid vs manual-bid</h5>
+<p>Auto-bid uses Pinterest's algorithm to spend efficiently. Manual-bid relies on the marketer's CPM. Per-format CTR feeds the auto-bid model retraining.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name format-specific CTR baselines, surface saves as a Pinterest-specific conversion equal-weighted with clicks, control for audience-segment, and connect to auto-bid algorithm retraining.</div>

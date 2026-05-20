@@ -1,0 +1,66 @@
+<p>Snowflake's clinic-scheduling team needs to flag double-booked doctors: any two appointments for the same physician whose time ranges overlap. This is the classic interval-overlap problem, and the elegant solution is a self-join with the deceptively simple overlap predicate. The interview tests whether you know that predicate cold &mdash; and whether you build the join so each colliding pair appears exactly once, with both appointment IDs legible in the output.</p>
+
+<h4>1. The source data &mdash; <code>appointments</code></h4>
+<table>
+  <thead><tr><th>appt_id</th><th>doctor_id</th><th>start_ts</th><th>end_ts</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>09:00</td><td>09:30</td></tr>
+    <tr><td>2</td><td>10</td><td>09:15</td><td>09:45</td></tr>
+    <tr><td>3</td><td>10</td><td>10:00</td><td>10:30</td></tr>
+    <tr><td>4</td><td>11</td><td>09:00</td><td>09:30</td></tr>
+    <tr><td>5</td><td>11</td><td>09:20</td><td>10:00</td></tr>
+    <tr><td>6</td><td>11</td><td>09:25</td><td>09:50</td></tr>
+    <tr><td>7</td><td>12</td><td>14:00</td><td>14:30</td></tr>
+  </tbody>
+</table>
+<p>(All times are on 2025-03-01.) Doctor 10 has appts 1 and 2 overlapping (09:15 &lt; 09:30), while appt 3 is clear. Doctor 11 is the messy case: appts 4, 5, and 6 mutually overlap &mdash; <em>three</em> colliding pairs. Doctor 12's lone appointment cannot overlap anything &mdash; the single-row edge case.</p>
+
+<h4>2. The SQL &mdash; <code>self-join on the overlap predicate</code></h4>
+<pre><code>SELECT a.appt_id AS appt_id_a, b.appt_id AS appt_id_b
+FROM appointments a
+JOIN appointments b
+  ON a.doctor_id = b.doctor_id
+ AND a.appt_id &lt; b.appt_id
+ AND a.start_ts &lt; b.end_ts
+ AND b.start_ts &lt; a.end_ts;</code></pre>
+<p>The table is joined to itself, matched on the same doctor. <code>a.appt_id &lt; b.appt_id</code> keeps each pair once and drops self-matches; the last two conditions are the overlap test. <strong>Note:</strong> the reference solution selected <code>a.appt_id, b.appt_id</code> &mdash; two columns with the <em>same</em> name. Distinct aliases (<code>appt_id_a</code>, <code>appt_id_b</code>) are required so both IDs survive into the result; see the trap below.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>appt_id_a</th><th>appt_id_b</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td></tr>
+    <tr><td>4</td><td>5</td></tr>
+    <tr><td>4</td><td>6</td></tr>
+    <tr><td>5</td><td>6</td></tr>
+  </tbody>
+</table>
+<p>Four colliding pairs. Doctor 10 contributes (1,2). Doctor 11 contributes all three of (4,5), (4,6), (5,6) &mdash; a fully tangled morning. Appt 3 and appt 7 appear nowhere: neither overlaps anything. Each pair is listed once, in <code>a &lt; b</code> order, never as both (1,2) and (2,1).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The duplicate-column-name bug &mdash; why aliasing is mandatory</h5>
+<p>The reference query's <code>SELECT a.appt_id, b.appt_id</code> produces a result set with <em>two</em> columns both named <code>appt_id</code>. SQL permits this, but many drivers materialise each row as an object keyed by column name &mdash; and a second <code>appt_id</code> key overwrites the first. The output collapses to a single garbled column, silently losing one side of every pair. The query is logically sound but practically broken on output. <strong>Always give self-join projections distinct aliases</strong> (<code>appt_id_a</code> / <code>appt_id_b</code>); it costs nothing and makes the result unambiguous.</p>
+
+<h5>The overlap predicate &mdash; memorise this exact form</h5>
+<p>Two intervals overlap when <code>a.start &lt; b.end AND b.start &lt; a.end</code>. The trick is that it is easier to state when they <em>don't</em> overlap &mdash; one ends before the other begins &mdash; and negate. People reach for tangled <code>BETWEEN</code> logic and miss the case where one interval fully contains the other. This two-clause form handles partial overlap, containment, and identical ranges uniformly. Note the strict <code>&lt;</code>: appointments that merely <em>touch</em> (one ends 09:30, the next starts 09:30) are treated as <em>not</em> overlapping &mdash; usually the right call for back-to-back slots, but confirm it.</p>
+
+<h5><code>a.appt_id &lt; b.appt_id</code> does two jobs</h5>
+<p>Drop that clause and the self-join returns: every appointment paired with <em>itself</em> (it trivially overlaps itself), and every real pair <em>twice</em> &mdash; (1,2) and (2,1). The <code>&lt;</code> inequality eliminates self-matches and de-duplicates the mirrored pairs in one stroke. Using <code>&lt;&gt;</code> instead would still produce both (1,2) and (2,1); the ordering inequality is what makes each collision appear exactly once.</p>
+
+<h5>Counting collisions per doctor &mdash; the natural follow-up</h5>
+<p>Schedulers rarely want the raw pair list; they want "which doctors are double-booked, and how badly":</p>
+<pre><code>SELECT a.doctor_id, COUNT(*) AS overlapping_pairs
+FROM appointments a
+JOIN appointments b
+  ON a.doctor_id = b.doctor_id
+ AND a.appt_id &lt; b.appt_id
+ AND a.start_ts &lt; b.end_ts
+ AND b.start_ts &lt; a.end_ts
+GROUP BY a.doctor_id;</code></pre>
+<p>This returns doctor 10 with 1 and doctor 11 with 3. Doctor 12, with no collisions, drops out entirely &mdash; correct, since the inner join produces no rows for them.</p>
+
+<h5>Scale &mdash; the O(n&sup2;) shape</h5>
+<p>A self-join compares appointments pairwise; per doctor with <em>k</em> appointments that is ~<em>k&sup2;</em> comparisons. Partitioning by <code>doctor_id</code> already keeps each doctor's quadratic separate &mdash; good. For very busy calendars, a window-function approach scales better: sort each doctor's appointments by <code>start_ts</code> and compare each to the running <code>MAX(end_ts)</code> of prior rows with <code>LAG</code>/a frame &mdash; one ordered pass instead of a cross product. Mention this trade-off; the self-join is clear and fine for clinic-sized data, but it is not the answer for millions of rows.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> give every self-join projection distinct aliases so duplicate column names cannot silently drop a side of the pair, recall the <code>a.start &lt; b.end AND b.start &lt; a.end</code> overlap predicate exactly, explain that <code>a.appt_id &lt; b.appt_id</code> both removes self-matches and de-duplicates mirrored pairs, and name the O(n&sup2;) cost with an ordered-scan alternative for large calendars.</div>

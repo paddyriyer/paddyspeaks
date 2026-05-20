@@ -1,0 +1,66 @@
+<p>Reddit's growth team logs a daily-events feed, and a dashboard charts it day by day. Then someone notices the line chart has invisible gaps &mdash; days with zero events simply don't render, so a flat stretch looks identical to a missing one. The fix is a query that names every calendar day that has <em>no</em> matching event row. The interviewer wants to see you reach for a complete date spine, not the events table itself.</p>
+
+<h4>1. The source data &mdash; <code>calendar</code> and <code>events</code></h4>
+<table>
+  <thead><tr><th>calendar.d</th><th></th><th>events.d</th></tr></thead>
+  <tbody>
+    <tr><td>2026-05-01</td><td></td><td>2026-05-01</td></tr>
+    <tr><td>2026-05-02</td><td></td><td>2026-05-02</td></tr>
+    <tr><td>2026-05-03</td><td></td><td>2026-05-05</td></tr>
+    <tr><td>2026-05-04</td><td></td><td>2026-05-08</td></tr>
+    <tr><td>2026-05-05</td><td></td><td>2026-05-10</td></tr>
+    <tr><td>&hellip; through 05-10</td><td></td><td></td></tr>
+  </tbody>
+</table>
+<p><code>calendar</code> is a dense spine of all ten days, 05-01 through 05-10. <code>events</code> is sparse &mdash; only five days fired. The gap days 05-03, 05-04, 05-06, 05-07 and 05-09 exist in the spine but never appear in <code>events</code>. Those are exactly the rows we want to surface.</p>
+
+<h4>2. The SQL &mdash; <code>anti-join via LEFT JOIN &hellip; IS NULL</code></h4>
+<pre><code>SELECT c.d
+FROM calendar c
+LEFT JOIN events e ON c.d = e.d
+WHERE e.d IS NULL;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every calendar day. Where a match exists, <code>e.d</code> is populated; where none does, the join pads <code>e.d</code> with NULL. Filtering on <code>e.d IS NULL</code> keeps precisely the unmatched days &mdash; the classic anti-join.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th></tr></thead>
+  <tbody>
+    <tr><td>2026-05-03</td></tr>
+    <tr><td>2026-05-04</td></tr>
+    <tr><td>2026-05-06</td></tr>
+    <tr><td>2026-05-07</td></tr>
+    <tr><td>2026-05-09</td></tr>
+  </tbody>
+</table>
+<p>Five days with no events. Note these days can <em>only</em> come from the calendar table &mdash; the events table has no knowledge they exist. That is the whole reason a date spine is mandatory: you cannot find missing rows by querying the table that is missing them.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>NOT IN</code> is the dangerous answer here</h5>
+<p>A tempting rewrite is <code>WHERE c.d NOT IN (SELECT d FROM events)</code>. It works &mdash; until <code>events</code> contains a single NULL date. <code>NOT IN</code> against a list that holds a NULL evaluates to <code>UNKNOWN</code> for <em>every</em> row, so the query silently returns zero rows. <code>NOT EXISTS</code> and the <code>LEFT JOIN &hellip; IS NULL</code> anti-join are both NULL-safe and should be the default:</p>
+<pre><code>SELECT c.d
+FROM calendar c
+WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.d = c.d);</code></pre>
+
+<h5>What if there is no calendar table?</h5>
+<p>Many schemas don't ship a calendar table. Generate the spine inline rather than abandoning the approach &mdash; <code>generate_series</code> bounded by the data's own min and max:</p>
+<pre><code>SELECT g.d
+FROM generate_series(
+       (SELECT MIN(d) FROM events),
+       (SELECT MAX(d) FROM events),
+       INTERVAL '1 day') AS g(d)
+LEFT JOIN events e ON e.d = g.d::date
+WHERE e.d IS NULL;</code></pre>
+<p>One caveat: a series bounded by <code>MIN</code>/<code>MAX</code> of <code>events</code> can never detect a gap at the very start or end of the reporting window. If the business wants "missing days in May" specifically, hard-code the month boundaries instead.</p>
+
+<h5>Duplicates and granularity</h5>
+<p>If <code>events</code> has multiple rows per day, the <code>LEFT JOIN</code> would fan out matched calendar days into duplicates &mdash; harmless here because we only keep the <em>unmatched</em> side, which has exactly one row each. But if the column were a <code>TIMESTAMP</code> rather than a <code>DATE</code>, <code>c.d = e.d</code> would almost never match; you would join on <code>e.ts::date = c.d</code>. Always confirm both sides share the same grain.</p>
+
+<h5>Counting gaps, not just listing them</h5>
+<p>A natural follow-up: "how many days were missing, and what's the longest dry spell?" Listing is step one; quantifying is the senior finish:</p>
+<pre><code>SELECT COUNT(*) AS missing_days
+FROM calendar c
+LEFT JOIN events e ON c.d = e.d
+WHERE e.d IS NULL;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that missing rows can only be found against a complete date spine, reach for a NULL-safe anti-join (<code>LEFT JOIN &hellip; IS NULL</code> or <code>NOT EXISTS</code>) over the <code>NOT IN</code> trap, and know that a <code>generate_series</code> spine bounded by the data itself cannot catch gaps at the window edges.</div>

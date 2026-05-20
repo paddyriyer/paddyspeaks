@@ -1,0 +1,64 @@
+<p>Backblaze's people-ops team wants an org roster that reads in plain English: each employee next to their manager's <em>name</em>, not a cryptic <code>manager_id</code>. The data only stores the id, so the name has to come from the same table joined to itself. The interview question hiding inside this is small but sharp: <em>what happens to the person at the top, whose <code>manager_id</code> is NULL?</em></p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>manager_id</th><th>job_title</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td><em>NULL</em></td><td>CEO</td></tr>
+    <tr><td>2</td><td>Ben</td><td>1</td><td>VP Eng</td></tr>
+    <tr><td>3</td><td>Cara</td><td>2</td><td>Eng Manager</td></tr>
+    <tr><td>4</td><td>Dan</td><td>3</td><td>Engineer</td></tr>
+    <tr><td>5</td><td>Eve</td><td>3</td><td>Engineer</td></tr>
+  </tbody>
+</table>
+<p>Five employees in a chain. Ada is the CEO &mdash; her <code>manager_id</code> is <strong>NULL</strong>, because she reports to nobody. That single NULL is the whole interview: get the join type wrong and Ada vanishes from the roster.</p>
+
+<h4>2. The SQL &mdash; <code>self-join, LEFT</code></h4>
+<pre><code>SELECT e.name AS employee, m.name AS manager
+FROM employees e
+LEFT JOIN employees m ON e.manager_id = m.emp_id;</code></pre>
+<p>The table is aliased twice: <code>e</code> for the employee, <code>m</code> for the manager. The join condition matches an employee's <code>manager_id</code> to another row's <code>emp_id</code>. <code>LEFT JOIN</code> keeps every <code>e</code> row even when no <code>m</code> matches.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>employee</th><th>manager</th></tr></thead>
+  <tbody>
+    <tr><td>Ada</td><td><em>NULL</em></td></tr>
+    <tr><td>Ben</td><td>Ada</td></tr>
+    <tr><td>Cara</td><td>Ben</td></tr>
+    <tr><td>Dan</td><td>Cara</td></tr>
+    <tr><td>Eve</td><td>Cara</td></tr>
+  </tbody>
+</table>
+<p>All five employees appear. Ada's <code>manager</code> is NULL &mdash; correct, she has none &mdash; and the rest line up with their bosses. The roster is complete because the join is a <code>LEFT JOIN</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEFT</code> and not <code>INNER</code> &mdash; the question the interviewer is testing</h5>
+<p>Swap <code>LEFT JOIN</code> for plain <code>JOIN</code> and the result loses a row:</p>
+<pre><code>SELECT e.name AS employee, m.name AS manager
+FROM employees e
+JOIN employees m ON e.manager_id = m.emp_id;
+-- Ada is GONE: her manager_id is NULL, so e.manager_id = m.emp_id
+-- is never true (NULL = anything is never TRUE), and INNER JOIN drops her.</code></pre>
+<p>An <code>INNER JOIN</code> keeps only rows where the condition is <code>TRUE</code>. <code>NULL = m.emp_id</code> is never <code>TRUE</code> for any <code>m</code>, so Ada has no match and is dropped. The CEO &mdash; the single most important person on an org roster &mdash; silently disappears. <code>LEFT JOIN</code> is mandatory whenever the "parent" pointer can be NULL.</p>
+
+<h5>Making the NULL human-readable</h5>
+<p>A NULL in the <code>manager</code> column looks like missing data. For the top of the org it is a fact, not a gap &mdash; label it:</p>
+<pre><code>SELECT e.name AS employee,
+       COALESCE(m.name, '(top of org)') AS manager
+FROM employees e
+LEFT JOIN employees m ON e.manager_id = m.emp_id;</code></pre>
+
+<h5>Aliasing is not optional in a self-join</h5>
+<p>A self-join references one physical table twice, so the engine cannot tell which <code>name</code> you mean without aliases. <code>employees e</code> and <code>employees m</code> create two independent "copies" to reason about. Forget the aliases and you get an <em>ambiguous column</em> error &mdash; or worse, in a sloppy query, a silently wrong column. Always qualify every column (<code>e.name</code>, <code>m.name</code>) in a self-join.</p>
+
+<h5>Edge cases: dangling pointers and self-managers</h5>
+<p>Two data-quality cases worth naming. First, a <strong>dangling <code>manager_id</code></strong> &mdash; an id pointing at an <code>emp_id</code> that no longer exists (the manager left). With <code>LEFT JOIN</code> that employee still appears, with a NULL manager &mdash; indistinguishable from the CEO. A diagnostic query finds them:</p>
+<pre><code>SELECT e.emp_id, e.name, e.manager_id
+FROM employees e
+LEFT JOIN employees m ON e.manager_id = m.emp_id
+WHERE e.manager_id IS NOT NULL AND m.emp_id IS NULL;</code></pre>
+<p>Second, a row where <code>manager_id = emp_id</code> &mdash; an employee managing themselves. The self-join happily matches it (the person appears as their own manager), and a recursive walk over the same data would loop forever. Both are integrity violations the join will not catch for you; flag them as checks the source system should enforce.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>LEFT JOIN</code> is required because <code>NULL = emp_id</code> is never true and an <code>INNER JOIN</code> would drop the CEO, alias both copies of the table explicitly, dress the top-of-org NULL with <code>COALESCE</code>, and name the dangling-pointer and self-manager data-quality cases the join silently tolerates.</div>

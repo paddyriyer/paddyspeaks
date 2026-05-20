@@ -1,0 +1,109 @@
+<p>Netflix's Content Acquisition team gets one chart on the dashboard per region: <em>which 3 titles dominated watch hours this week?</em>. The answer drives renewal negotiations (when a top-3 hit is up for license renewal), recommendation budgets, and the famous "Top 10 in [Country]" public top-10 row. The query is a textbook <em>top-N per group</em> &mdash; with the senior caveat that <strong>"3" really means "3 unique titles"</strong>, ties handled correctly.</p>
+
+<h4>1. The source data &mdash; <code>plays</code></h4>
+<p>One row per playback event, with region tagged from the user's account country.</p>
+<table>
+  <thead><tr><th>play_id</th><th>user_id</th><th>title_id</th><th>region</th><th>watch_minutes</th></tr></thead>
+  <tbody>
+    <tr><td>P_001</td><td>U_01</td><td>T_strangerthings</td><td>NA</td><td>62</td></tr>
+    <tr><td>P_002</td><td>U_02</td><td>T_strangerthings</td><td>NA</td><td>55</td></tr>
+    <tr><td>P_003</td><td>U_03</td><td>T_squidgame</td><td>APAC</td><td>48</td></tr>
+    <tr><td>P_004</td><td>U_04</td><td>T_lacasapapel</td><td>EMEA</td><td>50</td></tr>
+    <tr><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; <code>DENSE_RANK</code> + <code>WHERE rk &le; 3</code></h4>
+<pre><code>SELECT region, title_id, hours
+FROM (
+  SELECT region, title_id,
+    SUM(watch_minutes) / 60.0 AS hours,
+    DENSE_RANK() OVER (PARTITION BY region ORDER BY SUM(watch_minutes) DESC) AS rk
+  FROM plays
+  GROUP BY region, title_id
+) t
+WHERE rk &lt;= 3
+ORDER BY region, hours DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code> &mdash; not <code>ROW_NUMBER</code> or <code>RANK</code></h5>
+<table>
+  <thead><tr><th>title</th><th>hours</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>Stranger Things</td><td>50,000</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>Squid Game</td><td>50,000</td><td>2</td><td>1</td><td>1</td></tr>
+    <tr><td>Lupin</td><td>30,000</td><td>3</td><td>3 (gap)</td><td>2</td></tr>
+    <tr><td>Wednesday</td><td>20,000</td><td>4</td><td>4</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Two titles tie at 50K. ROW_NUMBER picks one arbitrarily &mdash; you'd lose Squid Game from the top 3 in some runs and not others. RANK leaves a "gap" so Lupin is rank 3, not Wednesday &mdash; which means <code>WHERE rk &le; 3</code> returns Lupin <em>and</em> the tied pair (4 titles). DENSE_RANK keeps it tight: the top 3 distinct watch-hour values, ties emit together. <strong>Marketing wants the dense interpretation</strong> &mdash; "top 3 hits" should not arbitrarily exclude one half of a tie.</p>
+
+<h5>The <code>SUM</code>-inside-window trick</h5>
+<p>The <code>DENSE_RANK() OVER (... ORDER BY SUM(watch_minutes) DESC)</code> pattern works because the window function is evaluated <em>after</em> the GROUP BY: at that point the rows are already (region, title_id) groups with their summed totals, and the rank is computed over those. You can also write it as a CTE:</p>
+<pre><code>WITH per_title AS (
+  SELECT region, title_id, SUM(watch_minutes) AS minutes
+  FROM plays GROUP BY region, title_id
+)
+SELECT region, title_id, minutes / 60.0 AS hours,
+  DENSE_RANK() OVER (PARTITION BY region ORDER BY minutes DESC) AS rk
+FROM per_title;</code></pre>
+<p>Same plan, often more readable.</p>
+
+<h5>QUALIFY &mdash; the cleanest dialect</h5>
+<p>Snowflake, BigQuery, DuckDB, and Databricks support <code>QUALIFY</code>, which filters the result of a window function inline (no subquery):</p>
+<pre><code>SELECT region, title_id, SUM(watch_minutes)/60.0 AS hours
+FROM plays
+GROUP BY region, title_id
+QUALIFY DENSE_RANK() OVER (PARTITION BY region ORDER BY SUM(watch_minutes) DESC) &lt;= 3
+ORDER BY region, hours DESC;</code></pre>
+
+<h5>The watch-hours denominator trap &mdash; minutes vs hours vs DAU-weighted</h5>
+<p>"Top by watch hours" privileges <em>long-form</em> titles. A 60-min episode of Stranger Things logs 60 min of watch_minutes per viewer; a 22-min sitcom episode logs 22. Without normalization, dramas dominate the chart structurally. The senior follow-up is <strong>completion-weighted</strong>:</p>
+<pre><code>SUM(watch_minutes * 1.0 / NULLIF(title_runtime_minutes, 0))   -- "title-equivalents watched"</code></pre>
+<p>For comedies and drama-comedy mixed catalogs, Netflix internally uses this ratio &mdash; not raw minutes &mdash; for "most popular" rankings.</p>
+
+<h5>The "unique viewers vs minutes" axis</h5>
+<p>Two titles can have identical hours: one with 1M users watching 30 min each, the other with 100K hardcore fans watching 5 hours each. Same total, very different stories &mdash; the first is "broad hit", the second is "cult". Always emit both:</p>
+<pre><code>SUM(watch_minutes)/60.0       AS hours,
+COUNT(DISTINCT user_id)        AS reach,
+SUM(watch_minutes)/60.0 / NULLIF(COUNT(DISTINCT user_id), 0) AS hours_per_user</code></pre>
+
+<h5>The release-bias trap</h5>
+<p>A title that launched Monday has 7 days of accumulation by Sunday; a title launched Saturday has 1 day. Top-3 by raw cumulative hours unfairly favors mature titles. The fix: rank by <strong>D7 hours</strong> (first-7-days from launch), not "this week".</p>
+
+<h5>The "Top 10 in [Country]" Netflix-public version</h5>
+<p>The public Top 10 row is the "TV (English)" / "Films (Non-English)" / etc. category split. Production query:</p>
+<pre><code>WITH ranked AS (
+  SELECT region, content_type, title_id,
+    SUM(watch_minutes) AS minutes,
+    DENSE_RANK() OVER (
+      PARTITION BY region, content_type
+      ORDER BY SUM(watch_minutes) DESC
+    ) AS rk
+  FROM plays GROUP BY region, content_type, title_id
+)
+SELECT * FROM ranked WHERE rk &lt;= 10
+ORDER BY region, content_type, rk;</code></pre>
+
+<h5>The "trending up" follow-up &mdash; week-over-week movement</h5>
+<p>Marketing's actual question is rarely just "top 3 today". They want <em>"what's NEW in the top 3 this week vs last?"</em> Lag the rank:</p>
+<pre><code>WITH weekly AS (
+  SELECT DATE_TRUNC('week', played_at) AS wk, region, title_id,
+    DENSE_RANK() OVER (PARTITION BY DATE_TRUNC('week', played_at), region ORDER BY SUM(watch_minutes) DESC) AS rk
+  FROM plays GROUP BY DATE_TRUNC('week', played_at), region, title_id
+)
+SELECT region, title_id, wk, rk,
+  LAG(rk) OVER (PARTITION BY region, title_id ORDER BY wk) AS prev_rk,
+  LAG(rk) OVER (PARTITION BY region, title_id ORDER BY wk) - rk AS delta_up
+FROM weekly WHERE rk &lt;= 10
+ORDER BY region, wk, rk;</code></pre>
+<p>A title that goes from rank 8 last week to rank 2 this week is the "<em>climbing</em>" badge on the public top-10 page. <code>delta_up = +6</code>.</p>
+
+<h5>The "unfair to small regions" trap</h5>
+<p>LATAM has fewer accounts than NA, so absolute watch-hours always look smaller. The right comparator for regional content investment isn't absolute hours but <em>share of regional watch-time</em>:</p>
+<pre><code>SUM(watch_minutes) * 100.0 /
+  SUM(SUM(watch_minutes)) OVER (PARTITION BY region) AS share_of_region_pct</code></pre>
+<p>Now Squid Game in APAC and Lupin in EMEA can be compared apples-to-apples regardless of region size.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <code>DENSE_RANK</code> as the right tie semantic for "top 3 hits", contrast against ROW_NUMBER/RANK, and offer <code>QUALIFY</code> as the cleanest dialect form. Raise completion-weighting (minutes/runtime) and reach-vs-hours-per-user as the "what does popular even mean?" senior reframe. The week-over-week LAG-on-rank for the "climbing" badge is the over-the-bar finish that connects the query to the actual UI.</div>

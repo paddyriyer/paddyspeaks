@@ -1,0 +1,58 @@
+<p>Meta&rsquo;s engagement pipeline receives user interactions from three independent tables &mdash; likes, comments, and shares &mdash; each recording who interacted, with what target, and when. The analytics team needs a single chronological feed of all interaction events with an interaction-type label. This is the canonical <code>UNION ALL</code> fan-in pattern: bring heterogeneous event streams into one schema and sort the combined stream by time.</p>
+
+<h4>1. The source data &mdash; <code>likes</code>, <code>comments</code>, <code>shares</code></h4>
+<table>
+  <thead><tr><th>table</th><th>user_id</th><th>target_id</th><th>ts</th></tr></thead>
+  <tbody>
+    <tr><td>likes</td><td>U1</td><td>Post_A</td><td>2025-04-01 09:00:00</td></tr>
+    <tr><td>likes</td><td>U2</td><td>Post_B</td><td>2025-04-01 09:05:00</td></tr>
+    <tr><td>comments</td><td>U1</td><td>Post_A</td><td>2025-04-01 09:02:00</td></tr>
+    <tr><td>comments</td><td>U3</td><td>Post_C</td><td>2025-04-01 09:10:00</td></tr>
+    <tr><td>shares</td><td>U2</td><td>Post_A</td><td>2025-04-01 08:55:00</td></tr>
+    <tr><td>shares</td><td>U4</td><td>Post_B</td><td>2025-04-01 09:08:00</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; UNION ALL fan-in with interaction-type label</h4>
+<pre><code>SELECT user_id, target_id, ts, 'like'    AS interaction FROM likes
+UNION ALL
+SELECT user_id, target_id, ts, 'comment'         FROM comments
+UNION ALL
+SELECT user_id, target_id, ts, 'share'           FROM shares
+ORDER BY ts;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>target_id</th><th>ts</th><th>interaction</th></tr></thead>
+  <tbody>
+    <tr><td>U2</td><td>Post_A</td><td>2025-04-01 08:55:00</td><td>share</td></tr>
+    <tr><td>U1</td><td>Post_A</td><td>2025-04-01 09:00:00</td><td>like</td></tr>
+    <tr><td>U1</td><td>Post_A</td><td>2025-04-01 09:02:00</td><td>comment</td></tr>
+    <tr><td>U2</td><td>Post_B</td><td>2025-04-01 09:05:00</td><td>like</td></tr>
+    <tr><td>U4</td><td>Post_B</td><td>2025-04-01 09:08:00</td><td>share</td></tr>
+    <tr><td>U3</td><td>Post_C</td><td>2025-04-01 09:10:00</td><td>comment</td></tr>
+  </tbody>
+</table>
+<p>Six rows in chronological order, drawn from all three source tables. U2 shared Post_A at 08:55 (earliest), U3 commented on Post_C at 09:10 (latest). The <code>interaction</code> column is a string literal added by each branch &mdash; not a column from any table.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>UNION ALL vs UNION &mdash; the critical difference</h5>
+<p><code>UNION ALL</code> concatenates all rows from every branch, including exact duplicates. <code>UNION</code> (without <code>ALL</code>) performs a deduplication step across the combined set &mdash; essentially a <code>SELECT DISTINCT</code> on the result &mdash; which requires a sort or hash and is significantly more expensive. For event-stream fan-in you almost always want <code>UNION ALL</code>: each event is a distinct occurrence and deduplication would silently drop legitimate simultaneous events. The only time <code>UNION</code> is appropriate is when the source tables genuinely overlap and you need exactly one copy of each unique row.</p>
+
+<h5>Column alignment: position, name, and type must match</h5>
+<p>In a multi-branch <code>UNION ALL</code> the engine uses the first branch&rsquo;s column names and aligns subsequent branches by <em>position</em>, not name. All branches must have the same number of columns, and corresponding columns must have compatible types. Here the literal <code>'like'</code>, <code>'comment'</code>, and <code>'share'</code> are all <code>TEXT</code> &mdash; compatible. If <code>likes.ts</code> were a <code>DATE</code> and <code>comments.ts</code> a <code>TIMESTAMP</code>, most engines would cast up to <code>TIMESTAMP</code> automatically; explicit casts are safer for portability.</p>
+
+<h5>The ORDER BY applies to the entire union, not per-branch</h5>
+<p>A single <code>ORDER BY ts</code> at the end sorts the combined 6-row result set. It is <em>not</em> legal to put <code>ORDER BY</code> inside individual branches (most engines reject this). If you need per-branch ordering before combining, wrap each branch in a subquery with its own order, but note that standard SQL does not guarantee the order of subquery rows in a <code>UNION ALL</code> anyway &mdash; the final <code>ORDER BY</code> is the only reliable sort.</p>
+
+<h5>Adding a secondary tiebreaker</h5>
+<p>If two events share the same <code>ts</code>, the row order within the tie is non-deterministic. Add a secondary sort to make it stable: <code>ORDER BY ts, interaction</code> or <code>ORDER BY ts, user_id, target_id</code>. In production pipelines that feed downstream aggregations, non-deterministic ordering causes flaky tests and inconsistent reports.</p>
+
+<h5>Scaling: partitioned UNION ALL</h5>
+<p>With billions of events across three tables, a full-union sort is expensive. Common patterns: (1) store all events in a single partitioned table with an <code>interaction_type</code> column from the start; (2) use incremental materialized views that fan in only the delta since last run. The <code>UNION ALL</code> query is the conceptual blueprint; production systems denormalize it away.</p>
+
+<h5>Dialect notes</h5>
+<p><code>UNION ALL</code> is universally supported (ANSI SQL). String literals as column values are universal. Snowflake, Postgres, BigQuery, MySQL, and SQL Server all handle this identically. The only gotcha is MySQL&rsquo;s historic 64KB limit on <code>UNION</code> result sets in older versions (pre-8.0) &mdash; irrelevant in modern deployments.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately distinguish <code>UNION ALL</code> (no dedup, O(n)) from <code>UNION</code> (dedup, O(n log n)), explain that column alignment is positional not by name, note that <code>ORDER BY</code> belongs on the outermost query, and advocate for a denormalized single-table design at scale. The tiebreaker discussion shows production awareness.</div>

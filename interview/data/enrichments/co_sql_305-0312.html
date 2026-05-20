@@ -1,0 +1,101 @@
+<p>Every Tuesday morning the Content Strategy team sees the same chart: the <em>launch curve</em> for newly-released titles. <strong>D7 watch hours</strong> = how loud was opening weekend? <strong>D28 watch hours</strong> = how durable is the appeal? The ratio (first-week-share) tells you whether you're looking at a fad (90% in week 1, then dead) or a long-tail hit (40% in week 1, 60% over the next 3 weeks). The query is conditional aggregation with date-window predicates.</p>
+
+<h4>1. The source data &mdash; <code>title_plays</code></h4>
+<table>
+  <thead><tr><th>title_id</th><th>launched_on</th><th>played_at</th><th>watch_minutes</th></tr></thead>
+  <tbody>
+    <tr><td>T_strangerthings</td><td>2026-04-01</td><td>2026-04-02</td><td>120</td></tr>
+    <tr><td>T_strangerthings</td><td>2026-04-01</td><td>2026-04-04</td><td>180</td></tr>
+    <tr><td>T_strangerthings</td><td>2026-04-01</td><td>2026-04-12</td><td>60</td></tr>
+    <tr><td>T_thecrown</td><td>2026-04-01</td><td>2026-04-03</td><td>50</td></tr>
+    <tr><td>T_thecrown</td><td>2026-04-01</td><td>2026-04-19</td><td>200</td></tr>
+    <tr><td>T_thecrown</td><td>2026-04-01</td><td>2026-04-26</td><td>240</td></tr>
+  </tbody>
+</table>
+<p>Same launch date. Stranger Things is front-loaded (binge audience). The Crown trickles &mdash; durability play.</p>
+
+<h4>2. The SQL &mdash; date-window CASE inside SUM</h4>
+<pre><code>SELECT title_id, launched_on,
+  ROUND(SUM(CASE WHEN played_at &lt;= launched_on + INTERVAL '7 days'
+                 THEN watch_minutes END) / 60.0, 1) AS d7_hours,
+  ROUND(SUM(CASE WHEN played_at &lt;= launched_on + INTERVAL '28 days'
+                 THEN watch_minutes END) / 60.0, 1) AS d28_hours,
+  ROUND(100.0 *
+    SUM(CASE WHEN played_at &lt;= launched_on + INTERVAL '7 days'
+             THEN watch_minutes END) /
+    NULLIF(SUM(CASE WHEN played_at &lt;= launched_on + INTERVAL '28 days'
+                    THEN watch_minutes END), 0),
+    1) AS first_week_share_pct
+FROM title_plays
+GROUP BY title_id, launched_on
+ORDER BY d28_hours DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why D7 and D28 are the canonical windows</h5>
+<p>The 7-day window catches "opening weekend buzz" &mdash; the marketing-driven push, social-media amplification. The 28-day window catches the post-buzz organic pickup. Their <em>ratio</em> is the dimension Netflix Content Strategy actually optimizes:</p>
+<ul>
+  <li><strong>first_week_share &gt; 70%</strong> &rarr; <em>fad-shaped</em>. Viral, front-loaded. Doesn't justify large season-2 budgets &mdash; the audience burned through it.</li>
+  <li><strong>first_week_share 40-70%</strong> &rarr; <em>healthy launch</em>. Strong opening with sustained tail. Greenlight season 2.</li>
+  <li><strong>first_week_share &lt; 40%</strong> &rarr; <em>slow burn / WOM-driven</em>. Took time to discover. Strong for awards consideration, weaker for binge metrics.</li>
+</ul>
+
+<h5>The CASE-with-no-ELSE is the entire trick</h5>
+<p><code>SUM(CASE WHEN ... THEN watch_minutes END)</code> &mdash; without an ELSE, non-matching rows return NULL, and SUM ignores NULL. So you get "sum of watch_minutes for rows in the window" in a single pass. No subquery, no separate filter step. This idiom is the bedrock of pivot-style aggregation.</p>
+
+<h5>The launch-day boundary &mdash; inclusive or exclusive?</h5>
+<p>Is "Day 7" the 7th 24-hour interval after launch (exclusive of day 0) or the 8th calendar day (inclusive of day 0)? Different definitions give different numbers, and product teams will disagree silently. Make the predicate explicit:</p>
+<pre><code>played_at &gt;= launched_on AND played_at &lt; launched_on + INTERVAL '7 days'
+-- vs
+played_at BETWEEN launched_on AND launched_on + INTERVAL '7 days'</code></pre>
+<p>The first form is exclusive on the right end &mdash; the canonical "first 7 calendar days" definition. <code>BETWEEN</code> is inclusive on both ends and depending on time component handling can include 8 days of data.</p>
+
+<h5>The completion-rate cousin metric</h5>
+<p>"Hours watched" is a quantity proxy. The qualitative version is <em>percentage of users who completed</em>:</p>
+<pre><code>SUM(CASE WHEN played_at &lt;= launched_on + INTERVAL '7 days'
+              AND completion_pct &gt;= 0.80 THEN 1 END) * 1.0 /
+NULLIF(SUM(CASE WHEN played_at &lt;= launched_on + INTERVAL '7 days' THEN 1 END), 0)
+AS d7_completion_rate</code></pre>
+<p>A title with high D7 hours but low D7 completion rate has a "starts strong, loses people" problem &mdash; episode 4 trap.</p>
+
+<h5>The reach-vs-hours decomposition</h5>
+<p>D7 hours = users reached &times; hours per user. Same total can hide very different shapes:</p>
+<pre><code>COUNT(DISTINCT CASE WHEN played_at &lt;= launched_on + INTERVAL '7 days' THEN user_id END) AS d7_reach,
+SUM(...) / NULLIF(COUNT(DISTINCT ...), 0) AS d7_hours_per_user</code></pre>
+<p>Reach changes drive marketing spend efficiency conversation; hours-per-user changes drive narrative-pacing conversation.</p>
+
+<h5>The cohort-of-users adjustment &mdash; "new viewers vs catalog dippers"</h5>
+<p>D7 watch hours from <em>new-this-month</em> users is a different signal from D7 hours from <em>churned-and-came-back</em> users. The Content Strategy team often wants the new-user-only number to measure marketing acquisition lift:</p>
+<pre><code>JOIN users u ON u.user_id = p.user_id
+WHERE u.signup_date &gt;= launched_on - INTERVAL '7 days'</code></pre>
+
+<h5>The "comparable launch" peer set</h5>
+<p>Raw D7 hours doesn't tell you if a launch was good or bad &mdash; you need a peer benchmark. Standard approach: compare to the median of the 5 most-recent same-genre launches in the same region:</p>
+<pre><code>WITH peer_set AS (
+  SELECT title_id, d7_hours,
+    PERCENT_RANK() OVER (PARTITION BY genre, region ORDER BY d7_hours) AS pct_rank
+  FROM launch_metrics
+)
+SELECT title_id,
+  CASE WHEN pct_rank &gt;= 0.8 THEN 'top_quintile'
+       WHEN pct_rank &gt;= 0.5 THEN 'above_median'
+       ELSE 'below_median' END AS launch_grade
+FROM peer_set;</code></pre>
+
+<h5>The "long tail" follow-up</h5>
+<p>D28 isn't the end of the story for evergreen content (The Office, Friends, holiday films). For these, look at <strong>D365 hours</strong> &mdash; sustained pickup over a full year &mdash; or <strong>holiday-season multiplier</strong> for seasonal content.</p>
+
+<h5>SQLite vs Postgres date arithmetic</h5>
+<pre><code>-- Postgres / DuckDB / Snowflake
+launched_on + INTERVAL '7 days'
+
+-- SQLite
+date(launched_on, '+7 days')
+
+-- BigQuery
+DATE_ADD(launched_on, INTERVAL 7 DAY)
+
+-- MySQL
+DATE_ADD(launched_on, INTERVAL 7 DAY)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the D7/D28 ratio as the <em>fad-vs-durable</em> classifier (which drives season-2 budgets), use the <code>CASE</code>-no-<code>ELSE</code>+<code>SUM</code> idiom for one-pass conditional aggregation, and pin inclusive-vs-exclusive boundaries explicitly. The reach/hours-per-user decomposition and peer-set percentile-rank grading are the over-the-bar finish.</div>

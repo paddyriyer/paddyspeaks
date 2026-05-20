@@ -1,0 +1,63 @@
+<p>X's engagement team logs every interaction in one <code>events</code> stream and wants two headline numbers off it: how many clicks, how many views. It is a conditional count &mdash; and although the question is titled "with FILTER", the reference solution uses the <code>SUM(CASE&hellip;)</code> idiom. The interviewer wants to see you know both, and why both beat running two separate queries.</p>
+
+<h4>1. The source data &mdash; <code>events</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_type</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>click</td></tr>
+    <tr><td>1</td><td>view</td></tr>
+    <tr><td>2</td><td>view</td></tr>
+    <tr><td>2</td><td>view</td></tr>
+    <tr><td>3</td><td>click</td></tr>
+    <tr><td>3</td><td>scroll</td></tr>
+  </tbody>
+</table>
+<p>Six events: two clicks, three views &mdash; and one <code>scroll</code>. The <code>scroll</code> row is the deliberate edge case: it matches neither bucket and must be counted in neither, while still being a real row in the table.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(CASE) buckets</code></h4>
+<pre><code>SELECT
+  SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END) AS clicks,
+  SUM(CASE WHEN event_type = 'view'  THEN 1 ELSE 0 END) AS views
+FROM events;</code></pre>
+<p>Each <code>CASE</code> emits <code>1</code> for a matching row and <code>0</code> otherwise; <code>SUM</code> adds those up. No <code>GROUP BY</code>, so the whole table collapses to a single row with two totals computed in one pass.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>clicks</th><th>views</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Clicks = 2, views = 3. The <code>scroll</code> row contributed <code>0</code> to both sums &mdash; it is in the table but in neither bucket. Note <code>clicks + views = 5</code>, not 6: a conditional count does <em>not</em> have to cover every row, and that is correct here.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>FILTER</code> clause &mdash; what the title is pointing at</h5>
+<p>Postgres has a purpose-built syntax for exactly this, and it is cleaner than <code>CASE</code>:</p>
+<pre><code>SELECT
+  COUNT(*) FILTER (WHERE event_type = 'click') AS clicks,
+  COUNT(*) FILTER (WHERE event_type = 'view')  AS views
+FROM events;</code></pre>
+<p><code>COUNT(*) FILTER (WHERE &hellip;)</code> counts only the rows the predicate keeps. It is standard SQL, reads as plain English, and produces the identical <code>2 / 3</code>. <code>SUM(CASE&hellip;)</code> is the portable equivalent for engines without <code>FILTER</code> (MySQL, older SQL Server). Knowing both &mdash; and that they are equivalent &mdash; is the senior signal.</p>
+
+<h5>The <code>SUM(CASE)</code> vs <code>COUNT(CASE)</code> trap</h5>
+<p>A frequent rewrite drops the <code>ELSE 0</code> and switches to <code>COUNT</code>:</p>
+<pre><code>COUNT(CASE WHEN event_type = 'click' THEN 1 END) AS clicks  -- also correct, on purpose</code></pre>
+<p>This works &mdash; but only because the <code>CASE</code> has <em>no</em> <code>ELSE</code>, so non-clicks yield <code>NULL</code>, and <code>COUNT</code> ignores NULLs. Write <code>COUNT(CASE WHEN &hellip; THEN 1 ELSE 0 END)</code> and it breaks: the <code>ELSE 0</code> makes every row non-NULL, so <code>COUNT</code> returns 6 for both columns. Rule of thumb: <code>SUM</code> pairs with <code>ELSE 0</code>; <code>COUNT</code> pairs with <em>no</em> <code>ELSE</code>. Mixing them is a classic silent bug.</p>
+
+<h5>Why not two separate queries?</h5>
+<p>You <em>could</em> write <code>SELECT COUNT(*) FROM events WHERE event_type='click'</code> and another for views. That scans the table twice and returns two result sets the application must stitch together. The conditional-aggregation form scans <strong>once</strong> and returns one tidy row &mdash; faster and easier to consume. On a billion-row event stream the single-pass version is the only sensible answer.</p>
+
+<h5>The "counts per user" follow-up</h5>
+<p>The natural next ask is the same buckets <em>per user</em> &mdash; just add a <code>GROUP BY</code>:</p>
+<pre><code>SELECT user_id,
+  COUNT(*) FILTER (WHERE event_type = 'click') AS clicks,
+  COUNT(*) FILTER (WHERE event_type = 'view')  AS views
+FROM events
+GROUP BY user_id;</code></pre>
+<p>Now user 3 shows <code>clicks = 1, views = 0</code> &mdash; and crucially still appears, because they have <em>some</em> event. A user with zero events of any kind is simply absent; if the report must list every user at 0/0, that needs a <code>LEFT JOIN</code> from a <code>users</code> table.</p>
+
+<h5>Edge cases: empty table, NULL <code>event_type</code>, and case sensitivity</h5>
+<p>On an empty table, <code>SUM(CASE&hellip;)</code> returns <code>NULL</code> (sum of no rows), whereas <code>COUNT(*) FILTER(&hellip;)</code> returns <code>0</code> &mdash; a real behavioural difference; wrap the <code>SUM</code> in <code>COALESCE(&hellip;, 0)</code> if a number is required. A <code>NULL</code> <code>event_type</code> matches neither predicate and is counted nowhere &mdash; usually fine, but worth a glance for data-quality. And <code>'click'</code> vs <code>'Click'</code>: string equality is case-sensitive, so normalise with <code>lower(event_type)</code> if the stream is dirty.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute both buckets in a single pass rather than running two queries, know that <code>FILTER</code> and <code>SUM(CASE&hellip;)</code> are equivalent (and which engines support which), pair <code>SUM</code> with <code>ELSE 0</code> but <code>COUNT</code> with no <code>ELSE</code>, and flag the empty-table NULL-vs-0 difference.</div>

@@ -1,0 +1,66 @@
+<p>A sales-ops dashboard needs per-agent performance: total order value driven by each agent's customers, the commission they earned on it, and their average order size. The data spans three tables &mdash; agents own customers, customers place orders &mdash; so the query must chain two joins and aggregate at the agent grain. The interviewer is probing whether you can aggregate cleanly across a join chain without fan-out errors, and whether you handle the commission and rounding correctly.</p>
+
+<h4>1. The source data &mdash; <code>agent</code> / <code>customer</code> / <code>orders</code></h4>
+<table>
+  <thead><tr><th>agent_code</th><th>commission</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>A001</td><td>0.14</td><td>two customers, one order total</td></tr>
+    <tr><td>A002</td><td>0.11</td><td>two customers, three orders</td></tr>
+    <tr><td>A004</td><td>0.15</td><td>one customer, one order</td></tr>
+    <tr><td>A010</td><td>0.14</td><td>two customers, three orders</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>cust_code</th><th>agent_code</th><th>orders placed</th></tr></thead>
+  <tbody>
+    <tr><td>C03</td><td>A002</td><td>ord 2 (5000), ord 3 (2700)</td></tr>
+    <tr><td>C04</td><td>A002</td><td>ord 4 (5000)</td></tr>
+    <tr><td>C06</td><td>A010</td><td>ord 6 (7000), ord 7 (5000)</td></tr>
+    <tr><td>C07</td><td>A010</td><td>ord 8 (5000)</td></tr>
+  </tbody>
+</table>
+<p>The shape that tests you: A002 and A010 each have one customer with <em>multiple</em> orders and one with a single order. Aggregating across the join must total all orders per agent without an order being counted once per customer &mdash; and without losing the single-order customers.</p>
+
+<h4>2. The SQL &mdash; three-table join with grouped aggregation</h4>
+<pre><code>SELECT a.agent_code,
+       COUNT(o.ord_num) AS num_orders,
+       SUM(o.ord_amount) AS total_amount,
+       ROUND((SUM(o.ord_amount) * a.commission)::numeric, 2) AS commission_earned,
+       ROUND(AVG(o.ord_amount)::numeric, 2) AS avg_order
+FROM agent a
+JOIN customer c ON c.agent_code = a.agent_code
+JOIN orders o ON o.cust_code = c.cust_code
+GROUP BY a.agent_code, a.commission
+ORDER BY total_amount DESC, a.agent_code;</code></pre>
+<p>The two inner joins flatten agent &rarr; customer &rarr; order into one row per order (carrying the agent's code and commission). <code>GROUP BY agent_code, commission</code> collapses those order rows back to one row per agent; <code>SUM</code>, <code>COUNT</code>, and <code>AVG</code> aggregate over each agent's orders.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>agent_code</th><th>num_orders</th><th>total_amount</th><th>commission_earned</th><th>avg_order</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>A010</td><td>3</td><td>17000</td><td>2380.00</td><td>5666.67</td><td>17000 &times; 0.14; avg rounds .666&hellip;</td></tr>
+    <tr><td>A002</td><td>3</td><td>12700</td><td>1397.00</td><td>4233.33</td><td>12700 &times; 0.11</td></tr>
+    <tr><td>A004</td><td>1</td><td>9500</td><td>1425.00</td><td>9500.00</td><td>single order</td></tr>
+    <tr><td>A001</td><td>1</td><td>800</td><td>112.00</td><td>800.00</td><td>single order</td></tr>
+  </tbody>
+</table>
+<p>A010's three orders across two customers total 17000 and commission 2380. A001 appears with one order despite owning two customers &mdash; the inner join kept only the customer that actually has an order. <code>AVG</code> for A010 is 5666.67, the 2-dp rounding of 17000/3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Aggregate at the join's leaf grain, group back up</h5>
+<p>After both joins, each result row is one <em>order</em> &mdash; the finest grain in the chain. <code>SUM(o.ord_amount)</code> then adds order amounts, and <code>COUNT(o.ord_num)</code> counts orders, with no double-counting: an order belongs to exactly one customer, and that customer to exactly one agent, so each order row is unique. The mental model &mdash; "join down to the leaf, then <code>GROUP BY</code> the level you want to report" &mdash; is the reliable way to reason about multi-table aggregation.</p>
+
+<h5>When this <em>would</em> fan out &mdash; and why it does not here</h5>
+<p>Fan-out happens when a row joins to many rows on a side you are also aggregating. If you joined a <em>second</em> child table to agent (say a <code>visits</code> table) in the same query, each order would pair with every visit and <code>SUM(ord_amount)</code> would inflate by the visit count. Here the chain is strictly linear &mdash; agent 1:N customer 1:N order, each step a single fan &mdash; so order rows stay distinct. Recognising the linear chain is what tells you a single grouped query is safe; two independent children would need separate aggregation (CTEs) before joining.</p>
+
+<h5>Inner join silently drops zero-order agents &mdash; matches the spec</h5>
+<p>The question says "exclude agents with zero orders", and inner joins do exactly that for free: an agent with no customers, or customers with no orders, produces no rows and disappears. If the requirement were instead "list every agent, zero where idle", you would switch to <code>LEFT JOIN</code> and wrap aggregates &mdash; <code>COALESCE(SUM(o.ord_amount), 0)</code> &mdash; because <code>SUM</code> over no rows is <code>NULL</code>. State which behaviour the spec wants; here inner join is correct.</p>
+
+<h5><code>GROUP BY</code> must include <code>commission</code> &mdash; functional dependency</h5>
+<p><code>commission</code> is referenced in the <code>SELECT</code> (inside the commission calculation) but is not aggregated, so it must appear in <code>GROUP BY</code> &mdash; or the query is ambiguous and errors in strict engines. Adding <code>a.commission</code> is safe because it is functionally dependent on <code>agent_code</code> (one commission per agent), so it does not split any group. Postgres 9.1+ can infer this when you group by a primary key; grouping both columns explicitly is the portable, unambiguous form.</p>
+
+<h5>Rounding, casts, and the <code>::numeric</code> footnote</h5>
+<p><code>ROUND(&hellip;, 2)</code> with a scale argument requires a <code>numeric</code> in Postgres &mdash; <code>ROUND(double precision, int)</code> does not exist &mdash; hence the explicit <code>::numeric</code> casts on the commission product and the average. <code>AVG</code> already returns <code>numeric</code> for a <code>numeric</code> column, so the cast there is harmless insurance. Round at the <em>presentation</em> step only: rounding mid-calculation (e.g. rounding each order before summing) would accumulate error. Other engines (SQL Server, MySQL) accept <code>ROUND(float, n)</code> directly &mdash; the cast is a Postgres-specific detail.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> aggregate a linear multi-table chain by joining down to the leaf grain then grouping back up, recognise that a <em>single</em> 1:N chain does not fan out (two independent children would), use inner joins to drop zero-order agents per the spec, and include the non-aggregated <code>commission</code> in <code>GROUP BY</code> as a functional dependency.</div>

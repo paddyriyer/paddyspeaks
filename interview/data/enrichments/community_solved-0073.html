@@ -1,0 +1,47 @@
+<p>A retail analytics team wants the average order value, but only for the customers who matter for that metric &mdash; those who have placed more than five orders. The interviewer is checking whether you know that a per-group threshold belongs in <code>HAVING</code>, not <code>WHERE</code>, and whether you choose the right counting expression. The boundary customer sits at exactly five orders: do they get included? "More than five" says no, and the SQL must reflect that strict inequality.</p>
+
+<h4>1. The source data &mdash; <code>customer_order</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order count</th><th>order_amount values</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>6</td><td>100, 150, 200, 120, 180, 90</td></tr>
+    <tr><td>2</td><td>7</td><td>250, 75, 300, 110, 220, 60, 95</td></tr>
+    <tr><td>3</td><td>3</td><td>500, 400, 350</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 has exactly 6 orders (just over the line), customer 2 has 7, customer 3 has only 3. Customer 3 is the edge case: a high <em>average</em> (~417) but too few orders &mdash; the threshold must exclude them regardless of how large their spend is.</p>
+
+<h4>2. The SQL &mdash; group, then filter groups with <code>HAVING</code></h4>
+<pre><code>SELECT customer_id, AVG(order_amount) AS avg_order_amount
+FROM customer_order
+GROUP BY customer_id
+HAVING COUNT(order_id) &gt; 5;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>avg_order_amount</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>140.00</td><td>6 orders &mdash; sum 840 / 6</td></tr>
+    <tr><td>2</td><td>158.57</td><td>7 orders &mdash; sum 1110 / 7</td></tr>
+  </tbody>
+</table>
+<p>Customers 1 and 2 are returned. Customer 3 is excluded &mdash; only 3 orders &mdash; even though their average order value (417) is the highest. The <code>HAVING</code> filter is about order <em>count</em>, not order <em>size</em>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the threshold must be in <code>HAVING</code>, not <code>WHERE</code></h5>
+<p><code>WHERE</code> filters rows <em>before</em> grouping &mdash; at that stage there is no per-customer count to test. <code>HAVING</code> filters the <em>groups</em> produced by <code>GROUP BY</code>, after the aggregates exist, so it can evaluate <code>COUNT(order_id) &gt; 5</code>. Writing <code>WHERE COUNT(order_id) &gt; 5</code> is a hard syntax error in every dialect. The mental model: <code>WHERE</code> is a row gate, <code>HAVING</code> is a group gate &mdash; and the SQL clause order (<code>FROM &rarr; WHERE &rarr; GROUP BY &rarr; HAVING &rarr; SELECT</code>) tells you exactly when each can see what.</p>
+
+<h5>"More than five" is a strict inequality &mdash; <code>&gt; 5</code>, not <code>&gt;= 5</code></h5>
+<p>This is the precision the interviewer watches for. "More than five" means six or more, so the predicate is <code>&gt; 5</code>. A customer with exactly five orders fails it. If the spec were "at least five" the operator would be <code>&gt;= 5</code>. Off-by-one errors on these boundary words are a classic way to silently get the wrong row set &mdash; read the threshold literally and pick the matching operator.</p>
+
+<h5><code>COUNT(order_id)</code> vs <code>COUNT(*)</code> &mdash; here equal, but know the difference</h5>
+<p><code>order_id</code> is the primary key, so it is never NULL &mdash; <code>COUNT(order_id)</code> and <code>COUNT(*)</code> give the identical result. But the habit matters: <code>COUNT(*)</code> counts rows; <code>COUNT(col)</code> counts non-NULL values of that column. If you counted a <em>nullable</em> column instead, rows with NULLs would silently drop and the threshold would misfire. For "number of orders", count the row (<code>COUNT(*)</code>) or a guaranteed-non-null key &mdash; never a nullable attribute.</p>
+
+<h5>The averaging trap &mdash; <code>AVG</code> and NULL amounts</h5>
+<p><code>AVG(order_amount)</code> ignores rows where <code>order_amount</code> is <code>NULL</code> &mdash; it divides the sum by the count of <em>non-NULL</em> amounts, not by the total order count. So a customer with 6 orders where 2 have NULL amounts gets an average over 4 values, while <code>HAVING COUNT(order_id) &gt; 5</code> still counted all 6. If a NULL amount should be treated as 0, write <code>AVG(COALESCE(order_amount, 0))</code>. Worth stating: <code>COUNT</code> and <code>AVG</code> can disagree on which rows they "see", and that mismatch is a real reporting bug.</p>
+
+<h5>Decimal display &mdash; rounding the average</h5>
+<p><code>AVG</code> over <code>NUMERIC</code> values can return many trailing digits (customer 2's true average is 158.5714...). For a report, wrap it: <code>ROUND(AVG(order_amount), 2)</code>. This is presentation, not correctness &mdash; but a senior delivers a clean two-decimal currency figure rather than a 16-digit fraction.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> place the count threshold in <code>HAVING</code> (group gate) not <code>WHERE</code> (row gate), and read "more than five" strictly as <code>&gt; 5</code>. The senior nuance is noting that <code>AVG</code> silently skips NULL amounts while <code>COUNT</code> does not &mdash; so the two aggregates can disagree on the row set unless you <code>COALESCE</code>.</div>

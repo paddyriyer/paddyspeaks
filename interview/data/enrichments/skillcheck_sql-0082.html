@@ -1,0 +1,59 @@
+<p>A retention analyst needs the classic month-over-month retention number: of the users who were "monthly active" in June, how many were <em>also</em> active in July? There is a twist in the activity definition &mdash; a <code>post</code> action does not count. The interviewer is probing whether you can express a <strong>cohort overlap</strong> (active in both periods) and whether you apply the activity rule consistently to both months.</p>
+
+<h4>1. The source data &mdash; <code>events</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>action</th><th>event_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>sign-in / like</td><td>06-05 / 07-10</td><td>active both months &mdash; retained</td></tr>
+    <tr><td>2</td><td>comment / <strong>post</strong></td><td>06-12 / 07-15</td><td>July action is <code>post</code> &mdash; NOT July-active</td></tr>
+    <tr><td>3</td><td>sign-in</td><td>07-01</td><td>July only &mdash; new, not retained</td></tr>
+    <tr><td>4</td><td>like / comment</td><td>06-30 / 07-20</td><td>active both months &mdash; retained</td></tr>
+    <tr><td>5</td><td><strong>post</strong> / sign-in</td><td>06-25 / 07-25</td><td>June action is <code>post</code> &mdash; NOT June-active</td></tr>
+    <tr><td>6</td><td>like</td><td>07-30</td><td>July only &mdash; not retained</td></tr>
+  </tbody>
+</table>
+<p>The two <code>post</code> rows are the trap. User 2 <em>did something</em> in July, but it was a <code>post</code>, so they are not July-active. User 5 was present in June, but only via a <code>post</code>, so they are not June-active &mdash; their July sign-in cannot count as <em>retention</em> because they were never in the June cohort.</p>
+
+<h4>2. The SQL &mdash; build a user-month activity set, then self-overlap</h4>
+<pre><code>WITH active AS (
+  SELECT DISTINCT user_id,
+         DATE_TRUNC('month', event_date)::date AS month_start
+  FROM events
+  WHERE action &lt;&gt; 'post'
+)
+SELECT 7 AS month,
+       COUNT(DISTINCT j.user_id) AS mau,
+       COUNT(DISTINCT j.user_id) FILTER (
+         WHERE j.user_id IN (SELECT user_id FROM active WHERE month_start = DATE '2025-06-01')
+       ) AS retained
+FROM active j
+WHERE j.month_start = DATE '2025-07-01';</code></pre>
+<p>The <code>active</code> CTE applies the <code>action &lt;&gt; 'post'</code> rule once and reduces the log to distinct <em>(user, month)</em> pairs. The outer query restricts to July rows for <code>mau</code>, and the <code>FILTER</code> clause re-counts only those July-active users who also appear in the June slice of the same CTE.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>mau</th><th>retained</th></tr></thead>
+  <tbody>
+    <tr><td>7</td><td>5</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>July's active set is <code>{1, 3, 4, 5, 6}</code> &mdash; five users (user 2 excluded, July action was a <code>post</code>). June's active set is <code>{1, 2, 4}</code> (user 5 excluded, June action was a <code>post</code>). The overlap is <code>{1, 4}</code> &mdash; <strong>retained = 2</strong>. User 5 illustrates the subtlety perfectly: July-active, but not in the June cohort, so not "retained."</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a normalised activity CTE first</h5>
+<p>The <code>active</code> CTE does the conceptual heavy lifting: it applies the activity rule (<code>action &lt;&gt; 'post'</code>) <em>exactly once</em> and de-duplicates to one row per user per month. Every downstream count then just reads this clean set. If you instead filtered <code>post</code> separately for June and for July, you risk applying the rule inconsistently &mdash; the single CTE guarantees both months use identical semantics, which is precisely what the interviewer is checking.</p>
+
+<h5><code>FILTER</code> vs <code>CASE</code> inside the aggregate</h5>
+<p><code>COUNT(...) FILTER (WHERE ...)</code> is the SQL-standard way to count a conditional subset. The portable equivalent is <code>COUNT(DISTINCT CASE WHEN ... THEN user_id END)</code> &mdash; <code>CASE</code> returns the id when the user is in June's cohort and <code>NULL</code> otherwise, and <code>COUNT</code> ignores NULLs. Both compute the overlap; <code>FILTER</code> reads more clearly and is the right idiom in PostgreSQL.</p>
+
+<h5><code>&lt;&gt; 'post'</code> and the NULL-action hazard</h5>
+<p><code>action &lt;&gt; 'post'</code> keeps every action except <code>post</code> &mdash; but if <code>action</code> could ever be <code>NULL</code>, the predicate evaluates to <code>UNKNOWN</code> and that row is <em>dropped</em>, even though a NULL action is not a <code>post</code>. If NULL actions should count as activity, write <code>action IS DISTINCT FROM 'post'</code>, which treats NULL as "not equal to post" and keeps the row. Naming this is a senior reflex around any <code>&lt;&gt;</code> filter.</p>
+
+<h5>Retention is directional &mdash; June &cap; July, not just July</h5>
+<p>"Retained" is defined relative to a base cohort: it is the <em>intersection</em> of June-active and July-active. A user active only in July (users 3 and 6) is an <em>acquisition</em>, not a retention. The query encodes direction by anchoring on July rows and filtering to membership in the June set. If the question wanted "resurrected" users (active in June, dormant in some month, back in July) the logic would differ &mdash; always confirm which cohort relationship is being measured.</p>
+
+<h5>Dialect notes</h5>
+<p><code>DATE_TRUNC('month', ...)</code> and the <code>FILTER</code> clause are PostgreSQL (and standard) syntax. MySQL lacks <code>FILTER</code> &mdash; use the <code>COUNT(DISTINCT CASE WHEN ...)</code> form &mdash; and would bucket months with <code>DATE_FORMAT(event_date, '%Y-%m-01')</code>. BigQuery uses <code>DATE_TRUNC(event_date, MONTH)</code> and also supports <code>COUNTIF</code> for the conditional count.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> normalise the event log into one clean (user, month) activity set in a CTE so the <code>post</code>-exclusion rule is applied identically to both months, compute retention as the <em>intersection</em> of the June and July cohorts (not just July activity), and guard the <code>&lt;&gt; 'post'</code> filter against NULL actions with <code>IS DISTINCT FROM</code>.</div>

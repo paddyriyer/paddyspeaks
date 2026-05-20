@@ -1,0 +1,58 @@
+<p>Intel's manufacturing floor tracks every part rolling off a production line. The ops team needs two counters on every row: "what is this part's position in its own line's sequence today?" and "what is its position across the entire factory today?" This is the dual-sequencing pattern &mdash; one partitioned <code>ROW_NUMBER</code> for local rank and one unpartitioned for global rank &mdash; with no aggregation and no join.</p>
+
+<h4>1. The source data &mdash; <code>parts</code></h4>
+<table>
+  <thead><tr><th>part_id</th><th>manufactured_at</th><th>line_id</th></tr></thead>
+  <tbody>
+    <tr><td>P001</td><td>2025-01-15 08:02:00</td><td>L1</td></tr>
+    <tr><td>P002</td><td>2025-01-15 08:15:00</td><td>L2</td></tr>
+    <tr><td>P003</td><td>2025-01-15 08:30:00</td><td>L1</td></tr>
+    <tr><td>P004</td><td>2025-01-15 08:45:00</td><td>L2</td></tr>
+    <tr><td>P005</td><td>2025-01-15 09:00:00</td><td>L1</td></tr>
+    <tr><td>P006</td><td>2025-01-15 09:10:00</td><td>L3</td></tr>
+    <tr><td>P007</td><td>2025-01-15 09:20:00</td><td>L2</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; dual ROW_NUMBER: partitioned and global</h4>
+<pre><code>SELECT part_id, manufactured_at, line_id,
+       ROW_NUMBER() OVER (PARTITION BY line_id ORDER BY manufactured_at) AS line_seq,
+       ROW_NUMBER() OVER (ORDER BY manufactured_at)                      AS global_seq
+FROM parts;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>part_id</th><th>manufactured_at</th><th>line_id</th><th>line_seq</th><th>global_seq</th></tr></thead>
+  <tbody>
+    <tr><td>P001</td><td>2025-01-15 08:02:00</td><td>L1</td><td>1</td><td>1</td></tr>
+    <tr><td>P002</td><td>2025-01-15 08:15:00</td><td>L2</td><td>1</td><td>2</td></tr>
+    <tr><td>P003</td><td>2025-01-15 08:30:00</td><td>L1</td><td>2</td><td>3</td></tr>
+    <tr><td>P004</td><td>2025-01-15 08:45:00</td><td>L2</td><td>2</td><td>4</td></tr>
+    <tr><td>P005</td><td>2025-01-15 09:00:00</td><td>L1</td><td>3</td><td>5</td></tr>
+    <tr><td>P006</td><td>2025-01-15 09:10:00</td><td>L3</td><td>1</td><td>6</td></tr>
+    <tr><td>P007</td><td>2025-01-15 09:20:00</td><td>L2</td><td>3</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>L1 has three parts (line_seq 1&ndash;3), L2 has three (1&ndash;3), L3 has one (1). The global_seq reflects the wall-clock order across all lines: P001 came first factory-wide (1), P006 was sixth (6) even though it was line L3's very first part (line_seq = 1). The two counters are independent.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The structural difference between the two windows</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY line_id ORDER BY manufactured_at)</code> resets the counter to 1 for every new <code>line_id</code>. <code>ROW_NUMBER() OVER (ORDER BY manufactured_at)</code> has no <code>PARTITION BY</code>, so the entire result set is one window &mdash; the counter climbs from 1 to N without ever resetting. Both share the same sort key, so the engine resolves the ordering once and applies both counters in a single pass.</p>
+
+<h5>ROW_NUMBER vs RANK vs DENSE_RANK in this context</h5>
+<p><code>ROW_NUMBER</code> is the right choice here because every part is physically distinct &mdash; no two parts share the exact same <code>manufactured_at</code> timestamp in production. If two parts on the same line were stamped at the identical millisecond, <code>ROW_NUMBER</code> assigns them consecutive numbers (tie-breaking is deterministic but arbitrary). <code>RANK</code> would give them the same number and skip the next one; <code>DENSE_RANK</code> would give them the same number without skipping. For assembly-line serial numbering you almost always want <code>ROW_NUMBER</code> &mdash; every unit must have a unique position regardless of timestamp ties.</p>
+
+<h5>The no-partition global window &mdash; a common interview stumble</h5>
+<p>Candidates sometimes write <code>PARTITION BY 1</code> or forget the clause entirely and accidentally add a <code>PARTITION BY line_id</code>. Omitting <code>PARTITION BY</code> deliberately is the correct way to say "one partition = the whole table." This is equivalent to a traditional <code>SELECT ROW_NUMBER()</code> without any grouping &mdash; useful for adding a surrogate sequence to a result set, paginating, or assigning global priority order.</p>
+
+<h5>Determinism: tie-breaking in timestamps</h5>
+<p>If two parts share <code>manufactured_at</code>, the ORDER BY is not a total order and the database may assign line_seq or global_seq values in any order between them on repeated executions. For true determinism add a tiebreaker: <code>ORDER BY manufactured_at, part_id</code>. In a production setting, using a timestamp column that could have duplicates without a tiebreaker is a latent non-determinism bug that surfaces silently under parallelism or query plan changes.</p>
+
+<h5>Performance note</h5>
+<p>Both windows share the same <code>ORDER BY manufactured_at</code>, though one also includes a <code>PARTITION BY</code>. Most engines (Snowflake, Postgres, BigQuery) detect the shared sort and compute both in one merge. An index on <code>(line_id, manufactured_at)</code> serves the partitioned window optimally; an index on <code>(manufactured_at)</code> alone serves the global window. On very large parts tables consider a composite index.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ROW_NUMBER() OVER (...)</code> is ANSI SQL and supported identically in Snowflake, Postgres, BigQuery, SQL Server, and Oracle. MySQL added it in v8.0. Snowflake also supports the <code>QUALIFY</code> clause for filtering on window function results without a subquery &mdash; e.g. <code>QUALIFY line_seq = 1</code> returns only each line's first part, a concise pattern unavailable in Postgres or MySQL.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the two-window structure cleanly (partitioned counter resets per group, no-partition counter spans the whole table), explain why <code>ROW_NUMBER</code> beats <code>RANK</code> for serial numbering when ties must still get unique positions, flag that omitting <code>PARTITION BY</code> is intentional (not a mistake), and mention the tiebreaker requirement for true determinism. Bonus: invoke Snowflake&rsquo;s <code>QUALIFY</code> to filter to first-per-line without a subquery.</div>

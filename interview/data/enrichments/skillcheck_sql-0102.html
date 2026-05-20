@@ -1,0 +1,67 @@
+<p>An HR analytics request asks for the three highest <em>distinct</em> salary levels in each department &mdash; and crucially, if several people share one of those top-three levels, every one of them must appear. This is the canonical "top-N with ties" question, and the interviewer has even hinted at it: it is the exact case where <code>DENSE_RANK() &le; 3</code> is correct and <code>ROW_NUMBER() &le; 3</code> is wrong.</p>
+
+<h4>1. The source data &mdash; <code>department</code> and <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ann</td><td>1 (Eng)</td><td>200</td><td>Eng &mdash; tied top salary</td></tr>
+    <tr><td>2</td><td>Bo</td><td>1 (Eng)</td><td>200</td><td>Eng &mdash; tied top salary</td></tr>
+    <tr><td>3</td><td>Cy</td><td>1 (Eng)</td><td>180</td><td>Eng &mdash; 2nd distinct level</td></tr>
+    <tr><td>4</td><td>Di</td><td>1 (Eng)</td><td>160</td><td>Eng &mdash; 3rd distinct level</td></tr>
+    <tr><td>5</td><td>Ed</td><td>1 (Eng)</td><td>150</td><td>Eng &mdash; 4th level, excluded</td></tr>
+    <tr><td>6</td><td>Fi</td><td>2 (Sales)</td><td>300</td><td>Sales &mdash; top</td></tr>
+    <tr><td>7</td><td>Gi</td><td>2 (Sales)</td><td>250</td><td>Sales &mdash; tied 2nd level</td></tr>
+    <tr><td>8</td><td>Hu</td><td>2 (Sales)</td><td>250</td><td>Sales &mdash; tied 2nd level</td></tr>
+    <tr><td>9</td><td>Iv</td><td>2 (Sales)</td><td>200</td><td>Sales &mdash; 3rd distinct level</td></tr>
+    <tr><td>10</td><td>Jo</td><td>2 (Sales)</td><td>180</td><td>Sales &mdash; 4th level, excluded</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are the whole point. In Eng, Ann and Bo are <em>tied</em> at the top salary 200 &mdash; both must appear, and they count as <em>one</em> distinct level, so 180 and 160 are still levels 2 and 3. In Sales, Gi and Hu tie at the second level 250 &mdash; again both appear and the tie does not consume two of the three slots.</p>
+
+<h4>2. The SQL &mdash; DENSE_RANK partitioned by department</h4>
+<pre><code>WITH ranked AS (
+  SELECT e.dept_id, e.name, e.salary,
+         DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employee e
+)
+SELECT d.dept_name, r.name, r.salary
+FROM ranked r
+JOIN department d ON d.dept_id = r.dept_id
+WHERE r.rk &lt;= 3
+ORDER BY d.dept_name, r.salary DESC, r.name;</code></pre>
+<p><code>DENSE_RANK()</code> assigns a rank per department by descending salary; tied salaries get the same rank and no rank is skipped. Filtering <code>rk &lt;= 3</code> keeps the three highest distinct salary <em>levels</em> &mdash; and everyone sitting on them.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_name</th><th>name</th><th>salary</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>Ann</td><td>200</td><td>level 1 (tied)</td></tr>
+    <tr><td>Eng</td><td>Bo</td><td>200</td><td>level 1 (tied) &mdash; both top-earners kept</td></tr>
+    <tr><td>Eng</td><td>Cy</td><td>180</td><td>level 2</td></tr>
+    <tr><td>Eng</td><td>Di</td><td>160</td><td>level 3</td></tr>
+    <tr><td>Sales</td><td>Fi</td><td>300</td><td>level 1</td></tr>
+    <tr><td>Sales</td><td>Gi</td><td>250</td><td>level 2 (tied)</td></tr>
+    <tr><td>Sales</td><td>Hu</td><td>250</td><td>level 2 (tied) &mdash; both kept</td></tr>
+    <tr><td>Sales</td><td>Iv</td><td>200</td><td>level 3</td></tr>
+  </tbody>
+</table>
+<p>Eng returns <em>four</em> people for three salary levels &mdash; Ann and Bo share level 1. Ed (150) is the 4th level and is dropped. Sales also returns four: Gi and Hu share level 2, and Jo (180) at level 4 is excluded.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code> &mdash; "three distinct levels" means dense ranking</h5>
+<p>The question asks for the three highest <em>distinct salaries</em>, including everyone who earns them. <code>DENSE_RANK</code> ranks by distinct value: in Eng the salaries 200, 180, 160 get ranks 1, 2, 3 regardless of how many people sit on 200. Filtering <code>rk &lt;= 3</code> therefore captures exactly the top three pay levels. It is the function whose semantics match the phrase "top N distinct values with ties".</p>
+
+<h5>Why <code>ROW_NUMBER() &le; 3</code> is wrong &mdash; the hinted trap</h5>
+<p><code>ROW_NUMBER</code> assigns 1, 2, 3, 4, 5 with no regard for ties. In Eng it would number Ann=1, Bo=2, Cy=3, Di=4 &mdash; and <code>&le; 3</code> would return Ann, Bo, Cy, <em>dropping Di</em> even though 160 is genuinely the third-highest salary. Worse, the tie between Ann and Bo would be broken arbitrarily by physical row order. <code>ROW_NUMBER</code> answers "give me exactly 3 rows"; the question asks "give me 3 salary levels", which is a different thing.</p>
+
+<h5><code>RANK</code> would also be wrong &mdash; and differently</h5>
+<p><code>RANK</code> shares ranks for ties but <em>skips</em> afterwards: in Eng, Ann and Bo both rank 1, then Cy ranks 3 (not 2), Di ranks 4. <code>RANK &le; 3</code> would return Ann, Bo, Cy and drop Di &mdash; only the top <em>two</em> distinct levels plus a partial third. <code>RANK</code> counts <em>rows above you</em>; <code>DENSE_RANK</code> counts <em>distinct values above you</em>. For "top N distinct values" you need the dense one.</p>
+
+<h5><code>PARTITION BY</code> restarts the ranking per department</h5>
+<p><code>PARTITION BY e.dept_id</code> makes <code>DENSE_RANK</code> reset to 1 at each department boundary, so Sales' 300 is rank 1 independently of Eng's 200. Without the partition you would rank all employees globally and return the top-three salaries company-wide &mdash; a completely different report. The partition is what makes this "per department".</p>
+
+<h5>Window functions cannot be filtered in <code>WHERE</code> &mdash; hence the CTE</h5>
+<p><code>DENSE_RANK()</code> is computed <em>after</em> <code>WHERE</code> in SQL's evaluation order, so <code>WHERE DENSE_RANK() OVER (...) &le; 3</code> is a syntax error. The rank must be materialised in a CTE (or subquery) first, then the outer query can filter on the named column <code>rk</code>. This layering &mdash; rank in a CTE, filter outside &mdash; is the universal shape of every top-N-per-group query.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> read "top three distinct salaries including ties" as a <code>DENSE_RANK</code> problem &mdash; <code>ROW_NUMBER &le; 3</code> drops genuine top earners and breaks ties by row order, <code>RANK &le; 3</code> skips levels &mdash; partition by department, and filter the rank in an outer query because window functions cannot appear in <code>WHERE</code>.</div>

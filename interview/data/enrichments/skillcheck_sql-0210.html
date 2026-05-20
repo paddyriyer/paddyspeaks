@@ -1,0 +1,55 @@
+<p>Labeling every employee as CEO, Manager, or Individual Contributor looks like a simple <code>CASE</code>. The trap is identifying who manages nobody. The intuitive test &mdash; <code>emp_id NOT IN (SELECT manager_id FROM employees)</code> &mdash; silently returns <em>nothing</em>: the <code>manager_id</code> column contains a NULL (the CEO has no manager), and <code>NOT IN</code> against any list containing a NULL can never evaluate to TRUE.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Alice has no manager (the CEO). Bob manages Dan and Eve. Carol, Dan, and Eve manage no one.</p>
+
+<h4>2. The trap &mdash; <code>NOT IN</code> over a nullable column</h4>
+<pre><code>-- intended: an Individual Contributor manages nobody
+... WHERE emp_id NOT IN (SELECT manager_id FROM employees) ...</code></pre>
+<p>The subquery returns <code>{NULL, 1, 1, 2, 2}</code>. For Carol, <code>3 NOT IN (NULL, 1, 2)</code> expands to <code>3 &lt;&gt; NULL AND 3 &lt;&gt; 1 AND 3 &lt;&gt; 2</code>. The term <code>3 &lt;&gt; NULL</code> is <code>UNKNOWN</code>, and <code>UNKNOWN AND TRUE AND TRUE</code> is <code>UNKNOWN</code> &mdash; not TRUE &mdash; so the row is rejected. This happens for <em>every</em> employee: with a NULL in the list, <code>NOT IN</code> yields either FALSE or UNKNOWN, never TRUE. The Individual Contributor branch matches zero rows.</p>
+
+<h4>3. The correct query</h4>
+<pre><code>SELECT e.emp_id, e.emp_name,
+       CASE
+         WHEN e.manager_id IS NULL THEN 'CEO'
+         WHEN EXISTS (SELECT 1 FROM employees s WHERE s.manager_id = e.emp_id) THEN 'Manager'
+         ELSE 'Individual Contributor'
+       END AS role
+FROM employees e
+ORDER BY e.emp_id;</code></pre>
+<table>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>role</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>CEO</td></tr>
+    <tr><td>2</td><td>Bob</td><td>Manager</td></tr>
+    <tr><td>3</td><td>Carol</td><td>Individual Contributor</td></tr>
+    <tr><td>4</td><td>Dan</td><td>Individual Contributor</td></tr>
+    <tr><td>5</td><td>Eve</td><td>Individual Contributor</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why NOT IN + NULL collapses to no rows</h5>
+<p><code>x NOT IN (list)</code> is defined as <code>x &lt;&gt; e1 AND x &lt;&gt; e2 AND ...</code> for every element. If any element is NULL, that conjunct is <code>UNKNOWN</code>. A conjunction can only be TRUE if every term is TRUE, so the presence of a single NULL caps the whole expression at UNKNOWN (or FALSE). <code>NOT IN</code> with a nullable subquery is one of the most common silent-wrong-answer bugs in SQL.</p>
+
+<h5>NOT EXISTS is the null-safe choice</h5>
+<p><code>EXISTS</code> / <code>NOT EXISTS</code> test row presence, not value equality, so NULLs never poison them. <code>NOT EXISTS (SELECT 1 FROM employees s WHERE s.manager_id = e.emp_id)</code> correctly identifies employees nobody reports to, regardless of NULLs in <code>manager_id</code>. It is also typically the fastest form, since the optimiser can stop at the first matching row.</p>
+
+<h5>If you must use NOT IN</h5>
+<p>Filter the NULLs out explicitly: <code>emp_id NOT IN (SELECT manager_id FROM employees WHERE manager_id IS NOT NULL)</code>. This restores correct behaviour, but <code>NOT EXISTS</code> is preferred &mdash; it cannot be broken by forgetting the filter, and it states the intent (&ldquo;no such subordinate&rdquo;) directly. Note the asymmetry: plain <code>IN</code> tolerates NULLs in the list fine; only <code>NOT IN</code> is dangerous.</p>
+
+<h5>Dialect notes</h5>
+<p>This three-valued-logic behaviour is ANSI SQL and identical across PostgreSQL, MySQL, SQL Server, Oracle, Snowflake, and BigQuery &mdash; <code>NOT IN</code> with a NULL is universally hazardous. No engine warns about it; the query runs and quietly returns an empty or short result.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> <code>NOT IN</code> against a subquery that can yield NULL never returns TRUE for any row &mdash; a single NULL turns the whole predicate UNKNOWN. Reach for <code>NOT EXISTS</code> (null-safe and usually faster), or, if keeping <code>NOT IN</code>, add an explicit <code>WHERE col IS NOT NULL</code> to the subquery.</div>

@@ -1,0 +1,37 @@
+<p>LinkedIn Jobs' funnel: <strong>saved → applied → recruiter-viewed</strong>. The query measures conversion at each stage, exposing where candidates drop.</p>
+
+<h4>2. The SQL — sequential conditional aggregation</h4>
+<pre><code>WITH per_pair AS (
+  SELECT member_id, job_id,
+    SUM(CASE WHEN action_type = 'saved'   THEN 1 ELSE 0 END) AS saved,
+    SUM(CASE WHEN action_type = 'applied' THEN 1 ELSE 0 END) AS applied,
+    SUM(CASE WHEN action_type = 'recruiter_viewed' THEN 1 ELSE 0 END) AS recruiter_viewed
+  FROM job_actions GROUP BY member_id, job_id
+)
+SELECT
+  COUNT(*) AS member_job_pairs,
+  SUM(CASE WHEN saved &gt;= 1 THEN 1 ELSE 0 END) AS saved_step,
+  SUM(CASE WHEN applied &gt;= 1 THEN 1 ELSE 0 END) AS applied_step,
+  SUM(CASE WHEN recruiter_viewed &gt;= 1 THEN 1 ELSE 0 END) AS recruiter_viewed_step,
+  ROUND(100.0 * SUM(CASE WHEN applied &gt;= 1 THEN 1 ELSE 0 END)
+              / NULLIF(SUM(CASE WHEN saved &gt;= 1 THEN 1 ELSE 0 END), 0), 1) AS save_to_apply_pct
+FROM per_pair;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The (member, job) pair as the unit</h5>
+<p>The funnel is per-job-per-member. <code>GROUP BY member_id, job_id</code> creates one row per pair. Action presence (≥ 1) fires per-step.</p>
+
+<h5>Save → Apply rate baseline</h5>
+<p>Industry: 40-50% of saved jobs lead to apply within 14 days. Lower than 30% = save-feature is being misused (bookmarking) or the apply-flow is broken.</p>
+
+<h5>Apply → Viewed-by-recruiter rate</h5>
+<p>~25-35% of apps get recruiter views. Variance comes from job posting quality, recruiter velocity, candidate quality. Below 15% = recruiter-side bottleneck (low Recruiter seat usage).</p>
+
+<h5>Easy Apply vs Standard Apply</h5>
+<p>Easy Apply (1-click) has 10x apply-rate but 5x lower recruiter-view rate (lower-quality candidates). Production splits by application type.</p>
+
+<h5>Time-to-apply vs time-to-view</h5>
+<p>Median time-to-apply: 2 days post-save. Median time-to-recruiter-view: 5 days post-apply. Long lag → candidates lose interest. Production tracks median latencies.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use (member, job) pair as the funnel unit, cite 40-50% save→apply baseline, separate Easy Apply from Standard, and surface latency between stages as the disengagement risk.</div>

@@ -1,0 +1,76 @@
+<p>The single dashboard tile every consumer-platform exec asks for: <em>"what % of our users are whales? what % are minnows? and how skewed are we overall?"</em>. The L5 answer surfaces all three named cohorts plus the skew ratio in one query. The vocabulary signals seniority more than the SQL itself.</p>
+
+<p>For the full vocabulary (whales / dolphins / minnows · deciles / quartiles / percentiles · Pareto / long-tail / normal / skewed · mean vs median · LAD gap), see the <a href="/interview.app/design/skew-and-distributions.html"><strong>Skew &amp; Distributions design page</strong></a>.</p>
+
+<h4>1. The four archetypes — boundaries and intent</h4>
+<table>
+  <thead><tr><th>Archetype</th><th>Boundary</th><th>What they need from the platform</th></tr></thead>
+  <tbody>
+    <tr><td>🐋 <strong>Whale</strong></td><td>Top 5% (NTILE(20) = 1)</td><td>Reliability + edge cache; never let them have a bad experience</td></tr>
+    <tr><td>🐬 <strong>Heavy dolphin</strong></td><td>Deciles 2-3 (top 6-30%)</td><td>Feature breadth — they're whales-in-the-making</td></tr>
+    <tr><td>🐬 <strong>Dolphin</strong></td><td>Deciles 4-8 (mid 30-80%)</td><td>Stability + content discovery; the platform backbone</td></tr>
+    <tr><td>🐟 <strong>Minnow</strong></td><td>Bottom 20% (deciles 9-10)</td><td>Onboarding / re-activation; move them up to dolphin</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The L5 vocabulary moments inside the query</h4>
+<ul>
+  <li><strong>NTILE(20) for the whale boundary, NTILE(10) for the rest.</strong> Whales sit at the top 5% — that's NTILE(20) bucket 1. The other bands work fine at decile (NTILE(10)) granularity. Mixing two NTILE granularities in one CASE chain is the senior-IC pattern.</li>
+  <li><strong>PERCENTILE_CONT(0.5) and PERCENTILE_CONT(0.99), not AVG and STDDEV.</strong> Engagement data is positively skewed — STDDEV-based outlier detection silently mis-classifies half the dolphins. PERCENTILE_CONT is the safe default.</li>
+  <li><strong>skew_ratio = AVG / MEDIAN.</strong> One number that quantifies "how Pareto-shaped is the platform". Uniform ≈ 1.0; healthy long-tail = 2-4; extreme power-law (one viral hit) &gt; 10.</li>
+  <li><strong>p99_over_p50.</strong> The interview-friendly variant of skew_ratio. "Our top 1% watches K times more than the median user" — instantly understandable on a board deck.</li>
+  <li><strong>is_metadata_complete = TRUE.</strong> The LAD guard. A whale watching a freshly-released show whose metadata is still propagating would have artificially low <code>hours</code> and get stamped as a minnow without this filter. Surface the filter explicitly in any interview answer.</li>
+</ul>
+
+<h4>3. The interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"Why NTILE(20) for whales but NTILE(10) for everyone else?"</em></h5>
+<p>The whale cohort is conventionally "top 5%", which doesn't fall on a decile boundary. NTILE(20) bucket 1 = top 5%; bucket 2 = next 5%. Splitting the analysis at decile-level for the lower bands keeps the output legible — nobody wants a 20-row table when 4 cohorts is the operational decision space. The honest framing: <strong>granularity should match the decision being made</strong>, not the symmetry of the math.</p>
+
+<h5>Probe 2 — <em>"What if your boundaries leave gaps? NTILE(20)=1 is 5% but NTILE(10) buckets 2-3 is 20%, leaving 5% unaccounted for."</em></h5>
+<p>Good catch — and it's deliberate. With NTILE(20)=1 grabbing the top 5%, NTILE(10)=1 (top 10%) overlaps the whale region. The CASE chain runs top-down — whales are claimed first by NTILE(20)=1; heavy_dolphin then claims NTILE(10) buckets 2-3 which together cover deciles 11-30% — the 5% gap (deciles 6-10% by NTILE(20)) overlaps with the whale boundary and is already claimed. <strong>The defensive rewrite</strong> uses a single ranking function and explicit bucket-number ranges so the boundary math is obvious:</p>
+<pre><code>-- More explicit alternative: PERCENT_RANK with discrete thresholds
+SELECT
+  user_id, hours,
+  CASE
+    WHEN pct &lt;= 0.05 THEN 'whale'
+    WHEN pct &lt;= 0.30 THEN 'heavy_dolphin'
+    WHEN pct &lt;= 0.80 THEN 'dolphin'
+    ELSE                  'minnow'
+  END AS archetype
+FROM (
+  SELECT user_id, hours,
+    PERCENT_RANK() OVER (ORDER BY hours DESC) AS pct
+  FROM user_metrics
+) p;</code></pre>
+
+<h5>Probe 3 — <em>"How does the platform health change if skew_ratio drifts from 2.5 to 4.0 over a quarter?"</em></h5>
+<p>Skew ratio drifting UP means the platform is concentrating — the whales are becoming more dominant relative to the median. Two interpretations:</p>
+<ul>
+  <li><strong>Bull case:</strong> the platform's stickiness for high-end users is improving — they're watching more.</li>
+  <li><strong>Bear case:</strong> the median is dropping — dolphins are shrinking toward minnow territory, churn risk is rising. The aggregate "hours per user" headline looks healthy because whales mask the dolphin slowdown.</li>
+</ul>
+<p>The senior answer: <strong>always pair skew_ratio with median trend</strong>. If both go up, healthy. If skew_ratio up + median down, intervention needed.</p>
+
+<h5>Probe 4 — <em>"At 250M users (Netflix scale), does this query work?"</em></h5>
+<p>PERCENTILE_CONT requires a full sort — at 250M rows that's hours. Production rewrites:</p>
+<ul>
+  <li><strong>APPROX_PERCENTILE</strong> (Snowflake / BigQuery / Spark / Trino) — sketch-based, sub-second on billions of rows, ~1% error. Safe for dashboards.</li>
+  <li><strong>Pre-computed daily histogram</strong> — bucket users into 100 hour-bins overnight; the dashboard queries the 100-row histogram, not the 250M-row table. The classification job becomes O(1).</li>
+  <li><strong>Sample + extrapolate</strong> — run the exact PERCENTILE_CONT on a 1% random sample, multiply with confidence bands. Good for ad-hoc analysis.</li>
+</ul>
+
+<h5>Probe 5 — <em>"What about the transition matrix — how many minnows became dolphins this quarter?"</em></h5>
+<p>The static archetype rollup is the snapshot. The interesting question is the <em>flow</em>:</p>
+<pre><code>-- The archetype transition matrix — pair this quarter's classification
+-- with last quarter's, count user_id flow between buckets.
+SELECT prev.archetype AS last_q_archetype,
+       curr.archetype AS this_q_archetype,
+       COUNT(*) AS users
+FROM archetype_snapshot prev
+JOIN archetype_snapshot curr USING (user_id)
+WHERE prev.snapshot_date = '2025-01-01' AND curr.snapshot_date = '2025-04-01'
+GROUP BY 1, 2 ORDER BY 1, 2;</code></pre>
+<p>"Whale → whale" = the persistent VIPs. "Minnow → dolphin" = the win the platform is built on. "Dolphin → minnow" = the leading-indicator churn risk before the financial metrics show it. The static rollup hides all three.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name all four archetypes explicitly (whale / heavy_dolphin / dolphin / minnow), surface skew_ratio + p99_over_p50 alongside the rollup, pre-empt the LAD-tolerant view, and propose the transition matrix as the actually-interesting follow-up. One sentence to close: <em>"because engagement data is positively skewed toward whales, I'm using NTILE / PERCENTILE_CONT, never AVG ± STDDEV — the standard-deviation approach assumes a normal distribution that engagement data never is."</em></div>

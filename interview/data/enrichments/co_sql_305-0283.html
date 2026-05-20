@@ -1,0 +1,61 @@
+<p>NPM's platform team needs an org chart flattened from a self-referencing <code>employees</code> table: every person, how deep they sit, and the full chain of command from the CEO down to them. There is no fixed depth &mdash; the tree can be three levels or ten &mdash; so a plain join cannot do it. This is the canonical recursive-CTE question; the grand title is dressing on a well-known pattern.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>manager_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td><em>NULL</em></td></tr>
+    <tr><td>2</td><td>Ben</td><td>1</td></tr>
+    <tr><td>3</td><td>Cleo</td><td>1</td></tr>
+    <tr><td>4</td><td>Drew</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+    <tr><td>6</td><td>Finn</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Ada has a <strong>NULL <code>manager_id</code></strong> &mdash; she is the root, the anchor of the recursion. Ben and Cleo report to her; Drew and Eve report to Ben; Finn reports to Cleo. The tree is three levels deep, and nothing in the schema tells you that in advance.</p>
+
+<h4>2. The SQL &mdash; <code>WITH RECURSIVE</code></h4>
+<pre><code>WITH RECURSIVE org AS (
+  SELECT emp_id, name, manager_id, 1 AS lvl, name AS path
+  FROM employees WHERE manager_id IS NULL
+  UNION ALL
+  SELECT e.emp_id, e.name, e.manager_id, o.lvl+1, o.path || ' &gt; ' || e.name
+  FROM employees e JOIN org o ON e.manager_id = o.emp_id)
+SELECT emp_id, name, lvl, path FROM org ORDER BY lvl, name;</code></pre>
+<p>The anchor selects the root (level 1). The recursive arm joins each employee to a row already in <code>org</code> via their manager, incrementing <code>lvl</code> and extending <code>path</code> &mdash; it keeps firing until no new rows are produced.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>lvl</th><th>path</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>1</td><td>Ada</td></tr>
+    <tr><td>2</td><td>Ben</td><td>2</td><td>Ada &gt; Ben</td></tr>
+    <tr><td>3</td><td>Cleo</td><td>2</td><td>Ada &gt; Cleo</td></tr>
+    <tr><td>4</td><td>Drew</td><td>3</td><td>Ada &gt; Ben &gt; Drew</td></tr>
+    <tr><td>5</td><td>Eve</td><td>3</td><td>Ada &gt; Ben &gt; Eve</td></tr>
+    <tr><td>6</td><td>Finn</td><td>3</td><td>Ada &gt; Cleo &gt; Finn</td></tr>
+  </tbody>
+</table>
+<p>Each person carries their depth and an unambiguous chain of command. The recursion ran three times: anchor (Ada), then Ben/Cleo, then Drew/Eve/Finn &mdash; and stopped because no employee reports to a level-3 person.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Anchor + recursive term &mdash; the two-part contract</h5>
+<p>A recursive CTE is always two queries glued by <code>UNION ALL</code>. The <em>anchor</em> is the non-recursive seed &mdash; here, the root with <code>manager_id IS NULL</code>. The <em>recursive term</em> references the CTE name (<code>org</code>) and produces the next layer from the previous one. Postgres iterates: run the anchor, then repeatedly run the recursive term against only the rows added last round, until a round adds nothing. Get the anchor predicate wrong &mdash; e.g. omit <code>IS NULL</code> &mdash; and you either seed nothing or seed everything.</p>
+
+<h5>The infinite-loop trap &mdash; cycles</h5>
+<p><code>UNION ALL</code> never dedupes, so if the data has a cycle (A manages B, B manages A &mdash; a bad edit), the recursion never terminates and the query hangs. Real hierarchical code defends against it. Postgres 14+ has native cycle detection:</p>
+<pre><code>WITH RECURSIVE org AS ( &hellip; )
+CYCLE emp_id SET is_cycle USING cycle_path</code></pre>
+<p>Pre-14, you carry an array path and stop manually: <code>WHERE NOT e.emp_id = ANY(o.id_path)</code>. Mentioning the cycle risk &mdash; not just writing the happy path &mdash; is the senior tell.</p>
+
+<h5><code>UNION ALL</code> vs <code>UNION</code> &mdash; and why it must be <code>ALL</code></h5>
+<p>The recursive term <em>must</em> use <code>UNION ALL</code>, not <code>UNION</code>. <code>UNION</code> forces a distinct check every iteration, which is slower and, more subtly, can mask a genuine cycle by silently swallowing the repeated row instead of letting cycle detection catch it. <code>UNION ALL</code> plus an explicit cycle guard is the correct combination.</p>
+
+<h5>Building the path string &mdash; and its sort gotcha</h5>
+<p><code>o.path || ' &gt; ' || e.name</code> accumulates the breadcrumb top-down. It is great for display, but sorting by <code>path</code> gives lexicographic order, not tree order &mdash; fine here because the query sorts by <code>lvl, name</code>. For a true depth-first tree listing, sort by an <em>array</em> path instead: carry <code>array_append(o.id_path, e.emp_id)</code> and <code>ORDER BY id_path</code>, which orders children directly under their parent.</p>
+
+<h5>Subtree and depth-limit follow-ups</h5>
+<p>"Everyone under Ben" just changes the anchor to <code>WHERE emp_id = 2</code>. "Only three levels deep" adds <code>WHERE o.lvl &lt; 3</code> to the recursive term &mdash; also a pragmatic safety cap against runaway recursion even when you believe the data is clean.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> structure the recursion as anchor (root via <code>manager_id IS NULL</code>) plus recursive term joined to the CTE, use <code>UNION ALL</code> deliberately, and proactively guard against cycles &mdash; native <code>CYCLE</code> on PG14+ or an array-path check &mdash; rather than assuming the org chart is acyclic.</div>

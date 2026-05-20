@@ -1,0 +1,79 @@
+<p>A compensation analyst wants the third-distinct salary tier in each department &mdash; not the third employee when sorted, but the third <em>unique salary value</em>. The interviewer is probing <strong>DISTINCT before ranking</strong>: you must deduplicate salaries per department first, then rank the unique values, or you will produce incorrect results when there are salary ties at the top.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Eng</td><td>300</td></tr>
+    <tr><td>2</td><td>Eng</td><td>300</td></tr>
+    <tr><td>3</td><td>Eng</td><td>250</td></tr>
+    <tr><td>4</td><td>Eng</td><td>200</td></tr>
+    <tr><td>5</td><td>Eng</td><td>150</td></tr>
+    <tr><td>6</td><td>Sales</td><td>400</td></tr>
+    <tr><td>7</td><td>Sales</td><td>350</td></tr>
+    <tr><td>8</td><td>Ops</td><td>120</td></tr>
+    <tr><td>9</td><td>Ops</td><td>120</td></tr>
+    <tr><td>10</td><td>Ops</td><td>100</td></tr>
+    <tr><td>11</td><td>Ops</td><td>90</td></tr>
+    <tr><td>12</td><td>Ops</td><td>90</td></tr>
+  </tbody>
+</table>
+<p>Eng distinct salaries (descending): 300, 250, 200, 150 &rarr; third = <strong>200</strong>. Sales has only 2 distinct salaries (400, 350) &rarr; excluded. Ops distinct salaries: 120, 100, 90 &rarr; third = <strong>90</strong>.</p>
+
+<h4>2. The SQL &mdash; DISTINCT + DENSE_RANK on the deduplicated set</h4>
+<pre><code>WITH d AS (
+  SELECT DISTINCT dept, salary FROM employee
+),
+r AS (
+  SELECT dept, salary,
+         DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rk
+  FROM d
+)
+SELECT dept, salary AS third_highest_distinct_salary
+FROM r
+WHERE rk = 3
+ORDER BY dept;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Intermediate <code>d</code> (distinct dept/salary pairs) and their dense ranks:</p>
+<table>
+  <thead><tr><th>dept</th><th>salary</th><th>rk</th><th>in result?</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>300</td><td>1</td><td>&mdash;</td></tr>
+    <tr><td>Eng</td><td>250</td><td>2</td><td>&mdash;</td></tr>
+    <tr><td>Eng</td><td>200</td><td>3</td><td>Yes</td></tr>
+    <tr><td>Eng</td><td>150</td><td>4</td><td>&mdash;</td></tr>
+    <tr><td>Sales</td><td>400</td><td>1</td><td>&mdash;</td></tr>
+    <tr><td>Sales</td><td>350</td><td>2</td><td>&mdash; (only 2 distinct salaries)</td></tr>
+    <tr><td>Ops</td><td>120</td><td>1</td><td>&mdash;</td></tr>
+    <tr><td>Ops</td><td>100</td><td>2</td><td>&mdash;</td></tr>
+    <tr><td>Ops</td><td>90</td><td>3</td><td>Yes</td></tr>
+  </tbody>
+</table>
+<p>Final output:</p>
+<table>
+  <thead><tr><th>dept</th><th>third_highest_distinct_salary</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>200</td></tr>
+    <tr><td>Ops</td><td>90</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why DISTINCT before ranking &mdash; the key insight</h5>
+<p>In Eng, salaries 300, 300, 250, 200, 150 appear for 5 employees. Without the dedup CTE, applying <code>DENSE_RANK</code> to the raw table would still give: 300&rarr;rank 1, 300&rarr;rank 1, 250&rarr;rank 2, 200&rarr;rank 3, 150&rarr;rank 4. The WHERE rk = 3 filter would return 200 &mdash; accidentally correct in this case. However, in Ops, without dedup: 120&rarr;1, 120&rarr;1, 100&rarr;2, 90&rarr;3, 90&rarr;3. The result 90 would be correct here too. The problem is that DENSE_RANK on the raw table returns the correct <em>value</em> at position rk=3, but only because DENSE_RANK already handles ties within a rank. The DISTINCT CTE is conceptually cleaner and makes the intent explicit: you are ranking salary <em>values</em>, not employees. Without the DISTINCT CTE, applying ROW_NUMBER (not DENSE_RANK) would be incorrect. The solution's approach &mdash; DISTINCT then DENSE_RANK &mdash; is unambiguous.</p>
+
+<h5>DENSE_RANK vs RANK vs ROW_NUMBER on the distinct set</h5>
+<p>After <code>SELECT DISTINCT dept, salary</code>, each (dept, salary) pair is unique. On this deduplicated result, all three ranking functions produce identical output (no ties remain within the distinct set). <code>DENSE_RANK</code> is semantically the most natural ("the Nth distinct salary level") and is the conventional choice for this question type.</p>
+
+<h5>Departments with fewer than 3 distinct salaries</h5>
+<p>The WHERE rk = 3 filter automatically excludes departments that have fewer than 3 distinct salary values &mdash; they simply produce no row with rk = 3. No explicit HAVING clause is needed. Sales has only rk = 1 and rk = 2, so it silently disappears from the result, satisfying the requirement "departments with fewer than 3 distinct salaries should NOT appear."</p>
+
+<h5>Performance note</h5>
+<p>For large tables, the DISTINCT CTE reduces the row count before the window function runs. An index on <code>(dept, salary)</code> allows the executor to satisfy the DISTINCT with an index scan rather than a sort + hash. In practice, salary cardinality per department is low, so the DISTINCT step is cheap regardless.</p>
+
+<h5>Dialect notes</h5>
+<p>The <code>SELECT DISTINCT ... DENSE_RANK() OVER (...)</code> pattern is ANSI SQL and works in PostgreSQL, Snowflake, BigQuery, SQL Server, and MySQL 8+. An alternative in PostgreSQL is to use <code>DISTINCT ON (dept, salary)</code> ordered by salary DESC and then apply a subquery to get the third row per dept &mdash; but the CTE approach is cleaner and more portable. BigQuery's <code>QUALIFY</code> clause (analogous to HAVING for window functions) can replace the outer WHERE: <code>QUALIFY rk = 3</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> always deduplicate to distinct salary values <em>before</em> ranking when the question asks for the Nth-highest <em>distinct</em> value; then DENSE_RANK on the clean set is unambiguous; and note that the WHERE rk = 3 filter implicitly excludes departments with fewer than 3 distinct values without needing an explicit HAVING guard.</div>

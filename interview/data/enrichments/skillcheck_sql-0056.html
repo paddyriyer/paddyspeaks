@@ -1,0 +1,62 @@
+<p>A customer-marketing team wants to send milestone gifts: <em>"as of 2025-05-14, which customers have a 5-, 10-, or 25-year signup anniversary landing in the next 30 days?"</em> The interviewer is probing date anchoring &mdash; can you project a signup date forward by N years, handle the leap-day customer who signed up on 29 February, and filter against a rolling window?</p>
+
+<h4>1. The source data &mdash; <code>customer</code></h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>signup_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>2020-05-20</td><td>5yr &rarr; 2025-05-20, inside window</td></tr>
+    <tr><td>2</td><td>Bob</td><td>2015-06-01</td><td>10yr &rarr; 2025-06-01, inside window</td></tr>
+    <tr><td>3</td><td>Cara</td><td>2000-06-10</td><td>25yr &rarr; 2025-06-10, inside window</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2020-02-29</td><td>leap-day signup &mdash; 5yr falls on a non-leap year</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2019-05-14</td><td>5yr was 2024-05-14 (past); next milestone 2029</td></tr>
+    <tr><td>6</td><td>Finn</td><td>2010-04-01</td><td>10yr was 2020; 25yr is 2035 &mdash; none near</td></tr>
+    <tr><td>7</td><td>Gwen</td><td>2020-06-15</td><td>5yr &rarr; 2025-06-15, one day past the window</td></tr>
+  </tbody>
+</table>
+<p>Dan is the leap-day edge case: 2020-02-29 + 5 years is 2025-02-29, which does not exist. Gwen sits just outside the 30-day window. Both test the boundary precisely.</p>
+
+<h4>2. The SQL &mdash; cross join milestones, then anchor and filter</h4>
+<pre><code>WITH base AS (
+  SELECT id, name, signup_date, m AS milestone_years
+  FROM customer, (VALUES (5),(10),(25)) AS milestones(m)
+),
+anniversaries AS (
+  SELECT id, name, milestone_years,
+         (signup_date + (milestone_years * INTERVAL '1 year'))::date AS anniversary_date
+  FROM base
+)
+SELECT id, name, milestone_years, anniversary_date
+FROM anniversaries
+WHERE anniversary_date BETWEEN DATE '2025-05-14' AND DATE '2025-05-14' + 30
+ORDER BY anniversary_date, id;</code></pre>
+<p>The <code>VALUES (5),(10),(25)</code> table cross-joined to <code>customer</code> produces three rows per customer &mdash; one per milestone. Each anniversary is the signup date plus that many year-intervals. The <code>BETWEEN</code> keeps anniversaries from the reference date through 30 days later.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>milestone_years</th><th>anniversary_date</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>5</td><td>2025-05-20</td><td>6 days out &mdash; inside the 30-day window</td></tr>
+    <tr><td>2</td><td>Bob</td><td>10</td><td>2025-06-01</td><td>inside window</td></tr>
+    <tr><td>3</td><td>Cara</td><td>25</td><td>2025-06-10</td><td>inside window</td></tr>
+  </tbody>
+</table>
+<p>Dan is absent: his 5-year anniversary computes to <strong>2025-02-28</strong> (Postgres clamps the non-existent Feb 29), far outside the window. Gwen is absent too &mdash; 2025-06-15 is 32 days out, one day past <code>2025-05-14 + 30 = 2025-06-13</code>. The boundary is honoured exactly.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>VALUES</code> cross join</h5>
+<p>The rule has three milestone offsets and any customer might hit any of them. Rather than three near-identical <code>UNION</code> branches, the <code>(VALUES (5),(10),(25)) AS milestones(m)</code> inline table is cross-joined so each customer fans out into three candidate rows. Adding a 50-year milestone later is a one-token edit. This "small dimension as <code>VALUES</code>" pattern is the clean way to enumerate cases.</p>
+
+<h5>How leap-day arithmetic actually resolves</h5>
+<p>Dan signed up 2020-02-29. <code>signup_date + INTERVAL '5 years'</code> targets 2025-02-29, which does not exist, so PostgreSQL <em>clamps</em> to the last valid day &mdash; 2025-02-28. That matches the question's stated rule ("treat the anniversary as Feb 28"). This behaviour is engine-specific: do not assume it; verify it. The clamp is why Dan correctly falls out of a May window rather than throwing an error.</p>
+
+<h5>Adding years: <code>INTERVAL</code> vs raw integer</h5>
+<p><code>signup_date + (5 * INTERVAL '1 year')</code> does calendar-aware year addition &mdash; it lands on the same month/day (modulo the leap clamp). Adding a raw integer instead (<code>signup_date + 1825</code>) adds <em>days</em>, drifting off the calendar date because of leap years in between. For anniversaries you want the calendar-aware <code>INTERVAL</code> arithmetic, then <code>::date</code> to drop any time component.</p>
+
+<h5>The window boundary &mdash; inclusive both ends</h5>
+<p><code>BETWEEN a AND b</code> is inclusive of both endpoints. The window is <code>[2025-05-14, 2025-06-13]</code>: an anniversary exactly on the reference date counts, and one on day 30 counts, but Gwen's day-32 anniversary does not. State the inclusivity explicitly &mdash; "next 30 days" is ambiguous about whether today and day 30 are in, and an off-by-one here changes who gets a gift. Using a half-open form (<code>&gt;= start AND &lt; start + 31</code>) is the safer idiom when the boundary matters.</p>
+
+<h5>Past milestones are correctly dropped</h5>
+<p>Eve's 5-year anniversary (2024-05-14) is in the past, so it falls below the window and is filtered out; her next is the 10-year in 2029. The single <code>BETWEEN</code> handles "only upcoming" for free &mdash; there is no need for a separate "is it in the future" clause, because anything earlier than the reference date fails the lower bound.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> enumerate the milestone offsets as an inline <code>VALUES</code> table cross-joined to customers, add years with calendar-aware <code>INTERVAL</code> arithmetic (not raw day counts), know that PostgreSQL clamps a non-existent Feb 29 to Feb 28, and state the <code>BETWEEN</code> window's inclusivity explicitly so the 30-day boundary is unambiguous.</div>

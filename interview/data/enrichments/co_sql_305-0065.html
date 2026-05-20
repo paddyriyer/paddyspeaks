@@ -1,0 +1,78 @@
+<p>Marketing wants to send three different email campaigns: a thank-you to VIPs, a loyalty offer to Regulars, and an onboarding nudge to New customers. The segmentation rules — VIP at $10K+ lifetime, Regular at $1K–$10K, New below that — come from the analytics team and need to be encoded once in SQL. <code>CASE</code> is the universal answer.</p>
+
+<h4>1. The source data — <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>total_spent</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>$24,500</td></tr>
+    <tr><td>C_002</td><td>$3,200</td></tr>
+    <tr><td>C_003</td><td>$11,800</td></tr>
+    <tr><td>C_004</td><td>$95</td></tr>
+    <tr><td>C_005</td><td>$650</td></tr>
+    <tr><td>C_006</td><td>$10,000</td></tr>
+    <tr><td>C_007</td><td>$1,000</td></tr>
+  </tbody>
+</table>
+<p>Notice C_006 sits exactly on the $10K threshold and C_007 exactly on $1K — boundary cases the CASE has to handle deterministically.</p>
+
+<h4>2. The SQL — tiered <code>CASE</code> with explicit boundaries</h4>
+<pre><code>SELECT
+  customer_id,
+  total_spent,
+  CASE
+    WHEN total_spent &gt;= 10000 THEN 'VIP'
+    WHEN total_spent &gt;= 1000  THEN 'Regular'
+    ELSE                            'New'
+  END AS segment
+FROM customers;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>total_spent</th><th>segment</th><th>(rule hit)</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>$24,500</td><td><strong>VIP</strong></td><td>≥ 10000</td></tr>
+    <tr><td>C_006</td><td>$10,000</td><td><strong>VIP</strong></td><td>≥ 10000 (boundary, included)</td></tr>
+    <tr><td>C_003</td><td>$11,800</td><td><strong>VIP</strong></td><td>≥ 10000</td></tr>
+    <tr><td>C_002</td><td>$3,200</td><td>Regular</td><td>≥ 1000</td></tr>
+    <tr><td>C_007</td><td>$1,000</td><td>Regular</td><td>≥ 1000 (boundary, included)</td></tr>
+    <tr><td>C_005</td><td>$650</td><td>New</td><td>ELSE fallback</td></tr>
+    <tr><td>C_004</td><td>$95</td><td>New</td><td>ELSE fallback</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Order of CASE matters — most-restrictive first</h5>
+<p>Reverse the order and everything breaks. If you wrote <code>WHEN total_spent &gt;= 1000 THEN 'Regular'</code> before the VIP rule, then C_001 (24K) and C_003 (11.8K) would land in 'Regular' because they match the first WHEN that fires — CASE evaluates top-down and short-circuits. Rule of thumb: <strong>most-restrictive first, fallback last</strong>.</p>
+
+<h5>The boundary-inclusion choice — <code>&gt;=</code> vs <code>&gt;</code></h5>
+<p>$10,000 exactly: VIP or Regular? With <code>&gt;= 10000</code> they're VIP. With <code>&gt; 10000</code> they're Regular. Both are valid; pick consciously. Marketing usually wants the more generous interpretation (more VIPs = more retention spend = more revenue), so <code>&gt;=</code> is conventional. Document the choice in a comment so finance can audit it.</p>
+
+<h5><code>ELSE</code> matters more than it looks</h5>
+<p>Without <code>ELSE 'New'</code>, customers below $1K would get NULL in the segment column. Most BI tools treat NULL as "no data" and silently drop those customers from the report — they vanish from the email list. Always include <code>ELSE</code> with an explicit fallback value. Empty <code>ELSE</code> is rarely what you want.</p>
+
+<h5>When CASE outgrows itself — refactor to a rules table</h5>
+<p>If marketing comes back with 6 tiers, then sub-tiers, then per-region rules, the CASE balloons unreadably. At that point, the rules belong in a <code>dim_segment_rule</code> table joined on the threshold:</p>
+<pre><code>SELECT c.customer_id, c.total_spent, r.segment_name
+FROM customers c
+JOIN dim_segment_rule r
+  ON c.total_spent &gt;= r.lower_bound
+ AND c.total_spent &lt;  r.upper_bound;</code></pre>
+<p>Now marketing can edit the rules table without a code deploy.</p>
+
+<h5>The follow-up: counts per segment</h5>
+<p>Inevitably the analyst asks <em>"how many customers are in each segment?"</em>. Wrap it:</p>
+<pre><code>SELECT segment, COUNT(*) AS n, SUM(total_spent) AS revenue
+FROM (
+  SELECT customer_id, total_spent,
+    CASE WHEN total_spent &gt;= 10000 THEN 'VIP'
+         WHEN total_spent &gt;= 1000  THEN 'Regular'
+         ELSE                            'New' END AS segment
+  FROM customers
+) t
+GROUP BY segment;</code></pre>
+
+<h5>The over-the-bar finish: RFM segmentation</h5>
+<p>"Total spent" is the simplest segmentation. The actual marketing-team standard is RFM — Recency × Frequency × Monetary. Each axis gets its own CASE, then the three are combined into a 555 / 555 / 555 grid with custom segment names ("Champions", "At-Risk", "Lost"). Mention RFM as the next-level evolution; senior candidates know the term.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <em>order-of-CASE matters</em> upfront, articulate the boundary-inclusion choice consciously, and pre-empt the rules-table refactor at scale. RFM is the over-the-bar finish — it's what real marketing teams actually use.</div>

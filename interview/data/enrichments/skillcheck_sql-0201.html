@@ -1,0 +1,50 @@
+<p>Log parsing in SQL is a practical requirement whenever structured application logs are stored in a text column &mdash; a common pattern in data warehouses that ingest raw log lines before downstream ETL. The interviewer is probing whether you can use a regex-based string function to extract a structured field from a semi-structured text, specifically using <code>regexp_replace</code> with a capture group backreference to isolate the level token.</p>
+
+<h4>1. The source data &mdash; <code>log_line</code></h4>
+<table>
+  <thead><tr><th>id</th><th>raw</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>[2025-03-04] level=WARN msg=disk full</td></tr>
+    <tr><td>2</td><td>[2025-03-04] level=INFO msg=startup ok</td></tr>
+    <tr><td>3</td><td>[2025-03-05] level=ERROR msg=timeout</td></tr>
+  </tbody>
+</table>
+<p>Each raw line has the format <code>[date] level=TOKEN msg=…</code>. The target token is the run of uppercase letters immediately after <code>level=</code> and before the next space.</p>
+
+<h4>2. The SQL &mdash; regexp_replace with a capture group</h4>
+<pre><code>SELECT
+  id,
+  regexp_replace(raw, '^.*level=([A-Z]+).*$', '\1') AS level
+FROM log_line
+ORDER BY id;</code></pre>
+<p>The regex <code>^.*level=([A-Z]+).*$</code> matches the entire string. The capture group <code>([A-Z]+)</code> captures the uppercase level token. The replacement string <code>\1</code> emits only the first capture group, discarding everything else &mdash; so the function effectively extracts the token rather than replacing text.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>level</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>WARN</td></tr>
+    <tr><td>2</td><td>INFO</td></tr>
+    <tr><td>3</td><td>ERROR</td></tr>
+  </tbody>
+</table>
+<p>Each row's raw text is fully consumed by the regex (anchors <code>^</code> and <code>$</code>, greedy wildcards on both sides). The replacement <code>\1</code> emits only the captured token. For row 1: WARN. Row 2: INFO. Row 3: ERROR.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>regexp_replace as an extractor</h5>
+<p>The idiomatic use of <code>regexp_replace</code> for extraction relies on matching the <em>whole string</em> with anchors (<code>^…$</code>) and replacing the entire match with just the capture group via <code>\1</code>. This turns a replacement function into a pure extractor. The alternative &mdash; <code>SUBSTRING(raw FROM 'level=([A-Z]+)')</code> (PostgreSQL regex syntax) &mdash; is more directly an extractor: it returns the first match of the pattern, and if a capture group is present, it returns the captured group rather than the full match. Both approaches are correct; <code>SUBSTRING … FROM</code> is often cleaner for simple extraction.</p>
+
+<h5>Anchor discipline: why ^.* and .*$</h5>
+<p>The leading <code>^.*</code> absorbs everything before <code>level=</code> (the timestamp and bracket). The trailing <code>.*$</code> absorbs everything after the token (the space and msg field). Without these anchors the regex would match only the <code>level=WARN</code> portion and <code>regexp_replace</code> would leave the non-matching parts intact, returning the original string with only the matched substring replaced &mdash; giving <code>[2025-03-04] WARN msg=disk full</code> rather than <code>WARN</code>.</p>
+
+<h5>Character class [A-Z]+ and edge cases</h5>
+<p>The pattern <code>[A-Z]+</code> captures only uppercase ASCII letters. If level tokens could be lowercase or mixed-case, you would use <code>[A-Za-z]+</code> or <code>\w+</code>. If the token could contain digits or hyphens (e.g., <code>level=HTTP-500</code>), you would widen the class. Clarifying the token alphabet during the interview shows production awareness.</p>
+
+<h5>SUBSTRING vs regexp_replace &mdash; when to prefer each</h5>
+<p><code>SUBSTRING(raw FROM 'level=([A-Z]+)')</code> returns <code>NULL</code> if the pattern does not match, which is often the safer default for nullable raw data. <code>regexp_replace</code> returns the original string unchanged if the pattern does not match &mdash; meaning a row with no <code>level=</code> field would return its entire raw text as "level", silently poisoning the result. For robustness, adding a <code>WHERE raw ~ 'level='</code> guard or using SUBSTRING is preferable in production.</p>
+
+<h5>Dialect notes</h5>
+<p>PostgreSQL uses POSIX regex: <code>regexp_replace(str, pattern, replacement)</code> and <code>SUBSTRING(str FROM pattern)</code> with <code>\1</code> backreferences. MySQL uses <code>REGEXP_REPLACE</code> (8.0+) with <code>$1</code> backreferences in the replacement string. SQL Server uses <code>PATINDEX</code> + string functions (no regex replacement natively; use CLR or a JSON parsing trick). BigQuery has <code>REGEXP_EXTRACT(str, pattern)</code> which directly returns the first capture group &mdash; the cleanest form. DuckDB supports both POSIX and <code>REGEXP_EXTRACT</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>regexp_replace(raw, '^.*level=([A-Z]+).*$', '\1')</code> to extract via a full-string anchor + capture group replacement; explain why the anchors are necessary (without them non-matching text is left in place); note that <code>SUBSTRING(raw FROM 'level=([A-Z]+)')</code> is often cleaner for extraction and returns NULL on no-match rather than the raw string; and name BigQuery's <code>REGEXP_EXTRACT</code> as the most concise portable equivalent.</div>

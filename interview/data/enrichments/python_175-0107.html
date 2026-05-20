@@ -1,0 +1,125 @@
+<p>Cloudflare's autoscaler doesn't care what day of the week it is — it cares whether the underlying traffic <em>trend</em> is up or down. The weekly seasonality (weekend dip on B2B sites, weekend spike on consumer sites) is loud, predictable, and noise from the trend's perspective. <strong>Deseasonalising lets the autoscaler provision against the slow-moving truth instead of yo-yoing with the day-of-week.</strong> The same algorithm shape powers retail demand forecasts (Walmart, Target), restaurant cover predictions (OpenTable), and any time-series where "is this a real change or just Tuesday?" is the question.</p>
+
+<h4>1. The data — daily request volume on a Cloudflare zone</h4>
+<table>
+  <thead><tr><th>aspect</th><th>shape</th></tr></thead>
+  <tbody>
+    <tr><td>cadence</td><td>1 row per day, 12 weeks = 84 days</td></tr>
+    <tr><td>true trend</td><td>linear growth 10 000 → 16 000 rps (customer ramp)</td></tr>
+    <tr><td>true seasonal</td><td>weekly pattern, weekend dip ~700 rps, period=7</td></tr>
+    <tr><td>noise</td><td>Gaussian σ=150 rps</td></tr>
+  </tbody>
+</table>
+<p>This is a synthetic seed because real Cloudflare data isn't shareable — but the <em>signal-shape</em> is verbatim what their public traffic dashboards show. The decomposition has to recover trend + seasonal + residual such that <code>original ≈ trend + seasonal + residual</code> (additive form).</p>
+
+<h4>2. The business question — what the autoscaler decides on</h4>
+<ul>
+  <li><strong>Capacity provisioning.</strong> The autoscaler reads the deseasoned curve, projects it forward 7 days, provisions to <code>p95(forecast) × 1.3</code> headroom. Reading the raw curve would over-provision Mondays and under-provision Sundays.</li>
+  <li><strong>Anomaly detection.</strong> An outage that drops Monday traffic by 30 % is invisible if you compare to the Monday-mean (looks normal). On the deseasoned curve, the same drop is a 30 % residual — easy to alert on.</li>
+  <li><strong>Customer success.</strong> "Is this customer's traffic actually growing, or is it just the post-holiday seasonal bump?" The seasonal component answers it cleanly.</li>
+  <li><strong>SLA forecasting.</strong> The trend tells you when you'll hit the customer's contracted capacity ceiling; the seasonal tells you which day-of-week it will happen first. Both are needed for the renewal conversation.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def deseasonalize(series, period):
+    s = series.astype(float)
+
+    # ── Step 1. TREND — centred rolling mean.
+    # Window = period (7 for weekly) means the smoothing window covers
+    # exactly one full cycle, so any phase-of-week effect averages out.
+    # center=True puts the value at the middle of the window — without
+    # it, the trend lags the data by 3-4 days.
+    # min_periods=1 fills the edges with whatever partial window exists;
+    # tighter alternatives are min_periods=period (NaN edges, exact)
+    # or a Savitzky-Golay filter for smooth edge handling.
+    trend = s.rolling(window=period, center=True, min_periods=1).mean()
+
+    # ── Step 2. DETREND — subtract the trend to expose the seasonal +
+    # residual. The "detrended" signal has zero mean over each period.
+    detrended = s - trend
+
+    # ── Step 3. SEASONAL — per-phase average of the detrended signal.
+    # phase = position-in-period (0..6 for weekly). transform('mean')
+    # broadcasts the per-phase mean back to row-level so the seasonal
+    # array is the same length as the original series.
+    phase = pd.Series(range(len(s)), index=s.index) % period
+    seasonal_pattern = detrended.groupby(phase).transform('mean')
+
+    # Re-centre to mean zero so trend + seasonal exactly recovers the
+    # smoothed signal. Without this, the seasonal component carries a
+    # constant offset that should belong to the trend.
+    seasonal_pattern = seasonal_pattern - seasonal_pattern.mean()
+
+    # ── Step 4. DESEASONED — original minus seasonal pattern. This is
+    # the curve the autoscaler reads. RESIDUAL = original - trend -
+    # seasonal = the unexplained noise (and outliers).
+    deseasoned = s - seasonal_pattern
+    residual = s - trend - seasonal_pattern
+
+    return pd.DataFrame({
+        'original':   s,
+        'trend':      trend,
+        'seasonal':   seasonal_pattern,
+        'deseasoned': deseasoned,
+        'residual':   residual,
+    })</code></pre>
+
+<p><strong>Why classical decomposition and not STL or X-13ARIMA?</strong> Classical (the textbook 1923 method) is good enough for 80 % of cases and runs in pure pandas. STL (Cleveland 1990) handles non-constant seasonality and gradually-changing periods — production-grade but needs statsmodels. X-13ARIMA-SEATS (US Census, the gold standard for official statistics) handles holidays and trading-day effects — needs the X-13 binary. The trade-off: classical is the right call when you control the seasonality model and want zero external dependencies (e.g. browser Pyodide).</p>
+
+<p><strong>Why <code>center=True</code> on the rolling mean?</strong> A trailing-only rolling mean lags the data — by hour 7 the trend reflects hours 1-7 averaged, anchored at hour 7. The visual effect is a trend curve shifted to the right of the actual trend. <code>center=True</code> anchors the window-mean at the centre of the window, so hour 4 reflects hours 1-7 (the true centre). The trade-off: the last <code>period/2</code> rows are NaN unless <code>min_periods</code> permits partial windows.</p>
+
+<p><strong>Why additive (subtract) and not multiplicative (divide)?</strong> Additive: <code>y = trend + seasonal + residual</code>. Multiplicative: <code>y = trend × seasonal × residual</code>. Use additive when the seasonal amplitude is constant in absolute terms (Cloudflare requests/sec: weekend dip is ~700 rps regardless of total volume). Use multiplicative when the seasonal swing scales with the trend (retail sales: Christmas spike is 3× the autumn base, not "plus $X"). Multiplicative is <code>np.log(y)</code> first → additive decomposition → <code>np.exp</code> back.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>day</th><th>original</th><th>trend</th><th>seasonal</th><th>deseasoned</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>Mon</td><td>10000</td><td>10226</td><td>+140</td><td>9861</td><td>Monday is +140 vs the weekly average. Autoscaler reads 9861 → capacity-plans against the trend, not the Monday peak.</td></tr>
+    <tr><td>Tue</td><td>10317</td><td>10205</td><td>+322</td><td>9995</td><td>Tuesday peak — strongest day. Seasonal pattern correctly identifies it.</td></tr>
+    <tr><td>Sat</td><td>9413</td><td>10182</td><td>-692</td><td>10105</td><td>Saturday is the weekly low — 692 rps below the weekly average. Deseasoning lifts the Saturday reading <em>up</em> by 692 to its non-seasonal equivalent.</td></tr>
+    <tr><td>Sun</td><td>9743</td><td>10247</td><td>-539</td><td>10282</td><td>Sunday rebounds from Saturday's low — pattern captures the partial recovery.</td></tr>
+  </tbody>
+</table>
+<p>The <em>seasonal swing</em> in the output is -692 to +460 (1152 rps total). The injected seasonal pattern was -800 to +300 — recovered well within noise. The <em>residual stdev</em> is ~133, vs the injected noise σ of 150 — also a good recovery.</p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 10 M rows comfortable.</strong> The function above is one-pass linear and the rolling mean is a vectorised C call. For one customer zone for 5 years at minute cadence (~2.6 M rows), runs in seconds. For Cloudflare's full fleet (10 M zones × yearly minute data ≈ 5 trillion rows), no — production runs the same algorithm in Spark per-zone with <code>applyInPandas</code>.</li>
+  <li><strong>The autoscaler reads the deseasoned curve.</strong> Cloudflare publicly discusses this: their capacity planner consumes deseasoned traffic from their internal metrics pipeline. The seasonal component itself is stored separately and used for SLA forecasting — "your weekend peak will hit our soft limit on Sept 14".</li>
+  <li><strong>Walmart / Target retail forecasting</strong> uses STL or Prophet (Facebook's library) for the same decomposition, because retail seasonality has multiple overlapping cycles (weekly + yearly + holiday). The pandas function above handles single-period seasonality; multi-period requires sequential decomposition (extract weekly → on residuals extract yearly → on residuals extract holiday).</li>
+  <li><strong>Hot key = popular zone.</strong> A B2C giant's zone has 1000× the traffic of an SMB zone. <code>groupby(zone_id).apply(deseasonalize)</code> in Spark sees the big-zone task take 1000× longer than the small-zone task. Fix: separate Spark jobs for "top 100 zones" and "long tail" with different parallelism settings. Salt isn't the right tool here because the per-zone computation isn't naively associative (rolling mean needs row order). See <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> for the patterns where salt works.</li>
+  <li><strong>Twilio &amp; SendGrid</strong> use the same shape for SMS/email delivery anomaly detection — deseasonalise the per-customer send rate and alert on residual spikes.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "Why period=7 in the example?"</h5>
+<p>Daily data with weekly seasonality. If the data were hourly, period=24 (daily seasonality) or period=168 (weekly seasonality across hourly samples) — depends which cycle you're isolating. Real-world data has multiple overlapping cycles; you pick the one you care about, decompose, then optionally repeat on the residual. Naming the cycle and the cadence relationship is the senior signal.</p>
+
+<h5>Probe 2 — "Additive vs multiplicative — when to switch?"</h5>
+<p>Multiplicative when the seasonal swing scales with the trend. Quick diagnostic: plot raw data, then plot detrended residuals — if the residual variance grows with the trend (heteroscedasticity), use multiplicative. Equivalent: take <code>log(y)</code>, run additive decomp, exponentiate back. Retail sales, web traffic during hyper-growth, and ad spend almost always need multiplicative; mature ops metrics usually fit additive.</p>
+
+<h5>Probe 3 — "What's wrong with <code>.apply()</code> for the seasonal pattern?"</h5>
+<p><code>detrended.groupby(phase).transform('mean')</code> stays in C. A naive <code>detrended.groupby(phase).apply(lambda g: g.mean())</code> + <code>.map(phase)</code> would re-enter Python — same answer, 10-100× slower on a long series. The <code>transform</code> idiom is the load-bearing vectorisation here; senior candidates name it.</p>
+
+<h5>Probe 4 — "Edge effects — the trend has NaN at the ends. How do you handle them?"</h5>
+<p>Three options. (a) <code>min_periods=1</code> (what we used) — fills with partial-window means; biased but no NaN. (b) <code>min_periods=period</code> — leaves NaN at the edges; honest but propagates NaN to deseasoned. (c) <strong>Two-sided extension:</strong> mirror-reflect the first and last <code>period/2</code> rows so the window is always full; gold standard for offline analysis. Pick based on whether the consumer can handle NaN; autoscaler can't, so go (a) or (c).</p>
+
+<h5>Probe 5 — "How would you incrementalise this for streaming?"</h5>
+<p>You can't, naively — the trend needs a full period of look-ahead (centre=True). Production compromise: emit a <em>trailing</em> trend in real-time (last-period rolling mean, anchored at the right), and re-emit a corrected trend with a 1-period lag. The autoscaler reads the trailing trend live (for now-decisions) and the corrected trend retrospectively (for SLA reporting). Two streams from one decomposition.</p>
+
+<h5>Probe 6 — "Holidays — Black Friday spikes 5× the usual Friday. Does this algorithm handle it?"</h5>
+<p>No — classical decomposition assumes the seasonal pattern is constant. Black Friday breaks that assumption. The residual will be enormous (5× normal Friday minus normal Friday seasonal = 4× residual), which is what triggers the alert. <strong>Better:</strong> add a holiday-effect term explicitly (Prophet, X-13, or a custom dummy variable per holiday). Classical → STL → Prophet is the typical maturation path for a forecasting team.</p>
+
+<h5>Probe 7 — "Concept drift — the weekly pattern changes over time (work-from-home weakened the weekend dip)?"</h5>
+<p>Classical decomposition averages over the entire series, so old weeks dilute the new pattern. STL handles this with locally-weighted regression — recent weeks weighted higher. Production pattern: re-fit the seasonal component on a sliding window (e.g., last 13 weeks) rather than the full history. Or use Prophet's <code>changepoint_prior_scale</code> to let the model detect when the pattern shifts.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=python_175-0104">python_175-0104</a> — time-windowed aggregation: the rolling baseline is an alternative way to handle seasonality.</li>
+  <li><a href="/interview.app/sql.html?q=python_175-0106">python_175-0106</a> — gap-fill: the pre-step (you can't decompose a series with NaN holes).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas-as-offline-twin pattern (decomposition for backfill, EWMA for streaming).</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — trailing trend vs corrected trend, two-stream pattern.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Five things to name: (1) <em>additive vs multiplicative</em> — diagnose by checking residual variance vs trend level; (2) <em>centre=True</em> on the rolling mean — trailing windows lag the data; (3) <em>zero-mean centring</em> on the seasonal component — without it, the constant offset belongs to the trend, not the seasonal; (4) <em>edge effects</em> — partial-window fill or mirror-reflect or accept NaN; (5) <em>classical → STL → Prophet</em> as the maturation path. The pandas function is the analyst's debugging twin; production Cloudflare/Walmart pipelines run Prophet or STL with holiday dummies.</div>

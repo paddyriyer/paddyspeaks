@@ -1,0 +1,57 @@
+<p>A sales dashboard needs the most active customer &mdash; the one with the most orders &mdash; and if several customers tie at the top, all of them should show. The interviewer steers you toward a window function specifically because ties must "surface naturally": <code>RANK()</code> gives every co-leader the same rank 1, where a <code>LIMIT 1</code> would arbitrarily keep just one.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>orders</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Adobe</td><td>3 (Jan 1&ndash;3)</td><td>3 orders &mdash; tied for the lead&hellip;</td></tr>
+    <tr><td>2</td><td>Google</td><td>3 (Feb 1&ndash;3)</td><td>&hellip;also 3 orders &mdash; tied with Adobe</td></tr>
+    <tr><td>3</td><td>Apple</td><td>2 (Mar 1&ndash;2)</td><td>2 orders &mdash; behind the leaders</td></tr>
+    <tr><td>4</td><td>Twitter</td><td>1 (Apr 1)</td><td>single order &mdash; lowest</td></tr>
+  </tbody>
+</table>
+<p>The deliberate edge case: Adobe and Google <em>tie</em> at 3 orders &mdash; the joint maximum. A correct answer must return <em>both</em>. Twitter, with a single order, tests the bottom of the distribution and confirms the query is not accidentally returning everyone.</p>
+
+<h4>2. The SQL &mdash; count, rank, keep rank 1</h4>
+<pre><code>WITH counts AS (
+  SELECT customer_id, COUNT(*) AS order_count
+  FROM orders
+  GROUP BY customer_id
+),
+ranked AS (
+  SELECT customer_id, order_count,
+         RANK() OVER (ORDER BY order_count DESC) AS rk
+  FROM counts
+)
+SELECT r.customer_id, c.name, r.order_count::int AS order_count
+FROM ranked r
+JOIN customers c ON c.customer_id = r.customer_id
+WHERE rk = 1
+ORDER BY r.customer_id;</code></pre>
+<p><code>counts</code> reduces <code>orders</code> to one row per customer with their order tally. <code>ranked</code> assigns a competition rank by descending count. <code>WHERE rk = 1</code> keeps the leader(s); the join to <code>customers</code> attaches the name.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>order_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Adobe</td><td>3</td><td>tied leader &mdash; <code>rk = 1</code></td></tr>
+    <tr><td>2</td><td>Google</td><td>3</td><td>also <code>rk = 1</code> &mdash; the tie surfaces</td></tr>
+  </tbody>
+</table>
+<p>Both Adobe and Google appear, each with <strong>3</strong> orders &mdash; <code>RANK()</code> gave them the same rank 1, so <code>WHERE rk = 1</code> keeps both. Apple (2) and Twitter (1) get ranks 3 and 4 and are filtered out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>RANK()</code> is the right window function for "the max, ties included"</h5>
+<p><code>RANK() OVER (ORDER BY order_count DESC)</code> gives every customer at the joint-highest count the value 1. Filtering <code>rk = 1</code> therefore returns <em>all</em> co-leaders &mdash; precisely "the customer or customers, if tied". <code>ROW_NUMBER()</code> would be the wrong choice: it assigns 1, 2, 3, 4 unconditionally, so the two 3-order customers get distinct numbers and <code>rn = 1</code> arbitrarily keeps just one of them. When ties must all win, use <code>RANK</code> (or <code>DENSE_RANK</code>); reserve <code>ROW_NUMBER</code> for "exactly one row".</p>
+
+<h5>Why this beats <code>ORDER BY &hellip; LIMIT 1</code></h5>
+<p>The obvious shortcut &mdash; <code>SELECT &hellip; ORDER BY order_count DESC LIMIT 1</code> &mdash; silently drops a co-leader: it returns one row no matter how many customers tie at the top. The question's "if tied" clause is exactly the case <code>LIMIT</code> mishandles. The <code>RANK() &hellip; WHERE rk = 1</code> pattern is tie-correct and is the idiom to reach for whenever "the maximum" might not be unique. (<code>LIMIT WITH TIES</code> exists in newer Postgres and SQL Server, but is less portable than the window approach.)</p>
+
+<h5>Why aggregate first, then rank &mdash; the two-CTE shape</h5>
+<p>The ranking metric is <code>COUNT(*)</code> per customer, which must exist before it can be ordered. So the query aggregates in <code>counts</code>, then ranks the aggregated rows in <code>ranked</code>. You cannot collapse this into one level: <code>RANK() OVER (ORDER BY COUNT(*) DESC)</code> in a <code>GROUP BY</code> query is legal Postgres (the window runs after the group-by), but you still cannot reference the resulting <code>rk</code> in the same query's <code>WHERE</code> &mdash; window functions are evaluated after <code>WHERE</code>. A second query level (CTE or subquery) is required to filter on <code>rk</code>.</p>
+
+<h5>Customers with zero orders &mdash; the join direction trap</h5>
+<p><code>counts</code> is built from <code>orders</code>, so a customer who never ordered has <em>no</em> row and cannot be ranked &mdash; correct here, since a zero-order customer is never the most active. But note the join: <code>ranked</code> JOIN <code>customers</code> is an inner join used only to fetch names for already-selected leaders. If the task were instead "rank <em>all</em> customers including zero-order ones", you would start from <code>customers</code> with a <code>LEFT JOIN orders</code> and <code>COUNT(o.order_id)</code> (which counts 0 for non-matches, unlike <code>COUNT(*)</code>). Knowing which join direction the question needs is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>RANK() OVER (ORDER BY order_count DESC)</code> filtered to <code>rk = 1</code> so every tied top customer surfaces &mdash; never <code>ROW_NUMBER</code> or <code>LIMIT 1</code>, which keep just one &mdash; aggregate before ranking in a separate CTE because window results cannot be filtered in <code>WHERE</code>, and pick the join direction based on whether zero-order customers must be ranked.</div>

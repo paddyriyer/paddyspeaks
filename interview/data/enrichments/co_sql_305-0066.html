@@ -1,0 +1,59 @@
+<p>SAP's commerce-cloud team runs a Monday morning revenue review, and the slide everyone looks at first is "this week vs last week". It sounds trivial &mdash; two sums &mdash; but the whole question lives in how you draw the two seven-day windows. Off by one day and the boundary sale lands in the wrong bucket, or in both, or in neither. An interviewer asking this is checking whether you can define a date range that is exactly seven days, with no gap and no overlap.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>CURRENT_DATE &minus; 1</td><td>100</td></tr>
+    <tr><td>CURRENT_DATE &minus; 5</td><td>250</td></tr>
+    <tr><td>CURRENT_DATE &minus; 9</td><td>300</td></tr>
+    <tr><td>CURRENT_DATE &minus; 12</td><td>175</td></tr>
+    <tr><td>CURRENT_DATE &minus; 20</td><td>500</td></tr>
+    <tr><td>CURRENT_DATE &minus; 8</td><td>60</td></tr>
+  </tbody>
+</table>
+<p>The interesting rows are the boundaries. The sale at <code>CURRENT_DATE &minus; 8</code> sits exactly on the edge between the two windows, and the sale at <code>CURRENT_DATE &minus; 20</code> is old enough to fall outside both. If the windows are drawn sloppily, the &minus;8 sale double-counts or vanishes.</p>
+
+<h4>2. The SQL &mdash; <code>conditional aggregation</code></h4>
+<pre><code>SELECT
+  SUM(CASE WHEN sale_date &gt;= (CURRENT_DATE + INTERVAL '-7 days') THEN amount END) AS this_week,
+  SUM(CASE WHEN sale_date BETWEEN (CURRENT_DATE + INTERVAL '-14 days') AND (CURRENT_DATE + INTERVAL '-8 days') THEN amount END) AS last_week
+FROM sales;</code></pre>
+<p>Two <code>CASE</code> expressions inside two <code>SUM</code>s &mdash; the classic pivot-without-<code>GROUP BY</code>. Each row contributes its amount to at most one column. The whole table collapses to a single summary row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>this_week</th><th>last_week</th></tr></thead>
+  <tbody>
+    <tr><td>350</td><td>535</td></tr>
+  </tbody>
+</table>
+<p>This week is 100 + 250 = 350 (the &minus;1 and &minus;5 sales). Last week is 300 + 175 + 60 = 535 (the &minus;9, &minus;12 and the boundary &minus;8). The &minus;20 sale is excluded from both. Revenue is down week-over-week &mdash; 350 vs 535 &mdash; which is exactly the number the review wants.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the windows abut without overlapping</h5>
+<p>"This week" is <code>sale_date &gt;= CURRENT_DATE - 7</code> &mdash; everything from 7 days ago through today. "Last week" is <code>BETWEEN CURRENT_DATE - 14 AND CURRENT_DATE - 8</code>. The two ranges meet exactly: last week ends at &minus;8, this week starts at &minus;7. No day belongs to both, no day falls between them. That is the property to verbalise &mdash; "the windows tile the calendar with no seam".</p>
+
+<h5>The classic off-by-one trap</h5>
+<p>A tempting "fix" is to make last week <code>BETWEEN CURRENT_DATE - 14 AND CURRENT_DATE - 7</code>. Now day &minus;7 is in <em>both</em> buckets and its revenue is counted twice. The opposite slip &mdash; starting this week at <code>&gt; CURRENT_DATE - 7</code> instead of <code>&gt;=</code> &mdash; drops day &minus;7 from everything. <code>BETWEEN</code> is inclusive on both ends in Postgres; pair it with a strict <code>&gt;=</code> on the adjacent window so the shared edge is owned by exactly one side.</p>
+
+<h5>NULL when a window is empty</h5>
+<p><code>SUM</code> over zero matching rows returns <strong>NULL</strong>, not 0. If last week had no sales at all, the dashboard would show a blank instead of a zero, and a downstream growth calculation <code>(this_week - last_week)</code> would yield NULL. Wrap each side: <code>COALESCE(SUM(CASE &hellip; END), 0)</code>.</p>
+
+<h5>Timestamps vs dates &mdash; the silent boundary bug</h5>
+<p>If <code>sale_date</code> were actually a <code>timestamp</code>, <code>CURRENT_DATE - 7</code> is midnight, so a sale at 09:00 on that day still qualifies &mdash; but a comparison like <code>sale_date &lt;= CURRENT_DATE</code> would <em>exclude</em> everything after midnight today. When the column carries a time component, truncate it: <code>sale_date::date</code>, or compare against <code>date_trunc('day', &hellip;)</code>. State the column's type before trusting the arithmetic.</p>
+
+<h5>Adding the growth percentage</h5>
+<p>The reviewer's next sentence is always "and what's the change?" Compute it in one pass without re-scanning:</p>
+<pre><code>SELECT this_week, last_week,
+       ROUND(100.0 * (this_week - last_week) / NULLIF(last_week, 0), 1) AS wow_pct
+FROM (
+  SELECT
+    COALESCE(SUM(amount) FILTER (WHERE sale_date &gt;= CURRENT_DATE - 7), 0) AS this_week,
+    COALESCE(SUM(amount) FILTER (WHERE sale_date BETWEEN CURRENT_DATE - 14 AND CURRENT_DATE - 8), 0) AS last_week
+  FROM sales
+) t;</code></pre>
+<p>The <code>NULLIF(last_week, 0)</code> guards the divide-by-zero when last week was a dead period.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> draw the two seven-day windows so they abut with no overlap and no gap, justify the <code>&gt;=</code> / <code>BETWEEN</code> boundary choice out loud, pre-empt the empty-window NULL with <code>COALESCE</code>, and flag the timestamp-truncation hazard before it silently corrupts the edge days.</div>

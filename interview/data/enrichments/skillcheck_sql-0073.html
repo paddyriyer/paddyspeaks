@@ -1,0 +1,59 @@
+<p>A professional-network platform wants to identify "power creators" &mdash; individuals whose personal following dwarfs that of every employer they list. The rule is universally quantified: the personal count must exceed <em>every</em> company's count, for all employments. The interviewer is testing whether you can express a "for all" condition in SQL, which has no <code>FORALL</code> keyword &mdash; the idiomatic move is double negation with <code>NOT EXISTS</code>.</p>
+
+<h4>1. The source data &mdash; <code>personal_profile</code>, <code>employment</code>, <code>company_page</code></h4>
+<table>
+  <thead><tr><th>profile_id</th><th>personal followers</th><th>works at (company: followers)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>5000</td><td>100:1500, 101:4000</td><td>beats both &rarr; power creator</td></tr>
+    <tr><td>2</td><td>2000</td><td>100:1500, 105:9999</td><td>105 outranks them &rarr; excluded</td></tr>
+    <tr><td>3</td><td>15000</td><td>102:9000</td><td>single employer, beaten &rarr; power creator</td></tr>
+    <tr><td>4</td><td>800</td><td>103:500</td><td>small but still beats 500 &rarr; power creator</td></tr>
+    <tr><td>5</td><td>3000</td><td>100:1500, 104:4000</td><td>104 ties/exceeds &rarr; excluded</td></tr>
+    <tr><td>6</td><td>1000</td><td>(no employment)</td><td>no jobs &rarr; must NOT appear</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases are baked in. Profile 4 has a tiny following (800) but its only employer has just 500 &mdash; it qualifies, proving the rule is relative, not an absolute threshold. Profile 6 has no employment rows at all and must be excluded. Profile 5 fails on a <em>single</em> bad employment even though its other employer is fine.</p>
+
+<h4>2. The SQL &mdash; EXISTS for employment, NOT EXISTS for the violation</h4>
+<pre><code>SELECT p.profile_id
+FROM personal_profile p
+WHERE EXISTS (SELECT 1 FROM employment e WHERE e.profile_id = p.profile_id)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM employment e
+    JOIN company_page c ON c.company_id = e.company_id
+    WHERE e.profile_id = p.profile_id
+      AND c.follower_count &gt;= p.follower_count
+  )
+ORDER BY p.profile_id;</code></pre>
+<p>Two correlated subqueries. The first <code>EXISTS</code> confirms the profile has at least one employment. The <code>NOT EXISTS</code> says "there is no employer of this profile whose follower count is &ge; the profile's" &mdash; which is logically equivalent to "every employer's count is strictly less". The profile passes only when both hold.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>profile_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>5000 &gt; max(1500, 4000)</td></tr>
+    <tr><td>3</td><td>15000 &gt; 9000</td></tr>
+    <tr><td>4</td><td>800 &gt; 500 &mdash; relative rule, not a floor</td></tr>
+  </tbody>
+</table>
+<p>Profiles 1, 3, 4 qualify. Profile 2 is rejected because employer 105 (9999) exceeds its 2000. Profile 5 is rejected because employer 104 (4000) is &ge; its 3000 &mdash; one violating employment is enough. Profile 6 never had an employment row, so the <code>EXISTS</code> guard drops it. Profile 4 surviving with only 800 followers confirms the comparison is per-employer, not against any global number.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why "for every" becomes <code>NOT EXISTS</code> a violation</h5>
+<p>SQL has no universal quantifier. The trick is the logical identity: "<em>every</em> employer is beaten" is the same as "there does <em>not exist</em> an employer that is <em>not</em> beaten". So you search for a counterexample &mdash; an employer with <code>follower_count &gt;= p.follower_count</code> &mdash; and require that <code>NOT EXISTS</code>. This double-negation pattern is the canonical way to express "for all" conditions and is worth recognising on sight.</p>
+
+<h5>Why the standalone <code>EXISTS</code> guard is mandatory</h5>
+<p><code>NOT EXISTS</code> over an empty set is <em>true</em> &mdash; vacuously. Profile 6 has zero employments, so the violation subquery returns nothing and <code>NOT EXISTS</code> evaluates to true, which would wrongly mark a jobless profile as a power creator. The first <code>EXISTS (SELECT 1 FROM employment ...)</code> clause explicitly requires at least one employment, closing the vacuous-truth hole. The question calls this out directly: "profiles with no recorded employment should NOT appear."</p>
+
+<h5>The inequality: <code>&gt;=</code> in the violation means <code>&gt;</code> in the rule</h5>
+<p>The rule is "personal count <em>strictly exceeds</em> every company". A company that merely <em>ties</em> the personal count breaks the rule. So the violation subquery looks for <code>c.follower_count &gt;= p.follower_count</code> &mdash; greater-or-equal, catching both "company higher" and "company equal". This is why profile 5 fails: company 104 at 4000 vs profile 5 at 3000 satisfies <code>&gt;=</code>. Mixing up <code>&gt;</code> and <code>&gt;=</code> here is the most likely correctness bug.</p>
+
+<h5>NOT EXISTS vs NOT IN &mdash; the NULL trap</h5>
+<p>A tempting alternative is <code>profile_id NOT IN (SELECT profile_id FROM bad_employments)</code>. But <code>NOT IN</code> is treacherous: if the subquery returns even one <code>NULL</code>, the entire <code>NOT IN</code> evaluates to <code>UNKNOWN</code> and the row is dropped &mdash; so a single NULL company_id could erase correct results. <code>NOT EXISTS</code> has no such pathology; it is row-by-row and NULL-safe. Senior engineers default to <code>NOT EXISTS</code> for anti-joins precisely for this reason.</p>
+
+<h5>An aggregate alternative &mdash; and why this form is cleaner</h5>
+<p>You could instead join, group, and test <code>MAX(c.follower_count) &lt; p.follower_count</code> with a <code>HAVING</code> clause. That works, but you would still need a separate mechanism (the join itself, or a <code>COUNT</code>) to exclude jobless profiles, and an inner join already does that here. The <code>EXISTS</code>/<code>NOT EXISTS</code> pair states the two business rules &mdash; "has a job" and "beats every employer" &mdash; as two readable, independently-correct clauses, and lets the planner short-circuit each subquery.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> translate a "for every" requirement into <code>NOT EXISTS</code> (a counterexample) &mdash; and always pair it with an explicit <code>EXISTS</code> guard, because <code>NOT EXISTS</code> over an empty set is vacuously true and would admit rows with no related data. Mind the inequality (<code>&gt;=</code> in the violation encodes a strict <code>&gt;</code> rule) and prefer <code>NOT EXISTS</code> over <code>NOT IN</code> for NULL safety.</div>

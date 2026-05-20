@@ -1,0 +1,86 @@
+<p>Salesforce&rsquo;s market intelligence team wants to filter the startup portfolio to companies that have raised at least $1M in total funding. The query demonstrates the fundamental <code>HAVING</code> vs <code>WHERE</code> distinction: you cannot filter on an aggregate in a <code>WHERE</code> clause because the aggregate does not exist yet at that stage of query execution. The correct tool is <code>HAVING</code>, which filters after grouping and aggregation are complete.</p>
+
+<h4>1. The source data &mdash; <code>companies</code> and <code>funding_rounds</code></h4>
+<table>
+  <thead><tr><th>company_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Acme Corp</td></tr>
+    <tr><td>2</td><td>Beta Labs</td></tr>
+    <tr><td>3</td><td>Gamma Tech</td></tr>
+    <tr><td>4</td><td>Delta Systems</td></tr>
+    <tr><td>5</td><td>Epsilon Industries</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>round_id</th><th>company_id</th><th>amount</th><th>round_type</th><th>raised_on</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>500000.00</td><td>Seed</td><td>2023-01-15</td></tr>
+    <tr><td>102</td><td>1</td><td>600000.00</td><td>Series A</td><td>2023-08-01</td></tr>
+    <tr><td>103</td><td>2</td><td>300000.00</td><td>Seed</td><td>2023-02-10</td></tr>
+    <tr><td>104</td><td>2</td><td>400000.00</td><td>Series A</td><td>2023-09-12</td></tr>
+    <tr><td>105</td><td>2</td><td>250000.00</td><td>Series B</td><td>2024-01-05</td></tr>
+    <tr><td>106</td><td>3</td><td>1500000.00</td><td>Series A</td><td>2023-11-20</td></tr>
+    <tr><td>107</td><td>4</td><td>200000.00</td><td>Seed</td><td>2023-03-01</td></tr>
+    <tr><td>108</td><td>5</td><td>3000000.00</td><td>Series A</td><td>2023-05-15</td></tr>
+    <tr><td>109</td><td>5</td><td>2000000.00</td><td>Series B</td><td>2024-02-10</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; JOIN + GROUP BY + HAVING threshold filter</h4>
+<pre><code>SELECT c.company_id, c.name,
+       SUM(f.amount) AS total_raised,
+       COUNT(*)      AS rounds
+FROM companies      c
+JOIN funding_rounds f ON c.company_id = f.company_id
+GROUP BY c.company_id, c.name
+HAVING SUM(f.amount) &gt;= 1000000
+ORDER BY total_raised DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Totals per company:</p>
+<ul>
+  <li>Company 1 (Acme Corp): 500 000 + 600 000 = 1 100 000 &mdash; qualifies</li>
+  <li>Company 2 (Beta Labs): 300 000 + 400 000 + 250 000 = 950 000 &mdash; does NOT qualify</li>
+  <li>Company 3 (Gamma Tech): 1 500 000 &mdash; qualifies</li>
+  <li>Company 4 (Delta Systems): 200 000 &mdash; does NOT qualify</li>
+  <li>Company 5 (Epsilon Industries): 3 000 000 + 2 000 000 = 5 000 000 &mdash; qualifies</li>
+</ul>
+<table>
+  <thead><tr><th>company_id</th><th>name</th><th>total_raised</th><th>rounds</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>Epsilon Industries</td><td>5000000.00</td><td>2</td></tr>
+    <tr><td>3</td><td>Gamma Tech</td><td>1500000.00</td><td>1</td></tr>
+    <tr><td>1</td><td>Acme Corp</td><td>1100000.00</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Three companies qualify, sorted by total_raised descending. Beta Labs (950 000) and Delta Systems (200 000) are correctly excluded. Company 5 has 2 rounds totalling 5M; company 3 has 1 round at 1.5M; company 1 has 2 rounds at 1.1M.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>HAVING vs WHERE &mdash; the execution order distinction</h5>
+<p>SQL logical execution order: <code>FROM</code> &rarr; <code>JOIN</code> &rarr; <code>WHERE</code> &rarr; <code>GROUP BY</code> &rarr; <code>HAVING</code> &rarr; <code>SELECT</code> &rarr; <code>ORDER BY</code>. <code>WHERE</code> filters individual rows <em>before</em> grouping &mdash; the aggregate <code>SUM(f.amount)</code> does not exist yet. <code>HAVING</code> filters groups <em>after</em> aggregation &mdash; <code>SUM(f.amount)</code> is fully computed and can be compared to the threshold. Writing <code>WHERE SUM(f.amount) &gt;= 1000000</code> is a syntax error in all major engines.</p>
+
+<h5>HAVING SUM(...) vs subquery filter</h5>
+<p>An alternative approach: compute the sum in a subquery and filter in the outer <code>WHERE</code>:</p>
+<pre><code>SELECT company_id, name, total_raised, rounds
+FROM (
+  SELECT c.company_id, c.name,
+         SUM(f.amount) AS total_raised,
+         COUNT(*) AS rounds
+  FROM companies c JOIN funding_rounds f USING (company_id)
+  GROUP BY c.company_id, c.name
+) agg
+WHERE total_raised &gt;= 1000000
+ORDER BY total_raised DESC;</code></pre>
+<p>This produces identical results. The <code>HAVING</code> form is more concise; the subquery form lets you reference the alias <code>total_raised</code> in the outer <code>WHERE</code> (Snowflake also allows <code>HAVING total_raised &gt;= 1000000</code> with the alias directly, as does Postgres since the alias is resolved before HAVING in practice &mdash; though standard SQL requires repeating the expression).</p>
+
+<h5>Why INNER JOIN drops Company 4 correctly</h5>
+<p>Delta Systems (company 4) does have a funding round (round 107, $200 000). The <code>JOIN</code> matches it, it gets included in aggregation, and <code>HAVING</code> excludes it because 200 000 &lt; 1 000 000. If a company had <em>no funding rounds at all</em>, an <code>INNER JOIN</code> would silently drop it. Whether that is correct depends on the business rule: "only funded companies appear in this report" &mdash; here it is correct. If you wanted unfunded companies to show up with total_raised=0, you would use a <code>LEFT JOIN</code> and <code>COALESCE(SUM(f.amount), 0)</code>.</p>
+
+<h5>COUNT(*) vs COUNT(f.round_id)</h5>
+<p><code>COUNT(*)</code> counts all rows in the group, including those where any column might be NULL. Because this is an <code>INNER JOIN</code>, every row in the group has a non-NULL <code>round_id</code>, so <code>COUNT(*)</code> and <code>COUNT(f.round_id)</code> are equivalent here. With a <code>LEFT JOIN</code>, <code>COUNT(*)</code> would count the NULL-padded row for an unfunded company as 1, while <code>COUNT(f.round_id)</code> would correctly return 0 (COUNT ignores NULLs). A senior candidate knows this distinction and picks the right one for the join type.</p>
+
+<h5>Dialect notes</h5>
+<p><code>HAVING</code> with aggregates is ANSI SQL and universal. The <code>::numeric</code> cast in the solution (not present in the SELECT here) is Postgres/Snowflake shorthand for <code>CAST(... AS NUMERIC)</code>. <code>NUMERIC(14,2)</code> gives two decimal places of precision, matching typical currency requirements. BigQuery, MySQL, and SQL Server handle the <code>HAVING</code> pattern identically.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recite the SQL logical execution order (FROM &rarr; WHERE &rarr; GROUP BY &rarr; HAVING &rarr; SELECT &rarr; ORDER BY), explain why <code>WHERE SUM(...)</code> is illegal, note that <code>COUNT(*)</code> vs <code>COUNT(col)</code> matters under a LEFT JOIN (not here, but worth flagging), and offer the LEFT JOIN + COALESCE variant for the "include unfunded companies at zero" business requirement.</div>

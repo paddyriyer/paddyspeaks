@@ -1,0 +1,61 @@
+<p>Elastic's revenue-ops team wants total sales broken down by region <em>and</em> by category &mdash; a two-dimensional grid for the finance pack. The query is a textbook <code>GROUP BY</code>, but grouping on two columns is where candidates reveal whether they understand that the grouping key is the <em>combination</em> of values, not each column separately.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>category</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>West</td><td>Electronics</td><td>100</td></tr>
+    <tr><td>West</td><td>Electronics</td><td>200</td></tr>
+    <tr><td>West</td><td>Apparel</td><td>50</td></tr>
+    <tr><td>East</td><td>Electronics</td><td>300</td></tr>
+    <tr><td>East</td><td>Apparel</td><td><em>NULL</em></td></tr>
+    <tr><td>East</td><td>Apparel</td><td>75</td></tr>
+  </tbody>
+</table>
+<p>Six rows collapse into four groups &mdash; one per distinct (region, category) pair. The East/Apparel group has a <strong>NULL</strong> <code>amount</code>: that row is what tests whether you know how <code>SUM</code> treats missing values.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY region, category</code></h4>
+<pre><code>SELECT region, category, SUM(amount) FROM sales GROUP BY region, category;</code></pre>
+<p>The grouping key is the pair <code>(region, category)</code>. Every row whose pair matches lands in the same bucket; <code>SUM(amount)</code> totals that bucket.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>category</th><th>sum</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>Electronics</td><td>300</td></tr>
+    <tr><td>West</td><td>Electronics</td><td>300</td></tr>
+    <tr><td>East</td><td>Apparel</td><td>75</td></tr>
+    <tr><td>West</td><td>Apparel</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Four groups, as expected. West/Electronics sums 100 + 200 = 300. East/Apparel sums NULL + 75 and reports <strong>75</strong>, not NULL &mdash; <code>SUM</code> skips the NULL row entirely. Note also there is no <code>ORDER BY</code>, so the row order shown is whatever the planner emitted &mdash; it is not guaranteed.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The grouping key is the tuple, not the columns separately</h5>
+<p>The most common conceptual error is reading <code>GROUP BY region, category</code> as "group by region, then somehow also by category". It is one operation: rows are bucketed by the distinct <em>combination</em> of values. Two regions &times; two categories yields up to four groups; with three regions and four categories you would see up to twelve. The number of output rows equals the number of distinct pairs that actually occur in the data &mdash; empty combinations simply do not appear.</p>
+
+<h5>The select-list rule &mdash; every non-aggregate column must be grouped</h5>
+<p>In standard SQL, any column in the <code>SELECT</code> list that is not inside an aggregate must appear in <code>GROUP BY</code>. Here both <code>region</code> and <code>category</code> are grouped, so they are legal. Adding a bare <code>amount</code> or <code>order_id</code> to the select list would be an error in Postgres:</p>
+<pre><code>-- ERROR: column "sales.order_id" must appear in the GROUP BY clause
+SELECT region, category, order_id, SUM(amount) FROM sales GROUP BY region, category;</code></pre>
+<p>MySQL historically allowed this and returned an arbitrary value for the ungrouped column &mdash; a notorious source of silent bugs. Postgres rejects it outright. Knowing this rule, and why MySQL's old behaviour was dangerous, is a senior tell.</p>
+
+<h5><code>SUM</code> and NULL &mdash; skipped, but an all-NULL group is NULL</h5>
+<p><code>SUM</code> ignores NULL inputs, so East/Apparel correctly reports 75. The subtle trap: if <em>every</em> row in a group had a NULL <code>amount</code>, <code>SUM</code> returns <strong>NULL for that group, not 0</strong>. If the finance grid must show 0 for an empty-revenue cell, wrap it:</p>
+<pre><code>SELECT region, category, COALESCE(SUM(amount), 0) AS total
+FROM sales GROUP BY region, category;</code></pre>
+
+<h5>Name the aggregate, and order the output</h5>
+<p>The reference leaves the aggregate unnamed, so the column comes back as <code>sum</code> &mdash; fine ad hoc, brittle in a pipeline. Always alias it (<code>AS total_amount</code>). And because <code>GROUP BY</code> does not imply any sort, add an explicit <code>ORDER BY region, category</code> for a stable, readable grid:</p>
+<pre><code>SELECT region, category, SUM(amount) AS total_amount
+FROM sales GROUP BY region, category
+ORDER BY region, category;</code></pre>
+
+<h5>When you also want subtotals &mdash; <code>ROLLUP</code> / <code>GROUPING SETS</code></h5>
+<p>A finance pack usually wants per-region subtotals and a grand total alongside the cells. Do not <code>UNION</code> three queries &mdash; use <code>ROLLUP</code>:</p>
+<pre><code>SELECT region, category, SUM(amount)
+FROM sales GROUP BY ROLLUP (region, category);</code></pre>
+<p>This adds a row per region with <code>category = NULL</code> (the region subtotal) and one all-NULL row (the grand total). <code>GROUPING SETS</code> gives finer control over which aggregation levels to emit. Reaching for these shows you know <code>GROUP BY</code> beyond the basic form.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> describe the grouping key as the distinct tuple of values, recite the rule that every non-aggregate select column must be grouped (and why MySQL's lax version bred bugs), flag that an all-NULL group sums to NULL, and know that <code>ROLLUP</code> &mdash; not a pile of <code>UNION</code>s &mdash; is how you add subtotals.</div>

@@ -1,0 +1,53 @@
+<p>Palantir's deployment analytics team needs every order in a mid-tier spend band &mdash; between $100 and $1000 &mdash; for a cohort study, and only orders with a valid date. It is a two-clause <code>WHERE</code>, but <code>BETWEEN</code> hides a question candidates routinely get wrong: is it inclusive or exclusive at the endpoints? And mixing <code>AND</code>s tests whether you know operator precedence.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>amount</th><th>order_date</th><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2026-01-01</td><td>101</td></tr>
+    <tr><td>2</td><td>1000</td><td>2026-01-02</td><td>102</td></tr>
+    <tr><td>3</td><td>50</td><td>2026-01-03</td><td>103</td></tr>
+    <tr><td>4</td><td>500</td><td><em>NULL</em></td><td>104</td></tr>
+    <tr><td>5</td><td>1500</td><td>2026-01-05</td><td>105</td></tr>
+    <tr><td>6</td><td>750</td><td>2026-01-06</td><td>106</td></tr>
+  </tbody>
+</table>
+<p>Orders 1 and 2 sit <em>exactly</em> on the boundaries ($100 and $1000) &mdash; they decide whether <code>BETWEEN</code> is inclusive. Order 3 is below the band, order 5 above. Order 4 is in-band on amount but has a <strong>NULL</strong> <code>order_date</code> &mdash; the second clause must exclude it.</p>
+
+<h4>2. The SQL &mdash; <code>BETWEEN</code> + <code>IS NOT NULL</code></h4>
+<pre><code>SELECT * FROM orders WHERE amount BETWEEN 100 AND 1000 AND order_date IS NOT NULL;</code></pre>
+<p>Two conditions joined by <code>AND</code>: the amount must fall in the inclusive range 100&ndash;1000, and the date must be present.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>amount</th><th>order_date</th><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2026-01-01</td><td>101</td></tr>
+    <tr><td>2</td><td>1000</td><td>2026-01-02</td><td>102</td></tr>
+    <tr><td>6</td><td>750</td><td>2026-01-06</td><td>106</td></tr>
+  </tbody>
+</table>
+<p>Orders 1 ($100) and 2 ($1000) <strong>both pass</strong> &mdash; proof that <code>BETWEEN</code> includes its endpoints. Order 3 ($50) and order 5 ($1500) fall outside the band. Order 4 ($500) is in-band on amount but is filtered out by <code>order_date IS NOT NULL</code>. Order 6 ($750) cleanly satisfies both clauses.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>BETWEEN</code> is inclusive &mdash; both endpoints count</h5>
+<p><code>amount BETWEEN 100 AND 1000</code> is exactly equivalent to <code>amount &gt;= 100 AND amount &lt;= 1000</code>. Orders 1 and 2 surviving the filter is the proof. Candidates frequently assume it is exclusive (or are unsure) &mdash; state it plainly. If the requirement is really "above $100", <code>BETWEEN</code> is wrong and you need a strict <code>amount &gt; 100</code>. Inclusivity is a business decision; do not let the operator make it silently.</p>
+
+<h5>The argument-order trap &mdash; <code>BETWEEN</code> is not symmetric</h5>
+<p><code>BETWEEN</code> requires <code>low AND high</code> in that order. <code>amount BETWEEN 1000 AND 100</code> does <em>not</em> quietly swap them &mdash; it expands to <code>amount &gt;= 1000 AND amount &lt;= 100</code>, which is impossible, so it matches <strong>zero rows</strong> and throws no error. A reversed <code>BETWEEN</code> is a silent empty result. Always write the smaller bound first.</p>
+
+<h5>The NULL clause &mdash; why <code>IS NOT NULL</code>, never <code>!= NULL</code></h5>
+<p>Order 4 is excluded by <code>order_date IS NOT NULL</code>. The trap is writing <code>order_date != NULL</code> or <code>order_date &lt;&gt; NULL</code> &mdash; any comparison to NULL with <code>=</code>, <code>!=</code>, <code>&lt;</code> yields <code>unknown</code>, never <code>true</code>, so such a predicate matches nothing and order 4 would not be the only casualty &mdash; <em>every</em> row would be dropped. NULL tests must use the <code>IS NULL</code> / <code>IS NOT NULL</code> operators. This is one of the most common SQL mistakes; getting it right is a baseline senior expectation.</p>
+
+<h5><code>BETWEEN</code> already excludes NULL amounts</h5>
+<p>A subtle point: if <code>amount</code> itself were NULL, <code>amount BETWEEN 100 AND 1000</code> evaluates to <code>unknown</code> and the row is excluded anyway &mdash; <code>WHERE</code> keeps only rows where the whole predicate is <code>true</code>. So NULL amounts never sneak in. The explicit <code>IS NOT NULL</code> in the query is guarding <code>order_date</code> specifically, because the requirement singles out the date column.</p>
+
+<h5>Operator precedence &mdash; why no parentheses are needed (but help)</h5>
+<p>The <code>WHERE</code> clause is <code>amount BETWEEN 100 AND 1000 AND order_date IS NOT NULL</code>. The <code>AND</code> inside <code>BETWEEN</code> is part of the <code>BETWEEN</code> syntax, not a logical <code>AND</code> &mdash; the parser binds it to the range. The trailing <code>AND</code> is the logical one joining the two predicates. It happens to parse correctly, but it reads ambiguously. In production, parenthesise for the human:</p>
+<pre><code>SELECT * FROM orders
+WHERE (amount BETWEEN 100 AND 1000)
+  AND (order_date IS NOT NULL);</code></pre>
+<p>The query is identical to the engine; the parentheses are for the next person to read it. Precedence becomes a genuine bug magnet once <code>OR</code> enters the mix &mdash; <code>OR</code> binds looser than <code>AND</code> &mdash; so the parenthesising habit is worth forming now.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>BETWEEN</code> is inclusive on both endpoints and that a reversed <code>low</code>/<code>high</code> silently matches nothing, use <code>IS NOT NULL</code> rather than <code>!= NULL</code> (which would drop every row), note that <code>BETWEEN</code> already excludes NULL amounts via three-valued logic, and parenthesise compound predicates for readability before <code>OR</code> turns precedence into a bug.</div>

@@ -1,0 +1,68 @@
+<p>DoorDash orders track <strong>two parallel state machines</strong>: the restaurant's state (preparing / ready) and the dasher's state (assigned / at_restaurant / en_route / delivered). The order is in a unique <em>combined state</em> at every point in time, and the period changes whenever <em>either</em> dimension changes. The query computes period boundaries on the composite key.</p>
+
+<h4>1. The source data — <code>order_state_pings</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>restaurant_state</th><th>dasher_state</th><th>ping_at</th></tr></thead>
+  <tbody>
+    <tr><td>O_001</td><td>preparing</td><td>assigned</td><td>12:00</td></tr>
+    <tr><td>O_001</td><td>preparing</td><td>assigned</td><td>12:01</td></tr>
+    <tr><td>O_001</td><td>ready</td><td>assigned</td><td>12:15</td></tr>
+    <tr><td>O_001</td><td>ready</td><td>at_restaurant</td><td>12:18</td></tr>
+    <tr><td>O_001</td><td>ready</td><td>en_route</td><td>12:20</td></tr>
+    <tr><td>O_001</td><td>ready</td><td>delivered</td><td>12:35</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — concat both axes, then standard LAG-detect-change</h4>
+<pre><code>WITH composite AS (
+  SELECT order_id, ping_at,
+    restaurant_state || '|' || dasher_state AS combined_state,
+    restaurant_state, dasher_state
+  FROM order_state_pings
+),
+changes AS (
+  SELECT order_id, ping_at, combined_state, restaurant_state, dasher_state,
+    LAG(combined_state) OVER (PARTITION BY order_id ORDER BY ping_at) AS prev_combined
+  FROM composite
+),
+filtered AS (
+  SELECT order_id, ping_at, restaurant_state, dasher_state, combined_state
+  FROM changes
+  WHERE combined_state != prev_combined OR prev_combined IS NULL
+)
+SELECT order_id, restaurant_state, dasher_state,
+  ping_at AS period_start,
+  LEAD(ping_at) OVER (PARTITION BY order_id ORDER BY ping_at) AS period_end
+FROM filtered
+ORDER BY order_id, period_start;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The string-concat composite key</h5>
+<p><code>restaurant_state || '|' || dasher_state</code> creates a single comparable token for the change-detection step. The <code>|</code> separator avoids ambiguity (without it, <code>'pre' + 'paring'</code> and <code>'preparing' + ''</code> would collide). Cleaner than nested OR predicates and faster than tuple comparison in most engines.</p>
+
+<h5>Why "either dimension changes" → new period</h5>
+<p>DoorDash analytics needs to attribute time correctly: <em>"the order was in (ready, at_restaurant) for 2 minutes"</em> is a meaningful slice. If you only tracked the restaurant axis, the at_restaurant→en_route transition would disappear; if only the dasher axis, the preparing→ready transition would disappear. Composite tracking captures all transitions.</p>
+
+<h5>The latency decomposition this enables</h5>
+<table>
+  <thead><tr><th>Period</th><th>Owner</th><th>Bottleneck if long</th></tr></thead>
+  <tbody>
+    <tr><td>(preparing, assigned)</td><td>Restaurant</td><td>Slow kitchen prep</td></tr>
+    <tr><td>(ready, assigned)</td><td>Dasher</td><td>Dasher en-route to restaurant</td></tr>
+    <tr><td>(ready, at_restaurant)</td><td>Pickup handoff</td><td>Order not handed off promptly</td></tr>
+    <tr><td>(ready, en_route)</td><td>Driving time</td><td>Traffic / distance / multi-stop batching</td></tr>
+  </tbody>
+</table>
+<p>Production attribution: average duration per composite state, per market, per cuisine. The period with longest duration is the bottleneck to invest in.</p>
+
+<h5>The "stuck order" detection</h5>
+<p>Any composite state period &gt; 30 minutes is alarming. Production fires an alert when the LIVE period (where period_end IS NULL) has period_start &gt; 30 minutes ago — operations team intervenes manually.</p>
+
+<h5>Three-axis generalization</h5>
+<p>Add customer_state (idle / app_open / order_tracking) for the third axis. The pattern generalizes — the only change is adding to the concat string. Three-axis composite is the upper bound; beyond that, prefer storing each axis as its own period table and doing temporal joins for cross-axis questions.</p>
+
+<h5>The non-monotonic gotcha</h5>
+<p>Restaurant state should only go preparing → ready (one-way). If you see <code>ready → preparing</code>, that's data corruption — re-emitted with stale field. Production guard: validate state-machine transitions in the producer, reject illegal sequences, alert on attempts.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> composite-state via string-concat for parallel state machines, period-on-EITHER-axis-change for honest latency attribution, decompose periods into ownership-attributed bottleneck buckets, and validate monotonic transitions at the producer (not just at query time). The three-axis generalization sets the upper bound before recommending separate period tables + temporal joins.</div>

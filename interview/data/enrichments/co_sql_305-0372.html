@@ -1,0 +1,37 @@
+<p>Discover Weekly is Spotify's flagship algorithm. The single quality metric: <strong>discovery rate</strong> = % of newly-played tracks that the user later saved to library. The query is a time-bounded LEFT JOIN attribution.</p>
+
+<h4>1. The source data — <code>discover_plays</code> + <code>library_saves</code></h4>
+<table><thead><tr><th>user_id</th><th>song_id</th><th>played_at</th></tr></thead>
+<tbody><tr><td>U_01</td><td>S_01</td><td>Mon 09:00</td></tr></tbody></table>
+
+<h4>2. The SQL — 7-day attribution window</h4>
+<pre><code>SELECT
+  COUNT(DISTINCT d.user_id || '|' || d.song_id) AS discovered_pairs,
+  COUNT(DISTINCT CASE WHEN s.song_id IS NOT NULL THEN d.user_id || '|' || d.song_id END) AS saved_pairs,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN s.song_id IS NOT NULL THEN d.user_id || '|' || d.song_id END)
+              / NULLIF(COUNT(DISTINCT d.user_id || '|' || d.song_id), 0), 1) AS discovery_save_rate_pct
+FROM discover_plays d
+LEFT JOIN library_saves s
+  ON s.user_id = d.user_id
+ AND s.song_id = d.song_id
+ AND julianday(s.saved_at) &gt;= julianday(d.played_at)
+ AND julianday(s.saved_at) - julianday(d.played_at) &lt;= 7;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 7-day window</h5>
+<p>Discover Weekly refreshes Mondays; the 7-day window captures saves that happen within the same playlist cycle. Longer windows over-attribute; shorter under-attribute the slow-burn discoveries.</p>
+
+<h5>The string-concat dedup key</h5>
+<p><code>user_id || '|' || song_id</code> creates a unique pair-key for COUNT(DISTINCT). Cleaner than COUNT(DISTINCT user_id, song_id) which only works in some dialects.</p>
+
+<h5>The published target</h5>
+<p>Spotify reports ~30% Discover-save rate publicly. Users who save 5+ tracks per week from Discover have 90%+ retention; the metric drives the recommender's loss function.</p>
+
+<h5>Save vs play-again — different conviction</h5>
+<p>"Saved to library" is high conviction. "Played again within 7 days" is medium. "Listened past 30 seconds" is low. Production tracks all three; this query measures the strongest signal.</p>
+
+<h5>The genre-affinity feedback</h5>
+<p>If a user's discovery-save-rate is 35% in Indie but 10% in EDM, the algorithm should weight Indie heavier in next week's playlist. The query result feeds the personalization model.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 7-day window matches the playlist refresh cycle, use string-concat for portable composite-key dedup, contrast save (high conviction) vs play-again (medium) vs 30s-listen (low), and connect to the personalization feedback loop.</div>

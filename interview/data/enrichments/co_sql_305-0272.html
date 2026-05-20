@@ -1,0 +1,75 @@
+<p>HashiCorp's supply-chain team ranks its suppliers by on-time delivery rate &mdash; the share of a supplier's shipments that arrived on schedule. The reference solution computes that rate with a <code>CASE</code> expression, and at a glance it looks fine. Run it against a realistic table, though, and the ranking is wrong: the <code>CASE</code> condition tests the wrong thing, and every supplier with no <em>missing</em> data scores a perfect rate even when half their shipments were late.</p>
+
+<h4>1. The source data &mdash; <code>shipments</code></h4>
+<table>
+  <thead><tr><th>supplier_id</th><th>on_time</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>true</td></tr>
+    <tr><td>1</td><td>true</td></tr>
+    <tr><td>1</td><td>false</td></tr>
+    <tr><td>2</td><td>true</td></tr>
+    <tr><td>2</td><td>false</td></tr>
+    <tr><td>3</td><td>true</td></tr>
+    <tr><td>3</td><td>true</td></tr>
+    <tr><td>4</td><td>false</td></tr>
+    <tr><td>4</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p><code>on_time</code> is a boolean: <code>true</code> = arrived on schedule, <code>false</code> = late, <code>NULL</code> = status never recorded. Supplier 1 was on time 2 of 3 times; supplier 2 exactly half; supplier 3 perfect; supplier 4 never on time, with one <strong>NULL</strong>. A correct ranking should be 3, 1, 2, 4.</p>
+
+<h4>2. The SQL &mdash; on-time rate, then <code>RANK</code></h4>
+<p>The reference solution:</p>
+<pre><code>SELECT supplier_id, AVG(CASE WHEN on_time IS NOT NULL THEN 1.0 ELSE 0 END) AS rate,
+  RANK() OVER (ORDER BY AVG(CASE WHEN on_time IS NOT NULL THEN 1.0 ELSE 0 END) DESC) AS rk
+FROM shipments GROUP BY supplier_id;</code></pre>
+<p>The bug is the condition <code>on_time IS NOT NULL</code>. That is true for <em>both</em> <code>true</code> and <code>false</code> &mdash; so a <strong>late</strong> shipment scores 1.0 just like an on-time one. The expression measures "fraction of shipments with a recorded status", not "fraction on time". The corrected version tests the boolean itself:</p>
+<pre><code>SELECT supplier_id,
+  AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) AS rate,
+  RANK() OVER (ORDER BY AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) DESC) AS rk
+FROM shipments GROUP BY supplier_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>The corrected query &mdash; the result a hiring manager actually wants:</p>
+<table>
+  <thead><tr><th>supplier_id</th><th>rate</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>1.00000000</td><td>1</td></tr>
+    <tr><td>1</td><td>0.66666667</td><td>2</td></tr>
+    <tr><td>2</td><td>0.50000000</td><td>3</td></tr>
+    <tr><td>4</td><td>0.00000000</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Supplier 3 leads at 100%, then 1 (67%), 2 (50%), 4 (0%). Contrast the <strong>broken</strong> reference output on the same data: suppliers 1, 2, and 3 all score 1.00 and <em>tie at rank 1</em> &mdash; because none of their rows are NULL &mdash; even though supplier 2 was late half the time. The reference ranking is meaningless.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug: <code>IS NOT NULL</code> instead of the boolean</h5>
+<p><code>CASE WHEN on_time IS NOT NULL</code> asks "is the status known?" The metric needs "did it arrive on time?" &mdash; which is just <code>CASE WHEN on_time THEN &hellip;</code>, since <code>on_time</code> is already a boolean. With the fix, <code>false</code> contributes 0 (a late shipment hurts the rate) and so does <code>NULL</code> (<code>CASE</code>'s <code>WHEN NULL</code> is not satisfied, so it falls to <code>ELSE 0</code>). That treats a missing status as "not confirmed on time" &mdash; a defensible, conservative default.</p>
+
+<h5>What to do with NULL &mdash; a real decision</h5>
+<p>Folding NULL into the denominator as a miss (above) is one choice. The other is to <em>exclude</em> unverified shipments and rate only confirmed ones:</p>
+<pre><code>SELECT supplier_id,
+       AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) AS rate
+FROM shipments
+WHERE on_time IS NOT NULL          -- only judged shipments
+GROUP BY supplier_id;</code></pre>
+<p>For supplier 4 that is the difference between a 0% rate (one late, one NULL counted) and a 0% rate over a single judged shipment &mdash; same number here, but very different denominators. State which definition you are using; the interviewer is listening for that.</p>
+
+<h5><code>AVG(CASE&hellip;)</code> vs <code>COUNT FILTER</code> vs <code>AVG(bool::int)</code></h5>
+<p>Three idioms compute the same proportion:</p>
+<pre><code>-- a) explicit CASE
+AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END)
+-- b) FILTER — counts on-time, divides by all rows
+COUNT(*) FILTER (WHERE on_time)::numeric / COUNT(*)
+-- c) cast the boolean straight to int
+AVG(on_time::int)</code></pre>
+<p>Watch the NULL semantics: in (a) and (c) a NULL row averages in as 0; in (b) <code>FILTER (WHERE on_time)</code> drops NULLs from the numerator but <code>COUNT(*)</code> keeps them in the denominator &mdash; same result as (a). If you wanted NULLs gone entirely you would filter in the <code>WHERE</code>.</p>
+
+<h5>The tie that <code>RANK</code> exposes</h5>
+<p>If two suppliers have identical rates, <code>RANK</code> gives them the same rank and skips the next (1, 1, 3). That is correct competition ranking. But a 100% rate from 2 shipments is not the same as 100% from 500 &mdash; rate alone is fragile on small samples. A senior answer surfaces volume as a tiebreaker or a confidence caveat:</p>
+<pre><code>RANK() OVER (ORDER BY on_time_rate DESC, total_shipments DESC)</code></pre>
+
+<h5>Low-volume suppliers</h5>
+<p>A supplier with one lucky on-time delivery scores a perfect 1.0 and tops the board. Before ranking, consider a <code>HAVING COUNT(*) &gt;= n</code> floor so the leaderboard reflects reliable suppliers, not statistical noise.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> catch that <code>CASE WHEN on_time IS NOT NULL</code> measures "status recorded" not "on time" &mdash; counting late shipments as successes &mdash; and fix it to test the boolean directly; then decide deliberately whether a NULL status is a miss or an exclusion, and guard the ranking against tiny-sample suppliers with a volume floor or tiebreaker.</div>

@@ -1,0 +1,59 @@
+<p>Same retention question as its window-function sibling &mdash; identify "returning active users" who made a second purchase within 7 days of one of their others &mdash; but here the interviewer wants the <em>self-join</em> formulation. The probe is whether you can pair every purchase of a user with every other purchase of the same user, compute the day gap, and then recognise the performance and correctness pitfalls a self-join introduces that a window function avoids.</p>
+
+<h4>1. The source data &mdash; <code>transactions_ecomm</code></h4>
+<table>
+  <thead><tr><th>userid</th><th>createdat</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>2024-01-01</td><td>first buy</td></tr>
+    <tr><td>100</td><td>2024-01-05</td><td>4 days later</td></tr>
+    <tr><td>100</td><td>2024-02-20</td><td>much later</td></tr>
+    <tr><td>200</td><td>2024-03-01</td><td>first buy</td></tr>
+    <tr><td>200</td><td>2024-03-15</td><td>14 days later</td></tr>
+    <tr><td>300</td><td>2024-04-01</td><td>only ever buys once</td></tr>
+    <tr><td>400</td><td>2024-05-01</td><td>two buys, same day</td></tr>
+    <tr><td>400</td><td>2024-05-01</td><td>&larr; same-day repeat</td></tr>
+  </tbody>
+</table>
+<p>User 300 (single purchase) and user 400 (two purchases on the <em>same date</em>) are the edge cases &mdash; one tests the self-join's behaviour with no partner, the other tests the <code>&lt;&gt; 0</code> filter.</p>
+
+<h4>2. The SQL &mdash; self-join on <code>userid</code>, gap via date subtraction</h4>
+<pre><code>WITH ac AS (
+  SELECT t1.userid AS user_1, t1.createdat AS createdat_1,
+         t2.userid AS user_2, t2.createdat AS createdat_2,
+    CASE WHEN t1.createdat::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+          AND t2.createdat::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+         THEN t1.createdat::date - t2.createdat::date
+         ELSE NULL END AS diff_date
+  FROM transactions_ecomm t1
+  INNER JOIN transactions_ecomm t2 ON t1.userid = t2.userid
+)
+SELECT DISTINCT user_1 FROM ac
+WHERE ABS(diff_date) &lt;= 7 AND diff_date &lt;&gt; 0;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_1</th><th>verdict</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>returning</td><td>Jan-01 vs Jan-05 pair &mdash; gap 4 days</td></tr>
+  </tbody>
+</table>
+<p>Only user 100. User 200's closest pair is 14 days apart; user 300 only ever matches itself; user 400's purchases are 0 days apart and the <code>diff_date &lt;&gt; 0</code> clause filters them out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ABS</code> on the difference is required here</h5>
+<p>The self-join pairs purchases <em>both ways</em>: row A joins row B (gap +4) and row B joins row A (gap &minus;4). Only one direction is positive, so <code>ABS(diff_date) &lt;= 7</code> catches the pair regardless of join order. This is a structural consequence of the unconstrained self-join &mdash; it produces every ordered pair, including the symmetric mirror. The <code>LEAD</code>-based sibling solution never needs <code>ABS</code> because it only ever looks forward in sorted order.</p>
+
+<h5>The <code>diff_date &lt;&gt; 0</code> clause does two jobs &mdash; one good, one debatable</h5>
+<p>Because the join has no <code>t1.id &lt;&gt; t2.id</code> guard, every purchase also joins to <em>itself</em>, yielding <code>diff_date = 0</code>. The <code>&lt;&gt; 0</code> filter is doing necessary work removing those self-pairs. But it <em>also</em> removes user 400's genuine same-day second purchase. Those are two different zeros conflated into one filter. The cleaner design separates them: constrain the join with <code>AND t1.id &lt;&gt; t2.id</code> to drop true self-matches, then decide same-day policy independently &mdash; <code>ABS(diff_date) BETWEEN 0 AND 7</code> if a same-day repeat counts as returning (it usually does). Surfacing that conflation is the senior observation.</p>
+
+<h5>The performance trap &mdash; O(n&sup2;) per user</h5>
+<p>A self-join on <code>userid</code> produces, for a user with <em>k</em> purchases, <em>k&sup2;</em> paired rows &mdash; the full cross product within each user. A power user with 10,000 orders generates 100 million pairs before the <code>WHERE</code> filters anything. The window-function approach sorts each user's purchases once and compares neighbours: O(n log n) total. For an interview, state plainly that the self-join is fine for correctness and small data but is the wrong tool at scale, and that <code>LEAD</code> is the production answer.</p>
+
+<h5>You can shrink the self-join with a directional predicate</h5>
+<p>Adding <code>AND t2.createdat &gt; t1.createdat</code> (or <code>t2.id &gt; t1.id</code>) to the join keeps only one direction of each pair &mdash; halving the output, eliminating self-matches, and removing the need for <code>ABS</code> entirely. Even better, tighten it to <code>AND t2.createdat BETWEEN t1.createdat AND t1.createdat + 7</code> so the gap test happens <em>in the join</em>, letting an index on <code>(userid, createdat)</code> do the heavy lifting instead of materialising every pair.</p>
+
+<h5>The regex guard signals an untyped column</h5>
+<p>As in the sibling problem, the <code>~ '^[0-9]{4}-...'</code> checks only make sense if <code>createdat</code> is stored as dirty text. With a real <code>DATE</code> column the <code>CASE</code> collapses to <code>t1.createdat - t2.createdat</code>. Validating date format mid-query is a code smell &mdash; the fix is a typed column enforced at ingestion.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain why an unconstrained self-join forces <code>ABS</code> (symmetric pairs) and why <code>diff_date &lt;&gt; 0</code> is silently doing two jobs &mdash; removing real self-matches <em>and</em> excluding genuine same-day repeats. Tightening the join to a directional, range-bounded predicate (and naming <code>LEAD</code> as the O(n log n) production answer) is the over-the-bar finish.</div>

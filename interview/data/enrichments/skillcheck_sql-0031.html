@@ -1,0 +1,54 @@
+<p>A pricing team builds a 2-period trailing sum over a price log and wants to <em>see</em> exactly which rows each window frame is adding. The data has two rows sharing one timestamp, which is the whole point: it exposes the difference between a <code>ROWS</code> frame (counts physical rows) and a <code>GROUPS</code> frame (counts peer groups of equal <code>ORDER BY</code> value). The interviewer is probing whether you know the third frame mode beyond <code>ROWS</code> and <code>RANGE</code>.</p>
+
+<h4>1. The source data &mdash; <code>price_logs</code></h4>
+<table>
+  <thead><tr><th>event_time</th><th>price</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2023-10-01 12:00:00</td><td>10</td><td>first reading</td></tr>
+    <tr><td>2023-10-01 12:05:00</td><td>20</td><td>tied timestamp &mdash; the edge case</td></tr>
+    <tr><td>2023-10-01 12:05:00</td><td>20</td><td>tied timestamp &mdash; same peer group</td></tr>
+    <tr><td>2023-10-01 12:10:00</td><td>50</td><td>last reading</td></tr>
+  </tbody>
+</table>
+<p>The two <code>12:05:00</code> rows are <em>peers</em> &mdash; equal on the <code>ORDER BY</code> column. <code>ROWS</code> treats them as two separate units; <code>GROUPS</code> treats them as one. Watching the two formula columns side by side makes the distinction concrete.</p>
+
+<h4>2. The SQL &mdash; ROWS vs GROUPS, with a visible formula</h4>
+<pre><code>SELECT event_time, price,
+  SUM(price)                     OVER (ORDER BY event_time ROWS   BETWEEN 1 PRECEDING AND CURRENT ROW) AS rows_sum,
+  STRING_AGG(price::text, ' + ') OVER (ORDER BY event_time ROWS   BETWEEN 1 PRECEDING AND CURRENT ROW) AS rows_formula,
+  SUM(price)                     OVER (ORDER BY event_time GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS groups_sum,
+  STRING_AGG(price::text, ' + ') OVER (ORDER BY event_time GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS groups_formula
+FROM price_logs
+ORDER BY event_time, price;</code></pre>
+<p><code>ROWS BETWEEN 1 PRECEDING AND CURRENT ROW</code> spans <em>this row and the one physical row before it</em>. <code>GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW</code> spans <em>this peer group and the one peer group before it</em> &mdash; and a peer group can contain several rows. <code>STRING_AGG</code> reuses the identical frame to print the operands.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>event_time</th><th>price</th><th>rows_sum</th><th>rows_formula</th><th>groups_sum</th><th>groups_formula</th></tr></thead>
+  <tbody>
+    <tr><td>12:00:00</td><td>10</td><td>10</td><td>10</td><td>10</td><td>10</td></tr>
+    <tr><td>12:05:00</td><td>20</td><td>30</td><td>10 + 20</td><td>50</td><td>10 + 20 + 20</td></tr>
+    <tr><td>12:05:00</td><td>20</td><td>40</td><td>20 + 20</td><td>50</td><td>10 + 20 + 20</td></tr>
+    <tr><td>12:10:00</td><td>50</td><td>70</td><td>20 + 50</td><td>90</td><td>20 + 20 + 50</td></tr>
+  </tbody>
+</table>
+<p>The two <code>12:05:00</code> rows differ under <code>ROWS</code> (30 vs 40 &mdash; each sees a different physical predecessor) but are <strong>identical under <code>GROUPS</code></strong> (both 50 &mdash; same two peer groups: {10} and {20,20}). That is the frame-mode difference made visible.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Three frame modes, not two &mdash; <code>ROWS</code>, <code>RANGE</code>, <code>GROUPS</code></h5>
+<p><code>ROWS</code> measures the frame in <em>physical rows</em>: "1 preceding" is exactly one row back. <code>RANGE</code> measures in <em>value distance</em> on the ordering column. <code>GROUPS</code> (SQL:2011) measures in <em>peer groups</em>: "1 preceding" is one whole group of tied rows back, however many rows that group holds. The tied <code>12:05:00</code> pair is the only data shape that distinguishes all three.</p>
+
+<h5>Why the two 12:05 rows diverge under <code>ROWS</code></h5>
+<p>Under <code>ROWS</code>, row order within a tie group is positional. The first <code>12:05:00</code> row's "1 preceding" is the <code>12:00:00</code> row &rarr; 10+20=30. The second <code>12:05:00</code> row's "1 preceding" is the <em>first</em> <code>12:05:00</code> row &rarr; 20+20=40. The frame slides one physical row at a time, so tied rows get different sums &mdash; and which row is "first" depends on the <code>ORDER BY</code> tiebreaker, so add one for determinism.</p>
+
+<h5>Why <code>GROUPS</code> gives both 12:05 rows the same answer</h5>
+<p><code>GROUPS</code> collapses tied rows into one unit. For either <code>12:05:00</code> row, the frame is "this peer group {20,20} plus one group back {10}" &mdash; all three values, 10+20+20=50. Every row in a peer group gets the identical frame and identical result. Choose <code>GROUPS</code> when "the previous N <em>distinct timestamps</em>" is the business unit, regardless of how many events landed on each.</p>
+
+<h5><code>STRING_AGG</code> and explicit casts</h5>
+<p><code>STRING_AGG</code> concatenates text, so <code>price</code> (an <code>INT</code>) needs <code>::text</code> &mdash; Postgres will not implicitly coerce the argument and otherwise raises a type error. Using <code>STRING_AGG</code> as a window function (with <code>OVER</code>) is a neat debugging trick: it prints the exact operands a numeric aggregate is consuming, so you can audit a frame without guessing.</p>
+
+<h5>Dialect notes</h5>
+<p><code>GROUPS</code> is the newest frame mode: PostgreSQL 11+, SQLite 3.28+, DuckDB, and Oracle support it; SQL Server does <em>not</em> (only <code>ROWS</code>/<code>RANGE</code>), and MySQL 8 omits it too. On those engines, emulate <code>GROUPS</code> by ranking peer groups with <code>DENSE_RANK()</code> and framing over <code>RANGE</code> of that rank. <code>STRING_AGG</code> is <code>GROUP_CONCAT</code> in MySQL/SQLite and <code>LISTAGG</code> in Oracle.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know all three window frame modes &mdash; <code>ROWS</code> counts physical rows, <code>RANGE</code> counts value distance, <code>GROUPS</code> counts peer groups of tied rows &mdash; and pick deliberately when the data has ties; use a <code>STRING_AGG</code> window column to make a frame's operands visible while debugging.</div>

@@ -1,0 +1,75 @@
+<p>A finance lead wants the 2026 quarterly scorecard: each business unit on a row, Q1 through Q4 as columns, and a cumulative full-year total at the end. The source is a transaction-level ledger &mdash; one row per sale &mdash; so the query must aggregate to quarters, run a cumulative total, then <strong>pivot</strong> the four quarters into columns. The interviewer is probing whether you can layer a window-function running total inside a pivot pipeline and surface it correctly through the final <code>GROUP BY</code>.</p>
+
+<h4>1. The source data &mdash; <code>sales_ledger</code></h4>
+<table>
+  <thead><tr><th>business_unit</th><th>sale_date</th><th>amount</th><th>quarter</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>2026-02-10</td><td>100</td><td>Q1</td></tr>
+    <tr><td>North</td><td>2026-05-11</td><td>200</td><td>Q2</td></tr>
+    <tr><td>North</td><td>2026-08-12</td><td>150</td><td>Q3</td></tr>
+    <tr><td>North</td><td>2026-11-13</td><td>250</td><td>Q4</td></tr>
+    <tr><td>South</td><td>2026-01-15</td><td>80</td><td>Q1</td></tr>
+    <tr><td>South</td><td>2026-06-20</td><td>120</td><td>Q2</td></tr>
+  </tbody>
+</table>
+<p>North transacts in all four quarters; South only in Q1 and Q2. South is the test case: its Q3 and Q4 columns must read <strong>0</strong> &mdash; not NULL, not absent &mdash; and its running total must <em>stop climbing</em> after Q2 rather than inventing later activity.</p>
+
+<h4>2. The SQL &mdash; aggregate, running total, then pivot</h4>
+<pre><code>WITH quarterly AS (
+  SELECT
+    business_unit,
+    EXTRACT(QUARTER FROM sale_date)::INT AS q,
+    SUM(amount) AS revenue
+  FROM sales_ledger
+  WHERE EXTRACT(YEAR FROM sale_date) = 2026
+  GROUP BY business_unit, EXTRACT(QUARTER FROM sale_date)
+),
+ranked AS (
+  SELECT
+    business_unit, q, revenue,
+    SUM(revenue) OVER (
+      PARTITION BY business_unit ORDER BY q
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS running_total
+  FROM quarterly
+)
+SELECT
+  business_unit,
+  SUM(CASE WHEN q = 1 THEN revenue ELSE 0 END) AS q1,
+  SUM(CASE WHEN q = 2 THEN revenue ELSE 0 END) AS q2,
+  SUM(CASE WHEN q = 3 THEN revenue ELSE 0 END) AS q3,
+  SUM(CASE WHEN q = 4 THEN revenue ELSE 0 END) AS q4,
+  MAX(running_total) AS full_year_total
+FROM ranked
+GROUP BY business_unit
+ORDER BY business_unit;</code></pre>
+<p>Three stages. <code>quarterly</code> rolls transactions up to one row per unit-quarter. <code>ranked</code> adds a per-unit cumulative sum across quarters. The outer query pivots the four quarters into columns and lifts the final cumulative value with <code>MAX</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>business_unit</th><th>q1</th><th>q2</th><th>q3</th><th>q4</th><th>full_year_total</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>100</td><td>200</td><td>150</td><td>250</td><td>700</td><td>four quarters &mdash; running total ends at 700</td></tr>
+    <tr><td>South</td><td>80</td><td>120</td><td>0</td><td>0</td><td>200</td><td>no Q3/Q4 rows &rarr; ELSE 0; total stops at 200</td></tr>
+  </tbody>
+</table>
+<p>North's row sums 100+200+150+250 = 700, exactly its <code>full_year_total</code>. South shows <strong>0</strong> in Q3 and Q4 &mdash; <code>ELSE 0</code> supplied those, since the ledger has no South rows there &mdash; and its total is <strong>200</strong>, the running total's last value after Q2. The window never fabricated Q3/Q4 rows, so the cumulative figure is honest.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the running total must precede the pivot</h5>
+<p>The cumulative sum walks <em>across quarters in order</em> &mdash; it is inherently a row-wise sequential operation. Once the four quarters are flattened into one wide row (<code>q1&hellip;q4</code> columns) that ordering is gone; you can no longer say "sum everything up to Q3". So the window function must run while the data is still long &mdash; one row per quarter &mdash; in the <code>ranked</code> CTE. Pivot is the <em>last</em> step, after every sequential computation is done. Getting that order right is the core senior insight here.</p>
+
+<h5>The window frame &mdash; what makes it a running total</h5>
+<p><code>SUM(revenue) OVER (PARTITION BY business_unit ORDER BY q ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code> is a textbook cumulative sum: <code>PARTITION BY business_unit</code> restarts the total for each unit, <code>ORDER BY q</code> sequences the quarters, and the explicit frame sums from the first row through the current one. The explicit <code>ROWS</code> frame is worth stating even though <code>ORDER BY</code> defaults to a similar range &mdash; the default is <code>RANGE</code>, which would lump tied quarters together; <code>ROWS</code> is unambiguous and is the habit to show.</p>
+
+<h5>Why <code>MAX(running_total)</code> survives the <code>GROUP BY</code></h5>
+<p>The outer query groups by <code>business_unit</code>, so every non-grouped column needs an aggregate. <code>running_total</code> climbs monotonically &mdash; each quarter adds a non-negative <code>revenue</code> &mdash; so its largest value is the last quarter's, i.e. the full-year total. <code>MAX</code> picks exactly that. It works <em>because</em> the series is non-decreasing; if revenue could be negative (refunds), <code>MAX</code> would grab a mid-year peak instead, and you would carry the total differently &mdash; e.g. via the value at the maximum <code>q</code>. Knowing <em>why</em> <code>MAX</code> is valid here is the senior nuance.</p>
+
+<h5><code>ELSE 0</code> and the missing-quarter trap</h5>
+<p>South has no Q3 or Q4 rows in <code>quarterly</code>, so without <code>ELSE 0</code> the <code>SUM(CASE&hellip;)</code> for those columns would see no matching rows and return <code>NULL</code>. <code>ELSE 0</code> makes them a clean <code>0</code> &mdash; correct for a financial scorecard, where a quarter with no sales genuinely earned zero. Critically, the running total is unaffected: it is computed in <code>ranked</code> over only the quarters that <em>exist</em>, so South's total correctly stops at 200 rather than being dragged down or padded by phantom zero-quarters.</p>
+
+<h5>Dialect &mdash; window functions and the <code>PIVOT</code> operator</h5>
+<p>Window functions with explicit frames are SQL-standard and run unchanged in Postgres, SQL Server, Oracle, Snowflake, and BigQuery. The pivot is the portable <code>SUM(CASE&hellip;)</code> idiom. A native <code>PIVOT</code> operator (Snowflake, Oracle, SQL Server) could rotate the quarters, but it would <em>not</em> compute the running total &mdash; you would still need the window-function CTE first, then <code>PIVOT</code> the result. The pattern "window function in an early CTE, pivot at the end" is identical across dialects; only the pivot syntax of the final step changes.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> sequence the pipeline correctly &mdash; aggregate, then run the window-function cumulative sum while data is still long, then pivot last &mdash; because a running total cannot be computed after quarters collapse into columns; use an explicit <code>ROWS</code> frame, and know that <code>MAX(running_total)</code> recovers the full-year total only because the series is monotonically non-decreasing.</div>

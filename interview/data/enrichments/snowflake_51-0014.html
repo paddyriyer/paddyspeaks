@@ -1,0 +1,87 @@
+<p>Private equity and venture capital analytics always starts with the same question: <em>"Which of our portfolio companies has each fund invested in, how much total capital was deployed, and when did we first and last touch each company?"</em> This question probes the candidate's ability to chain a four-table star-schema join correctly, apply per-group aggregation, and produce a clean output ordered by the natural hierarchy (firm &rarr; fund &rarr; company).</p>
+
+<h4>1. The source data &mdash; <code>firms</code>, <code>funds</code>, <code>investments</code>, <code>companies</code></h4>
+<table>
+  <thead><tr><th>firm_id</th><th>name (firm)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Apex Capital</td></tr>
+    <tr><td>2</td><td>Bright Ventures</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>fund_id</th><th>firm_id</th><th>fund_name</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>1</td><td>Apex Fund I</td></tr>
+    <tr><td>11</td><td>1</td><td>Apex Fund II</td></tr>
+    <tr><td>20</td><td>2</td><td>Bright Growth</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>investment_id</th><th>fund_id</th><th>company_id</th><th>amount</th><th>invested_on</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>10</td><td>501</td><td>500000</td><td>2022-03-15</td></tr>
+    <tr><td>101</td><td>10</td><td>501</td><td>750000</td><td>2023-06-10</td></tr>
+    <tr><td>102</td><td>11</td><td>502</td><td>1200000</td><td>2021-09-01</td></tr>
+    <tr><td>103</td><td>20</td><td>501</td><td>300000</td><td>2022-05-20</td></tr>
+    <tr><td>104</td><td>20</td><td>503</td><td>850000</td><td>2023-11-30</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>company_id</th><th>name</th><th>sector</th></tr></thead>
+  <tbody>
+    <tr><td>501</td><td>NovaTech</td><td>Technology</td></tr>
+    <tr><td>502</td><td>GreenEnergy Co</td><td>Energy</td></tr>
+    <tr><td>503</td><td>MediCore</td><td>Healthcare</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; four-table join with per-(firm, fund, company) aggregation</h4>
+<pre><code>SELECT f.name        AS firm,
+       fu.fund_name   AS fund,
+       c.name         AS portfolio_company,
+       c.sector,
+       SUM(i.amount)  AS total_invested,
+       MIN(i.invested_on) AS first_investment,
+       MAX(i.invested_on) AS latest_investment
+FROM firms       f
+JOIN funds       fu ON f.firm_id     = fu.firm_id
+JOIN investments i  ON fu.fund_id    = i.fund_id
+JOIN companies   c  ON i.company_id  = c.company_id
+GROUP BY f.name, fu.fund_name, c.name, c.sector
+ORDER BY f.name, total_invested DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>firm</th><th>fund</th><th>portfolio_company</th><th>sector</th><th>total_invested</th><th>first_investment</th><th>latest_investment</th></tr></thead>
+  <tbody>
+    <tr><td>Apex Capital</td><td>Apex Fund I</td><td>NovaTech</td><td>Technology</td><td>1250000</td><td>2022-03-15</td><td>2023-06-10</td></tr>
+    <tr><td>Apex Capital</td><td>Apex Fund II</td><td>GreenEnergy Co</td><td>Energy</td><td>1200000</td><td>2021-09-01</td><td>2021-09-01</td></tr>
+    <tr><td>Bright Ventures</td><td>Bright Growth</td><td>MediCore</td><td>Healthcare</td><td>850000</td><td>2023-11-30</td><td>2023-11-30</td></tr>
+    <tr><td>Bright Ventures</td><td>Bright Growth</td><td>NovaTech</td><td>Technology</td><td>300000</td><td>2022-05-20</td><td>2022-05-20</td></tr>
+  </tbody>
+</table>
+<p>Apex Fund I made two investments in NovaTech (rows 100 and 101), so <code>SUM</code> correctly aggregates to 1 250 000 while <code>MIN</code>/<code>MAX</code> bracket the relationship. NovaTech appears under <em>both</em> firms because multiple funds can co-invest in the same company &mdash; the GROUP BY keeps the firm/fund context separate. Bright Growth rows order within the firm by <code>total_invested DESC</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The join chain and its directionality</h5>
+<p>The hierarchy is <code>firms</code> &rarr; <code>funds</code> &rarr; <code>investments</code> &rarr; <code>companies</code>. Each JOIN adds one level of the star: <code>firms → funds</code> on <code>firm_id</code>, then <code>funds → investments</code> on <code>fund_id</code>, then <code>investments → companies</code> on <code>company_id</code>. Using INNER JOINs means firms with no funds, funds with no investments, or orphan company IDs are silently excluded. In a production audit query you would often use LEFT JOINs to surface those gaps &mdash; that design choice should be stated explicitly.</p>
+
+<h5>GROUP BY must mirror every non-aggregate SELECT column</h5>
+<p>The GROUP BY lists <code>f.name, fu.fund_name, c.name, c.sector</code> &mdash; exactly the four non-aggregate columns in the SELECT. Omitting <code>c.sector</code> would violate the SQL standard (though MySQL's lenient mode silently picks an arbitrary sector value). In Snowflake and Postgres it is a hard error. A common interview mistake is grouping only by IDs and selecting display names without aggregating them; name the pattern: "GROUP BY must cover every unaggregated column in the SELECT list."</p>
+
+<h5>Why <code>total_invested</code> is an alias in ORDER BY</h5>
+<p>The ORDER BY clause references the column alias <code>total_invested</code> rather than repeating <code>SUM(i.amount)</code>. Snowflake, Postgres, BigQuery, and MySQL all allow alias references in ORDER BY because ORDER BY executes after SELECT. This is a convenience not available in WHERE or GROUP BY &mdash; use the full expression there.</p>
+
+<h5>Aggregate semantics: SUM vs COUNT</h5>
+<p>The query uses <code>SUM(i.amount)</code> for capital deployed and <code>MIN</code>/<code>MAX</code> on the date column to bracket the investment window. If the team also needed deal count (useful for pace-of-deployment metrics), adding <code>COUNT(*) AS deal_count</code> inside the same GROUP BY is free &mdash; no additional scan. Knowing which aggregates are "free riders" on an existing group-by is a senior efficiency instinct.</p>
+
+<h5>Dialect notes</h5>
+<ul>
+  <li><strong>Snowflake:</strong> The query runs as-is. Alias in ORDER BY is fully supported.</li>
+  <li><strong>Postgres:</strong> Identical syntax. <code>ORDER BY total_invested DESC</code> resolves the alias correctly.</li>
+  <li><strong>BigQuery:</strong> Alias in ORDER BY supported; JOIN syntax identical.</li>
+  <li><strong>MySQL:</strong> Works, but beware the lenient GROUP BY mode (<code>sql_mode=ONLY_FULL_GROUP_BY</code> must be set to enforce standard behaviour).</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the four-table star-schema chain and explain that INNER JOINs silently exclude firms/funds with no investments &mdash; LEFT JOINs are the audit-friendly alternative. State that every non-aggregate SELECT column must appear in GROUP BY, and call out that ORDER BY can reference aliases (unlike WHERE and GROUP BY). Knowing which aggregates are "free riders" on the same GROUP BY pass signals query-cost awareness.</div>

@@ -1,0 +1,55 @@
+<p>An analytics team reports the "typical" score per category and someone asks for the median rather than the average, because a couple of outliers are dragging the mean. The interviewer wants to see whether you reach for <code>PERCENTILE_CONT</code> &mdash; an <em>ordered-set aggregate</em> &mdash; and whether you understand that it <strong>interpolates</strong> between the two middle values when a group has an even number of rows.</p>
+
+<h4>1. The source data &mdash; <code>score</code></h4>
+<table>
+  <thead><tr><th>category</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>10</td><td>odd count (3) &rarr; exact middle value</td></tr>
+    <tr><td>A</td><td>20</td><td></td></tr>
+    <tr><td>A</td><td>30</td><td></td></tr>
+    <tr><td>B</td><td>5</td><td>even count (4) &rarr; interpolated middle</td></tr>
+    <tr><td>B</td><td>15</td><td></td></tr>
+    <tr><td>B</td><td>25</td><td></td></tr>
+    <tr><td>B</td><td>35</td><td></td></tr>
+    <tr><td>C</td><td>100</td><td>single-member group &rarr; median is the value itself</td></tr>
+  </tbody>
+</table>
+<p>Three deliberate shapes: an odd-count group (A), an even-count group (B) where the median falls <em>between</em> two stored values, and a single-row group (C) &mdash; the boundary case where median, min, max and mean all coincide.</p>
+
+<h4>2. The SQL &mdash; median via <code>PERCENTILE_CONT</code></h4>
+<pre><code>SELECT category,
+       ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)::numeric, 2) AS median
+FROM score
+GROUP BY category
+ORDER BY category;</code></pre>
+<p><code>PERCENTILE_CONT(0.5)</code> is an ordered-set aggregate: the <code>WITHIN GROUP (ORDER BY value)</code> clause tells it how to sort each group, and <code>0.5</code> asks for the 50th percentile. The <em>CONT</em> (continuous) variant assumes the underlying scale is continuous and interpolates linearly between bracketing values.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>median</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>20.00</td><td>middle of {10,20,30} &mdash; an actual stored value</td></tr>
+    <tr><td>B</td><td>20.00</td><td>halfway between 15 and 25 &mdash; <em>not</em> in the table</td></tr>
+    <tr><td>C</td><td>100.00</td><td>single row &mdash; median equals that value</td></tr>
+  </tbody>
+</table>
+<p>Category B is the teaching moment: its median is <strong>20</strong>, the interpolated midpoint of the two central values 15 and 25, even though no row holds the value 20. That is exactly what <code>PERCENTILE_CONT</code> promises &mdash; and what distinguishes it from its sibling.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>PERCENTILE_CONT</code> vs <code>PERCENTILE_DISC</code> &mdash; the choice you must justify</h5>
+<p><code>PERCENTILE_DISC</code> (discrete) returns an <em>actual value from the set</em> &mdash; for group B it would pick 15 (the first value whose cumulative position reaches 0.5), not 20. <code>PERCENTILE_CONT</code> interpolates. Use <code>CONT</code> for genuinely continuous measures (revenue, latency, temperature) where a midpoint is meaningful; use <code>DISC</code> when the value must be one that truly occurred (a discrete category code, an SLA tier). The question explicitly says "interpolated median", so <code>CONT</code> is correct here.</p>
+
+<h5>Why ordered-set aggregates need <code>WITHIN GROUP</code></h5>
+<p>An ordinary aggregate like <code>SUM</code> does not care about row order. A percentile fundamentally does &mdash; you cannot find a median without sorting. <code>WITHIN GROUP (ORDER BY ...)</code> is the special syntax that supplies that ordering to the aggregate. It is not the same as an <code>ORDER BY</code> in the query's final clause; it lives <em>inside</em> the aggregate call.</p>
+
+<h5>NULL handling &mdash; quietly ignored</h5>
+<p><code>PERCENTILE_CONT</code> skips NULL values in the ordering column, computing the percentile over the non-NULL members only &mdash; consistent with how <code>AVG</code> and <code>SUM</code> behave. That is usually what you want, but be explicit: if half a category's <code>value</code>s are NULL the "median" describes only the populated half. If a group is <em>entirely</em> NULL (or empty) the function returns NULL.</p>
+
+<h5>The cast and the <code>ROUND</code></h5>
+<p><code>PERCENTILE_CONT</code> returns <code>double precision</code> for floating inputs; <code>ROUND(value, 2)</code> in Postgres requires a <code>numeric</code> argument, hence the explicit <code>::numeric</code> cast before rounding. Skip the cast and you get <em>function round(double precision, integer) does not exist</em>. The interpolation arithmetic is also done in floating point, so the cast-then-round step is what gives you a clean two-decimal presentation value.</p>
+
+<h5>Dialect notes</h5>
+<p><code>PERCENTILE_CONT ... WITHIN GROUP</code> is SQL-standard and works in PostgreSQL, Oracle, SQL Server, BigQuery and Snowflake. MySQL has no ordered-set aggregate before 8.0 and still lacks <code>PERCENTILE_CONT</code> as an aggregate &mdash; there you emulate the median with window functions: number the rows per category, count them, and average the middle one or two. Knowing that fallback signals you can deliver a median on any engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute medians with the ordered-set aggregate <code>PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)</code>, explain that <code>CONT</code> interpolates while <code>DISC</code> returns a stored value, cast to <code>numeric</code> before <code>ROUND</code>, and know the window-function emulation for engines like MySQL that lack the aggregate.</div>

@@ -1,0 +1,57 @@
+<p>Apple's retail analytics team labels every order with a frequency bucket &mdash; <code>daily</code>, <code>weekly</code>, or <code>monthly</code> &mdash; based on how often that customer typically buys. They want a customer-by-bucket grid: one row per customer, three columns of counts. This is the canonical <em>pivot</em> question, and the interviewer is watching whether you build the columns by hand with <code>CASE</code> or reach for a feature Postgres does not have.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>freq_bucket</th><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>daily</td><td>1</td><td>10</td></tr>
+    <tr><td>1</td><td>daily</td><td>2</td><td>10</td></tr>
+    <tr><td>1</td><td>weekly</td><td>3</td><td>10</td></tr>
+    <tr><td>2</td><td>monthly</td><td>4</td><td>10</td></tr>
+    <tr><td>2</td><td>weekly</td><td>5</td><td>10</td></tr>
+    <tr><td>3</td><td>daily</td><td>6</td><td>10</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 spans <strong>two buckets</strong> (daily and weekly) &mdash; the bucket is a per-order label, not a per-customer one. Customer 3 has only a single order, so two of its three output cells will be 0. Those zeros are the point: a pivot must show 0, never a blank or a missing column.</p>
+
+<h4>2. The SQL &mdash; <code>CASE pivot</code></h4>
+<pre><code>SELECT customer_id,
+  SUM(CASE WHEN freq_bucket='daily' THEN 1 ELSE 0 END)   AS daily,
+  SUM(CASE WHEN freq_bucket='weekly' THEN 1 ELSE 0 END)  AS weekly,
+  SUM(CASE WHEN freq_bucket='monthly' THEN 1 ELSE 0 END) AS monthly
+FROM orders GROUP BY customer_id;</code></pre>
+<p>One <code>GROUP BY customer_id</code> collapses each customer to a single row; three conditional <code>SUM</code>s spread that row across three named columns.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>daily</th><th>weekly</th><th>monthly</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>1</td><td>0</td></tr>
+    <tr><td>2</td><td>0</td><td>1</td><td>1</td></tr>
+    <tr><td>3</td><td>1</td><td>0</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>Each customer is now one row. Customer 1's three orders split 2 / 1 / 0; customer 3's single order is 1 / 0 / 0. The <code>ELSE 0</code> is what guarantees a real zero in the empty cells &mdash; without it those cells would be NULL.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>SUM</code>, and why the <code>ELSE 0</code> matters</h5>
+<p>The pattern is "fan one column into many": for each target column, a <code>CASE</code> emits 1 when the row belongs there and 0 otherwise, and <code>SUM</code> tallies. Drop the <code>ELSE 0</code> and the <code>CASE</code> returns NULL for non-matching rows. <code>SUM</code> would still skip those NULLs, so a customer with <em>no</em> daily orders would get <code>daily = NULL</code> rather than 0. For a grid that downstream code adds up or charts, NULL is a landmine &mdash; always keep the <code>ELSE 0</code>.</p>
+
+<h5>There is no <code>PIVOT</code> in Postgres &mdash; the dialect trap</h5>
+<p>SQL Server and Oracle have a <code>PIVOT</code> operator; Postgres, MySQL, and SQLite do not. Reaching for <code>PIVOT</code> here is an instant dialect mismatch. The portable, universally-supported answer is exactly this conditional-aggregation idiom. Postgres also has <code>crosstab()</code> in the <code>tablefunc</code> extension, but it needs the extension installed and a rigid column definition &mdash; for three fixed buckets, hand-written <code>CASE</code> is simpler and clearer.</p>
+
+<h5>The follow-up: what if the buckets are not known in advance?</h5>
+<p>This query <em>hardcodes</em> three buckets. If a fourth (<code>quarterly</code>) appears, the query silently ignores it &mdash; no error, just a missing column. True dynamic pivots cannot be done in a single static SQL statement; you either generate the SQL programmatically or fall back to a long (un-pivoted) result:</p>
+<pre><code>SELECT customer_id, freq_bucket, COUNT(*) AS orders
+FROM orders
+GROUP BY customer_id, freq_bucket;</code></pre>
+<p>Saying "the wide form needs the bucket set frozen at query-write time; the long form survives new buckets" is the senior observation.</p>
+
+<h5>Dirty bucket values &mdash; the equality is fragile</h5>
+<p><code>freq_bucket='daily'</code> is an exact match. A row with <code>'Daily'</code>, <code>' daily'</code>, or <code>NULL</code> matches none of the three <code>CASE</code>s and vanishes from every column &mdash; the customer's row stays, but their order count silently drops. Defend with <code>LOWER(TRIM(freq_bucket))</code>, and add a "catch-all" column or a <code>HAVING</code> sanity check that <code>daily + weekly + monthly = COUNT(*)</code> so unrecognised labels surface instead of leaking away.</p>
+
+<h5>Edge case: a customer with zero orders</h5>
+<p><code>GROUP BY</code> only produces customers that appear in <code>orders</code>. A customer with no orders never shows up &mdash; usually fine. But if the grid must list <em>every</em> customer (including all-zero rows), start from the <code>customers</code> table and <code>LEFT JOIN orders</code>; the <code>CASE</code>/<code>SUM</code> then naturally yields a 0/0/0 row for the inactive customer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise this as conditional aggregation, justify the <code>ELSE 0</code> as the thing that produces real zeros instead of NULLs, name that Postgres has no <code>PIVOT</code> operator, and explain that a static <code>CASE</code> pivot silently drops any bucket value not hardcoded &mdash; offering the long-form result as the new-category-safe alternative.</div>

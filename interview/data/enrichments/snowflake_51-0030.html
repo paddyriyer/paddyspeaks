@@ -1,0 +1,71 @@
+<p>Vercel&rsquo;s payment team ingests a raw transactions feed that contains two classes of noise: (1) the same logical transaction appears multiple times because of retries or replication lag &mdash; distinguished by the same <code>txn_id</code> but different timestamps, and (2) near-duplicate transactions where a different <code>txn_id</code> was issued for an amount that hit the same account at the same instant (system quirk). The query must also drop any row in <code>'reversed'</code> or <code>'failed'</code> status. The solution chains two CTE passes &mdash; the first de-dupes by <code>txn_id</code>, the second de-dupes structural duplicates &mdash; a disciplined two-stage deduplication pattern.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code></h4>
+<table>
+  <thead><tr><th>txn_id</th><th>account_id</th><th>amount</th><th>txn_ts</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>T01</td><td>A1</td><td>100</td><td>2025-03-01 10:00:00</td><td>settled</td></tr>
+    <tr><td>T01</td><td>A1</td><td>100</td><td>2025-03-01 10:00:05</td><td>settled</td></tr>
+    <tr><td>T02</td><td>A1</td><td>200</td><td>2025-03-01 10:05:00</td><td>reversed</td></tr>
+    <tr><td>T03</td><td>A1</td><td>200</td><td>2025-03-01 10:05:00</td><td>settled</td></tr>
+    <tr><td>T04</td><td>A2</td><td>350</td><td>2025-03-01 11:00:00</td><td>settled</td></tr>
+    <tr><td>T05</td><td>A2</td><td>350</td><td>2025-03-01 11:00:00</td><td>settled</td></tr>
+    <tr><td>T06</td><td>A2</td><td>500</td><td>2025-03-01 12:00:00</td><td>failed</td></tr>
+  </tbody>
+</table>
+<p>T01 appears twice (same txn_id, 5-second gap &mdash; retry). T02 is reversed and T06 is failed &mdash; both dropped by the status filter. T04 and T05 are the structural duplicates: different <code>txn_id</code>s but an identical (account, amount, timestamp) triple. T03 shares its triple with the reversed T02, but T02 is filtered out first, so T03 survives the dedup pass untouched.</p>
+
+<h4>2. The SQL &mdash; two-stage CTE deduplication</h4>
+<pre><code>WITH ranked AS (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY txn_id ORDER BY txn_ts DESC) AS rn
+  FROM transactions
+  WHERE status NOT IN ('reversed', 'failed')
+),
+deduped AS (
+  SELECT txn_id, account_id, amount, txn_ts, status,
+         ROW_NUMBER() OVER (PARTITION BY account_id, amount, txn_ts ORDER BY txn_id) AS rn2
+  FROM ranked
+  WHERE rn = 1
+)
+SELECT txn_id, account_id, amount, txn_ts, status
+FROM deduped
+WHERE rn2 = 1;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Stage 1 (<code>ranked</code>): status filter removes T02 (reversed) and T06 (failed). For T01 which appears twice, <code>ROW_NUMBER() PARTITION BY txn_id ORDER BY txn_ts DESC</code> gives the latest occurrence rn=1; the earlier row rn=2. After <code>WHERE rn = 1</code> we keep: T01 (10:00:05), T03, T04, T05.</p>
+<p>Stage 2 (<code>deduped</code>): T04 and T05 share (account_id=A2, amount=350, txn_ts=11:00:00). <code>PARTITION BY account_id, amount, txn_ts ORDER BY txn_id</code> gives T04 rn2=1, T05 rn2=2. After <code>WHERE rn2 = 1</code> we keep T04.</p>
+<table>
+  <thead><tr><th>txn_id</th><th>account_id</th><th>amount</th><th>txn_ts</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>T01</td><td>A1</td><td>100</td><td>2025-03-01 10:00:05</td><td>settled</td></tr>
+    <tr><td>T03</td><td>A1</td><td>200</td><td>2025-03-01 10:05:00</td><td>settled</td></tr>
+    <tr><td>T04</td><td>A2</td><td>350</td><td>2025-03-01 11:00:00</td><td>settled</td></tr>
+  </tbody>
+</table>
+<p>Three clean, unique, non-failed/reversed transactions survive. Note T01 keeps the <em>later</em> timestamp (10:00:05) because the window orders by <code>txn_ts DESC</code> &mdash; the most recent record is treated as the authoritative version.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two deduplication passes instead of one</h5>
+<p>The two noise types have different signatures. Same-<code>txn_id</code> duplicates are definitionally the same transaction regardless of timestamp &mdash; retain the latest. Structural duplicates have different <code>txn_id</code>s but identical (account, amount, timestamp) &mdash; retain one arbitrarily. Combining these into a single partition key would mis-identify legitimate transactions sharing an account or amount but different timestamps. Separating the passes makes the logic inspectable and testable independently.</p>
+
+<h5>Stage 1 ordering: why DESC</h5>
+<p>Within a <code>txn_id</code> group, <code>ORDER BY txn_ts DESC</code> puts the most recent occurrence at rn=1. This is correct for retry scenarios: the most recent attempt is the authoritative state. If the data model guaranteed that the first insertion is always correct, you would use <code>ASC</code> instead. The direction is a business-logic choice, not a SQL technicality &mdash; articulate it.</p>
+
+<h5>Stage 2 ordering: why ORDER BY txn_id</h5>
+<p>When (account, amount, timestamp) collide, there is no principled way to say which <code>txn_id</code> is &ldquo;more correct&rdquo; &mdash; they are both system-generated surrogates. Ordering by <code>txn_id</code> is deterministic (picks the lexicographically smallest ID) and stable across re-runs. The alternative &mdash; ordering by <code>txn_ts</code> again &mdash; would not break ties because the timestamps are identical by definition of the partition.</p>
+
+<h5>Snowflake QUALIFY shortcut</h5>
+<p>In Snowflake both CTE steps that filter on a window function (<code>WHERE rn = 1</code>, <code>WHERE rn2 = 1</code>) can be collapsed with <code>QUALIFY</code>. The equivalent one-pass version is:</p>
+<pre><code>SELECT txn_id, account_id, amount, txn_ts, status
+FROM transactions
+WHERE status NOT IN ('reversed', 'failed')
+QUALIFY ROW_NUMBER() OVER (PARTITION BY txn_id ORDER BY txn_ts DESC) = 1
+  -- then wrap or use a second QUALIFY pass for structural dedup</code></pre>
+<p><code>QUALIFY</code> cannot chain two independent window conditions in a single scan, so the two-CTE structure remains cleaner for this specific two-stage problem. But for the first stage alone, <code>QUALIFY</code> eliminates the outer wrapper query entirely.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ROW_NUMBER() OVER (...)</code> is ANSI SQL and works in all major engines. The CTE structure is portable. <code>NOT IN ('reversed', 'failed')</code> can alternatively be written as <code>status &lt;&gt; 'reversed' AND status &lt;&gt; 'failed'</code> for clarity. In BigQuery, <code>QUALIFY</code> is also supported. MySQL prior to 8.0 has no window functions and requires correlated subqueries &mdash; a significantly more complex approach. Snowflake&rsquo;s <code>QUALIFY</code> is the cleanest single-engine shortcut.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the two distinct duplicate types (same-ID retry vs structural-duplicate), justify the two-pass architecture as enforcing separate deduplication semantics that cannot be collapsed safely, explain why <code>ORDER BY txn_ts DESC</code> (keep latest) is a business-logic decision not just a SQL detail, and offer Snowflake&rsquo;s <code>QUALIFY</code> as the dialect-specific shortcut for the first pass.</div>

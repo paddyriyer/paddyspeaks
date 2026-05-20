@@ -1,0 +1,67 @@
+<p>Manufacturing wants a parts explosion: given a bill of materials, how many of each raw material does one finished bike consume? Assemblies nest &mdash; a bike contains wheels, a wheel contains spokes &mdash; and quantities <em>multiply</em> down the tree. The interviewer is probing whether you can carry a running quantity product through a recursive CTE and correctly identify which parts are leaves (raw materials) versus sub-assemblies.</p>
+
+<h4>1. The source data &mdash; <code>bom</code></h4>
+<table>
+  <thead><tr><th>parent</th><th>child</th><th>qty</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Bike</td><td>Frame</td><td>1</td><td>Frame is a sub-assembly</td></tr>
+    <tr><td>Bike</td><td>Wheel</td><td>2</td><td>two wheels per bike</td></tr>
+    <tr><td>Bike</td><td>Handlebar</td><td>1</td><td>Handlebar is a sub-assembly</td></tr>
+    <tr><td>Frame</td><td>SteelTube</td><td>5</td><td>SteelTube also used by Handlebar</td></tr>
+    <tr><td>Frame</td><td>Bolt</td><td>12</td><td>Bolt also used by Wheel</td></tr>
+    <tr><td>Wheel</td><td>Spoke</td><td>32</td><td>32 spokes &times; 2 wheels</td></tr>
+    <tr><td>Wheel</td><td>Bolt</td><td>6</td><td>Bolt reached via two parents</td></tr>
+    <tr><td>Handlebar</td><td>SteelTube</td><td>1</td><td>SteelTube reached via two parents</td></tr>
+  </tbody>
+</table>
+<p>Two leaf materials &mdash; <strong>Bolt</strong> and <strong>SteelTube</strong> &mdash; are reached through more than one parent assembly. That is the edge case: their final quantity is the <em>sum across all paths</em>, not the figure from a single branch.</p>
+
+<h4>2. The SQL &mdash; recursive explosion with multiplied quantities</h4>
+<pre><code>WITH RECURSIVE explode(part, qty) AS (
+  SELECT child, qty FROM bom WHERE parent = 'Bike'
+  UNION ALL
+  SELECT b.child, e.qty * b.qty
+  FROM explode e JOIN bom b ON b.parent = e.part
+),
+leaves AS (
+  SELECT DISTINCT child FROM bom
+  EXCEPT
+  SELECT DISTINCT parent FROM bom
+)
+SELECT e.part AS leaf_material, SUM(e.qty) AS total_qty
+FROM explode e JOIN leaves l ON l.child = e.part
+GROUP BY e.part
+ORDER BY e.part;</code></pre>
+<p>The anchor takes Bike's direct children at face quantity. The recursive arm descends one level and <em>multiplies</em>: a child needed <code>b.qty</code> times per parent, and the parent itself needed <code>e.qty</code> times, so the child is needed <code>e.qty * b.qty</code> times. <code>leaves</code> isolates raw materials &mdash; children that are never a parent &mdash; via set difference. The final <code>SUM</code> totals each leaf across every path.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>leaf_material</th><th>total_qty</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Bolt</td><td>24</td><td>12 (via Frame&times;1) + 12 (6&times;2 wheels)</td></tr>
+    <tr><td>Grip</td><td>2</td><td>2 &times; 1 Handlebar</td></tr>
+    <tr><td>Spoke</td><td>64</td><td>32 spokes &times; 2 wheels</td></tr>
+    <tr><td>SteelTube</td><td>6</td><td>5 (via Frame&times;1) + 1 (via Handlebar&times;1)</td></tr>
+    <tr><td>Tire</td><td>2</td><td>1 tire &times; 2 wheels</td></tr>
+  </tbody>
+</table>
+<p>Bolt totals 24: the Frame branch contributes 1&times;12, the Wheel branch 2&times;6 &mdash; <code>SUM</code> adds both. Spoke is 64 because 32 multiplied by the 2-wheel quantity. SteelTube sums 5 and 1 from its two parents. Sub-assemblies (Frame, Wheel, Handlebar) appear in <code>explode</code> but are filtered out by the <code>leaves</code> join.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Quantities multiply, they do not add, on the way down</h5>
+<p>The recursive arm's key expression is <code>e.qty * b.qty</code>. If a bike needs 2 wheels and each wheel needs 32 spokes, the bike needs 2&times;32 = 64 spokes &mdash; multiplication, because each level scales the level below it. A common mistake is to <em>add</em> or to forget the parent factor and report 32. The running product is the accumulator state carried through the recursion, exactly analogous to a running sum but with <code>*</code>.</p>
+
+<h5>Multiply down a branch, sum across branches</h5>
+<p>Two distinct operations are in play. <em>Within</em> one root-to-leaf path, quantities multiply (the recursive arm). <em>Across</em> different paths that reach the same leaf, quantities add (the outer <code>SUM</code>). Bolt arrives via Frame and via Wheel as two separate <code>explode</code> rows; neither is wrong, and the total demand is their sum. Conflating the two &mdash; multiplying across branches, or summing within one &mdash; is the classic BOM bug.</p>
+
+<h5>Defining "leaf" by set difference</h5>
+<p>A raw material is a part that is consumed but never itself decomposed: it appears as a <code>child</code> but never as a <code>parent</code>. <code>SELECT child FROM bom EXCEPT SELECT parent FROM bom</code> computes exactly that. Without the leaves filter the result would also list Frame, Wheel, and Handlebar &mdash; double-counting, since their materials are already exploded into the leaves. <code>EXCEPT</code> deduplicates automatically, so the explicit <code>DISTINCT</code>s are belt-and-braces.</p>
+
+<h5>DAG vs tree &mdash; why no double-count despite shared parts</h5>
+<p>The graph is a DAG: Bolt has two parents, so it is <em>not</em> a tree. That is fine here because each occurrence is a genuine, separate requirement &mdash; bolts for the frame and bolts for the wheels really are distinct demand and should sum. The danger a DAG <em>does</em> introduce is non-termination if it were cyclic; the question guarantees no cycles, so the recursion ends when it reaches leaves. State that you are relying on the acyclic guarantee.</p>
+
+<h5>Termination, performance, dialect</h5>
+<p>Recursion stops because leaves have no <code>bom</code> rows as parents, so the join produces nothing and the iteration drains. A cycle (part containing itself) would loop forever &mdash; defend with a visited-path array or a depth cap. <code>WITH RECURSIVE</code> is standard in Postgres, SQLite, MySQL 8+, and SQL Server (as <code>WITH</code>); Oracle also supports <code>CONNECT BY</code>. For deep BOMs, an index on <code>bom(parent)</code> keeps each recursive join fast.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> in a BOM explosion, <em>multiply</em> quantities descending a branch and <em>sum</em> across branches that reach the same leaf, define a leaf as <code>child EXCEPT parent</code> so sub-assemblies are not double-counted, and note explicitly that the DAG must be acyclic for the recursion to terminate.</div>

@@ -1,0 +1,58 @@
+<p>A SaaS company stores its <code>users</code> table as an append-only edit log: every profile change writes a new row instead of updating in place, so a single <code>user_id</code> appears many times. The reporting team needs the <em>current</em> state &mdash; one row per user, the one with the latest <code>updated_at</code>. The interviewer is probing whether you reach for the canonical <code>ROW_NUMBER()</code> "latest-per-group" pattern and whether you make the tie-break deterministic.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>name</th><th>email</th><th>updated_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>Ana</td><td>ana@old.com</td><td>2024-01-05 09:00</td><td>oldest edit</td></tr>
+    <tr><td>100</td><td>Ana R.</td><td>ana.r@new.com</td><td>2024-02-20 11:00</td><td>middle edit</td></tr>
+    <tr><td>100</td><td>Ana</td><td>ana@new.com</td><td>2024-03-10 14:30</td><td>newest edit &mdash; the keeper</td></tr>
+    <tr><td>101</td><td>Bo</td><td>bo@x.com</td><td>2024-02-01 08:00</td><td>older edit</td></tr>
+    <tr><td>101</td><td>Bo</td><td>bo2@x.com</td><td>2024-05-01 08:00</td><td>newest edit &mdash; the keeper</td></tr>
+    <tr><td>102</td><td>Cy</td><td>cy@x.com</td><td>2024-04-01 10:00</td><td>single row &mdash; only edit</td></tr>
+  </tbody>
+</table>
+<p>User 100's three rows are out of insertion order on purpose &mdash; the latest <code>updated_at</code> is not the last-inserted row. User 102 is the edge case: a user with a <em>single</em> history row must still survive and pass through unchanged.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER()</code> per partition, keep rank 1</h4>
+<pre><code>SELECT user_id, name, email, updated_at
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY user_id
+               ORDER BY updated_at DESC, user_id ASC
+           ) AS rn
+    FROM users
+)
+WHERE rn = 1;</code></pre>
+<p><code>PARTITION BY user_id</code> restarts the numbering for each user; <code>ORDER BY updated_at DESC</code> puts the most recent edit first, so it gets <code>rn = 1</code>. The outer query keeps only those rows. The window function must live in a subquery because <code>rn</code> cannot be referenced in the same <code>WHERE</code> that produces it.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>name</th><th>email</th><th>updated_at</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>Ana</td><td>ana@new.com</td><td>2024-03-10 14:30</td><td>latest of 3, not the last inserted</td></tr>
+    <tr><td>101</td><td>Bo</td><td>bo2@x.com</td><td>2024-05-01 08:00</td><td>latest of 2</td></tr>
+    <tr><td>102</td><td>Cy</td><td>cy@x.com</td><td>2024-04-01 10:00</td><td>single row passes through unchanged</td></tr>
+  </tbody>
+</table>
+<p>Exactly one row per user. User 100 collapses to its <code>2024-03-10</code> edit even though that was the third <code>INSERT</code>; <code>ORDER BY updated_at DESC</code> &mdash; not row order &mdash; decides the keeper. User 102's lone row is untouched: a partition of size one still has an <code>rn = 1</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code>, not <code>RANK</code> or <code>DENSE_RANK</code></h5>
+<p>The requirement is "exactly one row per user". <code>ROW_NUMBER</code> guarantees that &mdash; it assigns 1, 2, 3&hellip; with no repeats, so <code>rn = 1</code> selects precisely one row. <code>RANK</code> would assign the same rank to tied rows, so two edits with an identical <code>updated_at</code> would <em>both</em> get rank 1 and you would get duplicate users back. When the goal is deduplication, <code>ROW_NUMBER</code> is the correct family member.</p>
+
+<h5>The tie-break makes the result deterministic</h5>
+<p>If two rows share the same <code>updated_at</code>, <code>ORDER BY updated_at DESC</code> alone leaves their order undefined &mdash; the engine may return either, and the answer can change between runs. Adding <code>user_id ASC</code> as a secondary key is a reasonable gesture, but note: within one partition <code>user_id</code> is constant, so it does not actually break a within-user tie. A genuinely deterministic tie-break needs a column that <em>varies</em> inside the group &mdash; a surrogate <code>id</code>, an insert sequence, or a row version. Calling that out is the senior detail.</p>
+
+<h5>The pre-window-function alternative and its trap</h5>
+<p>The commented correlated-subquery form &mdash; <code>WHERE updated_at = (SELECT MAX(updated_at) FROM users u2 WHERE u2.user_id = u.user_id)</code> &mdash; works on legacy engines without window functions, but has a bug the <code>ROW_NUMBER</code> form does not: if a user has two rows tied at the max <code>updated_at</code>, the subquery returns <em>both</em>, re-introducing duplicates. The window approach with a proper tie-break is strictly safer.</p>
+
+<h5>NULL timestamps sink or float &mdash; decide</h5>
+<p>If <code>updated_at</code> can be NULL, <code>ORDER BY updated_at DESC</code> in Postgres places NULLs <em>first</em> (NULLs sort as largest under <code>DESC</code> by default), so a user whose only meaningful edit lacks a timestamp could have the NULL row chosen as "latest". Add <code>NULLS LAST</code> if a missing timestamp should never win. MySQL and SQLite differ on default NULL ordering, so be explicit.</p>
+
+<h5>Dialect notes</h5>
+<p>Window functions are standard in Postgres, modern MySQL (8.0+), SQLite (3.25+), Snowflake, and SQL Server. Postgres requires the derived table to have an alias &mdash; <code>FROM (&hellip;) AS t</code>; some engines tolerate its absence. A terser Postgres-specific alternative is <code>DISTINCT ON (user_id) &hellip; ORDER BY user_id, updated_at DESC</code>, which picks one row per <code>user_id</code> directly without the subquery.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>ROW_NUMBER() OVER (PARTITION BY key ORDER BY recency DESC)</code> + <code>WHERE rn = 1</code> for latest-per-group, choose <code>ROW_NUMBER</code> over <code>RANK</code> because dedup needs exactly one row, insist the tie-break uses a column that varies <em>within</em> the partition for true determinism, and handle NULL timestamps with explicit <code>NULLS LAST</code>.</div>

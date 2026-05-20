@@ -1,0 +1,48 @@
+<p>Google's compensation team builds a report of each employee's total cash compensation &mdash; salary plus bonus. The arithmetic is trivial, but there is a catch hiding in the data: not everyone has a bonus, and an employee with no bonus carries a NULL. The interviewer asking this is testing one specific thing: whether you know that <code>salary + NULL</code> is NULL, and that <code>COALESCE</code> is the fix.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>salary</th><th>bonus</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alex</td><td>100000</td><td>5000</td></tr>
+    <tr><td>2</td><td>Bailey</td><td>90000</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td>Casey</td><td>80000</td><td>2000</td></tr>
+    <tr><td>4</td><td>Drew</td><td>70000</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Alex and Casey have a bonus; Bailey and Drew have a <strong>NULL</strong> bonus &mdash; they are not on a bonus plan, so the field was never populated. Those two NULL rows are the whole interview: a naive <code>salary + bonus</code> would blank out their total comp entirely.</p>
+
+<h4>2. The SQL &mdash; <code>COALESCE(bonus, 0)</code></h4>
+<pre><code>SELECT emp_id, name, salary + COALESCE(bonus,0) AS total_comp FROM employees;</code></pre>
+<p><code>COALESCE(bonus, 0)</code> returns <code>bonus</code> when it is present and <code>0</code> when it is NULL. So the addition always has two real numbers and never produces a NULL.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>total_comp</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alex</td><td>105000</td></tr>
+    <tr><td>2</td><td>Bailey</td><td>90000</td></tr>
+    <tr><td>3</td><td>Casey</td><td>82000</td></tr>
+    <tr><td>4</td><td>Drew</td><td>70000</td></tr>
+  </tbody>
+</table>
+<p>Alex: 100000 + 5000 = 105000. Bailey: 90000 + <code>COALESCE(NULL, 0)</code> = 90000 &mdash; her salary survives intact. Without the <code>COALESCE</code>, Bailey and Drew would show a NULL <code>total_comp</code> and look like they earn <em>nothing</em>. That silent corruption is exactly what the question is about.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>salary + NULL</code> is NULL &mdash; the core trap</h5>
+<p>NULL means "unknown", and any arithmetic with an unknown is unknown: <code>90000 + NULL</code> evaluates to NULL, not 90000. So a single NULL bonus doesn't just lose the bonus &mdash; it wipes the <em>entire</em> total. The bug is invisible: no error, just wrong numbers for every employee without a bonus. <code>COALESCE</code> substitutes a concrete 0 so the addition stays well-defined.</p>
+
+<h5>NULL is not zero &mdash; deciding that on purpose</h5>
+<p>Mapping a NULL bonus to 0 is a <em>business decision</em>, and here it is the right one: "no bonus" genuinely means a bonus contribution of $0. But the equation isn't always valid &mdash; if <code>bonus</code> were NULL because payroll <em>hasn't computed it yet</em>, treating it as 0 would understate comp, and leaving the total NULL ("not yet known") might be the honest answer. Saying that distinction out loud is the senior move.</p>
+
+<h5><code>COALESCE</code> vs <code>ISNULL</code> / <code>IFNULL</code> / <code>NVL</code></h5>
+<p><code>COALESCE</code> is ANSI standard and works on every engine; <code>ISNULL</code> (SQL Server), <code>IFNULL</code> (MySQL) and <code>NVL</code> (Oracle) are vendor-specific two-argument equivalents. Prefer <code>COALESCE</code> &mdash; it is portable and, unlike the others, takes any number of arguments and returns the first non-NULL: <code>COALESCE(bonus, signing_bonus, 0)</code>.</p>
+
+<h5>Coalesce the column, not the sum</h5>
+<p>A subtle ordering point. <code>COALESCE(salary + bonus, 0)</code> looks similar but is wrong here: if <code>bonus</code> is NULL the inner sum is NULL, <code>COALESCE</code> turns the <em>whole thing</em> into 0, and Bailey's $90,000 salary vanishes. The NULL must be neutralised on the <em>specific operand</em> that can be NULL &mdash; <code>salary + COALESCE(bonus, 0)</code> &mdash; before it contaminates the expression.</p>
+
+<h5>Edge case: a NULL salary too</h5>
+<p>The query trusts <code>salary</code> to be non-NULL. If salary could itself be NULL, the same trap returns &mdash; guard both: <code>COALESCE(salary,0) + COALESCE(bonus,0)</code>. And note that <code>SUM(total_comp)</code> over the column would skip NULLs, so an aggregate could mask the bug at the row level &mdash; another reason to fix it at the source.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that any arithmetic with NULL yields NULL so one missing bonus blanks the whole total, neutralise the NULL on the exact operand (<code>salary + COALESCE(bonus,0)</code>, not around the sum), prefer portable <code>COALESCE</code> over vendor functions, and flag that "NULL means 0" is a business decision worth confirming.</div>

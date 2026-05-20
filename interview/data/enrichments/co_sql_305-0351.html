@@ -1,0 +1,39 @@
+<p>Amazon's Sponsored Products business is a $30B+ revenue line. Attribution decides what % of each purchase to credit to ads. The query handles two windows: <strong>click-through</strong> (7-day) and <strong>view-through</strong> (24-hour).</p>
+
+<h4>1. The source data — <code>ad_impressions</code> + <code>purchases</code></h4>
+<table><thead><tr><th>impression_id</th><th>user_id</th><th>asin</th><th>shown_at</th><th>clicked</th></tr></thead>
+<tbody><tr><td>I_001</td><td>U_01</td><td>A_01</td><td>Jan 1 09:00</td><td>1</td></tr></tbody></table>
+
+<h4>2. The SQL — windowed attribution split</h4>
+<pre><code>SELECT
+  SUM(CASE WHEN i.clicked = 1 AND julianday(p.purchased_at) - julianday(i.shown_at) BETWEEN 0 AND 7 THEN 1 ELSE 0 END) AS click_through_attr,
+  SUM(CASE WHEN i.clicked = 0 AND julianday(p.purchased_at) - julianday(i.shown_at) BETWEEN 0 AND 1 THEN 1 ELSE 0 END) AS view_through_attr,
+  COUNT(*) AS attributed_pairs
+FROM ad_impressions i
+JOIN purchases p ON p.user_id = i.user_id AND p.asin = i.asin
+  AND julianday(p.purchased_at) &gt; julianday(i.shown_at)
+  AND julianday(p.purchased_at) - julianday(i.shown_at) &lt;= 7;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Click-through vs view-through — different conviction</h5>
+<table><thead><tr><th>type</th><th>window</th><th>quality</th></tr></thead>
+<tbody>
+<tr><td>Click-through</td><td>7 days</td><td>strong — user actively engaged</td></tr>
+<tr><td>View-through</td><td>1 day</td><td>weak — user just SAW the ad</td></tr>
+</tbody></table>
+<p>Different windows reflect different conviction levels. Combining them inflates attribution; reporting separately is honest.</p>
+
+<h5>The double-count danger</h5>
+<p>If a user sees + clicks + buys within 24 hours, both branches fire. The CASE conditions (clicked=1 vs clicked=0) make them mutually exclusive — same row contributes to one bucket only.</p>
+
+<h5>Last-touch vs multi-touch</h5>
+<p>The query above is <strong>last-touch</strong>: each purchase credits the latest ad impression in window. Production also runs <strong>multi-touch</strong> (split credit across all touches in the path) — different attribution model, very different revenue numbers.</p>
+
+<h5>Incrementality — the senior reframe</h5>
+<p>Attribution measures revenue ASSOCIATED with ads. Incrementality measures revenue that wouldn't have happened without ads. They diverge: a power user who buys daily would've bought anyway. True incremental ROAS is often 30-50% of attributed ROAS. Mention this — it's the senior reframe.</p>
+
+<h5>The asin-match strictness</h5>
+<p>The query requires exact ASIN match. But users often see ad for ASIN-A, click, then buy ASIN-B (variant or substitute). Attribution can be widened to category-match for "halo" effects. Production splits attribution into "exact-asin" and "halo" buckets.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish click-through (7d) vs view-through (1d) windows, prevent double-count via mutually-exclusive CASE branches, contrast last-touch vs multi-touch, and reframe attribution vs incrementality. The exact-vs-halo ASIN match is the over-the-bar nuance.</div>

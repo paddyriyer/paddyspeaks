@@ -1,0 +1,64 @@
+<p>Amazon's growth and retention teams obsess over the customers who <em>almost</em> buy &mdash; people who load a cart and then leave. They sit between window-shoppers (never add anything) and buyers, and they're the cheapest segment to convert: a free-shipping nudge often closes the gap. This question tests the everyday analytics-engineering loop &mdash; window an event stream, reshape long&rarr;wide, derive a rate safely, and bucket customers with ordered rules &mdash; in idiomatic pandas.</p>
+
+<h4>1. The input data</h4>
+<p>An <code>events</code> DataFrame: one row per customer action. <code>event_type</code> &isin; {view, add_to_cart, checkout, purchase}.</p>
+<table>
+  <thead><tr><th>customer_id</th><th>event_ts</th><th>event_type</th></tr></thead>
+  <tbody>
+    <tr><td>C1</td><td>2026-05-02</td><td>add_to_cart</td></tr>
+    <tr><td>C1</td><td>2026-05-04</td><td>add_to_cart</td></tr>
+    <tr><td>C1</td><td>2026-05-06</td><td>add_to_cart</td></tr>
+    <tr><td>C1</td><td>2026-05-08</td><td>add_to_cart</td></tr>
+    <tr><td>C2</td><td>2026-05-03</td><td>add_to_cart</td></tr>
+    <tr><td>C2</td><td>2026-05-05</td><td>purchase</td></tr>
+    <tr><td>C3</td><td>2026-05-07</td><td>view</td></tr>
+    <tr><td>C4</td><td>2026-05-09</td><td>checkout</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The approach</h4>
+<p><strong>Step 1 &mdash; window.</strong> <code>pd.to_datetime</code> normalises the timestamps, then the cutoff is anchored to the data itself: <code>events['event_ts'].max() - pd.Timedelta(days=days)</code>. Anchoring on the latest event (not <code>datetime.now()</code>) means the same code works for live data <em>and</em> historical replay tests.</p>
+<p><strong>Step 2 &mdash; long&rarr;wide.</strong> <code>pivot_table(index='customer_id', columns='event_type', values='n', aggfunc='sum', fill_value=0)</code> turns each event type into a per-customer count column. The defensive <code>for col in (...)</code> loop adds any event type that never appeared, so downstream code never hits a <code>KeyError</code>.</p>
+<p><strong>Step 3 &mdash; safe rate.</strong> Abandonment = <code>1 - purchase / add_to_cart</code>. The trick is <code>add_to_cart.replace(0, pd.NA)</code> &mdash; turning a zero denominator into <code>NA</code> so the division yields <code>NA</code> instead of raising or producing <code>inf</code>; <code>.fillna(0).clip(lower=0).round(2)</code> then tidies it.</p>
+<p><strong>Step 4 &mdash; labels.</strong> <code>_label</code> applied row-wise; <em>order matters</em>. The <code>unsteady</code> rule (<code>cart_adds &gt;= 3 and abandonment &gt;= 0.6</code>) is checked first so it wins over plainer buckets &mdash; the <code>cart_adds &gt;= 3</code> floor filters out one-off noise. <strong>Step 5</strong> renames columns and sorts worst-abandonment first.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>cart_adds</th><th>checkouts</th><th>purchases</th><th>abandonment_rate</th><th>label</th></tr></thead>
+  <tbody>
+    <tr><td>C1</td><td>4</td><td>0</td><td>0</td><td>1.0</td><td>unsteady</td></tr>
+    <tr><td>C4</td><td>0</td><td>1</td><td>0</td><td>0.0</td><td>checkout_dropout</td></tr>
+    <tr><td>C2</td><td>1</td><td>0</td><td>1</td><td>0.0</td><td>buyer</td></tr>
+    <tr><td>C3</td><td>0</td><td>0</td><td>0</td><td>0.0</td><td>window_shopper</td></tr>
+  </tbody>
+</table>
+<p>C1 has 4 cart-adds, 0 purchases &rarr; rate <code>1.0</code> &ge; 0.6 and adds &ge; 3 &rarr; <strong>unsteady</strong>. C2 bought (1/1) &rarr; rate 0 &rarr; <strong>buyer</strong>. C4 reached checkout but never bought &rarr; <strong>checkout_dropout</strong>. C3 only viewed &rarr; <strong>window_shopper</strong>. Sorted abandonment-desc, C1 leads.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(n log n)</strong> &mdash; the date filter and pivot are near-linear in n events; the final <code>sort_values</code> dominates. The <code>.apply(_label, axis=1)</code> is O(rows) but with Python-level per-row overhead. <strong>Space O(n)</strong> &mdash; the events copy plus the per-customer pivot.</p>
+
+<h5>The idiomatic alternative &mdash; vectorise the labels</h5>
+<p><code>apply(axis=1)</code> is the slow part &mdash; it's a Python loop. <code>np.select</code> evaluates the same ordered rules as vectorised boolean masks:</p>
+<pre><code>import numpy as np
+conds = [
+    (p['add_to_cart'] &gt;= 3) &amp; (p['abandonment_rate'] &gt;= 0.6),
+    p['purchase'] &gt; 0,
+    p['checkout'] &gt; 0,
+    (p['add_to_cart'] == 0) &amp; (p['purchase'] == 0),
+]
+choices = ['unsteady', 'buyer', 'checkout_dropout', 'window_shopper']
+p['label'] = np.select(conds, choices, default='browser')</code></pre>
+<p><code>np.select</code> picks the <em>first</em> true condition &mdash; same precedence as the <code>if</code>-ladder, but C-speed.</p>
+
+<h5>The edge case</h5>
+<p>The <code>replace(0, pd.NA)</code> is the headline edge case: a customer with <strong>zero cart-adds</strong> would otherwise divide by zero &mdash; here it becomes <code>NA</code> &rarr; <code>fillna(0)</code> &rarr; rate 0. A customer with <strong>more purchases than cart-adds</strong> (e.g. a purchase recorded without a tracked add) gives a negative rate; <code>clip(lower=0)</code> floors it at 0. An <strong>empty events frame</strong> would break the <code>.max()</code> anchor &mdash; worth an explicit guard.</p>
+
+<h5>The follow-up</h5>
+<p>"Score the cohort by <em>revenue at risk</em>, not just rate" &mdash; join an order-value table and weight. "Make the window rolling per-customer" &mdash; switch from a global cutoff to a per-customer <code>groupby</code> + time filter. "Why anchor on <code>max()</code> instead of <code>now()</code>?" &mdash; reproducibility: tests replay fixed historical data.</p>
+
+<h5>The trap</h5>
+<p>Reordering the <code>_label</code> rules so <code>purchase &gt; 0</code> is checked before <code>unsteady</code>. A customer who adds to cart 4 times <em>and</em> makes one purchase would then be tagged <code>buyer</code> and slip out of the actionable cohort &mdash; even though their abandonment is still high. Rule order encodes business priority; the actionable label must win. The other trap: dividing without the <code>replace(0, pd.NA)</code> guard, which yields <code>inf</code>/<code>NaN</code> rows that silently poison the sort.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> anchors the lookback window on the data's own <code>max()</code> timestamp for reproducible replay, neutralises the divide-by-zero with <code>replace(0, pd.NA)</code> before computing the rate, orders the label rules so the <em>actionable</em> cohort wins ties, and replaces row-wise <code>apply</code> with vectorised <code>np.select</code> when the cohort grows past toy size.</div>

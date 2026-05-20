@@ -1,0 +1,72 @@
+<p>ABC Bank wants to know, <em>per branch location</em>, which payment mode (Gpay, PhonePe, Paytm, or cash) carried the single highest-value transactions, and how many such transactions there were. The interviewer is testing a per-group top-N pattern: rank transactions <em>within</em> each location, keep the top tier, then attribute it to a mode. The hidden trap &mdash; and the reason this is rated Hard &mdash; is that "in each location" must survive into the final <code>SELECT</code> and <code>GROUP BY</code>; drop it and the answer silently collapses all branches into one bucket.</p>
+
+<h4>1. The source data &mdash; <code>transaction_tbls</code> joined to <code>customer</code></h4>
+<table>
+  <thead><tr><th>loc_name</th><th>cus_id</th><th>amount_paid</th><th>app (via customer)</th></tr></thead>
+  <tbody>
+    <tr><td>Mumbai</td><td>1</td><td>5000</td><td>Gpay</td></tr>
+    <tr><td>Mumbai</td><td>2</td><td>5000</td><td>PhonePe</td></tr>
+    <tr><td>Mumbai</td><td>3</td><td>3000</td><td>Paytm</td></tr>
+    <tr><td>Delhi</td><td>4</td><td>8000</td><td>NULL &rarr; cash</td></tr>
+    <tr><td>Delhi</td><td>5</td><td>2000</td><td>Gpay</td></tr>
+    <tr><td>Pune</td><td>1</td><td>1500</td><td>Gpay</td></tr>
+  </tbody>
+</table>
+<p>Mumbai has a <strong>tie at 5000</strong> across two different apps &mdash; the edge case that decides whether the answer has one row or two per location. Customer 4 has a <code>NULL</code> app: an offline (cash) transaction.</p>
+
+<h4>2. The SQL &mdash; <code>DENSE_RANK</code> per location (original, flagged broken)</h4>
+<pre><code>WITH txn AS (
+  SELECT *, DENSE_RANK() OVER (PARTITION BY loc_name ORDER BY amount_paid DESC) AS rnk
+  FROM transaction_tbls
+)
+SELECT COALESCE(app, 'cash') AS mode, COUNT(*) AS num_transaction
+FROM txn
+INNER JOIN customer c ON txn.cus_id = c.customer_id
+WHERE rnk = 1
+GROUP BY app;</code></pre>
+<p><strong>Broken:</strong> the question asks for the result <em>"in each location"</em>, but <code>loc_name</code> is absent from both the <code>SELECT</code> and the <code>GROUP BY</code>. The top transactions of every branch are merged into one global tally &mdash; the location dimension is lost.</p>
+
+<h4>2b. Corrected &mdash; keep <code>loc_name</code> through to the output</h4>
+<pre><code>WITH txn AS (
+  SELECT t.*, COALESCE(c.app, 'cash') AS mode,
+         DENSE_RANK() OVER (PARTITION BY t.loc_name
+                            ORDER BY t.amount_paid DESC) AS rnk
+  FROM transaction_tbls t
+  INNER JOIN customer c ON t.cus_id = c.customer_id
+)
+SELECT loc_name, mode, COUNT(*) AS num_transaction
+FROM txn
+WHERE rnk = 1
+GROUP BY loc_name, mode
+ORDER BY loc_name, mode;</code></pre>
+
+<h4>3. The resulting analysis (corrected query)</h4>
+<table>
+  <thead><tr><th>loc_name</th><th>mode</th><th>num_transaction</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>Delhi</td><td>cash</td><td>1</td><td>top txn 8000 was offline</td></tr>
+    <tr><td>Mumbai</td><td>Gpay</td><td>1</td><td>tied top txn (5000)</td></tr>
+    <tr><td>Mumbai</td><td>PhonePe</td><td>1</td><td>tied top txn (5000) &mdash; both kept</td></tr>
+    <tr><td>Pune</td><td>Gpay</td><td>1</td><td>only one txn, trivially the top</td></tr>
+  </tbody>
+</table>
+<p>Mumbai correctly shows two rows because two apps share the 5000 maximum. The original query, by contrast, produces a location-less <code>Gpay=2, PhonePe=1, cash=1</code> &mdash; numerically derived from the same rows but answering a different question.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code> over <code>PARTITION BY loc_name</code> is the core</h5>
+<p><code>PARTITION BY loc_name</code> restarts the ranking inside every branch, and <code>ORDER BY amount_paid DESC</code> puts the biggest transaction at rank 1. Filtering <code>rnk = 1</code> in an outer query (you cannot use a window function in <code>WHERE</code> directly) keeps the top tier per location. This "rank-then-filter" CTE is the canonical top-N-per-group pattern.</p>
+
+<h5>The bug is a lost grouping key, not bad logic</h5>
+<p>The window function in the original is correct &mdash; it does rank per location. The defect is downstream: the final <code>SELECT ... GROUP BY app</code> throws <code>loc_name</code> away. A result that claims to be "per location" but has no location column cannot be right. The lesson: every dimension the question names must appear in the final projection <em>and</em> the <code>GROUP BY</code>. Always re-read the ask against your <code>SELECT</code> list.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> vs <code>ROW_NUMBER</code> &mdash; the tie decision</h5>
+<p>Mumbai's 5000 tie makes the choice visible. <code>ROW_NUMBER</code> would arbitrarily pick one of the two apps and hide the other &mdash; wrong, because both genuinely transacted at the maximum. <code>RANK</code> and <code>DENSE_RANK</code> both give the tied rows rank 1, so for a <code>rnk = 1</code> filter they behave identically here; they only diverge for rank 2+. Keeping all tied top transactions is the defensible reading of "highest amount transactions", so <code>DENSE_RANK</code> (or <code>RANK</code>) is right and <code>ROW_NUMBER</code> is a trap.</p>
+
+<h5>NULL handling &mdash; <code>COALESCE</code> and the join type</h5>
+<p>An offline transaction has <code>NULL</code> app; <code>COALESCE(app, 'cash')</code> labels it cleanly. Note also the <code>INNER JOIN</code> to <code>customer</code>: if a transaction's <code>cus_id</code> has no matching customer row, that transaction is dropped &mdash; including, potentially, a branch's top transaction. If transactions can exist for unknown customers, switch to <code>LEFT JOIN</code> so the ranking still sees every transaction and label the orphan as <code>'cash'</code>/<code>'unknown'</code>.</p>
+
+<h5>Part 2 of the question &mdash; most-<em>used</em> mode per location</h5>
+<p>The prompt's second ask ("mode used <em>maximum</em> for a given location") is a different metric &mdash; frequency, not amount. Rank by count instead: <code>RANK() OVER (PARTITION BY loc_name ORDER BY COUNT(*) DESC)</code> over a <code>GROUP BY loc_name, mode</code> pre-aggregation, then keep rank 1. Distinguishing "highest-value" from "most-frequent" out loud signals you parsed a multi-part question carefully.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the rank-then-filter top-N-per-group pattern, then catch the real bug &mdash; the original drops <code>loc_name</code> so it cannot answer "per location" despite correct window logic. Naming the <code>ROW_NUMBER</code>-vs-<code>DENSE_RANK</code> tie trap and separating "highest value" from "most frequent" for part 2 is the senior finish.</div>

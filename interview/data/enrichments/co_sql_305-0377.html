@@ -1,0 +1,44 @@
+<p>Spotify's adaptive bitrate (ABR) system shifts audio quality based on network conditions. The query uses LAG to detect bitrate transitions per session — high churn signals network instability.</p>
+
+<h4>2. The SQL — LAG transition detection</h4>
+<pre><code>WITH transitions AS (
+  SELECT session_id, event_at, bitrate_kbps,
+    LAG(bitrate_kbps) OVER (PARTITION BY session_id ORDER BY event_at) AS prev_bitrate
+  FROM playback_events
+)
+SELECT session_id,
+  COUNT(*) AS events,
+  SUM(CASE WHEN prev_bitrate IS NOT NULL AND bitrate_kbps != prev_bitrate THEN 1 ELSE 0 END) AS quality_changes,
+  MIN(bitrate_kbps) AS lowest_bitrate,
+  MAX(bitrate_kbps) AS highest_bitrate
+FROM transitions
+GROUP BY session_id
+ORDER BY quality_changes DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The Spotify quality tiers</h5>
+<table><thead><tr><th>tier</th><th>bitrate</th><th>plan</th></tr></thead>
+<tbody>
+<tr><td>Low</td><td>24 kbps</td><td>Free / mobile data-saver</td></tr>
+<tr><td>Normal</td><td>96 kbps</td><td>Free / Web</td></tr>
+<tr><td>High</td><td>160 kbps</td><td>Free</td></tr>
+<tr><td>Very High</td><td>320 kbps</td><td>Premium</td></tr>
+</tbody></table>
+<p>Each transition between tiers is an ABR event. Many transitions per session = unstable network → poor user experience.</p>
+
+<h5>Drops vs upgrades — different signals</h5>
+<p>Drops (320 → 160 → 96) signal network degradation; upgrades (96 → 160 → 320) signal recovery. Splitting reveals SLA breaches:</p>
+<pre><code>SUM(CASE WHEN bitrate_kbps &lt; prev_bitrate THEN 1 END) AS drops,
+SUM(CASE WHEN bitrate_kbps &gt; prev_bitrate THEN 1 END) AS upgrades</code></pre>
+
+<h5>The first-event NULL handling</h5>
+<p>The first event in each session has prev_bitrate IS NULL — it's not a transition. The CASE filters with <code>prev_bitrate IS NOT NULL</code>.</p>
+
+<h5>Per-network-type cut</h5>
+<p>Cellular sessions have 5x more transitions than WiFi. Production splits by <code>network_type</code> for fair benchmarking.</p>
+
+<h5>The lossless-tier upsell</h5>
+<p>Premium-only "Very High" 320kbps and HiFi (lossless, 1411kbps in pilot regions) drive upgrades. Sessions consistently at 320 in HiFi-eligible markets are upsell targets.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the four-tier Spotify ladder, split drops vs upgrades for SLA vs recovery diagnosis, isolate cellular vs WiFi for fair compare, and connect sustained-320 sessions to the HiFi upsell flow.</div>

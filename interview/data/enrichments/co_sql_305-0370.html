@@ -1,0 +1,35 @@
+<p>Spotify's content team monitors <strong>skip rate</strong> as the inverse of listener satisfaction. Genres with high skip rate either have weak track curation or wrong-listener targeting. The query computes per-genre skip rate + average completion.</p>
+
+<h4>1. The source data — <code>plays</code></h4>
+<table><thead><tr><th>play_id</th><th>user_id</th><th>genre</th><th>played_seconds</th><th>song_seconds</th><th>skipped (1/0)</th></tr></thead>
+<tbody><tr><td>P_001</td><td>U_01</td><td>pop</td><td>180</td><td>240</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — skip rate + avg completion</h4>
+<pre><code>SELECT genre,
+  COUNT(*) AS plays,
+  SUM(skipped) AS skips,
+  ROUND(100.0 * SUM(skipped) / NULLIF(COUNT(*), 0), 1) AS skip_rate_pct,
+  ROUND(AVG(played_seconds * 100.0 / NULLIF(song_seconds, 0)), 1) AS avg_completion_pct
+FROM plays
+GROUP BY genre
+HAVING COUNT(*) &gt;= 3
+ORDER BY skip_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The Spotify "skip" definition</h5>
+<p>Internally Spotify defines skip as <em>"played &lt; 30 seconds AND user moved to next track"</em>. The 30-second threshold is the royalty boundary — under 30s doesn't pay royalties. The query treats any flagged-as-skipped row uniformly; production differentiates.</p>
+
+<h5>Why average completion alongside skip rate</h5>
+<p>A track played 95% then skipped at the outro is different from one skipped at 5 seconds. Both register as <code>skipped=1</code>. Completion percentage exposes the difference. The genre with high skip rate AND low completion is broken; high skip rate but high completion means users are exit-browsing (next track) — that's normal.</p>
+
+<h5>The contextual confounder — playlist vs Discover</h5>
+<p>Skip rate is structurally higher on Discover Weekly (users are sampling) than on user's own playlists. Comparing across contexts is unfair. Always slice by play context (playlist / radio / discover / album).</p>
+
+<h5>Length-bias — long tracks skip more</h5>
+<p>An 8-minute track has higher skip rate than a 3-minute track simply because users have more chances to skip. Production normalizes by hazard rate (skips per minute of exposure).</p>
+
+<h5>The tie-back — algorithm feedback</h5>
+<p>Tracks with sustained high skip rate get demoted in autoplay queues; users who consistently skip a genre have it weighted-down in their recommendations. The query result is a feature, not just a dashboard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish 30-sec royalty-boundary skip from any-skip, surface completion as the second axis, isolate context (playlist vs Discover), and connect to the recommender feedback loop.</div>

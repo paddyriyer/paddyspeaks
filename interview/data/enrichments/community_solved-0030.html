@@ -1,0 +1,56 @@
+<p>This is the StrataScratch framing of the average-session-time problem from a Community question bank. Here the table is already shaped one row per visit, with <code>page_load</code> and <code>page_exit</code> sitting side by side as text columns. The work shifts from event-pairing to data hygiene: those text columns may hold non-timestamp junk, and casting them blindly is how the query crashes in front of the interviewer.</p>
+
+<h4>1. The source data &mdash; <code>users_web_log</code></h4>
+<table>
+  <thead><tr><th>day</th><th>user_id</th><th>page_load</th><th>page_exit</th></tr></thead>
+  <tbody>
+    <tr><td>2024-03-01</td><td>1</td><td>2024-03-01 09:00:00</td><td>2024-03-01 09:10:00</td></tr>
+    <tr><td>2024-03-02</td><td>1</td><td>2024-03-02 14:00:00</td><td>2024-03-02 14:30:00</td></tr>
+    <tr><td>2024-03-01</td><td>2</td><td>2024-03-01 10:00:00</td><td>2024-03-01 10:20:00</td></tr>
+    <tr><td>2024-03-01</td><td>3</td><td>2024-03-01 11:00:00</td><td><em>NULL</em></td></tr>
+    <tr><td>2024-03-03</td><td>4</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>User 3's visit has a load but a <strong>NULL exit</strong> &mdash; an incomplete session. User 4's row is <strong>NULL on both</strong> sides &mdash; an empty visit. Both must be excluded before any subtraction happens.</p>
+
+<h4>2. The SQL &mdash; cast-and-filter per visit</h4>
+<pre><code>SELECT user_id,
+       AVG(EXTRACT(EPOCH FROM (page_exit::timestamp - page_load::timestamp))) AS avg_duration
+FROM users_web_log
+WHERE page_load IS NOT NULL AND page_exit IS NOT NULL
+  AND page_load::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+  AND page_exit::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+GROUP BY user_id;</code></pre>
+<p>The first two predicates drop rows where either side is NULL. The two regex predicates are a defensive guard: only rows whose text actually <em>starts like a date</em> survive to be cast, so a stray label or empty string can never reach <code>::timestamp</code> and abort the query.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>avg_duration</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1200.0000000000000000</td></tr>
+    <tr><td>2</td><td>1200.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>User 1 has two visits &mdash; 600 s and 1800 s &mdash; averaging 1200 s. User 2 has one 1200 s visit. Users 3 and 4 produced no row at all: the NULL filter removed them, so they are absent from the output rather than appearing with a NULL or 0 average.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the regex guard exists</h5>
+<p>When timestamps are stored as <code>TEXT</code>, the column can accumulate anything &mdash; <code>''</code>, <code>'n/a'</code>, a malformed date. <code>'n/a'::timestamp</code> does not return NULL; it raises an error that kills the whole statement. The pattern <code>'^[0-9]{4}-[0-9]{2}-[0-9]{2}'</code> screens each value <em>before</em> the cast, so only plausibly-castable rows proceed. It is belt-and-braces, and worth a sentence to the interviewer: "I'm assuming the text column isn't clean."</p>
+
+<h5>The cleaner fix &mdash; store timestamps as timestamps</h5>
+<p>The regex is a workaround for a schema smell. If you own the table, the real fix is a typed column:</p>
+<pre><code>ALTER TABLE users_web_log
+  ALTER COLUMN page_load TYPE timestamp USING page_load::timestamp;</code></pre>
+<p>Then the cast and the regex both disappear and the database enforces validity on write. Postgres 12+ also offers a non-throwing path &mdash; a <code>CASE</code> wrapping the cast, or a helper that returns NULL on failure &mdash; if you cannot change the type.</p>
+
+<h5>Why the NULL filter is not redundant</h5>
+<p><code>page_exit IS NOT NULL</code> looks superfluous next to the regex, but it is not: a NULL value never matches a regex (the comparison is <em>unknown</em>, not <em>false</em>), so the regex alone would already exclude NULLs &mdash; yet stating <code>IS NOT NULL</code> explicitly documents intent and makes the filter readable. Keep it; clarity beats terseness here.</p>
+
+<h5>Subtracting timestamps yields an interval</h5>
+<p><code>page_exit::timestamp - page_load::timestamp</code> is an <code>INTERVAL</code>, not a number. <code>EXTRACT(EPOCH FROM ...)</code> converts that interval to total seconds &mdash; the only reliable way to average durations. Averaging intervals directly works in Postgres but is fragile across engines; epoch-seconds is portable. Divide by 60 for minutes if the dashboard wants those units.</p>
+
+<h5>Edge case: a user with only bad rows</h5>
+<p>If every one of a user's visits is filtered out, that user simply does not appear &mdash; <code>GROUP BY</code> produces no group for them. If the dashboard needs every user listed, even those with no valid session, start from a distinct user list and <code>LEFT JOIN</code> the durations onto it, leaving <code>avg_duration</code> NULL where there is nothing to average.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that casting a <code>TEXT</code> timestamp column is unsafe and either guard it with a regex or fix the schema, explain why a NULL never matches a regex (so the explicit <code>IS NOT NULL</code> is for readability), and convert interval differences to epoch-seconds for a portable, averageable duration.</div>

@@ -1,0 +1,60 @@
+<p>A social platform wants to measure engagement gaps: for users who posted more than once in 2025, how many days separated their first post from their last? This "hiatus" metric flags users who were active early then went quiet. The interviewer is checking three things at once &mdash; date-range filtering, the difference between <em>distinct posting days</em> and <em>raw post rows</em>, and date subtraction arithmetic.</p>
+
+<h4>1. The source data &mdash; <code>posts</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>post_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2025-01-05</td><td>three distinct days in 2025</td></tr>
+    <tr><td>101</td><td>2025-06-12</td><td>&nbsp;</td></tr>
+    <tr><td>101</td><td>2025-10-30</td><td>last post</td></tr>
+    <tr><td>102</td><td>2025-02-14</td><td>only one posting day &rarr; excluded</td></tr>
+    <tr><td>103</td><td>2025-03-01</td><td>two rows, same day</td></tr>
+    <tr><td>103</td><td>2025-03-01</td><td>duplicate date &mdash; still one distinct day</td></tr>
+    <tr><td>103</td><td>2025-09-15</td><td>second distinct day</td></tr>
+    <tr><td>104</td><td>2024-12-29</td><td>2024 post &mdash; out of range</td></tr>
+    <tr><td>104</td><td>2025-01-02</td><td>only one 2025 day &rarr; excluded</td></tr>
+    <tr><td>105</td><td>2025-07-04</td><td>three rows, all same day</td></tr>
+    <tr><td>105</td><td>2025-07-04</td><td>duplicate</td></tr>
+    <tr><td>105</td><td>2025-07-04</td><td>duplicate &mdash; one distinct day, excluded</td></tr>
+  </tbody>
+</table>
+<p>The traps cluster around the word "distinct". User 103 has three <em>rows</em> but only two distinct <em>days</em>. User 105 has three rows that are all the same day &mdash; one distinct day, so 105 must be excluded. User 104 posted twice, but one post is in 2024; after the date filter only one 2025 day remains, so 104 is also excluded.</p>
+
+<h4>2. The SQL &mdash; range filter, then group with a distinct-day guard</h4>
+<pre><code>SELECT user_id,
+       (MAX(post_date) - MIN(post_date)) AS hiatus_days
+FROM posts
+WHERE post_date &gt;= DATE '2025-01-01' AND post_date &lt; DATE '2026-01-01'
+GROUP BY user_id
+HAVING COUNT(DISTINCT post_date) &gt;= 2
+ORDER BY user_id;</code></pre>
+<p>The <code>WHERE</code> clause keeps only 2025 dates using a half-open range. <code>GROUP BY user_id</code> collapses to one row per user; <code>MAX - MIN</code> on a <code>DATE</code> yields an integer day count. <code>HAVING COUNT(DISTINCT post_date) &gt;= 2</code> drops anyone whose 2025 activity landed on a single day.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>hiatus_days</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>298</td><td>Jan 5 &rarr; Oct 30</td></tr>
+    <tr><td>103</td><td>198</td><td>Mar 1 &rarr; Sep 15 &mdash; duplicate Mar 1 row ignored</td></tr>
+  </tbody>
+</table>
+<p>Only users 101 and 103 survive. User 102 had one day. User 104's qualifying post count dropped to one after the 2024 row was filtered out. User 105's three identical rows count as one distinct day &mdash; <code>HAVING</code> rejects it. For 103, <code>MIN</code> and <code>MAX</code> ignore the duplicate Mar 1 row entirely, so the span is Mar 1 to Sep 15 = 198 days.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT post_date)</code> and not <code>COUNT(*)</code></h5>
+<p>The question says "posted on at least two distinct <em>dates</em>". <code>COUNT(*)</code> counts rows, so user 105 (three rows, one day) would pass with a count of 3 &mdash; wrong. <code>COUNT(DISTINCT post_date)</code> counts unique calendar days, correctly yielding 1 for 105 and 2 for 103. Whenever a spec says "distinct days/values", the literal translation is <code>COUNT(DISTINCT col)</code>; reading <code>COUNT(*)</code> instead is the classic mistake this question is built to catch.</p>
+
+<h5>Half-open date range &mdash; why <code>&lt; '2026-01-01'</code> beats <code>BETWEEN</code></h5>
+<p>Writing <code>post_date &gt;= '2025-01-01' AND post_date &lt; '2026-01-01'</code> is preferable to <code>BETWEEN '2025-01-01' AND '2025-12-31'</code>. For a pure <code>DATE</code> column they agree, but if the column were ever a <code>TIMESTAMP</code>, <code>BETWEEN ... '2025-12-31'</code> would silently drop everything after midnight on Dec 31. The half-open <code>[start, next-period-start)</code> idiom is timezone- and granularity-proof &mdash; a habit worth keeping uniform across all range filters.</p>
+
+<h5>Date subtraction returns an integer in Postgres</h5>
+<p><code>DATE - DATE</code> in Postgres yields an <code>integer</code> count of whole days &mdash; exactly the "whole days between" the question asks for. No <code>EXTRACT</code> or <code>DATEDIFF</code> needed. Note this is special to date types: <code>TIMESTAMP - TIMESTAMP</code> yields an <code>interval</code>, not an integer, so if the column were a timestamp you would cast to <code>::date</code> first or use <code>EXTRACT(DAY FROM ...)</code>.</p>
+
+<h5>WHERE filters rows, HAVING filters groups</h5>
+<p>The two-stage filtering is deliberate. <code>WHERE</code> runs first and removes 2024 rows <em>before</em> grouping &mdash; this is why user 104 ends up with only one qualifying day. <code>HAVING</code> runs <em>after</em> grouping and can see aggregates like <code>COUNT(DISTINCT ...)</code>. You cannot move the distinct-day test into <code>WHERE</code> (the aggregate doesn't exist yet) and you would not want the date filter in <code>HAVING</code> (it would be evaluated too late, after rows are already grouped).</p>
+
+<h5>Dialect &mdash; date difference elsewhere</h5>
+<p>Bare <code>DATE - DATE</code> arithmetic is a Postgres convenience. SQL Server needs <code>DATEDIFF(day, MIN(post_date), MAX(post_date))</code>; MySQL needs <code>DATEDIFF(MAX(post_date), MIN(post_date))</code>; BigQuery needs <code>DATE_DIFF(MAX(post_date), MIN(post_date), DAY)</code>; Oracle allows the subtraction but returns a <code>NUMBER</code>. The grouping, range filter, and <code>HAVING</code> logic are identical across dialects &mdash; only the day-count function changes.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> translate "distinct dates" literally into <code>COUNT(DISTINCT post_date)</code> rather than <code>COUNT(*)</code>, filter the date range in <code>WHERE</code> (before grouping) and the group-size rule in <code>HAVING</code> (after), prefer the half-open <code>&gt;= start AND &lt; next</code> range so the filter survives a <code>TIMESTAMP</code> column, and know that <code>DATE - DATE</code> returns an integer day count only in Postgres.</div>

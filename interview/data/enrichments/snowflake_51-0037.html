@@ -1,0 +1,84 @@
+<p>Anthropic&rsquo;s facilities team wants a maintenance cost leaderboard with two ranking dimensions simultaneously: which equipment in each <em>location</em> is the costliest (a partitioned rank), and which equipment across the entire fleet has been serviced most <em>frequently</em> (a global dense rank). The query combines aggregation and window functions on the same result set &mdash; a "grouped-then-ranked" pattern that many candidates stumble on because they try to apply the window function before the GROUP BY is resolved.</p>
+
+<h4>1. The source data &mdash; <code>equipment</code> and <code>maintenance</code></h4>
+<table>
+  <thead><tr><th>equipment_id</th><th>name</th><th>location</th></tr></thead>
+  <tbody>
+    <tr><td>E1</td><td>Compressor A</td><td>Plant North</td></tr>
+    <tr><td>E2</td><td>Pump B</td><td>Plant North</td></tr>
+    <tr><td>E3</td><td>Generator C</td><td>Plant South</td></tr>
+    <tr><td>E4</td><td>Valve D</td><td>Plant South</td></tr>
+    <tr><td>E5</td><td>Turbine E</td><td>Plant North</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>maint_id</th><th>equipment_id</th><th>maint_date</th><th>cost</th></tr></thead>
+  <tbody>
+    <tr><td>M01</td><td>E1</td><td>2025-01-10</td><td>1200</td></tr>
+    <tr><td>M02</td><td>E1</td><td>2025-02-15</td><td>800</td></tr>
+    <tr><td>M03</td><td>E1</td><td>2025-03-20</td><td>950</td></tr>
+    <tr><td>M04</td><td>E2</td><td>2025-01-25</td><td>500</td></tr>
+    <tr><td>M05</td><td>E3</td><td>2025-02-10</td><td>2200</td></tr>
+    <tr><td>M06</td><td>E3</td><td>2025-03-05</td><td>1800</td></tr>
+    <tr><td>M07</td><td>E4</td><td>2025-01-15</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>E5 (Turbine E) has no maintenance records &mdash; the LEFT JOIN will produce NULL aggregates for it. E1 (Compressor A) has 3 events; E3 (Generator C) has 2; E2, E4 each have 1.</p>
+
+<h4>2. The SQL &mdash; LEFT JOIN + GROUP BY + dual window ranks</h4>
+<pre><code>SELECT e.equipment_id, e.name, e.location,
+       COUNT(m.maint_id)  AS maintenance_events,
+       SUM(m.cost)        AS total_cost,
+       MAX(m.maint_date)  AS last_maintenance,
+       RANK() OVER (PARTITION BY e.location ORDER BY SUM(m.cost) DESC) AS cost_rank_in_location,
+       DENSE_RANK() OVER (ORDER BY COUNT(m.maint_id) DESC)             AS frequency_rank_global
+FROM equipment    e
+LEFT JOIN maintenance m ON e.equipment_id = m.equipment_id
+GROUP BY e.equipment_id, e.name, e.location
+ORDER BY total_cost DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Aggregated values per equipment:</p>
+<ul>
+  <li>E1 (Compressor A, Plant North): 3 events, total_cost = 2950, last = 2025-03-20</li>
+  <li>E2 (Pump B, Plant North): 1 event, total_cost = 500, last = 2025-01-25</li>
+  <li>E3 (Generator C, Plant South): 2 events, total_cost = 4000, last = 2025-03-05</li>
+  <li>E4 (Valve D, Plant South): 1 event, total_cost = 600, last = 2025-01-15</li>
+  <li>E5 (Turbine E, Plant North): 0 events, total_cost = NULL, last = NULL</li>
+</ul>
+<p>Window function computation:</p>
+<ul>
+  <li>Plant North costs: E1=2950, E2=500, E5=NULL &rarr; RANK by cost DESC: E5=1, E1=2, E2=3 (Postgres sorts NULLs first in DESC)</li>
+  <li>Plant South costs: E3=4000, E4=600 &rarr; RANK by cost DESC: E3=1, E4=2</li>
+  <li>Global frequency DENSE_RANK by events DESC: E1(3)=1, E3(2)=2, E2(1)=3, E4(1)=3, E5(0)=4</li>
+</ul>
+<table>
+  <thead><tr><th>equipment_id</th><th>name</th><th>location</th><th>events</th><th>total_cost</th><th>last_maint</th><th>cost_rank</th><th>freq_rank</th></tr></thead>
+  <tbody>
+    <tr><td>E5</td><td>Turbine E</td><td>Plant North</td><td>0</td><td>NULL</td><td>NULL</td><td>1</td><td>4</td></tr>
+    <tr><td>E3</td><td>Generator C</td><td>Plant South</td><td>2</td><td>4000</td><td>2025-03-05</td><td>1</td><td>2</td></tr>
+    <tr><td>E1</td><td>Compressor A</td><td>Plant North</td><td>3</td><td>2950</td><td>2025-03-20</td><td>2</td><td>1</td></tr>
+    <tr><td>E4</td><td>Valve D</td><td>Plant South</td><td>1</td><td>600</td><td>2025-01-15</td><td>2</td><td>3</td></tr>
+    <tr><td>E2</td><td>Pump B</td><td>Plant North</td><td>1</td><td>500</td><td>2025-01-25</td><td>3</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>The output leads with E5: the final <code>ORDER BY total_cost DESC</code> follows the same Postgres rule, so the unserviced turbine&rsquo;s NULL <code>total_cost</code> floats to the <em>top</em> of the report &mdash; rarely what a cost review wants. Appending <code>NULLS LAST</code> to that ORDER BY (and to the cost-rank window) pushes equipment with no spend to the bottom.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Window functions applied to grouped output &mdash; why this works</h5>
+<p>The <code>GROUP BY</code> runs first, producing one row per equipment. The window functions (<code>RANK</code>, <code>DENSE_RANK</code>) then operate on this aggregated row set &mdash; not on the raw rows. This is why <code>RANK() OVER (... ORDER BY SUM(m.cost) DESC)</code> is legal: by the time the window function executes, <code>SUM(m.cost)</code> is a resolved column value in the group row, not a pending aggregate. Candidates who try to use a raw column like <code>ORDER BY m.cost</code> inside the window will get an error, because <code>m.cost</code> was aggregated away by the GROUP BY.</p>
+
+<h5>RANK vs DENSE_RANK &mdash; what the gap means</h5>
+<p>Within Plant North, <code>RANK() OVER (PARTITION BY location ORDER BY SUM(cost) DESC)</code>: if two items tied at cost they would both get rank 1 and the next item would get rank 3 (a gap). <code>DENSE_RANK() OVER (ORDER BY COUNT(maint_id) DESC)</code> for frequency: E2 and E4 both have 1 event, both get frequency_rank=3; the next rank is 4 (no gap). The choice signals intent: RANK for "there are N-1 equipment that beat you" (gap shows how many ties at the top), DENSE_RANK for "there are N-1 distinct frequency levels above you." For leaderboard display, DENSE_RANK avoids confusing gaps.</p>
+
+<h5>LEFT JOIN to include unserviced equipment</h5>
+<p>E5 has no maintenance records. The <code>LEFT JOIN</code> keeps it in the result with NULL cost and zero events. <code>COUNT(m.maint_id)</code> correctly returns 0 for E5 (COUNT ignores NULLs); <code>SUM(m.cost)</code> returns NULL (SUM of NULLs). In Postgres a NULL sorts as larger than every non-NULL value &mdash; last in <code>ASC</code>, first in <code>DESC</code> &mdash; so under <code>ORDER BY SUM(m.cost) DESC</code> the unserviced E5 ranks <em>first</em> within Plant North, ahead of equipment that actually incurred cost. To rank it last instead (usually what a cost leaderboard wants), treat NULL as 0 with <code>COALESCE(SUM(m.cost), 0)</code> or append <code>NULLS LAST</code>.</p>
+
+<h5>NULLs in ORDER BY of a window function</h5>
+<p>By default in Postgres and Snowflake, NULLs sort last in <code>ASC</code> order and first in <code>DESC</code> order. Snowflake supports <code>NULLS LAST</code> / <code>NULLS FIRST</code> modifiers: <code>ORDER BY SUM(m.cost) DESC NULLS LAST</code> explicitly puts unserviced equipment at the bottom regardless of sort direction &mdash; the production-safe form.</p>
+
+<h5>Dialect notes</h5>
+<p><code>RANK()</code> and <code>DENSE_RANK()</code> are ANSI SQL and supported in all major engines (Snowflake, Postgres, BigQuery, SQL Server, MySQL 8+). <code>NULLS FIRST</code>/<code>NULLS LAST</code> is supported in Snowflake and Postgres but not MySQL (which always puts NULLs first in ASC, last in DESC without override). BigQuery supports <code>NULLS LAST</code> in <code>ORDER BY</code> within window functions.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that window functions in this query operate on the already-grouped rows (not raw rows), articulate when to choose RANK vs DENSE_RANK (gap vs no-gap in ties), use <code>COUNT(m.maint_id)</code> not <code>COUNT(*)</code> so unserviced equipment returns 0, and add <code>NULLS LAST</code> to the window ORDER BY to correctly position equipment with no maintenance history.</div>

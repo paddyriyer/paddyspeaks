@@ -1,0 +1,60 @@
+<p>Zoom's finance team wants a list of high-value accounts: every customer whose lifetime spend tops $1,000. The catch is that "total spent" must be computed before it can be filtered &mdash; and you cannot filter on an aggregate in a <code>WHERE</code> clause. This question is really about <em>where</em> the aggregation lives: a subquery in the <code>FROM</code> clause (a derived table), and whether you know the equivalent <code>HAVING</code> form.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>600</td></tr>
+    <tr><td>2</td><td>101</td><td>700</td></tr>
+    <tr><td>3</td><td>102</td><td>400</td></tr>
+    <tr><td>4</td><td>103</td><td>1200</td></tr>
+    <tr><td>5</td><td>104</td><td>300</td></tr>
+    <tr><td>6</td><td>104</td><td>300</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has two orders that <em>individually</em> stay under $1,000 but <strong>together total $1,300</strong>. Customer 104 also has two orders, but they sum to only $600. That is the trap: the threshold applies to the per-customer <em>sum</em>, not to any single order.</p>
+
+<h4>2. The SQL &mdash; derived table in <code>FROM</code></h4>
+<pre><code>SELECT customer_id, total_spent
+FROM (SELECT customer_id, SUM(amount) AS total_spent FROM orders GROUP BY customer_id) t
+WHERE total_spent &gt; 1000;</code></pre>
+<p>The inner query aggregates orders into one row per customer with a <code>total_spent</code>. The outer query treats that result as a table <code>t</code> and applies an ordinary <code>WHERE</code> &mdash; because by then <code>total_spent</code> is just a column, not an aggregate.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>total_spent</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1300</td></tr>
+    <tr><td>103</td><td>1200</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 makes the cut on the strength of two sub-$1,000 orders summing to 1,300 &mdash; proof the filter is on the aggregate. Customer 103 clears it with a single $1,200 order. Customers 102 ($400) and 104 ($600) fall short and are gone.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why you can't just write <code>WHERE SUM(amount) &gt; 1000</code></h5>
+<p>SQL's evaluation order is the reason. <code>WHERE</code> filters individual rows <em>before</em> grouping happens, so an aggregate like <code>SUM</code> doesn't exist yet at <code>WHERE</code> time &mdash; the engine rejects it outright. You either filter <em>after</em> grouping (a derived table with <code>WHERE</code>, as here) or use the clause built for post-aggregation filtering: <code>HAVING</code>.</p>
+
+<h5>The <code>HAVING</code> equivalent &mdash; same result, less nesting</h5>
+<p>The idiomatic one-query form filters grouped rows directly with <code>HAVING</code>:</p>
+<pre><code>SELECT customer_id, SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer_id
+HAVING SUM(amount) &gt; 1000;</code></pre>
+<p>Identical output. <code>HAVING</code> runs after <code>GROUP BY</code>, so the aggregate is legal there. Mentioning that the derived table and <code>HAVING</code> are interchangeable &mdash; and that <code>HAVING</code> is the cleaner choice when you don't need the subquery for anything else &mdash; is the senior beat.</p>
+
+<h5>When the derived table genuinely earns its place</h5>
+<p><code>HAVING</code> wins for a simple threshold, but the subquery form is essential once you need to <em>reuse</em> or <em>rank</em> the aggregate &mdash; for example, filtering on it <em>and</em> ranking by it:</p>
+<pre><code>SELECT customer_id, total_spent,
+  RANK() OVER (ORDER BY total_spent DESC) AS spend_rank
+FROM (SELECT customer_id, SUM(amount) AS total_spent FROM orders GROUP BY customer_id) t
+WHERE total_spent &gt; 1000;</code></pre>
+<p>You cannot reference a window function in <code>WHERE</code> either, so computing the sum in a derived table and operating on it outside is the general pattern.</p>
+
+<h5>The derived table needs an alias</h5>
+<p>In Postgres a subquery in <code>FROM</code> must be given a name &mdash; the <code>t</code> in <code>) t</code>. Omit it and you get a syntax error: <em>subquery in FROM must have an alias</em>. It's a tiny detail, but a frequent stumble under interview pressure.</p>
+
+<h5>Edge case: NULL amounts and the boundary</h5>
+<p><code>SUM</code> ignores NULL <code>amount</code> values, and a customer whose orders are <em>all</em> NULL gets a NULL <code>total_spent</code> &mdash; which fails <code>&gt; 1000</code> (the comparison is unknown), so they're correctly excluded. Also confirm the boundary: <code>&gt; 1000</code> drops a customer at exactly $1,000; if "$1,000 and above" qualifies, it must be <code>&gt;= 1000</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>WHERE</code> runs before aggregation so you must filter the sum after grouping, show the <code>HAVING</code> equivalent and call it cleaner for a plain threshold, reserve the derived table for when the aggregate must be reused or ranked, and remember the mandatory subquery alias.</div>

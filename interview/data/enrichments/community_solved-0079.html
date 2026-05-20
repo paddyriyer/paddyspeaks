@@ -1,0 +1,83 @@
+<p>A trading-signals team wants every stretch of three or more consecutive days on which a stock rose every single day &mdash; a momentum streak. This is the canonical <em>gaps-and-islands</em> interview problem: the interviewer wants to see whether you can convert a row-by-row condition into stable group identifiers, then collapse each group into one summary row.</p>
+
+<h4>1. The source data &mdash; <code>stock_price</code></h4>
+<table>
+  <thead><tr><th>stock_id</th><th>stock_date</th><th>price</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-01-01</td><td>$100</td><td>start</td></tr>
+    <tr><td>1</td><td>2099-01-02</td><td>$105</td><td>up</td></tr>
+    <tr><td>1</td><td>2099-01-03</td><td>$108</td><td>up</td></tr>
+    <tr><td>1</td><td>2099-01-04</td><td>$112</td><td>up &mdash; ends a 4-day run</td></tr>
+    <tr><td>1</td><td>2099-01-05</td><td>$110</td><td>down &mdash; breaks the streak</td></tr>
+    <tr><td>1</td><td>2099-01-06</td><td>$115</td><td>up</td></tr>
+    <tr><td>1</td><td>2099-01-07</td><td>$120</td><td>up &mdash; a fresh 3-day run</td></tr>
+    <tr><td>2</td><td>2099-01-01</td><td>$50</td><td>different stock</td></tr>
+    <tr><td>2</td><td>2099-01-02</td><td>$55</td><td>up</td></tr>
+    <tr><td>2</td><td>2099-01-03</td><td>$60</td><td>up &mdash; stock 2's only run</td></tr>
+  </tbody>
+</table>
+<p>Stock 1 contains two qualifying runs separated by the Jan-5 dip &mdash; the test of whether your grouping correctly restarts after a break.</p>
+
+<h4>2. The SQL &mdash; canonical gaps-and-islands</h4>
+<pre><code>WITH ordered AS (
+    SELECT stock_id, stock_date, price,
+           LAG(price) OVER (PARTITION BY stock_id ORDER BY stock_date) AS prev_price
+    FROM stock_price
+),
+flagged AS (
+    SELECT stock_id, stock_date, price,
+           CASE WHEN price &gt; prev_price THEN 1 ELSE 0 END AS is_increase
+    FROM ordered
+),
+grouped AS (
+    SELECT stock_id, stock_date, is_increase,
+           SUM(CASE WHEN is_increase = 0 THEN 1 ELSE 0 END)
+               OVER (PARTITION BY stock_id ORDER BY stock_date) AS group_id
+    FROM flagged
+),
+runs AS (
+    SELECT stock_id, group_id,
+        MIN(stock_date) AS run_start,
+        MAX(stock_date) AS run_end,
+        COUNT(*) + 1    AS days_in_run
+    FROM grouped
+    WHERE is_increase = 1
+    GROUP BY stock_id, group_id
+    HAVING COUNT(*) &gt;= 2
+)
+SELECT stock_id,
+       (run_start - INTERVAL '1 day')::DATE AS run_start_date,
+       run_end::DATE                        AS run_end_date,
+       days_in_run
+FROM runs
+ORDER BY stock_id, run_start;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>stock_id</th><th>run_start_date</th><th>run_end_date</th><th>days_in_run</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-01-01</td><td>2099-01-04</td><td>4</td></tr>
+    <tr><td>1</td><td>2099-01-05</td><td>2099-01-07</td><td>3</td></tr>
+    <tr><td>2</td><td>2099-01-01</td><td>2099-01-03</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Stock 1's first run spans Jan 1&ndash;4 (three increases, 4 days). After the Jan-5 dip a new run climbs to Jan 7. Stock 2's lone run is reported once. Each <em>increase</em> row marks a day the price went up; a run of N increases therefore covers N+1 calendar days, which is why <code>days_in_run = COUNT(*) + 1</code> and the start date is backdated one day.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The core trick &mdash; a cumulative count of "breaks" becomes a group id</h5>
+<p>Step 3 runs <code>SUM(CASE WHEN is_increase = 0 THEN 1 ELSE 0 END) OVER (... ORDER BY stock_date)</code>. Every non-increase day bumps a running counter; every increase day leaves it unchanged. So all the increase rows <em>between</em> two breaks share an identical <code>group_id</code> &mdash; that constant value is the island label. This "running sum of a boolean" is the heart of gaps-and-islands and works in any SQL engine with window functions.</p>
+
+<h5>Why <code>HAVING COUNT(*) &gt;= 2</code>, not 3</h5>
+<p>The grouped rows are the <em>increase</em> days only. A streak that spans 3 calendar days has exactly 2 day-over-day increases (day1&rarr;day2, day2&rarr;day3). So "3+ consecutive days" translates to "2+ increase rows" &mdash; <code>HAVING COUNT(*) &gt;= 2</code>. Getting this off-by-one right is exactly what the interviewer is checking; the comment in the solution spells out the N-increases-span-N+1-days arithmetic.</p>
+
+<h5>Strict <code>&gt;</code> &mdash; flat days break the run</h5>
+<p><code>price &gt; prev_price</code> is a strict inequality, so a day where the price is unchanged counts as a non-increase and ends the streak. That matches "increased every day". If the business wanted "non-decreasing", you would use <code>&gt;=</code> &mdash; a one-character change with a real semantic difference worth confirming aloud.</p>
+
+<h5>The first-row NULL and the missing-day trap</h5>
+<p>For each stock's earliest date <code>LAG</code> returns <code>NULL</code>; <code>price &gt; NULL</code> is unknown, so the <code>CASE</code> falls to <code>ELSE 0</code> &mdash; the first day is correctly never an "increase". Separately, <code>LAG</code> compares the previous <em>row</em>, not the previous calendar day: if the stock skips a non-trading day, two rows three days apart are still treated as adjacent. If the requirement is strict calendar consecutiveness, add a check that <code>stock_date = prev_date + 1</code> into the break condition.</p>
+
+<h5>What to say next &mdash; <code>MATCH_RECOGNIZE</code> and the row-number variant</h5>
+<p>Mention that newer engines (Oracle, Snowflake, Trino, DB2) express this directly with <code>MATCH_RECOGNIZE</code> &mdash; a pattern like <code>UP+</code> over a row sequence &mdash; which is far more readable for runs. The other classic alternative is the <code>ROW_NUMBER</code> difference trick (subtract a per-group row number from a global one); both are worth naming to show you know the pattern has a family of solutions.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name this as gaps-and-islands, explain that a cumulative sum of break-flags manufactures the island id, justify <code>HAVING COUNT(*) &gt;= 2</code> via the N-increases-span-N+1-days off-by-one, and flag that <code>LAG</code> compares rows not calendar days. Bonus: cite <code>MATCH_RECOGNIZE</code> as the modern one-liner.</div>

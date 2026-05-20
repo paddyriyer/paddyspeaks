@@ -1,0 +1,52 @@
+<p>A scheduling or booking system needs to detect double-bookings: <em>"find every pair of date ranges that overlap."</em> The reference solution is a self-join with the classic interval-overlap predicate, hardened with regex guards because the dates are stored as <code>text</code>. The interviewer is probing two things: do you know the overlap formula, and do you understand why <code>a.id &lt; b.id</code> is essential.</p>
+
+<h4>1. The source data &mdash; <code>ranges</code></h4>
+<table>
+  <thead><tr><th>id</th><th>start_dt</th><th>end_dt</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-01</td><td>2026-01-10</td><td>overlaps 2 and 4</td></tr>
+    <tr><td>2</td><td>2026-01-05</td><td>2026-01-15</td><td>overlaps 1</td></tr>
+    <tr><td>3</td><td>2026-01-20</td><td>2026-01-25</td><td>isolated</td></tr>
+    <tr><td>4</td><td>2026-01-08</td><td>2026-01-09</td><td>tiny range nested inside 1 and 2</td></tr>
+    <tr><td>5</td><td>2026-02-01</td><td>2026-02-10</td><td>isolated &mdash; a different month</td></tr>
+  </tbody>
+</table>
+<p>Range 4 is fully <strong>contained</strong> inside ranges 1 and 2 &mdash; the edge case. A naive "do the endpoints fall between" check often misses containment; the proper formula catches it.</p>
+
+<h4>2. The SQL &mdash; self-join with the overlap predicate</h4>
+<pre><code>SELECT a.id, b.id FROM ranges a JOIN ranges b
+ON a.id &lt; b.id
+AND a.start_dt ~ '^\d{4}-' AND b.start_dt ~ '^\d{4}-'
+AND a.end_dt ~ '^\d{4}-' AND b.end_dt ~ '^\d{4}-'
+AND a.start_dt::timestamp &lt; b.end_dt::timestamp
+AND b.start_dt::timestamp &lt; a.end_dt::timestamp;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>a.id</th><th>b.id</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>Jan 1&ndash;10 vs Jan 5&ndash;15 &mdash; partial overlap</td></tr>
+    <tr><td>1</td><td>4</td><td>Jan 8&ndash;9 sits inside Jan 1&ndash;10</td></tr>
+    <tr><td>2</td><td>4</td><td>Jan 8&ndash;9 sits inside Jan 5&ndash;15</td></tr>
+  </tbody>
+</table>
+<p>Three overlapping pairs. Range 3 (late Jan) and range 5 (February) touch nothing. Crucially, each pair appears <strong>once</strong> &mdash; <code>(1,2)</code> with no mirror <code>(2,1)</code> &mdash; and no range is paired with itself.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The overlap formula &mdash; memorise it</h5>
+<p>Two intervals overlap if and only if <code>A.start &lt; B.end AND B.start &lt; A.end</code>. It is far easier to reason about the <em>negation</em>: two ranges do <em>not</em> overlap when one ends before the other starts (<code>A.end &le; B.start OR B.end &le; A.start</code>). Negate that and you get the formula above. This single predicate handles partial overlaps, full containment, and identical ranges &mdash; no special cases. Enumerating "endpoint-in-range" conditions instead is where candidates miss the containment case (range 4 here).</p>
+
+<h5>Why <code>a.id &lt; b.id</code> does double duty</h5>
+<p>Without it, a self-join produces every ordered pair: each range matches <em>itself</em> (a range trivially overlaps itself), and every real pair appears twice as <code>(x,y)</code> and <code>(y,x)</code>. The strict inequality <code>a.id &lt; b.id</code> kills both problems at once &mdash; it removes self-pairs and keeps exactly one orientation of each pair. Using <code>&lt;&gt;</code> would only remove self-pairs and still leave mirrored duplicates.</p>
+
+<h5>The text-date trap &mdash; what the regex guards are for</h5>
+<p><code>start_dt</code> and <code>end_dt</code> are <code>text</code>, not <code>date</code>. Casting <code>'not-a-date'::timestamp</code> throws and aborts the whole query. The <code>~ '^\d{4}-'</code> regex checks each value starts with four digits and a hyphen before any cast is attempted, so malformed rows are skipped instead of crashing. The real senior fix is upstream: store dates in a <code>date</code>/<code>timestamp</code> column so the database enforces validity and comparisons are correct and indexable. ISO-8601 text happens to sort correctly, but that is luck, not a guarantee &mdash; <code>'2026-1-5'</code> would sort wrong.</p>
+
+<h5>Inclusive vs exclusive endpoints &mdash; do bookings touch?</h5>
+<p>Strict <code>&lt;</code> means a range ending exactly when another begins (Jan 10 end, Jan 10 start) is <em>not</em> an overlap. For room bookings that is usually right &mdash; checkout and check-in can share a day. For sensor coverage you may want <code>&le;</code> so touching counts. Always confirm endpoint semantics with the interviewer.</p>
+
+<h5>Performance &mdash; the self-join is O(n&sup2;)</h5>
+<p>A range-on-range join with inequality predicates cannot use a plain equality hash join; it tends toward a nested loop, roughly <em>n&sup2;</em> comparisons. For large tables, mention Postgres <code>tstzrange</code> with a GiST index and the <code>&amp;&amp;</code> overlap operator &mdash; that turns interval overlap into an indexed lookup. Mentioning range types unprompted is the over-the-bar finish.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recall the overlap predicate as <code>A.start &lt; B.end AND B.start &lt; A.end</code> and derive it from the no-overlap negation; explain that <code>a.id &lt; b.id</code> simultaneously removes self-pairs and mirrored duplicates; and call out that storing dates as <code>text</code> is the real bug &mdash; the regex guard is a workaround, range types with a GiST index are the fix.</div>

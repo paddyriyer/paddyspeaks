@@ -1,0 +1,58 @@
+<p>A compensation analyst is auditing pay bands and needs the runner-up salary inside each department &mdash; the second-best paid figure, by team. It sounds like a trivial "max but not quite", yet the interviewer is really probing one decision: when the <em>top</em> salary is shared by several people, does "second highest" mean the second-distinct value, or the third physical row? The choice of ranking function is the whole answer.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>dept_id</th><th>salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>1</td><td>100</td><td>dept 1 &mdash; middle</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>120</td><td>dept 1 &mdash; top</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td><td>90</td><td>dept 1 &mdash; lowest</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td><td>80</td><td>dept 2 &mdash; tied for top</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td><td>75</td><td>dept 2 &mdash; lowest</td></tr>
+    <tr><td>6</td><td>Finn</td><td>2</td><td>80</td><td>dept 2 &mdash; tied for top</td></tr>
+  </tbody>
+</table>
+<p>The edge case lives in department 2: Dan and Finn are <strong>tied at 80</strong>, the highest salary on that team. There is no distinct runner-up below the tie except Eve at 75 &mdash; so the question becomes whether 75 surfaces as the "second highest" or whether the tie swallows the slot.</p>
+
+<h4>2. The SQL &mdash; <code>DENSE_RANK</code> in a CTE</h4>
+<pre><code>WITH ranked AS (
+  SELECT
+    dept_id,
+    salary,
+    DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+  FROM employee
+)
+SELECT DISTINCT dept_id, salary AS second_highest_salary
+FROM ranked
+WHERE rk = 2
+ORDER BY dept_id;</code></pre>
+<p><code>DENSE_RANK</code> assigns a rank per <code>dept_id</code> partition, ordering salary high-to-low. Because it is <em>dense</em>, tied salaries share a rank and the next distinct salary gets the very next integer &mdash; no gap. Filtering <code>rk = 2</code> then picks the second-distinct salary in each department; <code>DISTINCT</code> collapses any duplicate rows that share that second value.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>second_highest_salary</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>120 is rank 1, 100 is rank 2 &mdash; clean</td></tr>
+    <tr><td>2</td><td>75</td><td>80 (tied) is rank 1, 75 is rank 2 &mdash; the tie did not skip it</td></tr>
+  </tbody>
+</table>
+<p>Department 2 is the payoff. Dan and Finn both sit at <code>rk = 1</code> because <code>DENSE_RANK</code> gives ties the same rank; Eve's 75 becomes <code>rk = 2</code>, so it surfaces correctly as the second highest. Had the query used <code>RANK</code>, Eve would have been <code>rk = 3</code> (rank 2 skipped by the two-way tie) and department 2 would have wrongly returned <em>nothing</em>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DENSE_RANK</code> and not <code>RANK</code> &mdash; the question says so for a reason</h5>
+<p><code>RANK</code> leaves gaps after ties: two values tied at rank 1 push the next value to rank 3, so <code>WHERE rk = 2</code> matches no rows and a tied-at-top department silently drops out of the result. <code>DENSE_RANK</code> never skips, so rank 2 always exists if at least two <em>distinct</em> salaries do. The prompt explicitly calls for <code>DENSE_RANK</code> precisely so ties at the top still surface a real 2nd-place figure &mdash; reading that requirement and explaining it back is the easy win.</p>
+
+<h5>Why <code>ROW_NUMBER</code> would be wrong</h5>
+<p><code>ROW_NUMBER</code> hands every row a unique number, so in department 2 the two 80s become rows 1 and 2 &mdash; and <code>rk = 2</code> would return <strong>80</strong>, a top salary masquerading as the runner-up. <code>ROW_NUMBER</code> answers "give me one arbitrary row per position"; it cannot express "second distinct value" because it does not know two rows are equal. For a salary-band question, that distinction is the difference between right and wrong.</p>
+
+<h5>The <code>PARTITION BY</code> does the per-department work</h5>
+<p><code>PARTITION BY dept_id</code> restarts the ranking for each department, so rank 1 means "top within this team", not "top in the company". Drop the partition and you would get a single global ranking &mdash; the second-highest salary overall, not per department. The partition clause is what turns one ranking into many independent ones, exactly matching "per department".</p>
+
+<h5>Edge cases: single-member and uniform departments</h5>
+<p>If a department has only one employee, no row ever reaches <code>rk = 2</code>, so that department is absent &mdash; correct, there is no second salary. The same happens if every employee in a department earns the identical salary: only <code>rk = 1</code> exists. If the business wants those departments listed with a NULL second salary, you would need a <code>LEFT JOIN</code> from a distinct-department list onto this result &mdash; worth naming, because "missing rows" can otherwise look like a bug.</p>
+
+<h5>The <code>DISTINCT</code> is load-bearing</h5>
+<p>If two people share the second-highest salary, <code>WHERE rk = 2</code> returns two rows &mdash; same <code>dept_id</code>, same salary &mdash; and the output would duplicate the department. <code>SELECT DISTINCT</code> folds them into one. An equivalent and arguably cleaner shape is to aggregate (<code>MAX(salary) ... WHERE rk = 2 GROUP BY dept_id</code>), which also makes the intent "one row per department" explicit.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pick <code>DENSE_RANK</code> deliberately so a tie at the top still yields a real rank 2, explain why <code>RANK</code> would drop tied-top departments and <code>ROW_NUMBER</code> would return a top salary as the runner-up, use <code>PARTITION BY dept_id</code> to rank per team, and keep the <code>DISTINCT</code> (or aggregate) so a shared second salary does not duplicate a department.</div>

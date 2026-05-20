@@ -1,0 +1,78 @@
+<p>A finance team wants a department ranking that is robust to salary outliers &mdash; strip the highest and lowest earner from each department before computing the average, then rank departments by that trimmed mean. The interviewer is probing <strong>dual ROW_NUMBER exclusion</strong> (ascending and descending) to remove exactly one max and one min per department, handling small departments gracefully, and applying RANK over a nullable column.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1&ndash;5</td><td>Eng</td><td>200, 180, 170, 160, 120</td></tr>
+    <tr><td>6&ndash;9</td><td>Sales</td><td>300, 250, 240, 150</td></tr>
+    <tr><td>10&ndash;12</td><td>Ops</td><td>120, 110, 100</td></tr>
+    <tr><td>13&ndash;14</td><td>HR</td><td>95, 80</td></tr>
+  </tbody>
+</table>
+<p>Eng (5 employees, qualifies): remove highest (200) and lowest (120), average of 180, 170, 160 = 170.00. Sales (4, qualifies): remove 300 and 150, average of 250 and 240 = 245.00. Ops (3, qualifies): remove 120 and 100, average of 110 = 110.00. HR (2, excluded &mdash; trimmed_avg = NULL).</p>
+
+<h4>2. The SQL &mdash; dual ROW_NUMBER exclusion with CASE WHEN for dept rank</h4>
+<pre><code>WITH r AS (
+  SELECT emp_id, dept, salary,
+         ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) AS rn_desc,
+         ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary ASC)  AS rn_asc,
+         COUNT(*) OVER (PARTITION BY dept) AS headcount
+  FROM employee
+),
+trimmed AS (
+  SELECT dept, headcount,
+         CASE WHEN headcount &gt;= 3
+              THEN ROUND(AVG(CASE WHEN rn_desc &lt;&gt; 1 AND rn_asc &lt;&gt; 1 THEN salary END)::numeric, 2)
+              ELSE NULL
+         END AS trimmed_avg
+  FROM r
+  GROUP BY dept, headcount
+)
+SELECT dept, headcount, trimmed_avg,
+       CASE WHEN trimmed_avg IS NULL THEN NULL
+            ELSE RANK() OVER (ORDER BY trimmed_avg DESC NULLS LAST)
+       END AS dept_rank
+FROM trimmed
+ORDER BY dept;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Intermediate trimming (excluded rows marked [X]):</p>
+<table>
+  <thead><tr><th>dept</th><th>headcount</th><th>trimmed salaries</th><th>trimmed_avg</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>5</td><td>180, 170, 160 (200 and 120 excluded)</td><td>170.00</td></tr>
+    <tr><td>HR</td><td>2</td><td>(none &mdash; &lt;3)</td><td>NULL</td></tr>
+    <tr><td>Ops</td><td>3</td><td>110 (120 and 100 excluded)</td><td>110.00</td></tr>
+    <tr><td>Sales</td><td>4</td><td>250, 240 (300 and 150 excluded)</td><td>245.00</td></tr>
+  </tbody>
+</table>
+<p>RANK over non-NULL trimmed_avg values (245.00, 170.00, 110.00): Sales = 1, Eng = 2, Ops = 3. HR = NULL.</p>
+<table>
+  <thead><tr><th>dept</th><th>headcount</th><th>trimmed_avg</th><th>dept_rank</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>5</td><td>170.00</td><td>2</td></tr>
+    <tr><td>HR</td><td>2</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>Ops</td><td>3</td><td>110.00</td><td>3</td></tr>
+    <tr><td>Sales</td><td>4</td><td>245.00</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Dual ROW_NUMBER for single max and min removal</h5>
+<p>Two separate <code>ROW_NUMBER</code> windows &mdash; one descending (highest salary gets rn_desc = 1) and one ascending (lowest salary gets rn_asc = 1) &mdash; identify the exact one row to exclude at each end. Crucially, ROW_NUMBER always assigns a unique ordinal even for ties, so when two employees share the maximum salary only <em>one</em> is excluded. If the question required removing <em>all</em> ties, RANK would be the right choice. The question says "the highest-paid and lowest-paid employee" (singular), so ROW_NUMBER is correct.</p>
+
+<h5>The nested CASE inside AVG</h5>
+<p><code>AVG(CASE WHEN rn_desc &lt;&gt; 1 AND rn_asc &lt;&gt; 1 THEN salary END)</code> is a conditional aggregate. For excluded rows the CASE returns NULL, and <code>AVG</code> ignores NULLs. This pattern avoids a separate WHERE clause after a GROUP BY &mdash; everything stays in one aggregation step. The outer CASE (headcount &ge; 3) wraps this to produce NULL for small departments.</p>
+
+<h5>Why RANK over a nullable column needs a CASE wrapper</h5>
+<p>A plain <code>RANK() OVER (ORDER BY trimmed_avg DESC NULLS LAST)</code> would assign a numeric rank to HR too (it would rank last). The CASE expression <code>WHEN trimmed_avg IS NULL THEN NULL ELSE RANK() OVER (...)</code> makes HR's rank explicitly NULL rather than an uninformative position. This matches the requirement "departments with fewer than 3 employees produce a NULL &hellip; rank."</p>
+
+<h5>Edge case &mdash; all employees at the same salary in Ops</h5>
+<p>Ops has 3 employees. After removing the ROW_NUMBER-1 max (120) and ROW_NUMBER-1 min (100), the trimmed set has exactly one employee (110). <code>AVG</code> of one value is that value &mdash; correct. If all three had the same salary, ROW_NUMBER would still assign distinct ranks and two rows would be excluded, leaving one row at the common salary for the average.</p>
+
+<h5>Dialect notes</h5>
+<p>The dual ROW_NUMBER and conditional aggregate pattern is portable to PostgreSQL, Snowflake, BigQuery, and SQL Server. In BigQuery, <code>ROUND(expr, 2)</code> works on <code>FLOAT64</code> without a cast. SQL Server uses <code>ROUND(CAST(expr AS decimal(18,4)), 2)</code>. Snowflake follows PostgreSQL conventions. The <code>NULLS LAST</code> clause is ANSI SQL but missing from MySQL &mdash; in MySQL, add <code>ISNULL(trimmed_avg) ASC</code> as a sort key to push NULLs to the end.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use two <code>ROW_NUMBER</code> windows (DESC and ASC) to exclude exactly one max and one min per department regardless of salary ties; use a conditional <code>AVG(CASE WHEN ... THEN salary END)</code> rather than a post-GROUP-BY WHERE; and NULL-out the dept_rank explicitly via CASE rather than letting NULLs receive a trailing numeric rank from the window function.</div>

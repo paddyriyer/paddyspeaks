@@ -1,0 +1,57 @@
+<p>Citi's people-analytics team runs an attrition dashboard, and the core panel is a monthly count of employee terminations. The query is a <code>DATE_TRUNC</code> and a <code>GROUP BY</code> &mdash; but the interviewer is checking two things: that you exclude employees who are still on staff, and that you understand a month with zero departures produces no row at all.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>hire_date</th><th>term_date</th><th>job_title</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2020-01-01</td><td>2024-01-15</td><td>Eng</td></tr>
+    <tr><td>2</td><td>2020-02-01</td><td>2024-01-20</td><td>Eng</td></tr>
+    <tr><td>3</td><td>2020-03-01</td><td>2024-03-10</td><td>Eng</td></tr>
+    <tr><td>4</td><td>2020-04-01</td><td><em>NULL</em></td><td>Eng</td></tr>
+    <tr><td>5</td><td>2020-05-01</td><td>2024-03-25</td><td>Eng</td></tr>
+  </tbody>
+</table>
+<p>Employee 4 has a <strong>NULL</strong> <code>term_date</code> &mdash; still employed. And note February: nobody left in 2024-02, so that month will simply be <em>absent</em> from the output, not zero.</p>
+
+<h4>2. The SQL &mdash; <code>DATE_TRUNC</code> + <code>GROUP BY</code></h4>
+<pre><code>SELECT DATE_TRUNC('month', term_date)::DATE AS month,
+  COUNT(*) AS terminations
+FROM employees WHERE term_date IS NOT NULL
+GROUP BY DATE_TRUNC('month', term_date)::DATE ORDER BY month;</code></pre>
+<p><code>DATE_TRUNC('month', ...)</code> snaps every termination to the first of its month; <code>WHERE term_date IS NOT NULL</code> drops still-employed staff; <code>GROUP BY</code> + <code>COUNT(*)</code> tallies each month.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>terminations</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>2</td></tr>
+    <tr><td>2024-03-01</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>January and March each show 2 terminations. <strong>February is missing entirely</strong> &mdash; not <code>2024-02-01 | 0</code>, just gone &mdash; because no row had a February termination, so <code>GROUP BY</code> never created a February group. Employee 4, still active, never entered the count. The numbers are right; the <em>gap</em> is the subtle part.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>IS NOT NULL</code> filter is load-bearing</h5>
+<p>Drop <code>WHERE term_date IS NOT NULL</code> and <code>DATE_TRUNC('month', NULL)</code> returns NULL for every active employee. Those NULLs collapse into one <code>GROUP BY</code> bucket, producing a phantom <code>month = NULL</code> row whose count is "number of people still employed" &mdash; meaningless on an attrition chart. The filter is not optional politeness; it is what keeps active staff out of a terminations metric.</p>
+
+<h5>The missing-month gap &mdash; the real trap</h5>
+<p>A time series with holes breaks line charts and rolling averages. The fix is to generate the full month spine and <code>LEFT JOIN</code> the counts onto it:</p>
+<pre><code>SELECT m.month, COUNT(e.emp_id) AS terminations
+FROM generate_series('2024-01-01'::date, '2024-03-01'::date, '1 month') AS m(month)
+LEFT JOIN employees e
+  ON DATE_TRUNC('month', e.term_date)::date = m.month
+GROUP BY m.month
+ORDER BY m.month;</code></pre>
+<p>Now February appears as <code>2024-02-01 | 0</code>. Note <code>COUNT(e.emp_id)</code>, not <code>COUNT(*)</code> &mdash; on an unmatched spine row the left join yields one all-NULL row, and <code>COUNT(*)</code> would wrongly count it as 1.</p>
+
+<h5><code>DATE_TRUNC</code> vs <code>TO_CHAR</code> &mdash; keep it a date</h5>
+<p>You could group with <code>TO_CHAR(term_date, 'YYYY-MM')</code> instead. It works, but the result is a <em>string</em> &mdash; it sorts lexically (which happens to match chronologically for <code>YYYY-MM</code>) and cannot do date arithmetic. <code>DATE_TRUNC(...)::date</code> stays a real date: it sorts correctly across year boundaries and joins to a date spine. For a dashboard axis, prefer the date.</p>
+
+<h5>Termination count is not the same as turnover rate</h5>
+<p>The question title says "turnover", but the query returns a raw <em>count</em>. True turnover is terminations divided by average headcount that month &mdash; 5 departures means very different things at a 50-person and a 5000-person company. If the dashboard label says "rate", you owe a denominator: a headcount snapshot or a count of active employees per month. Clarify count vs rate before shipping.</p>
+
+<h5>Time-zone and boundary care</h5>
+<p>If <code>term_date</code> were a <code>timestamptz</code>, <code>DATE_TRUNC</code> bucket boundaries depend on the session time zone &mdash; a termination at 11pm on Jan 31 in one zone is Feb 1 in another. With a pure <code>date</code> column this is moot, but on timestamp data, truncate in an explicit zone: <code>DATE_TRUNC('month', term_date AT TIME ZONE 'UTC')</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> keep the <code>term_date IS NOT NULL</code> filter that excludes active staff, recognise that zero-termination months vanish and fix it with a <code>generate_series</code> spine plus <code>COUNT(column)</code>, prefer a real <code>date</code> bucket over a string, and flag that a raw count is not a turnover rate without a headcount denominator.</div>

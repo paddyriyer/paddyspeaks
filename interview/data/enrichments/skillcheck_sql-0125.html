@@ -1,0 +1,62 @@
+<p>A football league stores one row per match with host and guest goals. The standings need total points per team &mdash; 3 for a win, 1 for a draw, 0 for a loss &mdash; where a team earns points whether it played at home or away. The interviewer is probing whether you can <em>normalise</em> a wide match row into two team-legs (one per side) and aggregate cleanly, instead of writing a tangle of <code>CASE</code> branches that double-count.</p>
+
+<h4>1. The source data &mdash; <code>match</code></h4>
+<table>
+  <thead><tr><th>match_id</th><th>host_team</th><th>guest_team</th><th>host_goals</th><th>guest_goals</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>20</td><td>3</td><td>1</td><td>host 10 wins</td></tr>
+    <tr><td>2</td><td>10</td><td>30</td><td>2</td><td>2</td><td>draw &mdash; both get 1</td></tr>
+    <tr><td>3</td><td>20</td><td>30</td><td>0</td><td>4</td><td>guest 30 wins away</td></tr>
+    <tr><td>4</td><td>40</td><td>10</td><td>1</td><td>1</td><td>draw &mdash; team 40 plays only this match</td></tr>
+    <tr><td>5</td><td>30</td><td>20</td><td>1</td><td>0</td><td>host 30 wins</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: team <strong>40</strong> plays exactly one match (a draw &mdash; a single-match, never-won team that must still appear with 1 point), and team <strong>20</strong> loses every game (0 points, but it <em>did</em> play, so it must appear &mdash; not be dropped). Teams that never appear in any match must be excluded entirely.</p>
+
+<h4>2. The SQL &mdash; split each match into two legs, then aggregate</h4>
+<pre><code>WITH legs AS (
+  SELECT host_team AS team,
+         CASE WHEN host_goals &gt; guest_goals THEN 3
+              WHEN host_goals = guest_goals THEN 1
+              ELSE 0 END AS pts
+  FROM match
+  UNION ALL
+  SELECT guest_team,
+         CASE WHEN guest_goals &gt; host_goals THEN 3
+              WHEN host_goals = guest_goals THEN 1
+              ELSE 0 END
+  FROM match
+)
+SELECT team AS team_id, SUM(pts)::int AS points
+FROM legs
+GROUP BY team
+ORDER BY points DESC, team_id;</code></pre>
+<p>The first <code>SELECT</code> emits the host's leg of every match; the second emits the guest's leg. <code>UNION ALL</code> stacks them into one row-per-team-per-match table, and a plain <code>GROUP BY team</code> sums each team's points.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>team_id</th><th>points</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>30</td><td>7</td><td>away win (3) + draw (1) + home win (3)</td></tr>
+    <tr><td>10</td><td>5</td><td>home win (3) + draw (1) + away draw (1)</td></tr>
+    <tr><td>40</td><td>1</td><td>single match, a draw &mdash; appears with 1 point</td></tr>
+    <tr><td>20</td><td>0</td><td>three losses &mdash; appears, with 0 points</td></tr>
+  </tbody>
+</table>
+<p>Team <strong>40</strong> shows up with 1 point despite never winning, and team <strong>20</strong> shows up with <strong>0</strong> &mdash; both played, so both belong in the standings. No team absent from <code>match</code> appears, because <code>legs</code> only ever contains teams that took the field.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNION ALL</code> to unpivot the two sides</h5>
+<p>A match row mixes two teams' outcomes in one record. The clean move is to <em>normalise</em> it: produce one leg per participant, so each team-match becomes its own row. <code>UNION ALL</code> &mdash; not <code>UNION</code> &mdash; is essential: <code>UNION</code> would deduplicate, and two genuinely distinct legs that happen to share <code>(team, pts)</code> (e.g. a team drawing twice for 1 point each) would be wrongly collapsed, undercounting. After the split, the points logic is a trivial <code>SUM</code> over one tidy column.</p>
+
+<h5>The <code>CASE</code> must be written from each side's own perspective</h5>
+<p>In the host leg, a win is <code>host_goals &gt; guest_goals</code>; in the guest leg it is <code>guest_goals &gt; host_goals</code> &mdash; the inequality flips. The draw branch <code>host_goals = guest_goals</code> is symmetric, so it reads the same in both. The single most common bug here is copying the host's <code>&gt;</code> into the guest leg, which awards the guest points for the <em>host's</em> win. Each leg's <code>CASE</code> is written from that team's own viewpoint.</p>
+
+<h5>Why never-played teams are correctly absent</h5>
+<p>The question says exclude teams that never played. This falls out for free: <code>legs</code> is built purely from <code>host_team</code> and <code>guest_team</code> values, so a team that appears in no match contributes no leg and no group. There is no separate <code>teams</code> table being LEFT JOINed in &mdash; if there were, you would need an <code>INNER JOIN</code> or an <code>EXISTS</code> filter to drop the non-players. Recognise that the data model already enforces the rule.</p>
+
+<h5>The label says "Window Functions" &mdash; but none are needed</h5>
+<p>The question is tagged window-functions, yet the natural solution is an unpivot plus <code>GROUP BY</code> &mdash; no <code>OVER()</code> anywhere. Do not force a window function to match the tag; solve the problem as posed. (A window function <em>would</em> enter if the spec also asked for each team's <em>rank</em> in the standings &mdash; <code>RANK() OVER (ORDER BY SUM(pts) DESC)</code> &mdash; but plain total points need only aggregation.) Reading past a misleading tag is itself a senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> normalise a two-sided match row into one leg per team with <code>UNION ALL</code> (never <code>UNION</code> &mdash; it would dedupe equal legs), write each leg's win/draw/loss <code>CASE</code> from that team's own perspective so the inequality flips correctly, rely on the unpivot to exclude never-played teams for free, and don't bolt on a window function just because the tag says so.</div>

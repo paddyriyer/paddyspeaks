@@ -1,0 +1,77 @@
+<p>Google's people-analytics team wants a compensation view that ties pay to project load: every employee, how many <em>active</em> projects they are staffed on, and a total comp that adds a $1,000 bonus per active project on top of base salary. It is a multi-join aggregation, and the interview hinges on three things &mdash; keeping employees with zero projects in the result, counting projects without double-counting, and putting the "active" filter in the right place.</p>
+
+<h4>1. The source data</h4>
+<p><code>employees</code> &mdash; the people and their base salary:</p>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>base_salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>$120,000</td></tr>
+    <tr><td>2</td><td>Ben</td><td>$110,000</td></tr>
+    <tr><td>3</td><td>Cleo</td><td>$95,000</td></tr>
+    <tr><td>4</td><td>Dan</td><td>$130,000</td></tr>
+  </tbody>
+</table>
+<p><code>project_assignments</code> staffs employees onto projects; <code>projects</code> records each project's status:</p>
+<table>
+  <thead><tr><th>assignment (emp_id &rarr; project_id)</th><th>project_id</th><th>project status</th></tr></thead>
+  <tbody>
+    <tr><td>1 &rarr; 100, 101, 102</td><td>100</td><td>active</td></tr>
+    <tr><td>2 &rarr; 100</td><td>101</td><td>active</td></tr>
+    <tr><td>3 &rarr; 103</td><td>102</td><td>closed</td></tr>
+    <tr><td></td><td>103</td><td>active</td></tr>
+  </tbody>
+</table>
+<p>Ada is on three projects but one (102) is <em>closed</em> &mdash; only 100 and 101 count. Ben is on one active project. Cleo is on one active project. Dan has <strong>no assignments at all</strong> &mdash; the edge case that decides whether a <code>LEFT JOIN</code> was used.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN chain with COUNT DISTINCT</code></h4>
+<pre><code>SELECT e.emp_id, e.name,
+  COUNT(DISTINCT p.project_id) AS active_projects,
+  e.base_salary + 1000 * COUNT(DISTINCT p.project_id) AS total_comp
+FROM employees e
+LEFT JOIN project_assignments pa ON e.emp_id = pa.emp_id
+LEFT JOIN projects p ON pa.project_id = p.project_id AND p.status='active'
+GROUP BY e.emp_id, e.name, e.base_salary;</code></pre>
+<p>Two <code>LEFT JOIN</code>s keep every employee even with no assignments; the <code>p.status='active'</code> predicate sits <em>in the ON clause</em>, so non-active projects join to NULL instead of filtering rows out. <code>COUNT(DISTINCT p.project_id)</code> counts the active projects per employee.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>active_projects</th><th>total_comp</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>2</td><td>122000.00</td></tr>
+    <tr><td>2</td><td>Ben</td><td>1</td><td>111000.00</td></tr>
+    <tr><td>3</td><td>Cleo</td><td>1</td><td>96000.00</td></tr>
+    <tr><td>4</td><td>Dan</td><td>0</td><td>130000.00</td></tr>
+  </tbody>
+</table>
+<p>Ada counts 2 (project 102 closed, excluded) &rarr; 120,000 + 2&times;1,000 = 122,000. Ben and Cleo count 1 each. Dan counts <strong>0</strong> and his comp is exactly his base &mdash; he survives the result with a clean zero, which is the whole point of the <code>LEFT JOIN</code>s.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The filter location decides whether Dan disappears &mdash; the central trap</h5>
+<p><code>p.status='active'</code> belongs in the <code>ON</code> clause, not a <code>WHERE</code>. Move it to <code>WHERE p.status='active'</code> and the <code>LEFT JOIN</code> silently becomes an <code>INNER JOIN</code>: for Dan, <code>p</code> is all NULL, <code>NULL = 'active'</code> is unknown, and his row is filtered away. He vanishes from a comp report &mdash; a serious, plausible-looking bug. Rule: a predicate on the <em>nullable</em> side of a <code>LEFT JOIN</code> goes in <code>ON</code>; a predicate on the preserved side can go in <code>WHERE</code>. Be ready to recite this distinction.</p>
+
+<h5>Why <code>COUNT(DISTINCT)</code> and not <code>COUNT(*)</code></h5>
+<p>For Dan, the join yields one row with all project columns NULL. <code>COUNT(*)</code> would count that row as <strong>1</strong> &mdash; wrongly crediting a project-less employee with a project and a $1,000 bonus. <code>COUNT(p.project_id)</code> counts non-NULL values, so Dan correctly scores 0. The <code>DISTINCT</code> adds a second layer of protection: if the join fans out &mdash; an employee assigned to the same project twice, or the schema's denormalised columns causing row multiplication &mdash; <code>DISTINCT</code> stops the same project from being counted (and bonused) more than once. <code>COUNT(DISTINCT p.project_id)</code> is the correct, defensive choice here.</p>
+
+<h5>The schema is a minefield &mdash; ambiguous column names</h5>
+<p>Look at the signature: <code>base_salary</code> appears in <em>all three</em> tables, <code>status</code> in all three, <code>name</code> in all three, <code>emp_id</code> and <code>project_id</code> scattered around. This is a deliberately denormalised, redundant schema. Every column reference <strong>must</strong> be table-qualified &mdash; <code>e.base_salary</code>, <code>p.status</code> &mdash; or the query is ambiguous and may error or, worse, silently read the wrong table's <code>status</code>. The solution qualifies everything; that discipline is itself a senior signal. Confirm which table is authoritative for salary and for project status before trusting either.</p>
+
+<h5><code>GROUP BY</code> must list every non-aggregated column</h5>
+<p>The <code>SELECT</code> projects <code>e.emp_id</code>, <code>e.name</code>, and uses <code>e.base_salary</code> in an expression &mdash; so all three appear in <code>GROUP BY</code>. Omitting <code>e.base_salary</code> would be a "must appear in GROUP BY" error in Postgres. Grouping by <code>e.emp_id</code> alone <em>does</em> work if <code>emp_id</code> is the table's primary key (Postgres allows functionally-dependent columns to be selected), but listing all three is the portable, unambiguous habit.</p>
+
+<h5>Pre-aggregate to avoid join fan-out &mdash; the cleaner pattern</h5>
+<p>Joining then grouping works, but on large tables the fan-out (one row per assignment) inflates the intermediate result before the <code>COUNT(DISTINCT)</code> deflates it. A tidier, often faster shape aggregates projects first, then joins one clean row per employee:</p>
+<pre><code>SELECT e.emp_id, e.name,
+       COALESCE(ap.cnt, 0) AS active_projects,
+       e.base_salary + 1000 * COALESCE(ap.cnt, 0) AS total_comp
+FROM employees e
+LEFT JOIN (
+  SELECT pa.emp_id, COUNT(DISTINCT pa.project_id) AS cnt
+  FROM project_assignments pa
+  JOIN projects p ON pa.project_id = p.project_id
+  WHERE p.status = 'active'
+  GROUP BY pa.emp_id
+) ap ON e.emp_id = ap.emp_id;</code></pre>
+<p>Here the <code>WHERE p.status='active'</code> is safe &mdash; it is inside the subquery, before the outer <code>LEFT JOIN</code> &mdash; and <code>COALESCE(ap.cnt, 0)</code> turns Dan's missing row into a clean 0.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> put <code>p.status='active'</code> in the <code>ON</code> clause so the <code>LEFT JOIN</code> does not collapse into an inner join and drop project-less employees, choose <code>COUNT(DISTINCT p.project_id)</code> so NULLs score 0 and join fan-out cannot double-count a bonus, table-qualify every column in a redundant multi-table schema, and know the pre-aggregate-then-join pattern as the scalable alternative.</div>

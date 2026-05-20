@@ -1,0 +1,69 @@
+<p>Amazon's marketplace team wants every order ranked by value &mdash; biggest basket is rank 1 &mdash; for a "top orders" leaderboard. The reference solution reaches for <code>DENSE_RANK()</code>. The interviewer's real question is whether you can explain why it is <code>DENSE_RANK</code> and not <code>RANK</code> or <code>ROW_NUMBER</code>, because the three diverge exactly when two orders tie.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>$500</td></tr>
+    <tr><td>2</td><td>$300</td></tr>
+    <tr><td>3</td><td>$500</td></tr>
+    <tr><td>4</td><td>$200</td></tr>
+    <tr><td>5</td><td>$300</td></tr>
+  </tbody>
+</table>
+<p>There are <strong>two ties</strong>: orders 1 and 3 both at $500, orders 2 and 5 both at $300. The ties are the whole interview &mdash; they decide what number the order <em>below</em> a tie receives.</p>
+
+<h4>2. The SQL &mdash; <code>DENSE_RANK over amount</code></h4>
+<pre><code>SELECT order_id, amount,
+       DENSE_RANK() OVER (ORDER BY amount DESC) AS rk
+FROM orders;</code></pre>
+<p><code>DENSE_RANK()</code> is a window function: it sorts every row by <code>amount</code> descending and assigns a rank. Tied rows share a rank, and &mdash; the defining trait &mdash; the <em>next distinct value</em> gets the very next integer, with no gap.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>amount</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>500</td><td>1</td></tr>
+    <tr><td>3</td><td>500</td><td>1</td></tr>
+    <tr><td>2</td><td>300</td><td>2</td></tr>
+    <tr><td>5</td><td>300</td><td>2</td></tr>
+    <tr><td>4</td><td>200</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Both $500 orders are rank 1, both $300 orders are rank 2, and the $200 order is rank 3. The sequence is <strong>1, 1, 2, 2, 3</strong> &mdash; no number is skipped. That gap-free behaviour after a tie is precisely what distinguishes <code>DENSE_RANK</code> from <code>RANK</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> vs <code>ROW_NUMBER</code> &mdash; the core comparison</h5>
+<p>All three sort the same way; they differ only in how they treat ties. On this exact data:</p>
+<table>
+  <thead><tr><th>order_id</th><th>amount</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>500</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>3</td><td>500</td><td>2</td><td>1</td><td>1</td></tr>
+    <tr><td>2</td><td>300</td><td>3</td><td>3 (skips 2)</td><td>2</td></tr>
+    <tr><td>5</td><td>300</td><td>4</td><td>3</td><td>2</td></tr>
+    <tr><td>4</td><td>200</td><td>5</td><td>5 (skips 4)</td><td>3</td></tr>
+  </tbody>
+</table>
+<p><code>ROW_NUMBER</code> gives every row a unique integer and breaks ties arbitrarily by physical order. <code>RANK</code> shares a rank for ties but leaves a gap &mdash; after two 1s it jumps to 3. <code>DENSE_RANK</code> shares a rank and leaves no gap. Naming all three in one breath is the senior signal.</p>
+
+<h5>Which one does the leaderboard actually want?</h5>
+<p>"Top 3 distinct order sizes" wants <code>DENSE_RANK</code> &mdash; <code>WHERE rk &lt;= 3</code> reliably returns the three highest amounts however many orders tie. "Olympic-style standings" (two golds, then a bronze, no silver) wants <code>RANK</code>. "Pick exactly one row per tie group" wants <code>ROW_NUMBER</code>. The function encodes a business rule; confirm the rule before choosing.</p>
+
+<h5>Ties are resolved arbitrarily unless you add a tiebreaker</h5>
+<p>With <code>ORDER BY amount DESC</code> alone, orders 1 and 3 are interchangeable &mdash; their <em>row order</em> in the output is not defined, even though they share <code>rk = 1</code>. For <code>ROW_NUMBER</code> this is worse: it would hand them 1 and 2 based on planner whim, so the result is non-deterministic between runs. Add a deterministic tiebreaker:</p>
+<pre><code>DENSE_RANK() OVER (ORDER BY amount DESC, order_id ASC)</code></pre>
+<p>That does not change the dense ranks here, but it makes row order stable &mdash; essential when the leaderboard must look identical on every refresh.</p>
+
+<h5>NULL amounts and sort placement</h5>
+<p>In Postgres, <code>ORDER BY amount DESC</code> puts <code>NULL</code>s <em>first</em> by default &mdash; so an order with an unpriced <code>NULL</code> amount would rank above the $500 orders, which is absurd for a value leaderboard. Be explicit: <code>ORDER BY amount DESC NULLS LAST</code>, or filter <code>WHERE amount IS NOT NULL</code> before ranking.</p>
+
+<h5>The "top N per group" extension</h5>
+<p>Real leaderboards are usually segmented &mdash; top orders <em>per customer</em>, <em>per month</em>. Add <code>PARTITION BY</code> and the ranking restarts within each group:</p>
+<pre><code>SELECT order_id, amount, customer_id,
+       DENSE_RANK() OVER (PARTITION BY customer_id ORDER BY amount DESC) AS rk
+FROM orders;</code></pre>
+<p>Then <code>WHERE rk = 1</code> in an outer query gives each customer's biggest order. This partition-then-rank-then-filter pattern is the workhorse behind most "top N" questions.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>DENSE_RANK</code> gives gap-free ranks after ties (1,1,2) while <code>RANK</code> skips (1,1,3) and <code>ROW_NUMBER</code> ignores ties, match the function to the business rule, add a deterministic tiebreaker for stable output, and handle NULL amounts with <code>NULLS LAST</code>.</div>

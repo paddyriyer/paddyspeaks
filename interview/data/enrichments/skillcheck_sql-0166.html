@@ -1,0 +1,68 @@
+<p>A merchandising analyst wants a Pareto (80/20) breakdown: rank products by sales, show the running cumulative percentage, and flag the minimal set of top products that together account for ~80% of revenue. The interviewer is probing window-function fluency &mdash; a running <code>SUM</code> over an ordered frame &mdash; and a subtle boundary definition: the flag uses each row's <em>previous</em> cumulative percentage, so the row that <em>crosses into</em> the 80% zone is included but nothing past it.</p>
+
+<h4>1. The source data &mdash; <code>product</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>sales</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>500</td><td>top seller &mdash; 50% of the 1000 total alone</td></tr>
+    <tr><td>2</td><td>B</td><td>300</td><td>brings cumulative to exactly 80%</td></tr>
+    <tr><td>3</td><td>C</td><td>100</td><td>first row past the 80% line</td></tr>
+    <tr><td>4</td><td>D</td><td>50</td><td>long tail</td></tr>
+    <tr><td>5</td><td>E</td><td>30</td><td>long tail</td></tr>
+    <tr><td>6</td><td>F</td><td>20</td><td>long tail &mdash; last row, cumulative hits 100%</td></tr>
+  </tbody>
+</table>
+<p>The edge case that decides the interview: product B lands the cumulative at <em>exactly</em> 80.00%. The flag's "previous cumulative strictly less than 80" rule must include B (its predecessor A was at 50%) and exclude C (its predecessor B was at exactly 80, not strictly less). The grand total is 1000.</p>
+
+<h4>2. The SQL &mdash; running percent + lagged boundary flag</h4>
+<pre><code>WITH cum AS (
+  SELECT product_id, name, sales,
+         SUM(sales) OVER () AS grand_total,
+         SUM(sales) OVER (ORDER BY sales DESC, product_id
+                          ROWS UNBOUNDED PRECEDING) AS running
+  FROM product
+),
+with_pct AS (
+  SELECT product_id, name, sales, grand_total, running,
+         ROUND((running / grand_total * 100)::numeric, 2) AS cumulative_pct,
+         LAG(running, 1, 0) OVER (ORDER BY sales DESC, product_id) AS prev_running
+  FROM cum
+)
+SELECT product_id, name, sales, cumulative_pct,
+       (prev_running / grand_total * 100 &lt; 80) AS in_pareto_80
+FROM with_pct
+ORDER BY sales DESC, product_id;</code></pre>
+<p><code>SUM(sales) OVER ()</code> with an empty window gives the grand total on every row. The second window, ordered and framed <code>ROWS UNBOUNDED PRECEDING</code>, gives the running total. <code>LAG(running, 1, 0)</code> fetches the <em>prior</em> row's running total (defaulting to 0 for the first row), and the boolean compares that to the 80% threshold.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>sales</th><th>cumulative_pct</th><th>in_pareto_80</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>500</td><td>50.00</td><td>true</td><td>prev=0, &lt;80 &rarr; in</td></tr>
+    <tr><td>2</td><td>B</td><td>300</td><td>80.00</td><td>true</td><td>prev=50, &lt;80 &rarr; crosses in</td></tr>
+    <tr><td>3</td><td>C</td><td>100</td><td>90.00</td><td>false</td><td>prev=80, NOT &lt;80 &rarr; out</td></tr>
+    <tr><td>4</td><td>D</td><td>50</td><td>95.00</td><td>false</td><td>prev=90 &rarr; out</td></tr>
+    <tr><td>5</td><td>E</td><td>30</td><td>98.00</td><td>false</td><td>tail</td></tr>
+    <tr><td>6</td><td>F</td><td>20</td><td>100.00</td><td>false</td><td>tail &mdash; cumulative closes at 100%</td></tr>
+  </tbody>
+</table>
+<p>Products A and B are the Pareto set &mdash; two products carrying 80% of revenue. B is included even though it lands <em>on</em> the 80% line, because the rule keys off its predecessor (50% &lt; 80). C is excluded: its predecessor B sits at exactly 80, which is not <em>strictly</em> less.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two windows, two jobs</h5>
+<p><code>SUM(sales) OVER ()</code> &mdash; no <code>ORDER BY</code>, no <code>PARTITION</code> &mdash; aggregates the entire result set and broadcasts the single grand total onto every row. <code>SUM(sales) OVER (ORDER BY sales DESC, product_id ROWS UNBOUNDED PRECEDING)</code> is a <em>running</em> sum: it accumulates from the first row up to the current one. Computing both in one CTE pass means dividing one by the other gives the cumulative percentage without a self-join or a correlated subquery.</p>
+
+<h5>Why the explicit <code>ROWS UNBOUNDED PRECEDING</code> frame matters</h5>
+<p>When a window has an <code>ORDER BY</code> but no explicit frame, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. <code>RANGE</code> includes <em>all peer rows that tie on the ordering key</em> in the current frame &mdash; so two products with identical sales would both jump to the same running total, double-counting within the tie. <code>ROWS</code> counts physical rows, so each row gets a distinct running total. The composite sort key <code>sales DESC, product_id</code> also breaks ties deterministically. Using <code>ROWS</code> (not <code>RANGE</code>) for a running total is a senior-level detail.</p>
+
+<h5>The lagged-boundary flag &mdash; reading the spec precisely</h5>
+<p>The naive flag is <code>cumulative_pct &lt;= 80</code>, but that would <em>exclude</em> the row that pushes past 80 &mdash; you would never reach 80% coverage. The spec says: include a row if its <em>previous</em> cumulative was strictly below 80. <code>LAG(running, 1, 0)</code> fetches the predecessor's running total; the first row's predecessor defaults to <code>0</code>, so the top seller is always in. The comparison <code>prev_running / grand_total * 100 &lt; 80</code> then includes exactly the rows up to and including the one that crosses the line, and nothing beyond. This is the difference between "rows already inside 80%" and "the minimal set that reaches 80%".</p>
+
+<h5>NULL and zero traps</h5>
+<p>If <code>grand_total</code> were <code>0</code> (no sales anywhere), every percentage division would raise <em>division by zero</em>. On a real table, guard with <code>NULLIF(grand_total, 0)</code>. A NULL <code>sales</code> value would be skipped by <code>SUM</code> but would still produce a product row with a NULL <code>sales</code> and a carried-forward running total &mdash; decide whether NULL-sales products belong in the ranking at all, or filter them in a <code>WHERE</code> first. The <code>LAG</code> default of <code>0</code> is doing real work: without it the first row's <code>prev_running</code> would be NULL and the flag would evaluate to NULL, not <code>true</code>.</p>
+
+<h5>Dialect notes</h5>
+<p>Window functions, <code>LAG</code> with a default, and explicit <code>ROWS</code> framing are SQL-standard &mdash; portable to PostgreSQL, SQL Server, Oracle, BigQuery, Snowflake, and MySQL 8+. The <code>::numeric</code> cast before <code>ROUND</code> is a Postgres requirement (<code>ROUND(double, int)</code> does not exist there); other engines round doubles directly. MySQL before 8.0 has no window functions at all &mdash; the running total would need a correlated subquery or a session-variable trick, and the whole query becomes far uglier.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute a Pareto curve with two windows &mdash; <code>SUM() OVER ()</code> for the grand total and a <code>ROWS UNBOUNDED PRECEDING</code> running <code>SUM</code> &mdash; use <code>ROWS</code> not the default <code>RANGE</code> so ties do not double-count, and implement a "minimal set reaching 80%" flag with <code>LAG(running,1,0)</code> on the predecessor rather than a naive cumulative threshold.</div>

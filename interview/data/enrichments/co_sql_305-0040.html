@@ -1,0 +1,58 @@
+<p>SAP's logistics analytics team owns a supply-chain dashboard, and the operations director keeps asking the same two things about deliveries: "on average, how late are we?" and "how many shipments missed their date?" Both come from one scan of the shipments table &mdash; but an interviewer asking this is watching whether you understand that an <em>average delay</em> and a <em>late count</em> are measuring two different things, and that early shipments quietly drag the average down.</p>
+
+<h4>1. The source data &mdash; <code>shipments</code></h4>
+<table>
+  <thead><tr><th>shipment_id</th><th>scheduled_date</th><th>actual_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-10</td><td>2026-01-12</td></tr>
+    <tr><td>2</td><td>2026-01-15</td><td>2026-01-15</td></tr>
+    <tr><td>3</td><td>2026-01-20</td><td>2026-01-18</td></tr>
+    <tr><td>4</td><td>2026-01-25</td><td>2026-01-30</td></tr>
+    <tr><td>5</td><td>2026-02-01</td><td>2026-02-02</td></tr>
+  </tbody>
+</table>
+<p>Three different cases live here: shipment 2 arrived <strong>exactly on time</strong> (delay 0), shipment 3 arrived <strong>two days early</strong> (delay &minus;2), and the rest were late. The early shipment is the trap &mdash; a negative delay pulls the average down without lowering the late count.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(diff)</code> + conditional <code>SUM</code></h4>
+<pre><code>SELECT AVG(actual_date - scheduled_date) AS avg_delay_days,
+  SUM(CASE WHEN actual_date &gt; scheduled_date THEN 1 ELSE 0 END) AS late_count
+FROM shipments;</code></pre>
+<p>In PostgreSQL, subtracting one <code>DATE</code> from another yields an integer number of days. <code>AVG</code> takes the mean of those signed integers; the <code>CASE</code> emits 1 only for genuinely late rows, and <code>SUM</code> counts them.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_delay_days</th><th>late_count</th></tr></thead>
+  <tbody>
+    <tr><td>1.2000000000000000</td><td>3</tr>
+  </tbody>
+</table>
+<p>The five day-deltas are +2, 0, &minus;2, +5, +1. They sum to 6, and 6 &divide; 5 = <strong>1.2</strong>. Note the &minus;2 from the early shipment is in that sum &mdash; it cancels the +2 from shipment 1. Meanwhile <code>late_count = 3</code> counts only the strictly-late rows; the on-time and early shipments contribute 0. The two numbers tell different stories: average is small, but more than half the shipments still missed.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Early shipments distort the average &mdash; clamp the delay</h5>
+<p>If "delay" should never be negative (a shipment can't be "&minus;2 days late"), clamp it at zero so early arrivals count as on-time rather than as credit:</p>
+<pre><code>SELECT AVG(GREATEST(actual_date - scheduled_date, 0)) AS avg_delay_days
+FROM shipments;
+-- (2 + 0 + 0 + 5 + 1) / 5 = 1.6, not 1.2</code></pre>
+<p>Same data, a different number, because the early shipment no longer subsidises a late one. Confirm with the director which definition they want.</p>
+
+<h5>Average over <em>all</em> shipments vs over <em>late</em> shipments</h5>
+<p>"Average delay" is ambiguous. The query above averages over all 5 rows. The operations team often means "when we <em>are</em> late, by how much?" &mdash; a conditional average:</p>
+<pre><code>SELECT AVG(actual_date - scheduled_date)
+  FILTER (WHERE actual_date &gt; scheduled_date) AS avg_delay_when_late
+FROM shipments;
+-- (2 + 5 + 1) / 3 = 2.67</code></pre>
+<p>Two legitimate metrics from the same column; naming which one is asked for is the senior move.</p>
+
+<h5>NULL <code>actual_date</code> &mdash; the shipment still in transit</h5>
+<p>A shipment that hasn't arrived has a NULL <code>actual_date</code>. <code>actual_date - scheduled_date</code> is then NULL, so <code>AVG</code> silently drops it from both numerator and denominator, and the <code>CASE</code> falls to its <code>ELSE 0</code> &mdash; meaning an <em>overdue, undelivered</em> shipment is counted as not-late. That is almost certainly wrong; an interviewer loves this one. Treat undelivered-and-overdue rows explicitly, e.g. compare <code>COALESCE(actual_date, CURRENT_DATE)</code> against the schedule.</p>
+
+<h5>On-time rate is the metric the director actually wants</h5>
+<p>A raw count is hard to compare across weeks of different volume. Express it as a rate, guarding against an empty table:</p>
+<pre><code>SELECT ROUND(100.0 * AVG(CASE WHEN actual_date &lt;= scheduled_date THEN 1 ELSE 0 END), 1)
+  AS on_time_pct
+FROM shipments;</code></pre>
+<p><code>AVG</code> of a 1/0 flag is the proportion directly &mdash; cleaner than <code>SUM(...) / COUNT(*)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that date subtraction is signed so early shipments lower the average, decide deliberately whether to clamp with <code>GREATEST(..., 0)</code>, distinguish "average over all" from "average when late", and flag that a NULL <code>actual_date</code> on an overdue shipment is wrongly counted as on-time.</div>

@@ -1,0 +1,96 @@
+<p>Snowflake&rsquo;s internal commerce team wants a daily revenue breakdown by product category &mdash; a three-table join that connects orders to their line items and then to the product catalogue, groups by day and category, and ranks categories within each day by revenue. The query tests clean multi-table join navigation, <code>DATE()</code> truncation of a timestamp, and the interaction between <code>GROUP BY</code> and computed expressions.</p>
+
+<h4>1. The source data &mdash; <code>orders</code>, <code>order_items</code>, <code>products</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_ts</th></tr></thead>
+  <tbody>
+    <tr><td>O1</td><td>2025-05-01 08:00:00</td></tr>
+    <tr><td>O2</td><td>2025-05-01 14:00:00</td></tr>
+    <tr><td>O3</td><td>2025-05-02 10:00:00</td></tr>
+    <tr><td>O4</td><td>2025-05-02 16:00:00</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>order_id</th><th>product_id</th><th>qty</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>O1</td><td>P1</td><td>2</td><td>50.00</td></tr>
+    <tr><td>O1</td><td>P2</td><td>1</td><td>30.00</td></tr>
+    <tr><td>O2</td><td>P1</td><td>3</td><td>50.00</td></tr>
+    <tr><td>O3</td><td>P3</td><td>1</td><td>200.00</td></tr>
+    <tr><td>O4</td><td>P1</td><td>2</td><td>50.00</td></tr>
+    <tr><td>O4</td><td>P2</td><td>4</td><td>30.00</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_id</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>Electronics</td></tr>
+    <tr><td>P2</td><td>Accessories</td></tr>
+    <tr><td>P3</td><td>Electronics</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; three-table join, date truncation, SUM(qty &times; price)</h4>
+<pre><code>SELECT DATE(o.order_ts) AS day, p.category,
+       SUM(oi.qty * oi.price) AS revenue
+FROM orders       o
+JOIN order_items  oi ON o.order_id    = oi.order_id
+JOIN products     p  ON oi.product_id = p.product_id
+GROUP BY DATE(o.order_ts), p.category
+ORDER BY day, revenue DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Hand-trace:</p>
+<ul>
+  <li>Day 2025-05-01, Electronics: O1/P1 (2&times;50=100) + O2/P1 (3&times;50=150) = 250</li>
+  <li>Day 2025-05-01, Accessories: O1/P2 (1&times;30=30) = 30</li>
+  <li>Day 2025-05-02, Electronics: O3/P3 (1&times;200=200) + O4/P1 (2&times;50=100) = 300</li>
+  <li>Day 2025-05-02, Accessories: O4/P2 (4&times;30=120) = 120</li>
+</ul>
+<table>
+  <thead><tr><th>day</th><th>category</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>2025-05-01</td><td>Electronics</td><td>250.00</td></tr>
+    <tr><td>2025-05-01</td><td>Accessories</td><td>30.00</td></tr>
+    <tr><td>2025-05-02</td><td>Electronics</td><td>300.00</td></tr>
+    <tr><td>2025-05-02</td><td>Accessories</td><td>120.00</td></tr>
+  </tbody>
+</table>
+<p>Within each day, categories are sorted by revenue descending: Electronics leads on both days. The <code>ORDER BY day, revenue DESC</code> produces day ascending as the primary sort and revenue descending within each day.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The three-table join chain</h5>
+<p>The join pattern follows the natural foreign-key chain: <code>orders</code> &rarr; <code>order_items</code> (one order to many items) &rarr; <code>products</code> (many items to one product). Both joins use <code>INNER JOIN</code> implicitly, dropping any order with no line items (orphaned orders) and any line item with no matching product (referential-integrity violation). If either scenario can occur in practice, consider <code>LEFT JOIN</code> and account for NULL product categories.</p>
+
+<h5>Computing revenue at the line-item level: qty &times; price</h5>
+<p><code>SUM(oi.qty * oi.price)</code> computes the line-item total first, then sums across all line items for that (day, category) group. This is correct because each line item has its own price (which may differ from the product&rsquo;s catalogue price if discounts were applied at the order level). Avoid <code>SUM(oi.qty) * SUM(oi.price)</code> &mdash; that would multiply aggregate totals, producing wildly wrong results when there are multiple line items per group.</p>
+
+<h5>DATE() vs TRUNC vs CAST in GROUP BY</h5>
+<p><code>DATE(o.order_ts)</code> extracts the calendar date from a timestamp. Alternatives by engine:</p>
+<ul>
+  <li><strong>Snowflake:</strong> <code>DATE(order_ts)</code>, <code>order_ts::DATE</code>, or <code>DATE_TRUNC('day', order_ts)</code></li>
+  <li><strong>Postgres:</strong> <code>DATE_TRUNC('day', order_ts)</code> (returns a timestamp at midnight) or <code>order_ts::DATE</code></li>
+  <li><strong>BigQuery:</strong> <code>DATE(order_ts)</code> or <code>DATE_TRUNC(order_ts, DAY)</code></li>
+  <li><strong>MySQL:</strong> <code>DATE(order_ts)</code></li>
+  <li><strong>SQL Server:</strong> <code>CAST(order_ts AS DATE)</code></li>
+</ul>
+<p>The important gotcha: <code>DATE_TRUNC</code> in Postgres returns a <code>TIMESTAMP</code> (not a <code>DATE</code>), which means the GROUP BY key has a time component (00:00:00) and displays differently. Both are correct for grouping; the display format differs.</p>
+
+<h5>ORDER BY day, revenue DESC &mdash; mixed sort directions</h5>
+<p>The sort is two-level: day ascending (default), then revenue descending within each day. Writing <code>ORDER BY day ASC, revenue DESC</code> makes both directions explicit and is better documentation. If an index exists on <code>(order_ts, product_id)</code>, the optimizer may be able to avoid a sort for the day grouping, but sorting the final aggregate result typically requires a separate pass.</p>
+
+<h5>Adding a daily running total or rank</h5>
+<p>A common follow-up extends this query with a daily rank or running total using window functions over the aggregated result:</p>
+<pre><code>SELECT day, category, revenue,
+       RANK() OVER (PARTITION BY day ORDER BY revenue DESC) AS rank_in_day,
+       SUM(revenue) OVER (PARTITION BY day) AS day_total
+FROM (
+  SELECT DATE(o.order_ts) AS day, p.category, SUM(oi.qty * oi.price) AS revenue
+  FROM orders o JOIN order_items oi ON o.order_id = oi.order_id
+                JOIN products p ON oi.product_id = p.product_id
+  GROUP BY DATE(o.order_ts), p.category
+) agg
+ORDER BY day, rank_in_day;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> verify that <code>SUM(qty * price)</code> is computed at the line-item level &mdash; not <code>SUM(qty) * SUM(price)</code> which would be wrong for multi-item groups &mdash; explain the three-table FK chain, and give the cross-dialect <code>DATE()</code> / <code>DATE_TRUNC</code> / <code>::DATE</code> equivalents. The window-function extension (rank within day, day total) is the over-the-bar follow-up that shows you&rsquo;ve thought about the next reporting layer.</div>

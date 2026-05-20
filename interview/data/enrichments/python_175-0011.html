@@ -1,0 +1,45 @@
+<p>Google asks this as the "trie with a twist" question. A plain prefix tree is mechanical; the twist is the <code>.</code> wildcard in <code>search</code>, which matches any single character. That one rule turns a deterministic walk down the tree into a branching search &mdash; and the interviewer is watching to see whether you recognize it as a depth-first search and prune it correctly.</p>
+
+<h4>1. The input data</h4>
+<p>Three words added, then a mix of exact and wildcard searches:</p>
+<pre><code>wd = WordDictionary()
+wd.addWord('bad')
+wd.addWord('dad')
+wd.addWord('mad')
+wd.search('pad')   # exact, no match
+wd.search('bad')   # exact, match
+wd.search('.ad')   # wildcard first char
+wd.search('b..')   # two wildcards</code></pre>
+
+<h4>2. The approach</h4>
+<p>The trie is a nested plain <code>dict</code>: each node maps a character to a child dict. <code>addWord</code> walks the word, using <code>n.setdefault(c, {})</code> to create-or-descend in one step, then plants a sentinel key <code>'#'</code> at the end to mark "a word terminates here" &mdash; without it, <code>'bad'</code> would be indistinguishable from a mere prefix of a longer word. <code>search</code> delegates to a recursive <code>dfs(i, n)</code> over index <code>i</code> and current node <code>n</code>. Base case: <code>i == len(w)</code> &rarr; the word matched iff <code>'#'</code> is in the node. Otherwise, if the current character is <code>'.'</code>, it must try <em>every</em> real child &mdash; <code>any(k != '#' and dfs(i+1, n[k]) for k in n)</code> &mdash; excluding the sentinel so it is never treated as a letter. For a normal character it is a single deterministic step: <code>c in n and dfs(i+1, n[c])</code>. The <code>and</code>/<code>any</code> short-circuit on the first match.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>search</th><th>why</th><th>result</th></tr></thead>
+  <tbody>
+    <tr><td>'pad'</td><td>no child <code>'p'</code> at the root</td><td>False</td></tr>
+    <tr><td>'bad'</td><td>walk b&rarr;a&rarr;d, <code>'#'</code> present</td><td>True</td></tr>
+    <tr><td>'.ad'</td><td><code>.</code> matches b/d/m, all reach <code>'ad#'</code></td><td>True</td></tr>
+    <tr><td>'b..'</td><td>b then any&rarr;any reaches <code>'#'</code> via 'bad'</td><td>True</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><code>addWord</code> is <strong>O(L)</strong> for word length L. An exact <code>search</code> is also O(L). A search with wildcards is the catch: each <code>.</code> can branch into up to 26 children, so the worst case is <strong>O(26^d &middot; L)</strong> where d is the number of dots &mdash; an all-dots query explores the whole tree. Space is O(total characters across all words), shared aggressively via common prefixes.</p>
+
+<h5>The idiomatic alternative</h5>
+<p>A <code>defaultdict</code>-based <code>TrieNode</code> class with an explicit <code>is_word</code> boolean is the more conventional, readable form &mdash; the <code>'#'</code> sentinel-in-a-plain-dict trick is compact but mixes a marker into the same namespace as letters, which is exactly why every wildcard branch must remember to filter <code>k != '#'</code>. For a small fixed word list, a regex (<code>.</code> already means "any char") is a legitimate shortcut worth naming.</p>
+
+<h5>The edge case &mdash; the empty word and the sentinel collision</h5>
+<p><code>addWord('')</code> places <code>'#'</code> directly at the root, and <code>search('')</code> then returns <code>True</code> &mdash; consistent, worth confirming with the interviewer. The subtler bug: if you forget <code>k != '#'</code>, a <code>.</code> would try to "descend into" the sentinel, and <code>dfs(i+1, True)</code> crashes since <code>True</code> is not a dict. The filter is load-bearing, not cosmetic.</p>
+
+<h5>The follow-up &mdash; a <code>*</code> wildcard</h5>
+<p>"Now support <code>*</code> meaning zero or more characters." That breaks the one-index-per-character recursion: <code>*</code> must try consuming 0, 1, 2, ... characters, so <code>dfs</code> needs a branch that recurses without advancing <code>i</code> and another that advances the node. It becomes regex-style matching &mdash; a noticeably harder DFS with memoization to avoid re-exploring states.</p>
+
+<h5>The trap &mdash; treating <code>.</code> as a literal</h5>
+<p>The naive instinct is to walk the trie character by character as if <code>.</code> were just another letter, finding no child <code>'.'</code> and returning <code>False</code>. The wildcard fundamentally is a search, not a lookup &mdash; recognizing that <code>search</code> needs recursion while <code>addWord</code> does not is the whole point of the question.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior immediately frames the wildcard as a DFS with 26-way branching, prunes the sentinel out of the branch loop, states the O(26^d) wildcard cost honestly, and contrasts it with the O(L) exact path &mdash; a junior treats <code>.</code> as a literal character.</div>

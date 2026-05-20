@@ -1,0 +1,69 @@
+<p>A growth team wants the classic conversion <strong>funnel</strong>: of everyone who viewed, how many added to cart, and of those, how many purchased &mdash; with the strict rule that a step only counts if every earlier step happened <em>before</em> it in time. The interviewer is probing whether you understand that a funnel is not just <code>COUNT</code> per step: out-of-order events (a cart before a view) and skipped steps must be excluded, or the funnel lies.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>step</th><th>ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>view / cart / purchase</td><td>09:00 / 09:05 / 09:10</td><td>full funnel, in order</td></tr>
+    <tr><td>2</td><td>view / cart</td><td>09:00 / 09:01</td><td>reached cart, no purchase</td></tr>
+    <tr><td>3</td><td>view</td><td>09:00</td><td>viewed only</td></tr>
+    <tr><td>4</td><td>cart / view</td><td>09:00 / 09:05</td><td>cart <em>before</em> view &mdash; out of order</td></tr>
+    <tr><td>5</td><td>view / purchase</td><td>09:00 / 09:05</td><td>purchase with <em>no cart</em> &mdash; step skipped</td></tr>
+  </tbody>
+</table>
+<p>Users 4 and 5 are the trap. User 4 has both a view and a cart, but the cart came <em>first</em> &mdash; they never validly reached cart. User 5 purchased without ever carting &mdash; a skipped step. A naive per-step count would wrongly credit both.</p>
+
+<h4>2. The SQL &mdash; first-timestamp per step, then ordered reachability flags</h4>
+<pre><code>WITH firsts AS (
+  SELECT user_id,
+         MIN(CASE WHEN step='view' THEN ts END) AS view_ts,
+         MIN(CASE WHEN step='cart' THEN ts END) AS cart_ts,
+         MIN(CASE WHEN step='purchase' THEN ts END) AS purchase_ts
+  FROM event
+  GROUP BY user_id
+),
+flags AS (
+  SELECT
+    user_id,
+    (view_ts IS NOT NULL)::int AS reached_view,
+    (view_ts IS NOT NULL AND cart_ts IS NOT NULL AND cart_ts &gt;= view_ts)::int AS reached_cart,
+    (view_ts IS NOT NULL AND cart_ts IS NOT NULL AND purchase_ts IS NOT NULL
+      AND cart_ts &gt;= view_ts AND purchase_ts &gt;= cart_ts)::int AS reached_purchase
+  FROM firsts
+)
+SELECT 'view' AS step, SUM(reached_view) AS users FROM flags
+UNION ALL
+SELECT 'cart', SUM(reached_cart) FROM flags
+UNION ALL
+SELECT 'purchase', SUM(reached_purchase) FROM flags;</code></pre>
+<p><code>firsts</code> collapses each user to one row holding their <em>earliest</em> timestamp for each step. <code>flags</code> then turns reachability into a 0/1 per step, requiring every prior step to be non-NULL <em>and</em> chronologically ordered. The final union sums the flags into one row per step.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>step</th><th>users</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>view</td><td>5</td><td>all five users have a view event</td></tr>
+    <tr><td>cart</td><td>2</td><td>users 1 and 2 &mdash; user 4 excluded (cart before view)</td></tr>
+    <tr><td>purchase</td><td>1</td><td>only user 1 &mdash; user 5 excluded (no cart)</td></tr>
+  </tbody>
+</table>
+<p>The funnel reads <strong>5 &rarr; 2 &rarr; 1</strong>. User 4 has a cart but it predates their view, so <code>cart_ts &gt;= view_ts</code> is false &mdash; not counted. User 5 purchased but <code>cart_ts</code> is NULL, so <code>reached_purchase</code> is false. The funnel only credits genuine, ordered progress.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>MIN(ts)</code> per step and not just a presence check</h5>
+<p>A user can hit the same step many times; what matters for ordering is the <em>first</em> time they reached it. <code>MIN(CASE WHEN step=... THEN ts END)</code> extracts that earliest timestamp, returning NULL when the step never happened. Comparing first-timestamps is what lets <code>cart_ts &gt;= view_ts</code> mean "carted no earlier than they first viewed". A plain <code>COUNT(DISTINCT step)</code> would know <em>which</em> steps occurred but never <em>in what order</em> &mdash; and order is the entire point of a funnel.</p>
+
+<h5>The chronological predicate is what makes it a funnel</h5>
+<p><code>reached_cart</code> is not "has a view and has a cart" &mdash; it is "has a view, has a cart, <em>and the cart was not before the view</em>". That third clause excludes user 4. Each deeper step ANDs in one more ordering check (<code>purchase_ts &gt;= cart_ts</code>). Drop these comparisons and you get a <em>set-membership</em> count, not a funnel; the count would no longer decrease monotonically in a meaningful way. The ordering is the feature, not decoration.</p>
+
+<h5>NULL handling is structural, not incidental</h5>
+<p>If a step never happened, its first-timestamp is NULL. Every comparison against NULL yields <em>unknown</em>, so any <code>AND</code> chain containing it is false &mdash; which is exactly right: user 5's <code>cart_ts</code> is NULL, so <code>reached_purchase</code> collapses to false automatically. The explicit <code>IS NOT NULL</code> guards make the intent legible rather than relying on three-valued logic alone. NULL here <em>is</em> the "step skipped" signal.</p>
+
+<h5><code>::int</code> casting and a tie at the boundary</h5>
+<p>A boolean cast to <code>int</code> gives 1 for true and 0 for false, so <code>SUM</code> over the column counts the users who reached the step. Note the comparison is <code>&gt;=</code>, not <code>&gt;</code>: if a user's cart and view share the exact same timestamp, that should still count as reaching cart. Using strict <code>&gt;</code> would wrongly drop a same-instant progression &mdash; pick the inclusive operator deliberately.</p>
+
+<h5>Scaling and an alternative shape</h5>
+<p>For three steps the explicit columns are clear. For a long or variable funnel, a more scalable pattern computes each user's step sequence with <code>ROW_NUMBER</code>/<code>LAG</code> over <code>(user_id ORDER BY ts)</code> and checks that steps appear in the canonical order, or self-joins each step to the next on <code>user_id</code> with a <code>ts</code> inequality. Mentioning that the hard-coded columns do not scale &mdash; and how you would generalise &mdash; is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a funnel is ordered reachability, not per-step counting &mdash; reduce each user to first-timestamp-per-step, require every prior step to be both present and chronologically earlier (<code>cart_ts &gt;= view_ts</code>), let NULL naturally exclude skipped steps, and note how the hard-coded steps would generalise for a longer funnel.</div>

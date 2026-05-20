@@ -1,0 +1,54 @@
+<p>Palantir's customer-success team wants the list of customers who have ever placed an order &mdash; the "activated" accounts, separating real users from sign-ups who never bought. The reference solution uses <code>EXISTS</code>. It is the right instinct, but the interviewer is checking whether you know why <code>EXISTS</code> beats a <code>JOIN</code> or an <code>IN</code> here, and how each behaves around duplicates and NULLs.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> &amp; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>has orders?</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ana</td><td>yes &mdash; 2 orders</td></tr>
+    <tr><td>2</td><td>Ben</td><td>no</td></tr>
+    <tr><td>3</td><td>Cara</td><td>yes &mdash; 1 order</td></tr>
+    <tr><td>4</td><td>Dan</td><td>no</td></tr>
+  </tbody>
+</table>
+<p>Ana has <strong>two</strong> orders, Cara has one, Ben and Dan have none. Ana's multiple orders are the edge case &mdash; the answer must list her exactly <em>once</em>, not twice.</p>
+
+<h4>2. The SQL &mdash; <code>WHERE EXISTS (&hellip;)</code></h4>
+<pre><code>SELECT c.customer_id FROM customers c
+WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id);</code></pre>
+<p><code>EXISTS</code> is a boolean test: for each customer, does the correlated subquery return <em>at least one</em> row? The <code>SELECT 1</code> is a convention &mdash; the projected value is irrelevant; only the presence or absence of rows matters.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>Ana (1) and Cara (3) &mdash; the two customers with orders. Ben and Dan are correctly excluded. Critically, <strong>Ana appears once</strong> despite having two orders: <code>EXISTS</code> stops at the first matching row, so it cannot duplicate the outer customer.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why not a <code>JOIN</code>? &mdash; the duplication trap</h5>
+<p>The instinctive answer is an inner join:</p>
+<pre><code>SELECT c.customer_id
+FROM customers c JOIN orders o ON o.customer_id = c.customer_id;</code></pre>
+<p>This returns <strong>three</strong> rows &mdash; Ana <em>twice</em>, once per order &mdash; because a join produces one row per match. You would have to bolt on <code>DISTINCT</code> to fix it. <code>EXISTS</code> never multiplies the outer row, so it needs no <code>DISTINCT</code> and signals intent clearly: "I want a filter, not a combination." That is the senior reason to prefer it.</p>
+
+<h5><code>EXISTS</code> vs <code>IN</code> &mdash; equivalent here, not always</h5>
+<p>An <code>IN</code> subquery reads the same:</p>
+<pre><code>SELECT customer_id FROM customers
+WHERE customer_id IN (SELECT customer_id FROM orders);</code></pre>
+<p>For this query they are equivalent and modern planners often compile them identically. The difference surfaces with NULLs: if <code>orders.customer_id</code> contained a NULL, <code>NOT IN</code> would behave catastrophically &mdash; it returns no rows at all, because <code>x NOT IN (1, NULL)</code> evaluates to <em>unknown</em>. <code>NOT EXISTS</code> is immune to that. So default to <code>EXISTS</code>/<code>NOT EXISTS</code>; it is the NULL-safe choice.</p>
+
+<h5>The inevitable follow-up: customers with <em>no</em> orders</h5>
+<p>Once you give the activated list, the interviewer flips it &mdash; "now the customers who have <em>never</em> ordered." Just negate:</p>
+<pre><code>SELECT c.customer_id FROM customers c
+WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id);
+-- returns Ben (2) and Dan (4)</code></pre>
+<p>The <code>LEFT JOIN &hellip; WHERE o.customer_id IS NULL</code> "anti-join" gives the same result, but <code>NOT EXISTS</code> is shorter and avoids the <code>NOT IN</code>/NULL landmine entirely. This negation symmetry is the main reason to learn <code>EXISTS</code> well.</p>
+
+<h5><code>SELECT 1</code> vs <code>SELECT *</code> &mdash; and short-circuiting</h5>
+<p><code>SELECT 1</code>, <code>SELECT *</code>, <code>SELECT NULL</code> inside <code>EXISTS</code> are all identical &mdash; the optimizer discards the select list and only checks row existence. <code>EXISTS</code> also short-circuits: it can stop scanning <code>orders</code> the instant it finds one match for a customer, which makes it efficient when an index on <code>orders.customer_id</code> exists. It never needs to count or read every matching order.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose <code>EXISTS</code> over a <code>JOIN</code> because it filters without multiplying rows (no <code>DISTINCT</code> needed), prefer <code>EXISTS</code>/<code>NOT EXISTS</code> over <code>IN</code>/<code>NOT IN</code> for NULL-safety, and reach for <code>NOT EXISTS</code> as the clean answer to the "never ordered" anti-join follow-up.</div>

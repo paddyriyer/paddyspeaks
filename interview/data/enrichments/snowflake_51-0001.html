@@ -1,0 +1,59 @@
+<p>A streaming platform's content team asks: <em>"Show us every published video that has crossed the one-million-view threshold, ranked by popularity."</em> The interviewer is testing whether the candidate can correctly combine a categorical equality filter with a numeric range filter — and whether they default to <code>AND</code> over <code>OR</code> — while also noting that <code>status</code> is an application-controlled enum that should never be trusted to be clean without validation.</p>
+
+<h4>1. The source data &mdash; <code>videos</code></h4>
+<table>
+  <thead><tr><th>video_id</th><th>title</th><th>views</th><th>status</th><th>uploaded_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Cooking Basics</td><td>1,500,000</td><td>published</td><td>2025-01-10 09:00</td></tr>
+    <tr><td>2</td><td>Travel Vlog #5</td><td>2,300,000</td><td>published</td><td>2025-01-15 12:00</td></tr>
+    <tr><td>3</td><td>WIP Tutorial</td><td>5,000,000</td><td>draft</td><td>2025-02-01 08:30</td></tr>
+    <tr><td>4</td><td>Niche Hobby Howto</td><td>450,000</td><td>published</td><td>2025-02-05 14:00</td></tr>
+    <tr><td>5</td><td>Mega Music Mix</td><td>9,800,000</td><td>published</td><td>2025-02-10 10:00</td></tr>
+    <tr><td>6</td><td>Old Concert</td><td>3,000,000</td><td>archived</td><td>2024-11-01 18:00</td></tr>
+    <tr><td>7</td><td>Quick Tip</td><td>12,000</td><td>published</td><td>2025-03-01 11:00</td></tr>
+    <tr><td>8</td><td>Live Replay</td><td>1,200,000</td><td>published</td><td>2025-03-05 20:00</td></tr>
+    <tr><td>9</td><td>Draft Pilot</td><td>8,000</td><td>draft</td><td>2025-03-08 09:00</td></tr>
+    <tr><td>10</td><td>Documentary</td><td>1,800,000</td><td>published</td><td>2025-03-12 15:00</td></tr>
+  </tbody>
+</table>
+<p>The table has three filtering traps: video 3 has high views but is a <code>draft</code> (must be excluded); video 6 is over the threshold but <code>archived</code> (excluded); video 4 is <code>published</code> but under the view threshold (excluded). Only the intersection of both conditions qualifies.</p>
+
+<h4>2. The SQL &mdash; dual-predicate filter with descending sort</h4>
+<pre><code>SELECT video_id, title, views
+FROM videos
+WHERE status = 'published'
+  AND views &gt; 1000000
+ORDER BY views DESC;</code></pre>
+<p>Two predicates joined with <code>AND</code>: both must be true. The result set is sorted descending on <code>views</code> so the most popular video appears first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>video_id</th><th>title</th><th>views</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>Mega Music Mix</td><td>9,800,000</td></tr>
+    <tr><td>2</td><td>Travel Vlog #5</td><td>2,300,000</td></tr>
+    <tr><td>10</td><td>Documentary</td><td>1,800,000</td></tr>
+    <tr><td>1</td><td>Cooking Basics</td><td>1,500,000</td></tr>
+    <tr><td>8</td><td>Live Replay</td><td>1,200,000</td></tr>
+  </tbody>
+</table>
+<p>Five rows qualify. Videos 3 and 9 are filtered by <code>status != 'published'</code>; videos 4 and 7 by <code>views &le; 1000000</code>; video 6 by the status filter alone (it is <code>archived</code> with 3,000,000 views, which exceeds the threshold).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>AND</code> not <code>OR</code> — the most common beginner slip</h5>
+<p>A candidate who writes <code>WHERE status = 'published' OR views &gt; 1000000</code> would include the 5M-view draft (video 3) and the 3M-view archived concert (video 6). The business requirement is the <em>intersection</em> of popular <em>and</em> live, which maps to <code>AND</code>. Explicitly naming that the predicate expresses a set intersection is the first thing a senior interviewee says.</p>
+
+<h5>The threshold: strict <code>&gt;</code> vs inclusive <code>&gt;=</code></h5>
+<p>The query uses <code>views &gt; 1000000</code> (strict greater-than). A video with exactly 1,000,000 views does not qualify. The word "popular" in the prompt is ambiguous — a senior candidate clarifies the boundary before writing any SQL. If the spec changes to "at least one million," the fix is <code>&gt;=</code>. Noting this in an interview signals that you read requirements precisely.</p>
+
+<h5>Index strategy</h5>
+<p>On a large table, a composite index <code>(status, views DESC)</code> lets the engine seek directly to the <code>'published'</code> bucket and scan only the rows with views above the threshold in reverse order, potentially satisfying <code>ORDER BY views DESC</code> without a separate sort step. In Snowflake, micro-partition pruning is more relevant: clustering the table on <code>status</code> (or adding a cluster key) lets Snowflake skip non-published micro-partitions entirely before evaluating the numeric filter.</p>
+
+<h5>Snowflake vs other dialects</h5>
+<p>The query is ANSI SQL and runs identically on Snowflake, PostgreSQL, BigQuery, and MySQL. In BigQuery you might add a <code>LIMIT</code> for cost control on very large tables. In Snowflake, <code>BIGINT</code> and <code>NUMBER(38,0)</code> are both valid for view counts; the comparison <code>views &gt; 1000000</code> is safe with either type since the literal is an integer. If <code>views</code> were stored as <code>VARCHAR</code> (a schema smell), you'd need an explicit cast before the numeric comparison.</p>
+
+<h5>Extending the query</h5>
+<p>Real content pipelines extend this shape in predictable ways: add <code>AND uploaded_at &gt;= DATEADD('day', -30, CURRENT_TIMESTAMP)</code> to restrict to recent videos; use <code>RANK() OVER (ORDER BY views DESC)</code> to assign a public leaderboard position; or replace the hardcoded threshold with a subquery that computes the 90th-percentile view count from the same table. All of these are natural follow-up prompts an interviewer may give after the baseline.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> flag the <code>AND</code>/<code>OR</code> distinction as a set-intersection vs set-union choice, clarify whether the threshold is strict or inclusive before writing code, and describe the indexing or Snowflake clustering strategy that avoids a full-table scan on a production-scale <code>videos</code> table.</div>

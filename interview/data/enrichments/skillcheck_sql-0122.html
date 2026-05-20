@@ -1,0 +1,55 @@
+<p>A cinema booking system stores one row per seat in a row with a free/taken flag. A group wants seats together, so the report needs every free seat that has at least one <em>adjacent</em> free seat. "Adjacent" means consecutive seat IDs &mdash; and the interviewer is checking whether you can express "the row next to me" as a self-join on <code>seat_id &plusmn; 1</code> without assuming the IDs start at 1.</p>
+
+<h4>1. The source data &mdash; <code>cinema</code></h4>
+<table>
+  <thead><tr><th>seat_id</th><th>free</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Y</td><td>free; neighbour 2 is also free &rarr; qualifies</td></tr>
+    <tr><td>2</td><td>Y</td><td>free; neighbour 1 free &rarr; qualifies</td></tr>
+    <tr><td>3</td><td>N</td><td>taken &mdash; never qualifies</td></tr>
+    <tr><td>4</td><td>Y</td><td>free, but neighbours 3 and 5 are both taken &rarr; isolated</td></tr>
+    <tr><td>5</td><td>N</td><td>taken</td></tr>
+    <tr><td>6</td><td>Y</td><td>free; run of 6-7-8 &rarr; qualifies</td></tr>
+    <tr><td>7</td><td>Y</td><td>free; neighbours 6 and 8 free &rarr; qualifies</td></tr>
+    <tr><td>8</td><td>Y</td><td>free; neighbour 7 free &rarr; qualifies</td></tr>
+  </tbody>
+</table>
+<p>Seat <strong>4</strong> is the edge case: it is free, but both neighbours (3 and 5) are taken &mdash; an <em>isolated</em> free seat that must <em>not</em> appear. Seat 7 is the opposite &mdash; free with free seats on both sides &mdash; and the <code>DISTINCT</code> must collapse its two matches into one row.</p>
+
+<h4>2. The SQL &mdash; self-join on consecutive IDs</h4>
+<pre><code>SELECT DISTINCT a.seat_id
+FROM cinema a
+JOIN cinema b
+  ON ABS(a.seat_id - b.seat_id) = 1
+ AND a.free = 'Y' AND b.free = 'Y'
+ORDER BY a.seat_id;</code></pre>
+<p>Each free seat <code>a</code> is joined to any other seat <code>b</code> whose ID differs by exactly 1 &mdash; that is, an immediate neighbour &mdash; and <code>b</code> must also be free. A seat survives the join only if at least one free neighbour exists; <code>DISTINCT</code> dedupes seats that have two.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>seat_id</th><th>why it qualifies</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>free, neighbour 2 free</td></tr>
+    <tr><td>2</td><td>free, neighbour 1 free</td></tr>
+    <tr><td>6</td><td>free, neighbour 7 free</td></tr>
+    <tr><td>7</td><td>free, neighbours 6 and 8 free &mdash; two matches, one output row</td></tr>
+    <tr><td>8</td><td>free, neighbour 7 free</td></tr>
+  </tbody>
+</table>
+<p>Seat <strong>4</strong> is correctly absent: it is free, but no row with ID 3 or 5 is also free, so the join produces nothing for it. Seat 7 appears <strong>once</strong> despite matching both 6 and 8 &mdash; <code>DISTINCT</code> removes the duplicate.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ABS(diff) = 1</code> and not <code>seat_id = seat_id + 1</code></h5>
+<p><code>ABS(a.seat_id - b.seat_id) = 1</code> matches a neighbour on <em>either</em> side in one predicate &mdash; the seat before <em>or</em> after. You could instead write <code>b.seat_id IN (a.seat_id - 1, a.seat_id + 1)</code>; same result. What you must <em>not</em> assume is contiguous IDs starting at 1 &mdash; the question warns the row may start anywhere, so anything based on <code>ROW_NUMBER</code> position or hard-coded ranges is fragile. The arithmetic on <code>seat_id</code> itself is robust to the starting offset, though it does assume IDs are gap-free integers.</p>
+
+<h5>Why <code>DISTINCT</code> is required</h5>
+<p>A self-join produces one output row per matching <em>pair</em>. Seat 7 has two free neighbours, so it matches twice and would appear twice without <code>DISTINCT</code>. The question explicitly says "no duplicate output", so <code>DISTINCT</code> is mandatory, not stylistic. An alternative that needs no <code>DISTINCT</code> is <code>EXISTS</code>: <code>WHERE a.free='Y' AND EXISTS (SELECT 1 FROM cinema b WHERE b.free='Y' AND ABS(a.seat_id-b.seat_id)=1)</code> &mdash; it asks "is there at least one" and stops, naturally yielding one row per seat.</p>
+
+<h5>The join naturally excludes the self-pair</h5>
+<p>A seat is not its own neighbour: <code>ABS(a.seat_id - b.seat_id) = 1</code> can never be satisfied when <code>a</code> and <code>b</code> are the same row (difference 0). So no explicit <code>a.seat_id &lt;&gt; b.seat_id</code> is needed &mdash; the distance predicate already rules out the self-match. Contrast a self-join keyed on equality, where you <em>must</em> add <code>a.id &lt;&gt; b.id</code> to avoid pairing a row with itself.</p>
+
+<h5>What a senior says next &mdash; the window-function alternative</h5>
+<p>The self-join is O(n&sup2;) in the worst case and assumes no ID gaps. A cleaner modern phrasing uses <code>LAG</code>/<code>LEAD</code>: order by <code>seat_id</code>, look at the previous and next row's <code>free</code> flag, and keep a free seat if either neighbour is free. That sorts once &mdash; O(n log n) &mdash; and, if you compare on <code>seat_id</code> proximity rather than blind row order, it also tolerates ID gaps gracefully. Offering the window-function version unprompted, with its complexity edge, is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> model "adjacent" as a self-join on <code>ABS(seat_id - seat_id) = 1</code> so it works regardless of the starting ID, add <code>DISTINCT</code> because a seat with two free neighbours matches twice, note the distance predicate already excludes the self-pair, and offer a <code>LAG/LEAD</code> rewrite that is O(n log n) and gap-tolerant.</div>

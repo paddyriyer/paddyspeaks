@@ -1,0 +1,66 @@
+<p>A finance team in the UK reports revenue by <em>fiscal</em> quarter, where the year starts on 1 April. Calendar-quarter functions give the wrong answer: April is the start of FQ1, and January&ndash;March belongs to the <em>previous</em> fiscal year. The interviewer is probing whether you can shift a date into a custom fiscal calendar with arithmetic on the month number, and whether you get the year-attribution boundary right.</p>
+
+<h4>1. The source data &mdash; <code>revenue</code></h4>
+<table>
+  <thead><tr><th>d</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-02-15</td><td>100</td><td>Feb 2025 &rarr; FY2024 FQ4 (prior fiscal year)</td></tr>
+    <tr><td>2025-04-10</td><td>200</td><td>1 Apr boundary &rarr; first day of FY2025 FQ1</td></tr>
+    <tr><td>2025-06-30</td><td>300</td><td>last day of FQ1</td></tr>
+    <tr><td>2025-09-29</td><td>500</td><td>FQ2 (Jul&ndash;Sep)</td></tr>
+    <tr><td>2025-12-31</td><td>700</td><td>FQ3 (Oct&ndash;Dec)</td></tr>
+    <tr><td>2026-03-30</td><td>900</td><td>Mar 2026 &rarr; FY2025 FQ4 &mdash; year rolls back</td></tr>
+    <tr><td>2026-04-01</td><td>1000</td><td>next 1 Apr &rarr; FY2026 FQ1</td></tr>
+  </tbody>
+</table>
+<p>The boundary cases are the whole interview: 2025-02-15 and 2026-03-30 are both January&ndash;March dates that must be attributed to the <em>prior</em> fiscal year, while 2025-04-10 and 2026-04-01 sit exactly on 1 April &mdash; the first day of a new fiscal year.</p>
+
+<h4>2. The SQL &mdash; month-based CASE shifting</h4>
+<pre><code>SELECT
+  CASE WHEN EXTRACT(MONTH FROM d) &gt;= 4 THEN EXTRACT(YEAR FROM d)::INT
+       ELSE EXTRACT(YEAR FROM d)::INT - 1
+  END AS fiscal_year,
+  CASE
+    WHEN EXTRACT(MONTH FROM d) BETWEEN 4 AND 6   THEN 1
+    WHEN EXTRACT(MONTH FROM d) BETWEEN 7 AND 9   THEN 2
+    WHEN EXTRACT(MONTH FROM d) BETWEEN 10 AND 12 THEN 3
+    ELSE 4
+  END AS fiscal_quarter,
+  SUM(amount) AS total_amount
+FROM revenue
+GROUP BY 1, 2
+ORDER BY fiscal_year, fiscal_quarter;</code></pre>
+<p>The first <code>CASE</code> attributes the fiscal year: April&ndash;December stay in the calendar year, January&ndash;March roll back by one. The second <code>CASE</code> buckets the month into FQ1&ndash;FQ4. <code>GROUP BY 1, 2</code> aggregates by the two computed expressions positionally.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>fiscal_year</th><th>fiscal_quarter</th><th>total_amount</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2024</td><td>4</td><td>100</td><td>Feb 2025 rolled back to FY2024</td></tr>
+    <tr><td>2025</td><td>1</td><td>500</td><td>Apr+Jun 2025 (200+300)</td></tr>
+    <tr><td>2025</td><td>2</td><td>900</td><td>Jul+Sep 2025 (400+500)</td></tr>
+    <tr><td>2025</td><td>3</td><td>1300</td><td>Oct+Dec 2025 (600+700)</td></tr>
+    <tr><td>2025</td><td>4</td><td>1700</td><td>Jan+Mar 2026 (800+900) rolled back to FY2025</td></tr>
+    <tr><td>2026</td><td>1</td><td>1000</td><td>Apr 2026 starts FY2026</td></tr>
+  </tbody>
+</table>
+<p>FY2025 FQ4 = 1700 collects January and March <em>2026</em> revenue &mdash; calendar year 2026, fiscal year 2025. Meanwhile 2026-04-01 jumps to FY2026 FQ1. The fiscal calendar straddles the calendar new year, and the year-rollback <code>CASE</code> is what gets that right.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two shifts, not one &mdash; quarter <em>and</em> year</h5>
+<p>A fiscal calendar moves both the quarter boundaries and the year label. April is FQ1 (quarter shift), but a January date belongs to the fiscal year that <em>started the previous April</em> (year shift). Beginners shift the quarter and forget the year, landing March 2026 in FY2026 instead of FY2025. The two <code>CASE</code> expressions handle the two shifts independently &mdash; keep them separate and the logic stays readable.</p>
+
+<h5>The boundary is <code>&gt;= 4</code>, and that is deliberate</h5>
+<p>The fiscal year starts on 1 April, so month 4 is the <em>first</em> month of the new fiscal year &mdash; the test is <code>EXTRACT(MONTH FROM d) &gt;= 4</code>, inclusive of April. A frequent off-by-one is <code>&gt; 4</code>, which would push all of April into the prior fiscal year. April&ndash;December (months 4&ndash;12) keep the calendar year; January&ndash;March (1&ndash;3) subtract one. Verify with a 1-April row, as the fixture does (2025-04-10 &rarr; FY2025).</p>
+
+<h5>Why month arithmetic beats a fiscal-calendar table here</h5>
+<p>For a fixed, simple offset (always 1 April), deriving the fiscal fields with <code>EXTRACT</code> + <code>CASE</code> is self-contained and needs no extra table. The moment the calendar gets irregular &mdash; 4-4-5 week patterns, 52/53-week years, mid-month starts &mdash; arithmetic breaks down and a <em>date-dimension table</em> (one row per date pre-tagged with fiscal_year and fiscal_quarter) becomes the right tool: you simply join to it. Knowing when to graduate from arithmetic to a calendar table is the senior judgement.</p>
+
+<h5><code>GROUP BY</code> positional references and re-computation</h5>
+<p><code>GROUP BY 1, 2</code> refers to the first two <code>SELECT</code> items by position &mdash; concise, and it avoids repeating the long <code>CASE</code> expressions. Postgres also lets you <code>GROUP BY</code> a <code>SELECT</code>-list alias; the SQL standard technically does not, and MySQL/SQL Server differ, so positional or repeated-expression forms are the most portable. Either way the engine evaluates the <code>CASE</code> per row before grouping &mdash; there is no hidden cost to the positional shorthand.</p>
+
+<h5>Dialect &mdash; built-in fiscal helpers</h5>
+<p>Some engines shortcut this. SQL Server's <code>DATEPART(QUARTER, DATEADD(MONTH, -3, d))</code> rotates the calendar by a quarter; Snowflake/BigQuery have no native fiscal-quarter function and use the same <code>CASE</code> idiom; Oracle can lean on <code>NLS</code> settings or <code>TO_CHAR</code> tricks. The explicit month-bucket <code>CASE</code> shown here is the most portable and the most transparent &mdash; an interviewer can read the boundaries straight off it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a fiscal calendar needs <em>two</em> shifts &mdash; bucket the quarter <em>and</em> roll the year back for pre-April months &mdash; get the inclusive <code>&gt;= 4</code> boundary right, verify against a 1-April row, and know to switch from month arithmetic to a date-dimension table once the fiscal calendar stops being a clean monthly offset.</div>

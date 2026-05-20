@@ -1,0 +1,61 @@
+<p>Meta runs a nightly maintenance job over its ad inventory: any ad that has not been active in the last 30 days should be flipped from <code>active</code> to <code>inactive</code>, so stale campaigns stop showing in advertiser dashboards. It is a routine <code>UPDATE</code>. The interview value is in the predicate &mdash; getting the date arithmetic, the status guard, and the idempotency right so the job is safe to run every night.</p>
+
+<h4>1. The source data &mdash; <code>ads</code></h4>
+<p>Sample rows, with <code>last_active_date</code> shown as days before today:</p>
+<table>
+  <thead><tr><th>ad_id</th><th>status (before)</th><th>last_active_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>active</td><td>5 days ago</td></tr>
+    <tr><td>2</td><td>active</td><td>45 days ago</td></tr>
+    <tr><td>3</td><td>active</td><td>60 days ago</td></tr>
+    <tr><td>4</td><td>inactive</td><td>120 days ago</td></tr>
+    <tr><td>5</td><td>active</td><td>15 days ago</td></tr>
+    <tr><td>6</td><td>active</td><td>90 days ago</td></tr>
+  </tbody>
+</table>
+<p>Ad 4 is the edge case: it is stale (120 days) but <strong>already <code>inactive</code></strong> &mdash; the job should leave it alone, not "re-deactivate" it. Ads 1 and 5 are recent and stay active; ads 2, 3, 6 are the ones that flip.</p>
+
+<h4>2. The SQL &mdash; conditional <code>UPDATE</code></h4>
+<pre><code>UPDATE ads SET status = 'inactive'
+WHERE last_active_date &lt; CURRENT_DATE - INTERVAL '30 days'
+  AND status = 'active';</code></pre>
+<p>Two predicates joined by <code>AND</code>: the row must be older than the 30-day cutoff <em>and</em> currently <code>active</code>. The status check is what keeps the job from touching ads that are already inactive.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>State of <code>ads</code> after the <code>UPDATE</code>:</p>
+<table>
+  <thead><tr><th>ad_id</th><th>status (after)</th><th>last_active_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>active</td><td>5 days ago</td></tr>
+    <tr><td>2</td><td>inactive</td><td>45 days ago</td></tr>
+    <tr><td>3</td><td>inactive</td><td>60 days ago</td></tr>
+    <tr><td>4</td><td>inactive</td><td>120 days ago</td></tr>
+    <tr><td>5</td><td>active</td><td>15 days ago</td></tr>
+    <tr><td>6</td><td>inactive</td><td>90 days ago</td></tr>
+  </tbody>
+</table>
+<p>Ads 2, 3, and 6 flipped to <code>inactive</code>. Ads 1 and 5 stayed <code>active</code> &mdash; inside the 30-day window. Ad 4 stayed <code>inactive</code> and, crucially, was <em>not rewritten</em>: the <code>status = 'active'</code> predicate excluded it from the update entirely.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>status = 'active'</code> guard matters &mdash; idempotency</h5>
+<p>Without <code>AND status = 'active'</code>, every stale row gets a physical write each night, including the thousands already <code>inactive</code>. The end-state is identical, but each no-op write produces a dead tuple and WAL traffic, bloating the table and the replication stream. The guard makes the job <em>idempotent in cost</em>: a second run touches zero rows. On a billion-row ad table at Meta scale, that is the difference between a cheap job and a vacuum problem.</p>
+
+<h5>The boundary &mdash; what does "30 days" mean exactly?</h5>
+<p><code>last_active_date &lt; CURRENT_DATE - INTERVAL '30 days'</code> uses a strict <code>&lt;</code>, so an ad last active <em>exactly</em> 30 days ago is <strong>not</strong> flipped &mdash; it is treated as still inside the window. Whether the rule is "more than 30 days" or "30 or more days" is a product decision; switch to <code>&lt;=</code> if the latter. Always pin this down rather than guessing.</p>
+
+<h5><code>DATE</code> vs <code>TIMESTAMP</code> &mdash; a subtle correctness issue</h5>
+<p>Here <code>last_active_date</code> is a <code>DATE</code>, so the comparison is clean. If it were a <code>TIMESTAMP</code>, <code>CURRENT_DATE - INTERVAL '30 days'</code> is midnight 30 days ago, and an ad active at 14:00 that day would compare as older than midnight &mdash; an off-by-part-of-a-day error. With timestamps, compare against <code>now() - INTERVAL '30 days'</code> instead, and be explicit about the time component.</p>
+
+<h5>Use a relative cutoff, never a hardcoded date</h5>
+<p><code>CURRENT_DATE - INTERVAL '30 days'</code> recomputes the window every run, so the job is correct whenever it fires. Hardcoding a literal like <code>'2026-04-15'</code> would silently rot &mdash; the window would freeze while the calendar moves on. For a nightly job, the cutoff must be relative to <code>CURRENT_DATE</code>.</p>
+
+<h5>Auditability &mdash; the follow-up an interviewer expects</h5>
+<p>A destructive bulk <code>UPDATE</code> with no record of what changed is risky in production. Two senior moves: preview first with the matching <code>SELECT</code>, and use <code>RETURNING</code> to capture exactly which ads were flipped for an audit log:</p>
+<pre><code>UPDATE ads SET status = 'inactive'
+WHERE last_active_date &lt; CURRENT_DATE - INTERVAL '30 days'
+  AND status = 'active'
+RETURNING ad_id, last_active_date;</code></pre>
+<p>A real pipeline would also stamp a <code>deactivated_at</code> column so the transition is traceable, not just inferred.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> keep the <code>status = 'active'</code> guard so the job is idempotent and does not bloat the table with no-op writes, use a relative <code>CURRENT_DATE</code> cutoff rather than a literal, treat the strict <code>&lt;</code> boundary and any <code>DATE</code>/<code>TIMESTAMP</code> mismatch as explicit correctness decisions, and reach for <code>RETURNING</code> to make the bulk change auditable.</div>

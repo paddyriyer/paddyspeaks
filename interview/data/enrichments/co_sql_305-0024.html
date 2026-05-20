@@ -1,0 +1,52 @@
+<p>Snap's fulfillment team gives every order a payment-due date seven days after it was placed. It is the simplest possible date arithmetic &mdash; add 7 days &mdash; but the interviewer is checking whether you reach for proper interval arithmetic instead of treating dates like integers, and whether you know what happens at month and year boundaries.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>customer_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-25</td><td>101</td><td>completed</td></tr>
+    <tr><td>2</td><td>2024-02-27</td><td>102</td><td>completed</td></tr>
+    <tr><td>3</td><td>2024-12-28</td><td>103</td><td>pending</td></tr>
+    <tr><td>4</td><td>2024-02-29</td><td>104</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Three deliberate edge dates: Jan 25 (+7 crosses into February), Dec 28 (+7 crosses into the <em>next year</em>), and Feb 29 of a <strong>leap year</strong>. If the arithmetic is real date arithmetic, all three just work.</p>
+
+<h4>2. The SQL &mdash; <code>order_date + INTERVAL '7 days'</code></h4>
+<pre><code>SELECT order_id, order_date, (order_date + INTERVAL '+7 days') AS due_date FROM orders;</code></pre>
+<p>Adding an <code>INTERVAL</code> to a date shifts it by that span. The engine handles month lengths and leap years &mdash; you do not compute "what month is it" yourself.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>due_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-25</td><td>2024-02-01</td></tr>
+    <tr><td>2</td><td>2024-02-27</td><td>2024-03-05</td></tr>
+    <tr><td>3</td><td>2024-12-28</td><td>2025-01-04</td></tr>
+    <tr><td>4</td><td>2024-02-29</td><td>2024-03-07</td></tr>
+  </tbody>
+</table>
+<p>Every boundary crossed correctly: Jan 25 + 7 rolls into February, Dec 28 + 7 rolls into <strong>2025</strong>, and Feb 29 + 7 lands on Mar 7 &mdash; the engine knew 2024's February has 29 days. Note one subtlety: <code>order_date</code> is a <code>DATE</code>, but <code>date + interval</code> returns a <code>timestamp</code>, so <code>due_date</code> technically carries a (midnight) time component.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>'+7 days'</code> string &mdash; harmless, but not idiomatic</h5>
+<p>The literal <code>INTERVAL '+7 days'</code> works, but the leading <code>+</code> is unusual; the conventional spelling is <code>INTERVAL '7 days'</code>. Cleaner still in Postgres is plain integer addition on a date:</p>
+<pre><code>SELECT order_id, order_date, order_date + 7 AS due_date FROM orders;</code></pre>
+<p><code>date + integer</code> adds that many days and &mdash; unlike <code>date + interval</code> &mdash; returns a <code>DATE</code>, not a <code>timestamp</code>. So if you want <code>due_date</code> to stay a pure date, integer addition is actually the more precise choice. This is one of the few places a non-portable shortcut is also the better one.</p>
+
+<h5>The date-vs-timestamp return type &mdash; a real gotcha</h5>
+<p><code>order_date + INTERVAL '7 days'</code> promotes the result to <code>timestamp</code>. Usually invisible, but it bites when you compare or join: <code>due_date = some_date</code> can behave unexpectedly if <code>due_date</code> ever carries a non-midnight time, and the column reports a different type to downstream tooling. If the schema expects a clean date, cast it: <code>(order_date + INTERVAL '7 days')::DATE</code>.</p>
+
+<h5>Dialect portability &mdash; this is the trap the question hides</h5>
+<p>Date arithmetic is the <em>least</em> portable corner of SQL. The same "+7 days" is spelled four different ways:</p>
+<pre><code>order_date + INTERVAL '7 days'                 -- Postgres
+DATE_ADD(order_date, INTERVAL 7 DAY)           -- MySQL
+DATEADD(day, 7, order_date)                    -- SQL Server
+DATE_ADD(order_date, 7)  /  order_date + 7     -- BigQuery / others</code></pre>
+<p>State which engine you are targeting. Reaching for an interval (or integer addition) rather than something like <code>order_date + 7</code> assuming a numeric date is the senior move &mdash; in many engines a date is <em>not</em> silently a number.</p>
+
+<h5>Edge cases: NULL dates and "business days"</h5>
+<p>A NULL <code>order_date</code> yields a NULL <code>due_date</code> &mdash; arithmetic propagates NULL &mdash; which is correct but worth a comment. The bigger lurking ambiguity: "7 days" almost always means 7 <em>calendar</em> days, but fulfillment SLAs are often quoted in <em>business</em> days. If order 1's Jan 25 (a Thursday) should skip the weekend, a flat <code>+7</code> is wrong and you need a calendar table or a weekday-aware calculation. Confirm calendar-vs-business before writing the query.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use interval (or integer) date arithmetic instead of treating a date as a raw number, know that <code>date + interval</code> returns a <code>timestamp</code> while <code>date + integer</code> stays a <code>DATE</code>, name the per-dialect spelling differences, and surface the calendar-days-vs-business-days ambiguity before coding.</div>

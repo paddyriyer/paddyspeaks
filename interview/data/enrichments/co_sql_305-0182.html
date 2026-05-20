@@ -1,0 +1,56 @@
+<p>Infosys runs an NLP pipeline that scores customer reviews from &minus;1 (most negative) to +1 (most positive). The product team wants one summary row: the average sentiment, plus how many reviews are clearly positive and clearly negative. It looks like three independent aggregates &mdash; but the thresholds and the NULL handling are where an interviewer probes whether you understand <code>CASE</code> inside an aggregate.</p>
+
+<h4>1. The source data &mdash; <code>reviews</code></h4>
+<table>
+  <thead><tr><th>review_id</th><th>sentiment_score</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>0.9</td></tr>
+    <tr><td>2</td><td>0.7</td></tr>
+    <tr><td>3</td><td>0.1</td></tr>
+    <tr><td>4</td><td>-0.8</td></tr>
+    <tr><td>5</td><td>-0.95</td></tr>
+    <tr><td>6</td><td>0.4</td></tr>
+    <tr><td>7</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Seven rows, but two edge cases. Review 3 (0.1) and review 6 (0.4) are <strong>neutral</strong> &mdash; they fall in the &minus;0.5-to-+0.5 dead zone and count as neither positive nor negative. Review 7 has a <strong>NULL</strong> score: the scorer failed, or the review had no text. How the three aggregates treat that NULL differs.</p>
+
+<h4>2. The SQL &mdash; <code>AVG + conditional SUM</code></h4>
+<pre><code>SELECT
+  AVG(sentiment_score) AS avg,
+  SUM(CASE WHEN sentiment_score &gt; 0.5 THEN 1 ELSE 0 END) AS positive,
+  SUM(CASE WHEN sentiment_score &lt; -0.5 THEN 1 ELSE 0 END) AS negative
+FROM reviews;</code></pre>
+<p>One scan, three numbers. Each <code>CASE</code> maps a row to 1 or 0, and <code>SUM</code> tallies the 1s &mdash; the classic "conditional count" pattern.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg</th><th>positive</th><th>negative</th></tr></thead>
+  <tbody>
+    <tr><td>0.0583333&hellip;</td><td>2</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>The six non-NULL scores sum to 0.35, and 0.35 &divide; 6 = 0.0583 &mdash; <code>AVG</code> dropped the NULL row from both sum and count. <code>positive</code> = 2 (only 0.9 and 0.7 clear +0.5; the 0.4 is neutral). <code>negative</code> = 2 (&minus;0.8 and &minus;0.95). The two neutral reviews and the NULL all sit outside both buckets &mdash; so <code>positive + negative</code> is 4, not 7.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The NULL is treated inconsistently across the three columns &mdash; and that is fine</h5>
+<p><code>AVG</code> ignores the NULL automatically (it divides by <code>COUNT(sentiment_score)</code> = 6). The conditional <code>SUM</code>s also exclude it, but for a different reason: <code>NULL &gt; 0.5</code> evaluates to <em>unknown</em>, the <code>WHEN</code> is not satisfied, so the <code>ELSE 0</code> branch fires and contributes 0. Different mechanism, same outcome &mdash; the NULL review counts toward nothing. Be able to articulate both paths.</p>
+
+<h5>Why <code>SUM(CASE&hellip;)</code> and not <code>COUNT(CASE&hellip;)</code></h5>
+<p>A frequent bug is writing <code>COUNT(CASE WHEN sentiment_score &gt; 0.5 THEN 1 END)</code> &mdash; which works &mdash; versus <code>COUNT(CASE WHEN sentiment_score &gt; 0.5 THEN 1 ELSE 0 END)</code> &mdash; which is <em>wrong</em>. <code>COUNT</code> counts non-NULL values, so with an <code>ELSE 0</code> it counts every row (the 0s included) and returns 7. The reliable rules: <code>SUM(CASE &hellip; THEN 1 ELSE 0 END)</code>, or <code>COUNT(CASE &hellip; THEN 1 END)</code> with no <code>ELSE</code>. Postgres also offers the cleaner <code>FILTER</code> clause:</p>
+<pre><code>SELECT AVG(sentiment_score) AS avg,
+       COUNT(*) FILTER (WHERE sentiment_score &gt; 0.5)  AS positive,
+       COUNT(*) FILTER (WHERE sentiment_score &lt; -0.5) AS negative
+FROM reviews;</code></pre>
+
+<h5>The dead zone &mdash; is it intentional?</h5>
+<p>Scores in [&minus;0.5, +0.5] are counted as neither positive nor negative. That is a deliberate "strongly positive / strongly negative" definition, but the boundaries are arbitrary. Confirm with the product owner: should the buckets be <code>&gt; 0</code> / <code>&lt; 0</code> (no dead zone), or is a third <code>neutral</code> count wanted? If neutral matters, add <code>SUM(CASE WHEN sentiment_score BETWEEN -0.5 AND 0.5 THEN 1 ELSE 0 END)</code> so the three buckets partition the non-NULL rows.</p>
+
+<h5>Boundary values &mdash; strict vs inclusive</h5>
+<p>A score of exactly 0.5 satisfies neither <code>&gt; 0.5</code> nor <code>&lt; -0.5</code>, so it lands in the neutral zone. If the spec says "0.5 and above is positive", the operator must change to <code>&gt;=</code>. These off-by-one boundary decisions are exactly what interviewers poke at &mdash; state your choice rather than letting the <code>&gt;</code> default it.</p>
+
+<h5>Edge case: an empty table or all-NULL scores</h5>
+<p>If <code>reviews</code> is empty, <code>AVG</code> returns NULL while both <code>SUM(CASE&hellip;)</code> columns return NULL too (<code>SUM</code> of zero rows is NULL, not 0). The same happens if every score is NULL. A dashboard expecting numbers needs <code>COALESCE(SUM(CASE&hellip;), 0)</code>. Worth noting because the conditional-sum pattern <em>feels</em> like it should bottom out at 0.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>AVG</code> and the conditional <code>SUM</code>s exclude the NULL by two different mechanisms, never pair <code>COUNT</code> with an <code>ELSE 0</code>, surface the arbitrary &plusmn;0.5 dead-zone boundaries as a definition question, and flag that <code>SUM</code> over zero rows returns NULL rather than 0.</div>

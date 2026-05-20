@@ -1,0 +1,66 @@
+<p>A Community automotive dataset records every car a manufacturer launched, by year. The product team wants a one-line sentence per company: did it launch more or fewer cars this year than last, and by how many. It is a conditional-aggregation question dressed up as a string-formatting one &mdash; and the interviewer is watching whether you count cleanly, handle the company that launched zero this year, and build the sentence safely.</p>
+
+<h4>1. The source data &mdash; <code>car_launches</code></h4>
+<table>
+  <thead><tr><th>year</th><th>company_name</th><th>product_name</th></tr></thead>
+  <tbody>
+    <tr><td>2024</td><td>Toyota</td><td>Camry</td></tr>
+    <tr><td>2024</td><td>Toyota</td><td>Corolla</td></tr>
+    <tr><td>2024</td><td>Toyota</td><td>RAV4</td></tr>
+    <tr><td>2023</td><td>Toyota</td><td>Prius</td></tr>
+    <tr><td>2024</td><td>Honda</td><td>Civic</td></tr>
+    <tr><td>2023</td><td>Honda</td><td>Accord</td></tr>
+    <tr><td>2023</td><td>Honda</td><td>CR-V</td></tr>
+    <tr><td>2023</td><td>Ford</td><td>Focus</td></tr>
+  </tbody>
+</table>
+<p>Toyota launched 3 this year vs 1 last &mdash; net <strong>+2</strong>. Honda launched 1 vs 2 &mdash; net <strong>&minus;1</strong>. Ford is the edge case: it launched <strong>nothing in 2024</strong> &mdash; 0 vs 1 &mdash; and must still appear with a "less" message.</p>
+
+<h4>2. The SQL &mdash; conditional counts then <code>concat_ws</code></h4>
+<pre><code>with t1 as(
+select company_name,
+    count(case when year = 2024 then 1 else null end) as car_count_2024,
+    count(case when year &lt;&gt; 2024 then 1 else null end) as car_count_2023,
+    (count(case when year = 2024 then 1 else null end)
+    - count(case when year &lt;&gt; 2024 then 1 else null end)) as diff
+from car_launches
+group by company_name
+)
+select t1.company_name,
+    concat_ws('  ',company_name,'launched',abs(diff),
+    case when diff &gt; 0 then 'more'
+      when diff &lt; 0 then 'less' end,'car in the current year') as result_message
+from t1</code></pre>
+<p>The CTE counts 2024 launches and non-2024 launches per company via <code>COUNT(CASE ...)</code>, and stores the signed difference. The outer query takes the <em>absolute</em> value of that difference and picks "more" or "less" from its sign, then stitches the sentence with <code>concat_ws</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>company_name</th><th>result_message</th></tr></thead>
+  <tbody>
+    <tr><td>Ford</td><td>Ford&nbsp;&nbsp;launched&nbsp;&nbsp;1&nbsp;&nbsp;less&nbsp;&nbsp;car in the current year</td></tr>
+    <tr><td>Honda</td><td>Honda&nbsp;&nbsp;launched&nbsp;&nbsp;1&nbsp;&nbsp;less&nbsp;&nbsp;car in the current year</td></tr>
+    <tr><td>Toyota</td><td>Toyota&nbsp;&nbsp;launched&nbsp;&nbsp;2&nbsp;&nbsp;more&nbsp;&nbsp;car in the current year</td></tr>
+  </tbody>
+</table>
+<p>Toyota reads "2 more", Honda and Ford each "1 less". Ford launched zero cars in 2024 yet still produced a row &mdash; because <code>COUNT(CASE ... ELSE NULL END)</code> returns 0, not NULL, for a group with no matching rows, so the company survives the grouping. The double spaces are <code>concat_ws</code>'s two-space separator showing between every field.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(CASE ... THEN 1 ELSE NULL END)</code> works</h5>
+<p><code>COUNT</code> ignores NULLs and counts everything else. The <code>CASE</code> emits <code>1</code> for matching rows and <code>NULL</code> for the rest, so <code>COUNT</code> tallies exactly the matches. <code>COUNT(CASE WHEN cond THEN 1 END)</code> &mdash; with the <code>ELSE NULL</code> left implicit &mdash; is identical and shorter. In Postgres the idiomatic form is the <code>FILTER</code> clause, which reads better:</p>
+<pre><code>count(*) FILTER (WHERE year = 2024) AS car_count_2024,
+count(*) FILTER (WHERE year &lt;&gt; 2024) AS car_count_2023</code></pre>
+
+<h5>The trap: <code>year &lt;&gt; 2024</code> is "every other year", not "2023"</h5>
+<p>The "previous year" bucket is defined as <em>not 2024</em>. If the table also held 2022 or 2021 launches, they would all land in <code>car_count_2023</code> and the comparison would silently become "2024 vs all-prior-years". The column alias even says <code>2023</code>, which makes the bug invisible. If the question truly means last year specifically, write <code>year = 2023</code>. Naming this mismatch is a senior catch.</p>
+
+<h5>Hardcoded year vs a dynamic "current year"</h5>
+<p>2024 is baked into the SQL. The moment the calendar turns over, every "current year" sentence is wrong. A robust version derives it: <code>EXTRACT(YEAR FROM CURRENT_DATE)</code> for this year and that value minus one for last year. Hardcoding is acceptable only if the question explicitly pins the reference year &mdash; otherwise call out the maintenance hazard.</p>
+
+<h5>The <code>diff = 0</code> gap in the <code>CASE</code></h5>
+<p>The sentence <code>CASE</code> covers <code>diff &gt; 0</code> and <code>diff &lt; 0</code> but has no branch for <code>diff = 0</code>. A company that launched the same count both years gets a <code>CASE</code> result of NULL, and <code>concat_ws</code> &mdash; which skips NULL arguments &mdash; would quietly drop the word, producing "launched 0 car in the current year" with a missing adjective. Add <code>WHEN diff = 0 THEN 'the same number of'</code> (or similar) to close the gap.</p>
+
+<h5>Companies absent in one year entirely</h5>
+<p>This works only because every company appears in <em>at least one</em> year, so <code>GROUP BY company_name</code> creates a group for it. A brand that launched cars in 2024 but never before still appears (its 2023 count is 0). But a company that exists in some master table yet launched nothing in <em>either</em> year would be missing &mdash; if the report must list all known brands, drive the query from the company dimension and <code>LEFT JOIN</code> launches onto it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use conditional aggregation (or <code>FILTER</code>) and know it returns 0 not NULL for empty groups, flag that <code>year &lt;&gt; 2024</code> silently means "all other years", replace the hardcoded year with <code>EXTRACT(YEAR FROM CURRENT_DATE)</code>, and close the missing <code>diff = 0</code> branch so <code>concat_ws</code> never drops a word.</div>

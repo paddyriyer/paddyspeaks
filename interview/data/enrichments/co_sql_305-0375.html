@@ -1,0 +1,43 @@
+<p>Spotify's payout model: each country has a monthly pool (paid subscriber revenue × ~70%); each artist gets a slice = <strong>their streams / total country streams × pool size</strong>. The query implements pro-rata distribution.</p>
+
+<h4>2. The SQL — three-CTE pro-rata calculation</h4>
+<pre><code>WITH streams_per_artist AS (
+  SELECT s.country, s.artist_id, COUNT(*) AS streams
+  FROM streams s GROUP BY s.country, s.artist_id
+),
+country_total AS (
+  SELECT country, SUM(streams) AS total_streams
+  FROM streams_per_artist GROUP BY country
+)
+SELECT spa.country, spa.artist_id, spa.streams,
+  ct.total_streams,
+  ROUND(spa.streams * 1.0 / NULLIF(ct.total_streams, 0) * cp.monthly_pool_usd, 2) AS payout_usd
+FROM streams_per_artist spa
+JOIN country_total ct  ON ct.country = spa.country
+JOIN country_pool cp   ON cp.country = spa.country
+ORDER BY payout_usd DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Pro-rata vs user-centric royalty (UCPS)</h5>
+<table><thead><tr><th>model</th><th>denominator</th></tr></thead>
+<tbody>
+<tr><td>Pro-rata (current)</td><td>total country streams</td></tr>
+<tr><td>User-centric (UCPS)</td><td>per-user streams; user's $$ goes only to artists THEY listened to</td></tr>
+</tbody></table>
+<p>Spotify uses pro-rata. Apple Music and Deezer experimenting with UCPS. The query above is the industry default; UCPS would require partitioning per-user.</p>
+
+<h5>The 30-second threshold</h5>
+<p>Streams under 30 seconds don't count. Production filters before aggregation:</p>
+<pre><code>WHERE played_seconds &gt;= 30</code></pre>
+
+<h5>The per-stream rate by country</h5>
+<p>$0.003 in US, $0.0003 in IN. The 10x divergence drives artists' release-region strategies.</p>
+
+<h5>The label / publisher / artist split</h5>
+<p>The query computes artist-level payout. The actual artist receives only ~20% after label cut, publisher cut, distributor cut. Production breaks this further.</p>
+
+<h5>The fraud-stream filter</h5>
+<p>Bot-driven streams to inflate payout (5-second-loop attacks) are excluded by Spotify's anti-fraud system. Aggregate streams should pre-filter <code>WHERE NOT is_fraudulent</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement pro-rata cleanly via CTEs, name UCPS as the alternative under industry debate, filter by the 30-second threshold, and distinguish artist payout from artist take-home (label cut). Fraud-stream exclusion is the over-the-bar rigor.</div>

@@ -1,0 +1,63 @@
+<p>IBM&rsquo;s e-commerce analytics team wants to isolate orders placed on weekends &mdash; a common demand-signal segmentation used in retail and logistics. The interviewer is probing whether you know how to extract a numeric day-of-week from a timestamp, which integer values represent Saturday and Sunday in the target engine, how to format it into a human-readable name, and whether you know the engine&rsquo;s <code>DOW</code> numbering convention (0-indexed vs 1-indexed).</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_ts</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>2025-05-12 09:15:00</td><td>149.00</td></tr>
+    <tr><td>1002</td><td>2025-05-13 14:30:00</td><td>75.50</td></tr>
+    <tr><td>1003</td><td>2025-05-14 20:00:00</td><td>220.00</td></tr>
+    <tr><td>1004</td><td>2025-05-15 08:45:00</td><td>35.00</td></tr>
+    <tr><td>1005</td><td>2025-05-16 11:00:00</td><td>180.00</td></tr>
+    <tr><td>1006</td><td>2025-05-17 16:20:00</td><td>99.00</td></tr>
+    <tr><td>1007</td><td>2025-05-18 13:05:00</td><td>310.00</td></tr>
+  </tbody>
+</table>
+<p>2025-05-12 is Monday (DOW=1), 2025-05-13 Tuesday, 2025-05-14 Wednesday, 2025-05-15 Thursday, 2025-05-16 Friday, 2025-05-17 Saturday (DOW=6), 2025-05-18 Sunday (DOW=0). The query should return only orders 1006 and 1007.</p>
+
+<h4>2. The SQL &mdash; EXTRACT(DOW) weekend filter with TO_CHAR label</h4>
+<pre><code>SELECT order_id, order_ts, amount,
+       TO_CHAR(order_ts::timestamp, 'Day') AS day_name,
+       CASE WHEN EXTRACT(DOW FROM order_ts::timestamp) IN (0, 6) THEN 'weekend' ELSE 'weekday' END AS day_type
+FROM orders
+WHERE EXTRACT(DOW FROM order_ts::timestamp) IN (0, 6)
+ORDER BY order_ts;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_ts</th><th>amount</th><th>day_name</th><th>day_type</th></tr></thead>
+  <tbody>
+    <tr><td>1006</td><td>2025-05-17 16:20:00</td><td>99.00</td><td>Saturday&nbsp;&nbsp;</td><td>weekend</td></tr>
+    <tr><td>1007</td><td>2025-05-18 13:05:00</td><td>310.00</td><td>Sunday&nbsp;&nbsp;&nbsp;</td><td>weekend</td></tr>
+  </tbody>
+</table>
+<p><code>TO_CHAR(..., 'Day')</code> returns a space-padded string (e.g. <code>'Saturday '</code>) in Postgres; in Snowflake the padding may differ. The <code>day_type</code> column is always <code>'weekend'</code> here because the <code>WHERE</code> clause already filters to DOW 0 or 6 &mdash; the <code>CASE</code> is redundant but included for display/reporting purposes.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Postgres/Snowflake DOW numbering: 0 = Sunday</h5>
+<p><code>EXTRACT(DOW FROM ...)</code> uses the ISO-adjacent convention where Sunday = 0, Monday = 1, &hellip;, Saturday = 6. This is the Postgres convention and matches Snowflake&rsquo;s <code>EXTRACT(DAYOFWEEK_ISO)</code> offset behavior. The key interview trap: SQL Server&rsquo;s <code>DATEPART(dw, ...)</code> returns 1 = Sunday by default (or 1 = Monday depending on <code>SET DATEFIRST</code>), MySQL&rsquo;s <code>DAYOFWEEK()</code> returns 1 = Sunday with the same mapping, while <code>WEEKDAY()</code> returns 0 = Monday. Knowing which engine you are on and which DOW convention it uses is the crux of this question.</p>
+
+<h5>The CASE WHEN is redundant given the WHERE &mdash; and that&rsquo;s intentional</h5>
+<p>Because the <code>WHERE</code> already restricts to <code>DOW IN (0, 6)</code>, every returned row has <code>day_type = 'weekend'</code>. The <code>CASE WHEN</code> is included for reporting completeness &mdash; downstream tools consuming this query can rely on the column existing without re-computing DOW. If the <code>WHERE</code> were relaxed to return all days, the <code>CASE WHEN</code> would correctly label each row. Interviewers sometimes ask "why is this column always &lsquo;weekend&rsquo;?" &mdash; the right answer is "because the WHERE pre-filters; the column would become meaningful if you removed the WHERE to get a full-week breakdown."</p>
+
+<h5>TO_CHAR for human-readable day names</h5>
+<p><code>TO_CHAR(ts, 'Day')</code> is the Postgres/Snowflake idiom. It returns a space-padded fixed-width string. Use <code>TRIM(TO_CHAR(ts, 'Day'))</code> if you need the name without padding. Alternatives: <code>TO_CHAR(ts, 'Dy')</code> for abbreviated names (Mon, Tue &hellip;). The query casts <code>order_ts::timestamp</code> to ensure the function receives a timestamp type even if the column is stored as text.</p>
+
+<h5>Performance: filtering on a function</h5>
+<p><code>EXTRACT(DOW FROM order_ts)</code> in the <code>WHERE</code> clause prevents index use on <code>order_ts</code>. For large tables this causes a full scan. Options to avoid it:</p>
+<ul>
+  <li>Add a generated/computed column <code>order_dow TINYINT</code> and index it (Postgres, MySQL, SQL Server).</li>
+  <li>Snowflake: use a <code>SEARCH OPTIMIZATION</code> service or cluster key, or maintain a materialized column.</li>
+  <li>Partition the table by calendar week or use a date dimension table joined on <code>DATE(order_ts)</code>.</li>
+</ul>
+
+<h5>Dialect notes</h5>
+<ul>
+  <li><strong>Snowflake native:</strong> <code>DAYOFWEEK(order_ts)</code> returns 0 (Sun) &ndash; 6 (Sat) &mdash; identical to this query. Also <code>DAYOFWEEKISO()</code> returns 1 (Mon) &ndash; 7 (Sun).</li>
+  <li><strong>BigQuery:</strong> <code>EXTRACT(DAYOFWEEK FROM ts)</code> returns 1 (Sun) &ndash; 7 (Sat); weekend = <code>IN (1, 7)</code>.</li>
+  <li><strong>MySQL:</strong> <code>DAYOFWEEK(ts)</code> = 1 (Sun) &ndash; 7 (Sat); weekend = <code>IN (1, 7)</code>.</li>
+  <li><strong>SQL Server:</strong> <code>DATEPART(dw, ts)</code> default = 1 (Sun) &ndash; 7 (Sat); controlled by <code>SET DATEFIRST</code>.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> state the DOW numbering convention for the engine (0 = Sunday in Postgres/Snowflake), explain that the <code>CASE WHEN</code> is redundant but retained for reporting downstream, flag that <code>EXTRACT(DOW FROM ...)</code> in <code>WHERE</code> blocks index use on the timestamp column, and recite the cross-dialect DOW mapping table from memory &mdash; it decides correctness silently and most candidates get it wrong for at least one engine.</div>

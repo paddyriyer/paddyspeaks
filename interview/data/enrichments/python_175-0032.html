@@ -1,0 +1,48 @@
+<p>Netflix's content-tagging pipeline clusters localized title strings that are permutations of the same token set &mdash; useful for catching slug collisions and near-duplicate metadata. "Group Anagrams" tests one core idea: can you design a <em>canonical key</em> that is identical for every member of a group, then bucket by it? The whole question lives or dies on the key function.</p>
+
+<h4>1. The input data</h4>
+<pre><code>strs = ["eat", "tea", "tan", "ate", "nat", "bat"]</code></pre>
+<p>Three anagram families hide here: {eat, tea, ate}, {tan, nat}, and the singleton {bat}.</p>
+
+<h4>2. The approach</h4>
+<p>For each string, <code>''.join(sorted(s))</code> produces a canonical signature &mdash; sorting the characters means every permutation maps to the same string (<code>"eat"</code>, <code>"tea"</code>, <code>"ate"</code> all become <code>"aet"</code>). That signature is the dictionary key.</p>
+<p><code>defaultdict(list)</code> removes the "is this key present yet?" branch: the first time a signature is seen, an empty list is auto-created and the original string is appended; subsequent matches append to the existing list. After one pass, <code>g.values()</code> yields the groups. Insertion order is preserved (Python 3.7+ dicts), so groups appear in first-seen order.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>string</th><th>sorted key</th><th>bucket</th></tr></thead>
+  <tbody>
+    <tr><td>eat</td><td>aet</td><td>[eat]</td></tr>
+    <tr><td>tea</td><td>aet</td><td>[eat, tea]</td></tr>
+    <tr><td>tan</td><td>ant</td><td>[tan]</td></tr>
+    <tr><td>ate</td><td>aet</td><td>[eat, tea, ate]</td></tr>
+    <tr><td>nat</td><td>ant</td><td>[tan, nat]</td></tr>
+    <tr><td>bat</td><td>abt</td><td>[bat]</td></tr>
+  </tbody>
+</table>
+<pre><code>groupAnagrams(strs)  ->  [['eat', 'tea', 'ate'], ['tan', 'nat'], ['bat']]</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n &middot; k log k) time for n strings of max length k &mdash; the <code>sorted()</code> call dominates each iteration. O(n &middot; k) space to store every string in the buckets. The sort is the bottleneck worth naming.</p>
+
+<h5>The idiomatic alternative &mdash; a count tuple key</h5>
+<p>Replace the sort with a 26-element character count, eliminating the <code>log k</code> factor:</p>
+<pre><code>from collections import defaultdict, Counter
+g = defaultdict(list)
+for s in strs:
+    key = tuple(sorted(Counter(s).items()))   # or a fixed length-26 tuple
+    g[key].append(s)</code></pre>
+<p>A fixed <code>tuple(count[c] for c in range(26))</code> key is O(k) per string &mdash; strictly better than sorting for long strings, and the senior answer when the alphabet is small and known.</p>
+
+<h5>The edge case &mdash; empty strings and case sensitivity</h5>
+<p>Empty strings all share the key <code>""</code> and correctly cluster together. But <code>"Eat"</code> and <code>"eat"</code> sort to different keys (<code>"Eat"</code> &rarr; <code>"Eat"</code>), so mixed case splits a group &mdash; if the spec is case-insensitive you must <code>s.lower()</code> before keying. Unicode adds the same hazard: combining accents need normalization (<code>unicodedata.normalize</code>) first.</p>
+
+<h5>The follow-up &mdash; "return only groups of size &ge; 2" or stream the input</h5>
+<p>Filtering with <code>[v for v in g.values() if len(v) &gt; 1]</code> is trivial. The harder follow-up is a streaming source too large for memory &mdash; then you key into an on-disk store or shard by <code>hash(key) % N</code> across workers, which the interviewer uses to probe distributed thinking.</p>
+
+<h5>The trap &mdash; hashing the string itself</h5>
+<p>Using <code>hash(s)</code> or the raw string as the key never groups anything &mdash; anagrams have different raw strings. And a key built from <code>set(s)</code> wrongly merges <code>"aab"</code> with <code>"abb"</code> (same letter set, different multiset). The key must encode <em>multiplicity</em>, which is exactly what sorting or counting gives you.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate "I need a canonical key invariant under permutation," then proactively offer the O(k) count-tuple key over the O(k log k) sort and flag the case-sensitivity assumption before the interviewer has to ask.</div>

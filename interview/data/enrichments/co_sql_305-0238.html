@@ -1,0 +1,57 @@
+<p>Airbnb's growth-analytics team needs the simplest engagement metric there is &mdash; daily active users, the count of distinct users who did something each day. The query is one <code>GROUP BY</code> with a <code>COUNT(DISTINCT)</code>. It is genuinely a one-liner, and the interviewer knows it: the test is whether you remember the <code>DISTINCT</code>, and whether you handle the days that produced no activity at all.</p>
+
+<h4>1. The source data &mdash; <code>activity</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>action_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-05-01</td></tr>
+    <tr><td>2</td><td>2026-05-01</td></tr>
+    <tr><td>1</td><td>2026-05-01</td></tr>
+    <tr><td>3</td><td>2026-05-02</td></tr>
+    <tr><td>1</td><td>2026-05-03</td></tr>
+    <tr><td>2</td><td>2026-05-03</td></tr>
+    <tr><td>4</td><td>2026-05-03</td></tr>
+    <tr><td>2</td><td>2026-05-03</td></tr>
+  </tbody>
+</table>
+<p>On 05-01, user 1 has <strong>two rows</strong> &mdash; two actions, but one active user. On 05-03, user 2 also appears twice. Those duplicate rows are the trap: <code>COUNT(*)</code> would inflate the metric; only <code>COUNT(DISTINCT user_id)</code> is right.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(DISTINCT) GROUP BY date</code></h4>
+<pre><code>SELECT action_date, COUNT(DISTINCT user_id) AS dau
+FROM activity
+GROUP BY action_date;</code></pre>
+<p><code>GROUP BY action_date</code> forms one bucket per day; <code>COUNT(DISTINCT user_id)</code> counts the unique users in each bucket &mdash; collapsing a user's repeated actions into a single contribution.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>action_date</th><th>dau</th></tr></thead>
+  <tbody>
+    <tr><td>2026-05-01</td><td>2</td></tr>
+    <tr><td>2026-05-02</td><td>1</td></tr>
+    <tr><td>2026-05-03</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>05-01 shows <code>dau = 2</code> &mdash; users 1 and 2 &mdash; even though there were three action rows; user 1's two actions counted once. 05-03 shows 3 (users 1, 2, 4) from four rows. With plain <code>COUNT(*)</code> these would read 3 and 4 &mdash; the inflated, wrong numbers.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>COUNT(*)</code> vs <code>COUNT(DISTINCT)</code> trap</h5>
+<p>This is the entire question. <code>COUNT(*)</code> counts <em>events</em>; DAU counts <em>users</em>. They diverge the instant a user acts twice in a day &mdash; which is the normal case. If someone hands you <code>COUNT(*)</code> for an "active users" metric, that is a bug, not a style choice. The only time they agree is when the table is guaranteed one row per user per day.</p>
+
+<h5>Zero-activity days disappear &mdash; the gap problem</h5>
+<p><code>GROUP BY</code> only produces rows for dates that <em>exist</em> in <code>activity</code>. A day with no activity at all simply has no row &mdash; <code>dau</code> is not 0, it is missing. A line chart then connects across the gap and hides the outage. To get an honest 0, left-join a date spine:</p>
+<pre><code>SELECT d.day AS action_date,
+       COUNT(DISTINCT a.user_id) AS dau
+FROM generate_series(DATE '2026-05-01', DATE '2026-05-07', INTERVAL '1 day') AS d(day)
+LEFT JOIN activity a ON a.action_date = d.day
+GROUP BY d.day
+ORDER BY d.day;</code></pre>
+<p><code>COUNT(DISTINCT a.user_id)</code> over an all-NULL left-join group is correctly <strong>0</strong> &mdash; <code>COUNT</code> ignores NULLs. That is the right way to show a dead day.</p>
+
+<h5>Timestamp granularity &mdash; truncate before grouping</h5>
+<p>If <code>action_date</code> were really a <code>TIMESTAMP</code>, grouping on it raw would create one bucket <em>per second</em>, not per day &mdash; the metric would be nonsense. Truncate first: <code>GROUP BY date_trunc('day', action_ts)</code> or <code>action_ts::date</code>. And truncation is timezone-sensitive &mdash; "day" in UTC versus the user's local time can shift activity across the midnight boundary; pin the timezone explicitly.</p>
+
+<h5>The natural follow-ups &mdash; MAU and stickiness</h5>
+<p>DAU rarely ships alone. Interviewers extend to monthly active users and the DAU/MAU "stickiness" ratio. MAU needs a rolling 30-day distinct count, which a simple <code>GROUP BY</code> cannot do &mdash; it requires a self-join or a window over a date spine. Mentioning that DAU is the easy member of a family, and MAU is the hard one, signals range.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> insist on <code>COUNT(DISTINCT user_id)</code> because DAU counts users not events, left-join a date spine so zero-activity days report 0 instead of vanishing, truncate timestamps to a day (timezone-aware) before grouping, and know that MAU and DAU/MAU stickiness are the harder follow-ups that need windows, not a plain group-by.</div>

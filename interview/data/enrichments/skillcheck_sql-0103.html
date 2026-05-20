@@ -1,0 +1,57 @@
+<p>A trust-and-safety team moderating streaming sessions wants to flag accounts for banning when the same account was logged in from <em>two different IP addresses at the same time</em> &mdash; concurrent access from two locations. Each session has a login and logout timestamp. The interviewer hints at the trap: a window function that only looks at the previous row misses interleaved sessions, so this needs a self-join over all pairs.</p>
+
+<h4>1. The source data &mdash; <code>log_info</code></h4>
+<table>
+  <thead><tr><th>account_id</th><th>ip_addr</th><th>login_ts</th><th>logout_ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10.0.0.1</td><td>2025-01-01 10:00</td><td>2025-01-01 12:00</td><td>acct 1</td></tr>
+    <tr><td>1</td><td>10.0.0.1</td><td>2025-01-01 11:00</td><td>2025-01-01 13:00</td><td>same IP &mdash; not a ban on its own</td></tr>
+    <tr><td>1</td><td>10.0.0.2</td><td>2025-01-01 11:30</td><td>2025-01-01 12:30</td><td>different IP, overlaps both &rarr; BAN</td></tr>
+    <tr><td>2</td><td>10.0.0.3</td><td>2025-01-02 10:00</td><td>2025-01-02 11:00</td><td>acct 2 &mdash; ends 11:00</td></tr>
+    <tr><td>2</td><td>10.0.0.4</td><td>2025-01-02 11:30</td><td>2025-01-02 12:00</td><td>different IP but starts after &mdash; no overlap</td></tr>
+    <tr><td>3</td><td>10.0.0.5</td><td>2025-01-03 08:00</td><td>2025-01-03 09:00</td><td>acct 3</td></tr>
+    <tr><td>3</td><td>10.0.0.5</td><td>2025-01-03 08:30</td><td>2025-01-03 09:30</td><td>overlaps but SAME IP &mdash; no ban</td></tr>
+    <tr><td>4</td><td>10.0.0.6</td><td>2025-01-04 09:00</td><td>2025-01-04 10:00</td><td>acct 4</td></tr>
+    <tr><td>4</td><td>10.0.0.7</td><td>2025-01-04 09:30</td><td>2025-01-04 10:30</td><td>different IP, overlaps &rarr; BAN</td></tr>
+  </tbody>
+</table>
+<p>Every failure mode is represented. Account 1 must be banned (a third-IP session overlaps the others). Account 2 has two different IPs but the sessions are <em>disjoint</em> in time &mdash; no ban. Account 3 has overlapping sessions but the <em>same</em> IP &mdash; no ban. Account 4 is a clean ban: two IPs, overlapping windows.</p>
+
+<h4>2. The SQL &mdash; self-join over all session pairs</h4>
+<pre><code>SELECT DISTINCT l1.account_id
+FROM log_info l1
+JOIN log_info l2
+  ON l1.account_id = l2.account_id
+ AND l1.ip_addr &lt;&gt; l2.ip_addr
+ AND l1.login_ts BETWEEN l2.login_ts AND l2.logout_ts
+ORDER BY l1.account_id;</code></pre>
+<p>The table is joined to itself on the same account, requiring a <em>different</em> IP, and the overlap is detected by testing whether one session's <code>login_ts</code> falls inside the other session's window. <code>DISTINCT</code> collapses an account that has many offending pairs to a single flagged row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>account_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10.0.0.2 session (11:30) starts inside the 10.0.0.1 windows</td></tr>
+    <tr><td>4</td><td>10.0.0.7 login 09:30 falls inside 10.0.0.6's 09:00&ndash;10:00 window</td></tr>
+  </tbody>
+</table>
+<p>Account 2 is absent &mdash; its second session begins at 11:30, after the first ended at 11:00, so no <code>login_ts</code> lands inside the other window. Account 3 is absent &mdash; its sessions <em>do</em> overlap, but <code>l1.ip_addr &lt;&gt; l2.ip_addr</code> is false for two same-IP rows, so the join produces nothing.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a self-join, not <code>LAG</code> &mdash; the hinted trap</h5>
+<p>A window-function approach sorts each account's sessions and compares each to the <em>previous</em> one with <code>LAG</code>. That only checks adjacent sessions. With three interleaved sessions &mdash; exactly account 1's situation &mdash; the offending pair may not be adjacent in sort order, and <code>LAG</code> would miss it. A self-join compares <em>every</em> pair of sessions for an account, so no overlapping pair can slip through regardless of ordering. When the question is "do any two rows in this group relate?", pairwise self-join is the robust tool.</p>
+
+<h5>The overlap test &mdash; what <code>BETWEEN</code> is really checking</h5>
+<p><code>l1.login_ts BETWEEN l2.login_ts AND l2.logout_ts</code> asks: does session l1 <em>start</em> while session l2 is still active? If so, the two sessions were live simultaneously. The fully general interval-overlap predicate is <code>l1.login_ts &lt; l2.logout_ts AND l2.login_ts &lt; l1.login_ts</code>... more precisely <code>a.start &lt; b.end AND b.start &lt; a.end</code>. The <code>BETWEEN</code> form here catches every overlap <em>because the join is symmetric</em>: each unordered pair is examined in both directions, so if l1 starts inside l2 <em>or</em> l2 starts inside l1, one of the two join rows fires.</p>
+
+<h5>The three join conditions, each a distinct rule</h5>
+<p><code>l1.account_id = l2.account_id</code> scopes the comparison to one account &mdash; you never compare sessions of different users. <code>l1.ip_addr &lt;&gt; l2.ip_addr</code> encodes "different locations" &mdash; this is what spares account 3, whose overlapping sessions share an IP. <code>l1.login_ts BETWEEN ...</code> encodes the time overlap. Drop any one and the rule is wrong: without the IP clause you would ban account 3; without the time clause you would ban account 2.</p>
+
+<h5>Why a row joins itself &mdash; and why it does not matter here</h5>
+<p>A naive self-join lets a row match itself (l1 = l2). That self-match is harmless here: <code>l1.ip_addr &lt;&gt; l2.ip_addr</code> is false when a row meets itself (an IP equals itself), so the row is filtered out automatically. Had the predicate been only on time, you would need an explicit <code>l1.ctid &lt;&gt; l2.ctid</code> or an id tiebreaker to stop a session "overlapping itself". The <code>&lt;&gt;</code> on IP doubles as the self-match guard.</p>
+
+<h5><code>DISTINCT</code> because an account can offend many times</h5>
+<p>Account 1's third-IP session overlaps <em>both</em> 10.0.0.1 sessions, so the join yields multiple offending rows for account 1. Without <code>DISTINCT</code> the result would list account 1 twice. The deliverable is the set of flagged accounts, so <code>SELECT DISTINCT account_id</code> &mdash; or equivalently <code>GROUP BY account_id</code> &mdash; reduces it to one row per account. Reporting <em>accounts</em>, not <em>offending pairs</em>, is the requirement.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> when the rule is "do any two rows in a group overlap", use a pairwise self-join &mdash; a <code>LAG</code>-style previous-row check misses non-adjacent interleaved sessions; put each business rule (same account, different IP, time overlap) in its own join predicate, and <code>DISTINCT</code> the result because one account can match many offending pairs.</div>

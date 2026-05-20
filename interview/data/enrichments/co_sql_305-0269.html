@@ -1,0 +1,71 @@
+<p>DigitalOcean's revenue team wants year-over-year change in sales for each region. The raw <code>sales</code> table has many rows per region-year, so the work is two-staged: first roll up to one total per region-year, then compare each year to the one before. A CTE makes both stages readable &mdash; and the interviewer wants to see you keep the window function <em>partitioned</em> so regions never bleed into each other.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>year</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>West</td><td>2022</td><td>100</td></tr>
+    <tr><td>West</td><td>2022</td><td>50</td></tr>
+    <tr><td>West</td><td>2023</td><td>200</td></tr>
+    <tr><td>East</td><td>2022</td><td>300</td></tr>
+    <tr><td>East</td><td>2023</td><td>250</td></tr>
+  </tbody>
+</table>
+<p>West 2022 has <strong>two rows</strong> ($100 + $50) &mdash; that is why we aggregate first; the YoY comparison must run on the $150 total, not on individual transactions. Each region's earliest year (2022) has no prior year, so its change will be NULL.</p>
+
+<h4>2. The SQL &mdash; <code>CTE</code> rollup, then <code>LAG</code></h4>
+<pre><code>WITH agg AS (
+  SELECT region, year, SUM(amount) AS total
+  FROM sales
+  GROUP BY region, year
+)
+SELECT region, year, total,
+  total - LAG(total) OVER (PARTITION BY region ORDER BY year) AS yoy_change
+FROM agg;</code></pre>
+<p>The CTE <code>agg</code> collapses transactions to one <code>total</code> per region-year. The outer query's <code>LAG</code> reaches back one row &mdash; <em>within the same region</em>, ordered by year &mdash; and subtracts.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>year</th><th>total</th><th>yoy_change</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>2022</td><td>300</td><td><em>NULL</em></td></tr>
+    <tr><td>East</td><td>2023</td><td>250</td><td>-50</td></tr>
+    <tr><td>West</td><td>2022</td><td>150</td><td><em>NULL</em></td></tr>
+    <tr><td>West</td><td>2023</td><td>200</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>West 2022's two transactions correctly summed to 150. Each region's 2022 row has a NULL change &mdash; there is no 2021 to compare to. East fell 50 (300 to 250); West rose 50 (150 to 200). Critically, West 2022's <code>LAG</code> did <em>not</em> pick up East 2023 &mdash; the <code>PARTITION BY region</code> resets the window at each region boundary.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>PARTITION BY</code> is the load-bearing clause</h5>
+<p>Drop <code>PARTITION BY region</code> and <code>LAG</code> walks the entire result set in year order. West 2022's "prior row" becomes East 2023, and the YoY change turns into nonsense &mdash; a cross-region subtraction. The partition is what makes "year over year" mean "this region's previous year". This is the single most common mistake on this pattern; name it explicitly.</p>
+
+<h5>Why a CTE and not <code>LAG</code> straight on <code>sales</code></h5>
+<p>You cannot <code>LAG</code> directly over the raw table &mdash; West 2022 has two rows, so "the previous row" is ambiguous and the comparison would be transaction-to-transaction, not year-to-year. The aggregation <em>must</em> happen first. A CTE is the clean way; a subquery in the <code>FROM</code> is exactly equivalent:</p>
+<pre><code>SELECT region, year, total,
+       total - LAG(total) OVER (PARTITION BY region ORDER BY year) AS yoy_change
+FROM (SELECT region, year, SUM(amount) AS total
+      FROM sales GROUP BY region, year) agg;</code></pre>
+<p>The CTE is preferred for readability and because it is reusable if the query grows.</p>
+
+<h5>The schema's <code>agg</code> column &mdash; a deliberate distractor</h5>
+<p>The table is <code>sales(region, year, amount, agg)</code> and the CTE is also named <code>agg</code>. The <em>column</em> <code>agg</code> is never referenced &mdash; the answer computes its own aggregate from <code>amount</code>. Do not assume a column called <code>agg</code> holds a pre-aggregated number you should use; trust the math you control. The name collision between the column and the CTE is harmless (different namespaces) but worth noticing so you do not get confused.</p>
+
+<h5>Percentage change &mdash; the inevitable follow-up</h5>
+<p>An absolute delta of -50 means little without scale. Stakeholders want a percentage, which needs a divide-by-zero guard:</p>
+<pre><code>WITH agg AS (
+  SELECT region, year, SUM(amount) AS total
+  FROM sales GROUP BY region, year
+)
+SELECT region, year, total,
+  ROUND(100.0 * (total - LAG(total) OVER w)
+      / NULLIF(LAG(total) OVER w, 0), 1) AS yoy_pct
+FROM agg
+WINDOW w AS (PARTITION BY region ORDER BY year);</code></pre>
+<p>Note the named <code>WINDOW</code> clause &mdash; the window spec is reused three times, so defining it once avoids copy-paste drift.</p>
+
+<h5>Missing years break "year over year"</h5>
+<p><code>LAG</code> takes the previous <em>row</em>, not the previous <em>calendar year</em>. If East has 2022 and 2024 but no 2023, East 2024's <code>LAG</code> reaches 2022 and the "YoY" change silently spans two years. If gaps are possible, build a complete region&times;year spine with <code>generate_series</code> and left-join the totals, or compare on <code>year - 1</code> with an explicit self-join so a missing year yields NULL rather than a wrong number.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> aggregate to one row per region-year <em>before</em> the window function, keep <code>PARTITION BY region</code> so <code>LAG</code> never crosses regions, ignore the decoy <code>agg</code> column, guard the percentage variant with <code>NULLIF(&hellip;, 0)</code>, and flag that <code>LAG</code> compares adjacent rows &mdash; not adjacent years &mdash; when the series has gaps.</div>

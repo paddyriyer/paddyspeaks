@@ -1,0 +1,65 @@
+<p>A music-streaming analyst is reconciling two stores: a historical table holding pre-aggregated play counts up to 2025-08-03, and a weekly table holding one row per individual play from 2025-08-04 onward. The task is a cumulative total through 2025-08-04 &mdash; which means counting weekly rows for that single day, then unioning with history. The interviewer is probing whether you can combine two differently-grained tables without losing pairs that appear in only one of them.</p>
+
+<h4>1. The source data &mdash; <code>songs_history</code> and <code>songs_weekly</code></h4>
+<table>
+  <thead><tr><th>table</th><th>user_id</th><th>song_id</th><th>detail</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>history</td><td>1</td><td>100</td><td>play_count 12</td><td>pre-Aug-04 total</td></tr>
+    <tr><td>history</td><td>1</td><td>200</td><td>play_count 3</td><td>also played fresh on 08-05 (out of range)</td></tr>
+    <tr><td>history</td><td>2</td><td>100</td><td>play_count 7</td><td>pre-Aug-04 total</td></tr>
+    <tr><td>history</td><td>3</td><td>300</td><td>play_count 5</td><td>history only &mdash; no weekly rows</td></tr>
+    <tr><td>weekly</td><td>1</td><td>100</td><td>two rows, both 08-04</td><td>2 plays on the cutoff day</td></tr>
+    <tr><td>weekly</td><td>1</td><td>200</td><td>one row, 08-05</td><td>after cutoff &mdash; must be excluded</td></tr>
+    <tr><td>weekly</td><td>4</td><td>400</td><td>one row, 08-04</td><td>weekly only &mdash; new user/song pair</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases: <code>(1,100)</code> appears in <em>both</em> tables (must be summed), <code>(3,300)</code> exists only in history, <code>(4,400)</code> only in weekly. And <code>(1,200)</code>'s weekly play is on 08-05 &mdash; past the cutoff, so it must not be counted even though the pair has history.</p>
+
+<h4>2. The SQL &mdash; count weekly to the cutoff, <code>UNION ALL</code>, then sum</h4>
+<pre><code>WITH new_plays AS (
+  SELECT user_id, song_id, COUNT(*) AS play_count
+  FROM songs_weekly
+  WHERE played_at &lt;= DATE '2025-08-04'
+  GROUP BY user_id, song_id
+)
+SELECT user_id, song_id, SUM(play_count)::int AS cumulative_plays
+FROM (
+  SELECT user_id, song_id, play_count FROM songs_history
+  UNION ALL
+  SELECT user_id, song_id, play_count FROM new_plays
+) all_plays
+GROUP BY user_id, song_id
+ORDER BY cumulative_plays DESC, user_id, song_id;</code></pre>
+<p><code>new_plays</code> reduces the event-grain weekly table to the same (user, song, count) grain as history, filtered to plays on or before the cutoff. <code>UNION ALL</code> stacks both, and the outer <code>GROUP BY ... SUM</code> folds rows for the same pair into one cumulative total.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>song_id</th><th>cumulative_plays</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>14</td><td>12 history + 2 weekly (08-04 only)</td></tr>
+    <tr><td>2</td><td>100</td><td>8</td><td>7 history + 1 weekly</td></tr>
+    <tr><td>3</td><td>300</td><td>5</td><td>history only &mdash; survives via UNION ALL</td></tr>
+    <tr><td>1</td><td>200</td><td>3</td><td>3 history; the 08-05 weekly play excluded</td></tr>
+    <tr><td>4</td><td>400</td><td>1</td><td>weekly only &mdash; survives via UNION ALL</td></tr>
+  </tbody>
+</table>
+<p><code>(1,200)</code> shows <strong>3</strong>, not 4: its only weekly row is dated 08-05, filtered out by <code>played_at &lt;= '2025-08-04'</code>. Pairs <code>(3,300)</code> and <code>(4,400)</code> both survive because <code>UNION ALL</code> keeps rows from either source &mdash; the union is effectively a full outer combination at the row level.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>UNION ALL</code>, never <code>UNION</code></h5>
+<p><code>UNION</code> deduplicates its result &mdash; and that is exactly wrong here. If history and weekly happened to produce an identical <code>(user_id, song_id, play_count)</code> triple, <code>UNION</code> would collapse the two into one and <em>under-count</em>. <code>UNION ALL</code> keeps every row, so the subsequent <code>SUM</code> adds both contributions. The rule of thumb: when you are about to aggregate the combined set, always <code>UNION ALL</code> &mdash; deduplication before a <code>SUM</code> destroys data.</p>
+
+<h5>Reconciling two grains before combining</h5>
+<p><code>songs_history</code> is pre-aggregated (one row per pair); <code>songs_weekly</code> is event-grained (one row per play). You cannot union them directly &mdash; the columns would mean different things. The <code>new_plays</code> CTE first lifts weekly to the aggregate grain with <code>COUNT(*) ... GROUP BY user_id, song_id</code>. Only once both sides share the (user, song, count) shape is a union meaningful. Aligning grain before combining sources is the core senior move here.</p>
+
+<h5>The cutoff filter and the half-open question</h5>
+<p>The spec says "through and including 2025-08-04," so <code>played_at &lt;= DATE '2025-08-04'</code> is correct for a <code>DATE</code> column. If <code>played_at</code> were a <code>TIMESTAMP</code>, <code>&lt;= '2025-08-04'</code> would mean "&le; midnight" and drop the rest of the day &mdash; you would switch to the half-open <code>&lt; DATE '2025-08-05'</code>. Here the column is <code>DATE</code>, so both forms agree, but stating which type you assumed shows you know the trap.</p>
+
+<h5>Full-outer behaviour without a <code>FULL JOIN</code></h5>
+<p>A natural instinct is <code>FULL OUTER JOIN</code> on <code>(user_id, song_id)</code> with <code>COALESCE</code> to add the two counts. That works, but it is verbose and needs <code>COALESCE(h.cnt,0) + COALESCE(w.cnt,0)</code> plus <code>COALESCE</code> on the key columns themselves. <code>UNION ALL</code> + <code>GROUP BY</code> achieves the same "include pairs from either side" result far more simply, because grouping naturally gathers a pair whether it came from one source or both.</p>
+
+<h5>Dialect notes</h5>
+<p><code>UNION ALL</code>, <code>COUNT(*)</code>, and <code>GROUP BY</code> are universal &mdash; this query is fully portable to MySQL, SQL Server, Oracle, and SQLite. The only Postgres-flavoured touch is <code>::int</code>; elsewhere use <code>CAST(SUM(play_count) AS INT)</code>. Note <code>SUM</code> over an empty group never happens here, but in general <code>SUM</code> of no rows is <code>NULL</code>, not 0 &mdash; irrelevant given every pair has at least one contributing row.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> when stitching two tables of different grain, first aggregate the event-level table up to the summary grain, then combine with <code>UNION ALL</code> (never <code>UNION</code>, which would dedupe and under-count before the <code>SUM</code>), and let the outer <code>GROUP BY</code> gather pairs that appear in only one source &mdash; the union plus group-by is a simpler full-outer than a <code>FULL JOIN</code> with <code>COALESCE</code>.</div>

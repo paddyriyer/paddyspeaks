@@ -1,0 +1,49 @@
+<p>Google Maps ETA quality directly affects user trust — overestimating traffic loses users to Apple Maps; underestimating loses them to "Google was wrong again". The query measures ETA bias and MAE per travel mode (driving, walking, transit, cycling).</p>
+
+<h4>1. The source data — <code>maps_eta</code></h4>
+<table><thead><tr><th>trip_id</th><th>mode</th><th>predicted_minutes</th><th>actual_minutes</th></tr></thead>
+<tbody><tr><td>T_001</td><td>driving</td><td>15</td><td>18</td></tr></tbody></table>
+
+<h4>2. The SQL — bias + MAE + over-prediction rate per mode</h4>
+<pre><code>SELECT mode,
+  COUNT(*) AS trips,
+  ROUND(AVG(predicted_minutes - actual_minutes), 2)             AS mean_bias,
+  ROUND(AVG(ABS(predicted_minutes - actual_minutes)), 2)        AS mae,
+  ROUND(100.0 * SUM(CASE WHEN predicted_minutes &gt; actual_minutes THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS pct_overestimated
+FROM maps_eta
+GROUP BY mode
+ORDER BY mae DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Bias vs MAE — different stories</h5>
+<p>Bias is signed (over- or under-prediction); MAE is unsigned (magnitude only). A model with bias=0 but MAE=10 is consistently wrong but balanced. A model with bias=+5, MAE=5 is systematically over-predicting by exactly 5 minutes — easy to fix with a calibration step.</p>
+
+<h5>Why "over-estimate" is preferred — UX physics</h5>
+<p>Slightly over-predicted ETAs result in users arriving early ("nice surprise"). Under-predicted ETAs cause missed appointments and trust collapse. Production targets <strong>+2 to +5% positive bias</strong>. Pure zero is suspicious.</p>
+
+<h5>The mode-specific challenge</h5>
+<table><thead><tr><th>mode</th><th>hardness</th><th>why</th></tr></thead>
+<tbody>
+<tr><td>Walking</td><td>Easy</td><td>almost no variability</td></tr>
+<tr><td>Cycling</td><td>Medium</td><td>weather + elevation</td></tr>
+<tr><td>Driving</td><td>Hard</td><td>traffic + signals + parking</td></tr>
+<tr><td>Transit</td><td>Hardest</td><td>schedule slippage + transfers</td></tr>
+</tbody></table>
+<p>Sorting MAE descending should produce: transit &gt; driving &gt; cycling &gt; walking. If your data shows otherwise, investigate.</p>
+
+<h5>The traffic-condition normalization</h5>
+<p>"Driving MAE 5 min" means very different things in rush hour vs midnight. Always slice by hour of day:</p>
+<pre><code>GROUP BY mode, CASE WHEN CAST(strftime('%H', started_at) AS INT) BETWEEN 17 AND 20 THEN 'rush' ELSE 'offpeak' END</code></pre>
+
+<h5>The percentile tail</h5>
+<p>MAE is mean error. The metric Google actually monitors is <strong>P95</strong> — 95th percentile error. A model with mean MAE 3 min but P95 = 25 min has long-tail user-disaster sessions. Use NTILE or PERCENT_RANK to estimate.</p>
+
+<h5>The destination-zone confound</h5>
+<p>ETAs to airports are systematically harder (multiple terminals, parking lots, security). ETAs to home addresses are easy. Mixing them in one number obscures both. Production splits by destination type.</p>
+
+<h5>The retraining trigger</h5>
+<p>Maps' real-time learning pipeline ingests this query nightly. Cells where MAE drift &gt; 2x baseline trigger an investigation; sustained drift triggers retraining. The query result is feedstock for the model lifecycle, not just analytics.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish bias (signed) from MAE (unsigned), pin the target as slight positive bias for UX physics, expect the mode hardness ordering (transit &gt; driving &gt; cycling &gt; walking), and surface P95 as the production-monitored metric. The retraining-trigger feedstock framing is the over-the-bar tie-back.</div>

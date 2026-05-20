@@ -1,0 +1,66 @@
+<p>Venture capital and private equity data teams need to answer: <em>"Which industry sectors are attracting the most capital, and how concentrated or fragmented are the deal sizes within each sector?"</em> This question tests a straightforward but important pattern &mdash; joining a transaction table to a dimension table, then computing a full suite of aggregates (count, sum, mean, max) in a single GROUP BY pass, ordered by the most business-relevant metric.</p>
+
+<h4>1. The source data &mdash; <code>investments</code> and <code>companies</code></h4>
+<table>
+  <thead><tr><th>investment_id</th><th>company_id</th><th>amount</th><th>invested_on</th></tr></thead>
+  <tbody>
+    <tr><td>I-001</td><td>C-01</td><td>500000</td><td>2023-01-10</td></tr>
+    <tr><td>I-002</td><td>C-01</td><td>750000</td><td>2023-06-15</td></tr>
+    <tr><td>I-003</td><td>C-02</td><td>2000000</td><td>2023-03-01</td></tr>
+    <tr><td>I-004</td><td>C-03</td><td>1200000</td><td>2023-04-20</td></tr>
+    <tr><td>I-005</td><td>C-03</td><td>800000</td><td>2023-09-05</td></tr>
+    <tr><td>I-006</td><td>C-04</td><td>3500000</td><td>2023-11-30</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>company_id</th><th>name</th><th>sector</th></tr></thead>
+  <tbody>
+    <tr><td>C-01</td><td>NovaTech</td><td>Technology</td></tr>
+    <tr><td>C-02</td><td>BioGen</td><td>Healthcare</td></tr>
+    <tr><td>C-03</td><td>CleanPower</td><td>Energy</td></tr>
+    <tr><td>C-04</td><td>FinFlow</td><td>Technology</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; join + multi-aggregate GROUP BY</h4>
+<pre><code>SELECT c.sector,
+       COUNT(*)         AS deal_count,
+       SUM(i.amount)    AS total_invested,
+       AVG(i.amount)    AS avg_deal_size,
+       MAX(i.amount)    AS largest_deal
+FROM investments i
+JOIN companies   c ON i.company_id = c.company_id
+GROUP BY c.sector
+ORDER BY total_invested DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sector</th><th>deal_count</th><th>total_invested</th><th>avg_deal_size</th><th>largest_deal</th></tr></thead>
+  <tbody>
+    <tr><td>Technology</td><td>3</td><td>4750000</td><td>1583333.33</td><td>3500000</td></tr>
+    <tr><td>Energy</td><td>2</td><td>2000000</td><td>1000000</td><td>1200000</td></tr>
+    <tr><td>Healthcare</td><td>1</td><td>2000000</td><td>2000000</td><td>2000000</td></tr>
+  </tbody>
+</table>
+<p>Technology: investments I-001, I-002, I-006 &rarr; sum=4 750 000, count=3, avg=1 583 333.33, max=3 500 000. Energy: I-004+I-005 &rarr; sum=2 000 000, avg=1 000 000. Healthcare: I-003 alone &rarr; all four metrics equal the single value 2 000 000. Energy and Healthcare both sum to 2 000 000 and are tied; their relative ordering is engine-defined. The ORDER BY correctly places Technology first (4 750 000 &gt; 2 000 000).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>INNER JOIN semantics &mdash; what gets excluded</h5>
+<p>The INNER JOIN means any investment whose <code>company_id</code> does not exist in <code>companies</code> is silently dropped. Similarly, companies with no investments never appear in the output. In a financial audit context this could mask orphan transactions. A senior candidate names this and offers the alternative: <code>LEFT JOIN companies c ON ...</code> with <code>COALESCE(c.sector, 'Unknown')</code> ensures every investment is counted, even those lacking a company record.</p>
+
+<h5>Four aggregates, one scan</h5>
+<p><code>COUNT(*)</code>, <code>SUM</code>, <code>AVG</code>, and <code>MAX</code> are all computed in a single GROUP BY pass over the join result. The query engine never re-scans the data for each function. Knowing that these four are "free riders" on the same grouping operation is a query-cost awareness signal. Adding <code>MIN(i.amount)</code> or <code>STDDEV(i.amount)</code> would cost nothing extra in terms of scan passes.</p>
+
+<h5>AVG pitfalls: integer division and precision</h5>
+<p>If <code>amount</code> is stored as <code>INTEGER</code>, <code>AVG(i.amount)</code> in some engines (notably older SQL Server versions) returns an integer, truncating the decimal. In Postgres, Snowflake, and BigQuery, <code>AVG</code> of an integer returns a numeric/float result automatically. To be safe, cast explicitly: <code>AVG(i.amount::numeric)</code>. This is especially important for financial data where fractional cents matter.</p>
+
+<h5>Ordering by alias &mdash; when it works</h5>
+<p><code>ORDER BY total_invested DESC</code> references the column alias. This works in Snowflake, Postgres, BigQuery, and MySQL because ORDER BY is evaluated after SELECT. It does not work in the WHERE or HAVING clause &mdash; a common mistake is <code>HAVING total_invested &gt; 1000000</code> which only works in MySQL's non-strict mode; standard SQL requires <code>HAVING SUM(i.amount) &gt; 1000000</code>.</p>
+
+<h5>Extending the analysis: sector-level concentration</h5>
+<p>A natural follow-on adds a window function to compute each sector's share of total capital:</p>
+<pre><code>SUM(i.amount) * 100.0 / SUM(SUM(i.amount)) OVER () AS pct_of_total</code></pre>
+<p>The nested <code>SUM(SUM(...))</code> pattern &mdash; an aggregate inside a window function &mdash; computes the grand total using the group-level sum as input to an OVER() with no partition (full table). This is a senior-level pattern worth naming.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> flag that INNER JOIN silently excludes orphan investments and offer the LEFT JOIN alternative, explain that all four aggregates are one-scan "free riders", warn about integer-AVG truncation and offer the explicit cast, and demonstrate the nested <code>SUM(SUM(...)) OVER ()</code> pattern for computing sector-level share of total investment.</div>

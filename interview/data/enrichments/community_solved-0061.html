@@ -1,0 +1,73 @@
+<p>This task has no input table at all &mdash; you must <em>generate</em> a cinema-style seating map from nothing: rows labelled <code>A</code> through <code>Z</code>, each with seats <code>1</code> through <code>10</code>, then collapse each row into a single comma-separated list (<code>A1,A2,&hellip;,A10</code>). It tests pure SQL construction: recursive generators, a cross join, and string aggregation. The interviewer wants to see you build data rather than query it.</p>
+
+<h4>1. The source data &mdash; generated, no base table</h4>
+<p>There is no source table; the query manufactures its rows. Two recursive CTEs produce the raw inputs, which the cross join combines:</p>
+<table>
+  <thead><tr><th>letter (CTE 1)</th><th>num (CTE 2)</th><th>seat_id (cross join)</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>1</td><td>A1</td></tr>
+    <tr><td>A</td><td>2</td><td>A2</td></tr>
+    <tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr>
+    <tr><td>A</td><td>10</td><td>A10</td></tr>
+    <tr><td>B</td><td>1</td><td>B1</td></tr>
+    <tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr>
+    <tr><td>Z</td><td>10</td><td>Z10</td></tr>
+  </tbody>
+</table>
+<p>The boundary cases are baked into the recursion: letters stop at exactly <code>Z</code>, numbers at exactly <code>10</code> &mdash; 26 &times; 10 = 260 seats. Note <code>A10</code>, the two-character seat, which becomes the trap below.</p>
+
+<h4>2. The SQL &mdash; two recursive CTEs, a cross join, string aggregation</h4>
+<pre><code>--first rcte
+with cte as(
+select char(65) as letter
+union all
+select char(ascii(letter)+1) as letter
+from cte
+where letter &lt; 'Z'
+)
+--second rcte
+,cte2 as(
+select 1 as num
+union all
+select num+1 as num
+from cte2
+where num &lt; 10
+),t3 as(
+select letter,num,
+    concat(letter,num) as seat_id
+from cte,cte2
+)
+select letter,
+    string_agg(seat_id,',') within group(order by seat_id asc) as seat_id
+from t3
+group by letter</code></pre>
+<p>This is written in <strong>SQL Server</strong> dialect. To execute it on Postgres (PGlite) three changes are needed &mdash; the result below comes from the translated query, the logic is unchanged.</p>
+
+<h4>3. The resulting analysis</h4>
+<p>26 rows, one per letter. First and last shown:</p>
+<table>
+  <thead><tr><th>letter</th><th>seat_id</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>A1,A10,A2,A3,A4,A5,A6,A7,A8,A9</td><td>A10 sorts after A1 &mdash; lexicographic order</td></tr>
+    <tr><td>B</td><td>B1,B10,B2,B3,B4,B5,B6,B7,B8,B9</td><td>same string-sort artefact</td></tr>
+    <tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr>
+    <tr><td>Z</td><td>Z1,Z10,Z2,Z3,Z4,Z5,Z6,Z7,Z8,Z9</td><td>last row</td></tr>
+  </tbody>
+</table>
+<p>Notice <code>A10</code> appears <em>second</em>, not last: <code>seat_id</code> is text, so <code>ORDER BY seat_id</code> sorts <code>'A10'</code> right after <code>'A1'</code>. The numeric-looking order most people expect (A1&hellip;A9, then A10) is not what you get.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The dialect translation &mdash; three SQL-Server-isms to fix</h5>
+<p>Running this on Postgres requires: <strong>(1)</strong> <code>WITH RECURSIVE</code> &mdash; Postgres demands the keyword for any self-referencing CTE; <strong>(2)</strong> <code>chr()</code> instead of <code>char()</code> &mdash; <code>char</code> is a SQL Server function, Postgres spells it <code>chr</code>; <strong>(3)</strong> <code>string_agg(seat_id, ',' ORDER BY seat_id)</code> instead of <code>string_agg(...) WITHIN GROUP (ORDER BY ...)</code> &mdash; the <code>WITHIN GROUP</code> form is SQL Server / Oracle syntax, Postgres puts the <code>ORDER BY</code> <em>inside</em> the aggregate's parentheses. None of this is a logic bug; it is purely dialect.</p>
+
+<h5>The lexicographic-sort trap &mdash; the real lesson</h5>
+<p>Because <code>seat_id</code> is a string, <code>'A2' &gt; 'A10'</code> is <em>true</em> &mdash; comparison is character by character, and <code>'1' &lt; '2'</code> at the second position decides it. So the list reads <code>A1, A10, A2, &hellip;</code>. To get human-natural order, sort by the numeric component, not the concatenated string: <code>ORDER BY num</code> inside <code>string_agg</code>. Zero-padding (<code>A01, A02, &hellip;, A10</code>) is the other fix and also makes the seat ids sort correctly anywhere downstream.</p>
+
+<h5>Why a cross join is correct here</h5>
+<p>Every letter must be paired with every number &mdash; that is the definition of a Cartesian product, and <code>FROM cte, cte2</code> (or <code>CROSS JOIN</code>) is exactly right. An unintended cross join is usually a bug, but here it is the deliberate generator: 26 letters &times; 10 numbers = 260 seat rows. <code>string_agg ... GROUP BY letter</code> then folds each letter's 10 seats into one delimited string.</p>
+
+<h5>Recursion termination and generating without recursion</h5>
+<p>Each recursive CTE needs its <code>WHERE</code> guard (<code>letter &lt; 'Z'</code>, <code>num &lt; 10</code>) &mdash; the anchor seeds one row, the recursive arm adds one per pass, the predicate stops it. Omit the guard and it never terminates. In Postgres the whole thing is simpler with set-returning functions: <code>generate_series(1,10)</code> for numbers and <code>chr(generate_series(65,90))</code> for letters &mdash; no recursion, fewer lines, and the planner handles it better. Recursive CTEs are for hierarchies; flat ranges do not need them.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify the SQL Server dialect (<code>char</code>, <code>WITHIN GROUP</code>, missing <code>RECURSIVE</code>) and translate it cleanly, but lead with the real catch &mdash; <code>string_agg</code> over a text <code>seat_id</code> sorts <code>A10</code> before <code>A2</code>; sort by the numeric part or zero-pad the ids. In Postgres, drop the recursive CTEs for <code>generate_series</code>.</div>

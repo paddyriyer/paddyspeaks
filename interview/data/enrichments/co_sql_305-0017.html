@@ -1,0 +1,55 @@
+<p>Datadog's billing team stores customer addresses as four separate columns &mdash; <code>street</code>, <code>city</code>, <code>state</code>, <code>zip</code> &mdash; and the invoice renderer wants one display string. The naive answer is to glue them with <code>||</code>. The interviewer's real interest is what happens when one of those columns is NULL, because in any production customer table, some of them always are.</p>
+
+<h4>1. The source data &mdash; <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>street</th><th>city</th><th>state</th><th>zip</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>123 Main St</td><td>Boston</td><td>MA</td><td>02101</td></tr>
+    <tr><td>2</td><td>500 Oak Ave</td><td>Austin</td><td>TX</td><td>78701</td></tr>
+    <tr><td>3</td><td><em>NULL</em></td><td>Denver</td><td>CO</td><td>80201</td></tr>
+    <tr><td>4</td><td>9 Elm Rd</td><td><em>NULL</em></td><td><em>NULL</em></td><td>10001</td></tr>
+  </tbody>
+</table>
+<p>Customer 3 is missing a <code>street</code>; customer 4 is missing both <code>city</code> and <code>state</code>. Those NULLs are the interview &mdash; they decide whether you get a clean address or one peppered with stray commas.</p>
+
+<h4>2. The SQL &mdash; <code>CONCAT_WS</code></h4>
+<pre><code>SELECT customer_id,
+  CONCAT_WS(', ', street, city, state, zip) AS full_address
+FROM customers;</code></pre>
+<p><code>CONCAT_WS</code> &mdash; "concatenate with separator" &mdash; takes the delimiter as its first argument and joins the rest. Its defining behaviour: it <strong>skips NULL arguments entirely</strong>, and crucially does not emit a separator for a skipped value.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>full_address</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>123 Main St, Boston, MA, 02101</td></tr>
+    <tr><td>2</td><td>500 Oak Ave, Austin, TX, 78701</td></tr>
+    <tr><td>3</td><td>Denver, CO, 80201</td></tr>
+    <tr><td>4</td><td>9 Elm Rd, 10001</td></tr>
+  </tbody>
+</table>
+<p>Customer 3 produces <code>Denver, CO, 80201</code> with <strong>no leading comma</strong> where the street would be. Customer 4 jumps straight from street to zip with a single separator. <code>CONCAT_WS</code> closed the gaps for you &mdash; no double commas, no dangling delimiters.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why plain <code>||</code> is the trap answer</h5>
+<p>The instinctive solution is string concatenation:</p>
+<pre><code>SELECT customer_id,
+  street || ', ' || city || ', ' || state || ', ' || zip AS full_address
+FROM customers;</code></pre>
+<p>In Postgres, <code>||</code> propagates NULL: <strong>any</strong> NULL operand makes the <em>entire</em> expression NULL. Customer 3 and customer 4 would both come back with a completely blank <code>full_address</code> &mdash; one missing field nukes the whole string. That is the single most common mistake on this question.</p>
+
+<h5>Why <code>CONCAT</code> (no <code>_WS</code>) is also wrong here</h5>
+<p>Plain <code>CONCAT(street, ', ', city, ', ', state, ', ', zip)</code> does treat NULL as an empty string &mdash; so it never blanks the whole row. But it cannot drop the <em>separator</em> next to a missing value. Customer 3 would render <code>, Denver, CO, 80201</code> with an ugly leading comma; customer 4 would show <code>9 Elm Rd, , , 10001</code>. <code>CONCAT_WS</code> is the only one of the three that omits both the value <em>and</em> its delimiter.</p>
+
+<h5>The edge case <code>CONCAT_WS</code> still does not solve: empty strings</h5>
+<p><code>CONCAT_WS</code> skips <code>NULL</code>, but an <strong>empty string</strong> <code>''</code> is a real value &mdash; it is kept, and you get a doubled separator <code>Denver, , CO</code>. Dirty data often has <code>''</code> instead of NULL. Normalise first:</p>
+<pre><code>CONCAT_WS(', ',
+  NULLIF(TRIM(street), ''), NULLIF(TRIM(city), ''),
+  NULLIF(TRIM(state), ''), NULLIF(TRIM(zip),  ''))</code></pre>
+<p><code>NULLIF(x, '')</code> converts a blank (after <code>TRIM</code> removes whitespace-only values) back into a NULL that <code>CONCAT_WS</code> will then drop.</p>
+
+<h5>The all-NULL row</h5>
+<p>If every address column is NULL, <code>CONCAT_WS</code> returns an empty string <code>''</code>, not NULL. A consumer that tests <code>full_address IS NULL</code> to detect "no address on file" will miss those rows. If you need a true NULL for a fully-empty address, wrap it: <code>NULLIF(CONCAT_WS(', ', &hellip;), '')</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>CONCAT_WS</code> immediately and explain that it is the only join that drops both a NULL value and its separator, name the <code>||</code> NULL-propagation trap that blanks an entire address, and pre-empt the empty-string case with <code>NULLIF(TRIM(&hellip;), '')</code> rather than assuming missing data is always NULL.</div>

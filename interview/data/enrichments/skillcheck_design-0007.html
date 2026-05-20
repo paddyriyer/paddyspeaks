@@ -1,0 +1,79 @@
+<p>An ad-impression fact table at 500 million rows per day is one of the largest-volume analytical tables a senior engineer will encounter. The interviewer is probing partition and clustering strategy for a BigQuery-native design: choosing the right partition column to enable pruning on time-range queries, choosing clustering columns in the right order to match the most selective predicates, setting a partition expiration to manage cost, and handling privacy-safe user identification. Getting the <code>PARTITION BY</code> / <code>CLUSTER BY</code> ordering and the <code>OPTIONS</code> block right signals hands-on BigQuery experience.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Volume:</strong> ~500M rows/day &mdash; partitioning and clustering are not optional; they are the primary cost-control levers.</li>
+  <li><strong>Common predicates:</strong> filter by <code>event_date</code>, filter by <code>advertiser_id</code>, aggregate by <code>campaign_id</code>.</li>
+  <li><strong>Partition column:</strong> <code>event_date DATE</code> &mdash; date-level partitioning is the standard BigQuery pattern; each day is one partition.</li>
+  <li><strong>Cluster columns:</strong> <code>advertiser_id</code>, <code>campaign_id</code>, <code>country</code> &mdash; in selectivity order (advertiser filters most, country least).</li>
+  <li><strong>Privacy:</strong> user identity must be pseudonymous (<code>user_pseudo_id</code>), not a raw PII identifier.</li>
+  <li><strong>Bid/win price:</strong> stored in micros (integer) to avoid float arithmetic on monetary values.</li>
+  <li><strong>Partition expiration:</strong> 400 days covers a full year plus reporting lag; older partitions are dropped automatically.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE fact_ad_impression (
+  impression_id       STRING       NOT NULL,        -- natural key from edge server
+  event_ts            TIMESTAMP    NOT NULL,        -- event time (from client/edge)
+  event_date          DATE         NOT NULL,        -- partition column
+  advertiser_id       INT64        NOT NULL,
+  campaign_id         INT64        NOT NULL,
+  creative_id         INT64,
+  placement_id        INT64,
+  user_pseudo_id      STRING,                       -- privacy-safe pseudonymous id
+  country             STRING,
+  device_type         STRING,
+  bid_price_micros    INT64,
+  win_price_micros    INT64,
+  was_viewable        BOOL,
+  ingested_at         TIMESTAMP
+)
+PARTITION BY event_date
+CLUSTER BY advertiser_id, campaign_id, country
+OPTIONS (
+  partition_expiration_days = 400,
+  description = 'One row per ad impression. Partitioned by event_date, clustered for advertiser/campaign filtering.'
+);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>impression_id</td><td>Natural key</td><td>Server-assigned ID from the edge; used for deduplication and idempotent reprocessing. STRING because edge systems typically emit UUIDs or hex strings, not integer sequences.</td></tr>
+    <tr><td>event_ts</td><td>Event timestamp</td><td>Precise moment of the impression from the client or edge; TIMESTAMP preserves sub-second precision for frequency-capping and session analysis.</td></tr>
+    <tr><td>event_date</td><td>Partition key</td><td>DATE derived from event_ts; BigQuery partitions on DATE columns, enabling daily partition pruning. Redundant with event_ts but essential &mdash; BigQuery cannot partition on a TIMESTAMP directly.</td></tr>
+    <tr><td>advertiser_id</td><td>FK &rarr; dim_advertiser; cluster key #1</td><td>Most selective clustering column; advertiser-level queries are the primary analytical pattern. INT64 for efficient clustering block organisation.</td></tr>
+    <tr><td>campaign_id</td><td>FK &rarr; dim_campaign; cluster key #2</td><td>Second most selective; campaign-level aggregation is the dominant reporting grain below advertiser.</td></tr>
+    <tr><td>creative_id</td><td>FK &rarr; dim_creative (nullable)</td><td>Nullable because some placements may lack a creative (house ad, blank). Not in the cluster key because creative-level filtering is less common.</td></tr>
+    <tr><td>placement_id</td><td>FK &rarr; dim_placement (nullable)</td><td>Identifies the ad slot; nullable for direct buys with no exchange-level placement ID.</td></tr>
+    <tr><td>user_pseudo_id</td><td>Privacy-safe user identifier</td><td>A pseudonymous ID (e.g., hashed cookie or device fingerprint) rather than a PII user ID. Supports frequency capping and reach analysis without storing PII in the fact table.</td></tr>
+    <tr><td>country</td><td>FK / cluster key #3</td><td>ISO country code; third cluster column supports country-level filtering common in international campaign reporting.</td></tr>
+    <tr><td>device_type</td><td>Degenerate dimension</td><td>Low-cardinality (mobile, desktop, tablet, CTV); kept on the fact rather than in a separate dimension for query convenience.</td></tr>
+    <tr><td>bid_price_micros</td><td>Measure &mdash; additive (integer micros)</td><td>Price in millionths of the currency unit. Integer avoids float precision errors; 1,000,000 micros = $1.00. Additive for total bid spend.</td></tr>
+    <tr><td>win_price_micros</td><td>Measure &mdash; additive (integer micros)</td><td>Actual clearing price (may differ from bid in second-price auctions). Additive; NULL if the impression was not won.</td></tr>
+    <tr><td>was_viewable</td><td>Measure &mdash; additive flag</td><td>BOOL; summing viewable impressions is valid (additive count) across any dimension. The viewability rate requires AVG, not SUM, but the underlying flag itself is additive. Stored as a flag to support viewability-rate calculations.</td></tr>
+    <tr><td>ingested_at</td><td>Audit column</td><td>Pipeline watermark for monitoring ingest lag and detecting delayed event delivery from edge servers.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Grain declaration</h5>
+<p>One row per ad impression event. This is a <em>transaction fact</em> &mdash; the most granular possible grain. Aggregated tables (hourly or daily rollups) would be materialised views or summary tables derived from this base fact, not this table itself. At 500M rows/day, 365 days without expiration is 182.5B rows; the 400-day expiration cap keeps the table within manageable bounds while preserving over a full year of trend data.</p>
+
+<h5>Partitioning: event_date as the primary control knob</h5>
+<p>BigQuery charges by bytes scanned per query. A query with <code>WHERE event_date = &lsquo;2025-05-01&rsquo;</code> scans only that day&rsquo;s partition &mdash; 1/400 of the table. Without partitioning, every query scans all 182.5B rows. The <code>event_date</code> column is a required redundant derivation of <code>event_ts</code>; BigQuery cannot auto-partition on TIMESTAMP, so the DATE column must be materialised. ETL must populate it consistently, ideally in the same pipeline step that extracts <code>event_ts</code>.</p>
+
+<h5>Clustering: column order matters</h5>
+<p>BigQuery clustering sorts data within each partition into blocks. The cluster key order <code>(advertiser_id, campaign_id, country)</code> reflects decreasing selectivity: most queries specify an advertiser, fewer also specify a campaign, fewer still also specify a country. BigQuery&rsquo;s cost estimator prunes blocks matching any prefix of the cluster key. Putting <code>advertiser_id</code> first maximises the pruning benefit for the most common query type. Reversing the order (e.g., <code>country</code> first) would only help country-level-only queries, which are less common.</p>
+
+<h5>Prices in micros &mdash; why not FLOAT64 or NUMERIC</h5>
+<p>INT64 micros avoid two problems: (1) floating-point rounding errors that accumulate when summing billions of prices, and (2) the overhead of NUMERIC (arbitrary precision, slower arithmetic). The micros convention is standard in ad tech (Google&rsquo;s API surfaces use it). To display as dollars, divide by 1,000,000 in the query layer or in a reporting-layer view.</p>
+
+<h5>BigQuery-specific OPTIONS block</h5>
+<p><code>partition_expiration_days = 400</code> causes BigQuery to automatically drop partitions older than 400 days, preventing unbounded table growth without manual DELETE jobs. The <code>description</code> field serves as inline documentation in the BigQuery UI and the INFORMATION_SCHEMA, visible to analysts without access to source-control comments. These are BigQuery-native features absent from Redshift and Snowflake.</p>
+
+<h5>Equivalent designs in other engines</h5>
+<p>In <strong>Snowflake</strong>, drop the <code>PARTITION BY</code> / <code>CLUSTER BY</code> / <code>OPTIONS</code> syntax and use <code>CLUSTER BY (event_date, advertiser_id, campaign_id)</code>; Snowflake handles micro-partition organisation automatically. In <strong>Redshift</strong>, use <code>DISTKEY(advertiser_id)</code> to co-locate an advertiser&rsquo;s data across slices and <code>SORTKEY(event_date, advertiser_id, campaign_id)</code> for zone-map pruning. In Redshift, partition management is manual (partition elimination is done via sort-key zone maps, not BigQuery-style date partitions).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify the <code>event_date DATE</code> column as a mandatory redundancy (&ldquo;BigQuery cannot partition on TIMESTAMP&rdquo;); explain cluster key ordering by descending selectivity and why it matters for block pruning; defend micros over FLOAT64 (&ldquo;rounding errors accumulate at 500M rows/day&rdquo;); and mention partition expiration as the BigQuery-native cost-control mechanism &mdash; these four points demonstrate that you design for query cost and operational manageability, not just schema correctness.</div>

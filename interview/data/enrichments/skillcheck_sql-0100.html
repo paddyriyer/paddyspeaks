@@ -1,0 +1,63 @@
+<p>A category manager wants products ranked by units sold within each category &mdash; but discontinued products are a special case: they must still appear in the listing, yet must not occupy a rank. Active products are densely ranked with no gaps. The interviewer is probing whether you can rank a <em>subset</em> of rows while keeping the excluded rows visible, and whether you understand how a window function treats <code>NULL</code> in its <code>ORDER BY</code>.</p>
+
+<h4>1. The source data &mdash; <code>product</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>units_sold</th><th>is_discontinued</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>100</td><td>false</td><td>cat A top active</td></tr>
+    <tr><td>2</td><td>A</td><td>80</td><td>false</td><td>cat A &mdash; tied at 80</td></tr>
+    <tr><td>3</td><td>A</td><td>80</td><td>false</td><td>cat A &mdash; tied at 80</td></tr>
+    <tr><td>4</td><td>A</td><td>999</td><td>true</td><td>highest units but discontinued &rarr; rank NULL</td></tr>
+    <tr><td>5</td><td>B</td><td>50</td><td>true</td><td>cat B discontinued &rarr; rank NULL</td></tr>
+    <tr><td>6</td><td>B</td><td>60</td><td>false</td><td>cat B top active</td></tr>
+    <tr><td>7</td><td>B</td><td>40</td><td>false</td><td>cat B second active</td></tr>
+    <tr><td>8</td><td>C</td><td>10</td><td>false</td><td>cat C &mdash; lone product</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are pointed. Product 4 has the <em>highest</em> units in category A (999) but is discontinued &mdash; it must get rank <code>NULL</code>, not rank 1. Products 2 and 3 are tied at 80 &mdash; they must share a rank. Category C has a single product. And category B's discontinued product sits in the <em>middle</em> of the sales range, testing that exclusion is by status, not by position.</p>
+
+<h4>2. The SQL &mdash; rank a subset with a CASE inside the window</h4>
+<pre><code>SELECT product_id, category, units_sold, is_discontinued,
+       CASE WHEN is_discontinued THEN NULL
+            ELSE DENSE_RANK() OVER (
+              PARTITION BY category
+              ORDER BY CASE WHEN is_discontinued THEN NULL ELSE units_sold END DESC NULLS LAST
+            ) END AS rank_in_category
+FROM product
+ORDER BY category, units_sold DESC, product_id;</code></pre>
+<p>The window <code>ORDER BY</code> maps every discontinued row's sort key to <code>NULL</code> and pushes those <code>NULL</code>s to the bottom with <code>NULLS LAST</code>, so they never take an early rank. The outer <code>CASE</code> then blanks the discontinued rows' rank to <code>NULL</code> outright.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>units_sold</th><th>is_discontinued</th><th>rank_in_category</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>A</td><td>999</td><td>true</td><td>NULL</td></tr>
+    <tr><td>1</td><td>A</td><td>100</td><td>false</td><td>1</td></tr>
+    <tr><td>2</td><td>A</td><td>80</td><td>false</td><td>2</td></tr>
+    <tr><td>3</td><td>A</td><td>80</td><td>false</td><td>2</td></tr>
+    <tr><td>6</td><td>B</td><td>60</td><td>false</td><td>1</td></tr>
+    <tr><td>5</td><td>B</td><td>50</td><td>true</td><td>NULL</td></tr>
+    <tr><td>7</td><td>B</td><td>40</td><td>false</td><td>2</td></tr>
+    <tr><td>8</td><td>C</td><td>10</td><td>false</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Product 4 gets <code>NULL</code> despite topping category A on units &mdash; discontinued products are barred from ranking. Products 2 and 3 both get rank 2 (tie shared). Category B's active products are 1 and 2 with no gap, even though the discontinued product 5 sits between them on units.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Ranking a subset: two <code>CASE</code>s, two different jobs</h5>
+<p>The query has a <code>CASE</code> in two places and they are not redundant. The <code>CASE</code> <em>inside</em> the window's <code>ORDER BY</code> removes discontinued rows from the ranking computation &mdash; it makes their sort key <code>NULL</code> so they cannot earn a rank number. The <code>CASE</code> <em>outside</em>, wrapping <code>DENSE_RANK()</code>, sets the displayed value to <code>NULL</code>. Without the inner one, a discontinued product would still consume a rank slot; without the outer one, it would show whatever rank the <code>NULL</code> sort key landed on.</p>
+
+<h5><code>NULLS LAST</code> is what keeps the gaps out</h5>
+<p>In PostgreSQL, <code>ORDER BY ... DESC</code> places <code>NULL</code>s <em>first</em> by default. If the discontinued rows' <code>NULL</code> sort keys sorted first, <code>DENSE_RANK</code> would assign them rank 1 and active products would start at 2 &mdash; gap introduced. <code>DESC NULLS LAST</code> forces the <code>NULL</code>s to the bottom of each partition, so active products are ranked first and densely from 1. The <code>NULLS LAST</code> is load-bearing, not decoration.</p>
+
+<h5>Why <code>DENSE_RANK</code> and not <code>RANK</code> or <code>ROW_NUMBER</code></h5>
+<p>The spec says "densely ranked (1, 2, 3, ... ties share a rank, no gaps)". Products 2 and 3 tie at 80. <code>DENSE_RANK</code> gives 1, 2, 2 &mdash; and the next distinct value would be 3. <code>RANK</code> would give 1, 2, 2, then skip to 4. <code>ROW_NUMBER</code> would give 1, 2, 3 &mdash; breaking the tie arbitrarily. "No gaps after ties" is the precise definition of <code>DENSE_RANK</code>; the wording chooses the function.</p>
+
+<h5>An alternative: a filtered CTE then a join-back</h5>
+<p>You could rank only the active products in a CTE &mdash; <code>SELECT ..., DENSE_RANK() OVER (PARTITION BY category ORDER BY units_sold DESC) FROM product WHERE NOT is_discontinued</code> &mdash; then <code>LEFT JOIN</code> that back onto the full product list so discontinued rows pick up a <code>NULL</code> rank. Functionally equivalent and arguably clearer. The single-query <code>CASE</code>-in-<code>ORDER-BY</code> form is terser and avoids the join; both are defensible &mdash; saying so signals range.</p>
+
+<h5>The single-product partition still works</h5>
+<p>Category C has one product. <code>PARTITION BY category</code> makes a partition of one, <code>DENSE_RANK</code> assigns it rank 1, done &mdash; window functions handle singleton partitions cleanly. The discontinued-in-the-middle case (category B) is the real subtlety: exclusion is driven by <code>is_discontinued</code>, not by sales position, so an active product with <em>lower</em> units than a discontinued one still out-ranks it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> to rank a subset while keeping excluded rows visible, neutralise their window <code>ORDER BY</code> key with a <code>CASE</code> and push them down with <code>NULLS LAST</code>, blank their displayed rank with an outer <code>CASE</code>, and pick <code>DENSE_RANK</code> because "no gaps after ties" is exactly its semantics &mdash; <code>RANK</code> skips, <code>ROW_NUMBER</code> breaks ties.</div>

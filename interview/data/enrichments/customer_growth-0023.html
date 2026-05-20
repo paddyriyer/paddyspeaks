@@ -1,0 +1,82 @@
+<p>A marketing team wants to find sustained engagement runs in an activity log, but with a twist: a row exists for some days where the user did <em>something</em> measurable yet the metric came back as zero (<code>user_code = 0</code>). Those zero rows still count as "the user was in the stream" &mdash; they keep the streak alive &mdash; but they must not count toward the headline activity total. The interviewer is probing gaps-and-islands plus conditional aggregation that treats presence and value as two different signals.</p>
+
+<h4>1. The source data &mdash; <code>user_activity_log</code></h4>
+<table>
+  <thead><tr><th>user_name</th><th>user_date</th><th>user_code</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>user1</td><td>2014-08-31</td><td>232</td><td>outside the report window &mdash; ignored</td></tr>
+    <tr><td>user1</td><td>2014-09-01</td><td>232</td><td>island A starts</td></tr>
+    <tr><td>user1</td><td>2014-09-02</td><td>0</td><td>zero day &mdash; in-stream, not counted</td></tr>
+    <tr><td>user1</td><td>2014-09-03</td><td>121</td><td>island A ends (gap to 09-08)</td></tr>
+    <tr><td>user1</td><td>2014-09-08 &hellip; 09-11</td><td>122,0,144,166</td><td>island B, one zero day inside</td></tr>
+    <tr><td>user2</td><td>2014-09-01</td><td>177</td><td>lone day &mdash; island of result 1</td></tr>
+    <tr><td>user2</td><td>2014-09-04 &hellip; 09-07</td><td>188,199,0,155</td><td>island with a zero day</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases sit side by side: zero-code days <em>inside</em> an island (09-02, 09-09, 09-06) must not break the run, and user2's lone 09-01 day forms an island with <code>result = 1</code> that the final filter drops.</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands with conditional start/end/count</h4>
+<pre><code>WITH filtered AS (
+    -- Step 1: clip to the report window. The 08-31 row is excluded so it
+    -- cannot contaminate the per-user ROW_NUMBER sequence below.
+    SELECT user_name, user_date, user_code,
+        CAST(julianday(user_date) AS INTEGER) AS jd
+    FROM user_activity_log
+    WHERE user_date BETWEEN '2014-09-01' AND '2014-09-11'
+),
+indexed AS (
+    -- Step 2: classic value - ROW_NUMBER() islands. jd and the row
+    -- number both step by 1 inside a contiguous run, so their difference
+    -- is constant per island. Zero-code rows are still rows, so they
+    -- slot into the surrounding island; only a missing calendar day
+    -- opens a new one.
+    SELECT user_name, user_date, user_code, jd,
+        jd - ROW_NUMBER() OVER (PARTITION BY user_name ORDER BY user_date)
+            AS island
+    FROM filtered
+),
+islands AS (
+    -- Step 3: per island, MIN/MAX dates among non-zero rows and a COUNT
+    -- of non-zero rows.
+    SELECT user_name, island,
+        MIN(CASE WHEN user_code &lt;&gt; 0 THEN user_date END) AS start_date,
+        MAX(CASE WHEN user_code &lt;&gt; 0 THEN user_date END) AS end_date,
+        SUM(CASE WHEN user_code &lt;&gt; 0 THEN 1 ELSE 0 END)  AS result
+    FROM indexed
+    GROUP BY user_name, island
+)
+SELECT user_name, start_date, end_date, result
+FROM islands
+WHERE result &gt;= 2
+ORDER BY user_name ASC, start_date ASC;</code></pre>
+<p>The solution uses SQLite's <code>julianday()</code> to turn dates into a monotonic integer. In PostgreSQL the date itself subtracts directly &mdash; <code>user_date - (ROW_NUMBER() OVER (...))::INT</code> yields a date-typed island key with no conversion needed. Pure dialect difference; the islands logic is unchanged.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_name</th><th>start_date</th><th>end_date</th><th>result</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>user1</td><td>2014-09-01</td><td>2014-09-03</td><td>2</td><td>island A: 09-02 zero day spanned, not counted</td></tr>
+    <tr><td>user1</td><td>2014-09-08</td><td>2014-09-11</td><td>3</td><td>island B: 4 calendar days, 1 zero, result 3</td></tr>
+    <tr><td>user2</td><td>2014-09-04</td><td>2014-09-07</td><td>3</td><td>island: 09-06 zero day spanned</td></tr>
+  </tbody>
+</table>
+<p>This matches the expected output exactly. User2's lone 09-01 day produced an island with <code>result = 1</code>, correctly removed by <code>WHERE result &gt;= 2</code>. Note island A spans 09-01 to 09-03 but <code>result</code> is 2 &mdash; <code>start_date</code> and <code>end_date</code> mark the non-zero boundary days, while the count tallies only non-zero rows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why zero-code rows do not break the island</h5>
+<p>The gaps-and-islands trick keys on <em>row presence</em>, not row value. <code>ROW_NUMBER()</code> increments for every row in the partition; a zero-code day is still a row, so it advances the counter in lock-step with the calendar date, and the <code>jd - row_number</code> difference stays constant. An island only breaks when a calendar day is genuinely <em>missing</em> &mdash; then the date jumps but the row number does not. This is precisely why presence and value must be modelled separately: the islands step uses presence, the conditional aggregates use value.</p>
+
+<h5>Conditional aggregation: <code>CASE</code> with no <code>ELSE</code> drops the zero days from start/end</h5>
+<p><code>MIN(CASE WHEN user_code &lt;&gt; 0 THEN user_date END)</code> &mdash; with no <code>ELSE</code>, zero-code rows yield NULL, and <code>MIN</code>/<code>MAX</code> ignore NULLs. So the boundary dates are the first and last <em>non-zero</em> days, even if the island physically begins or ends on a zero day. The <code>result</code> count uses <code>SUM(CASE ... THEN 1 ELSE 0 END)</code> rather than <code>COUNT</code>, because <code>COUNT(*)</code> would tally zero days too &mdash; the explicit 1/0 sum counts only what the business cares about.</p>
+
+<h5>The filter-window ordering trap</h5>
+<p>Clipping the date range happens <em>before</em> <code>ROW_NUMBER()</code> is assigned &mdash; deliberately. user1's 08-31 row sits one day before 09-01. If it were left in, the row numbering would start a day early and, worse, 08-31&rarr;09-01 is a contiguous pair, so 08-31 would merge into island A and shift every subsequent island key. Filtering first guarantees the numbering reflects only in-window rows. A classic mistake is filtering in the outer query after the window function has already run on the full table.</p>
+
+<h5>Dialect notes &mdash; date-to-integer conversion</h5>
+<p>SQLite has no date type, so <code>julianday()</code> manufactures the monotonic integer the islands trick needs. PostgreSQL subtracts dates natively, returning an integer day count &mdash; <code>user_date - (ROW_NUMBER() OVER (...))::INT</code> is a date, and grouping on it works fine. MySQL uses <code>TO_DAYS(user_date)</code>; BigQuery uses <code>DATE_DIFF(user_date, DATE '1970-01-01', DAY)</code>. The pattern is universal; only the "make the date an integer" step swaps out.</p>
+
+<h5>What a senior says next</h5>
+<p>"The zero-code rule is a business decision I would surface explicitly &mdash; right now a zero day silently bridges a streak, which inflates engagement runs. If marketing instead wants zero days to count as <em>absence</em>, the fix is one line: filter them out in the <code>filtered</code> CTE so they become gaps. I would confirm which semantics they want before shipping."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> separate presence from value &mdash; the islands trick keys on row presence so zero-code days bridge a streak, while the conditional <code>SUM</code>/<code>MIN</code>/<code>MAX</code> key on value so zero days are excluded from the count and boundary dates. Filter the date window <em>before</em> <code>ROW_NUMBER()</code> runs, and flag the zero-day-bridges-streak rule as a business choice.</div>

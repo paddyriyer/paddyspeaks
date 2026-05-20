@@ -1,0 +1,92 @@
+<p>The single most-watched chart at Netflix in any given week is <strong>trial-to-paid conversion</strong>. The free trial is the funnel; whatever fraction of new signups flips to paid is the top-of-revenue input. Cohort it by signup week and you get the leading indicator for next-quarter revenue. The query is conditional aggregation; the senior conversation is what counts as "converted" and how to handle the in-flight cohorts.</p>
+
+<h4>1. The source data &mdash; <code>subscriptions</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>signup_date</th><th>trial_end_date</th><th>first_paid_date</th><th>cancel_date</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>2026-04-01</td><td>2026-05-01</td><td>2026-05-01</td><td>NULL</td></tr>
+    <tr><td>U_002</td><td>2026-04-02</td><td>2026-05-02</td><td>NULL</td><td>2026-04-15</td></tr>
+    <tr><td>U_003</td><td>2026-04-03</td><td>2026-05-03</td><td>2026-05-03</td><td>2026-06-12</td></tr>
+    <tr><td>U_004</td><td>2026-04-08</td><td>2026-05-08</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>U_005</td><td>2026-04-15</td><td>2026-05-15</td><td>NULL</td><td>2026-05-15</td></tr>
+  </tbody>
+</table>
+<p>Five different lifecycle paths. U_001 converted clean. U_002 cancelled <em>during</em> trial. U_003 converted then later cancelled. U_004 still in-flight. U_005 cancelled exactly at trial end (the modal pattern).</p>
+
+<h4>2. The SQL &mdash; conditional aggregation cohorted by week</h4>
+<pre><code>SELECT
+  DATE_TRUNC('week', signup_date) AS cohort_week,
+  COUNT(*) AS signups,
+  COUNT(first_paid_date) AS converted_to_paid,
+  COUNT(*) FILTER (WHERE first_paid_date IS NULL AND cancel_date &lt;= trial_end_date) AS dropped_in_trial,
+  ROUND(100.0 * COUNT(first_paid_date) / NULLIF(COUNT(*), 0), 1) AS trial_to_paid_pct
+FROM subscriptions
+GROUP BY DATE_TRUNC('week', signup_date)
+ORDER BY cohort_week;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(first_paid_date)</code> works as "converted"</h5>
+<p><code>COUNT(col)</code> counts non-NULL values; rows where the user never paid have <code>first_paid_date IS NULL</code> and don't contribute. This is the cleanest "count rows matching a NULL-vs-NOT-NULL predicate" idiom &mdash; shorter than <code>SUM(CASE WHEN first_paid_date IS NOT NULL THEN 1 END)</code>. Equivalent forms:</p>
+<pre><code>COUNT(*) FILTER (WHERE first_paid_date IS NOT NULL)            -- explicit, more readable
+SUM(CASE WHEN first_paid_date IS NOT NULL THEN 1 ELSE 0 END)    -- portable, MySQL-friendly
+COUNT(first_paid_date)                                          -- terse, only works for NULL/NOT-NULL</code></pre>
+
+<h5>The in-flight-cohort trap &mdash; do NOT report this week's number</h5>
+<p>If today is May 1, the cohort that signed up the week of April 28 still has 27 days of trial left &mdash; their "trial_to_paid_pct" is artificially zero because nobody has paid yet. Report this week and you'll cause a panic. Production fix: only show cohorts where <strong>every member has had a chance to convert</strong>:</p>
+<pre><code>WHERE signup_date &lt;= CURRENT_DATE - INTERVAL '30 days'   -- 30-day trial: wait for full window</code></pre>
+<p>Add a separate "in-flight" panel for current cohorts with the disclaimer "still converting".</p>
+
+<h5>Net vs gross conversion</h5>
+<p>The query reports <em>gross</em> conversion: anyone who ever flipped to paid. The CFO's actual question is <em>net</em> conversion at, say, day-90 &mdash; people who paid AND didn't cancel within 90 days. Different number, sometimes 30% lower:</p>
+<pre><code>COUNT(*) FILTER (
+  WHERE first_paid_date IS NOT NULL
+    AND (cancel_date IS NULL OR cancel_date &gt; first_paid_date + INTERVAL '90 days')
+) AS net_paid_at_d90</code></pre>
+
+<h5>The cohort-week aggregation choice</h5>
+<p>Why week, not day or month?</p>
+<ul>
+  <li><strong>Day</strong>: too noisy &mdash; weekend signups have different demographics. Lots of jitter.</li>
+  <li><strong>Week</strong>: cancels out day-of-week effects, still granular enough to see campaigns.</li>
+  <li><strong>Month</strong>: clean for finance, slow to detect changes. Lags real product changes by 4-6 weeks.</li>
+</ul>
+<p>Production growth dashboards almost universally use weekly. <code>DATE_TRUNC('week', date)</code> defaults to Monday-start in Postgres; some dialects start on Sunday. Pin the week-start explicitly if cross-dialect parity matters.</p>
+
+<h5>Three drop-off buckets &mdash; not just "didn't convert"</h5>
+<p>"Did not convert" is too coarse. Three distinct failure modes:</p>
+<table>
+  <thead><tr><th>bucket</th><th>predicate</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Trial cancel</strong></td><td>cancel_date &le; trial_end_date</td><td>didn't even finish trial &mdash; intent was low</td></tr>
+    <tr><td><strong>Auto-fall-off</strong></td><td>first_paid_date IS NULL AND no cancel either</td><td>card declined / payment failed at trial-end</td></tr>
+    <tr><td><strong>Convert + cancel</strong></td><td>first_paid_date IS NOT NULL AND cancel_date IS NOT NULL</td><td>tried it, paid once, cancelled &mdash; product fit issue</td></tr>
+  </tbody>
+</table>
+<p>Each bucket gets a different remediation: trial-cancel = onboarding flow improvement; auto-fall-off = payment-method confirmation page; convert-and-cancel = retention features. The dashboard should split these.</p>
+
+<h5>The cohort-curve follow-up &mdash; D7 / D14 / D30 conversion</h5>
+<p>Mature growth orgs don't stop at "ever converted" &mdash; they look at <em>conversion velocity</em>:</p>
+<pre><code>COUNT(*) FILTER (WHERE first_paid_date &lt;= signup_date + INTERVAL '7 days')  AS d7_paid,
+COUNT(*) FILTER (WHERE first_paid_date &lt;= signup_date + INTERVAL '14 days') AS d14_paid,
+COUNT(*) FILTER (WHERE first_paid_date &lt;= signup_date + INTERVAL '30 days') AS d30_paid</code></pre>
+<p>Cohorts where d7-paid is unusually high are the "intent-buyer" segment &mdash; they signed up to pay, the trial was a formality. Cohorts where the curve is flat until d28 are the "trial-tourists" &mdash; only converting at trial-end-forced-decision.</p>
+
+<h5>The price-tier split</h5>
+<p>Netflix has multiple paid tiers (basic-with-ads, standard, premium). Conversion rate to <em>any</em> paid is one number; conversion rate to <em>premium</em> is another. Add a <code>tier_at_conversion</code> column and pivot.</p>
+
+<h5>Source attribution &mdash; the marketing follow-up</h5>
+<p>The marketing org wants <em>conversion by acquisition source</em> (organic, paid-search, paid-social, partner, referral) so they can re-allocate spend. Add a <code>signup_source</code> column to the GROUP BY:</p>
+<pre><code>GROUP BY DATE_TRUNC('week', signup_date), signup_source</code></pre>
+<p>Then the dashboard shows a side-by-side: which source drives quantity, which drives quality (high conversion %).</p>
+
+<h5>The denominator everybody forgets &mdash; trial completers</h5>
+<p>"Trial-to-paid" can mean two things:</p>
+<ul>
+  <li>"Of all signups, what % paid?" (the original query) &mdash; affected by trial-cancellers</li>
+  <li>"Of trial-completers, what % paid?" (more honest reflection of price acceptance)</li>
+</ul>
+<pre><code>COUNT(first_paid_date) * 100.0 /
+NULLIF(COUNT(*) FILTER (WHERE cancel_date IS NULL OR cancel_date &gt; trial_end_date), 0) AS trial_completer_to_paid_pct</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(col)</code> as the terse "non-null" idiom but show the <code>FILTER (WHERE)</code> form for clarity, raise the in-flight-cohort artifact unprompted (<em>"hide cohorts &lt; 30 days old"</em>), and split "didn't convert" into three meaningful buckets. Net-vs-gross conversion at D90 and the conversion-velocity curve are the over-the-bar finish.</div>

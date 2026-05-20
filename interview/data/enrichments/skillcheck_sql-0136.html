@@ -1,0 +1,65 @@
+<p>An e-commerce team wants each customer's "favourite product" &mdash; the one they order most often &mdash; for a personalised re-order widget. The twist the interviewer is probing: a customer can have two products tied for most-ordered, and the spec explicitly says return <em>all</em> tied products. That single word, "all", decides whether you reach for <code>RANK</code> or <code>ROW_NUMBER</code>.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>product_id</th><th>order_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>100</td><td>2025-01-01</td><td>product 100, order 1</td></tr>
+    <tr><td>2</td><td>1</td><td>100</td><td>2025-01-02</td><td>product 100 again &mdash; same combo, new date</td></tr>
+    <tr><td>3</td><td>1</td><td>200</td><td>2025-01-03</td><td>product 200 once &mdash; loses to 100</td></tr>
+    <tr><td>4</td><td>2</td><td>300</td><td>2025-02-01</td><td>product 300, order 1</td></tr>
+    <tr><td>5</td><td>2</td><td>400</td><td>2025-02-02</td><td>product 400, order 1</td></tr>
+    <tr><td>6</td><td>2</td><td>300</td><td>2025-02-03</td><td>product 300 &mdash; now tied with 400 at 2</td></tr>
+    <tr><td>7</td><td>2</td><td>400</td><td>2025-02-04</td><td>product 400 &mdash; the tie holds at 2 each</td></tr>
+    <tr><td>8</td><td>3</td><td>500</td><td>2025-03-01</td><td>single order &mdash; trivially the favourite</td></tr>
+  </tbody>
+</table>
+<p>Customer&nbsp;2 is the whole interview: products&nbsp;300 and&nbsp;400 are each ordered twice &mdash; a genuine tie at the top. Customer&nbsp;3 has exactly one order, the degenerate single-row group. The spec wants both of customer&nbsp;2's products returned, not an arbitrary one.</p>
+
+<h4>2. The SQL &mdash; aggregate, then <code>RANK</code> the counts</h4>
+<pre><code>WITH counts AS (
+  SELECT customer_id, product_id, COUNT(*) AS times
+  FROM orders
+  GROUP BY customer_id, product_id
+),
+ranked AS (
+  SELECT customer_id, product_id, times,
+         RANK() OVER (PARTITION BY customer_id ORDER BY times DESC) AS rk
+  FROM counts
+)
+SELECT customer_id, product_id, times::int AS times
+FROM ranked
+WHERE rk = 1
+ORDER BY customer_id, product_id;</code></pre>
+<p>The <code>counts</code> CTE collapses raw orders into one row per customer/product with an order tally. <code>RANK() OVER (PARTITION BY customer_id ORDER BY times DESC)</code> then ranks products within each customer by that tally, and <code>WHERE rk = 1</code> keeps every product holding the top rank &mdash; including ties.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>product_id</th><th>times</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2</td><td>clear winner &mdash; 200 ordered only once</td></tr>
+    <tr><td>2</td><td>300</td><td>2</td><td>tied for first &mdash; both kept</td></tr>
+    <tr><td>2</td><td>400</td><td>2</td><td>tied for first &mdash; both kept</td></tr>
+    <tr><td>3</td><td>500</td><td>1</td><td>only product &mdash; rank 1 by default</td></tr>
+  </tbody>
+</table>
+<p>Customer&nbsp;2 produces <strong>two</strong> rows: <code>RANK</code> gives both 300 and 400 the value 1 because they share the top count, so <code>WHERE rk = 1</code> admits both. Customer&nbsp;3's lone product is rank&nbsp;1 trivially &mdash; a single-member partition.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>RANK</code>, not <code>ROW_NUMBER</code> &mdash; the spec said "all tied"</h5>
+<p><code>ROW_NUMBER()</code> would assign customer&nbsp;2's two products the distinct numbers 1 and 2, and <code>WHERE rn = 1</code> would silently drop one &mdash; arbitrarily, by physical row order. <code>RANK()</code> gives tied rows the <em>same</em> rank, so <code>WHERE rk = 1</code> returns every product at the maximum count. The choice is dictated by the requirement: "return all tied products" means ties must share a rank, which is exactly what <code>RANK</code> does and <code>ROW_NUMBER</code> refuses to.</p>
+
+<h5>Two-stage shape &mdash; aggregate first, rank second</h5>
+<p>You cannot rank by <code>COUNT(*)</code> in one pass, because the count and the window function operate at different granularities. The <code>counts</code> CTE first reduces orders to per-product tallies; only then can a second window rank those tallies. Trying to write <code>RANK() OVER (... ORDER BY COUNT(*) DESC)</code> directly is possible in some engines but muddier &mdash; the explicit two-CTE form makes "count, then rank" legible, which is what an interviewer wants to see.</p>
+
+<h5>"Same combo on different dates" is the point of the <code>COUNT</code></h5>
+<p>The question stresses that a customer-product pair can recur across dates &mdash; that is precisely why <code>GROUP BY customer_id, product_id</code> with <code>COUNT(*)</code> is correct: it tallies how many times the pair appears regardless of date. If the metric were "distinct days a product was ordered" you would switch to <code>COUNT(DISTINCT order_date)</code>; if it were "distinct orders" the current <code>COUNT(*)</code> is right because each row is one order. The aggregate encodes the business definition &mdash; state which one you mean.</p>
+
+<h5>RANK gaps do not matter here &mdash; but know they exist</h5>
+<p><code>RANK</code> skips numbers after a tie: if customer&nbsp;2 had a third, less-ordered product it would be rank&nbsp;3, not&nbsp;2. That gap is irrelevant to this query because we only ever keep <code>rk = 1</code>. But if the task were "top two distinct order-counts" you would need <code>DENSE_RANK</code> instead, which never leaves gaps. Knowing the difference &mdash; and that it is harmless here &mdash; is the senior nuance.</p>
+
+<h5>The type label &mdash; "ASOF" is a red herring</h5>
+<p>The question is tagged "SQL / ASOF / Window Functions", but there is no as-of join, no point-in-time lookup, no temporal nearest-match here &mdash; it is a tie-aware top-N-per-group. Do not be lured into <code>ASOF JOIN</code> (a DuckDB/ClickHouse construct) or interval gymnastics; recognise the problem as a ranked aggregation and solve that. Mislabelled tags happen &mdash; answer the question, not the category.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "return all tied products" as a hard requirement for <code>RANK</code> over <code>ROW_NUMBER</code>, structure the query as aggregate-then-rank in two CTEs, justify <code>COUNT(*)</code> as the chosen definition of "ordered most often", and ignore the misleading ASOF tag &mdash; it is a tie-aware top-N-per-group, nothing more.</div>

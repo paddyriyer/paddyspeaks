@@ -1,0 +1,63 @@
+<p>NPM's analytics team wants a one-line customer summary: per customer, how many orders, the total, the average, the biggest and the smallest. It is the bread-and-butter <code>GROUP BY</code> &mdash; five aggregates over one grouping. The query is trivial to write; the interview value is knowing precisely which rows each aggregate counts, how NULLs slip past some of them, and why <code>avg</code>, <code>max</code>, and <code>min</code> are dangerous things to name a column.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>100</td></tr>
+    <tr><td>2</td><td>1</td><td>200</td></tr>
+    <tr><td>3</td><td>1</td><td>50</td></tr>
+    <tr><td>4</td><td>2</td><td>500</td></tr>
+    <tr><td>5</td><td>3</td><td>80</td></tr>
+    <tr><td>6</td><td>3</td><td>120</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 has three orders spanning a wide range (50 to 200). Customer 2 is a <strong>single-order group</strong> &mdash; the edge case where <code>min</code>, <code>max</code>, and <code>avg</code> all collapse to the same number. Customer 3 has two mid-range orders.</p>
+
+<h4>2. The SQL &mdash; <code>five aggregates, one GROUP BY</code></h4>
+<pre><code>SELECT customer_id,
+  COUNT(*) AS orders, SUM(amount) AS total, AVG(amount) AS avg,
+  MAX(amount) AS max, MIN(amount) AS min
+FROM orders
+GROUP BY customer_id;</code></pre>
+<p>One row per <code>customer_id</code>; each aggregate folds that customer's order rows into a single value.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders</th><th>total</th><th>avg</th><th>max</th><th>min</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>2</td><td>200</td><td>100.0000000000000000</td><td>120</td><td>80</td></tr>
+    <tr><td>2</td><td>1</td><td>500</td><td>500.0000000000000000</td><td>500</td><td>500</td></tr>
+    <tr><td>1</td><td>3</td><td>350</td><td>116.6666666666666667</td><td>200</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Customer 1: 3 orders, total 350, average 116.67. Customer 2's single order makes <code>avg = max = min = 500</code> &mdash; a one-row group has nothing to spread. Result rows are unordered; no <code>ORDER BY</code> was given.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(amount)</code> &mdash; the NULL distinction</h5>
+<p>They diverge the moment <code>amount</code> can be NULL. <code>COUNT(*)</code> counts <em>rows</em>; <code>COUNT(amount)</code> counts <em>non-NULL values</em>. If a customer placed an order with a NULL amount (priced later, say), <code>COUNT(*)</code> includes it and <code>COUNT(amount)</code> does not. This matters because <code>AVG(amount)</code> is <code>SUM(amount) / COUNT(amount)</code> &mdash; it divides by the non-NULL count. So if you ever hand-roll the average as <code>SUM(amount) / COUNT(*)</code>, you get a different (wrong) number than <code>AVG</code> whenever a NULL is present. <code>SUM</code>, <code>MAX</code>, and <code>MIN</code> all skip NULLs too; only <code>COUNT(*)</code> sees them.</p>
+
+<h5><code>avg</code>, <code>max</code>, <code>min</code> are reserved-ish &mdash; rename the columns</h5>
+<p>Aliasing columns <code>avg</code>, <code>max</code>, <code>min</code> is asking for trouble: they collide with function names and with reserved words in some engines, forcing awkward quoting (<code>"max"</code>) downstream and confusing every reader. Use descriptive, safe names &mdash; this is a real code-review note, not pedantry:</p>
+<pre><code>SELECT customer_id,
+  COUNT(*)     AS order_count,
+  SUM(amount)  AS total_spend,
+  AVG(amount)  AS avg_order_value,
+  MAX(amount)  AS largest_order,
+  MIN(amount)  AS smallest_order
+FROM orders
+GROUP BY customer_id
+ORDER BY total_spend DESC;</code></pre>
+<p>The <code>ORDER BY</code> is added too &mdash; a summary table almost always wants a deterministic, meaningful order.</p>
+
+<h5>The integer-division trap on <code>AVG</code></h5>
+<p>If <code>amount</code> were an <code>INTEGER</code> column, some engines compute <code>AVG</code> with integer arithmetic and <em>truncate</em> &mdash; customer 1's 116.67 would come back as 116. Postgres returns <code>numeric</code> for an integer <code>AVG</code> (so it is safe here), but to be portable and explicit, cast: <code>AVG(amount::numeric)</code> or <code>ROUND(AVG(amount), 2)</code> to control the displayed precision. The long <code>116.6666666666666667</code> above is also worth rounding for a real report.</p>
+
+<h5>Customers with zero orders are invisible</h5>
+<p>This query is sourced only from <code>orders</code>, so a customer who has never ordered produces no row at all &mdash; not a row of zeros. If the summary must cover the full customer base, drive it from the <code>customers</code> table with a <code>LEFT JOIN</code>, and note the asymmetry: <code>COUNT(o.order_id)</code> correctly gives 0 for a no-order customer (it counts non-NULL join keys), but <code>SUM(o.amount)</code> gives NULL &mdash; wrap it in <code>COALESCE(SUM(o.amount), 0)</code>.</p>
+
+<h5>The grand-total / rollup follow-up</h5>
+<p>A frequent next ask is "and the totals across all customers." Rather than a separate query, <code>GROUP BY ROLLUP(customer_id)</code> appends a summary row (with <code>customer_id</code> NULL) carrying the overall <code>COUNT</code>/<code>SUM</code> &mdash; one pass, one result set.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate that <code>COUNT(*)</code> counts rows while <code>COUNT(col)</code>/<code>SUM</code>/<code>AVG</code>/<code>MIN</code>/<code>MAX</code> skip NULLs, refuse to alias columns <code>avg</code>/<code>max</code>/<code>min</code>, pre-empt integer-division truncation with a cast, and switch to a <code>LEFT JOIN</code> + <code>COALESCE</code> when zero-order customers must appear.</div>

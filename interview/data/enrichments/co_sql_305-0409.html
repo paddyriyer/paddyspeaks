@@ -1,0 +1,34 @@
+<p>Sales pipeline rot: opps stuck without activity. Salesforce's "no activity in 30 days" rule flags deals at risk; 60+ days = critical. The query computes per-opp idle days and classifies.</p>
+
+<h4>2. The SQL — latest-activity + classification</h4>
+<pre><code>WITH last_activity AS (
+  SELECT opp_id, MAX(activity_at) AS most_recent FROM opp_activities GROUP BY opp_id
+)
+SELECT opp_id, most_recent,
+  CAST((julianday('2024-04-01') - julianday(most_recent)) AS INTEGER) AS days_idle,
+  CASE
+    WHEN julianday('2024-04-01') - julianday(most_recent) &gt; 60 THEN 'critical_stale'
+    WHEN julianday('2024-04-01') - julianday(most_recent) &gt; 30 THEN 'stale'
+    ELSE 'active'
+  END AS health
+FROM last_activity ORDER BY days_idle DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The MAX(activity_at) pattern</h5>
+<p>One row per opp giving the latest event. Cleaner than ROW_NUMBER+rn=1 when you only want the timestamp.</p>
+
+<h5>The snapshot date</h5>
+<p>Hardcoding '2024-04-01' as the analysis snapshot makes the result reproducible. Production uses a parameter or CURRENT_DATE.</p>
+
+<h5>Activity types matter</h5>
+<p>"Email opened" is a weak signal; "phone call completed" is strong. Production weights:</p>
+<pre><code>... WHERE activity_type IN ('call','meeting','email_replied') -- substantive only</code></pre>
+
+<h5>The stage-aware adjustment</h5>
+<p>"Closed Won" opps with 60 days no activity is fine — deal is done. "Negotiation" with 60 days is alarm. Filter:</p>
+<pre><code>... WHERE current_stage NOT IN ('Closed Won', 'Closed Lost')</code></pre>
+
+<h5>The CRM-action trigger</h5>
+<p>Stale opps fire automated emails to rep + manager. The query result feeds the workflow engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use MAX-grouped pattern for latest event, parameterize snapshot date, weight activity-type for substance, filter to open opps only, and connect to CRM workflow triggers.</div>

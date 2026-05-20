@@ -1,0 +1,62 @@
+<p>A sales dashboard needs a ranked list of orders by value, where equal-value orders share a position with no gaps afterwards. The reference solution uses <code>DENSE_RANK()</code>. It is a one-liner, but the interviewer is checking that you can distinguish <code>DENSE_RANK</code> from <code>RANK</code> and <code>ROW_NUMBER</code> &mdash; the three ranking functions diverge precisely on ties.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th><th>order_date</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>$500</td><td>2026-03-01</td><td>shipped</td></tr>
+    <tr><td>2</td><td>102</td><td>$500</td><td>2026-03-05</td><td>shipped</td></tr>
+    <tr><td>3</td><td>103</td><td>$300</td><td>2026-03-09</td><td>pending</td></tr>
+    <tr><td>4</td><td>104</td><td>$300</td><td>2026-03-02</td><td>shipped</td></tr>
+    <tr><td>5</td><td>105</td><td>$150</td><td>2026-03-03</td><td>cancelled</td></tr>
+  </tbody>
+</table>
+<p>Two ties: orders 1 and 2 at <strong>$500</strong>, orders 3 and 4 at <strong>$300</strong>. Those tie groups are the whole interview &mdash; they decide whether the next rank is 2 or 3.</p>
+
+<h4>2. The SQL &mdash; DENSE_RANK over amount</h4>
+<pre><code>SELECT order_id, amount,
+  DENSE_RANK() OVER (ORDER BY amount DESC) AS rk
+FROM orders;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>amount</th><th>rk</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>$500</td><td>1</td><td>tied top</td></tr>
+    <tr><td>2</td><td>$500</td><td>1</td><td>tied top &mdash; same rank</td></tr>
+    <tr><td>3</td><td>$300</td><td>2</td><td>next rank is 2, NOT 3</td></tr>
+    <tr><td>4</td><td>$300</td><td>2</td><td>tied &mdash; same rank</td></tr>
+    <tr><td>5</td><td>$150</td><td>3</td><td>no gaps anywhere</td></tr>
+  </tbody>
+</table>
+<p>The ranks read <code>1, 1, 2, 2, 3</code>. After the two-way tie at rank 1, the next value gets rank <strong>2</strong> &mdash; <code>DENSE_RANK</code> never skips. That is the defining behaviour.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>DENSE_RANK</code> &mdash; ties share a rank, no gaps</h5>
+<p><code>DENSE_RANK</code> assigns the same rank to tied rows and then advances the counter by exactly <em>one</em>, regardless of how many rows tied. So a 17-way tie at rank 1 is still followed by rank 2. The result is a contiguous ranking with no holes &mdash; ideal when "rank" should mean "which distinct tier," like medal placings or pricing bands.</p>
+
+<h5>The contrast that wins the interview &mdash; RANK vs DENSE_RANK vs ROW_NUMBER</h5>
+<p>All three sort the same way; they differ only on ties. On this dataset:</p>
+<table>
+  <thead><tr><th>amount</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>$500</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>$500</td><td>2</td><td>1</td><td>1</td></tr>
+    <tr><td>$300</td><td>3</td><td>3</td><td>2</td></tr>
+    <tr><td>$300</td><td>4</td><td>3</td><td>2</td></tr>
+    <tr><td>$150</td><td>5</td><td>5</td><td>3</td></tr>
+  </tbody>
+</table>
+<p><code>ROW_NUMBER</code> ignores ties &mdash; every row gets a unique number, the tie broken arbitrarily. <code>RANK</code> shares ranks but <em>skips</em> after a tie (1, 1, 3, 3, 5) &mdash; competition ranking. <code>DENSE_RANK</code> shares ranks and does <em>not</em> skip (1, 1, 2, 2, 3). Saying this comparison crisply is the senior tell.</p>
+
+<h5>The ORDER BY inside the window is non-deterministic on ties</h5>
+<p>Within a $500 tie, which physical order_id comes "first" is undefined &mdash; it does not matter for <code>DENSE_RANK</code> (both get rank 1 anyway), but it <em>would</em> matter for <code>ROW_NUMBER</code>. If you ever need a stable, reproducible ordering, add a tiebreaker: <code>ORDER BY amount DESC, order_id</code>.</p>
+
+<h5>NULL amounts sort to a default end</h5>
+<p>With <code>ORDER BY amount DESC</code>, Postgres places <code>NULL</code> amounts <em>first</em> (NULLs are largest by default in <code>DESC</code>), so a NULL-amount order would wrongly grab rank 1. Use <code>ORDER BY amount DESC NULLS LAST</code> to sink unscored rows to the bottom. Dialects differ &mdash; MySQL treats NULL as smallest &mdash; so be explicit.</p>
+
+<h5>No outer ORDER BY</h5>
+<p>The window orders the ranking computation, but the query has no final <code>ORDER BY</code>, so display order is not guaranteed. Add <code>ORDER BY rk</code> (or <code>amount DESC</code>) if the consumer expects sorted rows.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> describe <code>DENSE_RANK</code> as "ties share a rank, counter advances by one, no gaps" and contrast all three functions on the same tied data &mdash; <code>ROW_NUMBER</code> unique, <code>RANK</code> skips after ties, <code>DENSE_RANK</code> does not &mdash; then handle NULL ordering with <code>NULLS LAST</code>.</div>

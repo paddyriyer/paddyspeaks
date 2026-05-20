@@ -1,0 +1,49 @@
+<p>Amazon's retention team defines an "active" customer as anyone who bought something in the last 90 days, and wants the list for a re-engagement campaign. A one-line <code>WHERE</code> &mdash; but the interviewer is probing two things: do you know how <code>CURRENT_DATE</code> and interval arithmetic actually behave, and do you handle the customer who has never bought at all?</p>
+
+<h4>1. The source data &mdash; <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>last_purchase_date</th><th>name</th><th>country</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>today &minus; 10 days</td><td>Ann</td><td>US</td></tr>
+    <tr><td>2</td><td>today &minus; 89 days</td><td>Ben</td><td>US</td></tr>
+    <tr><td>3</td><td>today &minus; 90 days</td><td>Cy</td><td>UK</td></tr>
+    <tr><td>4</td><td>today &minus; 200 days</td><td>Dee</td><td>UK</td></tr>
+    <tr><td>5</td><td><em>NULL</em></td><td>Eve</td><td>DE</td></tr>
+  </tbody>
+</table>
+<p>Two rows are deliberately on edges. Customer 3 is <strong>exactly 90 days</strong> ago &mdash; in or out depends on <code>&ge;</code> vs <code>&gt;</code>. Customer 5 has a <strong>NULL</strong> <code>last_purchase_date</code>: a customer who signed up but never purchased. Those two rows are the whole interview.</p>
+
+<h4>2. The SQL &mdash; <code>WHERE</code> on a date window</h4>
+<pre><code>SELECT customer_id FROM customers
+WHERE last_purchase_date &gt;= CURRENT_DATE - INTERVAL '90 days';</code></pre>
+<p><code>CURRENT_DATE</code> is today's date; subtracting <code>INTERVAL '90 days'</code> yields the cutoff. The predicate keeps every customer whose last purchase is on or after that cutoff.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>Customers 1, 2, and 3 are active. Customer 3, exactly 90 days out, <em>is included</em> because the operator is <code>&ge;</code> &mdash; the window is "90 days or fewer". Customer 4 is too old. Customer 5 is absent, and that absence is the lesson: the NULL row was silently dropped, not flagged.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The NULL customer disappears &mdash; usually correct, always worth stating</h5>
+<p><code>NULL &gt;= anything</code> evaluates to <em>unknown</em>, and <code>WHERE</code> keeps only rows that are <em>true</em>. So customer 5 is filtered out. For "active customers" that is the right outcome &mdash; never-purchased is not active. But if the task were to find <em>inactive</em> customers to win back, naively negating the predicate to <code>last_purchase_date &lt; cutoff</code> would <em>also</em> drop the NULL, missing the most inactive customer of all. Inactive needs <code>last_purchase_date &lt; cutoff OR last_purchase_date IS NULL</code>.</p>
+
+<h5>The boundary &mdash; <code>&ge;</code> vs <code>&gt;</code> is a real decision</h5>
+<p>"Last 90 days" is ambiguous English. <code>&ge; CURRENT_DATE - 90</code> includes day 90; <code>&gt;</code> excludes it. One row of difference here, potentially thousands on a real table. Confirm with the interviewer, and notice the column is a <code>DATE</code> &mdash; if it were a <code>timestamp</code>, <code>CURRENT_DATE - INTERVAL '90 days'</code> is midnight, so a purchase at 2pm on the cutoff day still passes; comparing timestamps to a date cutoff has its own subtleties.</p>
+
+<h5>Why not just hard-code the date?</h5>
+<p>Writing <code>WHERE last_purchase_date &gt;= '2026-02-14'</code> works <em>today</em> and silently rots tomorrow &mdash; the report quietly measures a sliding-then-frozen window. <code>CURRENT_DATE</code> keeps the query correct on every run. The trade-off: it is non-deterministic, so two runs on different days give different results &mdash; fine for a live dashboard, a problem for a reproducible snapshot, where you would pass an explicit <em>as-of</em> date as a parameter.</p>
+
+<h5>Index-friendliness &mdash; keep the function off the column</h5>
+<p>This predicate is sargable: the column <code>last_purchase_date</code> stands alone and all arithmetic is on the constant side, so an index on <code>last_purchase_date</code> can be used directly. The anti-pattern is wrapping the column &mdash; <code>WHERE CURRENT_DATE - last_purchase_date &lt;= 90</code> &mdash; which computes a value per row and defeats the index. Same result, far worse plan on a large table.</p>
+
+<h5>"Last purchase" may be a stale denormalised column</h5>
+<p><code>last_purchase_date</code> is a precomputed summary on the customer row. If it is maintained by a nightly job or an app trigger, it can lag reality &mdash; a purchase made an hour ago may not be reflected yet. The trustworthy alternative is to derive activity from the orders table directly: <code>WHERE customer_id IN (SELECT customer_id FROM orders WHERE order_date &gt;= CURRENT_DATE - INTERVAL '90 days')</code>. Knowing the column might be stale is the senior instinct.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that the NULL-purchase customer is filtered out and that the <em>inactive</em> query must explicitly add <code>IS NULL</code>, pin down <code>&ge;</code> vs <code>&gt;</code> on the boundary, prefer <code>CURRENT_DATE</code> over a hard-coded date while flagging the reproducibility trade-off, and keep functions off the indexed column so the predicate stays sargable.</div>

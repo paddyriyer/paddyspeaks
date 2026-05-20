@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SQL Playground — In-Browser SQLite for 536 Interview Questions | PaddySpeaks</title>
-<meta name="description" content="Run real interview SQL questions in your browser. SQLite (sql.js) with sample CSV tables and per-question synthetic schemas auto-loaded. From Google, Amazon, Meta, Snowflake and 100+ more." />
+<title>SQL Interview Questions — 968 Real Questions with In-Browser SQLite &amp; PostgreSQL Playground | PaddySpeaks</title>
+<meta name="description" content="Practice 968 real SQL interview questions from Google, Amazon, Meta, Snowflake. Window functions, CTEs, joins, data modeling — run queries live on SQLite (sql.js) or PostgreSQL (PGlite) in your browser. Free, no sign-up." />
 <meta name="keywords" content="SQL playground, in-browser SQL, sql.js, SQLite WASM, interview SQL, SQL practice, Snowflake interview, data engineering interview, SQL questions" />
 <meta name="author" content="Padmanabhan Iyer" />
 <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -12,14 +12,14 @@
 <link rel="canonical" href="https://paddyspeaks.com/interview.app/sql.html" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://paddyspeaks.com/interview.app/sql.html" />
-<meta property="og:title" content="SQL Playground — 536 Real SQL Interview Questions, Live in Your Browser" />
+<meta property="og:title" content="SQL Interview Questions — 968 Real Questions with In-Browser Playground" />
 <meta property="og:description" content="Run interview SQL questions on a fresh SQLite instance with sample data and per-question synthetic schemas — all client-side." />
 <meta property="og:image" content="https://paddyspeaks.com/images/og-interview-bank.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:site_name" content="PaddySpeaks" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="SQL Playground — 536 Real SQL Interview Questions" />
+<meta name="twitter:title" content="SQL Playground — 968 Real SQL Interview Questions" />
 <meta name="twitter:description" content="In-browser SQLite, synthetic per-question schemas, no backend." />
 <meta name="twitter:image" content="https://paddyspeaks.com/images/og-interview-bank.png" />
 
@@ -51,6 +51,8 @@
   <a href="../index.html">← PaddySpeaks</a>
   <div class="top-bar-links">
     <a href="./index.html">Question Bank</a>
+    <a href="./design/">Design</a>
+    <a href="./evaluate/">Skill Check</a>
     <a href="./sql.html">SQL Playground</a>
     <a href="./python.html">Python Playground</a>
   </div>
@@ -58,7 +60,7 @@
 
 <header class="pg-header">
   <h1 class="pg-title">SQL Playground</h1>
-  <p class="pg-subtitle">SQLite (sql.js) · runs entirely in your browser · sample CSVs preloaded</p>
+  <p class="pg-subtitle">SQLite (sql.js) + PostgreSQL (PGlite) · runs entirely in your browser · sample CSVs preloaded</p>
 </header>
 
 <main class="pg-shell">
@@ -76,10 +78,16 @@
         <span id="pg-q-type"></span>
       </div>
     </div>
+    <div class="pg-q-tagchips" id="pg-q-tagchips" hidden>
+    </div>
     <h2 id="pg-q-title" class="pg-q-title">Pick a question to start</h2>
     <div class="pg-q-prompt-block" id="pg-q-prompt-block" hidden>
       <div class="pg-detail-label">The problem</div>
       <div id="pg-q-prompt" class="pg-q-prompt"></div>
+    </div>
+    <div class="pg-q-enrichment-block" id="pg-q-enrichment-block" hidden>
+      <div class="pg-detail-label">▸ Real-world scenario</div>
+      <div id="pg-q-enrichment" class="pg-q-enrichment"></div>
     </div>
     <div class="pg-q-schema-block" id="pg-q-schema-block" hidden>
       <div class="pg-detail-label">Inferred schema</div>
@@ -94,16 +102,30 @@
       <button id="pg-format" type="button" class="pg-btn">Format</button>
       <button id="pg-show-solution" type="button" class="pg-btn">Show solution</button>
       <button id="pg-load-solution" type="button" class="pg-btn">Load solution</button>
+      <button id="pg-clear-editor" type="button" class="pg-btn pg-btn-ghost" title="Clear the SQL editor">Clear SQL</button>
+      <button id="pg-clear-output" type="button" class="pg-btn pg-btn-ghost" title="Clear the results panel">Clear output</button>
       <button id="pg-reset-db" type="button" class="pg-btn pg-btn-ghost">Reset DB</button>
       <button id="pg-load-q-tables" type="button" class="pg-btn pg-btn-ghost" disabled>Load question tables</button>
       <label class="pg-pyo-pkg" title="Auto-create the question's tables when you switch questions">
         <input type="checkbox" id="pg-toggle-autoload" checked /> auto-load
       </label>
+      <label class="pg-runtime-picker" title="Pick the SQL engine. 'Auto' uses SQLite by default, switches to PostgreSQL when a question's runtime tag asks for it.">
+        Engine
+        <select id="pg-runtime-select">
+          <option value="auto">Auto (per question)</option>
+          <option value="sqlite">SQLite (sql.js)</option>
+          <option value="postgres">PostgreSQL (PGlite)</option>
+        </select>
+      </label>
+      <span class="pg-engine-badge" id="pg-engine-badge" title="Active engine">SQLite</span>
       <span class="pg-status" id="pg-status">Loading SQLite engine…</span>
     </div>
     <textarea id="pg-editor" class="pg-editor"
       spellcheck="false" autocomplete="off"
-      placeholder="-- Write your SQL here. Press Ctrl+Enter to run.&#10;SELECT name, sqlite_version();"></textarea>
+      aria-label="SQL code editor — write a query and press Ctrl+Enter to run"
+      role="textbox"
+      aria-multiline="true"
+      placeholder="-- Write your SQL here. Press Ctrl+Enter to run.&#10;-- SQLite + PostgreSQL both supported (toggle the engine above).&#10;SELECT 1 AS hello;"></textarea>
   </section>
 
   <!-- Schema sidebar -->
@@ -146,11 +168,12 @@
 </main>
 
 <footer class="qb-footer">
-  <small>SQL engine: sql.js · No data leaves your browser</small>
+  <small>SQL engines: sql.js (SQLite) + PGlite (PostgreSQL) · No data leaves your browser</small>
 </footer>
 
-<!-- sql.js — vendored locally (no CDN dependency) -->
-<script src="./vendor/sql.js/sql-wasm.js"></script>
+<!-- sql.js — vendored locally (no CDN dependency). Defer so it doesn't block
+     initial paint; the engine boots when DOMContentLoaded fires anyway. -->
+<script src="./vendor/sql.js/sql-wasm.js" defer></script>
 <script type="module" src="./js/sql.js"></script>
 </body>
 </html>

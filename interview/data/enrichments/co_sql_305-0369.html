@@ -1,0 +1,51 @@
+<p>Listings with long blackout stretches signal hosts who manage poorly OR have offline-rented (illegal long-tail bookings). The query uses gaps-and-islands on the calendar to detect contiguous unavailable runs per listing.</p>
+
+<h4>1. The source data — <code>calendar_nights</code></h4>
+<table><thead><tr><th>listing_id</th><th>night</th><th>available</th></tr></thead>
+<tbody><tr><td>L_01</td><td>2024-01-01</td><td>0</td></tr><tr><td>L_01</td><td>2024-01-02</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — gaps-and-islands on unavailable nights</h4>
+<pre><code>WITH unavail AS (
+  SELECT listing_id, night,
+    julianday(night) - ROW_NUMBER() OVER (PARTITION BY listing_id ORDER BY night) AS island_id
+  FROM calendar_nights
+  WHERE available = 0
+)
+SELECT listing_id,
+  MIN(night) AS blackout_start,
+  MAX(night) AS blackout_end,
+  COUNT(*) AS blackout_days
+FROM unavail
+GROUP BY listing_id, island_id
+HAVING COUNT(*) &gt;= 1
+ORDER BY blackout_days DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Gaps-and-islands — why date − rn = constant</h5>
+<p>Within a contiguous run of unavailable nights, both the date and the row_number tick by 1 each row. Their difference is constant. As soon as the calendar has a 1-day gap (an available night), the difference shifts. <strong>Distinct difference = distinct blackout stretch.</strong></p>
+
+<h5>The DEDUP step (implicit here)</h5>
+<p>Calendar-as-fact is already 1-row-per-night, so no dedup needed. For event-stream tables (page_views, etc.), always DISTINCT first before ROW_NUMBER.</p>
+
+<h5>Why filter <code>available = 0</code> AT THE START</h5>
+<p>The window function operates only on unavailable rows. The "gaps" between them in the calendar produce different island_ids — exactly what we want. Filtering after window doesn't work; the window enumeration would include available days.</p>
+
+<h5>The "30+ day" red flag</h5>
+<p>Production threshold: blackout_days &gt; 30 is investigated. Reasons:</p>
+<ul>
+<li>Host out of country (legitimate)</li>
+<li>Long-term off-platform rental (Airbnb policy violation)</li>
+<li>Property under repair</li>
+<li>Listing should be deactivated</li>
+</ul>
+<p>Trust + Safety team uses this to flag policy-violation listings.</p>
+
+<h5>The "every-weekend-blackout" pattern</h5>
+<p>Some hosts block all weekends to keep place for personal use. Detection: blackout_days = 2, recurring weekly. The query catches the streaks; the recurrence pattern needs follow-up:</p>
+<pre><code>... HAVING COUNT(*) &gt;= 1 AND COUNT(DISTINCT strftime('%w', night)) &lt;= 3</code></pre>
+
+<h5>Calendar-vs-bookings reconciliation</h5>
+<p>Some "blackouts" are real bookings. Join to bookings for the diff. Pure blackouts (no booking explanation) are the suspicious ones.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the date-rn-constant trick, filter at the start to scope the window, identify the 30+ day red flag for off-platform-rental detection, distinguish recurring weekend-blackouts via day-of-week analysis. Calendar-vs-bookings reconciliation is the over-the-bar policy-enforcement move.</div>

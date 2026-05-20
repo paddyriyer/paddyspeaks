@@ -1,0 +1,145 @@
+<p>Pinterest's growth team has the same problem every catalogue commerce site has: a user landed, browsed, didn't buy. <em>Which</em> of them are worth a remarketing dollar — the customer who deliberated on one product for a week and silently quit at checkout, or the customer who scrolled past 30 pins and never looked back? Weighted-event scoring on the clickstream is how Pinterest, Wayfair, ASOS, and Etsy decide; the bored half goes into a cheap email blast, the high-intent half gets a paid retargeting impression. <strong>Doing this with one threshold (e.g. "has add_to_cart") leaves 30 %+ of buyable intent on the table.</strong></p>
+
+<h4>1. The data — realistic clickstream</h4>
+<p>One row per recorded interaction. In production this is a Kafka topic <code>events.web.engagement</code> fanned out to S3+Glue and a real-time Flink job.</p>
+<table>
+  <thead><tr><th>event_type</th><th>weight</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td><code>view</code></td><td>0.1</td><td>Pin appeared on screen — barely a signal.</td></tr>
+    <tr><td><code>detail_view</code></td><td>0.3</td><td>User clicked through to the product page.</td></tr>
+    <tr><td><code>review_read</code></td><td>0.5</td><td>Scrolled into the reviews section — read intent.</td></tr>
+    <tr><td><code>wishlist_add</code></td><td>1.5</td><td>Saved for later — future-purchase intent.</td></tr>
+    <tr><td><code>price_check</code></td><td>1.5</td><td>Opened price history / variant picker — comparison shopping.</td></tr>
+    <tr><td><code>add_to_cart</code></td><td>2.0</td><td>Cart add — strong intent, didn't close.</td></tr>
+    <tr><td><code>checkout</code></td><td>4.0</td><td>Reached checkout, abandoned — the highest-recoverable cohort.</td></tr>
+    <tr><td><code>purchase</code></td><td>—</td><td>Customer is no longer passive; <strong>exclude entirely</strong>.</td></tr>
+  </tbody>
+</table>
+<p>The weights aren't pulled from a hat. The standard derivation: take a month of data, regress <code>purchased_within_7d</code> on each event-type count, and use the regression coefficients (or log-odds) as the weights. Re-fit quarterly because user behaviour drifts.</p>
+
+<h4>2. The business question — what the consumer of this metric decides on</h4>
+<ul>
+  <li><strong>Per-cohort marketing spend.</strong> Pinterest pays $0.40 CPM on the "considering" cohort (cheap broad emails) and $4.20 CPM on the "high_intent" cohort (Meta retargeting CPM). Misclassifying a high-intent user as bored costs ~$3.80 in foregone retargeting impressions; the inverse costs $3.80 in wasted CPM. Both errors matter, hence the three-band labelling.</li>
+  <li><strong>On-site personalisation.</strong> The "high_intent" cohort sees a banner with a 10 % coupon at session start. The "bored" cohort sees the standard discovery feed. The model output is the routing key.</li>
+  <li><strong>Conversion-rate forecasting.</strong> The finance team uses the count of high_intent users today as the leading indicator for purchases in the next 7 days — feeds the revenue forecast model. If high_intent count drops 20 % week-over-week, ring the alarm <em>before</em> revenue does.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def passive_intent(events, days=30):
+    weights = {
+        'view':         0.1,   'detail_view':  0.3,  'review_read': 0.5,
+        'wishlist_add': 1.5,   'price_check':  1.5,
+        'add_to_cart':  2.0,   'checkout':     4.0,
+    }
+
+    # ── Step 1. Window the data on event-time, not processing-time.
+    # `events_ts.max() - 30d` gives the same cutoff regardless of WHEN
+    # this notebook ran. Determinism matters for replay &amp; A/B testing.
+    df = events.copy()
+    df['event_ts'] = pd.to_datetime(df['event_ts'])
+    cutoff = df['event_ts'].max() - pd.Timedelta(days=days)
+    recent = df[df['event_ts'] &gt;= cutoff]
+
+    # ── Step 2. Drop the buyers — they're not "passive" by definition.
+    # set() comprehension is O(1) lookup per customer; .isin() with a
+    # set is faster than .isin() with a list (pandas optimises this).
+    buyers = set(recent.loc[recent['event_type'] == 'purchase',
+                            'customer_id'].unique())
+    passive = recent[~recent['customer_id'].isin(buyers)].copy()
+
+    # ── Step 3. Vectorised event-type → weight map. .map() is the
+    # right tool: dictionary lookup, runs in C, NaN for unknown types
+    # which we fillna(0) — safer than KeyError.
+    passive['weight'] = passive['event_type'].map(weights).fillna(0)
+
+    # ── Step 4. The base aggregate per customer.
+    # 'sessions' = nunique on event_ts (one session ≈ one unique ts
+    # in the demo; in production sessionise by 30-min idle gap first).
+    base = (passive.groupby('customer_id')
+                   .agg(sessions=('event_ts','nunique'),
+                        unique_products=('product_id','nunique'),
+                        intent_score=('weight','sum'))
+                   .reset_index())
+
+    # ── Step 5. Revisit bonus. A customer with 3+ hits on the SAME
+    # product is deliberating, not browsing. This is the orthogonal
+    # signal that pure event-weight summing misses — a user could rack
+    # up score=4.0 by viewing 40 different products (low intent) OR by
+    # poring over one product 8 times (high intent). The revisit bonus
+    # rewards the second pattern.
+    revisits = (passive.groupby(['customer_id','product_id']).size()
+                       .reset_index(name='hits'))
+    revisit_n = (revisits[revisits['hits'] &gt;= 3]
+                 .groupby('customer_id').size()
+                 .reset_index(name='revisits'))
+    out = base.merge(revisit_n, on='customer_id', how='left')
+    out['revisits'] = out['revisits'].fillna(0).astype(int)
+    out['intent_score'] = (out['intent_score']
+                           + (out['revisits'] &gt; 0).astype(int) * 1.0).round(2)
+
+    # ── Step 6. Three-band label. Thresholds (5.0, 2.0) are tunable
+    # hyperparameters — re-fit quarterly via precision-recall analysis
+    # against actual purchase outcomes in the following 7 days.
+    def _label(s):
+        if s &gt;= 5.0: return 'high_intent'
+        if s &gt;= 2.0: return 'considering'
+        return 'bored'
+    out['label'] = out['intent_score'].apply(_label)
+    return out.sort_values('intent_score', ascending=False).reset_index(drop=True)</code></pre>
+
+<p><strong>Why <code>.map()</code> instead of <code>.apply()</code> for the weight lookup?</strong> <code>.map()</code> on a dict is a single C-level hash lookup per row. <code>.apply(lambda x: weights[x])</code> is a Python call per row — ~50× slower on a 10 M-row event table. Same for the label assignment at the end: on a small per-customer frame the apply is fine; if it ever ran on raw event-level data it'd need to be re-cast as <code>pd.cut</code>.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>intent_score</th><th>label</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>U001</td><td>7.2</td><td><strong>high_intent</strong></td><td>One product, 7 events, revisit bonus fired. Classic deliberation pattern — saved, compared, read reviews. <em>The retargeting dollar goes here.</em></td></tr>
+    <tr><td>U005</td><td>2.3</td><td>considering</td><td>Detail view + cart-add on one product, but only 2 events total. Worth an email; not worth a paid impression.</td></tr>
+    <tr><td>U002</td><td>1.9</td><td>bored</td><td>Three events across two products including a wishlist_add. Falls just under the 2.0 threshold — exactly the borderline case the threshold needs to be tuned for. Look at the precision-recall curve weekly.</td></tr>
+    <tr><td>U003</td><td>0.2</td><td>bored</td><td>Two views, two products, no engagement. Drive-by browse. Cheap email at best.</td></tr>
+  </tbody>
+</table>
+<p>U004 — the buyer — is correctly absent from the table. They've already converted; including them in a "remarket the passive" cohort would be embarrassing (re-pitching a product they just bought).</p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 1-2 GB clickstream</strong> before OOM. Pinterest's web event stream is &gt; 1 B events/day. The production pipeline: Kafka → Flink for sessionisation + intent scoring keyed by user_id → DynamoDB serving table → real-time personalisation reads.</li>
+  <li><strong>Wayfair</strong> publishes its scoring weights as Tobit-regression coefficients re-fit weekly. The same architecture: events to Kafka, Flink for stateful scoring, output to a feature store consumed by the personalisation team.</li>
+  <li><strong>ASOS</strong> uses a near-identical "high intent / browsing / inactive" three-band split feeding email cadence. The exclusion of recent buyers is the same — a one-day post-purchase silence prevents the "you just bought this!" embarrassment.</li>
+  <li><strong>Hot-user skew.</strong> Power-users with 50k events/day exist. The score sum is associative — same salt + two-pass aggregation as <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> applies. The revisit count is also associative (sum of per-salt partials). The only piece that doesn't salt cleanly is <code>nunique(product_id)</code>; production uses HyperLogLog sketches keyed by user_id, merged across salts.</li>
+  <li><strong>Why the buyer filter must happen <em>before</em> scoring, not after.</strong> If you score everyone then filter, you've wasted ~30 % of CPU. If a customer has 5 000 events and the 5 001st is a purchase, you don't want to score the first 5 000. In streaming this is an early-stop predicate on the keyed state.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "Where do the weights come from? Are they magic numbers?"</h5>
+<p>No — they're regression coefficients. Take a labelled training set: <code>X</code> = per-event-type counts in the last 7 days, <code>y</code> = bought-or-not in days 8-14. Fit a logistic regression, take the coefficients (or e^coefficient — the odds ratio) as the weights. Re-fit quarterly because user behaviour drifts (TikTok-style discovery shortens the deliberation phase year-over-year). <strong>Treating the weights as static forever is a red flag</strong>.</p>
+
+<h5>Probe 2 — "What if a customer has 5 000 'view' events from a bot crawl? Score balloons to 500 — false high_intent."</h5>
+<p>Two defences. (a) Cap per-event-type contribution: <code>weight × min(count, 50)</code> caps a single event's impact. (b) Filter bot traffic upstream — Pinterest has a bot-detection model that tags events with <code>is_bot=True</code> on the way through the pipeline; the scoring function drops those before aggregation. In practice <em>both</em> defences are layered: the bot detector catches the obvious cases, the cap protects against the long tail of low-grade automation.</p>
+
+<h5>Probe 3 — "Why include 'sessions' and 'unique_products' if only intent_score drives the label?"</h5>
+<p>They're diagnostic columns for the analyst. The model only outputs the label; the columns let a human ask <em>why</em>. A customer with intent_score=5.1 from sessions=20 unique_products=20 is suspicious (probably a bot or a comparison-shopper) and merits a manual look. A customer with intent_score=5.1 from sessions=3 unique_products=1 is the classic high-intent signature. <strong>Operational visibility</strong> is the goal — the senior candidate names it.</p>
+
+<h5>Probe 4 — "How would you incrementalise this for streaming?"</h5>
+<p>Flink keyed state on customer_id. State holds <code>(running_intent_score, per_product_hit_count, has_purchased)</code>. Each event updates the state in O(1). The has_purchased flag, once true, evicts the customer from the active set with a TTL-based clean-up. Sessionisation upstream uses Flink's <code>SessionWindowAssigner</code> with 30-min idle gap. The pandas function is the offline twin — same algorithm, batch instead of stream. See <a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> for the pandas-twin pattern in detail.</p>
+
+<h5>Probe 5 — "The thresholds 5.0 and 2.0 — what's the rationale?"</h5>
+<p>Empirical. Take the historical score distribution, look at the cumulative purchase rate at each score quantile, pick the inflection points. Typical e-commerce: the top 10 % of passive users convert at 8-15× the bottom 60 % rate — that gap is where the high_intent threshold lives. The middle band is everything between "obviously not buying" and "obviously deliberating". Re-tune monthly via precision-recall trade-off against the marketing team's CAC ceiling.</p>
+
+<h5>Probe 6 — "What about <code>unique_products</code> as a divisor? Is 7 events on one product the same as 7 events on 7 products?"</h5>
+<p>No, and that's exactly what the revisit bonus encodes. Without the bonus, both sum to the same intent_score. With it, the single-product deliberator gets +1. The senior candidate suggests going further — <strong>per-product score concentration</strong> (Herfindahl index or just <code>max_hits_per_product / total_hits</code>) as a feature. A user whose 80 % of score sits on one product is structurally different from one whose score is uniform across 7 products.</p>
+
+<h5>Probe 7 — "How do you A/B test changes to this scoring function?"</h5>
+<p>Holdout cohort: randomly assign 5 % of new visitors to a control bucket where the OLD model decides their retargeting label. Measure 14-day purchase rate in treatment vs control. If the new model shifts 10 % of the cohort from "considering" to "high_intent" but the high_intent retargeting CTR drops by &gt; 20 %, the new threshold is too loose. <strong>Always tune intent-scoring with a downstream metric in the loop</strong>, not in isolation — the scoring function's only purpose is to feed a marketing decision.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas-as-offline-twin: same algorithm shape (live = Flink, batch = pandas).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — Salting: hot power-user rescue when a single customer has 100k events.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a> — Whale / Dolphin / Minnow: cohort segmentation downstream of scoring.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — the per-key skew problem for power-users.</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — event-time, watermarks, keyed state for the Flink twin.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Three things separate a senior answer from a junior one: (1) <em>weights are regression coefficients</em>, not magic numbers — re-fit quarterly; (2) <em>buyer exclusion happens before scoring</em>, not after, because the buyer cohort doesn't need a "passive" label; (3) <em>revisit bonus</em> captures product concentration, which pure summed weights miss. The pandas version is the analyst's tuning bench; the production scoring runs on Flink keyed state and writes to a feature store consumed by the personalisation team.</div>

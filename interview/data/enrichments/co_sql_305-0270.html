@@ -1,0 +1,67 @@
+<p>GitLab is reconciling two order systems &mdash; say a billing pipeline and a fulfilment pipeline &mdash; and needs the order IDs that appear in <em>both</em>. The instinct is a join, but the reference solution reaches for <code>INTERSECT</code>. That choice is the interview: <code>INTERSECT</code> and a join answer almost-the-same question, and the difference shows up the instant either table has duplicate IDs.</p>
+
+<h4>1. The source data &mdash; <code>orders_a</code> and <code>orders_b</code></h4>
+<table>
+  <thead><tr><th>orders_a.order_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>4</td></tr>
+    <tr><td>2</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>orders_b.order_id</th></tr></thead>
+  <tbody>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>5</td></tr>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>Order 2 appears <strong>twice in A</strong>; order 3 appears <strong>twice in B</strong>. Those duplicates are the whole question &mdash; they are what make <code>INTERSECT</code> and a join diverge. Orders 1 and 4 are A-only; order 5 is B-only.</p>
+
+<h4>2. The SQL &mdash; <code>INTERSECT</code></h4>
+<pre><code>SELECT order_id FROM orders_a
+INTERSECT
+SELECT order_id FROM orders_b;</code></pre>
+<p><code>INTERSECT</code> returns rows present in both result sets &mdash; and, like all the set operators, it <strong>removes duplicates</strong> from its output.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th></tr></thead>
+  <tbody>
+    <tr><td>2</td></tr>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>Just orders 2 and 3 &mdash; the IDs in both tables. Despite order 2 appearing twice in A and order 3 twice in B, each shows up <strong>exactly once</strong>. <code>INTERSECT</code> deduplicated for free. Row order is not guaranteed; add an <code>ORDER BY</code> if the consumer needs one.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>INTERSECT</code> vs an inner join &mdash; the duplicate trap</h5>
+<p>The "equivalent" join is not equivalent:</p>
+<pre><code>SELECT a.order_id
+FROM orders_a a
+JOIN orders_b b ON a.order_id = b.order_id;</code></pre>
+<p>This is a Cartesian product per matching key. Order 2 (2 rows in A &times; 1 in B) yields 2 rows; order 3 (1 in A &times; 2 in B) yields 2 rows &mdash; the join returns <strong>four rows</strong>, not two. To match <code>INTERSECT</code> you must add <code>DISTINCT</code>: <code>SELECT DISTINCT a.order_id FROM &hellip;</code>. <code>INTERSECT</code> bakes the de-duplication in; the join makes you remember it. That is the senior point: pick the operator whose default behaviour <em>is</em> the requirement.</p>
+
+<h5><code>INTERSECT</code> vs <code>INTERSECT ALL</code></h5>
+<p>If you genuinely want duplicates preserved &mdash; matched <em>pairwise</em> &mdash; that is <code>INTERSECT ALL</code>. It returns each value <code>min(count_in_a, count_in_b)</code> times. Order 2 is <code>min(2, 1) = 1</code> row; order 3 is <code>min(1, 2) = 1</code> row &mdash; here it happens to match plain <code>INTERSECT</code>, but if A had order 2 three times and B twice, <code>INTERSECT ALL</code> would emit it twice while <code>INTERSECT</code> emits it once. Know both exist and which one the question wants.</p>
+
+<h5><code>EXISTS</code> &mdash; the scalable alternative</h5>
+<p>On large tables a semi-join via <code>EXISTS</code> is often the planner's friend and reads clearly as "A rows that have a match in B":</p>
+<pre><code>SELECT DISTINCT a.order_id
+FROM orders_a a
+WHERE EXISTS (SELECT 1 FROM orders_b b
+              WHERE b.order_id = a.order_id);</code></pre>
+<p><code>EXISTS</code> stops at the first match &mdash; it never multiplies rows &mdash; so it sidesteps the join's fan-out. You still need <code>DISTINCT</code> because A itself has duplicate 2s.</p>
+
+<h5>The NULL gotcha in set operators</h5>
+<p>Unlike <code>=</code>, set operators treat NULL as a matchable value: <code>NULL</code> is "the same as" <code>NULL</code> for <code>INTERSECT</code>. So if both tables contain a NULL <code>order_id</code>, <code>INTERSECT</code> returns one NULL row &mdash; whereas a join on <code>a.order_id = b.order_id</code> would <em>never</em> match those NULLs (<code>NULL = NULL</code> is unknown). This is a real, often-surprising behavioural difference; mention it.</p>
+
+<h5>Column count and type alignment</h5>
+<p>Set operators match by <em>position</em>, not name, and both sides must have the same number of columns with compatible types. <code>SELECT order_id, customer_id &hellip; INTERSECT SELECT order_id &hellip;</code> fails with a column-count error. With a single ID column that is a non-issue here, but it is the first thing that breaks when someone extends the query.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose <code>INTERSECT</code> because its built-in de-duplication matches "IDs in both", and explain that a naive join fans out on duplicate keys and needs <code>DISTINCT</code> to agree; know <code>INTERSECT ALL</code> for pairwise multiplicity and that set operators &mdash; unlike <code>=</code> &mdash; treat NULL as matchable.</div>

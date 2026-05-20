@@ -1,0 +1,34 @@
+<p>Spotify Family supports up to 6 members. Underutilized accounts (1-2 active members on a 6-seat plan) are <strong>downgrade candidates</strong>. The query computes utilization rate per account.</p>
+
+<h4>2. The SQL — utilization + per-member listening</h4>
+<pre><code>SELECT fp.account_id, fp.max_members,
+  COUNT(DISTINCT fl.member_id) AS active_members,
+  ROUND(100.0 * COUNT(DISTINCT fl.member_id) / NULLIF(fp.max_members, 0), 1) AS utilization_pct,
+  ROUND(SUM(fl.listened_minutes) * 1.0 / NULLIF(COUNT(DISTINCT fl.member_id), 0), 0) AS avg_minutes_per_member
+FROM family_plans fp
+LEFT JOIN family_listening fl ON fl.account_id = fp.account_id
+GROUP BY fp.account_id, fp.max_members
+ORDER BY utilization_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why LEFT JOIN — keep zero-active accounts</h5>
+<p>Some accounts pay for Family but have 0 active sub-members. INNER JOIN drops them; LEFT JOIN keeps them with 0 active. Those are the highest-priority winback / downgrade-prevention targets.</p>
+
+<h5>The "underutilized" downgrade signal</h5>
+<table><thead><tr><th>active members</th><th>action</th></tr></thead>
+<tbody>
+<tr><td>5-6</td><td>healthy — leave alone</td></tr>
+<tr><td>3-4</td><td>"add another member?" prompt</td></tr>
+<tr><td>1-2</td><td>likely overpaying — Duo plan upsell</td></tr>
+<tr><td>0</td><td>at risk — winback campaign</td></tr>
+</tbody></table>
+
+<h5>The geo-fraud edge</h5>
+<p>Spotify Family requires same-household. Members in different countries flag the fraud system. The query above doesn't expose this; production joins to <code>member_geo</code> for the violation check.</p>
+
+<h5>Per-member share</h5>
+<p>"5 active members" can mean 5 equal-listen members OR 1 dominant + 4 minimal. The shape matters for "what would happen if one cancels"? Senior segmentation:</p>
+<pre><code>SUM(POWER(member_share, 2)) AS hhi -- Herfindahl concentration index</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> LEFT JOIN to keep zero-utilization accounts, segment by member-count for action, raise the household-geo fraud check, and use HHI for member-concentration ("dominant member" risk).</div>

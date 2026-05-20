@@ -1,0 +1,62 @@
+<p>Amazon's people-analytics team wants a hiring-velocity dashboard: for every department, how many people joined each month. It reads like a trivial <code>GROUP BY</code>, and it is &mdash; but the interviewer is watching for two things: how you bucket a raw <code>hire_date</code> into a month, and whether you join through <code>departments</code> for the human-readable name or just group on a bare <code>dept_id</code>.</p>
+
+<h4>1. The source data &mdash; <code>employees</code> &amp; <code>departments</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>hire_date</th><th>dept_name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>2024-01-05</td><td>Engineering</td></tr>
+    <tr><td>2</td><td>1</td><td>2024-01-20</td><td>Engineering</td></tr>
+    <tr><td>3</td><td>2</td><td>2024-01-15</td><td>Sales</td></tr>
+    <tr><td>4</td><td>1</td><td>2024-02-03</td><td>Engineering</td></tr>
+    <tr><td>5</td><td>2</td><td>2024-02-28</td><td>Sales</td></tr>
+    <tr><td>6</td><td>1</td><td>2024-03-10</td><td>Engineering</td></tr>
+  </tbody>
+</table>
+<p>Engineering hired twice in January (the 5th and the 20th) &mdash; different <em>days</em>, same <em>month</em> bucket. That collapse is the whole point: the query must treat any January date as one period.</p>
+
+<h4>2. The SQL &mdash; <code>DATE_TRUNC + GROUP BY</code></h4>
+<pre><code>SELECT d.dept_name, DATE_TRUNC('month', e.hire_date)::DATE AS month, COUNT(*) AS hires
+FROM employees e JOIN departments d ON e.dept_id = d.dept_id
+GROUP BY d.dept_name, DATE_TRUNC('month', e.hire_date)::DATE
+ORDER BY month, d.dept_name;</code></pre>
+<p><code>DATE_TRUNC('month', &hellip;)</code> snaps every date down to the first of its month, so the two January hires land in the same group. The <code>::DATE</code> cast strips the time component that <code>DATE_TRUNC</code> returns. Grouping by department name and that truncated month gives one count per (department, month) pair.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_name</th><th>month</th><th>hires</th></tr></thead>
+  <tbody>
+    <tr><td>Engineering</td><td>2024-01-01</td><td>2</td></tr>
+    <tr><td>Sales</td><td>2024-01-01</td><td>1</td></tr>
+    <tr><td>Engineering</td><td>2024-02-01</td><td>1</td></tr>
+    <tr><td>Sales</td><td>2024-02-01</td><td>1</td></tr>
+    <tr><td>Engineering</td><td>2024-03-01</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Five rows. Engineering's two January hires correctly fold into a single <code>hires = 2</code> bucket. Note March has only one row: Engineering hired but Sales did not, so <strong>there is no Sales-March row at all</strong> &mdash; absence of a row, not a zero.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The missing zeros &mdash; the gap-filling follow-up</h5>
+<p>This is the question the interviewer always asks: "Sales hired nobody in March &mdash; why doesn't the dashboard show a 0?" Because <code>GROUP BY</code> can only produce groups that have rows. A month with no hires for a department generates no row to count. If the dashboard needs a continuous grid, you must <em>manufacture</em> the (department &times; month) skeleton and <code>LEFT JOIN</code> the hires onto it:</p>
+<pre><code>SELECT d.dept_name, m.month, COUNT(e.emp_id) AS hires
+FROM departments d
+CROSS JOIN generate_series(
+  DATE '2024-01-01', DATE '2024-03-01', INTERVAL '1 month'
+) AS m(month)
+LEFT JOIN employees e
+  ON e.dept_id = d.dept_id
+ AND DATE_TRUNC('month', e.hire_date) = m.month
+GROUP BY d.dept_name, m.month
+ORDER BY m.month, d.dept_name;</code></pre>
+<p>Note <code>COUNT(e.emp_id)</code>, not <code>COUNT(*)</code> &mdash; on the unmatched (Sales, March) row the <code>LEFT JOIN</code> yields a NULL <code>emp_id</code>, and <code>COUNT(column)</code> skips NULLs to give a true 0; <code>COUNT(*)</code> would wrongly return 1.</p>
+
+<h5>Why <code>DATE_TRUNC</code> beats <code>EXTRACT</code></h5>
+<p>A tempting alternative is <code>GROUP BY EXTRACT(YEAR FROM hire_date), EXTRACT(MONTH FROM hire_date)</code>. It works, but you get two integer columns instead of one sortable date, and <code>ORDER BY</code> across a year boundary needs both. <code>DATE_TRUNC</code> returns a real date that sorts correctly and renders cleanly. <code>TO_CHAR(hire_date, 'YYYY-MM')</code> gives a tidy label too &mdash; but it is text, so December 2024 sorts before January 2024 only by luck of the <code>YYYY-MM</code> prefix; never group on a month <em>name</em>.</p>
+
+<h5>INNER JOIN drops empty departments</h5>
+<p>The solution uses an inner <code>JOIN</code>. A department in <code>departments</code> that has hired <em>nobody</em> &mdash; a brand-new cost center &mdash; produces zero employee rows and vanishes entirely from the report. If "show every department even at zero" is the requirement, the join must be <code>departments LEFT JOIN employees</code>. Confirm whether the dashboard is hire-driven or roster-driven.</p>
+
+<h5>Edge case: NULL hire_date and timezone</h5>
+<p>An employee row with a NULL <code>hire_date</code> truncates to NULL and forms its own ghost group &mdash; a row with a blank month. Filter with <code>WHERE e.hire_date IS NOT NULL</code> if that is noise. And if <code>hire_date</code> were a <code>timestamptz</code>, <code>DATE_TRUNC</code> buckets in the session's timezone &mdash; a hire at 11pm UTC on Jan&nbsp;31 could land in February for a US-Pacific viewer. For pure dates this does not bite, but name it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>DATE_TRUNC</code> to get one sortable month column, explain that <code>GROUP BY</code> cannot invent zero-rows and offer the <code>generate_series</code> + <code>LEFT JOIN</code> + <code>COUNT(col)</code> gap-fill, and flag that the inner join silently hides departments that have never hired.</div>

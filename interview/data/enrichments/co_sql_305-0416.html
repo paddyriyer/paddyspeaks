@@ -1,0 +1,28 @@
+<p>TikTok Live monetizes via virtual gifts (coins → diamonds → USD). Top streamers earn $10K+/stream. The query ranks streamers by gift volume and computes dollar value.</p>
+
+<h4>2. The SQL — per-streamer aggregate + rank</h4>
+<pre><code>SELECT streamer_id,
+  COUNT(*) AS gifts_received,
+  COUNT(DISTINCT viewer_id) AS unique_gifters,
+  SUM(gift_value_coins) AS total_coins,
+  ROUND(SUM(gift_value_coins) / 100.0, 2) AS dollar_value,
+  RANK() OVER (ORDER BY SUM(gift_value_coins) DESC) AS revenue_rank
+FROM live_gifts GROUP BY streamer_id ORDER BY total_coins DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The 100 coins = $1 ratio</h5>
+<p>TikTok's monetization layer: viewer pays $1 per 100 coins; streamer gets ~50% as diamonds; cash-out at $0.005/diamond. Net to streamer: ~25-50% of viewer spend.</p>
+
+<h5>Gift concentration</h5>
+<p>Pareto: top 1% of streamers earn 80% of gifts. <code>RANK</code> exposes the cliff.</p>
+
+<h5>Whale-driven economics</h5>
+<p>One viewer dropping a $500 "Universe" gift makes a stream's revenue. Per-stream variance is huge. Production tracks "median gifter contribution" alongside total to spot whale-dependence.</p>
+
+<h5>Watch-time → gift conversion</h5>
+<p>Streams with high watch-time but low gifts have monetization problem (audience there but not paying). Production joins watch + gift for the gap analysis.</p>
+
+<h5>Anti-fraud — gift returns</h5>
+<p>Some gifts are charged back / disputed. Net gift revenue subtracts these. The query gross; production net.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 100 coins = $1, ~25-50% net to streamer, Pareto concentration is extreme, watch-without-gift signals monetization gap, and net-of-chargeback for honest revenue.</div>

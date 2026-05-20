@@ -1,0 +1,91 @@
+<p>A star-schema fact table for ride-share trips is a classic analytical modeling exercise. The interviewer is probing whether you understand <strong>grain declaration</strong> (one row = one completed or attempted trip), the distinction between surrogate and natural keys, proper FK references to shared dimension tables (including role-playing dimensions like location), and the choice of partition column for large-scale time-series data.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Grain:</strong> one row per trip event (transaction fact).</li>
+  <li><strong>Dimension FKs:</strong> rider, driver, vehicle, pickup location, dropoff location, payment method &mdash; location is role-played from a single <code>dim_location</code>.</li>
+  <li><strong>Degenerate dimension:</strong> the natural trip key from the source system, kept on the fact for drill-through.</li>
+  <li><strong>Measures:</strong> distance, duration, fare, surge multiplier, tip, driver payout &mdash; mix of additive and non-additive.</li>
+  <li><strong>Status flag:</strong> completed / cancelled / no_show &mdash; a degenerate attribute rather than a separate dimension.</li>
+  <li><strong>Partition column:</strong> a <code>DATE</code> column derived from the event timestamp for efficient time-range pruning.</li>
+  <li><strong>Audit column:</strong> ingestion timestamp for pipeline observability.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE fact_trip (
+  trip_sk             BIGINT      NOT NULL,        -- surrogate PK
+  trip_nk             VARCHAR(64) NOT NULL,        -- natural key from source
+  rider_sk            BIGINT      NOT NULL,        -- FK -&gt; dim_rider
+  driver_sk           BIGINT      NOT NULL,        -- FK -&gt; dim_driver
+  vehicle_sk          BIGINT,                      -- FK -&gt; dim_vehicle
+  pickup_location_sk  BIGINT      NOT NULL,        -- FK -&gt; dim_location
+  dropoff_location_sk BIGINT      NOT NULL,        -- FK -&gt; dim_location
+  payment_method_sk   BIGINT,                      -- FK -&gt; dim_payment
+  request_ts          TIMESTAMP   NOT NULL,        -- degenerate dim / event time
+  pickup_ts           TIMESTAMP,
+  dropoff_ts          TIMESTAMP,
+  -- measures
+  distance_km         DECIMAL(8,3),
+  duration_seconds    INT,
+  fare_amount         DECIMAL(10,2),
+  surge_multiplier    DECIMAL(4,2),
+  tip_amount          DECIMAL(10,2),
+  driver_payout       DECIMAL(10,2),
+  status              VARCHAR(20),                  -- completed / cancelled / no_show
+  -- partition / lineage
+  trip_date           DATE NOT NULL,
+  ingested_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+PARTITION BY (trip_date);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td>trip_sk</td><td>Surrogate PK</td><td>Stable integer handle for the row; insulates downstream from source-key changes.</td></tr>
+    <tr><td>trip_nk</td><td>Natural / degenerate dimension</td><td>Retains the source system's trip ID for drill-through and reconciliation without joining a dimension.</td></tr>
+    <tr><td>rider_sk</td><td>FK &rarr; dim_rider</td><td>Points to the slowly-changing rider dimension; NOT NULL because every trip has a rider.</td></tr>
+    <tr><td>driver_sk</td><td>FK &rarr; dim_driver</td><td>Points to dim_driver; NOT NULL for the same reason.</td></tr>
+    <tr><td>vehicle_sk</td><td>FK &rarr; dim_vehicle (nullable)</td><td>Nullable because vehicle assignment may fail or be unknown at ingest time.</td></tr>
+    <tr><td>pickup_location_sk</td><td>FK &rarr; dim_location (role: pickup)</td><td>Role-playing dimension &mdash; same dim_location table used twice with different aliases.</td></tr>
+    <tr><td>dropoff_location_sk</td><td>FK &rarr; dim_location (role: dropoff)</td><td>Second role of dim_location; both FKs are NOT NULL because a trip always has both endpoints.</td></tr>
+    <tr><td>payment_method_sk</td><td>FK &rarr; dim_payment (nullable)</td><td>Nullable to handle cancelled trips with no payment captured.</td></tr>
+    <tr><td>request_ts</td><td>Degenerate dimension / event time</td><td>The precise moment the trip was requested; used for sub-day analysis and as lineage anchor.</td></tr>
+    <tr><td>pickup_ts</td><td>Degenerate dimension (nullable)</td><td>Null for cancelled / no-show trips; supports wait-time analysis.</td></tr>
+    <tr><td>dropoff_ts</td><td>Degenerate dimension (nullable)</td><td>Null until trip completes; paired with pickup_ts for duration derivation.</td></tr>
+    <tr><td>distance_km</td><td>Measure &mdash; additive</td><td>Fully additive across any dimension slice; stored with three decimal places for precision.</td></tr>
+    <tr><td>duration_seconds</td><td>Measure &mdash; additive</td><td>Integer seconds avoids float rounding; additive for total fleet time metrics.</td></tr>
+    <tr><td>fare_amount</td><td>Measure &mdash; additive</td><td>Core revenue measure; sums meaningfully across riders, drivers, dates.</td></tr>
+    <tr><td>surge_multiplier</td><td>Measure &mdash; non-additive</td><td>A ratio &mdash; averaging is valid, summing is not; stored to support elasticity analysis.</td></tr>
+    <tr><td>tip_amount</td><td>Measure &mdash; additive</td><td>Additive revenue component, reported separately for driver-payout calculation.</td></tr>
+    <tr><td>driver_payout</td><td>Measure &mdash; additive</td><td>Derived total paid to driver; stored pre-computed to avoid recomputing business rules in queries.</td></tr>
+    <tr><td>status</td><td>Degenerate dimension</td><td>Low-cardinality flag kept on the fact to avoid an extra join; could migrate to a junk dimension at scale.</td></tr>
+    <tr><td>trip_date</td><td>Partition key</td><td>DATE redundant with request_ts but essential for partition pruning in columnar engines; must be NOT NULL.</td></tr>
+    <tr><td>ingested_at</td><td>Audit column</td><td>Pipeline watermark; helps debug late-arriving data and replay scenarios.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Grain declaration</h5>
+<p>The grain is <em>one row per trip attempt</em>. This includes cancelled and no-show trips &mdash; a deliberate choice. Excluding them would make cancellation-rate metrics impossible without a separate table. Declaring grain explicitly before writing DDL is the single most important step in fact-table design: every column decision follows from it.</p>
+
+<h5>Surrogate vs. natural keys</h5>
+<p><code>trip_sk</code> is a BIGINT surrogate generated in the warehouse. <code>trip_nk</code> preserves the source system's string identifier. Surrogates are stable (source systems can reassign natural keys), join-efficient (integer equality vs. string comparison), and SCD-friendly (the same surrogate can absorb multiple natural-key versions). The natural key stays on the fact as a degenerate dimension rather than forcing a round-trip join to retrieve it.</p>
+
+<h5>Role-playing dimensions</h5>
+<p>Both <code>pickup_location_sk</code> and <code>dropoff_location_sk</code> are foreign keys into the same <code>dim_location</code> table. In queries the table is aliased twice: <code>JOIN dim_location pickup ON pickup.location_sk = f.pickup_location_sk</code>. This is the canonical role-playing pattern &mdash; it avoids denormalising the dimension or duplicating its rows.</p>
+
+<h5>Fact-table type: transaction fact</h5>
+<p>This is a <em>transaction fact</em>: one row per discrete event (the trip), written once, never updated. Contrast with a periodic snapshot (one row per entity per time period, e.g., weekly driver earnings) or an accumulating snapshot (one row per business process lifecycle, updated as milestones occur). Transaction facts are the right choice when event-level analysis (per-trip revenue, cancellation details) matters.</p>
+
+<h5>Additive vs. non-additive measures</h5>
+<p><code>distance_km</code>, <code>fare_amount</code>, <code>tip_amount</code>, and <code>driver_payout</code> are <strong>fully additive</strong> &mdash; they sum correctly across any dimension. <code>surge_multiplier</code> is <strong>non-additive</strong>: summing multipliers across trips is meaningless. It should be averaged or used in weighted calculations. <code>duration_seconds</code> is additive for fleet-level totals but must be converted (divide by trip count) to get average trip duration.</p>
+
+<h5>Partition and clustering strategy</h5>
+<p><code>PARTITION BY (trip_date)</code> ensures that time-range queries (common in ride-share analytics &mdash; daily/weekly trends) scan only relevant partitions. In BigQuery, pair this with <code>CLUSTER BY rider_sk, driver_sk</code> to accelerate per-rider or per-driver queries. In Redshift use <code>DISTKEY(driver_sk)</code> if driver-level aggregations dominate and <code>SORTKEY(trip_date, driver_sk)</code> for zone-map pruning. In Snowflake, <code>CLUSTER BY (trip_date, driver_sk)</code> achieves similar micro-partition pruning without PARTITION BY syntax.</p>
+
+<h5>Nullable FKs and the unknown member</h5>
+<p>Nullable surrogate keys (<code>vehicle_sk</code>, <code>payment_method_sk</code>) are valid but require <code>LEFT JOIN</code>s and can silently drop rows in <code>INNER JOIN</code> queries. An alternative is to provision an &ldquo;Unknown&rdquo; row (SK = &minus;1) in each dimension and default NULLable FKs to &minus;1, making all joins INNER. The tradeoff: cleaner SQL vs. slightly misleading &ldquo;Unknown&rdquo; aggregates. Either approach is defensible if stated explicitly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> declare the grain first (&ldquo;one row per trip attempt, including cancellations&rdquo;) before touching DDL; identify the role-playing dimension pattern for location; classify each measure as additive, semi-additive, or non-additive; justify the <code>trip_date</code> partition column as a derived redundant column for pruning efficiency; and discuss nullable FK alternatives (unknown member row) &mdash; these four moves together demonstrate dimensional modeling fluency that goes well beyond memorising star-schema vocabulary.</div>

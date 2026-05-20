@@ -1,0 +1,73 @@
+<p>Databricks' growth team wants to power a "customers who bought X also bought Y" widget. The raw signal is which product <em>pairs</em> show up together in the same customer's order history. The interviewer is probing whether you can express "pairs within a group" as a self-join &mdash; and whether you avoid the two classic bugs: counting a product with itself, and counting each pair twice.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>product_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100, 200, 300</td></tr>
+    <tr><td>2</td><td>100, 200</td></tr>
+    <tr><td>3</td><td>100, 300</td></tr>
+    <tr><td>4</td><td>200, 300</td></tr>
+    <tr><td>5</td><td>100, 200</td></tr>
+    <tr><td>6</td><td>100, 200, 400</td></tr>
+  </tbody>
+</table>
+<p>Six customers, each shown with the products they bought (one row per product in the real table). Products 100 and 200 are bought together by customers 1, 2, 5 and 6 &mdash; the strongest pair. Product 400 appears for exactly one customer &mdash; a thin, low-confidence pair.</p>
+
+<h4>2. The SQL &mdash; <code>self-join on customer</code></h4>
+<pre><code>SELECT a.product_id AS p1, b.product_id AS p2, COUNT(*) AS pair_count
+FROM orders a
+JOIN orders b
+  ON a.customer_id = b.customer_id
+ AND a.product_id &lt; b.product_id
+GROUP BY a.product_id, b.product_id
+ORDER BY pair_count DESC
+LIMIT 10;</code></pre>
+<p>Join the table to itself on the same customer. The <code>a.product_id &lt; b.product_id</code> predicate is the engine of the query &mdash; it does two jobs at once.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>p1</th><th>p2</th><th>pair_count</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>200</td><td>4</td></tr>
+    <tr><td>200</td><td>300</td><td>2</td></tr>
+    <tr><td>100</td><td>300</td><td>2</td></tr>
+    <tr><td>100</td><td>400</td><td>1</td></tr>
+    <tr><td>200</td><td>400</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>The pair (100, 200) tops the list at 4 co-purchases &mdash; the widget would surface 200 on product 100's page. Note the ties: (200,300) and (100,300) both score 2. And (100,400)/(200,400) score 1 each &mdash; statistically meaningless, the kind of long tail you would threshold out before shipping recommendations.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>&lt;</code> and not <code>&lt;&gt;</code> &mdash; the double-counting trap</h5>
+<p>The inequality does two jobs. First, it excludes a product paired with itself (with <code>=</code> every customer's product would pair with its own copy). Second, and subtler: if you wrote <code>a.product_id &lt;&gt; b.product_id</code>, you would get <em>both</em> (100,200) and (200,100) &mdash; each pair counted twice, with the counts inflated and the result list cluttered with mirror rows. <code>a.product_id &lt; b.product_id</code> keeps exactly one ordered representative of each unordered pair. This is the canonical "unordered pairs" idiom.</p>
+
+<h5>The interviewer follow-up: confidence, not just count</h5>
+<p>A raw co-purchase count favours popular products. Recommendation engines use <em>lift</em> or <em>confidence</em> &mdash; P(bought B | bought A) &mdash; to normalise:</p>
+<pre><code>SELECT a.product_id AS p1, b.product_id AS p2,
+       COUNT(*)::numeric
+         / (SELECT COUNT(DISTINCT customer_id) FROM orders o WHERE o.product_id = a.product_id)
+         AS confidence
+FROM orders a JOIN orders b
+  ON a.customer_id = b.customer_id AND a.product_id &lt; b.product_id
+GROUP BY a.product_id, b.product_id
+ORDER BY confidence DESC;</code></pre>
+<p>Confidence answers "of people who bought A, what fraction also bought B" &mdash; far more actionable than a count dominated by best-sellers.</p>
+
+<h5>The duplicate-purchase edge case</h5>
+<p>If a customer buys product 100 twice, <code>orders</code> has two rows for (customer, 100). The self-join then multiplies: that customer contributes <em>two</em> rows to the (100, 200) pair, double-counting. Guard against it by deduplicating first:</p>
+<pre><code>WITH cp AS (SELECT DISTINCT customer_id, product_id FROM orders)
+SELECT a.product_id, b.product_id, COUNT(*)
+FROM cp a JOIN cp b
+  ON a.customer_id = b.customer_id AND a.product_id &lt; b.product_id
+GROUP BY a.product_id, b.product_id;</code></pre>
+<p>The reference query's demo table happens to have one row per (customer, product), so it is correct here &mdash; but on a real <code>orders</code> table with line items and quantities, the <code>DISTINCT</code> CTE is mandatory.</p>
+
+<h5>The thin-pair problem &mdash; threshold before you ship</h5>
+<p>Pairs (100,400) and (200,400) have <code>pair_count = 1</code>: a single customer. Recommending off one observation is noise. Add <code>HAVING COUNT(*) &gt;= 5</code> (or whatever the data supports) so the widget only surfaces pairs with real statistical weight.</p>
+
+<h5>O(n&sup2;) within each group</h5>
+<p>A self-join over a customer with <em>k</em> products generates roughly <em>k&sup2;/2</em> pair rows. A customer with hundreds of purchases explodes combinatorially. At scale you would cap basket size, pre-aggregate, or move pair-mining to a batch job &mdash; this query is the right <em>logic</em>, but not always the right <em>runtime</em>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>a.product_id &lt; b.product_id</code> to get each unordered pair exactly once (not <code>&lt;&gt;</code>, which double-counts), deduplicate (customer, product) before the self-join when line items repeat, threshold thin pairs with <code>HAVING</code>, and offer confidence/lift as the metric a recommender actually wants.</div>

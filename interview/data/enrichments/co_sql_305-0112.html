@@ -1,0 +1,56 @@
+<p>Hulu's catalog team wants to surface its premium-priced titles &mdash; everything priced above the catalog average &mdash; for a "premium tier" merchandising shelf. The query is the canonical scalar-subquery pattern. The interview is whether you understand <em>when</em> that subquery runs, why the comparison cannot live in a <code>WHERE</code> directly as an aggregate, and what the average does in the presence of NULLs and skew.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>price</th><th>name</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>20</td><td>Mouse</td><td>periph</td></tr>
+    <tr><td>2</td><td>50</td><td>Keyboard</td><td>periph</td></tr>
+    <tr><td>3</td><td>300</td><td>Monitor</td><td>display</td></tr>
+    <tr><td>4</td><td>90</td><td>Webcam</td><td>periph</td></tr>
+    <tr><td>5</td><td>40</td><td>Cable</td><td>periph</td></tr>
+  </tbody>
+</table>
+<p>The average price is (20 + 50 + 300 + 90 + 40) / 5 = <strong>100</strong>. Notice the skew: the $300 monitor drags the mean up so far that only <em>it</em> clears the bar &mdash; the $90 webcam, above the median, still falls below the mean. That single outlier is the whole interview.</p>
+
+<h4>2. The SQL &mdash; scalar subquery in <code>WHERE</code></h4>
+<pre><code>SELECT * FROM products WHERE price &gt; (SELECT AVG(price) FROM products);</code></pre>
+<p>The inner <code>SELECT AVG(price)</code> collapses the whole table to a single number; the outer query then keeps every row whose <code>price</code> exceeds it. The subquery is uncorrelated &mdash; it does not reference the outer row &mdash; so it is computed once.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>price</th><th>name</th><th>category</th><th>sku</th><th>manufacturer</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>300</td><td>Monitor</td><td>display</td><td>SKU3</td><td>Globex</td></tr>
+  </tbody>
+</table>
+<p>One row clears the bar. The $90 webcam &mdash; the second-most-expensive product, above three of the five prices &mdash; is <em>below</em> the $100 average and excluded. That is not a bug; it is what "above average" means when one outlier inflates the mean. If a stakeholder expected "the top few", the mean is the wrong threshold &mdash; flag it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the aggregate must be a subquery</h5>
+<p>You cannot write <code>WHERE price &gt; AVG(price)</code> directly. <code>WHERE</code> is evaluated row-by-row, <em>before</em> aggregation happens &mdash; there is no group yet, so <code>AVG</code> is meaningless there and Postgres rejects it. The subquery isolates the aggregation into its own scope, producing a finished scalar that the row-level <code>WHERE</code> can then compare against. This scoping is the entire point of the pattern.</p>
+
+<h5>It runs once, not once per row</h5>
+<p>Because the subquery is uncorrelated, the planner evaluates <code>AVG(price)</code> a single time and reuses the constant for every row &mdash; an <code>InitPlan</code> in the query plan. Contrast a <em>correlated</em> subquery (one referencing the outer row), which can re-run per row and turn O(n) into O(n&sup2;). Knowing this query is <em>not</em> that &mdash; and reading the plan to confirm &mdash; is the senior detail.</p>
+
+<h5>The "above-average within category" follow-up</h5>
+<p>Interviewers almost always extend it: "above average <em>for its category</em>." A correlated subquery works but a window function is cleaner and single-pass:</p>
+<pre><code>SELECT product_id, price, name, category
+FROM (
+  SELECT *, AVG(price) OVER (PARTITION BY category) AS cat_avg
+  FROM products
+) t
+WHERE price &gt; cat_avg;</code></pre>
+<p><code>AVG(price) OVER (PARTITION BY category)</code> attaches each category's mean to every row of that category, so the outer filter is a plain row comparison &mdash; no nested scan.</p>
+
+<h5>The mean-vs-median trap</h5>
+<p>Our data is the cautionary tale: one $300 monitor pulls the mean to $100, so a product priced higher than 60% of the catalog still misses the cut. If the business wants "expensive products", the median is the robust measure: <code>WHERE price &gt; (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY price) FROM products)</code>. Naming this distinction &mdash; and asking which the stakeholder means &mdash; is over the bar.</p>
+
+<h5>NULL prices and the strict inequality</h5>
+<p>Two NULL effects. First, <code>AVG(price)</code> skips NULL prices entirely, so the threshold is the average of <em>priced</em> products only. Second, a product with a NULL <code>price</code> fails <code>price &gt; threshold</code> (the comparison is <em>unknown</em>) and is excluded from the result. Usually fine &mdash; an unpriced product is not "premium" &mdash; but state it. Also: the strict <code>&gt;</code> means a product priced <em>exactly</em> at the average is excluded; confirm whether the boundary should be <code>&ge;</code>.</p>
+
+<h5><code>SELECT *</code> is fine here, risky in production</h5>
+<p><code>SELECT *</code> is acceptable for an exploratory answer, but for a merchandising feed it is fragile: an added column silently changes the output shape and can break a downstream consumer. Name the columns the shelf actually needs (<code>product_id, name, price</code>). A small point, but interviewers notice it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the aggregate must be a subquery because <code>WHERE</code> precedes aggregation, recognise the uncorrelated subquery runs once (not per row), reach for <code>AVG(...) OVER (PARTITION BY ...)</code> for the per-category follow-up, and warn that an outlier-inflated mean is a poor "expensive" threshold &mdash; the median is the robust choice.</div>

@@ -1,0 +1,71 @@
+<p>A merchandising team tracks per-product sales and wants the month-over-month growth rate &mdash; a standard "is this product accelerating or decaying?" question. The interviewer is probing two things: can you compare a row to its predecessor without a self-join (the <code>LAG</code> reflex), and can you protect the percentage formula from the division-by-zero that the very first month guarantees.</p>
+
+<h4>1. The source data &mdash; <code>product_sales</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>sale_date</th><th>quantity</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-01-10</td><td>100</td><td>Jan, line 1</td></tr>
+    <tr><td>1</td><td>2099-01-25</td><td>50</td><td>Jan, line 2 &mdash; same month</td></tr>
+    <tr><td>1</td><td>2099-02-05</td><td>180</td><td>February</td></tr>
+    <tr><td>1</td><td>2099-04-01</td><td>90</td><td>April &mdash; March is missing (gap)</td></tr>
+    <tr><td>2</td><td>2099-01-15</td><td>200</td><td>January</td></tr>
+    <tr><td>2</td><td>2099-02-20</td><td>200</td><td>February &mdash; flat (0% growth)</td></tr>
+    <tr><td>3</td><td>2099-03-01</td><td>60</td><td>single month only</td></tr>
+    <tr><td>1</td><td>2098-12-31</td><td>999</td><td>year 2098 &mdash; filtered out</td></tr>
+  </tbody>
+</table>
+<p>Product 1 has a missing March, product 2 is perfectly flat, and product 3 exists for only one month &mdash; three different edge cases for the growth formula.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> for the previous month, <code>NULLIF</code> for safety</h4>
+<pre><code>WITH total_sale AS (
+  SELECT product_id,
+         to_char(sale_date, 'YYYY-MM') AS sale_year_month,
+         EXTRACT(MONTH FROM sale_date) AS sale_month,
+         SUM(quantity) AS total_quantity
+  FROM product_sales
+  WHERE EXTRACT(YEAR FROM sale_date) = 2099
+  GROUP BY product_id, to_char(sale_date,'YYYY-MM'), EXTRACT(MONTH FROM sale_date)
+),
+previous_month_sales AS (
+  SELECT product_id, sale_year_month, sale_month,
+         total_quantity AS current_month_sales,
+         LAG(total_quantity, 1, 0) OVER (PARTITION BY product_id ORDER BY sale_month ASC) AS previous_month_sales
+  FROM total_sale
+)
+SELECT product_id, sale_year_month,
+       current_month_sales, previous_month_sales,
+       ROUND(1.0*(current_month_sales-previous_month_sales)/NULLIF(previous_month_sales,0)*100, 2) AS growth_rate
+FROM previous_month_sales;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>sale_year_month</th><th>current</th><th>previous</th><th>growth_rate</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-01</td><td>150</td><td>0</td><td>NULL</td></tr>
+    <tr><td>1</td><td>2099-02</td><td>180</td><td>150</td><td>20.00</td></tr>
+    <tr><td>1</td><td>2099-04</td><td>90</td><td>180</td><td>-50.00</td></tr>
+    <tr><td>2</td><td>2099-01</td><td>200</td><td>0</td><td>NULL</td></tr>
+    <tr><td>2</td><td>2099-02</td><td>200</td><td>200</td><td>0.00</td></tr>
+    <tr><td>3</td><td>2099-03</td><td>60</td><td>0</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>January's 150 is the aggregate of the two Jan lines (100 + 50). The first month of every product yields <code>NULL</code> growth &mdash; correct, there is no prior month. Product 2's flat 200&rarr;200 reads 0.00%. The 2098 row never reaches the calculation.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> beats a self-join</h5>
+<p><code>LAG(total_quantity, 1, 0) OVER (PARTITION BY product_id ORDER BY sale_month)</code> reaches back one row within each product's month-ordered sequence. The alternative &mdash; joining the aggregated table to itself on <code>month = month - 1</code> &mdash; is verbose, mishandles December&rarr;January wraparound, and breaks on gaps. <code>LAG</code> sorts once and reads the neighbour in a single pass.</p>
+
+<h5>The division-by-zero guard &mdash; <code>NULLIF</code></h5>
+<p>Every product's first month has no predecessor. The third argument of <code>LAG(..., 1, 0)</code> supplies <code>0</code> as the default, so <code>previous_month_sales</code> is <code>0</code> there. Dividing by that raw <code>0</code> would throw. <code>NULLIF(previous_month_sales, 0)</code> converts the <code>0</code> to <code>NULL</code>, and division by <code>NULL</code> yields <code>NULL</code> &mdash; a clean "not applicable" instead of a crash. The <code>1.0 *</code> prefix forces numeric (not integer) division so a result like 20.00 is not truncated to 20.</p>
+
+<h5>The missing-month trap &mdash; <code>LAG</code> sees rows, not the calendar</h5>
+<p>Product 1 skips March, yet April's "previous month" is February (180) &mdash; <code>LAG</code> reaches the previous <em>row</em>, not literally the previous calendar month. So April's &minus;50% is really a Feb&rarr;Apr comparison. If the business wants true calendar adjacency, you must first generate a complete month spine (a <code>generate_series</code> calendar) and <code>LEFT JOIN</code> sales onto it, so absent months appear as explicit zero rows.</p>
+
+<h5>The ordering key &mdash; <code>EXTRACT(MONTH)</code> is single-year-safe only</h5>
+<p>Ordering by <code>EXTRACT(MONTH FROM sale_date)</code> (values 1&ndash;12) works <em>because</em> the <code>WHERE</code> clause restricts to a single year. Span two years and month 1 of 2100 would sort before month 12 of 2099. For a multi-year query, partition-order by the full <code>date_trunc('month', sale_date)</code> instead.</p>
+
+<h5>What to say next &mdash; first-month presentation</h5>
+<p>A <code>NULL</code> first-month growth is technically correct but a dashboard may want it shown as "&mdash;" or "n/a". Mention <code>COALESCE</code> for display only, and resist the temptation to coerce it to 0% &mdash; a brand-new product did not grow 0%, it simply has no baseline. Distinguishing "no data" from "zero" is the senior nuance.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LAG</code> over a self-join for period-over-period math, guard the denominator with <code>NULLIF</code> and force numeric division with <code>1.0 *</code>, and flag that <code>LAG</code> walks rows not calendar months &mdash; gaps need a generated month spine for true adjacency.</div>

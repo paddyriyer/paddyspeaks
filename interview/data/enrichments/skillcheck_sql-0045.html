@@ -1,0 +1,63 @@
+<p>A fintech spend-insights feature shows each transaction next to a smoothed trend: <em>"the rolling average of your last three transactions in this category."</em> The <code>txn</code> table is partitioned by customer and category, and the metric is a moving window over time. The interviewer is checking whether you can frame a window function precisely &mdash; the right <code>PARTITION BY</code>, the right <code>ORDER BY</code>, and crucially the right physical frame <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code>.</p>
+
+<h4>1. The source data &mdash; <code>txn</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>category</th><th>ts</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>food</td><td>2025-01-01 10:00</td><td>10</td><td>first food txn &mdash; only 1 row available</td></tr>
+    <tr><td>1</td><td>food</td><td>2025-01-02 10:00</td><td>20</td><td>2 rows available</td></tr>
+    <tr><td>1</td><td>food</td><td>2025-01-03 10:00</td><td>30</td><td>first full 3-row window</td></tr>
+    <tr><td>1</td><td>food</td><td>2025-01-04 10:00</td><td>40</td><td>window slides &mdash; drops the 10</td></tr>
+    <tr><td>1</td><td>gas</td><td>2025-01-02 10:00</td><td>50</td><td>different category &mdash; separate window</td></tr>
+    <tr><td>1</td><td>gas</td><td>2025-01-05 10:00</td><td>60</td><td>only 2 gas rows total</td></tr>
+    <tr><td>2</td><td>food</td><td>2025-01-01 10:00</td><td>5</td><td>different customer &mdash; isolated</td></tr>
+    <tr><td>2</td><td>food</td><td>2025-01-02 10:00</td><td>15</td><td>only 2 rows &mdash; averages over 2</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are the <strong>warm-up rows</strong>: customer 1's first food txn has no prior rows, the second has only one. The spec says "average over what's available", so those rows must <em>not</em> be NULL &mdash; they average 1 and 2 values respectively. Customer 1's <code>gas</code> rows confirm the window never bleeds across categories.</p>
+
+<h4>2. The SQL &mdash; framed window average</h4>
+<pre><code>SELECT customer_id, category, ts, amount,
+       ROUND(AVG(amount) OVER (
+         PARTITION BY customer_id, category
+         ORDER BY ts
+         ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+       )::numeric, 2) AS rolling_avg_3
+FROM txn
+ORDER BY customer_id, category, ts;</code></pre>
+<p><code>PARTITION BY customer_id, category</code> isolates each customer's per-category timeline. <code>ORDER BY ts</code> sequences it. <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> is a physical 3-row window &mdash; the current row plus up to two before it &mdash; and <code>AVG</code> means over whatever rows fall inside.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>category</th><th>ts</th><th>amount</th><th>rolling_avg_3</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>food</td><td>2025-01-01 10:00</td><td>10.00</td><td>10.00</td></tr>
+    <tr><td>1</td><td>food</td><td>2025-01-02 10:00</td><td>20.00</td><td>15.00</td></tr>
+    <tr><td>1</td><td>food</td><td>2025-01-03 10:00</td><td>30.00</td><td>20.00</td></tr>
+    <tr><td>1</td><td>food</td><td>2025-01-04 10:00</td><td>40.00</td><td>30.00</td></tr>
+    <tr><td>1</td><td>gas</td><td>2025-01-02 10:00</td><td>50.00</td><td>50.00</td></tr>
+    <tr><td>1</td><td>gas</td><td>2025-01-05 10:00</td><td>60.00</td><td>55.00</td></tr>
+    <tr><td>2</td><td>food</td><td>2025-01-01 10:00</td><td>5.00</td><td>5.00</td></tr>
+    <tr><td>2</td><td>food</td><td>2025-01-02 10:00</td><td>15.00</td><td>10.00</td></tr>
+  </tbody>
+</table>
+<p>The first food row averages just itself (10). The second averages 2 rows ((10+20)/2 = 15). From the third on, the full 3-row window applies: (10+20+30)/3 = 20, then it slides to (20+30+40)/3 = 30 &mdash; the 10 has dropped out. No row is NULL: the partial windows degrade gracefully.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; the single most important choice here</h5>
+<p>The frame <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> counts <em>physical rows</em>: exactly the last three records regardless of how far apart their timestamps are. <code>RANGE</code> would count by <em>value of the ordering column</em> &mdash; and would also lump together all rows sharing the current <code>ts</code>. "Last 3 transactions" is a row-count concept, so <code>ROWS</code> is mandatory. This distinction is the crux of the question.</p>
+
+<h5>Why partial windows are a feature, not a bug</h5>
+<p>For the first row, "2 preceding" rows simply do not exist, so the frame contains one row and <code>AVG</code> averages one value. SQL frames automatically shrink at partition edges &mdash; you get a graceful warm-up, not a NULL or an error. This is exactly what "average over what's available" asks for. If the spec instead demanded NULL until three rows accumulate, you would add <code>CASE WHEN COUNT(*) OVER (...) &lt; 3 THEN NULL</code>.</p>
+
+<h5>The default frame trap &mdash; omitting <code>ROWS BETWEEN</code></h5>
+<p>If you write <code>AVG(amount) OVER (PARTITION BY ... ORDER BY ts)</code> with <em>no explicit frame</em>, Postgres applies the default <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; a cumulative average from the start of the partition, not a 3-row rolling one. The explicit <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> is what makes it a fixed-width moving average. Forgetting the frame is the most common rolling-average bug.</p>
+
+<h5>Partitioning by both keys &mdash; category isolation</h5>
+<p><code>PARTITION BY customer_id, category</code> (not just <code>customer_id</code>) ensures customer 1's <code>gas</code> transactions never enter a <code>food</code> average. The window resets at every <code>(customer, category)</code> boundary. Drop <code>category</code> from the partition and the gas 50 would contaminate the food trend &mdash; a subtle correctness error that the demo's interleaved categories are designed to catch.</p>
+
+<h5>Dialect notes &mdash; framing and rounding portability</h5>
+<p>Windowed <code>AVG</code> with <code>ROWS BETWEEN</code> is standard and identical in Postgres, SQL Server, BigQuery, Snowflake, and MySQL 8+/SQLite 3.25+. The <code>::numeric</code> cast before <code>ROUND</code> is a Postgres nicety &mdash; <code>ROUND(double precision, int)</code> is not allowed, so the cast forces the two-argument numeric form. Other engines (<code>ROUND(AVG(...), 2)</code> directly) need no cast; that line is the only piece to adjust when porting.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> &mdash; never the default <code>RANGE</code> frame &mdash; so "last 3 transactions" means three physical rows, partition by <em>both</em> customer and category so windows never cross category, and recognise that partial warm-up windows are the correct graceful behaviour.</div>

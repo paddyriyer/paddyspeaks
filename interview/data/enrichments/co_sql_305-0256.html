@@ -1,0 +1,60 @@
+<p>Salesforce's growth team reports week-over-week web traffic to the marketing org. The headline is a single percentage per week: did visits go up or down, and by how much? The natural tool is <code>LAG</code> &mdash; reach back one row for last week's number. The reference solution wraps that in a defensive layer of regex sanitising and <code>NULLIF</code>, which is worth understanding: it is guarding against a column that <em>should</em> be an integer but might not be.</p>
+
+<h4>1. The source data &mdash; <code>traffic</code></h4>
+<table>
+  <thead><tr><th>week_start</th><th>visits</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-06</td><td>1000</td></tr>
+    <tr><td>2025-01-13</td><td>1200</td></tr>
+    <tr><td>2025-01-20</td><td>1080</td></tr>
+    <tr><td>2025-01-27</td><td>1080</td></tr>
+    <tr><td>2025-02-03</td><td>1350</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases are baked in. The <strong>first week</strong> has no prior week, so its growth is undefined. And weeks 3 and 4 are <strong>flat</strong> at 1080 &mdash; a genuine 0% change, which must not be confused with a NULL.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> week-over-week %</h4>
+<pre><code>SELECT week_start, visits,
+  100.0*(NULLIF(regexp_replace(visits::text, '[^-.0-9]', '', 'g'), '')::numeric - LAG(NULLIF(regexp_replace(visits::text, '[^-.0-9]', '', 'g'), '')::numeric) OVER (ORDER BY week_start))/NULLIF(LAG(NULLIF(regexp_replace(visits::text, '[^-.0-9]', '', 'g'), '')::numeric) OVER (ORDER BY week_start), 0) AS wow_pct
+FROM traffic;</code></pre>
+<p>Strip away the armour and the core is <code>100.0 * (this - prev) / prev</code>, where <code>prev = LAG(visits) OVER (ORDER BY week_start)</code>. The <code>regexp_replace</code> scrubs any stray characters out of <code>visits</code>; the outer <code>NULLIF(&hellip;, 0)</code> stops a division-by-zero if a prior week had zero visits.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>week_start</th><th>visits</th><th>wow_pct</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-06</td><td>1000</td><td><em>NULL</em></td></tr>
+    <tr><td>2025-01-13</td><td>1200</td><td>20.0000000000000000</td></tr>
+    <tr><td>2025-01-20</td><td>1080</td><td>-10.0000000000000000</td></tr>
+    <tr><td>2025-01-27</td><td>1080</td><td>0.00000000000000000000</td></tr>
+    <tr><td>2025-02-03</td><td>1350</td><td>25.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>The first week is correctly <code>NULL</code> &mdash; no prior week to compare. Week 2 is +20%, week 3 is &minus;10%, week 4 is exactly <strong>0%</strong> (not NULL &mdash; the flat week is a real data point), week 5 is +25%. The trend is choppy but recovering.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the regex armour? &mdash; the schema is lying</h5>
+<p>If <code>visits</code> were a clean <code>INTEGER</code>, this query would be a simple <code>100.0*(visits - LAG(visits) OVER w)/LAG(visits) OVER w</code>. The <code>regexp_replace(&hellip;, '[^-.0-9]', '', 'g')</code> strips every character that is not a digit, minus or dot &mdash; it exists because the column might actually be <code>TEXT</code> holding values like <code>"1,200"</code> or <code>"1200 visits"</code>. A senior candidate calls this out: "this defends against a dirty text column; if the column is truly numeric, drop the regex for readability."</p>
+
+<h5>The 0% vs NULL distinction &mdash; the trap</h5>
+<p>Week 4 returns <code>0</code>, week 1 returns <code>NULL</code>, and they mean completely different things: 0% is "we measured, no change"; NULL is "we could not measure". A dashboard that renders both as a blank, or both as "0%", is wrong. The <code>NULLIF(prev, 0)</code> in the denominator is what keeps a <em>zero prior week</em> from throwing a division error &mdash; it converts the divide-by-zero into a clean NULL instead.</p>
+
+<h5>The window-frame subtlety &mdash; <code>LAG</code> needs a deterministic order</h5>
+<p><code>LAG</code> reaches back over <code>ORDER BY week_start</code>. If two rows shared a <code>week_start</code>, "the previous row" would be ambiguous and the percentage non-deterministic. With one row per week that is fine &mdash; but for safety on dirtier data, ensure <code>week_start</code> is unique, or add a tiebreaker to the window's <code>ORDER BY</code>.</p>
+
+<h5>Computing <code>LAG</code> once with a CTE</h5>
+<p>The reference calls the full <code>LAG(&hellip;)</code> expression three times. The planner usually de-duplicates it, but a CTE makes intent obvious and the SQL legible:</p>
+<pre><code>WITH w AS (
+  SELECT week_start, visits,
+         LAG(visits) OVER (ORDER BY week_start) AS prev_visits
+  FROM traffic
+)
+SELECT week_start, visits,
+       100.0 * (visits - prev_visits) / NULLIF(prev_visits, 0) AS wow_pct
+FROM w;</code></pre>
+
+<h5>Edge case: gaps in the week sequence</h5>
+<p><code>LAG</code> fetches the previous <em>row</em>, not the previous <em>calendar week</em>. If a week is missing from the table entirely, <code>LAG</code> happily compares against two weeks ago and labels it week-over-week. If the series can have holes, generate a complete week spine and <code>LEFT JOIN</code> traffic onto it before applying <code>LAG</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the regex/<code>NULLIF</code> layer as defensive plumbing for a possibly-dirty text column and offer the clean version if the column is numeric, articulate why a flat week returns 0% while the first week returns NULL, and note that <code>LAG</code> trusts row order &mdash; gaps in the week sequence silently corrupt the comparison.</div>

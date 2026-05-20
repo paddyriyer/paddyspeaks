@@ -1,0 +1,74 @@
+<p>RedHat's growth team wants a weekly split of the customer base into two buckets &mdash; <em>New</em> customers, who have ordered exactly once, and <em>Returning</em> customers, who have ordered more than once. It is a classic two-level aggregation: first count orders per customer, then count customers per bucket. The trap is that the second level has to group on the <em>same</em> expression it labels with &mdash; and a subtle mismatch there silently mislabels every row.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2024-01-05</td><td>$120</td></tr>
+    <tr><td>2</td><td>102</td><td>2024-01-06</td><td>$80</td></tr>
+    <tr><td>3</td><td>101</td><td>2024-02-01</td><td>$60</td></tr>
+    <tr><td>4</td><td>103</td><td>2024-02-10</td><td>$200</td></tr>
+    <tr><td>5</td><td>104</td><td>2024-03-01</td><td>$45</td></tr>
+    <tr><td>6</td><td>101</td><td>2024-03-15</td><td>$90</td></tr>
+    <tr><td>7</td><td>102</td><td>2024-03-20</td><td>$30</td></tr>
+  </tbody>
+</table>
+<p>Seven orders across four customers: 101 ordered three times, 102 twice, and 103 and 104 once each. So the correct answer is <strong>2 New</strong> (103, 104) and <strong>2 Returning</strong> (101, 102). Keep those numbers in mind &mdash; the reference query does not produce them.</p>
+
+<h4>2. The SQL &mdash; <code>two-level aggregation</code></h4>
+<pre><code>SELECT
+  CASE WHEN cnt = 1 THEN 'New' ELSE 'Returning' END AS customer_type,
+  COUNT(*) AS customers
+FROM (SELECT customer_id, COUNT(*) AS cnt FROM orders GROUP BY customer_id) t
+GROUP BY CASE WHEN cnt = 1 THEN 'New' ELSE 'Returning' END
+ORDER BY customer_type;</code></pre>
+<p>The inner query counts orders per customer into <code>cnt</code>. The outer query buckets each customer row by whether <code>cnt = 1</code>, and counts how many customers land in each bucket. This is the <em>corrected</em> query &mdash; see the trap below for what the original reference got wrong.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_type</th><th>customers</th></tr></thead>
+  <tbody>
+    <tr><td>New</td><td>2</td></tr>
+    <tr><td>Returning</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Two New, two Returning &mdash; matching the hand count. The inner subquery emits one row per customer (<code>cnt</code> of 3, 2, 1, 1); the outer <code>CASE</code> splits those four rows into a "New" group of two and a "Returning" group of two, and <code>COUNT(*)</code> tallies each.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The trap that breaks the reference solution</h5>
+<p>The original answer labelled the bucket with <code>CASE WHEN COUNT(*) = 1 ...</code> in the <code>SELECT</code> while grouping by <code>CASE WHEN cnt = 1 ...</code>. Those are two <em>different</em> expressions. The <code>GROUP BY</code> correctly forms two buckets &mdash; but inside the <code>SELECT</code>, <code>COUNT(*)</code> is the number of <em>customer rows in that bucket</em>, which is 2 for both buckets here. So both groups evaluate <code>COUNT(*) = 1</code> as false and both get labelled <strong>Returning</strong>:</p>
+<pre><code>-- BROKEN: SELECT labels with COUNT(*), GROUP BY uses cnt
+SELECT
+  CASE WHEN COUNT(*) = 1 THEN 'New' ELSE 'Returning' END AS customer_type,
+  COUNT(DISTINCT customer_id) AS customers
+FROM (SELECT customer_id, COUNT(*) AS cnt FROM orders GROUP BY customer_id) t
+GROUP BY CASE WHEN cnt = 1 THEN 'New' ELSE 'Returning' END;
+-- returns: ('Returning', 2), ('Returning', 2)  -- two rows, both mislabelled</code></pre>
+<p>The fix is consistency: the label expression in <code>SELECT</code> and the grouping key in <code>GROUP BY</code> must be the <em>same</em> expression on <code>cnt</code>. The customer tally is then <code>COUNT(*)</code> over the grouped customer rows.</p>
+
+<h5>A cleaner rewrite &mdash; bucket once in a CTE</h5>
+<p>Repeating the <code>CASE</code> in two places is what invited the bug. Compute the label once and group on its alias:</p>
+<pre><code>WITH per_customer AS (
+  SELECT customer_id,
+         CASE WHEN COUNT(*) = 1 THEN 'New' ELSE 'Returning' END AS customer_type
+  FROM orders
+  GROUP BY customer_id
+)
+SELECT customer_type, COUNT(*) AS customers
+FROM per_customer
+GROUP BY customer_type
+ORDER BY customer_type;</code></pre>
+<p>One source of truth for the label, impossible to drift. Postgres also lets you <code>GROUP BY customer_type</code> by output-column name, which removes the duplicated expression entirely.</p>
+
+<h5>Conditional aggregation &mdash; one row instead of two</h5>
+<p>If the consumer wants New and Returning as two <em>columns</em> on a single row (a tidy dashboard tile), pivot with <code>FILTER</code>:</p>
+<pre><code>SELECT
+  COUNT(*) FILTER (WHERE cnt = 1) AS new_customers,
+  COUNT(*) FILTER (WHERE cnt &gt; 1) AS returning_customers
+FROM (SELECT customer_id, COUNT(*) AS cnt FROM orders GROUP BY customer_id) t;</code></pre>
+
+<h5>Edge case: what counts as an "order"?</h5>
+<p>The schema carries a <code>status</code> column. A cancelled or failed order arguably should not promote a customer from New to Returning. If the business defines a customer by <em>completed</em> orders, the inner query needs <code>WHERE status = 'completed'</code> &mdash; and a customer whose only orders were all cancelled then disappears from the report entirely, since they produce no inner row. Confirm the definition before writing the filter. Also note: customers with <em>zero</em> orders never appear here at all; if "New" should include never-ordered signups, you need a <code>LEFT JOIN</code> from a customers table instead.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that a <code>CASE</code> in <code>SELECT</code> must match the <code>CASE</code> in <code>GROUP BY</code> exactly &mdash; and that <code>COUNT(*)</code> in the outer query counts grouped rows, not orders &mdash; then refactor the duplicated expression into a single CTE-computed label so the bug cannot recur, and pin down whether cancelled and never-ordered customers belong in the report.</div>

@@ -1,0 +1,66 @@
+<p>Concurrent-user counting appears in dashboards for streaming services, call centres, and SaaS platforms: "how many sessions were live at this exact moment?" The interviewer is probing the <strong>point-in-time interval probe</strong> pattern &mdash; joining a table of time windows against a spine of probe timestamps using a half-open containment predicate &mdash; and whether you use a <code>LEFT JOIN &hellip; COUNT(s.id)</code> idiom to correctly return zero for probe times with no active sessions.</p>
+
+<h4>1. The source data &mdash; <code>session</code> and <code>probe_ts</code></h4>
+<table>
+  <thead><tr><th>id</th><th>login_ts</th><th>logout_ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>09:00</td><td>10:00</td><td>early morning session</td></tr>
+    <tr><td>2</td><td>09:30</td><td>11:00</td><td>overlaps session 1</td></tr>
+    <tr><td>3</td><td>10:30</td><td>12:00</td><td>active mid-morning</td></tr>
+    <tr><td>4</td><td>14:00</td><td>15:00</td><td>isolated afternoon session</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>ts (probe)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>09:00</td><td>boundary: login_ts = 09:00 is included (login_ts &le; probe)</td></tr>
+    <tr><td>09:45</td><td>inside sessions 1 and 2</td></tr>
+    <tr><td>10:30</td><td>session 1 ended; sessions 2 and 3 are active (10:30 is included in session 3 because login_ts &le; probe)</td></tr>
+    <tr><td>11:30</td><td>only session 3 still active</td></tr>
+    <tr><td>13:00</td><td>dead zone &mdash; zero active sessions</td></tr>
+    <tr><td>14:30</td><td>inside session 4</td></tr>
+  </tbody>
+</table>
+<p>All timestamps are on 2025-01-01. Key edge cases: probe 09:00 matches session 1 because the predicate is <code>login_ts &le; probe</code> (inclusive start); probe 10:30 matches session 3 because its login_ts is exactly 10:30 and the predicate is non-strict on the left side. Probe 13:00 matches nobody &mdash; that is the zero-count case the <code>LEFT JOIN</code> must preserve.</p>
+
+<h4>2. The SQL &mdash; left join probe spine against sessions</h4>
+<pre><code>SELECT p.ts, COUNT(s.id) AS active_users
+FROM probe_ts p
+LEFT JOIN session s
+  ON s.login_ts &lt;= p.ts AND s.logout_ts &gt; p.ts
+GROUP BY p.ts
+ORDER BY p.ts;</code></pre>
+<p>The driving table is the probe spine <code>p</code>. Every probe row is preserved by <code>LEFT JOIN</code>; for each probe the join condition <code>login_ts &le; p.ts AND logout_ts &gt; p.ts</code> matches every session whose window contains the instant. <code>COUNT(s.id)</code> &mdash; counting a column from the right side, not <code>COUNT(*)</code> &mdash; counts only matched rows and returns 0 when all right-side columns are NULL (i.e. no active session).</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>ts</th><th>active_users</th><th>matching session ids</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01 09:00</td><td>1</td><td>1 (login_ts=09:00 &le; 09:00, logout_ts=10:00 &gt; 09:00)</td></tr>
+    <tr><td>2025-01-01 09:45</td><td>2</td><td>1, 2</td></tr>
+    <tr><td>2025-01-01 10:30</td><td>2</td><td>2, 3</td></tr>
+    <tr><td>2025-01-01 11:30</td><td>1</td><td>3</td></tr>
+    <tr><td>2025-01-01 13:00</td><td>0</td><td>(none &mdash; zero preserved by LEFT JOIN)</td></tr>
+    <tr><td>2025-01-01 14:30</td><td>1</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Session 1 ends at 10:00: the probe at 10:30 correctly excludes it because <code>logout_ts &gt; probe</code> requires strict inequality (half-open <code>[login, logout)</code>). Probe 09:00 counts session 1 because the login boundary is inclusive.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The half-open containment predicate: <code>login_ts &le; p.ts AND logout_ts &gt; p.ts</code></h5>
+<p>Sessions are modelled as half-open intervals <code>[login, logout)</code>: the login instant belongs to the session, the logout instant does not. The point-in-time test is the standard half-open membership test: a probe instant <em>p</em> is inside the interval when <code>login &le; p &lt; logout</code>, which SQL spells as <code>login_ts &le; p.ts AND logout_ts &gt; p.ts</code>. Getting the operator choice wrong &mdash; for example using <code>logout_ts &ge; p.ts</code> &mdash; would double-count the boundary instant where one session ends and another begins, inflating the concurrent count by 1.</p>
+
+<h5>Why <code>COUNT(s.id)</code> rather than <code>COUNT(*)</code></h5>
+<p><code>COUNT(*)</code> counts rows, including rows where all right-side columns are NULL &mdash; the NULL placeholder row that a <code>LEFT JOIN</code> inserts when no match exists. That would return 1 instead of 0 for the dead-zone probe. <code>COUNT(s.id)</code> ignores NULL values, so it returns 0 exactly when the left join finds no matching session. This is the canonical idiom for "count matching rows, return zero when none match" in a <code>LEFT JOIN &hellip; GROUP BY</code> pattern.</p>
+
+<h5>Driving from the probe spine, not the sessions table</h5>
+<p>The query puts <code>probe_ts</code> on the <em>left</em> so every probe timestamp is guaranteed a row in the output regardless of matches. Reversing the join &mdash; driving from <code>session</code> &mdash; would drop probe timestamps with zero sessions entirely, silently omitting the trough periods that are often the most operationally important (no active users could mean a system outage). Always drive from the spine when you need complete coverage of an axis.</p>
+
+<h5>Performance &mdash; the non-equi join problem</h5>
+<p>The join condition has no equality clause on a column that can use a standard B-tree index lookup; the planner must scan or loop. For small probe sets the query is fast. At scale (millions of sessions, thousands of probe points) consider: (1) an index on <code>session(login_ts, logout_ts)</code> to let the engine prune by start time; (2) the event-timeline approach &mdash; union +1 events at login and &minus;1 events at logout into a timeline, use <code>SUM</code> window functions to derive concurrent counts at every change point, then join probe timestamps to that derived timeline; or (3) in PostgreSQL, a range-typed column with a GiST index and the <code>&lt;@</code> containment operator.</p>
+
+<h5>Dialect notes</h5>
+<p>The <code>LEFT JOIN &hellip; COUNT(col)</code> pattern is fully portable: PostgreSQL, MySQL, SQL Server, BigQuery, Snowflake, and SQLite all support it. The <code>::numeric</code> cast and <code>FILTER (WHERE &hellip;)</code> clause used elsewhere in the bank are PostgreSQL-specific &mdash; neither appears here, so this query runs unchanged everywhere. BigQuery uses <code>DATETIME</code> instead of <code>TIMESTAMP</code> for timezone-naive instants; the logic is identical.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> drive from the probe spine with <code>LEFT JOIN</code> to guarantee zero-count rows; use <code>COUNT(s.id)</code> not <code>COUNT(*)</code> to correctly return 0 when no sessions match; apply the half-open predicate <code>login_ts &le; p.ts AND logout_ts &gt; p.ts</code> with careful operator choice; and flag the event-timeline window-function approach as the scalable alternative for large datasets.</div>

@@ -1,0 +1,57 @@
+<p>Yahoo's logistics dashboard ranks suppliers by an "on-time reliability" score. The reference query looks plausible &mdash; it divides a <code>SUM(CASE&hellip;)</code> by <code>COUNT(*)</code> &mdash; but read the CASE condition closely. It tests <code>on_time IS NOT NULL</code>, not <code>on_time = true</code>. That single mismatch turns a reliability score into a "did we record an outcome at all" score, and an interviewer is watching whether you notice that the worst supplier ends up rated 100%.</p>
+
+<h4>1. The source data &mdash; <code>shipments</code></h4>
+<table>
+  <thead><tr><th>supplier_id</th><th>on_time</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>true</td></tr>
+    <tr><td>1</td><td>true</td></tr>
+    <tr><td>1</td><td>false</td></tr>
+    <tr><td>1</td><td><em>NULL</em></td></tr>
+    <tr><td>2</td><td>true</td></tr>
+    <tr><td>2</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td>false</td></tr>
+    <tr><td>3</td><td>false</td></tr>
+  </tbody>
+</table>
+<p>Supplier 3's two shipments were <strong>both late</strong> &mdash; a true reliability score for them is 0%. Some rows carry a <strong>NULL</strong> <code>on_time</code>: shipments where the outcome was never logged. Those NULLs are exactly where the buggy and correct queries diverge.</p>
+
+<h4>2. The SQL &mdash; <code>on-time rate per supplier</code></h4>
+<pre><code>SELECT supplier_id,
+  100.0 * SUM(CASE WHEN on_time THEN 1 ELSE 0 END) / COUNT(*) AS reliability
+FROM shipments GROUP BY supplier_id ORDER BY reliability DESC;</code></pre>
+<p>The reference solution wrote <code>CASE WHEN on_time IS NOT NULL THEN 1 ELSE 0 END</code> &mdash; that counts shipments that <em>have an outcome</em>, late or not. Reliability has to count shipments that arrived <em>on time</em>: the CASE must test the boolean itself, <code>CASE WHEN on_time THEN 1 ELSE 0 END</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>supplier_id</th><th>reliability</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>50.0000000000000000</td></tr>
+    <tr><td>1</td><td>50.0000000000000000</td></tr>
+    <tr><td>3</td><td>0.00000000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Supplier 3 now correctly scores <strong>0%</strong> &mdash; every shipment was late. Supplier 1 gets 2 on-time of 4 rows = 50%; supplier 2 gets 1 of 2 = 50%. Compare that to the reference query's output, which ranked supplier 3 <strong>first at 100%</strong>: both of its <code>false</code> rows are non-NULL, so <code>IS NOT NULL</code> scored them as successes.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug: <code>IS NOT NULL</code> measures the wrong thing</h5>
+<p><code>SUM(CASE WHEN on_time IS NOT NULL THEN 1 ELSE 0 END)</code> counts every row where the column has <em>any</em> value &mdash; <code>true</code> and <code>false</code> both pass. So a supplier whose every shipment was late, but recorded, scores 100%. The fix is to make the CASE test the fact you actually care about: <code>WHEN on_time</code> (equivalently <code>WHEN on_time = true</code>). Late shipments and unlogged shipments then both fall to the <code>ELSE 0</code> branch.</p>
+
+<h5>What should the denominator be? &mdash; the NULL decision</h5>
+<p>Dividing by <code>COUNT(*)</code> treats an unlogged shipment as a failure. That is defensible: "we have no proof it was on time." But a logistics team often wants reliability over <em>graded</em> shipments only, excluding the ones still in transit. That changes the denominator:</p>
+<pre><code>SELECT supplier_id,
+  100.0 * COUNT(*) FILTER (WHERE on_time) / COUNT(on_time) AS reliability
+FROM shipments GROUP BY supplier_id ORDER BY reliability DESC;</code></pre>
+<p><code>COUNT(on_time)</code> counts non-NULL values only, so supplier 1 becomes 2/3 &asymp; 66.7% and supplier 2 becomes 1/1 = 100%. Same numerator intent, different universe. Confirm with the interviewer: "does an unrecorded shipment count against the supplier, or is it excluded?"</p>
+
+<h5>Cleaner numerators &mdash; <code>FILTER</code> and <code>AVG</code></h5>
+<p>The <code>SUM(CASE&hellip;)</code> idiom is portable, but Postgres has two tidier forms. <code>COUNT(*) FILTER (WHERE on_time)</code> reads as exactly what it does. And because <code>on_time</code> is already boolean, <code>AVG((on_time)::int)</code> gives the on-time fraction directly &mdash; multiply by 100 for a percentage. All three agree once the condition is correct; pick the one your team finds most readable.</p>
+
+<h5>Integer division &mdash; why the <code>100.0</code> matters</h5>
+<p>The literal is written <code>100.0</code>, not <code>100</code>, on purpose. If you wrote <code>100 * SUM(&hellip;) / COUNT(*)</code> with all-integer operands, Postgres would do integer division: <code>100 * 2 / 4</code> evaluates left-to-right to <code>200 / 4 = 50</code> here, but <code>100 * 1 / 3</code> becomes <code>33</code>, silently truncating. The <code>100.0</code> forces numeric arithmetic so fractional rates survive. Alternatively cast: <code>SUM(&hellip;)::numeric / COUNT(*)</code>.</p>
+
+<h5>Edge cases: a supplier with zero shipments, and three-valued logic</h5>
+<p>A supplier present in some dimension table but with no rows in <code>shipments</code> simply won't appear in this <code>GROUP BY</code> &mdash; if the dashboard needs them shown as "no data", that requires a <code>LEFT JOIN</code> from the supplier list. Also note <code>CASE WHEN on_time</code> handles NULL gracefully: a NULL is neither true nor false, so it falls through to <code>ELSE 0</code> &mdash; no need for an explicit <code>IS NULL</code> branch.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> catch that <code>on_time IS NOT NULL</code> measures "outcome recorded" rather than "on time" &mdash; the tell is the all-late supplier scoring 100% &mdash; fix the CASE to test the boolean, decide deliberately whether unlogged shipments belong in the denominator, and keep the percentage in numeric arithmetic so rates don't truncate.</div>

@@ -1,0 +1,55 @@
+<p>A product manager asks a deceptively simple question: <em>"what's the average number of orders per customer?"</em> The trap is the customers who ordered nothing &mdash; if they are dropped, the average is inflated. The interviewer is checking whether you compute a <strong>two-stage average</strong>: count per customer first (including zeros), then average those counts &mdash; rather than dividing total orders by the wrong denominator.</p>
+
+<h4>1. The source data &mdash; <code>customer</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer.id</th><th>orders for this customer</th><th>order_count</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10, 11, 12</td><td>3</td></tr>
+    <tr><td>2</td><td>13</td><td>1</td></tr>
+    <tr><td>3</td><td>&mdash; none &mdash;</td><td>0 (zero-order customer)</td></tr>
+    <tr><td>4</td><td>14, 15</td><td>2</td></tr>
+    <tr><td>5</td><td>&mdash; none &mdash;</td><td>0 (zero-order customer)</td></tr>
+  </tbody>
+</table>
+<p>Customers 3 and 5 are the edge case: they exist in <code>customer</code> but have no rows in <code>orders</code>. They <em>must</em> contribute a count of 0 to the average &mdash; dropping them changes 6/5 into 6/3.</p>
+
+<h4>2. The SQL &mdash; per-customer counts, then average</h4>
+<pre><code>SELECT ROUND(AVG(order_count)::numeric, 2) AS avg_orders_per_customer
+FROM (
+  SELECT c.id, COUNT(o.order_id) AS order_count
+  FROM customer c
+  LEFT JOIN orders o ON o.customer_id = c.id
+  GROUP BY c.id
+) t;</code></pre>
+<p>The inner query is stage one: a <code>LEFT JOIN</code> from <code>customer</code> keeps every customer, and <code>COUNT(o.order_id)</code> yields 0 for those with no matching orders. The outer query is stage two: <code>AVG</code> over those per-customer counts.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_orders_per_customer</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1.20</td><td>(3 + 1 + 0 + 2 + 0) / 5 = 6 / 5 = 1.20</td></tr>
+  </tbody>
+</table>
+<p>The answer is <strong>1.20</strong>, computed over all five customers. Drop the two zero-order customers and you would get 6/3 = 2.00 &mdash; a 67% overstatement. The single number is correct only because the zeros are in the denominator.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two stages, not one</h5>
+<p>The naive one-liner <code>SELECT COUNT(*) / COUNT(DISTINCT customer_id) FROM orders</code> divides total orders by <em>customers who appear in orders</em> &mdash; it cannot see customers 3 and 5 at all, because they have no rows there. The two-stage shape fixes the denominator: stage one materialises one row per customer (zeros included), stage two averages. The structure encodes "every customer counts, even the silent ones".</p>
+
+<h5><code>COUNT(o.order_id)</code> vs <code>COUNT(*)</code> on a LEFT JOIN</h5>
+<p>This is the make-or-break detail. After a <code>LEFT JOIN</code>, an unmatched customer still produces one output row, but with all <code>orders</code> columns NULL. <code>COUNT(*)</code> counts <em>rows</em>, so it would return 1 for a zero-order customer &mdash; wrong. <code>COUNT(o.order_id)</code> counts <em>non-NULL values</em> of an orders-side column, so the all-NULL phantom row counts as 0. Always count a column from the right-hand table, never <code>*</code>.</p>
+
+<h5>The <code>::numeric</code> cast before <code>ROUND</code></h5>
+<p>Two reasons. First, integer division: if <code>AVG</code> operated on plain integers without care, <code>6 / 5</code> could truncate to 1 &mdash; <code>AVG</code> itself returns numeric here, but casting makes the intent explicit and safe. Second, PostgreSQL's two-argument <code>ROUND(value, 2)</code> only accepts <code>numeric</code>; calling it on a <code>double precision</code> raises <em>"function round(double precision, integer) does not exist"</em>. The cast guarantees both correct division and a compilable <code>ROUND</code>.</p>
+
+<h5>An equivalent single-pass form &mdash; and its risk</h5>
+<p>You can also write <code>COUNT(o.order_id)::numeric / COUNT(DISTINCT c.id)</code> over the same <code>LEFT JOIN</code> without a subquery. It gives 1.20 too, but it is easier to get subtly wrong (which <code>COUNT</code> over which table) and harder to extend &mdash; the moment the PM also wants the <em>median</em> orders per customer, you need the per-customer rows anyway. The explicit two-stage form is more robust and more extensible.</p>
+
+<h5>Why <code>AVG</code> can't be nested directly</h5>
+<p>You might reach for <code>AVG(COUNT(o.order_id))</code> in one query &mdash; it does not compile. SQL forbids nesting one aggregate inside another in the same query level: <code>COUNT</code> collapses rows within a group, and <code>AVG</code> would then need a second, outer level of grouping that does not exist. The subquery <em>is</em> that second level &mdash; the inner <code>SELECT</code> produces the per-customer counts as ordinary rows, and only then can the outer <code>AVG</code> aggregate them. Two passes are structurally required, not stylistic.</p>
+
+<h5>The result shape &mdash; one row, one column</h5>
+<p>The question asks for a single scalar. The outer query has no <code>GROUP BY</code> and one aggregate in the <code>SELECT</code> list, so it returns exactly one row with one column &mdash; the contract the prompt specifies. If a stray non-aggregate column crept into that outer <code>SELECT</code> it would either error ("must appear in GROUP BY") or fan the result back out to many rows. Keeping the final projection a lone aggregate is what guarantees the scalar shape.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise this as a two-stage average &mdash; <code>LEFT JOIN</code> from the customer table so zero-order customers survive, <code>COUNT(o.order_id)</code> (a right-side column, never <code>COUNT(*)</code>) so their count is 0, then <code>AVG</code> the per-customer counts &mdash; and cast to <code>numeric</code> before two-argument <code>ROUND</code>.</div>

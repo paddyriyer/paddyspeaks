@@ -1,0 +1,74 @@
+<p>Two tables record per-day outcomes &mdash; one of failures, one of successes &mdash; and the task is a "state-changes" report: collapse consecutive same-status days into maximal runs with a start and end date. This is the classic <strong>gaps-and-islands</strong> problem. The interviewer is checking whether you know the difference-of-row-numbers trick to identify contiguous groups, rather than a procedural scan.</p>
+
+<h4>1. The source data &mdash; <code>failed</code> and <code>succeeded</code></h4>
+<table>
+  <thead><tr><th>fail_date</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td></tr>
+    <tr><td>2025-01-02</td></tr>
+    <tr><td>2025-01-05</td></tr>
+    <tr><td>2025-01-06</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>success_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-03</td><td>between two failure runs</td></tr>
+    <tr><td>2025-01-04</td><td></td></tr>
+    <tr><td>2025-01-07</td><td>a one-day success run &mdash; the boundary edge case</td></tr>
+    <tr><td>2024-12-31</td><td>OUT OF RANGE &mdash; must be filtered to 2025 only</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. <code>2024-12-31</code> sits outside calendar 2025 and must be dropped before the run logic. And <code>2025-01-07</code> is a lone success between failures &mdash; a run of length one, which the grouping must still emit as its own period.</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands via difference of row numbers</h4>
+<pre><code>WITH unioned AS (
+  SELECT fail_date AS d, 'failed' AS state FROM failed
+  UNION ALL
+  SELECT success_date, 'succeeded' FROM succeeded
+),
+filtered AS (
+  SELECT d, state FROM unioned WHERE d BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+),
+grouped AS (
+  SELECT d, state,
+         ROW_NUMBER() OVER (ORDER BY d)
+           - ROW_NUMBER() OVER (PARTITION BY state ORDER BY d) AS grp
+  FROM filtered
+)
+SELECT state AS period_state, MIN(d) AS start_date, MAX(d) AS end_date
+FROM grouped
+GROUP BY state, grp
+ORDER BY start_date;</code></pre>
+<p>The two tables are merged and labelled, then filtered to 2025. The <code>grouped</code> CTE computes a global row number and a per-state row number; their <em>difference</em> stays constant exactly while consecutive days share a state. Grouping by <code>(state, grp)</code> and taking <code>MIN</code>/<code>MAX</code> of the date collapses each run.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>period_state</th><th>start_date</th><th>end_date</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>failed</td><td>2025-01-01</td><td>2025-01-02</td><td>first failure run</td></tr>
+    <tr><td>succeeded</td><td>2025-01-03</td><td>2025-01-04</td><td>success run between failures</td></tr>
+    <tr><td>failed</td><td>2025-01-05</td><td>2025-01-06</td><td>second failure run &mdash; new island, same state</td></tr>
+    <tr><td>succeeded</td><td>2025-01-07</td><td>2025-01-07</td><td>single-day run &mdash; start = end</td></tr>
+  </tbody>
+</table>
+<p>Four runs. The two separate failure stretches stay separate &mdash; the same state appearing twice gets two different <code>grp</code> values because a success interrupted them. The Jan 7 success is one row with <code>start_date = end_date</code>. The out-of-range Dec 31 row never reaches the grouping.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the difference of two row numbers identifies islands</h5>
+<p>This is the trick worth internalising. <code>ROW_NUMBER() OVER (ORDER BY d)</code> numbers <em>all</em> days 1, 2, 3... <code>ROW_NUMBER() OVER (PARTITION BY state ORDER BY d)</code> numbers days <em>within each state</em>. While a run of the same state continues, both counters advance in lockstep, so their difference is constant. The moment the state changes, the global counter keeps climbing but the per-state counter resets &mdash; the difference jumps. So <code>(state, grp)</code> is a unique key per contiguous run. Note the difference value itself is meaningless; only its constancy matters.</p>
+
+<h5>Why two non-adjacent failure runs do not merge</h5>
+<p>Failures on Jan 1-2 and Jan 5-6 are the same <code>state</code>, but the per-state row numbers run 1,2 (first run) then 3,4 (second run) &mdash; while the global numbers are 1,2 then 5,6. The differences are 0,0 then 2,2: two distinct <code>grp</code> values. Grouping by <code>(state, grp)</code> therefore yields two failure rows, not one merged span. This is exactly why you group by both columns, not by <code>grp</code> alone.</p>
+
+<h5>The dataset has no gap days &mdash; a real assumption</h5>
+<p>This solution treats "contiguous" as "consecutive <em>rows</em> in date order," which only equals "consecutive <em>calendar days</em>" if every day in range has a row. Here Jan 1-7 are all present. If a day were missing entirely (neither failed nor succeeded), the row-number difference would still see the surrounding same-state days as one run &mdash; bridging a true calendar gap. If gaps must break a run, you need a date-difference test (<code>d - LAG(d) = 1</code>) instead. State this assumption out loud.</p>
+
+<h5>The tag says "Recursive CTEs" &mdash; but this needs none</h5>
+<p>The question is tagged recursive CTEs, yet the solution uses only window functions and grouping &mdash; no <code>WITH RECURSIVE</code>. Gaps-and-islands <em>can</em> be done recursively (walk day by day, carrying run state), but the row-number-difference method is the standard, far more efficient approach: one sort, no iteration. Solve the problem, not the label &mdash; and say why the window-function form is preferable.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ROW_NUMBER() OVER (...)</code>, <code>UNION ALL</code>, and <code>BETWEEN</code> are fully standard &mdash; this query runs unchanged on PostgreSQL, SQL Server, MySQL 8+, Oracle, and SQLite. The only Postgres-flavoured token is <code>DATE '2025-01-01'</code>; portable alternatives are <code>CAST('2025-01-01' AS DATE)</code> or, in most engines, the bare string literal which coerces in a date comparison.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve gaps-and-islands with the constant difference of a global <code>ROW_NUMBER</code> and a per-state <code>ROW_NUMBER</code>, group by <code>(state, grp)</code> so non-adjacent runs of the same state stay separate, filter the date range <em>before</em> the run logic, and call out that the method assumes no missing calendar days unless a <code>LAG</code>-based gap test is added.</div>

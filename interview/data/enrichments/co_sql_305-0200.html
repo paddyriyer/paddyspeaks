@@ -1,0 +1,62 @@
+<p>Instacart wants to study reorder behaviour: for each order, what did the same customer order next? The name "Corrected Order Pairing" hints at a story &mdash; an earlier attempt paired orders incorrectly, probably by accidentally matching an order with itself or with earlier orders. The reference fixes that with a self-join and a strict <code>&gt;</code>. The interviewer is watching whether you see what this join actually produces, and whether it is the pairing the business asked for.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>ordered_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2026-01-01 09:00</td></tr>
+    <tr><td>2</td><td>101</td><td>2026-01-05 10:00</td></tr>
+    <tr><td>3</td><td>101</td><td>2026-01-10 11:00</td></tr>
+    <tr><td>4</td><td>102</td><td>2026-01-02 09:00</td></tr>
+    <tr><td>5</td><td>102</td><td>2026-01-08 10:00</td></tr>
+    <tr><td>6</td><td>103</td><td>2026-01-03 09:00</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has three orders, customer 102 has two, and customer 103 has just <strong>one</strong>. That single-order customer is the edge case &mdash; order 6 has no "next" order at all, so it should not appear in any pair.</p>
+
+<h4>2. The SQL &mdash; <code>self-join on later timestamp</code></h4>
+<pre><code>SELECT a.order_id, b.order_id AS next_order
+FROM orders a JOIN orders b ON a.customer_id = b.customer_id AND b.ordered_at &gt; a.ordered_at;</code></pre>
+<p>Each order <code>a</code> joins to every order <code>b</code> by the same customer with a strictly later timestamp. The strict <code>&gt;</code> is the "correction": it stops an order pairing with itself and stops earlier orders being treated as "next".</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>next_order</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td></tr>
+    <tr><td>1</td><td>2</td></tr>
+    <tr><td>2</td><td>3</td></tr>
+    <tr><td>4</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Order 6 is correctly <strong>absent</strong> &mdash; customer 103 has no later order, so the join finds no partner. But look at order 1: it pairs with <em>both</em> 2 and 3. This join produces <strong>every later order</strong>, not the immediately next one. If "next order" means the one right after, this answer over-produces; if it means "any subsequent order", it is exactly right. That ambiguity is the interview.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>"Next order" almost never means "all later orders"</h5>
+<p>The reference returns the full set of later pairs &mdash; useful for "all reorder pairs", but a literal "next order" wants <em>only</em> the immediately following one. Order 1's next order is 2, not also 3. The clean fix is <code>LEAD</code>, which steps exactly one row forward within each customer:</p>
+<pre><code>SELECT order_id,
+       LEAD(order_id) OVER (PARTITION BY customer_id ORDER BY ordered_at) AS next_order
+FROM orders;</code></pre>
+<p>This gives 1&rarr;2, 2&rarr;3, 4&rarr;5, and &mdash; importantly &mdash; 3&rarr;NULL, 5&rarr;NULL, 6&rarr;NULL: the last order of each customer is kept with a NULL next, rather than dropped. Confirm with the interviewer which behaviour the analysis needs before committing.</p>
+
+<h5>The inner-join trap &mdash; vanishing last orders</h5>
+<p>The self-join uses an <em>inner</em> join, so any order with no later partner disappears entirely &mdash; orders 3, 5, and 6 are gone from the result. For a reorder-rate metric that is a silent bug: you would be dividing by only the orders that <em>had</em> a follow-up, inflating the rate. If every order must appear (with NULL when there is no next), either use the <code>LEAD</code> form above or a <code>LEFT JOIN LATERAL</code>:</p>
+<pre><code>SELECT a.order_id, n.order_id AS next_order
+FROM orders a
+LEFT JOIN LATERAL (
+  SELECT order_id FROM orders b
+  WHERE b.customer_id = a.customer_id AND b.ordered_at &gt; a.ordered_at
+  ORDER BY b.ordered_at LIMIT 1
+) n ON true;</code></pre>
+
+<h5>The duplicate-timestamp trap</h5>
+<p>If a customer places two orders at the <em>exact same</em> <code>ordered_at</code>, the strict <code>&gt;</code> excludes both from being each other's "next" &mdash; they tie, and neither is strictly later. <code>LEAD</code> with <code>ORDER BY ordered_at</code> alone would also order them arbitrarily. Add a deterministic tiebreaker, e.g. <code>ORDER BY ordered_at, order_id</code>, so the sequence is stable and reproducible.</p>
+
+<h5>The performance angle</h5>
+<p>The self-join is O(n&sup2;) per customer in the worst case: every order pairs with every later one, so a customer with 100 orders generates ~5,000 pair rows. The <code>LEAD</code> version sorts once per partition &mdash; O(n log n) &mdash; and emits exactly one row per order. On a real orders table the window function is not just semantically tighter, it is the only one that scales.</p>
+
+<h5>Edge case: the single-order customer</h5>
+<p>Customer 103 demonstrates the boundary cleanly. With the self-join, order 6 is dropped (no later partner) &mdash; fine if you only want pairs, wrong if you want a row per order. With <code>LEAD</code>, order 6 survives as <code>6 &rarr; NULL</code>, which is the more honest representation: "this customer has not reordered yet."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the self-join produces <em>all</em> later pairs rather than the immediate next, reach for <code>LEAD() OVER (PARTITION BY customer ORDER BY time)</code> when "next" means strictly the following order, and flag that the inner join silently drops every customer's last order &mdash; a hidden bias in any reorder-rate metric.</div>

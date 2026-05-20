@@ -1,0 +1,59 @@
+<p>AMD's supply-chain analytics group tracks how fast each product line converts inventory into sales &mdash; the inventory turnover ratio, cost of goods sold divided by average inventory. It is a textbook division, and the interviewer knows it. What they are really testing is whether you defend the denominator: a product with zero average inventory will detonate a plain division.</p>
+
+<h4>1. The source data &mdash; <code>inventory</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>cogs</th><th>avg_inventory</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>120000</td><td>30000</td></tr>
+    <tr><td>2</td><td>80000</td><td>20000</td></tr>
+    <tr><td>3</td><td>50000</td><td>0</td></tr>
+    <tr><td>4</td><td>90000</td><td>45000</td></tr>
+  </tbody>
+</table>
+<p>Product 3 has <strong>zero average inventory</strong> &mdash; a discontinued SKU, or a drop-ship line that never sits in a warehouse. That single 0 is the whole interview: it is the value that turns division into a runtime error.</p>
+
+<h4>2. The SQL &mdash; <code>cogs / NULLIF(avg_inventory, 0)</code></h4>
+<pre><code>SELECT product_id, cogs / NULLIF(avg_inventory,0) AS turnover_ratio
+FROM inventory;</code></pre>
+<p><code>NULLIF(avg_inventory, 0)</code> returns NULL when the inventory is exactly 0 and the value itself otherwise. Dividing by NULL yields NULL &mdash; no exception &mdash; so product 3 produces a blank instead of crashing the query.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>turnover_ratio</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>4.0000000000000000</td></tr>
+    <tr><td>2</td><td>4.0000000000000000</td></tr>
+    <tr><td>3</td><td><em>NULL</em></td></tr>
+    <tr><td>4</td><td>2.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Products 1 and 2 both turn over 4 times; product 4, twice. Product 3 returns <strong>NULL</strong> &mdash; the query completed and every other row is intact. Without <code>NULLIF</code> the whole statement would have aborted with <code>division by zero</code>, taking the three valid answers down with it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>NULLIF</code> is the right guard</h5>
+<p>Postgres raises an error on integer or numeric division by zero &mdash; it does not return infinity or NULL on its own. <code>NULLIF(x, 0)</code> is the idiomatic one-token fix: it converts the dangerous 0 into a NULL, and NULL propagates harmlessly through arithmetic. The alternative, a <code>CASE</code>, is more verbose but identical in effect:</p>
+<pre><code>SELECT product_id,
+  CASE WHEN avg_inventory = 0 OR avg_inventory IS NULL
+       THEN NULL
+       ELSE cogs / avg_inventory END AS turnover_ratio
+FROM inventory;</code></pre>
+<p>Reach for <code>NULLIF</code> for brevity; reach for <code>CASE</code> when the zero case needs its own non-NULL sentinel.</p>
+
+<h5>Integer division &mdash; the silent truncation trap</h5>
+<p>If <code>cogs</code> and <code>avg_inventory</code> are <code>INTEGER</code> columns, <code>cogs / avg_inventory</code> does <em>integer</em> division: 50000 / 30000 becomes 1, not 1.67. The ratio is silently truncated and nobody errors. Cast one operand to force real division:</p>
+<pre><code>SELECT product_id,
+  cogs::numeric / NULLIF(avg_inventory, 0) AS turnover_ratio
+FROM inventory;</code></pre>
+<p>Here the columns are <code>numeric</code> so the result is exact &mdash; but on an unknown schema, casting is cheap insurance.</p>
+
+<h5>What does a NULL ratio mean to the consumer?</h5>
+<p>A NULL turnover is honest &mdash; "undefined, the divisor was zero" &mdash; but a dashboard may want a number. If zero inventory should read as zero turnover, <code>COALESCE(cogs / NULLIF(avg_inventory,0), 0)</code>. If it should be flagged, keep the NULL and let the UI render "n/a". What you must <em>not</em> do is let it become a crash. Decide the semantics with the analyst.</p>
+
+<h5>Negative or NULL inputs</h5>
+<p><code>NULLIF</code> guards <em>zero</em>, not <em>negative</em>. A negative <code>avg_inventory</code> (a data-entry error) divides fine and yields a nonsensical negative ratio that no guard catches &mdash; consider <code>WHERE avg_inventory &gt; 0</code> or a data-quality check upstream. And if <code>avg_inventory</code> is already NULL, the division is NULL anyway; <code>NULLIF</code> simply makes the zero case behave the same as the missing case.</p>
+
+<h5>Rounding for presentation</h5>
+<p>The raw result carries 16 decimal places. A turnover ratio is a business KPI read by humans &mdash; <code>ROUND(cogs::numeric / NULLIF(avg_inventory,0), 2)</code> trims it to two places. Keep full precision in the warehouse layer; round only at the presentation edge.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> guard every division with <code>NULLIF(divisor, 0)</code> before an interviewer has to ask, explain that Postgres errors rather than returning NULL on divide-by-zero, pre-empt integer-division truncation with a cast, and decide deliberately whether an undefined ratio should surface as NULL or be coalesced to a number.</div>

@@ -1,0 +1,57 @@
+<p>Adobe's commerce team wants the single busiest hour of the day for sales &mdash; the hour-of-day window that pulls the most revenue, to size staffing and infrastructure. The query buckets timestamps into hours, sums revenue per bucket, and keeps the top one. The interview is in the timestamp handling: extracting the hour correctly, and deciding whether "peak hour" means revenue or order count.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>sale_ts</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01 09:15</td><td>100</td></tr>
+    <tr><td>2026-01-01 09:45</td><td>150</td></tr>
+    <tr><td>2026-01-01 12:05</td><td>300</td></tr>
+    <tr><td>2026-01-01 12:30</td><td>250</td></tr>
+    <tr><td>2026-01-01 18:00</td><td>400</td></tr>
+    <tr><td>2026-01-02 12:10</td><td>120</td></tr>
+  </tbody>
+</table>
+<p>Note the cross-day detail: two sales on Jan 1 at 12:xx <em>and</em> one on Jan 2 at 12:10. Bucketing by hour-of-day folds all three into the same "12" bucket &mdash; that is the design choice the query encodes. The 18:00 sale is a single big-ticket order, which tests revenue-vs-count.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY hour</code>, <code>ORDER BY total LIMIT 1</code></h4>
+<pre><code>SELECT CAST(TO_CHAR(sale_ts, 'HH24') AS INTEGER) AS hr, SUM(amount) AS total
+FROM sales GROUP BY CAST(TO_CHAR(sale_ts, 'HH24') AS INTEGER) ORDER BY total DESC LIMIT 1;</code></pre>
+<p><code>TO_CHAR(sale_ts, 'HH24')</code> formats the hour as a 24-hour string (<code>'09'</code>, <code>'12'</code>, <code>'18'</code>); the <code>::INTEGER</code> cast turns it into a number. Group by that, sum revenue, sort descending, take one row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>hr</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>12</td><td>670</td></tr>
+  </tbody>
+</table>
+<p>Hour 12 wins with 670 &mdash; that is 300 + 250 + 120, the two Jan-1 noon sales plus the Jan-2 one, all folded into the same hour-of-day bucket. Hour 18 has a 400 single sale and hour 9 has 250; neither beats noon's accumulated 670. The result is one row because of <code>LIMIT 1</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Hour-of-day vs hour-of-timestamp &mdash; the bucketing decision</h5>
+<p><code>TO_CHAR(sale_ts, 'HH24')</code> extracts only the <em>hour component</em>, discarding the date. So 12:05 on Jan 1 and 12:10 on Jan 2 share a bucket. That is correct for "which hour of the day is busiest" &mdash; the question being asked. It would be <em>wrong</em> for "which specific hour-long window had peak sales", where you would bucket by <code>date_trunc('hour', sale_ts)</code> and keep the date. Confirm which: "peak hour of day across all dates, or a single peak hour on the calendar?" The two queries diverge entirely.</p>
+
+<h5>The idiomatic Postgres extraction &mdash; <code>EXTRACT</code> / <code>date_part</code></h5>
+<p><code>TO_CHAR(&hellip;, 'HH24')::INTEGER</code> works, but the round-trip through a string and back is clunky. Postgres has a direct numeric extractor:</p>
+<pre><code>SELECT EXTRACT(HOUR FROM sale_ts) AS hr, SUM(amount) AS total
+FROM sales GROUP BY EXTRACT(HOUR FROM sale_ts)
+ORDER BY total DESC LIMIT 1;</code></pre>
+<p><code>EXTRACT(HOUR FROM ...)</code> returns a number straight away &mdash; no formatting, no cast. Note the small dialect spread: <code>TO_CHAR</code> with <code>'HH24'</code> is Postgres/Oracle; the standard <code>EXTRACT</code> is the most portable. Mentioning the cleaner equivalent is a senior tell.</p>
+
+<h5>The tie trap &mdash; <code>LIMIT 1</code> hides co-peak hours</h5>
+<p><code>ORDER BY total DESC LIMIT 1</code> returns exactly one row even when two hours tie for the top revenue &mdash; the planner picks one arbitrarily, and a genuine co-peak hour is silently dropped. If ties should all surface, rank instead and keep every top-ranked row:</p>
+<pre><code>SELECT hr, total FROM (
+  SELECT EXTRACT(HOUR FROM sale_ts) AS hr, SUM(amount) AS total,
+         RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+  FROM sales GROUP BY EXTRACT(HOUR FROM sale_ts)
+) t WHERE rk = 1;</code></pre>
+
+<h5>Revenue peak vs traffic peak</h5>
+<p>The query sums <code>amount</code>, so "peak" means highest <em>revenue</em>. A single $400 luxury order at 18:00 would lose to four $20 orders elsewhere. For staffing you usually care about <em>order count</em> &mdash; <code>COUNT(*)</code> instead of <code>SUM(amount)</code> &mdash; because headcount tracks transactions, not dollars. Ask which "busy" the business means; revenue-peak and traffic-peak can be different hours.</p>
+
+<h5>Time zones &mdash; the silent correctness bug</h5>
+<p>If <code>sale_ts</code> is a <code>timestamptz</code> (or stored in UTC), <code>EXTRACT(HOUR ...)</code> gives the hour in the session's time zone. A sale at 23:00 New York time is 04:00 UTC &mdash; bucketed into a completely different hour. For a meaningful "peak hour", convert to the business's local zone first: <code>EXTRACT(HOUR FROM sale_ts AT TIME ZONE 'America/New_York')</code>. Raising the time-zone question unprompted is the over-the-bar move.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish hour-of-day bucketing from a specific calendar hour, prefer <code>EXTRACT</code> over a <code>TO_CHAR</code> string round-trip, know that <code>LIMIT 1</code> hides co-peak ties (use <code>RANK</code> if they matter), question whether "peak" means revenue or transaction count, and surface the time-zone hazard before it corrupts the answer.</div>

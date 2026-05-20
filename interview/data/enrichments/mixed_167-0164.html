@@ -1,0 +1,122 @@
+<p>The mixed-language framing of <a href="/interview.app/python.html?q=python_175-0008">python_175-0008</a> — the in-memory kernel that every production observability pipeline (Datadog, Prometheus, CloudWatch, Splunk, Kafka Streams) reduces to. A firehose of <em>(timestamp, key, value)</em> tuples folds into a hash map keyed by <code>(time_bucket, key)</code>. The interesting interview ground is not the implementation — it's the eviction, the cardinality blow-up, the top-K-at-scale question, and how this class plugs in front of a sharded back-end with the salt pattern from <a href="/interview.app/python.html?q=python_175-0002">python_175-0002</a>.</p>
+
+<h4>1. The problem — concrete numbers</h4>
+<p>10 web servers, each emitting ~1,000 log lines/min. One host (<code>web-07</code>) has a degraded disk and is the source of ~95% of ERROR-level lines. Cluster total: 10,000 lines/min.</p>
+<table>
+  <thead><tr><th>Storage approach</th><th>Per-minute rows in store</th><th>"Errors on host X / min" latency</th></tr></thead>
+  <tbody>
+    <tr><td>Raw log lines</td><td>10,000</td><td>O(10,000) scan — 50–500ms</td></tr>
+    <tr><td>Aggregator: <code>(minute, (level, host)) → count</code></td><td>~30</td><td>O(1) hash look-up — &lt;1µs</td></tr>
+  </tbody>
+</table>
+<p>The aggregator turns a 10M-line/day firehose into a 43K-entry/day hash map (3 levels × 10 hosts × 1,440 minutes). Dashboard queries are point look-ups; the offender (<code>web-07</code>) jumps to the top of <code>top()</code> immediately.</p>
+
+<h4>2. The source code — with a runnable demo</h4>
+<pre><code>from collections import defaultdict
+import random
+
+class LogAggregator:
+    """Folds (ts, key, value) events into fixed-width time buckets.
+    add / query / top are the primitives every metrics pipeline exposes."""
+    def __init__(self, bucket_seconds=60):
+        self.buckets = defaultdict(int)
+        self.bs = bucket_seconds
+
+    def add(self, ts, key, val=1):
+        self.buckets[(ts // self.bs, key)] += val
+
+    def query(self, bucket_id, key):
+        return self.buckets.get((bucket_id, key), 0)
+
+    def top(self, bucket_id, k=10):
+        items = [(key, v) for (b, key), v in self.buckets.items() if b == bucket_id]
+        return sorted(items, key=lambda x: -x[1])[:k]
+
+
+if __name__ == "__main__":
+    random.seed(11)
+    start_ts, BUCKET = 1_700_000_000, 60
+    agg = LogAggregator(bucket_seconds=BUCKET)
+    hosts = [f"web-{i:02d}" for i in range(10)]
+    sick = "web-07"
+
+    # 10 min of logs, 10k lines/min, sick host emits 95% of ERRORs
+    for minute in range(10):
+        for _ in range(10_000):
+            ts = start_ts + minute * 60 + random.randint(0, 59)
+            if random.random() < 0.95:
+                host = sick if random.random() < 0.95 else random.choice(hosts)
+                level = "ERROR" if random.random() < 0.20 else "INFO"
+            else:
+                host = random.choice(hosts)
+                level = "INFO"
+            agg.add(ts, key=(level, host))
+
+    m5 = (start_ts + 5 * 60) // BUCKET
+    print("ERROR web-07 in minute 5:", agg.query(m5, ("ERROR", "web-07")))
+    print("ERROR web-02 in minute 5:", agg.query(m5, ("ERROR", "web-02")))
+    print("Top 5 (level, host) in minute 5:")
+    for k, v in agg.top(m5, k=5):
+        print(" ", k, "->", v)
+
+    total = sum(v for (b, (lvl, h)), v in agg.buckets.items() if lvl == "ERROR")
+    sick_n = sum(v for (b, (lvl, h)), v in agg.buckets.items()
+                 if lvl == "ERROR" and h == sick)
+    print(f"\nTotal ERRORs: {total}; on {sick}: {sick_n} "
+          f"({100 * sick_n / total:.1f}%)")
+</code></pre>
+
+<p>Representative output (seed=11):</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:10px;border-radius:6px;">
+ERROR web-07 in minute 5: 1857
+ERROR web-02 in minute 5: 8
+Top 5 (level, host) in minute 5:
+  ('INFO',  'web-07')  -> 7239
+  ('ERROR', 'web-07')  -> 1857
+  ('INFO',  'web-06')  ->  114
+  ('INFO',  'web-08')  ->   94
+  ('INFO',  'web-01')  ->   88
+
+Total ERRORs: 19186; on web-07: 18292 (95.3%)
+</pre>
+
+<h4>3. The same pattern at every layer</h4>
+<ul>
+  <li><strong>Datadog / DogStatsD</strong> — wire format is <code>metric:value|c|#tags</code>; agent-side aggregator folds 10K of those/sec into one entry per <code>(metric, tags, bucket)</code>. Pre-aggregation at the edge is how Datadog handles trillions of points/day.</li>
+  <li><strong>Prometheus</strong> — counters like <code>http_requests_total{method, status}</code> are entries in this hash map, keyed by <code>(scrape_bucket, (method, status))</code>. Histograms add buckets as another dimension.</li>
+  <li><strong>AWS CloudWatch EMF</strong> — Lambda emits embedded-metric-format JSON, server aggregates by <code>(namespace, dimensions, minute)</code>. ~100× cheaper than PutMetricData per metric.</li>
+  <li><strong>Honeycomb BubbleUp</strong> — keeps raw events but runs this aggregator at query time over a filtered set to surface the over-represented dimension value.</li>
+  <li><strong>Splunk / Elasticsearch</strong> — <code>stats count by host | bin _time span=1m</code> or <code>date_histogram + terms</code> are this class wrapped in DSL.</li>
+  <li><strong>Kafka Streams / Flink</strong> — <code>groupBy(...).windowedBy(...).count()</code> compiles to a RocksDB state store keyed by <code>(window, key)</code>. Same algorithm; durable state instead of an in-memory dict.</li>
+</ul>
+
+<h4>4. The trade-offs</h4>
+<table>
+  <thead><tr><th>Cost</th><th>Acceptable when…</th><th>Not acceptable when…</th></tr></thead>
+  <tbody>
+    <tr><td>Memory grows with <em>cardinality</em>, not volume</td><td>dimensions are low-cardinality (status codes, services, hosts)</td><td>you tag by user_id / request_id (millions of distinct values)</td></tr>
+    <tr><td>No eviction — dict grows forever</td><td>process is short-lived (query handler, lambda)</td><td>long-running daemon — must use a ring buffer of buckets</td></tr>
+    <tr><td><code>top()</code> is O(N · log K)</td><td>bucket has 10s–100s of keys</td><td>bucket has millions of keys — use Misra-Gries / Space-Saving</td></tr>
+    <tr><td>Single-process — no horizontal scaling</td><td>≤ 100K events/sec on one box</td><td>past that, shard by key (and salt the hot keys — see python_175-0002)</td></tr>
+  </tbody>
+</table>
+
+<h4>5. Interviewer probes</h4>
+<ul>
+  <li><strong>"How do you bound memory?"</strong> — ring buffer of N most recent buckets, or per-bucket TTL eviction, or sketch-based (Count-Min + Misra-Gries) for unbounded cardinality.</li>
+  <li><strong>"What if the key space is unbounded?"</strong> — fingerprint-hash the message, or sketch with bounded error, or drop the high-cardinality dimension from the key and surface it via sampled log search.</li>
+  <li><strong>"How do you make <code>top()</code> fast?"</strong> — incremental min-heap of size K maintained on <code>add()</code>. For streaming top-K with bounded memory: Misra-Gries or Space-Saving.</li>
+  <li><strong>"What about late events?"</strong> — ring buffer determines tolerated lateness; Kafka Streams <code>grace()</code> and Flink <code>allowedLateness</code> are the same knob. Beyond that, write to a "late events" stream for offline correction.</li>
+  <li><strong>"How do you scale past one process?"</strong> — shard by key, fan-out at query time. Hot keys then pin shards — apply the salt pattern from <a href="/interview.app/python.html?q=python_175-0002">python_175-0002</a>.</li>
+  <li><strong>"Why bucket by time at all?"</strong> — rates are what SLOs and alerts care about, and a running counter can't tell you "the last 5 minutes". The bucket size is the temporal resolution of every downstream question.</li>
+</ul>
+
+<h4>6. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0008">python_175-0008</a> — Python framing, deeper production-pattern stories</li>
+  <li><a href="/interview.app/python.html?q=python_175-0002">python_175-0002 — Skew-Aware Partitioner</a> — what you plug in front of a sharded LogAggregator</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027 — Salting in SQL</a> — counters are associative, salting is free</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Data Skew</a> — Part 7 covers detection metrics for hot-key explosions exactly like the one this aggregator surfaces</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> The aggregator is mechanical; the interesting decisions are what dimensions to keep (each one multiplies the key space), how to bound memory under unbounded cardinality (ring buffer, TTL, or sketch), and how it composes with a sharded back-end (one hot dimension value pins one shard — apply the salt pattern). Design the key schema backwards from the dashboard queries: the dimensions you keep are the questions you can answer.</div>

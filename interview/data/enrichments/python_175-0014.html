@@ -1,0 +1,42 @@
+<p>Google asks Continuous Subarray Sum to test whether you know the prefix-sum-with-modular-arithmetic trick. Naively, "is there a contiguous run summing to a multiple of k?" invites checking every subarray. The elegant answer never enumerates subarrays at all &mdash; it watches running-sum <em>remainders</em>. Recognizing that reframe is the entire interview.</p>
+
+<h4>1. The input data</h4>
+<p>An array of non-negative integers and a divisor <code>k</code>:</p>
+<pre><code>nums = [23, 2, 4, 6, 7]
+k    = 6
+checkSubarraySum(nums, k)</code></pre>
+<p>The question: does some contiguous subarray of length &ge; 2 have a sum that is a multiple of 6?</p>
+
+<h4>2. The approach</h4>
+<p>The key identity: if two prefix sums leave the <em>same</em> remainder mod k, the subarray strictly between those two indices has a sum divisible by k &mdash; because their difference is a multiple of k. So the code maintains a running sum <code>s</code> and, at each index, computes <code>m = s % k</code> (falling back to raw <code>s</code> when <code>k</code> is 0). The dict <code>seen</code> maps each remainder to the <em>first</em> index where it appeared, seeded with <code>{0: -1}</code> so a prefix that is itself divisible by k is handled, and so the length math works from the very start. If the current remainder is already in <code>seen</code>, a qualifying subarray exists between <code>seen[m]+1</code> and <code>i</code>; the code checks <code>i - seen[m] >= 2</code> to enforce the length-&ge;-2 rule, returning <code>True</code> if so. Critically it only records a remainder the <em>first</em> time &mdash; keeping the earliest index maximizes the achievable subarray length.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>i</th><th>num</th><th>running sum s</th><th>s % 6</th><th>seen</th><th>action</th></tr></thead>
+  <tbody>
+    <tr><td>&mdash;</td><td>&mdash;</td><td>0</td><td>0</td><td>{0: -1}</td><td>seed</td></tr>
+    <tr><td>0</td><td>23</td><td>23</td><td>5</td><td>{0:-1, 5:0}</td><td>new remainder</td></tr>
+    <tr><td>1</td><td>2</td><td>25</td><td>1</td><td>{0:-1, 5:0, 1:1}</td><td>new remainder</td></tr>
+    <tr><td>2</td><td>4</td><td>29</td><td>5</td><td>&mdash;</td><td>5 seen at 0; 2&minus;0=2 &ge; 2 &rarr; <strong>True</strong></td></tr>
+  </tbody>
+</table>
+<p>Remainder 5 recurs at indices 0 and 2, so the subarray <code>nums[1:3] = [2, 4]</code> sums to 6 &mdash; a multiple of 6, length 2. The function returns <code>True</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>O(n) time</strong>, one pass with O(1) work per element, and <strong>O(min(n, k)) space</strong> &mdash; the dict holds at most k distinct remainders. The brute force of summing every subarray is O(n&sup2;) (or O(n&sup3;) without a running sum); for the large arrays Google tests, only the linear remainder approach passes.</p>
+
+<h5>The idiomatic detail &mdash; store the first index, not the last</h5>
+<p>The single most important line is recording a remainder only when it is <em>not</em> already present. Keeping the earliest index is what lets the length check <code>i - seen[m] >= 2</code> succeed; overwrite with the latest index and you can shrink a valid subarray below length 2 and wrongly answer <code>False</code>.</p>
+
+<h5>The edge case &mdash; k is zero, and the length rule</h5>
+<p>When <code>k == 0</code> the code skips the modulo (no <code>ZeroDivisionError</code>) and compares raw sums &mdash; with non-negative inputs, two equal prefix sums mean a zero-sum run, i.e. consecutive zeros. The <code>&gt;= 2</code> guard is the other quiet trap: a single element equal to k satisfies "divisible" but fails the length requirement, so <code>[6]</code> alone must return <code>False</code>.</p>
+
+<h5>The follow-up &mdash; return the subarray, or exact sum k</h5>
+<p>"Don't just say yes &mdash; return the indices." Easy: the bounds are <code>(seen[m]+1, i)</code>. The sibling problem "subarray summing to <em>exactly</em> k" (not a multiple) drops the modulo and stores prefix sums directly, looking up <code>s - k</code> &mdash; the same prefix-sum-in-a-hashmap skeleton, which is why interviewers often ask them back to back.</p>
+
+<h5>The trap &mdash; negative numbers and modulo</h5>
+<p>The clean logic relies on inputs being non-negative. With negative numbers, Python's <code>%</code> still returns a non-negative remainder (unlike C), so the approach mostly survives &mdash; but candidates who learned modulo in C-family languages often assume a negative result and "fix" it incorrectly, breaking a solution that was already right.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior reframes the problem as "two prefix sums with equal remainder," seeds the map with <code>{0: -1}</code>, stores the first index to preserve length, and pre-empts the k=0 and length-&ge;-2 edge cases &mdash; a junior enumerates every subarray at O(n&sup2;).</div>

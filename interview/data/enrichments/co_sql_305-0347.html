@@ -1,0 +1,40 @@
+<p>Returns are Amazon's #1 fulfillment cost driver. The category-level return rate is the input to Vendor Central's quality scoring. The query LEFT JOINs orders to returns and computes per-category ratio.</p>
+
+<h4>1. The source data — <code>orders</code> + <code>returns</code></h4>
+<table><thead><tr><th>orders</th><th></th><th>returns</th><th></th></tr></thead>
+<tbody><tr><td>O_001 / Books</td><td></td><td>O_001</td><td>damaged</td></tr></tbody></table>
+
+<h4>2. The SQL — LEFT JOIN + ratio + sample-size HAVING</h4>
+<pre><code>SELECT o.category,
+  COUNT(DISTINCT o.order_id) AS orders,
+  COUNT(DISTINCT r.return_id) AS returns,
+  ROUND(100.0 * COUNT(DISTINCT r.return_id) / NULLIF(COUNT(DISTINCT o.order_id), 0), 1) AS return_rate_pct
+FROM orders o
+LEFT JOIN returns r ON r.order_id = o.order_id
+GROUP BY o.category
+HAVING COUNT(DISTINCT o.order_id) &gt;= 5
+ORDER BY return_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The denominator pitfall</h5>
+<p>"Return rate = returns / orders" — but which orders? <strong>Only delivered orders</strong> can be returned. Including in-flight orders deflates the rate. Production filters <code>WHERE o.delivered_at IS NOT NULL</code>.</p>
+
+<h5>The "fulfillment-window" rule</h5>
+<p>Amazon's return window is 30 days. A return filed 91 days after delivery shouldn't count against last month's return rate. Add a temporal predicate:</p>
+<pre><code>LEFT JOIN returns r ON r.order_id = o.order_id
+  AND julianday(r.refunded_at) - julianday(o.delivered_at) &lt;= 30</code></pre>
+
+<h5>The category-quality vs category-policy split</h5>
+<p>Apparel has structurally high return rates (size mismatch). Books have structurally low. Don't flag Apparel as "broken" — compare each category to its baseline:</p>
+<pre><code>... return_rate_pct - AVG(return_rate_pct) OVER () AS deviation_from_avg</code></pre>
+
+<h5>Reason mix — the diagnostic</h5>
+<p>Return rate alone is the symptom. The PM-actionable view groups by reason:</p>
+<pre><code>GROUP BY o.category, r.reason</code></pre>
+<p>"Damaged" is fulfillment-quality; "wrong_item" is picking-error; "not_as_described" is listing-quality. Three different fixes.</p>
+
+<h5>Per-seller drill-down</h5>
+<p>Aggregating to category hides individual bad actors. The actionable view is per-seller within category — top-N return-rate sellers within Apparel are the Vendor Central audit list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> filter to delivered orders for honest denominator, add the 30-day return-window predicate, compare to category baseline (not absolute), and split reason for actionable diagnosis.</div>

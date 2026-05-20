@@ -1,0 +1,60 @@
+<p>A CRM team is cleaning a contacts table before a marketing send. The raw data is messy &mdash; the same person was entered three times with different casing and stray spaces &mdash; and they want a deduplication report grouping records that are <em>really</em> the same after normalization. The interviewer is testing whether you can build a robust normalization key with string functions and a regex, then group on that derived key rather than the raw columns.</p>
+
+<h4>1. The source data &mdash; <code>contacts</code></h4>
+<table>
+  <thead><tr><th>id</th><th>email</th><th>name</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>alice@x.com</td><td>Alice Smith</td><td>canonical Alice</td></tr>
+    <tr><td>2</td><td>Alice@X.COM</td><td>alice&nbsp;&nbsp;smith&nbsp;</td><td>case + double space + trailing space</td></tr>
+    <tr><td>3</td><td>&nbsp;&nbsp;ALICE@x.com&nbsp;</td><td>ALICE SMITH</td><td>leading/trailing space + case</td></tr>
+    <tr><td>4</td><td>bob@y.com</td><td>Bob</td><td>two-member group</td></tr>
+    <tr><td>5</td><td>BOB@y.com</td><td>bob</td><td>case dup of 4</td></tr>
+    <tr><td>6</td><td>carol@z.com</td><td>Carol</td><td>singleton &mdash; must be excluded</td></tr>
+  </tbody>
+</table>
+<p>Row 2 carries every flavour of mess at once: uppercase, an <em>internal</em> double space in the name, and a trailing space. Carol is the negative control &mdash; a unique contact that the <code>HAVING</code> clause must filter out, proving the query reports only genuine duplicate groups.</p>
+
+<h4>2. The SQL &mdash; normalize in a CTE, then group</h4>
+<pre><code>WITH n AS (
+  SELECT id,
+         LOWER(TRIM(email)) AS normalized_email,
+         LOWER(REGEXP_REPLACE(TRIM(name), '\s+', ' ', 'g')) AS normalized_name
+  FROM contacts
+)
+SELECT normalized_name, normalized_email,
+       STRING_AGG(id::text, ',' ORDER BY id) AS ids,
+       COUNT(*) AS n
+FROM n
+GROUP BY normalized_name, normalized_email
+HAVING COUNT(*) &gt;= 2
+ORDER BY n DESC, normalized_email, normalized_name;</code></pre>
+<p>The <code>n</code> CTE builds the comparison key once. <code>TRIM</code> strips outer whitespace, <code>LOWER</code> kills case, and <code>REGEXP_REPLACE(..., '\s+', ' ', 'g')</code> collapses any run of internal whitespace to a single space. The outer query groups on those two normalized columns and keeps only groups of size 2 or more.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>normalized_name</th><th>normalized_email</th><th>ids</th><th>n</th></tr></thead>
+  <tbody>
+    <tr><td>alice smith</td><td>alice@x.com</td><td>1,2,3</td><td>3</td></tr>
+    <tr><td>bob</td><td>bob@y.com</td><td>4,5</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>The three Alice rows collapse into one group of <strong>3</strong> &mdash; the double space, mixed case, and stray padding all normalize away. Bob forms a group of 2. Carol produces a group of 1, which <code>HAVING COUNT(*) &gt;= 2</code> discards, so she never appears. The <code>STRING_AGG(... ORDER BY id)</code> renders the membership as a sorted <code>1,2,3</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why normalize in a CTE instead of inline</h5>
+<p>The normalized expressions are needed in three places: the <code>SELECT</code> list, the <code>GROUP BY</code>, and (implicitly) the <code>ORDER BY</code>. Computing them once in a CTE keeps the query DRY, guarantees all three sites use <em>identical</em> logic, and makes the intent readable. Repeating a long <code>LOWER(REGEXP_REPLACE(TRIM(...)))</code> expression in the <code>GROUP BY</code> invites a subtle typo where the grouping key drifts from the projected key.</p>
+
+<h5>The <code>'g'</code> flag is essential</h5>
+<p><code>REGEXP_REPLACE</code> in Postgres replaces only the <em>first</em> match unless you pass the <code>'g'</code> (global) flag. Without it, a name with two separate double-spaces would only have the first one collapsed, leaving the key inconsistent. The pattern <code>\s+</code> also matters: it matches a <em>run</em> of whitespace, so a triple space becomes one space in a single substitution &mdash; covering tabs and newlines too, not just literal spaces.</p>
+
+<h5>Order of operations &mdash; TRIM before collapse, LOWER last</h5>
+<p><code>TRIM</code> first removes the outer padding so the regex only deals with interior whitespace; you could let <code>\s+</code> handle the edges too, but trimming first keeps intent obvious. <code>LOWER</code> wraps the whole thing because casefolding doesn't interact with whitespace &mdash; the order of <code>LOWER</code> vs <code>TRIM</code> is interchangeable, but applying it to the already-collapsed string is tidy. The key principle: every record must pass through the <em>exact same</em> transformation pipeline.</p>
+
+<h5>Why <code>COUNT(*)</code> in HAVING and not <code>COUNT(DISTINCT id)</code></h5>
+<p>Here <code>id</code> is unique per row, so <code>COUNT(*)</code> and <code>COUNT(DISTINCT id)</code> coincide. <code>COUNT(*)</code> is the right choice &mdash; it counts rows in the group, which is exactly "how many contacts share this normalized identity". The <code>HAVING</code> runs <em>after</em> grouping, which is why it can filter on the aggregate; a <code>WHERE</code> clause cannot reference <code>COUNT(*)</code> because <code>WHERE</code> is evaluated before rows are grouped.</p>
+
+<h5>Dialect &mdash; string aggregation has many spellings</h5>
+<p><code>STRING_AGG(id::text, ',' ORDER BY id)</code> is Postgres. MySQL uses <code>GROUP_CONCAT(id ORDER BY id SEPARATOR ',')</code>; Oracle uses <code>LISTAGG(id, ',') WITHIN GROUP (ORDER BY id)</code>; SQL Server uses <code>STRING_AGG(CONVERT(varchar,id), ',') WITHIN GROUP (ORDER BY id)</code>. The <code>ORDER BY</code> inside the aggregate is what makes the output deterministic &mdash; without it, the id list order is undefined and two runs could disagree.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build a normalization key (<code>LOWER</code> + <code>TRIM</code> + <code>REGEXP_REPLACE(..., '\s+', ' ', 'g')</code>) once in a CTE so every record passes the identical pipeline, group on the derived key not the raw columns, filter duplicate groups with <code>HAVING COUNT(*) &gt;= 2</code>, and always put <code>ORDER BY</code> inside <code>STRING_AGG</code> for a deterministic id list.</div>

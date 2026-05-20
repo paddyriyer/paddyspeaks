@@ -1,0 +1,63 @@
+<p>A growth team wants the re-engagement list: <em>"which customers signed up but have never placed an order?"</em> The query is the classic anti-join &mdash; a <code>LEFT JOIN</code> followed by <code>WHERE ... IS NULL</code>. The interviewer is checking whether you reach for the anti-join idiom rather than a subquery, and whether you pick the right column for the NULL test.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>signup_date</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aoife Byrne</td><td>2024-01-10</td><td>has 2 orders</td></tr>
+    <tr><td>2</td><td>Liam Walsh</td><td>2024-02-15</td><td>never ordered</td></tr>
+    <tr><td>3</td><td>Mei Chen</td><td>2024-03-01</td><td>has 1 order</td></tr>
+    <tr><td>4</td><td>Noah Kelly</td><td>2024-03-20</td><td>has 1 (cancelled) order</td></tr>
+    <tr><td>5</td><td>Priya Rao</td><td>2024-04-05</td><td>never ordered</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>1</td><td>completed</td><td>120.00</td></tr>
+    <tr><td>1002</td><td>1</td><td>completed</td><td>60.00</td></tr>
+    <tr><td>1003</td><td>3</td><td>completed</td><td>300.00</td></tr>
+    <tr><td>1004</td><td>4</td><td>cancelled</td><td>0.00</td></tr>
+  </tbody>
+</table>
+<p>Edge cases: Liam and Priya have no order rows at all; Noah has only a <em>cancelled</em> order &mdash; he still has a row, so by row-existence he counts as "has ordered."</p>
+
+<h4>2. The SQL &mdash; anti-join via <code>LEFT JOIN</code> + <code>IS NULL</code></h4>
+<pre><code>SELECT c.customer_id, c.name
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+WHERE o.order_id IS NULL;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Liam Walsh</td></tr>
+    <tr><td>5</td><td>Priya Rao</td></tr>
+  </tbody>
+</table>
+<p>Exactly the two customers with no matching order row. Noah is <em>not</em> here: his cancelled order still produced a row, so the join matched and <code>o.order_id</code> is non-NULL for him.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>LEFT JOIN</code> + <code>IS NULL</code> pattern finds non-matches</h5>
+<p>A <code>LEFT JOIN</code> keeps every <code>customers</code> row. Where a customer has matching orders, the order columns are filled; where a customer has none, the join fabricates a row with <em>every order column NULL</em>. Filtering <code>WHERE o.order_id IS NULL</code> therefore keeps precisely the customers the join could not match &mdash; that is the anti-join.</p>
+
+<h5>The critical detail &mdash; test a NEVER-NULL column</h5>
+<p>The <code>IS NULL</code> check must target a column that is NULL <em>only</em> because the join failed &mdash; never because of real data. <code>order_id</code> is a primary key, so a real order can never have a NULL <code>order_id</code>; a NULL there unambiguously means "no match." If you tested a nullable column instead &mdash; say <code>WHERE o.amount IS NULL</code> &mdash; you would also catch real orders that happen to have a NULL amount, producing wrong results. Always anti-join on the primary key or join key.</p>
+
+<h5>The "cancelled order" subtlety</h5>
+<p>Noah ordered but it was cancelled. By <em>row existence</em> he is excluded from this list. If the business actually means "no <em>successful</em> order," push the status into the join's <code>ON</code> clause, not the <code>WHERE</code>:</p>
+<pre><code>LEFT JOIN orders o
+  ON c.customer_id = o.customer_id
+ AND o.status = 'completed'
+WHERE o.order_id IS NULL</code></pre>
+<p>Putting <code>o.status = 'completed'</code> in <code>WHERE</code> instead would discard the fabricated all-NULL rows and break the anti-join entirely &mdash; a classic trap. Filter the <em>right table</em> in <code>ON</code>; keep <code>WHERE</code> for the <code>IS NULL</code> test.</p>
+
+<h5>Equivalent forms &mdash; <code>NOT EXISTS</code> and <code>NOT IN</code></h5>
+<p><code>NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id)</code> is equally idiomatic, often the planner's preferred shape, and reads as a direct statement of intent. Avoid <code>NOT IN (SELECT customer_id FROM orders)</code>: if any <code>customer_id</code> in <code>orders</code> is NULL, <code>NOT IN</code> returns <em>no rows at all</em> due to three-valued logic. <code>NOT EXISTS</code> and the anti-join are NULL-safe; <code>NOT IN</code> is the landmine.</p>
+
+<h5>Performance</h5>
+<p>The anti-join wants an index on <code>orders(customer_id)</code> &mdash; the join probe and the existence check both ride it. With that index, all three forms (<code>LEFT JOIN</code>/<code>IS NULL</code>, <code>NOT EXISTS</code>, anti-join) typically compile to the same anti-join operator, so choose the one your team finds most readable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise this as an anti-join, insist the <code>IS NULL</code> test hit a never-null key like <code>order_id</code>, know that any status filter belongs in <code>ON</code> not <code>WHERE</code>, and warn that <code>NOT IN</code> breaks on NULLs while <code>NOT EXISTS</code> does not.</div>

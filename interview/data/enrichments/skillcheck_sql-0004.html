@@ -1,0 +1,61 @@
+<p>An analytics dashboard needs a smoothed sales line: alongside each day's raw amount, show the trailing 7-day total. The interviewer is probing window <strong>frames</strong> &mdash; specifically <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> &mdash; and whether you understand how the frame behaves on the first few rows, and the subtle difference between a <code>ROWS</code> frame and a <code>RANGE</code> frame.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>sale_id</th><th>sale_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>10</td><td>first row &mdash; frame has nothing behind it</td></tr>
+    <tr><td>2</td><td>2025-01-02</td><td>20</td><td>frame still partial</td></tr>
+    <tr><td>3</td><td>2025-01-03</td><td>30</td><td></td></tr>
+    <tr><td>4</td><td>2025-01-04</td><td>40</td><td></td></tr>
+    <tr><td>5</td><td>2025-01-05</td><td>50</td><td></td></tr>
+    <tr><td>6</td><td>2025-01-06</td><td>60</td><td></td></tr>
+    <tr><td>7</td><td>2025-01-07</td><td>70</td><td>first row with a full 7-day window</td></tr>
+    <tr><td>8</td><td>2025-01-08</td><td>80</td><td>window now slides &mdash; row 1 drops off</td></tr>
+  </tbody>
+</table>
+<p>The boundary case is the start of the series. Rows 1&ndash;6 do not have six days of history behind them, so the "7-day" sum is necessarily a <em>partial</em> sum. Row 7 is the first with a complete window; row 8 is the first where the window genuinely <em>slides</em> &mdash; gaining day 8, losing day 1.</p>
+
+<h4>2. The SQL &mdash; a windowed <code>SUM</code> with a row frame</h4>
+<pre><code>SELECT
+  sale_date,
+  amount,
+  SUM(amount) OVER (
+    ORDER BY sale_date
+    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+  ) AS rolling_7d
+FROM sales
+ORDER BY sale_date;</code></pre>
+<p>The <code>OVER</code> clause defines a window ordered by <code>sale_date</code>. The frame <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> says: for each row, sum the <code>amount</code> of itself plus the six rows immediately before it &mdash; seven rows in total. As the engine walks down the ordered rows, that seven-row window slides one step at a time.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th><th>rolling_7d</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>10</td><td>10</td><td>partial &mdash; only itself in frame</td></tr>
+    <tr><td>2025-01-02</td><td>20</td><td>30</td><td>partial &mdash; 2 rows</td></tr>
+    <tr><td>2025-01-03</td><td>30</td><td>60</td><td>partial &mdash; 3 rows</td></tr>
+    <tr><td>2025-01-04</td><td>40</td><td>100</td><td>partial &mdash; 4 rows</td></tr>
+    <tr><td>2025-01-05</td><td>50</td><td>150</td><td>partial &mdash; 5 rows</td></tr>
+    <tr><td>2025-01-06</td><td>60</td><td>210</td><td>partial &mdash; 6 rows</td></tr>
+    <tr><td>2025-01-07</td><td>70</td><td>280</td><td>first full 7-row window (10&hellip;70)</td></tr>
+    <tr><td>2025-01-08</td><td>80</td><td>350</td><td>window slid: 20&hellip;80, row 1 dropped</td></tr>
+  </tbody>
+</table>
+<p>Row 7's <code>280</code> is 10+20+30+40+50+60+70 &mdash; the first complete window. Row 8's <code>350</code> is 20+&hellip;+80: the frame dropped 2025-01-01 and picked up 2025-01-08, holding at seven rows. The early rows are smaller not because of an error but because their windows are genuinely shorter.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the first six rows are "partial" &mdash; and that it is correct</h5>
+<p>A frame can never reach rows that do not exist. On 2025-01-01 there are zero preceding rows, so <code>rolling_7d</code> equals just that day's amount. This is the expected behaviour of a trailing window, not a bug. If the business wants those early days suppressed or shown as NULL until a full window exists, you add a guard like <code>CASE WHEN COUNT(*) OVER (...same frame...) = 7 THEN SUM(...) END</code> &mdash; mention this, because a stakeholder may not want a "7-day average" computed from 2 days.</p>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; the trap the prompt pre-empts</h5>
+<p><code>ROWS</code> counts <em>physical rows</em>: "6 preceding" means the six rows above, whatever dates they hold. <code>RANGE</code> counts <em>logical values</em> of the <code>ORDER BY</code> column. With exactly one row per day they coincide, which is why the prompt says "assume one row per day". But if a day were missing, <code>ROWS</code> would reach back six <em>rows</em> &mdash; possibly spanning nine calendar days &mdash; whereas a true date-based window needs <code>RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW</code>. Choosing <code>ROWS</code> here is correct <em>given the assumption</em>; saying so out loud shows you know the difference.</p>
+
+<h5>Gaps and duplicates would break the row-count assumption</h5>
+<p>If two sales landed on the same date, a <code>ROWS</code> frame would treat them as two separate steps, so "7 rows" might cover only six days. If a date were skipped, seven rows would span more than seven days. For a calendar-accurate rolling window on irregular data, the robust choice is the <code>RANGE</code>/<code>INTERVAL</code> frame, which is defined by date distance and is immune to both gaps and duplicates.</p>
+
+<h5>The <code>ORDER BY</code> inside <code>OVER</code> is mandatory here</h5>
+<p>A frame clause is only meaningful relative to an ordering &mdash; "6 preceding" has no meaning without knowing what "preceding" is. Omitting <code>ORDER BY</code> inside <code>OVER</code> makes the frame illegal (or collapses to summing the whole partition). Note this <code>ORDER BY</code> is independent of the final <code>ORDER BY sale_date</code> that sorts the output: one drives the window, the other drives presentation. Keeping them aligned is good practice but they are distinct clauses.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> for a 7-row trailing sum, recognise that the first six rows yield correct <em>partial</em> windows, and explain that <code>ROWS</code> equals <code>RANGE</code> only because there is one row per day &mdash; gaps or duplicates would demand a <code>RANGE ... INTERVAL '6 days'</code> frame for a calendar-accurate window.</div>

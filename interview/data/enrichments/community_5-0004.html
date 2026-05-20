@@ -1,0 +1,60 @@
+<p>A Community real-estate marketplace wants its monthly "hot listings" report: <em>which properties drew more than 50 views in October 2024?</em> It is a join, a date filter, and a grouped count &mdash; but the interviewer is watching three things: whether your <code>BETWEEN</code> actually captures all of October, whether you count the right column off a <code>LEFT JOIN</code>, and whether the filter belongs in <code>WHERE</code> or <code>HAVING</code>.</p>
+
+<h4>1. The source data &mdash; <code>property_views</code> (joined to <code>properties</code>)</h4>
+<table>
+  <thead><tr><th>property_name</th><th>views in Oct 2024</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>Sunset Villa</td><td>60</td><td>all 60 land in October</td></tr>
+    <tr><td>Mountain Retreat</td><td>55</td><td>all 55 land in October</td></tr>
+    <tr><td>Beachside Cottage</td><td>30</td><td>below 50 &mdash; excluded</td></tr>
+    <tr><td>Lake View Suite</td><td>0</td><td>all views are in September</td></tr>
+  </tbody>
+</table>
+<p>"Lake View Suite" has 70 view rows in the table, but every one is dated mid-September &mdash; the October filter zeroes it out. "Beachside Cottage" is genuinely viewed in October but only 30 times, so it must fail the <code>&gt; 50</code> threshold. Those two rows are the test: one filtered by date, one filtered by count.</p>
+
+<h4>2. The SQL &mdash; <code>WHERE date-range + HAVING COUNT</code></h4>
+<pre><code>SELECT
+  p.property_name,
+  COUNT(pv.view_id) AS total_views
+FROM property_views pv
+LEFT JOIN properties p ON pv.property_id = p.property_id
+WHERE pv.view_date BETWEEN '2024-10-01' AND '2024-10-31'
+GROUP BY p.property_name
+HAVING COUNT(pv.view_id) &gt; 50
+ORDER BY total_views DESC;</code></pre>
+<p><code>WHERE</code> restricts to October rows <em>before</em> grouping; the grouped <code>COUNT</code> tallies views per property; <code>HAVING</code> keeps only the popular ones; <code>ORDER BY</code> puts the busiest listing on top.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>property_name</th><th>total_views</th></tr></thead>
+  <tbody>
+    <tr><td>Sunset Villa</td><td>60</td></tr>
+    <tr><td>Mountain Retreat</td><td>55</td></tr>
+  </tbody>
+</table>
+<p>Two listings clear 50. "Beachside Cottage" (30 October views) is dropped by <code>HAVING</code>; "Lake View Suite" never enters &mdash; its September views are filtered out by <code>WHERE</code> and it has zero rows left to group. A property can vanish either way: too few in-window views, or none at all.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>BETWEEN</code> boundary trap &mdash; <code>DATE</code> vs <code>TIMESTAMP</code></h5>
+<p><code>view_date BETWEEN '2024-10-01' AND '2024-10-31'</code> is safe here because <code>view_date</code> is a pure <code>DATE</code> &mdash; <code>2024-10-31</code> matches the whole final day. But if the column were a <code>TIMESTAMP</code>, the literal <code>'2024-10-31'</code> means <code>2024-10-31 00:00:00</code>, and every view logged later that day (10:15, 18:40) would be <em>silently excluded</em>. The robust, type-agnostic form is a half-open range:</p>
+<pre><code>WHERE pv.view_date &gt;= '2024-10-01'
+  AND pv.view_date &lt;  '2024-11-01'</code></pre>
+<p>Half-open (<code>&gt;=</code> start, <code>&lt;</code> next-period-start) needs no knowledge of month length and no fear of time-of-day. It is the senior default for any date-window filter.</p>
+
+<h5>Why <code>WHERE</code> here and <code>HAVING</code> there</h5>
+<p>Two filters, two different stages. The date range is a <em>per-row</em> predicate &mdash; a single view either happened in October or it did not &mdash; so it belongs in <code>WHERE</code>, and putting it there shrinks the data before the expensive grouping. The <code>&gt; 50</code> threshold is a predicate on an <em>aggregate</em> that does not exist until rows are grouped, so it must be <code>HAVING</code>. Moving the date filter into <code>HAVING</code> would still give the right answer but scan and group far more rows than necessary; moving the count into <code>WHERE</code> is a syntax error.</p>
+
+<h5>The <code>LEFT JOIN</code> + <code>COUNT</code> interaction</h5>
+<p>Driving from <code>property_views</code> and counting <code>pv.view_id</code> is correct: every counted value is a real view. If the report instead had to <em>list all properties including those with zero October views</em>, you would drive from <code>properties</code>, <code>LEFT JOIN property_views</code> with the date predicate moved <strong>into the join's <code>ON</code> clause</strong>, and count <code>pv.view_id</code>:</p>
+<pre><code>FROM properties p
+LEFT JOIN property_views pv
+  ON pv.property_id = p.property_id
+  AND pv.view_date &gt;= '2024-10-01' AND pv.view_date &lt; '2024-11-01'
+GROUP BY p.property_name</code></pre>
+<p>The trap: if that date predicate were left in <code>WHERE</code> instead of <code>ON</code>, the unmatched rows (NULL <code>view_date</code>) would fail the <code>WHERE</code> test and the <code>LEFT JOIN</code> would collapse back to an <code>INNER JOIN</code> &mdash; zero-view properties would disappear. And <code>COUNT(pv.view_id)</code> rather than <code>COUNT(*)</code> ensures a zero-view property reads as 0, not 1.</p>
+
+<h5>Counting views vs counting viewers</h5>
+<p><code>COUNT(pv.view_id)</code> counts <em>view events</em> &mdash; one obsessed shopper refreshing 60 times scores 60. If "50 views" really means "50 distinct people", that is a different metric and needs a viewer column: <code>COUNT(DISTINCT pv.viewer_id)</code>. Always confirm whether the business wants raw traffic or unique reach &mdash; bots and refreshers make the two diverge sharply.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> prefer a half-open date range (<code>&gt;=</code>/<code>&lt;</code>) over <code>BETWEEN</code> so a future <code>TIMESTAMP</code> column cannot silently drop end-of-day rows, keep per-row filters in <code>WHERE</code> and aggregate filters in <code>HAVING</code>, know that a <code>LEFT JOIN</code> date filter must move to <code>ON</code> to preserve zero-count rows, and ask whether "views" means events or distinct viewers.</div>

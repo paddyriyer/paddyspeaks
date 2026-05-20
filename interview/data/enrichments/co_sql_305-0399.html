@@ -1,0 +1,42 @@
+<p>Pinterest's defining action: <strong>save</strong>. Save-rate per category measures content resonance. Wedding pins save at 8-15% — extremely high; news pins save at 0.5%.</p>
+
+<h4>2. The SQL — save rate per category</h4>
+<pre><code>SELECT category,
+  SUM(CASE WHEN action_type = 'view' THEN 1 ELSE 0 END) AS views,
+  SUM(CASE WHEN action_type = 'save' THEN 1 ELSE 0 END) AS saves,
+  ROUND(100.0 * SUM(CASE WHEN action_type = 'save' THEN 1 ELSE 0 END)
+              / NULLIF(SUM(CASE WHEN action_type = 'view' THEN 1 ELSE 0 END), 0), 2) AS save_rate_pct
+FROM pin_events GROUP BY category
+HAVING SUM(CASE WHEN action_type = 'view' THEN 1 ELSE 0 END) &gt;= 3
+ORDER BY save_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Save vs click — different intents</h5>
+<table><thead><tr><th>action</th><th>intent</th></tr></thead>
+<tbody>
+<tr><td>View</td><td>scrolling</td></tr>
+<tr><td>Click (visit)</td><td>"interested enough to leave Pinterest"</td></tr>
+<tr><td>Save</td><td>"I want this for later"</td></tr>
+</tbody></table>
+<p>Save is the highest-intent signal. Pinterest's algorithm weights saves much higher than clicks.</p>
+
+<h5>Category-baseline divergence</h5>
+<table><thead><tr><th>category</th><th>typical save rate</th></tr></thead>
+<tbody>
+<tr><td>Wedding / Home Decor</td><td>8-15%</td></tr>
+<tr><td>Food / Recipes</td><td>5-10%</td></tr>
+<tr><td>Fashion</td><td>3-6%</td></tr>
+<tr><td>News / Trends</td><td>0.5-1.5%</td></tr>
+</tbody></table>
+
+<h5>The "save without click" cliff</h5>
+<p>Many users save without clicking through (saves directly from the feed). That's the ideal: discovery without leaving the platform. Track click-after-save for the "did the saver actually act" funnel.</p>
+
+<h5>Seasonality</h5>
+<p>Wedding pins peak Jan-Mar (wedding planning). Holiday recipes peak Oct-Dec. The category-baseline must control for season.</p>
+
+<h5>Idea Pin vs Standard Pin</h5>
+<p>Idea Pins (multi-page) have 2-3x higher save rate but fewer impressions. Production splits.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> save as highest-intent action, cite category-specific baselines, distinguish save-without-click as the discovery-without-leaving signal, control for seasonality, and split Idea Pin vs Standard.</div>

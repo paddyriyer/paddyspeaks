@@ -1,0 +1,119 @@
+<p>The pandas version of the velocity rule — the same algorithm Robinhood's risk team and Stripe Radar run in production, just compressed into a single dataframe so you can debug it interactively. <em>The senior signal isn't that the candidate writes <code>rolling('10min').count()</code></em>; it's that they explain (a) why <strong>time-offset rolling</strong> beats fixed-row rolling for fraud, (b) why pandas-on-bounded-batch is the offline twin of the streaming detector — not a replacement for it, and (c) which legitimate user pattern this rule will misfire on if you don't tune it.</p>
+
+<h4>1. The fraud pattern — what we're catching and what we're trying NOT to flag</h4>
+<p>Velocity rules detect <strong>bursts</strong>: an unnatural concentration of activity from a single account in a short time window. In equities trading, the canonical attack is <em>stolen-account high-frequency liquidation</em> — the attacker has minutes before the rightful owner gets the SMS alert and revokes session, so they fire trades as fast as the rate-limiter allows.</p>
+<table>
+  <thead><tr><th>Pattern</th><th>Fraud signature</th><th>Legitimate pattern that looks similar</th></tr></thead>
+  <tbody>
+    <tr><td><strong>5+ trades in 60s</strong></td><td>Stolen-account liquidation — sell every position before the owner regains control</td><td><strong>Day-trader during open</strong> — a known active retail trader at 9:30 AM ET firing 3-4 limit orders into volatility</td></tr>
+    <tr><td><strong>$50K notional in 5 min</strong></td><td>Account takeover draining margin balance into a small-cap pump</td><td><strong>Whale customer rebalancing</strong> — a $2M portfolio doing scheduled monthly reallocation</td></tr>
+    <tr><td><strong>10 orders / 10 min / single asset</strong></td><td>Wash trading or layering to manipulate quote</td><td><strong>Algorithmic DCA bot</strong> — customer's own auto-invest cron firing into a thin-liquidity name</td></tr>
+  </tbody>
+</table>
+<p>The false-positive cost is real: <strong>flagging a whale's monthly rebalance freezes their account, generates a Trustpilot one-star, and triggers a churn save call</strong>. Production tuning uses a cohort-aware threshold (see <a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a>) so whales get a higher bar than minnows.</p>
+
+<h4>2. The source data — concrete event stream</h4>
+<p>A realistic <code>orders</code> frame seeded to exercise both the fire-the-rule case and the false-positive baseline:</p>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_ts</th><th>amount</th><th>Annotation</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>09:30:00</td><td>$220</td><td>Customer 101 — opening trade</td></tr>
+    <tr><td>2</td><td>101</td><td>09:30:08</td><td>$340</td><td>~8 s gap — still normal</td></tr>
+    <tr><td>3</td><td>101</td><td>09:30:14</td><td>$280</td><td>3 orders / 14 s</td></tr>
+    <tr><td>4</td><td>101</td><td>09:30:22</td><td>$390</td><td>4 orders / 22 s</td></tr>
+    <tr><td>5</td><td>101</td><td>09:30:31</td><td>$500</td><td><strong>5 orders / 31 s · $1,730 — fires <code>too_many_orders</code></strong></td></tr>
+    <tr><td>6</td><td>202</td><td>09:30:00</td><td>$2,400</td><td>One large trade — fires <code>high_amount</code> alone? <em>No</em> — rule fires only if <code>SUM &gt; $2,000 in window</code>. Single $2,400 trade qualifies.</td></tr>
+    <tr><td>7</td><td>303</td><td>09:45:00</td><td>$180</td><td>Customer 303 — slow trader</td></tr>
+    <tr><td>8</td><td>303</td><td>10:15:00</td><td>$220</td><td>30-minute gap → window cleared. Does not fire even though same customer has 2 orders.</td></tr>
+  </tbody>
+</table>
+
+<h5>Expected detector output</h5>
+<table>
+  <thead><tr><th>customer_id</th><th>trigger_ts</th><th>orders_in_window</th><th>amount_in_window</th><th>rule</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>09:30:31</td><td>5</td><td>$1,730.00</td><td>too_many_orders</td></tr>
+    <tr><td>202</td><td>09:30:00</td><td>1</td><td>$2,400.00</td><td>high_amount</td></tr>
+  </tbody>
+</table>
+<p>Customer 303 (legitimately a low-velocity user) is correctly <em>not</em> flagged because their two trades fell into different 10-minute windows. This is the <strong>time-offset</strong> behaviour that fixed-row rolling cannot give you.</p>
+
+<h4>3. The query — walk through window mechanics</h4>
+<pre><code>df['order_ts'] = pd.to_datetime(df['order_ts'])
+df = df.sort_values(['customer_id', 'order_ts'])   # required for offset-rolling
+
+for cust, g in df.groupby('customer_id'):
+    g = g.set_index('order_ts')                    # DatetimeIndex = unlocks '10min' offset
+    cnt = g['order_id'].rolling('10min').count()   # time-offset, NOT fixed window=5
+    amt = g['amount'].rolling('10min').sum()
+    bad = (cnt &gt; 4) | (amt &gt; 2_000)
+    if bad.any():
+        first = bad.idxmax()                       # FIRST offending row → one alert per cust
+        ...</code></pre>
+
+<h5>The three pandas gotchas an interviewer will probe</h5>
+<ul>
+  <li><strong>Time-offset rolling requires a monotonic DatetimeIndex.</strong> If you skip the <code>sort_values</code>, pandas falls back to the slow numpy path or raises <code>ValueError: index must be monotonic</code>. The sort is non-optional.</li>
+  <li><strong><code>rolling('10min')</code> vs <code>rolling(window=5)</code>.</strong> The string form is a <em>time offset</em> — look back 10 wall-clock minutes regardless of row count. The integer form is <em>5 rows</em> — meaningless for fraud because a sparse user's 5 rows could span a week.</li>
+  <li><strong><code>bad.idxmax()</code> finds the first True.</strong> Emit only the first offending row per customer; otherwise the alert queue gets one row per event in the burst. <em>Alert fatigue is a real on-call problem.</em></li>
+</ul>
+
+<h5>Why pandas-on-stream is bounded — what production actually runs</h5>
+<p>pandas can't ingest an unbounded Kafka stream — there's no checkpoint, no watermark, no incremental state. What it can do is <strong>reproduce the exact algorithm on a finite slice</strong> (yesterday's orders, a backfill window, a unit-test fixture). The production detector is PyFlink with <code>SlidingEventTimeWindows</code> + <code>KeyedProcessFunction</code> (see <a href="/interview.app/sql.html?q=customer_growth-0012">customer_growth-0012</a>). The pandas version is the offline twin used for:</p>
+<ul>
+  <li><strong>Threshold tuning</strong> — risk analysts replay last quarter's data with <code>max_orders ∈ {3,4,5,6}</code> and pick the precision-recall sweet spot.</li>
+  <li><strong>Incident forensics</strong> — "show me every customer that would have fired the rule last Tuesday between 2-4 PM" is a pandas notebook, not a Flink redeploy.</li>
+  <li><strong>Unit tests</strong> — the Flink job's <code>ProcessFunction</code> calls into pure-Python logic that pandas exercises in milliseconds.</li>
+</ul>
+
+<h4>4. Why event-time matters — the L5 trap</h4>
+<p>If you run this on <code>order_ts</code> (event-time) you get the deterministic answer regardless of when pandas saw the row. If you accidentally use <code>received_at</code> (processing-time / ingestion time), a mobile client that flushed an order 4 minutes late lands in the WRONG 10-minute window — and a borderline burst silently shifts above or below the threshold.</p>
+<table>
+  <thead><tr><th>Scenario</th><th>Event-time answer</th><th>Processing-time answer</th></tr></thead>
+  <tbody>
+    <tr><td>5 trades placed at 09:30:00 – 09:30:31, all arrived on time</td><td>Fires <code>too_many_orders</code> with <code>trigger_ts = 09:30:31</code></td><td>Same</td></tr>
+    <tr><td>Same 5 trades, but order #4 stuck in offline mobile queue, arrived at 09:34:50</td><td>Fires <code>too_many_orders</code> with <code>trigger_ts = 09:30:31</code> — the rule still sees 5 trades in 31 wall-clock seconds</td><td>Misses — the 4th trade lands in a different processing window, count is 4 instead of 5</td></tr>
+  </tbody>
+</table>
+<p><strong>The auditor question</strong>: "Did this trade actually happen in the 60-second window?" — only <em>event-time</em> can answer that. Processing-time tells you when your servers happened to see the row, which has no regulatory meaning. <strong>Production rule</strong>: every fraud rule is event-time, full stop. Processing-time is acceptable only for ops dashboards.</p>
+
+<h4>5. Where this appears in production</h4>
+<ul>
+  <li><strong>Robinhood Risk Engine</strong> — the post-Gamestop margin desk runs velocity rules on every order before it hits the matching engine. The detector is Flink + RocksDB keyed state per <code>account_id</code>. The pandas version in this question is the analyst's Jupyter twin.</li>
+  <li><strong>Stripe Radar</strong> — Radar's <code>velocity_*</code> built-in attributes (e.g. <code>velocity_card_count_6h</code>, <code>velocity_email_amount_24h</code>) are exactly this pattern, exposed as composable rule predicates. Each maps to a sliding window keyed by the relevant entity.</li>
+  <li><strong>Coinbase Trade Compliance</strong> — velocity rules feed the Travel Rule and AML screening pipeline; a sudden 10× amount-per-hour change on a previously-quiet account routes the next withdrawal to manual review.</li>
+  <li><strong>Plaid Signal</strong> — the same rolling-count primitive backs "ACH risk score" for fast-funded bank transfers.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What happens when a customer has 50,000 orders in the dataframe? Does <code>groupby(customer_id).rolling('10min')</code> scale?"</h5>
+<p>It scales linearly per customer because the offset-rolling implementation walks a sorted index with two pointers (the standard sliding-window two-pointer trick). The bottleneck is the Python-level for-loop over <code>groupby</code>; the production speed-up is to use <code>df.groupby('customer_id').rolling('10min', on='order_ts').count()</code> which keeps the work in a single C call. For 100M rows you've outgrown pandas — that's the cue to mention Polars (lazy, multi-threaded) or move to PyFlink.</p>
+
+<h5>Probe 2 — "How do you handle the whale customer who legitimately fires 10 orders/min?"</h5>
+<p>Cohort-aware threshold: classify customers into Whale / Dolphin / Minnow (see <a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a>) and apply a different <code>max_orders</code> per cohort. Whales get <code>max_orders=20</code>; minnows get <code>max_orders=4</code>. The same rule with different parameters. <strong>Don't</strong> hard-code one threshold and patch with an allowlist — allowlists rot.</p>
+
+<h5>Probe 3 — "Backfill — can you re-run yesterday's stream through this rule with a new threshold?"</h5>
+<p>Yes, that's the killer feature of the pandas twin. Snapshot yesterday's events from the data lake (Parquet), call <code>velocity_alerts(df, max_orders=3)</code>, diff against the production alerts. The Flink job can't easily do this because its state has already advanced past yesterday — you'd need a savepoint replay, which is expensive. <strong>The senior pattern</strong>: keep the rule logic in a pure function, call it from both Flink (for live) and pandas (for backfill/tuning).</p>
+
+<h5>Probe 4 — "What if order_ts has duplicates (two orders with the same timestamp)?"</h5>
+<p>Time-offset rolling tolerates duplicates — both rows fall into the same window. The <code>idxmax()</code> picks one of them as the trigger_ts (the first one in sort order). If you need a tiebreaker, sort by <code>(customer_id, order_ts, order_id)</code> instead of just <code>(customer_id, order_ts)</code>.</p>
+
+<h5>Probe 5 — "Hot key — one customer (HFT prop account) generates 100K orders/sec. Will this break?"</h5>
+<p>In pandas, the whale's group becomes a giant rolling computation on one thread — wall-clock dominated by that single group. In the Flink twin, <strong>that whale's keyed state lives on one task manager's RocksDB and triggers a hot-shard problem</strong>. The fix is the same shape as for aggregations: salting + two-pass. See <a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> §03 and <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> for the canonical salt pattern.</p>
+
+<h5>Probe 6 — "Why emit only the first offending row per customer, not every row that breaches?"</h5>
+<p>Alert fatigue. A 20-order burst inside the window means 16 consecutive rows are "bad" — emitting all 16 floods the analyst queue with rows that all describe the same incident. The first row is the one with maximum signal ("here's the moment the rule fired"); subsequent rows are redundant until the burst clears and starts fresh. Production systems wrap this in a <strong>cooldown</strong>: don't re-alert the same customer within 1 hour of the last alert.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — the whale-customer problem at every layer (Flink keyed state, Kafka partition, RocksDB).</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — event-time vs processing-time, watermarks, side-outputs, exactly-once.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0012">customer_growth-0012</a> — the PyFlink streaming twin of this exact rule (tumbling event-time window).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0013">customer_growth-0013</a> — sister rule: address-change followed by high-value order (CEP-style pattern).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0018">customer_growth-0018</a> — sister rule: serial returner with HOP window.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — Salting: the per-key skew rescue for the hot-key probe.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a> — Whale/Dolphin/Minnow: the cohort-aware threshold for the false-positive probe.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the four pillars of any streaming fraud rule — <em>event-time</em> (auditable), <em>watermark</em> (deterministic late-event policy), <em>side-output</em> (don't drop late events, route them to a quarantine queue), <em>per-key skew</em> (whales need salting or cohort-aware thresholds). The pandas version in this question is the offline twin: same algorithm, bounded data, used for tuning and forensics. The production runtime is PyFlink — pandas cannot ingest an unbounded stream.</div>

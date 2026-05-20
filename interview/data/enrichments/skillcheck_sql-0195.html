@@ -1,0 +1,71 @@
+<p>Growth accounting is the framework popularised by the consumer-product industry to decompose daily active users into four mutually exclusive buckets: <em>new</em>, <em>retained</em>, <em>resurrected</em>, and <em>churned</em>. The interviewer is probing whether you can (1) resolve each user's first-ever day, (2) align today's activity with yesterday's via a FULL OUTER self-join offset by one day, and (3) correctly classify users who appear only on the "yesterday" side as churned &mdash; reported as a negative number per the standard convention.</p>
+
+<h4>1. The source data &mdash; <code>dau</code></h4>
+<table>
+  <thead><tr><th>dt</th><th>user_id</th><th>inc_amt</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>A</td><td>10</td></tr>
+    <tr><td>2025-01-01</td><td>B</td><td>5</td></tr>
+    <tr><td>2025-01-02</td><td>A</td><td>8</td></tr>
+    <tr><td>2025-01-02</td><td>C</td><td>12</td></tr>
+    <tr><td>2025-01-03</td><td>A</td><td>6</td></tr>
+    <tr><td>2025-01-03</td><td>B</td><td>7</td></tr>
+    <tr><td>2025-01-04</td><td>C</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>First-day lookup: A first on 2025-01-01, B first on 2025-01-01, C first on 2025-01-02. The challenge: on 2025-01-03, user B <em>returns</em> after being absent on 2025-01-02 (resurrected), and after 2025-01-04 users A and B both go dark (churned on the synthetic trailing row 2025-01-05).</p>
+
+<h4>2. The SQL &mdash; FULL OUTER self-join with per-user first_dt decoration</h4>
+<pre><code>WITH first_dt AS (
+  SELECT user_id, MIN(dt) AS first_dt FROM dau GROUP BY user_id
+),
+dau_decorated AS (
+  SELECT d.dt, d.user_id, f.first_dt
+  FROM dau d JOIN first_dt f ON d.user_id = f.user_id
+  WHERE d.inc_amt &gt; 0
+)
+SELECT
+  COALESCE(tm.dt, lm.dt + 1) AS day,
+  COUNT(DISTINCT tm.user_id) AS dau,
+  COUNT(DISTINCT CASE WHEN tm.first_dt = tm.dt THEN tm.user_id END) AS new_users,
+  COUNT(DISTINCT CASE WHEN lm.user_id IS NOT NULL THEN tm.user_id END) AS retained,
+  COUNT(DISTINCT CASE WHEN tm.first_dt &lt;&gt; tm.dt AND lm.user_id IS NULL THEN tm.user_id END) AS resurrected,
+  -1 * COUNT(DISTINCT CASE WHEN tm.user_id IS NULL THEN lm.user_id END) AS churned
+FROM dau_decorated tm
+FULL OUTER JOIN dau_decorated lm
+  ON tm.user_id = lm.user_id AND tm.dt = lm.dt + 1
+GROUP BY 1
+ORDER BY 1;</code></pre>
+<p>The join pairs each user's today-row (<code>tm</code>) with their yesterday-row (<code>lm</code>). Users who were active yesterday but not today appear only on the <code>lm</code> side (churned). Users active today but not yesterday are on the <code>tm</code> side with <code>lm.user_id IS NULL</code> &mdash; further split into <em>new</em> (first_dt = today) or <em>resurrected</em> (returning from dormancy).</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>day</th><th>dau</th><th>new_users</th><th>retained</th><th>resurrected</th><th>churned</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>2</td><td>2</td><td>0</td><td>0</td><td>0</td></tr>
+    <tr><td>2025-01-02</td><td>2</td><td>1</td><td>1</td><td>0</td><td>-1</td></tr>
+    <tr><td>2025-01-03</td><td>2</td><td>0</td><td>1</td><td>1</td><td>-1</td></tr>
+    <tr><td>2025-01-04</td><td>1</td><td>0</td><td>0</td><td>1</td><td>-2</td></tr>
+    <tr><td>2025-01-05</td><td>0</td><td>0</td><td>0</td><td>0</td><td>-1</td></tr>
+  </tbody>
+</table>
+<p>Hand-trace day by day. Jan 01: A and B are new, no previous day. Jan 02: A retained (was active Jan 01), C new (first_dt = Jan 02), B absent &rarr; churned (&minus;1). Jan 03: A retained (was active Jan 02), B resurrected (not new, absent Jan 02), C absent &rarr; churned (&minus;1). Jan 04: C resurrected (not new, absent Jan 03), A and B absent &rarr; churned (&minus;2). Jan 05 (synthetic trailing): only <code>lm</code> rows exist for C (from Jan 04); churned (&minus;1), dau = 0.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why FULL OUTER JOIN and not LEFT JOIN</h5>
+<p>A LEFT JOIN from today to yesterday would miss the churned users entirely &mdash; they exist only in yesterday's set, not in today's. A FULL OUTER JOIN keeps both sides: rows in <code>tm</code> with no <code>lm</code> match reveal new/resurrected users; rows in <code>lm</code> with no <code>tm</code> match reveal churned users. The <code>COALESCE(tm.dt, lm.dt + 1)</code> in the SELECT reconstructs the "day" for purely churned rows that appear only on the <code>lm</code> side.</p>
+
+<h5>The trailing churn row</h5>
+<p>The day after the last activity in the table has no <code>tm</code> rows at all. But the FULL OUTER JOIN still produces <code>lm</code> rows for every user who was active on the final day. This is the intentional "synthetic trailing row" the problem specifies &mdash; it captures the last day's churn rather than silently dropping it. Interviewers frequently ask about this; knowing it falls out naturally from the FULL OUTER JOIN &mdash; without any special UNION or date spine &mdash; is the discriminating insight.</p>
+
+<h5>Four-bucket completeness &mdash; the mutual-exclusivity check</h5>
+<p>For any day, the four buckets are mutually exclusive and collectively exhaustive over the active base: <em>new + retained + resurrected = dau</em>. The churned count is a separate measure about yesterday's base, so it does not add to today's dau &mdash; this is a common interview stumbling block. A senior candidate states this identity explicitly and can verify it on the result table.</p>
+
+<h5>inc_amt &gt; 0 filter and the decoration CTE</h5>
+<p>The <code>WHERE d.inc_amt &gt; 0</code> guard is a production pattern: raw DAU tables sometimes include zero-value session records that should not count as genuine activity. The <code>dau_decorated</code> CTE attaches <code>first_dt</code> to every active row in one pass so the main query can test <code>tm.first_dt = tm.dt</code> without a separate subquery join inside the window.</p>
+
+<h5>Dialect and performance notes</h5>
+<p>FULL OUTER JOIN is supported by PostgreSQL, SQL Server, Oracle, BigQuery, and Snowflake; MySQL lacks it (workaround: UNION of LEFT and RIGHT JOINs). On large DAU tables materialise <code>dau_decorated</code> first and index on <code>(user_id, dt)</code> before the self-join. BigQuery users should prefer the equivalent pattern using <code>FULL JOIN</code> on date-partitioned tables with clustering on <code>user_id</code> to bound cost.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a FULL OUTER self-join offset by one day to simultaneously reveal all four growth-accounting buckets in a single GROUP BY; recognise that churned users appear exclusively on the "yesterday" side and that the synthetic trailing row falls out of the join naturally without a date spine; state the identity new + retained + resurrected = dau to show you understand the framework's bookkeeping.</div>

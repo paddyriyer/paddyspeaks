@@ -1,0 +1,79 @@
+<p>A payments-fraud team flags account-takeover and reshipping rings by watching how many distinct shipping addresses an account uses in a short window. The question: find the <em>first</em> 30-day stretch in which a customer used <strong>4 or more</strong> distinct addresses, and report that window with its address count and total spend. The interviewer is probing whether you can do a 30-day sliding-window count efficiently &mdash; and whether you collapse to one row per address before the window, so a customer who reuses one address ten times is not mistaken for ten addresses.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>addresses</th><th>span</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>4 distinct</td><td>Apr 1 &rarr; Apr 19 (18 days)</td><td>4 addresses inside 30 days &mdash; <strong>flagged</strong></td></tr>
+    <tr><td>2</td><td>1 distinct (5 orders)</td><td>Apr 1 &rarr; Apr 20</td><td>same address repeated &mdash; not flagged</td></tr>
+    <tr><td>3</td><td>4 distinct</td><td>Jan &rarr; May (5 months)</td><td>4 addresses but spread out &mdash; not flagged</td></tr>
+    <tr><td>4</td><td>3 distinct</td><td>Apr 1 &rarr; Apr 25 (24 days)</td><td>exactly 3 &mdash; at the boundary, just under &gt; 3</td></tr>
+    <tr><td>5</td><td>5 distinct</td><td>Mar 5 &rarr; Mar 30 (25 days)</td><td>5 addresses in 25 days &mdash; <strong>flagged</strong></td></tr>
+  </tbody>
+</table>
+<p>The dataset packs three traps: customer 2 (one address, five orders &mdash; the must-not-count-rows case), customer 3 (four addresses but never four <em>within</em> 30 days), and customer 4 sitting exactly on the <code>&gt; 3</code> boundary with three addresses. Only customers 1 and 5 should appear.</p>
+
+<h4>2. The SQL &mdash; collapse to first-seen, then a self-join 30-day window</h4>
+<p>The reference is written for PostgreSQL with native <code>INTERVAL</code> arithmetic (the original SQLite would use <code>datetime(ts,'+30 days')</code>). It runs as-is here.</p>
+<pre><code>WITH first_addr AS (
+    SELECT customer_id, shipping_address,
+           MIN(order_ts) AS first_ts,
+           SUM(amount)   AS addr_spend
+    FROM orders
+    GROUP BY customer_id, shipping_address
+),
+windowed AS (
+    SELECT a.customer_id,
+           a.first_ts        AS window_start,
+           MAX(b.first_ts)   AS window_end,
+           COUNT(*)          AS distinct_addresses,
+           SUM(b.addr_spend) AS total_amount
+    FROM first_addr a
+    JOIN first_addr b
+      ON b.customer_id = a.customer_id
+     AND b.first_ts BETWEEN a.first_ts
+                        AND a.first_ts + INTERVAL '30 days'
+    GROUP BY a.customer_id, a.first_ts
+    HAVING COUNT(*) &gt; 3
+),
+ranked AS (
+    SELECT windowed.*,
+           ROW_NUMBER() OVER (PARTITION BY customer_id
+                              ORDER BY distinct_addresses DESC,
+                                       window_start ASC) AS rn
+    FROM windowed
+)
+SELECT customer_id, window_start, window_end,
+       distinct_addresses, total_amount
+FROM ranked
+WHERE rn = 1
+ORDER BY distinct_addresses DESC, customer_id ASC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>window_start</th><th>window_end</th><th>distinct_addresses</th><th>total_amount</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>2025-03-05 09:00:00</td><td>2025-03-30 09:00:00</td><td>5</td><td>250</td></tr>
+    <tr><td>1</td><td>2025-04-01 09:00:00</td><td>2025-04-19 02:55:00</td><td>4</td><td>1140</td></tr>
+  </tbody>
+</table>
+<p>Customer 5 ranks above customer 1 because it touched 5 distinct addresses to customer 1's 4. Customers 2, 3, and 4 are correctly absent: 2 never exceeds one distinct address, 3 never gets four <em>inside</em> a 30-day window, and 4 stops at exactly three.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Collapse to first-seen <em>before</em> the window &mdash; the core insight</h5>
+<p><code>first_addr</code> reduces orders to one row per (customer, address) at the moment that address was first used. This is what makes the count correct: customer 2 placed five orders to "12 Oak Dr", but after the collapse that is a single row, so <code>COUNT(*)</code> can never read it as five addresses. The fraud signal is "how many <em>distinct</em> addresses", and counting must happen on the distinct grain. Skipping this step is the most common wrong answer to the question.</p>
+
+<h5>Why anchor the window on each address's first_ts</h5>
+<p>The self-join treats every address-first-seen as a potential window start, then counts how many other addresses were first seen within the next 30 days. Anchoring on actual data points (not an arbitrary calendar grid) guarantees that if a qualifying 30-day window exists at all, one of the anchors finds it &mdash; the densest cluster always begins on some address's first appearance. This is the standard "event-anchored sliding window" technique and it is exact, not approximate.</p>
+
+<h5>The half-open versus closed boundary, and the <code>&gt; 3</code> threshold</h5>
+<p><code>BETWEEN a.first_ts AND a.first_ts + INTERVAL '30 days'</code> is inclusive on both ends &mdash; an address first seen exactly 30 days later still counts. <code>HAVING COUNT(*) &gt; 3</code> means strictly more than 3, i.e. 4+. Customer 4 with exactly 3 addresses fails by one, which is the deliberate boundary test: a careless <code>&gt;= 3</code> would wrongly flag a customer who simply has a billing, a work, and a home address. Read the threshold operator precisely.</p>
+
+<h5><code>ROW_NUMBER</code> picks the <em>first</em> qualifying window per customer</h5>
+<p>A customer can have several overlapping 30-day windows that all clear the threshold. The question asks for one row per offender &mdash; the first such window. <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY distinct_addresses DESC, window_start ASC)</code> then <code>WHERE rn = 1</code> deduplicates: it prefers the window with the most addresses, breaking ties toward the earliest start. <code>ROW_NUMBER</code> (not <code>RANK</code>) is correct here precisely because we want exactly one row even if two windows tie.</p>
+
+<h5>Dialect note &mdash; <code>INTERVAL</code> versus <code>datetime()</code></h5>
+<p>Native Postgres does <code>ts + INTERVAL '30 days'</code>; SQLite needs <code>datetime(ts, '+30 days')</code>; SQL Server uses <code>DATEADD(day, 30, ts)</code>; BigQuery uses <code>TIMESTAMP_ADD(ts, INTERVAL 30 DAY)</code>. The window logic is identical &mdash; only the additive-interval syntax changes. Keeping <code>order_ts</code> as a real <code>TIMESTAMP</code> (rather than a text date) is what lets the arithmetic run natively without casts.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> collapse to one row per (customer, address) first-seen <em>before</em> counting so repeated orders to one address cannot inflate the distinct count, anchor the 30-day window on real event timestamps so the densest cluster is always found, read the inclusive <code>BETWEEN</code> and strict <code>&gt; 3</code> threshold exactly (the 3-address customer must not flag), and use <code>ROW_NUMBER</code> to return exactly the first qualifying window per offender.</div>

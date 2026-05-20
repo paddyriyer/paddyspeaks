@@ -1,0 +1,64 @@
+<p>A Community finance dashboard tracks revenue month over month, and the headline tile is the percentage change versus the prior month. It looks trivial &mdash; aggregate by month, compare to the row above &mdash; but the interviewer is watching three things: do you order the months correctly, do you handle the very first month that has nothing to compare against, and do you avoid integer-division truncation on the percentage.</p>
+
+<h4>1. The source data &mdash; <code>sales_transactions</code></h4>
+<table>
+  <thead><tr><th>created_at</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>2023-01-05</td><td>100</td></tr>
+    <tr><td>2023-01-20</td><td>50</td></tr>
+    <tr><td>2023-02-10</td><td>300</td></tr>
+    <tr><td>2023-03-15</td><td>270</td></tr>
+    <tr><td>2023-03-28</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Five raw transactions roll up to three months: January 150, February 300, March 300. January is the edge case &mdash; it is the earliest month, so it has <strong>no previous month</strong> and its percentage diff must be NULL, not zero. March deliberately ties February at 300 so the diff lands on exactly 0.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> over monthly sums</h4>
+<pre><code>WITH t1 AS (
+  SELECT to_char(created_at, 'YYYY-MM') AS yymm,
+         SUM(value) AS value_current,
+         LAG(SUM(value)) OVER (ORDER BY to_char(created_at, 'YYYY-MM') ASC) AS previous_month
+  FROM sales_transactions
+  GROUP BY to_char(created_at, 'YYYY-MM')
+)
+SELECT yymm AS month,
+       ROUND(CAST(((1.0*value_current-previous_month)/previous_month)*100 AS numeric), 2) AS percentage_diff
+FROM t1;</code></pre>
+<p>The CTE groups transactions into <code>YYYY-MM</code> buckets, sums each, and uses <code>LAG</code> to pull the previous bucket's sum onto the current row. The outer query turns the two numbers into a percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>percentage_diff</th></tr></thead>
+  <tbody>
+    <tr><td>2023-01</td><td><em>NULL</em></td></tr>
+    <tr><td>2023-02</td><td>100.00</td></tr>
+    <tr><td>2023-03</td><td>0.00</td></tr>
+  </tbody>
+</table>
+<p>January is NULL &mdash; <code>LAG</code> returns NULL on the first row, and any arithmetic touching NULL stays NULL. February jumps from 150 to 300, a clean <code>+100.00%</code>. March holds at 300, so <code>(300 &minus; 300) / 300 = 0.00</code>. The NULL is correct behaviour, not a bug to paper over.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>1.0 *</code> appears in the numerator</h5>
+<p>If <code>value</code> is an integer column, <code>(value_current - previous_month) / previous_month</code> is integer division: 150/300 truncates to <code>0</code>, and the whole percentage collapses to zero. Multiplying by <code>1.0</code> promotes the expression to numeric <em>before</em> the divide, so fractional changes survive. This is the single most common silent bug in percentage-diff queries &mdash; always force the type.</p>
+
+<h5>The ordering trap &mdash; why <code>to_char</code> is safe here</h5>
+<p><code>LAG</code> is only as correct as its <code>ORDER BY</code>. The solution orders by the <code>YYYY-MM</code> <em>string</em>, which sorts identically to chronological order because the format is zero-padded and big-endian. Order by a month <em>name</em> or a non-padded value and "April" would sort before "January". Safer still is to order by a real date so the intent is unambiguous:</p>
+<pre><code>... LAG(SUM(value)) OVER (ORDER BY date_trunc('month', created_at)) ...</code></pre>
+
+<h5>Missing months break the "previous month" assumption</h5>
+<p><code>LAG</code> returns the previous <em>row</em>, not the previous <em>calendar month</em>. If March had no sales, the table jumps from February straight to April, and April's "previous month" would silently be February &mdash; a 60-day gap reported as a one-month change. When gaps are possible, generate a complete month spine with <code>generate_series</code> and left-join sales onto it so every month exists before <code>LAG</code> runs.</p>
+
+<h5>Division by zero in the prior month</h5>
+<p>If a previous month summed to exactly 0, <code>/ previous_month</code> raises a division-by-zero error. Guard it with <code>NULLIF(previous_month, 0)</code>, which turns the zero into NULL and yields a NULL percentage instead of crashing the dashboard refresh.</p>
+
+<h5>An alternative without a window function</h5>
+<p>A self-join expresses the same idea for engines or reviewers who dislike <code>LAG</code>:</p>
+<pre><code>SELECT cur.yymm AS month,
+       ROUND(((cur.v - prev.v) / NULLIF(prev.v,0)) * 100, 2) AS percentage_diff
+FROM monthly cur
+LEFT JOIN monthly prev
+  ON prev.yymm = to_char((cur.yymm || '-01')::date - INTERVAL '1 month', 'YYYY-MM');</code></pre>
+<p>The <code>LEFT JOIN</code> version has the advantage that it compares against the true prior calendar month, so a missing month produces a NULL rather than a wrong neighbour.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> force numeric division before the divide, justify why a <code>YYYY-MM</code> string sorts chronologically (and prefer a real date when unsure), recognise that <code>LAG</code> gives the previous <em>row</em> not the previous <em>month</em> so a gap corrupts the comparison, and guard the prior-month denominator with <code>NULLIF</code>.</div>

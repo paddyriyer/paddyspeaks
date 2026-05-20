@@ -1,0 +1,54 @@
+<p>A Community question on a simple customer/orders pair: list the orders placed by customers named Jill or Eva, showing first name, order date, details and cost. It is deliberately easy &mdash; but the reference joins <em>orders to customer</em> with a <code>LEFT JOIN</code>, and an interviewer will ask whether that direction was a choice or an accident, and what happens to an order whose customer is missing.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>customer</code></strong>:</p>
+<table>
+  <thead><tr><th>id</th><th>first_name</th><th>last_name</th><th>city</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jill</td><td>Brown</td><td>Boston</td></tr>
+    <tr><td>2</td><td>Eva</td><td>Stone</td><td>Austin</td></tr>
+    <tr><td>3</td><td>Mark</td><td>Hill</td><td>Boston</td></tr>
+    <tr><td>5</td><td>Jill</td><td>Carter</td><td>Denver</td></tr>
+  </tbody>
+</table>
+<p><strong><code>orders</code></strong> has seven rows linked by <code>cust_id</code>. Two subtleties: there are <em>two</em> different Jills (ids 1 and 5) &mdash; filtering on a first name is not the same as filtering on a person &mdash; and customer 5 (Jill Carter) has one order while customer 4 (Susan, not selected) also has one.</p>
+
+<h4>2. The SQL &mdash; <code>orders LEFT JOIN customer, filter on name</code></h4>
+<pre><code>select c.first_name, o.order_date, o.order_details, o.total_order_cost
+from orders o left join customer c
+on o.cust_id = c.id
+where c.first_name in ('Jill','Eva')
+order by c.id asc;</code></pre>
+<p>Start from <code>orders</code>, attach the matching customer, keep only rows whose customer first name is Jill or Eva, sort by customer id.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>first_name</th><th>order_date</th><th>order_details</th><th>total_order_cost</th></tr></thead>
+  <tbody>
+    <tr><td>Jill</td><td>2025-01-05</td><td>Notebook</td><td>12.50</td></tr>
+    <tr><td>Jill</td><td>2025-01-08</td><td>Lamp</td><td>45.00</td></tr>
+    <tr><td>Eva</td><td>2025-01-09</td><td>Pen Set</td><td>9.75</td></tr>
+    <tr><td>Eva</td><td>2025-01-12</td><td>Mug</td><td>8.20</td></tr>
+    <tr><td>Jill</td><td>2025-01-15</td><td>Chair</td><td>99.00</td></tr>
+  </tbody>
+</table>
+<p>Five orders. The first two Jill rows are Jill Brown (id 1); the last is Jill Carter (id 5) &mdash; <em>two different people</em> collapsed under one first name, and <code>order by c.id</code> puts them at opposite ends. The output cannot tell them apart, which is the lurking data-quality point.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>LEFT JOIN</code> here behaves like an <code>INNER JOIN</code> &mdash; and that is a trap</h5>
+<p>The join is <code>LEFT</code>, but the <code>WHERE c.first_name IN ('Jill','Eva')</code> clause references a <em>right-table</em> column. For any order with no matching customer, <code>c.first_name</code> is NULL, and <code>NULL IN ('Jill','Eva')</code> is never true &mdash; so those rows are filtered out anyway. The <code>LEFT JOIN</code> is silently downgraded to an <code>INNER JOIN</code>. If preserving orphan orders mattered, the predicate would have to move into the <code>ON</code> clause or allow NULLs. Here the inner-join behaviour is fine, but recognising the downgrade is the senior observation.</p>
+
+<h5>Filtering on a name is not filtering on a person</h5>
+<p>Two customers are named Jill (ids 1 and 5). <code>WHERE first_name IN ('Jill','Eva')</code> matches <em>both</em>, mixing their orders in one result. If the brief means a specific customer, filter on <code>id</code> or <code>customer_id</code> &mdash; a key, not a display name. Names are not unique and not stable; treating one as an identifier is a classic junior mistake. Surface the ambiguity: "Jill the person, or anyone whose first name is Jill?"</p>
+
+<h5>Why the join direction is mostly cosmetic here</h5>
+<p>Reading <code>customer LEFT JOIN orders</code> instead would, before the <code>WHERE</code>, also keep Jills/Evas with zero orders (as NULL-order rows) &mdash; but the same right-column filter strips those too. With this filter the result is identical either way. Still, choose the driving table on purpose: drive from <code>orders</code> if the unit of the answer is an order; drive from <code>customer</code> if you need every selected customer to appear even with no orders.</p>
+
+<h5>The duplicate-rows / fan-out reminder</h5>
+<p>Each order matches exactly one customer on <code>cust_id = id</code>, so no row multiplies. But if <code>customer</code> had two rows with the same <code>id</code> (a dirty table), every order would duplicate per match &mdash; a fan-out. Always know whether the join key is unique on the side you join <em>to</em>; here <code>id</code> is the primary key, so it is safe.</p>
+
+<h5>NULL handling and ordering stability</h5>
+<p>If <code>cust_id</code> is NULL on an order, the join finds nothing and the row is dropped by the name filter &mdash; consistent with the inner-join behaviour above. And <code>order by c.id</code> alone is not a total order: the two Jill-Brown orders share id 1, so their relative order is arbitrary. Add <code>o.order_date</code> as a tiebreaker for deterministic output.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that a <code>WHERE</code> on a right-table column silently turns a <code>LEFT JOIN</code> into an <code>INNER JOIN</code>, point out that filtering on <code>first_name</code> matches two different Jills so a key should be used for a specific person, and add a tiebreaker so the sort is deterministic.</div>

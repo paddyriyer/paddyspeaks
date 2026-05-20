@@ -1,0 +1,57 @@
+<p>A social product wants a "Pages you might like" rail for user 1: surface every page that any of user 1's friends has liked, minus the pages user 1 already likes. The interviewer plants two traps. Friendships are stored only <em>one direction</em> (an undirected edge written once), so you must reconstruct user 1's full friend list from both columns; and you must subtract what the user already likes.</p>
+
+<h4>1. The source data &mdash; <code>friendship</code> and <code>likes</code></h4>
+<table>
+  <thead><tr><th>relation</th><th>row</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>friendship</td><td>(1, 2)</td><td>user 1 appears as <code>user1_id</code> &mdash; friend is 2</td></tr>
+    <tr><td>friendship</td><td>(1, 3)</td><td>user 1 as <code>user1_id</code> &mdash; friend is 3</td></tr>
+    <tr><td>friendship</td><td>(2, 4)</td><td>does not involve user 1 &mdash; ignored</td></tr>
+    <tr><td>friendship</td><td>(3, 5)</td><td>does not involve user 1 &mdash; ignored (5 is a friend-of-friend, not a friend)</td></tr>
+    <tr><td>likes</td><td>user 1 &rarr; 100, 101</td><td>pages user 1 ALREADY likes &mdash; must be excluded</td></tr>
+    <tr><td>likes</td><td>user 2 &rarr; 101, 102, 103</td><td>101 already liked by 1; 102, 103 are candidates</td></tr>
+    <tr><td>likes</td><td>user 3 &rarr; 200, 201</td><td>both are candidates</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: user 1's friends (2 and 3) both happen to sit in the <code>user1_id</code> column &mdash; but the query must still <code>UNION</code> the <code>user2_id</code> direction or it would miss any friendship written the other way. And page <strong>101</strong> is liked by friend 2 <em>and</em> by user 1 &mdash; it must be filtered out as already-liked.</p>
+
+<h4>2. The SQL &mdash; build the friend set, join likes, subtract own likes</h4>
+<pre><code>WITH friends AS (
+  SELECT user2_id AS friend FROM friendship WHERE user1_id = 1
+  UNION
+  SELECT user1_id        FROM friendship WHERE user2_id = 1
+)
+SELECT DISTINCT l.page_id AS recommended_page
+FROM friends f
+JOIN likes l ON l.user_id = f.friend
+WHERE l.page_id NOT IN (SELECT page_id FROM likes WHERE user_id = 1)
+ORDER BY recommended_page;</code></pre>
+<p>The <code>friends</code> CTE collects user 1's neighbours from <em>both</em> sides of the undirected edge. The main query gathers every page those friends like, then <code>NOT IN</code> removes pages user 1 already likes; <code>DISTINCT</code> collapses pages liked by several friends.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>recommended_page</th><th>liked by</th></tr></thead>
+  <tbody>
+    <tr><td>102</td><td>friend 2</td></tr>
+    <tr><td>103</td><td>friend 2</td></tr>
+    <tr><td>200</td><td>friend 3</td></tr>
+    <tr><td>201</td><td>friend 3</td></tr>
+  </tbody>
+</table>
+<p>Page <strong>101</strong> is correctly excluded &mdash; friend 2 likes it, but so does user 1, so it fails the <code>NOT IN</code>. Page 500 (liked by user 5) never appears: user 5 is a friend-of-friend, not in the <code>friends</code> set, so the recommendation graph stops at depth 1.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the friend set needs a UNION of both columns</h5>
+<p>An undirected friendship stored once can have user 1 on <em>either</em> side. <code>WHERE user1_id = 1</code> finds friendships where 1 is listed first; <code>WHERE user2_id = 1</code> finds the rest. Querying only one column would silently miss half of user 1's real friends. <code>UNION</code> (not <code>UNION ALL</code>) merges the two directions and also dedupes &mdash; harmless here, but it protects against a pathological <code>(1,1)</code> self-row or a duplicated edge.</p>
+
+<h5>Depth 1 only &mdash; this is not a recursive traversal</h5>
+<p>The recommendation is "pages my <em>friends</em> like" &mdash; one hop. User 5, a friend of friend 3, is deliberately excluded. The single <code>friends</code> CTE plus one join expresses exactly depth 1. If the spec said "friends-of-friends" you would need a second hop (another join, or a recursive CTE with a depth cap); recognising that this question stops at one hop &mdash; and not over-engineering a recursive solution &mdash; is part of the read.</p>
+
+<h5>The <code>NOT IN</code> NULL trap</h5>
+<p><code>NOT IN (SELECT page_id FROM likes WHERE user_id = 1)</code> is correct here because <code>page_id</code> is non-nullable. But it is a known footgun: if that subquery ever returned a single NULL, the entire <code>NOT IN</code> would evaluate to NULL for every row and the query would return <em>nothing</em>. The NULL-safe rewrite is <code>NOT EXISTS (SELECT 1 FROM likes l1 WHERE l1.user_id = 1 AND l1.page_id = l.page_id)</code>. Mentioning the trap &mdash; and that <code>NOT EXISTS</code> sidesteps it &mdash; is the senior move.</p>
+
+<h5>Why <code>DISTINCT</code> on the output</h5>
+<p>If two of user 1's friends both like the same page, the join yields that page twice. The rail wants each page once, so <code>DISTINCT</code> is required on <code>page_id</code>. An equivalent shape is to wrap the friend-likes in their own set and use <code>EXCEPT</code> against user 1's likes: <code>(SELECT page_id FROM likes WHERE user_id IN (friends)) EXCEPT (SELECT page_id FROM likes WHERE user_id = 1)</code> &mdash; <code>EXCEPT</code> dedupes and subtracts in one operator, and is NULL-safe, making it arguably the cleanest phrasing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reconstruct an undirected friend list by <code>UNION</code>-ing both edge columns, keep the traversal at exactly one hop (friends, not friends-of-friends), <code>DISTINCT</code> the output because multiple friends can like the same page, and flag the <code>NOT IN</code>/NULL trap &mdash; offering <code>NOT EXISTS</code> or <code>EXCEPT</code> as the safe alternative.</div>

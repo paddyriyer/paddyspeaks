@@ -1,0 +1,55 @@
+<p>New Relic's logistics analytics team tracks how long shipments take versus their promised date. Leadership wants a monthly trend: is the average delay getting better or worse? The query is a one-liner, but it hides a subtraction that depends on column types, a grouping key that has to match the projection, and an <code>AVG</code> that quietly decides what to do with shipments that arrived <em>early</em>.</p>
+
+<h4>1. The source data &mdash; <code>shipments</code></h4>
+<table>
+  <thead><tr><th>shipment_id</th><th>scheduled_date</th><th>actual_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-05</td><td>2025-01-07</td></tr>
+    <tr><td>2</td><td>2025-01-20</td><td>2025-01-20</td></tr>
+    <tr><td>3</td><td>2025-01-28</td><td>2025-02-02</td></tr>
+    <tr><td>4</td><td>2025-02-03</td><td>2025-02-04</td></tr>
+    <tr><td>5</td><td>2025-02-15</td><td>2025-02-25</td></tr>
+    <tr><td>6</td><td>2025-02-20</td><td>2025-02-19</td></tr>
+  </tbody>
+</table>
+<p>Shipment 2 arrived exactly on time (delay 0). Shipment 6 arrived a day <strong>early</strong> &mdash; its delay is <code>-1</code>. That negative value is the interesting one: it will <em>offset</em> a late shipment inside the same month's average.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(actual - scheduled)</code> by month</h4>
+<pre><code>SELECT DATE_TRUNC('month', scheduled_date)::DATE AS mo,
+  AVG(actual_date - scheduled_date) AS avg_delay_days
+FROM shipments GROUP BY DATE_TRUNC('month', scheduled_date)::DATE;</code></pre>
+<p>Subtracting two Postgres <code>DATE</code> values yields an <code>integer</code> count of days. <code>DATE_TRUNC('month', &hellip;)</code> snaps each scheduled date down to the first of its month, giving a clean grouping key.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>mo</th><th>avg_delay_days</th></tr></thead>
+  <tbody>
+    <tr><td>2025-02-01</td><td>3.3333333333333333</td></tr>
+    <tr><td>2025-01-01</td><td>2.3333333333333333</td></tr>
+  </tbody>
+</table>
+<p>January's three shipments delayed by 2, 0 and 5 days average to 2.33. February's 1, 10 and &minus;1 average to 3.33 &mdash; note the early shipment (&minus;1) partly cancels the badly-late one (10). The two-month picture says delays are <em>rising</em>. Also note the rows come back in no particular order: there is no <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The missing <code>ORDER BY</code> &mdash; a trend that isn't sorted</h5>
+<p>A "trend" query that returns months out of order is half-finished. The grouping key is computed, so add the matching sort:</p>
+<pre><code>... GROUP BY DATE_TRUNC('month', scheduled_date)::DATE
+    ORDER BY mo;</code></pre>
+<p>Without it, the SQL is technically correct but the consumer has to re-sort. For a leadership trend chart, that omission reads as careless.</p>
+
+<h5>Early arrivals: should they count?</h5>
+<p>The subtraction makes shipment 6 a <code>-1</code>, and February's average benefits from it. If "delay" should never go below zero &mdash; an early arrival is just "on time", not "negative delay" &mdash; floor it:</p>
+<pre><code>AVG(GREATEST(actual_date - scheduled_date, 0)) AS avg_delay_days</code></pre>
+<p>That changes February to <code>(1 + 10 + 0) / 3 = 3.67</code>. Naming this choice &mdash; raw signed delay vs floored lateness &mdash; is the senior move; they measure different things.</p>
+
+<h5>Truncate by <code>scheduled</code> or by <code>actual</code>?</h5>
+<p>The query buckets on <code>scheduled_date</code>. A shipment scheduled Jan 28 but delivered Feb 2 lands in <em>January</em>. That is usually right &mdash; you are measuring the performance of January's <em>commitments</em>. But if the question is "how did the ops team do in February", you would truncate on <code>actual_date</code> instead. Same data, different story; confirm which month the metric belongs to.</p>
+
+<h5>Integer division and <code>AVG</code></h5>
+<p><code>actual_date - scheduled_date</code> is an integer, but <code>AVG</code> of integers in Postgres returns <code>numeric</code> &mdash; hence the long decimals above, not a truncated <code>2</code> or <code>3</code>. That is Postgres being helpful; some engines (and integer <code>SUM/COUNT</code> hand-rolls) would truncate. Round for display: <code>ROUND(AVG(actual_date - scheduled_date), 1)</code>.</p>
+
+<h5>NULL actual dates &mdash; shipments still in transit</h5>
+<p>If a shipment hasn't arrived, <code>actual_date</code> is NULL, the subtraction is NULL, and <code>AVG</code> silently skips it. That is defensible (you can't measure a delay that hasn't finished) but it means the metric covers only <em>delivered</em> shipments. Say so &mdash; or report a separate "still open" count so leadership isn't blind to the in-flight tail.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> add the <code>ORDER BY mo</code> a trend chart needs, decide deliberately whether early arrivals are negative delays or floored to zero, justify bucketing on <code>scheduled</code> vs <code>actual</code> date, and flag that NULL actual dates make this a delivered-only metric.</div>

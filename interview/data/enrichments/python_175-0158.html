@@ -1,0 +1,123 @@
+<p>Word Ladder is the L5 BFS problem that separates candidates who "know graphs" from those who actually understand that the graph is implicit in the data. The naive approach — for each pair of dictionary words, check Hamming distance equals 1, build adjacency list, BFS — is O(N²·L) and dies on a 1MB dictionary. The wildcard-pattern bucketing trick (O(N·L²) pre-build, O(L·bucket_size) per BFS step) is the senior answer and it's the same primitive that runs in every spell-correction pipeline (Norvig's seminal essay, Google's "Did you mean?", Apple's autocorrect), every DNA-sequence one-edit search in BWA / Bowtie2, and every graph-of-thoughts traversal in LLM agent reasoning.</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Given two words <code>beginWord</code> and <code>endWord</code> and a dictionary <code>wordList</code>, return the length of the shortest transformation sequence such that (a) only one letter changes per step, (b) every intermediate word is in <code>wordList</code>, (c) <code>endWord</code> must be in <code>wordList</code>. Return 0 if no such sequence exists. The naive "compare every pair" graph construction is O(N²·L); for N=10⁴ words of length L=10 that's 10⁹ ops on just the setup. The constraint that rules it out: pre-build adjacency in O(N·L²) by bucketing words under wildcard patterns ("h*t" → {"hat","hit","hot",...}), so two words are neighbors iff they share a bucket. The BFS itself is then standard.</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>beginWord = "hit", endWord = "cog", wordList = ["hot","dot","dog","lot","log","cog"].</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Wildcard buckets (built once in O(N · L²)):
+   '*ot' -> [hot, dot, lot]
+   'h*t' -> [hot]                  ← 'hit' shares this bucket on lookup
+   'ho*' -> [hot]
+   'd*t' -> [dot]
+   'do*' -> [dot, dog]
+   '*og' -> [dog, log, cog]
+   'l*t' -> [lot]
+   'lo*' -> [lot, log]
+   'c*g' -> [cog]
+   'co*' -> [cog]
+
+BFS frontier (each level = one edit distance from start):
+  level 1: {hit}
+  level 2: neighbors(hit) = hit's wildcard buckets ('*it','h*t','hi*')
+           → '*it' empty, 'h*t' = [hot], 'hi*' empty
+           → {hot}
+  level 3: neighbors(hot) → 'hot' shares '*ot' = [hot,dot,lot],
+                             'h*t' = [hot] (drained),
+                             'ho*' = [hot] (drained)
+           → {dot, lot}
+  level 4: neighbors(dot, lot)
+           dot → 'do*' = [dot,dog] → {dog}
+           lot → 'lo*' = [lot,log] → {log}
+           → {dog, log}
+  level 5: neighbors(dog, log)
+           dog → '*og' = [dog,log,cog] → {cog}  ← TARGET FOUND
+           return 5
+
+Path: hit → hot → dot → dog → cog
+       (or hit → hot → lot → log → cog -- same length)
+</pre>
+<p>Two implementation details to call out. (1) The <strong>bucket drain</strong>: after using a bucket once, we set <code>patterns[key] = []</code> so subsequent BFS steps don't re-examine the same words. Without this, every word in the bucket gets visited L times (once per wildcard slot), which inflates the constant. (2) The <strong>seen set</strong> on the word itself, not the bucket: we mark each word visited the first time it enters the queue, not when its bucket is drained — this is what gives the BFS its O(N) word-visit budget.</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>from collections import defaultdict, deque
+
+def ladderLength(beginWord, endWord, wordList):
+    """BFS over a graph where edges are 'differ by exactly one letter.'
+       The graph is implicit; we materialise it via wildcard buckets."""
+    wordSet = set(wordList)
+    if endWord not in wordSet:
+        return 0
+    L = len(beginWord)
+
+    # PRE-BUILD: O(N · L²) -- for each word, generate L wildcard patterns,
+    # bucket the word under each. Two words are neighbours iff they share
+    # at least one bucket.
+    patterns = defaultdict(list)
+    for w in wordSet:
+        for i in range(L):
+            patterns[w[:i] + '*' + w[i+1:]].append(w)
+
+    # BFS: classic queue + seen set. Each level = one edit step.
+    seen = {beginWord}
+    q = deque([(beginWord, 1)])
+    while q:
+        w, d = q.popleft()
+        if w == endWord:
+            return d
+        for i in range(L):
+            key = w[:i] + '*' + w[i+1:]
+            for nxt in patterns[key]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    q.append((nxt, d + 1))
+            patterns[key] = []   # DRAIN: never re-examine this bucket
+    return 0
+</code></pre>
+<p>The senior follow-up most interviewers ask for: <strong>bidirectional BFS</strong>. Search forward from beginWord and backward from endWord simultaneously, alternating layers and always expanding the smaller frontier. When the two frontiers meet, you've found the shortest path. The pruning is dramatic — if the branching factor is b and the answer is d, unidirectional is O(b^d) but bidirectional is O(2·b^(d/2)). For d=8 and b=10, that's 10⁸ vs 2·10⁴ — a 5000× speedup. Same wildcard-bucket primitive, two queues instead of one.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(N·L²) for the pre-build (N words × L wildcard patterns × O(L) string slicing per pattern) plus O(N·L²) for the BFS (each word is visited once, generates L patterns, each pattern's bucket is drained once across the whole run). Net: O(N·L²). <strong>Space:</strong> O(N·L²) for the bucket index — each word appears in L buckets, each bucket key is length L. <em>The trick that gets you there</em>: wildcard buckets convert the adjacency-test from O(L) per pair (Hamming distance check across all N² pairs) into O(1) hash lookup per pattern (L hashes per word).</p>
+
+<p>Bidirectional BFS doesn't change the worst-case complexity but reduces the typical-case work by a factor of b^(d/2) where b is branching factor and d is path length. For real dictionaries, b ≈ 50 and d ≈ 5–10, so bidirectional is 100×–1000× faster in practice.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>endWord not in wordList</strong> — return 0. The early-exit on <code>endWord not in wordSet</code> avoids running a full BFS only to find nothing.</li>
+  <li><strong>beginWord == endWord</strong> — depends on spec; LeetCode 127 returns 0 (no transformation needed but the problem requires at least one step ambiguously). State your assumption.</li>
+  <li><strong>beginWord in wordList</strong> — the original LeetCode 127 allows this; doesn't matter for the algorithm because we use <code>seen</code> to prevent re-visits.</li>
+  <li><strong>Disconnected components</strong> (endWord exists in wordList but unreachable) — the BFS exhausts the reachable component and returns 0. The bucket-drain trick is critical here to keep work bounded.</li>
+  <li><strong>Single-character words</strong> (L=1) — buckets are all "*"; every word is a neighbor of every other. The algorithm still works but the bucket size is N, so BFS is O(N) per level.</li>
+  <li><strong>Bidirectional BFS</strong> — the senior follow-up. Two frontiers, expand the smaller one each round, check intersection. Asymptotic constant improvement of b^(d/2).</li>
+  <li><strong>Returning the actual path, not just the length</strong> (Word Ladder II, LeetCode 126) — significantly harder; need BFS to build a DAG of predecessors, then DFS to enumerate all shortest paths. The L6 escalation.</li>
+  <li><strong>Dynamic dictionary (words added mid-search)</strong> — re-bucket on insert. The pattern index is incremental.</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>Spell correction — Google "Did you mean?", Apple autocorrect, Microsoft Word</h5>
+<p>The bedrock algorithm in spell-correction is Peter Norvig's BFS over edit-distance (his 2007 essay <em>"How to Write a Spelling Corrector"</em> is the canonical reference). For one-edit corrections, the wildcard-bucket trick is exactly what Google's mobile keyboard ships. For multi-edit, it's BFS over the edit graph with the same wildcard adjacency. Apple's autocorrect (the on-device model in iOS keyboards) uses a finite-state-transducer variant but the wildcard primitive is the canonical reference.</p>
+
+<h5>DNA sequence one-edit search — BWA, Bowtie2, BLAST</h5>
+<p>Aligning a short read against a reference genome with up to k mismatches uses an "approximate-match BFS" where adjacency is one-base-substitution. BWA's seed-and-extend uses an FM-index for the inner lookup (more efficient than wildcard buckets for the 4-letter alphabet), but the BFS shape over the edit graph is identical. The k=1 case is essentially Word Ladder over DNA strings.</p>
+
+<h5>Graph-of-thoughts in LLM agents — DeepMind Graph-of-Thoughts, Anthropic agent traces</h5>
+<p>When an LLM agent generates a tree of intermediate reasoning steps and needs to find the shortest valid sequence to a goal state, the underlying search is BFS over an implicit graph where nodes are partial-reasoning-states and edges are single-step transformations. The wildcard-bucket trick generalises: bucket states by a hash of their structurally-similar features, then expand the bucket as candidate next-states.</p>
+
+<h5>Game AI — A*-on-implicit-graph (Civilization tech-tree, factory layout games)</h5>
+<p>Building a tech tree or factory layout where each state differs from its neighbours by one decision is structurally identical. The shortest-path-from-state-A-to-state-B query runs BFS with bucketing on (state-hash modulo decision-cardinality).</p>
+
+<h5>Network configuration diff — Cisco IOS, Juniper Junos</h5>
+<p>"What's the shortest sequence of single-config-change steps from current config to target config such that every intermediate config is policy-valid?" runs BFS over the config-graph. Wildcard bucketing on canonical-form-modulo-one-field is the optimisation.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0158">python_175-0158</a> — this question</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0059">python_175-0059 — Minimum Window Substring</a> — same "implicit constraint structure that gets exposed via a clever index" pattern but on a sliding window instead of a graph.</li>
+  <li>Sister: <strong>Word Ladder II</strong> (LeetCode 126) — return all shortest paths, not just length. Builds a predecessor DAG during BFS, then DFS to enumerate. The L6 follow-up.</li>
+  <li>Sister: <strong>Open the Lock</strong> (LeetCode 752) — same wildcard-pattern BFS but on a 4-digit combination lock. The adjacency is "one digit changes by ±1."</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew</a> — the bucket-index trick here is the same shape as the partition-hot-key index in salted partitioning (<a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>) — bucket-on-canonical-key-modulo-something for O(1) lookup.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Don't propose the O(N²) "compare every pair" approach as your first idea — name it as the rejected baseline and pivot immediately to wildcard buckets. The phrase that lands: <em>"two words are neighbors iff they share a wildcard bucket; pre-build in O(N·L²), each BFS step is O(L · bucket_size)."</em> Then mention bidirectional BFS as the senior optimisation (constant factor of b^(d/2)) and Norvig's spell-correction essay as the production reference. The interviewer is listening for whether you understand that <em>the graph is implicit</em> — that's the structural insight that unlocks every graph-of-thoughts and approximate-match problem at scale.</div>

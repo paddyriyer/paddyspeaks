@@ -1,0 +1,49 @@
+<p>&ldquo;Average rating per course&rdquo; sounds trivial &mdash; until the naive arithmetic <code>SUM(stars) / COUNT(*)</code> quietly returns the wrong number. Both operands are integers, so the division is <strong>integer division</strong>: the fractional part is discarded before you ever see it. An average of 4.5 prints as 4.</p>
+
+<h4>1. The source data &mdash; <code>ratings</code></h4>
+<table>
+  <thead><tr><th>course_id</th><th>stars</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>5</td></tr>
+    <tr><td>100</td><td>4</td></tr>
+    <tr><td>200</td><td>3</td></tr>
+    <tr><td>200</td><td>2</td></tr>
+    <tr><td>200</td><td>2</td></tr>
+    <tr><td>300</td><td>5</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The trap &mdash; <code>SUM(stars) / COUNT(*)</code></h4>
+<pre><code>SELECT course_id, SUM(stars) / COUNT(*) AS avg_rating
+FROM ratings GROUP BY course_id;</code></pre>
+<p><code>SUM(stars)</code> and <code>COUNT(*)</code> are both integer types, and integer &divide; integer in SQL truncates toward zero. Course 100 computes <code>9 / 2 = 4</code> (not 4.5); course 200 computes <code>7 / 3 = 2</code> (not 2.33). The query runs without error and returns plausible-looking whole numbers &mdash; the bug is invisible unless you know the true averages.</p>
+
+<h4>3. The correct query</h4>
+<pre><code>SELECT course_id, ROUND(AVG(stars), 2) AS avg_rating
+FROM ratings
+GROUP BY course_id
+ORDER BY course_id;</code></pre>
+<table>
+  <thead><tr><th>course_id</th><th>avg_rating</th><th>integer-division result</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>4.50</td><td>4</td></tr>
+    <tr><td>200</td><td>2.33</td><td>2</td></tr>
+    <tr><td>300</td><td>5.00</td><td>5</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why AVG is safe and manual division is not</h5>
+<p><code>AVG()</code> over an integer column returns an exact <code>numeric</code> in PostgreSQL &mdash; it does not inherit the integer type of its input. <code>SUM() / COUNT()</code>, by contrast, divides one integer by another, and SQL&rsquo;s <code>/</code> operator stays in integer arithmetic when both sides are integers. Prefer the built-in <code>AVG</code> precisely because it sidesteps the coercion question.</p>
+
+<h5>Forcing fractional division when you must divide manually</h5>
+<p>If a hand-rolled ratio is unavoidable (e.g. a weighted average), cast one operand: <code>SUM(stars)::numeric / COUNT(*)</code>, or multiply by <code>1.0</code>: <code>1.0 * SUM(stars) / COUNT(*)</code>. Casting <em>after</em> the division (<code>(SUM(stars) / COUNT(*))::numeric</code>) is too late &mdash; the truncation has already happened. The cast must reach the operands.</p>
+
+<h5>ROUND for presentation</h5>
+<p><code>ROUND(AVG(stars), 2)</code> trims the long <code>numeric</code> tail to two decimals for display. <code>ROUND(numeric, int)</code> is well defined in PostgreSQL; if the value were a <code>double precision</code>, the two-argument <code>ROUND</code> would not exist and you would cast to <code>numeric</code> first.</p>
+
+<h5>Dialect notes</h5>
+<p>Integer division is the default for <code>/</code> in PostgreSQL, SQL Server, Oracle, and SQLite. MySQL is the exception &mdash; its <code>/</code> always yields a decimal (use <code>DIV</code> for integer division). BigQuery&rsquo;s <code>/</code> returns a float. Because the bank targets PostgreSQL, the truncation trap is live here.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> in PostgreSQL <code>integer / integer</code> truncates, so <code>SUM(x)/COUNT(*)</code> silently floors the average. Use <code>AVG()</code> (returns exact <code>numeric</code>), or, if dividing by hand, cast an operand &mdash; <code>SUM(x)::numeric / COUNT(*)</code> &mdash; before the division, not after.</div>

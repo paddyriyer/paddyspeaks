@@ -1,0 +1,70 @@
+<p>Wix's commerce ops team runs an inventory aging report: how long has each product been sitting in the warehouse since it was received? The classic answer is a CASE expression that drops each product into a 0-30 / 31-60 / 61-90 / 90+ bucket. It looks trivial, but the boundary conditions, the timestamp-to-date cast, and the dependence on "today" are exactly where this question earns its keep.</p>
+
+<h4>1. The source data &mdash; <code>inventory</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>received_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-05-01</td></tr>
+    <tr><td>2</td><td>2026-04-10</td></tr>
+    <tr><td>3</td><td>2026-03-05</td></tr>
+    <tr><td>4</td><td>2026-01-15</td></tr>
+    <tr><td>5</td><td>2025-11-20</td></tr>
+  </tbody>
+</table>
+<p>Evaluated against today (2026-05-15), the ages are 14, 35, 71, 120 and 176 days. Product 2 at 35 days sits just past the 30-day line, and product 3 at 71 days sits just past the 60-day line &mdash; the boundary cases that test whether the <code>&lt;</code> comparisons land where you think.</p>
+
+<h4>2. The SQL &mdash; <code>CASE</code> aging buckets</h4>
+<pre><code>SELECT product_id,
+  CASE WHEN CURRENT_DATE - received_at::date &lt; 30 THEN '0-30'
+       WHEN CURRENT_DATE - received_at::date &lt; 60 THEN '31-60'
+       WHEN CURRENT_DATE - received_at::date &lt; 90 THEN '61-90'
+       ELSE '90+' END AS aging_bucket
+FROM inventory;</code></pre>
+<p><code>CURRENT_DATE - received_at::date</code> yields an integer day count. <code>CASE</code> evaluates branches <em>top to bottom</em> and stops at the first true one, so each later branch implicitly assumes the earlier thresholds were not met.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>aging_bucket</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>0-30</td></tr>
+    <tr><td>2</td><td>31-60</td></tr>
+    <tr><td>3</td><td>61-90</td></tr>
+    <tr><td>4</td><td>90+</td></tr>
+    <tr><td>5</td><td>90+</td></tr>
+  </tbody>
+</table>
+<p>14 days &rarr; 0-30; 35 days &rarr; 31-60; 71 days &rarr; 61-90; 120 and 176 days both &rarr; 90+. The cascading <code>CASE</code> handed each product to the first matching threshold.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The label-vs-logic mismatch &mdash; the real trap</h5>
+<p>The bucket <em>labels</em> say "31-60" and "61-90", but the <em>logic</em> uses <code>&lt; 30</code>, <code>&lt; 60</code>, <code>&lt; 90</code>. A product aged exactly 30 days fails <code>&lt; 30</code> and falls into the "31-60" bucket &mdash; whose label implies it starts at 31. The label is off by one at every boundary. To make label and logic agree, the cuts should be <code>&lt;= 30</code>, <code>&lt;= 60</code>, <code>&lt;= 90</code>:</p>
+<pre><code>CASE WHEN age &lt;= 30 THEN '0-30'
+     WHEN age &lt;= 60 THEN '31-60'
+     WHEN age &lt;= 90 THEN '61-90'
+     ELSE '90+' END</code></pre>
+<p>Catching this off-by-one and confirming the intended boundary with the interviewer is the senior detail of the whole question.</p>
+
+<h5>"As of when?" &mdash; <code>CURRENT_DATE</code> makes the report non-reproducible</h5>
+<p><code>CURRENT_DATE</code> means every run gives a different answer, and you cannot re-create last month's report. For a snapshot report, pass the as-of date as a parameter (or join to a reporting-date table) so the output is deterministic and auditable. "Aging as of report date X" beats "aging as of whenever this happened to run".</p>
+
+<h5>The timestamp cast &mdash; why <code>::date</code> matters</h5>
+<p><code>received_at</code> is a timestamp. <code>CURRENT_DATE - received_at</code> (no cast) mixes a date with a timestamp and yields an <code>interval</code> with hours and minutes, which compares awkwardly against the integer <code>30</code>. The <code>::date</code> cast truncates the time-of-day so the subtraction is a clean integer day count. Drop the cast and the boundary behaviour gets fuzzy by up to a day.</p>
+
+<h5>A set-based aging summary</h5>
+<p>The per-product list is the raw report; leadership usually wants the distribution. Wrap it and count:</p>
+<pre><code>SELECT aging_bucket, COUNT(*) AS n
+FROM (
+  SELECT CASE WHEN CURRENT_DATE - received_at::date &lt;= 30 THEN '0-30'
+              WHEN CURRENT_DATE - received_at::date &lt;= 60 THEN '31-60'
+              WHEN CURRENT_DATE - received_at::date &lt;= 90 THEN '61-90'
+              ELSE '90+' END AS aging_bucket
+  FROM inventory
+) t
+GROUP BY aging_bucket
+ORDER BY aging_bucket;</code></pre>
+
+<h5>Edge cases: NULL and future-dated receipts</h5>
+<p>If <code>received_at</code> is NULL, the subtraction is NULL, every <code>WHEN</code> is unknown, and the row falls through to the <code>ELSE</code> &mdash; silently mislabelled "90+" rather than flagged as missing data. And a receipt dated in the <em>future</em> (a data-entry error) yields a negative age, which still satisfies <code>&lt; 30</code> and lands in "0-30". Add an explicit <code>WHEN received_at IS NULL THEN 'unknown'</code> and consider guarding against negative ages.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that the bucket labels are off by one against the <code>&lt;</code> thresholds and align them with <code>&lt;=</code>, replace <code>CURRENT_DATE</code> with an as-of parameter so the report is reproducible, justify the <code>::date</code> cast on the timestamp, and handle NULL or future-dated receipts explicitly instead of letting them fall through the <code>ELSE</code>.</div>

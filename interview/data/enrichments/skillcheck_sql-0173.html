@@ -1,0 +1,60 @@
+<p>Bucketing customers into LTV deciles is a standard segmentation step in CRM and marketing: it lets you identify the top 10%, the bottom 10%, and every stratum between them in a single query. The interviewer is probing whether you know <code>NTILE(n)</code> and understand its bucket-assignment semantics &mdash; particularly how it handles remainder rows that cannot be divided evenly across buckets.</p>
+
+<h4>1. The source data &mdash; <code>customer</code></h4>
+<table>
+  <thead><tr><th>cust_code</th><th>ltv</th></tr></thead>
+  <tbody>
+    <tr><td>C01</td><td>100</td></tr>
+    <tr><td>C02</td><td>200</td></tr>
+    <tr><td>C03</td><td>300</td></tr>
+    <tr><td>C04</td><td>400</td></tr>
+    <tr><td>C05</td><td>500</td></tr>
+    <tr><td>C06</td><td>600</td></tr>
+    <tr><td>C07</td><td>700</td></tr>
+    <tr><td>C08</td><td>800</td></tr>
+    <tr><td>C09</td><td>900</td></tr>
+    <tr><td>C10</td><td>1000</td></tr>
+  </tbody>
+</table>
+<p>Exactly 10 rows for 10 buckets &mdash; the clean case. Each customer lands in a unique decile (1 through 10). The schema is deliberately tidy to make the decile concept clear; real datasets have many more rows and ties, which is where <code>NTILE</code>'s behaviour matters most.</p>
+
+<h4>2. The SQL &mdash; NTILE window function</h4>
+<pre><code>SELECT cust_code, ltv,
+       NTILE(10) OVER (ORDER BY ltv) AS decile
+FROM customer
+ORDER BY decile DESC, ltv DESC, cust_code;</code></pre>
+<p><code>NTILE(10) OVER (ORDER BY ltv)</code> sorts all rows by ltv ascending and partitions them into 10 as-equal-as-possible groups, labelling each group 1 (lowest) through 10 (highest). There is no <code>PARTITION BY</code> because all customers share one global ranking. The <code>ORDER BY</code> in the output sorts descending so the most valuable segment (decile 10) appears first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cust_code</th><th>ltv</th><th>decile</th></tr></thead>
+  <tbody>
+    <tr><td>C10</td><td>1000</td><td>10</td></tr>
+    <tr><td>C09</td><td>900</td><td>9</td></tr>
+    <tr><td>C08</td><td>800</td><td>8</td></tr>
+    <tr><td>C07</td><td>700</td><td>7</td></tr>
+    <tr><td>C06</td><td>600</td><td>6</td></tr>
+    <tr><td>C05</td><td>500</td><td>5</td></tr>
+    <tr><td>C04</td><td>400</td><td>4</td></tr>
+    <tr><td>C03</td><td>300</td><td>3</td></tr>
+    <tr><td>C02</td><td>200</td><td>2</td></tr>
+    <tr><td>C01</td><td>100</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>With 10 rows and 10 buckets each bucket has exactly one customer. The output is ordered by <code>decile DESC</code>, so the highest-LTV customer (C10, decile 10) appears first.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How <code>NTILE(n)</code> assigns rows to buckets</h5>
+<p><code>NTILE(n)</code> divides the ordered row set into <em>n</em> groups as evenly as possible. If the row count does not divide evenly by <em>n</em>, the first <code>row_count % n</code> buckets each get one extra row (they are larger); the remaining buckets are one row smaller. For example, 11 rows into 10 buckets: buckets 1&ndash;1 get 2 rows, buckets 2&ndash;10 get 1 row each. The larger buckets always come <em>first</em> in the ordering, which matters when interpreting bucket sizes. There is no guarantee that a bucket labelled &ldquo;decile 1&rdquo; contains exactly 10% of the population when the row count is not a multiple of 10.</p>
+
+<h5>NTILE vs PERCENT_RANK vs CUME_DIST</h5>
+<p><code>NTILE</code> assigns a discrete bucket number. <code>PERCENT_RANK</code> returns a value in [0, 1] representing relative rank (0 for the lowest, 1 for the highest); it is not a bucket. <code>CUME_DIST</code> returns the fraction of rows at or below the current row &mdash; useful for the question &ldquo;what percentile is this row?&rdquo; rather than &ldquo;which bucket does this row belong to?&rdquo;. Use <code>NTILE</code> when you need discrete segment labels for downstream <code>GROUP BY</code> or reporting; use <code>CUME_DIST</code> when you need a continuous percentile score.</p>
+
+<h5>Tie handling &mdash; the hard edge case</h5>
+<p>If two customers have the same LTV, <code>NTILE</code> can assign them to different buckets, splitting a tie group across a bucket boundary. This is often surprising: two customers with LTV 500 might end up in decile 5 and decile 6. If the business requirement is &ldquo;ties must be in the same bucket,&rdquo; <code>NTILE</code> is the wrong tool; use <code>PERCENT_RANK</code> or <code>CUME_DIST</code> with manual thresholds instead. Raising this in the interview demonstrates you have applied bucketing in a real production context.</p>
+
+<h5>Performance and dialect portability</h5>
+<p><code>NTILE</code> is a standard SQL window function supported by PostgreSQL, SQL Server, Oracle, Snowflake, BigQuery, and MySQL 8.0+. SQLite does not support it natively. The function requires a full sort of the partition, so it is O(n log n) in the partition size. On very large tables a pre-aggregated materialized view of percentile breakpoints with a range join is often faster than a live window function pass.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>NTILE(n)</code> makes the first <code>row_count % n</code> buckets larger when the count is not evenly divisible; understand that ties can be split across bucket boundaries (and that <code>CUME_DIST</code> is the fix when ties must stay together); and confirm the output <code>ORDER BY</code> reflects the business requirement (decile DESC puts the most valuable segment first).</div>

@@ -1,0 +1,27 @@
+<p>AMA (Ask Me Anything) sessions live or die by host responsiveness. <strong>Within-1-hour reply rate</strong> separates serious AMAs from absentee ones.</p>
+
+<h4>2. The SQL — within-1-hour reply rate</h4>
+<pre><code>SELECT ama_id,
+  COUNT(*) AS questions, COUNT(answered_at) AS answered,
+  SUM(CASE WHEN julianday(answered_at) - julianday(asked_at) &lt;= 1.0/24 THEN 1 ELSE 0 END) AS answered_within_1h,
+  ROUND(100.0 * SUM(CASE WHEN julianday(answered_at) - julianday(asked_at) &lt;= 1.0/24 THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS within_1h_pct
+FROM ama_questions GROUP BY ama_id ORDER BY within_1h_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The 1.0/24 idiom for hour-window</h5>
+<p>1 hour in julianday-day units is 1/24. Memorize: 1/24 = hour, 1/1440 = minute, 1/288 = 5 min.</p>
+
+<h5>The "absentee AMA" antipattern</h5>
+<p>Host posts opening, gets 500 questions, answers 3, leaves. Reddit users hate this — Karma collapses, future AMAs lose trust. The metric flags it.</p>
+
+<h5>Question selection bias</h5>
+<p>Hosts answer easy / friendly questions, skip hard ones. <code>answered / total</code> hides this. Production splits by question controversy (downvote ratio).</p>
+
+<h5>Live vs delayed</h5>
+<p>Some AMAs are scheduled for "1 hour live, then trickle answers". Others are async. Comparing them is unfair; mark AMAs by format.</p>
+
+<h5>The answer-quality signal</h5>
+<p>Fast + short answers vs slow + thoughtful is the host-style choice. Production overlays answer-length to reveal style.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 1.0/24 for hour windows, identify absentee-AMA antipattern, watch for question-selection bias, distinguish live vs async format, and overlay answer-length for style.</div>

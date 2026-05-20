@@ -1,0 +1,67 @@
+<p>A CDC sink table is the landing zone for Debezium change events before they are merged into a silver-layer table. The interviewer is probing whether you understand the <strong>Debezium event envelope</strong> (before/after images, op code, LSN), how to design an <strong>idempotent primary key</strong> that allows event replay without duplicates, how to store <strong>schema-flexible payloads</strong> (JSONB for the before/after rows), and how to index the <code>primary_key</code> column for efficient MERGE lookups. This pattern is the backbone of CDC-to-lakehouse pipelines.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Source coordinates:</strong> <code>source_db</code>, <code>source_table</code>, and <code>source_lsn</code> (or binlog position) pinpoint an exact position in the source changelog &mdash; and therefore uniquely identify one change event.</li>
+  <li><strong>Operation type:</strong> <code>op</code> distinguishes creates, updates, deletes, and initial-snapshot reads; the MERGE step applies different logic per op code.</li>
+  <li><strong>Before and after images:</strong> Debezium provides both the pre-change and post-change row; the before image is required for correct UPDATE processing and is essential for DELETE (it is the only data about the deleted row).</li>
+  <li><strong>Idempotency on replay:</strong> Kafka exactly-once semantics are hard; the PK on <code>(source_db, source_table, source_lsn)</code> &mdash; the changelog position uniquely identifies one change event &mdash; ensures that replaying the same event twice is a no-op.</li>
+  <li><strong>Schema versioning:</strong> Debezium event schemas evolve; <code>schema_version</code> records the Debezium schema registry ID, enabling version-aware MERGE logic.</li>
+  <li><strong>GIN index on primary_key JSONB:</strong> the MERGE step looks up staging rows by the source row's primary key; a GIN index on the JSONB column allows containment queries.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE staging_orders_cdc (
+  source_db          VARCHAR(64)  NOT NULL,
+  source_table       VARCHAR(64)  NOT NULL,
+  source_lsn         NUMERIC(20)  NOT NULL,                  -- e.g. Postgres LSN or MySQL binlog file+pos as integer
+  source_txid        BIGINT,
+  op                 CHAR(1)      NOT NULL,                  -- c = create, u = update, d = delete, r = read (initial snapshot)
+  source_ts_ms       BIGINT       NOT NULL,                  -- event time at source
+  ingest_ts          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  primary_key        JSONB        NOT NULL,                  -- e.g. {"order_id": 1234}
+  before_image       JSONB,                                  -- null for c, present for u/d
+  after_image        JSONB,                                  -- null for d, present for c/u
+  schema_version     INT          NOT NULL,                  -- Debezium schema id
+  PRIMARY KEY (source_db, source_table, source_lsn)
+);
+
+CREATE INDEX ix_staging_orders_cdc_pk
+  ON staging_orders_cdc USING GIN (primary_key);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>source_db</code></td><td>Composite PK part 1 / source coordinate</td><td>Namespaces events by source database; allows one staging table to receive events from multiple upstream databases.</td></tr>
+    <tr><td><code>source_table</code></td><td>Composite PK part 2 / source coordinate</td><td>Identifies which source table the event came from; required for multi-table CDC into a single staging schema.</td></tr>
+    <tr><td><code>source_lsn</code></td><td>Composite PK part 3 / ordering key</td><td><code>NUMERIC(20)</code> accommodates Postgres LSN (64-bit integer) and MySQL binlog offsets; monotonically increasing within a source, enabling event ordering.</td></tr>
+    <tr><td><code>source_txid</code></td><td>Transaction grouping key</td><td>Groups events from the same source transaction; useful for multi-row transactional consistency checks in the MERGE step.</td></tr>
+    <tr><td><code>op</code></td><td>Operation type dimension</td><td><code>CHAR(1)</code>: 'c' create, 'u' update, 'd' delete, 'r' initial snapshot read; drives conditional logic in the MERGE statement.</td></tr>
+    <tr><td><code>source_ts_ms</code></td><td>Event-time measure</td><td>Milliseconds since epoch at the source; preserves the original business timestamp for lag measurement and event-time ordering.</td></tr>
+    <tr><td><code>ingest_ts</code></td><td>Audit / processing-time column</td><td>Records when the row landed in the staging table; the gap <code>ingest_ts - to_timestamp(source_ts_ms/1000)</code> is the pipeline lag metric.</td></tr>
+    <tr><td><code>primary_key</code></td><td>MERGE lookup key (JSONB, GIN-indexed)</td><td>JSONB stores the source row's PK as a document; this handles composite PKs and avoids schema-per-table staging tables. Kept out of the table PK &mdash; JSONB has no default btree operator class &mdash; and GIN-indexed instead for containment queries.</td></tr>
+    <tr><td><code>before_image</code></td><td>Pre-change snapshot payload</td><td>Nullable; populated for 'u' and 'd' ops; contains the full row state before the change. Required for correct silver-layer MERGE.</td></tr>
+    <tr><td><code>after_image</code></td><td>Post-change snapshot payload</td><td>Nullable for 'd' ops; contains the full row state after the change; used as the source of truth for UPSERT in the silver layer.</td></tr>
+    <tr><td><code>schema_version</code></td><td>Schema registry reference</td><td>Records the Debezium Avro/JSON schema version; enables the MERGE job to apply version-specific transformation logic when columns are added or renamed.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>source_lsn</code> is <code>NUMERIC(20)</code></h5>
+<p>A Postgres LSN is a 64-bit integer (two 32-bit parts). MySQL's binlog position is a (filename, offset) pair that is commonly serialized as a large integer for comparison purposes. <code>NUMERIC(20)</code> accommodates both representations without loss, while also preserving natural ordering &mdash; higher LSN = later in the log. Storing it as a string would break <code>ORDER BY source_lsn</code> comparisons.</p>
+
+<h5>JSONB for <code>primary_key</code> &mdash; and why it stays out of the PK</h5>
+<p>Using JSONB for the source row's primary key means one staging schema handles tables with simple integer PKs, composite PKs, and UUID PKs without alteration. It cannot, however, sit in the table's <code>PRIMARY KEY</code>: a PK is backed by a btree index and JSONB has no default btree operator class, so <code>PRIMARY KEY (&hellip;, primary_key)</code> fails at <code>CREATE TABLE</code>. It does not need to &mdash; <code>(source_db, source_table, source_lsn)</code> already identifies one change event uniquely (the LSN is a position in the source changelog), so that triple is the PK and delivers idempotent replay: re-inserting the same event is a no-op under <code>INSERT ... ON CONFLICT DO NOTHING</code>. The GIN index on the JSONB <code>primary_key</code> column is what serves the MERGE step, allowing <code>WHERE primary_key @&gt; '{"order_id": 1234}'</code> containment lookups.</p>
+
+<h5>Before/after image nullability rules</h5>
+<p>The Debezium envelope has clear rules: creates have only an after image; deletes have only a before image; updates have both; initial snapshots (op 'r') have only an after image. A CHECK constraint can enforce this: <code>CHECK (NOT (op = 'c' AND before_image IS NOT NULL))</code> and similarly for deletes. These constraints catch malformed events at ingest time rather than propagating them silently to the silver layer.</p>
+
+<h5>Silver-layer MERGE pattern</h5>
+<p>The MERGE step reads all unprocessed staging rows, orders them by <code>source_lsn ASC</code>, and applies each: UPSERT the <code>after_image</code> for 'c' and 'u' ops; DELETE the row identified by <code>primary_key</code> for 'd' ops. After processing, staging rows can be archived or truncated. Ordering by LSN is critical &mdash; an out-of-order MERGE could apply a DELETE before the UPDATE it logically follows.</p>
+
+<h5>Dialect notes</h5>
+<p>This design is Postgres-specific (JSONB, GIN indexes). In <strong>Snowflake</strong> the before/after images would be <code>VARIANT</code> columns and the GIN index is replaced by a <code>FLATTEN</code>-based query. In <strong>Delta Lake / Iceberg</strong>, the staging table is typically a raw Parquet landing zone and the MERGE is expressed as a Delta <code>MERGE INTO</code> statement triggered by a Spark job. The before/after image and op-code columns are universal across all CDC sink patterns.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> make the PK <code>(source_db, source_table, source_lsn)</code> &mdash; the changelog position uniquely identifies each event, so replay is idempotent; keep <code>primary_key</code> as JSONB (GIN-indexed) for MERGE lookups but out of the PK, since JSONB has no btree operator class; store both before and after images; and order MERGE processing by <code>source_lsn ASC</code> &mdash; out-of-order application is a silent data-correctness bug.</div>

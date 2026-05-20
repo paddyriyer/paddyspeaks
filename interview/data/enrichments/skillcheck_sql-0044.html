@@ -1,0 +1,70 @@
+<p>A payments reconciliation team needs a per-order ledger: how much was billed, how much actually arrived, how much was sent back, and whether the order balances. Money lives across three tables &mdash; <code>orders</code>, <code>payments</code>, <code>refunds</code> &mdash; and an order can have many payment and many refund rows, or none. The interviewer is probing fan-out awareness: join the three tables naively and you double-count. The safe pattern is aggregate-then-join.</p>
+
+<h4>1. The source data &mdash; <code>orders</code>, <code>payments</code>, <code>refunds</code></h4>
+<table>
+  <thead><tr><th>table</th><th>rows</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>orders</td><td>(1,100,50) (2,100,30) (3,101,80) (4,102,25) (5,102,100)</td><td>order 4 will have no payments &amp; no refunds</td></tr>
+    <tr><td>payments</td><td>(1,50) (2,15) (2,15) (3,80) (3,5) (5,100)</td><td>order 2 &amp; 3 have multiple payments; order 3 overpays</td></tr>
+    <tr><td>refunds</td><td>(3,20) (5,30) (5,70)</td><td>order 5 has two refund rows summing to its full amount</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are deliberate: order 4 appears in <em>neither</em> child table (must still show with zeros), order 3 has multiple payments <em>and</em> a refund, and order 5 is fully paid then fully refunded. A direct three-way join would multiply order 3's 2 payments by its 1 refund into 2 rows &mdash; corrupting every sum.</p>
+
+<h4>2. The SQL &mdash; pre-aggregate each side, then LEFT JOIN</h4>
+<pre><code>WITH p AS (
+  SELECT order_id, COALESCE(SUM(paid_amount),0) AS total_paid
+  FROM payments GROUP BY order_id
+),
+r AS (
+  SELECT order_id, COALESCE(SUM(refund_amount),0) AS total_refunded
+  FROM refunds  GROUP BY order_id
+)
+SELECT o.order_id,
+       o.amount AS order_amount,
+       COALESCE(p.total_paid, 0)      AS total_paid,
+       COALESCE(r.total_refunded, 0)  AS total_refunded,
+       COALESCE(p.total_paid, 0) - COALESCE(r.total_refunded, 0) AS net,
+       CASE
+         WHEN COALESCE(p.total_paid,0) &gt; o.amount THEN 'overpaid'
+         WHEN COALESCE(p.total_paid,0) &lt; o.amount THEN 'underpaid'
+         WHEN COALESCE(r.total_refunded,0) &gt; 0    THEN 'refunded'
+         ELSE 'paid'
+       END AS status
+FROM orders o
+LEFT JOIN p USING (order_id)
+LEFT JOIN r USING (order_id)
+ORDER BY o.order_id;</code></pre>
+<p>Each child table is collapsed to <em>one row per order</em> in its own CTE before any join happens. <code>orders</code> then <code>LEFT JOIN</code>s those pre-aggregated CTEs, so every order survives and each contributes exactly one row. <code>COALESCE</code> converts the <code>NULL</code>s from unmatched <code>LEFT JOIN</code>s into <code>0</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_amount</th><th>total_paid</th><th>total_refunded</th><th>net</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>50.00</td><td>50.00</td><td>0</td><td>50.00</td><td>paid</td></tr>
+    <tr><td>2</td><td>30.00</td><td>30.00</td><td>0</td><td>30.00</td><td>paid</td></tr>
+    <tr><td>3</td><td>80.00</td><td>85.00</td><td>20.00</td><td>65.00</td><td>overpaid</td></tr>
+    <tr><td>4</td><td>25.00</td><td>0</td><td>0</td><td>0</td><td>underpaid</td></tr>
+    <tr><td>5</td><td>100.00</td><td>100.00</td><td>100.00</td><td>0.00</td><td>refunded</td></tr>
+  </tbody>
+</table>
+<p>Order 3's <code>total_paid</code> is <strong>85</strong> &mdash; its two payment rows (80 + 5) summed once, not multiplied by the refund. Order 4, absent from both child tables, still appears with zeros and lands as <code>underpaid</code>. Order 5 is <code>refunded</code>: paid equals amount and refunds exceed zero.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The fan-out trap &mdash; why you cannot join all three raw</h5>
+<p><code>orders JOIN payments JOIN refunds</code> produces a Cartesian product <em>within each order</em>: order 3's 2 payments paired with its 1 refund give 2 rows, and <code>SUM(paid_amount)</code> over those 2 rows is correct by luck &mdash; but <code>SUM(refund_amount)</code> would count the 20 twice (40). With order 5's 2 payments and 2 refunds it is worse: 4 rows, both sums doubled. Pre-aggregating each child to one-row-per-order <em>before</em> joining is the only way each total stays honest.</p>
+
+<h5>Why <code>LEFT JOIN</code> &mdash; "return EVERY order" is a hard requirement</h5>
+<p>An <code>INNER JOIN</code> to <code>payments</code> would silently drop order 4 (no payment rows). The spec says every order must appear, so <code>orders</code> is the driving table and both child CTEs hang off it via <code>LEFT JOIN</code>. The unmatched side yields <code>NULL</code>, which <code>COALESCE(..., 0)</code> turns into a real zero so arithmetic and the <code>CASE</code> behave.</p>
+
+<h5>Two layers of <code>COALESCE</code> &mdash; they guard different things</h5>
+<p>The <code>COALESCE</code> <em>inside</em> the CTEs (<code>COALESCE(SUM(...),0)</code>) is technically redundant: <code>GROUP BY order_id</code> only emits a row when at least one child row exists, so <code>SUM</code> is never <code>NULL</code> there. The <code>COALESCE</code> in the <em>outer</em> query is the one that matters &mdash; it catches orders that produced <em>no CTE row at all</em> (order 4) and the <code>LEFT JOIN</code> handed back <code>NULL</code>. Knowing which guard does the real work is the senior read.</p>
+
+<h5>CASE branch order encodes the business priority</h5>
+<p>The <code>CASE</code> tests <code>overpaid</code> and <code>underpaid</code> first, so an amount mismatch always wins over refund state &mdash; order 3 is <code>overpaid</code> even though it has a refund. Only when paid <em>equals</em> amount do the last two branches distinguish <code>refunded</code> (refunds &gt; 0) from clean <code>paid</code>. <code>CASE</code> is first-match; reorder the branches and the labels change. The spec's wording &mdash; "'paid' if equal AND refunds = 0" &mdash; dictates this exact ordering.</p>
+
+<h5>Dialect notes &mdash; <code>USING</code> and the alternative shapes</h5>
+<p><code>JOIN ... USING (order_id)</code> is standard and works in Postgres, MySQL, BigQuery, and SQLite; SQL Server has no <code>USING</code> &mdash; use <code>ON o.order_id = p.order_id</code>. The aggregate-then-join pattern can equivalently be written with correlated scalar subqueries (<code>(SELECT COALESCE(SUM(paid_amount),0) FROM payments WHERE order_id = o.order_id)</code>), which sidesteps fan-out by construction but can be slower without good indexing. Both are valid; the CTE form is usually clearer and the planner-friendlier choice.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that joining <code>orders</code> to two one-to-many child tables fans out and corrupts sums, so pre-aggregate each child to one row per order <em>before</em> the join, drive with <code>LEFT JOIN</code> + <code>COALESCE</code> so zero-activity orders still surface, and order the <code>CASE</code> branches to match the stated business priority.</div>

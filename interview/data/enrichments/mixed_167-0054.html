@@ -1,0 +1,153 @@
+<p>Caching in Spark is the second-most-misused feature after <code>collect()</code>. Half of "I cached the DataFrame and it got slower" reports are cache-on-once-used data, the other half are forgetting to materialise the cache before reading from it. This question separates engineers who think <code>df.cache()</code> is magic from those who can reason about Spark's lazy evaluation and the storage-level trade-offs.</p>
+
+<h4>1. The source data — a real ETL with a fan-out</h4>
+<table>
+  <thead><tr><th>property</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>base DataFrame</td><td><code>enriched_events</code> = 18 stages of joins + parsing on raw event logs</td></tr>
+    <tr><td>compute cost to materialise</td><td>~22 minutes on a 50-executor cluster</td></tr>
+    <tr><td>downstream consumers in the same job</td><td>4 outputs: <code>by_country</code>, <code>by_device</code>, <code>by_hour</code>, <code>fraud_signals</code></td></tr>
+    <tr><td>size in memory (cached)</td><td>~38 GB (Parquet on disk would be ~12 GB compressed)</td></tr>
+    <tr><td>cluster memory available</td><td>200 GB across executors</td></tr>
+  </tbody>
+</table>
+<p>The trap: without caching, Spark re-executes the 22-minute lineage <strong>4 times</strong>, once per consumer = 88 minutes of pure recomputation. With caching, the lineage runs once, then 4 cheap scans of cached data ≈ 26 minutes total. The 62-minute savings is the entire reason cache exists. But cache also has costs (memory, eviction, GC) that bite if you cache the wrong thing.</p>
+
+<h4>2. The problem without cache</h4>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+                     ┌─── by_country.write    (recomputes 22 min lineage)  ── 22 min
+   raw_events ───┐   ├─── by_device.write     (recomputes 22 min lineage)  ── 22 min
+                 │   │
+   18-stage  ────┴───┤
+   lineage           │
+                     ├─── by_hour.write       (recomputes 22 min lineage)  ── 22 min
+                     └─── fraud_signals.write (recomputes 22 min lineage)  ── 22 min
+
+   Wall-clock (no cache):  ~88 minutes (linear in consumer count)
+</pre>
+<p>Spark is lazy. Every <code>write</code> (an action) triggers the full lineage from the start. There's no automatic memoisation across actions. The fix is to insert an explicit checkpoint — either in-memory (<code>cache</code>/<code>persist</code>) or on-disk (<code>checkpoint</code>).</p>
+
+<h5>The other failure mode — caching without materialising</h5>
+<pre><code># BUG: cache() is lazy. It only registers intent. The cache is empty until an action triggers it.
+df.cache()
+df.filter(...).write(...)   # ← First action: lineage runs AND cache fills, but in parallel.
+                            #   The filter sees the live RDD, not the cache.
+df.groupBy(...).write(...)  # ← This one DOES read from the warm cache.
+# Net: you got cache benefit only for the 2nd consumer, not the 1st. 30% of the win is lost.
+</code></pre>
+<p>The fix: <strong>materialise the cache deliberately with an action that reads every row</strong> (<code>df.count()</code>) before branching to consumers.</p>
+
+<h4>3. The fix — cache, persist, materialise, unpersist</h4>
+<pre><code>from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import Row
+from pyspark import StorageLevel
+
+spark = SparkSession.builder.appName("cache-and-performance").getOrCreate()
+
+# ─── Seeded sample so the example is runnable. In production this would be the 18-stage lineage. ───
+raw_events = spark.createDataFrame([
+    Row(event_id=1, user_id=10, country="US", device="ios",     ts="2026-01-01 09:01", amount=12.0),
+    Row(event_id=2, user_id=11, country="US", device="android", ts="2026-01-01 09:02", amount=88.0),
+    Row(event_id=3, user_id=12, country="DE", device="ios",     ts="2026-01-01 09:05", amount=5.0),
+    Row(event_id=4, user_id=10, country="US", device="ios",     ts="2026-01-01 10:01", amount=110.0),
+    Row(event_id=5, user_id=13, country="IN", device="android", ts="2026-01-01 10:15", amount=3.5),
+    Row(event_id=6, user_id=11, country="US", device="android", ts="2026-01-01 11:00", amount=44.0),
+])
+
+# Pretend this is the expensive 18-stage lineage.
+enriched = (raw_events
+            .withColumn("ts", F.to_timestamp("ts"))
+            .withColumn("hour", F.hour("ts"))
+            .withColumn("amount_usd", F.col("amount") * 1.0))   # currency conversion etc.
+
+# ─── Step 1: choose storage level deliberately ────────────────────────────
+# MEMORY_AND_DISK = the safe default. Fits in RAM when possible; spills to disk on pressure.
+# Why not the default cache() (= MEMORY_ONLY)? If executor RAM fills, MEMORY_ONLY EVICTS partitions
+# and Spark silently recomputes them from lineage on the next read. MEMORY_AND_DISK spills instead.
+enriched.persist(StorageLevel.MEMORY_AND_DISK)
+
+# ─── Step 2: materialise the cache with a forcing action ──────────────────
+# .count() touches every partition, populating the cache before any consumer runs.
+# Without this, the first consumer "races" the cache fill and may not benefit.
+enriched.count()
+
+# ─── Step 3: fan out — every consumer below reads from the warm cache ─────
+enriched.groupBy("country").agg(F.sum("amount_usd").alias("total")).write.mode("overwrite").parquet("/tmp/by_country")
+enriched.groupBy("device").agg(F.count("*").alias("events")).write.mode("overwrite").parquet("/tmp/by_device")
+enriched.groupBy("hour").agg(F.avg("amount_usd").alias("avg_amount")).write.mode("overwrite").parquet("/tmp/by_hour")
+enriched.filter(F.col("amount_usd") > 100).write.mode("overwrite").parquet("/tmp/fraud_signals")
+
+# ─── Step 4: release the memory ──────────────────────────────────────────
+# Without this, the cache lives until the session ends. If the same job runs another stage
+# that needs memory, you'll OOM. blocking=True waits for eviction (safer in scripts).
+enriched.unpersist(blocking=True)
+</code></pre>
+
+<h5>The storage-level table — what each one means</h5>
+<table>
+  <thead><tr><th>Level</th><th>RAM</th><th>Disk</th><th>Serialised?</th><th>Replicated?</th><th>When to use</th></tr></thead>
+  <tbody>
+    <tr><td><code>MEMORY_ONLY</code> (= <code>cache()</code>)</td><td>Yes</td><td>No</td><td>No</td><td>1×</td><td>Small DF, lots of RAM, OK with silent recompute on eviction</td></tr>
+    <tr><td><code>MEMORY_AND_DISK</code></td><td>Yes</td><td>Yes</td><td>No</td><td>1×</td><td><strong>Default for PySpark <code>cache()</code></strong>; safe everywhere</td></tr>
+    <tr><td><code>MEMORY_ONLY_SER</code></td><td>Yes (serialised)</td><td>No</td><td>Yes</td><td>1×</td><td>RAM pressure, Java objects bigger than serialised; trade CPU for memory</td></tr>
+    <tr><td><code>MEMORY_AND_DISK_SER</code></td><td>Yes (serialised)</td><td>Yes</td><td>Yes</td><td>1×</td><td>Big DF, RAM-bound cluster</td></tr>
+    <tr><td><code>DISK_ONLY</code></td><td>No</td><td>Yes</td><td>Yes</td><td>1×</td><td>DF too big for RAM; lineage is very expensive</td></tr>
+    <tr><td><code>OFF_HEAP</code></td><td>Off-heap RAM</td><td>No</td><td>Yes</td><td>1×</td><td>Avoid GC; needs <code>spark.memory.offHeap.enabled=true</code></td></tr>
+    <tr><td><code>*_2</code> variants</td><td colspan="3">Same as above</td><td>2× replication</td><td>Streaming jobs where partition loss = retry cost</td></tr>
+  </tbody>
+</table>
+<p>For PySpark specifically, <strong>Java objects are NOT a concern</strong> — Python rows live in the Python worker, while the cached DataFrame is in the JVM Tungsten binary format. So MEMORY_ONLY vs MEMORY_ONLY_SER is less meaningful in PySpark than in Scala. The senior PySpark default is <code>MEMORY_AND_DISK</code>.</p>
+
+<h4>4. Where this appears in production</h4>
+<ul>
+  <li><strong>Netflix's ad-attribution job</strong> caches the joined <code>events × impressions</code> DataFrame (~250 GB in memory) because it's consumed by 7 downstream reports. Skipping cache cost them 6× cluster-hours per night.</li>
+  <li><strong>Uber's surge model training pipeline</strong> caches the feature DataFrame between feature engineering and model fitting. They use <code>MEMORY_AND_DISK_SER</code> because the DF is 800 GB and the cluster has 600 GB RAM — spilling is expected, recomputation is not.</li>
+  <li><strong>Stripe's reconciliation job</strong> caches the daily <code>matched_transactions</code> DataFrame, then runs 3 different audit queries against it. The team explicitly added a <code>.count()</code> after <code>.cache()</code> in their template after a junior dev's PR caused intermittent doubled run-times.</li>
+  <li><strong>Databricks' notebook UX</strong> caches DataFrames when you hit "Run All" in a notebook with downstream cells — but their support docs flag that the cache lives across notebook re-runs and can starve later cells. <code>spark.catalog.clearCache()</code> on notebook entry is the typical fix.</li>
+  <li><strong>Iterative ML in MLlib</strong> (k-means, ALS) caches the training data because every iteration scans it. Without caching, each of N iterations re-reads the source → N× IO cost.</li>
+</ul>
+
+<h4>5. Interviewer probes — the edge cases</h4>
+
+<h5>Probe 1 — <em>"Cache or persist — what's the difference?"</em></h5>
+<p><code>df.cache()</code> is exactly <code>df.persist(StorageLevel.MEMORY_AND_DISK)</code> in PySpark (and <code>MEMORY_ONLY</code> in Scala — a notorious cross-language gotcha). <code>persist()</code> lets you pick any storage level; <code>cache()</code> uses the default. Use <code>persist</code> when you want explicit control or you're reading code that should be self-documenting. Senior-grade code uses <code>persist(StorageLevel.X)</code> with an inline comment naming the trade-off.</p>
+
+<h5>Probe 2 — <em>"When should you NOT cache?"</em></h5>
+<ul>
+  <li><strong>Used only once.</strong> Cache writes the partitions to memory (cost), then the consumer reads them back. If there's only one consumer, the round-trip is wasted work. Rule: cache only DataFrames used 2+ times.</li>
+  <li><strong>Cheap to recompute.</strong> A simple <code>spark.read.parquet("...").filter("ds = '2026-01-01'")</code> on a partition-pruned source might run in 30 seconds. Caching that takes more memory than recomputing costs CPU. Cache the expensive lineage, not the cheap one.</li>
+  <li><strong>Memory pressure.</strong> If the cluster is already RAM-bound, adding a cache evicts other partitions or spills to disk, hurting more than it helps. Check the Storage tab in Spark UI: green = fully cached, red = thrashing.</li>
+  <li><strong>Single-column projections.</strong> Caching a 100-column DataFrame and then only reading 1 column = 100× memory waste. Project columns BEFORE caching: <code>df.select("a","b","c").cache()</code>.</li>
+</ul>
+
+<h5>Probe 3 — <em>"What's the difference between <code>cache()</code> and <code>checkpoint()</code>?"</em></h5>
+<p>Cache stores the DataFrame in memory/disk and keeps the lineage — if a partition is lost, Spark recomputes from the lineage. <code>checkpoint()</code> writes the DataFrame to a reliable storage (HDFS/S3) and <strong>truncates the lineage</strong> — Spark forgets how to recompute it. Use checkpoint when:</p>
+<ul>
+  <li><strong>Lineage is too long</strong> (100+ stages) — the DAG itself becomes expensive to serialise to executors.</li>
+  <li><strong>Iterative algorithms</strong> (PageRank, ALS) — each iteration's lineage references the previous, growing without bound. Periodic checkpoint truncates it.</li>
+  <li><strong>You want job restart safety</strong> — cached data is lost on driver crash; checkpoint survives.</li>
+</ul>
+
+<h5>Probe 4 — <em>"You forgot <code>unpersist()</code>. What happens?"</em></h5>
+<p>The cache lives until either (a) the SparkSession ends, (b) memory pressure causes LRU eviction, or (c) <code>spark.catalog.clearCache()</code> is called. In short jobs, no harm. In long-lived sessions (notebooks, structured streaming, Spark Connect servers), un-released caches are the #1 cause of "the cluster slowly fills up and then OOMs at 3 AM". Treat <code>persist/unpersist</code> like <code>malloc/free</code>: pair them in the same code block.</p>
+
+<h5>Probe 5 — <em>"How do you verify the cache is actually working?"</em></h5>
+<p>Three checks:</p>
+<ul>
+  <li><strong>Spark UI → Storage tab.</strong> Shows the cached RDD/DataFrame, fraction cached, size in memory, size on disk. Look for "100% cached" and reasonable size.</li>
+  <li><strong>SQL UI → Query plan.</strong> The cached DataFrame appears as <code>InMemoryTableScan</code> instead of the original source/lineage. If you still see the source scan, the cache isn't being used.</li>
+  <li><strong>Wall-clock comparison.</strong> Time the second action; it should be 10-100× faster than the first if cache is working.</li>
+</ul>
+
+<h5>Probe 6 — <em>"What about <code>spark.catalog.cacheTable</code> for SQL tables?"</em></h5>
+<p>For temporary views (<code>createOrReplaceTempView</code>), use <code>spark.catalog.cacheTable("view_name")</code>. Same semantics as <code>df.cache()</code>, but you reference by name from SQL. Useful in notebooks where you mix SQL and DataFrame API. <code>spark.catalog.isCached("view_name")</code> tells you if it's hot. Unpersist with <code>spark.catalog.uncacheTable("view_name")</code>.</p>
+
+<h4>6. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=mixed_167-0050">mixed_167-0050 — Repartition vs Coalesce</a> for the cache-vs-coalesce decision when collapsing partitions.</li>
+  <li><a href="/interview.app/python.html?q=mixed_167-0051">mixed_167-0051 — Broadcast Join</a> for caching a broadcast dim reused across multiple joins.</li>
+  <li><a href="/interview.app/python.html?q=mixed_167-0049">mixed_167-0049 — CSV and Partitions</a> for the "cache between read and repartition" pattern when the read is slow (gzipped CSV).</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards and Skew (design)</a> — §08 on checkpointing iterative algorithms.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> "Cache only DataFrames used 2+ times where the upstream lineage is expensive. Use <code>persist(MEMORY_AND_DISK)</code> in PySpark — explicit storage level over <code>cache()</code> for self-documenting code, and disk spill over silent recomputation. Always materialise immediately with <code>.count()</code> so the first consumer reads warm data, not data filling in parallel. Project columns before caching, never after. Pair <code>persist</code> with <code>unpersist</code> like malloc/free — in long-lived sessions, un-released caches are how clusters die at 3 AM. And distinguish <code>cache</code> (keeps lineage, fast, in-memory) from <code>checkpoint</code> (truncates lineage, reliable, on disk) — checkpoint is for iterative ML and 100+ stage DAGs; cache is for fan-out within a job."</div>

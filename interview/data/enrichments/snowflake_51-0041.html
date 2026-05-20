@@ -1,0 +1,69 @@
+<p>Conservation teams need a biodiversity dashboard: <em>"For each climate zone, how many distinct species live there, and which ones?"</em> The interviewer is probing a JOIN between a dimension table (habitats) and a fact table (species), followed by a grouped aggregate that produces both a count and an ordered concatenated list. The <code>STRING_AGG ... ORDER BY</code> clause is the main differentiator &mdash; candidates who don't know ordered aggregation often reach for application-side sorting or subqueries.</p>
+
+<h4>1. The source data &mdash; <code>species</code> and <code>habitats</code></h4>
+<table>
+  <thead><tr><th>species_id</th><th>name</th><th>habitat_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Blue Iguana</td><td>10</td></tr>
+    <tr><td>2</td><td>Green Anaconda</td><td>20</td></tr>
+    <tr><td>3</td><td>Nile Monitor</td><td>10</td></tr>
+    <tr><td>4</td><td>Saltwater Crocodile</td><td>30</td></tr>
+    <tr><td>5</td><td>Thorny Devil</td><td>40</td></tr>
+    <tr><td>6</td><td>Komodo Dragon</td><td>30</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>habitat_id</th><th>climate_zone</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Tropical</td></tr>
+    <tr><td>20</td><td>Tropical</td></tr>
+    <tr><td>30</td><td>Subtropical</td></tr>
+    <tr><td>40</td><td>Arid</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; JOIN, grouped count, and ordered string aggregation</h4>
+<pre><code>SELECT h.climate_zone,
+       COUNT(DISTINCT s.species_id) AS species_count,
+       STRING_AGG(s.name, ', ' ORDER BY s.name) AS species_list
+FROM species s
+JOIN habitats h ON s.habitat_id = h.habitat_id
+GROUP BY h.climate_zone
+ORDER BY species_count DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>climate_zone</th><th>species_count</th><th>species_list</th></tr></thead>
+  <tbody>
+    <tr><td>Tropical</td><td>3</td><td>Blue Iguana, Green Anaconda, Nile Monitor</td></tr>
+    <tr><td>Subtropical</td><td>2</td><td>Komodo Dragon, Saltwater Crocodile</td></tr>
+    <tr><td>Arid</td><td>1</td><td>Thorny Devil</td></tr>
+  </tbody>
+</table>
+<p>Tropical zone covers habitat_ids 10 and 20, which house species 1, 2, and 3. Subtropical (habitat 30) has species 4 and 6. Arid (habitat 40) has species 5. Results are ordered by <code>species_count DESC</code> (3, 2, 1). The species list within each zone is alphabetically sorted by <code>ORDER BY s.name</code> inside <code>STRING_AGG</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>INNER JOIN semantics &mdash; species without a habitat are silently dropped</h5>
+<p>The query uses an INNER JOIN, so any species row whose <code>habitat_id</code> has no matching row in <code>habitats</code> is excluded from the result. If the product requirement is "list all species even if their habitat is uncatalogued," a <code>LEFT JOIN</code> is needed, with the <code>climate_zone</code> output showing <code>NULL</code> for unmapped species. The choice between INNER and LEFT JOIN is almost always an interview follow-up &mdash; be ready to justify it against the business requirement.</p>
+
+<h5><code>COUNT(DISTINCT species_id)</code> vs <code>COUNT(*)</code></h5>
+<p>If the same species could be recorded in multiple habitats with the same <code>climate_zone</code>, a plain <code>COUNT(*)</code> would double-count it. <code>COUNT(DISTINCT s.species_id)</code> guarantees one count per species regardless of how many habitat rows map to the same zone. The DISTINCT inside COUNT has a non-trivial execution cost on large tables &mdash; hash deduplication before aggregation &mdash; so it should be used deliberately, not reflexively.</p>
+
+<h5>Ordered string aggregation &mdash; <code>STRING_AGG(... ORDER BY ...)</code></h5>
+<p><code>STRING_AGG</code> with an embedded <code>ORDER BY</code> is a PostgreSQL and SQL Server feature (SQL:2016 standard). The <code>ORDER BY</code> inside the aggregate controls the concatenation order independently of the outer <code>ORDER BY</code>. Without it, the concatenation order is undefined &mdash; you get a valid comma-separated list but in arbitrary sequence, which fails determinism tests and produces inconsistent diffs in downstream pipelines.</p>
+
+<h5>Dialect note &mdash; the <code>dialect_token: LISTAGG</code> signal</h5>
+<p>The question's <code>dialect_token</code> field is <code>LISTAGG(</code>, flagging that the Snowflake equivalent is <code>LISTAGG(s.name, ', ') WITHIN GROUP (ORDER BY s.name)</code>. Key differences by engine:</p>
+<ul>
+  <li><strong>Snowflake:</strong> <code>LISTAGG(col, sep) WITHIN GROUP (ORDER BY col)</code></li>
+  <li><strong>Postgres:</strong> <code>STRING_AGG(col, sep ORDER BY col)</code></li>
+  <li><strong>BigQuery:</strong> <code>STRING_AGG(col, sep ORDER BY col)</code></li>
+  <li><strong>MySQL:</strong> <code>GROUP_CONCAT(col ORDER BY col SEPARATOR sep)</code></li>
+  <li><strong>SQL Server:</strong> <code>STRING_AGG(col, sep) WITHIN GROUP (ORDER BY col)</code> (SQL Server 2017+)</li>
+</ul>
+
+<h5>Result ordering &mdash; <code>ORDER BY species_count DESC</code></h5>
+<p>The outer <code>ORDER BY species_count DESC</code> references the alias defined in the <code>SELECT</code>. Snowflake, Postgres, and BigQuery all allow alias references in <code>ORDER BY</code>. MySQL also permits it. The SQL standard technically requires repeating the expression, but no major engine enforces that restriction in <code>ORDER BY</code> specifically.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish INNER vs LEFT JOIN semantics and their business-logic implication, use <code>COUNT(DISTINCT)</code> deliberately rather than reflexively, and demonstrate knowledge of ordered string aggregation across dialects &mdash; <code>STRING_AGG(... ORDER BY ...)</code> in Postgres/BigQuery vs <code>LISTAGG(... ) WITHIN GROUP (ORDER BY ...)</code> in Snowflake and SQL Server.</div>

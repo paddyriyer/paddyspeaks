@@ -1,0 +1,64 @@
+<p>Vercel stores each user's interests as a single comma-separated string &mdash; <code>tags_csv</code> &mdash; and the growth team wants a tag-frequency table: how many users carry each tag. A CSV column is a denormalisation smell, and the fix is to split it into rows and aggregate. The query is compact, but the trimming and the empty-segment filter are doing real defensive work that an interviewer will probe.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>tags_csv</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>sql, python, data</code></td></tr>
+    <tr><td>2</td><td><code>python,ml</code></td></tr>
+    <tr><td>3</td><td><code>sql,&nbsp;&nbsp;,data</code></td></tr>
+    <tr><td>4</td><td><code>(empty string)</code></td></tr>
+    <tr><td>5</td><td><code>data, sql</code></td></tr>
+  </tbody>
+</table>
+<p>Three deliberate messes: user 1 has <strong>leading spaces</strong> after each comma (<code>"&nbsp;python"</code>), user 3 has an <strong>empty middle segment</strong> (<code>sql,&nbsp;&nbsp;,data</code> &mdash; a stray comma), and user 4's string is <strong>completely empty</strong>. Real CSV columns always look like this.</p>
+
+<h4>2. The SQL &mdash; <code>UNNEST(string_to_array(...))</code></h4>
+<pre><code>SELECT trim(tag) AS tag, COUNT(*) AS users
+FROM users, UNNEST(string_to_array(tags_csv, ',')) AS tag
+WHERE trim(tag) &lt;&gt; ''
+GROUP BY trim(tag);</code></pre>
+<p><code>string_to_array</code> splits the CSV on commas into a Postgres array; <code>UNNEST</code> in the <code>FROM</code> clause is a lateral set-returning function that expands the array to one row per element, joined back to its user. <code>trim</code> strips whitespace; the <code>WHERE</code> drops empties.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>tag</th><th>users</th></tr></thead>
+  <tbody>
+    <tr><td>ml</td><td>1</td></tr>
+    <tr><td>data</td><td>3</td></tr>
+    <tr><td>sql</td><td>3</td></tr>
+    <tr><td>python</td><td>2</td></tr>
+  </tbody>
+</table>
+<p><code>sql</code> and <code>data</code> each appear for 3 users, <code>python</code> for 2, <code>ml</code> for 1. User 4 (empty string) and user 3's stray comma contribute nothing &mdash; the <code>WHERE trim(tag) &lt;&gt; ''</code> swept them out. Result rows are unordered: no <code>ORDER BY</code> was given.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>trim</code> appears &mdash; and why it appears <em>twice</em></h5>
+<p><code>string_to_array('sql, python', ',')</code> yields <code>{'sql', ' python'}</code> &mdash; the space after the comma is preserved. Without <code>trim</code>, <code>'python'</code> and <code>' python'</code> are different tags and the count fragments. Note <code>trim(tag)</code> is written three times (SELECT, WHERE, GROUP BY) and all three must agree, or you group by one expression and display another. Cleaner: trim once in a subquery or <code>LATERAL</code>, then reference the clean column:</p>
+<pre><code>SELECT tag, COUNT(*) AS users
+FROM users
+CROSS JOIN LATERAL UNNEST(string_to_array(tags_csv, ',')) AS raw(t)
+CROSS JOIN LATERAL (SELECT trim(raw.t) AS tag) cleaned
+WHERE tag &lt;&gt; ''
+GROUP BY tag;</code></pre>
+
+<h5>The empty-string and NULL edge cases</h5>
+<p>User 4's empty string is the subtle one. <code>string_to_array('', ',')</code> returns <code>{''}</code> &mdash; an array with one empty element, <em>not</em> an empty array &mdash; so <code>UNNEST</code> still emits one row, with an empty tag. The <code>WHERE trim(tag) &lt;&gt; ''</code> is what discards it. A genuine NULL <code>tags_csv</code> behaves differently again: <code>string_to_array(NULL, ',')</code> is NULL, <code>UNNEST(NULL)</code> yields zero rows, and that user drops out silently &mdash; usually fine here, but worth stating.</p>
+
+<h5>The comma-in-the-form trap</h5>
+<p>This whole approach assumes commas only ever separate tags. The moment a tag itself contains a comma &mdash; or the delimiter is inconsistent (some rows comma-, some semicolon-separated) &mdash; <code>string_to_array</code> shreds it wrongly. There is no quoting in a raw CSV column. The honest senior answer is that storing multi-valued data as a delimited string is the actual bug; the durable fix is a <code>user_tags(user_id, tag)</code> junction table, which makes this query a trivial <code>GROUP BY</code> with no parsing at all.</p>
+
+<h5>Counting users vs counting occurrences &mdash; the dedup question</h5>
+<p><code>COUNT(*)</code> counts <em>tag occurrences</em>. If one user's CSV were <code>"sql,sql"</code> (a duplicate within the string), they would be counted twice for <code>sql</code> &mdash; almost never what "how many users have this tag" means. Make the dedup explicit:</p>
+<pre><code>SELECT tag, COUNT(DISTINCT user_id) AS users
+FROM users, UNNEST(string_to_array(tags_csv, ',')) AS tag_raw(tag_raw)
+CROSS JOIN LATERAL (SELECT trim(tag_raw) AS tag) c
+WHERE tag &lt;&gt; ''
+GROUP BY tag;</code></pre>
+<p>On clean data <code>COUNT(*)</code> and <code>COUNT(DISTINCT user_id)</code> agree; on dirty data only the second answers the question asked.</p>
+
+<h5>Case and ordering polish</h5>
+<p><code>SQL</code>, <code>Sql</code>, and <code>sql</code> would count as three tags &mdash; fold case with <code>lower(trim(tag))</code> if the taxonomy is case-insensitive. And the result has no <code>ORDER BY</code>, so the rows come back in an arbitrary order; add <code>ORDER BY users DESC, tag</code> so the most popular tag leads and ties break deterministically.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>string_to_array</code> keeps post-delimiter whitespace and empty segments, justify the <code>trim</code> and <code>&lt;&gt; ''</code> guards, distinguish the empty-string (one empty element) from NULL (zero rows) cases, use <code>COUNT(DISTINCT user_id)</code> against intra-string duplicates, and name the junction-table redesign as the real fix.</div>

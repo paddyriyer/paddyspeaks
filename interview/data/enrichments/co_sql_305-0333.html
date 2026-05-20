@@ -1,0 +1,63 @@
+<p>Facebook posts with deep comment threads (5+ levels) are the highest-engagement signals — back-and-forth conversations are vastly more sticky than 1-level comment dumps. The query uses a <strong>recursive CTE</strong> to walk the parent_id chain and report max depth + total comments per post.</p>
+
+<h4>1. The source data — <code>comments</code></h4>
+<table><thead><tr><th>comment_id</th><th>parent_id</th><th>post_id</th></tr></thead>
+<tbody><tr><td>C_001</td><td>NULL</td><td>P_001</td></tr><tr><td>C_002</td><td>C_001</td><td>P_001</td></tr><tr><td>C_003</td><td>C_002</td><td>P_001</td></tr></tbody></table>
+
+<h4>2. The SQL — recursive CTE depth walk</h4>
+<pre><code>WITH RECURSIVE chain AS (
+  SELECT comment_id, parent_id, post_id, 1 AS depth
+  FROM comments WHERE parent_id IS NULL
+  UNION ALL
+  SELECT c.comment_id, c.parent_id, c.post_id, ch.depth + 1
+  FROM comments c JOIN chain ch ON c.parent_id = ch.comment_id
+)
+SELECT post_id,
+  MAX(depth) AS max_depth,
+  COUNT(*)   AS total_comments
+FROM chain
+GROUP BY post_id
+ORDER BY max_depth DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The recursive CTE structure</h5>
+<p>Two parts joined by <code>UNION ALL</code>:</p>
+<ul>
+<li><strong>Anchor</strong> — root comments (<code>parent_id IS NULL</code>) at depth 1</li>
+<li><strong>Recursive</strong> — comments whose parent is already in <code>chain</code> get depth+1</li>
+</ul>
+<p>The engine iterates until no new rows are added. Each iteration adds one level of depth.</p>
+
+<h5>The cycle-protection requirement</h5>
+<p>If <code>comments</code> ever has a cycle (data corruption: A → B → A), recursive CTE loops infinitely. SQLite/Postgres will eventually error or memory-bomb. Production guard:</p>
+<pre><code>WHERE ch.depth &lt; 100  -- hard cap on recursion depth</code></pre>
+<p>100 levels is more than any real comment thread. The cap is a circuit breaker.</p>
+
+<h5>Iterative deepening — the alternative</h5>
+<p>For DBs without recursive CTEs (older MySQL), self-join N times manually:</p>
+<pre><code>SELECT c1.post_id, COUNT(DISTINCT c1.comment_id) FROM comments c1
+LEFT JOIN comments c2 ON c2.parent_id = c1.comment_id
+LEFT JOIN comments c3 ON c3.parent_id = c2.comment_id
+... up to N levels</code></pre>
+<p>Bounded depth, but ugly. Recursive CTE is strictly better when supported.</p>
+
+<h5>The "deepest single thread" follow-up</h5>
+<p>Max depth alone hides shape. A post with one 10-deep thread vs a post with ten 1-deep threads have very different engagement. Track both:</p>
+<ul>
+<li>Max depth (the longest single conversation)</li>
+<li>Median depth (typical conversation length)</li>
+<li>Total comments / max depth (breadth-vs-depth ratio)</li>
+</ul>
+
+<h5>The "conversation participant" count</h5>
+<p>True engagement signal: <em>"how many distinct users are in this thread?"</em>. A 10-deep thread between 2 users (back-and-forth) is different from a 10-deep thread with 8 participants (community discussion). Add user_id and aggregate:</p>
+<pre><code>COUNT(DISTINCT c.user_id) AS unique_participants</code></pre>
+
+<h5>The Reddit/Hacker News parallel</h5>
+<p>This pattern is not Meta-specific — every threaded-comment system uses it. Reddit's "show parent" feature, Hacker News' indentation, Twitter's reply-tree all run this query (or its precomputed mat-view).</p>
+
+<h5>Performance — the big-table caveat</h5>
+<p>Recursive CTE on billion-row comments is slow. Production: a denormalized <code>thread_summary</code> table updated incrementally as comments arrive. The query above is for offline analytics; the live UI uses cached values.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the recursive-CTE structure (anchor + recursive + UNION ALL), insist on the cycle-protection cap, and reframe max-depth as one signal among shape/participants/median. The denormalized-mat-view production note is the over-the-bar scale finish.</div>

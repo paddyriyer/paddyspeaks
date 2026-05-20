@@ -1,0 +1,67 @@
+<p>A workflow engine declares that each task has subtasks numbered <code>1..subtask_count</code>, and a log records which subtasks actually ran. The goal is the gap report: which expected subtasks never executed. The interviewer adds a constraint &mdash; generate the universe of expected subtasks with a <em>recursive CTE</em>, not <code>generate_series</code> &mdash; to test whether you can build a counted sequence by hand and then anti-join it.</p>
+
+<h4>1. The source data &mdash; <code>tasks</code> and <code>executed</code></h4>
+<table>
+  <thead><tr><th>task_id</th><th>subtask_count</th><th>(expected subtask ids)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>1, 2, 3</td></tr>
+    <tr><td>2</td><td>2</td><td>1, 2</td></tr>
+    <tr><td>3</td><td>4</td><td>1, 2, 3, 4</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>task_id</th><th>subtask_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>task 1: ran 1 and 2 &mdash; 3 is missing</td></tr>
+    <tr><td>1</td><td>2</td><td></td></tr>
+    <tr><td>2</td><td>1</td><td>task 2: ran only 1 &mdash; 2 is missing</td></tr>
+    <tr><td>3</td><td>1</td><td>task 3: ran 1 and 3 &mdash; 2 and 4 missing</td></tr>
+    <tr><td>3</td><td>3</td><td>note the non-contiguous gap: 3 ran but 2 did not</td></tr>
+  </tbody>
+</table>
+<p>The instructive edge case is task 3: subtask 3 executed but subtask 2 did not, so the missing set is <em>non-contiguous</em> (2 and 4). The solution cannot assume executions are a prefix &mdash; it must compare the full expected universe against the actual log, slot by slot.</p>
+
+<h4>2. The SQL &mdash; recursive countdown CTE, then anti-join</h4>
+<pre><code>WITH RECURSIVE expand AS (
+  SELECT task_id, subtask_count AS subtask_id FROM tasks
+  UNION ALL
+  SELECT task_id, subtask_id - 1 FROM expand WHERE subtask_id &gt; 1
+)
+SELECT e.task_id, e.subtask_id
+FROM expand e
+LEFT JOIN executed x
+  ON x.task_id = e.task_id AND x.subtask_id = e.subtask_id
+WHERE x.task_id IS NULL
+ORDER BY e.task_id, e.subtask_id;</code></pre>
+<p>The recursive CTE seeds each task at its <em>highest</em> subtask number, then the recursive arm subtracts 1 each step, stopping at 1 &mdash; producing every id from <code>subtask_count</code> down to 1. The <code>LEFT JOIN</code> + <code>WHERE x.task_id IS NULL</code> is an anti-join: it keeps expected subtasks with no matching row in <code>executed</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>task_id</th><th>subtask_id</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>task 1 expected 1,2,3; ran 1,2 &rarr; 3 missing</td></tr>
+    <tr><td>2</td><td>2</td><td>task 2 expected 1,2; ran 1 &rarr; 2 missing</td></tr>
+    <tr><td>3</td><td>2</td><td>task 3 expected 1..4; ran 1,3 &rarr; 2 missing</td></tr>
+    <tr><td>3</td><td>4</td><td>&hellip; and 4 missing &mdash; the non-contiguous gap</td></tr>
+  </tbody>
+</table>
+<p>Task 3 correctly yields <em>two</em> rows, 2 and 4 &mdash; the anti-join catches non-contiguous gaps because it tests each expected slot independently rather than assuming a prefix ran. The output is ordered by task then subtask.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How the recursive CTE manufactures the <code>1..n</code> universe</h5>
+<p>A recursive CTE has two arms joined by <code>UNION ALL</code>: the <em>anchor</em> (the seed) and the <em>recursive</em> arm (which references the CTE itself). Here the anchor emits one row per task at <code>subtask_id = subtask_count</code>. The recursive arm takes each current row and emits <code>subtask_id - 1</code>, but only <code>WHERE subtask_id &gt; 1</code> &mdash; that predicate is the termination condition. Iteration stops when every branch has counted down to 1. The result is the complete expected set per task.</p>
+
+<h5>Why the <code>WHERE subtask_id &gt; 1</code> guard is non-negotiable</h5>
+<p>Drop it and the recursive arm keeps subtracting forever &mdash; 0, -1, -2 &mdash; an infinite loop the engine eventually aborts. Every recursive CTE must have a recursive arm that <em>provably</em> produces fewer rows each step and a predicate that eventually yields the empty set. Counting toward a fixed bound (1) is the textbook safe pattern. State the termination argument explicitly; interviewers want to hear it.</p>
+
+<h5>The anti-join &mdash; <code>LEFT JOIN ... IS NULL</code> vs <code>NOT IN</code> vs <code>NOT EXISTS</code></h5>
+<p>"Expected but not executed" is a set difference. The <code>LEFT JOIN</code> keeps every expected row and attaches the matching execution if one exists; rows where the right side is all <code>NULL</code> had no match, so <code>WHERE x.task_id IS NULL</code> isolates the gaps. <code>NOT EXISTS</code> is equally correct and often clearer. <code>NOT IN</code> is the dangerous one: if the executed subquery ever yielded a <code>NULL</code>, <code>NOT IN</code> returns <em>unknown</em> for everything and the result set collapses to empty. Prefer <code>LEFT JOIN</code>/<code>NOT EXISTS</code> for anti-joins.</p>
+
+<h5>Why <code>generate_series</code> was banned &mdash; and the trade-off</h5>
+<p>In Postgres the easy answer is <code>SELECT t.task_id, g FROM tasks t, generate_series(1, t.subtask_count) g</code>. It is shorter and the planner handles it well. The interviewer bans it because <code>generate_series</code> is Postgres-specific (SQL Server has no equivalent; you would use a numbers table or a recursive CTE there anyway). The recursive CTE is the <em>portable</em> sequence generator &mdash; knowing it means you can solve this on any engine that supports <code>WITH RECURSIVE</code>.</p>
+
+<h5>Dialect notes</h5>
+<p><code>WITH RECURSIVE</code> is standard SQL &mdash; PostgreSQL, SQLite, MySQL 8+, and Oracle (which also accepts the keyword) support it. SQL Server supports recursive CTEs but <em>without</em> the <code>RECURSIVE</code> keyword (just <code>WITH</code>) and caps recursion at 100 levels unless you add <code>OPTION (MAXRECURSION n)</code>. For tasks with thousands of subtasks, raise that limit or revert to a numbers table.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> generate a counted <code>1..n</code> universe with a recursive CTE (anchor + decrementing recursive arm + a <code>&gt; 1</code> termination guard), find the gaps with a <code>LEFT JOIN ... IS NULL</code> anti-join that catches non-contiguous misses, avoid <code>NOT IN</code> against a possibly-NULL subquery, and know the recursive CTE is the portable stand-in for <code>generate_series</code>.</div>

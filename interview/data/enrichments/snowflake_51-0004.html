@@ -1,0 +1,58 @@
+<p>A social-media platform must ship a GDPR-compliant data export to a third-party analytics vendor without exposing raw PII. The task is to mask or hash every sensitive field in one SELECT — no temporary tables, no application code. The interviewer is probing knowledge of hashing functions, regex-based character masking, string arithmetic (<code>LEFT</code>, <code>REPEAT</code>, <code>LENGTH</code>), and date extraction, while expecting a discussion of the <em>reversibility</em> risk of MD5 for email addresses.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>email</th><th>phone</th><th>first_name</th><th>last_name</th><th>dob</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>alice@example.com</td><td>4155551234</td><td>Alice</td><td>Smith</td><td>1990-03-15</td></tr>
+    <tr><td>2</td><td>bob.jones@corp.io</td><td>2125559876</td><td>Bob</td><td>Jones</td><td>1985-11-22</td></tr>
+    <tr><td>3</td><td>c@x.io</td><td>3105550001</td><td>Cora</td><td>Li</td><td>2001-07-04</td></tr>
+  </tbody>
+</table>
+<p>Row 3 (Cora Li) is an edge-case stress-test: first name length 4, last name length 2. The <code>REPEAT('*', LENGTH(last_name) - 1)</code> produces just one asterisk — still correct, but worth verifying manually.</p>
+
+<h4>2. The SQL &mdash; multi-function PII anonymization</h4>
+<pre><code>SELECT
+  user_id,
+  MD5(email)                                                       AS email_hash,
+  REGEXP_REPLACE(phone, '\d(?=\d{4})', '*', 'g')                  AS phone_masked,
+  LEFT(first_name, 1) || REPEAT('*', LENGTH(first_name) - 1)      AS first_masked,
+  LEFT(last_name,  1) || REPEAT('*', LENGTH(last_name)  - 1)      AS last_masked,
+  EXTRACT(YEAR FROM dob::date)                                     AS birth_year_only
+FROM users;</code></pre>
+<p><strong>Note on dialect:</strong> this query uses PostgreSQL syntax. In Snowflake the MD5 function is identical; <code>REGEXP_REPLACE</code> uses a different flag style (no <code>'g'</code> flag &mdash; use <code>REGEXP_REPLACE(phone, '\\d(?=\\d{4})', '*', 1, 0)</code>); <code>EXTRACT(YEAR FROM …)</code> is portable as written; <code>||</code> for concatenation works in both. Snowflake's preferred hashing is <code>SHA2(email, 256)</code> for stronger security.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>email_hash (MD5, truncated)</th><th>phone_masked</th><th>first_masked</th><th>last_masked</th><th>birth_year_only</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>6384e2b2184bcbf58eccf10ca7a6563c&hellip;</td><td>******1234</td><td>A****</td><td>S****</td><td>1990</td></tr>
+    <tr><td>2</td><td>a1df6b49c2e8b61e41a9a…</td><td>******9876</td><td>B**</td><td>J****</td><td>1985</td></tr>
+    <tr><td>3</td><td>f56c85e8b09b39…</td><td>******0001</td><td>C***</td><td>L*</td><td>2001</td></tr>
+  </tbody>
+</table>
+<p>Phone masking: the regex replaces every digit that is followed by exactly 4 more digits with <code>*</code>, preserving only the last 4 digits. Name masking: the first character is preserved, all remaining characters become <code>*</code>. For "Li" (length 2), <code>REPEAT('*', 1)</code> = <code>'*'</code>, giving <code>L*</code>. Birth year collapses the full date to just the year.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>MD5 is a hash, not encryption &mdash; and it is reversible for common emails</h5>
+<p>MD5 is a one-way hash with no key, but email addresses have very low entropy. A lookup table of the ~1B most common email formats can reverse the hash in seconds. For true anonymization, pair the hash with a secret salt: <code>MD5(email || 'secret_salt_value')</code>, or use <code>SHA2(email || salt, 256)</code> (Snowflake). Without a salt, an adversary who knows a user's email can trivially confirm whether that user is in the dataset — defeating pseudonymization under GDPR Article 4.</p>
+
+<h5>The regex phone-masking pattern</h5>
+<p>The pattern <code>\d(?=\d{4})</code> is a <em>lookahead</em>: it matches any digit that is immediately followed by exactly four more digits. For a 10-digit phone number, this matches digits 1 through 6 (positions 1&ndash;6 when the last 4 are positions 7&ndash;10). The replacement is <code>*</code>, applied globally (<code>'g'</code> flag in PostgreSQL; the sixth argument <code>0</code> meaning "all occurrences" in Snowflake). A simpler approach that is easier to explain in interviews: <code>LPAD(RIGHT(phone::text, 4), LENGTH(phone::text), '*')</code> — replace all but the last 4 characters with asterisks.</p>
+
+<h5>Name masking: <code>LEFT</code> + <code>REPEAT</code> + <code>LENGTH</code></h5>
+<p><code>LEFT(name, 1)</code> extracts the initial. <code>REPEAT('*', LENGTH(name) - 1)</code> produces as many asterisks as there are remaining characters. Concatenation with <code>||</code> glues them together. Edge case: a name of length 1 gives <code>REPEAT('*', 0)</code> = <code>''</code>, producing only the initial — still correct. A name of length 0 (empty string) gives <code>REPEAT('*', -1)</code> — PostgreSQL returns <code>''</code>, Snowflake raises no error either, but it is worth guarding with <code>NULLIF(name, '')</code> if empty names are possible.</p>
+
+<h5>Date granularity reduction</h5>
+<p><code>EXTRACT(YEAR FROM dob::date)</code> reduces a full date to just the year, which cannot re-identify the user on its own. For ages over 90, even the year can be identifying in a small population &mdash; GDPR guidance recommends suppressing or further bucketing very old birth years. In Snowflake, <code>DATE_PART('year', dob)</code> and <code>YEAR(dob)</code> are equivalent alternatives.</p>
+
+<h5>Dialect portability matrix</h5>
+<ul>
+  <li><strong>Snowflake:</strong> <code>SHA2(email, 256)</code> preferred over MD5; <code>REGEXP_REPLACE(phone, '\\d(?=\\d{4})', '*', 1, 0)</code>; <code>YEAR(dob)</code> or <code>DATE_PART('year', dob)</code></li>
+  <li><strong>PostgreSQL:</strong> <code>MD5(email)</code>; regex with <code>'g'</code> flag; <code>EXTRACT(YEAR FROM …)</code></li>
+  <li><strong>BigQuery:</strong> <code>MD5(email)</code> returns BYTES — wrap in <code>TO_HEX(MD5(email))</code>; <code>REGEXP_REPLACE(phone, r'\d(?=\d{4})', '*')</code> (no flags argument); <code>EXTRACT(YEAR FROM …)</code></li>
+  <li><strong>MySQL:</strong> <code>MD5(email)</code>; <code>REGEXP_REPLACE</code> available since 8.0, no flag argument; <code>YEAR(dob)</code></li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> flag immediately that unsalted MD5 on email is reversible via preimage lookup tables — a GDPR/CCPA risk — and recommend <code>SHA2(email || salt, 256)</code> in Snowflake; explain the lookahead regex for phone masking and offer the simpler <code>LPAD(RIGHT(phone, 4), …, '*')</code> alternative; note the empty-string edge case for <code>REPEAT</code>; and call out BigQuery's <code>TO_HEX(MD5(…))</code> portability gotcha.</div>

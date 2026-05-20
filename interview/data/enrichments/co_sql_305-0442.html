@@ -1,0 +1,59 @@
+<p>Stripe payments move through a state machine: <em>pending → processing → succeeded</em> on the happy path, or <em>pending → failed</em> on the error path. Some states are <strong>terminal</strong> (no further transitions allowed); others are intermediate. The query produces one row per state period, flags terminal states, and uses <code>IS DISTINCT FROM</code> for cleaner NULL handling.</p>
+
+<h4>1. The source data — <code>payment_state_log</code></h4>
+<table>
+  <thead><tr><th>payment_id</th><th>state</th><th>changed_at</th></tr></thead>
+  <tbody>
+    <tr><td>P_001</td><td>pending</td><td>10:00:00</td></tr>
+    <tr><td>P_001</td><td>processing</td><td>10:00:05</td></tr>
+    <tr><td>P_001</td><td>succeeded</td><td>10:00:08</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — IS DISTINCT FROM + terminal-state flag</h4>
+<pre><code>WITH changes AS (
+  SELECT payment_id, changed_at, state,
+    LAG(state) OVER (PARTITION BY payment_id ORDER BY changed_at) AS prev_state
+  FROM payment_state_log
+),
+filtered AS (
+  SELECT payment_id, changed_at, state
+  FROM changes
+  WHERE state IS DISTINCT FROM prev_state
+)
+SELECT payment_id, state,
+  changed_at AS state_start,
+  LEAD(changed_at) OVER (PARTITION BY payment_id ORDER BY changed_at) AS state_end,
+  CASE WHEN state IN ('succeeded','failed','refunded','disputed') THEN 1 ELSE 0 END AS is_terminal
+FROM filtered
+ORDER BY payment_id, state_start;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The <code>IS DISTINCT FROM</code> elegance</h5>
+<p><code>state IS DISTINCT FROM prev_state</code> treats NULL as a value: <code>'pending' IS DISTINCT FROM NULL</code> evaluates to TRUE. Replaces the <code>state != prev_state OR prev_state IS NULL</code> pattern with a single null-safe expression. Postgres / SQLite / BigQuery / DuckDB all support it; MySQL has the <code>&lt;=&gt;</code> spaceship operator (use <code>NOT (a &lt;=&gt; b)</code>); SQL Server forces the COALESCE-to-sentinel workaround.</p>
+
+<h5>Terminal vs intermediate — why it matters</h5>
+<p>Stripe's payment state machine has a one-way valve: once <code>succeeded</code>, the state can't go back to <code>processing</code> (refunds are a NEW state, not a reverse transition). The <code>is_terminal</code> flag enables:</p>
+<ul>
+  <li><strong>Latency analysis</strong> — only meaningful for non-terminal periods</li>
+  <li><strong>Stuck-payment alarm</strong> — <code>pending</code> period &gt; 5 min = something's wrong</li>
+  <li><strong>Final-state distribution</strong> — <code>WHERE is_terminal = 1</code> + <code>GROUP BY state</code> = success / fail breakdown</li>
+</ul>
+
+<h5>The latency metric — what production uses</h5>
+<pre><code>SELECT AVG((julianday(state_end) - julianday(state_start)) * 86400) AS avg_seconds
+FROM (/* this query */)
+WHERE state = 'pending' AND state_end IS NOT NULL;</code></pre>
+<p>Average pending duration is the auth-rate-issue early warning. Spikes above baseline → bank-network problem.</p>
+
+<h5>The chargeback "extension" pattern</h5>
+<p>A <code>succeeded</code> payment can later receive a chargeback (60-90 days later). Architecturally that's a NEW row in the log with state='disputed' — not an update to the existing succeeded row. Append-only is the integrity contract.</p>
+
+<h5>The retry-storm detection</h5>
+<p>If a payment_id has more than 2 transitions through <code>pending → failed → pending → failed</code>, that's a retry storm — likely fraud or card-testing. Detection:</p>
+<pre><code>SELECT payment_id, COUNT(*) AS transitions
+FROM (/* this query */)
+GROUP BY payment_id HAVING COUNT(*) &gt;= 4;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>IS DISTINCT FROM</code> for null-safe inequality, flag terminal states inline so downstream queries can filter cleanly, name the append-only pattern for late-arriving chargebacks, and connect pending-duration to bank-network health monitoring. Retry-storm detection via COUNT-of-transitions is the fraud-side over-the-bar.</div>

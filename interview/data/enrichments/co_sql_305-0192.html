@@ -1,0 +1,229 @@
+<p>HR runs comp band reviews twice a year. The People-Analytics team needs a per-department salary leaderboard: who's the highest paid in each org, who's at risk of being underpaid relative to peers, and where pay-band overlaps create grievance risk. Different ranking functions answer different versions of these questions — picking the wrong one quietly corrupts the analysis.</p>
+
+<h4>1. The source data — <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td><strong>ENG</strong></td><td>$210,000</td></tr>
+    <tr><td>E02</td><td><strong>ENG</strong></td><td>$180,000</td></tr>
+    <tr><td>E03</td><td><strong>ENG</strong></td><td>$180,000</td></tr>
+    <tr><td>E04</td><td><strong>ENG</strong></td><td>$155,000</td></tr>
+    <tr><td>E05</td><td><strong>SALES</strong></td><td>$240,000</td></tr>
+    <tr><td>E06</td><td><strong>SALES</strong></td><td>$190,000</td></tr>
+    <tr><td>E07</td><td><strong>SALES</strong></td><td>$135,000</td></tr>
+  </tbody>
+</table>
+<p>Notice E02 and E03 are tied at $180K — that's the interesting case the ranking function has to handle correctly.</p>
+
+<h4>2. The SQL — <code>RANK()</code> with <code>PARTITION BY dept_id</code></h4>
+<pre><code>SELECT emp_id, dept_id, salary,
+  RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+FROM employees;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>RANK()</th><th>DENSE_RANK()</th><th>ROW_NUMBER()</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>ENG</td><td>$210,000</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>E02</td><td>ENG</td><td>$180,000</td><td><strong>2</strong></td><td><strong>2</strong></td><td>2</td></tr>
+    <tr><td>E03</td><td>ENG</td><td>$180,000</td><td><strong>2</strong> <em>(tied)</em></td><td><strong>2</strong> <em>(tied)</em></td><td>3</td></tr>
+    <tr><td>E04</td><td>ENG</td><td>$155,000</td><td><strong>4</strong></td><td><strong>3</strong></td><td>4</td></tr>
+    <tr><td>E05</td><td>SALES</td><td>$240,000</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>E06</td><td>SALES</td><td>$190,000</td><td>2</td><td>2</td><td>2</td></tr>
+    <tr><td>E07</td><td>SALES</td><td>$135,000</td><td>3</td><td>3</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>I included <code>DENSE_RANK()</code> and <code>ROW_NUMBER()</code> to make the ties explicit. <code>RANK</code> jumps from 2 to 4 (skipping 3) because two people are tied at position 2; <code>DENSE_RANK</code> doesn't skip; <code>ROW_NUMBER</code> picks an arbitrary tie-breaker.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code> — pick consciously</h5>
+<ul>
+  <li><strong><code>RANK</code></strong> — ties get the same number, then rank skips. Use when "how far behind first place are you?" matters. <em>"3rd place finisher in a race"</em> stays the 3rd best even if 2 people tied for 2nd.</li>
+  <li><strong><code>DENSE_RANK</code></strong> — ties get the same number, no skip. Use for <em>pay bands</em>: HR cares about how many distinct salary tiers exist, not how many people sit at each.</li>
+  <li><strong><code>ROW_NUMBER</code></strong> — ties broken arbitrarily by the engine. Use only when you need <em>exactly one row per partition</em>; never trust the tie-break unless you add a deterministic secondary <code>ORDER BY</code>.</li>
+</ul>
+
+<h5>The "top earner per dept" question — wrap in a subquery</h5>
+<p>The query as written returns every employee with their rank. To filter to just the top earners, wrap it:</p>
+<pre><code>SELECT * FROM (
+  SELECT emp_id, dept_id, salary,
+    RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+  FROM employees
+) t WHERE rk = 1;
+-- Returns 3 rows: E01 (ENG #1), E02 and E03 (both tied for ENG #1 ... wait, no)
+-- Actually returns just E01 and E05 because E02/E03 are at rank 2.</code></pre>
+<p>If the goal is <em>"all employees tied for first place"</em> and ties should both qualify, switch to <code>RANK() = 1</code> over a re-ordered partition or use <code>DENSE_RANK</code>. State the tie semantics in the interview.</p>
+
+<h5>The Snowflake / BigQuery shortcut: <code>QUALIFY</code></h5>
+<pre><code>-- Snowflake / BigQuery — collapses two CTEs into one
+SELECT emp_id, dept_id, salary,
+  RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+FROM employees
+QUALIFY rk = 1;</code></pre>
+<p>Mention <code>QUALIFY</code> in the interview as the dialect-specific shortcut, but lead with the portable subquery — Postgres and SQLite don't have it.</p>
+
+<h5>What HR actually does next: pay-band overlap detection</h5>
+<p>The grievance-risk question is: <em>"Is anyone in dept A earning less than the lowest-paid person at the same level in dept B?"</em> That's a JOIN on dept-level aggregates, not a single ranking — but the ranking output above is the input. Once the rank column exists, HR can compare <code>WHERE rk = N</code> across departments to find pay parity issues.</p>
+
+<h4>5. Interviewer follow-up probes — the edge cases that separate seniors from juniors</h4>
+
+<p>Whatever rank-and-filter solution you write, the interviewer will start poking at it. These are the four probes you should preempt before being asked:</p>
+
+<h5>Probe 1 — <em>"What if a department has only one employee? Will your query still return them as 'second-highest'?"</em></h5>
+<p>The trap: <code>WHERE rk = 2</code> returns <strong>zero rows</strong> for that department. The hiring manager opens the report and sees "no second-highest in Marketing" without realising Marketing has only one person. Three defensive options — note the CTE is named and aliased properly so the query actually runs:</p>
+<pre><code>-- Option A: explicit COUNT-aware report — surfaces the "N/A" case
+WITH ranked AS (
+  SELECT e.dept_id, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+)
+SELECT r.dept_id,
+  COUNT(*)                                    AS headcount,
+  MAX(CASE WHEN r.rk = 1 THEN r.salary END)   AS top_salary,
+  MAX(CASE WHEN r.rk = 2 THEN r.salary END)   AS second_salary  -- NULL if headcount &lt; 2
+FROM ranked r
+GROUP BY r.dept_id;
+
+-- Option B: LEFT JOIN dept list to ranked so 1-person depts still appear
+WITH ranked AS (
+  SELECT e.dept_id, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+)
+SELECT d.dept_id, r.salary AS second_highest
+FROM departments d
+LEFT JOIN ranked r
+  ON r.dept_id = d.dept_id AND r.rk = 2;
+
+-- ⚠ Option B caveat: when two people are tied at the second-highest
+-- salary, this LEFT JOIN returns ONE ROW PER TIED EMPLOYEE (the join
+-- multiplies). If you want exactly one row per department, fold the
+-- tied salary up with conditional aggregation — that's Probe 1b
+-- below, which uses GROUP BY + MAX(CASE WHEN rk = 2 THEN salary END).</code></pre>
+
+<h5>Probe 1b — <em>"Now list each department with BOTH the highest AND the second-highest salary side by side."</em></h5>
+<p>One row per department, two salary columns. The right shape pivots the ranked output via conditional aggregation, then <code>LEFT JOIN</code>s from <code>departments</code> so single-person and empty departments still appear (with NULL in the second column):</p>
+<pre><code>WITH ranked AS (
+  SELECT e.dept_id, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+)
+SELECT
+  d.dept_id,
+  d.department_name,
+  MAX(CASE WHEN r.rk = 1 THEN r.salary END) AS highest_salary,
+  MAX(CASE WHEN r.rk = 2 THEN r.salary END) AS second_highest_salary
+FROM departments d
+LEFT JOIN ranked r ON r.dept_id = d.dept_id
+GROUP BY d.dept_id, d.department_name
+ORDER BY d.dept_id;</code></pre>
+<p>Sample output:</p>
+<table>
+  <thead><tr><th>dept_id</th><th>department_name</th><th>highest_salary</th><th>second_highest_salary</th></tr></thead>
+  <tbody>
+    <tr><td>ENG</td><td>Engineering</td><td>$210,000</td><td>$180,000</td></tr>
+    <tr><td>SALES</td><td>Sales</td><td>$240,000</td><td>$190,000</td></tr>
+    <tr><td>MKTG</td><td>Marketing</td><td>$155,000</td><td><strong>NULL</strong> <em>(only 1 employee)</em></td></tr>
+    <tr><td>HR</td><td>Human Resources</td><td>NULL</td><td>NULL</td><td><em>(empty dept)</em></td></tr>
+  </tbody>
+</table>
+<p><strong>Two senior-signal moves baked in:</strong> (1) <code>LEFT JOIN</code> from <code>departments</code> guarantees every department appears even with 0 or 1 employee — no silent disappearance; (2) the conditional <code>MAX(CASE WHEN rk = N THEN salary END)</code> pivot avoids two separate queries with a UNION. Note we use <code>DENSE_RANK</code> so that if two people are tied at the top, the "second-highest" still surfaces the next <em>distinct</em> salary (not NULL).</p>
+
+<h5>Probe 1c — <em>"Now ROTATE it: salaries as rows, departments as columns."</em></h5>
+<p>Same data, transposed. The output has two rows ("1st Highest", "2nd Highest") and one column per department. This is what a finance / HR dashboard wants — a tiny compact pivot they can paste into a slide. Two cleanly-equivalent shapes:</p>
+
+<pre><code>-- Shape A: dimension-table JOIN form (normalised data — production grade)
+WITH ranked AS (
+  SELECT d.department_name, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+  JOIN departments d ON d.dept_id = e.dept_id
+)
+SELECT
+  CASE WHEN rk = 1 THEN '1st Highest'
+       WHEN rk = 2 THEN '2nd Highest' END                            AS salary_position,
+  MAX(CASE WHEN department_name = 'Engineering' THEN salary END)     AS engineering,
+  MAX(CASE WHEN department_name = 'Sales'       THEN salary END)     AS sales,
+  MAX(CASE WHEN department_name = 'Marketing'   THEN salary END)     AS marketing,
+  MAX(CASE WHEN department_name = 'HR'          THEN salary END)     AS hr,
+  MAX(CASE WHEN department_name IS NULL         THEN salary END)     AS unmapped_dept
+FROM ranked
+WHERE rk IN (1, 2)
+GROUP BY rk
+ORDER BY rk;
+
+-- Shape B: FILTER clause (PostgreSQL / SQLite / BigQuery — cleaner syntax)
+WITH ranked AS (
+  SELECT d.department_name, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+  JOIN departments d ON d.dept_id = e.dept_id
+)
+SELECT
+  CASE WHEN rk = 1 THEN '1st Highest'
+       WHEN rk = 2 THEN '2nd Highest' END                AS salary_position,
+  MAX(salary) FILTER (WHERE department_name = 'Engineering') AS engineering,
+  MAX(salary) FILTER (WHERE department_name = 'Sales')       AS sales,
+  MAX(salary) FILTER (WHERE department_name = 'Marketing')   AS marketing,
+  MAX(salary) FILTER (WHERE department_name = 'HR')          AS hr,
+  MAX(salary) FILTER (WHERE department_name IS NULL)         AS unmapped_dept
+FROM ranked
+WHERE rk IN (1, 2)
+GROUP BY rk
+ORDER BY rk;</code></pre>
+
+<p>Sample output (your dashboard tile):</p>
+<table>
+  <thead><tr><th>salary_position</th><th>engineering</th><th>sales</th><th>marketing</th><th>hr</th><th>unmapped_dept</th></tr></thead>
+  <tbody>
+    <tr><td><strong>1st Highest</strong></td><td>$185,000</td><td>$140,000</td><td>$135,000</td><td>$95,000</td><td>NULL</td></tr>
+    <tr><td><strong>2nd Highest</strong></td><td>$170,000</td><td>$125,000</td><td>$110,000</td><td>$80,000</td><td>NULL</td></tr>
+  </tbody>
+</table>
+
+<p><strong>The how-it-works in three steps:</strong></p>
+<ol>
+  <li><strong>Rank inside each department</strong> — <code>DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC)</code> stamps every employee with their position within their own dept. Ties get the same rank (5 people tied at the top all contribute to "1st Highest").</li>
+  <li><strong>Rotate row values into columns</strong> — SQL can't pivot natively. The trick: one <code>MAX(CASE WHEN dept = 'X' THEN salary END)</code> column per department. <code>MAX</code> ignores NULLs, so each column picks up only the rows whose dept matches.</li>
+  <li><strong>Collapse to two rows</strong> — <code>GROUP BY rk</code> with <code>WHERE rk IN (1, 2)</code> produces one row per rank tier. Result: two rows, N+1 columns (N depts + the unmapped catch-all).</li>
+</ol>
+
+<p><strong>FILTER vs CASE WHEN:</strong> they produce identical results. <code>FILTER (WHERE …)</code> is ANSI-standard and clearer; <code>CASE WHEN … THEN … END</code> works on every engine including MySQL &lt; 8.0 and SQL Server. Use FILTER where supported; the CASE form is the portable fallback.</p>
+
+<h5>Probe 1d — <em>"What about the LAD catch-all column?"</em></h5>
+<p>If a high earner's <code>dept_id</code> is still propagating (late-arriving dimension), the JOIN to <code>departments</code> produces <code>department_name = NULL</code> for them. Without an explicit catch-all column they vanish from every named-department column AND don't appear anywhere — high earners silently dropped from the finance report. The <code>unmapped_dept</code> column above is the defensive pattern: <code>MAX(salary) FILTER (WHERE department_name IS NULL)</code>. Surface them, then the data-quality team can chase the missing mapping. This is the L5 / senior-IC move the interviewer is testing for.</p>
+
+<h5>Probe 1e — <em>"What if you don't know the department names upfront — generate columns dynamically?"</em></h5>
+<p>SQL is static — columns must be known at parse time. Three answers, none of them <em>"just SQL"</em>:</p>
+<ul>
+  <li><strong>PostgreSQL <code>crosstab()</code></strong> (tablefunc extension) — accepts a row-based query and a column-name query; returns a wide result. Requires installing the extension.</li>
+  <li><strong>Snowflake / Databricks <code>PIVOT</code></strong> — native syntax: <code>PIVOT (MAX(salary) FOR department_name IN ('Engineering', 'Sales', ...))</code>. Still requires listing values, but the engine generates the CASE statements.</li>
+  <li><strong>Two queries in the app layer</strong> — query distinct department names first; build the SQL string with each name as a column; run the second query. The pattern most BI tools use under the hood.</li>
+</ul>
+
+<h5>Probe 2 — <em>"Two people are tied for second. Do you want both, or just one?"</em></h5>
+<p>This is the question the user always intends to ask but rarely does — and the SQL answer depends entirely on which ranking function you picked:</p>
+<table>
+  <thead><tr><th>Tie semantics</th><th>Pick</th><th>For "second-highest"</th></tr></thead>
+  <tbody>
+    <tr><td>Return every tied employee</td><td><code>DENSE_RANK = 2</code></td><td>Returns all tied at the second distinct salary</td></tr>
+    <tr><td>Return exactly one row, deterministic</td><td><code>ROW_NUMBER = 2</code> with <code>ORDER BY salary DESC, emp_id ASC</code></td><td>Returns the one row whose tie-break is "lowest emp_id"</td></tr>
+    <tr><td>Return exactly one row but show the rank "skipped"</td><td><code>RANK = 2</code></td><td>Returns nothing if first place is tied (ranks jump 1, 1, 3)</td></tr>
+  </tbody>
+</table>
+<p><strong>Always confirm tie semantics with the interviewer before writing the query.</strong> "Do you want all tied employees, or one representative?" is the senior-signal question.</p>
+
+<h5>Probe 3 — <em>"What if there's a tie at the top? Does your 'second-highest' return the next distinct salary, or somebody at the top salary?"</em></h5>
+<p>Consider <code>{$320K, $320K, $280K, $240K}</code>. With <code>RANK</code>: ranks are <code>1, 1, 3, 4</code> → <code>rk = 2</code> returns NOTHING. With <code>DENSE_RANK</code>: ranks are <code>1, 1, 2, 3</code> → <code>rk = 2</code> returns the $280K row. The user almost always means the latter. <strong>DENSE_RANK is the safe default for Nth-highest.</strong></p>
+
+<h5>Probe 4 — <em>"Now generalise it to Nth-highest. Does your approach work for N = 17?"</em></h5>
+<p>The cute one-liner approaches (correlated subquery, OFFSET tricks) all break or get slow at large N. The window-function approach scales O(n log n) regardless of N:</p>
+<pre><code>-- Works for any N, no rewrite needed:
+SELECT salary FROM (
+  SELECT salary, DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+  FROM employees
+) t WHERE rk = :n;</code></pre>
+<p>If the interviewer asks for "the top 3 in each dept", change <code>rk = :n</code> to <code>rk &lt;= 3</code> — same query shape.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> show all three ranking functions in one breath, name the tie-handling difference, mention <code>QUALIFY</code>, and <em>preempt the four edge-case probes</em>: empty-department case, "all ties or just one", tie-at-top semantics, and the generalisation to Nth. The interviewer is checking whether you've internalised the <em>why</em> of each function, not just the syntax of <code>OVER</code>.</div>

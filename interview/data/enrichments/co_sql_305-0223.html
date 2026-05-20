@@ -1,0 +1,53 @@
+<p>Autodesk's billing team exports a sales feed where amounts must show exactly two decimal places &mdash; cents, never a stray third digit from floating-point drift. The fix is a one-line <code>CAST</code> to <code>DECIMAL(10,2)</code>, but the interviewer is probing whether you know that the cast <em>rounds</em> rather than truncates, what the precision and scale digits actually mean, and where this can overflow or lose money.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>123.456</td></tr>
+    <tr><td>99.9</td></tr>
+    <tr><td>1000</td></tr>
+    <tr><td>0.005</td></tr>
+    <tr><td>42.125</td></tr>
+  </tbody>
+</table>
+<p>Each row stresses the cast differently: <code>123.456</code> has a third decimal that must round, <code>99.9</code> needs a trailing zero added, <code>1000</code> is a whole number, and <code>0.005</code> / <code>42.125</code> sit exactly on a rounding <strong>half</strong> &mdash; the values that expose the rounding rule.</p>
+
+<h4>2. The SQL &mdash; <code>CAST to DECIMAL(10,2)</code></h4>
+<pre><code>SELECT CAST(amount AS DECIMAL(10,2)) AS amount_2dp FROM sales;</code></pre>
+<p><code>DECIMAL(10,2)</code> means a fixed-point number with <strong>10 total significant digits</strong>, of which <strong>2 are after the decimal point</strong> &mdash; so up to 8 digits before it.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>amount_2dp</th></tr></thead>
+  <tbody>
+    <tr><td>123.46</td></tr>
+    <tr><td>99.90</td></tr>
+    <tr><td>1000.00</td></tr>
+    <tr><td>0.01</td></tr>
+    <tr><td>42.13</td></tr>
+  </tbody>
+</table>
+<p><code>123.456</code> became <code>123.46</code> &mdash; the cast <strong>rounded</strong>, it did not chop. <code>99.9</code> gained a trailing zero, <code>1000</code> shows full cents. The two halves both rounded <em>up</em>: <code>0.005 &rarr; 0.01</code> and <code>42.125 &rarr; 42.13</code> &mdash; Postgres rounds halves away from zero for numeric casts.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The cast rounds &mdash; this is not truncation</h5>
+<p>The single most common misconception: casting to a smaller scale must <em>round</em>, not truncate. <code>123.456</code> casts to <code>123.46</code>, not <code>123.45</code>. If you genuinely need to drop digits without rounding (rare, but it happens in some fee calculations), <code>CAST</code> is the wrong tool &mdash; use <code>TRUNC(amount, 2)</code>, which would give <code>123.45</code>. Know which one the business rule wants.</p>
+
+<h5>What the half-rounding rule actually is</h5>
+<p><code>0.005</code> and <code>42.125</code> both rounded up because Postgres uses <em>round-half-away-from-zero</em> for numeric/decimal casts. This is not universal &mdash; <code>ROUND</code> on <code>double precision</code> in Postgres uses banker's rounding (round-half-to-even), and other engines differ. For money, work in the <code>numeric</code>/<code>decimal</code> domain so rounding is deterministic; never let a value pass through <code>float</code> on the way to a financial report.</p>
+
+<h5>Precision vs scale &mdash; and the overflow risk</h5>
+<p>In <code>DECIMAL(p, s)</code>, <code>p</code> is total digits and <code>s</code> is digits right of the point &mdash; so <code>DECIMAL(10,2)</code> caps the integer part at 10 &minus; 2 = 8 digits (max 99,999,999.99). A sale of 100,000,000.00 would <strong>raise a numeric overflow error</strong>, not silently wrap. If amounts can be large, size the precision generously: <code>DECIMAL(18,2)</code>. Picking <code>p</code> too small is a latent production bug.</p>
+
+<h5>Formatting for display vs storing a number</h5>
+<p><code>CAST(... AS DECIMAL(10,2))</code> yields a <em>numeric value</em> with scale 2 &mdash; correct for arithmetic and storage. If the requirement is a <em>display string</em> with thousands separators or a currency symbol, that is <code>to_char</code>:</p>
+<pre><code>SELECT to_char(amount, 'FM999,999,990.00') AS amount_display FROM sales;
+-- 123.456 -> '123.46', 1000 -> '1,000.00'</code></pre>
+<p>Keep the distinction sharp: cast for a number you will compute on, <code>to_char</code> for text a human reads. Never store the formatted string and do math on it later.</p>
+
+<h5>NULL and the rounding-bias caveat</h5>
+<p><code>CAST(NULL AS DECIMAL(10,2))</code> is just NULL &mdash; the cast does not invent a 0. Wrap with <code>COALESCE</code> if the feed needs a value. And a subtler point for finance: rounding every line independently can make the rounded lines fail to sum to the rounded total (the classic penny-rounding problem). If totals must reconcile, round once at the total or apply a largest-remainder allocation &mdash; do not assume per-row rounding is free.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that the cast rounds (not truncates) and name <code>TRUNC</code> as the alternative, explain that <code>DECIMAL(10,2)</code> allows only 8 integer digits and overflows loudly past that, keep money in the <code>numeric</code> domain for deterministic half-rounding, and separate a numeric cast from a <code>to_char</code> display string.</div>

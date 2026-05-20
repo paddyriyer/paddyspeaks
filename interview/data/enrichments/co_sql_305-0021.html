@@ -1,0 +1,53 @@
+<p>Reddit's order-ops team wants an account-history view: orders grouped by customer, and within each customer the most recent and most valuable orders on top. It is a pure <code>ORDER BY</code> question, but the interviewer is checking whether you understand that sort keys are applied <em>left to right</em> as a tiebreak chain, and that mixing <code>ASC</code> and <code>DESC</code> in one clause is both legal and intentional.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2024-03-01</td><td>$120</td><td>completed</td></tr>
+    <tr><td>2</td><td>101</td><td>2024-03-05</td><td>$80</td><td>completed</td></tr>
+    <tr><td>3</td><td>101</td><td>2024-03-05</td><td>$200</td><td>completed</td></tr>
+    <tr><td>4</td><td>102</td><td>2024-02-10</td><td>$50</td><td>cancelled</td></tr>
+    <tr><td>5</td><td>102</td><td>2024-04-01</td><td>$300</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Orders 2 and 3 belong to the same customer <em>and</em> share the same <code>order_date</code> &mdash; a deliberate tie on the first two sort keys. Only the third key, <code>amount</code>, can break it.</p>
+
+<h4>2. The SQL &mdash; <code>ORDER BY a, b DESC, c DESC</code></h4>
+<pre><code>SELECT * FROM orders ORDER BY customer_id ASC, order_date DESC, amount DESC;</code></pre>
+<p>Three sort keys. Rows are first ordered by <code>customer_id</code> ascending; <em>within</em> equal customers, by <code>order_date</code> descending; and <em>within</em> equal customer-and-date, by <code>amount</code> descending. Each key only acts as a tiebreaker for the keys to its left.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>101</td><td>2024-03-05</td><td>200</td><td>completed</td></tr>
+    <tr><td>2</td><td>101</td><td>2024-03-05</td><td>80</td><td>completed</td></tr>
+    <tr><td>1</td><td>101</td><td>2024-03-01</td><td>120</td><td>completed</td></tr>
+    <tr><td>5</td><td>102</td><td>2024-04-01</td><td>300</td><td>completed</td></tr>
+    <tr><td>4</td><td>102</td><td>2024-02-10</td><td>50</td><td>cancelled</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 sorts before 102 (<code>ASC</code>). Within 101, the two March-5th orders rise above the March-1st order (<code>order_date DESC</code>), and between those two ties, <code>$200</code> beats <code>$80</code> (<code>amount DESC</code>). The third key did real work: without it, orders 2 and 3 would be in arbitrary, planner-dependent order.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Sort keys are a priority chain, not independent sorts</h5>
+<p>The single most common misconception: that each key sorts the whole table separately. It does not. <code>ORDER BY a, b, c</code> means "sort by <code>a</code>; for rows where <code>a</code> ties, sort by <code>b</code>; for rows where both tie, sort by <code>c</code>." A later key never reorders rows that an earlier key already separated. So <code>amount DESC</code> here only ever rearranges orders that share both a customer and a date &mdash; it does <em>not</em> sort all orders by amount.</p>
+
+<h5><code>ASC</code> and <code>DESC</code> attach per-column</h5>
+<p>The direction keyword binds to <em>its own</em> column only. Here <code>customer_id</code> is ascending while <code>order_date</code> and <code>amount</code> are descending &mdash; oldest customers first, but newest, biggest orders first within each. A frequent bug is writing <code>ORDER BY order_date, amount DESC</code> expecting both descending; <code>order_date</code> there is silently <code>ASC</code> (the default). Spell out every direction when they differ.</p>
+
+<h5>The deterministic-ordering trap</h5>
+<p>Even with three keys, this sort is only fully deterministic if no two rows tie on <em>all three</em>. Two orders by the same customer, same day, same amount would still come back in arbitrary relative order &mdash; and that order can change between runs, after a <code>VACUUM</code>, or under parallelism. For a guaranteed-stable sort (pagination, snapshot tests, diffable exports), append a unique tiebreaker:</p>
+<pre><code>SELECT * FROM orders
+ORDER BY customer_id ASC, order_date DESC, amount DESC, order_id ASC;</code></pre>
+<p>The primary key as a final key costs almost nothing and removes all non-determinism.</p>
+
+<h5>Where NULLs land</h5>
+<p>If <code>order_date</code> or <code>amount</code> can be NULL, position matters: Postgres sorts NULLs <strong>last</strong> for <code>ASC</code> and <strong>first</strong> for <code>DESC</code>. So a NULL <code>amount</code> under <code>amount DESC</code> floats to the top of its tie group &mdash; possibly not what you want. Override explicitly with <code>amount DESC NULLS LAST</code>. (Other engines differ &mdash; MySQL sorts NULLs first for <code>ASC</code> &mdash; so never assume.)</p>
+
+<h5><code>SELECT *</code> &mdash; fine for an answer, risky in production</h5>
+<p><code>SELECT *</code> is acceptable in an interview, but flag it: if the table gains a column, the view's shape changes silently, which can break downstream consumers and pull wide unused columns over the wire. Naming columns explicitly is the production-grade habit.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> describe multi-key <code>ORDER BY</code> as a left-to-right tiebreak chain rather than independent sorts, attach <code>ASC</code>/<code>DESC</code> per column deliberately, and add a unique final key plus <code>NULLS LAST/FIRST</code> when the result must be reproducibly deterministic.</div>

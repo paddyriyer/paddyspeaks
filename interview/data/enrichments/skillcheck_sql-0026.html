@@ -1,0 +1,69 @@
+<p>A colleague reports "logins per user" with a query that fans out across two joined tables, and the numbers come back inflated &mdash; user 1 shows 6 logins when they only logged in twice. This is the classic <strong>join fan-out</strong> bug. The interviewer is probing whether you can diagnose why joining two unrelated one-to-many tables multiplies rows, and whether you know the fix is <code>COUNT(DISTINCT ...)</code> on a primary key &mdash; or, better, pre-aggregation.</p>
+
+<h4>1. The source data &mdash; <code>users</code>, <code>logins</code>, <code>sessions</code></h4>
+<table>
+  <thead><tr><th>table</th><th>rows</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>users</td><td>(1, Alice), (2, Bob)</td><td>two users</td></tr>
+    <tr><td>logins</td><td>(100,1), (101,1), (102,2)</td><td>Alice has <strong>2</strong> logins, Bob has 1</td></tr>
+    <tr><td>sessions</td><td>(500,1), (501,1), (502,1), (503,2)</td><td>Alice has <strong>3</strong> sessions, Bob has 1</td></tr>
+  </tbody>
+</table>
+<p>The edge case <em>is</em> Alice: she has 2 logins and 3 sessions &mdash; two different multiplicities. Joining both onto her one user row produces 2&times;3 = 6 combined rows, and that 6 is what a naive <code>COUNT(*)</code> reports as her login count. Bob, with 1 and 1, produces 1&times;1 = 1 and looks deceptively fine &mdash; the bug hides on single-child users.</p>
+
+<h4>2. The SQL &mdash; the broken query and the fix</h4>
+<p><strong>Original (flagged broken &mdash; row fan-out inflates the counts):</strong></p>
+<pre><code>SELECT u.id, u.name,
+       COUNT(*)              AS logins,
+       COUNT(DISTINCT s.id)  AS sessions
+FROM users u
+LEFT JOIN logins   l ON u.id = l.user_id
+LEFT JOIN sessions s ON u.id = s.user_id
+GROUP BY u.id, u.name;</code></pre>
+<p><strong>Corrected &mdash; count distinct primary keys so the fan-out cannot inflate:</strong></p>
+<pre><code>SELECT u.id, u.name,
+       COUNT(DISTINCT l.id) AS logins,
+       COUNT(DISTINCT s.id) AS sessions
+FROM users u
+LEFT JOIN logins   l ON u.id = l.user_id
+LEFT JOIN sessions s ON u.id = s.user_id
+GROUP BY u.id, u.name
+ORDER BY u.id;</code></pre>
+<p>The two <code>LEFT JOIN</code>s build a Cartesian product of Alice's logins and sessions. <code>COUNT(*)</code> counts those product rows; <code>COUNT(DISTINCT l.id)</code> counts <em>distinct login primary keys</em>, so each real login is tallied once no matter how many session rows it was paired with.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>logins (broken)</th><th>logins (fixed)</th><th>sessions</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>6</td><td>2</td><td>3</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td><td>1</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>The broken query gave Alice <code>logins = 6</code> &mdash; her 2 logins times her 3 sessions. The corrected query gives <code>2</code>: <code>COUNT(DISTINCT l.id)</code> sees login ids {100, 101} however many times the join duplicated them. Bob reads 1 in both &mdash; 1&times;1 hides nothing, which is exactly why fan-out bugs survive code review.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why joining two one-to-many tables multiplies rows</h5>
+<p><code>users</code> joins <code>logins</code> one-to-many (Alice &rarr; 2 rows), then that intermediate result joins <code>sessions</code> one-to-many (each of those 2 rows &rarr; 3 rows). The join is a <em>Cartesian product within each user</em>: 2&times;3 = 6 rows for Alice. Neither child table is at fault &mdash; the bug is fanning out <em>two independent</em> dimensions in one query. <code>COUNT(*)</code> then counts product rows, not entities. The mental model: every additional one-to-many join multiplies, it does not add.</p>
+
+<h5>Why <code>COUNT(DISTINCT pk)</code> repairs it &mdash; and its limit</h5>
+<p>Each <code>logins</code> row has a unique <code>id</code>. The fan-out duplicates whole login rows &mdash; id 100 appears 3 times, once per session &mdash; so <code>COUNT(DISTINCT l.id)</code> collapses the duplicates and recovers the true count of 2. The key word is <em>primary key</em>: <code>COUNT(DISTINCT login_ts)</code> would be wrong if two logins shared a timestamp. The limit: <code>COUNT(DISTINCT)</code> fixes counts, but <code>SUM</code> over a fanned-out column is still inflated and <code>DISTINCT</code> cannot save it &mdash; you would sum duplicated values.</p>
+
+<h5>The better fix &mdash; pre-aggregate before joining</h5>
+<p><code>COUNT(DISTINCT)</code> patches the symptom; the cleaner design removes the fan-out entirely by aggregating each child <em>before</em> the join:</p>
+<pre><code>SELECT u.id, u.name,
+       COALESCE(l.cnt, 0) AS logins,
+       COALESCE(s.cnt, 0) AS sessions
+FROM users u
+LEFT JOIN (SELECT user_id, COUNT(*) AS cnt FROM logins   GROUP BY user_id) l ON l.user_id = u.id
+LEFT JOIN (SELECT user_id, COUNT(*) AS cnt FROM sessions GROUP BY user_id) s ON s.user_id = u.id
+ORDER BY u.id;</code></pre>
+<p>Each subquery yields <em>one row per user</em>, so the joins are now one-to-one &mdash; no Cartesian product, no <code>DISTINCT</code> needed, and crucially <code>SUM</code>s would be correct too. This is the answer that signals seniority: fix the structure, not just the count.</p>
+
+<h5>The <code>LEFT JOIN</code> + <code>COUNT(*)</code> NULL trap</h5>
+<p>There is a second latent bug. <code>COUNT(*)</code> counts <em>rows</em>, including rows a <code>LEFT JOIN</code> manufactured for a user with no children &mdash; a user with zero logins would still get <code>COUNT(*) = 1</code> from the NULL-padded row. <code>COUNT(DISTINCT l.id)</code> avoids this too: <code>COUNT</code> ignores NULLs, so a childless user correctly counts 0. Whenever you <code>COUNT</code> after a <code>LEFT JOIN</code>, count a non-null column from the joined side, never <code>*</code>.</p>
+
+<h5>How to catch fan-out in review</h5>
+<p>The tell is two or more one-to-many joins feeding one aggregate. Sanity-check by counting each child independently &mdash; <code>SELECT COUNT(*) FROM logins WHERE user_id = 1</code> &mdash; and compare; a mismatch screams fan-out. The inflation factor equals the product of the sibling cardinalities (here 3, Alice's session count). Single-child users mask it, so always test with a user that has multiple rows in <em>both</em> tables.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise inflated counts as join fan-out &mdash; two one-to-many joins form a Cartesian product per group; patch it with <code>COUNT(DISTINCT primary_key)</code>, but prefer pre-aggregating each child to one row per user so the joins become one-to-one (which also keeps <code>SUM</code>s correct); and never <code>COUNT(*)</code> after a <code>LEFT JOIN</code>, since it counts NULL-padded rows.</div>

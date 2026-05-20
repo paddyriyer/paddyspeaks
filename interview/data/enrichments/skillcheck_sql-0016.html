@@ -1,0 +1,56 @@
+<p>A gaming product wants each game annotated with the player's <strong>points carried into that game</strong> &mdash; the running total of everything they scored <em>before</em> tonight, excluding tonight itself. That "before" is the trap: a standard cumulative sum includes the current row, and the interviewer wants to see whether you can shift the window frame to end one row early instead of subtracting the current value by hand.</p>
+
+<h4>1. The source data &mdash; <code>score</code></h4>
+<table>
+  <thead><tr><th>player_id</th><th>game_date</th><th>points</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>10</td><td>player 1's first game &mdash; nothing before it</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>5</td><td>before = 10</td></tr>
+    <tr><td>1</td><td>2025-01-03</td><td>8</td><td>before = 10 + 5</td></tr>
+    <tr><td>1</td><td>2025-01-04</td><td>12</td><td>before = 10 + 5 + 8</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>20</td><td>player 2's only game &mdash; single-row partition</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases earn the marks. Every player's <em>first</em> game has no prior rows, and player 2 has exactly <em>one</em> game &mdash; a single-member partition. Both must yield <code>points_before = 0</code>, not NULL.</p>
+
+<h4>2. The SQL &mdash; cumulative sum with a frame ending one row early</h4>
+<pre><code>SELECT
+  player_id,
+  game_date,
+  points,
+  COALESCE(SUM(points) OVER (
+    PARTITION BY player_id ORDER BY game_date
+    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+  ), 0) AS points_before
+FROM score
+ORDER BY player_id, game_date;</code></pre>
+<p>The frame <code>UNBOUNDED PRECEDING AND 1 PRECEDING</code> covers every earlier row in the partition and <em>stops one row short of the current row</em>. <code>PARTITION BY player_id</code> restarts the total per player; <code>COALESCE</code> converts the empty-frame NULL of the first row into 0.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>player_id</th><th>game_date</th><th>points</th><th>points_before</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>10</td><td>0</td><td>no prior row &rarr; empty frame &rarr; COALESCE 0</td></tr>
+    <tr><td>1</td><td>2025-01-02</td><td>5</td><td>10</td><td>10</td></tr>
+    <tr><td>1</td><td>2025-01-03</td><td>8</td><td>15</td><td>10 + 5</td></tr>
+    <tr><td>1</td><td>2025-01-04</td><td>12</td><td>23</td><td>10 + 5 + 8 &mdash; current 12 excluded</td></tr>
+    <tr><td>2</td><td>2025-01-01</td><td>20</td><td>0</td><td>single-row partition &rarr; still 0</td></tr>
+  </tbody>
+</table>
+<p>Player 1's last game shows <strong>23</strong>, not 35 &mdash; tonight's 12 is deliberately outside the frame. Player 2's lone game shows <strong>0</strong>: <code>PARTITION BY</code> isolates them, and with no prior rows the frame is empty.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>1 PRECEDING</code> upper bound is the exclusion mechanism</h5>
+<p>A default cumulative sum &mdash; <code>SUM(points) OVER (PARTITION BY player_id ORDER BY game_date)</code> &mdash; uses the frame <code>UNBOUNDED PRECEDING AND CURRENT ROW</code>, which <em>includes</em> tonight. Changing the upper bound to <code>1 PRECEDING</code> ends the window one row early, so the current game's points are structurally excluded. This is cleaner than computing the inclusive total and subtracting <code>points</code> &mdash; the frame expresses the intent directly, with no arithmetic to get wrong.</p>
+
+<h5>The empty frame returns NULL, hence <code>COALESCE</code></h5>
+<p>For the first row of every partition the frame <code>UNBOUNDED PRECEDING AND 1 PRECEDING</code> selects zero rows. <code>SUM</code> over zero rows is NULL, not 0 &mdash; a sum of nothing is undefined, not empty. <code>COALESCE(..., 0)</code> makes the business meaning explicit: "no games yet" means zero points carried in. Skip the <code>COALESCE</code> and every player's debut game shows NULL, which a downstream calculation may propagate or a chart may drop.</p>
+
+<h5><code>PARTITION BY</code> is what stops totals bleeding across players</h5>
+<p>Without <code>PARTITION BY player_id</code> the running sum would accumulate across <em>all</em> players in date order &mdash; player 2's total would inherit player 1's points. The partition restarts the frame at each player boundary. The single-row partition for player 2 is the proof: it correctly shows 0 because its frame contains no earlier rows from <em>its own</em> partition.</p>
+
+<h5>The tie-on-date trap with <code>ROWS</code></h5>
+<p><code>ROWS</code> counts physical rows, so if a player had two games on the <em>same</em> <code>game_date</code>, the frame would treat them as distinct ordered positions &mdash; the second same-day game would "see" the first, and which one is first is arbitrary unless you add a tiebreaker. If same-day games should both exclude each other, switch to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND ...</code> or add a unique column to the <code>ORDER BY</code>. For strictly one-game-per-day data this never bites, but say so.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> exclude the current row from a running total by ending the frame at <code>1 PRECEDING</code> rather than subtracting it, wrap the result in <code>COALESCE(..., 0)</code> because an empty frame sums to NULL, and use <code>PARTITION BY</code> so totals never leak between players.</div>

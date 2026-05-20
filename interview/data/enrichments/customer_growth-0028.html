@@ -1,0 +1,109 @@
+<p>"Show me DAU for the last 7 days, and the 7-day rolling unique-user count" sounds like a single dashboard tile. It's actually two queries — one of which is the most-fumbled metric in SQL interviews. Daily uniques are easy. 7-day rolling uniques are <strong>not additive</strong>: you cannot sum 7 days of 1-day DAU to get the 7-day count because the same person can visit on multiple days. At Netflix / Meta / Stripe scale (billions of events) the naive solution exhausts memory; the production answer uses HyperLogLog sketches that cost O(log log n) memory regardless of cardinality.</p>
+
+<h4>1. The source data — <code>events</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-03-25</td></tr>
+    <tr><td>1</td><td>2025-03-26</td></tr>
+    <tr><td>1</td><td>2025-03-27</td></tr>
+    <tr><td>2</td><td>2025-03-25</td></tr>
+    <tr><td>2</td><td>2025-03-26</td></tr>
+    <tr><td>3</td><td>2025-03-26</td></tr>
+  </tbody>
+</table>
+<p>Day-by-day DAU: 2025-03-25 = 2, 2025-03-26 = 3, 2025-03-27 = 1. Sum = 6. <strong>Actual 3-day unique = 3 (users 1, 2, 3).</strong> The summed number (6) is off by 2× — and that's the bug that quietly inflates "weekly active users" by 30-50% on real dashboards every day.</p>
+
+<h4>2. Exact count — <code>COUNT(DISTINCT)</code> for small/medium tables</h4>
+<pre><code>SELECT
+  event_date,
+  COUNT(DISTINCT user_id) AS dau_exact
+FROM events
+WHERE event_date BETWEEN '2025-03-25' AND '2025-03-31'
+GROUP BY event_date
+ORDER BY event_date;</code></pre>
+<p>Builds a hash set of every distinct id in memory. For 1M-row tables it's fine. For billions of rows it forces a full sort or hash that materialises every distinct id — the single most expensive op in the warehouse.</p>
+
+<h4>3. Approximate count — HyperLogLog at scale</h4>
+<pre><code>-- Snowflake / BigQuery / Redshift / Trino syntax
+SELECT
+  event_date,
+  APPROX_COUNT_DISTINCT(user_id) AS dau_approx,
+  COUNT(DISTINCT user_id) AS dau_exact,
+  ABS(APPROX_COUNT_DISTINCT(user_id) - COUNT(DISTINCT user_id)) AS abs_error
+FROM events
+WHERE event_date BETWEEN '2025-03-25' AND '2025-03-31'
+GROUP BY event_date;</code></pre>
+<p>Returns a sketch-based estimate with typical ~1-2% relative error in O(log log n) memory. The sketch is a fixed-size byte array (often 4-16 KB) regardless of whether you have 1K or 1B distinct users.</p>
+
+<h4>4. The interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"Sum the 7 daily DAUs to get the weekly DAU. Is that right?"</em></h5>
+<p><strong>No.</strong> This is the non-additivity trap. The same user can visit multiple days; summing double- or triple-counts them. The wrong query:</p>
+<pre><code>-- WRONG: returns the SUM of 7 daily counts, not the 7-day unique count
+SELECT SUM(daily_dau) AS weekly_active_users
+FROM (SELECT event_date, COUNT(DISTINCT user_id) AS daily_dau
+      FROM events GROUP BY event_date) d;
+-- Returns 6 on our sample data; the right answer is 3.</code></pre>
+<p>The right shape: aggregate over the <em>whole window</em>, not per day:</p>
+<pre><code>SELECT COUNT(DISTINCT user_id) AS weekly_active_users
+FROM events
+WHERE event_date BETWEEN current_date - 6 AND current_date;</code></pre>
+
+<h5>Probe 2 — <em>"Now compute it for a 7-day rolling window, one row per day."</em></h5>
+<p>You can't use a window function with <code>COUNT(DISTINCT)</code> in standard SQL. Three correct paths:</p>
+<pre><code>-- Path A: self-join — works everywhere, O(n²) at the boundary
+SELECT d.event_date,
+       (SELECT COUNT(DISTINCT user_id)
+        FROM events e
+        WHERE e.event_date BETWEEN d.event_date - 6 AND d.event_date) AS wau
+FROM (SELECT DISTINCT event_date FROM events) d
+ORDER BY d.event_date;
+
+-- Path B: HLL sketches — production answer, O(n) one pass
+SELECT event_date,
+       HLL_CARDINALITY(
+         HLL_COMBINE(daily_sketch) OVER (
+           ORDER BY event_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+         )
+       ) AS wau_approx
+FROM (SELECT event_date, HLL_ACCUMULATE(user_id) AS daily_sketch
+      FROM events GROUP BY event_date) d;
+
+-- Path C: ARRAY_AGG + count distinct — readable, blows up at scale
+SELECT event_date,
+       (SELECT COUNT(DISTINCT u) FROM UNNEST(arr) AS u) AS wau
+FROM (SELECT event_date,
+             ARRAY_AGG(user_id) OVER (ORDER BY event_date
+                                      ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS arr
+      FROM events) t;</code></pre>
+<p>For a 7-day window over a 90-day partition, Path A is 90× the per-day cost. Path B is O(90) sketches. At Netflix scale, B is the only realistic answer.</p>
+
+<h5>Probe 3 — <em>"How does HyperLogLog work? What's the ~1% error from?"</em></h5>
+<p>HLL hashes each value to a uniformly-distributed bit string, then tracks the maximum number of leading zeros seen across the stream. Long leading-zero runs are exponentially rare, so the longest run observed implies the stream size. The sketch is partitioned into ~2^p buckets (p ≈ 14 for 1% error) and the harmonic mean of bucket maxima estimates cardinality. The 1-2% relative error comes from the bucket-count tradeoff: more buckets → lower error → larger sketch. <strong>Crucially, sketches are mergeable</strong>: <code>HLL(A ∪ B) = MERGE(HLL(A), HLL(B))</code> — no need to reprocess raw data.</p>
+
+<h5>Probe 4 — <em>"Engineering wants exact DAU. Marketing wants exact MAU. Both queries can't run in production. What do you do?"</em></h5>
+<p>The two-tier pattern:</p>
+<ul>
+  <li><strong>Live dashboard</strong>: HLL sketches, ~1% error, sub-second response. Marketing and exec leadership read this 100× a day.</li>
+  <li><strong>Monthly close / regulatory report</strong>: exact <code>COUNT(DISTINCT)</code> run once on the full month, materialised to a small <code>dim_monthly_actuals</code> table. Finance reads this on the 1st of next month.</li>
+</ul>
+<p>Pre-empt the question: "we accept 1% error for live freshness; we run the exact count once a month for the books."</p>
+
+<h5>Probe 5 — <em>"Snowflake's APPROX_COUNT_DISTINCT and BigQuery's approx_count_distinct — same algorithm, same error rate?"</em></h5>
+<table>
+  <thead><tr><th>Engine</th><th>Function</th><th>Default error</th><th>Tuning knob</th></tr></thead>
+  <tbody>
+    <tr><td>Snowflake</td><td><code>APPROX_COUNT_DISTINCT</code></td><td>~1.6%</td><td><code>HLL(...)</code> + <code>HLL_COMBINE</code> for sketch arithmetic</td></tr>
+    <tr><td>BigQuery</td><td><code>APPROX_COUNT_DISTINCT</code></td><td>~1.5%</td><td><code>HLL_COUNT.INIT(..., precision)</code> + <code>HLL_COUNT.MERGE</code></td></tr>
+    <tr><td>Redshift</td><td><code>APPROX COUNT(DISTINCT ...)</code></td><td>~2%</td><td><code>HLL</code> data type since 2020</td></tr>
+    <tr><td>Trino / Presto</td><td><code>approx_distinct(x, error)</code></td><td>~2.3% default, tunable</td><td>Second arg controls error rate</td></tr>
+    <tr><td>Spark</td><td><code>approx_count_distinct(x, rsd)</code></td><td>~5% default</td><td>Second arg = relative SD</td></tr>
+  </tbody>
+</table>
+<p>The senior-IC detail: <strong>sketches from one engine can be merged in another if both follow the HLL++ spec</strong>. Snowflake and BigQuery sketches are not directly interoperable today — keep the sketch-generation engine pinned per data domain.</p>
+
+<h5>Probe 6 — <em>"PGlite / SQLite doesn't have HLL. How do you mock it in the audit?"</em></h5>
+<p>For testing: use the exact count and document the production swap-in. The runnable query in this notebook uses <code>COUNT(DISTINCT)</code> for both <code>dau_exact</code> and <code>dau_approx</code> with a comment showing the prod replacement. The wrong path: try to hand-roll HLL in SQL — it's hundreds of lines of bit manipulation and never matches the production engine's behaviour anyway.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name non-additivity before being asked, show the two-tier exact-for-finance / approximate-for-live pattern, walk through HLL's mergeability property (the part that makes rolling windows tractable), and call out the per-engine syntax + interop traps. The interviewer is checking whether you've shipped this in production or only read about it.</div>

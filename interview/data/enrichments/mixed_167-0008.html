@@ -1,0 +1,51 @@
+<p>A payroll report must show every employee's bonus, and employees with no bonus should read <code>0</code>, not a blank. The query wraps <code>bonus</code> in <code>COALESCE</code> to substitute a default for NULL. It is a one-function answer, but the interviewer is probing whether you know the difference between a NULL bonus and a genuine zero bonus &mdash; and whether you understand what NULLs do to the arithmetic downstream.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>bonus</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ava Lin</td><td>5000</td><td>has a bonus</td></tr>
+    <tr><td>2</td><td>Ben Cole</td><td><em>NULL</em></td><td>bonus unknown / not set</td></tr>
+    <tr><td>3</td><td>Cara Mott</td><td>0</td><td>genuine zero bonus</td></tr>
+    <tr><td>4</td><td>Dan Pope</td><td><em>NULL</em></td><td>bonus unknown / not set</td></tr>
+    <tr><td>5</td><td>Eli Voss</td><td>12000</td><td>has a bonus</td></tr>
+  </tbody>
+</table>
+<p>The instructive contrast is Ben/Dan (<em>NULL</em>) versus Cara (<code>0</code>). They are different facts; the report will make them look identical.</p>
+
+<h4>2. The SQL &mdash; substitute a default with <code>COALESCE</code></h4>
+<pre><code>SELECT name, COALESCE(bonus, 0) AS bonus_amount
+FROM employees
+ORDER BY name;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>bonus_amount</th></tr></thead>
+  <tbody>
+    <tr><td>Ava Lin</td><td>5000</td></tr>
+    <tr><td>Ben Cole</td><td>0</td></tr>
+    <tr><td>Cara Mott</td><td>0</td></tr>
+    <tr><td>Dan Pope</td><td>0</td></tr>
+    <tr><td>Eli Voss</td><td>12000</td></tr>
+  </tbody>
+</table>
+<p>Ben and Dan's NULLs became <code>0</code>. Note that Ben's row and Cara's row now <em>both</em> read <code>0</code> &mdash; the report can no longer distinguish "no bonus recorded" from "bonus is genuinely zero."</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COALESCE</code> works</h5>
+<p><code>COALESCE(a, b, c, ...)</code> returns the first non-NULL argument left to right. <code>COALESCE(bonus, 0)</code> yields <code>bonus</code> when it is present and <code>0</code> when it is NULL. It is ANSI-standard and short-circuits &mdash; once a non-NULL is found, the rest are not evaluated, which matters if a later argument is an expensive subquery.</p>
+
+<h5>The semantic trap &mdash; NULL is not zero</h5>
+<p>NULL means "unknown" or "not applicable"; <code>0</code> is a known quantity. Coalescing flattens that distinction. For a <em>display</em> total it is usually fine. But if someone later asks "how many employees have a bonus of exactly zero?", running that count over the coalesced column would wrongly include Ben and Dan. Coalesce at the presentation layer; keep the raw NULL in the stored data so the two cases remain separable.</p>
+
+<h5>Why this matters for SUM and AVG</h5>
+<p>Aggregates already skip NULLs, so <code>SUM(bonus)</code> ignores Ben and Dan, and <code>AVG(bonus)</code> divides by 3, not 5. If the business wants the average bonus <em>per employee</em> (treating "no bonus" as zero), you must coalesce <em>before</em> aggregating: <code>AVG(COALESCE(bonus, 0))</code> forces the divisor to all 5. Choosing whether to coalesce changes the denominator &mdash; state which average you mean.</p>
+
+<h5><code>COALESCE</code> vs. <code>ISNULL</code> vs. <code>IFNULL</code> vs. <code>NVL</code></h5>
+<p><code>COALESCE</code> is the portable, standard choice and takes any number of arguments. Dialect-specific two-argument variants exist &mdash; <code>ISNULL</code> (SQL Server), <code>IFNULL</code> (MySQL/SQLite), <code>NVL</code> (Oracle) &mdash; and they carry quirks: SQL Server's <code>ISNULL</code> truncates the result to the first argument's type, whereas <code>COALESCE</code> applies standard type precedence. Default to <code>COALESCE</code>.</p>
+
+<h5>Common mistakes</h5>
+<p>Comparing with <code>= NULL</code> instead of <code>IS NULL</code> &mdash; <code>bonus = NULL</code> is always unknown, never true. And type mismatch: <code>COALESCE(bonus, 'N/A')</code> mixes a numeric column with a text default and errors (or forces an unwanted cast). The fallback must be type-compatible with the column; <code>0</code> for numeric, <code>''</code> for text.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COALESCE</code> for display but state out loud that NULL and zero are different facts &mdash; and note that coalescing <em>before</em> <code>AVG</code> changes the denominator, so the choice is a business decision, not a formatting one.</div>

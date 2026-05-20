@@ -1,0 +1,45 @@
+<p>Meta's News Feed team optimizes one quantity above all: <strong>time spent per post type</strong>. The query slices total dwell across video / image / text / link / poll posts and computes each type's share of total feed time. The senior framing: dwell time is a proxy, not the goal — passive scrolling counts as engaged time even when nothing meaningful happens.</p>
+
+<h4>1. The source data — <code>feed_views</code></h4>
+<table><thead><tr><th>view_id</th><th>user_id</th><th>post_type</th><th>dwell_seconds</th></tr></thead>
+<tbody><tr><td>V_001</td><td>U_01</td><td>video</td><td>45</td></tr><tr><td>V_002</td><td>U_01</td><td>image</td><td>3</td></tr></tbody></table>
+
+<h4>2. The SQL — per-type aggregation + window-aggregate share</h4>
+<pre><code>SELECT post_type,
+  COUNT(*) AS views,
+  COUNT(DISTINCT user_id) AS unique_viewers,
+  ROUND(AVG(dwell_seconds), 1) AS avg_dwell,
+  ROUND(SUM(dwell_seconds) * 100.0
+      / SUM(SUM(dwell_seconds)) OVER (), 1) AS share_of_total_time_pct
+FROM feed_views
+GROUP BY post_type
+ORDER BY share_of_total_time_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The <code>SUM(SUM()) OVER ()</code> aggregate-of-aggregate</h5>
+<p>Same idiom as Okta's percent-contribution: inner SUM is per post_type, outer SUM-window is across all post_types. One pass, no subquery. Critical for share calculations.</p>
+
+<h5>Dwell vs engagement — the senior reframe</h5>
+<p>"Time spent" is correlated with — but not the same as — engagement. A 30-second video autoplays while the user scrolls past = 30 seconds of dwell, zero meaningful engagement. Production metrics distinguish:</p>
+<ul>
+<li><strong>Dwell</strong> — total seconds visible</li>
+<li><strong>Active dwell</strong> — seconds with eye-tracking / scroll-stopped / hover</li>
+<li><strong>Meaningful interaction</strong> — like / comment / share / save</li>
+</ul>
+<p>The query above measures dwell only. Senior interviewers will probe: <em>"how would you measure if dwell is the right metric?"</em>.</p>
+
+<h5>Reach vs depth — multi-axis</h5>
+<p><code>views</code> = total impressions. <code>unique_viewers</code> = distinct user reach. Their ratio is "views per viewer" — a depth metric. A post type with high views/viewer ratio is binge-worthy; low ratio is single-glance content. Always emit both.</p>
+
+<h5>The Reels squeeze</h5>
+<p>Reels (short video) launch in 2020 broke this analysis: a Reel is technically a "video" post_type but watches like a different beast — autoplay, vertical, swipeable. Production splits Reels into their own type before this query. Lumping them with regular video hides the impact.</p>
+
+<h5>The user-segment cross-tab</h5>
+<p>"Image dominates dwell" globally might mean "image dominates dwell <em>among older users</em>; video dominates among younger". The PM-actionable view splits by age band:</p>
+<pre><code>GROUP BY post_type, CASE WHEN age &lt; 25 THEN 'gen_z' WHEN age &lt; 40 THEN 'millennial' ELSE 'older' END</code></pre>
+
+<h5>The ranker-loop — what this query feeds</h5>
+<p>Feed-ranking models use post-type dwell as a feature. The query result isn't just a dashboard — it retrains the ranker weekly. A drift in average dwell for "video" might mean the ranker is over-weighting video; a/b test the response.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the SUM-of-SUM aggregate-of-aggregate, contrast dwell vs active dwell vs meaningful interaction, and emit reach + depth simultaneously. The Reels-vs-video-lumping trap is the over-the-bar deep cut.</div>

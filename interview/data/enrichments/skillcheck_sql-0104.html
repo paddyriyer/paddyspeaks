@@ -1,0 +1,59 @@
+<p>A log-archiving job needs to compress a set of unique-but-gappy log ids into contiguous ranges &mdash; <code>1,2,3</code> becomes the range <code>1&ndash;3</code>, an isolated id becomes a range of itself. This is the classic "gaps and islands" problem, and the interviewer is checking whether you know the <code>ROW_NUMBER</code> difference trick that collapses a consecutive run into a single constant group key.</p>
+
+<h4>1. The source data &mdash; <code>logs</code></h4>
+<table>
+  <thead><tr><th>log_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>start of run 1&ndash;3</td></tr>
+    <tr><td>2</td><td>contiguous</td></tr>
+    <tr><td>3</td><td>end of run; 4, 5, 6 missing</td></tr>
+    <tr><td>7</td><td>start of run 7&ndash;8</td></tr>
+    <tr><td>8</td><td>end of run; 9 missing</td></tr>
+    <tr><td>10</td><td>isolated &mdash; start = end (9 and 11&ndash;14 missing)</td></tr>
+    <tr><td>15</td><td>start of run 15&ndash;18</td></tr>
+    <tr><td>16, 17, 18</td><td>contiguous to the end</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: <code>10</code> is a <em>singleton</em> island &mdash; its range must be <code>10&ndash;10</code>, start equal to end. The run <code>15&ndash;18</code> sits at the very end of the data, testing that the last island closes cleanly. And there are gaps of varying width (one missing id between 8 and 10, several between 10 and 15).</p>
+
+<h4>2. The SQL &mdash; the ROW_NUMBER difference trick</h4>
+<pre><code>WITH numbered AS (
+  SELECT log_id, log_id - ROW_NUMBER() OVER (ORDER BY log_id) AS grp
+  FROM logs
+)
+SELECT MIN(log_id) AS start_id, MAX(log_id) AS end_id
+FROM numbered
+GROUP BY grp
+ORDER BY start_id;</code></pre>
+<p><code>ROW_NUMBER()</code> numbers the sorted ids 1, 2, 3, ... With no gaps, <code>log_id</code> and the row number climb in lockstep, so their <em>difference</em> is constant within a run. A gap bumps <code>log_id</code> without bumping the row number, so the difference jumps &mdash; a new island. Grouping on that difference and taking <code>MIN</code>/<code>MAX</code> yields each range.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>start_id</th><th>end_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>ids 1,2,3 &mdash; difference constant at 0</td></tr>
+    <tr><td>7</td><td>8</td><td>ids 7,8 &mdash; difference constant at 3</td></tr>
+    <tr><td>10</td><td>10</td><td>singleton &mdash; MIN = MAX, range 10&ndash;10</td></tr>
+    <tr><td>15</td><td>18</td><td>ids 15..18 &mdash; difference constant at 8</td></tr>
+  </tbody>
+</table>
+<p>The singleton <code>10</code> emerges as <code>10&ndash;10</code> with no special handling &mdash; a one-row group still has a <code>MIN</code> and <code>MAX</code>, and they coincide. The trailing run <code>15&ndash;18</code> closes correctly at the end of the data.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>log_id - ROW_NUMBER()</code> is constant within a run</h5>
+<p>This is the heart of the technique. In a consecutive run, both <code>log_id</code> and the dense, gapless <code>ROW_NUMBER</code> increase by exactly 1 from row to row. Subtracting one from the other cancels that shared increment, so the difference holds steady across the whole run. The moment the data skips an id, <code>log_id</code> leaps ahead of <code>ROW_NUMBER</code> and the difference steps up by the size of the gap. <em>The difference is constant if and only if the rows are consecutive</em> &mdash; so it is a perfect group key for islands.</p>
+
+<h5>The <code>grp</code> value is a label, not a number to interpret</h5>
+<p>The actual values of <code>grp</code> (0, 3, 8 here) are meaningless &mdash; do not read anything into them. All that matters is that rows in the same island share one value and rows in different islands do not. <code>GROUP BY grp</code> then partitions the rows into islands, and <code>MIN</code>/<code>MAX</code> read off each island's endpoints. The trick converts an inherently sequential problem into a plain <code>GROUP BY</code>.</p>
+
+<h5><code>ROW_NUMBER</code>, not <code>RANK</code> or <code>DENSE_RANK</code></h5>
+<p>The technique relies on a numbering that increases by exactly 1 with <em>no ties and no gaps</em>. Log ids are unique, so <code>ROW_NUMBER</code>, <code>RANK</code>, and <code>DENSE_RANK</code> happen to agree here. But if the column could contain duplicates, <code>RANK</code> would skip and <code>DENSE_RANK</code> would repeat &mdash; both breaking the lockstep. <code>ROW_NUMBER</code> is the safe, intention-revealing choice: it is the only one guaranteed to be a strict 1,2,3,... sequence.</p>
+
+<h5>Singletons need no special case</h5>
+<p>A common worry is the isolated id <code>10</code>. It needs nothing extra: it forms its own <code>grp</code> value, becomes a group of one row, and <code>MIN(log_id) = MAX(log_id) = 10</code> &mdash; the range <code>10&ndash;10</code> the spec asks for. A solution built on <code>LAG</code>/<code>LEAD</code> to detect "gap before" and "gap after" boundaries is far more fiddly and easy to get wrong at the singleton and at the first/last row. The difference trick handles all of them uniformly.</p>
+
+<h5>The <code>ORDER BY</code> inside <code>OVER</code> is mandatory</h5>
+<p><code>ROW_NUMBER() OVER (ORDER BY log_id)</code> must order by <code>log_id</code> &mdash; the numbering only tracks the ids if it is assigned in id order. Omit the <code>ORDER BY</code> and <code>ROW_NUMBER</code> assigns numbers in arbitrary physical order, the difference becomes noise, and the islands are garbage. This <code>ORDER BY</code> defines the computation; it is not optional styling. (The trailing <code>ORDER BY start_id</code> separately controls output order.)</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "collapse consecutive ids into ranges" as gaps-and-islands, solve it with <code>log_id - ROW_NUMBER() OVER (ORDER BY log_id)</code> &mdash; constant within a run, so it groups islands &mdash; treat the difference as an opaque label, use <code>ROW_NUMBER</code> (not <code>RANK</code>) for a strict gapless sequence, and note singletons fall out for free as <code>MIN = MAX</code>.</div>

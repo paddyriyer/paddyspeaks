@@ -1,0 +1,67 @@
+<p>New Relic's finance team wants the annual sales summary in the shape executives expect: one row per year, with four columns &mdash; Q1, Q2, Q3, Q4. The raw table stores quarters as <em>rows</em>; the report needs them as <em>columns</em>. That reshaping is a pivot, and the interviewer asking this wants to see that you build it with conditional aggregation, and that you handle a year that is missing a quarter.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>year</th><th>quarter</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2024</td><td>Q1</td><td>100</td></tr>
+    <tr><td>2024</td><td>Q2</td><td>150</td></tr>
+    <tr><td>2024</td><td>Q3</td><td>200</td></tr>
+    <tr><td>2024</td><td>Q4</td><td>250</td></tr>
+    <tr><td>2025</td><td>Q1</td><td>300</td></tr>
+    <tr><td>2025</td><td>Q2</td><td>350</td></tr>
+    <tr><td>2025</td><td>Q4</td><td>450</td></tr>
+  </tbody>
+</table>
+<p>2024 is a complete year &mdash; all four quarters. <strong>2025 is missing Q3</strong> entirely (no row at all). That gap is the whole interview: it decides whether 2025's Q3 cell reads 0 or NULL.</p>
+
+<h4>2. The SQL &mdash; conditional <code>SUM(CASE ...)</code></h4>
+<pre><code>SELECT year,
+  SUM(CASE WHEN quarter='Q1' THEN amount END) AS q1,
+  SUM(CASE WHEN quarter='Q2' THEN amount END) AS q2,
+  SUM(CASE WHEN quarter='Q3' THEN amount END) AS q3,
+  SUM(CASE WHEN quarter='Q4' THEN amount END) AS q4
+FROM sales GROUP BY year;</code></pre>
+<p><code>GROUP BY year</code> makes one row per year. Within each year, every <code>CASE</code> passes <code>amount</code> through only for its quarter and yields NULL otherwise; <code>SUM</code> then collapses those into one value per quarter column.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>q1</th><th>q2</th><th>q3</th><th>q4</th></tr></thead>
+  <tbody>
+    <tr><td>2025</td><td>300</td><td>350</td><td>NULL</td><td>450</td></tr>
+    <tr><td>2024</td><td>100</td><td>150</td><td>200</td><td>250</td></tr>
+  </tbody>
+</table>
+<p>2024 fills all four columns. For 2025, the <code>CASE WHEN quarter='Q3'</code> never matches any row, every value handed to that <code>SUM</code> is NULL, and <code>SUM</code> over nothing-but-NULL is <strong>NULL</strong> &mdash; not 0. The two output rows also come back unordered; a real report needs <code>ORDER BY year</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>CASE</code> has no <code>ELSE</code> &mdash; on purpose</h5>
+<p>Each <code>CASE</code> omits <code>ELSE</code>, so a non-matching quarter produces NULL and <code>SUM</code> ignores it. If you wrote <code>ELSE 0</code>, the column would still be correct here &mdash; <code>SUM</code> of zeros plus the real value is unchanged. The difference shows in the <em>missing</em> quarter: with <code>ELSE 0</code>, 2025's Q3 would have no rows to sum at all and stay NULL anyway. The <code>ELSE</code> matters far more for <code>AVG</code> (where stray zeros distort the mean) than for <code>SUM</code> &mdash; a nuance worth knowing.</p>
+
+<h5>The missing-quarter NULL &mdash; 0 or NULL?</h5>
+<p>2025's Q3 being NULL is honest: there is no data. If the executive sheet must show a number, wrap each column &mdash; but decide deliberately:</p>
+<pre><code>SELECT year,
+  COALESCE(SUM(CASE WHEN quarter='Q1' THEN amount END),0) AS q1,
+  COALESCE(SUM(CASE WHEN quarter='Q3' THEN amount END),0) AS q3
+  -- ... q2, q4 likewise
+FROM sales GROUP BY year ORDER BY year;</code></pre>
+<p>A 0 reads as "zero sales that quarter", which may be wrong if the truth is "data not yet loaded". NULL preserves the distinction; <code>COALESCE</code> erases it. Pick consciously.</p>
+
+<h5>The Postgres-native way &mdash; <code>FILTER</code></h5>
+<p>Conditional aggregation has a cleaner Postgres form, the aggregate <code>FILTER</code> clause:</p>
+<pre><code>SELECT year,
+  SUM(amount) FILTER (WHERE quarter='Q1') AS q1,
+  SUM(amount) FILTER (WHERE quarter='Q2') AS q2,
+  SUM(amount) FILTER (WHERE quarter='Q3') AS q3,
+  SUM(amount) FILTER (WHERE quarter='Q4') AS q4
+FROM sales GROUP BY year ORDER BY year;</code></pre>
+<p>Same result, intent on the surface. <code>CASE</code> is the portable form for every engine; <code>FILTER</code> is the idiomatic Postgres one. (Some databases also have a dedicated <code>PIVOT</code> operator, but Postgres does not &mdash; conditional aggregation <em>is</em> the pivot here.)</p>
+
+<h5>Why the column list is fixed &mdash; the real limitation</h5>
+<p>This pivot hard-codes four quarters. That is fine for quarters (there will only ever be four), but the pattern does not generalise: pivoting an <em>unknown</em> set of values &mdash; say, one column per product &mdash; can't be done in pure SQL, because a query's column list must be known before execution. That needs dynamic SQL or application-side reshaping. Naming this boundary is the senior beat.</p>
+
+<h5>Edge case: duplicate rows per quarter</h5>
+<p>If <code>sales</code> can hold two rows for the same year and quarter (two regions, say), <code>SUM</code> correctly adds them &mdash; that is why the aggregate is <code>SUM</code> and not <code>MAX</code> or a bare <code>CASE</code>. Use <code>MAX</code> only when each year/quarter is guaranteed unique and you just want to surface the single value.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build the pivot with conditional <code>SUM(CASE ...)</code>, explain that a year missing a quarter yields NULL (no data) not 0 and treat that gap deliberately, offer <code>FILTER</code> as the cleaner Postgres equivalent, and note that the hard-coded column list is why pivoting an open-ended value set needs dynamic SQL.</div>

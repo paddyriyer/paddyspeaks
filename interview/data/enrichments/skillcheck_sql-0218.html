@@ -1,0 +1,70 @@
+<p>Counting someone&rsquo;s <em>direct</em> referrals is a simple <code>GROUP BY</code>. Counting their whole referral <em>network</em> &mdash; everyone they brought in directly, plus everyone those people brought in, to any depth &mdash; needs recursion. A <code>WITH RECURSIVE</code> CTE walks the referral tree and rolls trip volume up to each referrer.</p>
+
+<h4>1. The source data</h4>
+<p><code>users</code> &mdash; each row&rsquo;s <code>referred_by_id</code> points at the user who referred them (NULL = an organic signup):</p>
+<table>
+  <thead><tr><th>user_id</th><th>user_name</th><th>referred_by_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ava</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Ben</td><td>1</td></tr>
+    <tr><td>3</td><td>Cara</td><td>1</td></tr>
+    <tr><td>4</td><td>Dan</td><td>2</td></tr>
+    <tr><td>5</td><td>Eli</td><td>2</td></tr>
+    <tr><td>6</td><td>Fay</td><td>3</td></tr>
+    <tr><td>7</td><td>Gus</td><td>NULL</td></tr>
+    <tr><td>8</td><td>Hana</td><td>7</td></tr>
+  </tbody>
+</table>
+<p><code>trips</code> has 16 rows; trips per user are Ava 2, Ben 2, Cara 1, Dan 3, Eli 0, Fay 3, Gus 1, Hana 4. There are two referral trees: Ava&rsquo;s (Ben, Cara, and everyone below) and Gus&rsquo;s (Hana).</p>
+
+<h4>2. The recursive solution</h4>
+<pre><code>WITH RECURSIVE downline AS (
+  SELECT referred_by_id AS ancestor_id, user_id AS member_id
+  FROM users
+  WHERE referred_by_id IS NOT NULL
+  UNION ALL
+  SELECT d.ancestor_id, u.user_id
+  FROM downline d
+  JOIN users u ON u.referred_by_id = d.member_id
+),
+trips_per_user AS (
+  SELECT user_id, COUNT(*) AS trip_count
+  FROM trips
+  GROUP BY user_id
+)
+SELECT a.user_name AS referrer,
+       COUNT(*) AS downline_size,
+       COALESCE(SUM(tpu.trip_count), 0) AS downline_trips
+FROM downline d
+JOIN users a ON a.user_id = d.ancestor_id
+LEFT JOIN trips_per_user tpu ON tpu.user_id = d.member_id
+GROUP BY a.user_id, a.user_name
+ORDER BY downline_trips DESC, referrer ASC;</code></pre>
+<p>The <code>downline</code> CTE produces one row for every (ancestor, member) pair &mdash; every user paired with everyone beneath them in the referral tree. Trips are pre-aggregated per user, joined on the member, and summed up to the ancestor.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>referrer</th><th>downline_size</th><th>downline_trips</th></tr></thead>
+  <tbody>
+    <tr><td>Ava</td><td>5</td><td>9</td></tr>
+    <tr><td>Gus</td><td>1</td><td>4</td></tr>
+    <tr><td>Ben</td><td>2</td><td>3</td></tr>
+    <tr><td>Cara</td><td>1</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Anchor term, then recursive term</h5>
+<p>A recursive CTE has two halves joined by <code>UNION ALL</code>. The <em>anchor</em> &mdash; the first <code>SELECT</code> &mdash; seeds the working set with direct referrals: <code>(referred_by_id, user_id)</code> pairs. The <em>recursive term</em> &mdash; the second <code>SELECT</code>, which references <code>downline</code> itself &mdash; takes each known pair and reaches one level deeper, joining back to <code>users</code> to find who the member referred. The engine repeats the recursive term until it yields no new rows.</p>
+
+<h5>Why the recursion terminates &mdash; and when it would not</h5>
+<p>Each user has exactly one <code>referred_by_id</code>, so the referral graph is a tree: finite and acyclic. The recursive term eventually reaches leaves (users who referred no one), produces nothing, and stops. If the data allowed a cycle &mdash; A referred B who referred A &mdash; the recursion would never terminate; PostgreSQL would need a <code>CYCLE</code> clause or an explicit depth guard.</p>
+
+<h5>Pre-aggregate the fact table to avoid fan-out</h5>
+<p><code>trips</code> has one row per trip. Joining it straight onto <code>downline</code> would multiply rows &mdash; a member with 3 trips would appear 3 times, inflating <code>downline_size</code> into a trip count rather than a head count. <code>trips_per_user</code> collapses trips to one row per user first, so each member contributes exactly one row: <code>downline_size</code> counts people, <code>downline_trips</code> sums their trips.</p>
+
+<h5>LEFT JOIN keeps members who took no trips</h5>
+<p>Eli took zero trips, so <code>trips_per_user</code> has no row for him. A <code>LEFT JOIN</code> keeps Eli in Ben&rsquo;s downline &mdash; <code>downline_size</code> for Ben stays 2 &mdash; and <code>COALESCE</code> turns his missing trip sum into 0. An <code>INNER JOIN</code> would silently drop zero-trip members and undercount every network. Notice too that size and value diverge: Ava&rsquo;s network is 5 people, Gus&rsquo;s is 1, yet Gus&rsquo;s lone referral out-rides Ben&rsquo;s two.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a referral network is a tree &mdash; reach the whole of it with a <code>WITH RECURSIVE</code> CTE whose anchor seeds direct referrals and whose recursive term steps one level down. Pre-aggregate the fact table before joining to avoid fan-out, and <code>LEFT JOIN</code> it so zero-activity members still count toward network size.</div>

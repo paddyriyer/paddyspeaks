@@ -1,0 +1,52 @@
+<p>A product manager wants to spot the premium half of the catalogue: <em>"which SKUs are priced above the average product price?"</em> The reference solution is a textbook scalar subquery in the <code>WHERE</code> clause &mdash; compute one number (the catalogue average), then compare every row against it. The interviewer is checking that you understand <em>when</em> the subquery runs and how it behaves when prices are NULL.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>category</th><th>sku</th><th>manufacturer</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Widget A</td><td>tools</td><td>SKU1</td><td>Acme</td><td>$10.00</td></tr>
+    <tr><td>2</td><td>Widget B</td><td>tools</td><td>SKU2</td><td>Acme</td><td>$20.00</td></tr>
+    <tr><td>3</td><td>Gizmo</td><td>tools</td><td>SKU3</td><td>Globex</td><td>$50.00</td></tr>
+    <tr><td>4</td><td>Gadget</td><td>electronics</td><td>SKU4</td><td>Globex</td><td>$30.00</td></tr>
+    <tr><td>5</td><td>Doohickey</td><td>electronics</td><td>SKU5</td><td>Initech</td><td>$5.00</td></tr>
+    <tr><td>6</td><td>Thingy</td><td>electronics</td><td>SKU6</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Product 6 has a <strong>NULL price</strong> &mdash; the edge case. It must neither inflate the average nor sneak into the result.</p>
+
+<h4>2. The SQL &mdash; scalar subquery in the WHERE clause</h4>
+<pre><code>SELECT * FROM products
+WHERE price &gt; (SELECT AVG(price) FROM products);</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>category</th><th>sku</th><th>manufacturer</th><th>price</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>Gizmo</td><td>tools</td><td>SKU3</td><td>Globex</td><td>$50.00</td><td>well above avg</td></tr>
+    <tr><td>4</td><td>Gadget</td><td>electronics</td><td>SKU4</td><td>Globex</td><td>$30.00</td><td>just above avg</td></tr>
+  </tbody>
+</table>
+<p>The average over the five non-NULL prices is <code>(10+20+50+30+5)/5 = $23.00</code>. Only Gizmo and Gadget clear that bar. Product 6 is absent &mdash; a NULL price fails <code>price &gt; 23</code> (the comparison is <em>unknown</em>, not true).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The subquery is uncorrelated &mdash; it runs once</h5>
+<p><code>(SELECT AVG(price) FROM products)</code> references nothing from the outer query, so the planner evaluates it a single time, caches the scalar, and reuses it for every row comparison. This is an <em>uncorrelated</em> scalar subquery &mdash; cheap and predictable. Contrast with a correlated subquery (one that mentions the outer table), which conceptually re-runs per row. Saying "this runs once, not per row" is the senior tell.</p>
+
+<h5>NULL handling is silent but correct here</h5>
+<p>Two NULL interactions matter. First, <code>AVG</code> ignores NULL prices entirely &mdash; the denominator is 5, not 6 &mdash; so a missing price does not drag the average toward zero. Second, <code>NULL &gt; 23</code> evaluates to <em>unknown</em>, and <code>WHERE</code> keeps only rows that are strictly <em>true</em>, so the NULL-priced row is correctly excluded. The query happens to do the right thing, but you should be able to articulate <em>why</em> rather than assume it.</p>
+
+<h5><code>SELECT *</code> is fine for a demo, risky in production</h5>
+<p>The solution returns every column. In an interview that is acceptable, but flag the production concern: <code>SELECT *</code> couples the query to table shape, breaks if columns are renamed, and ships unneeded bytes. Name the columns the consumer actually needs.</p>
+
+<h5>The strict-vs-inclusive boundary</h5>
+<p><code>price &gt; AVG</code> excludes products priced <em>exactly</em> at the average. If a product sat at precisely $23.00, it would drop out. Confirm with the interviewer whether "above average" means strictly greater (<code>&gt;</code>) or at-least-average (<code>&gt;=</code>) &mdash; boundary semantics are a classic place to lose a point.</p>
+
+<h5>The window-function alternative &mdash; average plus delta in one pass</h5>
+<p>If the ask grows to "show each product's price <em>and</em> how far it sits from the average," a window function avoids re-scanning:</p>
+<pre><code>SELECT *, price - AVG(price) OVER () AS delta_from_avg
+FROM products
+WHERE price &gt; AVG(price) OVER ();   -- needs a subquery/CTE wrapper: window fns can't sit in WHERE</code></pre>
+<p>Window functions are evaluated after <code>WHERE</code>, so the filter form must wrap the window result in a CTE. The simple scalar subquery stays the cleanest answer for the literal question asked.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> call the construct an uncorrelated scalar subquery that evaluates once, explain that <code>AVG</code> skips NULLs while <code>NULL &gt; x</code> is unknown (so the NULL row is correctly absent on both counts), and clarify the strict-vs-inclusive boundary before committing to <code>&gt;</code>.</div>

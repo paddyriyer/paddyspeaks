@@ -1,0 +1,56 @@
+<p>A customer-insights query asks for the <em>second-most-recent</em> order per customer per category &mdash; the "what did they buy just before their latest" signal often used for repeat-purchase analysis. The <code>orders</code> table can have many orders per <code>(customer, category)</code>, or just one. The interviewer is probing the canonical "Nth row per group" pattern: rank within each partition, then filter to the rank you want.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>category</th><th>ts</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>X</td><td>2025-01-01 10:00</td><td>50</td><td>oldest of customer 1 / X</td></tr>
+    <tr><td>2</td><td>1</td><td>X</td><td>2025-01-02 10:00</td><td>60</td><td><strong>2nd-most-recent &mdash; the target</strong></td></tr>
+    <tr><td>3</td><td>1</td><td>X</td><td>2025-01-03 10:00</td><td>70</td><td>most recent</td></tr>
+    <tr><td>4</td><td>1</td><td>Y</td><td>2025-01-01 10:00</td><td>100</td><td>only order in customer 1 / Y &mdash; excluded</td></tr>
+    <tr><td>5</td><td>2</td><td>X</td><td>2025-01-01 10:00</td><td>5</td><td>2nd-most-recent for customer 2 / X</td></tr>
+    <tr><td>6</td><td>2</td><td>X</td><td>2025-01-02 10:00</td><td>6</td><td>most recent for customer 2 / X</td></tr>
+    <tr><td>7</td><td>3</td><td>X</td><td>2025-01-01 10:00</td><td>1</td><td>only order in customer 3 / X &mdash; excluded</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the <strong>single-order group</strong>: customer 1 / category Y and customer 3 / category X each have exactly one order. There is no "second" order, so those groups must produce <em>no row</em> at all &mdash; not a NULL row, simply absent from the output.</p>
+
+<h4>2. The SQL &mdash; ROW_NUMBER per group, filter to rank 2</h4>
+<pre><code>SELECT customer_id, category, order_id, ts, amount
+FROM (
+  SELECT customer_id, category, order_id, ts, amount,
+         ROW_NUMBER() OVER (PARTITION BY customer_id, category ORDER BY ts DESC) AS rn
+  FROM orders
+) t
+WHERE rn = 2
+ORDER BY customer_id, category;</code></pre>
+<p>The inner query numbers each <code>(customer, category)</code> group's orders from newest to oldest &mdash; <code>ORDER BY ts DESC</code> makes <code>rn = 1</code> the latest, <code>rn = 2</code> the one before it. The outer query keeps only <code>rn = 2</code>. Groups with a single order never produce an <code>rn = 2</code>, so they vanish automatically.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>category</th><th>order_id</th><th>ts</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>X</td><td>2</td><td>2025-01-02 10:00</td><td>60</td></tr>
+    <tr><td>2</td><td>X</td><td>5</td><td>2025-01-01 10:00</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 / X returns order <strong>2</strong> (the middle of three). Customer 2 / X returns order <strong>5</strong> (the older of two). Customer 1 / Y and customer 3 / X are absent &mdash; with only one order each, no <code>rn = 2</code> exists, and the inner-query filter silently drops them, exactly as the spec demands.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a subquery is unavoidable</h5>
+<p>You cannot write <code>WHERE ROW_NUMBER() OVER (...) = 2</code> directly: window functions are evaluated <em>after</em> the <code>WHERE</code> clause, so the rank does not exist yet when <code>WHERE</code> runs. The fix is to compute <code>rn</code> in an inner query (or CTE) and filter it in an outer one &mdash; a mandatory two-step shape for any "Nth per group" question.</p>
+
+<h5>Why <code>ROW_NUMBER</code> and not <code>RANK</code> / <code>DENSE_RANK</code></h5>
+<p>"The second-most-recent order" means exactly <em>one</em> order. <code>ROW_NUMBER</code> guarantees distinct 1, 2, 3, ... even if two orders share a timestamp &mdash; so <code>rn = 2</code> always picks a single row. <code>RANK</code> would assign two tied-newest orders both <code>rank = 1</code>, then jump to <code>rank = 3</code> &mdash; there would be no <code>rank = 2</code> and the query would silently return nothing for that group. For "pick exactly one row", <code>ROW_NUMBER</code> is the correct ranking function.</p>
+
+<h5>Single-member groups disappear &mdash; for free</h5>
+<p>The spec's tricky requirement &mdash; "if a customer has only one order in a category, that category should NOT appear" &mdash; needs no special handling. A one-row group only ever produces <code>rn = 1</code>; the predicate <code>rn = 2</code> matches nothing and the group is excluded. The pattern handles the edge case structurally. Contrast this with <code>LEAD</code>/<code>OFFSET 1</code> approaches that might emit a NULL row &mdash; the rank-and-filter form is cleaner here.</p>
+
+<h5>The tie trap &mdash; what if the two newest orders share a <code>ts</code></h5>
+<p><code>ORDER BY ts DESC</code> alone is non-deterministic when timestamps tie: which order becomes <code>rn = 1</code> vs <code>rn = 2</code> is arbitrary, and can change between runs. If the data permits same-timestamp orders, add a deterministic tiebreaker &mdash; <code>ORDER BY ts DESC, order_id DESC</code> &mdash; so "second-most-recent" is well-defined and reproducible. Naming this unprompted is the senior signal; the demo's distinct timestamps hide the ambiguity.</p>
+
+<h5>Dialect notes &mdash; portability and alternatives</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)</code> is standard and identical in Postgres, SQL Server, BigQuery, Snowflake, Oracle, and MySQL 8+/SQLite 3.25+. Postgres also offers a terser non-standard route &mdash; <code>SELECT DISTINCT ON (customer_id, category) ...</code> &mdash; but that only fetches the <em>first</em> row per group, not the second, so the rank-and-filter form is the right tool for an arbitrary Nth.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve "Nth per group" with <code>ROW_NUMBER()</code> in a subquery filtered to the target rank in the outer query &mdash; window functions cannot live in <code>WHERE</code> &mdash; pick <code>ROW_NUMBER</code> over <code>RANK</code> so exactly one row is selected, and add a tiebreaker to the <code>ORDER BY</code> so the result is deterministic under tied timestamps.</div>

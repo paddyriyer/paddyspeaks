@@ -1,0 +1,68 @@
+<p>A trading desk needs, for every executed trade, the most recent bid quote that was live at or before the trade timestamp &mdash; an <strong>ASOF join</strong>. Modern engines have an <code>ASOF JOIN</code> keyword, but older Postgres, older BigQuery, and MySQL 8 do not. The interviewer wants the portable construction: interleave both tables, build fill-forward groups with a running <code>COUNT</code>, and broadcast the last bid into each group.</p>
+
+<h4>1. The source data &mdash; <code>quotes</code> and <code>trades</code></h4>
+<table>
+  <thead><tr><th>table</th><th>ts</th><th>symbol</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>quotes</td><td>10:00:00</td><td>BTC</td><td>bid 60000</td></tr>
+    <tr><td>quotes</td><td>10:05:00</td><td>BTC</td><td>bid 60500</td></tr>
+    <tr><td>quotes</td><td>10:10:00</td><td>BTC</td><td>bid 61000 &mdash; <em>after</em> both BTC trades</td></tr>
+    <tr><td>trades</td><td>10:02:00</td><td>BTC</td><td>qty 0.5 &mdash; sits between two quotes</td></tr>
+    <tr><td>trades</td><td>10:07:00</td><td>BTC</td><td>qty 1.2</td></tr>
+    <tr><td>quotes</td><td>10:01:00</td><td>ETH</td><td>bid 3000</td></tr>
+    <tr><td>trades</td><td>10:03:00</td><td>ETH</td><td>qty 2.0</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the 10:10:00 BTC quote: it is <em>later</em> than every BTC trade, so a correct ASOF must <em>not</em> let it leak backward into the 10:07:00 trade. The 10:07:00 trade must see 60500, not 61000.</p>
+
+<h4>2. The SQL &mdash; window-fill ASOF emulation</h4>
+<pre><code>WITH timeline AS (
+  SELECT ts, symbol, CAST(NULL AS REAL) AS qty, bid FROM quotes
+  UNION ALL
+  SELECT ts, symbol, qty, CAST(NULL AS INTEGER) AS bid FROM trades
+),
+fill AS (
+  SELECT ts, symbol, qty, bid,
+         COUNT(bid) OVER (
+           PARTITION BY symbol ORDER BY ts
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS grp
+  FROM timeline
+),
+with_active AS (
+  SELECT ts, symbol, qty,
+         MAX(bid) OVER (PARTITION BY symbol, grp) AS active_bid
+  FROM fill
+)
+SELECT ts AS trade_ts, symbol, qty, active_bid
+FROM with_active
+WHERE qty IS NOT NULL
+ORDER BY symbol, trade_ts;</code></pre>
+<p>Three steps. <code>timeline</code> interleaves quotes and trades into one ordered stream per symbol. <code>COUNT(bid)</code> as a running count increments only on quote rows (it ignores NULLs), so every trade carries the <em>group number of the quote that precedes it</em>. <code>MAX(bid) OVER (PARTITION BY symbol, grp)</code> then finds the single bid in that group &mdash; the active one.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>trade_ts</th><th>symbol</th><th>qty</th><th>active_bid</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>10:02:00</td><td>BTC</td><td>0.5</td><td>60000</td><td>last bid at-or-before 10:02 is the 10:00 quote</td></tr>
+    <tr><td>10:07:00</td><td>BTC</td><td>1.2</td><td>60500</td><td>the 10:10 quote is in the future &mdash; correctly excluded</td></tr>
+    <tr><td>10:03:00</td><td>ETH</td><td>2</td><td>3000</td><td>only one ETH quote precedes it</td></tr>
+  </tbody>
+</table>
+<p>The 10:07:00 BTC trade returns <strong>60500</strong>, not 61000 &mdash; the later quote never carries backward because it sits in a higher fill group.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the running <code>COUNT</code> defines fill-forward groups</h5>
+<p><code>COUNT(bid)</code> counts only non-NULL <code>bid</code> values. As the per-symbol stream advances, the count steps up by 1 at each quote row and stays flat across trade rows. The result: a quote and every trade <em>after</em> it (until the next quote) share the same <code>grp</code> number. That number is the join key &mdash; it pairs each trade with the most recent prior quote, which is exactly the ASOF "at-or-before" semantics.</p>
+
+<h5>Why <code>MAX(bid)</code> is computed before the <code>WHERE</code></h5>
+<p>This is the trap the hint warns about. Each <code>grp</code> contains exactly one quote row (the bid) plus trade rows (NULL bid). <code>MAX(bid) OVER (PARTITION BY symbol, grp)</code> broadcasts that one bid across the whole group. If you filtered <code>WHERE qty IS NOT NULL</code> <em>first</em>, the quote rows would be gone, the group would hold only NULL bids, and <code>MAX</code> would return NULL. The window function must run on the full interleaved set; filtering to trade rows happens last.</p>
+
+<h5>Why this beats a correlated subquery</h5>
+<p>The textbook ASOF without window functions is <code>(SELECT bid FROM quotes q WHERE q.symbol = t.symbol AND q.ts &lt;= t.ts ORDER BY q.ts DESC LIMIT 1)</code> per trade row. Correct, but O(trades &times; quotes) &mdash; each trade rescans the quote history. The window-fill pattern sorts the merged timeline once and is O(n log n). On real tick data with millions of quotes, that gap is the difference between seconds and hours.</p>
+
+<h5>Edge cases and dialect notes</h5>
+<p>A trade <em>before</em> any quote for its symbol lands in <code>grp = 0</code>, whose <code>MAX(bid)</code> is NULL &mdash; correct, there is no active bid yet. Exact-timestamp ties (trade and quote at the same <code>ts</code>) depend on the <code>ORDER BY</code>; add a source tag (<code>0</code> for quotes, <code>1</code> for trades) as a secondary sort key to make "quote wins ties" deterministic. DuckDB and recent ClickHouse offer a native <code>ASOF JOIN</code>; Postgres 14+ can use <code>LAST_VALUE(bid) IGNORE NULLS</code>-style lateral joins. The <code>COUNT</code>-group trick is the lowest-common-denominator that works everywhere with window functions.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emulate an ASOF join by interleaving both tables with <code>UNION ALL</code>, using a running <code>COUNT</code> of the non-NULL value to form fill-forward groups, and broadcasting with <code>MAX() OVER (PARTITION BY grp)</code> &mdash; computed <em>before</em> filtering to trade rows, or the quotes are stripped and the fill collapses to NULL.</div>

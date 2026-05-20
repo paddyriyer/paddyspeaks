@@ -1,0 +1,58 @@
+<p>AMD's resourcing team wants a staffing roster: each employee, the department they sit in, and the project they are assigned to. The data lives across four tables joined through a <code>project_assignments</code> bridge. The interviewer wants to see clean aliasing, the right join path, and awareness that an <code>INNER JOIN</code> chain silently drops anyone with a gap.</p>
+
+<h4>1. The source data &mdash; <code>employees</code>, <code>departments</code>, <code>projects</code>, <code>project_assignments</code></h4>
+<table>
+  <thead><tr><th>employees</th><th>departments</th><th>projects</th><th>project_assignments</th></tr></thead>
+  <tbody>
+    <tr><td>1 Aarav (dept 10)</td><td>10 Engineering</td><td>100 Atlas</td><td>emp 1 &rarr; proj 100</td></tr>
+    <tr><td>2 Bela (dept 10)</td><td>20 Design</td><td>200 Borealis</td><td>emp 2 &rarr; proj 200</td></tr>
+    <tr><td>3 Cyrus (dept 20)</td><td>30 Sales</td><td>300 Cobalt</td><td>emp 3 &rarr; proj 100</td></tr>
+    <tr><td>4 Dia (dept 30)</td><td> </td><td> </td><td>emp 4 &rarr; proj 300</td></tr>
+  </tbody>
+</table>
+<p>The roster threads four tables: <code>employees</code> &rarr; <code>departments</code> (on <code>dept_id</code>), and <code>employees</code> &rarr; <code>project_assignments</code> &rarr; <code>projects</code> (on <code>emp_id</code> then <code>project_id</code>). Every employee here has both a department and an assignment &mdash; the interesting case is what happens when one is missing.</p>
+
+<h4>2. The SQL &mdash; <code>four-table join via the bridge</code></h4>
+<pre><code>SELECT e.name, d.dept_name, p.project_name
+FROM employees AS e
+JOIN departments AS d         ON e.dept_id = d.dept_id
+JOIN project_assignments AS pa ON e.emp_id = pa.emp_id
+JOIN projects AS p            ON pa.project_id = p.project_id;</code></pre>
+<p>Each <code>JOIN</code> adds one table and one <code>ON</code> condition. The <code>project_assignments</code> bridge is the key move: an employee and a project have no direct foreign key, so the join must pass through the assignment table that links them.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>dept_name</th><th>project_name</th></tr></thead>
+  <tbody>
+    <tr><td>Aarav</td><td>Engineering</td><td>Atlas</td></tr>
+    <tr><td>Bela</td><td>Engineering</td><td>Borealis</td></tr>
+    <tr><td>Cyrus</td><td>Design</td><td>Atlas</td></tr>
+    <tr><td>Dia</td><td>Sales</td><td>Cobalt</td></tr>
+  </tbody>
+</table>
+<p>Four clean rows: each employee paired with their department name and project name. Aarav and Cyrus are both on Atlas &mdash; the bridge correctly maps a many-to-one of employees to a project.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Aliases are not cosmetic &mdash; this schema has duplicate column names</h5>
+<p>Look at the schema: <code>dept_name</code> appears in <code>employees</code>, <code>departments</code>, <code>projects</code>, <em>and</em> <code>project_assignments</code>; <code>name</code> and <code>project_name</code> are similarly scattered. Without table aliases, <code>SELECT name, dept_name</code> raises <em>"column reference is ambiguous"</em>. The aliases <code>e</code>, <code>d</code>, <code>pa</code>, <code>p</code> let every reference be unqualified-free: <code>e.name</code>, <code>d.dept_name</code>. Always qualify columns in a multi-table join &mdash; it is correctness, not style.</p>
+
+<h5>The <code>INNER JOIN</code> drop &mdash; the silent-data-loss trap</h5>
+<p>Every join here is an inner join, so a row survives only if it matches in <em>all four</em> tables. An employee with no row in <code>project_assignments</code> &mdash; on the bench, between projects &mdash; vanishes from the roster entirely. So does one whose <code>dept_id</code> points at a department that was deleted. If the roster must list everyone, switch to <code>LEFT JOIN</code> from <code>employees</code>:</p>
+<pre><code>SELECT e.name, d.dept_name, p.project_name
+FROM employees AS e
+LEFT JOIN departments AS d          ON e.dept_id = d.dept_id
+LEFT JOIN project_assignments AS pa ON e.emp_id = pa.emp_id
+LEFT JOIN projects AS p             ON pa.project_id = p.project_id;</code></pre>
+<p>Unassigned employees then appear with <code>NULL</code> project columns. Ask: "should the roster include people not on any project?" The answer picks inner vs left.</p>
+
+<h5>The bridge table fans out rows &mdash; one employee, many rows</h5>
+<p><code>project_assignments</code> is many-to-many: if Aarav is staffed on two projects, he gets <strong>two rows</strong> in the output, one per assignment. That is correct for a staffing roster, but it means <code>COUNT(*)</code> on this result counts <em>assignments</em>, not <em>employees</em>. If a downstream metric needs distinct headcount, use <code>COUNT(DISTINCT e.emp_id)</code> &mdash; the fan-out is a classic source of inflated counts.</p>
+
+<h5>Join order does not change the result &mdash; but watch the path</h5>
+<p>Inner joins are associative and commutative, so the planner is free to reorder them; writing <code>departments</code> first would give the identical answer. What you cannot do is join <code>projects</code> directly to <code>employees</code> &mdash; there is no shared key. The join <em>graph</em> must stay connected: each new table needs an <code>ON</code> condition tying it to a table already in the join. Omit one (a missing <code>ON</code>, or <code>ON</code> against the wrong column) and you get an accidental cross join &mdash; a row explosion.</p>
+
+<h5>Trusting the <code>dept_id</code> path &mdash; two ways to get department</h5>
+<p>Notice <code>projects</code> <em>also</em> carries a <code>dept_id</code>. So an employee's department could be read two ways: the department they report to (<code>employees.dept_id</code>), or the department that owns their project (<code>projects.dept_id</code>). These can disagree &mdash; an Engineering employee loaned to a Design-owned project. The solution uses <code>employees.dept_id</code>; confirm that is the department the roster means, and do not silently mix the two.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> qualify every column with a table alias because the schema has many duplicate names, recognise the <code>INNER JOIN</code> chain drops employees with any missing link (<code>LEFT JOIN</code> if the roster must be complete), know the many-to-many bridge fans out rows so headcount needs <code>COUNT(DISTINCT)</code>, and resolve which <code>dept_id</code> path is the intended one.</div>

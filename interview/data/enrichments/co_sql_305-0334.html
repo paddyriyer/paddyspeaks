@@ -1,0 +1,55 @@
+<p>Reels watch-completion is the single most important Reels metric — it's the input feature to the algorithm and the output measure of creator quality. The query buckets each play into <em>completed / engaged / sampled / bounced</em> based on the watched-fraction.</p>
+
+<h4>1. The source data — <code>reel_plays</code></h4>
+<table><thead><tr><th>play_id</th><th>reel_id</th><th>watched_seconds</th><th>total_seconds</th></tr></thead>
+<tbody><tr><td>P_001</td><td>R_01</td><td>14</td><td>15</td></tr><tr><td>P_002</td><td>R_01</td><td>2</td><td>15</td></tr></tbody></table>
+
+<h4>2. The SQL — banded completion via CASE</h4>
+<pre><code>WITH classified AS (
+  SELECT *,
+    CASE
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.95 THEN 'completed'
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.50 THEN 'engaged'
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.10 THEN 'sampled'
+      ELSE 'bounced'
+    END AS engagement_band
+  FROM reel_plays
+)
+SELECT engagement_band,
+  COUNT(*) AS plays,
+  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct
+FROM classified
+GROUP BY engagement_band
+ORDER BY plays DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why 95% not 100% for "completed"</h5>
+<p>End-card detection has timing jitter. A reel labeled "complete" at 100% watched-seconds requires a perfect sync between client heartbeats and server end events. 95% is the operational threshold — close enough to count.</p>
+
+<h5>The 4-band scheme — why these cuts</h5>
+<table><thead><tr><th>band</th><th>cut</th><th>creator-feedback signal</th></tr></thead>
+<tbody>
+<tr><td>Completed</td><td>≥95%</td><td>excellent — algorithm boosts</td></tr>
+<tr><td>Engaged</td><td>50-95%</td><td>good — captured then lost</td></tr>
+<tr><td>Sampled</td><td>10-50%</td><td>weak hook — rework intro</td></tr>
+<tr><td>Bounced</td><td>&lt;10%</td><td>broken thumbnail / audio</td></tr>
+</tbody></table>
+
+<h5>The intro-3-seconds metric</h5>
+<p>Reels' make-or-break moment is the first 3 seconds. A separate metric: <code>watched_seconds &gt;= 3</code> as "passed-the-hook". Production combines: bounce-pct (under 10%) is too late; the actionable creator metric is hook-passed-pct.</p>
+
+<h5>The duration-bias</h5>
+<p>Long reels (60s) have lower completion-rate than short reels (10s) — easier to sit through 10 seconds. Comparing creators with mixed durations is unfair. Normalize:</p>
+<pre><code>GROUP BY engagement_band, CASE WHEN total_seconds &lt;= 15 THEN 'short' ELSE 'long' END</code></pre>
+
+<h5>The audio vs no-audio split</h5>
+<p>Reels played with sound on have ~3x completion vs muted scrolling. Splitting by audio state changes which creators look strong: TikTok-style audio-driven creators win on sound-on metric.</p>
+
+<h5>The algorithm-feedback loop</h5>
+<p>Completion-rate isn't just a creator-quality signal — it's an algorithm-input feature. Reels with high completion rate get amplified to the next 100x audience; that audience also has high completion → exponential lift. The query result drives the ranker.</p>
+
+<h5>Per-reel vs aggregate</h5>
+<p>The query above aggregates across all reels. The PM-actionable variant: per-reel buckets. Add reel_id to GROUP BY and HAVING ≥ 1000 plays — that's the creator dashboard view.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> nail the 95%/50%/10% cuts with their meanings, name the duration-bias confounder, and surface the audio-on/off split. The hook-passed-3-sec metric and the algorithm feedback-loop framing are the over-the-bar deep cuts.</div>

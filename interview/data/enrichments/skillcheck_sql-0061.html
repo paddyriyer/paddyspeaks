@@ -1,0 +1,67 @@
+<p>An HR system stores departments as an adjacency list &mdash; each row points to its parent. The CFO asks: <em>"for every department, what is the total salary of that department <strong>plus all departments beneath it</strong>?"</em> Engineering's number must include Backend and Frontend. The interviewer is probing recursive CTEs &mdash; can you walk a tree of arbitrary depth and roll a metric up it?</p>
+
+<h4>1. The source data &mdash; <code>dept</code> and <code>employee</code></h4>
+<table>
+  <thead><tr><th>dept.id</th><th>name</th><th>parent_id</th><th>employees (salary)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Company</td><td>NULL</td><td>&mdash; none directly &mdash;</td></tr>
+    <tr><td>2</td><td>Engineering</td><td>1</td><td>&mdash; none directly &mdash;</td></tr>
+    <tr><td>3</td><td>Sales</td><td>1</td><td>&mdash; none directly &mdash;</td></tr>
+    <tr><td>4</td><td>Backend</td><td>2</td><td>100, 120</td></tr>
+    <tr><td>5</td><td>Frontend</td><td>2</td><td>90</td></tr>
+    <tr><td>6</td><td>NA</td><td>3</td><td>80</td></tr>
+    <tr><td>7</td><td>EMEA</td><td>3</td><td>110</td></tr>
+  </tbody>
+</table>
+<p>The structure itself is the edge case: <strong>only leaf departments have employees</strong>. Company, Engineering, and Sales employ nobody directly &mdash; their totals come entirely from descendants. A query that only sums direct employees would report 0 for them.</p>
+
+<h4>2. The SQL &mdash; recursive CTE building each subtree</h4>
+<pre><code>WITH RECURSIVE subtree AS (
+  SELECT id AS root_id, id AS dept_id FROM dept
+  UNION ALL
+  SELECT s.root_id, d.id
+  FROM dept d JOIN subtree s ON d.parent_id = s.dept_id
+)
+SELECT d.id AS dept_id,
+       d.name AS dept_name,
+       COALESCE(SUM(e.salary), 0) AS total_salary
+FROM dept d
+LEFT JOIN subtree s ON s.root_id = d.id
+LEFT JOIN employee e ON e.dept_id = s.dept_id
+GROUP BY d.id, d.name
+ORDER BY d.id;</code></pre>
+<p>The recursive CTE produces every <code>(root_id, dept_id)</code> pair where <code>dept_id</code> is the root itself or any descendant. Joining that to <code>employee</code> and grouping by the root collapses each whole subtree into one rolled-up salary.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>dept_name</th><th>total_salary</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Company</td><td>500</td><td>whole tree: 100+120+90+80+110</td></tr>
+    <tr><td>2</td><td>Engineering</td><td>310</td><td>Backend 220 + Frontend 90 &mdash; no direct staff</td></tr>
+    <tr><td>3</td><td>Sales</td><td>190</td><td>NA 80 + EMEA 110</td></tr>
+    <tr><td>4</td><td>Backend</td><td>220</td><td>leaf: 100 + 120</td></tr>
+    <tr><td>5</td><td>Frontend</td><td>90</td><td>leaf</td></tr>
+    <tr><td>6</td><td>NA</td><td>80</td><td>leaf</td></tr>
+    <tr><td>7</td><td>EMEA</td><td>110</td><td>leaf</td></tr>
+  </tbody>
+</table>
+<p>Engineering shows <strong>310</strong> despite employing nobody directly &mdash; the rollup reached down to Backend and Frontend. Company's 500 is the sum of every salary in the tree. The numbers nest correctly: 500 = 310 + 190.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How the recursive CTE walks the tree</h5>
+<p>A recursive CTE has two parts joined by <code>UNION ALL</code>. The <strong>anchor</strong> &mdash; <code>SELECT id AS root_id, id AS dept_id FROM dept</code> &mdash; seeds every department as the root of its own (so-far one-node) subtree. The <strong>recursive term</strong> repeatedly finds departments whose <code>parent_id</code> is a <code>dept_id</code> already in the set and adds them, carrying the original <code>root_id</code> forward. Iteration stops when a pass adds no new rows. The result: one row per ancestor/descendant relationship, including each node with itself.</p>
+
+<h5>Why carry <code>root_id</code> through the recursion</h5>
+<p>The trick is keeping <code>root_id</code> constant while <code>dept_id</code> descends. That is what lets the final <code>GROUP BY root_id</code> ask "everything under department X". Without the propagated root, the CTE would just enumerate the tree once and you could not attribute a descendant to every ancestor above it. This "carry the root" pattern is the standard idiom for subtree rollups.</p>
+
+<h5>The two <code>LEFT JOIN</code>s and <code>COALESCE</code></h5>
+<p>Both joins are <code>LEFT</code> for a reason. A leaf has a subtree of just itself; an ancestor has many descendants &mdash; both are covered. But a subtree may contain <em>no</em> employees at all (imagine an empty department branch): the <code>employee</code> join then yields all-NULL rows, <code>SUM</code> returns NULL, and <code>COALESCE(..., 0)</code> supplies the required 0. Inner joins would silently drop staff-less departments from the output entirely.</p>
+
+<h5>Cycle safety &mdash; the production caveat</h5>
+<p>This query assumes a true tree. If the data ever had a cycle (department A's ancestor points back to A through bad data), <code>UNION ALL</code> would loop forever. PostgreSQL 14+ offers <code>UNION ALL ... CYCLE dept_id SET is_cycle USING path</code> to detect and stop; older versions need a manual visited-path array. Mentioning that an adjacency list is only safe to recurse if cycles are impossible &mdash; or guarded &mdash; is the senior signal.</p>
+
+<h5>Counting rows vs summing &mdash; a duplication subtlety</h5>
+<p>Here each employee belongs to exactly one department, so joining through <code>subtree</code> and summing is correct. But if the metric were <code>COUNT(DISTINCT employee)</code> and an employee could appear under a department reachable by two paths (a DAG, not a tree), <code>COUNT(*)</code> would double-count. With a strict tree there is exactly one path root&rarr;descendant, so no duplication &mdash; but that guarantee is worth stating, because it is what makes the plain <code>SUM</code> safe.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> roll a metric up a hierarchy with a recursive CTE that carries <code>root_id</code> through every descendant, join through that subtree mapping and <code>GROUP BY</code> the root, use <code>LEFT JOIN</code> + <code>COALESCE(SUM(...), 0)</code> so staff-less branches still appear, and flag that recursing an adjacency list is only safe when cycles are impossible or explicitly guarded.</div>

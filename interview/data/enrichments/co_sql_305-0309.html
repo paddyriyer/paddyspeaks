@@ -1,0 +1,84 @@
+<p>"Are you still watching?" The auto-play prompt is the most-instrumented UI element in the Netflix product. Every impression is a decision moment: the user either clicks "Continue" (auto-play wins) or walks away (auto-play loses). The conversion rate per title is the single best proxy for <em>narrative momentum</em> &mdash; does the show pull the viewer through the seam? The query is conditional aggregation; the senior conversation is the statistical-significance gate.</p>
+
+<h4>1. The source data &mdash; <code>auto_play_events</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>title_id</th><th>autoplay_shown_at</th><th>user_continued (1/0)</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>T_strangerthings</td><td>2026-04-22 22:00</td><td>1</td></tr>
+    <tr><td>U_002</td><td>T_strangerthings</td><td>2026-04-22 22:30</td><td>1</td></tr>
+    <tr><td>U_003</td><td>T_thecrown</td><td>2026-04-22 21:00</td><td>0</td></tr>
+    <tr><td>...</td><td>...</td><td>...</td><td>...</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; rate per title with <code>NULLIF</code> and <code>HAVING</code></h4>
+<pre><code>SELECT title_id,
+  COUNT(*) AS impressions,
+  SUM(CASE WHEN user_continued = 1 THEN 1 ELSE 0 END) AS continued,
+  ROUND(100.0 * SUM(CASE WHEN user_continued = 1 THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 2) AS continue_rate_pct
+FROM auto_play_events
+GROUP BY title_id
+HAVING COUNT(*) &gt;= 100
+ORDER BY continue_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why <code>HAVING COUNT(*) &gt;= 100</code> is non-negotiable</h5>
+<p>A title with 3 impressions and 2 continues looks like 67% conversion &mdash; topping the leaderboard. With 100 impressions you have a 95% confidence interval of roughly &plusmn;10pp around the true rate. With 1,000, &plusmn;3pp. With 10,000, &plusmn;1pp. The HAVING gate is the difference between a real signal and a sample-size artifact.</p>
+<p>For "leaderboard"-style reports, push the gate higher (1000+) and add a confidence-interval column:</p>
+<pre><code>continue_rate_pct,
+1.96 * SQRT(rate * (1 - rate) / impressions) * 100 AS ci_pp_at_95</code></pre>
+
+<h5>The "1 ELSE 0" vs <code>FILTER (WHERE)</code> idiom</h5>
+<pre><code>-- Verbose but portable (MySQL-friendly):
+SUM(CASE WHEN user_continued = 1 THEN 1 ELSE 0 END)
+
+-- Modern (Postgres / SQLite 3.30+ / Snowflake):
+COUNT(*) FILTER (WHERE user_continued = 1)
+
+-- Sneaky for boolean-like 0/1 columns:
+SUM(user_continued)</code></pre>
+<p>The third form is the shortest but assumes <code>user_continued</code> is exactly 0 or 1 (no NULLs, no 2s). Production-grade code uses FILTER for clarity.</p>
+
+<h5>The seam-position trap &mdash; intra-episode vs end-of-episode</h5>
+<p>Auto-play impressions fire at multiple seams:</p>
+<ul>
+  <li><strong>End-of-episode &rarr; next episode in same show</strong> (the high-conversion seam &mdash; same world, same characters)</li>
+  <li><strong>End-of-show &rarr; recommended different show</strong> (much lower conversion &mdash; cold-start)</li>
+  <li><strong>Mid-episode "you've been idle"</strong> (lowest &mdash; the user already disengaged)</li>
+</ul>
+<p>Aggregating all three together blurs everything. Always include <code>seam_type</code> in GROUP BY for actionable analysis.</p>
+
+<h5>The episode-position gradient</h5>
+<p>Within a show, conversion at the end of E_01 is much higher than at the end of E_08 (some viewers always drop after a few episodes). The CASE when conversion drops sharply identifies <em>narrative dead spots</em>:</p>
+<pre><code>SELECT show_id, episode_number,
+  100.0 * SUM(user_continued) / COUNT(*) AS continue_rate_pct
+FROM auto_play_events e JOIN episodes ep USING (title_id)
+GROUP BY show_id, episode_number
+ORDER BY show_id, episode_number;</code></pre>
+<p>The "biggest cliff" identifies the episode after which retention collapses &mdash; that's the writers' room conversation.</p>
+
+<h5>Counterfactual &mdash; what would have happened without auto-play?</h5>
+<p>The conversion rate alone doesn't measure auto-play's <em>incremental</em> value &mdash; some users would have started the next episode anyway. The real question requires an A/B test:</p>
+<pre><code>SELECT bucket,                    -- 'autoplay-on' vs 'control'
+  COUNT(*) AS users,
+  AVG(next_ep_started_within_5min) AS conversion_rate
+FROM ab_assignments a JOIN auto_play_events e USING (user_id)
+GROUP BY bucket;</code></pre>
+<p>The diff between treatment and control is the auto-play <em>uplift</em> &mdash; what Netflix actually optimizes.</p>
+
+<h5>The "skip" wrinkle</h5>
+<p>Users can <em>actively cancel</em> auto-play (clicking "Cancel") vs <em>passively let it expire</em>. Both produce <code>user_continued = 0</code> but tell different stories: active cancel = "I'm done with this show"; passive expire = "I walked away from the screen". Three buckets, not two:</p>
+<pre><code>SUM(CASE WHEN user_continued = 1                        THEN 1 END) AS continued,
+SUM(CASE WHEN user_continued = 0 AND cancelled_at IS NOT NULL THEN 1 END) AS active_cancel,
+SUM(CASE WHEN user_continued = 0 AND cancelled_at IS NULL     THEN 1 END) AS passive_expire</code></pre>
+
+<h5>The completion-rate cousin metric</h5>
+<p>Auto-play conversion is most predictive when <strong>combined</strong> with episode completion. A title where 90% finish but only 30% auto-continue means the show ended cleanly &mdash; that's a <em>compliment</em>, not a problem (people are satisfied). The diagnostic isn't auto-play alone; it's the <em>delta</em> between completion and continuation.</p>
+
+<h5>Day-part normalization</h5>
+<p>Auto-play conversion at 11pm (sleep timer kicks in) is structurally lower than at 7pm. Don't compare titles across day-parts unless you normalize:</p>
+<pre><code>GROUP BY title_id, EXTRACT(HOUR FROM autoplay_shown_at)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> pin the sample-size gate (<code>HAVING COUNT &gt;= 100</code>) with a confidence-interval column, raise the seam-type confounder unprompted, and push the conversation toward A/B test uplift over raw rate. The episode-position gradient + active-vs-passive cancel split is the over-the-bar finish that connects the query to the writers' room.</div>

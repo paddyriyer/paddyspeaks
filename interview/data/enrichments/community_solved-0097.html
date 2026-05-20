@@ -1,0 +1,71 @@
+<p>An e-commerce team wants a product-review scorecard: average rating, total reviews, and the 5-star count per product &mdash; <em>plus a ranking</em> by average rating, with documented tie-breakers (5-star count, then review count). The reference solution computes the three aggregates correctly but stops there: it never produces the ranking column the question explicitly asks for, so it only half-answers the prompt.</p>
+
+<h4>1. The source data &mdash; <code>productreviews</code></h4>
+<table>
+  <thead><tr><th>ProductID</th><th>ReviewID</th><th>ReviewRating</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>5</td></tr>
+    <tr><td>1</td><td>102</td><td>5</td></tr>
+    <tr><td>1</td><td>103</td><td>4</td></tr>
+    <tr><td>2</td><td>201</td><td>5</td></tr>
+    <tr><td>2</td><td>202</td><td>5</td></tr>
+    <tr><td>2</td><td>203</td><td>3</td></tr>
+    <tr><td>2</td><td>204</td><td>5</td></tr>
+    <tr><td>3</td><td>301</td><td>4</td></tr>
+    <tr><td>3</td><td>302</td><td>4</td></tr>
+    <tr><td>4</td><td>401</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Product 4 is the single-review edge case &mdash; its average <em>is</em> its only rating (2.0). Products 1 and 2 are close at the top (4.67 vs 4.50), which is exactly where the documented tie-break logic earns its keep if two products land equal.</p>
+
+<h4>2. The SQL</h4>
+<p><strong>Original solution (flagged broken &mdash; missing the ranking):</strong></p>
+<pre><code>select productid,
+    avg(reviewrating) as avg_rating,
+    count(reviewid) as review_count,
+    sum(case when reviewrating = 5 then 1 else 0 end) as five_star_review
+from productreviews
+group by productid</code></pre>
+<p>The question asks for "a ranking of products based on their average rating in descending order" with two explicit tie-breakers. This query returns the three metrics but <em>no rank column</em>, and emits rows in arbitrary order &mdash; it does not answer requirement 4.</p>
+<p><strong>Corrected solution &mdash; add the ranked output:</strong></p>
+<pre><code>SELECT productid,
+       AVG(reviewrating) AS avg_rating,
+       COUNT(reviewid) AS review_count,
+       SUM(CASE WHEN reviewrating = 5 THEN 1 ELSE 0 END) AS five_star_review,
+       RANK() OVER (ORDER BY AVG(reviewrating) DESC,
+                    SUM(CASE WHEN reviewrating = 5 THEN 1 ELSE 0 END) DESC,
+                    COUNT(reviewid) DESC) AS product_rank
+FROM productreviews
+GROUP BY productid
+ORDER BY product_rank;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>productid</th><th>avg_rating</th><th>review_count</th><th>five_star_review</th><th>product_rank</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>4.67</td><td>3</td><td>2</td><td>1</td></tr>
+    <tr><td>2</td><td>4.50</td><td>4</td><td>3</td><td>2</td></tr>
+    <tr><td>3</td><td>4.00</td><td>2</td><td>0</td><td>3</td></tr>
+    <tr><td>4</td><td>2.00</td><td>1</td><td>0</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Product 1 ranks first on the highest average (4.67). Product 4, with its lone 2-star review, lands last. No ties occur here, but the multi-key <code>ORDER BY</code> guarantees the documented behaviour if two averages were ever equal.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Reading the full question &mdash; the ranking is requirement 4</h5>
+<p>The prompt has four numbered asks; the original solution delivers three. A correct answer must include the <code>product_rank</code> column and order by it. "Solve the question, not a subset" &mdash; an interviewer reads a missing requirement as either carelessness or not understanding window functions.</p>
+
+<h5>Window functions can take aggregates as arguments</h5>
+<p><code>RANK() OVER (ORDER BY AVG(reviewrating) DESC, &hellip;)</code> works because window functions are evaluated <em>after</em> <code>GROUP BY</code>. At that stage <code>AVG(reviewrating)</code>, <code>COUNT(reviewid)</code>, and the 5-star <code>SUM</code> are already computed per group, so the <code>OVER (ORDER BY &hellip;)</code> can rank on them directly &mdash; no CTE needed. A CTE that pre-computes the aggregates then ranks is equally valid and arguably more readable; both are fine.</p>
+
+<h5>Encoding the tie-breakers as <code>ORDER BY</code> keys</h5>
+<p>The spec's cascade &mdash; average, then 5-star count, then review count &mdash; maps one-to-one onto comma-separated <code>ORDER BY</code> keys, each <code>DESC</code>. SQL applies them left to right: the second key only matters when the first ties, the third only when the first two tie. This is the natural, declarative way to express layered ranking rules.</p>
+
+<h5><code>RANK()</code> vs <code>DENSE_RANK()</code> vs <code>ROW_NUMBER()</code></h5>
+<p>If two products are still equal after <em>all three</em> keys, <code>RANK()</code> assigns them the same rank and skips the next (1, 2, 2, 4); <code>DENSE_RANK()</code> shares without a gap (1, 2, 2, 3); <code>ROW_NUMBER()</code> forces distinct numbers by arbitrary tie-break. Genuine "ranking" usually wants <code>RANK</code> or <code>DENSE_RANK</code> so equal products share a position &mdash; naming which one the product wants is the senior move.</p>
+
+<h5>The conditional-count idiom and a single-review caveat</h5>
+<p><code>SUM(CASE WHEN reviewrating = 5 THEN 1 ELSE 0 END)</code> counts 5-star reviews; <code>COUNT(*) FILTER (WHERE reviewrating = 5)</code> is the cleaner Postgres form. One business caveat: product 4's average rests on a single review &mdash; a one-review 5.0 would outrank a hundred-review 4.9. If that is undesirable, add a minimum-review threshold (<code>HAVING COUNT(reviewid) &gt;= n</code>) or a Bayesian/weighted average. Worth raising even though the sample data does not force it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> notice the prompt's fourth requirement &mdash; the ranking &mdash; is missing entirely, add <code>RANK() OVER (ORDER BY AVG(...) DESC, SUM(CASE...) DESC, COUNT(...) DESC)</code> with the tie-breakers as ordered keys, distinguish <code>RANK</code>/<code>DENSE_RANK</code>/<code>ROW_NUMBER</code> by tie behaviour, and flag that a single-review product can dominate an average-based ranking.</div>

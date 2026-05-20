@@ -1,0 +1,64 @@
+<p>UBS's operations desk runs a warehouse and wants the average <em>stock cycle</em> &mdash; how many days a product sits between arriving and being sold &mdash; per product. The query has to turn two timestamps into a duration, average that duration, and express it in days. The arithmetic looks more elaborate than it is: the solution multiplies by 86400 and divides by 86400, which cancels out. The real interview content is the <code>WHERE sold_at IS NOT NULL</code> filter and what it silently does to products still sitting on the shelf.</p>
+
+<h4>1. The source data &mdash; <code>inventory</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>received_at</th><th>sold_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-01 00:00</td><td>2026-01-06 00:00</td></tr>
+    <tr><td>1</td><td>2026-01-02 00:00</td><td>2026-01-12 00:00</td></tr>
+    <tr><td>2</td><td>2026-01-01 12:00</td><td>2026-01-04 12:00</td></tr>
+    <tr><td>2</td><td>2026-01-05 00:00</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td>2026-01-01 00:00</td><td>2026-01-02 06:00</td></tr>
+  </tbody>
+</table>
+<p>Product 1 has two completed cycles (5 days and 10 days). Product 2 has one completed cycle (3 days) and one <strong>unsold unit</strong> &mdash; a NULL <code>sold_at</code>. Product 3's cycle is 1.25 days, exercising the <em>fractional</em>-day path: 30 hours, not a whole number of days.</p>
+
+<h4>2. The SQL &mdash; <code>AVG of timestamp diff in days</code></h4>
+<pre><code>SELECT product_id,
+       AVG(((EXTRACT(EPOCH FROM (sold_at - received_at)) / 86400.0) * 86400)/86400)
+         AS avg_cycle_days
+FROM inventory
+WHERE sold_at IS NOT NULL
+GROUP BY product_id;</code></pre>
+<p><code>sold_at - received_at</code> is an <code>interval</code>; <code>EXTRACT(EPOCH FROM &hellip;)</code> turns it into total seconds; dividing by 86400 converts seconds to days. The extra <code>* 86400</code> then <code>/86400</code> cancel &mdash; harmless, but noise.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>avg_cycle_days</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>1.25000000000000000000</td></tr>
+    <tr><td>2</td><td>3.0000000000000000</td></tr>
+    <tr><td>1</td><td>7.5000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Product 1 averages (5 + 10) / 2 = 7.5 days. Product 2 shows <strong>3 days from its single completed cycle</strong> &mdash; the unsold unit was filtered out entirely, so it neither raised nor lowered the average. Product 3 is 1.25 days, the fractional value preserved because the epoch math is floating-point.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The redundant arithmetic &mdash; what the formula actually is</h5>
+<p><code>(epoch / 86400.0) * 86400 / 86400</code> simplifies to <code>epoch / 86400.0</code>. The two extra operations cancel and contribute nothing but rounding noise. Write the intent plainly:</p>
+<pre><code>SELECT product_id,
+       AVG(EXTRACT(EPOCH FROM (sold_at - received_at)) / 86400.0) AS avg_cycle_days
+FROM inventory
+WHERE sold_at IS NOT NULL
+GROUP BY product_id;</code></pre>
+<p>Even cleaner, skip epoch entirely &mdash; subtract the timestamps as <code>date</code> values and the result is already an integer count of days (loses sub-day precision, so only if hours do not matter):</p>
+<pre><code>AVG(sold_at::date - received_at::date) AS avg_cycle_days</code></pre>
+
+<h5>The <code>WHERE sold_at IS NOT NULL</code> filter &mdash; correct, but say why</h5>
+<p>A NULL <code>sold_at</code> means "not sold yet" &mdash; there is no cycle to measure. The filter is right. But note the consequence: a product that is <em>entirely</em> unsold drops out of the result set altogether (it has zero qualifying rows, so <code>GROUP BY</code> produces nothing for it). If the dashboard must list every product, that needs a <code>LEFT JOIN</code> from a product dimension, leaving <code>avg_cycle_days</code> NULL for never-sold items. Also flag the survivorship bias: averaging only sold units understates true holding time, because the slowest-moving stock is exactly what is still unsold.</p>
+
+<h5>The interviewer's likely follow-up &mdash; overall vs per-product</h5>
+<p>Expect "what is the average across the <em>whole</em> warehouse?" Dropping <code>GROUP BY</code> gives a single grand average &mdash; but a row-weighted one, where a product with many cycles dominates. If the business wants each product weighted equally, average the per-product averages:</p>
+<pre><code>SELECT AVG(avg_cycle_days) FROM (
+  SELECT product_id, AVG(EXTRACT(EPOCH FROM (sold_at - received_at))/86400.0) AS avg_cycle_days
+  FROM inventory WHERE sold_at IS NOT NULL GROUP BY product_id
+) p;</code></pre>
+
+<h5>Dirty-data edge case &mdash; <code>sold_at</code> before <code>received_at</code></h5>
+<p>If a data-entry error puts <code>sold_at</code> earlier than <code>received_at</code>, the interval is negative and the average is silently dragged down &mdash; no error is raised. Guard it: <code>WHERE sold_at &gt; received_at</code>, or surface the bad rows with a <code>COUNT(*) FILTER (WHERE sold_at &lt; received_at)</code> data-quality check before trusting the metric.</p>
+
+<h5>Why <code>EXTRACT(EPOCH ...)</code> over date subtraction</h5>
+<p>Subtracting two <code>timestamp</code> values yields an <code>interval</code>, and you cannot directly <code>AVG</code> an interval into a clean day count &mdash; well, Postgres <em>can</em> <code>AVG</code> an interval, but the result is itself an interval (<code>7 days 12:00:00</code>), not the number 7.5. <code>EXTRACT(EPOCH ...)</code> drops to a scalar number of seconds, which divides and averages into a plain numeric. That scalar is what a BI tool wants on an axis.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the <code>*86400/86400</code> as a no-op and simplify it, justify the <code>sold_at IS NOT NULL</code> filter while naming the survivorship bias and the dropped never-sold products, distinguish row-weighted from product-weighted overall averages, and add a guard for negative (bad-data) cycles.</div>

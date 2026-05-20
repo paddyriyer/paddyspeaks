@@ -1,0 +1,92 @@
+<p>This is the classic <em>growth accounting</em> question every analytics-heavy company asks: decompose each month's active base into <strong>new</strong>, <strong>resurrected</strong>, <strong>existing</strong> (retained), and <strong>churned</strong>. The interviewer wants to see whether you can classify a customer-month purely from its neighbours &mdash; the previous and next active month &mdash; using <code>LAG</code>/<code>LEAD</code>, and whether you correctly project a <em>churn</em> into the month <em>after</em> a customer's last activity.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1&ndash;3</td><td>1</td><td>Jan, Feb, Mar 2025</td><td>100 each</td><td>new &rarr; existing &rarr; existing, churns Apr</td></tr>
+    <tr><td>4</td><td>2</td><td>2025-01-20</td><td>80</td><td>new in Jan</td></tr>
+    <tr><td>5</td><td>2</td><td>2025-03-15</td><td>80</td><td>skipped Feb &rarr; <em>resurrected</em> in Mar</td></tr>
+    <tr><td>6</td><td>3</td><td>2025-02-18</td><td>50</td><td>single order &mdash; new Feb, churns Mar</td></tr>
+    <tr><td>7</td><td>4</td><td>2025-03-22</td><td>200</td><td>single order &mdash; new Mar, churns Apr</td></tr>
+  </tbody>
+</table>
+<p>Customer 2 is the key edge case: an order in January, <em>nothing in February</em>, then an order in March. That February gap means March is not "existing" &mdash; it is a <strong>resurrection</strong>. Customers 3 and 4 are single-month customers whose churn must surface in the following month even though they have no order there.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code>/<code>LEAD</code> classification with a churn projection</h4>
+<p>The reference solution is written in SQLite (<code>strftime</code>, <code>date(...,'+1 month')</code>). Executed here on Postgres, the date functions translate directly &mdash; the logic is identical.</p>
+<pre><code>WITH user_activity AS (
+    SELECT customer_id, TO_CHAR(order_date::date, 'YYYY-MM') AS ym
+    FROM orders
+    WHERE order_date &gt;= '2024-12-01'   -- one-month buffer for LAG/LEAD
+      AND order_date &lt;  '2025-05-01'
+    GROUP BY customer_id, TO_CHAR(order_date::date, 'YYYY-MM')
+),
+edges AS (
+    SELECT customer_id, ym,
+        (ym || '-01')::date              AS current_m,
+        LAG ((ym || '-01')::date) OVER w AS prev_m,
+        LEAD((ym || '-01')::date) OVER w AS next_m
+    FROM user_activity
+    WINDOW w AS (PARTITION BY customer_id ORDER BY ym)
+),
+classifications AS (
+    SELECT ym, customer_id,
+        CASE
+            WHEN prev_m IS NULL                          THEN 'new'
+            WHEN prev_m = current_m - INTERVAL '1 month'  THEN 'existing'
+            ELSE                                               'resurrected'
+        END AS bucket,
+        CASE
+            WHEN next_m IS NULL OR next_m &gt; current_m + INTERVAL '1 month'
+            THEN TO_CHAR(current_m + INTERVAL '1 month', 'YYYY-MM')
+        END AS churn_ym
+    FROM edges
+)
+SELECT ym AS year_month, bucket, COUNT(DISTINCT customer_id) AS customers
+FROM (
+    SELECT ym, customer_id, bucket FROM classifications
+    UNION ALL
+    SELECT churn_ym, customer_id, 'churned'
+    FROM classifications WHERE churn_ym IS NOT NULL
+) z
+GROUP BY ym, bucket
+ORDER BY ym,
+    CASE bucket WHEN 'new' THEN 1 WHEN 'resurrected' THEN 2
+                WHEN 'existing' THEN 3 ELSE 4 END;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year_month</th><th>bucket</th><th>customers</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01</td><td>new</td><td>2</td><td>customers 1 and 2 first appear</td></tr>
+    <tr><td>2025-02</td><td>new</td><td>1</td><td>customer 3</td></tr>
+    <tr><td>2025-02</td><td>existing</td><td>1</td><td>customer 1 retained</td></tr>
+    <tr><td>2025-02</td><td>churned</td><td>1</td><td>customer 2 went silent (last seen Jan)</td></tr>
+    <tr><td>2025-03</td><td>new</td><td>1</td><td>customer 4</td></tr>
+    <tr><td>2025-03</td><td>resurrected</td><td>1</td><td>customer 2 returns after the Feb gap</td></tr>
+    <tr><td>2025-03</td><td>existing</td><td>1</td><td>customer 1 retained again</td></tr>
+    <tr><td>2025-03</td><td>churned</td><td>1</td><td>customer 3 (last seen Feb)</td></tr>
+    <tr><td>2025-04</td><td>churned</td><td>3</td><td>customers 1, 2, 4 all lapse after March</td></tr>
+  </tbody>
+</table>
+<p>The accounting balances: every customer that became inactive shows up exactly once as <code>churned</code> in the month after their final order, and customer 2's January &rarr; (gap) &rarr; March pattern produces both a February churn <em>and</em> a March resurrection &mdash; the same person, counted on both sides of the gap, which is exactly how growth accounting should treat a lapse-and-return.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The whole classification is "look at the neighbours"</h5>
+<p>Once activity is collapsed to one row per (customer, month), the bucket depends only on the gap to the previous active month: no previous month &rarr; <code>new</code>; previous month is exactly one month back &rarr; <code>existing</code>; previous month exists but is further back &rarr; <code>resurrected</code>. <code>LAG</code> partitioned by customer and ordered by month gives that neighbour in a single pass. <code>LEAD</code> looks forward the same way to decide whether <em>this</em> month is the customer's last.</p>
+
+<h5>Why churn needs a <code>UNION ALL</code>, not a fifth CASE branch</h5>
+<p>A new/resurrected/existing label describes a month the customer <em>was</em> active. Churn describes a month the customer was <em>absent</em> &mdash; there is no source row for it. So churn cannot be a branch of the same <code>CASE</code>; it must be a synthesised row. The query computes <code>churn_ym</code> = the month after a last-or-pre-gap activity, then <code>UNION ALL</code>s those rows in with bucket <code>'churned'</code>. This "emit an extra row for a non-event" pattern is worth naming explicitly.</p>
+
+<h5>The one-month buffer in the <code>WHERE</code> clause</h5>
+<p>The filter starts at <code>2024-12-01</code>, a month before the real report window. If a customer was active in December and again in January, that January row must be classified as <code>existing</code> &mdash; but without the December row in scope, <code>LAG</code> returns <code>NULL</code> and January is mislabelled <code>new</code>. Pulling one extra month of history lets the window functions see across the report boundary. Symmetrically, <code>churn_ym</code> can land in the month just past the window, which is intended.</p>
+
+<h5>Date arithmetic is the dialect-portability risk</h5>
+<p>The original is SQLite: <code>strftime('%Y-%m', d)</code>, <code>date(ym||'-01')</code>, and <code>date(d,'+1 month')</code>. The Postgres equivalents shown are <code>TO_CHAR(d,'YYYY-MM')</code>, <code>(ym||'-01')::date</code>, and <code>d + INTERVAL '1 month'</code>. Comparing <code>prev_m = current_m - INTERVAL '1 month'</code> is reliable because both sides are first-of-month dates; never compare raw <code>order_date</code> values for "consecutive months" &mdash; a Jan 31 and a Mar 1 order are 29 days apart but two months apart.</p>
+
+<h5>What a senior would add</h5>
+<p>"This is a closed system: <code>new + resurrected + existing</code> for a month minus <code>churned</code> entering the next month reconciles to the month-over-month change in the active base. I'd assert that identity as a data-quality check. I'd also confirm the product's definition of churn &mdash; here it's a single inactive month; some teams require two or three consecutive silent months before calling churn, which would change the <code>next_m</code> threshold."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> frame growth accounting as a neighbour-comparison via <code>LAG</code>/<code>LEAD</code> on a (customer, month) grid, explain that <code>churned</code> is a synthesised non-event row requiring <code>UNION ALL</code> rather than a CASE branch, justify the one-month <code>WHERE</code> buffer that keeps boundary months from being mislabelled, and offer the new+resurrected+existing&minus;churned reconciliation identity as a built-in sanity check.</div>

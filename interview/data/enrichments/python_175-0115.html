@@ -1,0 +1,59 @@
+<p>Apple uses "Copy List with Random Pointer" to test deep-copy reasoning under aliasing. Each node has the usual <code>next</code> plus a <code>random</code> pointer that can target <em>any</em> node in the list (or <code>None</code>). The challenge: when you clone a node, its <code>random</code> may point to a node you haven't created yet. It's really a graph-cloning question wearing a linked-list costume, and it probes whether you can decouple <em>"allocate every node"</em> from <em>"wire up the pointers"</em>.</p>
+
+<h4>1. The input data</h4>
+<p>Three nodes. <code>random</code> can point forward, backward, or be <code>None</code>:</p>
+<pre><code>node A(val=7)   next-&gt;B   random-&gt;None
+node B(val=13)  next-&gt;C   random-&gt;A
+node C(val=11)  next-&gt;None random-&gt;B
+
+head = A</code></pre>
+
+<h4>2. The approach</h4>
+<p>The classic <strong>two-pass hash-map</strong> solution. The dict <code>m</code> maps <em>each original node to its freshly-allocated clone</em>.</p>
+<p><strong>Pass 1</strong> walks the list and does nothing but <code>m[cur] = Node(cur.val)</code> &mdash; every clone now exists, but all its pointers are still <code>None</code>. This is the trick that defeats the "random points to an uncreated node" problem: after pass 1, <em>nothing is uncreated</em>.</p>
+<p><strong>Pass 2</strong> walks again and wires pointers purely by lookup: <code>m[cur].next = m.get(cur.next)</code> and <code>m[cur].random = m.get(cur.random)</code>. Using <code>m.get(...)</code> rather than <code>m[...]</code> is deliberate &mdash; when <code>cur.next</code> or <code>cur.random</code> is <code>None</code>, <code>get</code> returns <code>None</code> instead of raising <code>KeyError</code>. The guard <code>if not head: return None</code> handles the empty list up front.</p>
+
+<h4>3. The output</h4>
+<p>A wholly independent list &mdash; same values and same pointer topology, but every node is a new object:</p>
+<table>
+  <thead><tr><th>clone</th><th>val</th><th>next &rarr;</th><th>random &rarr;</th></tr></thead>
+  <tbody>
+    <tr><td>A'</td><td>7</td><td>B'</td><td>None</td></tr>
+    <tr><td>B'</td><td>13</td><td>C'</td><td>A'</td></tr>
+    <tr><td>C'</td><td>11</td><td>None</td><td>B'</td></tr>
+  </tbody>
+</table>
+<p>Returned head is <code>m[head]</code> = <code>A'</code>. Mutating the original list afterwards cannot touch the copy.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(n)</strong> &mdash; exactly two linear passes. <strong>Space O(n)</strong> for the dictionary holding n original&rarr;clone entries (plus the O(n) output, which is unavoidable for a copy).</p>
+
+<h5>The idiomatic alternative &mdash; collapse to one pass</h5>
+<p>A <code>defaultdict</code>-style trick lets you allocate lazily and finish in a single walk:</p>
+<pre><code>def copyRandomList(head):
+    clones = {None: None}
+    def get(node):
+        if node not in clones:
+            clones[node] = Node(node.val)
+        return clones[node]
+    cur = head
+    while cur:
+        c = get(cur)
+        c.next   = get(cur.next)
+        c.random = get(cur.random)
+        cur = cur.next
+    return clones[head]</code></pre>
+<p>Seeding <code>{None: None}</code> kills the null-check entirely. Same O(n)/O(n), one pass &mdash; a clean senior refinement.</p>
+
+<h5>The edge case</h5>
+<p>Three are worth naming: the <strong>empty list</strong> (<code>head is None</code> &rarr; early return); a <strong>self-referential random</strong> (<code>node.random is node</code> &mdash; works, because the clone already exists in <code>m</code> by pass 2); and <strong>multiple nodes' random pointing at the same target</strong> &mdash; the map guarantees they all resolve to the <em>one</em> shared clone, preserving aliasing rather than duplicating it.</p>
+
+<h5>The follow-up</h5>
+<p>"Do it in O(1) extra space." The interleaving trick: insert each clone immediately after its original (A &rarr; A' &rarr; B &rarr; B' &rarr; ...), so <code>clone.random = original.random.next</code>, then unweave the two lists. O(n) time, O(1) auxiliary &mdash; the over-the-bar answer.</p>
+
+<h5>The trap</h5>
+<p>Trying to set <code>random</code> in a single naive pass without the map: when you reach node B and want <code>B'.random = clone_of(A)</code>, that clone may not exist yet if A is later in the list. You'd either crash or create a <em>second</em> copy of A, breaking aliasing. The two-phase "allocate all, then wire all" split is what makes the random pointer tractable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> separates allocation from wiring so a forward <code>random</code> pointer is never a problem, uses <code>m.get</code> (or a <code>{None: None}</code> seed) to make null handling disappear, preserves aliasing when several pointers share a target, and can produce the O(1)-space interleaving solution when pushed.</div>

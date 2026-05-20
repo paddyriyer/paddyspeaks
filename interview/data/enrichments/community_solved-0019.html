@@ -1,0 +1,63 @@
+<p>A Community question rooted in a Google file-store problem: count how often each word appears across files whose name contains "draft". The original was a SQL Server puzzle leaning on <code>CROSS APPLY STRING_SPLIT</code> &mdash; here the real work is tokenising a free-text column into rows, stripping punctuation so "fox." and "fox" are the same word, and only then aggregating.</p>
+
+<h4>1. The source data &mdash; <code>google_file_store</code></h4>
+<table>
+  <thead><tr><th>filename</th><th>contents</th></tr></thead>
+  <tbody>
+    <tr><td>draft1.txt</td><td>the quick brown fox the fox</td></tr>
+    <tr><td>draft2.txt</td><td>lazy dog, the dog.</td></tr>
+    <tr><td>final.txt</td><td>this should be ignored ignored ignored</td></tr>
+  </tbody>
+</table>
+<p>Three things to notice. <code>draft2.txt</code> has a comma after "dog," and a period after "dog." &mdash; without scrubbing, those become three distinct tokens. <code>final.txt</code> does not match <code>%draft%</code> and must contribute nothing. And "the" spans both draft files, so the count has to aggregate <em>across</em> rows, not within one.</p>
+
+<h4>2. The SQL &mdash; <code>UNNEST(string_to_array(&hellip;))</code></h4>
+<pre><code>WITH t1 AS (
+    SELECT word AS words
+    FROM google_file_store, UNNEST(string_to_array(REPLACE(REPLACE(contents, ',', ''), '.', ''), ' ')) AS word
+    WHERE filename LIKE '%draft%'
+)
+SELECT words AS value, COUNT(*) AS No_Of_Occurrences
+FROM t1
+GROUP BY words;</code></pre>
+<p>The nested <code>REPLACE</code> deletes commas and periods; <code>string_to_array(&hellip;, ' ')</code> splits on spaces into a text array; <code>UNNEST</code> in the <code>FROM</code> clause explodes that array into one row per word, joined laterally to each file.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>value</th><th>no_of_occurrences</th></tr></thead>
+  <tbody>
+    <tr><td>brown</td><td>1</td></tr>
+    <tr><td>dog</td><td>2</td></tr>
+    <tr><td>fox</td><td>2</td></tr>
+    <tr><td>lazy</td><td>1</td></tr>
+    <tr><td>quick</td><td>1</td></tr>
+    <tr><td>the</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>"dog" is <strong>2</strong> &mdash; "dog," and "dog." both scrubbed to the same token, exactly the point of the punctuation strip. "the" is <strong>3</strong>: twice in draft1, once in draft2, aggregated across files. Nothing from <code>final.txt</code> appears. The result has no defined row order &mdash; there is no <code>ORDER BY</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The implicit lateral join &mdash; the heart of the trick</h5>
+<p><code>FROM google_file_store, UNNEST(&hellip;)</code> is comma-join syntax, but because <code>UNNEST</code> references <code>contents</code> from the table on its left, Postgres treats it as an implicit <code>LATERAL</code> join: the set-returning function is evaluated <em>per file row</em>, and each file fans out into as many rows as it has words. This is the Postgres answer to SQL Server's <code>CROSS APPLY STRING_SPLIT</code>. Writing it explicitly makes the intent obvious:</p>
+<pre><code>FROM google_file_store f
+CROSS JOIN LATERAL UNNEST(string_to_array(...)) AS word</code></pre>
+
+<h5>Why scrub punctuation <em>before</em> splitting</h5>
+<p>Split first and "dog," is a token distinct from "dog"; they would land in separate groups and the count for "dog" would read 1 and 1 instead of 2. The nested <code>REPLACE</code> removes commas and periods up front so tokenisation sees clean words. It is a deliberately minimal cleaner, though &mdash; semicolons, parentheses, em-dashes all slip through. A regex-based <code>regexp_split_to_table</code> is more robust:</p>
+<pre><code>SELECT lower(w) AS value, COUNT(*)
+FROM google_file_store,
+     regexp_split_to_table(contents, '[^a-zA-Z0-9]+') AS w
+WHERE filename ILIKE '%draft%' AND w &lt;&gt; ''
+GROUP BY lower(w);</code></pre>
+
+<h5>The empty-token and case traps</h5>
+<p>Two consecutive spaces, or a leading/trailing space, make <code>string_to_array</code> emit an empty string <code>''</code> as a "word" &mdash; it then becomes its own group with a real count. Defend with <code>WHERE word &lt;&gt; ''</code>. And matching is case-sensitive: "The" and "the" are different tokens. If the brief means words case-insensitively, fold with <code>lower()</code> before grouping &mdash; ask which the interviewer wants.</p>
+
+<h5><code>LIKE</code> '%draft%' &mdash; what it really catches</h5>
+<p><code>filename LIKE '%draft%'</code> matches "draft" anywhere in the name &mdash; <code>draft1.txt</code>, but also <code>final_draft.txt</code> or <code>redraft.doc</code>. It is also case-sensitive in Postgres, so <code>Draft1.txt</code> would be missed; use <code>ILIKE</code> for case-insensitive. If the rule is strictly "filename begins with draft", anchor it: <code>LIKE 'draft%'</code>. Confirm the matching rule rather than assuming.</p>
+
+<h5>The missing <code>ORDER BY</code></h5>
+<p>The query has no <code>ORDER BY</code>, so the row order is whatever the executor produces &mdash; not stable across runs or engines. A word-frequency report almost always wants <code>ORDER BY No_Of_Occurrences DESC, value</code> so the most common words surface first. Add it; never rely on incidental ordering.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise <code>UNNEST</code>/<code>regexp_split_to_table</code> in the <code>FROM</code> as the lateral-join equivalent of <code>CROSS APPLY STRING_SPLIT</code>, scrub punctuation and filter empty tokens <em>before</em> grouping, decide case-folding deliberately, and add the <code>ORDER BY</code> a frequency report needs.</div>

@@ -1,0 +1,50 @@
+<p>Amazon's catalog is the largest in commerce — billions of ASINs, dozens of marketplaces, constant updates. <strong>Late-arriving dimensions</strong> (ASIN metadata appearing AFTER the order events) are routine. The query LEFT JOINs orders to the most-recent ASIN dim row + COALESCE placeholder.</p>
+
+<h4>1. The source data — <code>orders</code> + <code>asin_dim</code> (late-arriving)</h4>
+<table><thead><tr><th>order_id</th><th>asin</th><th>ordered_at</th></tr></thead>
+<tbody><tr><td>O_001</td><td>B07XYZ</td><td>2024-01-01</td></tr></tbody></table>
+
+<h4>2. The SQL — LAD pattern</h4>
+<pre><code>WITH current_dim AS (
+  SELECT asin, title, category,
+    ROW_NUMBER() OVER (PARTITION BY asin ORDER BY effective_date DESC) AS rn
+  FROM asin_dim
+)
+SELECT o.order_id, o.asin,
+  COALESCE(d.title,    'ASIN ' || o.asin || ' (Pending Catalog Sync)') AS title,
+  COALESCE(d.category, 'Uncategorized') AS category,
+  o.ordered_at
+FROM orders o
+LEFT JOIN current_dim d ON d.asin = o.asin AND d.rn = 1
+ORDER BY o.ordered_at DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why LEFT JOIN, not INNER</h5>
+<p>An inner join silently DROPS orders whose ASIN dim hasn't propagated yet. With Amazon's catalog scale, that means losing 0.1-0.5% of orders during normal operations and 5%+ during a Prime Day catalog refresh. LEFT JOIN keeps every order; the COALESCE handles missing dim.</p>
+
+<h5>Most-recent dim row via ROW_NUMBER</h5>
+<p>SCD2 dims have multiple rows per ASIN (re-categorizations). <code>ROW_NUMBER() OVER (PARTITION BY asin ORDER BY effective_date DESC)</code> + <code>WHERE rn = 1</code> picks the current one. Critical for re-titled or re-genre'd products.</p>
+
+<h5>The placeholder string</h5>
+<p>"Pending Catalog Sync" is searchable — the BI tool's filter dropdown shows it as a real bucket. The analyst can <code>WHERE category = 'Uncategorized'</code> to find all orphans. Plain NULL would be invisible.</p>
+
+<h5>Inferred-member at ingest vs at query</h5>
+<table><thead><tr><th>approach</th><th>where the COALESCE lives</th></tr></thead>
+<tbody>
+<tr><td>At-ingest</td><td>ETL inserts a placeholder dim row when fact arrives without dim</td></tr>
+<tr><td>At-query (this query)</td><td>Every analyst query repeats the COALESCE</td></tr>
+</tbody></table>
+<p>At-ingest is cleaner for downstream analytics; at-query is loosely coupled. Production lakehouses prefer at-ingest.</p>
+
+<h5>Late-arriving FACT (the dual problem)</h5>
+<p>The opposite case: dim is current, fact arrives days late from offline mobile. Should the late fact attribute to the dim that was current AT FACT TIME or NOW? SCD2 + temporal join solves it:</p>
+<pre><code>JOIN asin_dim d ON d.asin = o.asin
+  AND o.ordered_at BETWEEN d.effective_from AND COALESCE(d.effective_to, '9999-12-31')</code></pre>
+
+<h5>The orphan-rate alert</h5>
+<pre><code>SELECT 100.0 * SUM(CASE WHEN d.title IS NULL THEN 1 ELSE 0 END) / COUNT(*) AS pct_orphan
+FROM orders o LEFT JOIN current_dim d ON d.asin = o.asin AND d.rn = 1;</code></pre>
+<p>Production target &lt; 0.5%. Above 1% pages the data-platform on-call.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name LEFT JOIN + COALESCE + ROW_NUMBER as the LAD trio, contrast at-ingest vs at-query inferred-member strategies, raise the late-arriving-fact temporal-join cousin, and pin the orphan-rate SLO.</div>

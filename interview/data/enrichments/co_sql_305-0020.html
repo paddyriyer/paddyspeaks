@@ -1,0 +1,61 @@
+<p>Cloudflare's payments team is building a checkout dropdown and needs the list of payment methods customers have actually used &mdash; one entry per method, no repeats. It is the textbook <code>SELECT DISTINCT</code>, but the interviewer is probing whether you understand how <code>DISTINCT</code> treats NULL and whether <code>DISTINCT</code> is even the right tool versus <code>GROUP BY</code>.</p>
+
+<h4>1. The source data &mdash; <code>payments</code></h4>
+<table>
+  <thead><tr><th>payment_id</th><th>method</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>credit_card</td><td>$50</td><td>completed</td></tr>
+    <tr><td>2</td><td>paypal</td><td>$75</td><td>completed</td></tr>
+    <tr><td>3</td><td>credit_card</td><td>$20</td><td>completed</td></tr>
+    <tr><td>4</td><td>wire</td><td>$900</td><td>completed</td></tr>
+    <tr><td>5</td><td>paypal</td><td>$30</td><td>completed</td></tr>
+    <tr><td>6</td><td><em>NULL</em></td><td>$10</td><td>failed</td></tr>
+  </tbody>
+</table>
+<p><code>credit_card</code> and <code>paypal</code> each appear twice, and row 6 has a <strong>NULL</strong> <code>method</code> &mdash; a failed payment where the method was never recorded. That NULL decides whether the dropdown ends up with a blank entry.</p>
+
+<h4>2. The SQL &mdash; <code>SELECT DISTINCT</code></h4>
+<pre><code>SELECT DISTINCT method FROM payments ORDER BY method;</code></pre>
+<p><code>DISTINCT</code> collapses repeated values to one row each. <code>ORDER BY method</code> sorts the result so the dropdown is alphabetical.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>method</th></tr></thead>
+  <tbody>
+    <tr><td>credit_card</td></tr>
+    <tr><td>paypal</td></tr>
+    <tr><td>wire</td></tr>
+    <tr><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Four rows from six. The two duplicates collapsed &mdash; but notice <strong>NULL survived as its own row</strong>. <code>DISTINCT</code> keeps exactly one NULL, and Postgres sorts NULLs <em>last</em> by default. A real product would not want a blank dropdown option.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>NULL is a distinct value &mdash; filter it</h5>
+<p><code>DISTINCT</code> treats all NULLs as equal to each other (so you get one, not several) but as distinct from every real value (so it is not absorbed). The result is a stray blank row. For a UI list you almost always want it gone:</p>
+<pre><code>SELECT DISTINCT method FROM payments
+WHERE method IS NOT NULL
+ORDER BY method;</code></pre>
+<p>State the choice explicitly: a NULL method is "method unknown", and an unknown is not a selectable option. The filter is a product decision, not a cosmetic one.</p>
+
+<h5><code>DISTINCT</code> vs <code>GROUP BY</code> &mdash; equivalent, until they aren't</h5>
+<p>For a single column, these two are interchangeable and modern planners generate the same plan:</p>
+<pre><code>SELECT method FROM payments
+WHERE method IS NOT NULL
+GROUP BY method
+ORDER BY method;</code></pre>
+<p>Prefer <code>GROUP BY</code> the moment you need a per-method aggregate &mdash; usage counts make the dropdown smarter (popular methods first). That is the natural follow-up, and <code>DISTINCT</code> cannot do it:</p>
+<pre><code>SELECT method, COUNT(*) AS uses
+FROM payments
+WHERE method IS NOT NULL
+GROUP BY method
+ORDER BY uses DESC, method;</code></pre>
+
+<h5>The <code>DISTINCT</code> applies to the whole row &mdash; a classic misread</h5>
+<p><code>DISTINCT</code> is not a function you apply to one column; it deduplicates the <em>entire</em> projected row. <code>SELECT DISTINCT method, status FROM payments</code> returns distinct <em>pairs</em> &mdash; <code>credit_card</code> could appear several times, once per status. And <code>SELECT DISTINCT(method), status</code> does <strong>not</strong> mean "distinct on method only" &mdash; the parentheses are decorative; it still dedups both columns. To dedup on a subset, use <code>DISTINCT ON (method)</code>.</p>
+
+<h5>Edge cases: case sensitivity and whitespace</h5>
+<p><code>DISTINCT</code> is an exact-match operation. <code>'PayPal'</code>, <code>'paypal'</code>, and <code>'paypal '</code> (trailing space) are three different values and all three survive &mdash; producing a messy triple-entry dropdown from what is really one method. Dirty source data needs normalising first: <code>SELECT DISTINCT LOWER(TRIM(method))</code>. On an empty table, <code>DISTINCT</code> simply returns zero rows &mdash; no error, no NULL.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>DISTINCT</code> keeps NULL as its own row and filter it for a UI list as a deliberate product call, know <code>DISTINCT</code> and single-column <code>GROUP BY</code> are equivalent but switch to <code>GROUP BY</code> when a count is wanted, and remember <code>DISTINCT</code> dedups the whole row &mdash; normalising case and whitespace before deduplicating dirty data.</div>

@@ -1,0 +1,56 @@
+<p>NULL is not a value &mdash; it is the absence of a value &mdash; and that distinction makes ordinary equality joins silently wrong when the join key can be NULL. A standard <code>ON a.region = b.region</code> predicate evaluates <code>NULL = NULL</code> as <code>UNKNOWN</code> (not <code>TRUE</code>), causing NULL-keyed rows to be dropped. <code>IS NOT DISTINCT FROM</code> is the SQL-standard null-safe equality predicate that evaluates <code>NULL IS NOT DISTINCT FROM NULL</code> as <code>TRUE</code>. The interviewer is probing whether you recognise this three-valued-logic trap and know the fix.</p>
+
+<h4>1. The source data &mdash; <code>snap_a</code> and <code>snap_b</code></h4>
+<table>
+  <thead><tr><th>region (snap_a)</th><th>metric (snap_a)</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>10</td></tr>
+    <tr><td>South</td><td>20</td></tr>
+    <tr><td>NULL</td><td>5</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>region (snap_b)</th><th>metric (snap_b)</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>11</td></tr>
+    <tr><td>East</td><td>99</td></tr>
+    <tr><td>NULL</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>Match logic: "North" &harr; "North" (match), "South" has no counterpart in snap_b (no match), "East" has no counterpart in snap_a (no match), NULL &harr; NULL (match &mdash; the key requirement). A plain equality join would drop the NULL-NULL pair.</p>
+
+<h4>2. The SQL &mdash; NULL-safe join with IS NOT DISTINCT FROM</h4>
+<pre><code>SELECT a.region AS region, a.metric AS a_metric, b.metric AS b_metric
+FROM snap_a a
+JOIN snap_b b ON a.region IS NOT DISTINCT FROM b.region
+ORDER BY a.region NULLS LAST;</code></pre>
+<p>The predicate <code>a.region IS NOT DISTINCT FROM b.region</code> returns <code>TRUE</code> when both are equal (non-null) <em>or</em> when both are <code>NULL</code>. It is logically equivalent to <code>(a.region = b.region) OR (a.region IS NULL AND b.region IS NULL)</code> but more concise and idiomatic. The <code>NULLS LAST</code> in ORDER BY places the NULL-region row at the end.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>a_metric</th><th>b_metric</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>10</td><td>11</td></tr>
+    <tr><td>NULL</td><td>5</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>Two rows. "North" matches across both snapshots (metrics 10 and 11). NULL matches NULL (metrics 5 and 7). "South" (in snap_a) and "East" (in snap_b) have no counterpart in the other snapshot and are excluded by the INNER JOIN. The NULL row sorts last due to <code>NULLS LAST</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Three-valued logic and why NULL = NULL is UNKNOWN</h5>
+<p>SQL operates on three-valued logic: TRUE, FALSE, UNKNOWN. Any comparison involving NULL yields UNKNOWN. A JOIN predicate must evaluate to TRUE to admit a row pair &mdash; UNKNOWN (which is what <code>NULL = NULL</code> produces) is treated as FALSE for this purpose. This means two rows with NULL in the join key will never match under ordinary equality, even though they represent the "same" unspecified value. <code>IS NOT DISTINCT FROM</code> short-circuits this by handling NULL explicitly outside the three-valued system.</p>
+
+<h5>IS NOT DISTINCT FROM vs the manual workaround</h5>
+<p>The equivalent explicit predicate is <code>(a.region = b.region) OR (a.region IS NULL AND b.region IS NULL)</code>. This is verbose and easy to get wrong (e.g., writing AND where you need OR). <code>IS NOT DISTINCT FROM</code> is the ISO SQL:1999 standard form and is preferred because it is atomic, readable, and cannot have an off-by-one logic error. Its complement <code>IS DISTINCT FROM</code> is the null-safe inequality &mdash; it returns FALSE when both sides are NULL, unlike <code>&lt;&gt;</code> which returns UNKNOWN.</p>
+
+<h5>NULLS LAST in ORDER BY</h5>
+<p>PostgreSQL's default ORDER BY ASC behaviour places NULLs last (ASC NULLS LAST). However, this is not universal: MySQL and SQL Server sort NULLs first in ascending order. Adding <code>NULLS LAST</code> explicitly is therefore a portability and clarity best practice: it states your intent unambiguously and behaves consistently across engines (where supported). In MySQL the workaround is <code>ORDER BY region IS NULL, region</code>.</p>
+
+<h5>Performance: IS NOT DISTINCT FROM and indexes</h5>
+<p>Most query optimisers cannot use a B-tree index on a column to satisfy <code>IS NOT DISTINCT FROM</code> for the NULL-matching case, because B-tree indexes do not index NULL values in most engines. PostgreSQL can satisfy the non-null branch via an index but must fall back to a seq scan (or an IS NULL index, if explicitly created) for the NULL rows. This is usually fine when NULLs are rare, but worth mentioning. An alternative: replace NULL with a sentinel value (e.g., <code>'__UNSPECIFIED__'</code>) at ingestion time to allow a plain equality join with full index support &mdash; a design-level trade-off.</p>
+
+<h5>Dialect notes</h5>
+<p><code>IS NOT DISTINCT FROM</code> is supported in PostgreSQL, SQLite, DuckDB, and (as of 2022) Snowflake. SQL Server uses <code>WHERE EXISTS (SELECT a.region INTERSECT SELECT b.region)</code> as the idiomatic null-safe equality test, or explicitly <code>(a.region = b.region OR (a.region IS NULL AND b.region IS NULL))</code>. MySQL 8.0+ has the <code>&lt;=&gt;</code> operator (null-safe equality) in the WHERE clause but not in ON; BigQuery uses <code>a.region = b.region OR (a.region IS NULL AND b.region IS NULL)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>IS NOT DISTINCT FROM</code> in the ON clause whenever the join key can legitimately be NULL &mdash; plain equality silently drops NULL-NULL pairs because <code>NULL = NULL</code> is UNKNOWN in SQL's three-valued logic; add <code>NULLS LAST</code> to ORDER BY to be explicit about NULL sort position; and name the engine-specific equivalents (SQL Server's INTERSECT trick, MySQL's <code>&lt;=&gt;</code>) to show cross-platform fluency.</div>

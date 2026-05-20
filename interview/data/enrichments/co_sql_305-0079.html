@@ -1,0 +1,60 @@
+<p>EPAM is auditing a client's warehouse-management system and the data-quality lead has a hunch: somewhere in the inventory table, <code>qty_on_hand</code> has gone negative. A negative stock count is physically impossible &mdash; you cannot have minus three units on a shelf &mdash; so any such row is a symptom of a bug: a double-decrement, an out-of-order event, a sale recorded before a receipt. The query itself is one line; the interview is whether you treat the result as a finding rather than an answer.</p>
+
+<h4>1. The source data &mdash; <code>inventory</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>qty_on_hand</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>50</td></tr>
+    <tr><td>2</td><td>-3</td></tr>
+    <tr><td>3</td><td>12</td></tr>
+    <tr><td>4</td><td>0</td></tr>
+    <tr><td>5</td><td>-10</td></tr>
+    <tr><td>6</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>Two rows are negative (products 2 and 5). Product 4 sits at exactly <strong>zero</strong> &mdash; that is the edge case the predicate has to get right: zero is a legitimate "sold out" state, not a defect, so it must <em>not</em> be flagged.</p>
+
+<h4>2. The SQL &mdash; <code>WHERE qty_on_hand &lt; 0</code></h4>
+<pre><code>SELECT product_id, qty_on_hand FROM inventory WHERE qty_on_hand &lt; 0;</code></pre>
+<p>A strict less-than filter. Using <code>&lt; 0</code> rather than <code>&lt;= 0</code> is the deliberate choice: it keeps the zero-stock row out of the result.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>qty_on_hand</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>-3</td></tr>
+    <tr><td>5</td><td>-10</td></tr>
+  </tbody>
+</table>
+<p>Exactly the two impossible rows surface. Product 4 (qty 0) is correctly absent. The output is a defect list &mdash; each row is a ticket for someone to investigate.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>&lt; 0</code> vs <code>&lt;= 0</code> trap</h5>
+<p>The single most common mistake here is writing <code>qty_on_hand &lt;= 0</code>. That folds in every sold-out product &mdash; product 4 &mdash; and buries the two real bugs in a sea of false positives. Zero is normal; negative is broken. Be explicit about which one you are hunting and why the boundary sits where it does.</p>
+
+<h5>The NULL blind spot</h5>
+<p>If <code>qty_on_hand</code> is nullable, a NULL means "quantity unknown" &mdash; arguably a worse data-quality problem than a negative number. But <code>NULL &lt; 0</code> evaluates to <em>unknown</em>, so a NULL row silently fails the filter and never appears. A thorough audit checks for both:</p>
+<pre><code>SELECT product_id, qty_on_hand
+FROM inventory
+WHERE qty_on_hand &lt; 0 OR qty_on_hand IS NULL;</code></pre>
+<p>Mention this even if the column is declared <code>NOT NULL</code> today &mdash; schemas drift, and the audit query should be robust to that.</p>
+
+<h5>Quantifying the damage</h5>
+<p>An interviewer will often push past "which rows" to "how bad is it". A summary row turns the finding into something a manager can act on:</p>
+<pre><code>SELECT COUNT(*) AS bad_rows,
+       SUM(qty_on_hand) AS total_negative_units,
+       MIN(qty_on_hand) AS worst
+FROM inventory
+WHERE qty_on_hand &lt; 0;</code></pre>
+<p>For this data: 2 bad rows, &minus;13 total units, worst case &minus;10. That framing &mdash; scale and severity &mdash; is what separates a query result from a remediation plan.</p>
+
+<h5>Finding the cause, not just the symptom</h5>
+<p>Negative inventory is downstream of a movements/ledger table. The real question is which transaction drove the balance below zero. If a <code>stock_movements(product_id, delta, moved_at)</code> table exists, a running total exposes the exact event:</p>
+<pre><code>SELECT product_id, moved_at, delta,
+       SUM(delta) OVER (PARTITION BY product_id ORDER BY moved_at) AS running_qty
+FROM stock_movements
+ORDER BY product_id, moved_at;</code></pre>
+<p>The first row where <code>running_qty</code> goes negative is the offending event. Naming this as the follow-up shows you see the table as part of a system, not in isolation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use strict <code>&lt; 0</code> so legitimate zero-stock rows are not flagged, remember that NULL quantities slip through the predicate and decide whether to catch them, and frame the output as a defect list &mdash; quantifying severity and pointing at the movements ledger as where the root cause actually lives.</div>

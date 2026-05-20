@@ -1,0 +1,58 @@
+<p>A payroll team is running a quirky promotional payout: a "special bonus" goes only to employees whose ID is odd <em>and</em> whose name does not begin with a capital&nbsp;M. The interviewer is probing whether you can express a compound boolean condition in a single <code>CASE</code>, and &mdash; the real trap &mdash; whether you respect that the name test is <em>case-sensitive</em>, so a lowercase <code>m</code> does not disqualify anyone.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>employee_id</th><th>name</th><th>salary</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>100</td><td>odd id, no M &mdash; gets bonus</td></tr>
+    <tr><td>2</td><td>Bob</td><td>200</td><td>even id &mdash; no bonus</td></tr>
+    <tr><td>3</td><td>Maria</td><td>300</td><td>odd id but capital M &mdash; no bonus</td></tr>
+    <tr><td>4</td><td>Mike</td><td>400</td><td>even id and capital M &mdash; no bonus</td></tr>
+    <tr><td>5</td><td>Cara</td><td>500</td><td>odd id, no M &mdash; gets bonus</td></tr>
+    <tr><td>7</td><td>Mira</td><td>700</td><td>odd id but capital M &mdash; no bonus</td></tr>
+    <tr><td>9</td><td>mike</td><td>900</td><td>odd id, lowercase m &mdash; gets bonus</td></tr>
+  </tbody>
+</table>
+<p>Row&nbsp;9 is the whole interview: <code>mike</code> starts with a lowercase&nbsp;<code>m</code>. Because the rule is case-sensitive, <code>m</code> is <em>not</em> <code>M</code>, so this employee qualifies &mdash; even though "Mike" in row&nbsp;4 would not. Note also the ID gap: there is no employee&nbsp;6 or&nbsp;8, which is fine &mdash; IDs need not be contiguous.</p>
+
+<h4>2. The SQL &mdash; a compound <code>CASE</code> predicate</h4>
+<pre><code>SELECT employee_id,
+       CASE WHEN employee_id % 2 = 1 AND name NOT LIKE 'M%'
+            THEN salary ELSE 0 END AS bonus
+FROM employees
+ORDER BY employee_id;</code></pre>
+<p><code>employee_id % 2 = 1</code> tests oddness via the modulo remainder. <code>name NOT LIKE 'M%'</code> is true unless the name starts with a capital&nbsp;<code>M</code> &mdash; <code>%</code> matches any trailing characters. Joined by <code>AND</code>, both must hold for the <code>THEN salary</code> branch; otherwise <code>ELSE 0</code> pays nothing.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>employee_id</th><th>bonus</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>odd, "Alice" &mdash; both conditions pass</td></tr>
+    <tr><td>2</td><td>0</td><td>even id fails the first condition</td></tr>
+    <tr><td>3</td><td>0</td><td>"Maria" starts with capital M</td></tr>
+    <tr><td>4</td><td>0</td><td>even <em>and</em> capital M &mdash; fails both</td></tr>
+    <tr><td>5</td><td>500</td><td>odd, "Cara" &mdash; both pass</td></tr>
+    <tr><td>7</td><td>0</td><td>odd but "Mira" starts with capital M</td></tr>
+    <tr><td>9</td><td>900</td><td>odd, "mike" &mdash; lowercase m, so NOT LIKE 'M%' is true</td></tr>
+  </tbody>
+</table>
+<p>Employee&nbsp;9 receives <strong>900</strong>: <code>'mike' LIKE 'M%'</code> is false in case-sensitive PostgreSQL, so <code>NOT LIKE 'M%'</code> is true and the bonus flows. Employee&nbsp;3 ("Maria"), despite an odd ID, gets <strong>0</strong> because the capital&nbsp;M trips the second condition.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The whole answer is one <code>CASE</code> with an <code>AND</code></h5>
+<p>"If and only if (a) and (b)" maps directly to a single <code>CASE WHEN cond_a AND cond_b THEN ... ELSE ...</code>. There is no need for nested <code>CASE</code>s or a join &mdash; both predicates are row-local. The <code>ELSE 0</code> branch is mandatory: drop it and non-qualifying rows return NULL instead of 0, which the spec ("everyone else gets bonus = 0") explicitly forbids. <code>ELSE</code> here is correctness, not cosmetics.</p>
+
+<h5><code>LIKE</code> is case-sensitive in PostgreSQL &mdash; that is the trap</h5>
+<p>PostgreSQL's <code>LIKE</code> is case-<em>sensitive</em>: <code>'mike' LIKE 'M%'</code> is false. The spec says the name test is case-sensitive, so <code>NOT LIKE 'M%'</code> is exactly right and employee&nbsp;9 qualifies. The mistake is to "helpfully" make it case-insensitive &mdash; e.g. <code>ILIKE</code>, <code>UPPER(name) NOT LIKE 'M%'</code>, or <code>LEFT(LOWER(name),1) &lt;&gt; 'm'</code> &mdash; which would wrongly strip the bonus from "mike". Read the spec's case-sensitivity clause and honour it; do not normalise reflexively.</p>
+
+<h5>Modulo and negative or NULL IDs</h5>
+<p><code>employee_id % 2 = 1</code> cleanly identifies odd positives. Be aware of two edge cases: in PostgreSQL <code>(-3) % 2 = -1</code>, so a negative odd ID would fail <code>= 1</code> &mdash; <code>ABS(employee_id) % 2 = 1</code> or <code>% 2 &lt;&gt; 0</code> is safer if negatives are possible. And a NULL <code>employee_id</code> makes the modulo NULL, the <code>AND</code> unknown, and the row falls to <code>ELSE 0</code>. The fixture has only positive non-NULL IDs, so <code>% 2 = 1</code> is fine &mdash; but naming these cases shows depth.</p>
+
+<h5><code>NOT LIKE</code> and NULL names</h5>
+<p>If <code>name</code> were NULL, <code>name NOT LIKE 'M%'</code> evaluates to <em>unknown</em>, the compound <code>AND</code> is unknown, and the employee lands in <code>ELSE 0</code> &mdash; no bonus. That is a defensible default (an unknown name should not auto-qualify), but it is a silent decision. If a NULL name should still get the bonus when the ID is odd, you would need <code>(name NOT LIKE 'M%' OR name IS NULL)</code>. Decide explicitly rather than letting three-valued logic choose for you.</p>
+
+<h5>Dialect &mdash; case-sensitivity is not universal</h5>
+<p>This query's correctness hinges on <code>LIKE</code> being case-sensitive. In SQL Server and MySQL the default collations are case-<em>insensitive</em>, so <code>'mike' LIKE 'M%'</code> would be <em>true</em> there &mdash; and employee&nbsp;9 would lose the bonus, contradicting the spec. To be portable you would force a binary/case-sensitive collation, e.g. SQL Server <code>name NOT LIKE 'M%' COLLATE Latin1_General_BIN</code>. PostgreSQL and Oracle are case-sensitive by default, so the plain form is correct here.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express "(a) and (b)" as one <code>CASE WHEN ... AND ... THEN salary ELSE 0 END</code> with a mandatory <code>ELSE 0</code>, honour the spec's case-sensitivity by using plain <code>LIKE</code> (never <code>ILIKE</code>/<code>UPPER</code>) so lowercase "mike" still qualifies, and flag that modulo on negatives, NULL inputs, and engine collation defaults would each change the result.</div>

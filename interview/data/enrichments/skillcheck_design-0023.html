@@ -1,0 +1,92 @@
+<p>An Iceberg fact table for ride-share trips at 80 million rows per day is a data-warehouse scale challenge where the DDL is not just columns and types &mdash; it is a <strong>partition spec</strong>, a <strong>clustering/sort order</strong>, and table properties that govern file sizes and compression. The interviewer is probing whether you understand Iceberg's partition evolution model (partition without modifying query predicates), <strong>bucket partitioning</strong> on high-cardinality dimensions like <code>driver_id</code>, <strong>geo-clustering with H3 cells</strong> for spatial predicate pruning, and which measures are additive vs. non-additive.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Transaction fact grain:</strong> one row per completed (or attempted) trip; this is a transaction fact table &mdash; each row represents a discrete business event, not a period snapshot.</li>
+  <li><strong>Common predicates:</strong> filter on <code>trip_date</code> (daily range queries), on <code>driver_id</code> (driver analytics), and on pickup H3 cell (geo-density heatmaps); the partition and sort spec must serve all three.</li>
+  <li><strong>Volume:</strong> 80M rows/day &times; 36 months &asymp; 87 billion rows; partitioning is mandatory for scan elimination, not optional.</li>
+  <li><strong>Geo encoding:</strong> H3 cells at resolution 9 (&asymp; 105m hexagons) are string tokens; they enable spatial joins without a dedicated geo engine and support efficient clustering &mdash; Iceberg file-level min/max statistics on the H3 string column allow the engine to skip files whose cell range does not overlap a geo-bounded query.</li>
+  <li><strong>Monetary and duration measures:</strong> fares, tips, payouts &mdash; all additive; duration and distance &mdash; additive; surge multiplier &mdash; non-additive (cannot be summed).</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE fact_trip (
+  trip_id            STRING        NOT NULL,                   -- natural key (UUID from app)
+  rider_id           BIGINT        NOT NULL,
+  driver_id          BIGINT        NOT NULL,
+  vehicle_id         BIGINT,
+  product_type       STRING,                                    -- 'standard','xl','black','pool'
+  request_ts         TIMESTAMP     NOT NULL,                    -- when rider requested
+  pickup_ts          TIMESTAMP,
+  dropoff_ts         TIMESTAMP,
+  pickup_h3_r9       STRING        NOT NULL,                    -- H3 resolution 9 (&asymp;74K cells/sq km)
+  dropoff_h3_r9      STRING,
+  pickup_lat         DOUBLE        NOT NULL,
+  pickup_lng         DOUBLE        NOT NULL,
+  distance_km        DECIMAL(8,3),
+  duration_sec       INT,
+  base_fare_cents    BIGINT,
+  surge_multiplier   DECIMAL(4,2),
+  tip_cents          BIGINT,
+  total_paid_cents   BIGINT,
+  driver_payout_cents BIGINT,
+  status             STRING        NOT NULL,                    -- 'completed','canceled','no_show'
+  cancel_reason      STRING,
+  trip_date          DATE          NOT NULL,                    -- truncated request_ts in driver-local tz
+  ingested_at        TIMESTAMP     NOT NULL
+)
+USING iceberg
+PARTITIONED BY (
+  days(trip_date),
+  bucket(16, driver_id)
+)
+TBLPROPERTIES (
+  'write.target-file-size-bytes' = '536870912',          -- 512 MB target
+  'write.parquet.compression-codec' = 'zstd',
+  'write.distribution-mode' = 'hash',
+  'sort-order' = 'pickup_h3_r9'                          -- file-level sort for geo predicates
+);
+
+-- Optional secondary cluster (engine-dependent): cluster by (driver_id, pickup_h3_r9)
+-- for queries filtering by driver and pickup neighborhood.</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>trip_id</code></td><td>Natural key (degenerate dimension)</td><td>UUID from the application; no surrogate needed in a lake fact table where joins to an operational DB are rare; stored for lineage and debugging.</td></tr>
+    <tr><td><code>rider_id</code></td><td>FK &rarr; dim_rider</td><td>Standard SCD dimension reference for rider cohort analysis.</td></tr>
+    <tr><td><code>driver_id</code></td><td>FK &rarr; dim_driver / partition bucket key</td><td>Used as a bucket partition key (16 buckets) so driver-level analytics scan only 1/16 of each day's partitions.</td></tr>
+    <tr><td><code>vehicle_id</code></td><td>FK &rarr; dim_vehicle (nullable)</td><td>Nullable: some product types (bicycle, e-scooter) may not have a registered vehicle.</td></tr>
+    <tr><td><code>product_type</code></td><td>Degenerate dimension</td><td>Low-cardinality type; stored inline to avoid a lookup join on the most common grouping dimension.</td></tr>
+    <tr><td><code>request_ts</code>, <code>pickup_ts</code>, <code>dropoff_ts</code></td><td>Accumulating-snapshot timestamps</td><td>Multiple time-of-state columns; the grain is one row per trip, not one row per state change. Makes this a hybrid transaction/accumulating-snapshot fact.</td></tr>
+    <tr><td><code>pickup_h3_r9</code></td><td>Geo dimension / sort key</td><td>H3 at resolution 9 enables efficient spatial joins and geo-density queries; used as the file-level sort order for geo-predicate pruning.</td></tr>
+    <tr><td><code>dropoff_h3_r9</code></td><td>Geo dimension (nullable)</td><td>Nullable for canceled trips; same encoding as pickup for consistent spatial joins.</td></tr>
+    <tr><td><code>pickup_lat</code>, <code>pickup_lng</code></td><td>Raw coordinates</td><td>Stored alongside H3 for use cases (exact distance, mapping) that need the precise point rather than the cell centroid.</td></tr>
+    <tr><td><code>distance_km</code>, <code>duration_sec</code></td><td>Additive measures</td><td>Both can be summed across trips to compute total distance driven or total ride-minutes.</td></tr>
+    <tr><td><code>base_fare_cents</code>, <code>tip_cents</code>, <code>total_paid_cents</code>, <code>driver_payout_cents</code></td><td>Additive monetary measures</td><td>BIGINT cents avoids floating-point; all are fully additive: SUM across any partition or dimension slice is meaningful.</td></tr>
+    <tr><td><code>surge_multiplier</code></td><td>Non-additive measure</td><td>Cannot be summed across trips (average surge requires weighted average by trip count); stored for completeness but analysts must use <code>AVG</code> or <code>WEIGHTED_AVG</code>, not <code>SUM</code>.</td></tr>
+    <tr><td><code>status</code></td><td>Degenerate dimension</td><td>Low-cardinality lifecycle state; stored inline for filter pushdown without a join.</td></tr>
+    <tr><td><code>trip_date</code></td><td>Partition key (DAY)</td><td>Computed from <code>request_ts</code> in the driver's local timezone; the primary partition key for time-range scans.</td></tr>
+    <tr><td><code>ingested_at</code></td><td>Audit / pipeline column</td><td>System timestamp of ingestion; used for late-arrival detection and pipeline SLA monitoring.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Fact table type: transaction + accumulating-snapshot hybrid</h5>
+<p>At its core this is a <strong>transaction fact table</strong>: each row represents one discrete trip event. However, storing <code>pickup_ts</code> and <code>dropoff_ts</code> alongside <code>request_ts</code> borrows from the <strong>accumulating-snapshot</strong> pattern, where multiple milestone timestamps appear on the same row. The tradeoff: updates to the row (when the trip completes and we record <code>dropoff_ts</code>) require Iceberg's <code>MERGE INTO</code> capability &mdash; not all Iceberg engines support row-level updates efficiently. An alternative is a pure transaction design with one row per state change, which is append-only but requires more complex queries to reconstruct the trip lifecycle.</p>
+
+<h5>Two-dimensional partition spec: days + buckets</h5>
+<p><code>PARTITIONED BY (days(trip_date), bucket(16, driver_id))</code> creates one partition per (date, driver_id bucket). Date partitioning alone gives 36 &times; 30 = 1,080 partitions; bucket(16, driver_id) multiplies this by 16 for 17,280 total partitions over 36 months. At 80M rows/day this means roughly 5M rows per (day, bucket) partition &mdash; a reasonable Parquet file size. Driver-level analytics scan only 1/16 of each day's files. The bucket function is a consistent hash, so the same <code>driver_id</code> always lands in the same bucket, enabling efficient <code>GROUP BY driver_id</code> pushdown.</p>
+
+<h5>H3 as a sort key for geo-predicate pruning</h5>
+<p>H3 cell strings for nearby hexagons do not sort together (H3 uses a hilbert-curve-like ordering internally), but within a city or metro area the set of cells is predictably bounded, and sorting by <code>pickup_h3_r9</code> within each Parquet file concentrates nearby trips together. Iceberg's file-level min/max statistics on the H3 column allow the engine to skip files that contain no matching cells for geo-bounded queries. This is coarse but effective: a query for "all trips originating in downtown SF" eliminates most non-SF files via min/max pruning.</p>
+
+<h5>Additive vs. non-additive measures</h5>
+<p>All cent amounts (<code>base_fare_cents</code>, <code>tip_cents</code>, <code>total_paid_cents</code>, <code>driver_payout_cents</code>) and duration/distance are fully <strong>additive</strong>: safe to SUM across any dimension. <code>surge_multiplier</code> is <strong>non-additive</strong>: it is a ratio, not a quantity. Summing surge multipliers is meaningless; the correct aggregation is a weighted average (<code>SUM(surge_multiplier * base_fare_cents) / SUM(base_fare_cents)</code>). Naming this distinction in the interview is a senior signal.</p>
+
+<h5>Iceberg vs. BigQuery / Snowflake dialect notes</h5>
+<p>In <strong>BigQuery</strong>: partition on <code>trip_date</code> as a DATE column; cluster by <code>(driver_id, pickup_h3_r9)</code> (BigQuery clustering supports up to 4 columns and drives automatic block elimination). In <strong>Snowflake</strong>: use <code>CLUSTER BY (trip_date, driver_id)</code>; micro-partition pruning handles the rest without explicit bucket partitioning. In <strong>Redshift</strong>: set <code>DISTKEY(driver_id)</code> and <code>COMPOUND SORTKEY(trip_date, pickup_h3_r9)</code>. Iceberg is the portable format; the partition spec and table properties translate to engine-native instructions when using Spark, Trino, or Flink as the compute engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose a two-dimensional partition spec (days + bucket on <code>driver_id</code>) to serve both time-range and driver-level analytics without one dominating the other; identify <code>surge_multiplier</code> as a non-additive measure requiring a weighted average &mdash; not a SUM; explain H3 as a geo-clustering key that enables file-level min/max skipping; and know the difference between a pure transaction fact and an accumulating-snapshot fact and the Iceberg write implications of each.</div>

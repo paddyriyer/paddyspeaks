@@ -1,0 +1,53 @@
+<p>A marketing team wants to run a win-back campaign aimed at registered users who have <em>never</em> placed an order. The query must return every <code>users</code> row with no matching row in <code>orders</code> (joined on <code>user_id = customer_id</code>). The interviewer is testing the <strong>anti-join</strong> &mdash; finding the absence of a match &mdash; and whether you know the three ways to write it and which one is NULL-safe.</p>
+
+<h4>1. The source data &mdash; <code>users</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>name</th><th>email</th><th>has orders?</th></tr></thead>
+  <tbody>
+    <tr><td>100</td><td>Ana</td><td>ana@x.com</td><td>1 order</td></tr>
+    <tr><td>101</td><td>Bo</td><td>bo@x.com</td><td>none &mdash; target</td></tr>
+    <tr><td>102</td><td>Cy</td><td>cy@x.com</td><td>2 orders</td></tr>
+    <tr><td>103</td><td>Di</td><td>di@x.com</td><td>none &mdash; target</td></tr>
+    <tr><td>104</td><td>Eli</td><td>eli@x.com</td><td>1 order</td></tr>
+    <tr><td>105</td><td>Fay</td><td>fay@x.com</td><td>none &mdash; target</td></tr>
+  </tbody>
+</table>
+<p>The <code>orders</code> table holds rows for customers 100, 102 (twice), and 104. The edge case is customer 102 with <em>two</em> orders &mdash; a naive join would return that user twice; a correct anti-join must not emit 102 at all, and must not be confused by the multiplicity.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> + <code>IS NULL</code></h4>
+<pre><code>SELECT u.user_id, u.name, u.email
+FROM users u
+LEFT JOIN orders o ON o.customer_id = u.user_id
+WHERE o.order_id IS NULL
+ORDER BY u.user_id;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every user row; users with no order get all-NULL columns on the <code>orders</code> side. <code>WHERE o.order_id IS NULL</code> then keeps only those unmatched rows &mdash; the users who never appeared in <code>orders</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>name</th><th>email</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Bo</td><td>bo@x.com</td><td>no order row &rarr; survives the filter</td></tr>
+    <tr><td>103</td><td>Di</td><td>di@x.com</td><td>no order row &rarr; survives the filter</td></tr>
+    <tr><td>105</td><td>Fay</td><td>fay@x.com</td><td>no order row &rarr; survives the filter</td></tr>
+  </tbody>
+</table>
+<p>Three users. Customer 102, despite having two orders, does not appear &mdash; both of its matched rows have a non-NULL <code>order_id</code> and are filtered out. The anti-join never multiplies: it returns a user zero times or once, never twice.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why filter on a column that is <em>never</em> NULL in real data</h5>
+<p>The <code>WHERE</code> tests <code>o.order_id</code> &mdash; the <code>orders</code> primary key. That column is never NULL for a real order row, so the only way it can be NULL after a <code>LEFT JOIN</code> is when there was <em>no matching row</em> and the join padded the right side with NULLs. Filtering on a nullable-but-actually-populated column (say <code>o.status</code>) is the classic bug: a real order with a NULL status would be misread as "no order". Always test the join key or the PK.</p>
+
+<h5><code>NOT EXISTS</code> &mdash; often the better choice</h5>
+<p>The commented <code>NOT EXISTS</code> form expresses the same intent more directly: "keep users for whom no order exists." On large tables it frequently out-performs the <code>LEFT JOIN</code>, because the engine can stop scanning a user's orders the instant it finds one match &mdash; it does not build the full padded join. Semantically it is also clearer: you are asking a yes/no question, not joining and then discarding.</p>
+
+<h5>The <code>NOT IN</code> trap with NULLs</h5>
+<p>The tempting one-liner is <code>WHERE user_id NOT IN (SELECT customer_id FROM orders)</code>. It is a landmine: if <em>any</em> <code>customer_id</code> in <code>orders</code> is NULL, the <code>NOT IN</code> evaluates to <em>unknown</em> for every row and the query returns <strong>zero rows</strong> &mdash; silently, no error. This happens because <code>x NOT IN (1, 2, NULL)</code> is <code>x&ne;1 AND x&ne;2 AND x&ne;NULL</code>, and the last term is never true. <code>LEFT JOIN / IS NULL</code> and <code>NOT EXISTS</code> both handle NULLs correctly; <code>NOT IN</code> only when the subquery column is guaranteed non-NULL.</p>
+
+<h5>Why the anti-join does not multiply rows</h5>
+<p>An <em>inner</em> join with a one-to-many relationship multiplies the left row by the number of matches. The anti-join keeps only the <em>zero-match</em> rows, so multiplicity is impossible &mdash; each surviving user matched nothing and appears exactly once. That is why customer 102's two orders are irrelevant here, and why you do not need <code>DISTINCT</code>.</p>
+
+<h5>Dialect notes</h5>
+<p><code>LEFT JOIN</code>, <code>IS NULL</code>, and <code>NOT EXISTS</code> are universal. Modern Postgres and SQL Server optimisers recognise all three anti-join forms and often compile them to the identical "anti-join" physical operator, so the performance gap has narrowed &mdash; but <code>NOT IN</code> still carries the NULL semantics, regardless of optimiser, so the safety argument stands in every dialect.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement an anti-join with <code>LEFT JOIN &hellip; WHERE pk IS NULL</code> or <code>NOT EXISTS</code>, filter on a column that is genuinely never NULL (the join key/PK), know the anti-join cannot multiply rows so <code>DISTINCT</code> is unneeded, and reject <code>NOT IN</code> on a nullable subquery because a single NULL makes it return nothing.</div>

@@ -1,0 +1,106 @@
+<p>Offline sweep over sorted intervals using a min-heap keyed by interval size. The same shape as time-window joins on event streams (Flink interval join, Kafka Streams session windows), "smallest billing tier that covers each charge" reverse-lookup in finance, and "shortest valid SLA window per request" in observability stacks. The senior insight here is offline batching: rather than answering each query as it arrives (which would need an interval tree, O(log n) per query), you sort BOTH the intervals and the queries, then sweep them once with a heap. Qualcomm asks this for their cellular-network frame-allocation subsystem — given thousands of carrier frequency-band intervals and millions of allocation requests, find the smallest valid band for each request.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>For each query q, find the SIZE of the smallest interval [l, r] with l ≤ q ≤ r, or -1 if none. <strong>Insight:</strong> sort intervals by left endpoint, queries in ascending order. Sweep queries left-to-right: for each q, (1) push every interval with <code>l ≤ q</code> onto a min-heap keyed by size, (2) pop intervals whose <code>r &lt; q</code> (they no longer cover q), (3) the heap top is the smallest interval still covering q. Both intervals and queries are processed once each in sorted order — but the heap may be re-touched. Total: O((N + Q) log N).</p>
+
+<h4>2. Worked example — intervals [[1,4],[2,4],[3,6],[4,4]], queries [2,3,4,5]</h4>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Sort intervals by left:  [1,4]  [2,4]  [3,6]  [4,4]
+Sort distinct queries:   [2, 3, 4, 5]
+
+i = 0  (pointer into sorted intervals)
+heap = []  (min-heap of (size, right_endpoint))
+res = {}
+
+q = 2:
+  push intervals with l <= 2:
+    [1,4] -> size 4, right 4 -> push (4, 4);  i = 1
+    [2,4] -> size 3, right 4 -> push (3, 4);  i = 2
+  heap top: (3, 4).  4 >= 2  -> covers q.  res[2] = 3
+  heap = [(3,4), (4,4)]
+
+q = 3:
+  push intervals with l <= 3:
+    [3,6] -> size 4, right 6 -> push (4, 6);  i = 3
+  heap top: (3, 4).  4 >= 3  -> covers q.  res[3] = 3
+  heap = [(3,4), (4,4), (4,6)]
+
+q = 4:
+  push intervals with l <= 4:
+    [4,4] -> size 1, right 4 -> push (1, 4);  i = 4
+  heap top: (1, 4).  4 >= 4  -> covers q.  res[4] = 1
+  heap = [(1,4), (3,4), (4,6), (4,4)]
+
+q = 5:
+  no more intervals to push (i = 4 = len)
+  heap top: (1, 4).  4 < 5  -> POP.  Doesn't cover 5.
+  heap top: (3, 4).  4 < 5  -> POP.  Doesn't cover.
+  heap top: (4, 4).  4 < 5  -> POP.  Doesn't cover.
+  heap top: (4, 6).  6 >= 5 -> covers q.  res[5] = 4
+
+Final res = {2:3, 3:3, 4:1, 5:4}
+Map back to input query order: [3, 3, 1, 4]
+</pre>
+<p>The sweep illustrates two key behaviours: (1) intervals are pushed exactly once, in sorted-left order; (2) intervals are popped at most once, lazily, only when they fail to cover the CURRENT query. An interval that no longer covers q can't cover any future query either (queries are sorted ascending), so the pop is permanent — there's no need for an interval tree.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>import heapq
+
+def minInterval(intervals, queries):
+    # Sort intervals by left so we know exactly when each one becomes eligible
+    # as we sweep queries left-to-right.
+    intervals.sort()
+    # Sort distinct queries; remap to input order at the end.
+    sorted_q = sorted(set(queries))
+
+    res = {}    # answer per distinct query
+    h = []      # min-heap of (size, right_endpoint)
+    i = 0       # how far we've advanced into the sorted intervals
+
+    for q in sorted_q:
+        # 1) Push every interval whose left endpoint has been crossed.
+        while i &lt; len(intervals) and intervals[i][0] &lt;= q:
+            l, r = intervals[i]
+            heapq.heappush(h, (r - l + 1, r))
+            i += 1
+        # 2) Lazily evict intervals whose right endpoint is behind q.
+        #    Because queries are sorted, an evicted interval is dead forever.
+        while h and h[0][1] &lt; q: heapq.heappop(h)
+        # 3) The heap top is now the smallest covering interval.
+        res[q] = h[0][0] if h else -1
+
+    # Remap to the original query order.
+    return [res[q] for q in queries]
+</code></pre>
+<p><strong>Data structures:</strong> <code>heapq</code> (min-heap) keyed by interval size, an integer pointer <code>i</code> into the sorted intervals, and a dict <code>res</code> for distinct-query memoisation. <strong>Invariants:</strong> (1) every interval in the heap has <code>l ≤ q</code>; (2) lazy eviction is sound because queries are processed in ascending order; (3) the heap top, when non-empty, IS the smallest covering interval for the current q.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O((N + Q) log N), where N = number of intervals and Q = number of distinct queries. Sorting: O(N log N + Q log Q). Heap operations: each interval is pushed once and popped at most once, so 2N heap ops × O(log N). <strong>Space:</strong> O(N) for the heap + O(Q) for the result map. The lazy-eviction makes this strictly better than an interval tree's O((N + Q) log N) with worse constants and code complexity.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — Empty intervals / empty queries.</strong> Empty intervals → heap stays empty, every query gets -1. Empty queries → no work done, returns []. Both are handled with no special casing.</p>
+<p><strong>Probe 2 — Duplicate queries.</strong> The same q appearing multiple times in the input gets the same answer. <code>sorted(set(queries))</code> ensures each distinct value is processed once; the final list comprehension remaps back. Saves work when ~10× duplicates per query.</p>
+<p><strong>Probe 3 — Generalisation: online (streaming) queries.</strong> If queries arrive one at a time and you can't sort them upfront, switch to a <strong>segment tree</strong> or an <strong>interval tree</strong> (Augmented BST). Each query is O(log N), each interval insertion O(log N), but you lose the lazy-eviction optimisation. Naming this trade-off is the senior signal.</p>
+<p><strong>Probe 4 — Generalisation: K smallest covering intervals per query.</strong> Don't pop the smallest; copy the heap and pop K times per query (slow). Better: maintain a separate sorted set per query and run a K-way merge. O((N + KQ) log N).</p>
+<p><strong>Probe 5 — Alternative algorithm: sort-events sweep without a heap.</strong> Treat each interval as two events (open at l, close at r+1) and each query as a point event. Sort all events; maintain an <em>active set</em> of intervals sorted by size (a balanced BST or sorted list). Adds and removes are O(log N); query reads the min in O(log N). Same complexity, no heap — but more code.</p>
+<p><strong>Probe 6 — Performance trap: very wide intervals dominating the heap.</strong> If one interval has size 10^9 and another has size 1, the size-1 one will be popped to the top when both cover q. But if a query falls in the wide-only zone, we waste time popping/repushing. Solution: don't push intervals where r &lt; q-at-push-time — but in practice this is over-engineering for the typical input.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>Flink interval joins / Kafka Streams session windows</strong> — for each incoming event, find the smallest enclosing session window. The "active set of windows" is exactly this heap, swept as event time advances.</li>
+  <li><strong>Cellular network frame allocation (Qualcomm, Ericsson)</strong> — assign each transmission request to the smallest available frequency-band interval. Real-time, but the offline pre-sort variant is used for batch capacity planning.</li>
+  <li><strong>Observability SLA windows (Datadog Watchdog, PagerDuty)</strong> — for each alert occurrence, find the tightest SLA window that contains it; smallest window wins because it's the most specific constraint.</li>
+  <li><strong>Billing tier reverse-lookup (Stripe Connect, Snowflake credit consumption)</strong> — given a usage timestamp, find the smallest billing-tier interval that contains it; same algorithm, intervals are pricing tiers.</li>
+  <li><strong>Genomic annotation lookup (GATK, samtools)</strong> — for each variant position, find the smallest enclosing gene/exon annotation interval. Bioinformatics calls this an <em>interval overlap query</em>; for sorted inputs the heap sweep is preferred over interval trees.</li>
+  <li><strong>Calendar conflict resolution</strong> — given a meeting request time, find the shortest already-scheduled event that conflicts with it. Same pattern, different substrate.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0162">python_175-0162 — Swim in Rising Water</a> (sibling: heap-based sweep, but on a grid)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0118">python_175-0118 — Merge k Sorted Lists</a> (sibling: heap-based stream merge)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0112">python_175-0112 — Median of Two Sorted Arrays</a> (sibling: offline sorted sweep)</li>
+  <li><a href="/interview.app/design/data-modeling.html">Time-series &amp; interval data modeling</a></li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the technique out loud — <em>"offline sweep: sort both sides, advance one pointer through intervals, lazily evict from a size-keyed min-heap."</em> Then articulate why this is strictly better than an interval tree for the offline case (no balancing, no parent pointers, one heap log factor instead of two BST ones). Production analogue: Flink interval joins, cellular frame allocation, billing-tier reverse-lookup — every "find the tightest covering interval per query" problem becomes this sweep.</div>

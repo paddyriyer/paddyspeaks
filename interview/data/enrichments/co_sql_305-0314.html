@@ -1,0 +1,136 @@
+<p>The single most-watched chart at any subscription business is the <strong>cohort retention curve</strong>: by signup-week cohort, what fraction is still active at week 1, week 4, week 12? It's the leading indicator for LTV, the input to acquisition-cost ROI, and the quickest way to see if a product change moved the needle. The query pivots three concepts: cohorts (signup time), retention (still active later), and the curve (week-N as a relative axis).</p>
+
+<h4>1. The source data &mdash; <code>users</code> + <code>activity</code></h4>
+<table>
+  <thead><tr><th colspan="2">users</th></tr></thead>
+  <tbody>
+    <tr><td>user_id</td><td>signup_date</td></tr>
+    <tr><td>U_001</td><td>2026-04-01</td></tr>
+    <tr><td>U_002</td><td>2026-04-02</td></tr>
+    <tr><td>U_003</td><td>2026-04-08</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="2">activity</th></tr></thead>
+  <tbody>
+    <tr><td>user_id</td><td>activity_date</td></tr>
+    <tr><td>U_001</td><td>2026-04-01, 04-02, 04-15</td></tr>
+    <tr><td>U_002</td><td>2026-04-02, 04-09</td></tr>
+    <tr><td>U_003</td><td>2026-04-08, 04-09, 04-22</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; cohort + week-N matrix</h4>
+<pre><code>WITH cohorts AS (
+  SELECT user_id, DATE_TRUNC('week', signup_date) AS cohort_week
+  FROM users
+),
+dedup AS (
+  SELECT DISTINCT user_id, DATE_TRUNC('week', activity_date) AS active_week
+  FROM activity
+),
+joined AS (
+  SELECT c.cohort_week, d.active_week,
+    EXTRACT(EPOCH FROM (d.active_week - c.cohort_week)) / (7*86400) AS week_n,
+    c.user_id
+  FROM cohorts c JOIN dedup d USING (user_id)
+)
+SELECT cohort_week, week_n,
+  COUNT(DISTINCT user_id) AS active_users,
+  ROUND(100.0 * COUNT(DISTINCT user_id) /
+    FIRST_VALUE(COUNT(DISTINCT user_id)) OVER (PARTITION BY cohort_week ORDER BY week_n), 1)
+    AS retention_pct
+FROM joined
+WHERE week_n BETWEEN 0 AND 12
+GROUP BY cohort_week, week_n
+ORDER BY cohort_week, week_n;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 3-CTE structure &mdash; what each one does</h5>
+<table>
+  <thead><tr><th>CTE</th><th>purpose</th><th>output shape</th></tr></thead>
+  <tbody>
+    <tr><td><code>cohorts</code></td><td>label each user with their signup-week bucket</td><td>(user_id, cohort_week)</td></tr>
+    <tr><td><code>dedup</code></td><td>collapse multi-day activity into "weeks the user was active"</td><td>(user_id, active_week)</td></tr>
+    <tr><td><code>joined</code></td><td>compute relative week_n = active_week - cohort_week</td><td>(cohort_week, active_week, week_n, user_id)</td></tr>
+  </tbody>
+</table>
+<p>The cleanness of this pattern is why every retention dashboard reaches for these three CTEs.</p>
+
+<h5>Why <code>FIRST_VALUE</code> over a self-join</h5>
+<p>The denominator for retention% is the cohort's week-0 size. Without a window function, you'd self-join the result back to itself filtered to <code>week_n = 0</code>. <code>FIRST_VALUE</code> with <code>ORDER BY week_n</code> grabs the week-0 count and replicates it onto every row of the same cohort &mdash; one pass instead of two.</p>
+
+<h5>The <code>DATE_TRUNC('week', ...)</code> bucketization choice</h5>
+<p>Why week, not day or month?</p>
+<ul>
+  <li><strong>Day</strong>: way too noisy &mdash; weekend/weekday signup demographics differ. Hard to read.</li>
+  <li><strong>Week</strong>: dampens day-of-week effects, still granular enough to see campaigns.</li>
+  <li><strong>Month</strong>: clean for finance but laggy &mdash; takes 6 weeks to detect a change.</li>
+</ul>
+<p>Production growth dashboards almost universally use weekly cohorts. Pin <code>DATE_TRUNC</code>'s week-start (Monday in Postgres, Sunday in BigQuery default) for cross-dialect parity.</p>
+
+<h5>The "in-flight cohorts" trap</h5>
+<p>If today is May 1, the cohort that signed up the week of April 28 has only had 3 days &mdash; their week-12 retention is 0% because week 12 hasn't happened yet. Don't render those cells. Production fix:</p>
+<pre><code>WHERE active_week &lt;= CURRENT_DATE
+  AND cohort_week + INTERVAL '7 days' * 12 &lt;= CURRENT_DATE   -- only complete 12-week cohorts</code></pre>
+
+<h5>The cohort-vs-cumulative retention distinction</h5>
+<table>
+  <thead><tr><th>variant</th><th>"week N retention" means</th></tr></thead>
+  <tbody>
+    <tr><td>Classic (this query)</td><td>fraction of cohort active <em>during week N</em></td></tr>
+    <tr><td>Cumulative (sometimes called "rolling")</td><td>fraction of cohort active <em>any week N or earlier</em> = always 100%</td></tr>
+    <tr><td>"Bracket" or "any time after"</td><td>fraction of cohort active <em>any week ≥ N</em></td></tr>
+  </tbody>
+</table>
+<p>Always confirm the definition. The classic one is what most "retention curve" charts plot.</p>
+
+<h5>The "active" definition trap</h5>
+<p>What counts as active? "Any row in <code>activity</code>" is the loosest. Pinned definitions:</p>
+<ul>
+  <li><strong>Any login</strong> &mdash; very loose</li>
+  <li><strong>Any play that exceeded 60 seconds</strong> &mdash; Netflix's standard</li>
+  <li><strong>Any play that completed an episode</strong> &mdash; tighter</li>
+  <li><strong>Any play AND not the auto-play preview</strong> &mdash; tightest</li>
+</ul>
+<p>All four give different curves. Use the definition the PM actually uses, not the loosest one.</p>
+
+<h5>Curve-shape diagnosis &mdash; what each shape means</h5>
+<table>
+  <thead><tr><th>shape</th><th>diagnosis</th></tr></thead>
+  <tbody>
+    <tr><td>Steep drop W1, flat after</td><td>"hook lost" &mdash; people sign up, don't engage, then a stable core continues</td></tr>
+    <tr><td>Smooth exponential decay</td><td>healthy &mdash; consistent churn rate, predictable LTV</td></tr>
+    <tr><td>"Smiling" curve (down then up)</td><td>winback campaigns are working &mdash; resurrection lift</td></tr>
+    <tr><td>Crater at W4</td><td>billing-cycle churn &mdash; trial-to-paid leak</td></tr>
+  </tbody>
+</table>
+
+<h5>Cohort comparison &mdash; A/B-style</h5>
+<p>The chart's actual question is rarely the curve in isolation &mdash; it's <em>"is this week's cohort better or worse than last week's?"</em>. Pivot to side-by-side:</p>
+<pre><code>SELECT week_n,
+  MAX(CASE WHEN cohort_week = '2026-04-22' THEN retention_pct END) AS cohort_a,
+  MAX(CASE WHEN cohort_week = '2026-04-15' THEN retention_pct END) AS cohort_b,
+  MAX(CASE WHEN cohort_week = '2026-04-22' THEN retention_pct END) -
+  MAX(CASE WHEN cohort_week = '2026-04-15' THEN retention_pct END) AS lift_pp
+FROM /* the retention CTE */
+GROUP BY week_n;</code></pre>
+
+<h5>The dialect cheat sheet for week_n calculation</h5>
+<pre><code>-- Postgres / DuckDB
+EXTRACT(EPOCH FROM (active_week - cohort_week)) / (7*86400)
+
+-- BigQuery
+DATE_DIFF(active_week, cohort_week, WEEK)
+
+-- Snowflake
+DATEDIFF(WEEK, cohort_week, active_week)
+
+-- SQLite
+(julianday(active_week) - julianday(cohort_week)) / 7</code></pre>
+
+<h5>The unsatisfied-demand follow-up &mdash; why did they stop?</h5>
+<p>The retention curve is a <em>what</em>; the actionable follow-up is the <em>why</em>. Each cohort gets a "last activity type" classification: did they leave during a billing event, after a specific show ended, after a price change? Joining to <code>cancellation_events</code> exposes the policy levers.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> structure the query as 3 CTEs with crisp roles, name <code>FIRST_VALUE</code> as the cleanest week-0 denominator (vs self-join), pre-empt the in-flight-cohort artifact, and pin "active" to a stricter definition than "any row". The cohort-vs-cumulative distinction and the side-by-side A/B comparison are the over-the-bar finish.</div>

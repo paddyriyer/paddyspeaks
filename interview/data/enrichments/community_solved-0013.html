@@ -1,0 +1,68 @@
+<p>A Community string-parsing question, Airbnb-flavoured: each listing stores its amenities as one stringified set &mdash; <code>{"TV","Wifi","Kitchen"}</code> &mdash; and the task is to find the city whose listings offer the most amenities in total. The work is almost entirely data-wrangling: peel the braces and quotes off a packed string, explode it into rows, then it is a plain count.</p>
+
+<h4>1. The source data &mdash; <code>airbnb_search_details</code></h4>
+<table>
+  <thead><tr><th>city</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>Paris</td><td>{"TV","Internet","Wifi"}</td></tr>
+    <tr><td>Paris</td><td>{"Kitchen","Heating"}</td></tr>
+    <tr><td>London</td><td>{"Wifi"}</td></tr>
+    <tr><td>Berlin</td><td>{"TV","Wifi","Pool","Gym"}</td></tr>
+  </tbody>
+</table>
+<p>Paris has two listings (3 + 2 amenities = 5). Berlin has one listing with 4. London has one with a single amenity. The interesting wrinkle: <strong>Paris wins on total amenities only because it has two listings</strong> &mdash; Berlin's single listing is actually the richest.</p>
+
+<h4>2. The SQL &mdash; strip wrappers, explode, count</h4>
+<pre><code>WITH temp AS (
+    SELECT city, REPLACE(REPLACE(REPLACE(value::text, '{', ''), '}', ''), '"', '') AS amenities
+    FROM airbnb_search_details
+),
+temp2 AS (
+    SELECT city, TRIM(amen) AS amen
+    FROM temp, UNNEST(string_to_array(temp.amenities, ',')) AS amen
+)
+SELECT city FROM temp2
+GROUP BY city
+ORDER BY COUNT(*) DESC
+LIMIT 1;</code></pre>
+<p><code>temp</code> strips the <code>{</code>, <code>}</code>, and <code>"</code> characters, leaving a bare comma-separated string. <code>temp2</code> splits that on commas with <code>string_to_array</code>, explodes it with <code>UNNEST</code> so each amenity is its own row, and <code>TRIM</code>s stray spaces. The final query counts amenity rows per city and takes the largest.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>city</th></tr></thead>
+  <tbody>
+    <tr><td>Paris</td></tr>
+  </tbody>
+</table>
+<p>Paris wins: 5 amenity rows (TV, Internet, Wifi, Kitchen, Heating) against Berlin's 4 and London's 1. But notice <em>why</em> &mdash; Paris is ahead because it has two listings contributing, while Berlin's lone listing is individually more amenity-rich. The query answers "most amenities summed across the city", which is a different question from "best-equipped single listing". Which one the business wants is the conversation to have.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The fragile part: <code>REPLACE</code>-stripping a structured value</h5>
+<p>Three nested <code>REPLACE</code> calls strip <code>{</code>, <code>}</code>, <code>"</code> to fake-parse the set. It works on tidy data, but it is brittle: an amenity whose <em>name</em> contains a brace or quote &mdash; <code>'24" TV'</code>, <code>'Sound system {premium}'</code> &mdash; gets mangled. If the column is genuinely a Postgres array or JSON, parse it properly instead of string-bashing:</p>
+<pre><code>-- if value is a real array column:
+SELECT city, UNNEST(value) AS amen FROM airbnb_search_details;
+-- if value is a JSON array:
+SELECT city, jsonb_array_elements_text(value::jsonb) AS amen FROM airbnb_search_details;</code></pre>
+<p>Recognising "this is a serialised collection, not free text" and using the structured accessor is the senior move.</p>
+
+<h5>The duplicate-amenity question</h5>
+<p><code>COUNT(*)</code> counts amenity <em>rows</em>. If "TV" is listed twice in one listing &mdash; or appears in two of a city's listings &mdash; it is counted each time. "Most amenities" almost certainly means <em>distinct</em> amenities. Decide explicitly:</p>
+<pre><code>ORDER BY COUNT(DISTINCT amen) DESC</code></pre>
+<p>With distinct counting, a city offering "Wifi" in five listings still scores Wifi once. The raw <code>COUNT(*)</code> answers "total amenity slots", which is rarely the intent.</p>
+
+<h5>The tie trap &mdash; <code>LIMIT 1</code> drops co-winners</h5>
+<p>If two cities tie for the most amenities, <code>ORDER BY ... DESC LIMIT 1</code> returns just one, arbitrarily. To surface every top city, rank:</p>
+<pre><code>SELECT city FROM (
+  SELECT city, RANK() OVER (ORDER BY COUNT(*) DESC) AS rk
+  FROM temp2 GROUP BY city
+) WHERE rk = 1;</code></pre>
+<p>Ask the interviewer whether one city or all tied cities is wanted.</p>
+
+<h5>Per-listing vs. per-city &mdash; the framing trap</h5>
+<p>This query sums amenities across all of a city's listings, so a city with many sparse listings can beat a city with one lavish listing (exactly what happens with Paris vs Berlin here). If the question means "which city has the single best-equipped listing", that is a different query &mdash; count per listing first, then take the city of the max. Always pin down the unit of analysis.</p>
+
+<h5>Edge cases: empty sets and NULLs</h5>
+<p>An empty amenity set <code>{}</code> strips to <code>''</code>; <code>string_to_array('', ',')</code> yields an array with one empty element, so <code>UNNEST</code> produces a single blank-amenity row &mdash; inflating that city's count by one. Filter with <code>WHERE amen &lt;&gt; ''</code> after the trim. A NULL <code>value</code> needs handling too, or it propagates through the <code>REPLACE</code>s as NULL.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat <code>{"..."}</code> as a serialised collection and parse it with <code>UNNEST</code>/<code>jsonb_array_elements_text</code> rather than nested <code>REPLACE</code> string-bashing, count <code>DISTINCT</code> amenities, filter the empty-set blank row, and clarify whether "most amenities" is summed per city or measured per listing.</div>

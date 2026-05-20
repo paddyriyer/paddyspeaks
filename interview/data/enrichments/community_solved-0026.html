@@ -1,0 +1,72 @@
+<p>A Community question on the HackerRank "Top Competitors" schema: find the students who earned a <em>full score</em> on more than one challenge. A challenge's full score is the score attached to its difficulty level, so a submission is "full" only when <code>submission.score</code> equals the difficulty's <code>score</code>. The interview tests a four-table join through a bridge dimension, then counting only the maximal submissions.</p>
+
+<h4>1. The source data</h4>
+<p>Four tables. <code>students</code> (id&rarr;name), <code>difficulty</code> (level&rarr;full <code>score</code>: 1&rarr;20, 2&rarr;40, 3&rarr;60, 4&rarr;80), <code>challenge</code> (each challenge has a <code>difficulty_level</code>), and <code>submissions</code>:</p>
+<table>
+  <thead><tr><th>submission_id</th><th>student_id</th><th>challenge_id</th><th>score</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>1</td><td>101</td><td>40</td></tr>
+    <tr><td>1002</td><td>1</td><td>102</td><td>60</td></tr>
+    <tr><td>1003&ndash;1005</td><td>2</td><td>101,102,103</td><td>40,60,80</td></tr>
+    <tr><td>1006</td><td>3</td><td>103</td><td>80</td></tr>
+    <tr><td>1009</td><td>5</td><td>105</td><td>10</td></tr>
+  </tbody>
+</table>
+<p>Alice (1) has 2 full-score subs, Bob (2) has 3, Carol (3) has only 1, Eve (5) scored 10 on a difficulty-2 (full = 40) challenge &mdash; not full. The "more than one" rule must keep Alice, Bob, Dan; drop Carol (exactly one) and Eve (none).</p>
+
+<h4>2. The SQL &mdash; <code>4-table join, window count, filter &gt; 1</code></h4>
+<pre><code>with t1 as
+(select h.name, s.submission_id, s.student_id, s.challenge_id, s.score,
+    count(1) over(partition by s.student_id) as full_score
+from submissions s
+inner join challenge c on s.challenge_id = c.challenge_id
+inner join difficulty d on c.difficulty_level = d.difficulty_level
+inner join students h on s.student_id = h.student_id
+where d.score = s.score)
+
+select t1.student_id, t1.name
+from t1
+where full_score &lt;&gt; 1
+group by t1.student_id, t1.name, t1.full_score
+order by t1.full_score desc, t1.student_id asc;</code></pre>
+<p>The <code>WHERE d.score = s.score</code> keeps only full-score submissions; <code>count(1) OVER (PARTITION BY student_id)</code> &mdash; computed <em>after</em> that filter &mdash; counts each student's full-score subs; <code>full_score &lt;&gt; 1</code> keeps students with more than one.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>student_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Bob</td></tr>
+    <tr><td>1</td><td>Alice</td></tr>
+    <tr><td>4</td><td>Dan</td></tr>
+  </tbody>
+</table>
+<p>Bob leads with 3 full-score subs, then Alice and Dan with 2 each. Carol is gone &mdash; her single full-score submission gives <code>full_score = 1</code>, which <code>&lt;&gt; 1</code> rejects. Eve never appears: her only submission scored 10 against a full score of 40, so the <code>WHERE d.score = s.score</code> dropped her before counting. Ordering is by <code>full_score</code> descending.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The join chain &mdash; why <code>difficulty</code> is reached through <code>challenge</code></h5>
+<p>A submission knows its <code>challenge_id</code> but not its difficulty; only <code>challenge</code> carries <code>difficulty_level</code>, and only <code>difficulty</code> carries the full <code>score</code>. So the path is submissions&rarr;challenge (to learn the level)&rarr;difficulty (to learn the full score), plus submissions&rarr;students for the name. <code>challenge</code> is a bridge table &mdash; you cannot jump submissions straight to difficulty. All four joins are <code>INNER</code>, which is deliberate: a submission with no matching challenge or difficulty is unscorable and rightly excluded.</p>
+
+<h5>The filter-before-window subtlety</h5>
+<p><code>WHERE</code> executes before window functions, so <code>count(1) OVER (PARTITION BY student_id)</code> counts only the rows that <em>survived</em> <code>d.score = s.score</code> &mdash; i.e. full-score submissions per student. That is exactly the intended metric. If the count instead needed to include non-full subs, the filter would have to move out of <code>WHERE</code> (into a <code>CASE</code> inside the count, or a later stage). Knowing this evaluation order is the crux of the query.</p>
+
+<h5>Why <code>full_score &lt;&gt; 1</code> and not <code>&gt; 1</code> &mdash; and the zero-row subtlety</h5>
+<p>After the <code>WHERE</code>, <code>t1</code> contains only full-score rows, so <code>full_score</code> is always &ge; 1 &mdash; a student with zero full scores has <em>no rows at all</em>. Within that universe, <code>&lt;&gt; 1</code> and <code>&gt; 1</code> are equivalent. <code>&gt; 1</code> reads the intent ("more than one") more honestly; <code>&lt;&gt; 1</code> works only because 0 is impossible here. Eve's exclusion is not done by this filter &mdash; it happens earlier, in the join's <code>WHERE</code>.</p>
+
+<h5>The <code>GROUP BY</code> + window redundancy</h5>
+<p><code>count(1) OVER (&hellip;)</code> repeats the same <code>full_score</code> on every one of a student's rows, so the outer <code>GROUP BY student_id, name, full_score</code> exists only to collapse those duplicates to one row per student. A cleaner formulation skips the window entirely and uses a plain grouped aggregate with <code>HAVING</code>:</p>
+<pre><code>SELECT s.student_id, h.name
+FROM submissions s
+JOIN challenge c   ON s.challenge_id = c.challenge_id
+JOIN difficulty d  ON c.difficulty_level = d.difficulty_level
+JOIN students h    ON s.student_id = h.student_id
+WHERE d.score = s.score
+GROUP BY s.student_id, h.name
+HAVING COUNT(*) &gt; 1
+ORDER BY COUNT(*) DESC, s.student_id;</code></pre>
+<p>Same result, no window, no dedup step &mdash; <code>HAVING</code> is the natural tool for "groups with more than one row".</p>
+
+<h5>Edge cases: duplicate submissions and the counting unit</h5>
+<p>If a student submitted the <em>same</em> challenge twice at full score, both rows count &mdash; <code>full_score</code> would be 2 from one challenge, arguably wrong if "more than one" means more than one distinct <em>challenge</em>. Then count <code>DISTINCT challenge_id</code>. The HackerRank original also sorts ties by <code>hacker_id</code> ascending, which the <code>ORDER BY</code> here mirrors.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> route the join through the <code>challenge</code> bridge to reach <code>difficulty</code>, recognise that <code>WHERE</code> runs before the window so the count tallies only full-score subs, and prefer a plain <code>GROUP BY &hellip; HAVING COUNT(*) &gt; 1</code> over a window-plus-dedup &mdash; while deciding whether the unit is submissions or distinct challenges.</div>

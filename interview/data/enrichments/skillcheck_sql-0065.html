@@ -1,0 +1,58 @@
+<p>A customer-360 dashboard needs each customer's two most recent activity events for a "recent activity" panel. The interviewer specifically asks for the <strong>LATERAL</strong> pattern &mdash; probing whether you know PostgreSQL's correlated-subquery-in-the-<code>FROM</code>-clause, how it compares to a window-function top-N, and how each join type treats customers with no events.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>events</code></h4>
+<table>
+  <thead><tr><th>customer</th><th>events (ts, kind)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1 Alice</td><td>Jan 1 login, Jan 2 view, Jan 3 purchase</td><td>3 events &mdash; only newest 2 wanted</td></tr>
+    <tr><td>2 Bob</td><td>Jan 4 login</td><td>1 event &mdash; fewer than 2</td></tr>
+    <tr><td>3 Cara</td><td>Jan 5 login, Jan 6 view</td><td>exactly 2 events</td></tr>
+    <tr><td>4 Dan</td><td>&mdash; none &mdash;</td><td>zero events &mdash; must be omitted</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases in one tiny dataset: Alice has <em>more</em> than 2 events (must trim to 2), Bob has <em>fewer</em> than 2 (return the 1 he has), and Dan has <em>none</em> (drop him entirely). The result must handle all three.</p>
+
+<h4>2. The SQL &mdash; <code>CROSS JOIN LATERAL</code> with per-customer <code>LIMIT</code></h4>
+<pre><code>SELECT c.id AS customer_id, c.name, e.id AS event_id, e.ts, e.kind
+FROM customers c
+CROSS JOIN LATERAL (
+  SELECT id, ts, kind
+  FROM events
+  WHERE customer_id = c.id
+  ORDER BY ts DESC
+  LIMIT 2
+) e
+ORDER BY customer_id, ts DESC;</code></pre>
+<p>The <code>LATERAL</code> subquery runs <em>once per customer row</em> and may reference <code>c.id</code> &mdash; ordinary subqueries in <code>FROM</code> cannot see the outer row. For each customer it sorts that customer's events newest-first and takes the top 2.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>event_id</th><th>ts</th><th>kind</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>103</td><td>2025-01-03 10:00</td><td>purchase</td><td>newest of 3</td></tr>
+    <tr><td>1</td><td>Alice</td><td>102</td><td>2025-01-02 10:00</td><td>view</td><td>2nd newest &mdash; Jan 1 login trimmed</td></tr>
+    <tr><td>2</td><td>Bob</td><td>104</td><td>2025-01-04 10:00</td><td>login</td><td>only 1 event &mdash; returns 1, not padded</td></tr>
+    <tr><td>3</td><td>Cara</td><td>106</td><td>2025-01-06 10:00</td><td>view</td><td>exactly 2</td></tr>
+    <tr><td>3</td><td>Cara</td><td>105</td><td>2025-01-05 10:00</td><td>login</td><td></td></tr>
+  </tbody>
+</table>
+<p>Alice contributes her two newest (Jan 3, Jan 2) &mdash; the Jan 1 login is trimmed. Bob yields one row. <strong>Dan does not appear at all</strong> &mdash; with no events his <code>LATERAL</code> subquery is empty, and a <code>CROSS JOIN</code> to an empty set produces no rows for him.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>What <code>LATERAL</code> actually does</h5>
+<p>Normally a subquery in the <code>FROM</code> clause is evaluated independently and cannot reference other items in the same <code>FROM</code>. <code>LATERAL</code> lifts that restriction: the subquery is re-evaluated for each row of the table to its left and may reference that row's columns &mdash; here <code>WHERE customer_id = c.id</code>. It is a correlated subquery that returns a <em>set of rows</em> rather than a single value, which is exactly what "top 2 per customer" needs.</p>
+
+<h5><code>CROSS JOIN LATERAL</code> vs <code>LEFT JOIN LATERAL</code> &mdash; this is the key decision</h5>
+<p>The question says customers with no events should be omitted &mdash; so <code>CROSS JOIN LATERAL</code> is correct: when the subquery yields nothing (Dan), the customer produces no output rows. Had the requirement been "list every customer, NULLs if no events", you would write <code>LEFT JOIN LATERAL (...) e ON true</code>, which keeps the customer with NULL event columns. The join type is the entire difference between "drop Dan" and "keep Dan with NULLs" &mdash; choose it to match the spec.</p>
+
+<h5>LATERAL vs the window-function top-N</h5>
+<p>The classic alternative is <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY ts DESC)</code> in a CTE, then <code>WHERE rn &lt;= 2</code>. Both are correct. The trade-off: the window approach scans and sorts the <em>entire</em> events table once; <code>LATERAL</code> does a small ordered lookup per customer. With an index on <code>events(customer_id, ts DESC)</code>, <code>LATERAL</code> can be dramatically faster &mdash; each iteration is an index range scan reading just 2 rows. For few customers against a huge events table, <code>LATERAL</code> wins; for a single pass over everything, the window function is fine.</p>
+
+<h5>Ties on the timestamp</h5>
+<p><code>ORDER BY ts DESC LIMIT 2</code> is non-deterministic if a customer has two events at the exact same <code>ts</code> for the 2nd/3rd slot &mdash; the engine may pick either. If "most recent" must be reproducible, add a deterministic tiebreaker: <code>ORDER BY ts DESC, id DESC</code>. The demo timestamps are all distinct so it does not bite here, but a real event stream will eventually collide &mdash; flag it.</p>
+
+<h5>Dialect notes</h5>
+<p><code>LATERAL</code> is SQL-standard and supported by PostgreSQL, Oracle (also via <code>CROSS APPLY</code>), and MySQL 8.0.14+. SQL Server spells it <code>CROSS APPLY</code> / <code>OUTER APPLY</code> &mdash; <code>OUTER APPLY</code> being the analogue of <code>LEFT JOIN LATERAL</code>. Engines without it (older MySQL, SQLite) must fall back to the <code>ROW_NUMBER</code> window approach. Naming the <code>APPLY</code> equivalence shows cross-dialect fluency.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>CROSS JOIN LATERAL</code> with a per-row <code>ORDER BY ... LIMIT n</code> for top-N-per-group &mdash; <code>CROSS</code> drops groups with no matches (Dan), <code>LEFT JOIN LATERAL ... ON true</code> would keep them with NULLs. With an index on <code>(customer_id, ts DESC)</code> LATERAL beats a whole-table <code>ROW_NUMBER</code> scan; add a tiebreaker for timestamp ties, and know SQL Server spells it <code>CROSS/OUTER APPLY</code>.</div>

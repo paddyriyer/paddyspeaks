@@ -1,0 +1,64 @@
+<p>JPMorgan's card-issuance team tracks month-over-month change &mdash; how many cards were issued this month versus last. The metric is "variance vs previous month", and the natural tool is <code>LAG</code>. The interview is about the first row (which has no previous month), about sorting a month column correctly, and about not confusing absolute change with percentage change.</p>
+
+<h4>1. The source data &mdash; <code>cards_issued</code></h4>
+<table>
+  <thead><tr><th>issue_month</th><th>count</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01</td><td>1000</td></tr>
+    <tr><td>2026-02</td><td>1200</td></tr>
+    <tr><td>2026-03</td><td>900</td></tr>
+    <tr><td>2026-04</td><td>1500</td></tr>
+    <tr><td>2026-05</td><td>1500</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. January is the <strong>first</strong> month &mdash; there is no prior row to compare against. And April and May are <strong>flat</strong> at 1500 &mdash; the variance there should be exactly 0, distinct from a NULL "no comparison".</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> over ordered months</h4>
+<pre><code>SELECT issue_month, count,
+  count - LAG(count) OVER (ORDER BY issue_month) AS variance_vs_prev_month
+FROM cards_issued;</code></pre>
+<p><code>LAG(count) OVER (ORDER BY issue_month)</code> fetches the previous month's count for each row; subtracting gives the month-over-month delta.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>issue_month</th><th>count</th><th>variance_vs_prev_month</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01</td><td>1000</td><td><em>NULL</em></td></tr>
+    <tr><td>2026-02</td><td>1200</td><td>200</td></tr>
+    <tr><td>2026-03</td><td>900</td><td>-300</td></tr>
+    <tr><td>2026-04</td><td>1500</td><td>600</td></tr>
+    <tr><td>2026-05</td><td>1500</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>January's variance is <strong>NULL</strong> &mdash; <code>LAG</code> has no prior row, so it returns NULL and <code>1000 - NULL</code> is NULL. That is correct: there genuinely is no comparison. February rose 200, March fell 300, April jumped 600, and May is <strong>0</strong> &mdash; flat, not NULL. The distinction matters: 0 means "measured, no change"; NULL means "could not measure".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The first-row NULL &mdash; keep it or default it, on purpose</h5>
+<p>NULL for January is honest. But if a dashboard cannot render NULL, decide what to substitute &mdash; and say which you chose:</p>
+<pre><code>-- treat the first month's variance as 0
+count - LAG(count, 1, count) OVER (ORDER BY issue_month)
+-- LAG's 3rd argument is the default when no prior row exists;
+-- passing `count` makes (count - count) = 0
+
+-- or COALESCE the whole expression
+COALESCE(count - LAG(count) OVER (ORDER BY issue_month), 0)</code></pre>
+<p>Both yield 0 for January &mdash; but that now <em>looks</em> identical to a genuine flat month. Whether that conflation is acceptable is a product call; flag it rather than silently <code>COALESCE</code>-ing.</p>
+
+<h5>Sorting a month column &mdash; why <code>'2026-05'</code> as text still works, until it doesn't</h5>
+<p><code>ORDER BY issue_month</code> drives the whole window. If <code>issue_month</code> is a <code>TEXT</code> column in <code>YYYY-MM</code> form, lexical sort happens to match chronological sort &mdash; <code>'2026-01' &lt; '2026-02'</code> &mdash; so it works. But the moment the format varies (<code>'2026-1'</code>, <code>'Jan 2026'</code>, <code>'1/2026'</code>), text sort scrambles the timeline and <code>LAG</code> compares the wrong months. Robust code sorts on a real date:</p>
+<pre><code>... OVER (ORDER BY to_date(issue_month, 'YYYY-MM'))</code></pre>
+<p>Stating "this relies on the month string being zero-padded and ISO-formatted" is the senior catch.</p>
+
+<h5>Absolute change vs percentage change</h5>
+<p><code>variance_vs_prev_month</code> is an <em>absolute</em> delta. A +600 swing means very different things off a base of 100 versus 100,000. Executives usually want percent:</p>
+<pre><code>SELECT issue_month, count,
+  ROUND(100.0 * (count - LAG(count) OVER (ORDER BY issue_month))
+        / LAG(count) OVER (ORDER BY issue_month), 1) AS pct_change
+FROM cards_issued;</code></pre>
+<p>And watch the percentage trap: if a prior month's count is 0, the percent change divides by zero. Guard with <code>NULLIF(LAG(count) OVER (...), 0)</code>.</p>
+
+<h5>Gaps in the month series</h5>
+<p><code>LAG</code> means "the previous <em>row</em>", not "the previous calendar month". If March is missing from the table entirely, <code>LAG</code> on April silently reaches back to February and the "month-over-month" delta secretly spans two months. If the series can have holes, generate a complete month spine (<code>generate_series</code>) and <code>LEFT JOIN</code> the data onto it before applying <code>LAG</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>LAG</code> returns NULL for the first row and decide deliberately whether to keep that or default it (knowing 0 then looks like a flat month), recognise the query depends on <code>issue_month</code> being ISO-formatted text or be explicit and sort on a date, and distinguish absolute from percentage change &mdash; guarding the divide-by-zero when a base month is 0.</div>

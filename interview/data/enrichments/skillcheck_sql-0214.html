@@ -1,0 +1,72 @@
+<p>The definition of a Senior Manager is quietly recursive &mdash; &ldquo;a Manager who manages at least one Manager, but none of whose direct reports is itself a Senior Manager.&rdquo; The set-operations approach untangles it in layers: first the Managers, then the Managers who manage a Manager, then &mdash; by subtraction &mdash; remove the ones who sit <em>above</em> the Senior Manager tier.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>manager_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>NULL</td></tr>
+    <tr><td>2</td><td>Bob</td><td>1</td></tr>
+    <tr><td>3</td><td>Carol</td><td>1</td></tr>
+    <tr><td>4</td><td>Dave</td><td>2</td></tr>
+    <tr><td>5</td><td>Eve</td><td>2</td></tr>
+    <tr><td>6</td><td>Karl</td><td>2</td></tr>
+    <tr><td>7</td><td>Frank</td><td>3</td></tr>
+    <tr><td>8</td><td>Grace</td><td>4</td></tr>
+    <tr><td>9</td><td>Heidi</td><td>4</td></tr>
+    <tr><td>10</td><td>Ivan</td><td>5</td></tr>
+    <tr><td>11</td><td>Judy</td><td>7</td></tr>
+  </tbody>
+</table>
+<p>Four tiers run Alice (CEO) &rarr; Bob and Carol &rarr; Dave, Eve and Frank &rarr; the individual contributors. Bob&rsquo;s team is deliberately mixed &mdash; Dave and Eve are Managers, but Karl is an IC.</p>
+
+<h4>2. The set-operations solution</h4>
+<pre><code>WITH managers AS (
+  SELECT DISTINCT manager_id AS mgr FROM employees WHERE manager_id IS NOT NULL
+),
+manages_a_manager AS (
+  SELECT DISTINCT e.manager_id AS mgr
+  FROM employees e
+  JOIN managers m ON e.emp_id = m.mgr
+  WHERE e.manager_id IS NOT NULL
+),
+senior_managers AS (
+  SELECT mgr FROM manages_a_manager
+  EXCEPT
+  SELECT DISTINCT e.manager_id
+  FROM employees e
+  JOIN manages_a_manager mm ON e.emp_id = mm.mgr
+  WHERE e.manager_id IS NOT NULL
+)
+SELECT sm_emp.emp_name AS senior_manager,
+       COUNT(r.emp_id) AS direct_reports
+FROM senior_managers sm
+JOIN employees sm_emp ON sm_emp.emp_id = sm.mgr
+JOIN employees r ON r.manager_id = sm.mgr
+GROUP BY sm_emp.emp_id, sm_emp.emp_name
+ORDER BY direct_reports DESC, senior_manager ASC;</code></pre>
+<p><code>managers</code> is every id that appears as someone&rsquo;s <code>manager_id</code>. <code>manages_a_manager</code> joins each Manager back to the table to collect <em>their</em> bosses &mdash; the people who manage a Manager. The final <code>EXCEPT</code> subtracts the bosses of those people: anyone who manages a manager-of-managers sits above the Senior Manager tier and is removed.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>senior_manager</th><th>direct_reports</th></tr></thead>
+  <tbody>
+    <tr><td>Bob</td><td>3</td></tr>
+    <tr><td>Carol</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The exclusion is &ldquo;manages a manager-of-managers&rdquo;</h5>
+<p>&ldquo;None of their reports is a Senior Manager&rdquo; needs unpacking. A report is a Senior Manager exactly when that report manages a Manager. So the people to exclude are those who manage <em>someone who manages a Manager</em> &mdash; the second <code>SELECT</code> in the <code>EXCEPT</code>. Alice manages Bob, and Bob manages Dave (a Manager), so Alice is removed; Bob manages Dave and Eve, but neither of them manages a Manager, so Bob survives.</p>
+
+<h5>EXCEPT over NOT IN &mdash; and why it matters here</h5>
+<p><code>EXCEPT</code> is a true set difference: it deduplicates and compares rows structurally, so a NULL on either side is handled cleanly. The obvious alternative, <code>NOT IN (SELECT manager_id ...)</code>, is a trap &mdash; <code>manager_id</code> is nullable (Alice has none), and <code>NOT IN</code> against a list containing NULL never returns true. <code>EXCEPT</code> avoids that failure mode entirely.</p>
+
+<h5>The rule reaches two levels, not one</h5>
+<p>A frequent wrong answer stops at &ldquo;manages a Manager&rdquo; &mdash; one level down. That keeps every executive in the result, because a VP also manages a Manager. The definition is really two levels deep: manage a Manager, <em>but not</em> a manager-of-managers. The layered CTEs make both levels explicit and separately inspectable.</p>
+
+<h5>Mixed teams still qualify</h5>
+<p>Bob manages Dave and Eve (Managers) and Karl (an IC). He is still a Senior Manager: the rule asks for <em>at least one</em> Manager among the reports, not all of them. The final <code>COUNT(r.emp_id)</code> then counts every direct report &mdash; all three &mdash; not only the managerial ones.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a recursive-sounding hierarchy rule often unfolds into plain set operations &mdash; build each tier as a CTE and use <code>EXCEPT</code> to subtract the tier above. Reach for <code>EXCEPT</code> rather than <code>NOT IN</code> whenever the compared column is nullable.</div>

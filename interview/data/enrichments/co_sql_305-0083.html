@@ -1,0 +1,62 @@
+<p>Citi's billing-reconciliation team computes a <em>net position</em> for every payment: what the customer paid minus what they owed. The arithmetic is trivial &mdash; one subtraction &mdash; but the payments table is full of NULLs, because a payment that has not cleared has no <code>paid_amount</code> yet, and a payment with no associated invoice has no <code>due_amount</code>. In SQL, any arithmetic touching a NULL collapses the whole expression to NULL. The interview is about defusing that.</p>
+
+<h4>1. The source data &mdash; <code>payments</code></h4>
+<table>
+  <thead><tr><th>payment_id</th><th>paid_amount</th><th>due_amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>80</td></tr>
+    <tr><td>2</td><td><em>NULL</em></td><td>50</td></tr>
+    <tr><td>3</td><td>200</td><td><em>NULL</em></td></tr>
+    <tr><td>4</td><td><em>NULL</em></td><td><em>NULL</em></td></tr>
+    <tr><td>5</td><td>75</td><td>75</td></tr>
+  </tbody>
+</table>
+<p>Every NULL shape is present: NULL on the left only (row 2), NULL on the right only (row 3), NULL on <em>both</em> sides (row 4). Row 4 is the sharpest edge case &mdash; it decides whether "no data at all" should produce 0 or stay NULL.</p>
+
+<h4>2. The SQL &mdash; <code>COALESCE both sides</code></h4>
+<pre><code>SELECT payment_id,
+       COALESCE(paid_amount,0) - COALESCE(due_amount,0) AS net
+FROM payments;</code></pre>
+<p><code>COALESCE</code> returns its first non-NULL argument, so each NULL becomes 0 <em>before</em> the subtraction runs. Both operands are guaranteed numeric, so the result is always a real number.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>payment_id</th><th>net</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>20</td></tr>
+    <tr><td>2</td><td>-50</td></tr>
+    <tr><td>3</td><td>200</td></tr>
+    <tr><td>4</td><td>0</td></tr>
+    <tr><td>5</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>Row 2: 0 &minus; 50 = &minus;50 (owed money, paid nothing). Row 3: 200 &minus; 0 = 200 (paid, nothing due). Row 4: 0 &minus; 0 = <strong>0</strong> &mdash; and that is the row to interrogate. A payment with no paid <em>and</em> no due amount is most likely a data gap, yet it now reports a perfectly balanced 0.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why one NULL poisons the whole expression</h5>
+<p>Without <code>COALESCE</code>, <code>paid_amount - due_amount</code> for row 2 is <code>NULL - 50</code>, which is NULL; row 4 is <code>NULL - NULL</code>, also NULL. NULL means "unknown", and unknown minus anything is unknown. <code>COALESCE</code> on <em>both</em> operands is required &mdash; guarding only one side still leaves the other able to NULL out the result. Coalescing both is the deliberate, complete fix.</p>
+
+<h5><code>ISNULL</code> is the wrong dialect &mdash; the title's trap</h5>
+<p>The question is titled "Null-Safe Calculation with ISNULL", but <code>ISNULL</code> is <strong>SQL Server</strong> syntax and is not valid in Postgres. The portable, ANSI-standard choice is <code>COALESCE</code>, which the solution correctly uses. Worth saying out loud:</p>
+<pre><code>-- SQL Server only:   ISNULL(paid_amount, 0)
+-- MySQL only:        IFNULL(paid_amount, 0)
+-- Oracle:            NVL(paid_amount, 0)
+-- ANSI / portable:   COALESCE(paid_amount, 0)   &lt;- prefer this</code></pre>
+<p><code>COALESCE</code> also accepts more than two arguments and is standard everywhere, so it should be the default in any cross-engine codebase. Naming the dialect mismatch is itself a senior signal.</p>
+
+<h5>The "is 0 a real value or a missing value?" question</h5>
+<p>Coalescing to 0 conflates two different situations: a payment genuinely worth net 0 (row 5, paid 75 / due 75) and a payment with no data at all (row 4). Both now read 0. If downstream consumers must tell them apart, do <em>not</em> blanket-coalesce &mdash; keep the NULL and let it mean "unknown":</p>
+<pre><code>SELECT payment_id,
+       paid_amount - due_amount AS net,         -- NULL when data missing
+       (paid_amount IS NULL OR due_amount IS NULL) AS incomplete
+FROM payments;</code></pre>
+<p>Whether 0 or NULL is correct is a business decision &mdash; surface it rather than defaulting silently.</p>
+
+<h5><code>COALESCE</code> vs <code>NULLIF</code> &mdash; don't confuse them</h5>
+<p>A frequent mix-up: <code>NULLIF(a, b)</code> does the <em>opposite</em> &mdash; it returns NULL when <code>a = b</code>, otherwise <code>a</code>. It is for turning a sentinel value <em>into</em> NULL (e.g. <code>NULLIF(due_amount, 0)</code> to dodge a later divide-by-zero). <code>COALESCE</code> replaces NULL with a value; <code>NULLIF</code> creates NULL from a value. They are not interchangeable.</p>
+
+<h5>Aggregating the net &mdash; NULLs behave differently there</h5>
+<p>If the follow-up is "total net across all payments", note that aggregates already skip NULLs: <code>SUM(paid_amount - due_amount)</code> would silently drop rows 2, 3 and 4 and total only rows 1 and 5. To include the partial payments in the sum you still need the per-row <code>COALESCE</code> first: <code>SUM(COALESCE(paid_amount,0) - COALESCE(due_amount,0))</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that a single NULL operand collapses the whole arithmetic expression so both sides need guarding, flag that <code>ISNULL</code> from the title is SQL Server syntax and <code>COALESCE</code> is the portable choice, and raise that coalescing to 0 hides genuine data gaps &mdash; making "0 vs NULL" an explicit business decision rather than a default.</div>

@@ -1,0 +1,49 @@
+<p>Instagram Stories expire after 24 hours by design. The Stories team monitors the engagement decay curve: if 80% of views happen in the first hour, the algorithm priorities matter; if views distribute uniformly, the timing matters less. The query bucketizes views by hour-since-post.</p>
+
+<h4>1. The source data — <code>story_views</code></h4>
+<table><thead><tr><th>story_id</th><th>posted_at</th><th>viewed_at</th></tr></thead>
+<tbody><tr><td>S_001</td><td>09:00</td><td>09:15</td></tr><tr><td>S_001</td><td>09:00</td><td>11:30</td></tr></tbody></table>
+
+<h4>2. The SQL — hourly bucketing via <code>julianday</code></h4>
+<pre><code>SELECT
+  CAST((julianday(viewed_at) - julianday(posted_at)) * 24 AS INTEGER) AS hours_since_post,
+  COUNT(*) AS views
+FROM story_views
+WHERE julianday(viewed_at) - julianday(posted_at) BETWEEN 0 AND 1
+GROUP BY hours_since_post
+ORDER BY hours_since_post;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The integer-cast bucketing trick</h5>
+<p><code>(julianday(viewed_at) - julianday(posted_at)) * 24</code> gives fractional hours. <code>CAST(... AS INTEGER)</code> truncates to whole hours: 0.5h → 0, 1.7h → 1, 3.99h → 3. That's the bucket. Cleaner than nested CASE statements.</p>
+
+<h5>The 24-hour cutoff</h5>
+<p>Stories expire at 24h, but the data table might have stale view events from clock-skew or replay attacks. The <code>BETWEEN 0 AND 1</code> filter (julianday is in days, so 1 = 24h) bounds the window. Without it, the histogram has a long tail that's noise.</p>
+
+<h5>The cumulative-engagement follow-up</h5>
+<p>Per-hour counts are a histogram. Cumulative-share is more useful for product decisions:</p>
+<pre><code>SELECT hours_since_post, views,
+  ROUND(100.0 * SUM(views) OVER (ORDER BY hours_since_post)
+              / SUM(views) OVER (), 1) AS cumulative_pct
+FROM /* the histogram CTE */;</code></pre>
+<p>If <code>cumulative_pct(1h) = 65%</code>, the first hour drives most engagement; algorithm changes that demote stories after hour 1 lose &lt; 35% of value.</p>
+
+<h5>The "follower count" bias</h5>
+<p>A story from an account with 1M followers naturally accumulates views faster than one with 100. The decay <em>curve shape</em> normalizes this — both might peak in hour 1. But for absolute volume, weight by follower count.</p>
+
+<h5>Per-creator-tier split</h5>
+<p>Decay shape varies dramatically by creator tier: celebrity stories decay slowly (steady viewership across 24h); friend-of-friend decays fast (peak in 30 min, gone). Slice by creator-tier:</p>
+<pre><code>JOIN creators c ON c.creator_id = story_views.creator_id
+GROUP BY hours_since_post, c.tier</code></pre>
+
+<h5>The "view through" definition</h5>
+<p>Stories auto-advance after 5 sec. Does a 1-second peek count as a "view"? Production has multiple definitions:</p>
+<ul>
+<li><strong>Impression</strong> — story appeared on screen, any duration</li>
+<li><strong>View</strong> — &gt;= 1 second visible</li>
+<li><strong>Complete view</strong> — watched to the end</li>
+</ul>
+<p>The choice changes which decay curve you see. Check definition with the requester.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use the integer-cast bucketing trick, layer cumulative-share on top for product decisions, and surface the creator-tier-dependent decay-shape variation. The view-definition disambiguation (impression vs view vs complete) is the over-the-bar guard.</div>

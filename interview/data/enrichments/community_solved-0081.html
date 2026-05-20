@@ -1,0 +1,67 @@
+<p>The task is a reshaping problem: a long table with one row per (class, subject) must become a wide table with one row per class and the subjects spread across numbered columns <code>sub1</code>&hellip;<code>sub5</code>. This is a pivot, and the interviewer is checking whether you can manufacture a per-group sequence number and then collapse the rows with conditional aggregation.</p>
+
+<h4>1. The source data &mdash; <code>subject_info</code></h4>
+<table>
+  <thead><tr><th>class</th><th>subject</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>Class A</td><td>Math</td><td>3 subjects</td></tr>
+    <tr><td>Class A</td><td>Science</td><td></td></tr>
+    <tr><td>Class A</td><td>English</td><td></td></tr>
+    <tr><td>Class B</td><td>History</td><td>only 2 subjects</td></tr>
+    <tr><td>Class B</td><td>Geography</td><td></td></tr>
+    <tr><td>Class C</td><td>Physics</td><td>single-subject class &mdash; edge case</td></tr>
+  </tbody>
+</table>
+<p>Classes have a <em>different number of subjects</em> &mdash; A has three, B has two, C has just one. The pivot must leave the unused columns NULL rather than mis-aligning rows.</p>
+
+<h4>2. The SQL &mdash; number the rows, then pivot with conditional <code>MAX</code></h4>
+<pre><code>with cte1 as(
+select *,
+    ROW_NUMBER() over(partition by class order by (select null)) as flag
+from subject_info
+), cte2 as(
+select *,
+    case when flag = 1 then subject else null end as sub1,
+    case when flag = 2 then subject else null end as sub2,
+    case when flag = 3 then subject else null end as sub3,
+    case when flag = 4 then subject else null end as sub4,
+    case when flag = 5 then subject else null end as sub5
+from cte1)
+select class,
+    max(sub1) as sub1,
+    max(sub2) as sub2,
+    max(sub3) as sub3,
+    max(sub4) as sub4,
+    max(sub5) as sub5
+from cte2
+group by class;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>class</th><th>sub1</th><th>sub2</th><th>sub3</th><th>sub4</th><th>sub5</th></tr></thead>
+  <tbody>
+    <tr><td>Class A</td><td>Math</td><td>Science</td><td>English</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>Class B</td><td>History</td><td>Geography</td><td>NULL</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>Class C</td><td>Physics</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Each class collapses to one row; subjects fill the columns left-to-right and the surplus columns stay NULL. Class C's single subject lands in <code>sub1</code> with the rest NULL &mdash; the single-member group behaves correctly.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The pivot mechanic &mdash; number, spread, collapse</h5>
+<p>Step 1 assigns each subject within a class a position 1&ndash;5 via <code>ROW_NUMBER</code>. Step 2 spreads each subject into exactly one of five columns using a <code>CASE</code> per slot &mdash; for any given row, four of the five columns are NULL. Step 3 <code>GROUP BY class</code> collapses the rows; <code>MAX</code> picks the one non-NULL value out of each column's stack of NULLs (any aggregate that ignores NULLs &mdash; <code>MIN</code>, <code>MAX</code> &mdash; works, since at most one real value exists per slot). This three-CTE shape is the textbook static pivot.</p>
+
+<h5>The fatal flaw &mdash; <code>ORDER BY (SELECT NULL)</code> is non-deterministic</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY class ORDER BY (select null))</code> deliberately orders by a constant, which means the engine is free to assign positions in <em>any</em> order. Run the query twice and Class A might show Math/Science/English one time and Science/English/Math the next. For a stable pivot you need a real ordering key &mdash; <code>ORDER BY subject</code> (alphabetical) or an explicit <code>subject_seq</code> column. An interviewer will absolutely ask "is this output reproducible?"; the honest answer is no, and you should name the fix.</p>
+
+<h5>The hard-coded width &mdash; the 6th subject silently disappears</h5>
+<p>The query supports exactly five subjects because there are five <code>CASE</code> branches and five <code>MAX</code> columns. A class with a sixth subject gets <code>flag = 6</code>, which matches no <code>CASE</code> branch, so that subject is dropped from the output entirely &mdash; no error, no warning. Static pivots always bake in the column count; truly dynamic width needs procedural SQL (build the query string) or Postgres's <code>crosstab</code>, and you should flag the assumption out loud.</p>
+
+<h5>Dialect note &mdash; <code>(SELECT NULL)</code> is a T-SQL habit</h5>
+<p><code>ORDER BY (SELECT NULL)</code> is a SQL Server idiom for "I need <code>ROW_NUMBER</code> but have no natural order." Postgres accepts it too. Several engines also offer a dedicated <code>PIVOT</code> operator (SQL Server, Oracle, Snowflake) that expresses this more declaratively; Postgres and MySQL rely on the conditional-aggregation pattern shown here. The technique is portable; the <code>PIVOT</code> keyword is not.</p>
+
+<h5>What to say next &mdash; pivots are inherently order-dependent</h5>
+<p>The deeper point: a pivot to numbered columns only makes sense if "which subject is #1" is well defined. If subjects are an unordered set, numbering them is arbitrary and the wide shape is questionable &mdash; an array (<code>array_agg(subject)</code>) or a delimited string (<code>string_agg</code>) may model the data more honestly. Raising that &mdash; "what should determine the column order?" &mdash; is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the number&ndash;spread&ndash;collapse pivot pattern, but immediately flag that <code>ORDER BY (SELECT NULL)</code> makes the column assignment non-deterministic &mdash; demand a real ordering key. Note the hard-coded five-column width silently drops a sixth subject, and that truly dynamic pivots need procedural SQL.</div>

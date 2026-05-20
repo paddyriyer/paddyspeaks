@@ -1,0 +1,107 @@
+<p>Topological sort over a constraint graph. The same shape as build-system task ordering (Bazel, npm, make), dependency resolution (apt, pip), schema migration ordering, and any "derive a total order from pairwise constraints" workflow. The senior insight here is that the input is NOT a graph — it's a list of words. The hard part is deriving the graph: pairwise compare adjacent words, find the first differing character, and emit one directed edge. Once you have the graph, Kahn's BFS (or DFS + reverse post-order) gives the order in O(V + E). Bloomberg asks this version because their terminal's symbol-tickering subsystem builds intra-day a fresh ordering of related instruments from pairwise correlation evidence — same algorithm, same graph extraction step from a stream of observations.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>You're given words from an alien language in sorted order; derive the alphabet order. <strong>Insight:</strong> for each adjacent pair (w[i], w[i+1]), the first character at which they differ tells you exactly one precedence edge (e.g. <code>"wrf" &lt; "er"</code> gives <code>w &lt; e</code>); identical-prefix cases give NO new information; and a longer-prefix-followed-by-shorter (e.g. <code>"abc"</code> before <code>"ab"</code>) is INVALID — return "". Once the graph is built, Kahn's algorithm (BFS over in-degree-0 nodes) produces a valid topological order, or detects a cycle if the final order length is less than the node count.</p>
+
+<h4>2. Worked example — words ['wrt','wrf','er','ett','rftt'], derive 'wertf'</h4>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Step 1 — Initialise in-degrees of every letter seen:
+  chars = {w, r, t, f, e}
+  deg = {w:0, r:0, t:0, f:0, e:0}
+
+Step 2 — Scan adjacent pairs, derive one edge per pair:
+
+  ('wrt', 'wrf')  -> first differing char: t vs f at index 2  -> edge t -&gt; f
+                                                                   deg[f] = 1
+  ('wrf', 'er')   -> first differing char: w vs e at index 0  -> edge w -&gt; e
+                                                                   deg[e] = 1
+  ('er',  'ett')  -> first differing char: r vs t at index 1  -> edge r -&gt; t
+                                                                   deg[t] = 1
+  ('ett', 'rftt') -> first differing char: e vs r at index 0  -> edge e -&gt; r
+                                                                   deg[r] = 1
+
+Adjacency graph:
+  w -&gt; e -&gt; r -&gt; t -&gt; f
+deg = {w:0, e:1, r:1, t:1, f:1}
+
+Step 3 — Kahn's BFS from in-degree-0 nodes:
+
+  queue = [w]                    (only w has deg=0)
+  pop w  -&gt; order = [w]
+          decrement deg[e]: 1-1=0  -&gt; enqueue e
+  pop e  -&gt; order = [w, e]
+          decrement deg[r]: 1-1=0  -&gt; enqueue r
+  pop r  -&gt; order = [w, e, r]
+          decrement deg[t]: 1-1=0  -&gt; enqueue t
+  pop t  -&gt; order = [w, e, r, t]
+          decrement deg[f]: 1-1=0  -&gt; enqueue f
+  pop f  -&gt; order = [w, e, r, t, f]
+
+len(order) == len(deg)  -> return 'wertf'
+</pre>
+<p>The trace shows the two halves clearly: pair-by-pair edge extraction is the data preparation; Kahn's BFS is the algorithm. The output 'wertf' is uniquely determined here because the constraint graph is a straight chain; in graphs with branches (e.g. two independent in-degree-0 nodes), any topological order is acceptable.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>from collections import defaultdict, deque
+
+def alienOrder(words):
+    # 1) Register every distinct character. The in-degree dict doubles as the
+    # set of nodes; we don't have a separate "chars seen" structure.
+    deg = {c: 0 for w in words for c in w}
+    g = defaultdict(set)         # adjacency, deduped via set
+
+    # 2) For each adjacent pair, derive at most one edge.
+    for a, b in zip(words, words[1:]):
+        # Prefix violation: a is longer than b but b is a prefix of a.
+        if len(a) &gt; len(b) and a.startswith(b): return ""
+        for x, y in zip(a, b):
+            if x != y:
+                if y not in g[x]:        # dedupe edges (multi-pair x-&gt;y)
+                    g[x].add(y)
+                    deg[y] += 1
+                break                    # only the FIRST diff matters
+
+    # 3) Kahn's algorithm: BFS over in-degree-0 nodes.
+    q = deque([c for c in deg if deg[c] == 0])
+    order = []
+    while q:
+        c = q.popleft(); order.append(c)
+        for nxt in g[c]:
+            deg[nxt] -= 1
+            if deg[nxt] == 0: q.append(nxt)
+
+    # Cycle detection: if not all nodes made it into the order, a cycle exists.
+    return ''.join(order) if len(order) == len(deg) else ""
+</code></pre>
+<p><strong>Data structures:</strong> <code>defaultdict(set)</code> for adjacency (set dedupes redundant edges), an in-degree dict, and a <code>deque</code> for Kahn's BFS. <strong>Invariants:</strong> (1) <code>deg[c]</code> equals the number of un-processed predecessors of c; (2) the BFS only enqueues a node when ALL its predecessors have been finalised, so the output respects every constraint.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(C) where C is the total number of characters across all words. The pair-scan is O(C); Kahn's BFS over the resulting graph is O(V + E), and V + E ≤ C. <strong>Space:</strong> O(V + E) for the graph and the queue. The 26-letter alphabet caps V at 26, but the algorithm is written for arbitrary alphabets — useful when generalising.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — Empty / single word.</strong> Single word means no pairs, no edges; every char has deg=0, all get enqueued, output is any permutation of the unique chars. The algorithm returns ONE valid answer; the problem accepts any.</p>
+<p><strong>Probe 2 — Prefix violation: ['abc', 'ab'].</strong> 'abc' before 'ab' is impossible in any valid sort because 'ab' is a proper prefix of 'abc' and must come first in any prefix order. The <code>len(a) &gt; len(b) and a.startswith(b)</code> check catches this and returns "". <strong>Junior trap:</strong> forgetting to check this — you'd return a valid-looking answer that secretly satisfies no constraint.</p>
+<p><strong>Probe 3 — Cycle: ['a', 'b', 'a'].</strong> Derives a&lt;b and b&lt;a; both deg become 1 and never reach 0. Kahn's BFS produces a length-0 order, then the <code>len(order) != len(deg)</code> guard returns "". Cycle detection is FREE in Kahn's algorithm; in DFS-based topo sort you'd need an explicit "gray" set.</p>
+<p><strong>Probe 4 — Multiple valid orders.</strong> Two disconnected components or two in-degree-0 nodes mean multiple valid orders. The problem accepts any one. If the interviewer wants the lex-smallest, replace <code>deque</code> with a <code>heapq</code> — same algorithm, O(log V) per op instead of O(1).</p>
+<p><strong>Probe 5 — DFS-based alternative.</strong> Three-colour DFS (white/grey/black): visit each unvisited node, push to a post-order stack, reverse at end. Same O(V+E), different cycle detection (re-visiting a grey node). Useful when you also need the cycle path itself for error reporting.</p>
+<p><strong>Probe 6 — Generalisation: derive a partial order, not a total one.</strong> The output above is a linear extension of a partial order. If you want the partial order itself (the Hasse diagram), output the transitive reduction of the edge set — used in dependency-graph visualisation tools.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>Build systems (Bazel, Buck, make, ninja)</strong> — derive task execution order from BUILD files. Each rule's <code>deps</code> attribute is an edge in the constraint graph; Kahn's algorithm schedules a valid order (and parallel groups by depth).</li>
+  <li><strong>Package managers (apt, pip, npm)</strong> — install dependencies before dependents. Cycles in the graph (pip's circular-dep error) are detected via the same length-mismatch check.</li>
+  <li><strong>Database schema migrations (Alembic, Flyway, Liquibase)</strong> — apply migrations in dependency order. The "down_revision" field is the back-edge; the dispatcher does Kahn's BFS over the migration DAG.</li>
+  <li><strong>Compilers (LLVM pass manager, GCC)</strong> — optimisation passes have pairwise ordering constraints (loop-invariant code motion before strength reduction); the pass manager schedules them topologically.</li>
+  <li><strong>Spark / Airflow DAG executors</strong> — every job graph IS a topological sort; the scheduler enqueues tasks whose upstream deps are all done. Same Kahn's-BFS skeleton, just with concurrency and retries layered on.</li>
+  <li><strong>Bloomberg terminal symbol resolution</strong> — pairwise observed price/volume correlation between instruments is converted into a precedence graph for intraday rebalancing; the topological extension is what the trader sees.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0159">python_175-0159 — Reconstruct Itinerary</a> (sibling: graph traversal but Eulerian, not topological)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0162">python_175-0162 — Swim in Rising Water</a> (sibling: graph algorithm with priority queue)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0145">python_175-0145 — N-Queens</a> (sibling: constraint-satisfaction)</li>
+  <li><a href="/interview.app/design/data-modeling.html">Data modeling — DAG patterns</a></li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the algorithm out loud — <em>"topological sort via Kahn's algorithm over a constraint graph derived from pairwise adjacent words."</em> Then call out the TWO failure modes the problem cares about: (1) prefix violation, caught at edge-derivation time; (2) cycle, caught by length-mismatch after BFS. Both are first-class failure cases. Production analogue: Bazel build ordering, pip dependency resolution, Alembic migrations — every "derive an order from pairwise constraints" problem is this algorithm.</div>

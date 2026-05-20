@@ -1,0 +1,54 @@
+<p>Robinhood's market-ops team wants a map of which cities have ever had a trade settle &mdash; a quick "where are our active users" snapshot. The query is one of the shortest you can write, and that is exactly the trap: an interviewer asking a one-line question is testing whether you understand <em>why</em> the line is correct, and what breaks it.</p>
+
+<h4>1. The source data &mdash; <code>trades</code></h4>
+<table>
+  <thead><tr><th>trade_id</th><th>city</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>New York</td><td>completed</td></tr>
+    <tr><td>2</td><td>New York</td><td>pending</td></tr>
+    <tr><td>3</td><td>Chicago</td><td>completed</td></tr>
+    <tr><td>4</td><td>Austin</td><td>cancelled</td></tr>
+    <tr><td>5</td><td>Chicago</td><td>completed</td></tr>
+    <tr><td>6</td><td>Denver</td><td>failed</td></tr>
+    <tr><td>7</td><td>Miami</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Chicago appears twice, both completed &mdash; the result must collapse it to one row. New York has a completed trade <em>and</em> a pending one. Austin and Denver have only non-completed trades and must vanish entirely.</p>
+
+<h4>2. The SQL &mdash; <code>SELECT DISTINCT</code> with a filter</h4>
+<pre><code>SELECT DISTINCT city FROM trades WHERE status = 'completed';</code></pre>
+<p><code>WHERE</code> keeps only completed-status rows; <code>DISTINCT</code> removes the duplicate city values that survive.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>city</th></tr></thead>
+  <tbody>
+    <tr><td>Chicago</td></tr>
+    <tr><td>Miami</td></tr>
+    <tr><td>New York</td></tr>
+  </tbody>
+</table>
+<p>Three cities. Chicago's two completed trades collapsed to one row &mdash; that is <code>DISTINCT</code> doing its job. New York made the list on the strength of its <em>one</em> completed trade; its pending trade is irrelevant once the filter has run. Austin (cancelled) and Denver (failed) are gone. The output has no inherent order &mdash; <code>DISTINCT</code> does not sort &mdash; so add <code>ORDER BY city</code> if a human reads it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The order of operations &mdash; filter first, dedupe second</h5>
+<p>Logically: <code>WHERE</code> runs before <code>DISTINCT</code>. Rows are filtered down to completed trades, and only then are duplicate cities removed. This matters because a city is included if it has <em>at least one</em> completed trade &mdash; New York qualifies even though most of its trades are not completed. If you wrote <code>DISTINCT</code> first and filtered after, you would need the city's status, which it no longer carries. The given order is the only one that works.</p>
+
+<h5><code>DISTINCT</code> vs <code>GROUP BY</code> &mdash; identical here, and worth saying so</h5>
+<p>This query is exactly equivalent to:</p>
+<pre><code>SELECT city FROM trades WHERE status = 'completed' GROUP BY city;</code></pre>
+<p>For pure de-duplication they produce the same plan and the same result. <code>DISTINCT</code> reads better when you just want unique values; <code>GROUP BY</code> earns its place the moment you need an aggregate alongside &mdash; e.g. <code>SELECT city, COUNT(*) ... GROUP BY city</code>. Knowing they are interchangeable here, and when they stop being interchangeable, is the senior detail.</p>
+
+<h5>The status-value trap &mdash; exact string equality</h5>
+<p><code>status = 'completed'</code> is case-sensitive and whitespace-sensitive. Real status columns drift: <code>'Completed'</code>, <code>'COMPLETED'</code>, <code>'completed '</code>, <code>'complete'</code>, <code>'settled'</code> all fail this equality and the city silently disappears. Defend against it:</p>
+<pre><code>WHERE LOWER(TRIM(status)) = 'completed'</code></pre>
+<p>Better still, ask whether status is a constrained enum or free text. If "filled" and "settled" also count as success, the filter should be <code>status IN ('completed','settled','filled')</code> &mdash; confirm the vocabulary before guessing.</p>
+
+<h5>NULL status and NULL city</h5>
+<p>A row with <code>status = NULL</code> fails <code>status = 'completed'</code> (NULL comparisons are never true), so it is excluded &mdash; usually fine. But a completed trade with a <strong>NULL city</strong> survives the filter and <code>DISTINCT</code> keeps NULL as one of its values, so you would get a stray empty/NULL row in the city list. If the map cannot render an unknown city, add <code>AND city IS NOT NULL</code>.</p>
+
+<h5>"Ever completed" vs "currently completed"</h5>
+<p>The query answers "cities with any completed trade, ever". If status is mutable &mdash; a trade can move <code>pending &rarr; completed &rarr; reversed</code> &mdash; the business may instead want cities where a trade is completed <em>right now</em>, or completed within a date range. That is a different question and needs a timestamp column. Surfacing that the table has no time dimension, and asking whether recency matters, separates a literal answer from a useful one.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>WHERE</code> logically precedes <code>DISTINCT</code> so a city qualifies on a single completed trade, note that <code>DISTINCT</code> and <code>GROUP BY</code> coincide here but diverge once an aggregate is needed, and harden the brittle <code>status = 'completed'</code> string match plus the NULL-city case before declaring the one-liner done.</div>

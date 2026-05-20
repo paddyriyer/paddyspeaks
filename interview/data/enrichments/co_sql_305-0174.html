@@ -1,0 +1,72 @@
+<p>Year-over-year revenue growth is the headline number on every annual report. The mechanic is identical to last-quarter / last-month / last-week comparisons — and <code>LAG</code> handles all of them. The trap is the first row (no prior year exists) and zero-prior-year edge cases that crash the percent calculation.</p>
+
+<h4>1. The source data — <code>revenue</code></h4>
+<table>
+  <thead><tr><th>year</th><th>amount (USD)</th></tr></thead>
+  <tbody>
+    <tr><td>2021</td><td>$8,200,000</td></tr>
+    <tr><td>2022</td><td>$10,500,000</td></tr>
+    <tr><td>2023</td><td>$13,400,000</td></tr>
+    <tr><td>2024</td><td>$12,800,000</td></tr>
+    <tr><td>2025</td><td>$16,900,000</td></tr>
+  </tbody>
+</table>
+<p>One row per year. The metric we want: <em>this year's amount vs last year's amount, expressed as percentage change</em>.</p>
+
+<h4>2. The SQL — <code>LAG</code> over yearly ordering</h4>
+<pre><code>SELECT
+  year,
+  amount,
+  100.0 * (amount - LAG(amount) OVER (ORDER BY year))
+        / NULLIF(LAG(amount) OVER (ORDER BY year), 0) AS yoy_pct
+FROM revenue;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>amount</th><th>yoy_pct</th><th>narrative</th></tr></thead>
+  <tbody>
+    <tr><td>2021</td><td>$8.2M</td><td><em>NULL</em></td><td>baseline — no prior year</td></tr>
+    <tr><td>2022</td><td>$10.5M</td><td><strong>+28.0%</strong></td><td>strong growth</td></tr>
+    <tr><td>2023</td><td>$13.4M</td><td><strong>+27.6%</strong></td><td>sustained</td></tr>
+    <tr><td>2024</td><td>$12.8M</td><td><strong>−4.5%</strong></td><td>contraction — call it out in the board deck</td></tr>
+    <tr><td>2025</td><td>$16.9M</td><td><strong>+32.0%</strong></td><td>recovery + new high</td></tr>
+  </tbody>
+</table>
+<p>Notice 2024's negative growth — the board pack would highlight this, frame the cause, and contrast 2025's recovery. The query computes the math; the narrative is the analyst's job.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG(amount)</code> is called <em>twice</em></h5>
+<p>The query references <code>LAG(amount) OVER (ORDER BY year)</code> in both the numerator and the denominator. Most engines (Postgres, Snowflake, BigQuery) evaluate window functions exactly once per row regardless of how many times they're textually referenced — the optimiser de-duplicates. SQLite is the same. So no perf cost; just visual repetition.</p>
+
+<h5>The first-row NULL — feature, not bug</h5>
+<p>2021 has <code>yoy_pct = NULL</code> because there's no prior year to compare against. <code>LAG</code> returns NULL on the first row of the partition; arithmetic with NULL produces NULL. This is the right behaviour — the alternative (defaulting to 0%) would mean "we grew 0% from nothing", which is misleading. Dashboards typically render NULL as "—".</p>
+
+<h5>Why <code>NULLIF(..., 0)</code> guards the denominator</h5>
+<p>If 2020's revenue was $0 (the company hadn't launched yet), <code>LAG = 0</code>, and the division crashes. <code>NULLIF(LAG..., 0)</code> turns 0 into NULL; the result becomes NULL; the query keeps running. Same pattern as the CTR query — guard every denominator on every rate metric.</p>
+
+<h5>QoQ, MoM, WoW — same shape, change the window</h5>
+<p>The query shape <em>(amount - LAG(amount)) / LAG(amount)</em> is the universal period-over-period growth pattern. Just adjust the order column:</p>
+<pre><code>-- Monthly (assuming one row per month):
+LAG(amount) OVER (ORDER BY month)
+
+-- Quarterly with explicit (year, quarter):
+LAG(amount) OVER (ORDER BY year, quarter)
+
+-- Per-region MoM (partition by region so growth is per-region not global):
+LAG(amount) OVER (PARTITION BY region ORDER BY month)</code></pre>
+
+<h5>The "two-year prior" comparison — <code>LAG(amount, 2)</code></h5>
+<p><code>LAG</code> takes an optional second argument: how many rows back. <code>LAG(amount, 2)</code> reaches back two rows. Useful for &ldquo;<em>same-quarter-last-year</em>&rdquo; comparisons in monthly data — to compare Q3-2025 to Q3-2024, the partition is per-month and you reach back 12 rows:</p>
+<pre><code>LAG(amount, 12) OVER (ORDER BY month)</code></pre>
+
+<h5>Compounding growth (CAGR) — the over-the-bar follow-up</h5>
+<p>The interviewer's natural next question: <em>"What's the compound annual growth rate over the full period?"</em> CAGR isn't a window function — it's a single number derived from first and last:</p>
+<pre><code>SELECT
+  POWER(MAX(amount) * 1.0 / MIN(amount), 1.0 / (MAX(year) - MIN(year))) - 1 AS cagr
+FROM revenue;
+-- 2021→2025 over 4 years: (16.9/8.2)^(1/4) - 1 ≈ 19.8% CAGR
+-- (Note: assumes max=last and min=first; for non-monotonic data,
+--  use first/last by year, not min/max amount)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the period-over-period pattern (<em>(curr − LAG(curr)) / LAG(curr) × 100, NULLIF-guarded</em>), explain the first-row NULL as correct, and pre-empt the QoQ / per-partition / CAGR follow-ups. The CAGR finish lands above the bar.</div>

@@ -1,0 +1,70 @@
+<p>A growth team wants a classic <strong>cohort retention</strong> grid: group users by the week they signed up, then for each week-offset 0&ndash;3 count how many were active in that 7-day window. The interviewer is probing whether you can bucket users into cohorts, compute a relative week offset from raw dates, and count distinct retained users without double-counting multiple activity rows.</p>
+
+<h4>1. The source data &mdash; <code>users</code> and <code>activity</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>signup_date</th><th>cohort week (Mon)</th><th>activity pattern</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-06</td><td>2025-01-06</td><td>active wk 0,1,2,3 &mdash; fully retained</td></tr>
+    <tr><td>2</td><td>2025-01-08</td><td>2025-01-06</td><td>active wk 0 (twice),1</td></tr>
+    <tr><td>3</td><td>2025-01-09</td><td>2025-01-06</td><td>active wk 0 only &mdash; churns immediately</td></tr>
+    <tr><td>4</td><td>2025-01-13</td><td>2025-01-13</td><td>active wk 0,1,2</td></tr>
+    <tr><td>5</td><td>2025-01-15</td><td>2025-01-13</td><td>active wk 0 only</td></tr>
+  </tbody>
+</table>
+<p>Users 1, 2, 3 all land in the <code>2025-01-06</code> cohort even though they signed up on different days &mdash; <code>date_trunc('week', ...)</code> snaps each to the Monday. Edge case: user 2 has <em>two</em> activity rows in week 0 (Jan 8 and Jan 9); the count must treat that as one retained user, not two.</p>
+
+<h4>2. The SQL &mdash; truncate to cohort week, compute offset, count distinct</h4>
+<pre><code>WITH cohorts AS (
+  SELECT user_id,
+         date_trunc('week', signup_date)::date AS cohort_week
+  FROM users
+),
+joined AS (
+  SELECT c.cohort_week,
+         c.user_id,
+         FLOOR((a.active_date - c.cohort_week)::numeric / 7)::int AS week_offset
+  FROM cohorts c
+  JOIN activity a USING (user_id)
+)
+SELECT cohort_week,
+       week_offset,
+       COUNT(DISTINCT user_id) AS retained_users
+FROM joined
+WHERE week_offset BETWEEN 0 AND 3
+GROUP BY cohort_week, week_offset
+ORDER BY cohort_week, week_offset;</code></pre>
+<p>Three steps. <code>cohorts</code> assigns each user a Monday-anchored cohort. <code>joined</code> attaches every activity row and converts the day-gap into a week index via integer division by 7. The final <code>COUNT(DISTINCT user_id)</code> collapses a user's multiple activity rows in the same offset to a single retained count.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cohort_week</th><th>week_offset</th><th>retained_users</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-06</td><td>0</td><td>3</td><td>users 1,2,3 &mdash; user 2 counted once despite 2 rows</td></tr>
+    <tr><td>2025-01-06</td><td>1</td><td>2</td><td>users 1,2</td></tr>
+    <tr><td>2025-01-06</td><td>2</td><td>1</td><td>user 1</td></tr>
+    <tr><td>2025-01-06</td><td>3</td><td>1</td><td>user 1</td></tr>
+    <tr><td>2025-01-13</td><td>0</td><td>2</td><td>users 4,5</td></tr>
+    <tr><td>2025-01-13</td><td>1</td><td>1</td><td>user 4</td></tr>
+    <tr><td>2025-01-13</td><td>2</td><td>1</td><td>user 4</td></tr>
+  </tbody>
+</table>
+<p>Week 0 of the first cohort is <strong>3</strong>, not 4: user 2's two activity rows collapse under <code>COUNT(DISTINCT)</code>. Offset 3 of the <code>2025-01-13</code> cohort produces <em>no row</em> at all &mdash; nobody was retained, and a <code>GROUP BY</code> emits no row for an empty group, satisfying "skip 0-counts".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT user_id)</code> is mandatory</h5>
+<p>The <code>activity</code> table has one row per active day, so a user active twice in the same week appears twice after the join. A plain <code>COUNT(*)</code> would report 4 for the first cohort's week 0 &mdash; counting <em>visits</em>, not <em>users</em>. Retention is a headcount metric: <code>COUNT(DISTINCT user_id)</code> answers "how many people", which is the question.</p>
+
+<h5>Why <code>date_trunc('week')</code> anchors the cohort</h5>
+<p>Users who signed up Mon&ndash;Sun of the same week belong to one cohort. <code>date_trunc('week', d)</code> maps any date to the Monday of its ISO week, giving a stable cohort key. Anchoring to a fixed weekday is essential &mdash; computing offsets from each user's individual signup day instead would make "week 1" mean a different calendar window per user, and the grid would no longer be comparable across the cohort.</p>
+
+<h5>The offset formula &mdash; <code>FLOOR(day_gap / 7)</code></h5>
+<p><code>active_date - cohort_week</code> yields an integer day count; dividing by 7 and flooring gives the week index. The <code>::numeric</code> cast matters: integer division <code>13 / 7</code> would truncate to 1 directly, but casting to numeric first makes the intent (real division then explicit <code>FLOOR</code>) unambiguous and avoids surprises if the expression is edited. A user active on the cohort Monday is day-gap 0 &rarr; offset 0; day 13 &rarr; offset 1.</p>
+
+<h5>Why empty offsets disappear &mdash; and when that is wrong</h5>
+<p><code>GROUP BY</code> only emits groups that have rows. Offset 3 of the second cohort has zero retained users, so there is no row &mdash; exactly what "skip 0-counts" asks for. But a true retention <em>chart</em> usually wants explicit zeros so the curve is continuous. To get them, <code>CROSS JOIN</code> the distinct cohorts to a <code>generate_series(0,3)</code> of offsets and <code>LEFT JOIN</code> the counts, coalescing NULL to 0. Know both shapes and which the consumer needs.</p>
+
+<h5>Dialect notes</h5>
+<p><code>date_trunc</code> and date subtraction returning an integer are PostgreSQL/DuckDB. In BigQuery use <code>DATE_TRUNC(signup_date, WEEK(MONDAY))</code> and <code>DATE_DIFF(active_date, cohort_week, DAY)</code>; in Snowflake <code>DATE_TRUNC('week', ...)</code> with the <code>WEEK_START</code> session parameter controlling the anchor day; in MySQL there is no <code>date_trunc</code>, so compute the Monday with <code>signup_date - INTERVAL WEEKDAY(signup_date) DAY</code>. The cohort logic is identical &mdash; only the date functions change.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build cohort retention by anchoring signups to a fixed weekday with <code>date_trunc</code>, deriving a relative <code>week_offset</code> via <code>FLOOR(day_gap / 7)</code>, and counting people with <code>COUNT(DISTINCT user_id)</code> so multiple activity rows never inflate the headcount; know that <code>GROUP BY</code> drops empty offsets and how to back-fill explicit zeros for a chart.</div>

@@ -1,0 +1,31 @@
+<p>Snap's AR filters are core differentiation. The query ranks filters by usage volume + reach (unique users) + share-of-total — the input to the editorial team's "what to feature" decisions.</p>
+
+<h4>2. The SQL — top-N + share aggregate</h4>
+<pre><code>SELECT filter_id,
+  COUNT(*) AS uses,
+  COUNT(DISTINCT user_id) AS unique_users,
+  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS share_of_uses_pct
+FROM filter_usage GROUP BY filter_id
+ORDER BY uses DESC LIMIT 10;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Uses vs reach</h5>
+<p>10K uses from 1K users (10/user) = power-user filter. 10K from 8K (1.25/user) = broad-appeal filter. Both interesting; different editorial responses. Always emit both.</p>
+
+<h5>Editorial vs community filters</h5>
+<p>Snap-built filters (front-page) vs community Lens Studio filters (search). Different baselines. Slice:</p>
+<pre><code>JOIN filter_meta fm ON fm.filter_id = filter_usage.filter_id
+GROUP BY filter_id, fm.source</code></pre>
+
+<h5>Time-decay — the relevance window</h5>
+<p>"Top filters this week" is more useful than "all-time top". Production restricts to a recency window:</p>
+<pre><code>WHERE julianday('now') - julianday(used_at) &lt;= 7</code></pre>
+
+<h5>The seasonal spike</h5>
+<p>Halloween filters spike Oct 25-31. Christmas Dec 20-25. Valentines Feb 12-14. Without controlling for season, year-over-year usage comparisons mislead.</p>
+
+<h5>The brand-partnership tie-in</h5>
+<p>Brand-sponsored filters (Coca-Cola, Marvel) are revenue events. Their usage drives ad-rate negotiation. Production splits sponsored vs organic.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emit uses + unique_users for power-vs-broad signal, distinguish editorial vs community-source filters, apply recency windows for relevance, and surface seasonal + sponsorship dimensions.</div>

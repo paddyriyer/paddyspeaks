@@ -1,0 +1,59 @@
+<p>A markets desk wants a 30-day moving average of each stock's closing price &mdash; the classic noise-smoothing line that sits under every price chart. The interviewer is checking one specific skill: whether you can express a sliding window with an explicit <em>frame clause</em>, and whether you understand what the average does at the start of the series when there are not yet 30 days of history.</p>
+
+<h4>1. The source data &mdash; <code>stock_prices</code></h4>
+<table>
+  <thead><tr><th>id</th><th>stock_id</th><th>stock_date</th><th>price</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>2099-01-01</td><td>$100</td><td>day 1 &mdash; only 1 row in window</td></tr>
+    <tr><td>2</td><td>1</td><td>2099-01-02</td><td>$102</td><td>day 2 &mdash; window has 2 rows</td></tr>
+    <tr><td>3</td><td>1</td><td>2099-01-03</td><td>$101</td><td>day 3</td></tr>
+    <tr><td>4</td><td>1</td><td>2099-01-04</td><td>$105</td><td>day 4</td></tr>
+    <tr><td>5</td><td>1</td><td>2099-01-05</td><td>$110</td><td>day 5</td></tr>
+    <tr><td>6</td><td>2</td><td>2099-01-01</td><td>$50</td><td>different stock &mdash; separate window</td></tr>
+    <tr><td>7</td><td>2</td><td>2099-01-02</td><td>$52</td><td>stock 2, day 2</td></tr>
+  </tbody>
+</table>
+<p>Only five days of history for stock 1 &mdash; far fewer than 30. That is the deliberate edge case: the average over "the previous 30 days" when fewer than 30 exist.</p>
+
+<h4>2. The SQL &mdash; a windowed <code>AVG</code> with an explicit <code>ROWS</code> frame</h4>
+<pre><code>SELECT stock_id,
+    stock_date,
+    price,
+    avg(price) over(partition by stock_id
+            order by stock_date asc
+            rows between 29 preceding and current row) as moving_avg_30_days
+from stock_prices;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>stock_id</th><th>stock_date</th><th>price</th><th>moving_avg_30_days</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-01-01</td><td>100</td><td>100.0000000000000000</td></tr>
+    <tr><td>1</td><td>2099-01-02</td><td>102</td><td>101.0000000000000000</td></tr>
+    <tr><td>1</td><td>2099-01-03</td><td>101</td><td>101.0000000000000000</td></tr>
+    <tr><td>1</td><td>2099-01-04</td><td>105</td><td>102.0000000000000000</td></tr>
+    <tr><td>1</td><td>2099-01-05</td><td>110</td><td>103.6000000000000000</td></tr>
+    <tr><td>2</td><td>2099-01-01</td><td>50</td><td>50.0000000000000000</td></tr>
+    <tr><td>2</td><td>2099-01-02</td><td>52</td><td>51.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Day 1's "average" is just its own price (100). Day 5 averages all five days so far &mdash; (100+102+101+105+110)/5 = 103.6. The window never crosses into stock 2: <code>PARTITION BY stock_id</code> resets it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the frame clause is the whole answer</h5>
+<p><code>ROWS BETWEEN 29 PRECEDING AND CURRENT ROW</code> defines the sliding window: the current row plus the 29 rows before it &mdash; 30 rows total. Without an explicit frame, an <code>ORDER BY</code> in a window defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>, which is a cumulative (running) average from the start of the series, not a 30-row trailing one. Stating the frame is mandatory for a true moving average.</p>
+
+<h5>"30 rows" is not "30 days" &mdash; the gap trap</h5>
+<p><code>ROWS</code> counts <em>rows</em>. If a stock does not trade on weekends or holidays, 30 rows can span six calendar weeks. If the requirement is genuinely the last 30 <em>calendar</em> days, you need a range frame on the date itself: <code>RANGE BETWEEN INTERVAL '29 days' PRECEDING AND CURRENT ROW</code>. Naming this distinction &mdash; trading days vs calendar days &mdash; is the senior move; for finance the trading-day reading is usually what is wanted, but say so.</p>
+
+<h5>The warm-up period &mdash; partial windows are not wrong, just early</h5>
+<p>For the first 29 days the window simply contains fewer than 30 rows and <code>AVG</code> divides by however many it has. That is mathematically defensible but often undesirable on a chart, where an "MA30" implies 30 real data points. If the business wants the line blank until 30 days exist, gate it: <code>CASE WHEN COUNT(*) OVER (...) = 30 THEN avg(...) END</code>. Decide deliberately rather than letting partial windows leak out.</p>
+
+<h5>Duplicate dates and the <code>ROWS</code> vs <code>RANGE</code> nuance</h5>
+<p><code>ROWS</code> treats each physical row independently, so two rows sharing a <code>stock_date</code> both occupy a slot &mdash; the window may "see" only one of a tied pair at a given step. <code>RANGE</code>, by contrast, pulls in all rows with peer order-by values at once. For a clean daily series with one row per stock per day this never bites, but if intraday ticks are possible, aggregate to one row per day first or the count of "days" becomes ambiguous.</p>
+
+<h5>What to say next &mdash; the leading bare <code>SELECT *</code></h5>
+<p>The reference includes a throwaway <code>select * from stock_prices;</code> as an inspection step &mdash; harmless in a console, but it is not part of the answer. In an interview, present only the second statement. Mention that <code>price</code> is returned alongside the moving average precisely so the consumer can see raw vs smoothed side by side &mdash; the typical chart overlay.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the frame clause as what makes it a <em>moving</em> (not cumulative) average, distinguish <code>ROWS</code> (30 rows) from <code>RANGE INTERVAL</code> (30 calendar days), and address the warm-up period explicitly &mdash; either accept partial windows or blank the line until 30 points exist.</div>

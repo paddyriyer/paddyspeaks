@@ -1,0 +1,66 @@
+<p>A CRM report wants every customer's biggest order &mdash; one row per customer &mdash; and crucially must still list customers who have <em>never</em> ordered, with blank order fields. The interviewer is probing two things at once: top-1-per-group with a deterministic tie-break, and a <code>LEFT JOIN</code> that survives the "no rows on the right" case.</p>
+
+<h4>1. The source data &mdash; <code>customer</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>cust_code</th><th>cust_name</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>C01</td><td>Alpha</td><td>three orders, two tied at the top</td></tr>
+    <tr><td>C02</td><td>Beta</td><td>a single order</td></tr>
+    <tr><td>C03</td><td>Gamma</td><td>two orders tied on amount AND need date tie-break</td></tr>
+    <tr><td>C04</td><td>Delta</td><td>NO orders &mdash; the outer-join edge case</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>ord_num</th><th>cust_code</th><th>ord_amount</th><th>ord_date</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>C01</td><td>800</td><td>2025-02-01</td></tr>
+    <tr><td>3</td><td>C01</td><td>800</td><td>2025-01-15</td></tr>
+    <tr><td>5</td><td>C03</td><td>900</td><td>2025-04-01</td></tr>
+    <tr><td>6</td><td>C03</td><td>900</td><td>2025-04-15</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases. C01 ties at 800 on two orders &mdash; the earlier date (ord 3, Jan 15) must win. And C04 has no orders at all: it must still appear, with <code>NULL</code> order columns. Lose C04 and you have used the wrong join.</p>
+
+<h4>2. The SQL &mdash; rank in a CTE, then LEFT JOIN on rk = 1</h4>
+<pre><code>WITH ranked AS (
+  SELECT cust_code, ord_num, ord_amount, ord_date,
+         ROW_NUMBER() OVER (PARTITION BY cust_code
+                            ORDER BY ord_amount DESC, ord_date ASC, ord_num ASC) AS rk
+  FROM orders
+)
+SELECT c.cust_code, c.cust_name, r.ord_num, r.ord_amount, r.ord_date
+FROM customer c
+LEFT JOIN ranked r ON r.cust_code = c.cust_code AND r.rk = 1
+ORDER BY c.cust_code;</code></pre>
+<p>The CTE numbers each customer's orders, largest first, with date then <code>ord_num</code> breaking ties. The outer query <code>LEFT JOIN</code>s <em>customer</em> to that ranked set, keeping only the <code>rk = 1</code> row &mdash; and because it is a left join, a customer with no matching ranked row is retained with NULLs.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cust_code</th><th>cust_name</th><th>ord_num</th><th>ord_amount</th><th>ord_date</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>C01</td><td>Alpha</td><td>3</td><td>800</td><td>2025-01-15</td><td>tie at 800 &rarr; earlier date wins</td></tr>
+    <tr><td>C02</td><td>Beta</td><td>4</td><td>300</td><td>2025-03-01</td><td>only order</td></tr>
+    <tr><td>C03</td><td>Gamma</td><td>5</td><td>900</td><td>2025-04-01</td><td>tie at 900 &rarr; Apr 1 beats Apr 15</td></tr>
+    <tr><td>C04</td><td>Delta</td><td>NULL</td><td>NULL</td><td>NULL</td><td>no orders &mdash; kept with NULLs</td></tr>
+  </tbody>
+</table>
+<p>C01's winner is ord 3 (Jan 15), not ord 2 (Feb 1) &mdash; both are 800, the earlier date breaks it. C03 picks ord 5 over ord 6 the same way. C04 is the payoff: still present, every order column <code>NULL</code>, because the left join did not drop it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the join condition, not a WHERE, carries <code>rk = 1</code></h5>
+<p>The <code>rk = 1</code> predicate sits in the <code>ON</code> clause, not a <code>WHERE</code>. That placement is essential. In a <code>LEFT JOIN</code>, <code>ON</code> conditions decide which right-side rows <em>match</em>; an unmatched left row is still kept with NULLs. If you moved <code>rk = 1</code> to <code>WHERE</code>, the filter would run <em>after</em> the join &mdash; C04's all-NULL row has <code>rk = NULL</code>, <code>NULL = 1</code> is unknown, and the row would be dropped. The classic bug: a <code>WHERE</code> on a right-table column silently converts a <code>LEFT JOIN</code> back into an inner join.</p>
+
+<h5><code>ROW_NUMBER</code> guarantees exactly one row per customer</h5>
+<p>C01 and C03 each have a tie on amount. <code>RANK()</code> would give both tied orders <code>rk = 1</code>, and the join would return <em>two</em> rows for that customer &mdash; breaking "one row per customer". <code>ROW_NUMBER()</code> always produces a strict 1, 2, 3 sequence, so exactly one order gets <code>rk = 1</code>. The cost is that you must dictate the tie order yourself, which the multi-key <code>ORDER BY</code> does.</p>
+
+<h5>The tie-break chain must end on a unique key</h5>
+<p><code>ord_amount DESC, ord_date ASC</code> resolves C01 (different dates) but consider two orders identical on amount <em>and</em> date &mdash; the chain must still decide. Ending with <code>ord_num ASC</code>, a unique key, makes the ordering <em>total</em>: there is always a definite winner and the result is reproducible run after run. A tie-break that bottoms out on a non-unique column leaves the engine free to pick arbitrarily.</p>
+
+<h5>Why a CTE + join beats a correlated subquery</h5>
+<p>An alternative is a correlated subquery picking <code>MAX(ord_amount)</code> per customer &mdash; but that reopens the tie problem (two orders share the max amount) and re-scans <code>orders</code> per customer. The CTE ranks all orders in a single windowed pass, then one join attaches the winner. It also keeps the tie-break logic in exactly one place. For top-N (N&gt;1) the same CTE just changes the filter to <code>rk &lt;= N</code> &mdash; the pattern scales.</p>
+
+<h5>Dialect and the NULLS footnote</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY &hellip;)</code> is standard in Postgres, SQL Server, Oracle, MySQL 8+, and SQLite 3.25+. Snowflake/BigQuery/DuckDB offer <code>QUALIFY rk = 1</code> as sugar for the outer filter, but you would still need the left join for no-order customers, so the CTE form is the portable choice. One trap: if <code>ord_amount</code> can be NULL, <code>ORDER BY ord_amount DESC</code> sorts NULLs first in Postgres &mdash; a NULL-amount order would wrongly rank #1; add <code>NULLS LAST</code> if that is possible.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> top-1-per-group with every customer retained means <code>ROW_NUMBER()</code> in a CTE plus a <code>LEFT JOIN</code> with <code>rk = 1</code> kept in the <code>ON</code> clause &mdash; moving it to <code>WHERE</code> silently drops the no-order rows &mdash; and the tie-break chain must end on a unique key so the single winner is deterministic.</div>

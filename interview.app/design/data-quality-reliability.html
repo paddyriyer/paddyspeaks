@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Quality &amp; Reliability — DQ Framework · PaddySpeaks Interview Studio</title>
+<meta name="description" content="Data quality and reliability deep-dive — schema, volume, distribution and referential checks. Lineage, freshness SLAs, the on-call playbook. From ad-hoc tests to a real DQ framework.">
+<meta name="keywords" content="data quality, dq framework, data lineage, freshness sla, data on-call, great expectations, soda, data observability">
+<meta name="author" content="Padmanabhan Iyer">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://paddyspeaks.com/interview.app/design/data-quality-reliability.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Data Quality &amp; Reliability — DQ Framework">
+<meta property="og:description" content="Schema · volume · distribution · referential checks · lineage · freshness SLAs · on-call playbook.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/data-quality-reliability.html">
+<meta property="og:image" content="https://paddyspeaks.com/images/og-default.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="PaddySpeaks">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Data Quality &amp; Reliability — DQ Framework">
+<meta name="twitter:description" content="Schema · volume · distribution · referential checks · lineage · freshness SLAs · on-call playbook.">
+<meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","@id":"https://paddyspeaks.com/interview.app/design/data-quality-reliability.html#article","headline":"Data Quality & Reliability — DQ Framework","author":{"@type":"Person","name":"Padmanabhan Iyer","url":"https://paddyspeaks.com/about.html"},"publisher":{"@type":"Organization","name":"PaddySpeaks","url":"https://paddyspeaks.com/"},"url":"https://paddyspeaks.com/interview.app/design/data-quality-reliability.html","isPartOf":{"@id":"https://paddyspeaks.com/interview.app/#app"},"about":["Data Quality","Data Reliability","Data Observability","Data Lineage"]},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"PaddySpeaks","item":"https://paddyspeaks.com/"},{"@type":"ListItem","position":2,"name":"Interview Studio","item":"https://paddyspeaks.com/interview.app/"},{"@type":"ListItem","position":3,"name":"Design","item":"https://paddyspeaks.com/interview.app/design/"},{"@type":"ListItem","position":4,"name":"Data Quality & Reliability","item":"https://paddyspeaks.com/interview.app/design/data-quality-reliability.html"}]}]}
+</script>
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+.netflix-prep { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.7; color: #1a2332; }
+.netflix-prep h1.hero-title { font-family: 'Playfair Display', serif; font-size: 52px; line-height: 1.05; margin: 24px 0 12px; color: #0b0f17; }
+.netflix-prep .hero-sub { font-size: 19px; line-height: 1.5; color: #4a5568; margin: 0 0 28px; }
+.netflix-prep .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
+.netflix-prep h2.part-title { font-family: 'Playfair Display', serif; font-size: 36px; line-height: 1.15; margin: 80px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
+.netflix-prep .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; }
+.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; }
+.netflix-prep h4.sub-head { font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; margin: 28px 0 8px; color: #1a2332; }
+.netflix-prep p { margin: 0 0 16px; }
+.netflix-prep ul, .netflix-prep ol { margin: 0 0 18px; padding-left: 24px; }
+.netflix-prep ul li, .netflix-prep ol li { margin: 6px 0; }
+.netflix-prep code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; color: #0b0f17; }
+.netflix-prep pre { background: #0b0f17; color: #e6e9f0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.55; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; border-left: 3px solid #b91c1c; }
+.netflix-prep pre code { background: transparent; color: inherit; padding: 0; font-size: 13px; }
+.netflix-prep table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.netflix-prep table th { text-align: left; background: #1a2332; color: #f5f0e8; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.netflix-prep table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.netflix-prep table tr:nth-child(even) td { background: #f8fafc; }
+.netflix-prep .callout { background: #fff8e1; border-left: 4px solid #d4a017; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .callout strong { color: #8a6d10; }
+.netflix-prep .senior-signal { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 14px 18px; margin: 18px 0; border-radius: 4px; font-style: italic; }
+.netflix-prep .senior-signal strong { color: #1b5e20; font-style: normal; }
+.netflix-prep .trap-box { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .trap-box strong { color: #991b1b; }
+.netflix-prep .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px 28px; margin: 28px 0 40px; }
+.netflix-prep .toc h4 { margin: 0 0 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #4a5568; }
+.netflix-prep .toc ol { margin: 0; padding-left: 22px; }
+.netflix-prep .toc ol li { margin: 6px 0; font-family: 'Source Serif 4', serif; }
+.netflix-prep .toc ol li a { color: #1a2332; text-decoration: none; border-bottom: 1px dotted #94a3b8; }
+.netflix-prep .toc ol li a:hover { color: #b91c1c; border-bottom-color: #b91c1c; }
+</style>
+</head>
+<body id="top">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="/index.html" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="/interview.app/" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="/interview.app/design/" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid #b91c1c;padding-bottom:2px;">Design</a>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ DESIGN · Data Quality &amp; Reliability</div>
+<h1 class="hero-title">Data Quality &amp; Reliability — from "tests" to a DQ framework.</h1>
+<p class="hero-sub">The round where they ask <em>"how do you know your pipeline is healthy?"</em>. Schema, volume, distribution, referential checks. Lineage. Freshness SLAs. The on-call playbook. Seven sections, every check articulable in one sentence, every alert actionable.</p>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+  <li><a href="#part-01">The four check categories — schema, volume, distribution, referential</a></li>
+  <li><a href="#part-02">Schema checks — the contract layer</a></li>
+  <li><a href="#part-03">Volume checks — anomaly detection on row counts</a></li>
+  <li><a href="#part-04">Distribution checks — null %, uniqueness, value drift</a></li>
+  <li><a href="#part-05">Referential checks — cross-table integrity</a></li>
+  <li><a href="#part-06">Lineage, freshness SLAs &amp; the on-call playbook</a></li>
+  <li><a href="#part-07">The 90-second articulation script</a></li>
+</ol>
+</div>
+
+<!-- =============== PART 01 =============== -->
+<section id="part-01">
+<div class="part-eyebrow">§ 01 — The framework</div>
+<h2 class="part-title">The four check categories — schema, volume, distribution, referential.</h2>
+
+<p>"Data quality" is too broad to be useful. The interview-grade framing breaks it into <strong>four orthogonal categories</strong>. Every alert maps to one of these; every category has a different remediation pattern; every team can reason about coverage gaps because the buckets don't overlap.</p>
+
+<h3 class="section-head">The four buckets</h3>
+<table>
+  <thead><tr><th>Category</th><th>Question it answers</th><th>Example check</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Schema</strong></td><td>Is the structure correct?</td><td>Column <code>email</code> exists, type VARCHAR, NOT NULL</td></tr>
+    <tr><td><strong>Volume</strong></td><td>Did we get the right amount?</td><td>Row count yesterday between 80%-120% of 7-day average</td></tr>
+    <tr><td><strong>Distribution</strong></td><td>Are the values plausible?</td><td>Null % &lt; 0.5%; uniqueness on user_id; value range 0-100</td></tr>
+    <tr><td><strong>Referential</strong></td><td>Does it join cleanly to other tables?</td><td>Every <code>order.customer_id</code> exists in <code>customers</code></td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Why this taxonomy works</h3>
+<p>Different categories fail differently and need different responses:</p>
+<ul>
+  <li><strong>Schema failures</strong> = pipeline broken, page on-call immediately. Loud failure, fast fix (revert / hotfix the producer).</li>
+  <li><strong>Volume failures</strong> = upstream incident OR downstream consumer issue. Investigation needed before action.</li>
+  <li><strong>Distribution failures</strong> = data source quality issue OR business reality changed. Often a slow drift, not a sudden break.</li>
+  <li><strong>Referential failures</strong> = cross-team coordination problem. The two tables drift out of sync because they have different freshness SLAs.</li>
+</ul>
+
+<h3 class="section-head">The check-per-table coverage matrix</h3>
+<p>Every important table should have at least one check in each category:</p>
+<pre><code>fact_orders:
+  schema:       column types match contract; PK uniqueness
+  volume:       row count today within 75-125% of L7 avg
+  distribution: null(customer_id) = 0; null(amount) &lt; 0.1%; amount range $0-$10K
+  referential:  customer_id ∈ dim_customer; product_id ∈ dim_product
+
+dim_customer:
+  schema:       email format; phone format
+  volume:       new rows ≥ 0 (never shrinks)
+  distribution: distinct(country) ≤ 250; null(email) &lt; 1%
+  referential:  region_id ∈ dim_region</code></pre>
+
+<h3 class="section-head">The four common DQ tools</h3>
+<table>
+  <thead><tr><th>Tool</th><th>Strength</th><th>Weakness</th></tr></thead>
+  <tbody>
+    <tr><td><strong>dbt tests</strong></td><td>Built-in to dbt (not_null, unique, accepted_values, relationships); free</td><td>Limited to schema + simple distribution; no anomaly detection</td></tr>
+    <tr><td><strong>Great Expectations</strong></td><td>Rich expectation library; detailed result docs</td><td>Heavy to operate; alerting weak out-of-box</td></tr>
+    <tr><td><strong>Soda</strong></td><td>Lightweight YAML-based; integrates with Airflow / dbt</td><td>Less mature than GE for complex checks</td></tr>
+    <tr><td><strong>Monte Carlo / Datafold (commercial observability)</strong></td><td>ML-based anomaly detection on volume + distribution; auto-discover lineage</td><td>$$$; vendor lock-in</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> The framework matters more than the tool. <em>"I'd cover schema and referential with dbt tests because they're versioned with the model. Volume + distribution drift gets a vendor — Monte Carlo or Datafold — because anomaly detection needs ML and we don't want to build that. Lineage comes from OpenLineage emitted by dbt + Airflow."</em>
+</div>
+
+</section>
+
+<!-- =============== PART 02 =============== -->
+<section id="part-02">
+<div class="part-eyebrow">§ 02 — Schema</div>
+<h2 class="part-title">Schema checks — the contract layer.</h2>
+
+<p>Schema is the easiest category to enforce and the most damaging when it fails. The good news: it's mostly automatable. The bad news: most teams treat it as runtime drift instead of a contract.</p>
+
+<h3 class="section-head">The four schema check types</h3>
+<table>
+  <thead><tr><th>Check</th><th>Implementation</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Column existence</strong></td><td>Does the column appear in the table at all?</td></tr>
+    <tr><td><strong>Column type</strong></td><td>Is it INT vs VARCHAR vs DATE as expected?</td></tr>
+    <tr><td><strong>Nullability</strong></td><td>Is the NOT NULL constraint declared and enforced?</td></tr>
+    <tr><td><strong>Constraint enforcement</strong></td><td>PK, UNIQUE, FK declared and active?</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">dbt model contracts (1.5+)</h3>
+<pre><code>models:
+  - name: dim_user
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: user_id
+        data_type: bigint
+        constraints: [{ type: not_null }, { type: primary_key }]
+      - name: email
+        data_type: varchar
+        constraints: [{ type: not_null }]
+      - name: created_at
+        data_type: timestamp
+        constraints: [{ type: not_null }]</code></pre>
+<p>The model fails to build if the SELECT output schema drifts. This is build-time enforcement — the warehouse equivalent of a schema registry.</p>
+
+<h3 class="section-head">Schema checks for raw / source tables (no contract)</h3>
+<p>Source tables are owned by other teams and don't have dbt contracts. Detect drift via <code>information_schema</code>:</p>
+<pre><code>-- Daily check job, comparing today's columns to expected
+SELECT table_name, column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'raw' AND table_name = 'orders'
+EXCEPT
+SELECT table_name, column_name, data_type, is_nullable
+FROM dq_expected_schema
+WHERE table_name = 'orders';
+-- Any row returned = drift; alert</code></pre>
+
+<h3 class="section-head">The "added column" trap</h3>
+<div class="trap-box">
+<strong>Trap.</strong> Producer adds a column. Consumer ignores it (no break). Six months later, an analyst finds the column and expects historical data — but it's only populated forward. <strong>Always alert on new columns even when they don't break anything</strong>; document them in the schema registry; backfill if business-relevant.
+</div>
+
+<h3 class="section-head">Schema evolution rules — what's safe vs not</h3>
+<table>
+  <thead><tr><th>Change</th><th>Safe?</th><th>How to ship</th></tr></thead>
+  <tbody>
+    <tr><td>Add nullable column</td><td>Yes</td><td>Producer-first; consumer ignores until needed</td></tr>
+    <tr><td>Add NOT NULL column with default</td><td>Yes</td><td>Same as above</td></tr>
+    <tr><td>Add NOT NULL column without default</td><td>No</td><td>Add as nullable first; backfill; then enforce NOT NULL</td></tr>
+    <tr><td>Drop column</td><td>No</td><td>Deprecation flag → 90 days → drop</td></tr>
+    <tr><td>Rename column</td><td>No</td><td>Add new + dual-populate → migrate consumers → drop old</td></tr>
+    <tr><td>Change column type</td><td>No</td><td>Add new typed column; migrate; drop old</td></tr>
+    <tr><td>Tighten NOT NULL on existing column</td><td>No</td><td>Backfill existing nulls → then add constraint</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Schema enforcement is build-time for our models (dbt contracts) and runtime for source tables (information_schema diff). Every change classified backward-compatible or not; non-compatible ones go through a migration window. Anything dropping or renaming is tombstone-then-add over 90 days."
+</div>
+
+</section>
+
+<!-- =============== PART 03 =============== -->
+<section id="part-03">
+<div class="part-eyebrow">§ 03 — Volume</div>
+<h2 class="part-title">Volume checks — anomaly detection on row counts.</h2>
+
+<p>The simplest check that catches the most production issues: <em>"did we get the right number of rows today?"</em>. Implemented naively, it pages constantly; implemented well, it catches incidents 30 minutes earlier than any other signal.</p>
+
+<h3 class="section-head">The fixed-threshold trap</h3>
+<div class="trap-box">
+<strong>Trap.</strong> "Alert if row count &lt; 1M" is the wrong shape. On a Tuesday it's right; on Black Friday it's noise; on Christmas Day it's a false negative. Fixed thresholds are a treadmill of tuning. Use anomaly detection.
+</div>
+
+<h3 class="section-head">The simplest anomaly check</h3>
+<pre><code>-- Compare today's count to last 7 days' average + std-dev
+WITH baseline AS (
+  SELECT AVG(daily_count) AS mean, STDDEV(daily_count) AS sd
+  FROM (
+    SELECT DATE(created_at) AS day, COUNT(*) AS daily_count
+    FROM orders
+    WHERE created_at &gt;= CURRENT_DATE - INTERVAL '8 days'
+      AND created_at &lt;  CURRENT_DATE
+    GROUP BY day
+  )
+),
+today AS (
+  SELECT COUNT(*) AS cnt FROM orders WHERE DATE(created_at) = CURRENT_DATE - 1
+)
+SELECT
+  today.cnt,
+  baseline.mean,
+  baseline.sd,
+  ABS(today.cnt - baseline.mean) / NULLIF(baseline.sd, 0) AS z_score
+FROM today, baseline;
+-- Alert if |z_score| &gt; 3</code></pre>
+
+<h3 class="section-head">Seasonality is the gotcha</h3>
+<p>"7-day average" works for stable workloads; fails for weekly seasonality (B2B traffic drops 80% on weekends). The fix: compare to <strong>same-day-of-week last 4 weeks</strong>:</p>
+<pre><code>WHERE DATE(created_at) IN (
+  CURRENT_DATE - INTERVAL '7 days',
+  CURRENT_DATE - INTERVAL '14 days',
+  CURRENT_DATE - INTERVAL '21 days',
+  CURRENT_DATE - INTERVAL '28 days'
+)
+-- Compare today vs Tuesday-4-weeks-ago, not vs yesterday</code></pre>
+
+<h3 class="section-head">Production-grade volume monitoring</h3>
+<p>Real volume monitors do three things at once:</p>
+<ol>
+  <li><strong>Day-over-day</strong> — quick spike / dip alarm</li>
+  <li><strong>Week-over-week (same DoW)</strong> — seasonality-aware baseline</li>
+  <li><strong>Monthly drift</strong> — slow trend detection (catches gradual leaks)</li>
+</ol>
+
+<h3 class="section-head">When zero rows is normal vs alarming</h3>
+<table>
+  <thead><tr><th>Table type</th><th>Zero rows = ?</th></tr></thead>
+  <tbody>
+    <tr><td>Event stream (orders, clicks)</td><td>Almost always alarming — pipeline broken</td></tr>
+    <tr><td>Error log</td><td>Best case (no errors); only alarming if logging itself broke</td></tr>
+    <tr><td>Daily snapshot</td><td>Always alarming — snapshot job must run</td></tr>
+    <tr><td>Anomaly / fraud-flag table</td><td>Often expected — most days are clean</td></tr>
+  </tbody>
+</table>
+<p>Encode the expectation explicitly: <code>min_rows_per_day</code>, <code>max_rows_per_day</code>, <code>expected_zero_rows: false</code>.</p>
+
+<h3 class="section-head">The freshness-volume cousin</h3>
+<p>Volume = how many rows. Freshness = how recent. Both matter; both have similar anomaly logic. <strong>Freshness</strong> is covered in §06; just note that the patterns mirror.</p>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Volume checks are anomaly-based, not fixed-threshold. Day-over-day catches sudden breaks; same-DoW-last-4-weeks handles weekly seasonality; monthly trend catches slow drift. Z-score &gt; 3 is the alert; auto-resolve at &lt; 2 to prevent flapping. We never page-on zero-rows except for tables we've explicitly tagged as 'must produce'."
+</div>
+
+</section>
+
+<!-- =============== PART 04 =============== -->
+<section id="part-04">
+<div class="part-eyebrow">§ 04 — Distribution</div>
+<h2 class="part-title">Distribution checks — null %, uniqueness, value drift.</h2>
+
+<p>Schema says "the column exists". Volume says "rows are present". Distribution says "the values are plausible". This is where data quality gets subtle — and where most production data corruption lives undetected.</p>
+
+<h3 class="section-head">The five distribution check families</h3>
+<table>
+  <thead><tr><th>Family</th><th>Question</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Null rate</strong></td><td>How often is this column NULL?</td><td>null(customer_email) &lt; 0.5%</td></tr>
+    <tr><td><strong>Uniqueness</strong></td><td>Are unique columns actually unique?</td><td>distinct(order_id) = count(*)</td></tr>
+    <tr><td><strong>Value range</strong></td><td>Are values within plausible bounds?</td><td>amount BETWEEN 0 AND 10000</td></tr>
+    <tr><td><strong>Cardinality</strong></td><td>Is the distinct-value count reasonable?</td><td>distinct(country) ≤ 250</td></tr>
+    <tr><td><strong>Categorical drift</strong></td><td>Is the distribution of values stable?</td><td>% of orders with status='cancelled' between 3-7%</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Null-rate checks</h3>
+<pre><code># Soda check
+checks for orders:
+  - missing_count(customer_id) = 0          # PK never NULL
+  - missing_percent(email) &lt; 1.0
+  - missing_percent(phone) &lt; 5.0            # phone is optional but rare</code></pre>
+
+<h3 class="section-head">Uniqueness — the silent killer</h3>
+<p>Duplicate rows in a "unique" column don't break joins immediately — they just make every downstream aggregation wrong. The check:</p>
+<pre><code># dbt schema test
+columns:
+  - name: order_id
+    tests:
+      - unique
+      - not_null</code></pre>
+<p>For composite keys: <code>{{ dbt_utils.unique_combination_of_columns(['user_id', 'session_id']) }}</code></p>
+
+<h3 class="section-head">Value range — the most-skipped check</h3>
+<pre><code># Plausibility checks save you from data-corruption nightmares
+checks for transactions:
+  - invalid_count(amount) = 0:
+      valid min: 0
+      valid max: 100000           # &gt; $100K is alarming
+  - invalid_count(country_code) = 0:
+      valid format: ISO_3166_1
+  - invalid_count(age) = 0:
+      valid min: 0
+      valid max: 120</code></pre>
+
+<h3 class="section-head">Categorical drift — the slow leak</h3>
+<p>"Cancelled rate is normally 5%; today it's 22%" is the early signal of an upstream issue (payment processor down, fraud spike, deploy bug). Distribution drift catches this.</p>
+<pre><code>-- % distribution of order.status today vs L7 baseline
+WITH today AS (
+  SELECT status, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share
+  FROM orders WHERE DATE(created_at) = CURRENT_DATE - 1
+  GROUP BY status
+),
+baseline AS (
+  SELECT status, AVG(daily_share) AS expected_share
+  FROM (
+    SELECT DATE(created_at) AS day, status,
+      COUNT(*) * 1.0 / SUM(COUNT(*)) OVER (PARTITION BY DATE(created_at)) AS daily_share
+    FROM orders WHERE created_at &gt;= CURRENT_DATE - INTERVAL '8 days'
+                  AND created_at &lt; CURRENT_DATE
+    GROUP BY day, status
+  ) GROUP BY status
+)
+SELECT t.status, t.share AS today_share, b.expected_share,
+       ABS(t.share - b.expected_share) AS drift
+FROM today t JOIN baseline b USING (status)
+WHERE ABS(t.share - b.expected_share) &gt; 0.05;
+-- &gt; 5pp drift on any status = alert</code></pre>
+
+<h3 class="section-head">Cardinality — the schema-rot detector</h3>
+<p><code>distinct(country)</code> = 250 is fine; = 50000 means someone's writing free-text where there should be ISO codes. Cardinality bounds catch upstream-validation rot.</p>
+
+<div class="callout">
+<strong>The 95-percent rule.</strong> Most distribution checks should pass &gt; 99% of the time. If a check fires on 5% of runs, the threshold is wrong — re-tune. Persistently flaky checks erode trust in the alert system.
+</div>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Distribution checks are five families: null %, uniqueness, value range, cardinality, categorical drift. Categorical drift is the slow-leak detector — 'cancelled rate jumped from 5% to 22%' is how you find the payment-processor incident 30 minutes before billing's dashboard tells you. Threshold is anomaly-based with same-DoW seasonality."
+</div>
+
+</section>
+
+<!-- =============== PART 05 =============== -->
+<section id="part-05">
+<div class="part-eyebrow">§ 05 — Referential</div>
+<h2 class="part-title">Referential checks — cross-table integrity.</h2>
+
+<p>Cross-table referential integrity is what makes a warehouse trustworthy. <em>"Every order has a customer"</em> sounds obvious; in practice, it breaks every week because the customer dim has a different freshness SLA than the orders fact.</p>
+
+<h3 class="section-head">The two failure modes</h3>
+<table>
+  <thead><tr><th>Mode</th><th>Cause</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Orphan facts</strong></td><td>Fact row references a dim row that doesn't exist (yet — late-arriving dim) or never existed (data corruption)</td></tr>
+    <tr><td><strong>Dim with no fact</strong></td><td>Dim row exists but no fact rows reference it (legitimate for new entities; alarming if old)</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The orphan-fact check</h3>
+<pre><code>-- dbt relationships test
+columns:
+  - name: customer_id
+    tests:
+      - relationships:
+          to: ref('dim_customer')
+          field: customer_id
+
+-- Equivalent SQL
+SELECT COUNT(*) AS orphan_count
+FROM fact_orders f
+LEFT JOIN dim_customer d ON d.customer_id = f.customer_id
+WHERE d.customer_id IS NULL
+  AND f.customer_id IS NOT NULL;</code></pre>
+
+<h3 class="section-head">The freshness-mismatch trap</h3>
+<div class="trap-box">
+<strong>Trap.</strong> Fact updates hourly; dim updates nightly. Between midnight (when dim refreshes) and 1am (when first fact arrives with new entities from the day), every fact row referencing a brand-new entity is technically an orphan. <strong>Tolerance window:</strong> allow N% orphans for entities &lt; 24 hours old; alert only on persistent orphans.
+</div>
+
+<h3 class="section-head">The LAD-aware referential check</h3>
+<pre><code>-- "Orphans" that are actually late-arriving dims (LAD)
+WITH classified AS (
+  SELECT f.order_id, f.customer_id,
+    CASE
+      WHEN d.customer_id IS NOT NULL              THEN 'matched'
+      WHEN f.created_at &gt; CURRENT_TIMESTAMP - INTERVAL '24 hours' THEN 'lad_pending'
+      ELSE 'true_orphan'
+    END AS status
+  FROM fact_orders f
+  LEFT JOIN dim_customer d ON d.customer_id = f.customer_id
+  WHERE DATE(f.created_at) = CURRENT_DATE - 1
+)
+SELECT status, COUNT(*) AS rows
+FROM classified GROUP BY status;
+-- Alert only on true_orphan, not lad_pending</code></pre>
+
+<h3 class="section-head">The cross-table count reconciliation</h3>
+<p>Beyond row-level integrity, aggregate-level reconciliation catches subtle bugs:</p>
+<pre><code>-- Order line items should sum to the order total
+SELECT o.order_id,
+  o.total                           AS order_total,
+  SUM(li.line_amount)               AS computed_from_lines,
+  ABS(o.total - SUM(li.line_amount)) AS discrepancy
+FROM orders o
+JOIN order_line_items li ON li.order_id = o.order_id
+GROUP BY o.order_id, o.total
+HAVING ABS(o.total - SUM(li.line_amount)) &gt; 0.01;
+-- Any row = order total disagrees with line sum</code></pre>
+
+<h3 class="section-head">Cross-pipeline reconciliation</h3>
+<p>Two systems should agree on the same number. <em>"Stripe says we processed $X yesterday; warehouse says $Y."</em> The reconciliation:</p>
+<table>
+  <thead><tr><th>Source A</th><th>Source B</th><th>Acceptable diff</th></tr></thead>
+  <tbody>
+    <tr><td>Stripe API total</td><td>Warehouse fact_payments SUM</td><td>&lt; 0.01% (rounding only)</td></tr>
+    <tr><td>Application DAU</td><td>Mixpanel / Amplitude DAU</td><td>&lt; 5% (different definitions of "active")</td></tr>
+    <tr><td>Salesforce ARR</td><td>Finance close ARR</td><td>0% — must match for audit</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Referential checks classify orphans into LAD-pending vs true. Only true orphans page; LAD-pending is logged for trend analysis. Aggregate reconciliation across pipelines (Stripe vs warehouse) is its own check class with explicit tolerance — finance facts must match exactly, engagement metrics can have small definitional drift."
+</div>
+
+</section>
+
+<!-- =============== PART 06 =============== -->
+<section id="part-06">
+<div class="part-eyebrow">§ 06 — Operations</div>
+<h2 class="part-title">Lineage, freshness SLAs &amp; the on-call playbook.</h2>
+
+<p>Checks that fire are useful only if someone responds. The operational layer turns DQ from a build-time thing into a continuous-reliability thing.</p>
+
+<h3 class="section-head">Lineage — what depends on what</h3>
+<p><strong>Lineage</strong> is the DAG of which tables are derived from which sources. When a check fires upstream, lineage tells you which 40 downstream dashboards are about to break.</p>
+<table>
+  <thead><tr><th>Source</th><th>What it generates</th></tr></thead>
+  <tbody>
+    <tr><td>dbt</td><td>Auto-generated DAG via <code>ref()</code> calls; <code>dbt docs</code> renders it</td></tr>
+    <tr><td>OpenLineage</td><td>Cross-tool lineage events (Airflow + dbt + Spark + Flink)</td></tr>
+    <tr><td>Datahub / Atlan / OpenMetadata</td><td>Centralized catalog with lineage UI + impact analysis</td></tr>
+    <tr><td>Column-level lineage</td><td>Tracks which downstream column came from which upstream column — required for GDPR + sensitive-data tracking</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Freshness SLAs — the contract with consumers</h3>
+<p>Every important table publishes a <strong>freshness SLA</strong>: how recent the data must be at any given moment.</p>
+<pre><code># dbt source freshness — the simplest form
+sources:
+  - name: raw
+    tables:
+      - name: orders
+        loaded_at_field: ingested_at
+        freshness:
+          warn_after: { count: 1, period: hour }
+          error_after: { count: 4, period: hour }</code></pre>
+<p>Translation: warn if no new rows in 1 hour; page if 4. Each table has different criticality:</p>
+<table>
+  <thead><tr><th>Table type</th><th>Typical freshness SLA</th></tr></thead>
+  <tbody>
+    <tr><td>Real-time event stream (clickstream)</td><td>&lt; 5 minutes</td></tr>
+    <tr><td>Hourly fact (orders, payments)</td><td>&lt; 1 hour warn / &lt; 4 hours error</td></tr>
+    <tr><td>Daily dim (customers, products)</td><td>&lt; 24 hours</td></tr>
+    <tr><td>Monthly snapshot (subscription state)</td><td>&lt; 7 days from month-end</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The on-call playbook — what fires, what to do</h3>
+<table>
+  <thead><tr><th>Alert</th><th>First diagnostic step</th><th>Common root cause</th></tr></thead>
+  <tbody>
+    <tr><td>Schema drift</td><td>Check <code>information_schema</code> diff vs expected</td><td>Producer deploy added/removed column without notice</td></tr>
+    <tr><td>Volume drop</td><td>Check upstream Kafka lag / source DB query volume</td><td>Producer / connector outage; rarely warehouse-side</td></tr>
+    <tr><td>Volume spike</td><td>Check for double-write / replay events</td><td>Pipeline restart replayed events; bot traffic; deploy bug</td></tr>
+    <tr><td>Null-rate spike</td><td>Trace specific column to producer; check producer's recent commits</td><td>Refactor dropped a populating call</td></tr>
+    <tr><td>Distribution drift</td><td>Compare value mix today vs yesterday vs same-DoW-last-week</td><td>Upstream data source change; A/B experiment ramped; seasonal effect</td></tr>
+    <tr><td>Referential orphans</td><td>Check dim freshness vs fact freshness</td><td>Dim refresh job stalled; LAD that didn't catch up</td></tr>
+    <tr><td>Freshness breach</td><td>Check ingestion job logs / Airflow DAG state</td><td>Source connector down; orchestrator stalled; permission issue</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The "circuit breaker" pattern</h3>
+<p>When upstream data quality fails, propagating it to consumers is worse than not refreshing. Circuit-break the pipeline:</p>
+<pre><code># Airflow DAG with a quality gate
+[ extract → load_to_bronze → DQ_GATE → transform_silver → ... ]
+                              │
+                              └─▶ if fails:  STOP propagation;
+                                            page on-call;
+                                            consumers see yesterday's data
+                                            until the issue is fixed.</code></pre>
+<p>Better to serve slightly stale data than wrong data.</p>
+
+<h3 class="section-head">Quality scoring — the "is the table healthy?" rollup</h3>
+<p>For executive dashboards, roll up dozens of checks into one number:</p>
+<pre><code>quality_score = (1 - failed_checks / total_checks) × freshness_score × 100
+where freshness_score = max(0, 1 - (hours_stale / SLA_hours))</code></pre>
+<p>Each table gets a score 0-100; published in the data catalog. Consumers see "fact_orders: 98 / 100" before they trust the dashboard built from it.</p>
+
+<h3 class="section-head">The DQ post-mortem template</h3>
+<p>Every Sev-1 DQ incident gets a postmortem with:</p>
+<ol>
+  <li><strong>Detection time</strong> — when did the alert fire?</li>
+  <li><strong>Impact</strong> — which dashboards / consumers / decisions were affected?</li>
+  <li><strong>Root cause</strong> — schema / volume / distribution / referential / freshness?</li>
+  <li><strong>Why didn't existing checks catch it?</strong> Coverage gap.</li>
+  <li><strong>New check added</strong> — concrete addition to prevent recurrence.</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Lineage from OpenLineage / dbt; freshness SLAs published per-table in the catalog; on-call playbook keyed to alert type. The circuit-breaker pattern stops bad data from propagating — better to serve yesterday's good data than today's broken data. Every Sev-1 incident gets a postmortem with a new check added — the framework grows with every failure."
+</div>
+
+</section>
+
+<!-- =============== PART 07 =============== -->
+<section id="part-07">
+<div class="part-eyebrow">§ 07 — Articulation</div>
+<h2 class="part-title">The 90-second articulation script.</h2>
+
+<div style="background:linear-gradient(135deg,#0b0f17,#1a2332);color:#f5f0e8;padding:24px 28px;border-radius:8px;margin:28px 0;font-style:italic;line-height:1.6;">
+<p style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#fca5a5;margin-bottom:12px;font-style:normal;">▸ THE 90-SECOND SCRIPT</p>
+
+<p>"My DQ framework has four orthogonal categories: <strong>schema, volume, distribution, referential</strong>. Every check maps to one; every category has its own remediation pattern. Coverage matrix: every important table has at least one check in each."</p>
+
+<p>"<strong>Schema</strong> is build-time enforced via dbt contracts for our models, runtime via <code>information_schema</code> diff for source tables. Renames and type changes go through 90-day deprecation windows, never in-place."</p>
+
+<p>"<strong>Volume</strong> is anomaly-based, not fixed-threshold. Day-over-day catches sudden breaks; same-DoW-last-4-weeks handles seasonality; Z-score &gt; 3 is the alert. Fixed thresholds are a treadmill of tuning."</p>
+
+<p>"<strong>Distribution</strong> covers null %, uniqueness, value range, cardinality, and categorical drift. Categorical drift is the slow-leak detector — 'cancellation rate jumped from 5% to 22%' is how you catch the payment-processor incident before billing's dashboard does."</p>
+
+<p>"<strong>Referential</strong> classifies orphans into LAD-pending (legitimate, late-arriving dim) vs true orphans (page). Cross-pipeline reconciliation is its own check class — finance facts must match Stripe to the cent; engagement metrics can have 5% definitional drift."</p>
+
+<p>"<strong>Operations</strong>: lineage from OpenLineage, freshness SLAs per-table in the catalog, on-call playbook keyed to alert type. Circuit-breaker pattern halts propagation when upstream fails — yesterday's good data beats today's broken data. Every Sev-1 gets a postmortem with a new check; the framework grows with every failure."</p>
+</div>
+
+<h3 class="section-head">Three sentences that signal seniority — in any DQ round</h3>
+<ol>
+  <li><em>"Fixed thresholds don't survive seasonality — every volume check needs to be anomaly-based with same-DoW comparison."</em></li>
+  <li><em>"Most production data corruption isn't a schema break — it's distribution drift. The 5%-to-22% cancellation rate is the canary in the coalmine."</em></li>
+  <li><em>"Better to serve yesterday's good data than today's broken data. The circuit-breaker pattern is non-negotiable."</em></li>
+</ol>
+
+</section>
+
+<div style="text-align:center;margin:64px 0 32px;color:#cbd5e0;letter-spacing:12px;font-size:14px;">· · ·</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:2px;margin-bottom:24px;">▸ Seven sections · the patterns hold across domains · go well.</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:1px;">
+  <a href="/interview.app/design/" style="color:#b91c1c;text-decoration:none;">← Back to Design pillar</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/system-design-data-platforms.html" style="color:#b91c1c;text-decoration:none;">System Design — Data Platforms</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/streaming-architecture.html" style="color:#b91c1c;text-decoration:none;">Streaming Architecture</a>
+</div>
+
+</article>
+</main>
+</body>
+</html>

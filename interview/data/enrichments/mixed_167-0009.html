@@ -1,0 +1,56 @@
+<p>A fulfilment system stores address parts in separate columns &mdash; street, city, state, zip &mdash; and the shipping label needs one clean line. The query uses <code>CONCAT_WS</code> to join the fields with a comma separator. The interviewer is probing whether you know how <code>CONCAT_WS</code> handles missing fields, because real customer data is full of NULL address components.</p>
+
+<h4>1. The source data &mdash; <code>customers</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>street</th><th>city</th><th>state</th><th>zip</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>12 Elm St</td><td>Austin</td><td>TX</td><td>78701</td></tr>
+    <tr><td>2</td><td>99 Oak Ave</td><td>Reno</td><td>NV</td><td>89501</td></tr>
+    <tr><td>3</td><td><em>NULL</em></td><td>Seattle</td><td>WA</td><td>98101</td></tr>
+    <tr><td>4</td><td>5 Pine Rd</td><td><em>NULL</em></td><td><em>NULL</em></td><td>10001</td></tr>
+    <tr><td>5</td><td>7 Birch Ln</td><td>Miami</td><td>FL</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Rows 3, 4, and 5 each have a different NULL component &mdash; the test is whether the output degrades gracefully or shows stray commas.</p>
+
+<h4>2. The SQL &mdash; join fields with <code>CONCAT_WS</code></h4>
+<pre><code>SELECT customer_id,
+       CONCAT_WS(', ', street, city, state, zip) AS full_address
+FROM customers;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>full_address</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>12 Elm St, Austin, TX, 78701</td></tr>
+    <tr><td>2</td><td>99 Oak Ave, Reno, NV, 89501</td></tr>
+    <tr><td>3</td><td>Seattle, WA, 98101</td></tr>
+    <tr><td>4</td><td>5 Pine Rd, 10001</td></tr>
+    <tr><td>5</td><td>7 Birch Ln, Miami, FL</td></tr>
+  </tbody>
+</table>
+<p>The key result: row 3 has no leading "<code>, </code>", row 4 reads "<code>5 Pine Rd, 10001</code>" with no double comma, row 5 has no trailing separator. <code>CONCAT_WS</code> simply skipped each NULL and did not emit a separator for it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>CONCAT_WS</code> skips NULLs cleanly</h5>
+<p><code>CONCAT_WS(sep, a, b, c, ...)</code> &mdash; "concatenate with separator" &mdash; joins only the <em>non-NULL</em> arguments and inserts the separator <em>between</em> surviving values, never around them. That is exactly the behaviour an address line needs: a missing field collapses without leaving a gap or a dangling comma. It is purpose-built for assembling delimited strings from optionally-missing parts.</p>
+
+<h5>The contrast that makes this question &mdash; <code>||</code> and plain <code>CONCAT</code></h5>
+<p>The naive approach, <code>street || ', ' || city || ', ' || state || ', ' || zip</code>, breaks badly. In standard SQL, <code>||</code> with a NULL operand makes the <em>entire expression</em> NULL &mdash; one missing field blanks the whole address. Plain <code>CONCAT(...)</code> treats NULL as an empty string, so you avoid the total NULL but get <strong>stray separators</strong>: row 3 would render "<code>, Seattle, WA, 98101</code>" with a leading comma. <code>CONCAT_WS</code> is the only one of the three that handles both the separator and the NULL together.</p>
+
+<h5>The trap <code>CONCAT_WS</code> does NOT solve &mdash; empty strings</h5>
+<p><code>CONCAT_WS</code> skips <code>NULL</code> but <em>not</em> the empty string <code>''</code>. If <code>state</code> were stored as <code>''</code> rather than <code>NULL</code>, you would still get a double comma. Real-world data mixes both. Defend with <code>NULLIF(TRIM(col), '')</code> on each field to fold blanks into NULLs first:</p>
+<pre><code>CONCAT_WS(', ',
+  NULLIF(TRIM(street), ''),
+  NULLIF(TRIM(city),   ''),
+  NULLIF(TRIM(state),  ''),
+  NULLIF(TRIM(zip),    ''))</code></pre>
+
+<h5>Dialect notes</h5>
+<p><code>CONCAT_WS</code> exists in PostgreSQL, MySQL, SQL Server (2017+), Spark, and BigQuery, with consistent NULL-skipping semantics. SQLite has no <code>CONCAT_WS</code> &mdash; you build the equivalent there with <code>||</code> plus explicit <code>COALESCE</code> on every part, or use the newer <code>concat_ws</code> in very recent builds. Always verify the target engine before relying on it.</p>
+
+<h5>Common mistakes</h5>
+<p>Forgetting the separator argument &mdash; the <em>first</em> argument is always the delimiter, not data. Passing the separator as a column by accident shifts everything. And note <code>zip</code> here is text; if it were an integer, <code>CONCAT_WS</code> still coerces it to string, but a leading-zero ZIP like <code>01234</code> would have lost its zero long before reaching the function &mdash; store ZIPs as text.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose <code>CONCAT_WS</code> precisely because it joins with a separator <em>and</em> skips NULLs without stray commas &mdash; then note its blind spot, empty strings, and pre-clean each field with <code>NULLIF(TRIM(...), '')</code>.</div>

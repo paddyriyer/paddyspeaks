@@ -1,0 +1,72 @@
+<p>EY's sales-ops team wants a per-employee order count for a productivity review &mdash; including the reps who closed nothing this period, because a zero is itself a finding. That last clause is the entire interview: it forces a <code>LEFT JOIN</code>, and it sets a trap around what you put inside <code>COUNT</code>.</p>
+
+<h4>1. The source data &mdash; <code>employees</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>employees.emp_id</th><th>name</th><th> </th><th>orders.emp_id</th><th>orders.order_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Anil</td><td> </td><td>1</td><td>101</td></tr>
+    <tr><td>2</td><td>Bina</td><td> </td><td>1</td><td>102</td></tr>
+    <tr><td>3</td><td>Chandra</td><td> </td><td>2</td><td>103</td></tr>
+    <tr><td>4</td><td>Divya</td><td> </td><td>1</td><td>104</td></tr>
+    <tr><td> </td><td> </td><td> </td><td>3</td><td>105</td></tr>
+  </tbody>
+</table>
+<p>Anil owns three orders, Bina and Chandra one each, and <strong>Divya owns none</strong>. Divya is the row the interviewer cares about: a naive join would drop her, and the review would silently miss an under-performer.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN + COUNT</code></h4>
+<pre><code>SELECT e.emp_id, COUNT(o.order_id) AS order_count
+FROM employees e
+LEFT JOIN orders o ON e.emp_id = o.emp_id
+GROUP BY e.emp_id;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every employee even with no matching order. <code>COUNT(o.order_id)</code> &mdash; counting a <em>column</em> from the right side &mdash; is the deliberate choice that makes the zero come out right.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>order_count</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>1</td></tr>
+    <tr><td>4</td><td>0</td></tr>
+    <tr><td>2</td><td>1</td></tr>
+    <tr><td>1</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>All four employees appear, and <strong>Divya (emp 4) shows 0</strong>. For an employee with no orders, the <code>LEFT JOIN</code> produces one row with <code>o.order_id = NULL</code>; <code>COUNT(o.order_id)</code> ignores NULLs, so it counts zero. The result is unordered &mdash; add <code>ORDER BY emp_id</code> for a stable report.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>COUNT(*)</code> vs <code>COUNT(column)</code> trap</h5>
+<p>This is the question's payload. Swap in <code>COUNT(*)</code> and Divya's count becomes <strong>1, not 0</strong>:</p>
+<pre><code>SELECT e.emp_id, COUNT(*) AS order_count   -- WRONG for this question
+FROM employees e
+LEFT JOIN orders o ON e.emp_id = o.emp_id
+GROUP BY e.emp_id;</code></pre>
+<p><code>COUNT(*)</code> counts <em>rows</em>, and the <code>LEFT JOIN</code> manufactures one all-NULL row for Divya &mdash; so <code>COUNT(*)</code> sees a row and reports 1. <code>COUNT(o.order_id)</code> counts <em>non-NULL values of that column</em>, and the manufactured row's <code>order_id</code> is NULL, so it correctly reports 0. With a <code>LEFT JOIN</code>, always count a non-nullable column from the <em>right</em> table.</p>
+
+<h5>Why an <code>INNER JOIN</code> would be wrong</h5>
+<p>An <code>INNER JOIN</code> keeps only rows that match on both sides, so Divya &mdash; with no order &mdash; vanishes entirely:</p>
+<pre><code>-- emp 4 missing from the result
+SELECT e.emp_id, COUNT(o.order_id)
+FROM employees e JOIN orders o ON e.emp_id = o.emp_id
+GROUP BY e.emp_id;</code></pre>
+<p>The report would show three employees and quietly omit the one the review most needs to see. "Include employees with zero" is the phrase that mandates <code>LEFT JOIN</code>.</p>
+
+<h5>Grouping by <code>emp_id</code> when the report needs the name</h5>
+<p>The solution groups by <code>e.emp_id</code> alone, which Postgres allows here only incidentally. To also select <code>e.name</code>, it must be in the <code>GROUP BY</code> &mdash; or, cleaner, group by the primary key and let functional dependency cover the rest:</p>
+<pre><code>SELECT e.emp_id, e.name, COUNT(o.order_id) AS order_count
+FROM employees e
+LEFT JOIN orders o ON e.emp_id = o.emp_id
+GROUP BY e.emp_id;   -- e.name is functionally dependent on the PK</code></pre>
+<p>That last form works because <code>emp_id</code> is the table's primary key; without a PK declaration you must list <code>e.name</code> explicitly.</p>
+
+<h5>The pre-aggregate alternative &mdash; and when it matters</h5>
+<p>For one count this is overkill, but counting in a subquery before the join avoids fan-out when you need <em>several</em> aggregates from different child tables:</p>
+<pre><code>SELECT e.emp_id, COALESCE(o.cnt, 0) AS order_count
+FROM employees e
+LEFT JOIN (SELECT emp_id, COUNT(*) AS cnt FROM orders GROUP BY emp_id) o
+  ON e.emp_id = o.emp_id;</code></pre>
+<p>Here <code>COUNT(*)</code> <em>is</em> safe &mdash; it runs before the join, on real <code>orders</code> rows only &mdash; and <code>COALESCE</code> turns the missing-match NULL into 0.</p>
+
+<h5>Filtering on the right table breaks the <code>LEFT JOIN</code></h5>
+<p>If the review only wants <em>completed</em> orders, a <code>WHERE o.status = 'completed'</code> silently demotes the join to an inner one &mdash; the NULL-filled row for Divya fails the predicate and she disappears. Put the condition in the <code>ON</code> clause instead: <code>LEFT JOIN orders o ON e.emp_id = o.emp_id AND o.status = 'completed'</code>, which keeps Divya at 0.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>LEFT JOIN</code> so zero-order employees survive, count <code>o.order_id</code> (never <code>COUNT(*)</code>) so the manufactured NULL row reports 0, and know that any filter on the right table belongs in the <code>ON</code> clause or the outer join silently becomes an inner one.</div>

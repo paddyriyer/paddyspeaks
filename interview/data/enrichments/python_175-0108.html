@@ -1,0 +1,116 @@
+<p>The first principle of debugging a distributed system: <em>every event for the same user request must be findable in one place</em>. Atlassian's Jira backend fans a single API call out to ~8 microservices (gateway, auth, issue, search, db, notification, indexer, audit). When the P99 latency dashboard blinks red, the on-call engineer needs to filter the firehose to "show me everything that happened for the slow request" — and the only way that works at 10⁴ requests/second is a propagated <strong>request_id (trace ID)</strong> that every service stamps into every log line. This question is the offline-twin of that propagation pattern; the production version is OpenTelemetry + Jaeger / Tempo.</p>
+
+<h4>1. The data — structured logs from a fan-out call</h4>
+<p>Three Jira-style traces in the demo, each with the canonical shape:</p>
+<table>
+  <thead><tr><th>trace</th><th>services touched</th><th>shape</th></tr></thead>
+  <tbody>
+    <tr><td>REQ-A</td><td>gateway → auth → issue → db → gateway</td><td>Happy path, 120 ms</td></tr>
+    <tr><td>REQ-B</td><td>gateway → auth → search (ERROR) → search (retry) → gateway</td><td>Search service failed, retried, 310 ms total</td></tr>
+    <tr><td>REQ-C</td><td>gateway → issue → db (slow) → gateway</td><td>Latency outlier, 1520 ms — db slow query</td></tr>
+  </tbody>
+</table>
+<p>The exit row at each service has <code>level=INFO</code> or <code>level=ERROR</code>. The <em>order</em> matters: a trace where the gateway logs "out" before the downstream service logs "in" indicates a missing trace propagation. There's also one orphan log line — no request_id — which must be skipped gracefully (a system component, not a user request).</p>
+
+<h4>2. The business question — what the SRE / on-call engineer decides on</h4>
+<ul>
+  <li><strong>Root-cause for a latency alert.</strong> P99 latency = 1500 ms — the dashboard tells you the symptom, the per-trace breakdown tells you it's the db slow query in REQ-C, not a global problem.</li>
+  <li><strong>Error budget burn analysis.</strong> "Of all error-containing traces in the last hour, what fraction had the search service in the path?" Filter the per-trace table; aggregate.</li>
+  <li><strong>Deploy regression detection.</strong> Compare per-trace duration P95 before/after a deploy. If REQ-B-shaped traces (the search-retry flow) suddenly take 2× as long, the search service's new release broke something.</li>
+  <li><strong>Customer support.</strong> "Customer X reports a slow Jira load at 10:32 UTC." Filter traces by customer cookie → find the matching request_id → pull the full trace → identify which service was slow. The whole RCA happens in this table.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def correlate_traces(log_records):
+    # ── Step 1. Group by request_id. defaultdict(list) avoids the
+    # "did we initialise this key yet?" boilerplate. Skip rows without
+    # request_id — those are system-component logs (health probes,
+    # internal heartbeats), not user-request events.
+    traces = defaultdict(list)
+    for ev in log_records:
+        if 'request_id' not in ev:
+            continue
+        traces[ev['request_id']].append(ev)
+
+    # ── Step 2. Per-trace summary. Sort each group by ts so the
+    # service-call order is canonical (events from different services
+    # arrive at the log aggregator in undefined order).
+    rows = []
+    for req_id, events in traces.items():
+        events.sort(key=lambda e: e['ts'])
+        start = pd.Timestamp(events[0]['ts'])
+        end   = pd.Timestamp(events[-1]['ts'])
+        rows.append({
+            'request_id':    req_id,
+            # Service hops, in canonical order — for the UI tree view.
+            'services':      [e['service'] for e in events],
+            # Distinct services — denser proxy for "blast radius".
+            'service_count': len({e['service'] for e in events}),
+            # End-to-end latency. Use the first and last event's
+            # timestamps, not first + sum-of-deltas (gaps are real).
+            'duration_ms':   (end - start).total_seconds() * 1000,
+            # Any-error flag for filtering; error count for severity.
+            'errors':        sum(1 for e in events if e.get('level') == 'ERROR'),
+            'event_count':   len(events),
+            'has_error':     any(e.get('level') == 'ERROR' for e in events),
+        })
+    return pd.DataFrame(rows)</code></pre>
+
+<p><strong>Why <code>defaultdict(list)</code> and not <code>df.groupby('request_id').agg(...)</code>?</strong> Both work. The dict version handles the "list of services" output cleanly — pandas' <code>agg</code> can do <code>list</code> as an aggregator but the syntax is awkward (<code>groupby('request_id')['service'].apply(list)</code>). For 10 M log lines, the groupby form is faster (C kernel for the count/sum aggs); for an interview, the dict form is more readable and matches how production Python parsers actually do it.</p>
+
+<p><strong>Why two ts timestamps (start + end) and not <code>sum(per-hop deltas)</code>?</strong> The deltas don't capture wall-clock latency — if service A logged "out" at t=100 and service B logged "in" at t=105 (5 ms RPC), the gap is real, not noise. <code>last_ts - first_ts</code> is the correct end-to-end latency. Sum-of-deltas would understate by all the inter-service gaps.</p>
+
+<p><strong>Why <code>.get('level')</code> not <code>['level']</code>?</strong> Resilient to missing fields. A log line without a <code>level</code> field shouldn't crash the pipeline; treating it as not-an-error is a reasonable default. The <code>.get('level') == 'ERROR'</code> idiom is the cheap defence.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>request_id</th><th>services</th><th>duration</th><th>errors</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>REQ-A</td><td>gateway → auth → issue → db → gateway</td><td>120 ms</td><td>0</td><td>Reference happy path. 4 distinct services, 5 events (gateway in + out), well within P95.</td></tr>
+    <tr><td>REQ-B</td><td>gateway → auth → search → search → gateway</td><td>310 ms</td><td>1</td><td><strong>Error with retry.</strong> Search service errored at ts+40ms, succeeded at ts+260ms — the retry took ~220 ms (probably a 200 ms backoff). The error count = 1 is the signal; has_error = True triggers the alert.</td></tr>
+    <tr><td>REQ-C</td><td>gateway → issue → db → gateway</td><td><strong>1520 ms</strong></td><td>0</td><td><strong>Latency outlier.</strong> No errors, but the gap between db (level=WARN, "slow query") and gateway-out is 1500 ms. The trace took 12× normal duration. The has_error flag is False but the duration_ms picks it up.</td></tr>
+  </tbody>
+</table>
+<p>The orphan log line (no request_id) is correctly absent from the table — it would have been a junk row with empty services and zero duration. The skip-on-missing-key defence keeps that out.</p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 100k traces comfortable.</strong> One hour of Jira backend logs = ~10 M log lines = ~1 M traces. pandas handles a hour-window for forensic analysis but not real-time alerting. The production pattern: structured logs in JSON → Fluentd → Kafka → Spark Streaming aggregating per-request-id state → write to Elasticsearch / OpenSearch for query. The pandas function is the analyst's tool for "give me the breakdown of yesterday's outage between 14:00 and 14:30".</li>
+  <li><strong>OpenTelemetry &amp; Jaeger / Tempo / Honeycomb</strong> are the productionised version. Same data model: <code>trace_id</code> = the request_id, <code>span_id</code> per service hop, <code>parent_span_id</code> for the call tree. The OTel collector does the per-trace aggregation that this pandas function does — but on streaming data with sampling.</li>
+  <li><strong>Tail-based sampling.</strong> Sampling 1 % of all traces randomly is cheap but misses the rare slow ones. Tail-based sampling: collect <em>all</em> spans for every trace in a short buffer (60s), then keep the trace if it's slow or error-y, else drop. The pandas function shape — group-then-decide — is exactly tail-based sampling's logic, just in batch.</li>
+  <li><strong>Atlassian's own incident tooling</strong> (Statuspage, Opsgenie + post-incident review) uses per-trace correlation as the foundational data structure. The on-call engineer searches by request_id, gets the full call tree, can pinpoint the failing service in under a minute. <strong>Without trace propagation, the same MTTR is 30+ minutes of grep across N service stdouts.</strong></li>
+  <li><strong>Hot trace.</strong> A misbehaving client that hammers the same endpoint with the same request_id (a bug — request_id should be unique per request) creates a "trace" with 10k events. The groupby sends them all to one reducer/dict-key. Defence: cap per-trace event count, alert when exceeded, treat as a separate "abusive client" class.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What if the clocks on different services aren't synchronised?"</h5>
+<p>Clock skew is real — even with NTP, different hosts can drift by 10-100 ms. The <code>last_ts - first_ts</code> latency is approximate, not exact. Production trace systems use a single clock (the gateway's, propagated as <code>start_time</code>) and span-relative offsets, so the math is consistent within a trace. <strong>OpenTelemetry's monotonic-clock spans</strong> are the fix; the pandas function inherits whatever clocks the input logs were written with. The senior candidate names the gotcha.</p>
+
+<h5>Probe 2 — "What's wrong with <code>.apply()</code> for the per-trace summary?"</h5>
+<p>The function above doesn't use <code>.apply</code>; it uses a Python loop over <code>traces.items()</code> which is roughly equivalent in cost. The <em>vectorised</em> version uses pandas <code>groupby(request_id).agg({...})</code> with named aggregations. For 1 M log lines, the groupby version is ~5-10× faster because it stays in C. Trade-off: the list-of-services aggregation needs <code>.apply(list)</code> which re-enters Python — sometimes you keep the hand-rolled loop for clarity even when slightly slower.</p>
+
+<h5>Probe 3 — "How do you incrementalise this for streaming?"</h5>
+<p>Flink with keyed state on request_id, plus a session window (or a fixed timeout: "if no new events for this request_id in 30 s, the trace is closed"). Each event updates state; on window close, emit the per-trace summary row. The closed-trace stream feeds the alerting pipeline. <strong>Pitfall:</strong> long-running traces (a slow customer query that takes 60 s) get evicted prematurely if the timeout is too short. Use the explicit "trace end" signal (gateway's "out" log line) if available; fall back to timeout otherwise.</p>
+
+<h5>Probe 4 — "How do you handle missing intermediate logs — e.g., the issue service crashed before logging its 'out' event?"</h5>
+<p>The trace is incomplete. <code>last_ts - first_ts</code> may understate the duration (no late event to anchor against). Detection: <code>service_count &lt; expected_path_length</code> flags partial traces; route to a separate "incomplete" cohort for investigation. Production: every service logs both "in" and "out"; if the "out" is missing, the service crashed mid-request. This is one of the highest-value alerting signals.</p>
+
+<h5>Probe 5 — "Two services with the same name (e.g., two replicas of 'auth'). How do you tell them apart?"</h5>
+<p>Include <code>service_instance</code> (host or pod identifier) in the log payload. The function's <code>services</code> list would then show "auth-pod-7", "auth-pod-12" so the ops team can correlate against the specific replica's logs. OpenTelemetry's <code>resource.service.instance.id</code> is the spec-compliant version. The senior candidate names the OTel convention.</p>
+
+<h5>Probe 6 — "Hot request_id — bot client reuses the same ID across 10k requests. Will this OOM?"</h5>
+<p>The defaultdict grows unboundedly for that one key. For 10k events / trace it's ~10 MB — still survivable in pandas. For 10 M events / trace (genuinely abusive), OOM. Defence: cap per-trace events at e.g. 1 000 with a "trace truncated" flag, emit the summary early. Same shape as backpressure in a streaming system: protect the aggregator from the abusive key. Also tag the request_id as "suspected reuse" for the security team.</p>
+
+<h5>Probe 7 — "How do you propagate request_id across an async boundary (a queue, a future)?"</h5>
+<p>Context propagation. The producer attaches request_id to the message headers; the consumer reads the header and stamps it into its own log context (Python's <code>contextvars</code>, Java's MDC, Node's async_hooks). Without explicit propagation, the async work logs without a request_id and the trace is broken. OpenTelemetry's <strong>baggage</strong> spec is exactly this: a key-value bundle carried with the trace context across all hops.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=python_175-0100">python_175-0100</a> — multi-source dedup: the same "concat + dedup" pattern but on revenue data.</li>
+  <li><a href="/interview.app/sql.html?q=python_175-0104">python_175-0104</a> — time-window aggregation: useful for "P95 latency per 1-min window" downstream of this per-trace summary.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas-as-offline-twin pattern (Flink for live tracing, pandas for incident forensics).</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — keyed state, session windows, tail-based sampling.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the four pillars of distributed-trace correlation: (1) <em>request_id propagation</em> end-to-end via headers / context — without it, no correlation is possible; (2) <em>clock skew</em> — last - first latency is approximate, use OpenTelemetry's monotonic-clock spans for accuracy; (3) <em>missing-event resilience</em> — sort by ts but tolerate crashed services that didn't log their "out"; (4) <em>tail-based sampling</em> — buffer all spans, keep slow / error traces, drop the rest. The pandas function is the analyst's forensic tool; production uses OpenTelemetry + Jaeger / Honeycomb / Tempo with keyed state on the streaming pipeline.</div>

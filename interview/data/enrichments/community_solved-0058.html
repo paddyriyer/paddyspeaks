@@ -1,0 +1,52 @@
+<p>A community sales dataset asks for a <em>running total of sales per product</em> &mdash; each row carrying the cumulative amount for its product up to and including that row, in <code>id</code> order. Running totals are the most-requested window-function task in analytics: think account balances, cumulative revenue, burn-down charts. The interviewer wants to see <code>SUM(...) OVER (PARTITION BY ... ORDER BY ...)</code> and to confirm you understand what the <code>ORDER BY</code> inside the window does.</p>
+
+<h4>1. The source data &mdash; <code>sales_tab</code></h4>
+<table>
+  <thead><tr><th>id</th><th>product</th><th>sales</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Pen</td><td>10</td><td>Pen, first</td></tr>
+    <tr><td>2</td><td>Pen</td><td>20</td><td>Pen, second</td></tr>
+    <tr><td>3</td><td>Book</td><td>100</td><td>Book, first</td></tr>
+    <tr><td>4</td><td>Pen</td><td>30</td><td>Pen, third &mdash; non-adjacent to ids 1&ndash;2</td></tr>
+    <tr><td>5</td><td>Book</td><td>50</td><td>Book, second</td></tr>
+    <tr><td>6</td><td>Pencil</td><td>15</td><td>Pencil &mdash; single-row product</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases: <code>Pen</code>'s rows are <strong>interleaved</strong> with other products (ids 1, 2, 4), so the running sum must follow the product partition, not physical adjacency; and <code>Pencil</code> is a <strong>single-row product</strong>, whose running total is just its own value.</p>
+
+<h4>2. The SQL &mdash; partitioned running <code>SUM</code></h4>
+<pre><code>SELECT id, product, sales,
+  SUM(CASE WHEN sales::text ~ '^-?[0-9]+(\.[0-9]+)?$' THEN sales::numeric ELSE 0 END)
+    OVER (PARTITION BY product ORDER BY id ASC) AS sales_products
+FROM sales_tab;</code></pre>
+<p><code>SUM(...) OVER (PARTITION BY product ORDER BY id)</code> accumulates within each product, in <code>id</code> order. The presence of <code>ORDER BY</code> inside the window is what turns a flat per-product total into a <em>running</em> one.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>product</th><th>sales</th><th>sales_products</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Pen</td><td>10</td><td>10</td><td>10</td></tr>
+    <tr><td>2</td><td>Pen</td><td>20</td><td>30</td><td>10 + 20</td></tr>
+    <tr><td>3</td><td>Book</td><td>100</td><td>100</td><td>Book restarts at 100</td></tr>
+    <tr><td>4</td><td>Pen</td><td>30</td><td>60</td><td>30 + 30 &mdash; ignores the Book row between</td></tr>
+    <tr><td>5</td><td>Book</td><td>50</td><td>150</td><td>100 + 50</td></tr>
+    <tr><td>6</td><td>Pencil</td><td>15</td><td>15</td><td>single-row product, total = itself</td></tr>
+  </tbody>
+</table>
+<p>Row 4 (Pen) reads 60, not 90: the running sum accumulates over <code>Pen</code> only &mdash; ids 1, 2, 4 &mdash; skipping the Book row at id 3. Each partition has its own independent accumulator.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ORDER BY</code> inside <code>OVER</code> creates the running total</h5>
+<p>A window <code>SUM</code> <em>with</em> an <code>ORDER BY</code> gets an implicit frame of <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; so each row sums itself plus everything before it in the ordering. Remove the <code>ORDER BY</code> and the frame becomes the whole partition: every Pen row would show 60, the flat product total. The <code>ORDER BY</code> is the single clause that distinguishes "running total" from "grand total".</p>
+
+<h5><code>PARTITION BY</code> resets the accumulator per product</h5>
+<p>Each distinct <code>product</code> is its own window; the running sum starts fresh at the first row of each partition. That is why <code>Book</code> begins again at 100 even though Pen rows preceded it, and why interleaving in <code>id</code> order does not leak across products. The window function evaluates partition-by-partition, not by table layout.</p>
+
+<h5>The <code>RANGE</code> vs <code>ROWS</code> tie subtlety</h5>
+<p>The default frame is <code>RANGE</code>, which treats <em>peer</em> rows &mdash; rows with the same <code>ORDER BY</code> value &mdash; as a single step: tied rows all receive the same cumulative total. Here <code>id</code> is unique, so <code>RANGE</code> and <code>ROWS</code> behave identically. But if two Pen rows shared an <code>id</code>, <code>RANGE</code> would give both the post-addition total while <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> would step through them one at a time. For a true row-by-row running balance, write <code>ROWS</code> explicitly &mdash; and always order by a unique, deterministic key.</p>
+
+<h5>The TEXT-column guard and what it hides</h5>
+<p><code>sales</code> is stored as <code>TEXT</code>, so the <code>CASE ... ~ '^-?[0-9]+(\.[0-9]+)?$'</code> regex validates each value is numeric before <code>::numeric</code>; a stray <code>'N/A'</code> would otherwise abort the whole query with a cast error. The <code>ELSE 0</code> branch keeps the query alive but <em>silently treats dirty rows as zero</em> &mdash; the running total then under-reports with no warning. A stricter design routes non-numeric rows to a quarantine count or fails loudly. The real fix is upstream: <code>sales</code> should be a <code>NUMERIC</code> column, not text.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the <code>ORDER BY</code> inside <code>OVER</code> is what makes the sum cumulative (drop it and you get the flat total), note that the default <code>RANGE</code> frame lumps tied rows so a true running balance needs explicit <code>ROWS</code> and a unique sort key, and flag that the <code>ELSE 0</code> cast guard silently zeroes dirty data rather than surfacing it.</div>

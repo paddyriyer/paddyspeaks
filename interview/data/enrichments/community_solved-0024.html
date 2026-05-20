@@ -1,0 +1,60 @@
+<p>A Community question on a content-moderation table: count how many distinct users flagged each video. Trust &amp; Safety wants to know which videos drew complaints from many people versus one persistent complainer. The schema gives no <code>user_id</code> &mdash; only <code>user_firstname</code> and <code>user_lastname</code> &mdash; so the real test is constructing a person identity from name parts and counting people, not flag rows.</p>
+
+<h4>1. The source data &mdash; <code>user_flags</code></h4>
+<table>
+  <thead><tr><th>flag_id</th><th>user_firstname</th><th>user_lastname</th><th>video_id</th></tr></thead>
+  <tbody>
+    <tr><td>f1</td><td>Mary</td><td>Lee</td><td>vidA</td></tr>
+    <tr><td>f2</td><td>John</td><td>Doe</td><td>vidA</td></tr>
+    <tr><td>f3</td><td>Mary</td><td>Lee</td><td>vidA</td></tr>
+    <tr><td>f4</td><td>Anne</td><td>Kim</td><td>vidB</td></tr>
+    <tr><td><em>NULL</em></td><td>Zoe</td><td>Fox</td><td>vidB</td></tr>
+    <tr><td>f5</td><td>Bob</td><td>Ng</td><td>vidC</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases packed in. Mary Lee flagged <code>vidA</code> <em>twice</em> (<code>f1</code> and <code>f3</code>) &mdash; that is one person, not two. And one <code>vidB</code> row has a <strong>NULL</strong> <code>flag_id</code> &mdash; a row that was never a real flag. Both must be handled or the counts lie.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(DISTINCT concat(first,last))</code></h4>
+<pre><code>select video_id,
+        count(distinct (concat(user_firstname,user_lastname))) as user_count
+from user_flags
+where flag_id is not null
+group by video_id</code></pre>
+<p><code>WHERE flag_id IS NOT NULL</code> drops the non-flag row before counting. <code>concat(user_firstname, user_lastname)</code> builds a per-person key, and <code>COUNT(DISTINCT &hellip;)</code> counts distinct people per video.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>video_id</th><th>user_count</th></tr></thead>
+  <tbody>
+    <tr><td>vidA</td><td>2</td></tr>
+    <tr><td>vidB</td><td>1</td></tr>
+    <tr><td>vidC</td><td>1</td></tr>
+  </tbody>
+</table>
+<p><code>vidA</code> is <strong>2</strong>, not 3: Mary Lee's two flags collapse to one person, joining John Doe. <code>vidB</code> is <strong>1</strong>: Anne Kim counts, but Zoe Fox's NULL-<code>flag_id</code> row was filtered out before counting. The <code>DISTINCT</code> and the <code>WHERE</code> each remove one inflation; drop either and <code>vidA</code> or <code>vidB</code> reads too high.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why count people, not flags</h5>
+<p>"How many users flagged the video" asks for distinct <em>people</em>. <code>COUNT(*)</code> counts flag rows, so Mary Lee's two flags on <code>vidA</code> would score 2 for her alone &mdash; the metric becomes "number of flags", a different question that overstates community concern. <code>COUNT(DISTINCT person)</code> answers the one asked. Always reconcile the count with the noun in the question: "users" &rArr; distinct users.</p>
+
+<h5>The name-concatenation trap &mdash; a fragile identity</h5>
+<p>With no <code>user_id</code>, the solution improvises a key from name parts &mdash; pragmatic, but fragile two ways. First, <strong>collision</strong>: <code>concat('Mary','Lee')</code> and <code>concat('Mar','yLee')</code> both yield <code>'MaryLee'</code>; without a separator, distinct people can merge. Use a delimiter that cannot appear in a name:</p>
+<pre><code>COUNT(DISTINCT user_firstname || '|' || user_lastname)</code></pre>
+<p>Second, <strong>NULL propagation</strong>: in standard SQL <code>||</code> with a NULL operand yields NULL, so a person missing a last name vanishes from the count &mdash; Postgres's <code>concat()</code> function avoids this by treating NULL as empty, but mixing the two behaviours is a known footgun. And two real different people <em>can</em> share a full name &mdash; the only true fix is a stable user id.</p>
+
+<h5>Why <code>flag_id IS NOT NULL</code> matters</h5>
+<p>A NULL <code>flag_id</code> means the row is not an actual flag &mdash; perhaps a placeholder or a join artefact. Counting it would credit <code>vidB</code> with a flagger who never flagged. The <code>WHERE</code> removes it pre-aggregation. Confirm the semantics, though: if NULL <code>flag_id</code> instead meant "flag pending", you might keep it. Either way, decide deliberately rather than letting NULLs drift into the count.</p>
+
+<h5>The videos-with-zero-flags gap</h5>
+<p>This query only ever returns videos that <em>have</em> at least one flag &mdash; a clean, never-flagged video produces no row at all. If the report should show every video with <code>user_count = 0</code> for the quiet ones, you need a <code>videos</code> table and a <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT v.video_id, COUNT(DISTINCT f.user_firstname || '|' || f.user_lastname) AS user_count
+FROM videos v
+LEFT JOIN user_flags f ON f.video_id = v.video_id AND f.flag_id IS NOT NULL
+GROUP BY v.video_id;</code></pre>
+<p>Note the filter moves into the <code>ON</code> clause so the <code>LEFT JOIN</code> still keeps zero-flag videos.</p>
+
+<h5>Ordering and case sensitivity</h5>
+<p>There is no <code>ORDER BY</code>, so row order is undefined &mdash; add <code>ORDER BY user_count DESC, video_id</code> to surface the most-flagged videos first. And the name key is case-sensitive: <code>'mary lee'</code> and <code>'Mary Lee'</code> would count as two; normalise with <code>lower()</code> if the source data is inconsistent.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> count distinct <em>people</em> not flag rows, treat name concatenation as a fragile identity (use a delimiter, beware NULL propagation, prefer a real user id), filter the NULL-<code>flag_id</code> non-flags deliberately, and note that never-flagged videos need a <code>LEFT JOIN</code> from a video table to appear.</div>

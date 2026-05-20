@@ -1,0 +1,52 @@
+<p>A growth team is auditing a user table before launching email campaigns and needs to flag addresses that resolve to the same inbox. Email is case-insensitive in the local-part for practical purposes and entirely case-insensitive in the domain, so <code>A@x.com</code> and <code>a@x.com</code> are one person. The interviewer wants to see you normalise <em>before</em> you group &mdash; not group raw text and miss the duplicates.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>email</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>a@x.com</td><td>lowercase</td></tr>
+    <tr><td>2</td><td>A@X.com</td><td>same inbox as user 1, different casing</td></tr>
+    <tr><td>3</td><td>b@x.com</td><td>unique &mdash; appears once</td></tr>
+    <tr><td>4</td><td>c@x.com</td><td>part of a 3-way duplicate</td></tr>
+    <tr><td>5</td><td>C@X.COM</td><td>same inbox, all caps</td></tr>
+    <tr><td>6</td><td>C@x.com</td><td>same inbox, mixed</td></tr>
+  </tbody>
+</table>
+<p>Three casings of <code>c@x.com</code> exercise a group bigger than two, and <code>b@x.com</code> is the single-occurrence row that must be <em>excluded</em>. Group on raw <code>email</code> and you would wrongly report zero duplicates.</p>
+
+<h4>2. The SQL &mdash; normalise, group, filter with <code>HAVING</code></h4>
+<pre><code>SELECT LOWER(email) AS email_lower, COUNT(*)::int AS occurrences
+FROM users
+GROUP BY LOWER(email)
+HAVING COUNT(*) &gt; 1
+ORDER BY email_lower;</code></pre>
+<p><code>LOWER(email)</code> folds every casing to one canonical key, <code>GROUP BY</code> on that expression buckets the variants together, <code>COUNT(*)</code> tallies each bucket, and <code>HAVING COUNT(*) &gt; 1</code> keeps only buckets with a genuine collision.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>email_lower</th><th>occurrences</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>a@x.com</td><td>2</td><td><code>a@x.com</code> + <code>A@X.com</code> folded together</td></tr>
+    <tr><td>c@x.com</td><td>3</td><td>three casings collapse into one key</td></tr>
+  </tbody>
+</table>
+<p><code>b@x.com</code> is absent &mdash; one occurrence fails <code>HAVING COUNT(*) &gt; 1</code>. The counts (2 and 3) are only correct because the grouping key was lower-cased; on raw text every row would be its own group.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>WHERE</code> vs <code>HAVING</code> &mdash; filtering before vs after the aggregate</h5>
+<p><code>WHERE</code> filters individual rows <em>before</em> grouping; <code>HAVING</code> filters whole groups <em>after</em> the aggregate is computed. "Appears two or more times" is a property of the group, not of any single row, so it can only live in <code>HAVING</code>. A common mistake &mdash; <code>WHERE COUNT(*) &gt; 1</code> &mdash; is a syntax error, because the count does not exist yet at <code>WHERE</code> time.</p>
+
+<h5>Group on the expression, and select the same expression</h5>
+<p>PostgreSQL lets you <code>GROUP BY LOWER(email)</code> and select <code>LOWER(email)</code> &mdash; the grouped expression is a legal output. Selecting the raw <code>email</code> instead would fail ("must appear in GROUP BY"), because within one lower-cased bucket the original column holds several distinct values. The canonical key is the only thing that is single-valued per group.</p>
+
+<h5>Case folding has limits &mdash; collation and Unicode</h5>
+<p><code>LOWER()</code> handles ASCII cleanly but is locale-sensitive for accented or non-Latin characters, and it does <em>not</em> trim whitespace or strip Gmail-style <code>+tags</code> / dots. If the real goal is "same deliverable inbox" you may also need <code>TRIM()</code> and provider-specific normalisation. A case-insensitive <code>COLLATE</code> or <code>CITEXT</code> column is the cleaner long-term fix &mdash; mention it.</p>
+
+<h5>The <code>::int</code> cast is cosmetic but intentional</h5>
+<p><code>COUNT(*)</code> returns <code>bigint</code> in PostgreSQL. Casting to <code>int</code> keeps the API contract tidy and the JSON payload small; it does not change correctness. Know <em>why</em> a cast is there &mdash; here it is presentation, not logic &mdash; so you can defend or drop it deliberately.</p>
+
+<h5>Dialect &mdash; case-insensitivity without <code>LOWER()</code></h5>
+<p>SQL Server's default collations are case-insensitive, so a raw <code>GROUP BY email</code> would already fold cases there &mdash; portable code should still call <code>LOWER()</code> so behaviour does not depend on server collation. MySQL behaves similarly under <code>_ci</code> collations. PostgreSQL is case-sensitive by default, which is why the explicit <code>LOWER()</code> is mandatory here.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> normalise the grouping key with <code>LOWER()</code> <em>before</em> <code>GROUP BY</code> so case variants collapse, use <code>HAVING</code> &mdash; never <code>WHERE</code> &mdash; for the "count &gt; 1" group predicate, select exactly the grouped expression, and call out that true inbox-equality may also need trimming, Unicode-aware collation, or a <code>CITEXT</code> column.</div>

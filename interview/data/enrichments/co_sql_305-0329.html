@@ -1,0 +1,54 @@
+<p>Facebook's "People You May Know" feature is the canonical 2-hop graph problem: <em>friends of my friends, ranked by mutual count</em>. The query is a self-join on the friendships table. The senior conversation: how to handle existing friendships, undirected vs directed edges, and the explosion at scale.</p>
+
+<h4>1. The source data — <code>friendships</code></h4>
+<table><thead><tr><th>user_id</th><th>friend_id</th></tr></thead>
+<tbody><tr><td>1</td><td>2</td></tr><tr><td>2</td><td>3</td></tr><tr><td>1</td><td>4</td></tr><tr><td>4</td><td>3</td></tr></tbody></table>
+<p>User 1 is friends with 2 and 4. Both 2 and 4 are friends with 3. So 3 is a 2-hop neighbor of 1 with mutual count 2.</p>
+
+<h4>2. The SQL — self-join with one-hop intermediate</h4>
+<pre><code>WITH pairs AS (
+  SELECT a.user_id AS me, b.friend_id AS suggested_friend,
+    COUNT(*) AS mutual_friends
+  FROM friendships a
+  JOIN friendships b
+    ON a.friend_id = b.user_id
+   AND a.user_id  != b.friend_id
+  GROUP BY a.user_id, b.friend_id
+)
+SELECT * FROM pairs
+ORDER BY mutual_friends DESC, me, suggested_friend
+LIMIT 20;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 2-hop join in 3 lines</h5>
+<p><code>JOIN friendships b ON a.friend_id = b.user_id</code> says "go from <em>me</em> to my friend <em>a.friend_id</em>, then from there to whoever <em>they're</em> friends with — <em>b.friend_id</em>". The result set is every (me, friend-of-friend) pair, with one row per mutual-friend path. <code>GROUP BY</code> + <code>COUNT</code> gives the mutual count.</p>
+
+<h5>The "exclude existing friends" filter</h5>
+<p>The result includes friends-of-friends who are <em>already</em> direct friends. Production "People You May Know" excludes those:</p>
+<pre><code>WHERE NOT EXISTS (
+  SELECT 1 FROM friendships f
+  WHERE f.user_id = me AND f.friend_id = suggested_friend
+)
+AND me != suggested_friend  -- exclude self</code></pre>
+
+<h5>Undirected vs directed</h5>
+<p>If <code>friendships</code> is undirected (every friendship has two rows: A→B and B→A), the query works as written. If directed (only one row per pair), you need to OR the join condition: <code>(a.friend_id = b.user_id) OR (a.friend_id = b.friend_id)</code>. Get this wrong and you find half the recommendations.</p>
+
+<h5>The cardinality explosion</h5>
+<p>For a graph with avg degree 100 and 3B users, this self-join produces ~30T candidate pairs. Real Meta uses pre-computed materialized 2-hop tables, refreshed nightly via Spark — never the live join. Mention this when asked about scale: "the SQL is correct; in prod we'd batch-precompute".</p>
+
+<h5>The ranking signal stack</h5>
+<p>"Mutual friends" is one signal. Production ranking adds:</p>
+<ul>
+<li><strong>School / employer overlap</strong> — strong predictor</li>
+<li><strong>Geo proximity</strong> — same city/zip</li>
+<li><strong>Profile-view symmetry</strong> — they checked you, you check them</li>
+<li><strong>Negative signals</strong> — blocked / hidden / unfriended</li>
+</ul>
+<p>Mutual count alone produces a noisy rank; adding 5-10 features makes the recommendations dramatically better. The ranker is a learned model; this query just produces the candidate pool.</p>
+
+<h5>The privacy filter — the must-have</h5>
+<p>"PYMK" must respect block lists. Filter out anyone the user has explicitly blocked, hidden, or unfriended. This requires a join to a <code>user_blocks</code> table — easy to forget, catastrophic when you do.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the 2-hop join in one breath, raise the directed-vs-undirected gotcha, name the cardinality explosion at scale (precomputed in prod), and pre-empt privacy/block filters. The mutual-count-as-one-feature framing for the ranking pipeline is the over-the-bar finish.</div>

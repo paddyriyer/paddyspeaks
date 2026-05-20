@@ -1,0 +1,79 @@
+<p>A customer-support team has a fixed budget to give white-glove treatment to its highest-velocity customers, and the analytics team must carve the customer base into spend cohorts. The interviewer is probing a specific senior judgement: <code>NTILE(10)</code> versus <code>PERCENT_RANK()</code>. They look identical on a uniform distribution but diverge sharply on a long-tailed one &mdash; and which you pick depends on whether the consumer needs equal-sized buckets or a true relative rank.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders in L90</th><th>l90_spend</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>$5,700</td><td>whale &mdash; top of the tail</td></tr>
+    <tr><td>2&ndash;3</td><td>2 each</td><td>$3,100 / $2,500</td><td>high spenders</td></tr>
+    <tr><td>10&ndash;14</td><td>2 each</td><td>$850 down to $420</td><td>the long mid-band</td></tr>
+    <tr><td>18</td><td>2</td><td>$190</td><td>lowest qualifying spender</td></tr>
+    <tr><td>19</td><td>1 in window (other order in Dec)</td><td>&mdash;</td><td>fails HAVING &mdash; excluded</td></tr>
+    <tr><td>20</td><td>1 in window (other order in Dec)</td><td>&mdash;</td><td>fails HAVING &mdash; excluded</td></tr>
+  </tbody>
+</table>
+<p>The edge case is customers 19 and 20: each placed two lifetime orders, but one of each pair lands outside the 90-day window before the 2025-04-01 snapshot. They fail <code>HAVING COUNT(*) &gt;= 2</code> and never enter the cohort math &mdash; 18 of the 20 customers qualify.</p>
+
+<h4>2. The SQL &mdash; NTILE deciles vs PERCENT_RANK continuous rank</h4>
+<pre><code>WITH params(snapshot) AS (VALUES ('2025-04-01')),
+agg AS (
+    SELECT customer_id,
+        COUNT(*)              AS l90_orders,
+        ROUND(SUM(amount), 2) AS l90_spend
+    FROM orders
+    WHERE order_date &gt;= date((SELECT snapshot FROM params), '-90 days')
+      AND order_date &lt;  (SELECT snapshot FROM params)
+    GROUP BY customer_id
+    HAVING COUNT(*) &gt;= 2
+),
+ranked AS (
+    SELECT customer_id, l90_orders, l90_spend,
+        NTILE(10) OVER (ORDER BY l90_spend DESC) AS velocity_decile,
+        ROUND(PERCENT_RANK() OVER (ORDER BY l90_spend ASC), 3) AS pct_rank
+    FROM agg
+)
+SELECT customer_id, l90_orders, l90_spend, velocity_decile, pct_rank,
+    CASE
+        WHEN velocity_decile = 1                            THEN 'top_10'
+        WHEN velocity_decile IN (2, 3) AND pct_rank &gt;= 0.75 THEN 'next_15'
+        WHEN velocity_decile BETWEEN 3 AND 7                THEN 'mid_50'
+        ELSE                                                     'bottom_25'
+    END AS cohort
+FROM ranked
+ORDER BY velocity_decile ASC, l90_spend DESC;</code></pre>
+<p>SQLite's <code>date(..., '-90 days')</code> is the dialect form; PostgreSQL writes <code>snapshot - INTERVAL '90 days'</code>. Note the solution computes <code>PERCENT_RANK()</code> over <code>l90_spend ASC</code> (highest spenders near 1.0) and the cohort CASE tests <code>pct_rank &gt;= 0.75</code> &mdash; that is the ascending-order equivalent of "top quartile by spend." The numbers come out correct; it is simply the inverse framing of a descending percentile.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>l90_orders</th><th>l90_spend</th><th>velocity_decile</th><th>pct_rank</th><th>cohort</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>5700.00</td><td>1</td><td>1.000</td><td>top_10</td></tr>
+    <tr><td>2</td><td>2</td><td>3100.00</td><td>1</td><td>0.941</td><td>top_10</td></tr>
+    <tr><td>3</td><td>2</td><td>2500.00</td><td>2</td><td>0.882</td><td>next_15</td></tr>
+    <tr><td>4</td><td>2</td><td>2100.00</td><td>2</td><td>0.824</td><td>next_15</td></tr>
+    <tr><td>5</td><td>2</td><td>1850.00</td><td>3</td><td>0.765</td><td>next_15</td></tr>
+    <tr><td>6</td><td>2</td><td>1650.00</td><td>3</td><td>0.706</td><td>mid_50</td></tr>
+    <tr><td>7&ndash;14</td><td>2 each</td><td>1450 &rarr; 420</td><td>4&ndash;7</td><td>0.647 &rarr; 0.235</td><td>mid_50</td></tr>
+    <tr><td>15&ndash;18</td><td>2 each</td><td>350 &rarr; 190</td><td>8&ndash;10</td><td>0.176 &rarr; 0.000</td><td>bottom_25</td></tr>
+  </tbody>
+</table>
+<p>Customer 5 and 6 land in the <em>same decile (3)</em> yet different cohorts: 5 has <code>pct_rank = 0.765</code> (clears the 0.75 gate, <code>next_15</code>) while 6 sits at <code>0.706</code> and falls to <code>mid_50</code>. That split is the whole point &mdash; the decile is a coarse bucket; <code>pct_rank</code> refines the boundary inside it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>NTILE vs PERCENT_RANK &mdash; the core senior call</h5>
+<p><code>NTILE(10)</code> forces the rows into ten near-equal groups: with 18 customers each decile holds 1 or 2, regardless of how spend is distributed. That is exactly what a <em>fixed budget</em> needs &mdash; "the top 10% cohort" is always <code>ceil(n/10)</code> people. <code>PERCENT_RANK()</code> instead reports each row's relative position as a continuous <code>(rank - 1)/(n - 1)</code> in [0, 1]. On a long-tailed distribution the two disagree: a whale at $5,700 and the next customer at $3,100 are adjacent deciles but a huge percentile jump. For budget allocation, deciles; for trend and relative comparison, percentile. Showing both lets the consumer pick the framing that matches the decision.</p>
+
+<h5>Why <code>PERCENT_RANK</code> always starts at exactly 0</h5>
+<p><code>PERCENT_RANK() = (rank - 1) / (total_rows - 1)</code>. The first row (rank 1) always yields 0; the last always yields 1. Here customer 18, the lowest qualifying spender, gets <code>pct_rank = 0.000</code> and customer 1 gets <code>1.000</code>. That fixed [0,1] span is why percentile is good for cross-period comparison &mdash; the endpoints are anchored even as <em>n</em> changes. Contrast <code>CUME_DIST()</code>, which is <code>(rows &le; current) / total</code> and never returns 0; mixing the two up is a classic interview slip.</p>
+
+<h5>The overlapping-CASE-branch subtlety</h5>
+<p>Decile 3 appears in <em>two</em> branches: <code>velocity_decile IN (2,3)</code> and <code>velocity_decile BETWEEN 3 AND 7</code>. That is not a bug &mdash; <code>CASE</code> evaluates top-down and stops at the first match, so a decile-3 customer is tested against the <code>next_15</code> gate first; only if <code>pct_rank &lt; 0.75</code> does it fall through to <code>mid_50</code>. The ordering of CASE branches <em>is</em> the tie-break logic. Reordering them would silently reclassify customers &mdash; the interviewer may probe whether you noticed the overlap is intentional.</p>
+
+<h5>Dialect notes &mdash; date math and NTILE remainder distribution</h5>
+<p>SQLite's <code>date(d, '-90 days')</code> becomes <code>d - INTERVAL '90 days'</code> in PostgreSQL, <code>DATE_SUB(d, INTERVAL 90 DAY)</code> in MySQL, <code>DATE_SUB(d, INTERVAL 90 DAY)</code> in BigQuery. A subtler portability point: when row count is not divisible by the bucket count, <code>NTILE</code> puts the extra rows in the <em>lower-numbered</em> buckets &mdash; standard and consistent across PostgreSQL, SQL Server, Oracle, and Snowflake, but worth stating so nobody is surprised that decile 1 has one more customer than decile 10.</p>
+
+<h5>What a senior says next</h5>
+<p>"Deciles are unstable week to week &mdash; if three customers churn, everyone's decile shifts even though their spend did not. For a trend dashboard I would rank against a <em>fixed</em> spend threshold rather than a moving population, or report the raw <code>pct_rank</code> so movement reflects real behaviour, not just changes in the denominator."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the NTILE-vs-PERCENT_RANK trade-off (equal buckets for fixed budgets, continuous rank for trends) and recommend exposing both, know that <code>PERCENT_RANK</code> spans exactly [0,1] while <code>CUME_DIST</code> never hits 0, recognise the overlapping decile-3 CASE branches as deliberate top-down tie-breaking, and flag that decile membership is unstable as the population changes.</div>

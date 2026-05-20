@@ -1,0 +1,58 @@
+<p>Coinbase's compensation team is modelling next year's payroll: each employee has a base salary and a <em>projected raise percentage</em>, and finance wants the projected new salary. The catch the interviewer planted &mdash; <code>projected_pct</code> arrived as messy text ("5%", "7.5"), and some employees have no projection at all.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th><th>projected_pct</th><th>job_title</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100000</td><td>10</td><td>Engineer</td></tr>
+    <tr><td>2</td><td>80000</td><td>5%</td><td>Analyst</td></tr>
+    <tr><td>3</td><td>120000</td><td><em>NULL</em></td><td>Manager</td></tr>
+    <tr><td>4</td><td>90000</td><td>7.5</td><td>Engineer</td></tr>
+  </tbody>
+</table>
+<p>Three quirks in four rows: employee 2's percent carries a stray <code>%</code> sign, employee 4's is a decimal, and <strong>employee 3 has no projection at all</strong> (<code>NULL</code>). Those messy and missing values are the entire interview.</p>
+
+<h4>2. The SQL &mdash; <code>salary &times; (1 + pct/100)</code></h4>
+<pre><code>SELECT emp_id, salary,
+  salary * (
+    1 + NULLIF(regexp_replace(projected_pct::text, '[^-.0-9]', '', 'g'), '')::numeric
+        / 100.0
+  ) AS projected
+FROM employees;</code></pre>
+<p><code>regexp_replace</code> strips <code>projected_pct</code> down to digits, sign and decimal point; <code>NULLIF(&hellip;, '')</code> handles a value that cleans to nothing; the cleaned percent is divided by 100 and applied as a growth factor.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th><th>projected</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100000</td><td>110000.00000000000000000000</td></tr>
+    <tr><td>2</td><td>80000</td><td>84000.00000000000000000000</td></tr>
+    <tr><td>3</td><td>120000</td><td><em>NULL</em></td></tr>
+    <tr><td>4</td><td>90000</td><td>96750.00000000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Employee 1: 100000 &times; 1.10 = 110000. Employee 2's <code>"5%"</code> cleaned to <code>5</code> &rarr; 84000. Employee 4's 7.5% &rarr; 96750. Employee 3 returns <strong>NULL</strong>: with no projection, <code>1 + NULL/100</code> is NULL, and <code>salary &times; NULL</code> is NULL &mdash; the missing input propagates straight to the output.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The NULL employee &mdash; the decision the interviewer is waiting for</h5>
+<p>Employee 3's <code>NULL</code> projected salary is <em>arithmetically</em> correct &mdash; an unknown raise gives an unknown new salary. But a payroll model that drops an employee's number is useless: a <code>SUM(projected)</code> for the budget would be poisoned to NULL by that one row. Decide what "no projection" means and encode it. If it means "no raise", default the percent to 0:</p>
+<pre><code>salary * (1 + COALESCE(
+  NULLIF(regexp_replace(projected_pct::text, '[^-.0-9]', '', 'g'), '')::numeric, 0
+) / 100.0) AS projected
+-- employee 3 now projects 120000 (a 0% raise) instead of NULL</code></pre>
+<p>NULL-propagation is the default; whether to keep it or <code>COALESCE</code> it to a 0% raise is a business call &mdash; make it explicitly.</p>
+
+<h5>Why <code>NULLIF(&hellip;, '')</code> is not optional</h5>
+<p>If <code>projected_pct</code> holds a blank string or text with no digits (<code>"TBD"</code>, <code>"n/a"</code>), <code>regexp_replace</code> returns the empty string <code>''</code> &mdash; and <code>''::numeric</code> raises <code>invalid input syntax for type numeric</code>, aborting the whole query. <code>NULLIF(cleaned, '')</code> converts that empty result to <code>NULL</code> <em>before</em> the cast, so a junk value degrades one row to NULL instead of killing the report. It is a guard against the cast, distinct from the missing-value question above.</p>
+
+<h5>The text-column code smell &mdash; and the dialect note</h5>
+<p>All the <code>regexp_replace</code> scaffolding exists only because <code>projected_pct</code> is stored as <em>text</em> with inconsistent formatting (<code>"5%"</code> vs <code>"10"</code>). If it were a proper <code>numeric</code> column, the query collapses to <code>salary * (1 + projected_pct / 100.0)</code>. Flag the upstream typing as the real bug: defensive parsing in a query is a symptom, not a fix. (The <code>regexp_replace(&hellip;, 'g')</code> here is standard Postgres; other engines spell the global-replace flag differently, but the technique ports.)</p>
+
+<h5>Integer division &mdash; why <code>100.0</code> not <code>100</code></h5>
+<p>The divisor is written <code>100.0</code> on purpose. Had the cleaned value been cast to <code>integer</code> and divided by an integer <code>100</code>, <code>5 / 100</code> would truncate to <code>0</code> and <em>every</em> projection would equal the base salary &mdash; a silent, total failure of the model. Casting to <code>numeric</code> and dividing by <code>100.0</code> keeps the fractional percent intact. Always make at least one operand non-integer in a ratio.</p>
+
+<h5>Negatives, rounding, and the redundant columns</h5>
+<p>The regex keeps a leading <code>-</code>, so a <code>"-3"</code> projected_pct correctly models a pay <em>cut</em> &mdash; confirm with finance whether negative projections are expected or a data error. Also, the raw output carries a long fractional tail; payroll wants currency precision, so wrap it: <code>ROUND(&hellip;, 2)</code>. And the wide schema ships <code>salary</code> alongside many other columns &mdash; verify <code>salary</code> is the base figure the raise should apply to, not a column that already includes a bonus.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the NULL projection propagates to a NULL salary and decide deliberately whether to <code>COALESCE</code> it to a 0% raise, keep <code>NULLIF(&hellip;, '')</code> as a guard against the empty-string cast error, divide by <code>100.0</code> to dodge integer truncation, and call out the text-typed percentage column as the upstream bug the regex is papering over.</div>

@@ -1,0 +1,94 @@
+<p>Project management and ERP systems need total cost rollups: <em>"For every project, compute the duration in days, the number of distinct employees assigned, total labor cost (hours &times; rate), total equipment cost, and the grand total &mdash; even for projects that have no labor or no equipment."</em> This question probes LEFT JOIN handling, <code>COALESCE</code> for NULL-to-zero conversion, the dangerous <code>SUM(DISTINCT ...)</code> pattern, and correct date-arithmetic in SQL.</p>
+
+<h4>1. The source data &mdash; <code>projects</code>, <code>assignments</code>, <code>equipment_costs</code></h4>
+<table>
+  <thead><tr><th>project_id</th><th>name</th><th>start_date</th><th>end_date</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>Alpha Build</td><td>2025-01-01</td><td>2025-03-31</td><td>active</td></tr>
+    <tr><td>P2</td><td>Beta Launch</td><td>2025-02-01</td><td>2025-04-30</td><td>active</td></tr>
+    <tr><td>P3</td><td>Gamma Study</td><td>2025-03-01</td><td>2025-05-31</td><td>active</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>project_id</th><th>emp_id</th><th>hours</th><th>hourly_rate</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>E1</td><td>80</td><td>50</td></tr>
+    <tr><td>P1</td><td>E2</td><td>60</td><td>40</td></tr>
+    <tr><td>P2</td><td>E1</td><td>100</td><td>50</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>project_id</th><th>equipment_id</th><th>cost</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>EQ1</td><td>2000</td></tr>
+    <tr><td>P1</td><td>EQ2</td><td>1500</td></tr>
+    <tr><td>P3</td><td>EQ3</td><td>5000</td></tr>
+  </tbody>
+</table>
+<p>P2 has labor but no equipment. P3 has equipment but no labor. P1 has both. These three cases exercise every LEFT JOIN branch.</p>
+
+<h4>2. The SQL &mdash; multi-table LEFT JOIN with <code>COALESCE</code> and <code>SUM(DISTINCT)</code></h4>
+<pre><code>SELECT p.project_id, p.name,
+       (p.end_date::date - p.start_date::date) AS duration_days,
+       COUNT(DISTINCT a.emp_id) AS employees,
+       COALESCE(SUM(a.hours::numeric * a.hourly_rate::numeric), 0) AS labor_cost,
+       COALESCE(SUM(DISTINCT e.cost::numeric), 0) AS equipment_cost,
+       COALESCE(SUM(a.hours::numeric * a.hourly_rate::numeric), 0)
+         + COALESCE(SUM(DISTINCT e.cost::numeric), 0) AS total_cost
+FROM projects p
+LEFT JOIN assignments      a ON p.project_id = a.project_id
+LEFT JOIN equipment_costs  e ON p.project_id = e.project_id
+GROUP BY p.project_id, p.name, p.start_date, p.end_date
+ORDER BY total_cost DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>project_id</th><th>name</th><th>duration_days</th><th>employees</th><th>labor_cost</th><th>equipment_cost</th><th>total_cost</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td>Alpha Build</td><td>89</td><td>2</td><td>6400</td><td>3500</td><td>9900</td></tr>
+    <tr><td>P3</td><td>Gamma Study</td><td>91</td><td>0</td><td>0</td><td>5000</td><td>5000</td></tr>
+    <tr><td>P2</td><td>Beta Launch</td><td>88</td><td>1</td><td>5000</td><td>0</td><td>5000</td></tr>
+  </tbody>
+</table>
+<p>P1 labor: E1 80&times;50=4000, E2 60&times;40=2400, total 6400. P1 equipment: DISTINCT EQ1 cost 2000 + EQ2 cost 1500 = 3500. P2 labor: 100&times;50=5000; equipment LEFT JOIN produces NULL &rarr; COALESCE to 0. P3 has no assignments &rarr; labor COALESCE to 0. Duration: Jan 1 to Mar 31 = 89 days (31+28+31-1); Feb 1 to Apr 30 = 88 days; Mar 1 to May 31 = 91 days. P3 and P2 tie at total_cost 5000; ordering between them is engine-defined.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why both joins must be LEFT JOIN</h5>
+<p>If either join were INNER, projects with no employees or no equipment would vanish from the result. The question explicitly requires all projects. The pattern is: start with the anchor table (<code>projects</code>) and LEFT JOIN all optional fact tables so the anchor always appears. NULL values in LEFT JOIN non-matching rows are then neutralised by <code>COALESCE(..., 0)</code>.</p>
+
+<h5>The <code>SUM(DISTINCT e.cost)</code> hazard</h5>
+<p>When both LEFT JOINs are active simultaneously, the Cartesian product of assignments and equipment rows inflates the row count: P1 has 2 assignment rows &times; 2 equipment rows = 4 intermediate rows. If <code>SUM(e.cost)</code> were used without <code>DISTINCT</code>, each equipment cost would be counted twice (once per assignment row). <code>SUM(DISTINCT e.cost)</code> deduplicates the costs before summing. This is a well-known multi-join aggregation trap. The production-safe alternative is to pre-aggregate each table in a CTE before joining, avoiding the row multiplication entirely.</p>
+
+<h5>The production-safe CTE alternative</h5>
+<pre><code>WITH lab AS (
+  SELECT project_id,
+         COUNT(DISTINCT emp_id) AS employees,
+         SUM(hours::numeric * hourly_rate::numeric) AS labor_cost
+  FROM assignments GROUP BY project_id
+),
+equip AS (
+  SELECT project_id, SUM(cost::numeric) AS equipment_cost
+  FROM equipment_costs GROUP BY project_id
+)
+SELECT p.project_id, p.name,
+       (p.end_date::date - p.start_date::date) AS duration_days,
+       COALESCE(lab.employees, 0)       AS employees,
+       COALESCE(lab.labor_cost, 0)      AS labor_cost,
+       COALESCE(equip.equipment_cost, 0) AS equipment_cost,
+       COALESCE(lab.labor_cost, 0) + COALESCE(equip.equipment_cost, 0) AS total_cost
+FROM projects p
+LEFT JOIN lab   ON p.project_id = lab.project_id
+LEFT JOIN equip ON p.project_id = equip.project_id
+ORDER BY total_cost DESC;</code></pre>
+<p>This removes the <code>SUM(DISTINCT)</code> danger and is cleaner to read. The CTE approach is preferred in production; knowing both patterns &mdash; and being able to explain why the direct form needs <code>DISTINCT</code> &mdash; is the senior signal.</p>
+
+<h5>Date arithmetic: Postgres vs Snowflake</h5>
+<ul>
+  <li><strong>Postgres (solution dialect):</strong> <code>date - date</code> returns an integer number of days directly &mdash; the <code>::date</code> cast normalises timestamp columns.</li>
+  <li><strong>Snowflake:</strong> <code>DATEDIFF('day', start_date, end_date)</code> or <code>end_date::date - start_date::date</code> (same subtraction works).</li>
+  <li><strong>BigQuery:</strong> <code>DATE_DIFF(end_date, start_date, DAY)</code>.</li>
+  <li><strong>MySQL:</strong> <code>DATEDIFF(end_date, start_date)</code>.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify the multi-join row-multiplication problem that makes <code>SUM(DISTINCT e.cost)</code> necessary, explain why this is dangerous (duplicate cost values would be merged even if two different equipment items cost the same amount), and immediately offer the CTE pre-aggregation pattern as the correct production alternative. Also state that both LEFT JOINs are required so projects with no labor or no equipment still appear.</div>

@@ -1,0 +1,53 @@
+<p>Stripe's most-trusted-by-finance query: per-merchant <strong>charges − refunds = expected_payout</strong>, compared to <strong>actual_payout</strong>. The diff column shows reconciliation errors. Every accounting closing process runs this.</p>
+
+<h4>1. The source data — <code>charges</code> + <code>refunds</code> + <code>payouts</code></h4>
+<table><thead><tr><th colspan="2">charges</th><th colspan="2">refunds</th><th colspan="2">payouts</th></tr></thead>
+<tbody><tr><td>C_01</td><td>M_01 / $100</td><td>R_01</td><td>C_01 / $20</td><td>P_01</td><td>M_01 / $80</td></tr></tbody></table>
+
+<h4>2. The SQL — multi-table net + diff</h4>
+<pre><code>WITH net AS (
+  SELECT c.merchant_id,
+    ROUND(SUM(c.amount), 2) AS gross_charges,
+    ROUND(COALESCE(SUM(r.amount), 0), 2) AS gross_refunds,
+    ROUND(SUM(c.amount) - COALESCE(SUM(r.amount), 0), 2) AS expected_payout
+  FROM charges c LEFT JOIN refunds r ON r.charge_id = c.charge_id
+  GROUP BY c.merchant_id
+)
+SELECT n.merchant_id, n.gross_charges, n.gross_refunds, n.expected_payout,
+  ROUND(COALESCE(SUM(p.amount), 0), 2) AS actual_payout,
+  ROUND(n.expected_payout - COALESCE(SUM(p.amount), 0), 2) AS reconciliation_diff
+FROM net n LEFT JOIN payouts p ON p.merchant_id = n.merchant_id
+GROUP BY n.merchant_id, n.gross_charges, n.gross_refunds, n.expected_payout
+ORDER BY ABS(reconciliation_diff) DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The double-LEFT-JOIN</h5>
+<p>charges → refunds (one-to-many; some charges aren't refunded) and net → payouts (one merchant, multiple payouts). Both must be LEFT to keep merchants who haven't been refunded or paid out yet.</p>
+
+<h5>The COALESCE around SUM</h5>
+<p>If a merchant has no refunds, <code>SUM(r.amount)</code> returns NULL — and <code>charges - NULL = NULL</code>. <code>COALESCE(SUM(r.amount), 0)</code> ensures arithmetic continues. Same for payouts.</p>
+
+<h5>The reconciliation_diff interpretation</h5>
+<table><thead><tr><th>diff sign</th><th>meaning</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>perfect match — expected</td></tr>
+<tr><td>+ (positive)</td><td>expected &gt; actual: payout under-disbursed (Stripe owes merchant)</td></tr>
+<tr><td>− (negative)</td><td>actual &gt; expected: payout over-disbursed (merchant owes Stripe)</td></tr>
+</tbody></table>
+
+<h5>The fee-and-tax adjustment</h5>
+<p>Real payout = gross − refunds − Stripe fees − reverse holds. The query above ignores fees. Production:</p>
+<pre><code>expected_payout = gross_charges - gross_refunds - SUM(stripe_fees) - SUM(reverse_holds)</code></pre>
+
+<h5>The currency mismatch</h5>
+<p>Multi-currency merchants need FX-adjusted reconciliation. A charge in EUR and payout in USD must use the at-time-of-payout FX rate. The diff includes FX gain/loss, not just a real discrepancy.</p>
+
+<h5>The timing window</h5>
+<p>Charges arrive continuously; payouts run on a schedule (daily/weekly). At any moment there's a "pending" amount — charges not yet paid out. The reconciliation needs a time cutoff:</p>
+<pre><code>WHERE c.charged_at &lt;= '2024-03-01' AND p.paid_at &lt;= '2024-03-08'</code></pre>
+
+<h5>The threshold that pages</h5>
+<p>diff &lt; $1 = rounding noise. diff &gt; $100 = investigate. Production paged on |diff| &gt; $100 with a SLA to resolve within 24 hours.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> double-LEFT-JOIN with COALESCE-around-SUM, interpret diff direction (under-pay vs over-pay), include fees + FX in real reconciliation, pin a time cutoff for in-flight charges, and define the "investigate" threshold. Currency-mismatch handling is the over-the-bar correctness move.</div>

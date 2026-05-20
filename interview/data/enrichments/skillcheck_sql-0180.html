@@ -1,0 +1,72 @@
+<p>Identifying employees who are globally well-paid but underperform within their own elite department surfaces a paradox common in high-compensation fields: someone earning the 60th percentile company-wide can still be in the bottom third of their team if that team is very well-paid. The interviewer is probing whether you can apply two <code>CUME_DIST</code> window functions with different partition scopes to the same row, and whether you understand the semantics of each &mdash; particularly that <code>CUME_DIST</code> returns the fraction of rows <em>at or below</em> the current row, which differs from PERCENT_RANK.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>180</td></tr>
+    <tr><td>2</td><td>A</td><td>200</td></tr>
+    <tr><td>3&ndash;10</td><td>A</td><td>300, 310, 320, 330, 340, 350, 360, 370</td></tr>
+    <tr><td>11&ndash;15</td><td>B</td><td>60, 70, 80, 90, 100</td></tr>
+    <tr><td>16&ndash;20</td><td>C</td><td>40, 50, 55, 58, 62</td></tr>
+  </tbody>
+</table>
+<p>Dept A is elite: even its two lowest earners (emp 1 at 180, emp 2 at 200) are far above all of dept B and C. The question is whether any dept A employee who earns more than the bottom half of the company is nonetheless in the bottom 30% of dept A.</p>
+
+<h4>2. The SQL &mdash; dual CUME_DIST with different scopes</h4>
+<pre><code>WITH r AS (
+  SELECT emp_id, dept, salary,
+         CUME_DIST() OVER (ORDER BY salary) AS company_pct,
+         CUME_DIST() OVER (PARTITION BY dept ORDER BY salary) AS dept_pct
+  FROM employee
+)
+SELECT emp_id, dept, salary,
+       ROUND(company_pct::numeric, 2) AS company_pct,
+       ROUND(dept_pct::numeric, 2) AS dept_pct
+FROM r
+WHERE company_pct &gt; 0.50 AND dept_pct &lt;= 0.30
+ORDER BY emp_id;</code></pre>
+<p>The first <code>CUME_DIST</code> has no <code>PARTITION BY</code>, so it ranks across all 20 employees. The second is partitioned by <code>dept</code>, ranking within each department's own pay scale. The <code>WHERE</code> clause keeps only employees who clear the global median (<code>company_pct &gt; 0.50</code>) but fall in the bottom 30% of their department (<code>dept_pct &le; 0.30</code>).</p>
+
+<h4>3. The resulting analysis</h4>
+<p>All 20 salaries sorted ascending: 40, 50, 55, 58, 60, 62, 70, 80, 90, 100, 180, 200, 300, 310, 320, 330, 340, 350, 360, 370. With 20 rows, <code>CUME_DIST = rank / 20</code> where rank is the count of rows &le; that salary.</p>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th><th>company rank</th><th>company_pct</th><th>dept rank</th><th>dept size</th><th>dept_pct</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>180</td><td>11</td><td>0.55</td><td>1</td><td>10</td><td>0.10</td></tr>
+    <tr><td>2</td><td>A</td><td>200</td><td>12</td><td>0.60</td><td>2</td><td>10</td><td>0.20</td></tr>
+    <tr><td>3</td><td>A</td><td>300</td><td>13</td><td>0.65</td><td>3</td><td>10</td><td>0.30</td></tr>
+    <tr><td>4</td><td>A</td><td>310</td><td>14</td><td>0.70</td><td>4</td><td>10</td><td>0.40</td></tr>
+    <tr><td>&hellip;</td><td>A</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr>
+    <tr><td>11</td><td>B</td><td>60</td><td>5</td><td>0.25</td><td>1</td><td>5</td><td>0.20</td></tr>
+    <tr><td>12</td><td>B</td><td>70</td><td>7</td><td>0.35</td><td>2</td><td>5</td><td>0.40</td></tr>
+    <tr><td>16</td><td>C</td><td>40</td><td>1</td><td>0.05</td><td>1</td><td>5</td><td>0.20</td></tr>
+  </tbody>
+</table>
+<p>Company-wide rank 11 = salary 180 (11 employees earn &le; 180 out of 20). Note: salary 60 (emp 11, dept B) has company rank 5 because 5 employees earn &le; 60 (40, 50, 55, 58, 60); but 62 (emp 20) earns 62 &gt; 60, so rank 5 is correct. Employees in dept B and C all have company_pct &le; 0.50 (the highest in B is salary 100, rank 10 = 0.50, which is not strictly &gt; 0.50). So only dept A employees can qualify for the company_pct &gt; 0.50 condition.</p>
+<p>Within dept A (10 employees), the bottom 30% means dept_pct &le; 0.30 &rarr; the first 3 employees by salary: emp 1 (180, dept_pct=0.10), emp 2 (200, dept_pct=0.20), emp 3 (300, dept_pct=0.30).</p>
+<p>All three also have company_pct &gt; 0.50 (0.55, 0.60, 0.65 respectively). Final output:</p>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>salary</th><th>company_pct</th><th>dept_pct</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>A</td><td>180</td><td>0.55</td><td>0.10</td></tr>
+    <tr><td>2</td><td>A</td><td>200</td><td>0.60</td><td>0.20</td></tr>
+    <tr><td>3</td><td>A</td><td>300</td><td>0.65</td><td>0.30</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>CUME_DIST</code> vs <code>PERCENT_RANK</code></h5>
+<p><code>CUME_DIST</code> for a row = (number of rows with value &le; current row) / (total rows in partition). It is always in (0, 1] and the highest-valued row always gets 1.0. <code>PERCENT_RANK</code> = (rank &minus; 1) / (total rows &minus; 1); the lowest row gets 0.0 and the highest gets 1.0. For a "top half" threshold, <code>CUME_DIST &gt; 0.50</code> means more than half the partition earns &le; this salary &mdash; i.e. this employee earns more than the median. Using <code>PERCENT_RANK</code> would give a slightly different boundary and would exclude the median exactly; the choice should match the business definition.</p>
+
+<h5>Boundary behaviour: <code>&le; 0.30</code> vs <code>&lt; 0.30</code></h5>
+<p>The filter uses <code>dept_pct &le; 0.30</code>, so emp 3 (dept_pct exactly 0.30) is included. With <code>&lt; 0.30</code>, emp 3 would be excluded. In a 10-person department, exactly the 3rd employee by salary lands at dept_pct = 0.30, so the operator choice matters. The question specifies "bottom 30%" which is conventionally inclusive, matching <code>&le; 0.30</code>. Always confirm the boundary convention with the interviewer.</p>
+
+<h5>Why <code>ROUND</code> appears only in the outer SELECT, not in the WHERE clause</h5>
+<p>Rounding in the <code>WHERE</code> predicate would compare rounded percentages, which can introduce boundary errors (a true 0.305 rounds to 0.31 and is excluded; a true 0.304 rounds to 0.30 and is included). The <code>WHERE</code> clause compares the full-precision <code>CUME_DIST</code> value; <code>ROUND</code> is deferred to the display columns. The CTE materialises the unrounded values, so the outer query accesses them correctly.</p>
+
+<h5>Performance: two window functions on the same table</h5>
+<p>Most optimisers execute each distinct window specification (different <code>PARTITION BY</code> or <code>ORDER BY</code>) as a separate sort-and-scan pass. Here there are two specifications (no partition and partition-by-dept), so expect two sort operations. On very large employee tables, pre-aggregating company-wide salary percentiles in a separate CTE and joining can reduce redundant work, though the query is typically fast enough for the sizes where this pattern is used.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> apply two <code>CUME_DIST</code> calls with different <code>PARTITION BY</code> scopes in one CTE; explain the difference from <code>PERCENT_RANK</code> (CUME_DIST never reaches 0, always reaches 1); keep <code>ROUND</code> out of the filter; and confirm with the interviewer whether the 30% boundary is inclusive or exclusive.</div>

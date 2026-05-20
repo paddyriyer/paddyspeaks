@@ -1,0 +1,71 @@
+<p>GitHub's finance team runs a quarterly review: for each department and fiscal year, how much did we budget, how much did we actually spend, and what is the variance &mdash; in absolute dollars and as a percentage of budget? The query also needs to surface departments that had <em>no expenses at all</em> (a <code>LEFT JOIN</code>) and must guard against division by zero when the budgeted amount is zero. This is a four-skill test: <code>LEFT JOIN</code>, <code>COALESCE</code> for NULL-safe aggregation, <code>CASE WHEN</code> for division-guard, and <code>ORDER BY ABS(...)</code> to surface the most alarming variances first.</p>
+
+<h4>1. The source data &mdash; <code>budgets</code> and <code>expenses</code></h4>
+<table>
+  <thead><tr><th>dept_id</th><th>fiscal_year</th><th>budgeted</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>2024</td><td>100000</td></tr>
+    <tr><td>20</td><td>2024</td><td>80000</td></tr>
+    <tr><td>30</td><td>2024</td><td>60000</td></tr>
+    <tr><td>40</td><td>2024</td><td>0</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>expense_id</th><th>dept_id</th><th>fiscal_year</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>10</td><td>2024</td><td>95000</td></tr>
+    <tr><td>E02</td><td>10</td><td>2024</td><td>12000</td></tr>
+    <tr><td>E03</td><td>20</td><td>2024</td><td>70000</td></tr>
+    <tr><td>E04</td><td>30</td><td>2024</td><td>65000</td></tr>
+  </tbody>
+</table>
+<p>Dept 40 has a zero budget and no expenses. Dept 10 goes over budget (107 000 actual vs 100 000 budgeted). Dept 20 is under (70 000 vs 80 000). Dept 30 is slightly over (65 000 vs 60 000).</p>
+
+<h4>2. The SQL &mdash; LEFT JOIN + COALESCE + CASE WHEN variance analysis</h4>
+<pre><code>SELECT b.dept_id, b.fiscal_year,
+       b.budgeted::numeric AS budgeted,
+       COALESCE(SUM(e.amount::numeric), 0) AS actual,
+       b.budgeted::numeric - COALESCE(SUM(e.amount::numeric), 0) AS variance,
+       CASE WHEN b.budgeted::numeric = 0 THEN NULL
+            ELSE 100.0 * (COALESCE(SUM(e.amount::numeric), 0) - b.budgeted::numeric) / b.budgeted::numeric
+       END AS variance_pct
+FROM budgets b
+LEFT JOIN expenses e
+       ON b.dept_id     = e.dept_id
+      AND b.fiscal_year = e.fiscal_year
+GROUP BY b.dept_id, b.fiscal_year, b.budgeted
+ORDER BY ABS(b.budgeted::numeric - COALESCE(SUM(e.amount::numeric), 0)) DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>fiscal_year</th><th>budgeted</th><th>actual</th><th>variance</th><th>variance_pct</th></tr></thead>
+  <tbody>
+    <tr><td>20</td><td>2024</td><td>80000</td><td>70000</td><td>10000</td><td>-12.50</td></tr>
+    <tr><td>10</td><td>2024</td><td>100000</td><td>107000</td><td>-7000</td><td>7.00</td></tr>
+    <tr><td>30</td><td>2024</td><td>60000</td><td>65000</td><td>-5000</td><td>8.33...</td></tr>
+    <tr><td>40</td><td>2024</td><td>0</td><td>0</td><td>0</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p><code>ABS(variance)</code>: dept 20 = 10 000 (largest), dept 10 = 7 000, dept 30 = 5 000, dept 40 = 0. The <code>ORDER BY ABS(...) DESC</code> therefore places dept 20 first. Dept 40 shows <code>variance_pct = NULL</code> because its budget is zero.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why LEFT JOIN &mdash; not INNER JOIN</h5>
+<p>A department may exist in <code>budgets</code> with no rows in <code>expenses</code> (dept 40 here). An <code>INNER JOIN</code> would silently drop it. The <code>LEFT JOIN</code> keeps all budget rows; the <code>expenses</code> columns come back as NULL for unmatched departments. <code>SUM(NULL)</code> returns NULL, so without <code>COALESCE</code> the actual and variance columns would also be NULL for dept 40. <code>COALESCE(SUM(e.amount::numeric), 0)</code> converts that to zero, which is correct.</p>
+
+<h5>The JOIN condition spans two columns</h5>
+<p>The join uses both <code>dept_id</code> and <code>fiscal_year</code> in the <code>ON</code> clause. Without <code>fiscal_year</code>, dept 10&rsquo;s 2024 expenses would match its 2023 budget rows (if they existed), producing wildly wrong aggregates. This multi-column join key is the natural key for the budget entity and must appear completely in the join.</p>
+
+<h5>COALESCE inside ORDER BY</h5>
+<p>The <code>ORDER BY</code> clause re-evaluates <code>ABS(b.budgeted::numeric - COALESCE(SUM(...), 0))</code> rather than referencing the alias <code>variance</code>. Standard SQL allows alias references in <code>ORDER BY</code> (Snowflake, Postgres, MySQL all support it), so this could be written as <code>ORDER BY ABS(variance) DESC</code> for clarity. The long form works universally but is harder to read.</p>
+
+<h5>Division-by-zero guard with CASE WHEN</h5>
+<p>Dividing by a budget of zero produces a runtime error or infinity depending on the engine. The <code>CASE WHEN b.budgeted::numeric = 0 THEN NULL</code> guard makes the percentage NULL for zero-budget rows &mdash; semantically correct (a percentage of zero has no meaning) and avoids the error. An alternative is <code>NULLIF(b.budgeted, 0)</code> in the denominator: <code>100.0 * (...) / NULLIF(b.budgeted::numeric, 0)</code>. Both are valid; <code>NULLIF</code> is more concise.</p>
+
+<h5>The ::numeric cast</h5>
+<p>The casts (<code>::numeric</code>) suggest the columns may be stored as <code>TEXT</code> or an integer type and the author wants to ensure decimal precision. In Snowflake this is idiomatic; in standard SQL the equivalent is <code>CAST(col AS NUMERIC)</code>. If <code>budgeted</code> and <code>amount</code> are already <code>NUMERIC</code> or <code>FLOAT</code>, the casts are redundant but harmless.</p>
+
+<h5>Dialect notes</h5>
+<p>The query uses Postgres/Snowflake <code>::numeric</code> cast syntax and standard aggregation. In BigQuery use <code>SAFE_DIVIDE(numerator, denominator)</code> instead of the <code>CASE WHEN</code> guard &mdash; it returns NULL on divide-by-zero natively. MySQL does not have <code>::</code> casts; use <code>CAST(col AS DECIMAL(14,2))</code>. The <code>COALESCE</code> pattern for NULL-safe aggregation is portable across all major engines.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately reach for <code>LEFT JOIN</code> when the driving table (budgets) must survive with no matches, wrap the aggregate in <code>COALESCE(..., 0)</code> so NULL rows produce a meaningful zero, guard division by zero with <code>NULLIF</code> or <code>CASE WHEN</code>, and sort by <code>ABS(variance)</code> to surface the most operationally significant rows first. The BigQuery <code>SAFE_DIVIDE</code> callout shows dialect awareness that matters at senior level.</div>

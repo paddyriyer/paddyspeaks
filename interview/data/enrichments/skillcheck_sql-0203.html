@@ -1,0 +1,58 @@
+<p>Fetching the latest row per group is one of the most common SQL patterns in production systems &mdash; current price, most recent status, last known location. PostgreSQL's <code>DISTINCT ON</code> handles it elegantly in a single scan. This question sharpens the challenge with a tie-breaking rule: when two rows share the same timestamp, prefer the alphabetically last <code>source</code> &mdash; testing whether you understand the coupling between the <code>DISTINCT ON</code> columns, the <code>ORDER BY</code> key, and the tie-breaker.</p>
+
+<h4>1. The source data &mdash; <code>price_change</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>changed_at</th><th>price</th><th>source</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 10:00</td><td>9.99</td><td>manual</td></tr>
+    <tr><td>1</td><td>2025-02-01 10:00</td><td>8.50</td><td>feed</td></tr>
+    <tr><td>1</td><td>2025-02-01 10:00</td><td>8.75</td><td>manual</td></tr>
+    <tr><td>2</td><td>2025-01-15 09:00</td><td>20.00</td><td>feed</td></tr>
+  </tbody>
+</table>
+<p>Product 1 has two rows tied at <code>2025-02-01 10:00</code>: sources "feed" and "manual". Alphabetically, "manual" &gt; "feed" (m &gt; f), so "manual" wins the tie. Product 2 has a single row &mdash; no tie-breaking needed.</p>
+
+<h4>2. The SQL &mdash; DISTINCT ON with compound ORDER BY</h4>
+<pre><code>SELECT DISTINCT ON (product_id)
+  product_id, price::float8 AS price, source
+FROM price_change
+ORDER BY product_id, changed_at DESC, source DESC;</code></pre>
+<p><code>DISTINCT ON (product_id)</code> keeps exactly one row per <code>product_id</code> &mdash; whichever row appears first after <code>ORDER BY</code>. The ORDER BY sorts by timestamp descending first (latest timestamp wins), then by source descending (alphabetically last source wins ties). The <code>product_id</code> must appear first in the ORDER BY to satisfy PostgreSQL's requirement that DISTINCT ON columns lead the sort.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>price</th><th>source</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>8.75</td><td>manual</td></tr>
+    <tr><td>2</td><td>20.0</td><td>feed</td></tr>
+  </tbody>
+</table>
+<p>Product 1: the latest <code>changed_at</code> is 2025-02-01 10:00, shared by "feed" (8.50) and "manual" (8.75). With <code>source DESC</code>, "manual" &gt; "feed" alphabetically, so "manual" sorts first within the tie &rarr; price 8.75 is returned. Product 2: one row, trivially selected &rarr; price 20.00, source "feed". The <code>::float8</code> cast converts the NUMERIC price to a double-precision float as the solution specifies.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>DISTINCT ON &mdash; how it works</h5>
+<p><code>SELECT DISTINCT ON (col1, col2, …)</code> is a PostgreSQL extension (not standard SQL) that keeps the first row for each distinct combination of the listed columns, where "first" is defined by the <code>ORDER BY</code>. PostgreSQL sorts the full result set by the ORDER BY key, then scans and emits only the first row per DISTINCT ON group. This is a single pass over an ordered result &mdash; no subquery, no window function, no self-join. Its cousins in standard SQL are <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …) = 1</code> and <code>FIRST_VALUE</code>.</p>
+
+<h5>The ORDER BY constraint: DISTINCT ON columns must lead</h5>
+<p>PostgreSQL requires that the DISTINCT ON expressions appear as the <em>leading</em> columns in ORDER BY. <code>ORDER BY product_id, changed_at DESC, source DESC</code> satisfies this because <code>product_id</code> (the DISTINCT ON column) comes first. Omitting it or reordering it causes a syntax error. This requirement exists because PostgreSQL's implementation sorts by the ORDER BY key and then picks the first row per group &mdash; without leading on the group key the "first" row would not be consistent.</p>
+
+<h5>Tie-breaking with DESC on string</h5>
+<p>Alphabetical DESC ordering puts "z" before "a". "manual" starts with 'm' and "feed" starts with 'f'; since m &gt; f, "manual" precedes "feed" in DESC order. The rule "alphabetically last" maps directly to <code>source DESC</code>. A common mistake is writing <code>source ASC</code> (which would pick "feed") or omitting the tie-breaker entirely (which would give non-deterministic results when the optimiser sorts ties arbitrarily).</p>
+
+<h5>Standard SQL alternative: ROW_NUMBER()</h5>
+<pre><code>SELECT product_id, price, source
+FROM (
+  SELECT product_id, price, source,
+         ROW_NUMBER() OVER (PARTITION BY product_id
+                            ORDER BY changed_at DESC, source DESC) AS rn
+  FROM price_change
+) t
+WHERE rn = 1
+ORDER BY product_id;</code></pre>
+<p>This is portable to every engine that supports window functions (PostgreSQL, SQL Server, BigQuery, Snowflake, MySQL 8+, SQLite 3.25+). It is logically identical to <code>DISTINCT ON</code> and typically compiled to the same execution plan in PostgreSQL. The tradeoff: more verbose, but universally portable and explicit about the tie-break ordering.</p>
+
+<h5>Performance notes</h5>
+<p>Both <code>DISTINCT ON</code> and <code>ROW_NUMBER() = 1</code> benefit from an index on <code>(product_id, changed_at DESC, source DESC)</code>. PostgreSQL can satisfy the query with an index scan, materialising no more than one row per product. On very large tables (millions of price changes, thousands of products) an index on this composite key is essential; without it, the planner falls back to a full sort, which is O(n log n).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> <code>DISTINCT ON (product_id)</code> keeps the first row per product as defined by the trailing <code>ORDER BY</code>; the DISTINCT ON column must lead the ORDER BY; tie-break with <code>source DESC</code> for "alphabetically last" (DESC = largest first); and name the portable <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …) = 1</code> equivalent for non-PostgreSQL engines.</div>

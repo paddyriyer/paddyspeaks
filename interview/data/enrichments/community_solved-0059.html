@@ -1,0 +1,88 @@
+<p>An order-management system needs to roll up many <em>order</em> statuses into a single <em>quote</em> status. The rules are a priority ladder &mdash; Delivered beats Submitted beats Created &mdash; with special wording when statuses are mixed. This is the "aggregate child states into a parent state" pattern behind every order-tracking, ticket-triage, or pipeline-stage dashboard. The interviewer wants to see you translate a tangle of business rules into deterministic SQL.</p>
+
+<h4>1. The source data &mdash; <code>order_status</code></h4>
+<table>
+  <thead><tr><th>quote_id</th><th>order_id</th><th>order_status</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>Delivered</td><td>all delivered &rarr; complete</td></tr>
+    <tr><td>1</td><td>102</td><td>Delivered</td><td>&hellip;</td></tr>
+    <tr><td>2</td><td>201</td><td>Delivered</td><td>mixed: one Delivered&hellip;</td></tr>
+    <tr><td>2</td><td>202</td><td>Submitted</td><td>&hellip;one Submitted &rarr; in delivery</td></tr>
+    <tr><td>3</td><td>301</td><td>Submitted</td><td>no Delivered, has Submitted&hellip;</td></tr>
+    <tr><td>3</td><td>302</td><td>Created</td><td>&hellip;&rarr; awaiting for submission</td></tr>
+    <tr><td>4</td><td>401</td><td>Created</td><td>single-order quote, only Created &rarr; awaiting for entry</td></tr>
+  </tbody>
+</table>
+<p>Quote 2 is the key case &mdash; a <strong>mix</strong> of Delivered and Submitted. The rules say one-or-more (but not all) Delivered means "in delivery", so the presence of <em>any</em> Delivered must outrank the Submitted sibling.</p>
+
+<h4>2. The SQL &mdash; priority ranking joined to a per-quote status count</h4>
+<pre><code>WITH priorities AS (
+    SELECT quote_id, order_id, order_status,
+        CASE order_status
+            WHEN 'Delivered' THEN 1
+            WHEN 'Submitted' THEN 2
+            WHEN 'Created'   THEN 3
+            ELSE 4
+        END AS priority
+    FROM order_status
+),
+ranked AS (
+    SELECT p.*,
+        ROW_NUMBER() OVER (PARTITION BY quote_id ORDER BY priority) AS rn
+    FROM priorities p
+),
+per_quote AS (
+    SELECT quote_id, COUNT(DISTINCT order_status) AS distinct_status_count
+    FROM order_status
+    GROUP BY quote_id
+)
+SELECT r.quote_id,
+    CASE
+        WHEN r.order_status = 'Delivered' AND q.distinct_status_count = 1 THEN 'complete'
+        WHEN r.order_status = 'Delivered' AND q.distinct_status_count &gt; 1 THEN 'in delivery'
+        WHEN r.order_status = 'Submitted'                                THEN 'awaiting for submission'
+        ELSE 'awaiting for entry'
+    END AS quote_status
+FROM ranked r
+JOIN per_quote q ON q.quote_id = r.quote_id
+WHERE r.rn = 1
+ORDER BY r.quote_id;</code></pre>
+<p>Each order gets a numeric priority; <code>ROW_NUMBER</code> picks the top-priority order per quote (<code>rn = 1</code>); a separate <code>GROUP BY</code> counts how many distinct statuses the quote has, which the final <code>CASE</code> uses to tell "all delivered" from "mixed".</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>quote_id</th><th>quote_status</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>complete</td><td>top order Delivered, only 1 distinct status</td></tr>
+    <tr><td>2</td><td>in delivery</td><td>top order Delivered, 2 distinct statuses</td></tr>
+    <tr><td>3</td><td>awaiting for submission</td><td>top order Submitted (no Delivered present)</td></tr>
+    <tr><td>4</td><td>awaiting for entry</td><td>top order Created</td></tr>
+  </tbody>
+</table>
+<p>Quote 2 resolves to <code>in delivery</code>: the lowest priority number wins, so the Delivered order (priority 1) becomes the representative row, and <code>distinct_status_count &gt; 1</code> flips the label from "complete" to "in delivery".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a numeric priority plus <code>ROW_NUMBER</code> works</h5>
+<p>The rules form a strict ladder, so the natural model is a rank: Delivered=1, Submitted=2, Created=3. <code>ROW_NUMBER() OVER (PARTITION BY quote_id ORDER BY priority)</code> sorts each quote's orders by that rank and tags the winner <code>rn = 1</code>. Filtering to <code>rn = 1</code> reduces every quote to its single highest-priority order &mdash; the row whose status drives the verdict.</p>
+
+<h5>Why the separate <code>distinct_status_count</code> join is needed</h5>
+<p>Knowing the top-priority status alone cannot distinguish "every order Delivered" from "one Delivered among others" &mdash; both have a Delivered winner. You need a second fact: how many <em>distinct</em> statuses the quote has. <code>COUNT(DISTINCT order_status) = 1</code> means uniform (all Delivered &rarr; "complete"); <code>&gt; 1</code> means mixed (&rarr; "in delivery"). The two CTEs answer two different questions and are joined back together.</p>
+
+<h5>The single-pass alternative &mdash; conditional aggregation</h5>
+<p>The whole thing collapses to one <code>GROUP BY</code> with boolean aggregates, no window function, no join:</p>
+<pre><code>SELECT quote_id,
+  CASE
+    WHEN BOOL_AND(order_status = 'Delivered')                          THEN 'complete'
+    WHEN BOOL_OR(order_status = 'Delivered')                           THEN 'in delivery'
+    WHEN BOOL_OR(order_status = 'Submitted')                           THEN 'awaiting for submission'
+    ELSE 'awaiting for entry'
+  END AS quote_status
+FROM order_status
+GROUP BY quote_id;</code></pre>
+<p><code>BOOL_AND</code> is "all", <code>BOOL_OR</code> is "at least one", and the <code>CASE</code> branches are evaluated top-down so the order encodes the priority. This is shorter, one pass, and reads almost like the spec. In MySQL use <code>MIN</code>/<code>MAX</code> over the boolean expression; in SQL Server use <code>CASE</code> with <code>COUNT</code>.</p>
+
+<h5>The unknown-status and ordering traps</h5>
+<p>The <code>ELSE 4</code> priority branch quietly absorbs any status that is not one of the three known values &mdash; a typo like <code>'Delivred'</code> or a new <code>'Cancelled'</code> state lands in priority 4 and silently maps to "awaiting for entry". A defensive design alerts on unknown statuses instead of bucketing them. Also: if two orders tie on priority, which one <code>ROW_NUMBER</code> labels <code>rn = 1</code> is arbitrary &mdash; harmless here because tied rows share the same status, but a habit worth noticing. The <code>BOOL_AND</code>/<code>BOOL_OR</code> version sidesteps the tie issue entirely.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the priority ladder and collapse the three-CTE window solution into a single <code>GROUP BY</code> with <code>BOOL_AND</code>/<code>BOOL_OR</code> &mdash; "all" vs "at least one" maps directly onto the business rules &mdash; and flag that the <code>ELSE</code> branch silently swallows unknown statuses instead of alerting.</div>

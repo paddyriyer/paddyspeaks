@@ -1,0 +1,72 @@
+<p>Data engineering teams at SaaS companies often receive churn signals from multiple upstream sources (CRM exports, billing systems, support tickets) that each record the same customer&rsquo;s churn independently. The task: <em>"Combine all three sources, deduplicate by customer, and return each customer&rsquo;s first churn date and the source where they were first seen."</em> This tests <code>UNION ALL</code> for source-tagged combination, <code>ROW_NUMBER</code> for cross-source deduplication, and CTE composition.</p>
+
+<h4>1. The source data &mdash; <code>source_a</code>, <code>source_b</code>, <code>source_c</code></h4>
+<table>
+  <thead><tr><th>source</th><th>customer_id</th><th>churned_on</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>C001</td><td>2025-01-15</td></tr>
+    <tr><td>A</td><td>C002</td><td>2025-02-10</td></tr>
+    <tr><td>B</td><td>C001</td><td>2025-01-20</td></tr>
+    <tr><td>B</td><td>C003</td><td>2025-03-05</td></tr>
+    <tr><td>C</td><td>C002</td><td>2025-02-08</td></tr>
+    <tr><td>C</td><td>C004</td><td>2025-04-01</td></tr>
+  </tbody>
+</table>
+<p>C001 appears in sources A (Jan 15) and B (Jan 20) &mdash; source A saw it first. C002 appears in sources A (Feb 10) and C (Feb 8) &mdash; source C actually has the earlier date. C003 and C004 appear in only one source each. These cases exercise the core deduplication logic: earliest date wins, not earliest source letter.</p>
+
+<h4>2. The SQL &mdash; <code>UNION ALL</code> + <code>ROW_NUMBER</code> cross-source dedup</h4>
+<pre><code>WITH all_churn AS (
+  SELECT customer_id, churned_on, 'A' AS src FROM source_a
+  UNION ALL
+  SELECT customer_id, churned_on, 'B'         FROM source_b
+  UNION ALL
+  SELECT customer_id, churned_on, 'C'         FROM source_c
+),
+deduped AS (
+  SELECT customer_id, churned_on, src,
+         ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY churned_on) AS rn
+  FROM all_churn
+)
+SELECT customer_id, churned_on AS first_churn_date, src AS first_seen_in
+FROM deduped
+WHERE rn = 1
+ORDER BY first_churn_date;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>first_churn_date</th><th>first_seen_in</th></tr></thead>
+  <tbody>
+    <tr><td>C001</td><td>2025-01-15</td><td>A</td></tr>
+    <tr><td>C002</td><td>2025-02-08</td><td>C</td></tr>
+    <tr><td>C003</td><td>2025-03-05</td><td>B</td></tr>
+    <tr><td>C004</td><td>2025-04-01</td><td>C</td></tr>
+  </tbody>
+</table>
+<p>C001: source A has Jan 15, source B has Jan 20 &rarr; A is first (rn=1 for Jan 15). C002: source A has Feb 10, source C has Feb 8 &rarr; C wins (Feb 8 is earlier). C003 and C004 are singletons and pass through unchanged. Ordering by first_churn_date: C001 Jan 15, C002 Feb 8, C003 Mar 5, C004 Apr 1.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>UNION ALL</code> vs <code>UNION</code> &mdash; keep the source tag, keep duplicates</h5>
+<p><code>UNION ALL</code> is used (not <code>UNION</code>) for two reasons: first, it preserves the <code>src</code> tag that identifies which source each row came from; second, it avoids the implicit deduplication that <code>UNION</code> applies (which would be wrong here &mdash; we want to see all versions of each customer across all sources before choosing the earliest). <code>UNION</code> without <code>ALL</code> also requires an extra sort pass to deduplicate, making it slower. Always prefer <code>UNION ALL</code> unless deduplication across the full row is intentional.</p>
+
+<h5>The <code>ROW_NUMBER</code> partition + ORDER BY &mdash; the cross-source earliest-date selector</h5>
+<p><code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY churned_on)</code> ranks each customer&rsquo;s rows across all three sources by date, earliest first. Filtering <code>WHERE rn = 1</code> returns only the earliest row for each customer. The <code>src</code> column on that row identifies the winning source. This is the clean way to select "the row with the minimum value per group" without a correlated subquery or a JOIN on a MIN subquery.</p>
+
+<h5>Tie-breaking when two sources have identical dates</h5>
+<p>If C001 appeared with the same <code>churned_on</code> in both source A and source B, the <code>ROW_NUMBER</code> would assign rank 1 arbitrarily. To make the result deterministic, add a secondary tiebreaker: <code>ORDER BY churned_on, src</code> would favour source A over B over C alphabetically. The right tiebreaker is a business decision (e.g., "prefer the most authoritative source"), but always make it explicit in code.</p>
+
+<h5>CTE composition for readability and maintainability</h5>
+<p>The two CTEs split the logic cleanly: <code>all_churn</code> handles combination, <code>deduped</code> handles ranking, the final SELECT handles filtering and presentation. Each stage is independently readable and testable. A single nested subquery would achieve the same result but is harder to debug. In production code, always name the intent of each CTE.</p>
+
+<h5>Extension: flag customers seen in multiple sources</h5>
+<p>A natural follow-on adds a count of how many sources reported the churn &mdash; customers seen in all three sources are the most reliable churn signals:</p>
+<pre><code>COUNT(DISTINCT src) AS source_count</code></pre>
+<p>Add this to the <code>deduped</code> CTE as <code>COUNT(DISTINCT src) OVER (PARTITION BY customer_id)</code> to expose it on every row without an additional GROUP BY.</p>
+
+<h5>Dialect notes</h5>
+<ul>
+  <li><strong>Snowflake / Postgres / BigQuery / MySQL 8+:</strong> CTEs, UNION ALL, and ROW_NUMBER work identically.</li>
+  <li><strong>Snowflake QUALIFY shorthand:</strong> the <code>deduped</code> CTE + <code>WHERE rn = 1</code> can be replaced with <code>QUALIFY ROW_NUMBER() OVER (...) = 1</code> directly on the <code>all_churn</code> CTE.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>UNION ALL</code> (not <code>UNION</code>) to preserve source tags and avoid an implicit sort, note that the ORDER BY inside <code>ROW_NUMBER</code> chooses the earliest date across sources (not the alphabetically first source), and always add a deterministic tiebreaker for same-date conflicts. Bonus: extend with <code>COUNT(DISTINCT src) OVER (...)</code> to surface multi-source confirmation as a churn confidence score.</div>

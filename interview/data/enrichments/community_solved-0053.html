@@ -1,0 +1,73 @@
+<p>A telecom-style <code>phone_log</code> records every call dialled in a day. The task: for each calling number, decide whether its <em>first</em> call and its <em>last</em> call of the day went to the same destination, and emit a <code>Y</code>/<code>N</code> flag. This is the "did the day start and end the same way" pattern &mdash; common in churn and habit analysis. The interviewer is checking whether you can pick the boundary rows of an ordered partition without a self-join.</p>
+
+<h4>1. The source data &mdash; <code>phone_log</code></h4>
+<table>
+  <thead><tr><th>source_phone_nbr</th><th>destination_phone_nbr</th><th>call_start_date_time</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>111-1000</td><td>222-2000</td><td>2026-05-01 09:00</td><td>first call</td></tr>
+    <tr><td>111-1000</td><td>333-3000</td><td>2026-05-01 12:30</td><td>middle call</td></tr>
+    <tr><td>111-1000</td><td>222-2000</td><td>2026-05-01 18:45</td><td>last call &mdash; same as first</td></tr>
+    <tr><td>444-4000</td><td>555-5000</td><td>2026-05-01 08:15</td><td>first call</td></tr>
+    <tr><td>444-4000</td><td>666-6000</td><td>2026-05-01 20:10</td><td>last call &mdash; differs</td></tr>
+    <tr><td>777-7000</td><td>888-8000</td><td>2026-05-01 10:00</td><td>only one call</td></tr>
+  </tbody>
+</table>
+<p>Number 777-7000 made <strong>exactly one call</strong> &mdash; its first call and last call are the same physical row, so the flag must be <code>Y</code>. That single-row partition is the edge case.</p>
+
+<h4>2. The SQL &mdash; dual <code>ROW_NUMBER</code> to grab both ends</h4>
+<pre><code>with t1 as
+(
+select source_phone_nbr,
+    destination_phone_nbr,
+    call_start_date_time,
+    row_number() over(partition by source_phone_nbr order by call_start_date_time asc) as s_flag,
+    row_number() over(partition by source_phone_nbr order by call_start_date_time desc) as e_flag
+from phone_log
+), t2 as(
+select source_phone_nbr,
+    max(case when s_flag = 1 then destination_phone_nbr end) as first_call,
+    max(case when e_flag = 1 then destination_phone_nbr end) as last_call
+from t1
+group by source_phone_nbr
+)
+select source_phone_nbr,
+    case when first_call = last_call then 'Y'
+      when first_call &lt;&gt; last_call then 'N' end as flag
+from t2</code></pre>
+<p>One <code>ROW_NUMBER</code> ascending marks the earliest call as <code>s_flag = 1</code>; a second descending marks the latest as <code>e_flag = 1</code>. The conditional <code>MAX</code> then pivots those two boundary rows into <code>first_call</code> and <code>last_call</code> columns.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>source_phone_nbr</th><th>flag</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>111-1000</td><td>Y</td><td>first and last both went to 222-2000</td></tr>
+    <tr><td>444-4000</td><td>N</td><td>started 555-5000, ended 666-6000</td></tr>
+    <tr><td>777-7000</td><td>Y</td><td>single call &mdash; first equals last by definition</td></tr>
+  </tbody>
+</table>
+<p>The single-call number 777-7000 lands on <code>Y</code>: with one row, <code>s_flag</code> and <code>e_flag</code> are both 1 on the same row, so <code>first_call = last_call</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two <code>ROW_NUMBER</code>s instead of one</h5>
+<p>You need both ends of each partition. <code>ROW_NUMBER() ... ORDER BY time ASC</code> makes rank 1 the earliest row; the same function with <code>ORDER BY time DESC</code> makes rank 1 the latest. Filtering each to <code>= 1</code> isolates the two boundary rows. The conditional <code>MAX(CASE WHEN flag = 1 THEN destination END)</code> is the standard trick to lift a tagged row's value into a grouped column &mdash; <code>MAX</code> ignores the NULLs produced by the non-matching branches.</p>
+
+<h5>The cleaner one-pass alternative &mdash; <code>FIRST_VALUE</code> / <code>LAST_VALUE</code></h5>
+<p>The same answer needs no CTE chain:</p>
+<pre><code>SELECT DISTINCT source_phone_nbr,
+  CASE WHEN
+    FIRST_VALUE(destination_phone_nbr) OVER w =
+    LAST_VALUE(destination_phone_nbr)  OVER w
+  THEN 'Y' ELSE 'N' END AS flag
+FROM phone_log
+WINDOW w AS (PARTITION BY source_phone_nbr ORDER BY call_start_date_time
+             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING);</code></pre>
+<p>The frame clause is the catch: <code>LAST_VALUE</code>'s default frame is <code>UNBOUNDED PRECEDING TO CURRENT ROW</code>, so without the explicit <code>UNBOUNDED FOLLOWING</code> it returns the <em>current</em> row, not the partition's last &mdash; a notorious bug. <code>FIRST_VALUE</code> is unaffected because its answer sits at the frame start.</p>
+
+<h5>The tie trap &mdash; two calls at the same instant</h5>
+<p>If a number's two earliest calls share an identical <code>call_start_date_time</code>, <code>ROW_NUMBER</code> still assigns 1 and 2, but <em>which</em> gets 1 is arbitrary &mdash; the result is non-deterministic. Add a tiebreaker to the <code>ORDER BY</code> (a call id, or <code>destination_phone_nbr</code>) so "first call" is reproducible. Interviewers love to ask "what if two calls have the same timestamp?"</p>
+
+<h5>The NULL trap in the final <code>CASE</code></h5>
+<p>The flag uses <code>WHEN first_call = last_call</code> / <code>WHEN first_call &lt;&gt; last_call</code> with no <code>ELSE</code>. If a destination is NULL, both comparisons evaluate to <em>unknown</em>, every branch fails, and <code>flag</code> comes back NULL &mdash; silently neither <code>Y</code> nor <code>N</code>. Use <code>first_call IS NOT DISTINCT FROM last_call</code> for NULL-safe equality, or add an explicit <code>ELSE</code>, so a missing destination is handled deliberately.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>FIRST_VALUE</code>/<code>LAST_VALUE</code> over the dual-ROW_NUMBER scaffold, but immediately call out that <code>LAST_VALUE</code> needs an explicit <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> frame, add a tiebreaker for equal timestamps, and use <code>IS NOT DISTINCT FROM</code> so a NULL destination does not produce a NULL flag.</div>

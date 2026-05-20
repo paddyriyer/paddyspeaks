@@ -1,0 +1,67 @@
+<p>Twilio's voice team tracks "long calls" &mdash; conversations over ten minutes &mdash; as a proxy for support escalations and sales demos. Leadership wants a month-over-month growth rate, not just a count. The query looks like a clean two-step: bucket the calls, then diff consecutive months. The interview lives in two details: how you classify a "long" call, and what the growth number does for the very first month, when there is nothing to compare against.</p>
+
+<h4>1. The source data &mdash; <code>calls</code></h4>
+<table>
+  <thead><tr><th>call_at</th><th>duration_sec</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-03 09:00</td><td>700</td></tr>
+    <tr><td>2025-01-12 10:00</td><td>200</td></tr>
+    <tr><td>2025-01-20 11:00</td><td>900</td></tr>
+    <tr><td>2025-02-05 09:00</td><td>650</td></tr>
+    <tr><td>2025-02-09 10:00</td><td>601</td></tr>
+    <tr><td>2025-02-14 11:00</td><td>800</td></tr>
+    <tr><td>2025-02-22 11:00</td><td>300</td></tr>
+    <tr><td>2025-03-01 11:00</td><td>1200</td></tr>
+    <tr><td>2025-03-08 11:00</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>January has 2 long calls (700, 900), February has 3 (650, 601, 800), March has 1 (1200). The 601-second call is the boundary probe &mdash; <code>&gt; 600</code> counts it, <code>&gt;= 600</code> or <code>&gt; 10*60</code> would too, but a "ten minutes <em>or more</em>" reading needs <code>&gt;= 600</code>. March falls from 3 to 1, so the growth rate goes negative &mdash; a good test that the sign is right.</p>
+
+<h4>2. The SQL &mdash; <code>LAG over monthly long-call counts</code></h4>
+<pre><code>WITH m AS (
+  SELECT DATE_TRUNC('month', call_at)::DATE AS mo,
+    SUM(CASE WHEN duration_sec &gt; 600 THEN 1 ELSE 0 END) AS long_calls
+  FROM calls GROUP BY DATE_TRUNC('month', call_at)::DATE)
+SELECT mo, long_calls,
+  100.0*(long_calls - LAG(long_calls) OVER (ORDER BY mo))/NULLIF(LAG(long_calls) OVER (ORDER BY mo),0) AS growth_pct
+FROM m;</code></pre>
+<p>The CTE collapses raw calls into one row per month with a conditional count. The outer query reaches back one month with <code>LAG</code> and computes the percentage change. <code>NULLIF(&hellip;,0)</code> guards against dividing by a month that had zero long calls.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>mo</th><th>long_calls</th><th>growth_pct</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>2</td><td><em>NULL</em></td></tr>
+    <tr><td>2025-02-01</td><td>3</td><td>50.0000000000000000</td></tr>
+    <tr><td>2025-03-01</td><td>1</td><td>-66.6666666666666667</td></tr>
+  </tbody>
+</table>
+<p>January's growth is <strong>NULL</strong> &mdash; <code>LAG</code> has no prior row, so the numerator and denominator are both NULL. February rises 2&rarr;3, a +50% change. March drops 3&rarr;1, a &minus;66.67% change. The negative number is the interesting one: it proves the formula keeps the sign and is not silently taking an absolute value.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The first-month NULL is correct, not a bug</h5>
+<p>An interviewer will ask what the NULL means. The honest answer: there is genuinely no growth rate for the first observed month, because growth is defined relative to a previous period that does not exist. NULL is the right representation of "undefined". If the dashboard needs a value, decide deliberately &mdash; <code>COALESCE(growth_pct, 0)</code> reads as "flat", which is a lie; better to leave it NULL or label it "&mdash;". Never invent a 0% that implies the metric was measured.</p>
+
+<h5>Gap months silently disappear &mdash; the real trap</h5>
+<p>The CTE only produces rows for months that had at least one call. If April had no calls at all, there is no April row, and <code>LAG</code> would compare May directly to March &mdash; quietly mislabelling a two-month jump as one month of growth. On a sparse table you must densify against a calendar spine first:</p>
+<pre><code>WITH months AS (
+  SELECT generate_series(date_trunc('month', MIN(call_at)),
+                         date_trunc('month', MAX(call_at)),
+                         interval '1 month')::date AS mo
+  FROM calls
+)
+SELECT months.mo, COALESCE(m.long_calls, 0) AS long_calls, &hellip;
+FROM months LEFT JOIN m ON months.mo = m.mo;</code></pre>
+<p>Now every month is present, empty months read as 0, and <code>LAG</code> always steps exactly one month.</p>
+
+<h5>Dividing by a zero-long-call month</h5>
+<p><code>NULLIF(prev, 0)</code> is doing real work. If a month had zero long calls and the next had five, the "growth rate" is five-over-zero &mdash; mathematically infinite. <code>NULLIF</code> turns the denominator into NULL so the whole expression is NULL rather than a division-by-zero error. That is defensible, but tell the interviewer the product question: a jump from 0 to 5 is often reported as "new" or "n/a", not as a percentage at all.</p>
+
+<h5>The boundary of "long"</h5>
+<p><code>duration_sec &gt; 600</code> means strictly longer than ten minutes &mdash; an exactly-600-second call is <em>not</em> long. If the spec says "ten minutes or more", use <code>&gt;= 600</code>. This is a one-character decision that shifts every monthly count, so confirm it. Also consider using <code>COUNT(*) FILTER (WHERE duration_sec &gt; 600)</code> instead of <code>SUM(CASE&hellip;)</code> &mdash; identical result, and it reads as intent rather than arithmetic.</p>
+
+<h5>Whole-table window vs partitioned</h5>
+<p>There is no <code>PARTITION BY</code> here, which is correct: the whole table is one time series. The moment the question becomes "growth per region" or "per product line", the CTE gains that dimension in its <code>GROUP BY</code> and the window becomes <code>LAG(long_calls) OVER (PARTITION BY region ORDER BY mo)</code> &mdash; otherwise January of one region would diff against December of another.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the first-month NULL as the honest value rather than papering it with a fake 0%, flag that months with no calls vanish from the CTE and break <code>LAG</code> unless you densify against a calendar, and treat the <code>&gt; 600</code> threshold and the divide-by-zero <code>NULLIF</code> as explicit product decisions, not incidental syntax.</div>

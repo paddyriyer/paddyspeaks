@@ -1,0 +1,63 @@
+<p>A retail chain wants a per-store conversion rate: of the people who walked in (visitors), what fraction actually placed an order. The interviewer is probing two things &mdash; can you relate a footfall table to an orders table, and do you understand integer-division pitfalls when computing a percentage. The boundary case is a store with visitors but few or no conversions, where the ratio must still come out sensibly rather than as <code>0</code> or a divide-by-zero error.</p>
+
+<h4>1. The source data &mdash; <code>visitors</code> &amp; <code>store_orders</code></h4>
+<table>
+  <thead><tr><th>visitor_id</th><th>visit_date</th><th>store_id</th><th>&rarr; ordered?</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td><td>10</td><td>yes (order 101)</td></tr>
+    <tr><td>2</td><td>2024-01-01</td><td>10</td><td>yes (order 102)</td></tr>
+    <tr><td>3</td><td>2024-01-01</td><td>10</td><td>no</td></tr>
+    <tr><td>4</td><td>2024-01-02</td><td>20</td><td>yes (order 103)</td></tr>
+    <tr><td>5</td><td>2024-01-02</td><td>20</td><td>no</td></tr>
+  </tbody>
+</table>
+<p>Store 10 converted 2 of 3 visitors; store 20 converted 1 of 2. Visitors 3 and 5 are the edge case &mdash; they browsed but never ordered, and must still count in the denominator.</p>
+
+<h4>2. The SQL &mdash; full join footfall to orders, then a ratio</h4>
+<pre><code>WITH visitor_customer AS (
+  SELECT v.*, o.customer_id, o.order_id, o.order_date
+  FROM visitors v
+  FULL JOIN store_orders o
+    ON v.visitor_id = o.visitor_id
+   AND v.visit_date = o.order_date
+   AND v.store_id   = o.store_id
+)
+SELECT store_id,
+       COUNT(customer_id) AS customer_count,
+       COUNT(visitor_id)  AS visitor_count,
+       CAST(CAST(COUNT(customer_id) AS DECIMAL(10,2))
+            / COUNT(visitor_id) * 100 AS DECIMAL(10,2)) AS con_rate
+FROM visitor_customer
+GROUP BY store_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>store_id</th><th>customer_count</th><th>visitor_count</th><th>con_rate</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>2</td><td>3</td><td>66.67</td></tr>
+    <tr><td>20</td><td>1</td><td>2</td><td>50.00</td></tr>
+  </tbody>
+</table>
+<p>Store 10 converts at 66.67% (2/3), store 20 at 50% (1/2). The non-converting visitors 3 and 5 are correctly in the denominator but contribute nothing to the numerator.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(column)</code> ignoring NULLs does the real work</h5>
+<p>This is the engine of the query. After the join, a visitor who never ordered has a <code>NULL</code> <code>customer_id</code>. <code>COUNT(customer_id)</code> counts only non-NULL values, so it counts <em>converted</em> visitors; <code>COUNT(visitor_id)</code> counts all visitors. The ratio of the two is the conversion rate. <code>COUNT(*)</code> would have counted every row including the non-converters &mdash; the distinction between <code>COUNT(*)</code> and <code>COUNT(column)</code> is exactly what makes this work.</p>
+
+<h5>The integer-division trap &mdash; why the double <code>CAST</code> exists</h5>
+<p><code>COUNT(...)</code> returns an integer. In integer arithmetic <code>2 / 3</code> truncates to <code>0</code>, so <code>0 * 100 = 0</code> &mdash; every store would report a 0% conversion rate. Casting the numerator to <code>DECIMAL</code> first forces floating-point division, yielding <code>0.6667</code>; multiplying by 100 and casting again rounds the display to two places. The lesson: in any percentage formula, promote to a decimal/float type <em>before</em> the division, never after.</p>
+
+<h5>The divide-by-zero a senior anticipates</h5>
+<p>If a store had orders logged but somehow zero visitor rows, <code>COUNT(visitor_id)</code> would be 0 and the division would throw. Production-grade SQL guards it: <code>... / NULLIF(COUNT(visitor_id), 0)</code> &mdash; <code>NULLIF</code> turns a zero denominator into <code>NULL</code>, and the result becomes <code>NULL</code> (no rate) instead of erroring. Mentioning this unprompted is a strong signal even though the sample data never triggers it.</p>
+
+<h5><code>FULL JOIN</code> &mdash; intent, and a subtle grouping risk</h5>
+<p>A <code>FULL JOIN</code> keeps visitors with no order <em>and</em> orders with no matching visitor. The first half is essential &mdash; non-converting visitors must stay in the denominator (a plain <code>INNER JOIN</code> would drop them and every store would show 100%). But the second half is a quiet hazard: an order with no matching visitor row contributes a row whose <code>store_id</code> may come out <code>NULL</code> (or, if you read <code>store_id</code> only from <code>visitors</code>, is NULL), creating a stray group. For a pure "visitor &rarr; conversion" rate, a <code>LEFT JOIN</code> from <code>visitors</code> is cleaner: it keeps exactly the visitor population and never invents orphan-order rows. Use <code>COALESCE(v.store_id, o.store_id)</code> in the <code>SELECT</code> if you keep the full join.</p>
+
+<h5>The join key &mdash; matching on date is a design decision</h5>
+<p>The join requires <code>visit_date = order_date</code>: a visit converts only if the order happened the <em>same day</em>. That is a deliberate, narrow definition. If a visitor browses Monday and buys Tuesday, this query counts it as a non-conversion. Real conversion analytics often allow an attribution window (<code>order_date BETWEEN visit_date AND visit_date + 7</code>). Surface this assumption &mdash; "are we counting same-day conversions only?" &mdash; rather than silently accepting it.</p>
+
+<h5>Dialect note &mdash; <code>DECIMAL(10,2)</code> in a cast</h5>
+<p>The <code>CAST(... AS DECIMAL(10,2))</code> syntax is portable (Postgres, SQL Server, MySQL all accept it). Postgres also offers <code>ROUND(x::numeric, 2)</code> which is more idiomatic for "round to 2 places". The double-cast works fine; just know <code>ROUND</code> expresses the rounding intent more directly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>COUNT(customer_id)</code> vs <code>COUNT(visitor_id)</code> &mdash; NULL-skipping vs total &mdash; is what computes the rate, and that the double <code>CAST</code> exists solely to dodge integer-division truncation. Adding <code>NULLIF(..., 0)</code> for the empty-store divide-by-zero, and questioning the same-day join window, is the senior finish.</div>

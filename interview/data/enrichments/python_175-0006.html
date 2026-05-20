@@ -1,0 +1,39 @@
+<p>Apple's interviewers use this to see whether you understand what a database actually does under a <code>JOIN</code>. Anyone can write <code>SELECT ... JOIN ...</code> in SQL; far fewer can explain why the engine usually picks a hash join over a nested loop, and rebuild it in twenty lines of Python. The question tests data-structure instinct: turning an O(n&times;m) cross-comparison into O(n+m) by trading memory for a hash index.</p>
+
+<h4>1. The input data</h4>
+<p>Two lists of dicts &mdash; <code>orders</code> on the left, <code>customers</code> on the right, joined on customer id:</p>
+<pre><code>left  = [{'order': 'A1', 'cust': 7},
+         {'order': 'A2', 'cust': 9},
+         {'order': 'A3', 'cust': 7}]
+
+right = [{'cust': 7, 'name': 'Maya'},
+         {'cust': 8, 'name': 'Devin'}]
+
+hash_join(left, right, 'cust', 'cust')</code></pre>
+
+<h4>2. The approach</h4>
+<p>This is the textbook <strong>build / probe</strong> hash join. <em>Build phase:</em> iterate the right side once and bucket every row into a <code>defaultdict(list)</code> keyed by its join value &mdash; a list, not a single value, because a key can repeat. <em>Probe phase:</em> iterate the left side; for each left row, do an O(1) dictionary lookup (<code>idx.get(l[lkey], [])</code>) to fetch all matching right rows, and emit a merged dict per match using <code>{**l, **r}</code>. The <code>defaultdict</code> avoids "key missing" branching during build, and <code>.get(..., [])</code> makes a left row with no match contribute nothing instead of raising. The result is an inner join: only pairs that match appear.</p>
+
+<h4>3. The output</h4>
+<p>Customer 7 (Maya) matches orders A1 and A3; order A2's customer 9 has no row in <code>right</code>, so it is dropped:</p>
+<pre><code>[{'order': 'A1', 'cust': 7, 'name': 'Maya'},
+ {'order': 'A3', 'cust': 7, 'name': 'Maya'}]</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity &mdash; why this beats the nested loop</h5>
+<p>Build is O(m), probe is O(n) lookups plus O(matches) emits, so total <strong>O(n + m + matches)</strong> time and <strong>O(m)</strong> extra space for the index. The naive double loop is O(n&times;m). On a 100k &times; 100k join that is the difference between instant and ten billion comparisons &mdash; exactly why query planners build a hash table on the smaller relation.</p>
+
+<h5>The idiomatic detail &mdash; build the smaller side</h5>
+<p>The code always indexes <code>right</code>. A senior would note the index should be built on whichever input is <em>smaller</em>, to minimize the hash table's memory footprint, and probe with the larger one &mdash; the lookups are O(1) either way.</p>
+
+<h5>The edge case &mdash; key collision in the merge</h5>
+<p><code>{**l, **r}</code> merges left then right; if both dicts share a non-join key (say both have <code>'name'</code>), <strong>the right value silently wins</strong>. Real databases prefix columns with the table name to disambiguate. Also note the join keys here happen to share the name <code>'cust'</code>, so the merged dict keeps one <code>cust</code> field cleanly; differing key names would leave both.</p>
+
+<h5>The follow-up &mdash; make it a LEFT join</h5>
+<p>"Now keep unmatched orders too." Change the probe: if <code>idx.get(l[lkey])</code> is empty, still emit the left row, padding the right side's columns with <code>None</code>. The build phase is untouched &mdash; left/right/full outer joins are all variations on what the probe does with a miss.</p>
+
+<h5>The trap &mdash; storing one row per key</h5>
+<p>Writing <code>idx[r[rkey]] = r</code> instead of appending to a list looks simpler but is wrong: when the right side has duplicate keys, each overwrites the last, so matches are lost. Join keys are not unique in general &mdash; the <code>defaultdict(list)</code> is mandatory, not stylistic.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior names this as the engine's hash-join strategy, indexes the smaller relation, uses a list-valued bucket because keys repeat, and flags the silent key-collision in <code>{**l, **r}</code> &mdash; a junior writes a nested loop or maps each key to a single row.</div>

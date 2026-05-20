@@ -1,0 +1,70 @@
+<p>Plus500's growth team wants the top 10 customers by lifetime spend to seed a VIP outreach list. The reference solution computes the ranking inside a subquery, then the outer query selects only <code>customer_id</code> from it. That extra layer of nesting is doing real work &mdash; an interviewer asking this wants to know whether you understand <em>why</em> the <code>LIMIT</code> has to live in the inner query, and whether you noticed the answer drops everything except the id.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th><th>order_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>500</td><td>1</td><td>completed</td></tr>
+    <tr><td>101</td><td>300</td><td>2</td><td>completed</td></tr>
+    <tr><td>102</td><td>900</td><td>3</td><td>completed</td></tr>
+    <tr><td>103</td><td>150</td><td>4</td><td>completed</td></tr>
+    <tr><td>104</td><td>400</td><td>5</td><td>completed</td></tr>
+    <tr><td>105</td><td>250</td><td>6</td><td>completed</td></tr>
+    <tr><td>106</td><td>700</td><td>7</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has two orders that must be <strong>summed</strong> before ranking &mdash; 500 + 300 = 800. With only six distinct customers and a <code>LIMIT 10</code>, every customer survives; the limit becomes a no-op, which is itself worth flagging.</p>
+
+<h4>2. The SQL &mdash; <code>subquery + LIMIT</code></h4>
+<pre><code>SELECT customer_id FROM (
+  SELECT customer_id, SUM(amount) AS total FROM orders GROUP BY customer_id ORDER BY total DESC LIMIT 10
+) t;</code></pre>
+<p>The inner query aggregates per customer, sorts by total descending, and keeps the top 10. The outer query then projects away <code>total</code>, returning just the ids.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>102</td></tr>
+    <tr><td>101</td></tr>
+    <tr><td>106</td></tr>
+    <tr><td>104</td></tr>
+    <tr><td>105</td></tr>
+    <tr><td>103</td></tr>
+  </tbody>
+</table>
+<p>Six rows, ordered by spend: 102 ($900), 101 ($800), 106 ($700), 104 ($400), 105 ($250), 103 ($150). Note what is <em>missing</em> &mdash; the totals. The result tells you <em>who</em> the top customers are but not <em>how much</em> they spent, and the outer query's row order is technically not guaranteed.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>LIMIT</code> cannot move to the outer query</h5>
+<p>You cannot write <code>... ORDER BY total DESC LIMIT 10</code> in the outer query, because <code>total</code> is not in its select list &mdash; the outer query only sees <code>customer_id</code>. The aggregation, the sort, and the cut all have to happen together in the inner query while <code>total</code> still exists. The subquery is not decoration; it is the only place the ranking can be expressed.</p>
+
+<h5>The outer query loses the ordering guarantee</h5>
+<p>SQL only guarantees row order when the <em>outermost</em> query has an <code>ORDER BY</code>. Here the <code>ORDER BY</code> is buried in the subquery, so the planner is free to return the ten rows in any order. The <code>LIMIT</code> still picks the correct ten, but their sequence is undefined. If the consumer renders a ranked list, lift the sort out:</p>
+<pre><code>SELECT customer_id FROM (
+  SELECT customer_id, SUM(amount) AS total
+  FROM orders GROUP BY customer_id
+  ORDER BY total DESC LIMIT 10
+) t
+ORDER BY total DESC;
+-- ERROR: total not visible here</code></pre>
+<p>That fails for the same reason &mdash; so keep <code>total</code> in the projection if you need to re-sort, or just <code>SELECT customer_id, total</code> and let the consumer use both.</p>
+
+<h5>Ties at the boundary &mdash; <code>LIMIT</code> is non-deterministic</h5>
+<p>If the 10th and 11th customers are tied on spend, <code>LIMIT 10</code> picks <em>one</em> of them arbitrarily. For a VIP list that is unfair. <code>RANK()</code> makes the tie explicit and lets you decide:</p>
+<pre><code>SELECT customer_id FROM (
+  SELECT customer_id, SUM(amount) AS total,
+         RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+  FROM orders GROUP BY customer_id
+) t
+WHERE rk &lt;= 10;</code></pre>
+<p>This returns <em>all</em> customers in the top 10 ranks &mdash; possibly 11 or 12 rows if there are ties. Naming that trade-off ("strict top 10, or everyone tied for 10th?") is the senior move.</p>
+
+<h5>The status filter the question implies</h5>
+<p>"Top customers by spend" almost always means <em>realised</em> revenue. The sample data is all <code>completed</code>, but a real <code>orders</code> table carries <code>cancelled</code> and <code>pending</code> rows that inflate the totals. Confirm the definition and filter: <code>WHERE status = 'completed'</code> inside the subquery, before the <code>GROUP BY</code>.</p>
+
+<h5>Edge case: customers with zero orders</h5>
+<p>A customer who never ordered has no rows in <code>orders</code>, so <code>GROUP BY</code> never produces them &mdash; correct here, since they cannot be a top spender. But the same query shape is wrong for "all customers and their spend": that needs a <code>LEFT JOIN</code> from a <code>customers</code> table with <code>COALESCE(SUM(amount), 0)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the <code>LIMIT</code> must sit in the subquery because the ranking column is not visible outside it, note that the outer query loses the ordering guarantee, raise the <code>LIMIT</code>-tie ambiguity and offer <code>RANK()</code>, and add the <code>status = 'completed'</code> filter that turns raw spend into lifetime value.</div>

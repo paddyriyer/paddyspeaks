@@ -1,0 +1,65 @@
+<p>A subscription business reviews its plan economics at year end: <em>"for every customer, how many days did they actually spend in each plan up to 2025-12-31?"</em> The <code>subs</code> table is an append-only event log &mdash; one row per state change, no end dates &mdash; so a plan period only ends when the <em>next</em> row begins. The interviewer is probing whether you can derive intervals from a change-log and clamp them to a reporting cutoff without double-counting or running past the boundary.</p>
+
+<h4>1. The source data &mdash; <code>subs</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>start_date</th><th>plan</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01</td><td>trial</td><td>ends when 'basic' begins</td></tr>
+    <tr><td>1</td><td>2025-01-08</td><td>basic</td><td>7 days of trial precede it</td></tr>
+    <tr><td>1</td><td>2025-02-15</td><td>pro</td><td>long stint &mdash; runs to the cutoff?</td></tr>
+    <tr><td>1</td><td>2025-12-01</td><td>churn</td><td>last row &mdash; no next event</td></tr>
+    <tr><td>2</td><td>2025-03-10</td><td>trial</td><td>different customer, separate timeline</td></tr>
+    <tr><td>2</td><td>2025-03-17</td><td>annual</td><td>last row for customer 2</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the <strong>last row of each customer</strong>: customer 1's <code>churn</code> and customer 2's <code>annual</code> have no following event, so their period must be closed by the cutoff, not by a NULL. Get that wrong and the final plan contributes zero days.</p>
+
+<h4>2. The SQL &mdash; LEAD to close intervals, clamped to the cutoff</h4>
+<pre><code>WITH intervals AS (
+  SELECT customer_id, plan, start_date,
+         COALESCE(
+           LEAD(start_date) OVER (PARTITION BY customer_id ORDER BY start_date),
+           DATE '2026-01-01'
+         ) AS end_exclusive
+  FROM subs
+)
+SELECT customer_id, plan,
+       SUM((LEAST(end_exclusive, DATE '2026-01-01') - start_date))::int AS days
+FROM intervals
+WHERE start_date &lt; DATE '2026-01-01'
+GROUP BY customer_id, plan
+ORDER BY customer_id, plan;</code></pre>
+<p><code>LEAD(start_date)</code> looks one row forward within each customer's ordered timeline to find when the current plan ends. <code>COALESCE(..., DATE '2026-01-01')</code> supplies the cutoff (one day past 2025-12-31, so the boundary day is included) for the final row. <code>LEAST</code> clamps any interval so it can never extend past the cutoff, and date subtraction in Postgres yields an integer day count.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>plan</th><th>days</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>basic</td><td>38</td><td>Jan 8 &rarr; Feb 15</td></tr>
+    <tr><td>1</td><td>churn</td><td>31</td><td>last row, closed by cutoff (Dec 1 &rarr; Jan 1)</td></tr>
+    <tr><td>1</td><td>pro</td><td>289</td><td>long stint, Feb 15 &rarr; Dec 1</td></tr>
+    <tr><td>1</td><td>trial</td><td>7</td><td>Jan 1 &rarr; Jan 8</td></tr>
+    <tr><td>2</td><td>annual</td><td>290</td><td>last row, Mar 17 &rarr; Jan 1</td></tr>
+    <tr><td>2</td><td>trial</td><td>7</td><td>Mar 10 &rarr; Mar 17</td></tr>
+  </tbody>
+</table>
+<p>Customer 1's four periods sum to 7 + 38 + 289 + 31 = <strong>365</strong> &mdash; exactly the span from 2025-01-01 to 2025-12-31 inclusive, the cleanest possible proof that no day is dropped or double-counted. The final plans (<code>churn</code>, <code>annual</code>) got non-zero days only because <code>COALESCE</code> closed them at the cutoff.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why LEAD turns a change-log into intervals</h5>
+<p>An append-only log stores <em>when a state began</em> but never <em>when it ended</em> &mdash; the end is implicit in the next row. <code>LEAD(start_date) OVER (PARTITION BY customer_id ORDER BY start_date)</code> reaches forward to that next row, converting "valid-from" events into "valid-from / valid-to" intervals. This is the canonical pattern for any temporal log: status histories, price changes, employment records all yield to the same trick.</p>
+
+<h5>Half-open intervals avoid the off-by-one</h5>
+<p>The next plan's <code>start_date</code> is used as an <em>exclusive</em> end. Trial runs <code>[Jan 1, Jan 8)</code> &mdash; the day basic begins belongs to basic, not trial. Subtracting dates then gives exactly 7, with no day counted twice and none lost at the seam. Had the query used an inclusive end (<code>next_start - 1</code>) it would still work, but half-open <code>[start, end)</code> arithmetic is the convention precisely because <code>end - start</code> is the duration directly.</p>
+
+<h5>The cutoff must be applied in two places</h5>
+<p><code>COALESCE</code> handles the <em>last</em> row (no successor), but <code>LEAST(end_exclusive, cutoff)</code> is still needed for any non-final row whose successor starts <em>after</em> the cutoff &mdash; without the clamp, a plan that began in 2025 but whose next change is in 2026 would over-count into the future. The <code>WHERE start_date &lt; cutoff</code> guard then drops any row that begins entirely after the reporting window. Cutoff logic belongs at both the open and close of every interval.</p>
+
+<h5>Boundary convention: why 2026-01-01, not 2025-12-31</h5>
+<p>The cutoff date is written as <code>2026-01-01</code> even though the report stops at <code>2025-12-31</code>. Because the end is exclusive, using the day <em>after</em> the last in-scope day makes 2025-12-31 itself count. Using <code>2025-12-31</code> as the exclusive bound would silently drop the final day. State the inclusive-vs-exclusive intent out loud &mdash; off-by-one at the reporting boundary is the single most common bug in time-in-state questions.</p>
+
+<h5>Dialect notes &mdash; date subtraction is not universal</h5>
+<p><code>date - date =&gt; integer</code> is Postgres behaviour. SQL Server needs <code>DATEDIFF(day, start_date, end_exclusive)</code>; BigQuery uses <code>DATE_DIFF(end_exclusive, start_date, DAY)</code>; MySQL uses <code>DATEDIFF(end_exclusive, start_date)</code>. The interval logic (<code>LEAD</code> + <code>COALESCE</code> + <code>LEAST</code>) is portable; only the day-count subtraction needs translation per engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise an append-only log as implicit intervals, close them with <code>LEAD</code> + <code>COALESCE</code>, use half-open <code>[start, end)</code> arithmetic so durations are exact, and apply the cutoff at both ends &mdash; clamping with <code>LEAST</code> and filtering out-of-window rows &mdash; while stating the inclusive/exclusive boundary convention explicitly.</div>

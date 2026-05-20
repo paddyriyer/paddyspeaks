@@ -1,0 +1,61 @@
+<p>Meta uses "Surrounded Regions" to test a counter-intuitive framing. A board of <code>'X'</code> and <code>'O'</code>; any region of <code>'O'</code>s fully enclosed by <code>'X'</code> should be flipped to <code>'X'</code>. The trap is to hunt for enclosed regions directly &mdash; deciding "is this blob surrounded?" is fiddly. The senior move: flip the question and find the <em>un</em>capturable <code>'O'</code>s instead, which are exactly those connected to a border.</p>
+
+<h4>1. The input data</h4>
+<p>A 4&times;4 board. <code>'O'</code>s touching the edge survive; interior <code>'O'</code>s get captured:</p>
+<pre><code>board = [
+  ['X','X','X','X'],
+  ['X','O','O','X'],
+  ['X','X','O','X'],
+  ['X','O','X','X'],
+]
+# the O at (3,1) touches the bottom edge -> safe
+# the O-blob at (1,1)(1,2)(2,2) is fully enclosed -> captured</code></pre>
+
+<h4>2. The approach</h4>
+<p>An <strong>invert-the-problem</strong> flood fill in three phases.</p>
+<ol>
+  <li><strong>Mark survivors.</strong> Run <code>dfs</code> from every <code>'O'</code> on the four borders &mdash; the loops call <code>dfs(r,0)</code>, <code>dfs(r,C-1)</code>, <code>dfs(0,c)</code>, <code>dfs(R-1,c)</code>. The DFS rewrites every border-connected <code>'O'</code> to a sentinel <code>'#'</code>. These cells cannot be captured because they (or their blob) leak off the edge.</li>
+  <li><strong>Decide.</strong> Now the board has three symbols. After the sweep, any remaining <code>'O'</code> must have been unreachable from the border &mdash; i.e. genuinely enclosed.</li>
+  <li><strong>Rewrite.</strong> The final double loop sets each cell: <code>'#'</code> &rarr; <code>'O'</code> (restore the survivors) and everything else &rarr; <code>'X'</code> (capture the enclosed <code>'O'</code>s, and harmlessly re-set the existing <code>'X'</code>s).</li>
+</ol>
+<p>The <code>'#'</code> sentinel is what lets one boolean &mdash; "did the flood reach you?" &mdash; be stored directly in the board. The function mutates <code>board</code> in place and returns nothing.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th colspan="4">resulting board</th></tr></thead>
+  <tbody>
+    <tr><td>X</td><td>X</td><td>X</td><td>X</td></tr>
+    <tr><td>X</td><td><strong>X</strong></td><td><strong>X</strong></td><td>X</td></tr>
+    <tr><td>X</td><td>X</td><td><strong>X</strong></td><td>X</td></tr>
+    <tr><td>X</td><td>O</td><td>X</td><td>X</td></tr>
+  </tbody>
+</table>
+<p>The enclosed blob at (1,1), (1,2), (2,2) is flipped to <code>X</code>. The <code>O</code> at (3,1) touches the bottom border, so it survives.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(R&middot;C)</strong> &mdash; each border DFS sinks cells to <code>'#'</code> so no cell is visited twice, and the final rewrite is one more linear sweep. <strong>Space O(R&middot;C)</strong> worst case for recursion depth when the board is one large border-connected <code>'O'</code> region.</p>
+
+<h5>The idiomatic alternative</h5>
+<p>An iterative BFS with <code>collections.deque</code>, seeded with every border <code>'O'</code> at once, avoids recursion-limit risk:</p>
+<pre><code>from collections import deque
+q = deque((r,c) for r in range(R) for c in range(C)
+          if (r in (0,R-1) or c in (0,C-1)) and board[r][c]=='O')
+while q:
+    r,c = q.popleft(); board[r][c]='#'
+    for nr,nc in ((r+1,c),(r-1,c),(r,c+1),(r,c-1)):
+        if 0&lt;=nr&lt;R and 0&lt;=nc&lt;C and board[nr][nc]=='O':
+            q.append((nr,nc))</code></pre>
+<p>Same O(R&middot;C); the queue lives on the heap.</p>
+
+<h5>The edge case</h5>
+<p><code>if not board</code> guards an empty input. A <strong>1-row or 1-column board</strong>: every cell is a border cell, so no <code>'O'</code> can ever be enclosed &mdash; all <code>'O'</code>s survive. A board with <em>no</em> <code>'O'</code>s &rarr; the DFS never fires, the rewrite leaves it unchanged. An <code>'O'</code> blob that touches the edge at just one cell saves the <em>entire</em> blob &mdash; connectivity, not per-cell adjacency, decides survival.</p>
+
+<h5>The follow-up</h5>
+<p>"Diagonal connectivity counts" &rarr; add four diagonal deltas. "Don't mutate the input" &rarr; replace the <code>'#'</code> sentinel with a <code>safe</code> set of coordinates and consult it in the rewrite. "Return how many <code>'O'</code>s were captured" &rarr; count during the final sweep.</p>
+
+<h5>The trap</h5>
+<p>The losing approach: DFS from each interior <code>'O'</code> and try to prove its blob never touches an edge. It works but is far messier &mdash; you must track edge-contact through the recursion and re-scan blobs. Worse is the off-by-one trap: flipping <em>all</em> <code>'O'</code>s to <code>'X'</code> first and then trying to "un-flip" border ones &mdash; you've already lost the information about which were connected. Mark survivors <em>before</em> you flip anything.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> inverts the problem &mdash; floods inward from the border to mark the <em>uncapturable</em> <code>'O'</code>s rather than hunting enclosed regions directly &mdash; uses a <code>'#'</code> sentinel to store the reachability bit in the board itself, gets the three-state final rewrite right, and offers the iterative BFS when the recursion stack is a worry.</div>

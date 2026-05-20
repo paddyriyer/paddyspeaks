@@ -1,0 +1,166 @@
+<p>One of the most-asked window-function gotchas: <em>"my MoM increase query returns NULL for some departments — why?"</em> The answer is the boundary behavior of <code>LAG()</code>: at the first row of every partition, there's nothing to look back at. <code>LAG()</code> returns <code>NULL</code>, the subtraction propagates that NULL forward, and downstream <code>RANK</code> / <code>MAX</code> / <code>WHERE</code> all behave in surprising ways because of it.</p>
+
+<h4>1. The source data — <code>orders</code>, <code>departments</code>, <code>customers</code></h4>
+<table>
+  <thead><tr><th>orders</th><th>departments</th><th>customers</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>order_id, customer_id, order_date, order_amount, department_id</td>
+      <td>department_id, department_name</td>
+      <td>customer_id, first_name, last_name</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4>2. The naïve query (and the trap)</h4>
+<p>A first-pass solution computes monthly totals per department, then subtracts the previous month via <code>LAG</code>:</p>
+<pre><code>WITH monthly_totals AS (
+  SELECT o.department_id, d.department_name,
+    strftime('%Y-%m', o.order_date) AS order_month,
+    SUM(o.order_amount) AS monthly_amount
+  FROM orders o JOIN departments d USING (department_id)
+  WHERE o.order_date &gt;= '2024-01-01' AND o.order_date &lt; '2024-03-01'
+  GROUP BY o.department_id, d.department_name, strftime('%Y-%m', o.order_date)
+),
+mom AS (
+  SELECT *, monthly_amount - LAG(monthly_amount) OVER (
+    PARTITION BY department_id ORDER BY order_month
+  ) AS mom_increase
+  FROM monthly_totals
+)
+SELECT department_id, department_name, mom_increase
+FROM mom
+WHERE order_month = '2024-02'
+ORDER BY mom_increase DESC LIMIT 1;</code></pre>
+<p>This works <em>only if every department has both January and February rows</em>. Departments that started selling in February have only one row in their partition; <code>LAG</code> returns NULL; the subtraction yields NULL; the row gets pushed to the bottom of <code>ORDER BY DESC</code> (or the top, depending on dialect). The "winning" department might be the one that legitimately had no January at all.</p>
+
+<h4>3. The robust solution — cross-join + COALESCE + NULLS LAST</h4>
+<pre><code>WITH months AS (
+  SELECT '2024-01' AS order_month UNION ALL SELECT '2024-02'
+),
+dept_months AS (
+  SELECT d.department_id, d.department_name, m.order_month
+  FROM departments d CROSS JOIN months m
+),
+monthly_totals AS (
+  SELECT dm.department_id, dm.department_name, dm.order_month,
+    COALESCE(SUM(o.order_amount), 0) AS monthly_amount
+  FROM dept_months dm
+  LEFT JOIN orders o
+    ON o.department_id = dm.department_id
+   AND strftime('%Y-%m', o.order_date) = dm.order_month
+  GROUP BY dm.department_id, dm.department_name, dm.order_month
+),
+mom AS (
+  SELECT department_id, department_name, order_month,
+    monthly_amount - LAG(monthly_amount) OVER (
+      PARTITION BY department_id ORDER BY order_month
+    ) AS mom_increase
+  FROM monthly_totals
+)
+SELECT department_id, department_name, mom_increase
+FROM mom
+WHERE order_month = '2024-02'
+ORDER BY mom_increase DESC NULLS LAST
+LIMIT 1;</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> returns NULL — partition boundaries are NULL by design</h5>
+<p>Window functions never invent data. When you ask for the previous row and there isn't one, the spec says: return NULL. This is consistent across every dialect (Postgres, SQLite, Snowflake, BigQuery, MySQL 8+) — and consistent with what <code>FIRST_VALUE</code>, <code>LEAD</code>, <code>NTH_VALUE</code> all return at boundaries. The fix is never to "make LAG do something else"; it's to <em>handle the NULL where it surfaces</em>.</p>
+
+<h5>How NULL propagates — three failure modes</h5>
+<table>
+  <thead><tr><th>Operation</th><th>What happens with NULL</th><th>Visible symptom</th></tr></thead>
+  <tbody>
+    <tr><td><code>x − NULL</code></td><td>NULL</td><td>mom_increase column is NULL for one-month departments</td></tr>
+    <tr><td><code>NULL = MAX(...)</code></td><td>NULL (never TRUE)</td><td>The "use a subquery for max" pattern silently <em>excludes</em> NULL rows — sometimes that's what you want, sometimes it hides bugs</td></tr>
+    <tr><td><code>RANK() OVER (ORDER BY x DESC)</code></td><td>NULL ordering depends on the dialect</td><td>Postgres + SQLite: NULL ranks LAST by default; SQL Server / MySQL 8: ranks FIRST. Cross-dialect surprise.</td></tr>
+    <tr><td><code>WHERE x &gt; 0</code></td><td>NULL (never TRUE)</td><td>NULL rows silently filtered out; total row count drops without explanation</td></tr>
+  </tbody>
+</table>
+
+<h5>Three fixes — pick deliberately</h5>
+
+<h6>Fix A — <code>COALESCE</code> inside <code>LAG</code> (treat missing prior month as zero)</h6>
+<pre><code>monthly_amount - COALESCE(
+  LAG(monthly_amount) OVER (PARTITION BY department_id ORDER BY order_month),
+  0
+) AS mom_increase</code></pre>
+<p>Semantic: <em>"a department that didn't exist last month started at zero, so the entire current-month amount IS the increase."</em> Right answer when "department launched mid-year and December's $50K is real growth." Wrong answer when launching a new department shouldn't be ranked above an existing one growing 10×.</p>
+
+<h6>Fix B — Cross-join to force both rows to exist (the cleanest)</h6>
+<p>The solution above. Generates a (department × month) Cartesian product, LEFT JOINs the actuals, COALESCEs the missing aggregate to zero. After this step, <em>every department has exactly two rows</em>; <code>LAG</code> always finds a predecessor; <code>NULL</code> can no longer leak. The verbosity buys total predictability.</p>
+
+<h6>Fix C — Filter the NULLs out (preserve the original "rank only departments with both months" intent)</h6>
+<pre><code>WHERE order_month = '2024-02' AND mom_increase IS NOT NULL
+ORDER BY mom_increase DESC LIMIT 1;</code></pre>
+<p>Equivalent to the <code>= MAX(...)</code> trick. Use when "departments that didn't exist last month are out of scope for the comparison" is the business rule.</p>
+
+<h5>Which fix is which business question?</h5>
+<table>
+  <thead><tr><th>Business framing</th><th>Right fix</th></tr></thead>
+  <tbody>
+    <tr><td>"Treat absence as zero — new department's $50K is +$50K growth"</td><td>A or B</td></tr>
+    <tr><td>"Only compare departments that existed in BOTH months"</td><td>C</td></tr>
+    <tr><td>"Build a dashboard with no NULL cells, ever"</td><td>B</td></tr>
+    <tr><td>"Quick analyst query, throwaway"</td><td>A — shortest</td></tr>
+  </tbody>
+</table>
+
+<h5>The <code>NULLS LAST</code> tail</h5>
+<p>Even if you've COALESCEd most NULLs away, <code>ORDER BY x DESC NULLS LAST</code> is a free safety net. Without it, a single straggling NULL can sit at the top of your <code>LIMIT 1</code> result — depending on the dialect's default — and quietly return a wrong winner. Three things to remember:</p>
+<ul>
+  <li>Postgres / Oracle / SQLite 3.30+ / DuckDB: support <code>NULLS FIRST</code> / <code>NULLS LAST</code> explicitly. Default for <code>DESC</code> is NULLS FIRST.</li>
+  <li>MySQL 8 / SQL Server: don't support <code>NULLS LAST</code> directly. Workaround: <code>ORDER BY x IS NULL, x DESC</code> — the boolean coerces to 0/1, NULLs sort last.</li>
+  <li>BigQuery: supports it; default for <code>DESC</code> is NULLS LAST. Different from Postgres — read the manual when porting.</li>
+</ul>
+
+<h5>The <code>RANK</code> equivalent — switching from <code>= MAX</code> to <code>RANK() = 1</code></h5>
+<p>The <code>= MAX(...)</code> filter implicitly drops NULLs because <code>NULL = NULL</code> is NULL, not TRUE. If you switch to <code>RANK() OVER (ORDER BY mom_increase DESC) = 1</code>, NULLs are no longer auto-dropped — they get ranked. In Postgres / SQLite, NULLs end up at the BOTTOM of the rank (last), but the rank value is still computed. In SQL Server / MySQL, NULLs end up FIRST and rank=1 silently lands on the wrong row.</p>
+<pre><code>-- Cross-dialect-safe RANK on a NULL-able sort key
+RANK() OVER (ORDER BY mom_increase DESC NULLS LAST) AS rk
+-- Then: WHERE rk = 1 AND mom_increase IS NOT NULL</code></pre>
+
+<h5>The diagnostic query — what to actually run when debugging</h5>
+<p>When a teammate complains "MoM is NULL for department X", the fastest debugging step is to look at the <code>monthly_totals</code> CTE before the LAG layer:</p>
+<pre><code>SELECT * FROM monthly_totals
+WHERE department_id = X
+ORDER BY order_month;</code></pre>
+<p>Three patterns appear:</p>
+<table>
+  <thead><tr><th>Rows visible</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td>Both Jan + Feb</td><td>LAG works; mom_increase has a real value</td></tr>
+    <tr><td>Only Feb</td><td>LAG returns NULL on the only row → mom_increase is NULL — the failure mode</td></tr>
+    <tr><td>Only Jan</td><td>The Feb-only filter at the end excludes this department entirely</td></tr>
+    <tr><td>Zero rows</td><td>Department had no orders in either month — out of scope</td></tr>
+  </tbody>
+</table>
+
+<h5>The "implicit filter" trap with <code>= MAX(...)</code></h5>
+<p>The <code>= (SELECT MAX(mom_increase) FROM mom)</code> idiom looks elegant but does TWO things: finds the maximum AND silently filters NULLs. Switching to <code>RANK() OVER ... = 1</code> changes only the first behavior; the second has to be re-implemented explicitly. Many "I just refactored to RANK and now my query is broken" bugs are exactly this implicit-filter loss.</p>
+
+<h5>Production-grade pattern — the date spine</h5>
+<p>The cross-join trick generalizes. For <em>any</em> "compare metric across N consecutive periods" question, prebuild a <strong>date / period spine</strong> and LEFT JOIN against it:</p>
+<pre><code>-- Generic period-spine template
+WITH period_spine AS (
+  SELECT '2024-01' AS p UNION ALL SELECT '2024-02' UNION ALL SELECT '2024-03'
+  -- or: SELECT generate_series('2024-01-01'::date, '2024-12-01'::date, '1 month')
+),
+entity_period AS (
+  SELECT e.entity_id, sp.p
+  FROM entities e CROSS JOIN period_spine sp
+),
+metric_per_period AS (
+  SELECT ep.entity_id, ep.p, COALESCE(SUM(f.value), 0) AS metric
+  FROM entity_period ep
+  LEFT JOIN fact f ON f.entity_id = ep.entity_id AND period_of(f) = ep.p
+  GROUP BY ep.entity_id, ep.p
+)</code></pre>
+<p>This is the single most-useful template for retention curves, cohort analysis, MoM / WoW / YoY trends, and any "missing period = real zero" comparison.</p>
+
+<h5>The senior reframe</h5>
+<p>The interviewer's actual signal isn't "do you know the LAG function?" — every junior does. It's: <strong>"do you anticipate the NULL boundary, and have you internalized that NULL is contagious through arithmetic, comparison, ordering, and ranking?"</strong>. The candidate who reaches for COALESCE, NULLS LAST, and the cross-join spine reflexively is the one who's been bitten enough times to be senior.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name LAG's first-row-NULL as the boundary contract, articulate the four NULL-propagation paths (subtraction / equality / ranking / WHERE), pick between Fix A (COALESCE-zero), Fix B (cross-join spine), and Fix C (explicit IS NOT NULL) based on the actual business framing, and add <code>NULLS LAST</code> as a portable safety net. The "implicit-filter loss when refactoring <code>= MAX</code> to <code>RANK</code>" is the trap that catches even experienced engineers — flag it unprompted.</div>

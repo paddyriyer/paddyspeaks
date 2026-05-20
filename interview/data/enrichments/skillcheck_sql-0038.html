@@ -1,0 +1,67 @@
+<p>An IoT pipeline ingests sensor readings where a downed sensor records <code>NULL</code>. The team wants <strong>LOCF</strong> &mdash; last observation carried forward &mdash; so each gap inherits the most recent real reading. The interviewer is probing whether you can do gap-fill <em>without</em> <code>IGNORE NULLS</code> (unsupported in older Postgres, MySQL 8, older BigQuery), using the running-count grouping trick.</p>
+
+<h4>1. The source data &mdash; <code>sensor_readings</code></h4>
+<table>
+  <thead><tr><th>ts</th><th>sensor_id</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01 00:00</td><td>1</td><td>10</td><td>good reading</td></tr>
+    <tr><td>2025-01-01 01:00</td><td>1</td><td>NULL</td><td>downtime &mdash; should carry 10</td></tr>
+    <tr><td>2025-01-01 02:00</td><td>1</td><td>12</td><td>recovers</td></tr>
+    <tr><td>2025-01-01 03:00</td><td>1</td><td>NULL</td><td>downtime &mdash; carry 12</td></tr>
+    <tr><td>2025-01-01 04:00</td><td>1</td><td>NULL</td><td>still down &mdash; still 12</td></tr>
+    <tr><td>2025-01-01 00:00</td><td>2</td><td>NULL</td><td>leading NULL &mdash; no prior value, the edge case</td></tr>
+    <tr><td>2025-01-01 01:00</td><td>2</td><td>NULL</td><td>still no prior &mdash; stays NULL</td></tr>
+    <tr><td>2025-01-01 02:00</td><td>2</td><td>7</td><td>first real reading for sensor 2</td></tr>
+    <tr><td>2025-01-01 03:00</td><td>2</td><td>8</td><td>good reading</td></tr>
+  </tbody>
+</table>
+<p>Sensor 2's edge case: its first two rows are <code>NULL</code> with <em>no prior reading at all</em>. Correct LOCF leaves them <code>NULL</code> &mdash; there is nothing to carry forward yet.</p>
+
+<h4>2. The SQL &mdash; running-count groups, then MAX per group</h4>
+<pre><code>WITH grouped AS (
+  SELECT ts, sensor_id, value,
+         COUNT(value) OVER (PARTITION BY sensor_id ORDER BY ts
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS grp
+  FROM sensor_readings
+)
+SELECT ts, sensor_id, value,
+       MAX(value) OVER (PARTITION BY sensor_id, grp) AS filled
+FROM grouped
+ORDER BY sensor_id, ts;</code></pre>
+<p><code>COUNT(value)</code> ignores NULLs, so as the per-sensor stream advances it increments only on a real reading and stays flat across NULLs. Every NULL therefore inherits the group number of the last non-NULL <em>before</em> it. <code>MAX(value) OVER (PARTITION BY sensor_id, grp)</code> then broadcasts that group's single real value across all its rows.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>ts</th><th>sensor_id</th><th>value</th><th>filled</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>00:00</td><td>1</td><td>10</td><td>10</td><td>grp 1</td></tr>
+    <tr><td>01:00</td><td>1</td><td>NULL</td><td>10</td><td>still grp 1 &mdash; carries 10</td></tr>
+    <tr><td>02:00</td><td>1</td><td>12</td><td>12</td><td>grp 2</td></tr>
+    <tr><td>03:00</td><td>1</td><td>NULL</td><td>12</td><td>grp 2 &mdash; carries 12</td></tr>
+    <tr><td>04:00</td><td>1</td><td>NULL</td><td>12</td><td>grp 2 &mdash; still 12</td></tr>
+    <tr><td>00:00</td><td>2</td><td>NULL</td><td>NULL</td><td>grp 0 &mdash; no prior reading</td></tr>
+    <tr><td>01:00</td><td>2</td><td>NULL</td><td>NULL</td><td>grp 0 &mdash; still nothing to carry</td></tr>
+    <tr><td>02:00</td><td>2</td><td>7</td><td>7</td><td>grp 1</td></tr>
+    <tr><td>03:00</td><td>2</td><td>8</td><td>8</td><td>grp 2</td></tr>
+  </tbody>
+</table>
+<p>Sensor 2's leading NULLs stay <strong>NULL</strong> &mdash; they fall in <code>grp = 0</code>, a group with no real value, so its <code>MAX</code> is NULL. That is the correct LOCF behaviour: you cannot carry forward what does not yet exist.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the running <code>COUNT</code> builds the fill groups</h5>
+<p><code>COUNT(value)</code> &mdash; argument form, not <code>COUNT(*)</code> &mdash; counts only non-NULL values. As a running window it ticks up by 1 at each real reading and holds steady over NULLs. The consequence: a real reading and every NULL <em>after</em> it (until the next reading) share one <code>grp</code> number. Each group thus contains exactly one non-NULL value plus the NULLs that should inherit it.</p>
+
+<h5>Why <code>MAX</code> broadcasts the value</h5>
+<p>Within a group there is precisely one non-NULL <code>value</code>. <code>MAX(value) OVER (PARTITION BY sensor_id, grp)</code> finds it &mdash; <code>MIN</code> or <code>SUM</code> would work identically since there is only one value to aggregate; <code>MAX</code> is conventional. The window broadcasts that single value to every row in the group, which <em>is</em> the carry-forward. No <code>ORDER BY</code> is needed inside this second window: it covers the whole group as one block.</p>
+
+<h5>Why the leading-NULL group is <code>0</code> &mdash; and why that is correct</h5>
+<p>Before any real reading, the running <code>COUNT(value)</code> is <code>0</code>. Sensor 2's first two NULLs both sit in <code>grp = 0</code>, whose only members are NULLs, so <code>MAX</code> returns NULL. LOCF is undefined when there is no prior observation, and the trick yields NULL automatically &mdash; no special-casing required. If the business wanted a backward-fill (carry the <em>first future</em> reading), you would reverse the sort or add a second <code>COALESCE</code> pass.</p>
+
+<h5>Why not <code>LAG</code></h5>
+<p><code>LAG(value)</code> only reaches back <em>one</em> row, so it fails across consecutive NULLs &mdash; sensor 1's 04:00 row would see the 03:00 NULL, not 12. A correlated subquery (<code>MAX(value) WHERE ts &lt; this.ts AND value IS NOT NULL</code>) is correct but O(n&sup2;). The count-group pattern sorts once per sensor &mdash; O(n log n) &mdash; and fills arbitrarily long gaps in a single pass.</p>
+
+<h5>Dialect notes</h5>
+<p>Postgres 16+, BigQuery, Snowflake, Oracle, and DuckDB support the direct form <code>LAST_VALUE(value IGNORE NULLS) OVER (PARTITION BY sensor_id ORDER BY ts ROWS UNBOUNDED PRECEDING)</code> &mdash; one line, very readable. The <code>COUNT</code>-group trick shown here is the portable fallback that works on every engine with window functions, including older Postgres and MySQL 8, which lack <code>IGNORE NULLS</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement LOCF without <code>IGNORE NULLS</code> by using a running <code>COUNT(value)</code> &mdash; which skips NULLs &mdash; to tag each NULL with the group of its last real reading, then <code>MAX(value) OVER (PARTITION BY key, grp)</code> to broadcast it; the leading-NULL group <code>0</code> naturally stays NULL, which is correct.</div>

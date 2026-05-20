@@ -1,0 +1,66 @@
+<p>A Community HR system stores employee attributes in an entity-attribute-value (EAV) table &mdash; one row per attribute, infinitely flexible but unreadable. The reporting team wants the opposite: one row per employee with named columns. This is a pivot. The interviewer is watching whether you reach for conditional aggregation, why <code>MAX</code> is the right aggregator, and how a missing attribute behaves.</p>
+
+<h4>1. The source data &mdash; <code>emp_attributes</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>attr_name</th><th>attr_value</th></tr></thead>
+  <tbody>
+    <tr><td>401</td><td>full_name</td><td>Priya Iyer</td></tr>
+    <tr><td>401</td><td>department</td><td>Engineering</td></tr>
+    <tr><td>401</td><td>years_exp</td><td>5</td></tr>
+    <tr><td>401</td><td>salary</td><td>82000</td></tr>
+    <tr><td>403</td><td>full_name</td><td>Sana Patel</td></tr>
+    <tr><td>403</td><td>department</td><td>Engineering</td></tr>
+    <tr><td>403</td><td>years_exp</td><td>8</td></tr>
+  </tbody>
+</table>
+<p>Employees 401, 402, 404 each have all four attributes. Employee 403 is a recent hire whose <strong>salary row simply does not exist yet</strong> &mdash; only three rows for them. That missing row is the edge case: the pivot must still produce a 403 row, with a NULL salary, not drop the employee.</p>
+
+<h4>2. The SQL &mdash; <code>MAX(CASE WHEN ...)</code> conditional aggregation</h4>
+<pre><code>SELECT
+  emp_id,
+  MAX(CASE WHEN attr_name = 'full_name'  THEN attr_value END) AS full_name,
+  MAX(CASE WHEN attr_name = 'department' THEN attr_value END) AS department,
+  CAST(MAX(CASE WHEN attr_name = 'years_exp' THEN attr_value END) AS INTEGER)
+      AS years_exp,
+  CAST(MAX(CASE WHEN attr_name = 'salary'    THEN attr_value END) AS INTEGER)
+      AS salary
+FROM emp_attributes
+GROUP BY emp_id
+ORDER BY emp_id;</code></pre>
+<p>Group by the row identity (<code>emp_id</code>); for each target column, a <code>CASE</code> exposes <code>attr_value</code> only on the matching attribute row and NULL on every other; <code>MAX</code> then collapses the group, skipping the NULLs and surfacing the one real value.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>full_name</th><th>department</th><th>years_exp</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>401</td><td>Priya Iyer</td><td>Engineering</td><td>5</td><td>82000</td></tr>
+    <tr><td>402</td><td>Marcus Chen</td><td>Marketing</td><td>3</td><td>65000</td></tr>
+    <tr><td>403</td><td>Sana Patel</td><td>Engineering</td><td>8</td><td><em>NULL</em></td></tr>
+    <tr><td>404</td><td>Diego Reyes</td><td>Finance</td><td>2</td><td>58000</td></tr>
+  </tbody>
+</table>
+<p>Four employees, one row each. Employee 403 appears with every attribute they have and a <strong>NULL salary</strong> &mdash; the pivot did not silently drop the employee just because one attribute was absent. That is the correct, robust behaviour: a missing attribute becomes a missing cell, not a missing row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>MAX</code> and not <code>MIN</code>, <code>SUM</code>, or first value</h5>
+<p>For each output column, exactly one row in the group has a non-NULL <code>CASE</code> result; every other row is NULL. <code>MAX</code> ignores NULLs and returns that single real value &mdash; and <code>MIN</code> would do equally well, since there is only one non-NULL to choose from. The aggregator is required purely because <code>GROUP BY</code> demands one: you cannot select a bare <code>attr_value</code> alongside a <code>GROUP BY emp_id</code>. <code>SUM</code> works only for numeric attributes and breaks on text; <code>MAX</code> is the portable choice that handles both. The one assumption: each <code>(emp_id, attr_name)</code> pair is unique. If an employee had two <code>salary</code> rows, <code>MAX</code> would quietly pick the larger and hide the duplicate &mdash; worth a sanity-check.</p>
+
+<h5>The <code>CASE</code> without <code>ELSE</code> &mdash; deliberate</h5>
+<p><code>CASE WHEN attr_name = 'salary' THEN attr_value END</code> has no <code>ELSE</code>, so non-matching rows yield NULL. That is essential: those NULLs are exactly what <code>MAX</code> needs to skip. Adding <code>ELSE ''</code> or <code>ELSE 0</code> would feed real values into the aggregate and corrupt the pivot &mdash; a <code>MAX</code> over <code>('82000', '', '', '')</code> still gives <code>'82000'</code> by luck of string ordering, but the pattern is fragile and breaks for other aggregators. Leave the <code>ELSE</code> off.</p>
+
+<h5>The typing problem &mdash; EAV stores everything as text</h5>
+<p>Because one <code>attr_value</code> column must hold names, departments, years, and salaries, it is typed <code>TEXT</code>. <code>years_exp</code> and <code>salary</code> are genuinely numbers, so the solution wraps them in <code>CAST(... AS INTEGER)</code> &mdash; without it, sorting or arithmetic on those columns would be lexical (<code>'82000' &lt; '9'</code>). The cast sits <em>outside</em> the <code>MAX</code> here, which is fine. One hazard: if any <code>salary</code> value were non-numeric (<code>'TBD'</code>, <code>'N/A'</code>), the cast throws for the whole query. A defensive version uses a safe cast &mdash; in Postgres, <code>NULLIF(regexp_replace(val,'\\D','','g'),'')::int</code>, or simply validate the EAV table upstream.</p>
+
+<h5>The dialect-specific <code>PIVOT</code> operator</h5>
+<p>SQL Server, Oracle, and Snowflake offer a dedicated <code>PIVOT</code> clause:</p>
+<pre><code>SELECT emp_id, full_name, department, years_exp, salary
+FROM emp_attributes
+PIVOT (MAX(attr_value)
+       FOR attr_name IN (full_name, department, years_exp, salary)) AS p;</code></pre>
+<p>It is the same conditional aggregation under the hood &mdash; note it <em>still</em> takes a <code>MAX</code> aggregator. The portable <code>MAX(CASE)</code> form runs in every dialect (Postgres, MySQL, SQLite included) and is the safer interview answer; mention <code>PIVOT</code> as the platform-specific sugar.</p>
+
+<h5>The fundamental limit: pivot columns must be known in advance</h5>
+<p>Every approach here hard-codes the four attribute names. If a new attribute (<code>'location'</code>) is added to the EAV table, it simply will not appear &mdash; the query has no column for it. A truly dynamic pivot, where the columns are discovered from the data, cannot be done in a single static SQL statement: it requires generating the SQL text from a <code>SELECT DISTINCT attr_name</code> and executing it dynamically. Naming this limitation &mdash; "static pivot needs a fixed, known set of columns" &mdash; is the senior observation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise EAV-to-wide as conditional aggregation, use <code>MAX(CASE WHEN ... THEN ... END)</code> with no <code>ELSE</code> so absent attributes become NULL cells (not dropped rows), cast text-typed numeric attributes explicitly while guarding against non-numeric values, and state that a static pivot can only project a fixed, pre-known column set.</div>

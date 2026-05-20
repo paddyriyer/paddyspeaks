@@ -1,0 +1,57 @@
+<p>A grocery retailer wants a per-customer summary of a specific product slice: organic items that are either juices or nut butters. The report must total quantity and concatenate the matching product names into one cell. The interviewer is probing string pattern matching with <code>LIKE</code>, correct precedence of <code>AND</code>/<code>OR</code>, and the <code>string_agg</code> aggregation idiom.</p>
+
+<h4>1. The source data &mdash; <code>retail_orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customername</th><th>productname</th><th>quantity</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Alice</td><td>Organic Apple Juice</td><td>3</td><td>2024-04-01</td></tr>
+    <tr><td>2</td><td>Alice</td><td>Organic Peanut Butter</td><td>2</td><td>2024-04-02</td></tr>
+    <tr><td>3</td><td>Alice</td><td>Regular Bread</td><td>4</td><td>2024-04-03</td></tr>
+    <tr><td>4</td><td>Bob</td><td>Organic Orange Juice</td><td>5</td><td>2024-04-04</td></tr>
+    <tr><td>5</td><td>Bob</td><td>Whole Milk</td><td>1</td><td>2024-04-05</td></tr>
+    <tr><td>6</td><td>Carol</td><td>Organic Almond Butter</td><td>6</td><td>2024-04-06</td></tr>
+    <tr><td>7</td><td>Carol</td><td>Organic Mango Juice</td><td>2</td><td>2024-04-07</td></tr>
+    <tr><td>8</td><td>Dan</td><td>Plain Yogurt</td><td>3</td><td>2024-04-08</td></tr>
+    <tr><td>9</td><td>Eve</td><td>Organic Cashew Butter</td><td>1</td><td>2024-04-09</td></tr>
+  </tbody>
+</table>
+<p>Dan is the edge case: his only order ("Plain Yogurt") matches none of the filters, so Dan must <em>not</em> appear in the output at all &mdash; the WHERE clause drops the row before grouping, leaving Dan with zero qualifying rows and therefore no group.</p>
+
+<h4>2. The SQL &mdash; filtered aggregation with <code>string_agg</code></h4>
+<pre><code>select customername,
+    sum(quantity) as quantity,
+    string_agg(productname, ',') as product_names
+from retail_orders
+where productname like '%Organic%' and (productname like '%Juice%' or productname like '%Butter%')
+group by customername;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customername</th><th>quantity</th><th>product_names</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>5</td><td>Organic Apple Juice,Organic Peanut Butter</td></tr>
+    <tr><td>Bob</td><td>5</td><td>Organic Orange Juice</td></tr>
+    <tr><td>Carol</td><td>8</td><td>Organic Almond Butter,Organic Mango Juice</td></tr>
+    <tr><td>Eve</td><td>1</td><td>Organic Cashew Butter</td></tr>
+  </tbody>
+</table>
+<p>Alice's quantity is 5, not 9 &mdash; "Regular Bread" was filtered out before the <code>SUM</code>. Bob's "Whole Milk" likewise dropped. Dan is entirely absent. The aggregates describe only the <em>qualifying</em> rows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>AND</code>/<code>OR</code> precedence trap &mdash; the parentheses are load-bearing</h5>
+<p><code>AND</code> binds tighter than <code>OR</code>. Written without the brackets, <code>productname LIKE '%Organic%' AND productname LIKE '%Juice%' OR productname LIKE '%Butter%'</code> parses as <code>(Organic AND Juice) OR Butter</code> &mdash; which would let in <em>non-organic</em> butter such as "Regular Almond Butter". The parentheses force "organic, AND (juice OR butter)", the intended logic. This is the most common silent bug on multi-condition filters.</p>
+
+<h5><code>string_agg</code> &mdash; collapsing many rows into one cell</h5>
+<p><code>string_agg(productname, ',')</code> is an aggregate, like <code>SUM</code>: under <code>GROUP BY customername</code> it concatenates every qualifying product for that customer with a comma delimiter. To make the list deterministic, add an ordering: <code>string_agg(productname, ',' ORDER BY productname)</code> &mdash; otherwise the concatenation order is unspecified.</p>
+
+<h5>Dialect note &mdash; the same idea has four names</h5>
+<p>The function differs sharply by engine: Postgres (this one) uses <code>string_agg</code>; MySQL uses <code>GROUP_CONCAT(productname SEPARATOR ',')</code>; Oracle uses <code>LISTAGG(productname, ',') WITHIN GROUP (ORDER BY productname)</code>; SQL Server uses <code>STRING_AGG(productname, ',')</code> (2017+). Knowing which to reach for is a quick credibility signal.</p>
+
+<h5>Why a WHERE filter excludes Dan entirely</h5>
+<p><code>WHERE</code> runs <em>before</em> <code>GROUP BY</code>, so non-matching rows never reach aggregation. Dan's only row is removed, he forms no group, and he vanishes from the result. If the spec instead wanted <em>all</em> customers listed with zeros/NULLs for non-buyers, the filter must move <em>inside</em> the aggregates &mdash; <code>SUM(quantity) FILTER (WHERE &hellip;)</code> &mdash; while the WHERE clause is dropped, so every customer survives grouping.</p>
+
+<h5>The <code>LIKE</code> substring caveat</h5>
+<p><code>'%Juice%'</code> is an unanchored substring match: it would also catch a hypothetical "Juicer Cleaning Kit". For tighter matching, anchor the pattern, match a category column if one exists, or use a word-boundary regex (<code>~</code> in Postgres). Mention this &mdash; pattern filters are convenient but imprecise.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> call out that the <code>AND</code>/<code>OR</code> parentheses are the difference between "organic juice or butter" and "any butter at all", name <code>string_agg</code> with an explicit <code>ORDER BY</code> for deterministic output, and know that a pre-aggregation <code>WHERE</code> drops non-matching customers entirely &mdash; switch to <code>FILTER</code> if every customer must still appear.</div>

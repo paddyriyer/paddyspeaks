@@ -1,0 +1,45 @@
+<p>Stripe Radar's bread-and-butter rule: <strong>3+ payment attempts within 5 minutes</strong> from the same user signals card-testing fraud. The query is a self-join on a sliding window.</p>
+
+<h4>1. The source data — <code>payment_attempts</code></h4>
+<table><thead><tr><th>attempt_id</th><th>user_id</th><th>attempted_at</th><th>status</th></tr></thead>
+<tbody><tr><td>A_001</td><td>U_01</td><td>10:00:00</td><td>failed</td></tr></tbody></table>
+
+<h4>2. The SQL — sliding-window via self-join</h4>
+<pre><code>SELECT a.user_id, a.attempted_at,
+  COUNT(b.attempt_id) AS attempts_in_5min
+FROM payment_attempts a
+JOIN payment_attempts b
+  ON b.user_id = a.user_id
+ AND julianday(b.attempted_at) BETWEEN julianday(a.attempted_at) - 1.0/288 AND julianday(a.attempted_at)
+GROUP BY a.user_id, a.attempted_at
+HAVING COUNT(b.attempt_id) &gt;= 3
+ORDER BY a.user_id, a.attempted_at;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 1.0/288 trick</h5>
+<p>5 minutes = 5/(60*24) days = 1/288 days. The julianday subtraction in days; this constant gives a 5-minute window. Memorize: 1/24 = 1 hour, 1/288 = 5 min, 1/1440 = 1 minute.</p>
+
+<h5>Sliding window via self-join — the canonical pattern</h5>
+<p>For each row a, count all rows b for the same user within 5 minutes. SQLite/MySQL can't do <code>RANGE BETWEEN INTERVAL</code> windows; the self-join is the portable workaround. O(n²) without a composite index — production needs <code>(user_id, attempted_at)</code> indexed.</p>
+
+<h5>The "card testing" pattern</h5>
+<p>Fraudsters try stolen card numbers in rapid succession until one works. Signature: 3-10 attempts in 30 seconds, mostly failing, eventually one succeeds. Velocity rule catches the cluster.</p>
+
+<h5>False-positive: legitimate retry</h5>
+<p>A user who fat-fingers their card 3x in 1 minute is NOT a fraudster. Add a refinement: require the attempts span DIFFERENT card_last4 to flag:</p>
+<pre><code>HAVING COUNT(*) &gt;= 3 AND COUNT(DISTINCT card_last4) &gt;= 3</code></pre>
+
+<h5>The action — block, allow, or step-up?</h5>
+<p>Three responses to detected velocity:</p>
+<ul>
+<li><strong>Block</strong> — too aggressive, hurts conversion</li>
+<li><strong>Step-up to 3DS</strong> — friction but legitimate</li>
+<li><strong>Allow + flag</strong> — wait for chargeback signal, learn pattern</li>
+</ul>
+<p>Stripe Radar's ML balances. The query above is the candidate-pool feeder; the decision logic is downstream.</p>
+
+<h5>Cross-account variation</h5>
+<p>Velocity at the IP level catches networks of fraudsters using many fake accounts. Slice by IP instead of user_id for that.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use self-join sliding-window for non-supporting dialects, distinguish legitimate retry from fraud (different last4 / different cards), articulate the block-vs-step-up-vs-allow action menu, and pivot to IP-level for fraud-network detection.</div>

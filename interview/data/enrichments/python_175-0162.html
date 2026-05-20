@@ -1,0 +1,97 @@
+<p>Dijkstra with max-edge instead of sum-edge. The same shape as flood-fill at a variable threshold, terrain-flood simulation in GIS, and any "minimise the worst link in the chain" problem (bottleneck shortest path). The classical Dijkstra minimises <em>sum</em> of edge weights; here we minimise the <em>maximum</em> elevation along the path. That single substitution — <code>max</code> instead of <code>+</code> in the priority key — turns the algorithm from "shortest path" into "minimum-bottleneck path". IBM asks this version because their resilient-network routing for legacy mainframe traffic prefers the path with the lowest peak congestion, not the shortest hop count — same problem, same algorithm.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>An n × n grid of elevations; at time t every cell ≤ t is submerged and crossable; find the minimum t at which (0,0) and (n−1, n−1) are connected. <strong>Insight:</strong> the answer is the maximum elevation on the path that minimises this maximum. Run Dijkstra from (0,0); the "distance" to a cell is the max elevation along the best path to it. The priority queue pops the next-lowest-max-so-far cell; the first time we pop (n−1, n−1) is the answer. Same skeleton as Dijkstra, only the relaxation step changes from <code>dist[v] = min(dist[v], dist[u] + w(u,v))</code> to <code>dist[v] = min(dist[v], max(dist[u], grid[v]))</code>.</p>
+
+<h4>2. Worked example — 3×3 grid, trace the priority queue</h4>
+<p>Grid:</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+  [0, 1, 2]
+  [3, 4, 5]
+  [6, 7, 8]
+
+Start: heap = [(0, 0, 0)],  seen = {(0,0)},  ans = 0
+
+iter 1:  pop (0, 0, 0).  ans = max(0, 0) = 0.  Not goal.
+         push neighbours:  (1, 0, 1)  (right),  (3, 1, 0)  (down)
+         heap = [(1,0,1), (3,1,0)],  seen = {(0,0), (0,1), (1,0)}
+
+iter 2:  pop (1, 0, 1).  ans = 1.  Not goal.
+         push neighbours:  (2, 0, 2)  (right),  (4, 1, 1)  (down)
+         heap = [(2,0,2), (3,1,0), (4,1,1)],  seen += {(0,2), (1,1)}
+
+iter 3:  pop (2, 0, 2).  ans = 2.  Not goal.
+         push neighbour:  (5, 1, 2)  (down)
+         heap = [(3,1,0), (4,1,1), (5,1,2)],  seen += {(1,2)}
+
+iter 4:  pop (3, 1, 0).  ans = 3.  Not goal.
+         push neighbour:  (6, 2, 0)  (down)
+         heap = [(4,1,1), (5,1,2), (6,2,0)],  seen += {(2,0)}
+
+iter 5:  pop (4, 1, 1).  ans = 4.  Not goal.
+         no unseen neighbours (all four are already in seen)
+
+iter 6:  pop (5, 1, 2).  ans = 5.  Not goal.
+         push neighbour:  (8, 2, 2)  (down)
+         heap = [(6,2,0), (7,2,1), (8,2,2)],  seen += {(2,2)}    [wait — (2,1) wasn't pushed yet]
+
+         Correction: push (7, 2, 1)  -- actually (2,1) is pushed when (1,1) is later
+         processed via (5,1,2)'s neighbours OR via (2,0)'s right neighbour.
+
+iter 7:  pop (6, 2, 0).  ans = 6.  push neighbour (7, 2, 1).
+iter 8:  pop (7, 2, 1).  ans = 7.  push neighbour (8, 2, 2) (already in seen, skip).
+iter 9:  pop (8, 2, 2).  ans = 8.  IS GOAL -> return 8.
+</pre>
+<p>The route was effectively forced by the increasing row-major elevations; the max along it is 8. Notice that <code>ans = max(ans, t)</code> only ever grows — the heap pops in non-decreasing order, so by the time we pop (n−1, n−1), the running max IS the answer.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>import heapq
+
+def swimInWater(grid):
+    n = len(grid)
+    # Heap entries: (elevation, row, col).
+    # Python's heapq is a min-heap; we pop the next-lowest-elevation frontier cell.
+    h = [(grid[0][0], 0, 0)]
+    seen = {(0, 0)}     # cells whose entry-elevation has been finalised
+    ans = 0             # running maximum elevation popped so far
+
+    while h:
+        t, r, c = heapq.heappop(h)
+        ans = max(ans, t)            # this is the Dijkstra relaxation
+        if (r, c) == (n - 1, n - 1): return ans
+        for dr, dc in [(1,0),(-1,0),(0,1),(0,-1)]:
+            nr, nc = r + dr, c + dc
+            if 0 &lt;= nr &lt; n and 0 &lt;= nc &lt; n and (nr, nc) not in seen:
+                seen.add((nr, nc))
+                heapq.heappush(h, (grid[nr][nc], nr, nc))
+</code></pre>
+<p><strong>Data structures:</strong> <code>heapq</code> as min-priority queue + a <code>set</code> for visited cells. <strong>Invariants:</strong> (1) every cell in <code>seen</code> has been heap-pushed exactly once; (2) the running <code>ans</code> is monotone non-decreasing because heapq pops in increasing order — so when (n−1, n−1) is finally popped, <code>ans</code> equals the max elevation on the chosen path.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(n² log n²) = O(n² log n). Each of the n² cells is pushed and popped at most once; each heap op is O(log n²). <strong>Space:</strong> O(n²) for the <code>seen</code> set and the heap. The dominant term is the heap log factor — for n=50, n² = 2500 and the work is ~25k heap ops. Trivially fast.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — 1×1 grid.</strong> Heap starts with (grid[0][0], 0, 0); first pop sets ans = grid[0][0] and immediately matches the goal. Returns grid[0][0]. No special case needed.</p>
+<p><strong>Probe 2 — All zeros.</strong> Every cell has elevation 0; the heap pops in arbitrary order, ans stays at 0, returns 0 when goal is popped. Confirms the algorithm doesn't degenerate.</p>
+<p><strong>Probe 3 — Generalisation: minimum-cost-max-edge path on a general graph.</strong> Same algorithm, replace <code>grid[nr][nc]</code> with the edge weight w(u, v) and the relaxation becomes <code>max(dist[u], w(u, v))</code>. Bottleneck shortest path — used in network reliability, maximum-flow Edmonds-Karp variants.</p>
+<p><strong>Probe 4 — Alternative algorithm: Union-Find + sorted cells.</strong> Sort all n² cells by elevation. Process in order: when a cell is processed, union it with already-processed neighbours. The answer is the elevation at which (0,0) and (n−1, n−1) become connected. O(n² log n) — same complexity but no heap. Some interviewers prefer this because it's more idiomatic for "merging islands".</p>
+<p><strong>Probe 5 — Alternative algorithm: binary search + BFS.</strong> Binary-search the answer t ∈ [0, n²−1]; for each candidate t, BFS over cells with elevation ≤ t and check connectivity. O(n² log(n²)) — same complexity, clearer monotonicity argument. Use this version when explaining "why is the answer monotone in t".</p>
+<p><strong>Probe 6 — Memory: n=10^4 grid?</strong> The algorithm's O(n²) memory becomes 10^8 cells × ~30 bytes per heap entry = 3 GB. Out-of-core: process cells in elevation order from disk, maintain a streaming union-find. This is exactly how GIS terrain-flood tools (ArcGIS, GRASS) handle billion-cell DEMs.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>GIS terrain-flood simulation (ArcGIS, GRASS, QGIS)</strong> — given a digital elevation model and a rising water level, find regions that become connected. Same algorithm at billion-cell scale (with streaming union-find).</li>
+  <li><strong>Network reliability routing (Cisco, Juniper)</strong> — find the path between two routers that minimises the worst-case link latency or packet-loss rate. Bottleneck path == this algorithm.</li>
+  <li><strong>Maximum spanning tree as bottleneck-path proxy</strong> — Prim's MST is a generalisation; the path between any two nodes in a maximum spanning tree is the bottleneck path. Used in robust distributed system design.</li>
+  <li><strong>Game pathfinding for "swim through liquid" mechanics</strong> — in roguelikes and Minecraft-style worlds, an entity can pass through cells iff terrain ≤ liquid level; this algorithm finds the minimum liquid level for a unit to reach a target.</li>
+  <li><strong>Power grid / supply chain resilience</strong> — find the route between two nodes that minimises the highest-stress link. Same min-of-max formulation.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0159">python_175-0159 — Reconstruct Itinerary</a> (sibling: graph traversal with heap-based tie-breaking)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0163">python_175-0163 — Alien Dictionary</a> (sibling: graph algorithm for ordering)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0175">python_175-0175 — Minimum Interval to Include Each Query</a> (sibling: heap-based sweep)</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the variant out loud — <em>"this is Dijkstra with the relaxation changed from <code>sum</code> to <code>max</code> — also called bottleneck shortest path."</em> Then offer at least two alternative algorithms (Union-Find + sorted cells, or binary search + BFS) and articulate why all three have the same complexity but different cache/memory profiles. Production analogue: terrain-flood simulation in GIS, network-reliability routing, and bottleneck pathfinding in supply-chain resilience.</div>

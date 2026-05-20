@@ -1,0 +1,82 @@
+<p>A product analytics team wants a cohort retention table: given users' first-ever activity month (their "cohort"), how many of them returned in each of the next three calendar months? The interviewer is probing three interlocking skills &mdash; computing cohort assignment with <code>MIN</code>, generating a complete <strong>month &times; offset grid</strong> with a <code>CROSS JOIN</code> to a <code>VALUES</code> list, and using a <code>LEFT JOIN</code> to guarantee zero counts for empty cells rather than omitting them.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_date</th><th>cohort_month (derived)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-05, 2024-02-10, 2024-03-15, 2024-04-20</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>2024-01-15, 2024-03-01</td><td>2024-01-01</td></tr>
+    <tr><td>3</td><td>2024-02-05, 2024-02-25, 2024-03-10</td><td>2024-02-01</td></tr>
+    <tr><td>4</td><td>2024-02-12</td><td>2024-02-01</td></tr>
+    <tr><td>5</td><td>2024-03-01, 2024-03-15, 2024-04-02</td><td>2024-03-01</td></tr>
+  </tbody>
+</table>
+<p>Three cohorts: Jan (users 1, 2), Feb (users 3, 4), Mar (user 5). Each cohort is observed at offsets 0, 1, 2, and 3 months from its cohort month. User 4 never returned after Feb &mdash; a zero-count cell that must still appear in the output.</p>
+
+<h4>2. The SQL &mdash; cohort CTE + sparse activity + grid cross join</h4>
+<pre><code>WITH first_event AS (
+  SELECT user_id,
+         DATE_TRUNC('month', MIN(event_date))::date AS cohort_month
+  FROM event
+  GROUP BY user_id
+),
+active AS (
+  SELECT DISTINCT user_id,
+         DATE_TRUNC('month', event_date)::date AS active_month
+  FROM event
+),
+grid AS (
+  SELECT DISTINCT f.cohort_month, m.months_since
+  FROM first_event f
+  CROSS JOIN (VALUES (0),(1),(2),(3)) AS m(months_since)
+)
+SELECT g.cohort_month,
+       g.months_since,
+       COUNT(DISTINCT a.user_id)::int AS active_users
+FROM grid g
+LEFT JOIN first_event f ON f.cohort_month = g.cohort_month
+LEFT JOIN active a
+  ON a.user_id = f.user_id
+  AND a.active_month = (g.cohort_month + (g.months_since || ' months')::interval)::date
+GROUP BY g.cohort_month, g.months_since
+ORDER BY g.cohort_month, g.months_since;</code></pre>
+<p>The <code>grid</code> CTE manufactures every (cohort_month, offset) cell. The two LEFT JOINs bring in first_event to find which users belong to each cohort, and then active to test whether a user had any event in the target calendar month. <code>COUNT(DISTINCT a.user_id)</code> returns 0 for rows where no match was found.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>cohort_month</th><th>months_since</th><th>active_users</th><th>notes</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>0</td><td>2</td><td>users 1 &amp; 2 both active in Jan</td></tr>
+    <tr><td>2024-01-01</td><td>1</td><td>1</td><td>user 1 (Feb-10) only &mdash; user 2's next event is Mar-01, not Feb</td></tr>
+    <tr><td>2024-01-01</td><td>2</td><td>2</td><td>user 1 (Mar-15), user 2 (Mar-01)</td></tr>
+    <tr><td>2024-01-01</td><td>3</td><td>1</td><td>user 1 (Apr-20) only; user 2 has no Apr event</td></tr>
+    <tr><td>2024-02-01</td><td>0</td><td>2</td><td>users 3 &amp; 4 both active in Feb</td></tr>
+    <tr><td>2024-02-01</td><td>1</td><td>1</td><td>user 3 (Mar-10) only; user 4 never returned</td></tr>
+    <tr><td>2024-02-01</td><td>2</td><td>0</td><td>neither user 3 nor 4 have Apr events</td></tr>
+    <tr><td>2024-02-01</td><td>3</td><td>0</td><td>no May events &mdash; zero still appears</td></tr>
+    <tr><td>2024-03-01</td><td>0</td><td>1</td><td>user 5 active in Mar</td></tr>
+    <tr><td>2024-03-01</td><td>1</td><td>1</td><td>user 5 (Apr-02)</td></tr>
+    <tr><td>2024-03-01</td><td>2</td><td>0</td><td>no May events</td></tr>
+    <tr><td>2024-03-01</td><td>3</td><td>0</td><td>no Jun events</td></tr>
+  </tbody>
+</table>
+<p>The Jan cohort reads 2, 1, 2, 1 across offsets 0&ndash;3: user 2 has no February event (its next activity after January is Mar-01), so it drops out at offset 1 and reappears at offset 2. The Feb cohort's offsets 2 and 3 are genuine zeros &mdash; user 4 never returned after sign-up &mdash; yet those rows still appear because the grid manufactured them. Surfacing those zeros is the entire point of the pattern.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The grid pattern &mdash; why it is essential</h5>
+<p>Without the manufactured grid, a GROUP BY on actual events will silently drop any (cohort, offset) cell that has zero active users. The <code>CROSS JOIN (VALUES (0),(1),(2),(3))</code> creates every legal cell first; the subsequent LEFT JOINs fill in whatever activity exists and leave <code>NULL</code> (which <code>COUNT</code> converts to 0) for empty cells. This is the standard pattern for any "include zeros" reporting requirement.</p>
+
+<h5>Why <code>DISTINCT</code> in the <code>active</code> CTE</h5>
+<p>A user can have multiple events in the same month. The <code>active</code> CTE deduplicates to one row per <code>(user_id, active_month)</code> so that <code>COUNT(DISTINCT a.user_id)</code> in the final SELECT does not over-count. Alternatively, <code>COUNT(DISTINCT a.user_id)</code> alone handles this &mdash; but the DISTINCT in the CTE makes the join cheaper since there are fewer rows to scan.</p>
+
+<h5>Date arithmetic &mdash; <code>(cohort_month + (months_since || ' months')::interval)::date</code></h5>
+<p>PostgreSQL interval arithmetic on a <code>date</code> returns a <code>timestamp</code>, hence the outer <code>::date</code> cast. The string concatenation <code>months_since || ' months'</code> converts the integer offset into an interval literal like <code>'2 months'</code>. An alternative is <code>cohort_month + months_since * INTERVAL '1 month'</code>, which is slightly more explicit and avoids string casting.</p>
+
+<h5>Edge cases</h5>
+<p>A user who signs up at the end of January still has cohort_month = 2024-01-01 because <code>DATE_TRUNC('month', ...)</code> truncates to the first of the month. Offset 1 for a January cohort is always February 1st regardless of the user's actual signup day &mdash; cohort retention uses <em>calendar months</em>, not 30-day windows. This distinction matters and is worth stating explicitly in an interview.</p>
+
+<h5>Dialect notes</h5>
+<p>PostgreSQL's <code>DATE_TRUNC</code> and interval arithmetic are clean here. In BigQuery use <code>DATE_TRUNC(date, MONTH)</code> and <code>DATE_ADD(cohort_month, INTERVAL months_since MONTH)</code>. In SQL Server use <code>DATEFROMPARTS(YEAR(date),MONTH(date),1)</code> and <code>DATEADD(month, months_since, cohort_month)</code>. Snowflake supports <code>DATE_TRUNC('month', date)</code> and <code>DATEADD('month', months_since, cohort_month)</code>. The <code>VALUES</code> list cross-join is ANSI SQL and works everywhere.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> manufacture the complete (cohort, offset) grid with a <code>CROSS JOIN (VALUES ...)</code> before joining activity &mdash; the LEFT JOIN ensures zero counts appear; dedup active months in a CTE to keep the outer count clean; and explain the calendar-month vs. rolling-window distinction for cohort semantics.</div>

@@ -1,0 +1,78 @@
+<p>A SaaS product team wants to understand how many users from each signup cohort came back exactly one month later &mdash; the M1 retention rate that is typically the most actionable early signal of product stickiness. The interviewer is probing <strong>conditional aggregation via LEFT JOIN</strong> on a date-arithmetic predicate, with the twist that cohorts with zero M1 retention must still appear in the output (no silent row drops).</p>
+
+<h4>1. The source data &mdash; <code>signup</code> and <code>activity</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>signup_month</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>2024-01-01</td></tr>
+    <tr><td>3</td><td>2024-01-01</td></tr>
+    <tr><td>4</td><td>2024-01-01</td></tr>
+    <tr><td>5</td><td>2024-02-01</td></tr>
+    <tr><td>6</td><td>2024-02-01</td></tr>
+    <tr><td>7</td><td>2024-02-01</td></tr>
+    <tr><td>8</td><td>2024-03-01</td></tr>
+    <tr><td>9</td><td>2024-03-01</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>user_id</th><th>activity_month</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-02-01</td></tr>
+    <tr><td>2</td><td>2024-02-01</td></tr>
+    <tr><td>3</td><td>2024-03-01</td></tr>
+    <tr><td>5</td><td>2024-03-01</td></tr>
+    <tr><td>8</td><td>2024-04-01</td></tr>
+  </tbody>
+</table>
+<p>Jan cohort (4 users): M1 = Feb 2024. Users 1 and 2 active in Feb &rarr; retained_m1 = 2. Feb cohort (3 users): M1 = Mar 2024. User 5 active in Mar &rarr; retained_m1 = 1. Mar cohort (2 users): M1 = Apr 2024. User 8 active in Apr &rarr; retained_m1 = 1. Users 3, 4, 6, 7, 9 are never retained at M1.</p>
+
+<h4>2. The SQL &mdash; cohort size + LEFT JOIN on date arithmetic</h4>
+<pre><code>WITH cohort AS (
+  SELECT signup_month, COUNT(*) AS cohort_size FROM signup GROUP BY signup_month
+),
+retained AS (
+  SELECT s.signup_month,
+         COUNT(DISTINCT a.user_id) AS retained_m1
+  FROM signup s
+  LEFT JOIN activity a
+    ON a.user_id = s.user_id
+    AND a.activity_month = (s.signup_month + INTERVAL '1 month')::date
+  GROUP BY s.signup_month
+)
+SELECT c.signup_month,
+       c.cohort_size,
+       r.retained_m1,
+       ROUND((100.0 * r.retained_m1 / c.cohort_size)::numeric, 2) AS retention_pct_m1
+FROM cohort c
+JOIN retained r USING (signup_month)
+ORDER BY c.signup_month;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>signup_month</th><th>cohort_size</th><th>retained_m1</th><th>retention_pct_m1</th><th>derivation</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01-01</td><td>4</td><td>2</td><td>50.00</td><td>users 1, 2 active in Feb; 2/4 &times; 100</td></tr>
+    <tr><td>2024-02-01</td><td>3</td><td>1</td><td>33.33</td><td>user 5 active in Mar; 1/3 &times; 100</td></tr>
+    <tr><td>2024-03-01</td><td>2</td><td>1</td><td>50.00</td><td>user 8 active in Apr; 1/2 &times; 100</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why LEFT JOIN (not INNER JOIN) in the <code>retained</code> CTE</h5>
+<p>The LEFT JOIN from <code>signup</code> to <code>activity</code> ensures that every user in the signup table appears in the GROUP BY, even if they have no matching M1 activity row. For unretained users the activity columns are NULL; <code>COUNT(DISTINCT a.user_id)</code> on a NULL column returns 0. An INNER JOIN would silently drop cohorts (or individual users within cohorts) that have zero M1 activity, causing the GROUP BY to produce a missing row for that cohort.</p>
+
+<h5>The date arithmetic predicate <code>(signup_month + INTERVAL '1 month')::date</code></h5>
+<p>Adding an <code>INTERVAL</code> to a <code>DATE</code> in PostgreSQL yields a <code>TIMESTAMP</code>; the <code>::date</code> cast normalizes it back to a date. This correctly handles month-end boundaries: adding 1 month to 2024-01-31 gives 2024-02-29 (a valid date in 2024), or 2024-02-28 in non-leap years &mdash; but since signup_month is always the first of the month, the result is always the first of the next month, avoiding edge cases.</p>
+
+<h5>COUNT(DISTINCT a.user_id) vs COUNT(*)</h5>
+<p>The activity table guarantees one row per (user_id, activity_month), so <code>COUNT(*)</code> and <code>COUNT(DISTINCT a.user_id)</code> are equivalent given the schema. Using DISTINCT is defensive: if a future schema change allows multiple activity rows per month, the query remains correct. In a live interview, noting this trade-off shows awareness of data quality assumptions.</p>
+
+<h5>100.0 multiplier for integer promotion</h5>
+<p>Both <code>retained_m1</code> and <code>cohort_size</code> are integers. Writing <code>100 * retained_m1 / cohort_size</code> would truncate to integer under integer division (PostgreSQL: 100 * 2 / 4 = 50, but 100 * 1 / 3 = 33, dropping the decimal). The <code>100.0</code> literal forces the multiplication to produce a <code>NUMERIC</code>, making the subsequent division exact before rounding.</p>
+
+<h5>Dialect notes</h5>
+<p>PostgreSQL <code>+ INTERVAL '1 month'</code> with a <code>::date</code> cast is clean. In BigQuery, use <code>DATE_ADD(signup_month, INTERVAL 1 MONTH)</code>. In Snowflake, use <code>DATEADD('month', 1, signup_month)</code>. In SQL Server, use <code>DATEADD(month, 1, signup_month)</code>. All return a date type natively. MySQL 8 supports <code>DATE_ADD(signup_month, INTERVAL 1 MONTH)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a LEFT JOIN from the signup table to activity (not the other way) to preserve cohorts with zero retention; note that <code>COUNT(DISTINCT a.user_id)</code> correctly returns 0 for non-matching LEFT JOIN rows; and use <code>100.0 * integer / integer</code> to force decimal division before rounding.</div>

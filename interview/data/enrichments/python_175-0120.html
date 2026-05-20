@@ -1,0 +1,64 @@
+<p>Google opens many phone screens with "Maximum Depth of Binary Tree" as a warm-up &mdash; but it is also a fast filter. In one line of recursion it checks whether you instinctively define the <em>base case first</em>, whether you trust recursion to compose, and whether you can immediately discuss the iterative rewrite when the interviewer says "now assume the tree is a million nodes deep."</p>
+
+<h4>1. The input data</h4>
+<p>A small binary tree. <code>None</code> marks an absent child:</p>
+<pre><code>        3
+       / \
+      9   20
+         /  \
+        15   7
+
+# nodes 9, 15, 7 are leaves; expected max depth = 3</code></pre>
+
+<h4>2. The approach</h4>
+<p>A textbook <strong>post-order recursion</strong>, written as a single expression. The structure is "base case <code>or</code> recursive case":</p>
+<ul>
+  <li><strong>Base case:</strong> <code>0 if not root</code> &mdash; an empty subtree contributes depth 0. This also handles the entirely-empty-tree input.</li>
+  <li><strong>Recursive case:</strong> <code>1 + max(maxDepth(root.left), maxDepth(root.right))</code> &mdash; the depth of a node is 1 (for itself) plus the depth of its <em>deeper</em> child.</li>
+</ul>
+<p>The recursion is post-order because both children must return <em>before</em> the parent can combine them. <code>max</code> is the right combiner: depth is the <em>longest</em> root-to-leaf path, so the shallower branch is discarded. Each call frame does O(1) work; correctness rests on trusting that the recursive calls answer the same question for smaller trees.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>subtree rooted at</th><th>left depth</th><th>right depth</th><th>returns</th></tr></thead>
+  <tbody>
+    <tr><td>9 (leaf)</td><td>0</td><td>0</td><td>1</td></tr>
+    <tr><td>15 (leaf)</td><td>0</td><td>0</td><td>1</td></tr>
+    <tr><td>7 (leaf)</td><td>0</td><td>0</td><td>1</td></tr>
+    <tr><td>20</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>3 (root)</td><td>1</td><td>2</td><td><strong>3</strong></td></tr>
+  </tbody>
+</table>
+<p>Final answer: <code>3</code>. The path 3 &rarr; 20 &rarr; 15 (or 3 &rarr; 20 &rarr; 7) has three nodes.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(n)</strong> &mdash; every node is visited exactly once. <strong>Space O(h)</strong> where h is the tree height, for the recursion call stack. For a balanced tree h = O(log n); for a degenerate "linked-list" tree h = O(n).</p>
+
+<h5>The idiomatic alternative &mdash; iterative BFS</h5>
+<p>A level-order traversal counts depth by counting levels and never risks the recursion limit:</p>
+<pre><code>from collections import deque
+
+def maxDepth(root):
+    if not root: return 0
+    q, depth = deque([root]), 0
+    while q:
+        depth += 1
+        for _ in range(len(q)):       # drain exactly one level
+            n = q.popleft()
+            if n.left:  q.append(n.left)
+            if n.right: q.append(n.right)
+    return depth</code></pre>
+<p>The <code>for _ in range(len(q))</code> snapshot is the idiom that processes one full level per outer iteration. Same O(n) time; space is O(w), the maximum level width.</p>
+
+<h5>The edge case</h5>
+<p><strong>Empty tree</strong> &mdash; <code>root is None</code> &rarr; returns 0, the base case earns its keep. <strong>Single node</strong> &rarr; both children are <code>None</code> &rarr; <code>1 + max(0, 0) = 1</code>. <strong>Skewed tree</strong> (every node has only a left child) &mdash; still correct, but the recursion depth equals n, which is what motivates the iterative version.</p>
+
+<h5>The follow-up</h5>
+<p>"Now find the <em>minimum</em> depth." It is <em>not</em> just swapping <code>max</code> for <code>min</code> &mdash; a node with one missing child must follow the existing child, not count the <code>None</code> side as depth 0. You must special-case "only one child present." Interviewers love this because the naive symmetric edit is wrong.</p>
+
+<h5>The trap</h5>
+<p>For very deep trees, Python's default recursion limit (~1000 frames) raises <code>RecursionError</code>. A junior's recursive one-liner crashes on a 100k-node skewed tree. The senior either names this limit and switches to the BFS/explicit-stack version, or mentions <code>sys.setrecursionlimit</code> as a fragile last resort.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> writes the base case before the recursive case, explains why <code>max</code> (not sum) is the correct combiner, proactively names Python's recursion-limit risk on deep/skewed trees, and warns that the "minimum depth" follow-up is <em>not</em> a symmetric one-character change.</div>

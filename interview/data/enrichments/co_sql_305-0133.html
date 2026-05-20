@@ -1,0 +1,110 @@
+<p>Hulu's CRM team wants the <em>most recent</em> order for every customer &mdash; the input to a "we miss you" winback email when the last order is older than 60 days. The naive answer (<code>MAX(order_date) GROUP BY customer_id</code>) loses the order_id and other columns. The senior question becomes: how do you keep the <em>full row</em> for the latest event per group?</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>O_001</td><td>C_01</td><td>2026-04-01</td></tr>
+    <tr><td>O_002</td><td>C_01</td><td>2026-04-15</td></tr>
+    <tr><td>O_003</td><td>C_01</td><td>2026-04-22</td></tr>
+    <tr><td>O_004</td><td>C_02</td><td>2026-03-10</td></tr>
+    <tr><td>O_005</td><td>C_02</td><td>2026-04-18</td></tr>
+    <tr><td>O_006</td><td>C_03</td><td>2026-02-08</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; correlated subquery for max-per-group</h4>
+<pre><code>SELECT * FROM orders o
+WHERE order_date = (
+  SELECT MAX(order_date)
+  FROM orders
+  WHERE customer_id = o.customer_id
+);</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>O_003</td><td>C_01</td><td>2026-04-22</td></tr>
+    <tr><td>O_005</td><td>C_02</td><td>2026-04-18</td></tr>
+    <tr><td>O_006</td><td>C_03</td><td>2026-02-08</td></tr>
+  </tbody>
+</table>
+<p>One row per customer, with the full order details preserved. C_03's last order is 2 months stale &mdash; that's the winback target.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the naive <code>GROUP BY</code> fails</h5>
+<pre><code>-- WRONG — loses order_id
+SELECT customer_id, MAX(order_date) FROM orders GROUP BY customer_id;</code></pre>
+<p>You get the date but not the <code>order_id</code> &mdash; and you can't just <code>SELECT order_id, customer_id, MAX(order_date) ... GROUP BY customer_id</code> because <code>order_id</code> isn't in the GROUP BY (Postgres errors; MySQL silently picks any value &mdash; the famous <code>ONLY_FULL_GROUP_BY</code> trap). The "max of one column, full row of another" need is what makes this a senior question.</p>
+
+<h5>Three production-grade idioms &mdash; pick deliberately</h5>
+
+<pre><code>-- A. Correlated subquery — original solution, clear semantics, can be slow
+SELECT * FROM orders o
+WHERE order_date = (SELECT MAX(order_date) FROM orders WHERE customer_id = o.customer_id);
+
+-- B. Window function (ROW_NUMBER) — modern default
+SELECT order_id, customer_id, order_date FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn
+  FROM orders
+) WHERE rn = 1;
+
+-- C. Self-join via aggregate CTE
+WITH latest AS (
+  SELECT customer_id, MAX(order_date) AS max_dt FROM orders GROUP BY customer_id
+)
+SELECT o.* FROM orders o JOIN latest l
+  ON o.customer_id = l.customer_id AND o.order_date = l.max_dt;</code></pre>
+<table>
+  <thead><tr><th>idiom</th><th>perf</th><th>tie behaviour</th></tr></thead>
+  <tbody>
+    <tr><td>Correlated subquery</td><td>O(n&sup2;) without index, fine with composite index on (customer_id, order_date)</td><td>returns ALL ties</td></tr>
+    <tr><td>ROW_NUMBER</td><td>one sort, fast</td><td>arbitrary tiebreak (use ORDER BY order_date DESC, order_id DESC for determinism)</td></tr>
+    <tr><td>Self-join CTE</td><td>two scans, fast</td><td>returns ALL ties</td></tr>
+  </tbody>
+</table>
+
+<h5>The tie problem &mdash; what if two orders share the latest date?</h5>
+<p>If C_01 had two orders on 2026-04-22, the correlated-subquery and self-join forms return both rows; ROW_NUMBER returns one (arbitrarily). Pick based on intent:</p>
+<ul>
+  <li>"Latest activity timestamp" &rarr; tie-emit is fine (correlated / self-join).</li>
+  <li>"The single most-recent order_id" &rarr; force determinism with <code>ROW_NUMBER() OVER (... ORDER BY order_date DESC, order_id DESC)</code>.</li>
+  <li>"All ties as one row, comma-separated" &rarr; <code>ARRAY_AGG(order_id ORDER BY order_date DESC)[1:]</code>.</li>
+</ul>
+
+<h5>Postgres' DISTINCT ON &mdash; the cleanest single-best-row idiom</h5>
+<pre><code>SELECT DISTINCT ON (customer_id) *
+FROM orders
+ORDER BY customer_id, order_date DESC;</code></pre>
+<p>Postgres-only, but unbeatable for "exactly one row per group, ordered by ...". The companion to <code>GROUP BY</code> for "give me the row, not just the aggregate".</p>
+
+<h5>Top-K per group &mdash; ROW_NUMBER scales naturally</h5>
+<p>The follow-up: <em>"now give me the 3 most recent orders per customer."</em> Just change the filter:</p>
+<pre><code>SELECT * FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn
+  FROM orders
+) WHERE rn &lt;= 3;</code></pre>
+<p>Try doing this with a correlated subquery and you get an <code>O(n&sup2;)</code> mess. ROW_NUMBER is the only sane choice past N=1.</p>
+
+<h5>The recency-bucket follow-up &mdash; the real winback ask</h5>
+<p>The CRM team's actual question is segmentation by recency:</p>
+<pre><code>WITH last_order AS (
+  SELECT customer_id, MAX(order_date) AS last_dt FROM orders GROUP BY customer_id
+)
+SELECT
+  CASE
+    WHEN CURRENT_DATE - last_dt &lt;= 30 THEN 'active'
+    WHEN CURRENT_DATE - last_dt &lt;= 60 THEN 'lapsing'
+    WHEN CURRENT_DATE - last_dt &lt;= 90 THEN 'winback'
+    ELSE 'churned'
+  END AS recency_bucket,
+  COUNT(*) AS customers
+FROM last_order GROUP BY 1
+ORDER BY MIN(last_dt) DESC;</code></pre>
+
+<h5>The index that makes correlated-subquery perform</h5>
+<p>The query above does N+1 lookups against orders. With a composite index on <code>(customer_id, order_date DESC)</code>, the inner MAX is a single index-only seek &mdash; constant time per outer row. Without that index, it's a full scan per customer. <em>Always check the explain plan when reaching for correlated subqueries.</em></p>
+
+<div class="takeaway"><strong>Senior signal:</strong> diagnose the GROUP-BY-loses-columns problem in one sentence, contrast all three idioms (correlated, ROW_NUMBER, self-join CTE) with their performance and tie behaviour, and surface Postgres' <code>DISTINCT ON</code> as the cleanest dialect-specific form. Top-K-per-group via ROW_NUMBER and the recency-bucket segmentation are the over-the-bar finish.</div>

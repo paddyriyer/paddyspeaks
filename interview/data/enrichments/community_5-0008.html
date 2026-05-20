@@ -1,0 +1,74 @@
+<p>A Community live-streaming platform wants its headline capacity number: <em>what was the maximum number of viewers watching at the same instant?</em> Each viewer has a join time and a leave time; the answer is the peak overlap of those intervals. The interviewer is watching whether you reach for the sweep-line trick, and crucially how you break the tie when one viewer leaves at the exact second another joins.</p>
+
+<h4>1. The source data &mdash; <code>live_stream_viewers</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>start_time</th><th>end_time</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10:00:00</td><td>10:05:00</td></tr>
+    <tr><td>2</td><td>10:03:00</td><td>10:08:00</td></tr>
+    <tr><td>3</td><td>10:04:00</td><td>10:07:00</td></tr>
+    <tr><td>4</td><td>10:06:00</td><td>10:10:00</td></tr>
+    <tr><td>5</td><td>10:07:00</td><td>10:09:00</td></tr>
+  </tbody>
+</table>
+<p>The interesting instant is <strong>10:07:00</strong>: viewer 3 leaves at exactly the second viewer 5 joins. Whether that counts as an overlap &mdash; do both occupy 10:07, or does one hand off to the other? &mdash; decides if the peak is 3 or 4. That tie is the entire interview.</p>
+
+<h4>2. The SQL &mdash; <code>sweep-line running SUM</code></h4>
+<pre><code>WITH event_log AS (
+    SELECT start_time AS event_time,  1 AS indicator FROM live_stream_viewers
+    UNION ALL
+    SELECT end_time   AS event_time, -1 AS indicator FROM live_stream_viewers
+),
+running_total AS (
+    SELECT
+        event_time,
+        SUM(indicator) OVER (ORDER BY event_time ASC, indicator DESC)
+            AS current_viewers
+    FROM event_log
+)
+SELECT MAX(current_viewers) AS peak_concurrent_viewers
+FROM running_total;</code></pre>
+<p>Each session is exploded into two timeline events: <code>+1</code> at the start, <code>-1</code> at the end. Sorting and running a cumulative <code>SUM</code> gives the live audience after every event; the <code>MAX</code> of that running total is the peak.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>event_time</th><th>indicator</th><th>current_viewers</th></tr></thead>
+  <tbody>
+    <tr><td>10:00:00</td><td>+1</td><td>1</td></tr>
+    <tr><td>10:03:00</td><td>+1</td><td>2</td></tr>
+    <tr><td>10:04:00</td><td>+1</td><td>3</td></tr>
+    <tr><td>10:05:00</td><td>-1</td><td>2</td></tr>
+    <tr><td>10:06:00</td><td>+1</td><td>3</td></tr>
+    <tr><td>10:07:00</td><td>+1</td><td><strong>4</strong></td></tr>
+    <tr><td>10:07:00</td><td>-1</td><td>3</td></tr>
+    <tr><td>10:08:00</td><td>-1</td><td>2</td></tr>
+    <tr><td>10:09:00</td><td>-1</td><td>1</td></tr>
+    <tr><td>10:10:00</td><td>-1</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>The aggregate query returns a single row: <code>peak_concurrent_viewers = 4</code>. The peak is hit at 10:07:00 &mdash; viewers 1 and 2 long gone, but 2, 4, 5 plus the just-leaving 3 momentarily coexist. The <code>indicator DESC</code> tiebreak is what produces the 4: the <code>+1</code> for viewer 5 is processed before the <code>-1</code> for viewer 3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The tie-break is the whole question &mdash; <code>ORDER BY event_time, indicator DESC</code></h5>
+<p>At 10:07:00 there are two events: viewer 5 joins (<code>+1</code>) and viewer 3 leaves (<code>-1</code>). The secondary sort key <code>indicator DESC</code> forces <code>+1</code> (which sorts after <code>-1</code> descending) to be applied <em>first</em>, so the running total touches 4 before dropping to 3. This treats intervals as <strong>closed</strong> &mdash; a viewer present at exactly their <code>end_time</code> still counts. Flip to <code>indicator ASC</code> and the <code>-1</code> goes first: the total never exceeds 3, treating intervals as half-open. Neither is "right" universally &mdash; you must ask the interviewer: "if a viewer leaves at 10:07:00 and another joins at 10:07:00, do they overlap?" The answer picks the sort direction.</p>
+
+<h5>Why the sweep-line beats a self-join</h5>
+<p>The brute-force answer asks, for each viewer, "how many other intervals contain my start time?" &mdash; a correlated count, O(n&sup2;), one full scan per viewer. The sweep-line touches each of the <code>2n</code> events once after a single sort: O(n log n). On a stream with millions of concurrent sessions that is the difference between a query that returns and one that does not. Exploding intervals into <code>+1</code>/<code>-1</code> events and running a cumulative sum is the canonical pattern for <em>any</em> "max overlap" / "peak concurrency" problem &mdash; meeting rooms, hotel occupancy, server connections.</p>
+
+<h5>The window frame &mdash; a subtle default</h5>
+<p><code>SUM(indicator) OVER (ORDER BY event_time ASC, indicator DESC)</code> has no explicit frame. With an <code>ORDER BY</code> and no frame clause, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; a running total, which is what we want. But <code>RANGE</code> (as opposed to <code>ROWS</code>) treats <em>peer</em> rows &mdash; rows with an identical <code>ORDER BY</code> key &mdash; as a single block, summing them all at once. Here the tiebreak <code>indicator DESC</code> makes the two 10:07 events non-peers (different <code>indicator</code>), so each gets its own running value and we correctly see the intermediate 4. If two viewers shared the <em>exact</em> same <code>event_time</code> AND <code>indicator</code>, <code>RANGE</code> would lump them; switching to <code>ROWS</code> would step through one at a time. Worth knowing which frame you are getting.</p>
+
+<h5>Finding WHEN the peak happened</h5>
+<p>The question asks only for the number, but the natural follow-up is "<em>when?</em>". The aggregate <code>MAX</code> discards that. Order the running total instead:</p>
+<pre><code>SELECT event_time, current_viewers
+FROM running_total
+ORDER BY current_viewers DESC, event_time ASC
+LIMIT 1;
+-- =&gt; 10:07:00, 4</code></pre>
+<p>If the peak is sustained across several events, this returns the <em>first</em> instant it was reached; reporting the full peak interval needs a bit more work (filter to <code>current_viewers = MAX</code> and take min/max <code>event_time</code>).</p>
+
+<h5>Edge cases: zero-length sessions, NULLs, and text timestamps</h5>
+<p>A session where <code>start_time = end_time</code> contributes a <code>+1</code> and a <code>-1</code> at the same instant; with <code>indicator DESC</code> the count blips up by one then back &mdash; arguably correct (the viewer <em>was</em> there for an instant), arguably noise. A NULL <code>end_time</code> (still-watching viewer) produces a NULL event that sorts unpredictably and never decrements &mdash; coalesce it to the stream's current time or the report cutoff. And note the columns are <code>TEXT</code>: ISO <code>YYYY-MM-DD HH:MM:SS</code> sorts correctly as text, but casting to <code>timestamp</code> makes the ordering robust to any format drift.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "peak concurrency" as the interval sweep-line (<code>+1</code>/<code>-1</code> events, running <code>SUM</code>, <code>MAX</code>), explicitly justify the <code>indicator DESC</code> tiebreak as the closed-vs-half-open interval decision and ask which the business wants, explain why it is O(n log n) versus an O(n&sup2;) self-join, and offer the "<em>when</em>" variant before being asked.</div>

@@ -1,0 +1,67 @@
+<p>An idempotency key table sits in the hot path of every payment API: it stores the <em>first</em> response to a client-supplied key so that any retry &mdash; from a mobile app re-sending after a timeout, or an orchestrator replaying a failed step &mdash; receives the identical body and status without re-executing the money movement. The interviewer is probing whether you understand <strong>composite key scoping</strong> (keys must be namespaced to the endpoint to prevent cross-endpoint collisions), <strong>in-flight vs. completed state</strong> (a concurrent request with the same key must be held, not executed), <strong>request-body hashing</strong> (to detect a client re-sending a different body with an existing key, which is a protocol violation), and <strong>TTL housekeeping</strong> to keep the table bounded.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Scope per endpoint:</strong> the same idempotency key string can legitimately be used by the same client on different API paths; the PK must include <code>api_path</code>.</li>
+  <li><strong>Client-supplied key:</strong> the key is chosen by the caller (typically a UUID) and must be stored verbatim.</li>
+  <li><strong>Request body hash:</strong> if a client re-uses a key with a <em>different</em> body, the server must detect and reject it; a SHA-256 hex digest satisfies this with a fixed-width <code>CHAR(64)</code>.</li>
+  <li><strong>Two-phase status:</strong> a row is inserted as <code>in-flight</code> (status 0) the moment a request is received; it is updated to <code>completed</code> (status 1) once the response is ready. A concurrent duplicate reads the in-flight row and must wait or return 409.</li>
+  <li><strong>Stored response:</strong> the full HTTP response &mdash; status code, body, and relevant headers &mdash; must be captured so retries can reproduce it exactly without touching downstream systems.</li>
+  <li><strong>TTL:</strong> rows must expire; an <code>expires_at</code> column drives a periodic delete; an index on it makes the delete a fast range scan.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE idempotency_key (
+  api_path           VARCHAR(128) NOT NULL,                  -- scope keys per endpoint
+  idempotency_key    VARCHAR(128) NOT NULL,                  -- client-supplied
+  request_hash       CHAR(64)     NOT NULL,                  -- hash of the request body
+  status             SMALLINT     NOT NULL,                  -- 0 = in-flight, 1 = completed
+  response_code      SMALLINT,                               -- HTTP status of stored response
+  response_body      JSONB,
+  response_headers   JSONB,
+  created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  completed_at       TIMESTAMPTZ,
+  expires_at         TIMESTAMPTZ  NOT NULL,                  -- TTL (e.g. created_at + 24h)
+  PRIMARY KEY (api_path, idempotency_key)
+);
+
+CREATE INDEX ix_idempotency_expires ON idempotency_key (expires_at);
+
+-- Daily housekeeping:
+-- DELETE FROM idempotency_key WHERE expires_at &lt; now();</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>api_path</code></td><td>Composite natural key (part 1)</td><td>Scopes idempotency keys per endpoint; prevents key collisions across different API surfaces.</td></tr>
+    <tr><td><code>idempotency_key</code></td><td>Composite natural key (part 2)</td><td>Client-generated token (typically UUID v4) identifying the logical request attempt.</td></tr>
+    <tr><td><code>request_hash</code></td><td>Integrity guard</td><td>SHA-256 of the request body; server compares on every retry and rejects mismatches as a protocol error (HTTP 422).</td></tr>
+    <tr><td><code>status</code></td><td>State machine column</td><td><code>SMALLINT</code> encodes the in-flight &rarr; completed lifecycle; concurrent duplicates read this to decide whether to wait or return the stored response.</td></tr>
+    <tr><td><code>response_code</code></td><td>Stored response metadata</td><td>Nullable until completion; allows replaying the exact HTTP status to the retrying client.</td></tr>
+    <tr><td><code>response_body</code></td><td>Stored response payload</td><td><code>JSONB</code> allows structured access; nullable (populated on completion).</td></tr>
+    <tr><td><code>response_headers</code></td><td>Stored response metadata</td><td>Captures headers the client depends on (e.g., <code>Location</code>, <code>Request-Id</code>); JSONB keeps it flexible.</td></tr>
+    <tr><td><code>created_at</code></td><td>Audit / TTL anchor</td><td>Records when the first attempt arrived; used to compute <code>expires_at</code>.</td></tr>
+    <tr><td><code>completed_at</code></td><td>Audit column</td><td>Timestamps completion; useful for SLO dashboards and debugging stuck in-flight rows.</td></tr>
+    <tr><td><code>expires_at</code></td><td>TTL column / index key</td><td>Absolute expiry timestamp; the housekeeping delete targets <code>WHERE expires_at &lt; now()</code>; the index makes this a fast index range scan.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the composite PK is <code>(api_path, idempotency_key)</code></h5>
+<p>A single-column PK on <code>idempotency_key</code> alone would be a silent bug: a client could inadvertently reuse a UUID that happens to match a key from a <em>different</em> endpoint, causing the wrong stored response to be returned. Prefixing with <code>api_path</code> creates independent namespaces at zero cost. The PK also provides the uniqueness enforcement that turns duplicate inserts into a detectable conflict, enabling <code>INSERT ... ON CONFLICT DO NOTHING</code> as the atomic "claim" operation.</p>
+
+<h5>Optimistic locking with two-phase status</h5>
+<p>The canonical algorithm: (1) <code>INSERT</code> with <code>status = 0</code> (in-flight) &mdash; if a conflict is returned, another request owns the key; (2) execute the payment; (3) <code>UPDATE</code> to <code>status = 1</code> and store the response. A retry that finds an in-flight row should wait briefly and re-poll, or return HTTP 409 with a <code>Retry-After</code> header. This prevents double-execution even under concurrent retry storms without distributed locks.</p>
+
+<h5>Request-body hashing and <code>CHAR(64)</code></h5>
+<p>A hex-encoded SHA-256 digest is always exactly 64 characters, making <code>CHAR(64)</code> a perfect fit &mdash; it wastes no padding bytes and allows an equality check in O(1). On a retry, the server must verify the hash before returning the stored response; mismatches indicate client bugs or misuse and should return HTTP 422, not the stored response.</p>
+
+<h5>TTL strategy: <code>expires_at</code> + indexed delete</h5>
+<p>A common stripe-style convention is 24 hours. The <code>expires_at</code> index enables a daily <code>DELETE FROM idempotency_key WHERE expires_at &lt; now()</code> to run as an index scan &mdash; it reads only the pages containing expired rows rather than a full table scan. For very high throughput, partition by day on <code>expires_at</code> so cleanup is a <code>DROP PARTITION</code> rather than a row-by-row delete (zero table bloat).</p>
+
+<h5>Dialect notes</h5>
+<p>In Postgres, <code>INSERT ... ON CONFLICT (api_path, idempotency_key) DO NOTHING</code> is the atomic claim. The application should use <code>READ COMMITTED</code> isolation; the PK uniqueness constraint is sufficient for correctness without serializable transactions. For very high concurrency, a <code>pg_try_advisory_lock</code> on a hash of the key can prevent the thundering-herd of simultaneous retries all reading an in-flight row.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> scope idempotency keys per endpoint with a composite PK, use a two-phase <code>in-flight &rarr; completed</code> status to prevent concurrent double-execution, hash the request body to detect key reuse with a different payload, and design TTL as an indexed delete &mdash; or a partitioned table &mdash; so housekeeping never causes a full table scan.</div>

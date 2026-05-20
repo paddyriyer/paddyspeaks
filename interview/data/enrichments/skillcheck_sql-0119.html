@@ -1,0 +1,50 @@
+<p>A sales-ops team wants to find dormant sellers: which sellers had <em>no</em> orders during calendar year 2025? The subtlety the interviewer plants is that a seller with orders in 2024 or 2026 still counts as "no 2025 sales" &mdash; so a plain <code>WHERE sale_date NOT BETWEEN &hellip;</code> on a joined row is wrong. This is a textbook anti-join, and the trick is putting the date filter in the right place.</p>
+
+<h4>1. The source data &mdash; <code>seller</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>seller_id</th><th>seller_name</th><th>orders (sale_date)</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Acme</td><td>2025-03-01</td><td>has a 2025 order &rarr; not dormant</td></tr>
+    <tr><td>2</td><td>BetaCorp</td><td>2024-12-31</td><td>order exists, but in 2024 &rarr; still dormant for 2025</td></tr>
+    <tr><td>3</td><td>CelStar</td><td>2025-06-15, 2026-01-01</td><td>one 2025 order &rarr; not dormant</td></tr>
+    <tr><td>4</td><td>Delta</td><td>(no orders at all)</td><td>never ordered &rarr; dormant</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases carry the interview. BetaCorp's only order is <strong>2024-12-31</strong> &mdash; one day outside the window &mdash; and Delta has <em>no rows in <code>orders</code> at all</em>. A correct query must flag both, while letting CelStar through even though one of its two orders (2026-01-01) is also outside 2025.</p>
+
+<h4>2. The SQL &mdash; LEFT JOIN with the date filter in the ON clause</h4>
+<pre><code>SELECT s.seller_name
+FROM seller s
+LEFT JOIN orders o
+  ON o.seller_id = s.seller_id
+ AND o.sale_date &gt;= DATE '2025-01-01'
+ AND o.sale_date &lt;  DATE '2026-01-01'
+WHERE o.seller_id IS NULL
+ORDER BY s.seller_name;</code></pre>
+<p>The two date predicates sit in <code>ON</code>, not <code>WHERE</code>. The join therefore only matches a seller to their <em>2025</em> orders; any seller with zero 2025 orders gets all-NULL columns from <code>orders</code>, and <code>WHERE o.seller_id IS NULL</code> keeps exactly those.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>seller_name</th><th>why it qualifies</th></tr></thead>
+  <tbody>
+    <tr><td>BetaCorp</td><td>only order is 2024-12-31 &mdash; no row survives the 2025 ON-filter</td></tr>
+    <tr><td>Delta</td><td>no orders at all &mdash; nothing to match</td></tr>
+  </tbody>
+</table>
+<p>Acme and CelStar are correctly absent: each has at least one order inside 2025. CelStar's 2026 order is irrelevant &mdash; its 2025-06-15 order alone makes the join match, so it is not dormant.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the date filter must live in <code>ON</code>, not <code>WHERE</code></h5>
+<p>This is the crux. With a <code>LEFT JOIN</code>, predicates in <code>ON</code> decide <em>which rows match</em>; predicates in <code>WHERE</code> filter the result <em>after</em> the join, NULLs included. Move the date test to <code>WHERE</code> &mdash; <code>WHERE o.sale_date &gt;= '2025-01-01' AND &hellip;</code> &mdash; and the NULL <code>sale_date</code> of an unmatched seller fails the comparison (NULL is not <code>&gt;=</code> anything), so Delta is silently dropped. The query would then return only sellers with non-2025 orders and miss the never-ordered ones. Filter in <code>ON</code> to keep the outer side intact.</p>
+
+<h5>The anti-join pattern: LEFT JOIN &hellip; IS NULL</h5>
+<p>"Rows in A with no match in B" is an anti-join. The <code>LEFT JOIN</code> attaches matches where they exist and NULLs where they do not; <code>WHERE &lt;join key&gt; IS NULL</code> then isolates the no-match rows. Test the <em>join key</em> (<code>o.seller_id</code>) for NULL, not an arbitrary nullable column &mdash; the key is NULL precisely when no row matched. Equivalent formulations are <code>NOT EXISTS</code> and <code>NOT IN</code>; the planner often treats <code>LEFT JOIN / IS NULL</code> and <code>NOT EXISTS</code> identically (a hash anti-join).</p>
+
+<h5>Half-open date ranges beat BETWEEN</h5>
+<p>The window is <code>&gt;= '2025-01-01' AND &lt; '2026-01-01'</code> &mdash; half-open, lower bound included, upper bound excluded. <code>BETWEEN '2025-01-01' AND '2025-12-31'</code> looks equivalent but breaks if <code>sale_date</code> is ever a <code>timestamp</code>: <code>2025-12-31 14:00</code> is after <code>2025-12-31 00:00:00</code> and gets wrongly excluded. The <code>&lt; next-year-start</code> form is correct for both <code>date</code> and <code>timestamp</code> columns and is the habit to show.</p>
+
+<h5>Why <code>NOT IN</code> is the risky alternative</h5>
+<p>You could write <code>WHERE s.seller_id NOT IN (SELECT seller_id FROM orders WHERE sale_date &gt;= &hellip;)</code>. It works here, but <code>NOT IN</code> has a notorious NULL trap: if the subquery ever yields a NULL <code>seller_id</code>, the whole <code>NOT IN</code> evaluates to NULL/false and returns <em>zero rows</em>. <code>NOT EXISTS</code> and the <code>LEFT JOIN / IS NULL</code> anti-join are NULL-safe by construction. Preferring them, and being able to explain the <code>NOT IN</code> footgun, is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise "no orders in a window" as an anti-join, put the date predicate in <code>ON</code> (not <code>WHERE</code>) so never-ordered sellers survive the LEFT JOIN, test the join key for <code>IS NULL</code>, use a half-open date range that is safe for timestamps, and know why <code>NOT IN</code> with a nullable subquery silently returns nothing.</div>

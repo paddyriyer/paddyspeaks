@@ -74,7 +74,7 @@ async function initPyodide() {
     throw new Error("Pyodide failed to load — check your network or ad blocker.");
   }
   state.pyodide = await window.loadPyodide({
-    indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/",
+    indexURL: "./vendor/pyodide/",
     stdout: (s) => appendOutput(s + "\n"),
     stderr: (s) => appendOutput(s + "\n", "pg-stderr"),
   });
@@ -250,6 +250,45 @@ for __k in list(globals().keys()):
   clearOutput();
 }
 
+// ─── Real-world enrichment loader (mirror of sql.js) ───
+// Each question may have an optional HTML fragment at
+// /interview/data/enrichments/<qid>.html. Silently no-op for unenriched
+// questions (404 → fall back to the bare prompt).
+const enrichmentCache = new Map();
+const ENRICHMENTS_BASE = `${DATA_BASE}/enrichments`;
+async function loadEnrichment(qid) {
+  const block = $("#pg-q-enrichment-block");
+  const body = $("#pg-q-enrichment");
+  if (!block || !body) return;
+  block.hidden = true;
+  body.innerHTML = "";
+  if (!qid) return;
+  if (enrichmentCache.has(qid)) {
+    const cached = enrichmentCache.get(qid);
+    if (cached) {
+      body.innerHTML = cached;
+      block.hidden = false;
+    }
+    return;
+  }
+  try {
+    const res = await fetch(`${ENRICHMENTS_BASE}/${encodeURIComponent(qid)}.html`);
+    if (!res.ok) {
+      enrichmentCache.set(qid, null);
+      return;
+    }
+    const html = await res.text();
+    enrichmentCache.set(qid, html);
+    // Race-guard: only render if we're still on the same question.
+    if (state.currentQ && state.currentQ.id === qid) {
+      body.innerHTML = html;
+      block.hidden = false;
+    }
+  } catch (err) {
+    enrichmentCache.set(qid, null);
+  }
+}
+
 // ─── Question picker ───
 function loadQuestion(qid /* , opts unused */) {
   const q = state.pyQuestions.find((x) => x.id === qid);
@@ -269,6 +308,9 @@ function loadQuestion(qid /* , opts unused */) {
       promptBlock.hidden = true;
     }
   }
+  // Fire-and-forget enrichment fetch — separate from the synchronous prompt
+  // render so a slow fetch doesn't hold up the rest of the question render.
+  loadEnrichment(qid);
   if (q.schema) {
     $("#pg-q-schema").textContent = q.schema;
     $("#pg-q-schema-block").hidden = false;

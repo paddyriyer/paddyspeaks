@@ -1,0 +1,33 @@
+<p>The Trust &amp; Safety team's daily question: <em>"why are riders cancelling? why are drivers cancelling?"</em>. The two sides have orthogonal motivations and require different fixes. The query is GROUP BY with a window-function denominator.</p>
+
+<h4>1. The source data — <code>cancellations</code></h4>
+<table><thead><tr><th>ride_id</th><th>cancelled_by</th><th>reason</th></tr></thead>
+<tbody><tr><td>R_001</td><td>rider</td><td>change_plans</td></tr><tr><td>R_002</td><td>driver</td><td>traffic</td></tr><tr><td>R_003</td><td>rider</td><td>driver_late</td></tr></tbody></table>
+
+<h4>2. The SQL — per-side share of cancellations</h4>
+<pre><code>SELECT cancelled_by, reason,
+  COUNT(*) AS cancellations,
+  ROUND(100.0 * COUNT(*)
+              / SUM(COUNT(*)) OVER (PARTITION BY cancelled_by), 1) AS pct_of_side
+FROM cancellations
+GROUP BY cancelled_by, reason
+ORDER BY cancelled_by, cancellations DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The <code>SUM(COUNT(*)) OVER PARTITION</code> idiom</h5>
+<p>Inner <code>COUNT(*)</code> is the GROUP BY aggregate (per <code>cancelled_by, reason</code>). Outer <code>SUM(...) OVER (PARTITION BY cancelled_by)</code> sums those counts within the side — giving each row's denominator. One pass, no subquery.</p>
+
+<h5>Why split by side — not aggregate</h5>
+<p>"Top cancel reason: change_plans" tells the product team nothing — that's a rider-only signal. "Top driver cancel reason: traffic" is a routing-engine signal. Lumping the two erases the diagnostic value. <strong>Always split policy-relevant categorical splits at the same level as the action they drive.</strong></p>
+
+<h5>Reason-text quality — the upstream pipeline issue</h5>
+<p>If <code>reason</code> is free-text from a UI dropdown, you'll see "other" dominate at 40%+. Production fix: enforce a controlled vocabulary upstream + back-fill "other" by routing a sample to a human-tagger. The query result with "other" &gt; 30% is itself a data-quality alert.</p>
+
+<h5>Time-of-day cut</h5>
+<p>Cancel reasons skew heavily by daypart: <em>traffic</em> at 5pm rush, <em>driver_late</em> at 11pm sparse-supply, <em>change_plans</em> uniformly. Add hour to GROUP BY to identify the highest-impact intervention windows.</p>
+
+<h5>The financial impact follow-up</h5>
+<p>Each cancellation has a cost — driver time wasted, fee charged or refunded, NPS hit. Join to <code>cancellation_fees</code> to weight reasons by dollars, not just counts. A low-frequency-but-high-cost reason (e.g. <em>safety_concern</em>) might outrank "change_plans" on financial-impact view.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> split by responsible side, name the SUM-of-COUNT-OVER-PARTITION idiom, raise the controlled-vocabulary data-quality concern, and weight by dollar impact for the financial review.</div>

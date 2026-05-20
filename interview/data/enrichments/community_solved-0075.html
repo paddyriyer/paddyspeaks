@@ -1,0 +1,62 @@
+<p>A ride-hailing operations team wants to know whether peak-hour demand is genuinely different from the rest of the day &mdash; rush-hour rides come thick and fast but at lower fares, off-peak rides are sparse but often longer and pricier. The interviewer is probing whether you can derive a categorical bucket from a raw timestamp and then aggregate over it in one pass, without an external lookup table.</p>
+
+<h4>1. The source data &mdash; <code>rides</code></h4>
+<table>
+  <thead><tr><th>ride_id</th><th>ride_date</th><th>ride_fare</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2099-03-01 08:15</td><td>$18.50</td><td>morning rush</td></tr>
+    <tr><td>2</td><td>2099-03-01 09:40</td><td>$12.00</td><td>morning rush</td></tr>
+    <tr><td>3</td><td>2099-03-01 13:05</td><td>$22.00</td><td>midday lull</td></tr>
+    <tr><td>4</td><td>2099-03-01 18:30</td><td>$9.75</td><td>evening rush</td></tr>
+    <tr><td>5</td><td>2099-03-01 19:55</td><td>$25.30</td><td>evening rush (boundary &mdash; hour 19)</td></tr>
+    <tr><td>6</td><td>2099-03-01 23:10</td><td>$15.00</td><td>late night</td></tr>
+    <tr><td>7</td><td>2099-03-02 07:00</td><td>$7.20</td><td>boundary &mdash; hour 7 is peak</td></tr>
+    <tr><td>8</td><td>2099-03-02 03:45</td><td>$31.00</td><td>pre-dawn long haul</td></tr>
+  </tbody>
+</table>
+<p>Rows 5 and 7 sit on the <code>BETWEEN</code> boundaries (hour 19 and hour 7) &mdash; they decide whether the window endpoints are inclusive.</p>
+
+<h4>2. The SQL &mdash; deriving a bucket with <code>CASE</code>, then aggregating</h4>
+<pre><code>WITH peak_or_non_peak AS (
+  SELECT *,
+    EXTRACT(HOUR FROM ride_date::timestamp) AS hr,
+    CASE WHEN EXTRACT(HOUR FROM ride_date::timestamp) BETWEEN 7 AND 10
+           OR EXTRACT(HOUR FROM ride_date::timestamp) BETWEEN 17 AND 20
+         THEN 'peak_hour'
+         ELSE 'non_peak_hour' END AS time_period
+  FROM rides
+)
+SELECT time_period,
+       COUNT(ride_id) AS ride_count,
+       AVG(ride_fare) AS average_fare
+FROM peak_or_non_peak
+GROUP BY time_period;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>time_period</th><th>ride_count</th><th>average_fare</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>peak_hour</td><td>5</td><td>14.5500000000000000</td><td>rows 1,2,4,5,7 &mdash; high volume, lower fares</td></tr>
+    <tr><td>non_peak_hour</td><td>3</td><td>22.6666666666666667</td><td>rows 3,6,8 &mdash; fewer rides, higher average fare</td></tr>
+  </tbody>
+</table>
+<p>The numbers confirm the hypothesis: peak hours carry 5 of the 8 rides but at a $14.55 average, while the 3 off-peak rides average $22.67. Both boundary rows (hour 19 and hour 7) landed in <code>peak_hour</code>, as <code>BETWEEN</code> is inclusive on both ends.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the CTE is just readability, not logic</h5>
+<p>The <code>CASE</code> expression could be inlined into the outer <code>GROUP BY</code>, but you cannot <code>GROUP BY</code> a column alias in standard SQL &mdash; you would have to repeat the whole <code>CASE</code> in both the <code>SELECT</code> and the <code>GROUP BY</code>. The CTE names the derived bucket once so the outer query stays clean. It carries no performance cost: the planner inlines a non-recursive CTE like this.</p>
+
+<h5><code>BETWEEN</code> is inclusive &mdash; state your boundary intent</h5>
+<p><code>BETWEEN 7 AND 10</code> means hours 7, 8, 9, <em>and</em> 10 &mdash; four hours. A common interview slip is assuming it is half-open. If the business defines the morning peak as 07:00&ndash;09:59, you want <code>hr &gt;= 7 AND hr &lt; 10</code> instead. Say which convention you are using; the boundary rows in the demo exist precisely to expose this.</p>
+
+<h5>The unmatched-bucket trap &mdash; <code>ELSE</code> as a catch-all</h5>
+<p>Here <code>ELSE 'non_peak_hour'</code> guarantees every row lands in a bucket, so <code>COUNT</code> over the two groups always sums to the table total. Drop the <code>ELSE</code> and any unmatched row would get a NULL <code>time_period</code> &mdash; which <code>GROUP BY</code> collects into its own silent NULL group. An explicit <code>ELSE</code> is the defensive habit.</p>
+
+<h5><code>COUNT(ride_id)</code> vs <code>COUNT(*)</code> and NULL fares</h5>
+<p><code>COUNT(ride_id)</code> skips rows where <code>ride_id</code> is NULL; since it is a key that never happens, it is equivalent to <code>COUNT(*)</code> here &mdash; but <code>COUNT(*)</code> states the intent ("count rows") more honestly. More importantly, <code>AVG(ride_fare)</code> ignores NULL fares: a free or voided ride would be excluded from the average's denominator, not treated as zero. If the business wants voided rides counted as $0, use <code>AVG(COALESCE(ride_fare, 0))</code>.</p>
+
+<h5>What to say next &mdash; bucket boundaries as parameters</h5>
+<p>Hard-coded hour ranges age badly. A senior answer mentions lifting the peak windows into a small <code>time_band</code> reference table joined on hour, so operations can re-tune rush hours per city without a code deploy. That also generalises cleanly to more than two bands (early-morning, peak, midday, evening-peak, late-night).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> derive the categorical bucket with one <code>CASE</code>, name it in a CTE to avoid repeating it in <code>GROUP BY</code>, call out that <code>BETWEEN</code> is inclusive on both endpoints, and note that <code>AVG</code> silently drops NULL fares. Offer a reference-table refactor so the peak windows are data, not hard-coded SQL.</div>

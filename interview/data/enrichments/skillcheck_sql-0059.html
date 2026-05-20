@@ -1,0 +1,57 @@
+<p>A recommendations team wants the basis of a "frequently bought together" feature: <em>"which unordered pair of products co-occurs in the most orders?"</em> This is market-basket analysis &mdash; itemset counting. The interviewer is probing whether you can generate all 2-product combinations within each order using a self-join, canonicalise each pair so {1,2} and {2,1} are the same, and rank by frequency.</p>
+
+<h4>1. The source data &mdash; <code>order_items</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>products in basket</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1, 2</td><td>pairs: {1,2}</td></tr>
+    <tr><td>2</td><td>1, 2, 3</td><td>pairs: {1,2} {1,3} {2,3} &mdash; 3-item basket</td></tr>
+    <tr><td>3</td><td>2, 3</td><td>pairs: {2,3}</td></tr>
+    <tr><td>4</td><td>1, 2</td><td>pairs: {1,2}</td></tr>
+    <tr><td>5</td><td>1, 3</td><td>pairs: {1,3}</td></tr>
+    <tr><td>6</td><td>2, 3, 4</td><td>pairs: {2,3} {2,4} {3,4}</td></tr>
+    <tr><td>7</td><td>1, 4</td><td>pairs: {1,4}</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the <strong>tie at the top</strong>: pair {1,2} appears in orders 1, 2, 4 and pair {2,3} appears in orders 2, 3, 6 &mdash; both three times. The ranking must break that tie deterministically, and 3-item baskets must contribute all three of their pairs.</p>
+
+<h4>2. The SQL &mdash; self-join on order, <code>p1 &lt; p2</code></h4>
+<pre><code>SELECT a.product_id AS p1, b.product_id AS p2, COUNT(*) AS occurrences
+FROM order_items a
+JOIN order_items b
+  ON a.order_id = b.order_id
+ AND a.product_id &lt; b.product_id
+GROUP BY a.product_id, b.product_id
+ORDER BY occurrences DESC, p1, p2
+LIMIT 3;</code></pre>
+<p>The table is joined to itself on the same <code>order_id</code>, so two rows of one basket meet. The <code>a.product_id &lt; b.product_id</code> condition keeps each unordered pair exactly once and drops the self-match. <code>GROUP BY</code> the pair, <code>COUNT(*)</code> the orders it appeared in.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>p1</th><th>p2</th><th>occurrences</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>3</td><td>orders 1, 2, 4 &mdash; tied for the top</td></tr>
+    <tr><td>2</td><td>3</td><td>3</td><td>orders 2, 3, 6 &mdash; tied; loses on (p1,p2) sort</td></tr>
+    <tr><td>1</td><td>3</td><td>2</td><td>orders 2, 5</td></tr>
+  </tbody>
+</table>
+<p>Both {1,2} and {2,3} score 3. The tiebreaker <code>p1, p2</code> ascending puts {1,2} first. The 3-item baskets pull their weight: order 2 contributed to {1,2}, {1,3}, and {2,3}; order 6 to {2,3}, {2,4}, {3,4}.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>a.product_id &lt; b.product_id</code> is doing three jobs at once</h5>
+<p>A self-join on just <code>order_id</code> would pair every product with itself ({1,1}) and produce each real pair twice ({1,2} <em>and</em> {2,1}). The strict-inequality predicate <code>&lt;</code> solves all of it in one stroke: it <em>excludes the self-match</em> (a product is never <code>&lt;</code> itself) and <em>canonicalises orientation</em> (only the (smaller, larger) ordering survives). Using <code>&lt;=</code> instead would let the self-pairs back in; using <code>!=</code> would double-count. The operator choice <em>is</em> the de-duplication.</p>
+
+<h5>The <code>GROUP BY</code> is over the pair, the <code>COUNT</code> is over orders</h5>
+<p>After the join, one row exists per (pair, order) co-occurrence. Grouping by <code>(p1, p2)</code> and taking <code>COUNT(*)</code> counts how many orders each pair appeared in. If a single order could list the same product twice (duplicate rows), <code>COUNT(*)</code> would overcount &mdash; you would first <code>SELECT DISTINCT order_id, product_id</code> in a CTE, or switch to <code>COUNT(DISTINCT a.order_id)</code>. Here the data is clean, but flagging that assumption is the senior move.</p>
+
+<h5>Deterministic tie-breaking</h5>
+<p>Two pairs tie at 3. <code>ORDER BY occurrences DESC</code> alone leaves their relative order undefined &mdash; the engine could return either first, and <code>LIMIT 3</code> would be non-deterministic at the boundary. Adding <code>p1, p2</code> as secondary sort keys makes the output stable and reproducible. Any time <code>LIMIT</code> meets a tie, an explicit total ordering is mandatory; "the top N" is meaningless without it.</p>
+
+<h5>Combinatorial blow-up on large baskets</h5>
+<p>A basket of <em>k</em> items generates <em>k(k&minus;1)/2</em> pairs &mdash; quadratic in basket size. A 100-item basket produces ~5,000 pair rows; the self-join can explode on wide baskets or huge order tables. For production market-basket work at scale you would cap basket size, pre-aggregate, or move to a dedicated frequent-itemset algorithm (Apriori, FP-growth). Naming this scaling limit unprompted is exactly what an interviewer wants to hear.</p>
+
+<h5>The question's loose wording</h5>
+<p>The prompt mentions "orders containing exactly 2 distinct products" then immediately relaxes it to "both products at least, regardless of size". The solution implements the relaxed reading &mdash; it counts a pair's co-occurrence in <em>any</em> basket, including 3-item ones. That is the sensible market-basket definition; if the interviewer truly wanted only 2-item baskets you would add <code>HAVING COUNT(DISTINCT product_id) = 2</code> in a per-order CTE. Stating which reading you took resolves the ambiguity out loud.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> generate co-occurring pairs with a self-join on <code>order_id</code> and let <code>a.product_id &lt; b.product_id</code> simultaneously drop self-matches and canonicalise each unordered pair, break the top-N tie with an explicit secondary sort, and call out the quadratic pair blow-up on wide baskets &mdash; real frequent-itemset mining needs Apriori/FP-growth.</div>

@@ -1,0 +1,53 @@
+<p>A payments analyst wants each customer's <em>third</em> transaction &mdash; a common "nth event per group" pattern used for things like measuring time-to-third-purchase or spotting where engagement stalls. The interviewer is probing whether you reach for <code>ROW_NUMBER</code> partitioned per user, and whether you correctly drop users who never reached a third transaction.</p>
+
+<h4>1. The source data &mdash; <code>transaction</code></h4>
+<table>
+  <thead><tr><th>txn_id</th><th>user_id</th><th>spend</th><th>occurred_at</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1&ndash;4</td><td>1</td><td>10 / 20 / 30 / 40</td><td>Jan 1&ndash;4</td><td>4 txns &mdash; 3rd is spend 30</td></tr>
+    <tr><td>5&ndash;6</td><td>2</td><td>15 / 25</td><td>Jan 1&ndash;2</td><td>only 2 txns &mdash; must NOT appear</td></tr>
+    <tr><td>7&ndash;9</td><td>3</td><td>5 / 55 / 65</td><td>Jan 1&ndash;3</td><td>exactly 3 txns &mdash; 3rd is spend 65</td></tr>
+  </tbody>
+</table>
+<p>The edge case is user 2: with only two transactions there is no "third," so user 2 must be excluded entirely &mdash; not returned with a NULL. User 3 sits exactly on the boundary with precisely three transactions, confirming the filter is <code>= 3</code>, not <code>&gt;= 3</code>.</p>
+
+<h4>2. The SQL &mdash; rank per user, keep rank 3</h4>
+<pre><code>WITH ranked AS (
+  SELECT user_id, spend, occurred_at,
+         ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY occurred_at) AS rn
+  FROM transaction
+)
+SELECT user_id, spend, occurred_at
+FROM ranked
+WHERE rn = 3
+ORDER BY user_id;</code></pre>
+<p><code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY occurred_at)</code> numbers each user's transactions 1, 2, 3, ... in chronological order. The outer <code>WHERE rn = 3</code> keeps only the third row per user. A user with fewer than three transactions simply has no row numbered 3, so they fall away.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>spend</th><th>occurred_at</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>30.00</td><td>2025-01-03 09:00</td><td>3rd of 4 transactions</td></tr>
+    <tr><td>3</td><td>65.00</td><td>2025-01-03 09:00</td><td>3rd of exactly 3</td></tr>
+  </tbody>
+</table>
+<p>User 2 is absent: their transactions are numbered only 1 and 2, so <code>rn = 3</code> matches nothing for them &mdash; no row, no NULL. User 1's fourth transaction (spend 40) is numbered <code>rn = 4</code> and filtered out; only the spend-30 row survives.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code> and not <code>RANK</code> / <code>DENSE_RANK</code></h5>
+<p>"The third transaction" means exactly one row &mdash; the third in time. <code>ROW_NUMBER</code> assigns a strict 1, 2, 3, ... with no ties: there is always exactly one <code>rn = 3</code> per qualifying user. <code>RANK</code> would, on a timestamp tie, assign two rows the same number and skip the next, so <code>rn = 3</code> might match two rows or none. <code>DENSE_RANK</code> would match every row sharing the third-place timestamp. For "pick the single nth row," <code>ROW_NUMBER</code> is the only correct ranking function.</p>
+
+<h5>The <code>PARTITION BY</code> makes the count per-user</h5>
+<p>Without <code>PARTITION BY user_id</code>, <code>ROW_NUMBER</code> would number <em>all</em> transactions 1..9 globally and <code>rn = 3</code> would return a single row across the whole table. The partition restarts the counter at 1 for each user, so "third" is third <em>within that user</em>. Partitioning is what turns a global ranking into a per-group ranking &mdash; the heart of every "nth per group" problem.</p>
+
+<h5>Fewer-than-n users are excluded by construction</h5>
+<p>The requirement "if a user has fewer than 3 transactions, do not include them" needs no explicit count or <code>HAVING</code>. A user with two transactions only ever produces <code>rn</code> values 1 and 2; <code>WHERE rn = 3</code> finds nothing for them and they vanish. This is cleaner than computing <code>COUNT(*) per user</code> and joining &mdash; the rank filter does the work. Contrast with "nth or last": for "third <em>or</em> their last if fewer," you would need <code>COUNT(*) OVER (PARTITION BY user_id)</code> too.</p>
+
+<h5>Tie-breaking the <code>ORDER BY</code></h5>
+<p><code>ORDER BY occurred_at</code> alone is non-deterministic if a user has two transactions at the identical timestamp &mdash; which of them is "second" vs "third" is arbitrary, and re-running the query could swap them. The data here has distinct timestamps so it is stable, but a production-grade answer adds a tiebreaker: <code>ORDER BY occurred_at, txn_id</code>. Naming the determinism gap unprompted is the senior signal.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ROW_NUMBER() OVER (...)</code> is standard and supported by PostgreSQL, SQL Server, Oracle, MySQL 8+, and modern SQLite. Older MySQL (&lt; 8.0) lacks window functions &mdash; there you would emulate per-user numbering with a correlated subquery counting earlier transactions, or with session variables. The window-function form is vastly clearer and is the expected answer on any current engine.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> solve "the nth row per group" with <code>ROW_NUMBER() OVER (PARTITION BY group ORDER BY time)</code> filtered to <code>rn = n</code> &mdash; <code>ROW_NUMBER</code> not <code>RANK</code>, because you want exactly one row &mdash; rely on the rank filter to drop groups with fewer than n rows for free, and add a tiebreaker to the <code>ORDER BY</code> so the result is deterministic under timestamp ties.</div>

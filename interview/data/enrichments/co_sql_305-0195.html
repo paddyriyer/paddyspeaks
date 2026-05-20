@@ -1,0 +1,63 @@
+<p>Amazon's category team wants the five products that generate the most revenue, to decide where to spend marketing budget. The query is a textbook <code>GROUP BY</code> with a top-N cut &mdash; but an interviewer is really checking two things: do you compute gross as <code>qty &times; price</code> per line and then sum, and do you notice that the schema ships a tempting <code>amount</code> column that may or may not mean the same thing.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>item_id</th><th>qty</th><th>price</th><th>order_id</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2</td><td>50</td><td>1</td><td>completed</td><td>100</td></tr>
+    <tr><td>102</td><td>1</td><td>200</td><td>2</td><td>completed</td><td>200</td></tr>
+    <tr><td>101</td><td>3</td><td>50</td><td>3</td><td>completed</td><td>150</td></tr>
+    <tr><td>103</td><td>5</td><td>10</td><td>4</td><td>cancelled</td><td>50</td></tr>
+    <tr><td>104</td><td>1</td><td>300</td><td>5</td><td>completed</td><td>300</td></tr>
+    <tr><td>102</td><td>2</td><td>200</td><td>6</td><td>completed</td><td>400</td></tr>
+    <tr><td>105</td><td>4</td><td>25</td><td>7</td><td>completed</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>Item 101 appears on two order lines; item 102 on two as well. Order 4 is <strong>cancelled</strong> but still carries a quantity and price. That cancelled row is the interview &mdash; should it count toward gross revenue?</p>
+
+<h4>2. The SQL &mdash; <code>SUM(qty*price) top 5</code></h4>
+<pre><code>SELECT item_id, SUM(qty*price) AS gross FROM orders
+GROUP BY item_id ORDER BY gross DESC LIMIT 5;</code></pre>
+<p>Per line the engine computes <code>qty &times; price</code>, then <code>SUM</code> rolls those line values up per <code>item_id</code>. <code>ORDER BY gross DESC LIMIT 5</code> keeps the five biggest.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>item_id</th><th>gross</th></tr></thead>
+  <tbody>
+    <tr><td>102</td><td>600</td></tr>
+    <tr><td>104</td><td>300</td></tr>
+    <tr><td>101</td><td>250</td></tr>
+    <tr><td>105</td><td>100</td></tr>
+    <tr><td>103</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Item 102 wins: 1&times;200 + 2&times;200 = 600. Item 101 sums to 2&times;50 + 3&times;50 = 250. Item 103's $50 comes entirely from the <strong>cancelled</strong> order &mdash; it is in the top 5 only because cancelled revenue was counted. With five items total, "top 5" returns everything; the cut only bites once the catalog is larger.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The cancelled-order filter the interviewer is waiting for</h5>
+<p>Gross revenue almost always means <em>realised</em> revenue. Order 4 is cancelled, so item 103's entire $50 is phantom. Add the filter and 103 drops to zero:</p>
+<pre><code>SELECT item_id, SUM(qty*price) AS gross FROM orders
+WHERE status = 'completed'
+GROUP BY item_id ORDER BY gross DESC LIMIT 5;</code></pre>
+<p>Confirm the definition before writing SQL: "top grossing &mdash; over all orders, or only completed ones?" Getting the filter right matters more than the aggregation.</p>
+
+<h5><code>qty*price</code> per row vs <code>SUM(qty)*SUM(price)</code> &mdash; a real trap</h5>
+<p>It is tempting to write <code>SUM(qty) * SUM(price)</code>. That is wrong: it multiplies total quantity by total price, mixing line items that may have different prices. For item 101 it would give (2+3) &times; (50+50) = 500, not 250. The multiplication must happen <em>inside</em> the row, before the sum: <code>SUM(qty*price)</code>. The two only coincide when there is a single row per group.</p>
+
+<h5>The <code>amount</code> column &mdash; which is the source of truth?</h5>
+<p>The schema carries an <code>amount</code> column that, on this data, often equals <code>qty*price</code> &mdash; but not always (order 6: amount 400 = 2&times;200, yet order 4: amount 50 = 5&times;10). They can drift: one pre-discount, one post-discount; one with tax, one without. Do not guess. Ask which column the business treats as revenue. If <code>amount</code> is the authoritative post-discount figure, the query becomes <code>SUM(amount)</code> and the line-item multiplication disappears entirely.</p>
+
+<h5>The ties-at-the-cutoff problem</h5>
+<p><code>LIMIT 5</code> returns exactly five rows. If the 5th and 6th items have <em>equal</em> gross, the engine keeps one and drops the other arbitrarily &mdash; non-deterministic, and a stakeholder will notice an item missing. When ties at the boundary must all appear, use a ranking window:</p>
+<pre><code>SELECT item_id, gross FROM (
+  SELECT item_id, SUM(qty*price) AS gross,
+         RANK() OVER (ORDER BY SUM(qty*price) DESC) AS rk
+  FROM orders GROUP BY item_id
+) t WHERE rk &lt;= 5;</code></pre>
+<p>This returns all items ranked 5th or better &mdash; possibly six or seven rows if there are ties. Add a deterministic secondary sort (<code>ORDER BY gross DESC, item_id</code>) if exactly five is required.</p>
+
+<h5>Edge cases: NULLs and an empty result</h5>
+<p>If <code>qty</code> or <code>price</code> is NULL on a line, <code>qty*price</code> is NULL and <code>SUM</code> simply skips it &mdash; that line contributes nothing, which may understate an item. Coalesce if the data is dirty. And if the table is empty the query returns zero rows, not a row of zeros &mdash; fine for a ranking, but worth stating.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> multiply <code>qty*price</code> per row before summing (never <code>SUM(qty)*SUM(price)</code>), add the <code>status = 'completed'</code> filter that separates real revenue from cancelled orders, surface the <code>amount</code>-vs-computed ambiguity, and handle ties at the <code>LIMIT</code> boundary with a ranking window rather than an arbitrary cut.</div>

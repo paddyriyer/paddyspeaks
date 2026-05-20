@@ -1,0 +1,62 @@
+<p>Datadog's commerce analytics team tracks product quality, and one early-warning signal is the return rate per product: of all orders for a SKU, what fraction came back? The data lives in two tables &mdash; every order in <code>orders</code>, and a row in <code>returns</code> only when an order was sent back. The interview tension is the join: pick the wrong type and you either lose products with zero returns or double-count.</p>
+
+<h4>1. The source data &mdash; <code>orders</code> and <code>returns</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>product_id</th><th>status</th><th>in returns?</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>completed</td><td>yes</td></tr>
+    <tr><td>2</td><td>10</td><td>completed</td><td>&mdash;</td></tr>
+    <tr><td>3</td><td>10</td><td>completed</td><td>yes</td></tr>
+    <tr><td>4</td><td>10</td><td>completed</td><td>&mdash;</td></tr>
+    <tr><td>5</td><td>20</td><td>completed</td><td>yes</td></tr>
+    <tr><td>6</td><td>20</td><td>completed</td><td>&mdash;</td></tr>
+    <tr><td>7</td><td>30</td><td>completed</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+<p>Product 10 has 4 orders, 2 returned. Product 20 has 2 orders, 1 returned. Product 30 has 1 order and <strong>nothing in <code>returns</code></strong> &mdash; the edge case. A return rate report that drops product 30 entirely is wrong; "0% returned" is a real, important answer.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> + ratio</h4>
+<pre><code>SELECT o.product_id,
+  100.0*COUNT(r.order_id)/COUNT(*) AS return_pct
+FROM orders o LEFT JOIN returns r ON o.order_id = r.order_id
+GROUP BY o.product_id;</code></pre>
+<p>Two counts after a <code>LEFT JOIN</code>: <code>COUNT(*)</code> counts every order row, <code>COUNT(r.order_id)</code> counts only the rows that matched a return (non-NULL). The ratio is the return percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>return_pct</th></tr></thead>
+  <tbody>
+    <tr><td>30</td><td>0.00000000000000000000</td></tr>
+    <tr><td>10</td><td>50.0000000000000000</td></tr>
+    <tr><td>20</td><td>50.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Product 10: 2 of 4 = 50%. Product 20: 1 of 2 = 50%. Critically, product 30 appears with <strong>0%</strong> &mdash; the <code>LEFT JOIN</code> kept its order, and <code>COUNT(r.order_id)</code> counted 0 NULL matches. An <code>INNER JOIN</code> would have dropped product 30 from the report completely.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(*)</code> and <code>COUNT(r.order_id)</code> differ &mdash; the whole trick</h5>
+<p>After a <code>LEFT JOIN</code>, unmatched left rows still appear, with the right-side columns set to NULL. <code>COUNT(*)</code> counts rows regardless of NULLs; <code>COUNT(r.order_id)</code> counts only non-NULL values. So for product 30's single unmatched order, <code>COUNT(*) = 1</code> but <code>COUNT(r.order_id) = 0</code>. Swap to <code>COUNT(*)</code> in the numerator and every product reads 100% &mdash; a classic, silent bug.</p>
+
+<h5>The <code>INNER JOIN</code> trap</h5>
+<p>Change <code>LEFT</code> to <code>INNER</code> and only orders that <em>were</em> returned survive. Product 30 vanishes; product 10 looks like 2 orders, 2 returns = 100%. The report would claim every product has a catastrophic return rate. A return-<em>rate</em> denominator must be all orders, so the join from <code>orders</code> must be <code>LEFT</code>.</p>
+
+<h5>The integer-division trap</h5>
+<p>The solution writes <code>100.0*COUNT(...)</code>, not <code>100*COUNT(...)</code>. <code>COUNT</code> returns <code>bigint</code>; <code>bigint / bigint</code> does integer division and truncates &mdash; <code>1/2</code> becomes <code>0</code>, so product 20 would report 0% instead of 50%. The <code>100.0</code> literal is <code>numeric</code>, which promotes the whole expression to numeric arithmetic. Equivalent fixes: <code>CAST(... AS numeric)</code> or <code>... * 1.0</code>.</p>
+
+<h5>Duplicate rows in <code>returns</code> &mdash; an edge case to raise</h5>
+<p>The solution assumes at most one return row per order. If a return can be logged twice, the <code>LEFT JOIN</code> fans out and <code>COUNT(r.order_id)</code> exceeds <code>COUNT(*)</code> &mdash; you can report over 100%. Defend against it by counting distinct returned orders:</p>
+<pre><code>SELECT o.product_id,
+  100.0 * COUNT(DISTINCT r.order_id) / COUNT(DISTINCT o.order_id) AS return_pct
+FROM orders o LEFT JOIN returns r ON o.order_id = r.order_id
+GROUP BY o.product_id;</code></pre>
+
+<h5>A clearer aggregate-only alternative</h5>
+<p>You can skip the join entirely if <code>returns</code> can be expressed as a flag, using a conditional count &mdash; or compute it without the join via <code>FILTER</code>:</p>
+<pre><code>SELECT o.product_id,
+  100.0 * COUNT(*) FILTER (WHERE r.order_id IS NOT NULL) / COUNT(*) AS return_pct
+FROM orders o LEFT JOIN returns r ON o.order_id = r.order_id
+GROUP BY o.product_id;</code></pre>
+<p><code>FILTER</code> makes the "returned vs all" intent explicit and reads better than relying on <code>COUNT</code>'s NULL behaviour. Should cancelled orders count toward the denominator? That is a definition question worth asking &mdash; the <code>status</code> column is right there.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LEFT JOIN</code> so zero-return products still appear, articulate exactly why <code>COUNT(r.order_id)</code> (non-NULL) differs from <code>COUNT(*)</code> (rows), force numeric division with a <code>100.0</code> literal, and pre-empt the over-100% bug from duplicate return rows with <code>COUNT(DISTINCT &hellip;)</code>.</div>

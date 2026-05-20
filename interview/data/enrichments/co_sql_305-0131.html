@@ -1,0 +1,70 @@
+<p>The growth team wants to size the <strong>upsell ceiling</strong> for each customer. The single biggest order a customer has ever placed is a strong proxy for their willingness-to-pay — much better than average order value, which gets diluted by frequent small repeat purchases. The query has to return the <em>full row</em> (order_id + amount + product), not just the max value, so the marketing system can reference the actual SKU.</p>
+
+<h4>1. The source data — <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>O01</td><td>C_101</td><td>$120</td></tr>
+    <tr><td>O02</td><td>C_101</td><td><strong>$840</strong></td></tr>
+    <tr><td>O03</td><td>C_101</td><td>$95</td></tr>
+    <tr><td>O04</td><td>C_102</td><td>$220</td></tr>
+    <tr><td>O05</td><td>C_102</td><td>$220</td></tr>
+    <tr><td>O06</td><td>C_103</td><td><strong>$3,200</strong></td></tr>
+    <tr><td>O07</td><td>C_103</td><td>$180</td></tr>
+    <tr><td>O08</td><td>C_104</td><td>$45</td></tr>
+    <tr><td>O09</td><td>C_104</td><td>$60</td></tr>
+    <tr><td>O10</td><td>C_104</td><td><strong>$1,500</strong></td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — correlated subquery</h4>
+<p>The classic pattern: keep rows whose <code>amount</code> equals the per-customer max. The correlated subquery references the outer row's <code>customer_id</code>, so it's recomputed for each customer.</p>
+<pre><code>SELECT customer_id, order_id, amount
+FROM orders o
+WHERE amount = (
+  SELECT MAX(amount)
+  FROM orders
+  WHERE customer_id = o.customer_id        -- correlated
+);</code></pre>
+
+<h4>3. The resulting analysis — biggest order per customer</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>amount</th><th>upsell ceiling signal</th></tr></thead>
+  <tbody>
+    <tr><td>C_101</td><td>O02</td><td><strong>$840</strong></td><td>premium-ready</td></tr>
+    <tr><td>C_102</td><td>O04</td><td>$220</td><td>standard tier</td></tr>
+    <tr><td>C_102</td><td>O05</td><td>$220</td><td><em>tied — both rows return ⚠</em></td></tr>
+    <tr><td>C_103</td><td>O06</td><td><strong>$3,200</strong></td><td>VIP / enterprise</td></tr>
+    <tr><td>C_104</td><td>O10</td><td><strong>$1,500</strong></td><td>premium-ready</td></tr>
+  </tbody>
+</table>
+<p>Notice: customer <strong>C_102</strong> placed two $220 orders. The correlated-subquery approach returns <em>both</em> rows. That may or may not be what you want — see "Tie-breaking" below.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Correlated subquery vs <code>ROW_NUMBER()</code> — when each is faster</h5>
+<p>Two valid solutions, different performance profiles:</p>
+<pre><code>-- Alternative: ROW_NUMBER (returns exactly one row per customer, deterministic)
+SELECT customer_id, order_id, amount
+FROM (
+  SELECT customer_id, order_id, amount,
+    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY amount DESC, order_id) AS rn
+  FROM orders
+) t
+WHERE rn = 1;</code></pre>
+<p>For small tables, the correlated subquery is fine. For large tables it's quadratic — the subquery re-scans <code>orders</code> for each outer row. <code>ROW_NUMBER()</code> sorts once and assigns ranks in a single pass — typically 10–100× faster on millions of rows. Modern optimisers (Postgres 12+, Snowflake, BigQuery) sometimes rewrite the correlated form into a window-function plan automatically; older engines do not.</p>
+
+<h5>Tie-breaking — the C_102 problem</h5>
+<p>Customer C_102's two $220 orders are a real issue: the correlated subquery returns both, the marketing system sends two emails, the customer wonders why. <code>ROW_NUMBER()</code> with a deterministic secondary sort (<code>ORDER BY amount DESC, order_id ASC</code>) returns exactly one. <code>RANK()</code> returns both and tells you they're tied. Pick consciously — the right answer depends on whether "biggest order" should be unique per customer or whether genuine ties should both qualify.</p>
+
+<h5>Why <code>MAX(amount)</code> alone loses the row</h5>
+<p>The naïve attempt is <code>SELECT customer_id, MAX(amount) FROM orders GROUP BY customer_id</code>. That gives you the value, but you've lost <code>order_id</code> — and the marketing system needs the SKU on that order to personalise the upsell email. The correlated subquery (or <code>ROW_NUMBER</code>) returns the entire matching row, not just the aggregate.</p>
+
+<h5>"Biggest order" vs "first order" — different signals</h5>
+<p>Biggest order = upsell ceiling (<em>"how much will they pay?"</em>). First order = acquisition channel attribution (<em>"how did they find us?"</em>). The same query shape — change <code>MAX(amount)</code> to <code>MIN(order_date)</code> — answers a completely different growth question. Senior candidates volunteer this as the natural follow-up.</p>
+
+<h5>The follow-up the interviewer always asks: "second-biggest order"</h5>
+<p>Once you've got the biggest, they ask for the second-biggest (or top-3). Correlated subquery gets ugly fast; <code>ROW_NUMBER</code> handles it trivially:</p>
+<pre><code>WHERE rn &lt;= 3   -- top-3 biggest orders per customer</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> show both solutions (correlated subquery + <code>ROW_NUMBER</code>), name the performance trade-off (quadratic vs single-pass), and call out the tie-handling question without being asked. The "first order vs biggest order" framing as different growth signals is the over-the-bar answer.</div>

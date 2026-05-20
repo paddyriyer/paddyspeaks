@@ -1,0 +1,108 @@
+<p>A growth-analytics team needs the full life story of every engagement burst: not just "how many consecutive days did this user show up," but what happened <em>after</em> the streak ended &mdash; did they come back the next day, the next week, or never. The interviewer is probing two things at once: can you run gaps-and-islands to detect the streaks, and can you then layer a retention/exit state machine on top of the islands. The snapshot date matters &mdash; "no activity yet" means churned only if enough observation time has elapsed.</p>
+
+<h4>1. The source data &mdash; <code>user_activity</code></h4>
+<table>
+  <thead><tr><th>activity_id</th><th>user_id</th><th>activity_date</th><th>activity_type</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1&ndash;8</td><td>1</td><td>Mar 1&ndash;5, Mar 12&ndash;14</td><td>login/order</td><td>two streaks, 7-day gap between</td></tr>
+    <tr><td>9&ndash;13</td><td>2</td><td>Dec 10&ndash;12, Mar 26&ndash;27</td><td>login/order</td><td>105-day gap &rarr; long resurrect</td></tr>
+    <tr><td>14&ndash;17</td><td>3</td><td>Nov 20&ndash;23</td><td>login/order</td><td>single streak, never returned</td></tr>
+    <tr><td>18&ndash;19</td><td>4</td><td>Mar 28&ndash;29</td><td>login</td><td>open &mdash; snapshot too recent to judge</td></tr>
+    <tr><td>20&ndash;23</td><td>5</td><td>Mar 10,12,14,16</td><td>login</td><td>alternating days &mdash; every "streak" is 1 day</td></tr>
+    <tr><td>24&ndash;27</td><td>6</td><td>Feb 1&ndash;3, Mar 25</td><td>login</td><td>50-day gap &rarr; resurrected</td></tr>
+  </tbody>
+</table>
+<p>User 5 is the deliberate edge case: a never-two-consecutive-days pattern. Gaps-and-islands still produces a row per day, each a one-day "streak" &mdash; the algorithm does not silently drop singletons, and the interviewer wants to see you handle that gracefully.</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands streaks plus a 5-bucket exit state machine</h4>
+<pre><code>WITH params(snapshot) AS (VALUES (DATE '2025-04-01')),
+days AS (
+    SELECT user_id, activity_date
+    FROM user_activity
+    WHERE activity_date &gt;= (SELECT snapshot FROM params) - INTERVAL '540 days'
+    GROUP BY user_id, activity_date
+),
+indexed AS (
+    -- island id = date - row_number(): consecutive dates collapse to
+    -- the same island_id; a gap breaks it.
+    SELECT user_id, activity_date,
+        activity_date - (ROW_NUMBER() OVER (PARTITION BY user_id
+                         ORDER BY activity_date))::INT AS island_id
+    FROM days
+),
+streaks AS (
+    SELECT user_id, island_id,
+        MIN(activity_date) AS streak_start,
+        MAX(activity_date) AS streak_end,
+        COUNT(*)           AS streak_days,
+        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY MIN(activity_date))
+            AS streak_id
+    FROM indexed
+    GROUP BY user_id, island_id
+),
+next_activity AS (
+    SELECT s.user_id, s.streak_id, s.streak_end,
+        MIN(d.activity_date) AS next_activity_date
+    FROM streaks s
+    LEFT JOIN days d ON d.user_id = s.user_id
+                    AND d.activity_date &gt; s.streak_end
+    GROUP BY s.user_id, s.streak_id, s.streak_end
+),
+enriched AS (
+    SELECT s.user_id, s.streak_id, s.streak_start, s.streak_end, s.streak_days,
+        ((SELECT snapshot FROM params) - s.streak_end) AS days_since_streak_end,
+        n.next_activity_date,
+        CASE WHEN (n.next_activity_date - s.streak_end) &lt;= 1  THEN 1 ELSE 0 END AS d1_retained,
+        CASE WHEN (n.next_activity_date - s.streak_end) &lt;= 7  THEN 1 ELSE 0 END AS d7_retained,
+        CASE WHEN (n.next_activity_date - s.streak_end) &lt;= 28 THEN 1 ELSE 0 END AS d28_retained
+    FROM streaks s
+    LEFT JOIN next_activity n ON n.user_id = s.user_id AND n.streak_id = s.streak_id
+)
+SELECT user_id, streak_id, streak_start, streak_end, streak_days,
+    d1_retained, d7_retained, d28_retained, next_activity_date,
+    CASE
+        WHEN d28_retained = 1                                         THEN 'continuing'
+        WHEN next_activity_date IS NULL AND days_since_streak_end &gt; 90 THEN 'churned'
+        WHEN next_activity_date IS NULL                               THEN 'open'
+        WHEN (next_activity_date - streak_end) &gt; 90                   THEN 'long_resurrect'
+        ELSE                                                               'resurrected'
+    END AS exit_status
+FROM enriched
+ORDER BY user_id, streak_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>streak_id</th><th>streak_start</th><th>streak_end</th><th>streak_days</th><th>d1</th><th>d7</th><th>d28</th><th>next_activity</th><th>exit_status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>2025-03-01</td><td>2025-03-05</td><td>5</td><td>0</td><td>1</td><td>1</td><td>2025-03-12</td><td>continuing</td></tr>
+    <tr><td>1</td><td>2</td><td>2025-03-12</td><td>2025-03-14</td><td>3</td><td>0</td><td>0</td><td>0</td><td><em>NULL</em></td><td>open</td></tr>
+    <tr><td>2</td><td>1</td><td>2024-12-10</td><td>2024-12-12</td><td>3</td><td>0</td><td>0</td><td>0</td><td>2025-03-26</td><td>long_resurrect</td></tr>
+    <tr><td>2</td><td>2</td><td>2025-03-26</td><td>2025-03-27</td><td>2</td><td>0</td><td>0</td><td>0</td><td><em>NULL</em></td><td>open</td></tr>
+    <tr><td>3</td><td>1</td><td>2024-11-20</td><td>2024-11-23</td><td>4</td><td>0</td><td>0</td><td>0</td><td><em>NULL</em></td><td>churned</td></tr>
+    <tr><td>4</td><td>1</td><td>2025-03-28</td><td>2025-03-29</td><td>2</td><td>0</td><td>0</td><td>0</td><td><em>NULL</em></td><td>open</td></tr>
+    <tr><td>5</td><td>1&ndash;3</td><td>Mar 10/12/14</td><td>Mar 10/12/14</td><td>1</td><td>0</td><td>1</td><td>1</td><td>+2 days each</td><td>continuing</td></tr>
+    <tr><td>5</td><td>4</td><td>2025-03-16</td><td>2025-03-16</td><td>1</td><td>0</td><td>0</td><td>0</td><td><em>NULL</em></td><td>open</td></tr>
+    <tr><td>6</td><td>1</td><td>2025-02-01</td><td>2025-02-03</td><td>3</td><td>0</td><td>0</td><td>0</td><td>2025-03-25</td><td>resurrected</td></tr>
+    <tr><td>6</td><td>2</td><td>2025-03-25</td><td>2025-03-25</td><td>1</td><td>0</td><td>0</td><td>0</td><td><em>NULL</em></td><td>open</td></tr>
+  </tbody>
+</table>
+<p>User 5's alternating pattern produces four one-day streaks. The first three are <code>continuing</code> because the next activity is two days later (within the 28-day window); the last is <code>open</code> because nothing follows it before the snapshot.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>date - row_number()</code> detects islands</h5>
+<p>Inside a run of consecutive calendar days, <code>activity_date</code> increases by 1 each row and <code>ROW_NUMBER()</code> also increases by 1. Their difference is therefore constant for the whole run &mdash; that constant <em>is</em> the island id. The moment a day is skipped, the date jumps but the row number does not, so the difference shifts and a new island opens. The <code>::INT</code> cast on <code>ROW_NUMBER()</code> is required because PostgreSQL will not subtract a <code>bigint</code> from a <code>date</code> directly.</p>
+
+<h5>The streak vs the next streak &mdash; a subtle definition trap</h5>
+<p><code>next_activity_date</code> is the earliest activity day strictly after <code>streak_end</code>, which is usually the <em>first day of the next streak</em>. That is deliberate: D1/D7/D28 retention asks "did the user come back," and the start of the next burst is exactly that signal. A common mistake is to join streaks to streaks and measure gap-between-islands; joining back to the day grid is simpler and correct. Note <code>d1_retained</code> is 0 everywhere here &mdash; by construction a gap of exactly 1 day would have merged the two streaks into one island, so a separate streak can never be D1-retained.</p>
+
+<h5>NULL handling makes the exit ladder correct</h5>
+<p>When there is no follow-up activity, <code>next_activity_date</code> is NULL and <code>(NULL - streak_end)</code> is NULL, so all three retained flags fall to 0. The exit CASE then leans on <code>days_since_streak_end</code>: if more than 90 days have passed with no return it is <code>churned</code>; otherwise the observation window is still open, hence <code>open</code>. Order matters in that CASE &mdash; the <code>d28_retained = 1</code> branch must come first so a returning user is never mislabelled, and the two NULL branches must precede the gap-size branches because subtracting NULL would otherwise never fire.</p>
+
+<h5>Dialect notes &mdash; date arithmetic is not portable</h5>
+<p><code>date - date</code> returning an integer count of days is PostgreSQL behaviour. SQLite needs <code>julianday()</code> differences; MySQL needs <code>DATEDIFF()</code>; BigQuery needs <code>DATE_DIFF(a, b, DAY)</code>; Snowflake needs <code>DATEDIFF('day', a, b)</code>. The 540-day lookback window (<code>snapshot - INTERVAL '540 days'</code>) is a partition-pruning guard so the scan never reads the entire history table &mdash; it just needs to reach far enough back to cover the longest plausible gap.</p>
+
+<h5>What a senior says next</h5>
+<p>"This is a per-streak fact table. In production I would materialise it incrementally &mdash; only streaks whose <code>exit_status</code> is still <code>open</code> can change, so each night you re-evaluate just those rows against the new snapshot. Everything labelled <code>continuing</code>, <code>churned</code>, or <code>resurrected</code> is frozen and never needs recomputing."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <code>date - row_number()</code> island trick, explain why a separate streak can never be D1-retained (a 1-day gap would have merged it), order the exit-status CASE so the retained branch and the NULL branches fire before the gap-size branches, and propose incrementally refreshing only the still-<code>open</code> streaks.</div>

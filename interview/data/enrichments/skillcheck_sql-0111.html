@@ -1,0 +1,57 @@
+<p>A payments dashboard wants the single highest-value transaction for each calendar day &mdash; a "daily top transaction" widget. The interesting part is the tie-break: when two transactions on the same day share the largest amount, the earlier timestamp wins, then the smaller id. The interviewer is checking whether you express a multi-key tie-break correctly inside a <code>ROW_NUMBER</code> window, rather than producing two rows for a tied day.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code></h4>
+<table>
+  <thead><tr><th>transaction_id</th><th>ts</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-05-01 09:00</td><td>100</td><td>day 1, smaller amount</td></tr>
+    <tr><td>2</td><td>2025-05-01 11:30</td><td>250</td><td>day 1, tied top &mdash; earlier of the two 250s</td></tr>
+    <tr><td>3</td><td>2025-05-01 14:00</td><td>250</td><td>day 1, tied top &mdash; later, loses the tie-break</td></tr>
+    <tr><td>4</td><td>2025-05-02 08:00</td><td>75</td><td>day 2, tied with tx 5 &mdash; earlier wins</td></tr>
+    <tr><td>5</td><td>2025-05-02 17:00</td><td>75</td><td>day 2, tied, later, loses</td></tr>
+    <tr><td>6</td><td>2025-05-03 12:00</td><td>500</td><td>day 3, lone transaction</td></tr>
+  </tbody>
+</table>
+<p>Day 1 has the headline edge case: two transactions tied at the max amount 250. Day 2 repeats it at a lower amount (both 75). Day 3 is the clean single-row day. A naive <code>MAX(amount)</code>-join would emit <em>both</em> 250 rows for day 1 &mdash; the tie-break is what makes the answer one row per day.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER</code> with a three-key ordering</h4>
+<pre><code>WITH ranked AS (
+  SELECT transaction_id, ts::date AS day, amount, ts,
+         ROW_NUMBER() OVER (PARTITION BY ts::date ORDER BY amount DESC, ts, transaction_id) AS rn
+  FROM transactions
+)
+SELECT day, transaction_id, amount
+FROM ranked
+WHERE rn = 1
+ORDER BY day;</code></pre>
+<p><code>PARTITION BY ts::date</code> groups rows by calendar day. The <code>ORDER BY</code> inside the window ranks within each day: <code>amount DESC</code> puts the largest first; <code>ts</code> ascending breaks amount-ties toward the earlier transaction; <code>transaction_id</code> ascending breaks any residual tie. <code>rn = 1</code> keeps exactly the winner per day.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>day</th><th>transaction_id</th><th>amount</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2025-05-01</td><td>2</td><td>250</td><td>tx 2 &amp; 3 both 250; 11:30 &lt; 14:00 &rarr; tx 2 wins</td></tr>
+    <tr><td>2025-05-02</td><td>4</td><td>75</td><td>tx 4 &amp; 5 both 75; 08:00 &lt; 17:00 &rarr; tx 4 wins</td></tr>
+    <tr><td>2025-05-03</td><td>6</td><td>500</td><td>only transaction that day</td></tr>
+  </tbody>
+</table>
+<p>Exactly one row per day. For day 1 the tie at 250 is resolved by timestamp &mdash; transaction 2 at 11:30 beats transaction 3 at 14:00. The <code>transaction_id</code> key never had to fire here because the timestamps already differ, but it is the correct final guarantee of determinism.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code>, not <code>RANK</code>, for "exactly one per group"</h5>
+<p>The requirement is one row per day. <code>RANK() OVER (... ORDER BY amount DESC)</code> would give both 250-transactions <code>rank = 1</code>, and <code>WHERE rank = 1</code> would return both &mdash; defeating the purpose. <code>ROW_NUMBER</code> always produces a strict <code>1, 2, 3...</code> sequence, so <code>rn = 1</code> is guaranteed to match precisely one row. Top-1-per-group is the canonical <code>ROW_NUMBER</code> use case.</p>
+
+<h5>The tie-break keys must all live in the window's <code>ORDER BY</code></h5>
+<p>A tie-break is just additional sort keys. <code>ORDER BY amount DESC, ts, transaction_id</code> reads as "largest amount; if tied, earliest; if still tied, lowest id." The order of keys is the priority order. Crucially, adding <code>transaction_id</code> last makes the ranking <em>fully deterministic</em>: with a unique id as the final key, no two rows can ever share a <code>ROW_NUMBER</code>, so the query returns the same answer on every run regardless of physical row order.</p>
+
+<h5>Why determinism matters &mdash; the silent non-bug</h5>
+<p>Without the <code>transaction_id</code> tie-break, two rows identical in both <code>amount</code> and <code>ts</code> would get <code>rn = 1</code> and <code>rn = 2</code> in an <em>arbitrary</em> order &mdash; the query "works" but returns different rows across executions, a flaky result that passes a demo and fails in production. A senior always terminates a <code>ROW_NUMBER</code> ordering with a unique column. Naming this unprompted is the signal.</p>
+
+<h5><code>ts::date</code> &mdash; truncating timestamp to calendar day</h5>
+<p>Casting a <code>timestamp</code> to <code>date</code> drops the time component, so all of <code>2025-05-01</code>'s rows share one partition key. Beware time zones: if <code>ts</code> were <code>timestamptz</code>, <code>::date</code> truncates in the session time zone &mdash; a transaction at <code>2025-05-01 23:30 UTC</code> could land on May 1 or May 2 depending on <code>SET timezone</code>. For an audited daily report, truncate in an explicit zone: <code>(ts AT TIME ZONE 'UTC')::date</code>.</p>
+
+<h5>Dialect notes</h5>
+<p><code>ts::date</code> is Postgres shorthand; portable forms are <code>CAST(ts AS DATE)</code>, or <code>DATE(ts)</code> in MySQL/SQLite, or <code>CONVERT(date, ts)</code> in SQL Server. <code>ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)</code> is standard everywhere. An alternative is Postgres's <code>DISTINCT ON (ts::date) ... ORDER BY ts::date, amount DESC, ts, transaction_id</code> &mdash; terser, but Postgres-only; the <code>ROW_NUMBER</code> form ports unchanged.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>ROW_NUMBER</code> (not <code>RANK</code>) for one-row-per-group, encode every tie-break as an extra key in the window's <code>ORDER BY</code> in priority order, always end that ordering with a unique column so the result is deterministic, and watch time-zone semantics when truncating a timestamp to a calendar day.</div>

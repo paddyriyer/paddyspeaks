@@ -1,0 +1,60 @@
+<p>A social-graph follow table is one of the most read-heavy schemas in existence: Twitter-style products perform billions of edge lookups per day. The interviewer is probing whether you understand <strong>bidirectional index design</strong> (you need one index per direction of traversal), <strong>idempotent upserts under concurrency</strong> (<code>ON CONFLICT DO NOTHING</code> is the canonical pattern), <strong>a self-referential integrity constraint</strong> (no self-follows), and why storing the graph in a relational table &mdash; versus exporting to a dedicated graph database &mdash; is appropriate for many workloads.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Directed edge:</strong> following is asymmetric &mdash; A follows B does not imply B follows A; the table stores one row per directed edge.</li>
+  <li><strong>Both traversal directions:</strong> "who does user X follow?" (forward: filter on <code>follower_id</code>) and "who follows user X?" (reverse: filter on <code>followee_id</code>) must both be fast.</li>
+  <li><strong>Idempotent upserts:</strong> mobile and distributed systems frequently send duplicate follow events; the <code>INSERT ... ON CONFLICT DO NOTHING</code> pattern is the standard solution.</li>
+  <li><strong>No self-follows:</strong> a <code>CHECK (follower_id &lt;&gt; followee_id)</code> constraint enforces this at the database level without application code.</li>
+  <li><strong>Audit provenance:</strong> <code>source</code> records where the edge originated (in-app button, import, API) for audit and abuse analysis.</li>
+  <li><strong>Bulk export:</strong> the table's flat structure (every row is a complete edge) makes it trivial to dump to a Parquet file or stream to a graph database like Neo4j or Neptune.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE follow_edge (
+  follower_id     BIGINT       NOT NULL,                    -- the one doing the following
+  followee_id     BIGINT       NOT NULL,                    -- the one being followed
+  created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  source          VARCHAR(20)  NOT NULL DEFAULT 'app',      -- audit: app / import / api
+  PRIMARY KEY (follower_id, followee_id),
+  CHECK (follower_id &lt;&gt; followee_id)                        -- no self-follows
+);
+
+-- Reverse-direction lookup: followers of X.
+CREATE INDEX ix_follow_by_followee
+  ON follow_edge (followee_id, follower_id);
+
+-- Idempotent upsert:
+-- INSERT INTO follow_edge (follower_id, followee_id, source)
+-- VALUES ($1, $2, $3)
+-- ON CONFLICT (follower_id, followee_id) DO NOTHING;</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>follower_id</code></td><td>Composite natural key (part 1) / forward-traversal key</td><td>Leading PK column; queries "who does user X follow?" resolve with a PK range scan on <code>follower_id = X</code>.</td></tr>
+    <tr><td><code>followee_id</code></td><td>Composite natural key (part 2) / reverse-traversal key</td><td>PK part 2; also the leading column of the reverse index for "followers of X" queries.</td></tr>
+    <tr><td><code>created_at</code></td><td>Audit column</td><td>Records when the relationship was established; useful for "recently followed" feeds and abuse velocity checks.</td></tr>
+    <tr><td><code>source</code></td><td>Audit / provenance dimension</td><td>Distinguishes organic app clicks from bulk imports and API calls; essential for abuse analysis and ML feature engineering.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two indexes cover both traversal directions</h5>
+<p>The PK <code>(follower_id, followee_id)</code> covers the forward direction: "give me all followees of user X" is a range scan on the leading column. The reverse index <code>(followee_id, follower_id)</code> covers the backward direction: "give me all followers of user X." Without the reverse index, that query would require a full-table scan or a sequential scan through every row where <code>followee_id = X</code>. Critically, the reverse index includes <code>follower_id</code> as the second column, making it a <em>covering index</em> for the common query <code>SELECT follower_id FROM follow_edge WHERE followee_id = ?</code> &mdash; no heap access needed.</p>
+
+<h5>Idempotent upserts under heavy concurrency</h5>
+<p><code>INSERT ... ON CONFLICT (follower_id, followee_id) DO NOTHING</code> is the correct pattern. It is atomic: two concurrent workers racing to insert the same edge will both succeed from the application's perspective &mdash; one inserts, the other receives a no-op &mdash; with no lost updates and no serialization errors. The alternative, a read-before-write check-then-insert, has a TOCTOU race. <code>DO NOTHING</code> is preferred over <code>DO UPDATE</code> here because a follow edge has no mutable fields worth updating on a re-insert.</p>
+
+<h5>The <code>CHECK</code> constraint for self-follows</h5>
+<p>A <code>CHECK (follower_id &lt;&gt; followee_id)</code> is evaluated on every <code>INSERT</code> and <code>UPDATE</code> by the database engine before the row is written. This is strictly stronger than application-level validation: a database migration script, a direct admin insert, or a bug in the API layer cannot accidentally create a self-follow row. It costs nothing at query time.</p>
+
+<h5>Fact-table type: a factless fact table</h5>
+<p>This is a classic <em>factless fact table</em>: the existence of a row is the fact (the follow relationship exists), and there are no numeric measures. The grain is one row per directed follow relationship. This maps cleanly to the relational model and is straightforward to export. Aggregations like follower count are computed at query time (<code>COUNT(*) WHERE followee_id = X</code>); if these counts are performance-critical, they are denormalized into a separate <code>user_stats</code> table and maintained via triggers or event-driven updates.</p>
+
+<h5>Scaling considerations and graph databases</h5>
+<p>For networks with billions of users, a relational follow table handles 1-hop queries (followers of X, followees of X) efficiently. It struggles with multi-hop traversal: "friends of friends," "shortest path," and "mutual followers" all require recursive CTEs or application-side BFS, which do not scale past 2-3 hops. At that point, bulk export to a dedicated graph engine (Neo4j, Amazon Neptune, Meta's TAO) is the right architectural move. The flat relational schema makes that export trivial &mdash; a full-table scan produces the edge list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name both traversal directions explicitly and provide an index for each, make the reverse index covering by including <code>follower_id</code> in its second position, use <code>ON CONFLICT DO NOTHING</code> for atomic idempotent upserts rather than read-before-write, and articulate where a relational follow table breaks down (multi-hop traversal) and when to graduate to a graph engine.</div>

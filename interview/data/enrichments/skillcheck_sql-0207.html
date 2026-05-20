@@ -1,0 +1,48 @@
+<p>The two window expressions in this query differ by just three words &mdash; <code>ORDER BY month_num</code> &mdash; yet they return entirely different numbers. The trap is believing that <code>ORDER BY</code> inside an <code>OVER()</code> clause merely sorts. It does not: it installs a default frame, turning a whole-partition aggregate into a running one.</p>
+
+<h4>1. The source data &mdash; <code>monthly_revenue</code></h4>
+<table>
+  <thead><tr><th>month_num</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td></tr>
+    <tr><td>2</td><td>200</td></tr>
+    <tr><td>3</td><td>50</td></tr>
+    <tr><td>4</td><td>150</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The query &mdash; two SUMs that look alike</h4>
+<pre><code>SELECT month_num, revenue,
+       SUM(revenue) OVER (ORDER BY month_num) AS running_total,
+       SUM(revenue) OVER ()                   AS period_total
+FROM monthly_revenue
+ORDER BY month_num;</code></pre>
+<p>Same aggregate, same column &mdash; the only difference is whether the <code>OVER()</code> clause carries an <code>ORDER BY</code>. That single change moves the frame, and the frame is what decides which rows the <code>SUM</code> sees.</p>
+
+<h4>3. The result</h4>
+<table>
+  <thead><tr><th>month_num</th><th>revenue</th><th>running_total</th><th>period_total</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>100</td><td>500</td></tr>
+    <tr><td>2</td><td>200</td><td>300</td><td>500</td></tr>
+    <tr><td>3</td><td>50</td><td>350</td><td>500</td></tr>
+    <tr><td>4</td><td>150</td><td>500</td><td>500</td></tr>
+  </tbody>
+</table>
+<p><code>period_total</code> is 500 on every row; <code>running_total</code> climbs 100, 300, 350, 500. Identical aggregate expression &mdash; the frame alone produces the difference.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>OVER () &mdash; the whole partition</h5>
+<p>An empty <code>OVER ()</code> has no <code>ORDER BY</code>, so its frame defaults to the entire partition: <code>RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code>. Every row sees every other row, so the result is the grand total, repeated on each row. This is the idiomatic way to put a static total beside detail rows &mdash; useful for percent-of-total: <code>revenue * 100.0 / SUM(revenue) OVER ()</code>.</p>
+
+<h5>Adding ORDER BY changes the frame, not just the order</h5>
+<p>Once an <code>ORDER BY</code> appears in the window, the frame default becomes <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; from the start of the partition up to the current row. That is a running total. The <code>ORDER BY</code> did not sort the output (the outer query&rsquo;s <code>ORDER BY</code> does that); it redefined which rows the aggregate accumulates.</p>
+
+<h5>The naive mistake</h5>
+<p>Reaching for <code>SUM(revenue) OVER (ORDER BY month_num)</code> as a period total returns a running total instead &mdash; month 1 would read 100, not 500. For a static grand total, the window must be frameless: <code>OVER ()</code>. Conversely, an <code>OVER ()</code> where a running figure was intended yields a flat grand total on every row.</p>
+
+<h5>Dialect notes</h5>
+<p>This frame-default behaviour is ANSI SQL and consistent across PostgreSQL, Snowflake, BigQuery, SQL Server, Oracle, and MySQL 8.0. Some engines reject an aggregate window without <code>PARTITION BY</code> or <code>ORDER BY</code> in older versions, but modern ones all accept the bare <code>OVER ()</code> as a whole-partition frame.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> <code>OVER ()</code> aggregates the whole partition (a static total); adding <code>ORDER BY</code> to the window switches the default frame to <code>UNBOUNDED PRECEDING .. CURRENT ROW</code>, producing a running total. The <code>ORDER BY</code> inside <code>OVER()</code> is a frame directive, not a sort &mdash; use <code>OVER ()</code> for grand totals and <code>OVER (ORDER BY ...)</code> for running ones, deliberately.</div>

@@ -1,0 +1,96 @@
+<p>The canonical backtracking template. Same shape as SAT solvers (Z3, MiniSat), Sudoku, graph coloring, exam-schedule assignment, and any CSP (constraint-satisfaction problem) with a finite alphabet of choices and a fast partial-feasibility check. The senior insight is that N-Queens isn't really about queens — it's about <em>state-as-three-sets</em>. Once you see that columns, main diagonals (r−c), and anti-diagonals (r+c) each have unique IDs, every "is this placement legal?" check becomes O(1), and the backtracker is a straight pre-order traversal of the decision tree. Atlassian asks this in their constraint-solver-leaning teams; the same shape powers Jira's "find a sprint allocation that satisfies all assignee + skill + capacity constraints" search.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>Place n queens on an n × n board so that no two attack each other (no shared row, column, or diagonal). Return every distinct arrangement. <strong>Insight:</strong> place exactly one queen per row (row index = recursion depth). At each row, try every column; a column is legal iff it's not in <code>cols</code>, <code>(r − c) not in diag</code>, and <code>(r + c) not in anti</code>. Each diagonal is identified by a unique integer; sets give O(1) conflict checks. The backtrack template is: add to conflict sets → recurse → remove from conflict sets.</p>
+
+<h4>2. Worked example — n=4, trace the decision tree</h4>
+<p>Backtracker explores rows top-down. We track <code>(cols, diag, anti)</code>.</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+row 0, try col=0:  cols={0}, diag={0}, anti={0}
+  row 1, try col=0: c in cols  -> skip
+        try col=1: (r-c)=0 in diag -> skip
+        try col=2: legal. cols={0,2}, diag={0,-1}, anti={0,3}
+          row 2, try col=0: c in cols -> skip
+                try col=1: (r-c)=1 in nothing, (r+c)=3 in anti -> skip
+                try col=2: c in cols -> skip
+                try col=3: (r-c)=-1 in diag -> skip
+                ** DEAD END — backtrack to row 1 **
+        try col=3: legal. cols={0,3}, diag={0,-2}, anti={0,4}
+          row 2, try col=0: c in cols -> skip
+                try col=1: legal. cols={0,3,1}, diag={0,-2,1}, anti={0,4,3}
+                  row 3, try col=0: c in cols -> skip
+                        try col=1: c in cols -> skip
+                        try col=2: (r-c)=1 in diag -> skip
+                        try col=3: c in cols -> skip
+                        ** DEAD END — backtrack to row 2 **
+                try col=2: (r-c)=0 in diag -> skip
+                try col=3: c in cols -> skip
+                ** DEAD END — backtrack to row 1 **
+        ** all cols exhausted for row 1 with row 0 col=0 — backtrack **
+
+row 0, try col=1:  cols={1}, diag={-1}, anti={1}
+  ...this branch yields .Q.. / ...Q / Q... / ..Q.   <-- solution 1
+
+row 0, try col=2:  ...yields  ..Q. / Q... / ...Q / .Q..   <-- solution 2
+
+row 0, try col=3:  symmetric mirror of col=0, dead end.
+
+Two solutions total for n=4 — the two diagonal-reflections of each other.
+</pre>
+<p>The tree has at most n! = 24 leaves at n=4, but conflict-set pruning cuts most branches before depth n. For n=8, brute force would be 16,777,216 placements; the pruned backtracker explores ~16,000 — a 1000× saving.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>def solveNQueens(n):
+    res = []
+    # Three sets are the entire "is this safe?" oracle.
+    # cols : columns already taken
+    # diag : main diagonals,   identified uniquely by (row - col)
+    # anti : anti-diagonals,   identified uniquely by (row + col)
+    cols, diag, anti = set(), set(), set()
+    board = [['.'] * n for _ in range(n)]
+
+    def back(r):
+        if r == n:
+            # complete board — snapshot the current state as a solution
+            res.append([''.join(row) for row in board]); return
+        for c in range(n):
+            # O(1) feasibility check across all three constraint axes
+            if c in cols or (r - c) in diag or (r + c) in anti: continue
+            # place + recurse + un-place (the backtracking template)
+            cols.add(c); diag.add(r - c); anti.add(r + c); board[r][c] = 'Q'
+            back(r + 1)
+            cols.remove(c); diag.remove(r - c); anti.remove(r + c); board[r][c] = '.'
+
+    back(0); return res
+</code></pre>
+<p><strong>Data structures:</strong> three Python <code>set</code>s + a single mutable 2D <code>board</code> list. <strong>Invariants:</strong> (1) at depth r, exactly r queens are placed and the three sets contain exactly r elements each; (2) before and after every <code>back(r)</code> call, the conflict sets and the board are in the same state — the backtrack is symmetric to the placement.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(n!) in the worst case (the branching factor is n, the depth is n, but each level loses at least one column to the previous placement). <strong>With diagonal pruning</strong>, empirically about O(n!/c^n) for some c > 1 — at n=14 the tree is ~365k leaves, vs 87 billion for brute force. <strong>Space:</strong> O(n) for the three conflict sets + O(n²) for the board snapshot + O(n) recursion depth. Output size is the wildcard — at n=8 it's 92 boards, at n=14 it's 365,596.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — Degenerate input.</strong> n=0 returns one empty board (vacuously satisfied — back(0) calls back(0) which immediately matches r==n and appends []); n=1 returns the single board <code>['Q']</code>; n=2 and n=3 return empty lists (provably no solutions, the pruning detects this fast).</p>
+<p><strong>Probe 2 — Symmetry: do we count reflections / rotations?</strong> Yes — solveNQueens returns every distinct board. To deduplicate by symmetry group D4 (8 elements: rotations + mirrors), canonicalise each board to its lexicographically-smallest D4-orbit member before deduping. n=8: 92 raw → 12 fundamental solutions.</p>
+<p><strong>Probe 3 — Generalisation: "count only" (Hard variant).</strong> Replace the result-append with a counter increment and drop the <code>board</code> array — you save the O(n²) snapshot allocation, which dominates for large n. n=14: counting takes ~1s, listing takes ~30s.</p>
+<p><strong>Probe 4 — Performance trap: bitmask the conflict sets.</strong> For n ≤ 32, replace the three sets with three Python ints used as bitmasks. <code>cols | diag | anti</code> in one OR; <code>~(cols | diag | anti) &amp; ((1 &lt;&lt; n) - 1)</code> gives the bitmask of legal columns; <code>x &amp; -x</code> extracts the lowest set bit. Cuts constant factor by ~5× — this is what every published "fastest N-Queens" implementation uses.</p>
+<p><strong>Probe 5 — Alternative algorithm: SAT encoding.</strong> Encode "exactly one queen per row + at most one queen per column + at most one per diagonal" as a CNF formula and hand it to MiniSat / Z3. The solver runs DPLL with unit propagation — conceptually the same backtracking + constraint propagation, but with industrial-grade heuristics (VSIDS, conflict-driven clause learning). For n > 20, SAT solvers crush hand-rolled backtrackers.</p>
+<p><strong>Probe 6 — Probabilistic alternative.</strong> WalkSAT / simulated annealing: random initial placement, local-search swaps that reduce conflict count. Finds <em>one</em> solution in ~O(n²) for n up to thousands, but can't enumerate all. Used in chip layout and timetable scheduling where one good solution is all you need.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>SAT solvers (Z3, MiniSat, CryptoMiniSat)</strong> — every variable assignment is a placement, every clause is a constraint set, every backtrack is a non-chronological jump. Same shape, more clever heuristics.</li>
+  <li><strong>Sudoku &amp; constraint propagation (Peter Norvig's Sudoku solver)</strong> — Norvig's article is essentially this algorithm with a 9-row × 9-col board and 27 conflict sets (rows, columns, 3×3 boxes).</li>
+  <li><strong>Airflow / Prefect task scheduling</strong> — assign tasks to worker slots with resource/capability constraints. The constraint sets are CPU pools, GPU pools, memory pools; the conflict check is "does this task fit?".</li>
+  <li><strong>pip / conda dependency resolution</strong> — choose a package version satisfying a transitive constraint tree. pip 20.3+ uses backtracking resolution (pip's RFC); conda uses a SAT solver (libsolv).</li>
+  <li><strong>Chip placement (Cadence Allegro, Synopsys ICC)</strong> — place gates on a grid such that timing/area/power constraints are satisfied. The hand-rolled backtracker is augmented with simulated annealing for tractability, but the constraint-set core is the same.</li>
+  <li><strong>Course / exam scheduling (Google Calendar conflict resolver, university registrars)</strong> — assign times so no professor or room is double-booked. Conflict sets are professor-by-timeslot, room-by-timeslot, student-by-timeslot.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0133">python_175-0133 — Word Search II</a> (sibling: backtracking on a grid with state restoration)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0163">python_175-0163 — Alien Dictionary</a> (sibling: constraint-satisfaction via topological sort)</li>
+  <li><a href="/interview.app/design/data-modeling.html">Constraint &amp; scheduling data models</a></li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the algorithm family explicitly — <em>"this is backtracking-with-conflict-sets, the same skeleton as SAT solving, Sudoku, and dependency resolution."</em> Then call out the three conflict-set IDs: <code>col</code>, <code>r − c</code>, <code>r + c</code>. The interviewer is checking whether you see the structural equivalence to CSP / SAT — if you do, you also know to mention the bitmask optimisation (Probe 4) and the SAT-solver alternative (Probe 5). Production analogues: pip resolver, Airflow scheduler, Z3.</div>

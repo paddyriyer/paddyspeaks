@@ -1,0 +1,85 @@
+<p>A SOC2-style audit log must answer two questions that a compliance auditor will ask: "who changed what, and when?" and "can you prove this log has not been tampered with?" The interviewer is probing whether you understand <strong>polymorphic entity references</strong> (one log table for all entity types), <strong>schema-flexible field diffs</strong> (JSONB), <strong>immutability enforcement</strong> (privilege revocation, append-only writes, hash chains), and why the standard approaches &mdash; <code>REVOKE DELETE</code>, WORM storage, and cryptographic hash chaining &mdash; are complementary rather than alternatives.</p>
+
+<h4>1. The requirements &mdash; what the design must capture</h4>
+<ul>
+  <li><strong>Who:</strong> actor type (user, service, system), actor ID, IP address, and user-agent for attribution.</li>
+  <li><strong>What:</strong> entity type and ID (polymorphic: any entity in the system), action, and a field-diff showing exactly which fields changed from what to what.</li>
+  <li><strong>When:</strong> <code>occurred_at</code> is the authoritative compliance timestamp; it may differ from <code>ingested_at</code> for event-sourced systems.</li>
+  <li><strong>Tamper evidence:</strong> a hash chain (<code>prev_log_hash</code> &rarr; <code>this_log_hash</code>) allows any auditor to detect if a historical row was modified or deleted by verifying the chain is unbroken.</li>
+  <li><strong>Multi-tenant scope:</strong> <code>tenant_id</code> allows per-tenant audit export and retention policy enforcement.</li>
+  <li><strong>Immutability:</strong> the database role used by the application must not have UPDATE or DELETE privileges on this table.</li>
+</ul>
+
+<h4>2. The DDL &mdash; the <code>CREATE TABLE</code></h4>
+<pre><code>CREATE TABLE audit_log (
+  log_id           BIGSERIAL    PRIMARY KEY,
+  occurred_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  actor_type       VARCHAR(16)  NOT NULL,                      -- 'user','service','system'
+  actor_id         VARCHAR(128) NOT NULL,                      -- user_id, service principal, etc.
+  actor_ip         INET,
+  actor_user_agent TEXT,
+  entity_type      VARCHAR(64)  NOT NULL,                      -- 'customer','order','config'
+  entity_id        VARCHAR(128) NOT NULL,                      -- entity PK as string to keep it polymorphic
+  action           VARCHAR(16)  NOT NULL,                      -- 'create','update','delete','read'
+  field_diffs      JSONB,                                       -- e.g., {"email":{"old":"a@x","new":"b@x"}}
+  request_id       VARCHAR(64),                                 -- trace correlation
+  tenant_id        BIGINT,                                      -- multi-tenant scope
+  prev_log_hash    CHAR(64),                                    -- SHA-256 of preceding row &mdash; hash chain
+  this_log_hash    CHAR(64)     NOT NULL                        -- SHA-256(prev_log_hash || serialized(this row))
+);
+
+CREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id, occurred_at DESC);
+CREATE INDEX ix_audit_log_actor ON audit_log (actor_type, actor_id, occurred_at DESC);
+CREATE INDEX ix_audit_log_tenant_time ON audit_log (tenant_id, occurred_at DESC);
+CREATE INDEX ix_audit_log_action_time ON audit_log (action, occurred_at DESC);
+
+-- Enforcing immutability:
+-- 1. Revoke UPDATE / DELETE privileges on audit_log to the application role; only INSERT allowed.
+--    GRANT INSERT ON audit_log TO app_role;
+--    REVOKE UPDATE, DELETE ON audit_log FROM app_role;
+-- 2. Either keep audit_log in a separate schema/database with its own access boundary,
+--    or stream rows to an append-only, WORM-protected store (e.g., S3 Object Lock) on commit.
+-- 3. prev_log_hash + this_log_hash form a hash chain: tampering with any historical row breaks
+--    the chain, which can be verified periodically.
+-- 4. Partition by month to manage retention without DELETEing live partitions:
+--    CREATE TABLE audit_log (...) PARTITION BY RANGE (occurred_at);</code></pre>
+
+<h4>3. Column-by-column rationale</h4>
+<table>
+  <thead><tr><th>column</th><th>role</th><th>why</th></tr></thead>
+  <tbody>
+    <tr><td><code>log_id</code></td><td>Surrogate PK</td><td>BIGSERIAL provides monotonically increasing IDs that define append order; used as the hash chain sequence.</td></tr>
+    <tr><td><code>occurred_at</code></td><td>Business event time / compliance timestamp</td><td>The timestamp the auditor cares about; may differ from ingestion time for event-sourced pipelines; indexed as the trailing sort key on all query patterns.</td></tr>
+    <tr><td><code>actor_type</code></td><td>Actor classification dimension</td><td>Distinguishes human user actions from service-to-service calls and automated system events; drives different audit report formats.</td></tr>
+    <tr><td><code>actor_id</code></td><td>Actor natural key</td><td>VARCHAR(128) accommodates user UUIDs, service principal names, and system identifiers without a typed FK; no FK because actors from external systems may not have rows in the local DB.</td></tr>
+    <tr><td><code>actor_ip</code></td><td>Network provenance (nullable)</td><td>Postgres <code>INET</code> type stores IPv4 and IPv6 natively and supports subnet containment queries (<code>&gt;&gt;=</code>); nullable for system-initiated actions with no network origin.</td></tr>
+    <tr><td><code>actor_user_agent</code></td><td>Client provenance (nullable)</td><td>Helps distinguish browser sessions from mobile apps and API clients; relevant for breach forensics.</td></tr>
+    <tr><td><code>entity_type</code></td><td>Polymorphic entity discriminator</td><td>One audit table for all entity types; the (entity_type, entity_id) pair forms the polymorphic reference; avoids one audit table per entity type.</td></tr>
+    <tr><td><code>entity_id</code></td><td>Polymorphic entity key</td><td>VARCHAR(128) stores any entity PK &mdash; integer, UUID, or composite key serialized as a string &mdash; without a typed FK.</td></tr>
+    <tr><td><code>action</code></td><td>Operation dimension</td><td>create/update/delete/read; 'read' is often omitted for volume reasons but required for data-access compliance (e.g., HIPAA PHI reads).</td></tr>
+    <tr><td><code>field_diffs</code></td><td>Schema-flexible change payload (nullable)</td><td>JSONB records <code>{"field": {"old": ..., "new": ...}}</code> for each changed field; NULL for create and delete (full before/after in the application log); NULL for read actions.</td></tr>
+    <tr><td><code>request_id</code></td><td>Trace correlation (nullable)</td><td>Distributed trace ID; links the audit event to the HTTP request in the observability stack for cross-system forensics.</td></tr>
+    <tr><td><code>tenant_id</code></td><td>Multi-tenant scope (nullable)</td><td>Allows per-tenant audit export; NULL for system-level events not attributable to a tenant.</td></tr>
+    <tr><td><code>prev_log_hash</code></td><td>Hash chain link (nullable)</td><td>SHA-256 of the preceding row; NULL for the first row; enables tamper detection by verifying the chain is unbroken.</td></tr>
+    <tr><td><code>this_log_hash</code></td><td>Hash chain anchor</td><td>SHA-256(<code>prev_log_hash</code> || serialized row content); computed by the application before insert; tampering with any column of any row invalidates this hash and breaks the chain.</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Polymorphic entity references: one table for all</h5>
+<p>The alternative is one <code>audit_log_orders</code>, <code>audit_log_customers</code>, &hellip; table per entity type. That approach is easier to query for a specific entity but creates schema sprawl, inconsistent columns across tables, and a new table for every new auditable entity. The polymorphic pattern (<code>entity_type</code> + <code>entity_id</code> as VARCHAR) consolidates everything into one place. The cost: you cannot add a typed FK constraint from <code>entity_id</code> to the entity's PK, which is acceptable here because audit logs must survive entity deletion (the audit trail must not cascade-delete when an order is deleted).</p>
+
+<h5>Immutability: three complementary layers</h5>
+<p><strong>Layer 1 &mdash; privilege revocation:</strong> <code>REVOKE UPDATE, DELETE ON audit_log FROM app_role</code> prevents the application from mutating rows. This stops accidental or malicious modification via the application's own database connection. It does not stop a database superuser. <strong>Layer 2 &mdash; WORM storage:</strong> streaming rows to S3 with Object Lock (WORM) or an immutable append-only data store (e.g., Amazon QLDB, Immudb) provides a second independent copy that survives even a database compromise. <strong>Layer 3 &mdash; hash chain:</strong> the SHA-256 chain means that even if an attacker gains superuser access and modifies a row, the chain breaks at that row, making the tampering detectable by the verifier. These three layers provide defense in depth.</p>
+
+<h5>Hash chain verification</h5>
+<p>A nightly verification job reads all rows in <code>log_id</code> order, recomputes <code>SHA-256(prev_log_hash || serialize(row))</code> for each row, and compares it to <code>this_log_hash</code>. Any mismatch indicates tampering (or a software bug in the insert path). The verification job should run under a separate read-only role and write its result to an external compliance system. This pattern is similar to blockchain but lighter: a single-chain hash ledger, not a distributed consensus system.</p>
+
+<h5>Partitioning for retention without DELETE</h5>
+<p>SOC2 typically requires 12-month retention; HIPAA and GDPR may require 6&ndash;10 years. Partitioning by month on <code>occurred_at</code> allows expired partitions to be <em>detached and archived</em> rather than row-deleted: <code>ALTER TABLE audit_log DETACH PARTITION audit_log_2024_01</code> removes January 2024's data instantly and without DELETE operations. The detached partition can be exported to WORM storage before being dropped. This is both faster and immutability-safe.</p>
+
+<h5>Four indexes for four query patterns</h5>
+<p>Each index serves a distinct compliance use case: <strong>entity index</strong> for "show me all changes to customer 12345"; <strong>actor index</strong> for "show me everything user alice@co.com did this week" (SOC2 access review); <strong>tenant+time index</strong> for per-tenant audit export; <strong>action+time index</strong> for "how many delete events occurred today?" (anomaly detection). All trailing columns are <code>occurred_at DESC</code> so the most recent events appear first without a sort step.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> combine three immutability mechanisms (privilege revocation, WORM sidecar, hash chain) because each layer protects against a different threat model; use a polymorphic (entity_type, entity_id) pair rather than per-entity tables; and partition by month so retention policies are enforced by <code>DETACH PARTITION</code> rather than <code>DELETE</code> &mdash; which would itself require the DELETE privilege you just revoked.</div>

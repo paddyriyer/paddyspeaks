@@ -1,0 +1,26 @@
+<p>Per-user comment karma distribution reveals user behavior: trolls have lots of negatives; quality contributors have positive averages with high volume.</p>
+
+<h4>2. The SQL — per-user pos/neg distribution</h4>
+<pre><code>SELECT user_id, COUNT(*) AS comments, ROUND(AVG(score), 1) AS avg_score,
+  SUM(CASE WHEN score &gt; 0 THEN 1 ELSE 0 END) AS positive_count,
+  SUM(CASE WHEN score &lt; 0 THEN 1 ELSE 0 END) AS negative_count,
+  ROUND(100.0 * SUM(CASE WHEN score &lt; 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS negative_pct
+FROM comments GROUP BY user_id HAVING COUNT(*) &gt;= 3 ORDER BY avg_score DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Negative % as troll signal</h5>
+<p>Healthy user: 5-10% negative. Controversial poster: 20-30%. Likely troll / spammer: 40%+. Reddit shadow-bans accounts hitting sustained 50%+ negative ratio.</p>
+
+<h5>Account age normalization</h5>
+<p>3-day-old account with 100% positive (1 comment) is meaningless. Filter to accounts with 30+ days OR 100+ comments for stable averages.</p>
+
+<h5>Subreddit context</h5>
+<p>Avg score in r/askscience (60) vs r/funny (300) is structurally different. User's score should be normalized within the sub they posted in.</p>
+
+<h5>Karma decay / karma farms</h5>
+<p>Reddit caps "karma farming" with karma-decay rules. Old karma counts less than recent. Production multiplies score by exp(-decay × age).</p>
+
+<h5>The mod-tools tie-in</h5>
+<p>The query result is mod-dashboard data: high negative-% users in their subreddit get a "user warning" badge. Mods decide whether to ban.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> negative-% as troll signal, threshold by account-age, normalize within subreddit, apply karma-decay for fresh signals, and tie to mod-tooling user-warning badges.</div>

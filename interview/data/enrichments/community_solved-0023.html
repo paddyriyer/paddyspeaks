@@ -1,0 +1,76 @@
+<p>A Community question on a Gmail activity table: rank senders by how many emails they sent, with no ties &mdash; every sender gets a unique rank. The data team wants a strict leaderboard. The subtle part is the phrase "unique rank": two senders with the same volume must still get <em>different</em> numbers, which rules out <code>RANK</code> and <code>DENSE_RANK</code> and points squarely at <code>ROW_NUMBER</code> &mdash; with a deterministic tiebreaker.</p>
+
+<h4>1. The source data &mdash; <code>google_gmail_emails</code></h4>
+<table>
+  <thead><tr><th>from_user</th></tr></thead>
+  <tbody>
+    <tr><td>alice</td></tr>
+    <tr><td>alice</td></tr>
+    <tr><td>alice</td></tr>
+    <tr><td>bob</td></tr>
+    <tr><td>bob</td></tr>
+    <tr><td>carol</td></tr>
+    <tr><td>carol</td></tr>
+    <tr><td>dave</td></tr>
+  </tbody>
+</table>
+<p>The table is a single column &mdash; one row per email sent. alice sent 3, bob and carol <strong>2 each</strong>, dave 1. bob and carol are the tie, and "unique rank" says they cannot share a number &mdash; that tie is the whole question.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER over a grouped count</code></h4>
+<pre><code>select from_user,
+    sent_email,
+    row_number() over(order by sent_email desc, from_user asc) as unique_rank
+from (
+select from_user,
+  count(*) as sent_email
+from google_gmail_emails
+group by from_user
+) a</code></pre>
+<p>The inner query collapses the table to one row per sender with a <code>sent_email</code> count. The outer <code>ROW_NUMBER</code> orders those rows by volume descending, breaking ties on <code>from_user</code> ascending, and hands out 1, 2, 3, … with no gaps and no shared values.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>from_user</th><th>sent_email</th><th>unique_rank</th></tr></thead>
+  <tbody>
+    <tr><td>alice</td><td>3</td><td>1</td></tr>
+    <tr><td>bob</td><td>2</td><td>2</td></tr>
+    <tr><td>carol</td><td>2</td><td>3</td></tr>
+    <tr><td>dave</td><td>1</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>bob and carol both sent 2, yet bob is rank 2 and carol rank 3 &mdash; the <code>from_user ASC</code> tiebreaker put "bob" before "carol" alphabetically. That is exactly the "unique rank" the question asked for. With <code>RANK()</code> they would both be 2 (then a skip to 4); with <code>DENSE_RANK()</code> both 2 (then 3). Only <code>ROW_NUMBER</code> guarantees distinct ranks.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>ROW_NUMBER</code>, and why the tiebreaker is mandatory</h5>
+<p><code>ROW_NUMBER()</code> assigns a strictly increasing integer regardless of ties &mdash; that is what "unique rank" demands. But <code>ROW_NUMBER</code> only decides tied rows by whatever the <code>ORDER BY</code> says; if the <code>ORDER BY</code> were <code>sent_email DESC</code> alone, bob and carol's 2-vs-3 split would be <em>arbitrary</em> and could change between runs or engines. Adding <code>from_user ASC</code> makes the result <strong>deterministic</strong>. A unique rank with a non-deterministic tiebreak is a bug waiting to happen &mdash; the secondary key is not optional.</p>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code> &mdash; pick by tie semantics</h5>
+<table>
+  <thead><tr><th>sender</th><th>sent</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>alice</td><td>3</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>bob</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+    <tr><td>carol</td><td>2</td><td>3</td><td>2</td><td>2</td></tr>
+    <tr><td>dave</td><td>1</td><td>4</td><td>4</td><td>3</td></tr>
+  </tbody>
+</table>
+<p><code>ROW_NUMBER</code> &mdash; all distinct, no ties shared. <code>RANK</code> &mdash; ties share, next value skips. <code>DENSE_RANK</code> &mdash; ties share, no skip. "Unique rank" &rArr; <code>ROW_NUMBER</code>; "competition placing" &rArr; <code>RANK</code>; "tier number" &rArr; <code>DENSE_RANK</code>. Stating this trio fluently is the senior tell.</p>
+
+<h5>Why the count must be a subquery (or CTE)</h5>
+<p><code>ROW_NUMBER() OVER (ORDER BY sent_email &hellip;)</code> needs <code>sent_email</code> to already exist as a column. You cannot both <code>COUNT(*)</code> and rank that count in one <code>SELECT</code> level &mdash; the window function would see individual email rows, not per-sender totals. The inner <code>GROUP BY</code> produces the aggregate; the outer level ranks it. A CTE reads more cleanly than the inline subquery but is logically identical:</p>
+<pre><code>WITH counts AS (
+  SELECT from_user, COUNT(*) AS sent_email
+  FROM google_gmail_emails GROUP BY from_user
+)
+SELECT from_user, sent_email,
+       ROW_NUMBER() OVER (ORDER BY sent_email DESC, from_user) AS unique_rank
+FROM counts;</code></pre>
+
+<h5>Edge cases: NULL senders and a missing <code>ORDER BY</code></h5>
+<p>If <code>from_user</code> can be NULL, <code>GROUP BY</code> collects all NULL senders into one group that gets its own rank &mdash; probably meaningless; filter <code>WHERE from_user IS NOT NULL</code> or decide what a "NULL sender" means. And note the final result has an <code>ORDER BY</code> only <em>inside</em> the window &mdash; the row order of the output itself is technically undefined. Add a top-level <code>ORDER BY unique_rank</code> so the leaderboard prints in rank order.</p>
+
+<h5>The dialect footnote</h5>
+<p>Some warehouses (Snowflake, BigQuery) let you write <code>QUALIFY ROW_NUMBER() OVER (&hellip;) &lt;= 10</code> to grab the top 10 in one statement. Postgres has no <code>QUALIFY</code> &mdash; you wrap the window in a subquery/CTE and filter in the outer <code>WHERE</code>. Same result, different syntax; mention it if the role is warehouse-specific.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> map "unique rank" to <code>ROW_NUMBER</code> rather than <code>RANK</code>/<code>DENSE_RANK</code>, insist on a deterministic tiebreaker (<code>from_user</code>) so tied senders rank reproducibly, explain why the count must be aggregated before it can be ranked, and add the top-level <code>ORDER BY</code> the leaderboard needs.</div>

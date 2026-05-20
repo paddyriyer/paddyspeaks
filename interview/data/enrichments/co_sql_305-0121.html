@@ -1,0 +1,60 @@
+<p>Qualcomm's PMO wants an early-warning report: which projects have spent more than their approved budget, and by how much. It is a one-line filtered query. The interview is in the details that a one-liner hides &mdash; the strict-vs-inclusive boundary, what NULL budgets or spend do to the comparison, and whether "over budget" should be a percentage rather than an absolute.</p>
+
+<h4>1. The source data &mdash; <code>projects</code></h4>
+<table>
+  <thead><tr><th>project_id</th><th>budget</th><th>spent</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10000</td><td>12000</td><td>Apollo</td></tr>
+    <tr><td>2</td><td>20000</td><td>18000</td><td>Boreas</td></tr>
+    <tr><td>3</td><td>5000</td><td>5000</td><td>Cronos</td></tr>
+    <tr><td>4</td><td>8000</td><td>15500</td><td>Deimos</td></tr>
+    <tr><td>5</td><td>30000</td><td>29999</td><td>Eos</td></tr>
+  </tbody>
+</table>
+<p>Three rows are deliberate edge cases. Cronos spent <strong>exactly</strong> its budget &mdash; over, or not? Eos is $1 under &mdash; the just-barely-safe row. Deimos is dramatically over. Whether Cronos appears is decided entirely by <code>&gt;</code> vs <code>&ge;</code>.</p>
+
+<h4>2. The SQL &mdash; filter on a computed difference</h4>
+<pre><code>SELECT project_id, spent - budget AS over_budget FROM projects WHERE spent &gt; budget;</code></pre>
+<p>The <code>WHERE</code> keeps only projects where <code>spent</code> strictly exceeds <code>budget</code>; the select list reports the overrun amount <code>spent - budget</code>. One row per over-budget project.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>project_id</th><th>over_budget</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2000</td></tr>
+    <tr><td>4</td><td>7500</td></tr>
+  </tbody>
+</table>
+<p>Two projects are flagged: Apollo $2,000 over, Deimos $7,500 over. Cronos &mdash; spent exactly to budget &mdash; is <em>excluded</em> because the operator is strict <code>&gt;</code>; spending to the penny is "on budget", not "over". Eos at $1 under is correctly clear. No <code>ORDER BY</code>, so row order is not guaranteed.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The boundary &mdash; is "exactly on budget" over?</h5>
+<p>Cronos is the entire reason this question exists. <code>spent &gt; budget</code> excludes it; <code>spent &gt;= budget</code> would flag it. The business answer is almost always "spending exactly to budget is fine" &mdash; so strict <code>&gt;</code> is right &mdash; but state the choice rather than letting the operator decide silently. The deeper PMO point: a project at 100% of budget with months of work left is arguably the bigger risk than one finished 1% over. "Over budget" and "at risk" are different questions.</p>
+
+<h5>The NULL trap &mdash; missing budgets vanish</h5>
+<p>If a project has a NULL <code>budget</code> (not yet approved) or NULL <code>spent</code>, then <code>spent &gt; budget</code> is <em>unknown</em>, and <code>WHERE</code> keeps only <em>true</em> rows &mdash; so that project silently drops out of the report. A project with no approved budget but real spend is arguably the most urgent case, and it disappears. Surface those rows explicitly instead of losing them:</p>
+<pre><code>SELECT project_id, spent - budget AS over_budget,
+       CASE WHEN budget IS NULL THEN 'no approved budget'
+            WHEN spent  IS NULL THEN 'spend not reported'
+            ELSE 'over budget' END AS flag
+FROM projects
+WHERE spent &gt; budget OR budget IS NULL OR spent IS NULL;</code></pre>
+
+<h5>Absolute overrun vs percentage overrun</h5>
+<p>The query reports raw dollars. But $2,000 over on a $10,000 project (Apollo, +20%) is a far worse signal than $2,000 over on a $2M project (+0.1%). A PMO usually wants severity as a ratio:</p>
+<pre><code>SELECT project_id,
+       spent - budget AS over_budget,
+       round(100.0 * (spent - budget) / NULLIF(budget, 0), 1) AS over_pct
+FROM projects
+WHERE spent &gt; budget
+ORDER BY over_pct DESC;</code></pre>
+<p>Note <code>NULLIF(budget, 0)</code>: a project with a zero budget would otherwise divide by zero and abort the whole query. And <code>100.0</code> forces float math so the percentage is not integer-truncated.</p>
+
+<h5>The follow-up &mdash; total exposure</h5>
+<p>Leadership rarely wants the row list alone; they want the aggregate: "what is our total overrun across the portfolio?" That is <code>SELECT SUM(spent - budget) FROM projects WHERE spent &gt; budget</code> &mdash; here 2000 + 7500 = 9500. A subtle point: only sum the <em>over-budget</em> projects; including under-budget projects would let Boreas's $2,000 underspend net against the overruns and understate the true exposure.</p>
+
+<h5>Should closed projects count?</h5>
+<p>The schema carries a <code>status</code> column. An overrun on an <code>active</code> project is actionable; an overrun on a <code>completed</code> project is history, and on a <code>cancelled</code> one it may be noise. An early-warning report probably wants <code>WHERE spent &gt; budget AND status = 'active'</code>. Confirm the scope &mdash; the right filter on <code>status</code> matters as much as the budget comparison itself.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify strict <code>&gt;</code> so "exactly on budget" is not flagged, recognise that NULL budget or spend silently drops projects from a <code>WHERE</code> and surface them deliberately, offer percentage overrun (guarded by <code>NULLIF</code>) as the better severity measure, and scope the report by project <code>status</code>.</div>

@@ -1,0 +1,67 @@
+<p>Ruby, a teacher, keeps a <code>SeatArrangement</code> table of students and their seat ids, and wants to swap every pair of <em>adjacent</em> seats &mdash; seat 1 with 2, seat 3 with 4, and so on. This is LeetCode's "Exchange Seats" in classroom dress, and the same pattern as any "flip pairs of rows" task. The interviewer is checking whether you can express the swap with arithmetic on the id, and how you handle a class with an odd headcount.</p>
+
+<h4>1. The source data &mdash; <code>seat_arrangement</code></h4>
+<table>
+  <thead><tr><th>id</th><th>student_name</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Abbot</td><td>odd &mdash; pairs with seat 2</td></tr>
+    <tr><td>2</td><td>Doris</td><td>even &mdash; pairs with seat 1</td></tr>
+    <tr><td>3</td><td>Emerson</td><td>odd &mdash; pairs with seat 4</td></tr>
+    <tr><td>4</td><td>Green</td><td>even &mdash; pairs with seat 3</td></tr>
+    <tr><td>5</td><td>Jeames</td><td>odd &mdash; <strong>no seat 6</strong>, stays put</td></tr>
+  </tbody>
+</table>
+<p>There are <strong>five students &mdash; an odd count</strong>. Seats 1&harr;2 and 3&harr;4 swap cleanly, but seat 5 has no partner. The unpaired last student must keep their seat, not vanish or land on a non-existent seat 6.</p>
+
+<h4>2. The SQL &mdash; parity arithmetic via <code>UNION ALL</code></h4>
+<pre><code>with union_cte as(
+select *, (id-1) as nw_id from seat_arrangement
+where id%2 = 0
+
+union all
+
+select *, case when (id+1) in (select id from seat_arrangement) then (id+1)
+        else id end as nw_id
+from seat_arrangement
+where id%2 &lt;&gt; 0
+)
+select nw_id as id, student_name
+from union_cte;</code></pre>
+<p>Even seats move down one (<code>id - 1</code>); odd seats move up one (<code>id + 1</code>) &mdash; but only if that seat exists, otherwise the odd seat keeps its own id. The two branches are stacked with <code>UNION ALL</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th><th>student_name</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Doris</td><td>was seat 2 (even &rarr; id&minus;1)</td></tr>
+    <tr><td>2</td><td>Abbot</td><td>was seat 1 (odd &rarr; id+1)</td></tr>
+    <tr><td>3</td><td>Green</td><td>was seat 4 (even &rarr; id&minus;1)</td></tr>
+    <tr><td>4</td><td>Emerson</td><td>was seat 3 (odd &rarr; id+1)</td></tr>
+    <tr><td>5</td><td>Jeames</td><td>odd, no seat 6 &mdash; keeps id 5</td></tr>
+  </tbody>
+</table>
+<p>Seats 1&ndash;4 are cleanly exchanged; Jeames stays in seat 5 because the <code>CASE</code> checked that seat 6 does not exist and fell through to <code>else id</code>. Sort by <code>id</code> for a tidy seating chart.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the parity arithmetic works</h5>
+<p>Adjacent swapping means: in each pair, the even-id seat takes the odd id and vice versa. An even id <em>n</em> always pairs with <em>n&minus;1</em>; an odd id <em>n</em> with <em>n+1</em>. So computing a new id of <code>id - 1</code> for even rows and <code>id + 1</code> for odd rows performs the swap &mdash; the <code>student_name</code> rides along unchanged, only the id label is rewritten. <code>UNION ALL</code> recombines the two halves.</p>
+
+<h5>Why the odd-count guard is essential</h5>
+<p>With an odd number of students the highest odd id has no <em>n+1</em> partner. Blindly setting <code>nw_id = id + 1</code> would send Jeames to a phantom seat 6. The subquery <code>WHEN (id+1) IN (SELECT id FROM seat_arrangement)</code> tests whether the partner seat actually exists; if not, <code>ELSE id</code> keeps the student in place. This single <code>CASE</code> is the difference between a correct answer and an off-by-one bug.</p>
+
+<h5>The single-pass alternative &mdash; one <code>CASE</code>, no <code>UNION</code></h5>
+<p>The whole swap fits in one expression, avoiding the two-branch scan:</p>
+<pre><code>SELECT
+  CASE WHEN id % 2 = 1 AND id = (SELECT MAX(id) FROM seat_arrangement) THEN id
+       WHEN id % 2 = 1 THEN id + 1
+       ELSE id - 1 END AS id,
+  student_name
+FROM seat_arrangement
+ORDER BY id;</code></pre>
+<p>It reads the table once and uses <code>MAX(id)</code> to spot the lone trailing odd seat. A modern variant swaps the <em>name</em> with <code>LEAD</code>/<code>LAG</code> instead of relabelling ids &mdash; cleaner still when seat ids must stay fixed and only occupants move.</p>
+
+<h5>The contiguous-id assumption</h5>
+<p>The arithmetic assumes <code>id</code> is a gap-free <code>1, 2, 3, &hellip;</code> sequence &mdash; the problem states "id is continuous increment", so it holds here. If ids had gaps (a removed student leaving seat 3 empty), <code>id &plusmn; 1</code> would point at the wrong or a missing seat. The robust generalisation pairs rows by <em>position</em>: <code>ROW_NUMBER()</code> to get a dense 1..n rank, swap on that rank, then map back. State this assumption explicitly &mdash; interviewers probe what happens when a seat is vacated.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> express the swap as parity arithmetic (even &rarr; id&minus;1, odd &rarr; id+1), and immediately call out the odd-count edge &mdash; guard the last unpaired seat with an existence check or <code>MAX(id)</code> test. Note the solution assumes gap-free ids; with gaps, pair on <code>ROW_NUMBER()</code> instead.</div>

@@ -1,0 +1,68 @@
+<p>This is the classic "report-shaped output" question: the customer table only has rows for months a customer actually spent in, but finance wants a dense grid &mdash; every customer against every month, with blanks where there was no spend. The interviewer is checking whether you reach for a <code>CROSS JOIN</code> to manufacture the full skeleton, then <code>LEFT JOIN</code> the facts back onto it. A naive <code>GROUP BY</code> on the raw table can never invent the missing rows.</p>
+
+<h4>1. The source data &mdash; <code>customer_tab</code> &amp; <code>month_tab</code></h4>
+<table>
+  <thead><tr><th>cust_id</th><th>name</th><th>month_id</th><th>amount_spend</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Aarav</td><td>1</td><td>500</td></tr>
+    <tr><td>101</td><td>Aarav</td><td>3</td><td>800</td></tr>
+    <tr><td>102</td><td>Diya</td><td>2</td><td>300</td></tr>
+    <tr><td>102</td><td>Diya</td><td>2</td><td>150</td><td>&larr; second Feb row for Diya</td></tr>
+  </tbody>
+</table>
+<p>Aarav never has a February row; Diya has <em>two</em> February rows. Both are deliberate: one tests the gap-filling, the other tests whether the join silently fans out.</p>
+<p><code>month_tab</code>: <code>(1, Jan)</code>, <code>(2, Feb)</code>, <code>(3, Mar)</code>.</p>
+
+<h4>2. The SQL &mdash; cross join to build the grid, left join to fill it</h4>
+<pre><code>WITH cte AS (
+  SELECT c.cust_id AS customer_id, c.name AS customer_name,
+         m.month_id, m.month_name
+  FROM customer_tab c
+  CROSS JOIN month_tab m
+  GROUP BY c.cust_id, c.name, m.month_id, m.month_name
+)
+SELECT cte.customer_id, cte.customer_name, cte.month_name, c.amount_spend
+FROM cte
+LEFT JOIN customer_tab c
+  ON cte.customer_id = c.cust_id
+ AND cte.month_id    = c.month_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>customer_name</th><th>month_name</th><th>amount_spend</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Aarav</td><td>Jan</td><td>500</td><td>matched</td></tr>
+    <tr><td>101</td><td>Aarav</td><td>Feb</td><td>NULL</td><td>gap filled by LEFT JOIN</td></tr>
+    <tr><td>101</td><td>Aarav</td><td>Mar</td><td>800</td><td>matched</td></tr>
+    <tr><td>102</td><td>Diya</td><td>Jan</td><td>NULL</td><td>gap filled</td></tr>
+    <tr><td>102</td><td>Diya</td><td>Feb</td><td>300</td><td>matched (row 1)</td></tr>
+    <tr><td>102</td><td>Diya</td><td>Feb</td><td>150</td><td>matched (row 2) &mdash; duplicate!</td></tr>
+    <tr><td>102</td><td>Diya</td><td>Mar</td><td>NULL</td><td>gap filled</td></tr>
+  </tbody>
+</table>
+<p>The grid is mostly correct &mdash; every customer/month pair is present &mdash; but Diya shows <em>two</em> February rows. The duplicate in <code>customer_tab</code> defeated the deduplication.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>CROSS JOIN</code> is the right move</h5>
+<p>A <code>CROSS JOIN</code> produces the Cartesian product: every customer paired with every month. That is exactly the dense skeleton a calendar-style report needs. The customer table can only describe months that <em>happened</em>; the cross join manufactures the months that <em>should</em> appear. This "spine table" pattern &mdash; build the complete dimension grid, then left-join facts onto it &mdash; is the standard fix for any report that must show zero/blank rows.</p>
+
+<h5>The <code>GROUP BY</code> with no aggregate is just a disguised <code>DISTINCT</code></h5>
+<p>The CTE's <code>GROUP BY c.cust_id, c.name, m.month_id, m.month_name</code> has no <code>SUM</code>/<code>COUNT</code> &mdash; it is purely deduplicating the cross-join output. Writing <code>SELECT DISTINCT</code> would be clearer about intent. But here is the subtle bug: the dedup happens <em>before</em> the second join. The CTE collapses to one row per customer/month, then the <code>LEFT JOIN</code> back to <code>customer_tab</code> re-introduces Diya's duplicate Feb row. Deduplicating early does not protect you from a fan-out later.</p>
+
+<h5>The duplicate-row trap &mdash; and the real fix</h5>
+<p>If the spec is "one row per customer per month", the correct query <em>aggregates</em> the spend instead of joining raw rows:</p>
+<pre><code>SELECT c.cust_id AS customer_id, c.name AS customer_name,
+       m.month_name,
+       SUM(s.amount_spend) AS amount_spend
+FROM customer_tab c
+CROSS JOIN month_tab m
+LEFT JOIN customer_tab s
+  ON s.cust_id = c.cust_id AND s.month_id = m.month_id
+GROUP BY c.cust_id, c.name, m.month_id, m.month_name;</code></pre>
+<p>Now Diya's February is a single row showing <code>450</code>, and untouched months still show <code>NULL</code> (because <code>SUM</code> of zero rows is NULL). Wrap in <code>COALESCE(SUM(...), 0)</code> if the report wants explicit zeros. The lesson: when the source can have duplicates, you must decide &mdash; sum them, or pick one with <code>DISTINCT ON</code>/<code>ROW_NUMBER</code> &mdash; never leave the fan-out to chance.</p>
+
+<h5>Cross-join cost &mdash; know the size before you run it</h5>
+<p><code>CROSS JOIN</code> output is <em>rows(A) &times; rows(B)</em>. Customers &times; 12 months is harmless; customers &times; a daily calendar for 10 years is 3,650&times; the customer count. The pattern is fine, but always bound the smaller side &mdash; here, generate only the months you actually need rather than cross-joining a huge date dimension.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the "spine table" pattern &mdash; <code>CROSS JOIN</code> to build the dense grid, <code>LEFT JOIN</code> facts onto it &mdash; and then catch that deduplicating inside the CTE does <em>not</em> survive the later join. The senior finish is replacing the raw left-join with <code>SUM(amount_spend) ... GROUP BY</code> so a duplicate source row collapses to one correct cell.</div>

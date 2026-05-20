@@ -1,0 +1,73 @@
+<p>A Community logistics team wants a fulfilment scorecard: <em>on average, how long does each customer wait between ordering and delivery?</em> The arithmetic is trivial &mdash; subtract two dates &mdash; but the interviewer is probing the things that quietly corrupt the number: undelivered orders sitting as NULLs, integer-vs-numeric rounding, and whether you average per order or per customer.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>delivery_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2024-03-01</td><td>2024-03-04</td></tr>
+    <tr><td>2</td><td>101</td><td>2024-03-10</td><td>2024-03-17</td></tr>
+    <tr><td>3</td><td>102</td><td>2024-03-02</td><td>2024-03-04</td></tr>
+    <tr><td>4</td><td>102</td><td>2024-03-05</td><td>2024-03-06</td></tr>
+    <tr><td>5</td><td>103</td><td>2024-03-08</td><td>2024-03-20</td></tr>
+    <tr><td>6</td><td>104</td><td>2024-03-09</td><td>2024-03-11</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has two orders with very different lead times (3 days and 7 days) &mdash; their average should land between, at 5. Customer 103's single 12-day order is the slow outlier the report exists to surface.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(delivery_date - order_date)</code></h4>
+<pre><code>WITH per_order AS (
+  SELECT customer_id,
+         (delivery_date - order_date)::numeric AS days_to_deliver
+  FROM orders
+)
+SELECT customer_id,
+       ROUND(AVG(days_to_deliver), 2) AS avg_delivery_days
+FROM per_order
+GROUP BY customer_id
+ORDER BY avg_delivery_days DESC;</code></pre>
+<p>In Postgres, subtracting one <code>DATE</code> from another yields an <code>integer</code> count of days. The CTE computes that gap once per order and casts it to <code>numeric</code> so the later <code>AVG</code>/<code>ROUND</code> work in decimal, not integer, arithmetic.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>avg_delivery_days</th></tr></thead>
+  <tbody>
+    <tr><td>103</td><td>12.00</td></tr>
+    <tr><td>101</td><td>5.00</td></tr>
+    <tr><td>104</td><td>2.00</td></tr>
+    <tr><td>102</td><td>1.50</td></tr>
+  </tbody>
+</table>
+<p>Customer 101's 3 and 7 average to 5.00 as expected; customer 102's 2 and 1 average to 1.50 &mdash; the <code>.5</code> only survives because of the <code>::numeric</code> cast. Slowest customer (103) sorts to the top, which is what a fulfilment-risk report wants.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The integer-division trap &mdash; why the cast is load-bearing</h5>
+<p>Drop the <code>::numeric</code> and the column stays <code>integer</code>. <code>AVG</code> of an integer column in Postgres still returns <code>numeric</code>, so this particular query survives &mdash; but the same pattern in MySQL or SQLite would do integer division and report customer 102 as <strong>1 or 2</strong>, never 1.5. Casting to <code>numeric</code> (or <code>::float</code>) before averaging makes the intent explicit and portable. Never trust an average over an integer column without checking the dialect.</p>
+
+<h5>The NULL <code>delivery_date</code> &mdash; the question the interviewer is really asking</h5>
+<p>The schema carries a <code>status</code> column, which means some orders are not delivered yet &mdash; their <code>delivery_date</code> is NULL. <code>NULL - order_date</code> is NULL, and <code>AVG</code> silently skips NULLs. That is usually correct: an undelivered order has no lead time to average. But say it out loud, and if the business wants only completed orders counted, filter explicitly:</p>
+<pre><code>WITH per_order AS (
+  SELECT customer_id, (delivery_date - order_date)::numeric AS days_to_deliver
+  FROM orders
+  WHERE status = 'delivered'      -- or: WHERE delivery_date IS NOT NULL
+)
+SELECT customer_id, ROUND(AVG(days_to_deliver), 2) AS avg_delivery_days
+FROM per_order GROUP BY customer_id;</code></pre>
+<p>A customer with <em>only</em> pending orders then disappears from the result entirely &mdash; <code>AVG</code> over zero non-NULL values is NULL, and the group still appears with a NULL average. Decide whether that customer should show as NULL or be dropped.</p>
+
+<h5>Average of averages &mdash; the aggregation-grain mistake</h5>
+<p>This query averages per order, then groups &mdash; correct. A tempting wrong move is to pre-aggregate twice, e.g. average per order-month and then average those monthly figures. That is an <em>average of averages</em> and it is biased: a month with one slow order is weighted equally to a month with fifty fast ones. Always average the finest-grain values (one row per order) in a single <code>AVG</code>; never average numbers that are themselves averages unless you carry their weights.</p>
+
+<h5>Mean vs median &mdash; the outlier follow-up</h5>
+<p>Customer 103's 12-day order would drag their mean up even if every other order were fast. Interviewers often follow with <em>"the mean is skewed &mdash; give me the median."</em> Postgres has an ordered-set aggregate for exactly this:</p>
+<pre><code>SELECT customer_id,
+       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_deliver)
+         AS median_delivery_days
+FROM per_order
+GROUP BY customer_id;</code></pre>
+<p>Knowing that <code>AVG</code> answers "typical total throughput" while the median answers "typical single experience" &mdash; and naming which the business wants &mdash; is the senior distinction.</p>
+
+<h5>Same-day and negative gaps</h5>
+<p>An order delivered the same day yields a 0-day gap (fine). A <code>delivery_date</code> <em>before</em> <code>order_date</code> yields a negative gap &mdash; almost always a data-entry error that quietly deflates the average. A defensive query adds <code>WHERE delivery_date &gt;= order_date</code> or flags the bad rows for review rather than averaging them in.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> cast the date difference to <code>numeric</code> so the average is not silently truncated, state that NULL delivery dates are skipped by <code>AVG</code> and decide whether undelivered orders belong in scope, average at the finest grain to avoid an average-of-averages bias, and offer the median when an outlier could distort the mean.</div>

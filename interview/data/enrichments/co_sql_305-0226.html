@@ -1,0 +1,53 @@
+<p>Databricks' logistics-analytics team wants the average time from order placed to order delivered, in days, for an SLA dashboard. The arithmetic is timestamp subtraction &mdash; but the interviewer is watching whether you handle orders not yet delivered, whether you understand that subtracting two timestamps yields an <code>interval</code> (not a number), and whether the convoluted epoch formula in the reference solution can be reasoned about.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>ordered_at</th><th>delivered_at</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01 10:00</td><td>2024-01-03 10:00</td><td>delivered</td></tr>
+    <tr><td>2</td><td>2024-01-05 08:00</td><td>2024-01-06 20:00</td><td>delivered</td></tr>
+    <tr><td>3</td><td>2024-02-01 12:00</td><td>2024-02-06 12:00</td><td>delivered</td></tr>
+    <tr><td>4</td><td>2024-03-01 09:00</td><td>2024-03-01 21:00</td><td>delivered</td></tr>
+    <tr><td>5</td><td>2024-03-10 00:00</td><td><em>NULL</em></td><td>shipped</td></tr>
+  </tbody>
+</table>
+<p>Four orders are delivered with clean intervals (2 days, 1.5 days, 5 days, 0.5 days). Order 5 is still in transit &mdash; <code>delivered_at</code> is <strong>NULL</strong>. That undelivered row is the interview: it must not be counted as a zero-day delivery.</p>
+
+<h4>2. The SQL &mdash; <code>AVG of an epoch-based day count</code></h4>
+<pre><code>SELECT AVG(((EXTRACT(EPOCH FROM (delivered_at - ordered_at)) / 86400.0) * 86400)/86400) AS avg_days FROM orders;</code></pre>
+<p><code>delivered_at - ordered_at</code> is an <code>interval</code>; <code>EXTRACT(EPOCH FROM ...)</code> turns it into total seconds; dividing by 86,400 (seconds per day) gives days. The <code>&times;86400 &divide;86400</code> in the middle cancels out &mdash; more on that below.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_days</th></tr></thead>
+  <tbody>
+    <tr><td>2.25000000000000000000</td></tr>
+  </tbody>
+</table>
+<p>The four delivered orders took 2, 1.5, 5, and 0.5 days &mdash; summing to 9, averaged over <strong>4</strong> rows, gives 2.25. Order 5 contributed nothing: <code>delivered_at</code> is NULL, so the subtraction is NULL, and <code>AVG</code> skips NULL values in both the sum and the count. The undelivered order was correctly excluded automatically.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The formula has dead arithmetic &mdash; simplify it</h5>
+<p><code>(EXTRACT(EPOCH FROM diff) / 86400.0) * 86400 / 86400</code> divides by 86400, multiplies by 86400, divides by 86400 again &mdash; the middle <code>&times;86400 &divide;86400</code> is a no-op. The whole expression is just <code>EXTRACT(EPOCH FROM diff) / 86400</code>. It still produces the right answer (2.25), so this is <em>not</em> a bug &mdash; but a senior candidate calls out the redundancy and writes the clear version:</p>
+<pre><code>SELECT AVG(EXTRACT(EPOCH FROM (delivered_at - ordered_at)) / 86400.0) AS avg_days
+FROM orders;</code></pre>
+
+<h5>Why NULL handling here is a feature, not luck</h5>
+<p>Order 5 is undelivered. <code>delivered_at - ordered_at</code> with a NULL operand is NULL; <code>AVG</code> ignores NULLs, so the row drops out of <em>both</em> numerator and denominator &mdash; the average is over 4 delivered orders, which is correct. But say it out loud, and consider making the intent explicit so a reader is not relying on implicit behaviour:</p>
+<pre><code>... WHERE delivered_at IS NOT NULL</code></pre>
+<p>If instead a NULL <code>delivered_at</code> should count as "delivery time so far" (an aging metric), you would <code>COALESCE(delivered_at, now())</code> &mdash; a different, deliberate choice.</p>
+
+<h5>Timestamp subtraction yields an <code>interval</code>, not a number</h5>
+<p><code>delivered_at - ordered_at</code> is an <code>interval</code> &mdash; you cannot directly <code>AVG</code> a "number of days" out of it without conversion. <code>EXTRACT(EPOCH FROM ...)</code> is the standard bridge to seconds. A cleaner Postgres-native alternative averages the interval itself, then formats:</p>
+<pre><code>SELECT AVG(delivered_at - ordered_at) AS avg_interval FROM orders;
+-- returns an interval like '2 days 06:00:00'</code></pre>
+<p><code>AVG</code> <em>can</em> average an <code>interval</code> directly &mdash; useful when you want a human-readable duration rather than a decimal.</p>
+
+<h5>Watch the dialect &mdash; <code>EXTRACT(EPOCH ...)</code> is not universal</h5>
+<p>The epoch trick is Postgres/Redshift idiom. Other engines differ: SQL Server uses <code>DATEDIFF(day, ordered_at, delivered_at)</code>, BigQuery <code>TIMESTAMP_DIFF(delivered_at, ordered_at, DAY)</code>, MySQL <code>TIMESTAMPDIFF(DAY, ...)</code>. Note <code>DATEDIFF</code>-style functions count <em>boundary crossings</em> &mdash; <code>DATEDIFF(day, ...)</code> between 11pm and 1am the next day returns 1, while the epoch method returns ~0.083. The epoch approach gives a true fractional duration; pick it when partial days matter.</p>
+
+<h5>Status filtering and bad data</h5>
+<p>Averaging over all rows mixes statuses. Cancelled orders may carry a non-NULL <code>delivered_at</code> that is really a cancellation timestamp &mdash; filter to <code>status = 'delivered'</code> to be safe. And guard the impossible: a <code>delivered_at</code> earlier than <code>ordered_at</code> (clock skew, backfill error) yields a negative duration that silently drags the average down &mdash; worth a sanity check or a <code>CHECK</code> constraint.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that the <code>&times;86400 &divide;86400</code> cancels and rewrite the formula as a plain <code>EXTRACT(EPOCH ...) / 86400</code>, explain that the NULL <code>delivered_at</code> is correctly excluded by <code>AVG</code> (and make it explicit with a filter), know that timestamp subtraction returns an <code>interval</code> that <code>AVG</code> can also average directly, and flag that <code>DATEDIFF</code>-style functions count boundary crossings rather than true elapsed time.</div>

@@ -1,0 +1,71 @@
+<p>Workforce demographic reports are a staple of HR analytics dashboards. This question probes <strong>conditional aggregation</strong> &mdash; the ability to pivot one column's values into separate computed columns within a single <code>GROUP BY</code> pass &mdash; and forces you to handle the asymmetric edge case where a department is entirely one-gender: the missing average must surface as <code>NULL</code>, not zero, and the gap percentage must follow suit.</p>
+
+<h4>1. The source data &mdash; <code>employee</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept</th><th>gender</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Eng</td><td>F</td><td>100</td></tr>
+    <tr><td>2</td><td>Eng</td><td>F</td><td>110</td></tr>
+    <tr><td>3</td><td>Eng</td><td>M</td><td>150</td></tr>
+    <tr><td>4</td><td>Eng</td><td>M</td><td>160</td></tr>
+    <tr><td>5</td><td>Sales</td><td>F</td><td>80</td></tr>
+    <tr><td>6</td><td>Sales</td><td>M</td><td>90</td></tr>
+    <tr><td>7</td><td>Sales</td><td>M</td><td>100</td></tr>
+    <tr><td>8</td><td>Ops</td><td>M</td><td>70</td></tr>
+    <tr><td>9</td><td>Ops</td><td>M</td><td>75</td></tr>
+    <tr><td>10</td><td>HR</td><td>F</td><td>95</td></tr>
+    <tr><td>11</td><td>HR</td><td>F</td><td>105</td></tr>
+  </tbody>
+</table>
+<p>Key edge cases: <em>Ops</em> has zero female employees (female avg and gap must be <code>NULL</code>); <em>HR</em> has zero male employees (male avg and gap must be <code>NULL</code>). These are the discriminating rows that separate candidates who handle NULL correctly from those who do not.</p>
+
+<h4>2. The SQL &mdash; conditional aggregation with FILTER and NULL-safe gap</h4>
+<pre><code>SELECT dept,
+       COUNT(*) AS total_headcount,
+       COUNT(*) FILTER (WHERE gender = 'F') AS num_female,
+       COUNT(*) FILTER (WHERE gender = 'M') AS num_male,
+       ROUND((100.0 * COUNT(*) FILTER (WHERE gender = 'F') / COUNT(*))::numeric, 2) AS female_share_pct,
+       AVG(salary) FILTER (WHERE gender = 'F')::numeric(10,2) AS female_avg_salary,
+       AVG(salary) FILTER (WHERE gender = 'M')::numeric(10,2) AS male_avg_salary,
+       CASE
+         WHEN AVG(salary) FILTER (WHERE gender = 'M') IS NULL
+           OR AVG(salary) FILTER (WHERE gender = 'F') IS NULL
+         THEN NULL
+         ELSE ROUND(((AVG(salary) FILTER (WHERE gender = 'M') - AVG(salary) FILTER (WHERE gender = 'F'))
+               / AVG(salary) FILTER (WHERE gender = 'M') * 100)::numeric, 2)
+       END AS salary_gap_pct
+FROM employee
+GROUP BY dept
+ORDER BY dept;</code></pre>
+<p>Every gender split is computed inside the same <code>GROUP BY dept</code> sweep using <code>FILTER (WHERE gender = …)</code> clauses. When no rows match the filter, <code>COUNT(*) FILTER</code> returns 0 and <code>AVG</code> returns <code>NULL</code> &mdash; the exact behaviour required.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept</th><th>total_headcount</th><th>num_female</th><th>num_male</th><th>female_share_pct</th><th>female_avg_salary</th><th>male_avg_salary</th><th>salary_gap_pct</th></tr></thead>
+  <tbody>
+    <tr><td>Eng</td><td>4</td><td>2</td><td>2</td><td>50.00</td><td>105.00</td><td>155.00</td><td>32.26</td></tr>
+    <tr><td>HR</td><td>2</td><td>2</td><td>0</td><td>100.00</td><td>100.00</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>Ops</td><td>2</td><td>0</td><td>2</td><td>0.00</td><td>NULL</td><td>72.50</td><td>NULL</td></tr>
+    <tr><td>Sales</td><td>3</td><td>1</td><td>2</td><td>33.33</td><td>80.00</td><td>95.00</td><td>15.79</td></tr>
+  </tbody>
+</table>
+<p>Hand-trace: Eng female avg = (100+110)/2 = 105; male avg = (150+160)/2 = 155; gap = (155&minus;105)/155&times;100 = 50/155&times;100 = 32.258&hellip; &rarr; 32.26. Sales male avg = (90+100)/2 = 95; gap = (95&minus;80)/95&times;100 = 15.789&hellip; &rarr; 15.79. HR male avg is <code>NULL</code> (no male rows), so gap is <code>NULL</code>. Ops female avg is <code>NULL</code>, so gap is <code>NULL</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>FILTER (WHERE …) vs CASE inside an aggregate</h5>
+<p><code>COUNT(*) FILTER (WHERE gender = 'F')</code> is the SQL:2003 standard idiom and reads clearly. The equivalent CASE-inside-aggregate form &mdash; <code>SUM(CASE WHEN gender = 'F' THEN 1 ELSE 0 END)</code> &mdash; works in every engine but is more verbose and requires an <code>ELSE 0</code> branch for counts. For <code>AVG</code> specifically the CASE form needs care: <code>AVG(CASE WHEN gender = 'F' THEN salary END)</code> relies on <code>ELSE NULL</code> being the default (which is correct but easy to forget). The <code>FILTER</code> clause is cleaner and PostgreSQL, DuckDB, and SQLite all support it; MySQL and SQL Server do not &mdash; for portability you fall back to CASE.</p>
+
+<h5>Why AVG returns NULL when no rows match, and why that is correct</h5>
+<p><code>AVG</code> aggregates over zero rows returns <code>NULL</code> per the SQL standard &mdash; there is no meaningful average of an empty set. This is the desired behaviour here: a NULL average signals "no data" rather than "zero salary". The <code>COUNT(*) FILTER</code> path returns <code>0</code> (not NULL) for count, which is also correct &mdash; zero people is a valid count.</p>
+
+<h5>The salary_gap_pct NULL guard</h5>
+<p>The <code>CASE WHEN … IS NULL … THEN NULL</code> wrapper is necessary because arithmetic with NULL propagates to NULL automatically for the subtraction and division, but explicitly checking in a CASE makes the intent unambiguous. The denominator is the male average; dividing by zero is impossible here (NULL is returned instead), but worth noting: if the male count were 0, the male average is NULL and the CASE returns NULL before division ever occurs &mdash; no division-by-zero risk.</p>
+
+<h5>Ordering and the alphabetical edge</h5>
+<p><code>ORDER BY dept</code> yields alphabetical order: Eng, HR, Ops, Sales. If the department values could be <code>NULL</code> (a real-world possibility), you would add <code>NULLS LAST</code> to keep them at the bottom rather than the top (PostgreSQL default for ascending order is <code>NULLS LAST</code>; MySQL sorts NULLs first).</p>
+
+<h5>Performance and dialect notes</h5>
+<p>A single <code>GROUP BY dept</code> scan is optimal &mdash; one pass over the table. Avoid the naive approach of joining three subqueries (all, female-only, male-only) because that reads the table three times. In BigQuery the equivalent is <code>COUNTIF(gender = 'F')</code> and <code>AVG(IF(gender = 'F', salary, NULL))</code>. In SQL Server and MySQL you use the CASE-inside-aggregate pattern. Snowflake supports <code>FILTER</code> as of 2023.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> collapse all gender-specific metrics into one <code>GROUP BY</code> pass using <code>FILTER (WHERE gender = …)</code>; rely on <code>AVG</code> returning <code>NULL</code> over zero rows as the natural signal for a missing gender; guard the gap percentage with an explicit <code>CASE … IS NULL … THEN NULL</code> to document intent; and note the CASE-inside-aggregate fallback for engines that lack <code>FILTER</code>.</div>

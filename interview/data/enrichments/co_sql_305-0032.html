@@ -1,0 +1,70 @@
+<p>Atlassian's people-analytics team wants each employee's pay rank <em>within their department</em> &mdash; "you are the 3rd highest paid on your team". The reference solution does it with a correlated subquery that counts higher earners. It produces the right numbers, but it also bakes in a specific tie convention and a quadratic cost, and the interviewer wants you to name both.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>$90,000</td><td>Ann</td></tr>
+    <tr><td>2</td><td>10</td><td>$120,000</td><td>Bob</td></tr>
+    <tr><td>3</td><td>10</td><td>$120,000</td><td>Cara</td></tr>
+    <tr><td>4</td><td>10</td><td>$80,000</td><td>Dan</td></tr>
+    <tr><td>5</td><td>20</td><td>$150,000</td><td>Eve</td></tr>
+    <tr><td>6</td><td>20</td><td>$100,000</td><td>Finn</td></tr>
+  </tbody>
+</table>
+<p>Bob and Cara are <strong>tied</strong> at $120K in department 10. That tie is the crux &mdash; it decides what rank Ann gets, and whether the ranking skips a number.</p>
+
+<h4>2. The SQL &mdash; <code>correlated COUNT subquery</code></h4>
+<pre><code>SELECT emp_id, dept_id, salary,
+  (SELECT COUNT(*)+1 FROM employees e2 WHERE e2.dept_id = e.dept_id AND e2.salary &gt; e.salary) AS dept_rank
+FROM employees e;</code></pre>
+<p>For each row, the subquery counts how many same-department colleagues earn <em>strictly more</em>, then adds 1. Zero higher earners &rarr; rank 1.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>dept_rank</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>90000</td><td>3</td></tr>
+    <tr><td>2</td><td>10</td><td>120000</td><td>1</td></tr>
+    <tr><td>3</td><td>10</td><td>120000</td><td>1</td></tr>
+    <tr><td>4</td><td>10</td><td>80000</td><td>4</td></tr>
+    <tr><td>5</td><td>20</td><td>150000</td><td>1</td></tr>
+    <tr><td>6</td><td>20</td><td>100000</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Bob and Cara both score <strong>1</strong> &mdash; correct, neither has anyone above them. But then Ann at $90K scores <strong>3</strong>, not 2: the rank sequence for dept 10 is 1, 1, 3, 4. Rank 2 was <em>skipped</em>. That gap is a deliberate convention, not a bug &mdash; but you must know which one you shipped.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>This is <code>RANK()</code> semantics, made by hand</h5>
+<p>"Count how many are strictly greater, plus one" is exactly the definition of competition ranking: ties share the top rank, and the next value jumps by the number of tied rows. That is what <code>RANK()</code> does. The cleaner, faster equivalent is a window function:</p>
+<pre><code>SELECT emp_id, dept_id, salary,
+       RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS dept_rank
+FROM employees;</code></pre>
+<p>Same 1, 1, 3, 4 for dept 10 &mdash; one pass over the rows, no subquery. The correlated form is the thing you write when you have <em>forgotten window functions exist</em>.</p>
+
+<h5>The skipped rank &mdash; <code>RANK</code> vs <code>DENSE_RANK</code></h5>
+<p>If the business statement is "Ann is the <em>2nd-highest distinct salary</em> on her team", the gap is wrong and you want <strong>dense</strong> ranking. The hand-rolled fix is to count distinct higher salaries instead of higher rows:</p>
+<pre><code>-- competition rank (skips):     COUNT(*)         where salary &gt; e.salary, +1   =&gt; 1,1,3,4
+-- dense rank   (no skip):       COUNT(DISTINCT salary) where salary &gt; e.salary, +1 =&gt; 1,1,2,3</code></pre>
+<table>
+  <thead><tr><th>employee</th><th>salary</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>Bob</td><td>$120K</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>Cara</td><td>$120K</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>Ann</td><td>$90K</td><td>3 (skips!)</td><td>2</td><td>3</td></tr>
+    <tr><td>Dan</td><td>$80K</td><td>4</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Confirm the wording with the interviewer before choosing. "Rank" usually means competition rank; "Nth highest salary" usually means dense rank.</p>
+
+<h5>The performance trap: this is O(N&sup2;)</h5>
+<p>A correlated subquery re-executes <em>once per outer row</em>. For <code>N</code> employees that is <code>N</code> scans of the table &mdash; quadratic. On 6 rows it is invisible; on 6 million it is a query that never finishes. The window-function version sorts once per partition: roughly <code>O(N log N)</code>. When an interviewer asks "how does this scale?", that contrast is the answer they want.</p>
+
+<h5>The <code>ROW_NUMBER</code> alternative &mdash; and why it is wrong here</h5>
+<p><code>ROW_NUMBER()</code> would give Bob and Cara <em>different</em> ranks (1 and 2) on an arbitrary tiebreak, because it never ties. That breaks "you are joint-top of your team". Use <code>ROW_NUMBER</code> only when you genuinely need a unique sequence (pagination, dedupe) and have a deterministic tiebreaker like <code>ORDER BY salary DESC, emp_id</code>.</p>
+
+<h5>Edge cases: NULL salary and single-person departments</h5>
+<p>If <code>salary</code> can be NULL, the comparison <code>e2.salary &gt; e.salary</code> is never true for the NULL row, so a NULL-salary employee always lands at rank 1 &mdash; almost certainly wrong. Decide whether unpriced rows are excluded or ranked last. A one-person department (none here, but common) correctly gets rank 1 under either convention &mdash; that case is safe.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the correlated <code>COUNT+1</code> as a hand-rolled <code>RANK()</code>, rewrite it as a <code>PARTITION BY</code> window function, explain that the original is O(N&sup2;) while the window version is O(N log N), and pin down whether the business wants <code>RANK</code> (gaps) or <code>DENSE_RANK</code> (no gaps) before committing.</div>

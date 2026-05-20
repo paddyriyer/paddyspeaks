@@ -1,0 +1,49 @@
+<p>An analyst builds a per-transaction running total of daily sales and is surprised: two rows that share the same date both show the <em>same</em> cumulative figure &mdash; the running total "lumps" instead of stepping row by row. The interviewer is probing whether you know the difference between the two default window frames, <code>RANGE</code> and <code>ROWS</code>, and how <code>ORDER BY</code> tie groups interact with them.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>d</th><th>amt</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>100</td><td>day 1, first sale</td></tr>
+    <tr><td>2025-01-01</td><td>50</td><td>day 1, second sale &mdash; tied date, the edge case</td></tr>
+    <tr><td>2025-01-02</td><td>30</td><td>day 2</td></tr>
+    <tr><td>2025-01-03</td><td>70</td><td>day 3</td></tr>
+  </tbody>
+</table>
+<p>The two <code>2025-01-01</code> rows form a tie group on <code>d</code>. With a window ordered only by <code>d</code>, both rows are <em>peers</em> &mdash; and that is what makes the running total collapse them.</p>
+
+<h4>2. The SQL &mdash; deterministic running total with <code>ROWS</code></h4>
+<pre><code>SELECT d, amt,
+       SUM(amt) OVER (ORDER BY d, amt
+                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
+FROM sales
+ORDER BY d, amt;</code></pre>
+<p>Two fixes work together. <code>ORDER BY d, amt</code> adds a tiebreaker so every row has a unique ordering position. And <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> makes the frame physical &mdash; "all rows up to and including this one" &mdash; so each row gets its own distinct cumulative value.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>d</th><th>amt</th><th>running_total</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>50</td><td>50</td><td>first row by (d, amt)</td></tr>
+    <tr><td>2025-01-01</td><td>100</td><td>150</td><td>steps by 100 &mdash; no lump</td></tr>
+    <tr><td>2025-01-02</td><td>30</td><td>180</td><td>180 = 150 + 30</td></tr>
+    <tr><td>2025-01-03</td><td>70</td><td>250</td><td>250 = 180 + 70</td></tr>
+  </tbody>
+</table>
+<p>Contrast the naive <code>SUM(amt) OVER (ORDER BY d)</code>: both <code>2025-01-01</code> rows show <strong>150</strong>, because the default <code>RANGE</code> frame sums every peer in the tie group. The corrected query produces a strict step of 50 then 150.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the default frame lumps &mdash; <code>RANGE</code> vs <code>ROWS</code></h5>
+<p>When a window has <code>ORDER BY</code> but no explicit frame, SQL defaults to <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. The subtlety: under <code>RANGE</code>, "current row" means <em>every row with the same ORDER BY value</em> &mdash; the whole peer group. So both <code>2025-01-01</code> rows see a frame that includes both of them, and both get 100+50=150. <code>ROWS</code> instead counts physical rows, so "current row" is literally one row, and the cumulative steps cleanly.</p>
+
+<h5>The tiebreaker matters too</h5>
+<p>Even with <code>ROWS</code>, ordering only by <code>d</code> leaves the two day-1 rows in an <em>arbitrary</em> physical order &mdash; the engine may put 100 or 50 first, and the result is non-deterministic across runs or plans. Adding <code>amt</code> (or an <code>id</code>) to the <code>ORDER BY</code> makes the sequence reproducible. Determinism is a correctness property, not a nicety: a "running total" that flips between runs is a bug.</p>
+
+<h5>When <code>RANGE</code> is actually what you want</h5>
+<p><code>RANGE</code> is not broken &mdash; it is correct when you genuinely want every tied row to share the group's cumulative value, e.g. a "total sales through end of this day" column where intra-day ordering is meaningless. The skill is choosing deliberately: <code>ROWS</code> for a strict per-row running total, <code>RANGE</code> for a per-tie-group total. State which one the requirement implies.</p>
+
+<h5>Dialect notes</h5>
+<p>PostgreSQL, SQL Server, Oracle, and DuckDB all default to <code>RANGE</code> and support explicit <code>ROWS</code>. MySQL 8 likewise. SQLite supports both. The trap is universal &mdash; this is standard SQL behaviour, not a quirk &mdash; so "just always write <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> for running totals" is portable, defensible advice. A subtle extra: <code>RANGE</code> with a numeric offset (<code>RANGE BETWEEN 5 PRECEDING ...</code>) requires a single numeric/date <code>ORDER BY</code> column, another reason teams default to <code>ROWS</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that an <code>ORDER BY</code>-only window defaults to a <code>RANGE</code> frame, which makes tied rows share one cumulative value; for a strict per-row running total specify <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> <em>and</em> add a tiebreaker to <code>ORDER BY</code> for determinism.</div>

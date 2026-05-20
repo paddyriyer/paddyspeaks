@@ -1,0 +1,68 @@
+<p>HR data quality audit. The new HRIS migration finished overnight; now the People-Ops team needs to find every employee whose <code>supervisor_id</code> points to a record that doesn't exist anymore. These are <em>orphan rows</em> — supervisors who were terminated and removed but whose reports still reference them. Performance reviews, org charts, payroll routing all break silently when these orphans linger.</p>
+
+<h4>1. The source data — <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>supervisor_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>E_01</td><td>Alex</td><td>NULL</td><td>CEO — no supervisor</td></tr>
+    <tr><td>E_02</td><td>Bailey</td><td>E_01</td><td>reports to Alex ✓</td></tr>
+    <tr><td>E_03</td><td>Casey</td><td>E_02</td><td>reports to Bailey ✓</td></tr>
+    <tr><td>E_04</td><td>Drew</td><td><strong>E_99</strong></td><td><strong>orphan! E_99 doesn't exist ⚠</strong></td></tr>
+    <tr><td>E_05</td><td>Ellis</td><td>E_02</td><td>reports to Bailey ✓</td></tr>
+    <tr><td>E_06</td><td>Frankie</td><td><strong>E_88</strong></td><td><strong>orphan! E_88 doesn't exist ⚠</strong></td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — anti-join via <code>LEFT JOIN</code> + <code>IS NULL</code></h4>
+<pre><code>SELECT e.emp_id, e.name
+FROM employees e
+LEFT JOIN employees s ON e.supervisor_id = s.emp_id
+WHERE e.supervisor_id IS NOT NULL    -- skip the CEO (legitimate NULL)
+  AND s.emp_id IS NULL;              -- supervisor row didn't exist</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>orphan_supervisor_id</th></tr></thead>
+  <tbody>
+    <tr><td>E_04</td><td>Drew</td><td>E_99</td></tr>
+    <tr><td>E_06</td><td>Frankie</td><td>E_88</td></tr>
+  </tbody>
+</table>
+<p>Two orphans found. People-Ops will reassign them to interim supervisors before payroll runs.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why this is a "self-join"</h5>
+<p>The same table appears twice with different aliases (<code>e</code> for the report-side, <code>s</code> for the supervisor-side). The hierarchy is encoded in a single table via the recursive FK <code>supervisor_id → emp_id</code>. Self-joins are the universal answer for any single-table hierarchy.</p>
+
+<h5>The "anti-join" pattern — <code>LEFT JOIN ... IS NULL</code></h5>
+<p>The trick is doing a <code>LEFT JOIN</code> (which keeps unmatched left rows with NULLs on the right) and then filtering <code>WHERE s.emp_id IS NULL</code>. The result: rows where the join failed = rows where the supervisor doesn't exist. This is the canonical SQL idiom for <em>"find rows in A with no matching row in B"</em>.</p>
+<p>Equivalent forms (different performance profiles):</p>
+<pre><code>-- Anti-join via NOT EXISTS — often the fastest in modern engines
+SELECT e.emp_id, e.name
+FROM employees e
+WHERE e.supervisor_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM employees s WHERE s.emp_id = e.supervisor_id);
+
+-- Anti-join via NOT IN — readable but DANGEROUS with NULLs
+SELECT emp_id, name
+FROM employees
+WHERE supervisor_id IS NOT NULL
+  AND supervisor_id NOT IN (SELECT emp_id FROM employees);
+-- ↑ if any emp_id is NULL, NOT IN returns NULL → row excluded → SILENT BUG</code></pre>
+
+<h5>The CEO trap — handle the legitimate NULL</h5>
+<p>Without the <code>WHERE e.supervisor_id IS NOT NULL</code> clause, the CEO (with NULL supervisor by design) gets flagged as an orphan. The query treats the CEO's NULL as <em>"missing supervisor"</em> when it should be <em>"no supervisor expected"</em>. Always handle the legitimate-NULL boundary case explicitly.</p>
+
+<h5>Why <code>NOT IN</code> is unsafe</h5>
+<p>If <em>any</em> row in the inner subquery has <code>emp_id = NULL</code>, the <code>NOT IN</code> predicate evaluates to NULL (not FALSE) for every outer row → the WHERE filter rejects all of them → the query returns zero rows. This is a real production bug; <strong>never use <code>NOT IN</code> against a NULL-able column.</strong> Use <code>NOT EXISTS</code> or <code>LEFT JOIN ... IS NULL</code>.</p>
+
+<h5>The follow-up: also flag self-references</h5>
+<p>What if Drew's row says <code>supervisor_id = E_04</code> (himself)? That's a different bug — circular reference. Add another check:</p>
+<pre><code>WHERE e.supervisor_id IS NOT NULL
+  AND (s.emp_id IS NULL OR e.supervisor_id = e.emp_id)</code></pre>
+
+<h5>The over-the-bar finish: full hierarchy validation in one pass</h5>
+<p>Production HR data-quality runs check four things at once: (1) orphan supervisor, (2) self-reference, (3) supervisor terminated but record still active, (4) circular cycle in the chain (A → B → A). Each is a join condition; modern HRIS pipelines run all four nightly and PagerDuty if any returns rows.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <em>self-join</em> + <em>anti-join</em> patterns explicitly, contrast <code>LEFT JOIN IS NULL</code> vs <code>NOT EXISTS</code> vs <code>NOT IN</code> with the NULL-trap warning, and pre-empt the legitimate-NULL boundary (CEO row). The four-check HR DQ pipeline is the over-the-bar finish.</div>

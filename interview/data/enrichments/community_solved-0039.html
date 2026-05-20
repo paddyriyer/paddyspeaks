@@ -1,0 +1,80 @@
+<p>A Community member posts a year-over-year growth puzzle: the <code>sales</code> table holds one row per customer per year, and the task is to surface each customer whose sales in some year met or beat the year before. It reads like a simple comparison, but the reference solution hides a quiet bug &mdash; what happens to a customer whose sales <em>fell</em> every single year? The interviewer is watching whether you notice that row before it ships.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>Customer_Name</th><th>Sales_Amount</th><th>Year</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>1000</td><td>2022</td></tr>
+    <tr><td>Alice</td><td>1200</td><td>2023</td></tr>
+    <tr><td>Alice</td><td>900</td><td>2024</td></tr>
+    <tr><td>Bob</td><td>500</td><td>2022</td></tr>
+    <tr><td>Bob</td><td>400</td><td>2023</td></tr>
+    <tr><td>Bob</td><td>700</td><td>2024</td></tr>
+    <tr><td>Carol</td><td>800</td><td>2022</td></tr>
+    <tr><td>Carol</td><td>600</td><td>2023</td></tr>
+    <tr><td>Carol</td><td>600</td><td>2024</td></tr>
+    <tr><td>Dave</td><td>300</td><td>2022</td></tr>
+    <tr><td>Dave</td><td>200</td><td>2023</td></tr>
+    <tr><td>Dave</td><td>150</td><td>2024</td></tr>
+  </tbody>
+</table>
+<p>Four customers, four trajectories. Alice grew then dipped; Bob dipped then recovered; Carol's 2024 exactly <strong>ties</strong> 2023 (the <code>&gt;=</code> edge); and <strong>Dave declines every year</strong> &mdash; the row that breaks the reference query.</p>
+
+<h4>2. The SQL &mdash; <code>pivot then compare</code></h4>
+<pre><code>WITH pivot_result AS (
+  SELECT Customer_Name,
+         SUM(CASE WHEN Year = 2022 THEN Sales_Amount END) AS y2022,
+         SUM(CASE WHEN Year = 2023 THEN Sales_Amount END) AS y2023,
+         SUM(CASE WHEN Year = 2024 THEN Sales_Amount END) AS y2024
+  FROM sales
+  GROUP BY Customer_Name
+)
+SELECT Customer_Name,
+       CASE WHEN y2023 &gt;= y2022 THEN y2023
+            WHEN y2024 &gt;= y2023 THEN y2024 END AS Sales,
+       CASE WHEN y2023 &gt;= y2022 THEN '2023'
+            WHEN y2024 &gt;= y2023 THEN '2024' END AS Yr,
+       CASE WHEN y2023 &gt;= y2022 THEN y2022
+            WHEN y2024 &gt;= y2023 THEN y2023 END AS Prev_Yr_Sales
+FROM pivot_result
+WHERE y2023 &gt;= y2022 OR y2024 &gt;= y2023
+ORDER BY Customer_Name;</code></pre>
+<p>The CTE pivots the long table into one row per customer with a column per year. The outer <code>CASE</code> ladder picks the <em>first</em> year that beat its predecessor. The <code>WHERE</code> clause &mdash; the fix &mdash; drops customers who never qualified.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_name</th><th>sales</th><th>yr</th><th>prev_yr_sales</th></tr></thead>
+  <tbody>
+    <tr><td>Alice</td><td>1200</td><td>2023</td><td>1000</td></tr>
+    <tr><td>Bob</td><td>700</td><td>2024</td><td>400</td></tr>
+    <tr><td>Carol</td><td>600</td><td>2024</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>Alice qualifies on 2023 (1200 &ge; 1000). Bob's 2023 fell, so the ladder falls through to 2024 (700 &ge; 400). Carol qualifies on the exact tie. Dave is correctly absent &mdash; no row, not a row of NULLs.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug: the original solution emits a phantom NULL row</h5>
+<p>Without the <code>WHERE</code> clause, Dave still produces a row &mdash; the <code>CASE</code> ladder runs out of branches, so all three <code>CASE</code> expressions return NULL (a <code>CASE</code> with no matching <code>WHEN</code> and no <code>ELSE</code> yields NULL). The query then reports <code>Dave | NULL | NULL | NULL</code>, which means "Dave qualified, with no data" &mdash; nonsense. The query <em>should</em> only list customers who actually met the condition, so a <code>WHERE y2023 &gt;= y2022 OR y2024 &gt;= y2023</code> filter is mandatory.</p>
+
+<h5>The <code>CASE</code> ladder picks the FIRST qualifying year, not all of them</h5>
+<p>A subtle product question hides here. Alice grew in 2023 <em>and</em> her 2024 (900) is below 2023, so she has exactly one qualifying year. But suppose a customer grew in both 2023 and 2024 &mdash; the ladder reports only 2023, because <code>CASE</code> stops at the first true <code>WHEN</code>. If the business wants <em>every</em> qualifying year, the pivot model is the wrong shape; you want a self-comparison on the long table instead.</p>
+
+<h5>The scalable rewrite &mdash; <code>LAG</code> instead of a hand-pivot</h5>
+<p>Hard-coding <code>y2022/y2023/y2024</code> means editing the query every January. A window function compares each year to the previous one with no year literals at all:</p>
+<pre><code>SELECT Customer_Name, Year, Sales_Amount,
+       LAG(Sales_Amount) OVER (PARTITION BY Customer_Name
+                               ORDER BY Year) AS prev_yr_sales
+FROM sales
+QUALIFY Sales_Amount &gt;= prev_yr_sales;   -- Snowflake/BigQuery
+-- Postgres: wrap in a CTE and filter
+-- WHERE Sales_Amount &gt;= prev_yr_sales</code></pre>
+<p>This returns one row per qualifying customer-year, generalises to any number of years, and never breaks when 2025 data arrives. <code>QUALIFY</code> is Snowflake/BigQuery sugar; in Postgres you push the comparison into an outer <code>WHERE</code> over the CTE.</p>
+
+<h5>The first-year NULL trap</h5>
+<p><code>LAG</code> returns NULL for each customer's earliest year &mdash; there is no prior year to compare. <code>Sales_Amount &gt;= NULL</code> evaluates to <em>unknown</em>, so that row is correctly excluded by <code>WHERE</code>. Good. But if someone writes <code>NOT (Sales_Amount &lt; prev_yr_sales)</code> expecting the opposite, they get a different (still unknown) result &mdash; three-valued logic, not boolean negation. Be deliberate about which side of the NULL you want.</p>
+
+<h5>Gaps in the year sequence</h5>
+<p>The pivot quietly assumes every customer has all three years. If a customer is missing 2023 entirely, <code>y2023</code> is NULL, and <em>both</em> <code>y2023 &gt;= y2022</code> and <code>y2024 &gt;= y2023</code> become unknown &mdash; the customer drops out even if 2024 dwarfed 2022. <code>LAG</code> has the same blind spot: it compares to the previous <em>row</em>, not the previous calendar year. If gap years matter, join against a generated year spine first.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that the bare <code>CASE</code> ladder ships a meaningless all-NULL row for never-qualifying customers and add the guarding <code>WHERE</code>; then note that the hard-coded year pivot is unmaintainable and reach for <code>LAG</code> with an explicit year spine when gap years are possible.</div>

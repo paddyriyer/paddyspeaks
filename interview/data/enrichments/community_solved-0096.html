@@ -1,0 +1,75 @@
+<p>A music-streaming service wants its three most-played songs overall, and for each one the Free-vs-Premium split: what percentage of plays came from each tier, and which tier dominates. The interviewer is probing a two-stage pattern &mdash; rank to find the top N, then re-aggregate only those N with conditional aggregation &mdash; plus careful percentage arithmetic and tie handling.</p>
+
+<h4>1. The source data &mdash; <code>song_streams</code></h4>
+<table>
+  <thead><tr><th>stream_id</th><th>song_id</th><th>song_name</th><th>subscription_type</th><th>stream_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>Aaja</td><td>Premium</td><td>2025-06-01</td></tr>
+    <tr><td>2</td><td>10</td><td>Aaja</td><td>Premium</td><td>2025-06-02</td></tr>
+    <tr><td>3</td><td>10</td><td>Aaja</td><td>Free</td><td>2025-06-03</td></tr>
+    <tr><td>4</td><td>10</td><td>Aaja</td><td>Free</td><td>2025-06-04</td></tr>
+    <tr><td>5</td><td>20</td><td>Bijli</td><td>Premium</td><td>2025-06-01</td></tr>
+    <tr><td>6</td><td>20</td><td>Bijli</td><td>Premium</td><td>2025-06-02</td></tr>
+    <tr><td>7</td><td>20</td><td>Bijli</td><td>Premium</td><td>2025-06-03</td></tr>
+    <tr><td>8</td><td>30</td><td>Chand</td><td>Free</td><td>2025-06-01</td></tr>
+    <tr><td>9</td><td>30</td><td>Chand</td><td>Free</td><td>2025-06-02</td></tr>
+    <tr><td>10</td><td>40</td><td>Dard</td><td>Free</td><td>2025-06-01</td></tr>
+  </tbody>
+</table>
+<p>Song 10 is the edge case: a perfect 2-Premium / 2-Free tie, so "most streamed tier" is genuinely ambiguous &mdash; the query must resolve it explicitly rather than picking arbitrarily.</p>
+
+<h4>2. The SQL &mdash; rank top-3, then conditional aggregation</h4>
+<pre><code>WITH top_three AS (
+  SELECT song_id, COUNT(stream_id) AS stream_count
+  FROM song_streams
+  GROUP BY song_id
+  ORDER BY stream_count DESC
+  LIMIT 3
+), t2 AS (
+  SELECT song_id,
+         SUM(CASE WHEN subscription_type = 'Premium' THEN 1 ELSE 0 END) AS pre_sub_count,
+         SUM(CASE WHEN subscription_type = 'Free' THEN 1 ELSE 0 END) AS fre_sub_count,
+         COUNT(stream_id) AS stream_count
+  FROM song_streams
+  WHERE song_id IN (SELECT song_id FROM top_three)
+  GROUP BY song_id
+)
+SELECT song_id,
+       ROUND((100.0*pre_sub_count/stream_count)::numeric, 2) AS premium_percent,
+       ROUND((100.0*fre_sub_count/stream_count)::numeric, 2) AS fre_percent,
+       CASE WHEN pre_sub_count &gt; fre_sub_count THEN 'Premium'
+            WHEN pre_sub_count &lt; fre_sub_count THEN 'Free'
+            ELSE 'Both' END AS most_streamed_sub,
+       stream_count
+FROM t2
+ORDER BY stream_count DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>song_id</th><th>premium_percent</th><th>fre_percent</th><th>most_streamed_sub</th><th>stream_count</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>50.00</td><td>50.00</td><td>Both</td><td>4</td></tr>
+    <tr><td>20</td><td>100.00</td><td>0.00</td><td>Premium</td><td>3</td></tr>
+    <tr><td>30</td><td>0.00</td><td>100.00</td><td>Free</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Song 10 leads with 4 streams and the CASE resolves its 2&ndash;2 tie to <code>'Both'</code> rather than guessing. Song 40 (1 stream) falls outside the top 3. Percentages sum to 100 in every row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two stages, not one</h5>
+<p>"Top 3 overall" must be decided on <em>total</em> streams before the Free/Premium breakdown happens. The <code>top_three</code> CTE ranks and clips to three song ids; <code>t2</code> then re-aggregates the full table but <code>WHERE song_id IN (top_three)</code>. Trying to do it in one pass &mdash; e.g. <code>LIMIT 3</code> on a query already split by tier &mdash; would cut rows, not songs.</p>
+
+<h5>Conditional aggregation for the tier split</h5>
+<p><code>SUM(CASE WHEN subscription_type = 'Premium' THEN 1 ELSE 0 END)</code> counts Premium rows in one pass; the Free counterpart counts the rest. This pivots the tier column into two numeric columns without a self-join. <code>COUNT(stream_id)</code> gives the denominator. The <code>FILTER</code> form &mdash; <code>COUNT(*) FILTER (WHERE subscription_type = 'Premium')</code> &mdash; is the cleaner Postgres equivalent.</p>
+
+<h5>The integer-division trap in the percentage</h5>
+<p><code>100.0 * pre_sub_count / stream_count</code> deliberately starts with <code>100.0</code> (a numeric literal). Had it been <code>100 * pre_sub_count / stream_count</code> with all integers, <code>2/4</code> would floor to <code>0</code> and every sub-100% figure would collapse to zero. Forcing one operand to a decimal makes the whole expression numeric. The trailing <code>::numeric</code> cast then lets <code>ROUND(&hellip;, 2)</code> apply &mdash; in Postgres two-argument <code>ROUND</code> requires <code>numeric</code>, not <code>double precision</code>.</p>
+
+<h5>Handling the tie &mdash; the third CASE branch</h5>
+<p>Song 10's 2&ndash;2 split makes "most streamed tier" undefined. The <code>ELSE 'Both'</code> branch names that case instead of letting a two-way CASE silently fall through to NULL or arbitrarily favour one side. Whether the label should be <code>'Both'</code>, <code>'Tie'</code>, or NULL is a product decision &mdash; the senior move is to <em>ask</em>, then make the code say it explicitly.</p>
+
+<h5>The <code>LIMIT 3</code> tie ambiguity at the boundary</h5>
+<p><code>ORDER BY stream_count DESC LIMIT 3</code> is non-deterministic if several songs tie for 3rd place &mdash; the engine picks an arbitrary three. If the rule is "include all songs tied at the cutoff", switch to <code>RANK() OVER (ORDER BY stream_count DESC)</code> and filter <code>rank &lt;= 3</code>; that keeps every tied song. Mention this even when the sample data has a clean ranking.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> structure this as rank-then-re-aggregate, force numeric arithmetic with a <code>100.0</code> literal so percentages do not floor to zero, give the Free/Premium tie an explicit <code>'Both'</code> branch instead of a silent fall-through, and note that <code>LIMIT 3</code> is non-deterministic at a tied cutoff &mdash; <code>RANK()</code> resolves it.</div>

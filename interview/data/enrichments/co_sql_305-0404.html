@@ -1,0 +1,23 @@
+<p>Salesforce's marketing-funnel headline: <strong>lead → opportunity rate</strong> per source. Combined with avg time-to-convert, it tells which channels deliver real pipeline vs vanity volume.</p>
+
+<h4>2. The SQL — conversion + velocity per source</h4>
+<pre><code>SELECT source, COUNT(*) AS leads, COUNT(converted_at) AS converted,
+  ROUND(100.0 * COUNT(converted_at) / NULLIF(COUNT(*), 0), 1) AS conversion_pct,
+  ROUND(AVG(CASE WHEN converted_at IS NOT NULL
+    THEN (julianday(converted_at) - julianday(created_at)) END), 1) AS avg_days_to_convert
+FROM leads GROUP BY source HAVING COUNT(*) &gt;= 3 ORDER BY conversion_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The COUNT-of-non-NULL idiom</h5>
+<p><code>COUNT(converted_at)</code> only counts non-NULL — the converted leads. Cleaner than CASE WHEN.</p>
+
+<h5>Quality vs volume</h5>
+<p>"Webinar" source: 50 leads × 30% conv × 5 days = high quality. "Bulk list buy": 5000 leads × 0.5% conv × 60 days = volume only. Conversion + days surface both.</p>
+
+<h5>The AVG with CASE — guard against converted=NULL skewing the mean</h5>
+<p>Without the CASE, AVG would compute (julianday(NULL) - julianday(...)) — undefined. The CASE forces NULL on unconverted rows so AVG ignores them.</p>
+
+<h5>The marketing-attribution rabbit hole</h5>
+<p>"Source" is single-touch. Real B2B journeys touch 7-10 channels. Multi-touch attribution (linear, time-decay, U-shape) gives different per-source credit. This query is the first-touch baseline; production runs all four models.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> COUNT-of-non-NULL for sequential gates, AVG-with-CASE to exclude unconverted, distinguish quality (rate × velocity) from volume, and reframe single-touch source as the first of multiple attribution models.</div>

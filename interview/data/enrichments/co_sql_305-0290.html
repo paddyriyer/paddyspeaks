@@ -1,0 +1,59 @@
+<p>Zoom's support analytics team wants to spot frustrated customers: callers who phoned back within 7 days of a previous call &mdash; a likely sign their first issue was not resolved. The data is just <code>caller_id</code> and <code>call_at</code>. The interview question is how you express "a later call within 7 days of an earlier one" without a window function, and the trap is a self-join that quietly counts a call against itself.</p>
+
+<h4>1. The source data &mdash; <code>calls</code></h4>
+<table>
+  <thead><tr><th>caller_id</th><th>call_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-01 09:00</td></tr>
+    <tr><td>1</td><td>2026-01-04 10:00</td></tr>
+    <tr><td>2</td><td>2026-01-01 11:00</td></tr>
+    <tr><td>2</td><td>2026-01-20 11:00</td></tr>
+    <tr><td>3</td><td>2026-01-05 08:00</td></tr>
+    <tr><td>4</td><td>2026-01-02 14:00</td></tr>
+    <tr><td>4</td><td>2026-01-09 14:00</td></tr>
+    <tr><td>4</td><td>2026-01-09 15:00</td></tr>
+  </tbody>
+</table>
+<p>Caller 1 called back 3 days later &mdash; a repeat. Caller 2's two calls are 19 days apart &mdash; <em>not</em> a repeat. Caller 3 called once. Caller 4 is the edge case: Jan 2 then Jan 9 is exactly 7 days, and there are two calls on Jan 9 &mdash; testing whether the boundary is inclusive and whether same-day calls are handled.</p>
+
+<h4>2. The SQL &mdash; a self-join on the time window</h4>
+<pre><code>SELECT DISTINCT a.caller_id FROM calls a JOIN calls b
+ON a.caller_id = b.caller_id AND a.call_at &lt; b.call_at
+AND b.call_at &lt;= a.call_at + INTERVAL '7 days';</code></pre>
+<p>The table is joined to itself: row <code>a</code> is the earlier call, row <code>b</code> a later one by the same caller, constrained to land within 7 days. <code>DISTINCT</code> collapses callers who qualify on multiple pairs.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>caller_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>4</td></tr>
+  </tbody>
+</table>
+<p>Callers 1 and 4 are flagged. Caller 1's Jan 1 &rarr; Jan 4 pair is 3 days &mdash; inside the window. Caller 4 qualifies because Jan 2 &rarr; Jan 9 is <em>exactly</em> 7 days and the join uses <code>&lt;=</code>, so the boundary is inclusive. Caller 2 (19-day gap) and caller 3 (one call) are correctly absent.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The self-join trap &mdash; <code>a.call_at &lt; b.call_at</code> is load-bearing</h5>
+<p>If the join condition were <code>a.call_at &lt;= b.call_at</code> or omitted the ordering entirely, every call would pair with <em>itself</em> (same row, same timestamp), making every caller a false positive. The strict <code>&lt;</code> does two jobs: it enforces that <code>b</code> is genuinely <em>after</em> <code>a</code>, and it prevents the self-match. Getting <code>&lt;</code> vs <code>&lt;=</code> wrong here is the single most common mistake.</p>
+
+<h5>Same-timestamp calls &mdash; a subtler version of the trap</h5>
+<p>Caller 4 has two distinct calls at 14:00 and 15:00 on Jan 9. They are different rows, both satisfy <code>a.call_at &lt; b.call_at</code>, fine. But if two rows shared the <em>exact</em> same <code>call_at</code> (a double-logged event), <code>a.call_at &lt; b.call_at</code> is false for that pair, so they would not flag each other &mdash; usually correct (one event, not a repeat). If the table has a unique <code>call_id</code>, a more precise condition is <code>a.call_id &lt;&gt; b.call_id AND a.call_at &lt;= b.call_at</code>, which handles ties explicitly.</p>
+
+<h5>The window-function alternative &mdash; O(n log n) vs O(n&sup2;)</h5>
+<p>The self-join compares every call against every other call by the same caller &mdash; quadratic within each caller. <code>LAG</code> sorts once and looks at just the previous call:</p>
+<pre><code>SELECT DISTINCT caller_id FROM (
+  SELECT caller_id, call_at,
+         call_at - LAG(call_at) OVER (PARTITION BY caller_id ORDER BY call_at) AS gap
+  FROM calls
+) t
+WHERE gap &lt;= INTERVAL '7 days';</code></pre>
+<p>One caveat: <code>LAG</code> only compares <em>consecutive</em> calls. That is fine for "called back within 7 days of the <em>previous</em> call", which is the natural reading. If the requirement were "within 7 days of <em>any</em> earlier call", consecutive comparison still suffices &mdash; if calls A and C are within 7 days, the intervening B is too &mdash; so <code>LAG</code> is both faster and correct here.</p>
+
+<h5>Counting NULL timestamps out</h5>
+<p>If <code>call_at</code> can be NULL, every inequality involving it is <em>unknown</em>, so a NULL-timestamp row neither flags nor gets flagged &mdash; it silently drops. That is probably acceptable, but state it; if not, filter <code>WHERE call_at IS NOT NULL</code> up front so the assumption is explicit.</p>
+
+<h5>"How many times" &mdash; the natural follow-up</h5>
+<p>To rank callers by how often they called back, drop <code>DISTINCT</code> and aggregate the qualifying pairs &mdash; or with the <code>LAG</code> version, <code>COUNT(*) FILTER (WHERE gap &lt;= INTERVAL '7 days')</code> per caller. The window form extends to "average gap between calls" far more naturally than the self-join does.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the strict <code>a.call_at &lt; b.call_at</code> as essential &mdash; it both orders the pair and blocks the self-match &mdash; nail the inclusive <code>&lt;=</code> 7-day boundary, and offer the <code>LAG</code> rewrite as the O(n log n) alternative while correctly arguing that consecutive comparison still answers the question.</div>

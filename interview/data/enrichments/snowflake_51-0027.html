@@ -1,0 +1,70 @@
+<p>Fintech and mortgage platforms need to compute monthly payment amounts directly in SQL: <em>"For each loan application, look up the interest rate valid at the application date and compute the fixed monthly payment using the standard amortisation formula."</em> This question tests a temporally-bounded JOIN (matching a rate by date range), scalar financial math in SQL (<code>POWER</code> and the amortisation formula), and correct handling of cast types in arithmetic.</p>
+
+<h4>1. The source data &mdash; <code>applications</code> and <code>rates</code></h4>
+<table>
+  <thead><tr><th>app_id</th><th>principal</th><th>term_months</th><th>product_code</th><th>applied_on</th></tr></thead>
+  <tbody>
+    <tr><td>A001</td><td>300000</td><td>360</td><td>FIXED30</td><td>2025-01-15</td></tr>
+    <tr><td>A002</td><td>150000</td><td>180</td><td>FIXED15</td><td>2025-02-20</td></tr>
+    <tr><td>A003</td><td>400000</td><td>360</td><td>FIXED30</td><td>2025-04-01</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_code</th><th>rate_pct</th><th>valid_from</th><th>valid_to</th></tr></thead>
+  <tbody>
+    <tr><td>FIXED30</td><td>6.75</td><td>2025-01-01</td><td>2025-03-31</td></tr>
+    <tr><td>FIXED30</td><td>7.00</td><td>2025-04-01</td><td>2025-12-31</td></tr>
+    <tr><td>FIXED15</td><td>6.25</td><td>2025-01-01</td><td>2025-12-31</td></tr>
+  </tbody>
+</table>
+<p>A001 and A003 are both FIXED30 but applied on different dates &mdash; A001 gets the Q1 rate (6.75%) and A003 gets the Q2 rate (7.00%). A002 is FIXED15 at 6.25%. This exercises the temporal JOIN: the same product code resolves to different rates depending on the application date.</p>
+
+<h4>2. The SQL &mdash; temporal JOIN with amortisation formula</h4>
+<pre><code>SELECT a.app_id, a.principal, a.term_months, r.rate_pct,
+       a.principal::numeric
+         * (r.rate_pct::numeric / 100 / 12)
+         / (1 - POWER(1 + r.rate_pct::numeric / 100 / 12, -a.term_months::int)) AS monthly_payment
+FROM applications a
+JOIN rates r
+  ON a.product_code = r.product_code
+ AND a.applied_on BETWEEN r.valid_from AND r.valid_to;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>app_id</th><th>principal</th><th>term_months</th><th>rate_pct</th><th>monthly_payment</th></tr></thead>
+  <tbody>
+    <tr><td>A001</td><td>300000</td><td>360</td><td>6.75</td><td>1945.79</td></tr>
+    <tr><td>A002</td><td>150000</td><td>180</td><td>6.25</td><td>1286.13</td></tr>
+    <tr><td>A003</td><td>400000</td><td>360</td><td>7.00</td><td>2661.21</td></tr>
+  </tbody>
+</table>
+<p>For A001: monthly_rate = 6.75/100/12 = 0.005625. Denominator = 1 - POWER(1.005625, -360) &asymp; 1 - 0.1337 = 0.8663. Payment = 300000 &times; 0.005625 / 0.8663 &asymp; 1945.79. For A002: monthly_rate = 6.25/100/12 &asymp; 0.005208. Denominator &asymp; 1 - POWER(1.005208, -180) &asymp; 0.5704. Payment = 150000 &times; 0.005208 / 0.5704 &asymp; 1286.13. For A003: monthly_rate = 7.00/100/12 &asymp; 0.005833. Denominator &asymp; 0.8681. Payment = 400000 &times; 0.005833 / 0.8681 &asymp; 2661.21.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The temporal JOIN &mdash; the date-range validity pattern</h5>
+<p>The JOIN condition has two parts: <code>a.product_code = r.product_code</code> (equi-join on product identity) and <code>a.applied_on BETWEEN r.valid_from AND r.valid_to</code> (the temporal filter that picks the rate valid at application time). This is the standard "slowly changing dimension" (SCD Type 2) lookup pattern: a rate table where each product has multiple rows, each valid for a date range, and you must pick exactly the one row whose range contains the target date.</p>
+
+<h5>The amortisation formula &mdash; derivation</h5>
+<p>The standard fixed-rate monthly payment formula is:</p>
+<pre><code>M = P * r / (1 - (1 + r)^(-n))</code></pre>
+<p>Where P = principal, r = monthly interest rate (annual_rate / 12), and n = number of payments (term_months). The formula is derived by setting the present value of n equal payments equal to P. In SQL: <code>principal * (rate/100/12) / (1 - POWER(1 + rate/100/12, -term_months))</code>. The <code>POWER(base, -n)</code> call computes (1+r)&sup2;&sup3; using Snowflake&rsquo;s and Postgres&rsquo;s built-in <code>POWER</code> function.</p>
+
+<h5>Why explicit casts matter</h5>
+<p>If <code>principal</code>, <code>rate_pct</code>, and <code>term_months</code> are stored as integers, dividing integers produces integer results in some engines (e.g., <code>6 / 100 = 0</code> in strict integer division). The <code>::numeric</code> and <code>::int</code> casts ensure: (a) the rate arithmetic uses floating-point or fixed-point precision, and (b) <code>POWER</code> receives the correct numeric type. Always cast financial arithmetic columns explicitly to <code>NUMERIC</code> rather than relying on implicit promotion.</p>
+
+<h5>Edge case: gap or overlap in rate validity periods</h5>
+<p>The BETWEEN join assumes the rate table is gapless and non-overlapping for each product code &mdash; every application date maps to exactly one rate row. If there is a gap (no rate row covers the application date), the application is silently excluded from the result (INNER JOIN semantics). If two rows overlap for the same date, the application appears twice with two different rates. Always validate the rates table for completeness and non-overlap before running this query in production (a <code>LEAD(valid_from) OVER (PARTITION BY product_code ORDER BY valid_from)</code> check surfaces overlaps).</p>
+
+<h5>Dialect notes</h5>
+<ul>
+  <li><strong>Postgres (solution dialect):</strong> <code>POWER(base, exp)</code> is built-in. <code>BETWEEN</code> is inclusive on both ends (<code>[valid_from, valid_to]</code>). Correct for day-granularity date ranges.</li>
+  <li><strong>Snowflake:</strong> identical &mdash; <code>POWER</code> and <code>BETWEEN</code> behave the same. <code>POW</code> is also an alias.</li>
+  <li><strong>BigQuery:</strong> <code>POW(base, exp)</code>. <code>BETWEEN</code> inclusive.</li>
+  <li><strong>MySQL:</strong> <code>POW(base, exp)</code>. <code>BETWEEN</code> inclusive.</li>
+</ul>
+
+<h5>Extension: total interest paid</h5>
+<p><code>monthly_payment * term_months - principal AS total_interest</code> gives the total interest cost of the loan. Adding this column to the SELECT costs nothing and is always requested in mortgage analytics dashboards.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name this as the SCD Type 2 temporal lookup pattern (rate-table with valid_from/valid_to, one row per date), explain the amortisation formula derivation (PV of n equal payments = P), flag the gap/overlap risk in the rates table and offer the LEAD-based validation check, and always cast to NUMERIC explicitly for financial arithmetic to avoid integer-division surprises.</div>

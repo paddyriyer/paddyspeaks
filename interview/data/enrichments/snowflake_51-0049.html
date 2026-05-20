@@ -1,0 +1,61 @@
+<p>A digital asset pipeline needs a clean active-artifact listing: <em>"Return the ID, uppercased name, and status of every active artifact that has a non-null name."</em> This looks trivially simple but the interviewer is probing three things in one query: <code>WHERE</code> filter ordering and short-circuit evaluation, the difference between <code>NULL</code> and empty string for <code>name IS NOT NULL</code>, and the behaviour of <code>UPPER()</code> on NULL inputs. The answer is a one-level SELECT with two filter predicates and a string transform.</p>
+
+<h4>1. The source data &mdash; <code>artifacts</code></h4>
+<table>
+  <thead><tr><th>artifact_id</th><th>name</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>alpha_scanner</td><td>active</td></tr>
+    <tr><td>2</td><td>beta_probe</td><td>inactive</td></tr>
+    <tr><td>3</td><td>gamma_lens</td><td>active</td></tr>
+    <tr><td>4</td><td>NULL</td><td>active</td></tr>
+    <tr><td>5</td><td>delta_reader</td><td>active</td></tr>
+    <tr><td>6</td><td>epsilon_core</td><td>archived</td></tr>
+    <tr><td>7</td><td>zeta_chip</td><td>active</td></tr>
+  </tbody>
+</table>
+<p>Row 4 has <code>name = NULL</code> &mdash; it should be excluded. Row 2 has <code>status = 'inactive'</code> and row 6 has <code>status = 'archived'</code> &mdash; both excluded. Rows 1, 3, 5, 7 are active with non-null names.</p>
+
+<h4>2. The SQL &mdash; filter, uppercase transform, deterministic sort</h4>
+<pre><code>SELECT artifact_id, UPPER(name) AS name_upper, status
+FROM artifacts
+WHERE status = 'active'
+  AND name IS NOT NULL
+ORDER BY name_upper;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>artifact_id</th><th>name_upper</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>ALPHA_SCANNER</td><td>active</td></tr>
+    <tr><td>5</td><td>DELTA_READER</td><td>active</td></tr>
+    <tr><td>3</td><td>GAMMA_LENS</td><td>active</td></tr>
+    <tr><td>7</td><td>ZETA_CHIP</td><td>active</td></tr>
+  </tbody>
+</table>
+<p>Row 4 (NULL name, active) is excluded by <code>name IS NOT NULL</code>. Rows 2 and 6 are excluded by <code>status = 'active'</code>. The four surviving rows are returned with uppercased names, sorted alphabetically by <code>name_upper</code>: ALPHA, DELTA, GAMMA, ZETA.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>name IS NOT NULL</code> &mdash; why <code>!= NULL</code> is wrong</h5>
+<p>In SQL, any comparison to NULL using <code>=</code> or <code>!=</code> always evaluates to UNKNOWN (the third truth value), which <code>WHERE</code> treats as false. <code>WHERE name != NULL</code> would silently exclude every row &mdash; including rows with actual names &mdash; because the comparison is always UNKNOWN. The only correct way to check for NULL is <code>IS NULL</code> or <code>IS NOT NULL</code>. This is one of the most common beginner mistakes and a standard interview filter question.</p>
+
+<h5>NULL vs empty string &mdash; different things</h5>
+<p><code>name IS NOT NULL</code> passes rows where <code>name = ''</code> (empty string) because empty string is not NULL. If the requirement is "name has actual content," add <code>AND name &lt;&gt; ''</code> or <code>AND LENGTH(name) &gt; 0</code>. Snowflake and Postgres treat empty string and NULL as distinct; Oracle historically treats <code>''</code> as NULL (a notorious incompatibility). MySQL follows the standard: empty string is not NULL.</p>
+
+<h5><code>UPPER(NULL)</code> propagates NULL</h5>
+<p>In standard SQL, calling any scalar function on NULL returns NULL. <code>UPPER(NULL) = NULL</code> in every major engine. If a NULL slipped through the <code>WHERE name IS NOT NULL</code> filter (e.g., through a lateral join), the <code>name_upper</code> column would be NULL rather than raising an error. The filter ensures this cannot happen here, but knowing the propagation rule matters when UPPER appears in computed columns without a prior NULL guard.</p>
+
+<h5>ORDER BY on an alias &mdash; when is it allowed?</h5>
+<p><code>ORDER BY name_upper</code> references the <code>SELECT</code> alias. The SQL standard requires repeating the expression in ORDER BY, but Postgres, Snowflake, BigQuery, MySQL, and SQL Server all permit alias references in ORDER BY as an extension. The alias reference here is correct and portable to every engine in practice.</p>
+
+<h5>Filter predicate ordering &mdash; selectivity and short-circuit</h5>
+<p>The two predicates <code>status = 'active'</code> and <code>name IS NOT NULL</code> are ANDed. Most optimisers apply the most selective filter first. If <code>status</code> has an index, the engine may use it to eliminate most rows before checking <code>name IS NOT NULL</code>. Some engines (Postgres, SQL Server) support short-circuit evaluation for <code>AND</code> in simple cases, but SQL does not guarantee short-circuit order. In practice, placing the highly selective indexed filter first in the source text is a readability signal, not a performance guarantee.</p>
+
+<h5>Dialect portability</h5>
+<ul>
+  <li><strong>Snowflake / Postgres / BigQuery / MySQL / SQL Server:</strong> <code>UPPER(name)</code>, <code>IS NOT NULL</code>, and string equality are all standard and identical across these engines.</li>
+  <li><strong>Snowflake case sensitivity:</strong> Snowflake column names and string comparisons are case-insensitive by default, but string <em>values</em> are case-sensitive. <code>WHERE status = 'active'</code> would not match <code>'Active'</code> unless the session uses a case-insensitive collation.</li>
+  <li><strong>Oracle:</strong> the empty-string-equals-NULL trap applies here if the source system is Oracle-originated data.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish <code>IS NOT NULL</code> from <code>!= NULL</code> (the latter always returns UNKNOWN and silently drops all rows), clarify that empty string passes <code>IS NOT NULL</code> and needs a separate guard if blank names must also be excluded, and note Snowflake's case-sensitive string value comparison for the status filter.</div>

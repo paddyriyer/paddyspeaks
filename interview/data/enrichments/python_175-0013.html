@@ -1,0 +1,47 @@
+<p>LRU Cache is the most-asked design question at Google for a reason: every layer of a real system has a bounded cache &mdash; CPU, OS page cache, CDN, application memcache &mdash; and they all need the same thing: O(1) get, O(1) put, and an eviction policy that drops whatever was used least recently. The interviewer wants to see you reach both constant-time targets <em>and</em> the recency ordering at once.</p>
+
+<h4>1. The input data</h4>
+<p>A cache with <code>capacity = 2</code>, then a sequence of operations:</p>
+<pre><code>c = LRUCache(2)
+c.put(1, 'A')
+c.put(2, 'B')
+c.get(1)         # touches key 1
+c.put(3, 'C')    # capacity exceeded -> evict
+c.get(2)
+c.get(3)</code></pre>
+
+<h4>2. The approach</h4>
+<p>The solution leans entirely on <code>collections.OrderedDict</code>, which maintains keys in insertion order <em>and</em> exposes O(1) reordering. The convention here: the <strong>front</strong> (left end) is least-recently-used, the <strong>back</strong> (right end) is most-recently-used. <code>get(key)</code> returns <code>-1</code> on a miss; on a hit it calls <code>move_to_end(key)</code> to promote the key to the back &mdash; "just used" &mdash; then returns the value. <code>put(key, value)</code> first promotes the key with <code>move_to_end</code> if it already exists (so an update also counts as a use), assigns the value, and then, if the dict has grown past <code>cap</code>, calls <code>popitem(last=False)</code> to evict the item at the front &mdash; the genuine least-recently-used entry. Both <code>move_to_end</code> and <code>popitem</code> are O(1) because <code>OrderedDict</code> is backed by a hash map plus a doubly linked list.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>operation</th><th>order (LRU&rarr;MRU)</th><th>returns</th></tr></thead>
+  <tbody>
+    <tr><td>put(1,'A')</td><td>1</td><td>&mdash;</td></tr>
+    <tr><td>put(2,'B')</td><td>1, 2</td><td>&mdash;</td></tr>
+    <tr><td>get(1)</td><td>2, 1</td><td>'A'</td></tr>
+    <tr><td>put(3,'C')</td><td>1, 3 &nbsp;<em>(evicted 2)</em></td><td>&mdash;</td></tr>
+    <tr><td>get(2)</td><td>1, 3</td><td>-1</td></tr>
+    <tr><td>get(3)</td><td>1, 3</td><td>'C'</td></tr>
+  </tbody>
+</table>
+<p>The pivotal step is <code>put(3,'C')</code>: because <code>get(1)</code> had just promoted key 1, the least-recently-used entry was <code>2</code> &mdash; so <code>2</code> is evicted, not <code>1</code>. A subsequent <code>get(2)</code> correctly misses.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>Both <code>get</code> and <code>put</code> are <strong>O(1)</strong>, and that is the entire bar for this question &mdash; an interviewer will reject any solution that is O(n) on either. Space is O(capacity). The reason O(1) is even possible is the hash-map-plus-linked-list combination: the map finds the node, the linked list relinks it without shifting anything.</p>
+
+<h5>The idiomatic alternative &mdash; <code>functools.lru_cache</code></h5>
+<p>For caching the results of a pure function, you would never hand-roll this &mdash; <code>@functools.lru_cache(maxsize=2)</code> does exactly this internally. Naming it shows you know the stdlib. The hand-built version is still the right interview answer because it demonstrates you understand the mechanism, and because a real cache needs explicit invalidation that the decorator does not offer.</p>
+
+<h5>The edge case &mdash; updating an existing key, and capacity 0</h5>
+<p><code>put</code> on an existing key must <em>also</em> count as a use &mdash; the <code>move_to_end</code> before assignment handles that; forgetting it makes a freshly-updated key wrongly eligible for eviction. A <code>capacity</code> of 0 is a subtle case: every <code>put</code> immediately exceeds it and evicts, so the cache stays empty &mdash; technically correct here, but worth confirming the spec allows it.</p>
+
+<h5>The follow-up &mdash; LFU, or thread safety</h5>
+<p>"Now evict least-<em>frequently</em>-used instead." LFU is strictly harder: you must track per-key hit counts and find the minimum-count key in O(1), which needs a frequency-bucketed linked-list structure. The other common follow-up is "make it thread-safe" &mdash; <code>OrderedDict</code> operations are not atomic across the read-modify-write in <code>put</code>, so you wrap them in a <code>threading.Lock</code>.</p>
+
+<h5>The trap &mdash; a plain dict with a timestamp</h5>
+<p>A tempting design stores <code>key &rarr; (value, last_used_time)</code> in an ordinary dict and, on eviction, scans for the smallest timestamp. That scan is <strong>O(n)</strong> &mdash; it fails the headline requirement. The recency order must be maintained incrementally as a linked list, not reconstructed by searching.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior recognizes <code>OrderedDict</code> (or a hash-map-plus-doubly-linked-list) as the O(1) backbone, treats an update as a use, and names <code>functools.lru_cache</code> and the LFU/thread-safety follow-ups &mdash; a junior scans for the oldest timestamp and lands at O(n).</div>

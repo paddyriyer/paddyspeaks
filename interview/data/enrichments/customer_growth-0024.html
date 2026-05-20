@@ -1,0 +1,103 @@
+<p>A streaming service runs a nightly batch that does daily growth accounting: it takes today's active users, diffs them against yesterday's saved state, and labels each user NEW / RESURRECTED / RETAINED / CHURNED / STALE. The interviewer is probing the snapshot-merge pattern &mdash; a <code>FULL OUTER JOIN</code> between a tiny single-day partition and the persisted state table &mdash; and whether you understand <em>why</em> this scales: history is never re-scanned, only today is.</p>
+
+<h4>1. The source data &mdash; <code>watch_history</code> and <code>user_state_master</code></h4>
+<table>
+  <thead><tr><th>table</th><th>row</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>watch_history</td><td>users 1&ndash;4 on 2026-05-04</td><td>yesterday's activity (not scanned today)</td></tr>
+    <tr><td>watch_history</td><td>users 1,2,5,6 on 2026-05-05</td><td>today's partition &mdash; the only scan</td></tr>
+    <tr><td>user_state_master</td><td>user 1 &mdash; active_yest=1, streak 7</td><td>active today &amp; yesterday &rarr; RETAINED</td></tr>
+    <tr><td>user_state_master</td><td>user 3 &mdash; active_yest=1, streak 12</td><td>active yesterday, absent today &rarr; CHURNED</td></tr>
+    <tr><td>user_state_master</td><td>user 6 &mdash; active_yest=0</td><td>inactive yesterday, active today &rarr; RESURRECTED</td></tr>
+    <tr><td>user_state_master</td><td>user 7 &mdash; active_yest=0</td><td>absent both days &rarr; STALE</td></tr>
+    <tr><td>(neither)</td><td>user 5</td><td>active today, no master row &rarr; NEW</td></tr>
+  </tbody>
+</table>
+<p>The deliberate edge cases: user 5 exists only in today's activity (NEW &mdash; the <code>FULL OUTER JOIN</code> must keep the unmatched right side), and user 7 exists only in the master with no activity (STALE &mdash; the unmatched left side). A plain <code>INNER JOIN</code> would silently drop both.</p>
+
+<h4>2. The SQL &mdash; today vs yesterday liveness state machine</h4>
+<pre><code>WITH today_l1 AS (
+    -- Single-day partition prune: scan TODAY, never history.
+    SELECT user_id, MAX(watch_date) AS last_login
+    FROM watch_history
+    WHERE watch_date = '2026-05-05'
+    GROUP BY user_id
+),
+merged AS (
+    -- FULL OUTER JOIN keeps users present on either side only.
+    SELECT
+        COALESCE(t.user_id, s.user_id) AS user_id,
+        t.user_id IS NOT NULL          AS active_today,
+        s.user_id IS NOT NULL          AS in_master,
+        s.is_active_yesterday          AS active_yesterday,
+        s.current_streak               AS prev_streak,
+        s.tier                         AS prev_tier
+    FROM user_state_master s
+    FULL OUTER JOIN today_l1 t ON s.user_id = t.user_id
+),
+labelled AS (
+    SELECT user_id,
+        CASE
+            WHEN NOT in_master AND active_today                         THEN 'NEW'
+            WHEN active_today AND COALESCE(active_yesterday, 0) = 0     THEN 'RESURRECTED'
+            WHEN active_today AND COALESCE(active_yesterday, 0) = 1     THEN 'RETAINED'
+            WHEN NOT active_today AND COALESCE(active_yesterday, 0) = 1 THEN 'CHURNED'
+            ELSE                                                             'STALE'
+        END AS growth_status,
+        CASE WHEN active_today THEN COALESCE(prev_streak, 0) + 1 ELSE 0 END AS new_streak,
+        prev_tier AS tier_carry
+    FROM merged
+)
+SELECT user_id, growth_status, new_streak, tier_carry
+FROM labelled
+ORDER BY
+    CASE growth_status
+        WHEN 'NEW' THEN 1 WHEN 'RESURRECTED' THEN 2 WHEN 'RETAINED' THEN 3
+        WHEN 'CHURNED' THEN 4 ELSE 5
+    END, user_id;</code></pre>
+<p>The companion summary reuses the same <code>labelled</code> CTE: <code>SELECT growth_status, COUNT(*) FROM labelled WHERE growth_status IN ('NEW','RESURRECTED','RETAINED','CHURNED') GROUP BY growth_status</code> with the same ordering.</p>
+
+<h4>3. The resulting analysis</h4>
+<p><strong>Per-user growth report:</strong></p>
+<table>
+  <thead><tr><th>user_id</th><th>growth_status</th><th>new_streak</th><th>tier_carry</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>NEW</td><td>1</td><td><em>NULL</em></td></tr>
+    <tr><td>6</td><td>RESURRECTED</td><td>1</td><td>Tier 2</td></tr>
+    <tr><td>1</td><td>RETAINED</td><td>8</td><td>Tier 1</td></tr>
+    <tr><td>2</td><td>RETAINED</td><td>4</td><td>Tier 2</td></tr>
+    <tr><td>3</td><td>CHURNED</td><td>0</td><td>Tier 1</td></tr>
+    <tr><td>4</td><td>CHURNED</td><td>0</td><td>Tier 3</td></tr>
+    <tr><td>7</td><td>STALE</td><td>0</td><td>Tier 3</td></tr>
+  </tbody>
+</table>
+<p><strong>Net-momentum summary:</strong></p>
+<table>
+  <thead><tr><th>growth_status</th><th>customers</th></tr></thead>
+  <tbody>
+    <tr><td>NEW</td><td>1</td></tr>
+    <tr><td>RESURRECTED</td><td>1</td></tr>
+    <tr><td>RETAINED</td><td>2</td></tr>
+    <tr><td>CHURNED</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Net Growth = (NEW + RESURRECTED) &minus; CHURNED = (1 + 1) &minus; 2 = <strong>0</strong>. The base held flat: two arrivals exactly offset two departures. User 6's <code>new_streak</code> resets to 1 &mdash; a resurrected user starts a fresh streak, it does not resume the stale one.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>FULL OUTER JOIN</code> is mandatory here</h5>
+<p>The five labels need both unmatched sides of the join. NEW users appear only in <code>today_l1</code> (right side, no master row). STALE users appear only in <code>user_state_master</code> (left side, no activity). An <code>INNER JOIN</code> drops both &mdash; you would lose every acquisition and every long-dormant account. <code>LEFT JOIN</code> from master would keep STALE but lose NEW; <code>LEFT JOIN</code> from today would do the reverse. Only <code>FULL OUTER JOIN</code> retains everyone, and <code>COALESCE(t.user_id, s.user_id)</code> rebuilds a single non-null key from whichever side matched.</p>
+
+<h5>Detecting which side matched &mdash; <code>user_id IS NOT NULL</code></h5>
+<p>After a <code>FULL OUTER JOIN</code>, an unmatched row has NULLs in every column of the missing side. <code>t.user_id IS NOT NULL</code> is therefore a clean "was this user active today?" boolean, and <code>s.user_id IS NOT NULL</code> is "did this user exist in the master?". This is far more robust than testing a data column &mdash; a data column could legitimately be NULL, but the join key cannot be NULL for a matched row.</p>
+
+<h5>The COALESCE-on-the-flag trap</h5>
+<p><code>is_active_yesterday</code> comes from the master and is NULL for any user with no master row (i.e. NEW users). The CASE wraps it in <code>COALESCE(active_yesterday, 0)</code> so that a NULL never makes a comparison evaluate to <em>unknown</em> and silently skip a branch. Branch order matters too: the <code>NOT in_master</code> test for NEW must come first, because a NEW user has no <code>active_yesterday</code> at all and should never reach the RESURRECTED/RETAINED logic.</p>
+
+<h5>Dialect notes &mdash; FULL OUTER JOIN availability</h5>
+<p>PostgreSQL, SQL Server, Oracle, Snowflake, and BigQuery all support <code>FULL OUTER JOIN</code> natively. MySQL does <em>not</em> &mdash; the standard workaround there is <code>LEFT JOIN ... UNION ... RIGHT JOIN</code>, or emulating it with two outer joins. SQLite gained <code>FULL OUTER JOIN</code> in 3.39 (2022); older builds need the same UNION trick. The single-day <code>WHERE watch_date = '...'</code> is the partition prune that makes the pattern scale &mdash; on a real partitioned table the planner reads exactly one partition regardless of how many years of history exist.</p>
+
+<h5>What a senior says next</h5>
+<p>"This same query is also the writer for <em>tomorrow's</em> <code>user_state_master</code> &mdash; project <code>labelled</code> down to <code>(user_id, last_active, is_active_yesterday = active_today, current_streak = new_streak, tier)</code> and that becomes the next batch's input. The whole pipeline is one self-perpetuating shuffle; the report and the next state snapshot fall out of the same DAG node."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify <code>FULL OUTER JOIN</code> by naming which label needs each unmatched side, use <code>join_key IS NOT NULL</code> (not a data column) to detect membership, <code>COALESCE</code> the master-sourced flag so NULLs from NEW users do not skip a CASE branch, and point out the query doubles as the writer of the next day's state table.</div>

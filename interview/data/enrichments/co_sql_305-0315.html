@@ -1,0 +1,106 @@
+<p>Netflix's account model is unusual: <em>one billing account, multiple profiles</em> (Mom, Dad, Kid 1, Kid 2). The household-data team needs to know <strong>which profile is the dominant viewer for each account</strong>, plus how the watch-time splits across profiles. The output drives the "primary profile" detection used in churn modelling, recommendations bias, and household-vs-sharing classification. The query is a window aggregate of an aggregate.</p>
+
+<h4>1. The source data &mdash; <code>plays</code></h4>
+<table>
+  <thead><tr><th>account_id</th><th>profile_id</th><th>watch_minutes</th></tr></thead>
+  <tbody>
+    <tr><td>A_001</td><td>P_dad</td><td>240</td></tr>
+    <tr><td>A_001</td><td>P_dad</td><td>180</td></tr>
+    <tr><td>A_001</td><td>P_mom</td><td>120</td></tr>
+    <tr><td>A_001</td><td>P_kid</td><td>90</td></tr>
+    <tr><td>A_001</td><td>P_kid</td><td>30</td></tr>
+    <tr><td>A_002</td><td>P_alex</td><td>500</td></tr>
+    <tr><td>A_002</td><td>P_jamie</td><td>50</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; per-profile total + share% + rank</h4>
+<pre><code>SELECT account_id, profile_id,
+  SUM(watch_minutes) AS profile_minutes,
+  ROUND(100.0 * SUM(watch_minutes) /
+    SUM(SUM(watch_minutes)) OVER (PARTITION BY account_id), 1) AS share_pct,
+  RANK() OVER (PARTITION BY account_id ORDER BY SUM(watch_minutes) DESC) AS profile_rank
+FROM plays
+GROUP BY account_id, profile_id
+ORDER BY account_id, share_pct DESC;</code></pre>
+
+<h4>3. The result &mdash; A_001's profile distribution</h4>
+<table>
+  <thead><tr><th>account_id</th><th>profile_id</th><th>profile_minutes</th><th>share_pct</th><th>profile_rank</th></tr></thead>
+  <tbody>
+    <tr><td>A_001</td><td>P_dad</td><td>420</td><td>65.6%</td><td>1</td></tr>
+    <tr><td>A_001</td><td>P_mom</td><td>120</td><td>18.8%</td><td>2</td></tr>
+    <tr><td>A_001</td><td>P_kid</td><td>120</td><td>15.6%</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The double-<code>SUM(SUM())</code> pattern</h5>
+<p>The inner <code>SUM(watch_minutes)</code> is the GROUP BY aggregate &mdash; per-profile total. The outer <code>SUM(...) OVER (PARTITION BY account_id)</code> is the window aggregate over the post-grouping rows &mdash; account-level total. Both in one query, no subquery needed. This is the same idiom as the Okta percent-contribution question, lifted to the household level.</p>
+
+<h5>Why <code>RANK</code> not <code>DENSE_RANK</code> here</h5>
+<p>For "primary profile" detection, ties are interesting on their own &mdash; they signal a 50/50 household where neither user dominates. <code>RANK</code> keeps the gap (1, 1, 3); <code>DENSE_RANK</code> collapses it (1, 1, 2). Both are fine for "is this profile #1?" but RANK preserves the "n-way tie" diagnostic. <code>ROW_NUMBER</code> would arbitrarily break ties, which is the wrong signal.</p>
+
+<h5>The single-profile household &mdash; the password-sharing red flag</h5>
+<p>An account where one profile has 100% share and the others have 0% might look like a single-user household &mdash; or it might be a shared password where the legit user only ever uses one profile and the squatters never bothered to switch. Cross-tab against device count:</p>
+<pre><code>WITH primary_share AS (
+  SELECT account_id, MAX(share_pct) AS top_share
+  FROM /* the original query */
+  GROUP BY account_id
+)
+SELECT ps.account_id, ps.top_share, COUNT(DISTINCT s.device_id) AS distinct_devices
+FROM primary_share ps JOIN streams s USING (account_id)
+WHERE ps.top_share &gt; 90 AND COUNT(DISTINCT s.device_id) &gt; 5
+-- 90%+ share but 5+ devices = single-profile-with-lots-of-devices = sharing risk</code></pre>
+
+<h5>The "kids profile" classification</h5>
+<p>Netflix has explicit "kids" profiles with content filters. The watch-pattern signature (cartoon-heavy, Saturday morning peak, no after-9pm activity) is diagnostic. Add an <code>is_kids</code> flag to the GROUP BY for parental-controls coverage analysis.</p>
+
+<h5>The "bored secondary" flag</h5>
+<p>Profile 2 with 5% share might be a kid who watches every now and then &mdash; or might be a churning user who's losing interest. The diagnostic is recency:</p>
+<pre><code>SUM(watch_minutes)                                    AS lifetime_minutes,
+SUM(CASE WHEN played_at &gt;= CURRENT_DATE - 30 THEN watch_minutes END) AS l30_minutes,
+SUM(CASE WHEN played_at &gt;= CURRENT_DATE - 30 THEN watch_minutes END) * 1.0 /
+  NULLIF(SUM(watch_minutes), 0)                       AS recent_share</code></pre>
+<p>A profile whose <em>recent_share</em> is much lower than <em>lifetime_share</em> is disengaging.</p>
+
+<h5>Account-level metrics &mdash; HHI as a household-concentration index</h5>
+<p>The Herfindahl-Hirschman Index from economics works perfectly for "how concentrated is this household's viewing?":</p>
+<pre><code>SUM(POWER(share_pct/100.0, 2)) OVER (PARTITION BY account_id) AS hhi</code></pre>
+<table>
+  <thead><tr><th>HHI</th><th>shape</th><th>interpretation</th></tr></thead>
+  <tbody>
+    <tr><td>1.0</td><td>one profile, 100%</td><td>single user (or all-on-one-profile)</td></tr>
+    <tr><td>0.5</td><td>two profiles 50/50</td><td>balanced household</td></tr>
+    <tr><td>0.33</td><td>three profiles 33/33/33</td><td>family of three</td></tr>
+    <tr><td>0.25</td><td>four profiles 25/25/25/25</td><td>family of four</td></tr>
+  </tbody>
+</table>
+<p>HHI is a smoother proxy than profile count for "household-ness".</p>
+
+<h5>Number-of-active-profiles &mdash; the cleaner top-line</h5>
+<pre><code>SELECT account_id,
+  COUNT(DISTINCT profile_id) AS total_profiles,
+  COUNT(DISTINCT CASE WHEN profile_minutes &gt; 0 THEN profile_id END) AS active_profiles,
+  COUNT(DISTINCT CASE WHEN share_pct &gt;= 10 THEN profile_id END) AS meaningful_profiles
+FROM /* the original query */
+GROUP BY account_id;</code></pre>
+<p>"Meaningful profiles" with the &ge; 10% share threshold filters out one-off curiosity profiles.</p>
+
+<h5>The retention follow-up &mdash; multi-profile households churn less</h5>
+<p>Empirically, accounts with 3+ active profiles churn at half the rate of single-profile accounts &mdash; the household network effect. The query above feeds that retention analysis directly.</p>
+
+<h5>The genre-overlap follow-up &mdash; do family members watch together?</h5>
+<p>Two profiles with 50/50 share and identical genre mix = probably the same person on two profiles (or two people with shared taste). Two profiles with 50/50 share and disjoint genre mix = a real two-viewer household. Compute Jaccard similarity over genre sets:</p>
+<pre><code>SELECT a.account_id,
+  COUNT(DISTINCT CASE WHEN gp.profile_id IN (a.p1, a.p2) THEN gp.genre END) /
+  NULLIF(COUNT(DISTINCT CASE WHEN gp.profile_id = a.p1 THEN gp.genre END) +
+         COUNT(DISTINCT CASE WHEN gp.profile_id = a.p2 THEN gp.genre END), 0)
+  AS jaccard
+FROM ... </code></pre>
+
+<h5>The window-aggregate dialect note</h5>
+<p>The double-SUM-over-window form needs the engine to evaluate the inner aggregate first. All major engines do this correctly, but if a query plan looks weird, fall back to the explicit CTE form &mdash; same answer, easier for the planner.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <em>aggregate-of-aggregate window</em> (<code>SUM(SUM()) OVER</code>) idiom in one breath, choose <code>RANK</code> over DENSE_RANK to preserve the n-way-tie household signal, and connect the share distribution back to concrete product decisions (password-sharing detection, churn risk, household HHI). The recent-share-vs-lifetime-share dis-engagement diagnostic and Jaccard genre-overlap follow-up are the over-the-bar finish.</div>

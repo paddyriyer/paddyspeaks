@@ -1,0 +1,44 @@
+<p>Subarray Sum Equals K is the question Google uses to find out if you truly understand prefix sums &mdash; not just "running total" but the trick of looking up a <em>previous</em> prefix sum in a hash map. It is also a deliberate trap for the sliding-window reflex: the array can contain negatives, which quietly invalidates the window technique most candidates reach for first.</p>
+
+<h4>1. The input data</h4>
+<p>An integer array (note the negative value) and a target <code>k</code>:</p>
+<pre><code>nums = [1, 2, 3, -1, 2]
+k    = 3
+subarraySum(nums, k)</code></pre>
+<p>The question: how many contiguous subarrays sum to exactly 3?</p>
+
+<h4>2. The approach</h4>
+<p>The identity: a subarray <code>nums[i..j]</code> sums to k exactly when <code>prefix[j] - prefix[i-1] == k</code>, i.e. <code>prefix[i-1] == prefix[j] - k</code>. So as the code sweeps left to right maintaining a running prefix sum <code>s</code>, the count of subarrays ending at the current index equals the number of earlier prefix sums equal to <code>s - k</code>. A <code>defaultdict(int)</code> named <code>cnt</code> stores <em>how many times</em> each prefix sum has occurred &mdash; a count, not just presence, because the same prefix sum can recur and each occurrence is a distinct valid start. It is seeded with <code>cnt[0] = 1</code> to represent the empty prefix, which lets a subarray starting at index 0 be counted. Per element: add to <code>s</code>, add <code>cnt[s - k]</code> to the result, then increment <code>cnt[s]</code>. One pass, no nested loop.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>num</th><th>running sum s</th><th>look up cnt[s&minus;3]</th><th>res</th><th>cnt after</th></tr></thead>
+  <tbody>
+    <tr><td>&mdash;</td><td>0</td><td>&mdash;</td><td>0</td><td>{0:1}</td></tr>
+    <tr><td>1</td><td>1</td><td>cnt[-2] = 0</td><td>0</td><td>{0:1, 1:1}</td></tr>
+    <tr><td>2</td><td>3</td><td>cnt[0] = 1</td><td>1</td><td>{0:1, 1:1, 3:1}</td></tr>
+    <tr><td>3</td><td>6</td><td>cnt[3] = 1</td><td>2</td><td>{0:1, 1:1, 3:1, 6:1}</td></tr>
+    <tr><td>-1</td><td>5</td><td>cnt[2] = 0</td><td>2</td><td>{..., 5:1}</td></tr>
+    <tr><td>2</td><td>7</td><td>cnt[4] = 0</td><td>2</td><td>{..., 7:1}</td></tr>
+  </tbody>
+</table>
+<p>Final result: <strong>2</strong> &mdash; the subarrays <code>[1, 2]</code> (indices 0&ndash;1) and <code>[3]</code> (index 2) each sum to 3. The hit at <code>cnt[0]</code> catches <code>[1,2]</code>; the hit at <code>cnt[3]</code> catches the single <code>[3]</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>O(n) time</strong> &mdash; a single pass, O(1) hash operations per element &mdash; and <strong>O(n) space</strong> for the prefix-sum counts in the worst case (all sums distinct). The brute force, summing every <code>(i, j)</code> pair, is O(n&sup2;); for the input sizes Google tests, only the linear version passes.</p>
+
+<h5>The idiomatic detail &mdash; count, and the <code>cnt[0]=1</code> seed</h5>
+<p>Two lines carry the whole solution. Using a <em>counter</em> rather than a set is essential: if prefix sum 5 occurred three times, a subarray ending now with <code>s - k == 5</code> closes <em>three</em> distinct subarrays. And seeding <code>cnt[0] = 1</code> encodes the empty prefix &mdash; without it, any subarray that starts at index 0 (like <code>[1,2]</code> here) goes uncounted. <code>collections.Counter</code> works equally well in place of <code>defaultdict(int)</code>.</p>
+
+<h5>The edge case &mdash; negatives, zeros, and k = 0</h5>
+<p>Negative numbers are the point of the question &mdash; they make prefix sums non-monotonic, which is fine for this approach but fatal for sliding windows. Zeros and <code>k = 0</code> are handled naturally: a run of zeros produces repeated prefix sums, and each repeat is correctly counted as a zero-sum subarray. An empty array returns 0.</p>
+
+<h5>The follow-up &mdash; return the subarrays, or longest one</h5>
+<p>"Return the actual subarrays, not the count." Store a <em>list of indices</em> per prefix sum instead of a bare count, then for each match emit the bounds. "Find the <em>longest</em> subarray summing to k" flips it: store the <em>earliest</em> index for each prefix sum and maximize <code>j - i</code> &mdash; the same prefix-sum-hashmap skeleton, retuned.</p>
+
+<h5>The trap &mdash; the sliding window</h5>
+<p>The instinctive approach &mdash; expand a window, shrink it when the sum exceeds k &mdash; is correct <em>only</em> for non-negative arrays, where the running sum increases monotonically. With a negative number, shrinking the window can never be justified, because a later element might pull the sum back down. Reaching for a window here, without first asking "can the values be negative?", is the single most common failure on this question.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior asks "can the numbers be negative?" up front, rejects the sliding window when the answer is yes, counts prefix-sum <em>frequencies</em> rather than presence, and seeds <code>cnt[0] = 1</code> for subarrays anchored at index 0 &mdash; a junior writes a two-pointer window that silently misreports on negatives.</div>

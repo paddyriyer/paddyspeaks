@@ -1,0 +1,66 @@
+<p>Capital One's procurement team scores suppliers on delivery reliability: what percentage of shipments arrived on or before the scheduled date, then ranks suppliers by that score for a vendor scorecard. The query combines a conditional aggregate with a window <code>RANK()</code> &mdash; and the interview tests whether you can express "on-time rate" cleanly and know how the ranking treats ties.</p>
+
+<h4>1. The source data &mdash; <code>shipments</code></h4>
+<table>
+  <thead><tr><th>supplier_id</th><th>scheduled_date</th><th>actual_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-10</td><td>2026-01-09</td></tr>
+    <tr><td>1</td><td>2026-01-12</td><td>2026-01-12</td></tr>
+    <tr><td>1</td><td>2026-01-15</td><td>2026-01-18</td></tr>
+    <tr><td>2</td><td>2026-01-10</td><td>2026-01-10</td></tr>
+    <tr><td>2</td><td>2026-01-11</td><td>2026-01-11</td></tr>
+    <tr><td>3</td><td>2026-01-10</td><td>2026-01-20</td></tr>
+    <tr><td>3</td><td>2026-01-11</td><td>2026-01-09</td></tr>
+  </tbody>
+</table>
+<p>Supplier 1 has one early, one <em>exactly on time</em> (12th = 12th &mdash; tests <code>&le;</code>), and one late: 2 of 3 on time. Supplier 2 is two-for-two on time. Supplier 3 is one late, one early: 1 of 2. Supplier 2 will top the ranking.</p>
+
+<h4>2. The SQL &mdash; conditional aggregate + <code>RANK()</code></h4>
+<pre><code>SELECT supplier_id,
+  100.0 * SUM(CASE WHEN actual_date &lt;= scheduled_date THEN 1 ELSE 0 END)/COUNT(*) AS on_time_pct,
+  RANK() OVER (ORDER BY 100.0 * SUM(CASE WHEN actual_date &lt;= scheduled_date THEN 1 ELSE 0 END)/COUNT(*) DESC) AS rk
+FROM shipments GROUP BY supplier_id;</code></pre>
+<p>The <code>CASE</code> emits 1 for an on-time shipment and 0 otherwise; <code>SUM</code> of that is the on-time count; dividing by <code>COUNT(*)</code> gives the rate. The <code>RANK()</code> window orders suppliers by that same expression, highest rate first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>supplier_id</th><th>on_time_pct</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>100.0000000000000000</td><td>1</td></tr>
+    <tr><td>1</td><td>66.6666666666666667</td><td>2</td></tr>
+    <tr><td>3</td><td>50.0000000000000000</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Supplier 2 ranks 1st at a perfect 100%. Supplier 1 lands at 66.67% &mdash; note its on-time shipment on the 12th counted <em>because</em> the comparison is <code>&le;</code> (arriving exactly on the scheduled date is on time). Supplier 3 is last at 50%. Each supplier has a distinct rate here, so the ranks are a clean 1, 2, 3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The conditional-aggregate idiom &mdash; <code>SUM(CASE WHEN &hellip; THEN 1 ELSE 0 END)</code></h5>
+<p>This is the canonical way to count rows meeting a condition <em>within</em> a group. The <code>CASE</code> turns each shipment into 1 (on time) or 0 (late); <code>SUM</code> tallies the 1s. Dividing by <code>COUNT(*)</code> &mdash; the total shipments &mdash; yields the rate. The cleaner Postgres equivalent is the <code>FILTER</code> clause, which many interviewers like to see:</p>
+<pre><code>SELECT supplier_id,
+  100.0 * COUNT(*) FILTER (WHERE actual_date &lt;= scheduled_date) / COUNT(*) AS on_time_pct
+FROM shipments GROUP BY supplier_id;</code></pre>
+<p><code>COUNT(*) FILTER (WHERE &hellip;)</code> says exactly what it does. <code>SUM(CASE&hellip;)</code> is the portable form that works on every engine; <code>FILTER</code> is standard SQL but newer. Knowing both, and that they are equivalent, is a senior tell.</p>
+
+<h5>The boundary &mdash; is "on the scheduled date" on time?</h5>
+<p>Supplier 1's shipment on the 12th, scheduled for the 12th, counts as on-time because the test is <code>actual_date &lt;= scheduled_date</code>. Arriving exactly on the due date is almost always considered on time &mdash; <code>&le;</code> is right. With a strict <code>&lt;</code>, that shipment would be "late" and supplier 1 would drop to 33%. Confirm the definition; the operator silently encodes the SLA.</p>
+
+<h5>The integer-division trap &mdash; <code>100.0</code> is load-bearing</h5>
+<p><code>SUM(CASE&hellip;)</code> and <code>COUNT(*)</code> are both integers. Postgres <code>integer / integer</code> truncates: <code>2/3</code> is <code>0</code>, not <code>0.667</code>. Multiplying by the <em>numeric</em> literal <code>100.0</code> <em>before</em> the division promotes the expression to numeric so the result is a real percentage. Write <code>100</code> (integer) instead and supplier 1's 66.67% collapses to 0. The <code>.0</code> is not cosmetic.</p>
+
+<h5>The dialect note &mdash; this would be cleaner with <code>QUALIFY</code></h5>
+<p>The reference repeats the entire on-time-rate expression inside <code>RANK() OVER (ORDER BY &hellip;)</code> &mdash; correct, but verbose and error-prone (two copies must stay in sync). You cannot reference the <code>on_time_pct</code> alias in the same <code>SELECT</code>'s window clause. On Snowflake/BigQuery/DuckDB you would compute the rate once in a subquery and filter or rank with <code>QUALIFY</code>; on Postgres, factor the rate into a CTE so it is written once:</p>
+<pre><code>WITH rates AS (
+  SELECT supplier_id,
+    100.0 * SUM(CASE WHEN actual_date &lt;= scheduled_date THEN 1 ELSE 0 END)/COUNT(*) AS on_time_pct
+  FROM shipments GROUP BY supplier_id
+)
+SELECT supplier_id, on_time_pct,
+       RANK() OVER (ORDER BY on_time_pct DESC) AS rk
+FROM rates;</code></pre>
+<p>Same result, the formula appears once. That refactor is the over-the-bar answer.</p>
+
+<h5>Ties &mdash; <code>RANK</code> vs <code>DENSE_RANK</code>, and NULL dates</h5>
+<p>Here every supplier has a distinct rate, so ranks are 1, 2, 3. But if two suppliers tied at, say, 100%, <code>RANK()</code> gives them both rank 1 and the next supplier rank 3 (a gap); <code>DENSE_RANK()</code> would give 1, 1, 2. Pick the one the scorecard wants. Also watch NULL dates: if <code>actual_date</code> is NULL (shipment not yet delivered), <code>NULL &lt;= scheduled_date</code> is <code>unknown</code>, the <code>CASE</code> falls to <code>ELSE 0</code>, and the shipment counts as <em>late</em> &mdash; which may be wrong if it is simply still in transit. Decide whether undelivered shipments should be excluded from the denominator entirely.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise <code>SUM(CASE WHEN &hellip; THEN 1 ELSE 0 END)</code> as the conditional-count idiom and know <code>COUNT(*) FILTER</code> is its cleaner equivalent, force numeric division with <code>100.0</code>, refactor the duplicated rate expression into a CTE (or <code>QUALIFY</code> on engines that have it), and handle boundary dates and NULL <code>actual_date</code> deliberately rather than letting them default to "late".</div>

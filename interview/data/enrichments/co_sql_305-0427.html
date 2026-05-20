@@ -1,0 +1,31 @@
+<p>Datadog's #1 customer pain: alert fatigue. <strong>Auto-resolved alerts</strong> = false positives. The query classifies monitors into noisy / flaky / actionable.</p>
+
+<h4>2. The SQL — noise classification</h4>
+<pre><code>SELECT monitor_id, COUNT(*) AS fires, SUM(acknowledged) AS acknowledged,
+  SUM(auto_resolved) AS auto_resolved,
+  ROUND(100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0), 1) AS noise_ratio_pct,
+  CASE
+    WHEN 100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0) &gt;= 70 THEN 'noisy'
+    WHEN 100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0) &gt;= 30 THEN 'flaky'
+    ELSE 'actionable'
+  END AS quality
+FROM alerts GROUP BY monitor_id HAVING COUNT(*) &gt;= 3
+ORDER BY noise_ratio_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The 70%/30% calibrated cutoffs</h5>
+<p>From Datadog's published guidelines: 70%+ auto-resolved = monitor needs threshold tuning OR removal. 30-70% = flaky underlying signal. Below 30% = actionable signal.</p>
+
+<h5>The acknowledged-but-not-fixed pattern</h5>
+<p>Acknowledged alerts that auto-resolve (someone noticed but didn't fix) ≠ true acknowledged. Production splits.</p>
+
+<h5>The "snooze creep"</h5>
+<p>Engineers snooze noisy alerts. Each snooze hides the issue but doesn't fix it. Production tracks "snooze count per monitor" — alarming if growing.</p>
+
+<h5>The MTTR cousin metric</h5>
+<p>Mean Time to Resolution = avg time from fire to ack-or-resolve. Combined with noise-rate gives full alert quality picture.</p>
+
+<h5>The on-call burden</h5>
+<p>Datadog dashboards show "alerts per on-call shift". Above 10 = burning out the team. Below 2 = monitors not catching real issues.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 70/30 noise cutoffs, distinguish ack-without-fix from true ack, watch snooze creep as a hidden problem, pair with MTTR for full picture, and tie to on-call burden metric.</div>

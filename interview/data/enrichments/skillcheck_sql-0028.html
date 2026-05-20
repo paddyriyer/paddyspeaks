@@ -1,0 +1,43 @@
+<p>A finance analyst wants two numbers on one line: total order revenue and total refunds issued. The instinct is to join <code>orders</code> to <code>refunds</code> and sum both. But because one order can have many refunds, the join multiplies each order row by its refund count &mdash; and <code>SUM(o.amt)</code> counts that order's amount once per refund. The interviewer is probing whether you understand <strong>join fan-out</strong> and how it corrupts aggregates.</p>
+
+<h4>1. The source data &mdash; <code>orders</code> and <code>refunds</code></h4>
+<table>
+  <thead><tr><th>orders.id</th><th>orders.amt</th><th>matching refunds</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>two refunds: 10 and 20 &mdash; the fan-out case</td></tr>
+    <tr><td>2</td><td>200</td><td>one refund: 5</td></tr>
+    <tr><td>3</td><td>50</td><td>no refunds &mdash; survives the LEFT JOIN as a NULL row</td></tr>
+  </tbody>
+</table>
+<p>Order 1 has <em>two</em> refunds and order 3 has <em>none</em>. After <code>orders LEFT JOIN refunds</code> the result has 4 rows: order 1 appears twice, order 2 once, order 3 once (with NULL refund). That is where the inflation comes from.</p>
+
+<h4>2. The SQL &mdash; both totals via independent scalar subqueries</h4>
+<pre><code>SELECT
+  (SELECT SUM(amt) FROM orders) AS total_orders,
+  (SELECT SUM(refund_amt) FROM refunds) AS total_refunds;</code></pre>
+<p>Each subquery aggregates its own table in isolation &mdash; no join, so no fan-out. <code>orders</code> is summed across exactly 3 rows; <code>refunds</code> across exactly 3 rows. A scalar subquery returns one value, and two of them sit side by side to produce the single output row the question asks for.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>total_orders</th><th>total_refunds</th><th>(commentary)</th></tr></thead>
+  <tbody>
+    <tr><td>350</td><td>35</td><td>100+200+50 and 10+20+5 &mdash; each row counted once</td></tr>
+  </tbody>
+</table>
+<p>Contrast the naive <code>SELECT SUM(o.amt) FROM orders o LEFT JOIN refunds r ON o.id = r.order_id</code>: it returns <strong>450</strong>, not 350. Order 1's 100 is added twice (once per refund row), so the total is inflated by 100. Any join-then-aggregate over a one-to-many relationship has this defect.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the join inflates &mdash; row multiplication</h5>
+<p>A join produces one output row per matching pair. When <code>orders</code> (the "one" side) joins <code>refunds</code> (the "many" side), an order with <em>k</em> refunds appears <em>k</em> times. Every aggregate over a column from the "one" side &mdash; here <code>SUM(o.amt)</code> &mdash; then over-counts by exactly that fan-out factor. The numbers from the "many" side (refunds) are fine; it is the duplicated side that breaks.</p>
+
+<h5>Why independent subqueries are the cleanest fix</h5>
+<p>The two totals are genuinely unrelated computations &mdash; they share no join key and need no row correspondence. Computing them separately keeps each at its natural grain and is trivially correct. It also lets the planner scan each table once with no join cost. When two aggregates come from different tables and you only need scalars, side-by-side subqueries beat any join.</p>
+
+<h5>Alternatives: pre-aggregate, then join</h5>
+<p>If you genuinely need a join (say, per-order detail alongside the refund total), aggregate <em>before</em> joining: <code>orders o LEFT JOIN (SELECT order_id, SUM(refund_amt) r FROM refunds GROUP BY order_id) g ON ...</code>. Now the right side has at most one row per order, so no fan-out. A <code>UNION ALL</code> of two tagged aggregates, or a <code>CROSS JOIN</code> of two single-row aggregate subqueries, also works. The rule: never aggregate the "one" side after a one-to-many join.</p>
+
+<h5>The <code>COUNT(DISTINCT)</code> band-aid is a smell</h5>
+<p>A common "fix" is <code>SUM(DISTINCT o.amt)</code> &mdash; but that is wrong too: if two <em>different</em> orders both happen to be 100, <code>DISTINCT</code> collapses them and you under-count. <code>SUM</code> distinct on a value column is almost never what you want. The correct mental model is to fix the <em>grain</em> of the rows, not to deduplicate the values after the damage is done.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot join fan-out &mdash; a one-to-many join multiplies the "one" side's rows, so <code>SUM</code> over its columns inflates. Fix the grain, not the symptom: compute unrelated totals as independent subqueries, or pre-aggregate the "many" side before joining. <code>SUM(DISTINCT ...)</code> is a trap, not a remedy.</div>

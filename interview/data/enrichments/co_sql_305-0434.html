@@ -1,0 +1,28 @@
+<p>Per-product variant ranking (best color × size combo) drives merchandising decisions. The query uses RANK to surface each product's #1 variant.</p>
+
+<h4>2. The SQL — top-variant per product</h4>
+<pre><code>WITH ranked AS (
+  SELECT product_id, color, size, SUM(units_sold) AS total_units,
+    RANK() OVER (PARTITION BY product_id ORDER BY SUM(units_sold) DESC) AS variant_rank
+  FROM sales GROUP BY product_id, color, size
+)
+SELECT product_id, color, size, total_units FROM ranked
+WHERE variant_rank = 1 ORDER BY total_units DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>RANK vs DENSE_RANK vs ROW_NUMBER</h5>
+<p>RANK keeps ties (multiple variants tied at #1 all show). DENSE_RANK collapses gaps. ROW_NUMBER picks one arbitrarily. RANK is right here — if two variants tie, both deserve recognition.</p>
+
+<h5>Velocity vs absolute</h5>
+<p>Black Medium might be #1 absolute but launched 6 months ago. Yellow Small is #1 in last 30 days. Production filters by date for velocity ranking.</p>
+
+<h5>Margin vs units</h5>
+<p>High-units variants might be the discounted clearance items. High-margin variants are the merchandiser's priority. Switch to <code>SUM(units_sold * margin)</code>.</p>
+
+<h5>The supply constraint</h5>
+<p>"Best variant" can be inflated by under-stock of competing variants. If Yellow Small was out-of-stock, Black Medium captured all sales. Honest analysis controls for inventory availability.</p>
+
+<h5>Cross-sell signal</h5>
+<p>The top variant per product feeds "frequently bought with" recommendations.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> RANK preserves ties, filter by recency for velocity, weight by margin not units, control for inventory availability, and feed cross-sell recommendations.</div>

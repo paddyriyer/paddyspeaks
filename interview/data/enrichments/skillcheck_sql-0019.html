@@ -1,0 +1,68 @@
+<p>A product analytics team needs to <strong>sessionize</strong> a raw event stream: group a user's events into sessions, starting a fresh session whenever they go quiet for more than 30 minutes. Sessionization is a staple of funnel and engagement analysis, and the interviewer is probing the canonical two-step pattern &mdash; flag the session boundaries, then turn those flags into running session numbers.</p>
+
+<h4>1. The source data &mdash; <code>event</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>ts</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 09:00:00</td><td>user 1's first event &mdash; session starts</td></tr>
+    <tr><td>1</td><td>2025-01-01 09:30:00</td><td>gap = exactly 30 min &mdash; the boundary</td></tr>
+    <tr><td>1</td><td>2025-01-01 10:01:00</td><td>gap = 31 min &mdash; new session</td></tr>
+    <tr><td>2</td><td>2025-01-01 08:00:00</td><td>user 2's only event &mdash; single-event session</td></tr>
+    <tr><td>3</td><td>2025-01-01 07:00:00</td><td>user 3 first event</td></tr>
+    <tr><td>3</td><td>2025-01-01 09:00:00</td><td>gap = 120 min &mdash; new session</td></tr>
+  </tbody>
+</table>
+<p>Two edge cases carry the question. User 1's middle gap is <em>exactly</em> 30 minutes &mdash; and the rule is "<em>more than</em> 30", so it must <strong>not</strong> start a new session. User 2 has a single event &mdash; the <code>LAG</code> is NULL and that lone event must still land in session 1.</p>
+
+<h4>2. The SQL &mdash; flag boundaries, then running-sum the flags</h4>
+<pre><code>WITH flagged AS (
+  SELECT
+    user_id,
+    ts,
+    CASE
+      WHEN LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) IS NULL THEN 1
+      WHEN EXTRACT(EPOCH FROM (ts::timestamp - LAG(ts) OVER (PARTITION BY user_id ORDER BY ts)::timestamp))/60 &gt; 30 THEN 1
+      ELSE 0
+    END AS is_new_session
+  FROM event
+)
+SELECT
+  user_id,
+  ts,
+  SUM(is_new_session) OVER (PARTITION BY user_id ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)::int AS session_id
+FROM flagged
+ORDER BY user_id, ts;</code></pre>
+<p><code>LAG</code> fetches the previous event's timestamp per user. The <code>CASE</code> marks <code>is_new_session = 1</code> for the very first event (no <code>LAG</code>) or for any gap over 30 minutes. The outer query runs a cumulative <code>SUM</code> of those flags &mdash; every new-session marker bumps the count.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>ts</th><th>session_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-01 09:00:00</td><td>1</td><td>first event &rarr; flag 1</td></tr>
+    <tr><td>1</td><td>2025-01-01 09:30:00</td><td>1</td><td>gap exactly 30 min &mdash; not &gt; 30 &rarr; flag 0, same session</td></tr>
+    <tr><td>1</td><td>2025-01-01 10:01:00</td><td>2</td><td>gap 31 min &rarr; flag 1, new session</td></tr>
+    <tr><td>2</td><td>2025-01-01 08:00:00</td><td>1</td><td>lone event &mdash; LAG NULL &rarr; flag 1</td></tr>
+    <tr><td>3</td><td>2025-01-01 07:00:00</td><td>1</td><td>first event &rarr; flag 1</td></tr>
+    <tr><td>3</td><td>2025-01-01 09:00:00</td><td>2</td><td>gap 120 min &rarr; flag 1, new session</td></tr>
+  </tbody>
+</table>
+<p>User 1's 09:30 event stays in <strong>session 1</strong>: a 30-minute gap is not <em>more than</em> 30, so the <code>&gt; 30</code> test is false. User 2's single event is <strong>session 1</strong> &mdash; the NULL <code>LAG</code> branch handles the partition's first (and only) row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The flag-then-cumulative-sum pattern</h5>
+<p>This is the standard sessionization shape. Step one converts an inter-row condition (a time gap) into a per-row 0/1 marker with <code>LAG</code> + <code>CASE</code>. Step two runs a cumulative <code>SUM</code> over those markers: because the count only increments where a flag is 1, every row inside a session inherits the same total, and the total <em>is</em> the session id. This same two-step idea solves "islands and gaps" problems generally &mdash; recognise it once and reuse it everywhere.</p>
+
+<h5>The boundary &mdash; <code>&gt; 30</code> is strict, and that matters</h5>
+<p>The rule says "more than 30 minutes", so the predicate is strictly <code>&gt; 30</code>, not <code>&gt;= 30</code>. User 1's exactly-30-minute gap is the test case: with <code>&gt;</code> it stays in the same session; with <code>&gt;=</code> it would wrongly split. Always pin down whether a threshold is inclusive and make the operator match the wording &mdash; off-by-one on a boundary is the most common sessionization bug.</p>
+
+<h5>The first event must seed session 1</h5>
+<p>For each user's earliest event, <code>LAG</code> returns NULL &mdash; there is no prior row. The explicit <code>WHEN LAG(ts) ... IS NULL THEN 1</code> branch handles that: the first event always flags 1, so the cumulative sum starts at 1. Omit that branch and the first event flags 0, every <code>session_id</code> is off by one, and a single-event user like user 2 would land in session 0. The NULL branch is not optional.</p>
+
+<h5><code>PARTITION BY user_id</code> appears in <em>both</em> windows</h5>
+<p>The <code>LAG</code> and the cumulative <code>SUM</code> both partition by <code>user_id</code>, so neither one's previous row nor running total ever crosses a user boundary. Drop the partition from the <code>LAG</code> and a user's first event would compare against the previous <em>user's</em> last event; drop it from the <code>SUM</code> and session numbers would accumulate globally. Sessionization is inherently per-user &mdash; every window must say so.</p>
+
+<h5>Dialect &mdash; timestamp arithmetic and gap windows</h5>
+<p><code>ts</code> is stored as <code>TEXT</code>, so the cast to <code>timestamp</code> is required before subtraction; <code>EXTRACT(EPOCH FROM interval)/60</code> converts the resulting interval to minutes &mdash; idiomatic PostgreSQL. SQL Server would use <code>DATEDIFF(MINUTE, prev, ts)</code>; MySQL <code>TIMESTAMPDIFF(MINUTE, prev, ts)</code>. Storing timestamps as proper <code>timestamp</code> columns rather than text would remove the cast entirely &mdash; a worthwhile schema note.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> sessionize with the two-step flag-then-cumulative-sum pattern, make the gap operator strictly <code>&gt;</code> to match "more than 30 minutes", explicitly seed the first event (NULL <code>LAG</code>) as a new session, and partition <em>every</em> window by user so neither gaps nor counts leak across users.</div>

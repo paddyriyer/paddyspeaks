@@ -1,0 +1,71 @@
+<p>A streaming-service analyst wants a per-month top-3 leaderboard of viewers by total watch time &mdash; the kind of feed that powers a "your top fans this month" panel. The interviewer is probing a partitioned top-N: you must sum minutes per user per month, rank within each month, and keep three per month, with a deterministic tie-break when totals collide.</p>
+
+<h4>1. The source data &mdash; <code>watch</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>started_at</th><th>watched_minutes</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jan (two sessions)</td><td>50 + 70</td><td>Jan total 120</td></tr>
+    <tr><td>2</td><td>Jan</td><td>120</td><td>Jan total 120 &mdash; ties user 1</td></tr>
+    <tr><td>3</td><td>Jan (two sessions)</td><td>40 + 60</td><td>Jan total 100</td></tr>
+    <tr><td>4</td><td>Jan</td><td>130</td><td>Jan total 130 &mdash; the month's top</td></tr>
+    <tr><td>1</td><td>Feb</td><td>180</td><td>Feb total 180</td></tr>
+    <tr><td>2</td><td>Feb</td><td>100</td><td>Feb total 100</td></tr>
+    <tr><td>5</td><td>Feb</td><td>100</td><td>Feb total 100 &mdash; ties user 2</td></tr>
+    <tr><td>6</td><td>Feb</td><td>100</td><td>Feb total 100 &mdash; 3 users tie at 100</td></tr>
+    <tr><td>7</td><td>Feb</td><td>99</td><td>Feb total 99 &mdash; just misses top-3</td></tr>
+  </tbody>
+</table>
+<p>Two engineered ties. In January users 1 and 2 both total 120. In February users 2, 5, 6 all total 100 for the 2nd/3rd/4th slots &mdash; only two of them fit in the top 3, and the rule "smaller user_id wins" must decide which. User 7 at 99 sits just outside.</p>
+
+<h4>2. The SQL &mdash; sum per user-month, rank within month, keep rank &le; 3</h4>
+<pre><code>WITH monthly AS (
+  SELECT DATE_TRUNC('month', started_at)::date AS month_start,
+         user_id,
+         SUM(watched_minutes) AS watched_minutes
+  FROM watch
+  WHERE started_at &gt;= TIMESTAMP '2025-01-01' AND started_at &lt; TIMESTAMP '2026-01-01'
+  GROUP BY 1, 2
+),
+ranked AS (
+  SELECT month_start, user_id, watched_minutes,
+         ROW_NUMBER() OVER (PARTITION BY month_start ORDER BY watched_minutes DESC, user_id) AS rn
+  FROM monthly
+)
+SELECT month_start, user_id, watched_minutes::int AS watched_minutes
+FROM ranked
+WHERE rn &lt;= 3
+ORDER BY month_start, watched_minutes DESC, user_id;</code></pre>
+<p><code>monthly</code> totals each user's minutes per month. <code>ranked</code> assigns a row number within each month, ordered by minutes descending then <code>user_id</code> ascending. <code>WHERE rn &lt;= 3</code> keeps the top three of every month.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month_start</th><th>user_id</th><th>watched_minutes</th><th>commentary</th></tr></thead>
+  <tbody>
+    <tr><td>2025-01-01</td><td>4</td><td>130</td><td>January #1</td></tr>
+    <tr><td>2025-01-01</td><td>1</td><td>120</td><td>tied at 120, smaller id &rarr; ranked above user 2</td></tr>
+    <tr><td>2025-01-01</td><td>2</td><td>120</td><td>tied at 120, #3</td></tr>
+    <tr><td>2025-02-01</td><td>1</td><td>180</td><td>February #1</td></tr>
+    <tr><td>2025-02-01</td><td>2</td><td>100</td><td>3-way tie at 100; user 2 wins #2</td></tr>
+    <tr><td>2025-02-01</td><td>5</td><td>100</td><td>#3 of the tie; user 6 excluded, user 7 (99) misses</td></tr>
+  </tbody>
+</table>
+<p>February's top 3 are users 1, 2, 5. Users 2, 5, 6 all total 100, but the <code>user_id</code> tie-break orders them 2 &lt; 5 &lt; 6, so user 6 is bumped to rank 4 and dropped. User 7's 99 was never in contention. The tie-break is decisive, not cosmetic.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Partitioned top-N &mdash; the canonical pattern</h5>
+<p>"Top 3 per month" is rank-within-group-then-filter. <code>ROW_NUMBER() OVER (PARTITION BY month_start ORDER BY watched_minutes DESC, user_id)</code> restarts the counter for each month and orders viewers by total; <code>WHERE rn &lt;= 3</code> slices the top of each partition. The filter must be in an outer query (or the window in a CTE) because you cannot reference a window alias in the same <code>WHERE</code> &mdash; window functions are computed after <code>WHERE</code>.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> &mdash; the tie behaviour changes the row count</h5>
+<p>This is the crux. With February's three-way tie at 100, <code>ROW_NUMBER</code> assigns 2, 3, 4 (broken by <code>user_id</code>) so <code>rn &lt;= 3</code> yields exactly 3 rows. <code>RANK</code> would assign 2, 2, 2 to all three &mdash; all &le; 3 &mdash; producing <em>four</em> rows for February, contradicting "top 3." The spec's "prefer smaller user_id" tie-break explicitly demands a strict ordering, which is precisely what <code>ROW_NUMBER</code> with a tiebreaker column delivers. If the business genuinely wanted "include everyone tied for 3rd," <code>RANK</code> would be right &mdash; but then row counts vary by month.</p>
+
+<h5>The tie-break is the secondary <code>ORDER BY</code> key</h5>
+<p><code>ORDER BY watched_minutes DESC, user_id</code> encodes the rule directly: equal totals are resolved by ascending <code>user_id</code>. Without that second key, the order among tied users is arbitrary and non-reproducible &mdash; the query could return user 5 or user 6 on different runs. A top-N with possible ties must always carry a deterministic tiebreaker, or the result is unstable.</p>
+
+<h5>The year filter and the redundant-but-honest <code>GROUP BY</code></h5>
+<p><code>started_at &gt;= '2025-01-01' AND started_at &lt; '2026-01-01'</code> is a half-open interval over a <code>TIMESTAMP</code> &mdash; correct, because <code>BETWEEN ... '2025-12-31'</code> would drop the final day's evening sessions. <code>GROUP BY 1, 2</code> references the <code>SELECT</code> positions (<code>month_start</code>, <code>user_id</code>); grouping by the truncated month plus user is what defines the per-user-per-month total. The data is all in 2025, so the filter changes nothing here &mdash; but it makes the query correct for a multi-year table.</p>
+
+<h5>Dialect notes</h5>
+<p><code>DATE_TRUNC('month', ...)</code> is PostgreSQL; MySQL uses <code>DATE_FORMAT(started_at,'%Y-%m-01')</code>, SQL Server <code>DATEFROMPARTS(YEAR(started_at),MONTH(started_at),1)</code>, BigQuery <code>DATE_TRUNC(started_at, MONTH)</code>. <code>ROW_NUMBER() OVER (...)</code> and the <code>rn &lt;= 3</code> filter are standard. SQL Server also offers <code>TOP ... WITH TIES</code>, but that applies to a whole result, not per-partition &mdash; the window-function form is the portable per-group top-N.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> implement per-group top-N with <code>ROW_NUMBER() OVER (PARTITION BY group ORDER BY metric DESC, tiebreak)</code> filtered to <code>rn &lt;= N</code> in an outer query &mdash; choose <code>ROW_NUMBER</code> over <code>RANK</code> so a tie at the cutoff yields exactly N rows, and always carry a tie-break column so the leaderboard is deterministic.</div>

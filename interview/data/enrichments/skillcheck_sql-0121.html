@@ -1,0 +1,49 @@
+<p>A film database stores one row per (actor, director, movie) collaboration. Casting analysts want the recurring partnerships &mdash; actor/director pairs that have made at least three <em>distinct</em> movies together. The interviewer is probing one specific thing: do you reach for <code>COUNT(DISTINCT &hellip;)</code> rather than a plain <code>COUNT(*)</code>, because the source table can contain duplicate rows for the same movie.</p>
+
+<h4>1. The source data &mdash; <code>actor_director</code></h4>
+<table>
+  <thead><tr><th>actor_id</th><th>director_id</th><th>movie_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>10, 11, 12</td><td>3 distinct movies &rarr; qualifies</td></tr>
+    <tr><td>1</td><td>2</td><td>20, 21</td><td>only 2 distinct movies &rarr; below threshold</td></tr>
+    <tr><td>2</td><td>1</td><td>30, 31, 32, 33</td><td>4 distinct movies &rarr; qualifies</td></tr>
+    <tr><td>3</td><td>3</td><td>40, 41, 42</td><td>3 distinct movies&hellip;</td></tr>
+    <tr><td>3</td><td>3</td><td>42</td><td>&hellip;but movie 42 is listed TWICE &mdash; duplicate row</td></tr>
+  </tbody>
+</table>
+<p>The edge case is the last pair. Actor 3 / Director 3 has <em>four</em> rows but only <em>three distinct movies</em> &mdash; movie 42 appears twice. <code>COUNT(*)</code> would read 4 and qualify; <code>COUNT(DISTINCT movie_id)</code> reads 3 and qualifies for the right reason. Actor 1 / Director 2 (only 2 movies) tests the <code>&gt;= 3</code> boundary from below.</p>
+
+<h4>2. The SQL &mdash; GROUP BY the pair, HAVING on distinct movie count</h4>
+<pre><code>SELECT actor_id, director_id
+FROM actor_director
+GROUP BY actor_id, director_id
+HAVING COUNT(DISTINCT movie_id) &gt;= 3
+ORDER BY actor_id, director_id;</code></pre>
+<p><code>GROUP BY actor_id, director_id</code> forms one group per partnership. <code>COUNT(DISTINCT movie_id)</code> counts the unique movies inside each group, and <code>HAVING</code> keeps only the groups whose count reaches 3.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>actor_id</th><th>director_id</th><th>why it qualifies</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>movies 10, 11, 12 &mdash; 3 distinct</td></tr>
+    <tr><td>2</td><td>1</td><td>movies 30&ndash;33 &mdash; 4 distinct</td></tr>
+    <tr><td>3</td><td>3</td><td>movies 40, 41, 42 &mdash; 3 distinct (the duplicate 42 counts once)</td></tr>
+  </tbody>
+</table>
+<p>Actor 1 / Director 2 is correctly absent &mdash; two distinct movies, below the threshold. Actor 3 / Director 3 qualifies on <strong>3</strong>, not 4: <code>COUNT(DISTINCT movie_id)</code> deduplicates movie 42 before counting. A <code>COUNT(*)</code> would have admitted it on a phantom fourth movie.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(DISTINCT)</code> vs <code>COUNT(*)</code> &mdash; the question hinges on it</h5>
+<p><code>COUNT(*)</code> counts <em>rows</em>; <code>COUNT(DISTINCT movie_id)</code> counts <em>unique values</em>. They diverge exactly when the table has duplicate (actor, director, movie) rows &mdash; which the fixture deliberately includes. The business question says "distinct movies", so the metric must dedupe. Whenever a count is supposed to mean "how many different things", reach for <code>DISTINCT</code> unless you can prove the source is already unique on that column.</p>
+
+<h5>HAVING vs WHERE &mdash; filter the right object</h5>
+<p><code>WHERE</code> filters rows <em>before</em> grouping; <code>HAVING</code> filters groups <em>after</em> aggregation. A per-group condition like "count &ge; 3" cannot go in <code>WHERE</code> &mdash; the count does not exist until rows are grouped. <code>HAVING COUNT(DISTINCT movie_id) &gt;= 3</code> is the correct place. (If you also needed, say, only released movies, that row-level test <em>would</em> go in <code>WHERE</code> &mdash; the two clauses are complementary, not interchangeable.)</p>
+
+<h5>Composite grouping key &mdash; the pair, not either column alone</h5>
+<p><code>GROUP BY actor_id, director_id</code> groups on the <em>combination</em>. Grouping by <code>actor_id</code> alone would merge an actor's work across all directors and miscount the partnership; grouping by <code>director_id</code> alone has the mirror flaw. The unit of analysis is the actor&ndash;director <em>pair</em>, so both columns form the key &mdash; and both are correctly projected in <code>SELECT</code> because both appear in <code>GROUP BY</code>.</p>
+
+<h5>What a senior says next &mdash; dedupe upstream, or accept the cost</h5>
+<p>The duplicate row for movie 42 is a data-quality smell. <code>COUNT(DISTINCT)</code> defends the query against it, but a senior also flags that the table probably <em>should</em> have a unique constraint on <code>(actor_id, director_id, movie_id)</code>, and notes the trade-off: <code>COUNT(DISTINCT)</code> forces a per-group sort/hash and is measurably heavier than <code>COUNT(*)</code> on large tables. If the table were guaranteed unique by constraint, plain <code>COUNT(*)</code> would be both correct and faster &mdash; naming that conditional optimisation is the senior signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> read "distinct movies" as a literal instruction to use <code>COUNT(DISTINCT movie_id)</code> so duplicate rows do not inflate the count, put the per-group threshold in <code>HAVING</code> (not <code>WHERE</code>), group on the composite (actor, director) key, and flag that a unique constraint upstream would make a cheaper <code>COUNT(*)</code> safe.</div>

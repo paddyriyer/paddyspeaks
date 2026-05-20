@@ -1,0 +1,69 @@
+<p>An e-commerce company tracks product page views and wants the customers who viewed the <em>same</em> product on more than three consecutive days &mdash; a strong purchase-intent signal. The reference solution takes a fixed-window <code>LAG</code> approach: look back three rows and check every step is one day apart. The interviewer is probing whether you can detect a run of length 4+ and whether you see the limits of a hardcoded-window method.</p>
+
+<h4>1. The source data &mdash; <code>productviews</code></h4>
+<table>
+  <thead><tr><th>ViewID</th><th>CustomerID</th><th>ProductID</th><th>ViewDate</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1</td><td>50</td><td>2025-06-01</td></tr>
+    <tr><td>2</td><td>1</td><td>50</td><td>2025-06-02</td></tr>
+    <tr><td>3</td><td>1</td><td>50</td><td>2025-06-03</td></tr>
+    <tr><td>4</td><td>1</td><td>50</td><td>2025-06-04</td></tr>
+    <tr><td>5</td><td>2</td><td>60</td><td>2025-06-01</td></tr>
+    <tr><td>6</td><td>2</td><td>60</td><td>2025-06-02</td></tr>
+    <tr><td>7</td><td>2</td><td>60</td><td>2025-06-04</td></tr>
+    <tr><td>8</td><td>3</td><td>70</td><td>2025-06-10</td></tr>
+    <tr><td>9</td><td>3</td><td>70</td><td>2025-06-11</td></tr>
+    <tr><td>10</td><td>3</td><td>70</td><td>2025-06-12</td></tr>
+    <tr><td>11</td><td>3</td><td>70</td><td>2025-06-13</td></tr>
+    <tr><td>12</td><td>3</td><td>70</td><td>2025-06-14</td></tr>
+  </tbody>
+</table>
+<p>Customer 2 is the boundary edge case: views on Jun 1, 2, 4 &mdash; a gap on Jun 3 means the longest run is only 2 days, not enough. Customer 1 has exactly 4 consecutive days; customer 3 has 5.</p>
+
+<h4>2. The SQL &mdash; three-deep <code>LAG</code> window</h4>
+<pre><code>WITH t1 AS (
+  SELECT viewid, customerid, productid, viewdate,
+    LAG(viewdate, 1) OVER (PARTITION BY customerid, productid ORDER BY viewdate ASC) AS previousday1,
+    LAG(viewdate, 2) OVER (PARTITION BY customerid, productid ORDER BY viewdate ASC) AS previousday2,
+    LAG(viewdate, 3) OVER (PARTITION BY customerid, productid ORDER BY viewdate ASC) AS previousday3
+  FROM productviews
+), diffs AS (
+  SELECT *,
+    viewdate::date     - previousday1::date AS d1,
+    previousday1::date - previousday2::date AS d2,
+    previousday2::date - previousday3::date AS d3
+  FROM t1
+)
+SELECT DISTINCT customerid, productid
+FROM diffs
+WHERE d1 = 1 AND d2 = 1 AND d3 = 1;</code></pre>
+<p><em>(The original regex-guarded date casts are simplified here for clarity &mdash; with a typed <code>DATE</code> column the casts are no-ops and the run executes identically.)</em></p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customerid</th><th>productid</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>50</td><td>Jun 1&ndash;4 &mdash; 4 consecutive days, all 3 back-steps = 1</td></tr>
+    <tr><td>3</td><td>70</td><td>Jun 10&ndash;14 &mdash; 5 consecutive days, qualifies</td></tr>
+  </tbody>
+</table>
+<p>Customer 2 is correctly absent &mdash; the Jun 3 gap means no row has three consecutive 1-day back-steps. The query returns exactly the customer/product pairs with a 4+ day run.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>How the fixed-window check works</h5>
+<p>Three <code>LAG</code>s, partitioned by <code>(customerid, productid)</code> and ordered by date, expose the current view date and its three predecessors on one row. If all three step-differences (<code>d1, d2, d3</code>) equal 1, that row is the <em>4th day</em> of an unbroken run &mdash; meaning the customer viewed the product on four consecutive days. <code>DISTINCT</code> collapses the possibly-many qualifying rows of one run to a single pair.</p>
+
+<h5>"More than three" means a window of exactly three back-steps</h5>
+<p>Four consecutive days produce three one-day gaps. So "more than 3 consecutive days" maps to "3 prior days all one step apart" &mdash; the <code>LAG(.., 3)</code> depth. A common off-by-one is checking only <code>d1</code> and <code>d2</code> (a 3-day run) or going to <code>LAG(.., 4)</code> (a 5-day run). Re-derive the depth from the boundary: <em>N</em> consecutive days &rArr; <em>N</em>&minus;1 back-steps.</p>
+
+<h5>The NULL behaviour at the start of each partition handles itself</h5>
+<p>For the first three rows of any <code>(customer, product)</code> partition, at least one <code>LAG</code> returns NULL, so the corresponding difference is NULL, and <code>d1 = 1 AND d2 = 1 AND d3 = 1</code> evaluates to unknown &mdash; the row is excluded. That is correct: a run cannot be confirmed until a 4th day exists. No explicit NULL guard is needed.</p>
+
+<h5>The real weakness &mdash; the window is hardcoded</h5>
+<p>This solution answers "exactly &gt; 3" but does not generalise. If the threshold becomes "&gt; 7 consecutive days" you must bolt on four more <code>LAG</code>s and four more comparisons. The scalable answer is gaps-and-islands: assign <code>ROW_NUMBER() OVER (PARTITION BY customerid, productid ORDER BY viewdate)</code>, compute <code>viewdate - row_number * INTERVAL '1 day'</code> as an island key (constant within a run), then <code>GROUP BY customerid, productid, island_key HAVING COUNT(*) &gt; 3</code>. One query, any threshold. Naming this as the better approach is the senior move.</p>
+
+<h5>The duplicate-date trap</h5>
+<p>If a customer views the same product <em>twice on one day</em>, a step difference becomes 0, silently breaking the run &mdash; or, in the gaps-and-islands variant, <code>ROW_NUMBER</code> splits the island. Deduplicate first with <code>SELECT DISTINCT customerid, productid, viewdate</code> (or use <code>DENSE_RANK</code>). View tables almost always contain same-day repeats, so this caveat is not hypothetical.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> derive the window depth from the boundary (4+ days &rArr; 3 one-day back-steps), note the leading-NULL rows exclude themselves correctly, then call out that the hardcoded triple-<code>LAG</code> does not scale &mdash; the gaps-and-islands form (<code>viewdate - ROW_NUMBER()</code> island key, <code>HAVING COUNT(*) &gt; 3</code>) handles any threshold &mdash; and deduplicate same-day views first.</div>

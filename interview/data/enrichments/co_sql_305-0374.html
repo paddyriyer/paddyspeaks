@@ -1,0 +1,32 @@
+<p>Spotify's path-to-paid centers on the 30-day Premium trial. Country-level conversion divergence (50% in US, 12% in IN) maps to local affordability + payment-method coverage.</p>
+
+<h4>2. The SQL — per-country conversion + cancel</h4>
+<pre><code>SELECT country,
+  COUNT(*) AS trials,
+  COUNT(converted_to_paid) AS converted,
+  ROUND(100.0 * COUNT(converted_to_paid) / NULLIF(COUNT(*), 0), 1) AS conversion_pct,
+  COUNT(CASE WHEN cancelled_at IS NOT NULL THEN 1 END) AS cancelled
+FROM trials
+GROUP BY country
+HAVING COUNT(*) &gt;= 3
+ORDER BY conversion_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The COUNT(col) idiom</h5>
+<p><code>COUNT(converted_to_paid)</code> counts non-NULL values — a clean way to count "converted" without CASE. Sequential funnel gates use this pattern repeatedly.</p>
+
+<h5>The local-affordability breakdown</h5>
+<p>Premium-monthly varies: $9.99 US, ₹119 India, R$ 19.90 Brazil. Conversion rate is sensitive to local-monthly-as-% of GDP. Production overlays affordability in the same chart.</p>
+
+<h5>The payment-method coverage</h5>
+<p>India's primary payment is UPI; if Spotify hasn't enabled UPI in market X, conversion suffers regardless of affordability. Always join to <code>country_payment_method_coverage</code> before declaring "country X is hard".</p>
+
+<h5>Family / Duo plan offset</h5>
+<p>Some markets prefer Family ($14.99 / 6 users) over individual. Splitting "converted" by which plan reveals: India might convert at 12% individual but 22% family.</p>
+
+<h5>In-flight cohort exclusion</h5>
+<p>Cohorts that signed up in the last 30 days haven't completed trial yet. Filter:</p>
+<pre><code>WHERE julianday(trial_start) &lt;= julianday('2024-04-01') - 30</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> use COUNT(col) for non-NULL gates, overlay affordability + payment-coverage to explain country variance, split by plan type (individual vs family), and exclude in-flight cohorts.</div>

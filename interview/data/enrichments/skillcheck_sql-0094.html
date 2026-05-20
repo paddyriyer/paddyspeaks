@@ -1,0 +1,69 @@
+<p>A lifecycle analyst needs the classic signup &rarr; confirm &rarr; purchase funnel for the October 2025 cohort, reported as conversion percentages. The subtle part: every downstream event must occur <em>after</em> the user's signup, and a purchase only counts if the user also confirmed first. The interviewer is checking whether you respect event ordering and cohort boundaries instead of naively counting "did this user ever confirm".</p>
+
+<h4>1. The source data &mdash; <code>signup_event</code>, <code>confirm_event</code>, <code>purchase_event</code></h4>
+<table>
+  <thead><tr><th>table</th><th>user_id</th><th>timestamp</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>signup</td><td>1</td><td>2025-10-01 09:00</td><td>October cohort</td></tr>
+    <tr><td>signup</td><td>2</td><td>2025-10-02 09:00</td><td>October cohort</td></tr>
+    <tr><td>signup</td><td>3</td><td>2025-10-05 09:00</td><td>October cohort</td></tr>
+    <tr><td>signup</td><td>4</td><td>2025-10-10 09:00</td><td>October cohort</td></tr>
+    <tr><td>signup</td><td>5</td><td>2025-10-20 09:00</td><td>October cohort</td></tr>
+    <tr><td>signup</td><td>6</td><td>2025-09-30 09:00</td><td>September &mdash; outside cohort, excluded</td></tr>
+    <tr><td>confirm</td><td>5</td><td>2025-10-19 10:00</td><td>BEFORE user 5's signup &mdash; must not count</td></tr>
+    <tr><td>purchase</td><td>2</td><td>2025-10-01 09:00</td><td>BEFORE user 2's signup &mdash; must not count</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are deliberate booby-traps. User 6 signed up in September and must be excluded from the cohort. User 5 has a confirm timestamp <em>earlier</em> than their signup &mdash; a data anomaly that an after-signup filter must reject. User 2 has a purchase <em>before</em> signup, which also must not count. Users 1, 2, 3 confirm correctly (after signup); only user 1 then purchases after confirming.</p>
+
+<h4>2. The SQL &mdash; ordered-event funnel with cohort fencing</h4>
+<pre><code>WITH oct_signups AS (
+  SELECT user_id, signed_up_at
+  FROM signup_event
+  WHERE signed_up_at &gt;= TIMESTAMP '2025-10-01' AND signed_up_at &lt; TIMESTAMP '2025-11-01'
+),
+confirmed AS (
+  SELECT DISTINCT s.user_id
+  FROM oct_signups s
+  JOIN confirm_event c ON c.user_id = s.user_id AND c.confirmed_at &gt; s.signed_up_at
+),
+purchased AS (
+  SELECT DISTINCT s.user_id
+  FROM oct_signups s
+  JOIN confirm_event c ON c.user_id = s.user_id AND c.confirmed_at &gt; s.signed_up_at
+  JOIN purchase_event p ON p.user_id = s.user_id AND p.purchased_at &gt; c.confirmed_at
+)
+SELECT (SELECT COUNT(*) FROM oct_signups)::int AS signups,
+       ROUND(100.0 * (SELECT COUNT(*) FROM confirmed)
+             / NULLIF((SELECT COUNT(*) FROM oct_signups),0), 2) AS confirm_pct,
+       ROUND(100.0 * (SELECT COUNT(*) FROM purchased)
+             / NULLIF((SELECT COUNT(*) FROM oct_signups),0), 2) AS purchase_pct;</code></pre>
+<p>Each funnel stage joins on <code>user_id</code> <em>and</em> a strict time inequality. <code>DISTINCT</code> collapses users who have several confirm or purchase rows to one. The final row divides each stage's headcount by the cohort size.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>signups</th><th>confirm_pct</th><th>purchase_pct</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>60.00</td><td>40.00</td></tr>
+  </tbody>
+</table>
+<p>5 signups (user 6 excluded). 3 of 5 confirmed after signup &mdash; users 1, 2, 3 &mdash; so <code>confirm_pct = 60.00</code>; user 5's pre-signup confirm is correctly rejected. 2 of 5 purchased after confirming &mdash; user 1 (purchase 10-15, after confirm 10-01) and user 3 (purchase 10-30, after confirm 10-05) &mdash; so <code>purchase_pct = 40.00</code>. User 2 is excluded from the purchase stage: their purchase (10-01) preceded their confirm (10-02), failing <code>purchased_at &gt; confirmed_at</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The funnel is built on <em>ordered</em> joins, not membership joins</h5>
+<p>A weak answer joins on <code>user_id</code> alone &mdash; "did this user ever confirm?". The question demands causality: confirm must follow signup, purchase must follow confirm. Encoding <code>c.confirmed_at &gt; s.signed_up_at</code> in the join condition is what rejects user 5's anomalous early confirm. The funnel's correctness lives in those inequalities; drop them and you count noise as conversion.</p>
+
+<h5>Why <code>purchased</code> re-joins <code>confirm_event</code></h5>
+<p><code>purchase_pct</code> is defined as users who confirmed <em>and then</em> purchased &mdash; not all signups who purchased. So the <code>purchased</code> CTE must pass through the confirm stage too, and <code>p.purchased_at &gt; c.confirmed_at</code> enforces the second ordering. A purchase that precedes the confirm does not count. Re-deriving the chain from scratch is clearer than trying to reuse <code>confirmed</code> and bolt purchases on.</p>
+
+<h5><code>DISTINCT</code> guards against fan-out</h5>
+<p>If a user confirmed twice (or has multiple purchase rows), the join produces multiple rows for that user, and a bare <code>COUNT(*)</code> would over-count the funnel stage &mdash; conversion could exceed 100%. <code>SELECT DISTINCT user_id</code> reduces each CTE to one row per user, so the counts are genuine headcounts. This is the most common funnel bug: counting <em>events</em> when the metric is <em>users</em>.</p>
+
+<h5>The cohort fence: half-open interval beats <code>BETWEEN</code> on timestamps</h5>
+<p><code>signed_up_at &gt;= '2025-10-01' AND signed_up_at &lt; '2025-11-01'</code> is a half-open range &mdash; it captures every instant in October including 23:59:59.999 and excludes November cleanly. <code>BETWEEN '2025-10-01' AND '2025-10-31'</code> is the classic trap: <code>2025-10-31</code> as a timestamp is midnight, so all of October 31st's daytime activity is silently dropped. For timestamp ranges, always use <code>&gt;= start AND &lt; next_start</code>.</p>
+
+<h5><code>NULLIF</code> on the denominator and the <code>100.0</code> literal</h5>
+<p><code>NULLIF((SELECT COUNT(*) FROM oct_signups), 0)</code> turns a zero cohort into <code>NULL</code>, so the division yields <code>NULL</code> instead of a divide-by-zero error &mdash; the report degrades gracefully for an empty month. And the multiplier is <code>100.0</code>, not <code>100</code>: a numeric literal forces floating-point division. With integer <code>100</code> and integer counts, <code>3/5</code> would truncate to <code>0</code> and every percentage would collapse to <code>0.00</code> or <code>100.00</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> build funnels with ordered joins (<code>confirmed_at &gt; signed_up_at</code>, <code>purchased_at &gt; confirmed_at</code>) not bare membership joins, <code>DISTINCT</code> each stage to count users not events, fence the cohort with a half-open timestamp range, and force float division with <code>100.0</code> while guarding the denominator with <code>NULLIF</code>.</div>

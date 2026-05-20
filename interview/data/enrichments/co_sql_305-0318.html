@@ -1,0 +1,133 @@
+<p>The mirror image of the streak question: <em>"find every user who stopped watching for more than 30 days &mdash; the <strong>churntential</strong> gap."</em> Each gap is a candidate winback target. The query is one of the cleanest applications of <code>LEAD</code>: compare each viewing day to the next viewing day; if the difference exceeds the threshold, you've found a gap.</p>
+
+<h4>1. The source data &mdash; <code>user_views</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>view_date</th><th>narrative</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>2026-04-01</td><td>active</td></tr>
+    <tr><td>U_001</td><td>2026-04-02</td><td>active &mdash; gap of 1</td></tr>
+    <tr><td>U_001</td><td>2026-05-15</td><td>came back &mdash; <strong>gap of 43 days</strong></td></tr>
+    <tr><td>U_001</td><td>2026-05-16</td><td>active</td></tr>
+    <tr><td>U_002</td><td>2026-04-01</td><td>active</td></tr>
+    <tr><td>U_002</td><td>2026-04-15</td><td>active (14-day gap, under threshold)</td></tr>
+    <tr><td>U_003</td><td>2026-04-01</td><td>last seen, no return &mdash; <strong>open-ended gap</strong></td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; <code>LEAD</code> + threshold filter</h4>
+<pre><code>WITH user_activity AS (
+  SELECT user_id, view_date,
+    LEAD(view_date) OVER (PARTITION BY user_id ORDER BY view_date) AS next_view_date
+  FROM (SELECT DISTINCT user_id, view_date FROM user_views) t
+)
+SELECT user_id,
+  view_date AS gap_start_date,
+  next_view_date AS gap_end_date,
+  (next_view_date - view_date) AS gap_duration
+FROM user_activity
+WHERE (next_view_date - view_date) &gt; 30;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why <code>LEAD</code> not <code>LAG</code></h5>
+<p>Both work; the choice is about how you want to label the gap:</p>
+<ul>
+  <li><strong>LEAD</strong>: each row is "this view, and the next view is N days later". The gap is associated with the <em>start</em> of the inactive period.</li>
+  <li><strong>LAG</strong>: each row is "this view, and the previous view was N days ago". The gap is associated with the <em>end</em> of the inactive period (the "comeback" day).</li>
+</ul>
+<p>LEAD is more natural for "who's about to fall off?" reports. LAG is more natural for "who came back from long gaps?" reports.</p>
+
+<h5>The DISTINCT inner query is non-negotiable</h5>
+<p>Same as in the streak problem: a user with 5 events on the same day creates 5 rows, and LEAD then sees consecutive same-day events with gap=0 &mdash; junk rows. Always dedupe to one row per (user, day) before LEAD.</p>
+
+<h5>Open-ended gaps &mdash; the user who never came back</h5>
+<p>U_003 has only one row, so <code>LEAD(view_date) IS NULL</code> &mdash; the gap is "infinity". The query above silently drops these because <code>NULL - date IS NULL</code> and <code>NULL &gt; 30 IS NULL IS FALSE</code>. To capture them as a separate bucket:</p>
+<pre><code>SELECT user_id,
+  view_date AS last_seen,
+  next_view_date,
+  CASE
+    WHEN next_view_date IS NULL THEN CURRENT_DATE - view_date
+    ELSE next_view_date - view_date
+  END AS gap_duration,
+  CASE
+    WHEN next_view_date IS NULL                        THEN 'open_gap'
+    WHEN next_view_date - view_date &gt; 90               THEN 'churn_recovered'
+    WHEN next_view_date - view_date &gt; 30               THEN 'extended_gap'
+    ELSE 'normal'
+  END AS gap_type
+FROM user_activity
+WHERE next_view_date IS NULL OR next_view_date - view_date &gt; 30;</code></pre>
+
+<h5>The 30-day threshold &mdash; calibrate from data</h5>
+<p>Why 30? Netflix's published "active subscriber" definition uses 28-30 days. Other businesses tune differently:</p>
+<ul>
+  <li>Spotify daily-listening: 7-day gap is concerning</li>
+  <li>Booking.com: 90-day gap is normal (annual travel cadence)</li>
+  <li>Fitness apps: 3-day gap is the early-churn signal</li>
+</ul>
+<p>The senior approach: calibrate the threshold from the <em>distribution of inter-event gaps among confirmed-active users</em>. Take the 90th percentile of those gaps as the "concerning gap" threshold &mdash; data-driven, not Mixpanel-template.</p>
+
+<h5>The "gap-during-active" metric &mdash; multiple gaps per user</h5>
+<p>The query emits <em>every</em> qualifying gap. A user might have multiple "took a break" episodes. To get one row per user with their longest gap:</p>
+<pre><code>SELECT user_id, MAX(next_view_date - view_date) AS longest_gap
+FROM user_activity
+WHERE next_view_date IS NOT NULL
+GROUP BY user_id;</code></pre>
+
+<h5>The "gap pattern" diagnostic</h5>
+<p>Same gap distribution can mean different things:</p>
+<table>
+  <thead><tr><th>pattern</th><th>signal</th><th>action</th></tr></thead>
+  <tbody>
+    <tr><td>One 60-day gap, then continuous activity</td><td>vacation / work crunch / illness</td><td>they came back &mdash; do nothing</td></tr>
+    <tr><td>Three 30-day gaps over 6 months</td><td>declining engagement</td><td>winback campaign</td></tr>
+    <tr><td>One 60-day gap, no recovery</td><td>churned</td><td>final-push promo</td></tr>
+    <tr><td>Random pattern, long stretches off</td><td>seasonal viewer</td><td>seasonal re-engagement</td></tr>
+  </tbody>
+</table>
+
+<h5>Combining with streaks &mdash; the full lifecycle picture</h5>
+<p>Streaks (consecutive activity) and gaps (consecutive inactivity) are duals. The customer_growth-0020 question stitches them together with an <code>exit_status</code> CASE. Production retention dashboards always show both:</p>
+<pre><code>WITH streaks AS (/* ... */),
+gaps AS (/* the LEAD query */)
+SELECT u.user_id,
+  COUNT(DISTINCT s.streak_id)                        AS lifetime_streaks,
+  MAX(s.streak_days)                                 AS longest_streak,
+  COUNT(DISTINCT g.gap_start_date)                   AS lifetime_gaps_over_30d,
+  MAX(g.gap_duration)                                AS longest_gap_days
+FROM users u
+LEFT JOIN streaks s USING (user_id)
+LEFT JOIN gaps g    USING (user_id)
+GROUP BY u.user_id;</code></pre>
+
+<h5>The "rolling" version &mdash; gaps in the last 90 days only</h5>
+<p>The original query looks across the user's entire history. For "who's at risk <em>right now</em>?", filter to a recent window:</p>
+<pre><code>WITH recent AS (
+  SELECT DISTINCT user_id, view_date
+  FROM user_views
+  WHERE view_date &gt;= CURRENT_DATE - INTERVAL '180 days'
+)
+/* then run the LEAD logic on `recent` instead of `user_views` */</code></pre>
+
+<h5>The dialect note for date subtraction</h5>
+<pre><code>-- Postgres / DuckDB: date - date = integer (days)
+next_view_date - view_date
+
+-- BigQuery: DATE_DIFF
+DATE_DIFF(next_view_date, view_date, DAY)
+
+-- Snowflake: DATEDIFF
+DATEDIFF(DAY, view_date, next_view_date)
+
+-- SQLite: julianday
+julianday(next_view_date) - julianday(view_date)</code></pre>
+
+<h5>Production-grade alerting</h5>
+<p>The query result feeds a daily PagerDuty rule:</p>
+<ul>
+  <li>Distinct users with new 30-day gaps starting today &gt; 5% of yesterday's DAU &rarr; product-issue smoke alarm.</li>
+  <li>Distribution shift in <code>gap_duration</code> over 30 days &rarr; cohort regression in growth review.</li>
+  <li>Specific "high-LTV" users entering new gaps &rarr; CRM team manual outreach.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> the LEAD-with-threshold idiom in one breath, surface the open-ended-gap edge case (no LEAD partner) and the dedup requirement, and split "gap" into multiple actionable buckets (open / extended / recovered). The data-driven threshold calibration (90th percentile of inter-event gaps) and combined streaks+gaps lifecycle stitch are the over-the-bar finish.</div>

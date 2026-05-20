@@ -1,0 +1,37 @@
+<p>Amazon's Prime team tracks the trial → paid → renewal funnel as the leading indicator of subscriber LTV. The query is a single SELECT with three <code>COUNT</code> conversions chained — uses the COUNT-of-non-NULL idiom.</p>
+
+<h4>1. The source data — <code>prime_subs</code></h4>
+<table><thead><tr><th>user_id</th><th>trial_started</th><th>trial_converted</th><th>first_renewal</th><th>cancelled_at</th></tr></thead>
+<tbody><tr><td>U_001</td><td>Apr 1</td><td>May 1</td><td>Jun 1</td><td>NULL</td></tr></tbody></table>
+
+<h4>2. The SQL — chained COUNT-of-non-NULL</h4>
+<pre><code>SELECT
+  COUNT(*) AS trials,
+  COUNT(trial_converted) AS converted,
+  COUNT(first_renewal)   AS renewed,
+  ROUND(100.0 * COUNT(trial_converted) / NULLIF(COUNT(*), 0), 1) AS trial_to_paid_pct,
+  ROUND(100.0 * COUNT(first_renewal)   / NULLIF(COUNT(trial_converted), 0), 1) AS paid_to_renew_pct,
+  ROUND(100.0 * COUNT(first_renewal)   / NULLIF(COUNT(*), 0), 1) AS overall_renewal_pct
+FROM prime_subs;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The COUNT(col) idiom</h5>
+<p><code>COUNT(col)</code> counts non-NULL values. Replaces <code>SUM(CASE WHEN col IS NOT NULL THEN 1 END)</code>. Cleaner for sequential funnel gates.</p>
+
+<h5>The compounding gates</h5>
+<p>Trial→Paid 80% × Paid→Renew 70% = Overall 56%. Track all three so you know which gate is leakiest. Trial→Paid 80% with overall 30% means renewal is collapsing.</p>
+
+<h5>The cohort dimension</h5>
+<p>Add cohort_week to GROUP BY to see if 80% trial→paid is consistent OR drifting:</p>
+<pre><code>GROUP BY substr(trial_started, 1, 7) AS cohort_month</code></pre>
+
+<h5>Net vs gross renewal</h5>
+<p>"Renewed" should exclude users who cancelled BEFORE the renewal kicked in. Production form:</p>
+<pre><code>COUNT(CASE WHEN first_renewal IS NOT NULL AND (cancelled_at IS NULL OR cancelled_at &gt; first_renewal) THEN 1 END)</code></pre>
+
+<h5>The in-flight cohort hide</h5>
+<p>Cohorts that signed up &lt; 1 month ago haven't had a chance to convert — their conversion rate is artificially 0%. Filter:</p>
+<pre><code>WHERE julianday(trial_started) &lt;= julianday('now') - 30</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> the COUNT-of-non-NULL idiom for sequential funnels, hide in-flight cohorts, distinguish gross vs net renewal, and split by cohort to detect drift.</div>

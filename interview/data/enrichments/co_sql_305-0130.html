@@ -1,0 +1,76 @@
+<p>Quarter-end at a SaaS company. The CRO needs the standard board-pack revenue table: months as rows, regions as columns. The raw <code>revenue</code> table is in <em>narrow / long</em> format — one row per (month × region). Tableau would struggle with that shape; the board wants <em>wide</em>. Conditional aggregation is the canonical SQL way to pivot without leaving the database.</p>
+
+<h4>1. The source data — narrow format</h4>
+<table>
+  <thead><tr><th>month</th><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01</td><td>North</td><td>$420,000</td></tr>
+    <tr><td>2026-01</td><td>South</td><td>$310,000</td></tr>
+    <tr><td>2026-01</td><td>East</td><td>$180,000</td></tr>
+    <tr><td>2026-01</td><td>West</td><td>$510,000</td></tr>
+    <tr><td>2026-02</td><td>North</td><td>$455,000</td></tr>
+    <tr><td>2026-02</td><td>South</td><td>$298,000</td></tr>
+    <tr><td>2026-02</td><td>East</td><td>$210,000</td></tr>
+    <tr><td>2026-02</td><td>West</td><td>$542,000</td></tr>
+    <tr><td>2026-03</td><td>North</td><td>$489,000</td></tr>
+    <tr><td>2026-03</td><td>South</td><td>$325,000</td></tr>
+    <tr><td>2026-03</td><td>East</td><td>$245,000</td></tr>
+    <tr><td>2026-03</td><td>West</td><td>$580,000</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — conditional aggregation pivot</h4>
+<p>One <code>SUM(CASE WHEN ...)</code> per output column. Group by the dimension that becomes the row (month). The CASE collapses to NULL for non-matching rows, which <code>SUM</code> ignores by default — exactly what you want.</p>
+<pre><code>SELECT
+  month,
+  SUM(CASE WHEN region = 'North' THEN amount END) AS north,
+  SUM(CASE WHEN region = 'South' THEN amount END) AS south,
+  SUM(CASE WHEN region = 'East'  THEN amount END) AS east,
+  SUM(CASE WHEN region = 'West'  THEN amount END) AS west,
+  SUM(amount)                                     AS total
+FROM revenue
+GROUP BY month
+ORDER BY month;</code></pre>
+
+<h4>3. The resulting board-pack table</h4>
+<table>
+  <thead><tr><th>month</th><th>North</th><th>South</th><th>East</th><th>West</th><th>Total</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01</td><td>$420,000</td><td>$310,000</td><td>$180,000</td><td>$510,000</td><td><strong>$1,420,000</strong></td></tr>
+    <tr><td>2026-02</td><td>$455,000</td><td>$298,000</td><td>$210,000</td><td>$542,000</td><td><strong>$1,505,000</strong></td></tr>
+    <tr><td>2026-03</td><td>$489,000</td><td>$325,000</td><td>$245,000</td><td>$580,000</td><td><strong>$1,639,000</strong></td></tr>
+  </tbody>
+</table>
+<p>This is the slide you paste into the board deck. Q1 total is $4.56M. The CRO can also see at a glance that East is the smallest region but growing fastest (+36% Jan→Mar) — the kind of trend that shows up in narrow data only after a JOIN to itself.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Conditional aggregation vs <code>PIVOT</code> — portability wins</h5>
+<p>Snowflake, BigQuery and SQL Server all have a real <code>PIVOT</code> operator. Postgres and SQLite do not. Conditional aggregation works everywhere — it's the dialect-portable answer. Mention <code>PIVOT</code> in the interview as the engine-specific shortcut, but lead with <code>SUM(CASE WHEN)</code>.</p>
+
+<h5>The "missing region" problem — NULL vs 0</h5>
+<p>If the <code>revenue</code> table has no East row for January (the team didn't operate there yet), the CASE returns NULL → <code>SUM</code> returns NULL → the board sees an empty cell. To force a zero, wrap with <code>COALESCE(SUM(CASE WHEN region = 'East' THEN amount END), 0)</code>. Boards usually prefer 0 over blank; product analytics often prefer NULL to distinguish <em>"no data"</em> from <em>"$0 in revenue"</em>. State your choice.</p>
+
+<h5>Why this beats wide-table joins</h5>
+<p>An alternative is to maintain a <code>revenue_wide(month, north, south, east, west)</code> table and JOIN. That's a denormalisation: you now have two sources of truth for the same data, and any region change requires a schema migration. The conditional aggregation produces the wide shape on demand — the <code>revenue</code> table stays normalised.</p>
+
+<h5>When to use a real <code>PIVOT</code></h5>
+<p>If the region list is dynamic (users keep adding new regions), <code>SUM(CASE WHEN)</code> doesn't scale — every new region requires a code change. At that point, switch to a true <code>PIVOT</code> (Snowflake/BigQuery) with <code>... FOR region IN (ANY ORDER BY total DESC LIMIT 8)</code>, or generate the SQL dynamically in the BI layer.</p>
+
+<h5>The "growth columns" you'll be asked for next</h5>
+<p>Inevitably the CFO comes back: <em>"What about month-over-month growth?"</em> The clean answer is to layer a window function on the pivot result:</p>
+<pre><code>SELECT month, north, south, east, west, total,
+  ROUND(100.0 * (total - LAG(total) OVER (ORDER BY month))
+        / NULLIF(LAG(total) OVER (ORDER BY month), 0), 1) AS mom_growth_pct
+FROM (
+  SELECT month,
+    SUM(CASE WHEN region = 'North' THEN amount END) AS north,
+    SUM(CASE WHEN region = 'South' THEN amount END) AS south,
+    SUM(CASE WHEN region = 'East'  THEN amount END) AS east,
+    SUM(CASE WHEN region = 'West'  THEN amount END) AS west,
+    SUM(amount)                                     AS total
+  FROM revenue GROUP BY month
+) ORDER BY month;
+-- Mar growth = 8.9% MoM. The board chart now writes itself.</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> mention <em>conditional aggregation</em> by name, justify the choice over <code>PIVOT</code> with portability, and pre-empt the inevitable follow-up by knowing how to layer a <code>LAG</code> window on top for MoM growth. The interview almost always asks for that next.</div>

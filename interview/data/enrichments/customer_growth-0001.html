@@ -1,0 +1,107 @@
+<p>A retention team at a subscription-commerce company runs the quarterly RFM review off a fixed snapshot date of 2025-04-01. The ask is not just "who are the best customers" but <em>which customers moved between tiers year-over-year</em> &mdash; an interviewer is probing whether you can compute two independent RFM scorings (rolling-12 vs prior-12), compare them, and surface the "fell" cohort first because those are the accounts at risk of churning. This is a multi-CTE problem stacking conditional aggregation, <code>PERCENT_RANK</code>, and a self-comparison.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>amount</th><th>status</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>1</td><td>2024-03-14</td><td>780</td><td>paid</td><td>cust 1: big Y2, shrinking Y1</td></tr>
+    <tr><td>8</td><td>1</td><td>2025-03-28</td><td>150</td><td>paid</td><td>recent but small &mdash; fell</td></tr>
+    <tr><td>14</td><td>2</td><td>2025-02-15</td><td>1500</td><td>paid</td><td>cust 2: surging spend &mdash; climbed</td></tr>
+    <tr><td>19</td><td>3</td><td>2025-02-04</td><td>65</td><td>paid</td><td>cust 3: tiny but steady &mdash; stable</td></tr>
+    <tr><td>22</td><td>4</td><td>2025-03-22</td><td>610</td><td>paid</td><td>cust 4: no Y2 orders &mdash; new_repeat</td></tr>
+    <tr><td>23</td><td>5</td><td>2025-03-30</td><td>800</td><td>paid</td><td>cust 5: single order &mdash; dropped by HAVING</td></tr>
+    <tr><td>24</td><td>6</td><td>2025-03-30</td><td>500</td><td>refunded</td><td>cust 6: refund excluded; only 2 paid survive</td></tr>
+  </tbody>
+</table>
+<p>The edge cases are deliberate: customer 5 has a single paid order (filtered by <code>HAVING COUNT(*) &gt; 1</code>), customer 6 has a refund that must not count, and customer 4 has zero Y2 history so there is nothing to compare against.</p>
+
+<h4>2. The SQL &mdash; dual RFM scoring with <code>PERCENT_RANK</code> and a tier self-comparison</h4>
+<pre><code>WITH params AS (SELECT DATE '2025-04-01' AS snapshot),
+paid AS (
+    SELECT o.customer_id, o.order_date, o.amount,
+           (p.snapshot - o.order_date) AS days_back
+    FROM orders o, params p
+    WHERE o.status = 'paid'
+),
+agg AS (
+    SELECT customer_id,
+        MIN(CASE WHEN days_back &lt; 365 THEN days_back END) AS recency_days,
+        SUM(CASE WHEN days_back &lt; 365 THEN 1 ELSE 0 END) AS y1_orders,
+        ROUND(SUM(CASE WHEN days_back &lt; 365 THEN amount ELSE 0 END), 2) AS y1_spend,
+        SUM(CASE WHEN days_back &gt;= 365 AND days_back &lt; 730 THEN 1 ELSE 0 END) AS y2_orders,
+        ROUND(SUM(CASE WHEN days_back &gt;= 365 AND days_back &lt; 730 THEN amount ELSE 0 END), 2) AS y2_spend,
+        SUM(CASE WHEN days_back &lt; 7  THEN 1 ELSE 0 END) AS l7_orders,
+        SUM(CASE WHEN days_back &lt; 28 THEN 1 ELSE 0 END) AS l28_orders,
+        SUM(CASE WHEN days_back &lt; 90 THEN 1 ELSE 0 END) AS l90_orders
+    FROM paid GROUP BY customer_id
+    HAVING COUNT(*) &gt; 1
+),
+scored_now AS (
+    SELECT agg.*,
+        PERCENT_RANK() OVER (ORDER BY recency_days DESC) AS r_pct,
+        PERCENT_RANK() OVER (ORDER BY y1_orders ASC)    AS f_pct,
+        PERCENT_RANK() OVER (ORDER BY y1_spend ASC)     AS m_pct
+    FROM agg WHERE y1_orders &gt; 0
+),
+scored_prior AS (
+    SELECT customer_id,
+        PERCENT_RANK() OVER (ORDER BY y2_orders ASC) AS f2_pct,
+        PERCENT_RANK() OVER (ORDER BY y2_spend ASC)  AS m2_pct
+    FROM agg WHERE y2_orders &gt; 0
+),
+labelled AS (
+    SELECT n.*,
+        ROUND((n.r_pct + n.f_pct + n.m_pct)::numeric / 3.0, 3) AS rfm_pct,
+        CASE WHEN (n.r_pct + n.f_pct + n.m_pct)/3.0 &gt;= 0.90 THEN 'Tier 1'
+             WHEN (n.r_pct + n.f_pct + n.m_pct)/3.0 &gt;= 0.75 THEN 'Tier 2'
+             ELSE 'Tier 3' END AS current_tier,
+        CASE WHEN p.customer_id IS NULL THEN 'new_repeat'
+             WHEN (p.f2_pct + p.m2_pct)/2.0 &gt;= 0.75 THEN 'Tier 1'
+             WHEN (p.f2_pct + p.m2_pct)/2.0 &gt;= 0.50 THEN 'Tier 2'
+             ELSE 'Tier 3' END AS prior_tier
+    FROM scored_now n
+    LEFT JOIN scored_prior p USING (customer_id)
+)
+SELECT customer_id, l7_orders, l28_orders, l90_orders,
+    y1_orders, y1_spend, y2_orders, y2_spend,
+    CASE WHEN y2_spend &gt; 0 THEN ROUND(100.0*(y1_spend - y2_spend)/y2_spend, 1) END AS yoy_growth_pct,
+    rfm_pct, current_tier, prior_tier,
+    CASE WHEN prior_tier = 'new_repeat'      THEN 'new_repeat'
+         WHEN current_tier = prior_tier      THEN 'stable'
+         WHEN current_tier &gt; prior_tier      THEN 'fell'
+         ELSE 'climbed' END AS tier_shift
+FROM labelled
+ORDER BY CASE WHEN current_tier &gt; prior_tier AND prior_tier &lt;&gt; 'new_repeat' THEN 0 ELSE 1 END,
+         yoy_growth_pct ASC NULLS LAST;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>y1_orders</th><th>y1_spend</th><th>y2_spend</th><th>yoy_growth_pct</th><th>rfm_pct</th><th>current_tier</th><th>prior_tier</th><th>tier_shift</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>630.00</td><td>4830.00</td><td>-87.0</td><td>0.667</td><td>Tier 3</td><td>Tier 1</td><td>fell</td></tr>
+    <tr><td>3</td><td>2</td><td>135.00</td><td>115.00</td><td>17.4</td><td>0.167</td><td>Tier 3</td><td>Tier 3</td><td>stable</td></tr>
+    <tr><td>6</td><td>1</td><td>180.00</td><td>150.00</td><td>20.0</td><td>0.083</td><td>Tier 3</td><td>Tier 3</td><td>stable</td></tr>
+    <tr><td>2</td><td>4</td><td>4800.00</td><td>890.00</td><td>439.3</td><td>0.917</td><td>Tier 1</td><td>Tier 2</td><td>climbed</td></tr>
+    <tr><td>4</td><td>3</td><td>1550.00</td><td>0.00</td><td>&mdash;</td><td>0.583</td><td>Tier 3</td><td>new_repeat</td><td>new_repeat</td></tr>
+  </tbody>
+</table>
+<p>Customer 1 is the headline: it was a Tier 1 account on Y2 numbers ($4,830 spend) but collapsed 87% to $630 in Y1, dropping to Tier 3. That is exactly the account a retention team must call this week, and the sort surfaces it first.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>PERCENT_RANK</code> and not <code>NTILE</code> for RFM</h5>
+<p><code>PERCENT_RANK()</code> returns a value in [0,1] giving each row's relative standing: <code>(rank - 1) / (rows - 1)</code>. Averaging three percent-ranks (recency, frequency, monetary) produces a smooth composite score, and the 0.90 / 0.75 cutoffs map cleanly onto it. <code>NTILE(n)</code> would force buckets of equal size regardless of where the natural breaks are &mdash; fine for "give me deciles", wrong when the business defines a tier by a percentile threshold. Note the direction flips: recency uses <code>DESC</code> (fewer days back = better) while frequency and monetary use <code>ASC</code> (more is better), so a high percent-rank always means "good".</p>
+
+<h5>The two scorings are intentionally on different scales</h5>
+<p><code>current_tier</code> averages three signals (r+f+m) and cuts at 0.90/0.75. <code>prior_tier</code> only has two signals available (f+m &mdash; you cannot compute a meaningful Y2 recency from a snapshot) and cuts at 0.75/0.50. A candidate who assumes both tiers use identical thresholds will mis-explain the result. This asymmetry is a common real-world wrinkle: historical comparisons rarely have the same feature set as the live score.</p>
+
+<h5>The <code>NULLS LAST</code> trap on the final sort</h5>
+<p>Customer 4 has <code>yoy_growth_pct = NULL</code> because it has no Y2 spend to divide by. In Postgres a plain <code>ORDER BY yoy_growth_pct ASC</code> sorts NULLs <em>last</em> by default, but that is the opposite of MySQL and SQL Server, where NULLs sort first. Spelling out <code>NULLS LAST</code> makes the intent portable and explicit &mdash; you do not want a "we cannot compute growth" customer jumping to the top of an urgency-ranked list.</p>
+
+<h5>Why <code>HAVING COUNT(*) &gt; 1</code> must run before scoring</h5>
+<p>The question scopes to <em>repeat</em> customers. Filtering single-order customers in the <code>agg</code> CTE (before <code>PERCENT_RANK</code>) is essential: percentile ranks are computed over the surviving population, so leaving one-time buyers in would shift every percentile and distort the tier cutoffs. Customer 5 (one paid order) and the refund-only path for customer 6 both demonstrate why row-level filtering precedes the window functions.</p>
+
+<h5>What a senior would say next</h5>
+<p>"The <code>current_tier &gt; prior_tier</code> string comparison works only because the tier labels sort lexically the same way they rank ('Tier 1' &lt; 'Tier 2' &lt; 'Tier 3'). That is fragile &mdash; rename a tier to 'Platinum' and the comparison silently breaks. I would carry a numeric <code>tier_rank</code> alongside the label and compare on that. I'd also confirm the snapshot is a parameter, not a literal, so the same query backfills any quarter."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise this as two independent RFM scorings compared against each other, justify <code>PERCENT_RANK</code> over <code>NTILE</code> for percentile-threshold tiers, explain why the prior scoring legitimately uses fewer features and different cutoffs, handle the <code>NULL</code> growth row with explicit <code>NULLS LAST</code>, and flag the fragile string-based tier comparison with a numeric-rank fix.</div>

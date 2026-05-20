@@ -1,0 +1,66 @@
+<p>After a data migration, an engineer needs to reconcile <code>orders_old</code> against <code>orders_new</code> and prove the move was lossless. The deliverable is a single result set listing every <code>order_id</code> that exists on only one side &mdash; rows dropped in the migration and rows that appeared from nowhere &mdash; with a <code>side</code> column saying which. The interviewer is checking whether you can do a two-way diff and label each discrepancy in one query.</p>
+
+<h4>1. The source data &mdash; <code>orders_old</code> and <code>orders_new</code></h4>
+<table>
+  <thead><tr><th>orders_old.order_id</th><th>orders_new.order_id</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>&mdash;</td><td>dropped in migration</td></tr>
+    <tr><td>2</td><td>&mdash;</td><td>dropped in migration</td></tr>
+    <tr><td>3</td><td>3</td><td>migrated cleanly</td></tr>
+    <tr><td>4</td><td>4</td><td>migrated cleanly</td></tr>
+    <tr><td>5</td><td>5</td><td>migrated cleanly</td></tr>
+    <tr><td>6</td><td>6</td><td>migrated cleanly</td></tr>
+    <tr><td>7</td><td>&mdash;</td><td>dropped in migration</td></tr>
+    <tr><td>&mdash;</td><td>8, 9, 10</td><td>new &mdash; not in source</td></tr>
+  </tbody>
+</table>
+<p>The overlap (3&ndash;6) is the part that must <em>not</em> appear in the output. The edge case is the asymmetry: a clean diff has to catch losses (1, 2, 7) <em>and</em> gains (8, 9, 10) &mdash; a one-directional check would miss half the problem.</p>
+
+<h4>2. The SQL &mdash; two anti-joins stitched with <code>UNION ALL</code></h4>
+<pre><code>SELECT 'old_only' AS side, o.order_id
+FROM orders_old o
+LEFT JOIN orders_new n ON n.order_id = o.order_id
+WHERE n.order_id IS NULL
+
+UNION ALL
+
+SELECT 'new_only' AS side, n.order_id
+FROM orders_new n
+LEFT JOIN orders_old o ON o.order_id = n.order_id
+WHERE o.order_id IS NULL
+
+ORDER BY 1, 2;</code></pre>
+<p>The top half is an anti-join finding <code>order_id</code>s in <code>orders_old</code> with no match in <code>orders_new</code>; the bottom half does the mirror image. <code>UNION ALL</code> concatenates them, and the literal <code>side</code> column tags which direction each row came from.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>side</th><th>order_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>new_only</td><td>8</td><td>appeared during migration</td></tr>
+    <tr><td>new_only</td><td>9</td><td>appeared during migration</td></tr>
+    <tr><td>new_only</td><td>10</td><td>appeared during migration</td></tr>
+    <tr><td>old_only</td><td>1</td><td>lost during migration</td></tr>
+    <tr><td>old_only</td><td>2</td><td>lost during migration</td></tr>
+    <tr><td>old_only</td><td>7</td><td>lost during migration</td></tr>
+  </tbody>
+</table>
+<p>Six discrepancies, zero false positives. The matched rows 3&ndash;6 are absent &mdash; each found its counterpart, so neither anti-join emitted it. The <code>side</code> column turns a raw list into a triage report: <code>old_only</code> rows need investigation for data loss, <code>new_only</code> rows for unexpected inserts.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why two queries, not one</h5>
+<p>A diff is inherently asymmetric: "in A not in B" and "in B not in A" are different questions, and a clean migration is verified only when <em>both</em> are empty. A single <code>LEFT JOIN</code> from old to new finds only the losses; you would silently miss every spurious insert. Computing both directions and labelling each is the whole point &mdash; the <code>side</code> column is what makes the result actionable.</p>
+
+<h5><code>UNION ALL</code> vs <code>UNION</code> &mdash; pick <code>ALL</code> deliberately</h5>
+<p><code>UNION</code> de-duplicates its combined output, which costs a sort or hash and is pure waste here: the two halves are disjoint by construction (an id cannot be both <code>old_only</code> and <code>new_only</code>), so there is nothing to dedupe. <code>UNION ALL</code> skips that step and is faster. Reach for plain <code>UNION</code> only when duplicates are genuinely possible and unwanted.</p>
+
+<h5>The set-operator alternative &mdash; <code>EXCEPT</code></h5>
+<p>Postgres, SQL Server, and SQLite offer <code>SELECT order_id FROM orders_old EXCEPT SELECT order_id FROM orders_new</code> &mdash; a built-in set difference that is terser than the anti-join. Two caveats worth voicing: <code>EXCEPT</code> removes duplicates within each side (usually fine for keys), and it treats <code>NULL = NULL</code> as a match, unlike a join's <code>ON</code>. MySQL only added <code>EXCEPT</code> in 8.0.31, so the <code>LEFT JOIN</code> form remains the most portable. Oracle spells it <code>MINUS</code>.</p>
+
+<h5>NULL ids would break the join &mdash; and that is correct</h5>
+<p>If either table had a NULL <code>order_id</code>, the <code>ON n.order_id = o.order_id</code> would never match it (NULL never equals NULL), so a NULL id is reported as "only on its side". For a primary-key reconciliation that is the right behaviour &mdash; a NULL key is itself a data-quality defect worth surfacing. Note this is exactly where <code>EXCEPT</code> diverges: it <em>would</em> pair two NULLs.</p>
+
+<h5>Ordering by position</h5>
+<p><code>ORDER BY 1, 2</code> sorts by the first and second output columns &mdash; <code>side</code> then <code>order_id</code>. Positional <code>ORDER BY</code> is handy after a <code>UNION</code> because the column names come from the <em>first</em> <code>SELECT</code> only; referring to position sidesteps any naming ambiguity. It is standard SQL, though some teams consider explicit names clearer.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat a table diff as two directional anti-joins, combine them with <code>UNION ALL</code> (not <code>UNION</code>, since the halves are disjoint), carry a <code>side</code> label so each discrepancy is triageable, and know that <code>EXCEPT</code>/<code>MINUS</code> is the terser equivalent but differs on NULL matching and dedup &mdash; details that decide which to use.</div>
