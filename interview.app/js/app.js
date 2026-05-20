@@ -444,6 +444,7 @@ function buildCard(q, tpl) {
   if (state.set.has(q.id)) node.classList.add("is-selected");
   const cb = node.querySelector(".qb-check input");
   cb.checked = state.set.has(q.id);
+  cb.setAttribute("aria-label", `Add "${q.title || q.id}" to set`);
   cb.addEventListener("change", (e) => toggleSet(q, e.target.checked, node));
 
   node.querySelector(".qb-card-title").textContent = q.title || "(untitled)";
@@ -464,10 +465,12 @@ function buildCard(q, tpl) {
       const strip = document.createElement("div");
       strip.className = "qb-card-tagchips";
       for (const t of q.tags) {
-        const chip = document.createElement("span");
+        const chip = document.createElement("button");
+        chip.type = "button";
         chip.className = "qb-card-tagchip qb-tag-" + t;
         chip.textContent = t;
         chip.title = "Click to filter by " + t;
+        chip.setAttribute("aria-label", `Filter by ${t}`);
         chip.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
