@@ -167,6 +167,10 @@ async function handleStats(request, env, url, ch) {
     env.DB.prepare(`SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as views FROM page_views ${w} GROUP BY hour ORDER BY hour`).bind(...b),
     // 13: timezones
     env.DB.prepare(`SELECT timezone, COUNT(*) as views FROM page_views WHERE created_at >= ? AND timezone != '' GROUP BY timezone ORDER BY views DESC LIMIT 15`).bind(since),
+    // 14: day of week
+    env.DB.prepare(`SELECT CAST(strftime('%w', created_at) AS INTEGER) as dow, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} GROUP BY dow ORDER BY dow`).bind(...b),
+    // 15: recent activity (last 50 visits with full context)
+    env.DB.prepare(`SELECT created_at, page, country, city, browser, os, device_type, referrer, duration, scroll_depth, is_new, utm_source FROM page_views ${w} ORDER BY created_at DESC LIMIT 50`).bind(...b),
   ]);
 
   const filters = {};
@@ -195,6 +199,8 @@ async function handleStats(request, env, url, ch) {
     campaigns: batch[11].results,
     hourly: batch[12].results,
     timezones: batch[13].results,
+    dayOfWeek: batch[14].results,
+    recentActivity: batch[15].results,
   };
 
   const response = new Response(JSON.stringify(data), {

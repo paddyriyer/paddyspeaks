@@ -410,6 +410,20 @@
                 <div style="overflow-x:auto"><table class="data-table" id="tableTimezones"><tbody></tbody></table></div>
             </div>
         </div>
+
+        <!-- ── Day of Week ── -->
+        <div class="panel">
+            <div class="panel-title">Traffic by Day of Week</div>
+            <div class="chart-container line" style="height:220px">
+                <canvas id="chartDow"></canvas>
+            </div>
+        </div>
+
+        <!-- ── Recent Activity ── -->
+        <div class="panel">
+            <div class="panel-title">Recent Activity</div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableActivity"><tbody></tbody></table></div>
+        </div>
     </div>
 </div>
 
@@ -633,6 +647,9 @@
         renderHourlyChart(data.hourly || []);
         // v2: Timezones
         renderSimpleTable('tableTimezones', data.timezones || [], 'timezone', 'views');
+        // v3: Day of week + recent activity
+        renderDowChart(data.dayOfWeek || []);
+        renderActivityTable(data.recentActivity || []);
 
         // Staggered fade-in for all panels and cards
         var els = document.querySelectorAll('.panel, .stat-card');
@@ -835,6 +852,77 @@
                 }
             }
         });
+    }
+
+    // ── Day of Week Chart ────────────────────
+    function renderDowChart(dow) {
+        var ctx = document.getElementById('chartDow');
+        if (!ctx) return;
+        if (charts.dow) charts.dow.destroy();
+
+        var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        var dayData = new Array(7).fill(0);
+        var visitorData = new Array(7).fill(0);
+        dow.forEach(function(d) { dayData[d.dow] = d.views; visitorData[d.dow] = d.visitors; });
+
+        charts.dow = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: dayNames,
+                datasets: [
+                    { label: 'Views', data: dayData, backgroundColor: 'rgba(37,99,168,0.6)', borderRadius: 3 },
+                    { label: 'Visitors', data: visitorData, backgroundColor: 'rgba(42,122,74,0.5)', borderRadius: 3 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    }
+
+    // ── Recent Activity Table ───────────────
+    function renderActivityTable(activity) {
+        var html = '<thead><tr><th>When</th><th>Page</th><th>Location</th><th>Device</th><th>Browser</th><th style="text-align:right">Time</th><th style="text-align:right">Scroll</th></tr></thead><tbody>';
+        if (!activity.length) {
+            html += '<tr><td colspan="7" style="color:var(--muted);text-align:center">No activity yet</td></tr>';
+        }
+        activity.forEach(function(a) {
+            var when = a.created_at ? formatDateTime(a.created_at) : '-';
+            var page = (a.page || '/').replace(/^\/articles\//, '').replace(/\.html$/, '').replace(/^\//, '') || '/';
+            var loc = (a.city && a.city !== 'Unknown' ? a.city + ', ' : '') + countryFlag(a.country) + ' ' + (a.country || '');
+            var device = a.device_type || '-';
+            var newBadge = a.is_new ? '<span style="background:#2a7a4a;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">NEW</span>' : '';
+            var utmBadge = a.utm_source ? '<span style="background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">' + escHtml(a.utm_source) + '</span>' : '';
+            html += '<tr>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.8rem;white-space:nowrap">' + when + '</td>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.8rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(a.page) + '">' + escHtml(page) + newBadge + utmBadge + '</td>';
+            html += '<td style="font-size:0.85rem;white-space:nowrap">' + loc + '</td>';
+            html += '<td style="font-size:0.85rem">' + device + '</td>';
+            html += '<td style="font-size:0.85rem">' + (a.browser || '-') + '</td>';
+            html += '<td class="num">' + (a.duration > 0 ? fmtTime(a.duration) : '-') + '</td>';
+            html += '<td class="num">' + (a.scroll_depth > 0 ? a.scroll_depth + '%' : '-') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableActivity').innerHTML = html;
+    }
+
+    function formatDateTime(dt) {
+        if (!dt) return '-';
+        var d = new Date(dt + 'Z');
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var mon = months[d.getMonth()];
+        var day = d.getDate();
+        var h = d.getHours();
+        var m = d.getMinutes();
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return mon + ' ' + day + ', ' + h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
     }
 
     // ── Utility Functions ────────────────────
