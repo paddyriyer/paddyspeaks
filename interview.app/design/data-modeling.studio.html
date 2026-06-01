@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<!-- PROTOTYPE: redesign of data-modeling.html. Not for indexing until approved. -->
+<meta name="robots" content="noindex, nofollow">
+<title>Data Modeling Studio (prototype) · Interview Studio · Design | PaddySpeaks</title>
+<meta name="description" content="Prototype redesign of the Data Modeling deep-dive: filterable scenario catalog and a tabbed study view per scenario.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DATA MODELING STUDIO — scoped design system (prototype)
+   Everything here is self-contained; it does NOT load the
+   global /style.css, so nothing leaks to/from the rest of the site.
+   ============================================================ */
+
+/* ---- Semantic tokens: one accent + one neutral ramp + 4 callout roles ---- */
+:root {
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-read: 'Source Serif 4', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --bg:#fbfcfd;  --surface:#ffffff;  --surface-2:#f4f7fb;  --surface-3:#eaeff6;
+  --border:#e2e8f0;  --border-strong:#cbd5e1;
+  --text:#0f172a;  --text-2:#475569;  --text-3:#64748b;  --muted:#94a3b8;
+
+  --accent:#1a4f8a;  --accent-2:#2563eb;  --accent-weak:#eef4fb;  --on-accent:#ffffff;
+
+  /* four — and only four — semantic callout roles */
+  --prompt-bg:#eef4fb;  --prompt-bd:#bcd4ee;  --prompt-fg:#16406e;
+  --note-bg:#ecfdf5;    --note-bd:#a7f3d0;    --note-fg:#065f46;   /* senior note  */
+  --trap-bg:#fef2f2;    --trap-bd:#fecaca;    --trap-fg:#9f1239;   /* pitfall      */
+  --warn-bg:#fffbeb;    --warn-bd:#fde68a;    --warn-fg:#92400e;   /* bridge/warn  */
+
+  --code-bg:#0f172a;  --code-fg:#e6edf6;  --code-kw:#7dd3fc;
+  --diff-core:#0e7490;  --diff-adv:#1d4ed8;  --diff-prin:#7c3aed;
+
+  --shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px -12px rgba(15,23,42,.18);
+  --radius:14px;  --radius-sm:9px;
+  --maxw:1200px;
+}
+:root[data-theme="dark"] {
+  --bg:#0a1018;  --surface:#101a28;  --surface-2:#15212f;  --surface-3:#1b2a3c;
+  --border:#243245;  --border-strong:#33465e;
+  --text:#e8eef6;  --text-2:#aebccd;  --text-3:#8497ab;  --muted:#647689;
+
+  --accent:#5b9bf0;  --accent-2:#7db3ff;  --accent-weak:#15263c;  --on-accent:#06121f;
+
+  --prompt-bg:#13243a;  --prompt-bd:#26456b;  --prompt-fg:#bcd6f5;
+  --note-bg:#0e2a22;    --note-bd:#1f5345;    --note-fg:#8ce0c2;
+  --trap-bg:#2c1418;    --trap-bd:#5e2530;    --trap-fg:#f6a9bb;
+  --warn-bg:#2a2310;    --warn-bd:#5a4a1c;    --warn-fg:#f3cf8c;
+
+  --code-bg:#070c14;  --code-fg:#d7e0ec;
+  --diff-core:#22b8cf;  --diff-adv:#6da4ff;  --diff-prin:#b692f6;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#0a1018;  --surface:#101a28;  --surface-2:#15212f;  --surface-3:#1b2a3c;
+    --border:#243245;  --border-strong:#33465e;
+    --text:#e8eef6;  --text-2:#aebccd;  --text-3:#8497ab;  --muted:#647689;
+    --accent:#5b9bf0;  --accent-2:#7db3ff;  --accent-weak:#15263c;  --on-accent:#06121f;
+    --prompt-bg:#13243a;  --prompt-bd:#26456b;  --prompt-fg:#bcd6f5;
+    --note-bg:#0e2a22;    --note-bd:#1f5345;    --note-fg:#8ce0c2;
+    --trap-bg:#2c1418;    --trap-bd:#5e2530;    --trap-fg:#f6a9bb;
+    --warn-bg:#2a2310;    --warn-bd:#5a4a1c;    --warn-fg:#f3cf8c;
+    --code-bg:#070c14;  --code-fg:#d7e0ec;
+    --diff-core:#22b8cf;  --diff-adv:#6da4ff;  --diff-prin:#b692f6;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.6);
+  }
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:var(--font-ui);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:3px solid var(--accent-2);outline-offset:2px;border-radius:6px}
+
+.skip{position:absolute;left:-9999px;top:0;background:var(--accent);color:var(--on-accent);padding:10px 16px;border-radius:0 0 8px 0;z-index:100}
+.skip:focus{left:0}
+
+/* ---------- Header ---------- */
+.app-header{
+  position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--surface) 88%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--border);
+}
+.app-header__bar{max-width:var(--maxw);margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:1px;margin-right:auto}
+.brand__eyebrow{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--text-3);font-weight:600}
+.brand__title{font-family:var(--font-display);font-size:21px;font-weight:700;line-height:1.05}
+.proto-flag{font-family:var(--font-mono);font-size:10px;letter-spacing:.5px;color:var(--warn-fg);background:var(--warn-bg);border:1px solid var(--warn-bd);padding:2px 7px;border-radius:999px;vertical-align:middle;margin-left:8px}
+.search{position:relative;flex:1 1 240px;max-width:380px}
+.search input{
+  width:100%;font-family:var(--font-ui);font-size:14px;color:var(--text);
+  background:var(--surface-2);border:1px solid var(--border);border-radius:999px;
+  padding:9px 14px 9px 36px;
+}
+.search input::placeholder{color:var(--muted)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  font-family:var(--font-ui);font-size:13px;font-weight:600;color:var(--text-2);
+  background:var(--surface-2);border:1px solid var(--border);border-radius:999px;
+  padding:8px 13px;cursor:pointer;white-space:nowrap;
+}
+.icon-btn:hover{border-color:var(--border-strong);color:var(--text)}
+.icon-btn svg{width:16px;height:16px}
+
+/* ---------- Progress meter ---------- */
+.progress{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--text-2);font-weight:500}
+.progress__track{width:90px;height:7px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.progress__fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .35s ease}
+
+/* ---------- Filter bar ---------- */
+.filters{max-width:var(--maxw);margin:0 auto;padding:14px 20px 4px}
+.filters__row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.filters__label{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);font-weight:700;min-width:78px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{
+  font-family:var(--font-ui);font-size:12.5px;font-weight:500;color:var(--text-2);
+  background:var(--surface);border:1px solid var(--border);border-radius:999px;
+  padding:5px 12px;cursor:pointer;line-height:1.3;
+}
+.chip:hover{border-color:var(--border-strong)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.chip--diff[aria-pressed="true"]{background:var(--diff-adv);border-color:var(--diff-adv)}
+.filters__meta{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  border-top:1px dashed var(--border);margin-top:4px;padding:10px 0 2px;font-size:13px;color:var(--text-3)}
+.linkbtn{background:none;border:none;color:var(--accent);font-family:var(--font-ui);font-size:13px;font-weight:600;cursor:pointer;padding:0}
+
+/* ---------- Layout ---------- */
+main{max-width:var(--maxw);margin:0 auto;padding:8px 20px 80px}
+
+/* ---------- Landing intro ---------- */
+.intro{padding:18px 0 6px}
+.intro h1{font-family:var(--font-display);font-weight:700;font-size:clamp(26px,4vw,40px);line-height:1.1;margin:.1em 0 .25em}
+.intro p{font-family:var(--font-read);font-size:17px;color:var(--text-2);max-width:70ch;margin:0 0 14px}
+.moves{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px;padding:0;list-style:none}
+.moves li{font-size:12.5px;font-weight:600;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 11px}
+.moves li b{color:var(--accent);font-family:var(--font-mono);font-size:11px;margin-right:5px}
+
+/* ---------- Card grid ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;margin-top:18px}
+.card{
+  display:flex;flex-direction:column;text-align:left;gap:10px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;cursor:pointer;font-family:var(--font-ui);color:inherit;
+  box-shadow:var(--shadow);transition:transform .14s ease,border-color .14s ease;position:relative;
+}
+.card:hover{transform:translateY(-3px);border-color:var(--accent)}
+.card__top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card__num{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.card__diff{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:3px 8px;border-radius:999px}
+.card__diff[data-d="core"]{color:var(--diff-core);background:color-mix(in srgb,var(--diff-core) 12%,transparent)}
+.card__diff[data-d="advanced"]{color:var(--diff-adv);background:color-mix(in srgb,var(--diff-adv) 12%,transparent)}
+.card__diff[data-d="principal"]{color:var(--diff-prin);background:color-mix(in srgb,var(--diff-prin) 14%,transparent)}
+.card__title{font-size:16.5px;font-weight:600;line-height:1.3;margin:0}
+.card__domain{font-size:12.5px;color:var(--text-3);font-weight:500}
+.card__topics{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
+.card__topic{font-size:10.5px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px 7px}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;border-top:1px solid var(--border);padding-top:9px;font-size:12px;color:var(--text-3)}
+.card__cta{font-weight:600;color:var(--accent);display:inline-flex;align-items:center;gap:4px}
+.card.is-studied::after{content:"✓ studied";position:absolute;top:14px;right:14px;display:none}
+.studied-badge{display:none;font-family:var(--font-mono);font-size:10px;color:var(--note-fg);background:var(--note-bg);border:1px solid var(--note-bd);padding:2px 7px;border-radius:999px}
+.card.is-studied .studied-badge{display:inline-block}
+.card[data-wired="false"] .card__cta{color:var(--text-3)}
+.empty{display:none;text-align:center;color:var(--text-3);padding:60px 20px;font-family:var(--font-read);font-size:17px}
+
+/* ---------- Scenario detail / tabs ---------- */
+.detail{display:none}
+.detail.is-open{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.detail__nav{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:18px 0 6px}
+.detail__head h2{font-family:var(--font-display);font-weight:700;font-size:clamp(22px,3vw,32px);line-height:1.12;margin:.1em 0 .15em}
+.detail__head .card__domain{font-size:13.5px}
+.detail__actions{display:flex;gap:9px;flex-wrap:wrap}
+.btn{font-family:var(--font-ui);font-size:13px;font-weight:600;border-radius:999px;padding:9px 15px;cursor:pointer;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2)}
+.btn:hover{border-color:var(--border-strong);color:var(--text)}
+.btn--primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn--primary[aria-pressed="true"]{background:var(--note-fg);border-color:var(--note-fg)}
+
+.tablist{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--border);margin:14px 0 0;padding-bottom:0;scrollbar-width:thin}
+.tab{
+  flex:0 0 auto;font-family:var(--font-ui);font-size:13.5px;font-weight:600;color:var(--text-3);
+  background:none;border:none;border-bottom:2.5px solid transparent;padding:11px 14px;cursor:pointer;white-space:nowrap;
+}
+.tab:hover{color:var(--text)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tabpanel{padding:22px 2px;font-family:var(--font-read)}
+.tabpanel[hidden]{display:none}
+.tabpanel h3{font-family:var(--font-ui);font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);font-weight:700;margin:26px 0 10px}
+.tabpanel h3:first-child{margin-top:0}
+.tabpanel p{margin:0 0 13px;color:var(--text)}
+.tabpanel ul,.tabpanel ol{margin:0 0 14px;padding-left:22px}
+.tabpanel li{margin:5px 0}
+
+/* prose elements (restyled, fewer colors) */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin:0 0 16px}
+table{border-collapse:collapse;width:100%;font-family:var(--font-ui);font-size:13.5px;min-width:520px}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--border);vertical-align:top}
+thead th{background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:12px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0}
+tbody tr:last-child td{border-bottom:none}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-3);color:var(--text);padding:1px 5px;border-radius:5px}
+.svg-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin:0 0 16px;background:var(--surface)}
+.svg-wrap svg{display:block;min-width:680px}
+pre{background:var(--code-bg);color:var(--code-fg);border-radius:var(--radius-sm);padding:16px;overflow-x:auto;margin:0 0 16px;font-size:13px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0;font-size:13px}
+
+/* unified callouts — prompt / note / trap / warn */
+.callout{border:1px solid var(--border);border-left-width:4px;border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 16px;font-family:var(--font-ui);font-size:14px}
+.callout__k{display:block;font-size:11px;letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.callout--prompt{background:var(--prompt-bg);border-color:var(--prompt-bd);border-left-color:var(--accent);color:var(--text)}
+.callout--prompt .callout__k{color:var(--prompt-fg)}
+.callout--note{background:var(--note-bg);border-color:var(--note-bd);border-left-color:var(--note-fg)}
+.callout--note .callout__k{color:var(--note-fg)}
+.callout--trap{background:var(--trap-bg);border-color:var(--trap-bd);border-left-color:var(--trap-fg)}
+.callout--trap .callout__k{color:var(--trap-fg)}
+.callout--warn{background:var(--warn-bg);border-color:var(--warn-bd);border-left-color:var(--warn-fg)}
+.callout--warn .callout__k{color:var(--warn-fg)}
+
+/* drill flashcard */
+.drill{border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 12px;background:var(--surface-2)}
+.drill__q{font-family:var(--font-ui);font-weight:600;color:var(--text);margin:0 0 9px}
+.drill__a{font-family:var(--font-read);color:var(--text-2);margin:9px 0 0}
+.drill__a[hidden]{display:none}
+.reveal{font-family:var(--font-ui);font-size:12.5px;font-weight:600;color:var(--accent);background:var(--accent-weak);border:1px solid var(--prompt-bd);border-radius:999px;padding:5px 12px;cursor:pointer}
+
+.footnote{font-family:var(--font-ui);font-size:13px;color:var(--text-3);border-top:1px solid var(--border);margin-top:30px;padding-top:16px}
+
+@media (max-width:720px){
+  .app-header__bar{gap:10px}
+  .brand{margin-right:0;flex:1 1 100%}
+  .search{order:3;max-width:none}
+  .filters__label{min-width:auto;flex:1 1 100%}
+  .intro p{font-size:16px}
+  table{font-size:12.5px}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#grid">Skip to scenario catalog</a>
+
+<header class="app-header">
+  <div class="app-header__bar">
+    <div class="brand">
+      <span class="brand__eyebrow">Interview Studio · Design</span>
+      <span class="brand__title">Data Modeling Studio<span class="proto-flag">PROTOTYPE</span></span>
+    </div>
+    <div class="progress" title="Scenarios you've marked as studied">
+      <span id="progressLabel">0 / 20</span>
+      <span class="progress__track"><span class="progress__fill" id="progressFill"></span></span>
+    </div>
+    <label class="search" for="searchInput">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" type="search" placeholder="Search scenarios, e.g. ledger, H3, bridge…" autocomplete="off" aria-label="Search scenarios">
+    </label>
+    <button class="icon-btn" id="themeBtn" type="button" aria-pressed="false" aria-label="Toggle dark mode">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <span id="themeLabel">Dark</span>
+    </button>
+  </div>
+
+  <nav class="filters" id="filterView" aria-label="Scenario filters">
+    <div class="filters__row">
+      <span class="filters__label">Domain</span>
+      <div class="chips" data-facet="domain" role="group" aria-label="Filter by domain"></div>
+    </div>
+    <div class="filters__row">
+      <span class="filters__label">Topic</span>
+      <div class="chips" data-facet="topic" role="group" aria-label="Filter by topic"></div>
+    </div>
+    <div class="filters__row">
+      <span class="filters__label">Difficulty</span>
+      <div class="chips" data-facet="difficulty" role="group" aria-label="Filter by difficulty"></div>
+    </div>
+    <div class="filters__meta">
+      <span id="resultCount">20 scenarios</span>
+      <button class="linkbtn" id="clearFilters" type="button">Clear filters</button>
+    </div>
+  </nav>
+</header>
+
+<main id="main">
+  <!-- ===================== LANDING / CATALOG ===================== -->
+  <section id="catalogView">
+    <div class="intro">
+      <h1>Twenty modeling scenarios, the way an interviewer probes them.</h1>
+      <p>Modeling rounds at Uber, Google, Meta, Netflix, Amazon, DoorDash, Airbnb, Stripe, Spotify, TikTok and the post-M&amp;A teams test the same five-move sequence — but the domain changes everything you say. Filter to the company you're prepping, then open a scenario into its study view.</p>
+      <ul class="moves">
+        <li><b>01</b>Clarify use cases</li>
+        <li><b>02</b>Pin the grain</li>
+        <li><b>03</b>Conceptual → logical → physical</li>
+        <li><b>04</b>SCDs &amp; time</li>
+        <li><b>05</b>Stress test</li>
+      </ul>
+    </div>
+
+    <div class="grid" id="grid" role="list" aria-label="Scenario catalog"></div>
+    <p class="empty" id="emptyState">No scenarios match these filters. <button class="linkbtn" onclick="DM.clear()">Clear filters</button></p>
+  </section>
+
+  <!-- ===================== SCENARIO DETAILS ===================== -->
+
+  <!-- ---------- Uber trip ---------- -->
+  <article class="detail" id="detail-sc-uber-trip" aria-labelledby="h-uber">
+    <div class="detail__nav">
+      <div class="detail__head">
+        <button class="btn" type="button" data-back>← All scenarios</button>
+        <h2 id="h-uber">Trip lifecycle — multi-driver convoys</h2>
+        <span class="card__domain">Uber / Lyft · ride-sharing · <em>Principal</em></span>
+      </div>
+      <div class="detail__actions">
+        <button class="btn btn--primary" type="button" data-study="sc-uber-trip" aria-pressed="false">Mark studied</button>
+        <a class="btn" href="data-modeling.html#sc-uber-trip">Full write-up ↗</a>
+      </div>
+    </div>
+    <div class="tablist" role="tablist" aria-label="Uber trip study view">
+      <button class="tab" role="tab" id="t-uber-0" aria-controls="p-uber-0" aria-selected="true">Prompt</button>
+      <button class="tab" role="tab" id="t-uber-1" aria-controls="p-uber-1" aria-selected="false" tabindex="-1">Data model</button>
+      <button class="tab" role="tab" id="t-uber-2" aria-controls="p-uber-2" aria-selected="false" tabindex="-1">Trade-offs</button>
+      <button class="tab" role="tab" id="t-uber-3" aria-controls="p-uber-3" aria-selected="false" tabindex="-1">Pitfalls</button>
+      <button class="tab" role="tab" id="t-uber-4" aria-controls="p-uber-4" aria-selected="false" tabindex="-1">Worked example</button>
+      <button class="tab" role="tab" id="t-uber-5" aria-controls="p-uber-5" aria-selected="false" tabindex="-1">Drill</button>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-uber-0" aria-labelledby="t-uber-0" tabindex="0">
+      <div class="callout callout--prompt"><span class="callout__k">Prompt</span>Design a complete data model for the Trip Lifecycle — including the complex <em>convoy</em> / multi-driver scenario where one group request is split across two or more vehicles. Must support Operations (live ETA), Finance (driver payouts), and Risk (fraud).</div>
+      <h3>Why it's hard</h3>
+      <p>One group request can fan out across multiple drivers, riders enter and exit at different points, and finance, ops and risk each need a different grain from the same events. Collapse them into one table and every aggregate either double-counts or hides the audit trail.</p>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-uber-1" aria-labelledby="t-uber-1" tabindex="0" hidden>
+      <h3>Parent fact · <code>fct_journeys</code> (the group intent)</h3>
+      <div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead><tbody>
+        <tr><td><code>journey_key</code></td><td>PK BIGINT</td><td>Surrogate.</td></tr>
+        <tr><td><code>journey_id</code></td><td>UUID</td><td>Natural ID; idempotency anchor.</td></tr>
+        <tr><td><code>split_type</code></td><td>ENUM</td><td>{EQUAL_SPLIT, DISTANCE_PRORATA, REQUESTER_PAYS, CUSTOM}.</td></tr>
+        <tr><td><code>total_group_fare_usd</code></td><td>DECIMAL(10,2)</td><td>Single bill for the group; reconciles to <code>brg_journey_riders</code>.</td></tr>
+        <tr><td><code>num_vehicles_dispatched</code></td><td>SMALLINT</td><td>1 normal, ≥2 convoy.</td></tr>
+      </tbody></table></div>
+      <h3>Vehicle fact · <code>fct_trips</code> (one row per driver/vehicle per journey)</h3>
+      <div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead><tbody>
+        <tr><td><code>trip_key</code> / <code>trip_id</code></td><td>PK / UUID</td><td>Surrogate + natural.</td></tr>
+        <tr><td><code>journey_id</code></td><td>FK</td><td>Parent journey — many trips share one journey (convoy).</td></tr>
+        <tr><td><code>surge_multiplier</code></td><td>DECIMAL(4,2)</td><td>Locked at request — <strong>immutable</strong>.</td></tr>
+        <tr><td><code>fx_rate_to_usd</code></td><td>DECIMAL(18,8)</td><td>Locked at <code>request_timestamp</code> — revenue can never be restated by FX drift.</td></tr>
+        <tr><td><code>terminal_state</code></td><td>ENUM</td><td>{completed, cancelled_rider, cancelled_driver, cancelled_system, expired, no_show}.</td></tr>
+      </tbody></table></div>
+      <h3>Plus · event log, feedback, financial bridge</h3>
+      <p><code>fct_trip_events</code> (append-only state transitions — the audit trail), <code>fct_trip_feedback</code> (per-rider sentiment), and <code>brg_journey_riders</code> (M:N — which rider rode in which car, and what they actually paid).</p>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-uber-2" aria-labelledby="t-uber-2" tabindex="0" hidden>
+      <h3>Consistency contracts, per field</h3>
+      <p>The same row mixes consistency regimes on purpose: <code>surge_multiplier</code> and <code>fx_rate_to_usd</code> are <strong>strong</strong> — locked at request, immutable forever; ETAs and rollups are <strong>eventual</strong>. Write the contract down before the first column — retrofitting strong consistency onto a field built eventual is a rebuild, not a tweak.</p>
+      <h3>One write path, three derived paths</h3>
+      <p>OLTP mutates the live <code>trips</code> row in place; OLAP keeps <code>fct_trips</code> as an append-only snapshot and <code>fct_trip_events</code> as the immutable log. The crossing is CDC governed by a watermark — the same entity is normalized in OLTP and dimensional in OLAP <em>by design</em>.</p>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-uber-3" aria-labelledby="t-uber-3" tabindex="0" hidden>
+      <div class="callout callout--trap"><span class="callout__k">Boundary violations that disqualify</span>A column on <code>fct_trips</code> a second service writes directly → two writers, no source of truth. Raw GPS inside <code>fct_trip_events</code> → a 1&nbsp;Hz firehose welded to an append-only audit log, now unqueryable. A fare written before the terminal state → finance reads an estimate as if it were committed. Each one collapses a boundary the model depends on.</div>
+      <div class="callout callout--note"><span class="callout__k">Senior framing</span>"The clean star schema is the steady-state view; production runs a reconciliation engine beneath it. Idempotency keys absorb replays, optimistic locks absorb races, append-only ledgers absorb rollbacks, and a stuck-state sweeper absorbs the events that never arrive. The model isn't only <em>correct</em> — it's correct <em>and self-healing</em>."</div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-uber-4" aria-labelledby="t-uber-4" tabindex="0" hidden>
+      <h3>The reconciliation invariants</h3>
+      <p>A convoy of 3 riders billed $60, split across 2 vehicles, must reconcile three ways:</p>
+      <pre><code>-- Invariant 1: the bridge sums to the group bill
+SUM(brg_journey_riders.individual_charge_usd) per journey_id
+   = fct_journeys.total_group_fare_usd        -- $20 + $20 + $20 = $60 ✓
+
+-- Invariant 2: the vehicle shares sum to the group bill
+SUM(fct_trips.trip_fare_share_usd) per journey_id
+   = fct_journeys.total_group_fare_usd        -- $30 + $30 = $60 ✓</code></pre>
+      <p>Riders R1+R2 ride in T-101 while R3 rides in T-102 — the bridge carries <code>trip_id</code> so a rider is always tied to the exact car, and "Pool for 4 / Bus / wedding party of 12" needs no schema migration, just more bridge rows.</p>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-uber-5" aria-labelledby="t-uber-5" tabindex="0" hidden>
+      <div class="drill">
+        <p class="drill__q">Q · What is the grain of <code>fct_trips</code> in the convoy model?</p>
+        <button class="reveal" type="button" data-reveal>Reveal answer</button>
+        <p class="drill__a" hidden>One row per <strong>driver/vehicle per journey</strong> — not per rider. Rider-level money lives in <code>brg_journey_riders</code>; collapsing them double-counts fares.</p>
+      </div>
+      <div class="drill">
+        <p class="drill__q">Q · Why is <code>surge_multiplier</code> stored on the row instead of derived at query time?</p>
+        <button class="reveal" type="button" data-reveal>Reveal answer</button>
+        <p class="drill__a" hidden>Because the rider's quoted price, the driver's earnings and booked revenue must agree <em>forever</em>. Lock it at request; never recompute.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- ---------- DoorDash ---------- -->
+  <article class="detail" id="detail-sc-doordash" aria-labelledby="h-dd">
+    <div class="detail__nav">
+      <div class="detail__head">
+        <button class="btn" type="button" data-back>← All scenarios</button>
+        <h2 id="h-dd">Order &amp; courier dispatch — stacked deliveries</h2>
+        <span class="card__domain">DoorDash / Uber Eats · 3-sided marketplace · <em>Advanced</em></span>
+      </div>
+      <div class="detail__actions">
+        <button class="btn btn--primary" type="button" data-study="sc-doordash" aria-pressed="false">Mark studied</button>
+        <a class="btn" href="data-modeling.html#sc-doordash">Full write-up ↗</a>
+      </div>
+    </div>
+    <div class="tablist" role="tablist" aria-label="DoorDash study view">
+      <button class="tab" role="tab" id="t-dd-0" aria-controls="p-dd-0" aria-selected="true">Prompt</button>
+      <button class="tab" role="tab" id="t-dd-1" aria-controls="p-dd-1" aria-selected="false" tabindex="-1">Data model</button>
+      <button class="tab" role="tab" id="t-dd-2" aria-controls="p-dd-2" aria-selected="false" tabindex="-1">SQL</button>
+      <button class="tab" role="tab" id="t-dd-3" aria-controls="p-dd-3" aria-selected="false" tabindex="-1">Trade-offs</button>
+      <button class="tab" role="tab" id="t-dd-4" aria-controls="p-dd-4" aria-selected="false" tabindex="-1">Pitfalls</button>
+      <button class="tab" role="tab" id="t-dd-5" aria-controls="p-dd-5" aria-selected="false" tabindex="-1">Worked example</button>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-dd-0" aria-labelledby="t-dd-0" tabindex="0">
+      <div class="callout callout--prompt"><span class="callout__k">Prompt</span>Model DoorDash's order lifecycle from customer placement → restaurant prep → courier pickup → delivery, supporting Customers (on-time SLA), Couriers (earnings), Restaurants (operations), with native handling of <em>stacked</em> orders where one courier delivers multiple orders on a single dispatch.</div>
+      <h3>The design tension</h3>
+      <p>A <strong>3-sided marketplace</strong> (customer + restaurant + courier) where one fact table can't satisfy all three. Stacked orders make it worse: one courier dispatch covers multiple orders, but each order has its own customer SLA and restaurant relationship. Mutable tips (editable up to 24h) demand append-only economics. The model must read clean for each stakeholder without forcing the others to filter.</p>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-dd-1" aria-labelledby="t-dd-1" tabindex="0" hidden>
+      <h3>The order / dispatch split + bridge</h3>
+      <ul>
+        <li><code>fct_orders</code> — <strong>customer grain.</strong> One row per customer order.</li>
+        <li><code>fct_dispatches</code> — <strong>courier grain.</strong> One row per dispatch; covers 1 (single) or N (stacked) orders.</li>
+        <li><code>brg_dispatch_orders</code> — <strong>stacking bridge.</strong> Links a dispatch to its 1-N orders with leg sequence + per-order distance.</li>
+        <li><code>fct_order_state_events</code> — <strong>telemetry grain.</strong> One row per state transition.</li>
+      </ul>
+      <div class="svg-wrap">
+        <svg viewBox="0 0 1440 760" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:transparent;display:block">
+          <defs><marker id="arrDD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+          <text x="720" y="34" text-anchor="middle" font-family="Inter,sans-serif" font-size="18" font-weight="700" fill="#0f172a" letter-spacing="0.6">DOORDASH 3-SIDED MARKETPLACE · ORDER + DISPATCH + BRIDGE</text>
+          <rect x="20" y="60" width="310" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+          <rect x="350" y="60" width="630" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+          <rect x="1000" y="60" width="420" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+          <text x="175" y="92" text-anchor="middle" font-family="Inter,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+          <text x="665" y="92" text-anchor="middle" font-family="Inter,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+          <text x="1210" y="92" text-anchor="middle" font-family="Inter,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+          <g transform="translate(40,130)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Inter,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_customers</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ customer_key · email · plan</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 on address</text></g>
+          <g transform="translate(40,225)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Inter,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_restaurants</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ restaurant_key · name</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">cuisine · hours · prep_avg</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 (menu, hours)</text></g>
+          <g transform="translate(40,330)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Inter,sans-serif" font-size="12" font-weight="600" fill="#fff">▰ dim_couriers</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ courier_key · name</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">vehicle_type · rating_tier</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+          <g transform="translate(385,130)"><rect width="280" height="200" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="280" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_orders · CUSTOMER</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ order_key (PK)</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ customer_id · restaurant_id</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ placed → confirmed → ready</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ → picked_up → delivered_ts</text><text x="20" y="121" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ subtotal · fees · tip</text><text x="20" y="137" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ tip_locked_ts · terminal_state</text><text x="20" y="180" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per customer order</text></g>
+          <g transform="translate(700,130)"><rect width="265" height="200" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_dispatches · COURIER</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ dispatch_key (PK)</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ courier_id (FK)</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ dispatch_start_ts · end_ts</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ is_batched · total_orders</text><text x="20" y="119" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ base_pay · tips · payout</text><text x="20" y="180" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per courier dispatch</text></g>
+          <g transform="translate(385,360)"><rect width="580" height="120" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ brg_dispatch_orders · STACKING BRIDGE</text><text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ dispatch_key · order_key (composite PK)</text><text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ leg_sequence · leg_distance_km · leg_payout_share_usd</text><text x="20" y="105" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 row per (dispatch × order). N=1 normal, N&gt;1 stacked.</text></g>
+          <g transform="translate(385,510)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_order_state_events · TELEMETRY</text><text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ order_id · state · event_ts · actor</text><text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per order state change · powers stage-latency analysis</text></g>
+          <g transform="translate(1015,130)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="700" fill="#fff">CUSTOMER · ORDER LATENCIES</text><text x="20" y="52" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Promised vs delivered (on-time %)</text><text x="20" y="72" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Stage breakdown: prep / pickup / drive</text><text x="20" y="92" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Late-stage attribution (whose fault?)</text></g>
+          <g transform="translate(1015,270)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="700" fill="#fff">COURIER EFFICIENCY</text><text x="20" y="52" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Earnings per hour</text><text x="20" y="72" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Stack uplift (single vs batched)</text><text x="20" y="92" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Idle time between dispatches</text></g>
+          <g transform="translate(1015,410)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="700" fill="#fff">RESTAURANT PERFORMANCE</text><text x="20" y="52" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊞ Prep time p50 / p95</text><text x="20" y="72" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ cancelled_restaurant rate</text><text x="20" y="92" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ GMV per restaurant per day</text></g>
+          <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+          <line x1="310" y1="375" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+          <line x1="525" y1="330" x2="525" y2="360" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+          <line x1="700" y1="330" x2="700" y2="360" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+          <line x1="525" y1="480" x2="525" y2="510" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+          <line x1="965" y1="180" x2="1015" y2="190" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrDD)"/>
+          <line x1="965" y1="220" x2="1015" y2="330" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrDD)"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-dd-2" aria-labelledby="t-dd-2" tabindex="0" hidden>
+      <h3>Sample data — dispatch DSP-99 (1 courier, 2 stacked orders)</h3>
+      <pre><code>INSERT INTO fct_dispatches VALUES
+  ('DSP-99','COURIER_X','2025-05-01 18:18','2025-05-01 18:42', TRUE, 2, 4.2, 6.50, 11.00, 17.50);
+
+INSERT INTO brg_dispatch_orders VALUES
+  ('DSP-99','O-201', 1, 2.0, 8.50),
+  ('DSP-99','O-202', 2, 2.2, 9.00);</code></pre>
+      <h3>Q · stage-by-stage latency with whose-fault attribution</h3>
+      <pre><code>SELECT order_id,
+  EXTRACT(EPOCH FROM (ready_ts - confirmed_ts))/60      AS prep_min,
+  EXTRACT(EPOCH FROM (picked_up_ts - ready_ts))/60      AS pickup_wait_min,
+  EXTRACT(EPOCH FROM (delivered_ts - picked_up_ts))/60  AS drive_min,
+  CASE
+    WHEN (ready_ts - confirmed_ts)     &gt; INTERVAL '20 min' THEN 'restaurant_slow'
+    WHEN (picked_up_ts - ready_ts)     &gt; INTERVAL '10 min' THEN 'courier_late_pickup'
+    WHEN (delivered_ts - picked_up_ts) &gt; INTERVAL '20 min' THEN 'courier_slow_drive'
+    ELSE 'on_track' END                                   AS bottleneck
+FROM fct_orders WHERE DATE(placed_ts) = '2025-05-01';</code></pre>
+      <h3>Q · earnings/hr, stacked vs single</h3>
+      <pre><code>SELECT is_batched, COUNT(*) AS dispatches,
+  ROUND(SUM(payout_usd) /
+        SUM(EXTRACT(EPOCH FROM (dispatch_end_ts - dispatch_start_ts))/3600), 2) AS earnings_per_hr
+FROM fct_dispatches
+GROUP BY is_batched;
+-- If stacked is &lt; 1.3× single payout/hr, batching isn't worth it.</code></pre>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-dd-3" aria-labelledby="t-dd-3" tabindex="0" hidden>
+      <h3>Why this works</h3>
+      <ul>
+        <li><strong>Three stakeholders, three grains, one model.</strong> Customer queries hit <code>fct_orders</code>; courier queries hit <code>fct_dispatches</code>; the bridge ties them only when stacking math matters.</li>
+        <li><strong>Stack uplift is measurable.</strong> Compare <code>is_batched=TRUE</code> vs <code>FALSE</code> earnings/hr — if stacking doesn't beat single by ~30%, dispatch should stop offering it.</li>
+        <li><strong>Mutable tips handled cleanly.</strong> Append correction rows; <code>tip_locked_ts</code> tracks the immutability boundary; finance restates from it.</li>
+      </ul>
+      <div class="callout callout--note"><span class="callout__k">Senior framing</span>"The bridge is what makes stacking a first-class concept rather than a hack: <em>was the customer on time?</em> joins <code>fct_orders</code>; <em>did the courier earn enough/hour?</em> aggregates <code>fct_dispatches</code>; <em>did the restaurant lose orders to prep time?</em> joins <code>dim_restaurants</code>."</div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-dd-4" aria-labelledby="t-dd-4" tabindex="0" hidden>
+      <div class="callout callout--trap"><span class="callout__k">Collapse the model and three things break</span><strong>Order grain only:</strong> can't represent "courier did 2 stacked deliveries" — courier earnings double-count. <strong>Dispatch grain only:</strong> the customer-SLA query has to sum inside the bridge — ugly, error-prone. <strong>No bridge (1:1 dispatch:order):</strong> forces non-stacking — kills the entire economic case for batching.</div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-dd-5" aria-labelledby="t-dd-5" tabindex="0" hidden>
+      <h3>Worked example — stacked dispatch DSP-99</h3>
+      <ol>
+        <li>Courier X accepts at 18:18 with 2 stacked orders from RST_PIZZA (shared pickup, 2 drops).</li>
+        <li>O-201 delivered 18:34 (16 min, 2.0 km); O-202 delivered 18:42 (24 min, +2.2 km).</li>
+        <li>Earnings: <code>base $6.50 + tips $11.00 = $17.50</code> for 24 min → <strong>$43.75/hr</strong> vs ~$28/hr single.</li>
+        <li>Bridge: O-201 share $8.50 + O-202 share $9.00 = $17.50 ✓</li>
+        <li>SLA trade-off: O-201 on-time; O-202 ran 8 min late waiting for O-201's drop — courier earnings up, second customer's SLA at risk.</li>
+      </ol>
+    </div>
+  </article>
+
+  <!-- ---------- Stripe ledger ---------- -->
+  <article class="detail" id="detail-sc-stripe-ledger" aria-labelledby="h-stripe">
+    <div class="detail__nav">
+      <div class="detail__head">
+        <button class="btn" type="button" data-back>← All scenarios</button>
+        <h2 id="h-stripe">Double-entry ledger — replay-safe payments</h2>
+        <span class="card__domain">Stripe · payments · <em>Advanced</em></span>
+      </div>
+      <div class="detail__actions">
+        <button class="btn btn--primary" type="button" data-study="sc-stripe-ledger" aria-pressed="false">Mark studied</button>
+        <a class="btn" href="data-modeling.html#sc-stripe-ledger">Full write-up ↗</a>
+      </div>
+    </div>
+    <div class="tablist" role="tablist" aria-label="Stripe ledger study view">
+      <button class="tab" role="tab" id="t-st-0" aria-controls="p-st-0" aria-selected="true">Prompt</button>
+      <button class="tab" role="tab" id="t-st-1" aria-controls="p-st-1" aria-selected="false" tabindex="-1">Data model</button>
+      <button class="tab" role="tab" id="t-st-2" aria-controls="p-st-2" aria-selected="false" tabindex="-1">SQL</button>
+      <button class="tab" role="tab" id="t-st-3" aria-controls="p-st-3" aria-selected="false" tabindex="-1">Trade-offs</button>
+      <button class="tab" role="tab" id="t-st-4" aria-controls="p-st-4" aria-selected="false" tabindex="-1">Pitfalls</button>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-st-0" aria-labelledby="t-st-0" tabindex="0">
+      <div class="callout callout--prompt"><span class="callout__k">Prompt</span>Stripe processes ~$1T/year. Every cent must reconcile across charges, refunds, fees, payouts, FX, taxes and chargebacks — and survive replay, retries and partial failures.</div>
+      <h3>The design tension</h3>
+      <p>The whole system is an <strong>append-only double-entry ledger</strong>: nothing is updated, only debited or credited. The same model banks have used for centuries; the schema is just its SQL realization.</p>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-st-1" aria-labelledby="t-st-1" tabindex="0" hidden>
+      <div class="table-wrap"><table><thead><tr><th>Type</th><th>Table</th><th>Notes</th></tr></thead><tbody>
+        <tr><td>Dim</td><td><code>dim_account</code></td><td>Every party (customer, merchant, platform, fee, FX, tax, chargeback) is an "account" with a balance.</td></tr>
+        <tr><td>Fact (event)</td><td><code>fct_journal_entry</code></td><td>Every transaction emits N rows summing to zero — the append-only spine.</td></tr>
+        <tr><td>Fact (snapshot)</td><td><code>fct_account_balance</code></td><td>Derived per-account daily balance, materialized from journal entries.</td></tr>
+        <tr><td>Bridge</td><td><code>bridge_charge_journal</code></td><td>One charge → many entries (revenue + fee + tax).</td></tr>
+      </tbody></table></div>
+      <div class="svg-wrap">
+        <svg viewBox="0 0 1000 470" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:transparent;display:block">
+          <defs><marker id="arrST" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+          <text x="500" y="30" text-anchor="middle" font-family="Inter,sans-serif" font-size="16" font-weight="700" fill="#0f172a">STRIPE DOUBLE-ENTRY LEDGER · APPEND-ONLY · SUM = 0</text>
+          <g transform="translate(30,70)"><rect width="250" height="110" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="250" height="30" fill="#1f2937" rx="6"/><text x="14" y="21" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">◉ dim_account</text><text x="18" y="54" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ account_key · party_type</text><text x="18" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">customer | merchant | platform</text><text x="18" y="86" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">fee | FX | tax | chargeback</text></g>
+          <g transform="translate(30,210)"><rect width="250" height="90" fill="#fffbeb" stroke="#92400e" rx="6"/><rect width="250" height="30" fill="#92400e" rx="6"/><text x="14" y="21" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ bridge_charge_journal</text><text x="18" y="54" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⌖ charge_id · journal_entry_id</text><text x="18" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">1 charge → N entries</text></g>
+          <g transform="translate(370,70)"><rect width="420" height="170" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="420" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_journal_entry · APPEND-ONLY SPINE</text><text x="18" y="56" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ entry_key (PK) · ⛓ txn_id · account · currency</text><text x="18" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ amount (signed: + or −)</text><text x="18" y="92" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ idempotency_key (UNIQUE)</text><text x="18" y="110" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ references_txn (refunds / chargebacks)</text><text x="18" y="132" font-family="JetBrains Mono,monospace" font-size="10" fill="#92400e">⚠ INVARIANT: SUM(amount) = 0 per txn_id</text><text x="18" y="156" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per debit/credit · N rows per transaction</text></g>
+          <g transform="translate(370,270)"><rect width="420" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="420" height="30" fill="#1f2937" rx="6"/><text x="14" y="21" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_account_balance · DERIVED DAILY</text><text x="18" y="52" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⛓ account · currency · date · ＄ closing_balance</text><text x="18" y="68" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">materialized from journal SUM — never wrong by definition</text></g>
+          <g transform="translate(820,70)"><rect width="150" height="280" fill="#f1f5f9" stroke="#cbd5e0" rx="8"/><text x="895" y="96" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" font-weight="700" fill="#0f172a">CHECKS</text><text x="836" y="128" font-family="Inter,sans-serif" font-size="10" font-weight="600" fill="#1e293b">⚠ SUM≠0 → page</text><text x="836" y="150" font-family="Inter,sans-serif" font-size="10" font-weight="600" fill="#1e293b">⏱ time-travel bal</text><text x="836" y="172" font-family="Inter,sans-serif" font-size="10" font-weight="600" fill="#1e293b">⌬ FX lock @event</text><text x="836" y="194" font-family="Inter,sans-serif" font-size="10" font-weight="600" fill="#1e293b">↩ chargeback 60-90d</text></g>
+          <line x1="280" y1="120" x2="370" y2="140" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrST)"/>
+          <line x1="280" y1="250" x2="370" y2="170" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrST)"/>
+          <line x1="580" y1="240" x2="580" y2="270" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrST)"/>
+          <line x1="790" y1="150" x2="820" y2="150" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrST)"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-st-2" aria-labelledby="t-st-2" tabindex="0" hidden>
+      <h3>The double-entry contract — signed amounts sum to zero per txn</h3>
+      <pre><code>-- A $100 charge with a $3 Stripe fee:
+INSERT INTO fct_journal_entry (txn_id, account, currency, amount) VALUES
+  ('TXN_001', 'customer_xyz',  'USD', -100.00),  -- customer debited $100
+  ('TXN_001', 'merchant_abc',  'USD',   97.00),  -- merchant credited $97
+  ('TXN_001', 'stripe_revenue','USD',    3.00);  -- Stripe credited $3
+-- SUM = 0 ✓</code></pre>
+      <h3>Daily integrity check</h3>
+      <pre><code>SELECT txn_id, SUM(amount) AS net
+FROM fct_journal_entry
+GROUP BY txn_id
+HAVING ABS(SUM(amount)) &gt; 0.001;
+-- ANY row returned = data corruption, page on-call</code></pre>
+      <h3>Refunds are NEW entries, not deletes</h3>
+      <pre><code>-- Refund of TXN_001
+INSERT INTO fct_journal_entry (txn_id, account, currency, amount, references_txn) VALUES
+  ('TXN_002', 'merchant_abc',  'USD',  -97.00, 'TXN_001'),
+  ('TXN_002', 'customer_xyz',  'USD',  100.00, 'TXN_001'),
+  ('TXN_002', 'stripe_revenue','USD',   -3.00, 'TXN_001');</code></pre>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-st-3" aria-labelledby="t-st-3" tabindex="0" hidden>
+      <h3>Idempotency via natural key</h3>
+      <p>Same idempotency key + same body = same result. The schema enforces <code>UNIQUE (idempotency_key, account_id, txn_type)</code>: a retry tries to insert a duplicate → unique violation → the app returns the original txn. Replay-safe by construction.</p>
+      <h3>Multi-currency lock</h3>
+      <p>Charge in EUR, book revenue in USD, settle in GBP — three currencies, one transaction, three journal entries with an <code>fx_rate_locked_at_event</code> on each. "What did we earn in March in USD?" sums the USD-denominated entries — never re-does FX.</p>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-st-4" aria-labelledby="t-st-4" tabindex="0" hidden>
+      <div class="callout callout--trap"><span class="callout__k">The junior move</span>Marking a charge "refunded" with an <code>UPDATE</code>. Wrong — it destroys the Monday close that accounting already locked. The ledger <em>appends</em>; both transactions exist forever, and <code>fct_account_balance</code> is just <code>SUM(amount) GROUP BY account</code> — always derivable, never wrong.</div>
+      <div class="callout callout--warn"><span class="callout__k">Chargebacks arrive 60-90 days late</span>The original transaction long since posted; the chargeback emits a NEW entry with <code>references_txn = 'TXN_001'</code>. Monthly close-of-books locks the past, but new chargeback rows still arrive — they land in a "post-close adjustment" sub-period.</div>
+      <div class="callout callout--note"><span class="callout__k">Senior framing</span>"The append-only double-entry ledger is the only model where SUM-equals-zero is an enforceable integrity constraint at the database level. The unique constraint on idempotency_key turns API retries into no-ops."</div>
+    </div>
+  </article>
+
+</main>
+
+<p class="footnote" id="footnote">
+  Prototype redesign of <a href="data-modeling.html">data-modeling.html</a>. Three scenarios are wired into the new tabbed study view; the other seventeen open the existing write-up. Colour, type, dark-mode, responsive and a11y reflect the proposed design system.
+</p>
+
+<script>
+/* ============================================================
+   Data Modeling Studio — prototype interactions (vanilla JS)
+   ============================================================ */
+(function(){
+  "use strict";
+
+  // ---- Scenario catalog (metadata drives cards + filters) ----
+  var WIRED = {"sc-uber-trip":1,"sc-doordash":1,"sc-stripe-ledger":1};
+  var SCENARIOS = [
+    {id:"sc-uber-trip",n:1,t:"Trip lifecycle (multi-driver convoys)",dom:"Ride-share",topics:["Dual-grain","Bridge","SCD2","Geospatial","Ledger"],diff:"principal"},
+    {id:"sc-uber-surge",n:2,t:"Surge pricing & supply/demand",dom:"Ride-share",topics:["Geospatial","Streaming","Time-of-decision"],diff:"advanced"},
+    {id:"sc-doordash",n:3,t:"Order & courier dispatch (stacked)",dom:"Delivery",topics:["Dual-grain","Bridge","Ledger","SLA"],diff:"advanced"},
+    {id:"sc-google-ads",n:4,t:"Search ads auction & quality score",dom:"Ads",topics:["Attribution","Factless","Auction"],diff:"advanced"},
+    {id:"sc-meta-ads",n:5,t:"Attribution & cross-device identity",dom:"Ads",topics:["Attribution","Identity graph","Late-arriving"],diff:"principal"},
+    {id:"sc-netflix-ads",n:6,t:"CTV ads inventory & pacing",dom:"Ads",topics:["Inventory","Pacing","Factless"],diff:"advanced"},
+    {id:"sc-amazon",n:7,t:"Orders, returns & inventory",dom:"E-commerce",topics:["Ledger","Snapshot","Multi-warehouse"],diff:"advanced"},
+    {id:"sc-meta-feed",n:8,t:"Feed engagement",dom:"Social",topics:["Activity schema","Hot-partition","Late-arriving"],diff:"core"},
+    {id:"sc-spotify",n:9,t:"Listening history & royalties",dom:"Streaming",topics:["Activity schema","Royalty","Aggregate"],diff:"core"},
+    {id:"sc-stripe",n:10,t:"Payments & double-entry ledger",dom:"Payments",topics:["Ledger","Multi-currency","Idempotency"],diff:"advanced"},
+    {id:"sc-airbnb",n:11,t:"Bookings, calendar & reviews",dom:"Marketplace",topics:["Calendar-as-fact","SCD2","Cancellation"],diff:"core"},
+    {id:"sc-saas",n:12,t:"Subscription billing & usage metering",dom:"SaaS",topics:["Usage metering","MRR","SCD2"],diff:"core"},
+    {id:"sc-spotify-royalty",n:13,t:"Streaming royalty pool distribution",dom:"Streaming",topics:["Pool model","Royalty","Bridge"],diff:"advanced"},
+    {id:"sc-tiktok-fyp",n:14,t:"Recommendation feedback loop & off-policy",dom:"Social",topics:["Feedback loop","Off-policy","ML features"],diff:"principal"},
+    {id:"sc-stripe-ledger",n:15,t:"Double-entry ledger & idempotency",dom:"Payments",topics:["Ledger","Idempotency","Multi-currency","Late-arriving"],diff:"advanced"},
+    {id:"sc-salesforce-hierarchy",n:16,t:"Account hierarchy & multi-tenant CRM",dom:"CRM",topics:["Hierarchy","SCD2","Multi-tenant"],diff:"advanced"},
+    {id:"sc-netflix-streaming",n:17,t:"Streaming + series + binge + LAD",dom:"Streaming",topics:["Late-arriving","SCD2","Bingewatch"],diff:"advanced"},
+    {id:"sc-ma-integration",n:18,t:"M&A integration — golden records",dom:"M&A",topics:["Golden record","Strangler","Conformed dim"],diff:"principal"},
+    {id:"sc-fraud-detection",n:19,t:"Fraud — identity graph & decision replay",dom:"Fraud",topics:["Identity graph","Decision replay","Factless"],diff:"principal"},
+    {id:"sc-growth-accounting",n:20,t:"Growth accounting — DAU/WAU/MAU & LTV",dom:"Growth",topics:["Cohort","Activity schema","Aggregate"],diff:"core"}
+  ];
+  var DIFF_ORDER = ["core","advanced","principal"];
+  var DIFF_LABEL = {core:"Core",advanced:"Advanced",principal:"Principal"};
+
+  // ---- DOM refs ----
+  var $ = function(s,r){return (r||document).querySelector(s);};
+  var $$ = function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+  var grid = $("#grid"), emptyState = $("#emptyState"), resultCount = $("#resultCount"),
+      searchInput = $("#searchInput"), catalogView = $("#catalogView"), filterView = $("#filterView");
+
+  // ---- Progress (localStorage) ----
+  var STUDIED_KEY = "dm-studio-studied";
+  function getStudied(){ try{return JSON.parse(localStorage.getItem(STUDIED_KEY))||{};}catch(e){return {};} }
+  function setStudied(o){ try{localStorage.setItem(STUDIED_KEY, JSON.stringify(o));}catch(e){} }
+  function renderProgress(){
+    var s=getStudied(), c=Object.keys(s).filter(function(k){return s[k];}).length;
+    $("#progressLabel").textContent = c+" / "+SCENARIOS.length;
+    $("#progressFill").style.width = (100*c/SCENARIOS.length)+"%";
+    $$(".card").forEach(function(card){ card.classList.toggle("is-studied", !!s[card.dataset.id]); });
+    $$("[data-study]").forEach(function(b){ var on=!!s[b.dataset.study]; b.setAttribute("aria-pressed",on); b.textContent= on?"✓ Studied":"Mark studied"; });
+  }
+
+  // ---- Build filter chips ----
+  function uniq(arr){ return arr.filter(function(v,i){return arr.indexOf(v)===i;}); }
+  var DOMAINS = uniq(SCENARIOS.map(function(s){return s.dom;}));
+  var TOPICS  = uniq([].concat.apply([], SCENARIOS.map(function(s){return s.topics;}))).sort();
+  var active = {domain:{}, topic:{}, difficulty:{}};
+
+  function buildChips(){
+    fillChips("domain", DOMAINS, function(d){return d;});
+    fillChips("topic", TOPICS, function(d){return d;});
+    fillChips("difficulty", DIFF_ORDER, function(d){return DIFF_LABEL[d];});
+  }
+  function fillChips(facet, values, label){
+    var box = $('.chips[data-facet="'+facet+'"]');
+    box.innerHTML = "";
+    values.forEach(function(v){
+      var b=document.createElement("button");
+      b.type="button"; b.className="chip"+(facet==="difficulty"?" chip--diff":"");
+      b.textContent=label(v); b.setAttribute("aria-pressed","false"); b.dataset.value=v; b.dataset.facet=facet;
+      b.addEventListener("click", function(){
+        var on = b.getAttribute("aria-pressed")==="true";
+        b.setAttribute("aria-pressed", !on); active[facet][v]= !on; applyFilters();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  // ---- Build cards ----
+  function buildCards(){
+    grid.innerHTML="";
+    SCENARIOS.forEach(function(s){
+      var wired = !!WIRED[s.id];
+      var card = document.createElement(wired?"button":"a");
+      card.className="card"; card.dataset.id=s.id; card.dataset.domain=s.dom;
+      card.dataset.topics=s.topics.join("|"); card.dataset.difficulty=s.diff; card.dataset.wired=wired?"true":"false";
+      card.setAttribute("role","listitem");
+      if(wired){ card.type="button"; card.addEventListener("click",function(){ go(s.id); }); }
+      else { card.href="data-modeling.html#"+s.id; }
+      card.innerHTML =
+        '<div class="card__top"><span class="card__num">#'+(s.n<10?"0":"")+s.n+'</span>'+
+          '<span class="card__diff" data-d="'+s.diff+'">'+DIFF_LABEL[s.diff]+'</span></div>'+
+        '<h2 class="card__title">'+s.t+'</h2>'+
+        '<div class="card__domain">'+s.dom+'</div>'+
+        '<div class="card__topics">'+s.topics.slice(0,3).map(function(t){return '<span class="card__topic">'+t+'</span>';}).join("")+'</div>'+
+        '<div class="card__foot"><span class="studied-badge">✓ studied</span>'+
+          '<span class="card__cta">'+(wired?'Open study view →':'View write-up ↗')+'</span></div>';
+      grid.appendChild(card);
+    });
+  }
+
+  // ---- Filtering ----
+  function anyActive(facet){ return Object.keys(active[facet]).some(function(k){return active[facet][k];}); }
+  function applyFilters(){
+    var q = (searchInput.value||"").trim().toLowerCase();
+    var shown=0;
+    $$(".card").forEach(function(card){
+      var s = SCENARIOS.filter(function(x){return x.id===card.dataset.id;})[0];
+      var okD = !anyActive("domain") || active.domain[s.dom];
+      var okT = !anyActive("topic") || s.topics.some(function(t){return active.topic[t];});
+      var okF = !anyActive("difficulty") || active.difficulty[s.diff];
+      var hay = (s.t+" "+s.dom+" "+s.topics.join(" ")).toLowerCase();
+      var okQ = !q || hay.indexOf(q)>=0;
+      var show = okD&&okT&&okF&&okQ;
+      card.style.display = show?"":"none";
+      if(show) shown++;
+    });
+    resultCount.textContent = shown+" scenario"+(shown===1?"":"s");
+    emptyState.style.display = shown?"none":"block";
+  }
+  function clearAll(){
+    active={domain:{},topic:{},difficulty:{}};
+    $$(".chip").forEach(function(c){c.setAttribute("aria-pressed","false");});
+    searchInput.value=""; applyFilters();
+  }
+
+  // ---- Routing: grid <-> detail ----
+  function go(id){ location.hash = id; }
+  function showGrid(){
+    catalogView.style.display=""; filterView.style.display="";
+    $$(".detail").forEach(function(d){d.classList.remove("is-open");});
+    document.title = "Data Modeling Studio (prototype) · PaddySpeaks";
+    window.scrollTo({top:0,behavior:"auto"});
+  }
+  function showDetail(id){
+    var panel = $("#detail-"+id);
+    if(!panel || !WIRED[id]){ showGrid(); return; }
+    catalogView.style.display="none"; filterView.style.display="none";
+    $$(".detail").forEach(function(d){d.classList.remove("is-open");});
+    panel.classList.add("is-open");
+    window.scrollTo({top:0,behavior:"auto"});
+    var h=$("h2",panel); if(h){ h.setAttribute("tabindex","-1"); h.focus(); }
+  }
+  function route(){
+    var id = location.hash.replace(/^#/,"");
+    if(id && WIRED[id]) showDetail(id); else showGrid();
+  }
+
+  // ---- Tabs (ARIA tablist with arrow-key support) ----
+  function wireTabs(list){
+    var tabs = $$('[role="tab"]', list);
+    function activate(tab,focus){
+      tabs.forEach(function(t){
+        var sel = t===tab;
+        t.setAttribute("aria-selected", sel); t.tabIndex = sel?0:-1;
+        var p = $("#"+t.getAttribute("aria-controls")); if(p) p.hidden = !sel;
+      });
+      if(focus) tab.focus();
+    }
+    tabs.forEach(function(tab,i){
+      tab.addEventListener("click", function(){ activate(tab,false); });
+      tab.addEventListener("keydown", function(e){
+        var k=e.key, j=null;
+        if(k==="ArrowRight"||k==="ArrowDown") j=(i+1)%tabs.length;
+        else if(k==="ArrowLeft"||k==="ArrowUp") j=(i-1+tabs.length)%tabs.length;
+        else if(k==="Home") j=0; else if(k==="End") j=tabs.length-1;
+        if(j!==null){ e.preventDefault(); activate(tabs[j],true); }
+      });
+    });
+  }
+
+  // ---- Theme ----
+  var THEME_KEY="dm-studio-theme", root=document.documentElement, themeBtn=$("#themeBtn");
+  function isDark(){ var t=root.getAttribute("data-theme");
+    if(t==="dark") return true; if(t==="light") return false;
+    return window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches; }
+  function applyTheme(){ var dark=isDark();
+    themeBtn.setAttribute("aria-pressed",dark);
+    $("#themeLabel").textContent = dark?"Light":"Dark"; }
+  function initTheme(){ var saved=null; try{saved=localStorage.getItem(THEME_KEY);}catch(e){}
+    if(saved) root.setAttribute("data-theme",saved); applyTheme(); }
+  themeBtn.addEventListener("click", function(){
+    var dark=isDark(); root.setAttribute("data-theme", dark?"light":"dark");
+    try{localStorage.setItem(THEME_KEY, dark?"light":"dark");}catch(e){} applyTheme(); });
+
+  // ---- Misc events ----
+  document.addEventListener("click", function(e){
+    var back=e.target.closest("[data-back]"); if(back){ e.preventDefault(); location.hash=""; if(location.hash==="") route(); return; }
+    var study=e.target.closest("[data-study]"); if(study){ var s=getStudied(); var id=study.dataset.study; s[id]=!s[id]; setStudied(s); renderProgress(); return; }
+    var rev=e.target.closest("[data-reveal]"); if(rev){ var a=rev.nextElementSibling; if(a){ a.hidden=!a.hidden; rev.textContent=a.hidden?"Reveal answer":"Hide answer"; } return; }
+  });
+  searchInput.addEventListener("input", applyFilters);
+  $("#clearFilters").addEventListener("click", clearAll);
+  window.addEventListener("hashchange", route);
+  // expose a tiny API for inline fallbacks
+  window.DM = { clear: clearAll };
+
+  // ---- Boot ----
+  buildChips(); buildCards(); $$(".tablist").forEach(wireTabs);
+  initTheme(); renderProgress(); applyFilters(); route();
+})();
+</script>
+</body>
+</html>
