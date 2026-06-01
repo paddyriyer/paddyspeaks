@@ -523,7 +523,7 @@ body.is-comparing .card:hover{border-left-color:var(--accent)}
 <ul>
   <li><code>dim_users</code> — Riders and drivers, typed via <code>user_role</code>. SCD2 on plan tier and rating.</li>
   <li><code>dim_vehicles</code> — Vehicle specs (model, type), insurance status, owner. SCD2 on insurance status (Risk needs as-of-trip status).</li>
-  <li><code>dim_geography</code> — H3 hexagonal indexing (level 8 ≈ 0.7 km²) for spatial analysis. SCD1 (geography is structurally static).</li>
+  <li><code>dim_geography</code> — split by volatility: the H3 grid itself (<code>dim_h3_cell</code>, level 8 ≈ 0.7 km²) is SCD1 because the geometry is static, but the operational overlays riding on it — tax zones, airport/surge rings, road status — are SCD2 (<code>dim_surge_zone</code> and road-state rows), because those boundaries get re-drawn. See §11.3 for SCD2 geography in action.</li>
   <li><code>dim_payment_methods</code> — Card / wallet on file. SCD2 — Finance audit needs the as-of-trip card.</li>
   <li><code>dim_fx_rate</code> — SCD2 daily rates; locked at <code>request_timestamp</code>.</li>
 </ul>
@@ -560,6 +560,29 @@ Booking_Value, Ride_Distance, Driver_Ratings, Customer_Rating, Payment_Method
     <tr><td><code>Payment_Method</code></td><td><code>dim_payment_methods</code></td><td>Enum {Cash, UPI, Debit Card, Credit Card, Wallet}.</td></tr>
   </tbody>
 </table>
+
+<p><strong>Enrichment: inferring the journey hierarchy from flat bookings</strong></p>
+<p>The dataset is one row per <em>single-rider</em> booking — there is no <code>journey_id</code>, so the convoy hierarchy can't be exercised until you derive one. A window function groups bookings that share an origin, destination, and request-minute into an inferred journey:</p>
+<pre><code>-- Inferred journey derivation (the enrichment layer)
+WITH inferred AS (
+  SELECT
+    booking_ID  AS trip_id,
+    Customer_ID AS rider_id,
+    DENSE_RANK() OVER (
+      ORDER BY Pickup_Location, Drop_Location,
+               DATE_TRUNC('minute', CAST(Date || ' ' || Time AS TIMESTAMP))
+    ) AS inferred_journey_id
+  FROM raw_kaggle_uber_data
+)
+SELECT
+  inferred_journey_id      AS journey_id,
+  COUNT(*)                 AS convoy_vehicle_count,
+  COUNT(DISTINCT rider_id) AS distinct_riders
+FROM inferred
+GROUP BY inferred_journey_id
+HAVING COUNT(*) > 1;        -- multi-vehicle groups = candidate convoys
+</code></pre>
+<p><strong>Caveat — this is a heuristic, not ground truth.</strong> Grouping on (origin, destination, minute) fuses <em>independent strangers</em> sharing a popular corridor at rush hour into a phantom "convoy." A real enrichment needs a genuine correlation signal — a shared booking/party token, a tighter spatial radius (H3&nbsp;L10) with a few-second window, or the same payment instrument — before two bookings can be claimed as one journey. Use it to teach the window-function pattern, and name its false-positive rate out loud in the interview: spotting the limit is itself the senior signal.</p>
 
 <p><strong>Real sample rows (5 representative bookings from the dataset)</strong></p>
 <pre><code>-- Loaded into fct_trips after ETL transformation:
@@ -877,9 +900,9 @@ UPDATE trips
     <tr><td><code>surge_multiplier</code></td><td>DECIMAL(4,2)</td><td>Locked at request — <strong>immutable</strong>.</td></tr>
     <tr><td><code>total_fare_local</code></td><td>DECIMAL(10,2)</td><td>Final fare in source currency.</td></tr>
     <tr><td><code>fx_rate_to_usd</code></td><td>DECIMAL(18,8)</td><td>Locked at <code>request_timestamp</code> — guarantees revenue can never be restated by FX drift.</td></tr>
-    <tr><td><code>total_fare_usd</code></td><td>DECIMAL(10,2)</td><td>Final amount charged to rider(s) — Finance source of truth.</td></tr>
+    <tr><td><code>total_fare_usd</code></td><td>DECIMAL(10,2)</td><td>Amount charged to rider(s) — a denormalized roll-up of the rider-side postings in <code>fct_trip_financial_entry</code> (at <code>quoted_fx_rate</code>), kept on the row for fast reads. The ledger, not this column, is the system of record.</td></tr>
     <tr><td><code>driver_payout_usd</code></td><td>DECIMAL(10,2)</td><td>Final amount owed to driver after take rate (Finance focus).</td></tr>
-    <tr><td><code>is_flagged_risk</code></td><td>BOOLEAN</td><td>Fraud suspicion flag (Risk focus). Slowly-changing — append correction; never <code>UPDATE</code>.</td></tr>
+    <tr><td><code>is_flagged_risk</code></td><td>BOOLEAN</td><td>Latest fraud verdict (Risk focus) — a read-only projection of the newest <code>fct_trip_risk_decision</code> row. Corrections append to that ledger; this column is never <code>UPDATE</code>d in place.</td></tr>
     <tr><td><code>ingest_ts</code></td><td>TIMESTAMP_TZ</td><td>For idempotent <code>MERGE</code>.</td></tr>
   </tbody>
 </table>
@@ -922,8 +945,50 @@ UPDATE trips
     <tr><td><code>individual_charge_usd</code></td><td>DECIMAL(10,2)</td><td>What this rider actually pays. Computed from <code>fct_journeys.split_type</code>.</td></tr>
     <tr><td><code>pickup_sequence</code></td><td>SMALLINT</td><td>Order picked up within their assigned trip (1, 2, 3…).</td></tr>
     <tr><td><code>leg_distance_km</code></td><td>DECIMAL(8,3)</td><td>This rider's portion of the route; basis for distance-prorata splits.</td></tr>
+    <tr><td><code>assignment_version</code></td><td>SMALLINT</td><td>Append-only: a re-assignment (rider moves cars mid-journey) writes a new version, never an <code>UPDATE</code>. The newest version is the live seat.</td></tr>
+    <tr><td><code>effective_from</code></td><td>TIMESTAMP_TZ</td><td>When this rider→trip assignment took effect; lets Risk and Finance reconstruct who was in which car at any instant.</td></tr>
   </tbody>
 </table>
+
+<p><strong>Append-only systems of record.</strong> Two things on <code>fct_trips</code> — money and the fraud verdict — keep changing <em>after</em> the trip reaches its terminal state. Mutating them in place would break the one-row-per-trip grain, so each gets its own append-only ledger; the columns on <code>fct_trips</code> are read-only projections of the latest state.</p>
+
+<p><strong>Ledger Fact: <code>fct_trip_financial_entry</code> (one row per double-entry posting — append-only)</strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>entry_id</code></td><td>PK BIGINT</td><td>Surrogate; one immutable posting.</td></tr>
+    <tr><td><code>trip_id</code></td><td>FK</td><td>Link to <code>fct_trips</code> — a trip accrues many postings.</td></tr>
+    <tr><td><code>journey_id</code></td><td>FK</td><td>Parent journey; lets Finance reconcile rider-side and driver-side to <code>total_group_fare_usd</code>.</td></tr>
+    <tr><td><code>entry_type</code></td><td>ENUM</td><td>{rider_charge, platform_fee, driver_payout, refund, cancellation_fee, promo_adjustment, tip}.</td></tr>
+    <tr><td><code>source_account</code></td><td>STRING</td><td>Where value leaves: <code>rider_wallet</code>, <code>platform_take</code>, <code>driver_escrow</code>, <code>promo_pool</code>…</td></tr>
+    <tr><td><code>destination_account</code></td><td>STRING</td><td>Where it lands. Every posting moves value between two accounts — money is never created or destroyed.</td></tr>
+    <tr><td><code>amount_local</code></td><td>DECIMAL(18,4)</td><td>Magnitude in <code>currency_code</code>; a reversal is a new posting with the accounts swapped, never a delete.</td></tr>
+    <tr><td><code>currency_code</code></td><td>CHAR(3)</td><td>ISO currency the posting was made in.</td></tr>
+    <tr><td><code>quoted_fx_rate</code></td><td>DECIMAL(18,8)</td><td>Rate locked at <code>request_timestamp</code> — fixes the rider's USD charge so revenue can't be restated by drift.</td></tr>
+    <tr><td><code>settlement_fx_rate</code></td><td>DECIMAL(18,8)</td><td>Rate at <code>posted_at</code> — what driver payouts and late tips actually settle at for corporate reconciliation.</td></tr>
+    <tr><td><code>posted_at</code></td><td>TIMESTAMP_TZ</td><td>When the posting was written.</td></tr>
+    <tr><td><code>accounting_period_id</code></td><td>STRING</td><td>The locked financial snapshot this posting falls in.</td></tr>
+    <tr><td><code>source_event</code></td><td>STRING</td><td>What triggered it (dropoff, dispute, payout_run…) — the audit anchor.</td></tr>
+  </tbody>
+</table>
+<p><strong>Conservation invariant.</strong> Because every row moves value between two accounts, platform integrity reduces to one identity per account: <code>SUM(amount_local) WHERE destination_account = 'X'</code> must equal <code>SUM(amount_local) WHERE source_account = 'X'</code>. A pipeline bug that creates or loses money breaks the equality on the next run — the ledger audits itself, exactly like the two reconciliation invariants on <code>brg_journey_riders</code>.</p>
+
+<p><strong>Risk Fact: <code>fct_trip_risk_decision</code> (one row per evaluation version — append-only)</strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>decision_id</code></td><td>PK BIGINT</td><td>Surrogate; one immutable verdict.</td></tr>
+    <tr><td><code>trip_id</code></td><td>FK</td><td>Link to <code>fct_trips</code> — a trip can be re-scored many times.</td></tr>
+    <tr><td><code>decision_version</code></td><td>SMALLINT</td><td>Monotonic per <code>trip_id</code>; the newest is what <code>fct_trips.is_flagged_risk</code> projects.</td></tr>
+    <tr><td><code>verdict</code></td><td>ENUM</td><td>{clear, review, flagged, confirmed_fraud}.</td></tr>
+    <tr><td><code>score</code></td><td>DECIMAL(5,4)</td><td>Model probability at this version.</td></tr>
+    <tr><td><code>model_id</code></td><td>FK</td><td>Which model/ruleset produced it — lets you replay a payout against the verdict that existed at the time.</td></tr>
+    <tr><td><code>decided_by</code></td><td>STRING</td><td>{model, analyst}; an analyst override appends a new version, never edits the model's.</td></tr>
+    <tr><td><code>decided_at</code></td><td>TIMESTAMP_TZ</td><td>When this version was written.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Mid-journey mutation — the "convoy jettison."</strong> Vehicle B breaks down ten minutes in; its two riders pile into Vehicle A or fork off into a fresh standalone trip. Nothing is mutated in place: the bridge appends new <code>assignment_version</code> rows re-seating those riders (the old rows stay, so "who was in which car at 12:09" is still answerable), and the billing divergence from the original group intent posts as a <code>promo_adjustment</code> / <code>refund</code> pair in <code>fct_trip_financial_entry</code>. The grain holds, the audit holds, and the reconciliation invariants still sum.</p>
 <h3>Section 3 — How the model serves each stakeholder</h3>
 <p><strong>Operations · live ETA &amp; monitoring</strong></p>
 <p>By using <code>fct_trip_events</code>, Operations calculates lead-time metrics directly:</p>
@@ -935,7 +1000,7 @@ UPDATE trips
 
 <p><strong>Finance · driver payouts &amp; revenue</strong></p>
 <ul>
-  <li><code>fct_trips</code> is the General Ledger source of truth — every payout in <code>fct_payouts</code> joins back here on <code>trip_key</code>.</li>
+  <li><code>fct_trip_financial_entry</code> is the general ledger — every charge, fee, payout, refund, and adjustment is an append-only posting keyed to <code>trip_id</code>. <code>fct_trips</code> carries only the rolled-up <code>total_fare_usd</code> / <code>driver_payout_usd</code> projections for fast reads. Driver payouts settle in <code>fct_payouts</code> (one row per driver per payout run) and must reconcile back to the ledger.</li>
   <li><code>surge_multiplier</code> is immutable once the request is made — ensures the rider's quoted price matches the driver's earning potential. Stored on the row, never derived.</li>
   <li><code>terminal_state</code> dictates whether a cancellation fee triggers a partial driver payout (e.g. <code>cancelled_rider</code> after MATCHED triggers a fee; <code>cancelled_system</code> does not).</li>
   <li>FX is locked at <code>request_timestamp</code> — guarantees revenue restatement is impossible from rate drift.</li>
@@ -945,8 +1010,9 @@ UPDATE trips
 <ul>
   <li><strong>Location anomaly:</strong> compare <code>origin_h3</code> on <code>fct_trips</code> with the first STARTED event's H3 in <code>fct_trip_events</code> — large divergence = potential ride-tampering.</li>
   <li><strong>Trip-event GPS replay</strong> reveals "teleportation" — impossible speed between consecutive events implies spoofed location.</li>
-  <li><strong>Account farming:</strong> joining <code>fct_trips</code> with a <code>dim_devices</code> table (linked via <code>fct_session</code>) — a single device cycling through multiple <code>rider_id</code>s in a short window flags suspicious activity.</li>
-  <li><code>is_flagged_risk</code> is a slowly-changing fact — appended via correction row, never updated, so Finance can replay any payout decision regardless of subsequent risk re-evaluation.</li>
+  <li><strong>Account farming:</strong> join <code>fct_trips</code> to <code>dim_devices</code> (one row per physical device — hardware fingerprint, first-seen, OS) through <code>fct_session</code> (one row per app session — <code>device_id</code> × <code>rider_id</code> × login window). A single device cycling through multiple <code>rider_id</code>s in a short window flags suspicious activity.</li>
+  <li>Each re-scoring appends a new <code>fct_trip_risk_decision</code> version instead of overwriting the last, so Finance can replay any payout against the verdict that was current at the time — a later fraud re-evaluation can never retroactively rewrite a settled decision.</li>
+  <li><strong>Phantom convoy (collusion):</strong> two drivers and a fraudulent rider book a split-fare convoy on a stolen card; one car drives the route while the second sits at home spoofing its GPS to collect a "moving together" payout. Proximity isn't the tell — real convoys stay close too — <em>jitter</em> is: genuine telemetry carries GPS noise, a scripted loop doesn't. A streaming job scores each asset's positional entropy; near-zero jitter over a multi-minute window appends a <code>confirmed_fraud</code> verdict to <code>fct_trip_risk_decision</code> and freezes the driver payout before it settles.</li>
 </ul>
 <h3>Section 4 — Why the hierarchy: bridges + parent fact</h3>
 <p>Without the journey/trip split + bridge, you face three bad choices:</p>
