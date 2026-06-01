@@ -6413,6 +6413,7 @@ ORDER BY first_month, months_since_first;
   <li><strong>Aggregates survive</strong> — DAU, revenue, etc. stay accurate.</li>
   <li><strong>Time-bounded:</strong> 30-day SLA; track in <code>fact_gdpr_request</code>.</li>
   <li><strong>Tax / legal carve-outs:</strong> finance facts retained 7 years even after request — anonymize (replace name) but keep transaction.</li>
+  <li><strong>Access is the other half:</strong> column-level masking on PII (<code>email</code>, <code>phone</code>) enforced by <code>RBAC</code> / <code>ABAC</code> policies in the warehouse — so "who can read raw PII" is a model decision, not a convention. Tokenization protects the deleted; masking protects the living.</li>
 </ol>
 
 <h3 class="section-head">4. Multi-currency — the lock-at-event-time rule</h3>
@@ -7166,6 +7167,8 @@ CREATE TABLE fact_notification_open (      -- the user opened that notification
   </tbody>
 </table>
 <p>The layers are quality <em>contracts</em>, not folders. The classic failures: business logic in bronze (replayability gone), reporting straight off bronze (every dashboard re-invents cleansing), and cleansing copied into many gold models, where it drifts.</p>
+
+<p><strong>What physically backs each layer.</strong> The medallion is logical; the file format is where it gets paid for. <strong>Bronze</strong> lands best in a <em>row-oriented</em> format — <code>Avro</code> — because the landing zone is write-heavy and its schema churns most, and Avro carries its own schema for safe, additive evolution. <strong>Silver</strong> and <strong>Gold</strong> are read-heavy analytical scans, so they want <em>columnar</em> storage — <code>Parquet</code> or <code>ORC</code> — for compression and predicate pushdown: read only the columns and row-groups a query touches. Wrap the lake layers in an <strong>open table format</strong> — Iceberg, Delta or Hudi — to get ACID commits, snapshot isolation / time-travel, and schema evolution <em>on object storage</em>; without one, "append-only Silver" is a pile of files with no atomic swap and no consistent reader. The format is a modeling decision, not an ops detail — it's what makes "immutable, replayable bronze" and "time-travel the gold table to last Tuesday's close" true rather than aspirational.</p>
 
 <h3 class="section-head">23. Temp tables &amp; the staging pattern</h3>
 <p>Inside a load job, the choice between a CTE, a temp table and a materialized view is one of lifespan and reuse. A <strong>CTE</strong> is logical only — and in many engines re-evaluated on each reference. A <strong>temp table</strong> is materialized and session-scoped — computed once, reusable across statements, indexable. A <strong>materialized view</strong> (§24) persists across sessions.</p>
