@@ -6773,7 +6773,17 @@ ORDER BY gaze_hits DESC;</code></pre>
     <tr><td><code>dim_odd</code></td><td>geofence (H3 set) × weather envelope × time envelope</td><td>Operational Design Domain — where/when the AV may drive. A temporal geofence, exactly like <code>dim_surge_zone</code> in #2.</td></tr>
   </tbody>
 </table>
-<p><strong>Trip fact: <code>fct_av_trip</code></strong> — one row per autonomous trip; FKs to the four versioned dims captured at dispatch, plus <code>marketplace_trip_key</code> that folds it into the <code>fct_trips</code> hierarchy from #1 (a human and an AV trip reconcile to the same Finance grain).</p>
+<p><strong>Component inventory: <code>dim_sensor</code> (one row per physical sensor on a vehicle)</strong> — the conformed <code>dim_device</code> is the <em>vehicle</em>; this is its swappable hardware. A LiDAR or camera is replaced individually, so the device grain here is the <em>component</em>, not the car.</p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>sensor_id</code></td><td>PK</td><td>Serial of the specific unit; SCD2 (firmware + status drift).</td></tr>
+    <tr><td><code>vehicle_key</code></td><td>FK</td><td>The car it's installed on — a swap closes one row and opens another.</td></tr>
+    <tr><td><code>sensor_type</code> / <code>manufacturer</code></td><td>STRING</td><td>{LiDAR, long-range camera, radar, compute} × vendor — the key to failure-profile analysis.</td></tr>
+    <tr><td><code>firmware_version</code> / <code>status</code></td><td>STRING / ENUM</td><td>Low-level build; {active, degraded, maintenance}.</td></tr>
+  </tbody>
+</table>
+<p><strong>Trip fact: <code>fct_av_trip</code></strong> — one row per autonomous trip; FKs to the four versioned dims captured at dispatch, plus <code>marketplace_trip_key</code> folding it into the <code>fct_trips</code> hierarchy from #1 (human and AV trips reconcile to one Finance grain). For exception handling it also carries <code>trip_status</code> (a state machine: <code>en_route → in_transit → completed | aborted_failsafe | rescue_dispatched</code>), a self-referencing <code>parent_trip_id</code>, and <code>fare_adjustment</code> — see the rescue chain below.</p>
 <p><strong>Safety fact: <code>fct_disengagement</code> (append-only — the regulatory currency)</strong></p>
 <table>
   <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
@@ -6783,9 +6793,11 @@ ORDER BY gaze_hits DESC;</code></pre>
     <tr><td><code>release_key</code> / <code>map_key</code> / <code>odd_key</code></td><td>FK</td><td><strong>Snapshotted at event time</strong> — the exact versions that were driving. Never re-pointed.</td></tr>
     <tr><td><code>ts</code> / <code>location_h3</code></td><td>TIMESTAMP_TZ / H3</td><td>When &amp; where.</td></tr>
     <tr><td><code>type</code></td><td>ENUM</td><td>{planned, safety_driver_takeover, remote_operator, system_fault, hard_brake}.</td></tr>
+    <tr><td><code>failed_sensor_id</code></td><td>FK</td><td>The implicated <code>dim_sensor</code> when a component triggered it — joins a disengagement to a specific unit + manufacturer for failure-profile analysis.</td></tr>
     <tr><td><code>reg_reportable</code></td><td>BOOLEAN</td><td>Whether it counts toward regulatory disengagement reporting.</td></tr>
   </tbody>
 </table>
+<p><strong>Terminal failure &amp; the rescue chain.</strong> A sensor cracks mid-trip; the car can no longer drive autonomously, so it executes a fail-safe stop and writes a <code>fct_disengagement</code> row (stamped with <code>failed_sensor_id</code>). The passenger's trip flips to <code>trip_status = aborted_failsafe</code> and ends. Dispatch detects a stranded passenger and auto-assigns a rescue vehicle: a <em>new</em> <code>fct_av_trip</code> row carrying the <strong>same <code>request_id</code></strong> (same rider intent) and a <code>parent_trip_id</code> pointing back at the broken trip. Billing walks that parent chain, sums both legs' distance, applies a <code>fare_adjustment</code> (often comping the ride), and posts one clean invoice. The self-referencing chain keeps the incident, the rescue, and the billing on a single auditable thread — no patchy side-tables.</p>
 <p><strong>Telemetry firehose: <code>fct_drive_telemetry</code></strong> — per-second kinematics rollup with a <code>raw_log_uri</code> pointer to the full multi-sensor drive-log in object storage (keyed by <code>drive_id</code>); raw lidar/camera frames never enter the warehouse.</p>
 <p><strong>Ingestion — hot path &amp; cold path.</strong> At ~10k vehicles × 100&nbsp;ms that's ≈100k events/s, sent as <strong>Protobuf</strong> (not JSON) to survive the cellular uplink. A <em>hot path</em> (Pub/Sub → stream processor → Redis / Bigtable) serves &lt;2&nbsp;s fleet-ops alerts and the live map; a <em>cold path</em> lands the same events in the warehouse for overnight safety reporting and ML. The facts above are the cold path's grain; the hot path keeps only the latest state per vehicle.</p>
 <p><strong>Senior framing.</strong> "Replace the driver with a stack and the whole model becomes about <em>versioned attribution</em>. Each <code>fct_disengagement</code> row freezes FKs to the release, map, calibration, and ODD that were live at that instant — so when the stack ships v9 tomorrow, last week's incident still attributes to v8. That's the decision-replay pattern from fraud (#19), made safety-critical. ODD is the surge-zone temporal geofence (#2). The drive-log is the GPS firehose (#1). And the trip folds into the same marketplace fact (#1) so Finance never forks human and robot. Nothing here is new — it's the catalog, at the grade where a wrong join is a subpoena."</p>
@@ -6819,6 +6831,23 @@ WHERE d.reg_reportable = TRUE
 GROUP BY r.stack_version
 ORDER BY mmbd DESC;</code></pre>
 <p>Shipping a new release never rewrites the first query (FKs are frozen), and the second turns "is v9 safer than v8?" into a one-line regression on <strong>MMBD — Mean Miles Between Disengagements</strong>, the north-star metric every AV program (and the CA DMV report) lives or dies by.</p>
+<h3>Rescue chain — how long was a stranded rider waiting?</h3>
+<p>Because the rescue trip carries <code>parent_trip_id</code>, "who hit a vehicle failure today, and how long until rescue?" is a clean self-join rather than a forensic reconstruction:</p>
+<pre><code>WITH failed AS (
+  SELECT trip_key, user_id, vehicle_key AS broken_vehicle, end_ts AS failure_time
+  FROM fct_av_trip
+  WHERE trip_status = 'aborted_failsafe' AND DATE(start_ts) = CURRENT_DATE
+),
+rescue AS (
+  SELECT parent_trip_id, vehicle_key AS rescue_vehicle, start_ts AS rescue_pickup
+  FROM fct_av_trip
+  WHERE parent_trip_id IS NOT NULL AND DATE(start_ts) = CURRENT_DATE
+)
+SELECT f.user_id, f.broken_vehicle, r.rescue_vehicle,
+       TIMESTAMP_DIFF(r.rescue_pickup, f.failure_time, MINUTE) AS minutes_stranded
+FROM failed f
+JOIN rescue r ON r.parent_trip_id = f.trip_key
+ORDER BY minutes_stranded DESC;</code></pre>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-tradeoffs" aria-labelledby="t-sc-av-robotaxi-tradeoffs" tabindex="0" hidden>
 <h3>The decisions that earn the level</h3>
