@@ -6693,6 +6693,11 @@ ORDER BY first_month, months_since_first;
   </tbody>
 </table>
 <p><strong>Senior framing.</strong> "The headset is the most extreme member of <code>dim_device</code> — so the catalog's existing disciplines all apply, just sharper. Pose is a firehose, so it lives in object storage like raw GPS. Consent is SCD2, so eye-tracking is replayable only under the permission that existed at capture — the same as-of-time locking we use for FX and risk verdicts. And capability lives on the device, so the schema a Vision Pro populates is a superset of what a controller-only Quest session can. Get those three right and spatial data stops being scary and starts being a star schema."</p>
+<h3>Section 2 — presence, safety &amp; ad attention</h3>
+<p>Three things the session grain alone can't express — physical safety, multi-user co-presence, and consented attention — each reusing a pattern from elsewhere in the catalog.</p>
+<p><strong>Safety: <code>fct_guardian_event</code>.</strong> The "guardian" play boundary is a safety system — when a hand or head crosses it (a wall, furniture, another person), the headset warns or fades to passthrough. One row per breach: <code>session_key</code>, <code>event_ts</code>, <code>breach_type {hand_exit, head_exit, proximity}</code>, <code>severity</code>. It's the XR analog of the AV's <code>fact_disengagement_events</code> — a safety signal that correlates with room size and content intensity. The boundary <em>encodes room geometry</em>, so store the breach event, never the mesh.</p>
+<p><strong>Co-presence: <code>brg_session_anchor</code> — the convoy bridge, in 3-D.</strong> A shared-space session has many users in one room sharing one spatial anchor: a classic many-to-many. Putting N users on one session row triple-counts engagement exactly like the pooled-ride trap in #1; the fix is the same bridge — one row per <code>(shared_space_id, anchor_id, user_session_key)</code>. Per-user metrics stay correct, and "who was co-located when" is a join, not a self-join.</p>
+<p><strong>Attention: <code>fct_ad_attention</code> — gaze-confirmed, consent-gated.</strong> In XR an ad impression isn't "rendered on screen" — eye-tracking can prove the user <em>actually looked</em>. One row per ad exposure: <code>session_key</code>, <code>ad_id</code>, <code>gaze_dwell_ms</code>, <code>gaze_confirmed</code> (true only above a dwell threshold), <code>consent_ok</code> (resolved as-of the session against <code>dim_consent</code>). Gaze-confirmed attention is a far stronger currency than a served impression — but it's biometric, so it's billable only where eye-tracking consent was granted at capture, and it needs a spoof check (a perfectly centered, zero-jitter gaze is as fake as the phantom-convoy GPS in #22).</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-vr-spatial-sql" aria-labelledby="t-sc-vr-spatial-sql" tabindex="0" hidden>
 <h3>Attention, gated by consent that was in force at capture time</h3>
@@ -6711,6 +6716,23 @@ WHERE c.state = 'granted'
 GROUP BY a.surface_id
 ORDER BY gaze_hits DESC;</code></pre>
 <p>A user who later <em>withdraws</em> consent closes the <code>granted</code> row's <code>valid_to</code> and opens a <code>withdrawn</code> row. This query automatically stops counting their future gaze — and, run for a deletion request, the same join identifies exactly which rows must be purged. No consent state is ever overwritten, so "was this gaze allowed?" is always answerable.</p>
+<h3>Gaze-confirmed ad viewability — the consented attention rate</h3>
+<p>Of ads served, what fraction were <em>actually looked at</em> — counting only users who consented to eye-tracking at the time:</p>
+<pre><code>SELECT a.ad_id,
+       COUNT(*)                                 AS impressions,
+       COUNT(*) FILTER (WHERE a.gaze_confirmed) AS gaze_views,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE a.gaze_confirmed)
+             / NULLIF(COUNT(*), 0), 1)          AS gaze_viewability_pct
+FROM fct_ad_attention a
+JOIN fct_xr_session   s ON s.session_key = a.session_key
+JOIN dim_consent      c ON c.user_key      = s.user_key
+                       AND c.data_category = 'eye_tracking'
+                       AND s.start_ts &gt;= c.valid_from
+                       AND s.start_ts &lt;  c.valid_to
+WHERE c.state = 'granted'
+GROUP BY a.ad_id
+ORDER BY gaze_viewability_pct DESC;</code></pre>
+<p>Served-but-never-looked-at impressions drop out of the billable metric, and non-consented users never enter it — viewability that's honest and lawful at once.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-vr-spatial-tradeoffs" aria-labelledby="t-sc-vr-spatial-tradeoffs" tabindex="0" hidden>
 <h3>The decisions that earn the level</h3>
@@ -6728,6 +6750,8 @@ ORDER BY gaze_hits DESC;</code></pre>
   <li><strong>Eye-tracking read under "current" consent.</strong> Using today's permission to justify yesterday's capture is a retroactive consent rewrite — exactly the failure the SCD2 window prevents.</li>
   <li><strong>Room mesh treated as telemetry.</strong> A 3-D scan of a private home is among the most sensitive data possible; storing it like an event payload is a breach waiting to happen.</li>
   <li><strong>Cross-app identity leakage.</strong> Attention/gaze keyed to a global user without app-scoped boundaries lets one experience profile a user from another's data.</li>
+  <li><strong>N users on one shared-session row.</strong> Co-located multiplayer is many-to-many; collapsing it onto one session row triple-counts engagement and breaks per-user attribution — the pooled-ride trap (#1) in 3-D. Use the bridge.</li>
+  <li><strong>Billing gaze that wasn't consented — or wasn't real.</strong> Eye-tracking ad attention is biometric: billable only under as-of-capture consent, and only after a jitter/spoof check — a perfectly still gaze is fabricated, like the phantom-convoy GPS in #22.</li>
 </ul>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-vr-spatial-example" aria-labelledby="t-sc-vr-spatial-example" tabindex="0" hidden>
@@ -7212,7 +7236,7 @@ ORDER BY recoverable_exposure_usd DESC;</code></pre>
     {id:"sc-ma-integration",n:18,t:"M&A integration — golden records",dom:"M&A",topics:["Golden record","Strangler","Conformed dim"],diff:"principal"},
     {id:"sc-fraud-detection",n:19,t:"Fraud — identity graph & decision replay",dom:"Fraud",topics:["Identity graph","Decision replay","Factless"],diff:"principal"},
     {id:"sc-growth-accounting",n:20,t:"Growth accounting — DAU/WAU/MAU & LTV",dom:"Growth",topics:["Cohort","Activity schema","Aggregate"],diff:"core"},
-    {id:"sc-vr-spatial",n:21,t:"Spatial computing & XR telemetry",dom:"Spatial/XR",topics:["Device","Sensor firehose","Biometric consent","SCD2"],diff:"principal"},
+    {id:"sc-vr-spatial",n:21,t:"Spatial computing & XR telemetry",dom:"Spatial/XR",topics:["Device","Sensor firehose","Biometric consent","SCD2","Bridge","Attention"],diff:"principal"},
     {id:"sc-av-robotaxi",n:22,t:"Autonomous fleet — disengagements & incident replay",dom:"Autonomous",topics:["Device","Decision replay","Geofence","Safety ledger","Late-arriving","Clickstream","Liability"],diff:"principal"}
   ];
   var DIFF_ORDER = ["core","advanced","principal"];
