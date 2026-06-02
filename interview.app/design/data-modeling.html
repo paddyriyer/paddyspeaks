@@ -895,6 +895,9 @@ UPDATE trips
     <tr><td><code>vehicle_id</code></td><td>FK</td><td>The vehicle used.</td></tr>
     <tr><td><code>origin_h3_key</code></td><td>FK</td><td>H3 cell at request time.</td></tr>
     <tr><td><code>destination_h3_key</code></td><td>FK</td><td>H3 cell at dropoff (NULL on cancellation).</td></tr>
+    <tr><td><code>quoted_route_distance_km</code></td><td>DECIMAL(8,3)</td><td>Planned route distance estimated at accept time — <strong>frozen</strong>, like surge/FX. The basis of the rider's fare quote, and the label the ETA/distance model is scored against.</td></tr>
+    <tr><td><code>trip_distance_km</code></td><td>DECIMAL(8,3)</td><td>Actual distance physically driven, from telemetry/odometer (not the event log, which carries only state-change waypoints). Driver payout is computed on this; the delta vs <code>quoted_route_distance_km</code> is an auditable fact.</td></tr>
+    <tr><td><code>route_recalc_reason</code></td><td>ENUM</td><td>NULL on a clean trip; else why the route changed mid-ride — {rider_cancel_in_trip, added_stop, traffic_reroute, driver_deviation}. The one column that tells ML an actual≠quoted divergence was exogenous.</td></tr>
     <tr><td><code>request_timestamp</code></td><td>TIMESTAMP_TZ</td><td>The beginning of the lifecycle.</td></tr>
     <tr><td><code>terminal_state</code></td><td>ENUM</td><td>{completed, cancelled_rider, cancelled_driver, cancelled_system, expired, no_show}.</td></tr>
     <tr><td><code>surge_multiplier</code></td><td>DECIMAL(4,2)</td><td>Locked at request — <strong>immutable</strong>.</td></tr>
@@ -944,7 +947,8 @@ UPDATE trips
     <tr><td><code>trip_id</code></td><td>FK</td><td>The specific car this rider was assigned to. Critical: in a convoy, riders R_1 + R_2 may ride in T-101 while R_3 rides in T-102.</td></tr>
     <tr><td><code>individual_charge_usd</code></td><td>DECIMAL(10,2)</td><td>What this rider actually pays. Computed from <code>fct_journeys.split_type</code>.</td></tr>
     <tr><td><code>pickup_sequence</code></td><td>SMALLINT</td><td>Order picked up within their assigned trip (1, 2, 3…).</td></tr>
-    <tr><td><code>leg_distance_km</code></td><td>DECIMAL(8,3)</td><td>This rider's portion of the route; basis for distance-prorata splits.</td></tr>
+    <tr><td><code>leg_distance_km</code></td><td>DECIMAL(8,3)</td><td>This rider's <em>actual</em> portion of the route (ridden, from telemetry); basis for distance-prorata splits.</td></tr>
+    <tr><td><code>quoted_leg_km</code></td><td>DECIMAL(8,3)</td><td>This rider's <em>promised</em> leg at request. Paired with <code>leg_distance_km</code> and bounded by <code>effective_from</code>→exit event, it isolates who consumed what when a co-rider drops mid-trip.</td></tr>
     <tr><td><code>assignment_version</code></td><td>SMALLINT</td><td>Append-only: a re-assignment (rider moves cars mid-journey) writes a new version, never an <code>UPDATE</code>. The newest version is the live seat.</td></tr>
     <tr><td><code>effective_from</code></td><td>TIMESTAMP_TZ</td><td>When this rider→trip assignment took effect; lets Risk and Finance reconstruct who was in which car at any instant.</td></tr>
   </tbody>
@@ -989,6 +993,10 @@ UPDATE trips
 </table>
 
 <p><strong>Mid-journey mutation — the "convoy jettison."</strong> Vehicle B breaks down ten minutes in; its two riders pile into Vehicle A or fork off into a fresh standalone trip. Nothing is mutated in place: the bridge appends new <code>assignment_version</code> rows re-seating those riders (the old rows stay, so "who was in which car at 12:09" is still answerable), and the billing divergence from the original group intent posts as a <code>promo_adjustment</code> / <code>refund</code> pair in <code>fct_trip_financial_entry</code>. The grain holds, the audit holds, and the reconciliation invariants still sum.</p>
+
+<p><strong>Promised vs driven — the mid-ride route recalculation.</strong> Rider A and Rider B share a pooled journey; mid-trip A cancels from inside the car and the driver re-routes to drop B. Two distances now diverge and the model keeps both: <code>quoted_route_distance_km</code> (frozen at accept — what the fares were quoted on) and <code>trip_distance_km</code> (actually driven, from telemetry). A's in-car cancel is a <code>CANCELLED</code> event after <code>STARTED</code> in <code>fct_trip_events</code> — the recalculation pivot — which stamps <code>route_recalc_reason = rider_cancel_in_trip</code> on the trip.</p>
+<p><strong>Who pays what.</strong> The driver is paid on <code>trip_distance_km</code> (they drove the detour) — a <code>driver_payout</code> posting. Rider A is charged only to the cancel point, bounded by <code>effective_from</code>→their cancel event, with the difference from <code>quoted_leg_km</code> posting as a <code>refund</code> / <code>cancellation_fee</code> pair. Rider B's pool discount assumed A's shared miles; once A leaves, B effectively rode partway solo, so a <code>promo_adjustment</code> closes the gap per policy. Every line is an append-only row in <code>fct_trip_financial_entry</code>, and the conservation invariant guarantees the re-route nets to zero across the rider, driver, and platform accounts.</p>
+<p><strong>Why the split matters for ML.</strong> Distance and ETA models train on <em>features-at-request → realized-outcome</em>: <code>quoted_route_distance_km</code> is the immutable prediction, <code>trip_distance_km</code> is the label. But here the two diverged for an <em>exogenous</em> reason — A cancelled — not because the model was wrong. Feed this trip to the base model unmarked and you teach it that a good prediction was an error. <code>route_recalc_reason IS NOT NULL</code> is the one-column filter that pulls these out of the training set (or routes them to a separate disruption model). Naming that confounder is the senior signal — the schema makes it a <code>WHERE</code> clause, not a forensic reconstruction.</p>
 <h3>Section 3 — How the model serves each stakeholder</h3>
 <p><strong>Operations · live ETA &amp; monitoring</strong></p>
 <p>By using <code>fct_trip_events</code>, Operations calculates lead-time metrics directly:</p>
