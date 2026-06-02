@@ -6801,6 +6801,21 @@ ORDER BY gaze_hits DESC;</code></pre>
 <p><strong>Telemetry firehose: <code>fct_drive_telemetry</code></strong> — per-second kinematics rollup with a <code>raw_log_uri</code> pointer to the full multi-sensor drive-log in object storage (keyed by <code>drive_id</code>); raw lidar/camera frames never enter the warehouse.</p>
 <p><strong>Ingestion — hot path &amp; cold path.</strong> At ~10k vehicles × 100&nbsp;ms that's ≈100k events/s, sent as <strong>Protobuf</strong> (not JSON) to survive the cellular uplink. A <em>hot path</em> (Pub/Sub → stream processor → Redis / Bigtable) serves &lt;2&nbsp;s fleet-ops alerts and the live map; a <em>cold path</em> lands the same events in the warehouse for overnight safety reporting and ML. The facts above are the cold path's grain; the hot path keeps only the latest state per vehicle.</p>
 <p><strong>Senior framing.</strong> "Replace the driver with a stack and the whole model becomes about <em>versioned attribution</em>. Each <code>fct_disengagement</code> row freezes FKs to the release, map, calibration, and ODD that were live at that instant — so when the stack ships v9 tomorrow, last week's incident still attributes to v8. That's the decision-replay pattern from fraud (#19), made safety-critical. ODD is the surge-zone temporal geofence (#2). The drive-log is the GPS firehose (#1). And the trip folds into the same marketplace fact (#1) so Finance never forks human and robot. Nothing here is new — it's the catalog, at the grade where a wrong join is a subpoena."</p>
+<h3>Section 2 — bridging the app layer (so "conversion dropped" has an answer)</h3>
+<p>Everything above is the physical-robotics half. The other half is the <strong>consumer app</strong> (iOS / Google Play) — and leaving it out makes a dropped booking-conversion number unanswerable: a buggy app release, or cars failing pickups? Two dims and a clickstream fact close the gap.</p>
+<p><strong>App-release dim: <code>dim_app_release</code></strong> — one row per store build: <code>platform {iOS, Android}</code>, <code>store_origin {App&nbsp;Store, Google&nbsp;Play, TestFlight}</code>, <code>semantic_version</code>, <code>build_number</code>, <code>is_critical_patch</code>. A bad drop becomes an isolable dimension.</p>
+<p><strong>Clickstream fact: <code>fct_app_event</code></strong> — the booking funnel, partitioned by date and clustered by <code>app_release_key</code>:</p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>session_id</code> / <code>user_id</code></td><td>FK</td><td>The app session and rider.</td></tr>
+    <tr><td><code>app_release_key</code></td><td>FK</td><td>The build that was running — the isolation key.</td></tr>
+    <tr><td><code>event_name</code></td><td>ENUM</td><td>{app_launch, destination_searched, quote_generated, booking_confirmed, app_crash}.</td></tr>
+    <tr><td><code>device_model</code> / <code>os_version</code> / <code>network_type</code></td><td>STRING</td><td>Consumer-device context (a member of the conformed <code>dim_device</code>) + 5G / Wi-Fi / LTE.</td></tr>
+    <tr><td><code>attribution_campaign</code></td><td>STRING</td><td>Marketing origin — ties to the ads attribution in #5.</td></tr>
+  </tbody>
+</table>
+<p>The booking request (<code>fct_ride_request</code> — the AV analog of #1's journey grain) carries <code>session_id</code> + <code>app_release_key</code>, so lineage runs <code>fct_app_event</code> → <code>fct_ride_request</code> → <code>fct_av_trip</code> → <code>fct_disengagement</code> in one chain. "Conversion fell on iOS v6.14.2" and "those sessions hit 3× the fail-safes" become the <em>same</em> query (SQL tab) — the app-vs-fleet blind spot is closed. Billing rolls up in a finance semantic view keyed on the request, where the fail-safe zero-charge and <strong>COPQ</strong> (cost of poor quality = comped fare + recovery credit) are computed.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-sql" aria-labelledby="t-sc-av-robotaxi-sql" tabindex="0" hidden>
 <h3>Incident replay — attribute every disengagement to the exact state that was driving</h3>
@@ -6848,6 +6863,23 @@ SELECT f.user_id, f.broken_vehicle, r.rescue_vehicle,
 FROM failed f
 JOIN rescue r ON r.parent_trip_id = f.trip_key
 ORDER BY minutes_stranded DESC;</code></pre>
+<h3>Cross-ecosystem root-cause — app bug or fleet failure?</h3>
+<p>The query the app-vs-fleet bridge exists for: booking-conversion by app release, cross-referenced with the physical fail-safes those same sessions witnessed.</p>
+<pre><code>SELECT v.platform, v.semantic_version,
+       COUNT(DISTINCT c.session_id)                    AS app_sessions,
+       COUNT(DISTINCT r.request_id)                    AS ride_requests,
+       SAFE_DIVIDE(COUNT(DISTINCT r.request_id),
+                   COUNT(DISTINCT c.session_id)) * 100 AS booking_conversion_pct,
+       COUNT(DISTINCT CASE WHEN t.trip_status = 'aborted_failsafe'
+                           THEN t.trip_key END)        AS failsafes_witnessed
+FROM fct_app_event         c
+JOIN dim_app_release       v ON v.app_release_key = c.app_release_key
+LEFT JOIN fct_ride_request r ON r.session_id      = c.session_id
+LEFT JOIN fct_av_trip      t ON t.request_id      = r.request_id
+WHERE c.event_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+GROUP BY v.platform, v.semantic_version
+ORDER BY booking_conversion_pct ASC;</code></pre>
+<p>Low conversion with near-zero <code>failsafes_witnessed</code> points at the app build; low conversion with elevated fail-safes points at the fleet. One query, two ecosystems, root cause isolated.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-tradeoffs" aria-labelledby="t-sc-av-robotaxi-tradeoffs" tabindex="0" hidden>
 <h3>The decisions that earn the level</h3>
@@ -6932,7 +6964,7 @@ ORDER BY minutes_stranded DESC;</code></pre>
     {id:"sc-fraud-detection",n:19,t:"Fraud — identity graph & decision replay",dom:"Fraud",topics:["Identity graph","Decision replay","Factless"],diff:"principal"},
     {id:"sc-growth-accounting",n:20,t:"Growth accounting — DAU/WAU/MAU & LTV",dom:"Growth",topics:["Cohort","Activity schema","Aggregate"],diff:"core"},
     {id:"sc-vr-spatial",n:21,t:"Spatial computing & XR telemetry",dom:"Spatial/XR",topics:["Device","Sensor firehose","Biometric consent","SCD2"],diff:"principal"},
-    {id:"sc-av-robotaxi",n:22,t:"Autonomous fleet — disengagements & incident replay",dom:"Autonomous",topics:["Device","Decision replay","Geofence","Safety ledger","Late-arriving"],diff:"principal"}
+    {id:"sc-av-robotaxi",n:22,t:"Autonomous fleet — disengagements & incident replay",dom:"Autonomous",topics:["Device","Decision replay","Geofence","Safety ledger","Late-arriving","Clickstream"],diff:"principal"}
   ];
   var DIFF_ORDER = ["core","advanced","principal"];
   var DIFF_LABEL = {core:"Core",advanced:"Advanced",principal:"Principal"};
