@@ -6822,6 +6822,224 @@ ORDER BY gaze_hits DESC;</code></pre>
 <p><strong>Energy is a dispatch constraint, not a footnote.</strong> An EV fleet can't be dispatched like gas cars. <code>fct_charging_session</code> (<code>vehicle_key</code>, <code>station_key</code>, <code>start</code>/<code>end</code>, <code>kwh</code>, <code>soc_before</code>/<code>soc_after</code>) plus <code>dim_charging_station</code> make charging downtime a first-class utilization metric — and dispatch must gate on <em>remaining range vs the trip distance and the ODD</em>: a low-state-of-charge car is outside its operational envelope for a long trip exactly like a weather or geofence limit.</p>
 <p><strong>Multi-city rollout is just SCD2 on the ODD.</strong> When a new neighborhood opens, <code>dim_odd</code> gets a new versioned row — trips before the expansion evaluate against the old envelope, after against the new. No new machinery: the temporal-geofence pattern (#2) doubles as the rollout ledger, and "did the expansion change our disengagement rate?" is a before/after on one key.</p>
 <p class="callout" style="background:#ecfdf5;border-left:4px solid #059669;padding:14px 18px;border-radius:4px;"><strong>The capstone move — counterfactual replay.</strong> Because every <code>fct_disengagement</code> froze its version FKs <em>and</em> a <code>raw_log_uri</code> to the drive-log, you can re-simulate the logged sensor stream through a <em>new</em> stack and ask "<em>would v9 have disengaged here?</em>" Logging a <code>fct_sim_run</code> (<code>disengagement_id</code>, <code>candidate_release</code>, <code>outcome</code>) turns the safety case from "we shipped it and watched" into "we proved the regression was gone before we shipped" — the same frozen-state discipline, run forward instead of back.</p>
+<h3>Section 4 — liability: when the data is the legal record</h3>
+<p>In a human-driven world the <em>driver</em> is presumptively at fault, and insurance is priced on the driver. Remove the driver and fault shifts to <strong>product liability</strong> — the operator and its software stack. That promotes the data platform from "analytics" to <strong>the system of record for legal fault</strong>, which adds three requirements the rest of the model was already quietly satisfying.</p>
+<p><strong>1 · The evidence must be tamper-evident.</strong> An incident's frozen version FKs, the drive-log, and the sensor bundle are exhibits — and someone will challenge whether they were altered after the fact. Seal each incident's evidence as a content-addressed bundle and store its <code>evidence_hash</code> on a <strong>write-once</strong> row. Append-only stops being a tidiness preference and becomes <em>admissibility</em>.</p>
+<p><strong>2 · Fault attribution is incident-replay with money attached.</strong> You already froze the exact <code>release × map × calibration × ODD</code> and the <code>failed_sensor_id</code> on every disengagement — liability is that replay, now adjudicated:</p>
+<p><strong><code>fct_incident</code></strong> (one row per reportable collision/claim) — <code>incident_id</code>, <code>disengagement_id</code> (nullable), <code>trip_key</code>, <code>vehicle_key</code>, <code>counterparty_type {vehicle, pedestrian, cyclist, property}</code>, <code>severity</code>, <code>failed_sensor_id</code> (nullable), <code>claim_amount_usd</code>, <code>evidence_hash</code>, <code>current_finding_version</code>.</p>
+<p><strong><code>fct_fault_finding</code></strong> (append-only — one row per adjudication version) — <code>incident_id</code>, <code>finding_version</code>, <code>at_fault {av, third_party, shared, undetermined}</code>, <code>contributing_factor {sensor, perception, planning, third_party, road}</code>, <code>adjudicator {internal, insurer, court}</code>, <code>decided_at</code>. An appeal <em>appends</em> a new version; the finding that was current when a payout posted is never overwritten — the risk-decision replay pattern (#19), in a courtroom.</p>
+<p><strong>3 · Underwriting is a feedback loop, not a side system.</strong> Premiums (self-insured reserves or a carrier's) are priced from the fleet's <strong>MMBD</strong>, disengagement, and incident history per <code>release</code> and <code>ODD</code> — telematics underwriting. The same safety facts that prove a release is safer also lower its insurance cost; and when a vendor's component is the <code>contributing_factor</code>, <code>failed_sensor_id</code> becomes a <strong>subrogation</strong> path to recover from the manufacturer. Payouts post to the append-only financial ledger from #1 — money moves by double entry, never an <code>UPDATE</code>.</p>
+<h3>Section 5 — the runnable schema (DDL)</h3>
+<p>The grids above as copy-pasteable DDL (BigQuery / Snowflake dialect) — dimensions first, then the high-volume facts with their physical <code>PARTITION BY</code> / <code>CLUSTER BY</code> layout. SCD2 dims carry <code>valid_from</code>/<code>valid_to</code>; the conformed <code>dim_device</code> shows up as the vehicle (<code>dim_av_vehicle</code>) and as the consumer device on <code>fct_app_event</code>.</p>
+<p style="font-size:0.92em;color:var(--text-3,#667);"><strong>Name map</strong> (studio convention ↔ the spec you sketched): <code>dim_sensor</code>↔<code>dim_devices</code> · <code>dim_av_vehicle</code>↔<code>dim_vehicles</code> · <code>dim_app_release</code>↔<code>dim_mobile_app_versions</code> · <code>fct_app_event</code>↔<code>fact_mobile_clickstream_events</code> · <code>fct_ride_request</code>↔<code>fact_ride_requests</code> · <code>fct_av_trip</code>↔<code>fact_trips</code> · <code>fct_drive_telemetry</code>↔<code>fact_vehicle_telemetry</code> · <code>fct_disengagement</code>↔<code>fact_disengagement_events</code>.</p>
+<p><strong>Dimensions</strong></p>
+<pre><code>-- The vehicle = a member of the conformed dim_device (device_type='vehicle'); SCD2
+CREATE TABLE dim_av_vehicle (
+  vehicle_key         BIGINT       NOT NULL,
+  vin                 VARCHAR(32)  NOT NULL,
+  platform            VARCHAR(40)  NOT NULL,   -- 'Waymo Driver Gen 5', 'Tesla Robotaxi'
+  deployment_city     VARCHAR(40)  NOT NULL,
+  calibration_version VARCHAR(40)  NOT NULL,
+  valid_from          TIMESTAMP    NOT NULL,
+  valid_to            TIMESTAMP    NOT NULL DEFAULT TIMESTAMP '9999-12-31 00:00:00',
+  PRIMARY KEY (vehicle_key)
+);
+
+-- Per-sensor hardware inventory, snowflaked off the vehicle; SCD2  (your dim_devices)
+CREATE TABLE dim_sensor (
+  sensor_id        VARCHAR(50) NOT NULL,
+  vehicle_key      BIGINT      NOT NULL,
+  sensor_type      VARCHAR(30) NOT NULL,   -- 'LiDAR','Long-Range Camera','Radar','Compute'
+  sensor_location  VARCHAR(30),            -- 'Roof_Front','Bumper_Left'
+  manufacturer     VARCHAR(50) NOT NULL,
+  firmware_version VARCHAR(50) NOT NULL,
+  status           VARCHAR(20) NOT NULL,   -- 'active','degraded','failed'
+  valid_from       TIMESTAMP   NOT NULL,
+  valid_to         TIMESTAMP   NOT NULL DEFAULT TIMESTAMP '9999-12-31 00:00:00',
+  PRIMARY KEY (sensor_id, valid_from),
+  FOREIGN KEY (vehicle_key) REFERENCES dim_av_vehicle(vehicle_key)
+);
+
+-- The "driver": the autonomy stack; SCD2
+CREATE TABLE dim_software_release (
+  release_key           BIGINT      NOT NULL,
+  stack_version         VARCHAR(40) NOT NULL,   -- 'v9.0.3'
+  perception_model_hash VARCHAR(64) NOT NULL,
+  planner_version       VARCHAR(40) NOT NULL,
+  valid_from            TIMESTAMP   NOT NULL,
+  valid_to              TIMESTAMP   NOT NULL DEFAULT TIMESTAMP '9999-12-31 00:00:00',
+  PRIMARY KEY (release_key)
+);
+
+CREATE TABLE dim_hd_map (
+  map_key     BIGINT      NOT NULL,
+  map_version VARCHAR(40) NOT NULL,
+  tile_set    VARCHAR(60) NOT NULL,
+  survey_date DATE        NOT NULL,
+  valid_from  TIMESTAMP   NOT NULL,
+  valid_to    TIMESTAMP   NOT NULL DEFAULT TIMESTAMP '9999-12-31 00:00:00',
+  PRIMARY KEY (map_key)
+);
+
+-- Operational Design Domain: temporal geofence; SCD2
+CREATE TABLE dim_odd (
+  odd_key     BIGINT      NOT NULL,
+  geofence_h3 ARRAY,                     -- set of allowed H3 cells
+  weather_env VARCHAR(60) NOT NULL,      -- 'clear|light_rain'
+  time_env    VARCHAR(60) NOT NULL,      -- 'always' | 'day_only'
+  valid_from  TIMESTAMP   NOT NULL,
+  valid_to    TIMESTAMP   NOT NULL DEFAULT TIMESTAMP '9999-12-31 00:00:00',
+  PRIMARY KEY (odd_key)
+);
+
+-- Consumer mobile-app store builds  (your dim_mobile_app_versions)
+CREATE TABLE dim_app_release (
+  app_release_key   VARCHAR(50) NOT NULL,
+  platform          VARCHAR(10) NOT NULL,   -- 'iOS','Android'
+  store_origin      VARCHAR(30) NOT NULL,   -- 'App Store','Google Play','TestFlight'
+  semantic_version  VARCHAR(20) NOT NULL,   -- 'v6.14.2'
+  build_number      INT         NOT NULL,
+  is_critical_patch BOOLEAN     NOT NULL,
+  PRIMARY KEY (app_release_key)
+);
+
+CREATE TABLE dim_user (
+  user_id       VARCHAR(50) NOT NULL,
+  signup_ts     TIMESTAMP   NOT NULL,
+  payment_type  VARCHAR(20) NOT NULL,
+  is_tester     BOOLEAN     NOT NULL,
+  customer_tier VARCHAR(20) NOT NULL DEFAULT 'standard',
+  PRIMARY KEY (user_id)
+);</code></pre>
+<p><strong>Facts</strong> (high-volume tables carry their physical layout)</p>
+<pre><code>-- Booking-funnel clickstream  (your fact_mobile_clickstream_events)
+CREATE TABLE fct_app_event (
+  event_id        VARCHAR(50) NOT NULL,
+  session_id      VARCHAR(50) NOT NULL,
+  user_id         VARCHAR(50) NOT NULL,
+  app_release_key VARCHAR(50) NOT NULL,
+  event_ts        TIMESTAMP   NOT NULL,
+  event_name      VARCHAR(40) NOT NULL,   -- app_launch|destination_searched|quote_generated|booking_confirmed|app_crash
+  device_model    VARCHAR(50),            -- 'iPhone 15 Pro'  (member of dim_device)
+  os_version      VARCHAR(30),
+  network_type    VARCHAR(10),            -- '5G','Wi-Fi','LTE'
+  attribution_campaign VARCHAR(100),
+  PRIMARY KEY (event_id),
+  FOREIGN KEY (user_id)         REFERENCES dim_user(user_id),
+  FOREIGN KEY (app_release_key) REFERENCES dim_app_release(app_release_key)
+)
+PARTITION BY DATE(event_ts)
+CLUSTER BY app_release_key, event_name;
+
+-- Booking request (AV analog of #1's journey grain)  (your fact_ride_requests)
+CREATE TABLE fct_ride_request (
+  request_id      VARCHAR(50)  NOT NULL,
+  session_id      VARCHAR(50)  NOT NULL,   -- lineage back to fct_app_event
+  user_id         VARCHAR(50)  NOT NULL,
+  app_release_key VARCHAR(50)  NOT NULL,   -- isolates a buggy build
+  request_ts      TIMESTAMP    NOT NULL,
+  pickup_h3       VARCHAR(15)  NOT NULL,
+  dropoff_h3      VARCHAR(15)  NOT NULL,
+  estimated_fare  DECIMAL(8,2) NOT NULL,
+  request_status  VARCHAR(20)  NOT NULL,   -- fulfilled|no_car|user_cancelled
+  PRIMARY KEY (request_id),
+  FOREIGN KEY (user_id)         REFERENCES dim_user(user_id),
+  FOREIGN KEY (app_release_key) REFERENCES dim_app_release(app_release_key)
+)
+PARTITION BY DATE(request_ts)
+CLUSTER BY app_release_key, request_status;
+
+-- Autonomous trip; version FKs frozen at dispatch; rescue chain  (your fact_trips)
+CREATE TABLE fct_av_trip (
+  trip_key             BIGINT       NOT NULL,
+  request_id           VARCHAR(50)  NOT NULL,   -- shared across rescue legs
+  marketplace_trip_key BIGINT,                  -- folds into fct_trips (#1)
+  vehicle_key          BIGINT       NOT NULL,
+  release_key          BIGINT       NOT NULL,   -- frozen
+  map_key              BIGINT       NOT NULL,   -- frozen
+  odd_key              BIGINT       NOT NULL,   -- frozen
+  user_id              VARCHAR(50)  NOT NULL,
+  start_ts             TIMESTAMP,
+  end_ts               TIMESTAMP,
+  autonomous_miles     DECIMAL(8,2) DEFAULT 0,
+  actual_fare          DECIMAL(8,2) DEFAULT 0,
+  fare_adjustment      DECIMAL(8,2) DEFAULT 0,
+  trip_status          VARCHAR(30)  NOT NULL,   -- en_route|in_transit|completed|aborted_failsafe|rescue_dispatched
+  parent_trip_id       BIGINT,                  -- self-FK: rescue -> broken trip
+  PRIMARY KEY (trip_key),
+  FOREIGN KEY (request_id)     REFERENCES fct_ride_request(request_id),
+  FOREIGN KEY (vehicle_key)    REFERENCES dim_av_vehicle(vehicle_key),
+  FOREIGN KEY (release_key)    REFERENCES dim_software_release(release_key),
+  FOREIGN KEY (parent_trip_id) REFERENCES fct_av_trip(trip_key)
+)
+PARTITION BY DATE(start_ts)
+CLUSTER BY vehicle_key, trip_status;
+
+-- Telemetry firehose: per-second rollup; raw frames in object store  (your fact_vehicle_telemetry)
+CREATE TABLE fct_drive_telemetry (
+  vehicle_key     BIGINT      NOT NULL,
+  event_ts        TIMESTAMP   NOT NULL,   -- vehicle clock (event-time)
+  sec_bucket      TIMESTAMP   NOT NULL,
+  h3_index        VARCHAR(15) NOT NULL,
+  speed_mph       INT,
+  soc_pct         INT,                    -- state of charge
+  autonomy_mode   VARCHAR(20) NOT NULL,   -- fully_autonomous|remote_guidance|manual
+  active_trip_key BIGINT,                 -- NULL when cruising empty
+  raw_log_uri     VARCHAR(255),           -- pointer to full multi-sensor drive-log
+  FOREIGN KEY (vehicle_key) REFERENCES dim_av_vehicle(vehicle_key)
+)
+PARTITION BY DATE(event_ts)
+CLUSTER BY vehicle_key, autonomy_mode;
+
+-- Disengagement: append-only, frozen version FKs  (your fact_disengagement_events)
+CREATE TABLE fct_disengagement (
+  disengagement_id VARCHAR(50) NOT NULL,
+  trip_key         BIGINT,                -- NULL if no passenger
+  vehicle_key      BIGINT      NOT NULL,
+  release_key      BIGINT      NOT NULL,  -- frozen
+  map_key          BIGINT      NOT NULL,  -- frozen
+  odd_key          BIGINT      NOT NULL,  -- frozen
+  failed_sensor_id VARCHAR(50),           -- -> dim_sensor (root-cause / subrogation)
+  event_ts         TIMESTAMP   NOT NULL,
+  location_h3      VARCHAR(15) NOT NULL,
+  type             VARCHAR(30) NOT NULL,  -- safety_driver_takeover|remote_operator|system_fault|hard_brake
+  reg_reportable   BOOLEAN     NOT NULL,
+  raw_log_uri      VARCHAR(255),
+  PRIMARY KEY (disengagement_id),
+  FOREIGN KEY (vehicle_key)      REFERENCES dim_av_vehicle(vehicle_key),
+  FOREIGN KEY (release_key)      REFERENCES dim_software_release(release_key),
+  FOREIGN KEY (failed_sensor_id) REFERENCES dim_sensor(sensor_id)
+)
+PARTITION BY DATE(event_ts)
+CLUSTER BY vehicle_key, type;
+
+-- Liability: collision/claim + append-only fault adjudications
+CREATE TABLE fct_incident (
+  incident_id             VARCHAR(50)  NOT NULL,
+  disengagement_id        VARCHAR(50),
+  trip_key                BIGINT,
+  vehicle_key             BIGINT       NOT NULL,
+  failed_sensor_id        VARCHAR(50),
+  counterparty_type       VARCHAR(20),   -- vehicle|pedestrian|cyclist|property
+  severity                VARCHAR(20),
+  claim_amount_usd        DECIMAL(12,2) DEFAULT 0,
+  evidence_hash           VARCHAR(64)  NOT NULL,  -- content hash of sealed evidence (write-once)
+  current_finding_version INT          NOT NULL DEFAULT 1,
+  event_ts                TIMESTAMP    NOT NULL,
+  PRIMARY KEY (incident_id),
+  FOREIGN KEY (disengagement_id) REFERENCES fct_disengagement(disengagement_id)
+);
+
+CREATE TABLE fct_fault_finding (
+  incident_id         VARCHAR(50) NOT NULL,
+  finding_version     INT         NOT NULL,   -- append-only; appeals add a version
+  at_fault            VARCHAR(20) NOT NULL,   -- av|third_party|shared|undetermined
+  contributing_factor VARCHAR(20),            -- sensor|perception|planning|third_party|road
+  adjudicator         VARCHAR(20) NOT NULL,   -- internal|insurer|court
+  decided_at          TIMESTAMP   NOT NULL,
+  PRIMARY KEY (incident_id, finding_version),
+  FOREIGN KEY (incident_id) REFERENCES fct_incident(incident_id)
+);</code></pre>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-sql" aria-labelledby="t-sc-av-robotaxi-sql" tabindex="0" hidden>
 <h3>Incident replay — attribute every disengagement to the exact state that was driving</h3>
@@ -6898,6 +7116,20 @@ LEFT JOIN fct_disengagement d ON d.release_key = r.release_key
 GROUP BY r.stack_version
 ORDER BY assists_per_disengage DESC;</code></pre>
 <p>A rising ratio means the car increasingly <em>asks for help</em> instead of ceding control — maturity. Conflate the two facts into one and this signal vanishes entirely.</p>
+<h3>Subrogation — which sensor vendor's failures are costing us?</h3>
+<p>When a component caused the incident, the operator recovers from the manufacturer. <code>failed_sensor_id</code> → <code>dim_sensor</code> turns liability into a vendor-accountability ledger:</p>
+<pre><code>SELECT s.manufacturer, s.sensor_type,
+       COUNT(DISTINCT i.incident_id) AS incidents,
+       SUM(i.claim_amount_usd)       AS recoverable_exposure_usd
+FROM fct_incident      i
+JOIN fct_fault_finding f ON f.incident_id     = i.incident_id
+                       AND f.finding_version  = i.current_finding_version
+JOIN dim_sensor        s ON s.sensor_id       = i.failed_sensor_id
+WHERE f.contributing_factor = 'sensor'
+  AND f.at_fault IN ('av', 'shared')
+GROUP BY s.manufacturer, s.sensor_type
+ORDER BY recoverable_exposure_usd DESC;</code></pre>
+<p>The same <code>failed_sensor_id</code> that explained a disengagement now sizes a vendor recovery — one column, three uses: root-cause, failure-profile, and subrogation.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-tradeoffs" aria-labelledby="t-sc-av-robotaxi-tradeoffs" tabindex="0" hidden>
 <h3>The decisions that earn the level</h3>
@@ -6982,7 +7214,7 @@ ORDER BY assists_per_disengage DESC;</code></pre>
     {id:"sc-fraud-detection",n:19,t:"Fraud — identity graph & decision replay",dom:"Fraud",topics:["Identity graph","Decision replay","Factless"],diff:"principal"},
     {id:"sc-growth-accounting",n:20,t:"Growth accounting — DAU/WAU/MAU & LTV",dom:"Growth",topics:["Cohort","Activity schema","Aggregate"],diff:"core"},
     {id:"sc-vr-spatial",n:21,t:"Spatial computing & XR telemetry",dom:"Spatial/XR",topics:["Device","Sensor firehose","Biometric consent","SCD2"],diff:"principal"},
-    {id:"sc-av-robotaxi",n:22,t:"Autonomous fleet — disengagements & incident replay",dom:"Autonomous",topics:["Device","Decision replay","Geofence","Safety ledger","Late-arriving","Clickstream"],diff:"principal"}
+    {id:"sc-av-robotaxi",n:22,t:"Autonomous fleet — disengagements & incident replay",dom:"Autonomous",topics:["Device","Decision replay","Geofence","Safety ledger","Late-arriving","Clickstream","Liability"],diff:"principal"}
   ];
   var DIFF_ORDER = ["core","advanced","principal"];
   var DIFF_LABEL = {core:"Core",advanced:"Advanced",principal:"Principal"};
