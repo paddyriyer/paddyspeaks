@@ -6762,18 +6762,18 @@ ORDER BY gaze_hits DESC;</code></pre>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-model" aria-labelledby="t-sc-av-robotaxi-model" tabindex="0" hidden>
 <h3>Section 1 — The "driver" becomes four versioned dimensions</h3>
-<p class="callout" style="background:#fff8e1;border-left:4px solid #d4a017;padding:14px 18px;border-radius:4px;"><strong>The vehicle is a member of the conformed <code>dim_device</code></strong> (<code>device_type = vehicle</code>) — the same dimension that carries headsets in #21 and phones in #5/#19. It extends the <code>dim_av_fleet</code> hint already made in #1's AV-future section: software version, sensor calibration, ODD restrictions — all SCD2 because they drift.</p>
+<p class="callout" style="background:#fff8e1;border-left:4px solid #d4a017;padding:14px 18px;border-radius:4px;"><strong>Two asset layers: <code>dim_vehicles</code> (the car) and <code>dim_devices</code> (its sensors).</strong> "Device" is a conformed idea across the catalog — headsets in #21, phones in #5/#19, these vehicle sensors here — even though each scenario names its own grain. This extends the <code>dim_av_fleet</code> hint from #1's AV-future section: software version, sensor calibration, ODD restrictions — all SCD2 because they drift.</p>
 <p><strong>The versioned "driver" — four SCD2 dimensions</strong></p>
 <table>
   <thead><tr><th>Dimension</th><th>Grain / key columns</th><th>Why SCD2</th></tr></thead>
   <tbody>
-    <tr><td><code>dim_av_vehicle</code></td><td>one row per vehicle × config; VIN, platform, <code>sensor_suite</code>, <code>calibration_version</code></td><td>Sensors re-calibrate; the as-of-trip config must be recoverable.</td></tr>
+    <tr><td><code>dim_vehicles</code></td><td>one row per vehicle × config; VIN, platform, <code>sensor_suite</code>, <code>calibration_version</code></td><td>Sensors re-calibrate; the as-of-trip config must be recoverable.</td></tr>
     <tr><td><code>dim_software_release</code></td><td><code>stack_version</code>, <code>perception_model_hash</code>, <code>planner_version</code></td><td>This <em>is</em> "who was driving." Every incident attributes to a release.</td></tr>
     <tr><td><code>dim_hd_map</code></td><td><code>map_version</code>, tile set, survey date</td><td>The map the car believed in; a stale tile can cause a fault.</td></tr>
     <tr><td><code>dim_odd</code></td><td>geofence (H3 set) × weather envelope × time envelope</td><td>Operational Design Domain — where/when the AV may drive. A temporal geofence, exactly like <code>dim_surge_zone</code> in #2.</td></tr>
   </tbody>
 </table>
-<p><strong>Component inventory: <code>dim_sensor</code> (one row per physical sensor on a vehicle)</strong> — the conformed <code>dim_device</code> is the <em>vehicle</em>; this is its swappable hardware. A LiDAR or camera is replaced individually, so the device grain here is the <em>component</em>, not the car.</p>
+<p><strong>Component inventory: <code>dim_devices</code> (one row per physical sensor on a vehicle)</strong> — <code>dim_vehicles</code> is the car master; this is its swappable hardware. A LiDAR or camera is replaced individually, so the device grain here is the <em>component</em>, not the car.</p>
 <table>
   <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
   <tbody>
@@ -6783,8 +6783,8 @@ ORDER BY gaze_hits DESC;</code></pre>
     <tr><td><code>firmware_version</code> / <code>status</code></td><td>STRING / ENUM</td><td>Low-level build; {active, degraded, maintenance}.</td></tr>
   </tbody>
 </table>
-<p><strong>Trip fact: <code>fct_av_trip</code></strong> — one row per autonomous trip; FKs to the four versioned dims captured at dispatch, plus <code>marketplace_trip_key</code> folding it into the <code>fct_trips</code> hierarchy from #1 (human and AV trips reconcile to one Finance grain). For exception handling it also carries <code>trip_status</code> (a state machine: <code>en_route → in_transit → completed | aborted_failsafe | rescue_dispatched</code>), a self-referencing <code>parent_trip_id</code>, and <code>fare_adjustment</code> — see the rescue chain below.</p>
-<p><strong>Safety fact: <code>fct_disengagement</code> (append-only — the regulatory currency)</strong></p>
+<p><strong>Trip fact: <code>fact_av_trips</code></strong> — one row per autonomous trip; FKs to the four versioned dims captured at dispatch, plus <code>marketplace_trip_key</code> folding it into the <code>fct_trips</code> hierarchy from #1 (human and AV trips reconcile to one Finance grain). For exception handling it also carries <code>trip_status</code> (a state machine: <code>en_route → in_transit → completed | aborted_failsafe | rescue_dispatched</code>), a self-referencing <code>parent_trip_id</code>, and <code>fare_adjustment</code> — see the rescue chain below.</p>
+<p><strong>Safety fact: <code>fact_disengagement_events</code> (append-only — the regulatory currency)</strong></p>
 <table>
   <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
   <tbody>
@@ -6793,48 +6793,47 @@ ORDER BY gaze_hits DESC;</code></pre>
     <tr><td><code>release_key</code> / <code>map_key</code> / <code>odd_key</code></td><td>FK</td><td><strong>Snapshotted at event time</strong> — the exact versions that were driving. Never re-pointed.</td></tr>
     <tr><td><code>ts</code> / <code>location_h3</code></td><td>TIMESTAMP_TZ / H3</td><td>When &amp; where.</td></tr>
     <tr><td><code>type</code></td><td>ENUM</td><td>{planned, safety_driver_takeover, remote_operator, system_fault, hard_brake}.</td></tr>
-    <tr><td><code>failed_sensor_id</code></td><td>FK</td><td>The implicated <code>dim_sensor</code> when a component triggered it — joins a disengagement to a specific unit + manufacturer for failure-profile analysis.</td></tr>
+    <tr><td><code>failed_sensor_id</code></td><td>FK</td><td>The implicated <code>dim_devices</code> when a component triggered it — joins a disengagement to a specific unit + manufacturer for failure-profile analysis.</td></tr>
     <tr><td><code>reg_reportable</code></td><td>BOOLEAN</td><td>Whether it counts toward regulatory disengagement reporting.</td></tr>
   </tbody>
 </table>
-<p><strong>Terminal failure &amp; the rescue chain.</strong> A sensor cracks mid-trip; the car can no longer drive autonomously, so it executes a fail-safe stop and writes a <code>fct_disengagement</code> row (stamped with <code>failed_sensor_id</code>). The passenger's trip flips to <code>trip_status = aborted_failsafe</code> and ends. Dispatch detects a stranded passenger and auto-assigns a rescue vehicle: a <em>new</em> <code>fct_av_trip</code> row carrying the <strong>same <code>request_id</code></strong> (same rider intent) and a <code>parent_trip_id</code> pointing back at the broken trip. Billing walks that parent chain, sums both legs' distance, applies a <code>fare_adjustment</code> (often comping the ride), and posts one clean invoice. The self-referencing chain keeps the incident, the rescue, and the billing on a single auditable thread — no patchy side-tables.</p>
-<p><strong>Telemetry firehose: <code>fct_drive_telemetry</code></strong> — per-second kinematics rollup with a <code>raw_log_uri</code> pointer to the full multi-sensor drive-log in object storage (keyed by <code>drive_id</code>); raw lidar/camera frames never enter the warehouse.</p>
+<p><strong>Terminal failure &amp; the rescue chain.</strong> A sensor cracks mid-trip; the car can no longer drive autonomously, so it executes a fail-safe stop and writes a <code>fact_disengagement_events</code> row (stamped with <code>failed_sensor_id</code>). The passenger's trip flips to <code>trip_status = aborted_failsafe</code> and ends. Dispatch detects a stranded passenger and auto-assigns a rescue vehicle: a <em>new</em> <code>fact_av_trips</code> row carrying the <strong>same <code>request_id</code></strong> (same rider intent) and a <code>parent_trip_id</code> pointing back at the broken trip. Billing walks that parent chain, sums both legs' distance, applies a <code>fare_adjustment</code> (often comping the ride), and posts one clean invoice. The self-referencing chain keeps the incident, the rescue, and the billing on a single auditable thread — no patchy side-tables.</p>
+<p><strong>Telemetry firehose: <code>fact_vehicle_telemetry</code></strong> — per-second kinematics rollup with a <code>raw_log_uri</code> pointer to the full multi-sensor drive-log in object storage (keyed by <code>drive_id</code>); raw lidar/camera frames never enter the warehouse.</p>
 <p><strong>Ingestion — hot path &amp; cold path.</strong> At ~10k vehicles × 100&nbsp;ms that's ≈100k events/s, sent as <strong>Protobuf</strong> (not JSON) to survive the cellular uplink. A <em>hot path</em> (Pub/Sub → stream processor → Redis / Bigtable) serves &lt;2&nbsp;s fleet-ops alerts and the live map; a <em>cold path</em> lands the same events in the warehouse for overnight safety reporting and ML. The facts above are the cold path's grain; the hot path keeps only the latest state per vehicle.</p>
-<p><strong>Senior framing.</strong> "Replace the driver with a stack and the whole model becomes about <em>versioned attribution</em>. Each <code>fct_disengagement</code> row freezes FKs to the release, map, calibration, and ODD that were live at that instant — so when the stack ships v9 tomorrow, last week's incident still attributes to v8. That's the decision-replay pattern from fraud (#19), made safety-critical. ODD is the surge-zone temporal geofence (#2). The drive-log is the GPS firehose (#1). And the trip folds into the same marketplace fact (#1) so Finance never forks human and robot. Nothing here is new — it's the catalog, at the grade where a wrong join is a subpoena."</p>
+<p><strong>Senior framing.</strong> "Replace the driver with a stack and the whole model becomes about <em>versioned attribution</em>. Each <code>fact_disengagement_events</code> row freezes FKs to the release, map, calibration, and ODD that were live at that instant — so when the stack ships v9 tomorrow, last week's incident still attributes to v8. That's the decision-replay pattern from fraud (#19), made safety-critical. ODD is the surge-zone temporal geofence (#2). The drive-log is the GPS firehose (#1). And the trip folds into the same marketplace fact (#1) so Finance never forks human and robot. Nothing here is new — it's the catalog, at the grade where a wrong join is a subpoena."</p>
 <h3>Section 2 — bridging the app layer (so "conversion dropped" has an answer)</h3>
 <p>Everything above is the physical-robotics half. The other half is the <strong>consumer app</strong> (iOS / Google Play) — and leaving it out makes a dropped booking-conversion number unanswerable: a buggy app release, or cars failing pickups? Two dims and a clickstream fact close the gap.</p>
-<p><strong>App-release dim: <code>dim_app_release</code></strong> — one row per store build: <code>platform {iOS, Android}</code>, <code>store_origin {App&nbsp;Store, Google&nbsp;Play, TestFlight}</code>, <code>semantic_version</code>, <code>build_number</code>, <code>is_critical_patch</code>. A bad drop becomes an isolable dimension.</p>
-<p><strong>Clickstream fact: <code>fct_app_event</code></strong> — the booking funnel, partitioned by date and clustered by <code>app_release_key</code>:</p>
+<p><strong>App-release dim: <code>dim_mobile_app_versions</code></strong> — one row per store build: <code>platform {iOS, Android}</code>, <code>store_origin {App&nbsp;Store, Google&nbsp;Play, TestFlight}</code>, <code>semantic_version</code>, <code>build_number</code>, <code>is_critical_patch</code>. A bad drop becomes an isolable dimension.</p>
+<p><strong>Clickstream fact: <code>fact_mobile_clickstream_events</code></strong> — the booking funnel, partitioned by date and clustered by <code>app_version_key</code>:</p>
 <table>
   <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
   <tbody>
     <tr><td><code>session_id</code> / <code>user_id</code></td><td>FK</td><td>The app session and rider.</td></tr>
-    <tr><td><code>app_release_key</code></td><td>FK</td><td>The build that was running — the isolation key.</td></tr>
+    <tr><td><code>app_version_key</code></td><td>FK</td><td>The build that was running — the isolation key.</td></tr>
     <tr><td><code>event_name</code></td><td>ENUM</td><td>{app_launch, destination_searched, quote_generated, booking_confirmed, app_crash}.</td></tr>
-    <tr><td><code>device_model</code> / <code>os_version</code> / <code>network_type</code></td><td>STRING</td><td>Consumer-device context (a member of the conformed <code>dim_device</code>) + 5G / Wi-Fi / LTE.</td></tr>
+    <tr><td><code>device_model</code> / <code>os_version</code> / <code>network_type</code></td><td>STRING</td><td>Consumer-device context (the rider's phone — the catalog's "device" idea on the app side) + 5G / Wi-Fi / LTE.</td></tr>
     <tr><td><code>attribution_campaign</code></td><td>STRING</td><td>Marketing origin — ties to the ads attribution in #5.</td></tr>
   </tbody>
 </table>
-<p>The booking request (<code>fct_ride_request</code> — the AV analog of #1's journey grain) carries <code>session_id</code> + <code>app_release_key</code>, so lineage runs <code>fct_app_event</code> → <code>fct_ride_request</code> → <code>fct_av_trip</code> → <code>fct_disengagement</code> in one chain. "Conversion fell on iOS v6.14.2" and "those sessions hit 3× the fail-safes" become the <em>same</em> query (SQL tab) — the app-vs-fleet blind spot is closed. Billing rolls up in a finance semantic view keyed on the request, where the fail-safe zero-charge and <strong>COPQ</strong> (cost of poor quality = comped fare + recovery credit) are computed.</p>
+<p>The booking request (<code>fact_ride_requests</code> — the AV analog of #1's journey grain) carries <code>session_id</code> + <code>app_version_key</code>, so lineage runs <code>fact_mobile_clickstream_events</code> → <code>fact_ride_requests</code> → <code>fact_av_trips</code> → <code>fact_disengagement_events</code> in one chain. "Conversion fell on iOS v6.14.2" and "those sessions hit 3× the fail-safes" become the <em>same</em> query (SQL tab) — the app-vs-fleet blind spot is closed. Billing rolls up in a finance semantic view keyed on the request, where the fail-safe zero-charge and <strong>COPQ</strong> (cost of poor quality = comped fare + recovery credit) are computed.</p>
 <h3>Section 3 — fleet operations: assistance, energy, and rollout</h3>
 <p>Three operational realities round out the fleet model — each reuses a pattern already in the catalog.</p>
-<p><strong>Remote assistance ≠ disengagement.</strong> Most "human-in-the-loop" moments aren't autonomy dropping out — they're the car <em>asking</em> a remote operator to confirm an ambiguous scene (a construction cone, a hand-waved go-ahead) while staying in control. That's a distinct, far more frequent fact: <strong><code>fct_remote_assist</code></strong> — <code>trip_key</code>, <code>vehicle_key</code>, <code>release_key</code> (frozen), <code>operator_id</code>, <code>request_reason</code>, <code>resolution {confirmed, rerouted, escalated_to_disengage}</code>, <code>latency_ms</code>. Folding it into <code>fct_disengagement</code> inflates the disengagement rate and hides the real ops load; the <em>ratio</em> of assists to disengagements is itself a maturity signal.</p>
-<p><strong>Energy is a dispatch constraint, not a footnote.</strong> An EV fleet can't be dispatched like gas cars. <code>fct_charging_session</code> (<code>vehicle_key</code>, <code>station_key</code>, <code>start</code>/<code>end</code>, <code>kwh</code>, <code>soc_before</code>/<code>soc_after</code>) plus <code>dim_charging_station</code> make charging downtime a first-class utilization metric — and dispatch must gate on <em>remaining range vs the trip distance and the ODD</em>: a low-state-of-charge car is outside its operational envelope for a long trip exactly like a weather or geofence limit.</p>
+<p><strong>Remote assistance ≠ disengagement.</strong> Most "human-in-the-loop" moments aren't autonomy dropping out — they're the car <em>asking</em> a remote operator to confirm an ambiguous scene (a construction cone, a hand-waved go-ahead) while staying in control. That's a distinct, far more frequent fact: <strong><code>fact_remote_assists</code></strong> — <code>trip_key</code>, <code>vehicle_key</code>, <code>release_key</code> (frozen), <code>operator_id</code>, <code>request_reason</code>, <code>resolution {confirmed, rerouted, escalated_to_disengage}</code>, <code>latency_ms</code>. Folding it into <code>fact_disengagement_events</code> inflates the disengagement rate and hides the real ops load; the <em>ratio</em> of assists to disengagements is itself a maturity signal.</p>
+<p><strong>Energy is a dispatch constraint, not a footnote.</strong> An EV fleet can't be dispatched like gas cars. <code>fact_charging_sessions</code> (<code>vehicle_key</code>, <code>station_key</code>, <code>start</code>/<code>end</code>, <code>kwh</code>, <code>soc_before</code>/<code>soc_after</code>) plus <code>dim_charging_station</code> make charging downtime a first-class utilization metric — and dispatch must gate on <em>remaining range vs the trip distance and the ODD</em>: a low-state-of-charge car is outside its operational envelope for a long trip exactly like a weather or geofence limit.</p>
 <p><strong>Multi-city rollout is just SCD2 on the ODD.</strong> When a new neighborhood opens, <code>dim_odd</code> gets a new versioned row — trips before the expansion evaluate against the old envelope, after against the new. No new machinery: the temporal-geofence pattern (#2) doubles as the rollout ledger, and "did the expansion change our disengagement rate?" is a before/after on one key.</p>
-<p class="callout" style="background:#ecfdf5;border-left:4px solid #059669;padding:14px 18px;border-radius:4px;"><strong>The capstone move — counterfactual replay.</strong> Because every <code>fct_disengagement</code> froze its version FKs <em>and</em> a <code>raw_log_uri</code> to the drive-log, you can re-simulate the logged sensor stream through a <em>new</em> stack and ask "<em>would v9 have disengaged here?</em>" Logging a <code>fct_sim_run</code> (<code>disengagement_id</code>, <code>candidate_release</code>, <code>outcome</code>) turns the safety case from "we shipped it and watched" into "we proved the regression was gone before we shipped" — the same frozen-state discipline, run forward instead of back.</p>
+<p class="callout" style="background:#ecfdf5;border-left:4px solid #059669;padding:14px 18px;border-radius:4px;"><strong>The capstone move — counterfactual replay.</strong> Because every <code>fact_disengagement_events</code> froze its version FKs <em>and</em> a <code>raw_log_uri</code> to the drive-log, you can re-simulate the logged sensor stream through a <em>new</em> stack and ask "<em>would v9 have disengaged here?</em>" Logging a <code>fact_sim_runs</code> (<code>disengagement_id</code>, <code>candidate_release</code>, <code>outcome</code>) turns the safety case from "we shipped it and watched" into "we proved the regression was gone before we shipped" — the same frozen-state discipline, run forward instead of back.</p>
 <h3>Section 4 — liability: when the data is the legal record</h3>
 <p>In a human-driven world the <em>driver</em> is presumptively at fault, and insurance is priced on the driver. Remove the driver and fault shifts to <strong>product liability</strong> — the operator and its software stack. That promotes the data platform from "analytics" to <strong>the system of record for legal fault</strong>, which adds three requirements the rest of the model was already quietly satisfying.</p>
 <p><strong>1 · The evidence must be tamper-evident.</strong> An incident's frozen version FKs, the drive-log, and the sensor bundle are exhibits — and someone will challenge whether they were altered after the fact. Seal each incident's evidence as a content-addressed bundle and store its <code>evidence_hash</code> on a <strong>write-once</strong> row. Append-only stops being a tidiness preference and becomes <em>admissibility</em>.</p>
 <p><strong>2 · Fault attribution is incident-replay with money attached.</strong> You already froze the exact <code>release × map × calibration × ODD</code> and the <code>failed_sensor_id</code> on every disengagement — liability is that replay, now adjudicated:</p>
-<p><strong><code>fct_incident</code></strong> (one row per reportable collision/claim) — <code>incident_id</code>, <code>disengagement_id</code> (nullable), <code>trip_key</code>, <code>vehicle_key</code>, <code>counterparty_type {vehicle, pedestrian, cyclist, property}</code>, <code>severity</code>, <code>failed_sensor_id</code> (nullable), <code>claim_amount_usd</code>, <code>evidence_hash</code>, <code>current_finding_version</code>.</p>
-<p><strong><code>fct_fault_finding</code></strong> (append-only — one row per adjudication version) — <code>incident_id</code>, <code>finding_version</code>, <code>at_fault {av, third_party, shared, undetermined}</code>, <code>contributing_factor {sensor, perception, planning, third_party, road}</code>, <code>adjudicator {internal, insurer, court}</code>, <code>decided_at</code>. An appeal <em>appends</em> a new version; the finding that was current when a payout posted is never overwritten — the risk-decision replay pattern (#19), in a courtroom.</p>
+<p><strong><code>fact_incidents</code></strong> (one row per reportable collision/claim) — <code>incident_id</code>, <code>disengagement_id</code> (nullable), <code>trip_key</code>, <code>vehicle_key</code>, <code>counterparty_type {vehicle, pedestrian, cyclist, property}</code>, <code>severity</code>, <code>failed_sensor_id</code> (nullable), <code>claim_amount_usd</code>, <code>evidence_hash</code>, <code>current_finding_version</code>.</p>
+<p><strong><code>fact_fault_findings</code></strong> (append-only — one row per adjudication version) — <code>incident_id</code>, <code>finding_version</code>, <code>at_fault {av, third_party, shared, undetermined}</code>, <code>contributing_factor {sensor, perception, planning, third_party, road}</code>, <code>adjudicator {internal, insurer, court}</code>, <code>decided_at</code>. An appeal <em>appends</em> a new version; the finding that was current when a payout posted is never overwritten — the risk-decision replay pattern (#19), in a courtroom.</p>
 <p><strong>3 · Underwriting is a feedback loop, not a side system.</strong> Premiums (self-insured reserves or a carrier's) are priced from the fleet's <strong>MMBD</strong>, disengagement, and incident history per <code>release</code> and <code>ODD</code> — telematics underwriting. The same safety facts that prove a release is safer also lower its insurance cost; and when a vendor's component is the <code>contributing_factor</code>, <code>failed_sensor_id</code> becomes a <strong>subrogation</strong> path to recover from the manufacturer. Payouts post to the append-only financial ledger from #1 — money moves by double entry, never an <code>UPDATE</code>.</p>
 <h3>Section 5 — the runnable schema (DDL)</h3>
-<p>The grids above as copy-pasteable DDL (BigQuery / Snowflake dialect) — dimensions first, then the high-volume facts with their physical <code>PARTITION BY</code> / <code>CLUSTER BY</code> layout. SCD2 dims carry <code>valid_from</code>/<code>valid_to</code>; the conformed <code>dim_device</code> shows up as the vehicle (<code>dim_av_vehicle</code>) and as the consumer device on <code>fct_app_event</code>.</p>
-<p style="font-size:0.92em;color:var(--text-3,#667);"><strong>Name map</strong> (studio convention ↔ the spec you sketched): <code>dim_sensor</code>↔<code>dim_devices</code> · <code>dim_av_vehicle</code>↔<code>dim_vehicles</code> · <code>dim_app_release</code>↔<code>dim_mobile_app_versions</code> · <code>fct_app_event</code>↔<code>fact_mobile_clickstream_events</code> · <code>fct_ride_request</code>↔<code>fact_ride_requests</code> · <code>fct_av_trip</code>↔<code>fact_trips</code> · <code>fct_drive_telemetry</code>↔<code>fact_vehicle_telemetry</code> · <code>fct_disengagement</code>↔<code>fact_disengagement_events</code>.</p>
+<p>The grids above as copy-pasteable DDL (BigQuery / Snowflake dialect) — dimensions first, then the high-volume facts with their physical <code>PARTITION BY</code> / <code>CLUSTER BY</code> layout. SCD2 dims carry <code>valid_from</code>/<code>valid_to</code>; "device" shows up three ways — the car (<code>dim_vehicles</code>), its sensors (<code>dim_devices</code>), and the rider's phone on <code>fact_mobile_clickstream_events</code>.</p>
 <p><strong>Dimensions</strong></p>
-<pre><code>-- The vehicle = a member of the conformed dim_device (device_type='vehicle'); SCD2
-CREATE TABLE dim_av_vehicle (
+<pre><code>-- Vehicle master asset (the car); SCD2
+CREATE TABLE dim_vehicles (
   vehicle_key         BIGINT       NOT NULL,
   vin                 VARCHAR(32)  NOT NULL,
   platform            VARCHAR(40)  NOT NULL,   -- 'Waymo Driver Gen 5', 'Tesla Robotaxi'
@@ -6846,7 +6845,7 @@ CREATE TABLE dim_av_vehicle (
 );
 
 -- Per-sensor hardware inventory, snowflaked off the vehicle; SCD2  (your dim_devices)
-CREATE TABLE dim_sensor (
+CREATE TABLE dim_devices (
   sensor_id        VARCHAR(50) NOT NULL,
   vehicle_key      BIGINT      NOT NULL,
   sensor_type      VARCHAR(30) NOT NULL,   -- 'LiDAR','Long-Range Camera','Radar','Compute'
@@ -6857,7 +6856,7 @@ CREATE TABLE dim_sensor (
   valid_from       TIMESTAMP   NOT NULL,
   valid_to         TIMESTAMP   NOT NULL DEFAULT TIMESTAMP '9999-12-31 00:00:00',
   PRIMARY KEY (sensor_id, valid_from),
-  FOREIGN KEY (vehicle_key) REFERENCES dim_av_vehicle(vehicle_key)
+  FOREIGN KEY (vehicle_key) REFERENCES dim_vehicles(vehicle_key)
 );
 
 -- The "driver": the autonomy stack; SCD2
@@ -6893,17 +6892,17 @@ CREATE TABLE dim_odd (
 );
 
 -- Consumer mobile-app store builds  (your dim_mobile_app_versions)
-CREATE TABLE dim_app_release (
-  app_release_key   VARCHAR(50) NOT NULL,
+CREATE TABLE dim_mobile_app_versions (
+  app_version_key   VARCHAR(50) NOT NULL,
   platform          VARCHAR(10) NOT NULL,   -- 'iOS','Android'
   store_origin      VARCHAR(30) NOT NULL,   -- 'App Store','Google Play','TestFlight'
   semantic_version  VARCHAR(20) NOT NULL,   -- 'v6.14.2'
   build_number      INT         NOT NULL,
   is_critical_patch BOOLEAN     NOT NULL,
-  PRIMARY KEY (app_release_key)
+  PRIMARY KEY (app_version_key)
 );
 
-CREATE TABLE dim_user (
+CREATE TABLE dim_users (
   user_id       VARCHAR(50) NOT NULL,
   signup_ts     TIMESTAMP   NOT NULL,
   payment_type  VARCHAR(20) NOT NULL,
@@ -6913,44 +6912,44 @@ CREATE TABLE dim_user (
 );</code></pre>
 <p><strong>Facts</strong> (high-volume tables carry their physical layout)</p>
 <pre><code>-- Booking-funnel clickstream  (your fact_mobile_clickstream_events)
-CREATE TABLE fct_app_event (
+CREATE TABLE fact_mobile_clickstream_events (
   event_id        VARCHAR(50) NOT NULL,
   session_id      VARCHAR(50) NOT NULL,
   user_id         VARCHAR(50) NOT NULL,
-  app_release_key VARCHAR(50) NOT NULL,
+  app_version_key VARCHAR(50) NOT NULL,
   event_ts        TIMESTAMP   NOT NULL,
   event_name      VARCHAR(40) NOT NULL,   -- app_launch|destination_searched|quote_generated|booking_confirmed|app_crash
-  device_model    VARCHAR(50),            -- 'iPhone 15 Pro'  (member of dim_device)
+  device_model    VARCHAR(50),            -- 'iPhone 15 Pro'  (the rider's phone)
   os_version      VARCHAR(30),
   network_type    VARCHAR(10),            -- '5G','Wi-Fi','LTE'
   attribution_campaign VARCHAR(100),
   PRIMARY KEY (event_id),
-  FOREIGN KEY (user_id)         REFERENCES dim_user(user_id),
-  FOREIGN KEY (app_release_key) REFERENCES dim_app_release(app_release_key)
+  FOREIGN KEY (user_id)         REFERENCES dim_users(user_id),
+  FOREIGN KEY (app_version_key) REFERENCES dim_mobile_app_versions(app_version_key)
 )
 PARTITION BY DATE(event_ts)
-CLUSTER BY app_release_key, event_name;
+CLUSTER BY app_version_key, event_name;
 
 -- Booking request (AV analog of #1's journey grain)  (your fact_ride_requests)
-CREATE TABLE fct_ride_request (
+CREATE TABLE fact_ride_requests (
   request_id      VARCHAR(50)  NOT NULL,
-  session_id      VARCHAR(50)  NOT NULL,   -- lineage back to fct_app_event
+  session_id      VARCHAR(50)  NOT NULL,   -- lineage back to fact_mobile_clickstream_events
   user_id         VARCHAR(50)  NOT NULL,
-  app_release_key VARCHAR(50)  NOT NULL,   -- isolates a buggy build
+  app_version_key VARCHAR(50)  NOT NULL,   -- isolates a buggy build
   request_ts      TIMESTAMP    NOT NULL,
   pickup_h3       VARCHAR(15)  NOT NULL,
   dropoff_h3      VARCHAR(15)  NOT NULL,
   estimated_fare  DECIMAL(8,2) NOT NULL,
   request_status  VARCHAR(20)  NOT NULL,   -- fulfilled|no_car|user_cancelled
   PRIMARY KEY (request_id),
-  FOREIGN KEY (user_id)         REFERENCES dim_user(user_id),
-  FOREIGN KEY (app_release_key) REFERENCES dim_app_release(app_release_key)
+  FOREIGN KEY (user_id)         REFERENCES dim_users(user_id),
+  FOREIGN KEY (app_version_key) REFERENCES dim_mobile_app_versions(app_version_key)
 )
 PARTITION BY DATE(request_ts)
-CLUSTER BY app_release_key, request_status;
+CLUSTER BY app_version_key, request_status;
 
 -- Autonomous trip; version FKs frozen at dispatch; rescue chain  (your fact_trips)
-CREATE TABLE fct_av_trip (
+CREATE TABLE fact_av_trips (
   trip_key             BIGINT       NOT NULL,
   request_id           VARCHAR(50)  NOT NULL,   -- shared across rescue legs
   marketplace_trip_key BIGINT,                  -- folds into fct_trips (#1)
@@ -6967,16 +6966,16 @@ CREATE TABLE fct_av_trip (
   trip_status          VARCHAR(30)  NOT NULL,   -- en_route|in_transit|completed|aborted_failsafe|rescue_dispatched
   parent_trip_id       BIGINT,                  -- self-FK: rescue -> broken trip
   PRIMARY KEY (trip_key),
-  FOREIGN KEY (request_id)     REFERENCES fct_ride_request(request_id),
-  FOREIGN KEY (vehicle_key)    REFERENCES dim_av_vehicle(vehicle_key),
+  FOREIGN KEY (request_id)     REFERENCES fact_ride_requests(request_id),
+  FOREIGN KEY (vehicle_key)    REFERENCES dim_vehicles(vehicle_key),
   FOREIGN KEY (release_key)    REFERENCES dim_software_release(release_key),
-  FOREIGN KEY (parent_trip_id) REFERENCES fct_av_trip(trip_key)
+  FOREIGN KEY (parent_trip_id) REFERENCES fact_av_trips(trip_key)
 )
 PARTITION BY DATE(start_ts)
 CLUSTER BY vehicle_key, trip_status;
 
 -- Telemetry firehose: per-second rollup; raw frames in object store  (your fact_vehicle_telemetry)
-CREATE TABLE fct_drive_telemetry (
+CREATE TABLE fact_vehicle_telemetry (
   vehicle_key     BIGINT      NOT NULL,
   event_ts        TIMESTAMP   NOT NULL,   -- vehicle clock (event-time)
   sec_bucket      TIMESTAMP   NOT NULL,
@@ -6986,35 +6985,35 @@ CREATE TABLE fct_drive_telemetry (
   autonomy_mode   VARCHAR(20) NOT NULL,   -- fully_autonomous|remote_guidance|manual
   active_trip_key BIGINT,                 -- NULL when cruising empty
   raw_log_uri     VARCHAR(255),           -- pointer to full multi-sensor drive-log
-  FOREIGN KEY (vehicle_key) REFERENCES dim_av_vehicle(vehicle_key)
+  FOREIGN KEY (vehicle_key) REFERENCES dim_vehicles(vehicle_key)
 )
 PARTITION BY DATE(event_ts)
 CLUSTER BY vehicle_key, autonomy_mode;
 
 -- Disengagement: append-only, frozen version FKs  (your fact_disengagement_events)
-CREATE TABLE fct_disengagement (
+CREATE TABLE fact_disengagement_events (
   disengagement_id VARCHAR(50) NOT NULL,
   trip_key         BIGINT,                -- NULL if no passenger
   vehicle_key      BIGINT      NOT NULL,
   release_key      BIGINT      NOT NULL,  -- frozen
   map_key          BIGINT      NOT NULL,  -- frozen
   odd_key          BIGINT      NOT NULL,  -- frozen
-  failed_sensor_id VARCHAR(50),           -- -> dim_sensor (root-cause / subrogation)
+  failed_sensor_id VARCHAR(50),           -- -> dim_devices (root-cause / subrogation)
   event_ts         TIMESTAMP   NOT NULL,
   location_h3      VARCHAR(15) NOT NULL,
   type             VARCHAR(30) NOT NULL,  -- safety_driver_takeover|remote_operator|system_fault|hard_brake
   reg_reportable   BOOLEAN     NOT NULL,
   raw_log_uri      VARCHAR(255),
   PRIMARY KEY (disengagement_id),
-  FOREIGN KEY (vehicle_key)      REFERENCES dim_av_vehicle(vehicle_key),
+  FOREIGN KEY (vehicle_key)      REFERENCES dim_vehicles(vehicle_key),
   FOREIGN KEY (release_key)      REFERENCES dim_software_release(release_key),
-  FOREIGN KEY (failed_sensor_id) REFERENCES dim_sensor(sensor_id)
+  FOREIGN KEY (failed_sensor_id) REFERENCES dim_devices(sensor_id)
 )
 PARTITION BY DATE(event_ts)
 CLUSTER BY vehicle_key, type;
 
 -- Liability: collision/claim + append-only fault adjudications
-CREATE TABLE fct_incident (
+CREATE TABLE fact_incidents (
   incident_id             VARCHAR(50)  NOT NULL,
   disengagement_id        VARCHAR(50),
   trip_key                BIGINT,
@@ -7027,10 +7026,10 @@ CREATE TABLE fct_incident (
   current_finding_version INT          NOT NULL DEFAULT 1,
   event_ts                TIMESTAMP    NOT NULL,
   PRIMARY KEY (incident_id),
-  FOREIGN KEY (disengagement_id) REFERENCES fct_disengagement(disengagement_id)
+  FOREIGN KEY (disengagement_id) REFERENCES fact_disengagement_events(disengagement_id)
 );
 
-CREATE TABLE fct_fault_finding (
+CREATE TABLE fact_fault_findings (
   incident_id         VARCHAR(50) NOT NULL,
   finding_version     INT         NOT NULL,   -- append-only; appeals add a version
   at_fault            VARCHAR(20) NOT NULL,   -- av|third_party|shared|undetermined
@@ -7038,19 +7037,19 @@ CREATE TABLE fct_fault_finding (
   adjudicator         VARCHAR(20) NOT NULL,   -- internal|insurer|court
   decided_at          TIMESTAMP   NOT NULL,
   PRIMARY KEY (incident_id, finding_version),
-  FOREIGN KEY (incident_id) REFERENCES fct_incident(incident_id)
+  FOREIGN KEY (incident_id) REFERENCES fact_incidents(incident_id)
 );</code></pre>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-sql" aria-labelledby="t-sc-av-robotaxi-sql" tabindex="0" hidden>
 <h3>Incident replay — attribute every disengagement to the exact state that was driving</h3>
-<p>The regulator's question is "what was in control when this happened?" Because each <code>fct_disengagement</code> row froze the version FKs at event time, the answer is a plain join — and it stays correct forever, even after the stack, map, and calibration all advance.</p>
+<p>The regulator's question is "what was in control when this happened?" Because each <code>fact_disengagement_events</code> row froze the version FKs at event time, the answer is a plain join — and it stays correct forever, even after the stack, map, and calibration all advance.</p>
 <pre><code>SELECT d.disengagement_id, d.ts, d.type, d.location_h3,
        r.stack_version,
        m.map_version,
        v.calibration_version,
        o.odd_id
-FROM fct_disengagement    d
-JOIN dim_av_vehicle       v ON v.vehicle_key = d.vehicle_key
+FROM fact_disengagement_events    d
+JOIN dim_vehicles       v ON v.vehicle_key = d.vehicle_key
 JOIN dim_software_release r ON r.release_key = d.release_key
 JOIN dim_hd_map           m ON m.map_key     = d.map_key
 JOIN dim_odd              o ON o.odd_key     = d.odd_key
@@ -7063,9 +7062,9 @@ SELECT r.stack_version,
        COUNT(*)                AS disengagements,
        SUM(t.autonomous_miles) AS miles,
        ROUND(SUM(t.autonomous_miles) / NULLIF(COUNT(*),0), 1) AS mmbd
-FROM fct_disengagement    d
+FROM fact_disengagement_events    d
 JOIN dim_software_release r ON r.release_key = d.release_key
-JOIN fct_av_trip          t ON t.trip_key    = d.trip_key
+JOIN fact_av_trips          t ON t.trip_key    = d.trip_key
 WHERE d.reg_reportable = TRUE
 GROUP BY r.stack_version
 ORDER BY mmbd DESC;</code></pre>
@@ -7074,12 +7073,12 @@ ORDER BY mmbd DESC;</code></pre>
 <p>Because the rescue trip carries <code>parent_trip_id</code>, "who hit a vehicle failure today, and how long until rescue?" is a clean self-join rather than a forensic reconstruction:</p>
 <pre><code>WITH failed AS (
   SELECT trip_key, user_id, vehicle_key AS broken_vehicle, end_ts AS failure_time
-  FROM fct_av_trip
+  FROM fact_av_trips
   WHERE trip_status = 'aborted_failsafe' AND DATE(start_ts) = CURRENT_DATE
 ),
 rescue AS (
   SELECT parent_trip_id, vehicle_key AS rescue_vehicle, start_ts AS rescue_pickup
-  FROM fct_av_trip
+  FROM fact_av_trips
   WHERE parent_trip_id IS NOT NULL AND DATE(start_ts) = CURRENT_DATE
 )
 SELECT f.user_id, f.broken_vehicle, r.rescue_vehicle,
@@ -7096,10 +7095,10 @@ ORDER BY minutes_stranded DESC;</code></pre>
                    COUNT(DISTINCT c.session_id)) * 100 AS booking_conversion_pct,
        COUNT(DISTINCT CASE WHEN t.trip_status = 'aborted_failsafe'
                            THEN t.trip_key END)        AS failsafes_witnessed
-FROM fct_app_event         c
-JOIN dim_app_release       v ON v.app_release_key = c.app_release_key
-LEFT JOIN fct_ride_request r ON r.session_id      = c.session_id
-LEFT JOIN fct_av_trip      t ON t.request_id      = r.request_id
+FROM fact_mobile_clickstream_events         c
+JOIN dim_mobile_app_versions       v ON v.app_version_key = c.app_version_key
+LEFT JOIN fact_ride_requests r ON r.session_id      = c.session_id
+LEFT JOIN fact_av_trips      t ON t.request_id      = r.request_id
 WHERE c.event_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
 GROUP BY v.platform, v.semantic_version
 ORDER BY booking_conversion_pct ASC;</code></pre>
@@ -7111,20 +7110,20 @@ ORDER BY booking_conversion_pct ASC;</code></pre>
        ROUND(COUNT(DISTINCT a.assist_id)
              / NULLIF(COUNT(DISTINCT d.disengagement_id), 0), 1) AS assists_per_disengage
 FROM dim_software_release r
-LEFT JOIN fct_remote_assist a ON a.release_key = r.release_key
-LEFT JOIN fct_disengagement d ON d.release_key = r.release_key
+LEFT JOIN fact_remote_assists a ON a.release_key = r.release_key
+LEFT JOIN fact_disengagement_events d ON d.release_key = r.release_key
 GROUP BY r.stack_version
 ORDER BY assists_per_disengage DESC;</code></pre>
 <p>A rising ratio means the car increasingly <em>asks for help</em> instead of ceding control — maturity. Conflate the two facts into one and this signal vanishes entirely.</p>
 <h3>Subrogation — which sensor vendor's failures are costing us?</h3>
-<p>When a component caused the incident, the operator recovers from the manufacturer. <code>failed_sensor_id</code> → <code>dim_sensor</code> turns liability into a vendor-accountability ledger:</p>
+<p>When a component caused the incident, the operator recovers from the manufacturer. <code>failed_sensor_id</code> → <code>dim_devices</code> turns liability into a vendor-accountability ledger:</p>
 <pre><code>SELECT s.manufacturer, s.sensor_type,
        COUNT(DISTINCT i.incident_id) AS incidents,
        SUM(i.claim_amount_usd)       AS recoverable_exposure_usd
-FROM fct_incident      i
-JOIN fct_fault_finding f ON f.incident_id     = i.incident_id
+FROM fact_incidents      i
+JOIN fact_fault_findings f ON f.incident_id     = i.incident_id
                        AND f.finding_version  = i.current_finding_version
-JOIN dim_sensor        s ON s.sensor_id       = i.failed_sensor_id
+JOIN dim_devices        s ON s.sensor_id       = i.failed_sensor_id
 WHERE f.contributing_factor = 'sensor'
   AND f.at_fault IN ('av', 'shared')
 GROUP BY s.manufacturer, s.sensor_type
@@ -7134,10 +7133,10 @@ ORDER BY recoverable_exposure_usd DESC;</code></pre>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-tradeoffs" aria-labelledby="t-sc-av-robotaxi-tradeoffs" tabindex="0" hidden>
 <h3>The decisions that earn the level</h3>
 <ul>
-  <li><strong>Frozen version FKs on the event, not a live lookup.</strong> Snapshot release/map/calibration/ODD onto <code>fct_disengagement</code> at write time. Resolving "current" versions at query time would re-attribute old incidents to today's stack — destroying the regulatory record.</li>
+  <li><strong>Frozen version FKs on the event, not a live lookup.</strong> Snapshot release/map/calibration/ODD onto <code>fact_disengagement_events</code> at write time. Resolving "current" versions at query time would re-attribute old incidents to today's stack — destroying the regulatory record.</li>
   <li><strong>ODD as a temporal geofence.</strong> "Where may the AV drive?" changes with construction, weather, and policy. Model it as SCD2 (the <code>dim_surge_zone</code> pattern), so a trip is evaluated against the ODD that was in force, not today's.</li>
   <li><strong>Disengagement is append-only.</strong> Re-classifying a takeover after review appends a new adjudication row; the original verdict is never <code>UPDATE</code>d — same audit discipline as the risk ledger in #1/#19.</li>
-  <li><strong>One marketplace fact for mixed fleets.</strong> Fold <code>fct_av_trip</code> into the <code>fct_trips</code> hierarchy so a city dispatching humans <em>and</em> robots reports revenue once. The grain was built platform-agnostic in #1 for exactly this.</li>
+  <li><strong>One marketplace fact for mixed fleets.</strong> Fold <code>fact_av_trips</code> into the <code>fct_trips</code> hierarchy so a city dispatching humans <em>and</em> robots reports revenue once. The grain was built platform-agnostic in #1 for exactly this.</li>
 </ul>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-pitfalls" aria-labelledby="t-sc-av-robotaxi-pitfalls" tabindex="0" hidden>
@@ -7162,10 +7161,10 @@ ORDER BY recoverable_exposure_usd DESC;</code></pre>
     <tr><td>May 10 (v9.0 live)</td><td>D-551</td><td><strong>v8.2</strong> — unchanged</td></tr>
   </tbody>
 </table>
-<p>Because <code>fct_disengagement.release_key</code> was frozen at event time, the incident remains attributed to <code>v8.2</code> forever. A live lookup of "AV-7's current release" would now wrongly blame <code>v9.0</code> — falsifying the regulatory record and the v8-vs-v9 safety comparison. Frozen FKs make replay deterministic.</p>
+<p>Because <code>fact_disengagement_events.release_key</code> was frozen at event time, the incident remains attributed to <code>v8.2</code> forever. A live lookup of "AV-7's current release" would now wrongly blame <code>v9.0</code> — falsifying the regulatory record and the v8-vs-v9 safety comparison. Frozen FKs make replay deterministic.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="p-sc-av-robotaxi-drill" aria-labelledby="t-sc-av-robotaxi-drill" tabindex="0" hidden>
-<div class="drill"><p class="drill__q">Drill · answer this in 90 seconds:</p><p style="font-family:var(--font-read);margin:0 0 10px">Design the data model for a driverless robotaxi fleet that must let a regulator replay any safety incident against the exact software, map, and sensor state that was driving — while ingesting terabytes of sensor data per vehicle per day and sharing a marketplace with human drivers.</p><button class="reveal" type="button" data-reveal>Reveal a senior-level framing</button><div class="drill__a" hidden><strong>Senior framing.</strong> "The driver becomes four SCD2 dimensions — <code>dim_software_release</code> (who was driving), <code>dim_hd_map</code>, <code>dim_av_vehicle</code> (sensor calibration), and <code>dim_odd</code> (a temporal geofence). <code>fct_disengagement</code> is append-only and <em>freezes</em> FKs to those four at event time, so incident replay is a deterministic join that survives every future upgrade — decision-replay (#19) at safety grade. Raw drive-logs stay in object storage with a per-second rollup and pointer in the warehouse (the GPS-firehose boundary from #1). And <code>fct_av_trip</code> folds into the marketplace <code>fct_trips</code> hierarchy so human and robot revenue reconcile on one grain. The vehicle is just <code>device_type = vehicle</code> in the conformed <code>dim_device</code>. It's the whole catalog, at the grade where a wrong join is a subpoena."</div></div>
+<div class="drill"><p class="drill__q">Drill · answer this in 90 seconds:</p><p style="font-family:var(--font-read);margin:0 0 10px">Design the data model for a driverless robotaxi fleet that must let a regulator replay any safety incident against the exact software, map, and sensor state that was driving — while ingesting terabytes of sensor data per vehicle per day and sharing a marketplace with human drivers.</p><button class="reveal" type="button" data-reveal>Reveal a senior-level framing</button><div class="drill__a" hidden><strong>Senior framing.</strong> "The driver becomes four SCD2 dimensions — <code>dim_software_release</code> (who was driving), <code>dim_hd_map</code>, <code>dim_vehicles</code> (sensor calibration), and <code>dim_odd</code> (a temporal geofence). <code>fact_disengagement_events</code> is append-only and <em>freezes</em> FKs to those four at event time, so incident replay is a deterministic join that survives every future upgrade — decision-replay (#19) at safety grade. Raw drive-logs stay in object storage with a per-second rollup and pointer in the warehouse (the GPS-firehose boundary from #1). And <code>fact_av_trips</code> folds into the marketplace <code>fct_trips</code> hierarchy so human and robot revenue reconcile on one grain. The car is <code>dim_vehicles</code> and its sensors are <code>dim_devices</code>. It's the whole catalog, at the grade where a wrong join is a subpoena."</div></div>
 </div>
 </article>
 </main>
