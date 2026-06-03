@@ -41,6 +41,18 @@ export default {
       return handleRealtime(request, env, ch);
     }
 
+    if (url.pathname === '/api/exclude' && request.method === 'POST') {
+      return handleExcludeAdd(request, env, ch);
+    }
+
+    if (url.pathname === '/api/exclude' && request.method === 'DELETE') {
+      return handleExcludeRemove(request, env, ch);
+    }
+
+    if (url.pathname === '/api/exclude' && request.method === 'GET') {
+      return handleExcludeList(request, env, ch);
+    }
+
     return new Response('Not found', { status: 404, headers: ch });
   },
 };
@@ -148,6 +160,12 @@ async function handleStats(request, env, url, ch) {
   if (filterDevice) { filterSQL += ' AND device_type = ?'; filterBinds.push(filterDevice); }
   if (filterReferrer) { filterSQL += ' AND referrer = ?'; filterBinds.push(filterReferrer); }
 
+  // Exclude admin visitors
+  const excludeMe = url.searchParams.get('exclude_me') !== '0';
+  if (excludeMe) {
+    filterSQL += ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)';
+  }
+
   const w = 'WHERE created_at >= ?' + filterSQL;
   const b = filterBinds;
 
@@ -230,6 +248,44 @@ async function handleRealtime(request, env, ch) {
   return new Response(JSON.stringify(result), {
     headers: { ...ch, 'Content-Type': 'application/json' },
   });
+}
+
+/* ───────── Helpers ───────── */
+
+/* ───────── Exclude Visitors ───────── */
+
+async function handleExcludeAdd(request, env, ch) {
+  const authError = authenticate(request, env, ch);
+  if (authError) return authError;
+  try {
+    const data = await request.json();
+    const vid = data.visitor_id;
+    const label = data.label || '';
+    if (!vid) return new Response(JSON.stringify({ error: 'Missing visitor_id' }), { status: 400, headers: { ...ch, 'Content-Type': 'application/json' } });
+    await env.DB.prepare('INSERT OR IGNORE INTO excluded_visitors (visitor_id, label) VALUES (?, ?)').bind(vid, label).run();
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...ch, 'Content-Type': 'application/json' } });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...ch, 'Content-Type': 'application/json' } });
+  }
+}
+
+async function handleExcludeRemove(request, env, ch) {
+  const authError = authenticate(request, env, ch);
+  if (authError) return authError;
+  try {
+    const data = await request.json();
+    await env.DB.prepare('DELETE FROM excluded_visitors WHERE visitor_id = ?').bind(data.visitor_id).run();
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...ch, 'Content-Type': 'application/json' } });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...ch, 'Content-Type': 'application/json' } });
+  }
+}
+
+async function handleExcludeList(request, env, ch) {
+  const authError = authenticate(request, env, ch);
+  if (authError) return authError;
+  const result = await env.DB.prepare('SELECT visitor_id, label, created_at FROM excluded_visitors ORDER BY created_at DESC').all();
+  return new Response(JSON.stringify(result.results), { headers: { ...ch, 'Content-Type': 'application/json' } });
 }
 
 /* ───────── Helpers ───────── */

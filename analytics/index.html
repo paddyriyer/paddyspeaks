@@ -272,6 +272,8 @@
         <button class="period-btn" data-period="90d">90 days</button>
         <button class="period-btn" data-period="all">All time</button>
         <button class="dash-refresh" onclick="loadDashboard()">Refresh</button>
+        <button class="dash-refresh" onclick="excludeMe()" id="btnExclude" style="border-color:#c44b2b;color:#c44b2b">Exclude Me</button>
+        <button class="dash-refresh" onclick="showExcluded()" style="border-color:var(--color-muted);color:var(--color-muted)">Excluded</button>
         <button class="dash-logout" onclick="logout()">Logout</button>
     </div>
 </header>
@@ -580,6 +582,43 @@
         loadDashboard();
     }
     window.clearAllFilters = clearAllFilters;
+
+    // ── Exclude Me ──────────────────────────
+    window.excludeMe = async function() {
+        var vid = localStorage.getItem('_ps_vid');
+        if (!vid) { alert('No visitor ID found. Visit a page on your site first, then come back.'); return; }
+        var label = prompt('Label this device (e.g., "Work laptop", "Home Mac"):', '');
+        if (label === null) return;
+        try {
+            var res = await fetch(API_BASE + '/api/exclude', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ visitor_id: vid, label: label || 'Unlabeled' })
+            });
+            if (res.ok) {
+                document.getElementById('btnExclude').textContent = 'Excluded!';
+                document.getElementById('btnExclude').style.borderColor = '#2a7a4a';
+                document.getElementById('btnExclude').style.color = '#2a7a4a';
+                loadDashboard();
+            }
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    window.showExcluded = async function() {
+        try {
+            var res = await fetch(API_BASE + '/api/exclude', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+            var list = await res.json();
+            if (!list.length) { alert('No excluded visitors yet. Click "Exclude Me" to exclude your own visits.'); return; }
+            var msg = 'Excluded visitors:\n\n';
+            list.forEach(function(v) {
+                msg += '• ' + (v.label || 'Unlabeled') + '\n  ID: ' + v.visitor_id.slice(0, 12) + '...\n  Added: ' + v.created_at + '\n\n';
+            });
+            msg += 'To remove an exclusion, run in Console:\nfetch(API_BASE+"/api/exclude",{method:"DELETE",headers:{"Authorization":"Bearer "+authToken,"Content-Type":"application/json"},body:JSON.stringify({visitor_id:"FULL_ID"})})';
+            alert(msg);
+        } catch (e) { alert('Error: ' + e.message); }
+    };
 
     function renderFilterBar() {
         var bar = document.getElementById('filterBar');
