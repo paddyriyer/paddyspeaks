@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Dispatch Problem — PaddySpeaks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: light only;
+  --bone:#f6f1e7;
+  --cream:#fbf8f1;
+  --paper:#fffdf8;
+  --ink:#23201a;
+  --ink-soft:#4a443a;
+  --ink-mute:#7d7567;
+  --amber:#b07a1e;
+  --amber-deep:#8a5d12;
+  --rust:#a4502e;
+  --sage:#6f7d5c;
+  --line:#e3dccb;
+  --line-strong:#cfc5ac;
+  --code-bg:#27241d;
+  --code-ink:#e9e2d0;
+  --code-comment:#8f8672;
+  --code-key:#d8a44a;
+  --code-str:#a8b58a;
+  --code-fn:#d98e63;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--bone)}
+body{
+  background:var(--bone);
+  color:var(--ink);
+  font-family:'Newsreader',Georgia,serif;
+  font-size:19px;
+  line-height:1.72;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+::selection{background:var(--amber);color:var(--paper)}
+
+/* ---------- structural ---------- */
+.wrap{max-width:760px;margin:0 auto;padding:0 28px}
+.wrap-wide{max-width:1020px;margin:0 auto;padding:0 28px}
+section{padding:64px 0}
+.rule{height:1px;background:var(--line);border:none;margin:0}
+
+/* ---------- reveal ---------- */
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .9s cubic-bezier(.2,.6,.2,1),transform .9s cubic-bezier(.2,.6,.2,1)}
+.reveal.in{opacity:1;transform:none}
+
+/* ---------- hero ---------- */
+header.hero{
+  padding:110px 0 70px;
+  position:relative;
+  background:
+    radial-gradient(1100px 460px at 85% -10%, rgba(176,122,30,.10), transparent 60%),
+    radial-gradient(800px 420px at -10% 20%, rgba(111,125,92,.08), transparent 55%),
+    var(--bone);
+  border-bottom:1px solid var(--line-strong);
+}
+.kicker{
+  font-family:'DM Mono',monospace;
+  font-size:12px;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--amber-deep);
+  display:flex;align-items:center;gap:14px;
+}
+.kicker::after{content:"";flex:0 0 64px;height:1px;background:var(--amber)}
+h1{
+  font-family:'Cormorant Garamond',serif;
+  font-weight:600;
+  font-size:clamp(46px,7vw,84px);
+  line-height:1.02;
+  letter-spacing:-.015em;
+  margin:26px 0 10px;
+}
+h1 em{font-style:italic;font-weight:500;color:var(--rust)}
+.deck{
+  font-size:clamp(20px,2.4vw,24px);
+  font-weight:300;
+  line-height:1.5;
+  color:var(--ink-soft);
+  max-width:640px;
+  margin-top:18px;
+}
+.byline{
+  margin-top:42px;display:flex;flex-wrap:wrap;gap:10px 34px;
+  font-family:'DM Mono',monospace;font-size:12.5px;letter-spacing:.06em;color:var(--ink-mute);
+}
+.byline b{color:var(--ink);font-weight:500}
+
+/* ---------- headings ---------- */
+h2{
+  font-family:'Cormorant Garamond',serif;
+  font-weight:600;font-size:clamp(32px,4.4vw,44px);
+  line-height:1.12;letter-spacing:-.01em;margin-bottom:26px;
+}
+h2 .num{
+  font-family:'DM Mono',monospace;font-size:13px;font-weight:400;
+  letter-spacing:.22em;color:var(--amber-deep);display:block;margin-bottom:14px;
+}
+h3{
+  font-family:'Cormorant Garamond',serif;
+  font-weight:600;font-size:27px;margin:44px 0 14px;
+}
+p{margin-bottom:22px}
+p.lede{font-size:22px;font-weight:300;line-height:1.6;color:var(--ink-soft)}
+strong{font-weight:600;color:var(--ink)}
+em{color:inherit}
+a{color:var(--amber-deep)}
+
+.dropcap::first-letter{
+  font-family:'Cormorant Garamond',serif;
+  font-size:74px;font-weight:600;float:left;
+  line-height:.78;padding:8px 12px 0 0;color:var(--rust);
+}
+
+/* ---------- pull quote ---------- */
+.pull{
+  margin:48px 0;padding:8px 0 8px 30px;
+  border-left:3px solid var(--amber);
+  font-family:'Cormorant Garamond',serif;
+  font-size:29px;font-style:italic;font-weight:500;line-height:1.35;color:var(--ink-soft);
+}
+.pull span{display:block;margin-top:14px;font-family:'DM Mono',monospace;font-style:normal;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-mute)}
+
+/* ---------- question card ---------- */
+.qcard{
+  background:var(--paper);
+  border:1px solid var(--line-strong);
+  border-top:4px solid var(--rust);
+  padding:40px 44px;margin:40px 0;
+  box-shadow:0 18px 40px -28px rgba(35,32,26,.25);
+}
+.qcard .tag{font-family:'DM Mono',monospace;font-size:11.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--rust);margin-bottom:16px;display:block}
+.qcard .qtext{font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:500;line-height:1.4;font-style:italic}
+.qcard .qmeta{margin-top:20px;font-family:'DM Mono',monospace;font-size:12.5px;color:var(--ink-mute);display:flex;flex-wrap:wrap;gap:8px 26px}
+
+/* ---------- aside / margin note ---------- */
+.note{
+  background:linear-gradient(0deg,rgba(176,122,30,.06),rgba(176,122,30,.06));
+  border:1px solid rgba(176,122,30,.28);
+  padding:24px 28px;margin:36px 0;font-size:17.5px;line-height:1.65;
+}
+.note .nh{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--amber-deep);margin-bottom:10px}
+.note p:last-child{margin-bottom:0}
+
+/* ---------- BOE table ---------- */
+table{width:100%;border-collapse:collapse;margin:34px 0;font-size:16.5px;background:var(--paper)}
+th{
+  font-family:'DM Mono',monospace;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  font-weight:500;color:var(--amber-deep);text-align:left;
+  padding:14px 16px;border-bottom:2px solid var(--line-strong);
+}
+td{padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+td.mono,span.m{font-family:'DM Mono',monospace;font-size:14.5px}
+tr:last-child td{border-bottom:none}
+
+/* ---------- code ---------- */
+.codeblock{
+  background:var(--code-bg);color:var(--code-ink);
+  font-family:'DM Mono',monospace;font-size:13.8px;line-height:1.62;
+  padding:30px 32px;margin:34px 0;overflow-x:auto;
+  border-radius:2px;
+  border-left:4px solid var(--amber);
+  white-space:pre;
+}
+.codeblock .cl{color:var(--code-comment)}
+.codeblock .ck{color:var(--code-key)}
+.codeblock .cs{color:var(--code-str)}
+.codeblock .cf{color:var(--code-fn)}
+.codelabel{
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--ink-mute);margin:38px 0 -26px;display:flex;align-items:center;gap:12px;
+}
+.codelabel::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ---------- diagrams ---------- */
+.diagram{background:var(--paper);border:1px solid var(--line-strong);padding:34px 26px;margin:42px 0}
+.diagram svg{width:100%;height:auto;display:block}
+.caption{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.08em;color:var(--ink-mute);margin-top:18px;text-align:center}
+
+/* ---------- definition rows ---------- */
+.defrow{display:grid;grid-template-columns:190px 1fr;gap:8px 28px;padding:18px 0;border-bottom:1px solid var(--line)}
+.defrow:first-of-type{border-top:1px solid var(--line)}
+.defrow dt{font-family:'DM Mono',monospace;font-size:13.5px;color:var(--rust);padding-top:3px}
+.defrow dd{font-size:17px;line-height:1.6}
+@media(max-width:640px){.defrow{grid-template-columns:1fr}}
+
+/* ---------- state machine chips ---------- */
+.statechain{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:30px 0;font-family:'DM Mono',monospace;font-size:13px}
+.statechain .st{border:1.5px solid var(--ink);padding:7px 14px;background:var(--paper)}
+.statechain .st.terminal{border-color:var(--sage);color:var(--sage)}
+.statechain .arr{color:var(--amber-deep)}
+
+/* ---------- dashboard mock ---------- */
+.dash{
+  background:#211e18;
+  border-radius:4px;padding:30px;margin:44px 0;
+  box-shadow:0 30px 60px -30px rgba(35,32,26,.5);
+}
+.dash-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:24px;border-bottom:1px solid #3a352b;padding-bottom:16px}
+.dash-title{font-family:'DM Mono',monospace;color:#e9e2d0;font-size:14px;letter-spacing:.18em;text-transform:uppercase}
+.dash-sub{font-family:'DM Mono',monospace;color:#8f8672;font-size:11.5px}
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tile{background:#2b2820;border:1px solid #3a352b;padding:18px 18px 14px;border-radius:3px}
+.tile .tl{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#8f8672;margin-bottom:8px}
+.tile .tv{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;color:#f0e9d6;line-height:1}
+.tile .tv small{font-size:16px;color:#b8ad93;font-family:'DM Mono',monospace;margin-left:6px}
+.tile .ok{color:#a8b58a}.tile .warn{color:#d8a44a}.tile .bad{color:#d98e63}
+.tile.span2{grid-column:span 2}
+.tile svg{width:100%;height:auto;display:block;margin-top:10px}
+@media(max-width:760px){.dash-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:460px){.dash-grid{grid-template-columns:1fr}.tile.span2{grid-column:span 1}}
+
+/* ---------- footer ---------- */
+footer{padding:80px 0 100px;border-top:1px solid var(--line-strong);margin-top:40px;background:var(--cream)}
+footer .sig{font-family:'Cormorant Garamond',serif;font-size:30px;font-style:italic;color:var(--ink-soft)}
+footer .fmeta{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.1em;color:var(--ink-mute);margin-top:16px}
+
+@media(max-width:640px){
+  body{font-size:17.5px}
+  .qcard{padding:30px 24px}
+  .codeblock{padding:22px 18px;font-size:12.6px}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · No. 01</div>
+    <h1 class="reveal">The <em>Dispatch</em> Problem</h1>
+    <p class="deck reveal">Design the backend for a ride-sharing service. Forty-five minutes, one whiteboard, three subsystems — and a single decision that separates a senior answer from a memorized one. A complete working through: data flow, schema, SQL, streaming Python, the aggregation layer, and the dashboard that proves it works.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Distributed Systems</b></span>
+      <span>READING · <b>~25 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One sentence, three systems</h2>
+    <p class="lede reveal">Every senior data and platform engineer eventually meets some version of this question. It arrives in one casual sentence and contains three entire distributed systems.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the core backend for a ride-sharing service — focus on driver matching, real-time location tracking, and surge pricing. How would you scope this out?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The question is popular with interviewers for a reason: it cannot be answered with one architecture. The three subsystems it names run at wildly different tempos and want contradictory things. Location tracking is a firehose of data that is worthless four seconds after it arrives. Matching is a low-volume flow where a single consistency mistake — dispatching one driver to two riders — is the cardinal sin of the entire product. Surge pricing is a slow aggregation that must nevertheless be <em>deterministic at the moment of quoting</em>, because the price a rider sees must be the price a rider pays.</p>
+
+    <p class="reveal">A weak answer treats these as one system and reaches for one database. A strong answer notices the tempos first. So before any boxes and arrows, the working frame for the whole session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE FAST LOOP</dt><dd><strong>Location tracking.</strong> Millions of phones reporting position every few seconds. Dominates write volume by two orders of magnitude. Needs freshness, not durability — a dropped ping self-heals when the next one lands.</dd></div>
+      <div class="defrow"><dt>THE MEDIUM LOOP</dt><dd><strong>Matching &amp; dispatch.</strong> Rider requests, candidate search, ranked offers, accept/decline/timeout, exactly one driver per ride. Low volume, latency-sensitive, and the only place in the system that demands strong consistency.</dd></div>
+      <div class="defrow"><dt>THE SLOW LOOP</dt><dd><strong>Surge pricing.</strong> Continuous supply/demand aggregation per geographic cell, recomputed on a sliding window, smoothed to prevent oscillation, and frozen into a quote the instant a rider sees a price.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Availability over consistency everywhere — except dispatch. A slightly suboptimal driver beats no driver. Two riders in one back seat beats nothing at all, except the company.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you are building, what you are deliberately ignoring, and the numbers that will shape every later decision. Out of scope here, said explicitly: payments processing, ratings and fraud, the routing/ETA engine itself (treated as a callable service), the maps stack, and pooled rides — with the caveat that the matching design should not <em>preclude</em> pooling.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. Uber-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Peak concurrent drivers</td><td class="mono">5,000,000</td><td>Sets the size of the hot index</td></tr>
+      <tr><td>Ping interval</td><td class="mono">4 s</td><td>The freshness budget everything is measured against</td></tr>
+      <tr><td><strong>Location writes</strong></td><td class="mono"><strong>≈ 1.25 M / s</strong></td><td><strong>The number that shapes the whole architecture</strong></td></tr>
+      <tr><td>Trips per day</td><td class="mono">25,000,000</td><td>≈ 300 matches/s average, ~3 K at peak — tiny by comparison</td></tr>
+      <tr><td>Hot index footprint</td><td class="mono">~100 B × 5 M ≈ 500 MB</td><td>Fits in one box of RAM; sharded for throughput, not size</td></tr>
+      <tr><td>Surge recompute</td><td class="mono">~1 M cells / 30 s ≈ 35 K updates/s</td><td>A modest streaming job</td></tr>
+      <tr><td>Raw location history</td><td class="mono">tens of TB / day</td><td>Sample and compress to cold storage; keep only latest hot</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry: nothing else in the system comes within two orders of magnitude of location ingestion. That single row of the table dictates the partition strategy, the storage medium, and the failure philosophy. The rest of this article follows the data.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a ping through the building</h2>
+    <p class="lede reveal">One architecture, three tempos. The spine of the design is a partitioned change stream doing triple duty: it feeds the geospatial index, the surge aggregator, and the analytics lake — from a single ordered log.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <!-- lanes -->
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">FAST LOOP · ~1.25M WRITES/S</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">MEDIUM LOOP · ~3K MATCHES/S PEAK</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- driver phones -->
+        <rect x="20" y="60" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="87" font-size="12.5" text-anchor="middle" fill="#23201a">DRIVER APPS</text>
+        <text x="95" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">ping every 4s · gRPC</text>
+
+        <!-- gateway -->
+        <rect x="230" y="52" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="315" y="78" font-size="12.5" text-anchor="middle" fill="#23201a">GATEWAY TIER</text>
+        <text x="315" y="96" font-size="10.5" text-anchor="middle" fill="#7d7567">batch 100ms · coalesce</text>
+        <text x="315" y="112" font-size="10.5" text-anchor="middle" fill="#7d7567">by driver_id · never block</text>
+
+        <!-- stream -->
+        <rect x="460" y="46" width="200" height="92" fill="#27241d"/>
+        <text x="560" y="76" font-size="12.5" text-anchor="middle" fill="#e9e2d0">LOCATION STREAM</text>
+        <text x="560" y="94" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: (city, hash(driver_id) % N)</text>
+        <text x="560" y="110" font-size="10.5" text-anchor="middle" fill="#b8ad93">over-partitioned · ordered per driver</text>
+
+        <!-- geo index -->
+        <rect x="730" y="40" width="220" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="840" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">H3 GEO INDEX · IN-MEM</text>
+        <text x="840" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">cell → {drivers} · TTL 30s</text>
+        <text x="840" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">rebuildable cache, owns nothing</text>
+
+        <!-- surge -->
+        <rect x="730" y="140" width="220" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="166" font-size="12.5" text-anchor="middle" fill="#8a5d12">SURGE AGGREGATOR</text>
+        <text x="840" y="184" font-size="10.5" text-anchor="middle" fill="#7d7567">sliding window · per-cell ratio</text>
+
+        <!-- cold -->
+        <rect x="730" y="224" width="220" height="56" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="840" y="248" font-size="12.5" text-anchor="middle" fill="#7d7567">COLD STORE (SAMPLED)</text>
+        <text x="840" y="265" font-size="10.5" text-anchor="middle" fill="#7d7567">analytics · disputes · Parquet</text>
+
+        <!-- arrows fast loop -->
+        <line x1="170" y1="92" x2="226" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="92" x2="456" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="75" x2="726" y2="75" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="660" y1="120" x2="726" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="130" x2="726" y2="248" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- medium loop -->
+        <rect x="20" y="360" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="387" font-size="12.5" text-anchor="middle" fill="#23201a">RIDER APP</text>
+        <text x="95" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">request + quote_id</text>
+
+        <rect x="230" y="348" width="180" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="320" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">DISPATCH SERVICE</text>
+        <text x="320" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">candidates → rank → offer</text>
+        <text x="320" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">saga · 12s offer expiry</text>
+
+        <rect x="470" y="336" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="358" font-size="12" text-anchor="middle" fill="#23201a">DRIVER STATE STORE</text>
+        <text x="565" y="376" font-size="10.5" text-anchor="middle" fill="#a4502e">CAS: available → offered</text>
+
+        <rect x="470" y="408" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="430" font-size="12" text-anchor="middle" fill="#23201a">TRIP SERVICE</text>
+        <text x="565" y="448" font-size="10.5" text-anchor="middle" fill="#7d7567">state machine · pinned by trip_id</text>
+
+        <rect x="730" y="330" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="354" font-size="12" text-anchor="middle" fill="#23201a">PRICING / QUOTES</text>
+        <text x="840" y="372" font-size="10.5" text-anchor="middle" fill="#7d7567">quote locked 3 min · surge read</text>
+
+        <rect x="730" y="414" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="438" font-size="12" text-anchor="middle" fill="#23201a">NOTIFICATIONS</text>
+        <text x="840" y="456" font-size="10.5" text-anchor="middle" fill="#7d7567">socket + push · ack’d offers</text>
+
+        <!-- medium arrows -->
+        <line x1="170" y1="392" x2="226" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="370" x2="466" y2="363" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="410" x2="466" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="363" x2="726" y2="360" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="440" x2="726" y2="444" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- candidate query: dispatch up to geo index -->
+        <path d="M 320 348 C 320 220, 700 200, 800 114" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="470" y="232" font-size="10.5" fill="#a4502e">k-ring candidate query · &lt;10ms</text>
+
+        <!-- surge to pricing -->
+        <path d="M 905 204 C 940 250, 940 290, 880 326" fill="none" stroke="#8a5d12" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="838" y="300" font-size="10.5" fill="#8a5d12">multiplier</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — sustained data flow · DASHED — request-time reads · Geography proposes, the CAS disposes.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. The stream is the spine; the geo index is a cache; truth lives in two small keyed stores.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview’s work. <strong>First,</strong> the firehose never touches a durable store on the hot path — pings flow connection → gateway → stream → RAM, and only a <em>sampled</em> tributary reaches disk. <strong>Second,</strong> authority is deliberately tiny: the driver-state store and the trip service are small, keyed, boring databases, while everything large is a rebuildable cache. <strong>Third,</strong> the candidate query is dashed for a reason — the geo index merely <em>proposes</em> drivers; an atomic compare-and-swap on the driver record <em>decides</em>. Double-dispatch is prevented by that one line, not by geography.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>Data plane degrades by dropping; control plane degrades by delaying.</strong> A lost ping costs nothing — the next one heals it in four seconds, so under backpressure the gateway buffers briefly, coalesces by driver (last value wins), drops oldest, and never blocks. A lost <em>state transition</em> — an acceptance, a cancellation — is never dropped: separate channel, durable local queue, retry with backoff.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>Two databases, one cache, and a log</h2>
+    <p class="lede reveal">The schema falls out of the authority question. Durable, transactional truth: trips, driver state, quotes. Ephemeral, rebuildable speed: the H3 index. Append-only history: the event log and the sampled ping archive.</p>
+
+    <h3 class="reveal">The durable core (Postgres-class)</h3>
+    <p class="reveal">Trips are small records at trivial volume — 25 M rows a day is gigabytes — so a conventional relational store is the right home. The interesting choices are the <span class="m">version</span> columns (optimistic concurrency for every state transition) and the append-only <span class="m">trip_events</span> table, which gives the lifecycle an audit trail and feeds analytics without touching the hot row.</p>
+
+    <div class="codelabel">DDL · DURABLE CORE</div>
+    <div class="codeblock"><span class="cl">-- Truth #1: who is this driver and what are they doing right now.
+-- Hash-sharded by driver_id. NOT geo-sharded: authority must not move
+-- when the driver does.</span>
+<span class="ck">CREATE TABLE</span> driver_state (
+    driver_id        BIGINT       <span class="ck">PRIMARY KEY</span>,
+    status           TEXT         <span class="ck">NOT NULL</span>
+                     <span class="ck">CHECK</span> (status <span class="ck">IN</span> (<span class="cs">'offline'</span>,<span class="cs">'available'</span>,<span class="cs">'offered'</span>,<span class="cs">'on_trip'</span>)),
+    active_trip_id   BIGINT,
+    offer_expires_at TIMESTAMPTZ,             <span class="cl">-- server-side expiry, never phone-side</span>
+    version          BIGINT       <span class="ck">NOT NULL DEFAULT</span> 0,
+    updated_at       TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="cl">-- Truth #2: the trip itself. Pinned to its shard by trip_id for life.</span>
+<span class="ck">CREATE TABLE</span> trips (
+    trip_id        BIGINT       <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- snowflake: time-ordered, shard-aware</span>
+    rider_id       BIGINT       <span class="ck">NOT NULL</span>,
+    driver_id      BIGINT,
+    quote_id       UUID         <span class="ck">NOT NULL</span>,
+    state          TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'requested'</span>
+                   <span class="ck">CHECK</span> (state <span class="ck">IN</span> (<span class="cs">'requested'</span>,<span class="cs">'matched'</span>,<span class="cs">'driver_en_route'</span>,
+                          <span class="cs">'arrived'</span>,<span class="cs">'in_trip'</span>,<span class="cs">'completed'</span>,<span class="cs">'cancelled'</span>)),
+    pickup_cell    BIGINT       <span class="ck">NOT NULL</span>,     <span class="cl">-- H3 res 8</span>
+    pickup_lat     DOUBLE PRECISION <span class="ck">NOT NULL</span>,
+    pickup_lng     DOUBLE PRECISION <span class="ck">NOT NULL</span>,
+    drop_lat       DOUBLE PRECISION,
+    drop_lng       DOUBLE PRECISION,
+    surge_mult     NUMERIC(4,2) <span class="ck">NOT NULL DEFAULT</span> 1.00,
+    quoted_fare    NUMERIC(8,2) <span class="ck">NOT NULL</span>,     <span class="cl">-- the locked promise</span>
+    version        BIGINT       <span class="ck">NOT NULL DEFAULT</span> 0,
+    requested_at   TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    completed_at   TIMESTAMPTZ
+);
+<span class="ck">CREATE INDEX</span> idx_trips_rider  <span class="ck">ON</span> trips (rider_id, requested_at <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_trips_driver <span class="ck">ON</span> trips (driver_id, requested_at <span class="ck">DESC</span>);
+
+<span class="cl">-- Append-only lifecycle log. Every transition lands here exactly once;
+-- payments, notifications and analytics are downstream consumers.</span>
+<span class="ck">CREATE TABLE</span> trip_events (
+    event_id     BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    trip_id      BIGINT       <span class="ck">NOT NULL</span>,
+    from_state   TEXT         <span class="ck">NOT NULL</span>,
+    to_state     TEXT         <span class="ck">NOT NULL</span>,
+    actor        TEXT         <span class="ck">NOT NULL</span>,      <span class="cl">-- rider | driver | system</span>
+    occurred_at  TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    detail       JSONB
+);
+
+<span class="cl">-- The quote: surge honesty, materialized. Issued price is immutable.</span>
+<span class="ck">CREATE TABLE</span> quotes (
+    quote_id     UUID         <span class="ck">PRIMARY KEY</span>,
+    rider_id     BIGINT       <span class="ck">NOT NULL</span>,
+    origin_cell  BIGINT       <span class="ck">NOT NULL</span>,
+    surge_mult   NUMERIC(4,2) <span class="ck">NOT NULL</span>,
+    fare         NUMERIC(8,2) <span class="ck">NOT NULL</span>,
+    issued_at    TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    expires_at   TIMESTAMPTZ  <span class="ck">NOT NULL</span>       <span class="cl">-- issued_at + 3 minutes</span>
+);</div>
+
+    <h3 class="reveal">The ephemeral layer (RAM, by design)</h3>
+    <p class="reveal">The geospatial index is two hash maps and a discipline. It is not a database and must not become one: at 1.25 M writes per second, B-trees, WALs and MVCC are taxes paid for durability the data doesn’t want. If the process dies, the index rebuilds itself from live pings in about thirty seconds — recovery is free because the world keeps broadcasting its state.</p>
+
+    <div class="codelabel">LOGICAL SCHEMA · HOT INDEX (REDIS-STYLE)</div>
+    <div class="codeblock"><span class="cl"># cell → set of available drivers (H3 resolution 8, ~460m hexes)</span>
+<span class="ck">SADD</span>   geo:{city}:cell:{h3_index}   {driver_id}
+
+<span class="cl"># driver → packed position + status, with TTL as the stale-driver reaper</span>
+<span class="ck">HSET</span>   geo:{city}:drv:{driver_id}   lat 37.4419  lng -122.143
+                                     heading 213  status available
+                                     seen_ms 1765432109482
+<span class="ck">EXPIRE</span> geo:{city}:drv:{driver_id}   30           <span class="cl"># no ping in 30s → not matchable</span>
+
+<span class="cl"># a ping that crosses a cell boundary is two O(1) ops:</span>
+<span class="ck">SREM</span> geo:sfo:cell:8828308281fffff 91442
+<span class="ck">SADD</span> geo:sfo:cell:8828308283fffff 91442</div>
+
+    <p class="reveal">Sharding follows geography — city-level shards, hot cities dedicated, small cities packed — because riders in one city never match drivers in another. Boundary cells are replicated to both neighboring shards so a rider standing on a border still gets a single-query answer; results are unioned and de-duplicated by <span class="m">driver_id</span>, latest <span class="m">seen_ms</span> wins. And because the index owns nothing, brief double-presence during a crossing is harmless: <em>geography proposes candidates; the CAS on <span class="m">driver_state</span> decides truth.</em></p>
+
+    <h3 class="reveal">The wire format</h3>
+    <div class="codelabel">STREAM RECORD · LOCATION PING</div>
+    <div class="codeblock">{
+  <span class="ck">"driver_id"</span>: 91442,
+  <span class="ck">"city"</span>:      <span class="cs">"sfo"</span>,
+  <span class="ck">"lat"</span>:       37.44188,
+  <span class="ck">"lng"</span>:       -122.14302,
+  <span class="ck">"heading"</span>:   213,
+  <span class="ck">"speed_mps"</span>: 11.4,
+  <span class="ck">"status"</span>:    <span class="cs">"available"</span>,
+  <span class="ck">"ts_ms"</span>:     1765432109482
+}
+<span class="cl">// partition key = (city, hash(driver_id) % N) — N sized so the worst
+// city ÷ N fits one partition with 10× headroom. Ordering matters only
+// per driver, so the hash dilutes a concert-spike across N partitions
+// while preserving the per-driver sequence. Hot keys: structurally impossible.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="matching">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — MATCHING &amp; LIFECYCLE</span>The only place consistency is sacred</h2>
+    <p class="lede reveal">Matching is a saga wrapped around one atomic instruction. Everything else — ranking, offers, timers, retries — exists to feed that instruction good candidates and clean up when it loses.</p>
+
+    <p class="reveal">The flow: a rider request arrives carrying a <span class="m">quote_id</span>. Dispatch covers the rider’s radius with H3 cells via k-ring expansion, unions the driver sets, filters (<span class="m">status=available</span>, vehicle class, rating floor), and ranks the survivors. Ranking is <strong>ETA-to-pickup over the road network</strong> — never haversine; a driver across the river is 200 meters and 20 minutes away — blended with acceptance rate and a fairness term (time since last trip), so the marketplace doesn’t starve its patient drivers.</p>
+
+    <p class="reveal">Then the offer saga: compare-and-swap the top candidate’s state from <span class="m">available → offered</span>, push the offer, start a 12-second server-side expiry. Decline or timeout → CAS back, next candidate, cap at five attempts, then widen the radius or fail gracefully. Offers go out sequentially by default; when supply is tight, parallel offers with first-accept-wins — same CAS arbitrates — trading driver annoyance for match latency. Two riders’ queries may both see the same driver; only one CAS succeeds. The race exists with or without shard boundaries, and one mechanism handles both.</p>
+
+    <div class="pull reveal">Offer expiry must live on the server, never the phone. Phones die mid-offer; the marketplace cannot.<span>DISPATCH RULE Nº 1</span></div>
+
+    <h3 class="reveal">The trip state machine</h3>
+    <div class="statechain reveal">
+      <span class="st">REQUESTED</span><span class="arr">→</span>
+      <span class="st">MATCHED</span><span class="arr">→</span>
+      <span class="st">DRIVER_EN_ROUTE</span><span class="arr">→</span>
+      <span class="st">ARRIVED</span><span class="arr">→</span>
+      <span class="st">IN_TRIP</span><span class="arr">→</span>
+      <span class="st terminal">COMPLETED</span>
+    </div>
+    <p class="reveal">Cancel edges exist from every pre-trip state, and <span class="m">CANCELLED</span> records <em>who</em> and <em>when</em> — fee logic hangs off that pair. Failure transitions are explicit: <span class="m">MATCHED</span> with no driver movement for N minutes auto-cancels and rematches; a driver app going dark mid-trip leaves the trip <span class="m">IN_TRIP</span> with stale location and a support flag — the system never auto-completes on signal loss. Every transition is a CAS on the trip’s <span class="m">version</span>, so a rider-cancel racing a driver-arrive resolves deterministically with exactly one winner; and every transition emits a <span class="m">trip_events</span> row, which keeps the trip service small while payments, notifications and analytics consume downstream.</p>
+
+    <div class="codelabel">SQL · THE ATOMIC HEART OF DISPATCH</div>
+    <div class="codeblock"><span class="cl">-- Claim a driver. Succeeds for exactly one concurrent caller.</span>
+<span class="ck">UPDATE</span> driver_state
+<span class="ck">SET</span>    status           = <span class="cs">'offered'</span>,
+       active_trip_id   = <span class="ck">:trip_id</span>,
+       offer_expires_at = now() + <span class="ck">INTERVAL</span> <span class="cs">'12 seconds'</span>,
+       version          = version + 1
+<span class="ck">WHERE</span>  driver_id = <span class="ck">:driver_id</span>
+  <span class="ck">AND</span>  status    = <span class="cs">'available'</span>;          <span class="cl">-- the guard IS the lock</span>
+<span class="cl">-- rowcount = 1 → offer is yours. rowcount = 0 → next candidate.</span>
+
+<span class="cl">-- Versioned trip transition: rider-cancel vs driver-arrive, one winner.</span>
+<span class="ck">UPDATE</span> trips
+<span class="ck">SET</span>    state = <span class="cs">'cancelled'</span>, version = version + 1
+<span class="ck">WHERE</span>  trip_id = <span class="ck">:trip_id</span>
+  <span class="ck">AND</span>  version = <span class="ck">:expected_version</span>
+  <span class="ck">AND</span>  state <span class="ck">IN</span> (<span class="cs">'requested'</span>,<span class="cs">'matched'</span>,<span class="cs">'driver_en_route'</span>,<span class="cs">'arrived'</span>);</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the firehose</h2>
+    <p class="lede reveal">Three programs carry the fast loop: the gateway that tames the connections, the consumer that maintains the index, and the dispatcher’s candidate query. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The gateway — batch, coalesce, never block</h3>
+    <p class="reveal">The batch window is 100 ms with a dual trigger — flush on timer <em>or</em> size cap, whichever first. The reasoning is physical: end-to-end staleness is ping interval + batch + stream hop + apply. The ping interval is 4,000 ms, so 100 ms adds 2.5% — and a driver at 30 mph moves ~1.3 m in that window, below GPS’s own 5–10 m noise floor. The latency cost is literally beneath the sensor; the downstream win is ~100× fewer produce requests and 5–10× batch compression. When the trade is imperceptible latency against an order of magnitude of infrastructure, take it every time.</p>
+
+    <div class="codelabel">PYTHON · GATEWAY: PER-PARTITION COALESCING BUFFER</div>
+    <div class="codeblock"><span class="ck">import</span> asyncio, time
+<span class="ck">from</span> collections <span class="ck">import</span> OrderedDict
+
+BATCH_WINDOW_S  = 0.100        <span class="cl"># dual trigger: timer bounds latency…</span>
+BATCH_MAX_MSGS  = 1_000        <span class="cl"># …size cap bounds memory at peak</span>
+BUFFER_HARD_CAP = 60_000       <span class="cl"># ≈ active drivers on this gateway</span>
+
+<span class="ck">class</span> <span class="cf">CoalescingSender</span>:
+    <span class="cs">"""One per stream partition. Location is last-value-wins by nature:
+    a new ping from a driver OVERWRITES their queued ping, so under
+    backpressure the buffer self-compacts to one entry per driver.
+    Memory is bounded by design, not by luck."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, producer, partition):
+        self.buf: OrderedDict[int, bytes] = OrderedDict()  <span class="cl"># driver_id → ping</span>
+        self.producer, self.partition = producer, partition
+        self.dropped = 0
+
+    <span class="ck">def</span> <span class="cf">offer</span>(self, driver_id: int, ping: bytes) -> <span class="ck">None</span>:
+        <span class="cl"># Called from connection handlers. Synchronous, O(1), never awaits:</span>
+        <span class="cl"># a slow partition must never backpressure 50k phone connections.</span>
+        <span class="ck">if</span> driver_id <span class="ck">in</span> self.buf:
+            self.buf.move_to_end(driver_id)        <span class="cl"># supersede, not append</span>
+        <span class="ck">elif</span> len(self.buf) >= BUFFER_HARD_CAP:
+            self.buf.popitem(last=<span class="ck">False</span>)            <span class="cl"># drop oldest: newest wins</span>
+            self.dropped += 1                       <span class="cl"># alarm on rate, not count</span>
+        self.buf[driver_id] = ping
+
+    <span class="ck">async def</span> <span class="cf">run</span>(self):
+        <span class="ck">while True</span>:
+            deadline = time.monotonic() + BATCH_WINDOW_S
+            <span class="ck">while</span> time.monotonic() < deadline <span class="ck">and</span> len(self.buf) < BATCH_MAX_MSGS:
+                <span class="ck">await</span> asyncio.sleep(0.005)
+            <span class="ck">if not</span> self.buf:
+                <span class="ck">continue</span>
+            batch, self.buf = self.buf, OrderedDict()   <span class="cl"># atomic swap</span>
+            <span class="ck">try</span>:
+                <span class="ck">await</span> self.producer.send_batch(self.partition, list(batch.values()))
+            <span class="ck">except</span> ProducerUnavailable:
+                <span class="cl"># circuit-break path: re-offer so coalescing keeps compacting;</span>
+                <span class="cl"># downstream TTLs shrink the matching pool — the SAFE failure:</span>
+                <span class="cl"># fewer matchable drivers, never phantom ones.</span>
+                <span class="ck">for</span> d, p <span class="ck">in</span> batch.items(): self.offer(d, p)</div>
+
+    <p class="reveal">One carve-out, always stated: <strong>status transitions bypass this entirely.</strong> A driver going offline or accepting a trip is control plane — low volume, dispatch-correctness-critical — flushed immediately on a separate durable channel. The buffer above is for the data plane only.</p>
+
+    <h3 class="reveal">2 · The index consumer — two O(1) ops per ping</h3>
+    <div class="codelabel">PYTHON · STREAM CONSUMER → H3 INDEX</div>
+    <div class="codeblock"><span class="ck">import</span> h3, json
+
+RES, TTL_S = 8, 30        <span class="cl"># ~460m hexes; 30s silence → not matchable</span>
+
+<span class="ck">async def</span> <span class="cf">apply_batch</span>(r, msgs: list[bytes]) -> <span class="ck">None</span>:
+    <span class="cs">"""Idempotent by construction: applying a ping twice converges to
+    the same state, so at-least-once delivery from the stream is fine.
+    No transactions, no fsync — if this process dies, the index
+    rebuilds from live pings in ~30 seconds."""</span>
+    pipe = r.pipeline(transaction=<span class="ck">False</span>)
+    <span class="ck">for</span> m <span class="ck">in</span> msgs:
+        p    = json.loads(m)
+        d, c = p[<span class="cs">"driver_id"</span>], p[<span class="cs">"city"</span>]
+        cell = h3.latlng_to_cell(p[<span class="cs">"lat"</span>], p[<span class="cs">"lng"</span>], RES)
+        key  = <span class="cs">f"geo:{c}:drv:{d}"</span>
+        prev = <span class="ck">await</span> r.hget(key, <span class="cs">"cell"</span>)
+
+        <span class="ck">if</span> prev <span class="ck">and</span> prev != cell:                 <span class="cl"># crossed a hex boundary</span>
+            pipe.srem(<span class="cs">f"geo:{c}:cell:{prev}"</span>, d)
+        <span class="ck">if</span> p[<span class="cs">"status"</span>] == <span class="cs">"available"</span>:
+            pipe.sadd(<span class="cs">f"geo:{c}:cell:{cell}"</span>, d)
+        <span class="ck">else</span>:                                      <span class="cl"># on_trip/offline: out of pool,</span>
+            pipe.srem(<span class="cs">f"geo:{c}:cell:{cell}"</span>, d)   <span class="cl"># pings still flow for the map</span>
+
+        pipe.hset(key, mapping={<span class="cs">"lat"</span>: p[<span class="cs">"lat"</span>], <span class="cs">"lng"</span>: p[<span class="cs">"lng"</span>],
+                                <span class="cs">"cell"</span>: cell, <span class="cs">"status"</span>: p[<span class="cs">"status"</span>],
+                                <span class="cs">"seen_ms"</span>: p[<span class="cs">"ts_ms"</span>]})
+        pipe.expire(key, TTL_S)                    <span class="cl"># the stale-driver reaper</span>
+    <span class="ck">await</span> pipe.execute()</div>
+
+    <h3 class="reveal">3 · The candidate query — rings until satisfied</h3>
+    <div class="codelabel">PYTHON · K-RING CANDIDATE SEARCH</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">candidates</span>(r, city, lat, lng, want=20, max_ring=4) -> list[int]:
+    <span class="cs">"""Hexagons earn their keep here: all six neighbors are equidistant,
+    so ring number ≈ real distance and expansion maps cleanly to a
+    radius. (On a square grid, corner neighbors lie farther than edge
+    neighbors — ring search over-includes diagonals.)"""</span>
+    center = h3.latlng_to_cell(lat, lng, RES)
+    found: set[int] = set()
+    <span class="ck">for</span> k <span class="ck">in</span> range(max_ring + 1):
+        cells = h3.grid_ring(center, k)            <span class="cl"># ring k only, not the disk</span>
+        sets  = <span class="ck">await</span> r.sunion(*[<span class="cs">f"geo:{city}:cell:{c}"</span> <span class="ck">for</span> c <span class="ck">in</span> cells])
+        found |= {int(d) <span class="ck">for</span> d <span class="ck">in</span> sets}
+        <span class="ck">if</span> len(found) >= want:                     <span class="cl"># enough for the ranker</span>
+            <span class="ck">break</span>
+    <span class="ck">return</span> list(found)   <span class="cl"># → filter → ETA-rank → offer saga → the CAS decides</span></div>
+
+    <div class="note reveal">
+      <div class="nh">Why H3 and not S2 — the honest version</div>
+      <p>Both work; the choice deserves reasons, not a default. S2’s exact hierarchy and Hilbert-curve locality are decisive <em>in a disk-backed sorted store</em> — but this index is hash maps in RAM, where locality buys nothing. The query is ring-shaped, where hexagons’ uniform neighbor distance wins; and surge runs on the same grid, where hexes give near-uniform cell area and smooth neighbor gradients with no corner-adjacency ambiguity. Two systems, one cell vocabulary. If the index moved to disk, the answer flips to S2.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="surge">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Surge: a sliding window with manners</h2>
+    <p class="lede reveal">Surge is a streaming aggregation with two jobs: price honestly, and move supply. The computation is a per-cell supply/demand ratio over a sliding window; the craft is in the smoothing — and in the promise.</p>
+
+    <p class="reveal">Two signals per H3 cell. <strong>Demand</strong> is ride requests <em>plus</em> app-opens — the “eyeballs” signal sees intent before the request button is pressed, which is what makes surge leading rather than trailing. <strong>Supply</strong> is available drivers, read from the same stream that feeds the geo index. Both aggregate over a sliding window of two to five minutes, recomputed every thirty seconds, with <strong>event-time windows and watermarks</strong> — gateway batching and partition lag mean pings arrive slightly out of order, and processing-time windows would let infrastructure jitter masquerade as demand spikes.</p>
+
+    <p class="reveal">A raw ratio oscillates, so the multiplier is smoothed twice. <strong>Spatially:</strong> each cell’s ratio blends with its neighbors — hexagons again, six equidistant neighbors make this a clean diffusion — which prevents a one-block price cliff that teaches riders to walk across the street. <strong>Temporally:</strong> hysteresis, fast up and slow down — surge responds to a demand spike in one window but decays over several, so the price doesn’t flicker and drivers chasing the heat map aren’t whipsawed.</p>
+
+    <div class="codelabel">PYTHON · WINDOWED SURGE JOB (FLINK-STYLE SEMANTICS)</div>
+    <div class="codeblock"><span class="cl"># Sketch of the aggregation graph — keyed sliding windows + smoothing.</span>
+
+demand = (events
+    .filter(<span class="ck">lambda</span> e: e.kind <span class="ck">in</span> (<span class="cs">"ride_request"</span>, <span class="cs">"app_open"</span>))
+    .assign_timestamps(watermark_delay_s=10)        <span class="cl"># tolerate late arrivals</span>
+    .key_by(<span class="ck">lambda</span> e: e.h3_cell)
+    .window(sliding(size_s=300, slide_s=30))
+    .aggregate(weighted_count(request=1.0, app_open=0.25)))
+
+supply = (pings
+    .filter(<span class="ck">lambda</span> p: p.status == <span class="cs">"available"</span>)
+    .key_by(<span class="ck">lambda</span> p: p.h3_cell)
+    .window(sliding(size_s=300, slide_s=30))
+    .aggregate(distinct_count(<span class="cs">"driver_id"</span>)))       <span class="cl"># a driver pings ~75× per</span>
+                                                    <span class="cl"># window: count drivers, not pings</span>
+<span class="ck">def</span> <span class="cf">multiplier</span>(cell, ratio, neighbors, prev):
+    blended = 0.6 * ratio + 0.4 * mean(neighbors)   <span class="cl"># spatial diffusion</span>
+    target  = step_fn(blended)                      <span class="cl"># e.g. 1.0/1.3/1.6/2.0…</span>
+    <span class="ck">if</span> target >= prev:                              <span class="cl"># hysteresis:</span>
+        <span class="ck">return</span> target                               <span class="cl">#   up fast,</span>
+    <span class="ck">return</span> max(target, prev - 0.1)                  <span class="cl">#   decay slow — no flicker</span>
+
+surge = (demand.join(supply, on=<span class="cs">"h3_cell"</span>)
+    .map(multiplier)
+    .sink(surge_table))      <span class="cl"># read by pricing at quote time; pushed to</span>
+                             <span class="cl"># idle drivers as a heat map — the second job</span></div>
+
+    <div class="pull reveal">The multiplier may change every thirty seconds. The quote, once seen, may never change at all.<span>SURGE RULE Nº 1 — QUOTE-TIME LOCK</span></div>
+
+    <p class="reveal">The lock is the product-honesty boundary between the slow loop and the medium loop: when a rider opens the app, pricing reads the current multiplier, mints a <span class="m">quote_id</span> with the fare frozen inside, valid for three minutes. The request that follows carries the <span class="m">quote_id</span>; the trip is charged exactly that figure. Surge updates the <em>next</em> quote, never an issued one. Eventual consistency everywhere in the pipeline, determinism at the instant of promise.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the marketplace</h2>
+    <p class="lede reveal">The append-only tables — <span class="m">trip_events</span> and the sampled ping archive — are where the system explains itself. Three queries an interviewer loves, because each one carries a classic SQL pattern on its back.</p>
+
+    <h3 class="reveal">The match funnel — conditional aggregation</h3>
+    <div class="codelabel">SQL · WHERE DO REQUESTS DIE?</div>
+    <div class="codeblock"><span class="cl">-- Hourly funnel: requested → matched → completed, with time-to-match.</span>
+<span class="ck">SELECT</span>
+    date_trunc(<span class="cs">'hour'</span>, t.requested_at)                        <span class="ck">AS</span> hr,
+    count(*)                                                  <span class="ck">AS</span> requested,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> t.state <span class="ck">NOT IN</span> (<span class="cs">'requested'</span>,<span class="cs">'cancelled'</span>)
+                       <span class="ck">OR</span>  t.driver_id <span class="ck">IS NOT NULL</span>)        <span class="ck">AS</span> matched,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> t.state = <span class="cs">'completed'</span>)            <span class="ck">AS</span> completed,
+    round(100.0 * count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> t.state = <span class="cs">'completed'</span>)
+                 / <span class="cf">nullif</span>(count(*), 0), 1)                    <span class="ck">AS</span> completion_pct,
+    percentile_cont(0.50) <span class="ck">WITHIN GROUP</span> (<span class="ck">ORDER BY</span> m.ttm_s)     <span class="ck">AS</span> p50_match_s,
+    percentile_cont(0.95) <span class="ck">WITHIN GROUP</span> (<span class="ck">ORDER BY</span> m.ttm_s)     <span class="ck">AS</span> p95_match_s
+<span class="ck">FROM</span> trips t
+<span class="ck">LEFT JOIN LATERAL</span> (
+    <span class="ck">SELECT</span> <span class="cf">extract</span>(epoch <span class="ck">FROM</span> e.occurred_at - t.requested_at) <span class="ck">AS</span> ttm_s
+    <span class="ck">FROM</span>   trip_events e
+    <span class="ck">WHERE</span>  e.trip_id = t.trip_id <span class="ck">AND</span> e.to_state = <span class="cs">'matched'</span>
+    <span class="ck">LIMIT</span>  1
+) m <span class="ck">ON TRUE</span>
+<span class="ck">WHERE</span> t.requested_at >= now() - <span class="ck">INTERVAL</span> <span class="cs">'7 days'</span>
+<span class="ck">GROUP BY</span> 1 <span class="ck">ORDER BY</span> 1;</div>
+
+    <h3 class="reveal">Driver sessions — gaps and islands</h3>
+    <p class="reveal">“How long do drivers actually stay online?” The ping archive has no session boundaries — only timestamps. Sessionization is the canonical gaps-and-islands move: flag every gap larger than the threshold, then a running sum of flags becomes the session ID.</p>
+
+    <div class="codelabel">SQL · SESSIONIZATION OVER THE PING ARCHIVE</div>
+    <div class="codeblock"><span class="ck">WITH</span> gaps <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> driver_id, ts,
+           <span class="ck">CASE WHEN</span> ts - <span class="cf">lag</span>(ts) <span class="ck">OVER</span> w > <span class="ck">INTERVAL</span> <span class="cs">'15 minutes'</span>
+                <span class="ck">THEN</span> 1 <span class="ck">ELSE</span> 0 <span class="ck">END</span>                  <span class="ck">AS</span> new_session
+    <span class="ck">FROM</span>   driver_pings_sampled
+    <span class="ck">WHERE</span>  ts::date = <span class="ck">CURRENT_DATE</span> - 1
+    <span class="ck">WINDOW</span> w <span class="ck">AS</span> (<span class="ck">PARTITION BY</span> driver_id <span class="ck">ORDER BY</span> ts)
+),
+sessions <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> driver_id, ts,
+           <span class="cf">sum</span>(new_session) <span class="ck">OVER</span>
+               (<span class="ck">PARTITION BY</span> driver_id <span class="ck">ORDER BY</span> ts)  <span class="ck">AS</span> session_id
+    <span class="ck">FROM</span>   gaps
+)
+<span class="ck">SELECT</span> driver_id, session_id,
+       min(ts)            <span class="ck">AS</span> session_start,
+       max(ts)            <span class="ck">AS</span> session_end,
+       max(ts) - min(ts)  <span class="ck">AS</span> online_duration
+<span class="ck">FROM</span>   sessions
+<span class="ck">GROUP BY</span> driver_id, session_id;</div>
+
+    <h3 class="reveal">Did surge actually summon drivers?</h3>
+    <div class="codelabel">SQL · SUPPLY RESPONSE, 15 MIN AFTER SURGE ONSET</div>
+    <div class="codeblock"><span class="cl">-- For each cell-hour that crossed 1.5×, compare available-driver counts
+-- before and after onset. LAG over the surge snapshot table finds onsets.</span>
+<span class="ck">WITH</span> onsets <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> h3_cell, snapshot_ts <span class="ck">AS</span> onset_ts
+    <span class="ck">FROM</span> (
+        <span class="ck">SELECT</span> h3_cell, snapshot_ts, surge_mult,
+               <span class="cf">lag</span>(surge_mult) <span class="ck">OVER</span>
+                   (<span class="ck">PARTITION BY</span> h3_cell <span class="ck">ORDER BY</span> snapshot_ts) <span class="ck">AS</span> prev_mult
+        <span class="ck">FROM</span>   surge_snapshots
+    ) s
+    <span class="ck">WHERE</span>  surge_mult >= 1.5 <span class="ck">AND</span> <span class="cf">coalesce</span>(prev_mult, 1.0) < 1.5
+)
+<span class="ck">SELECT</span> o.h3_cell,
+       avg(b.driver_cnt) <span class="ck">AS</span> supply_before,
+       avg(a.driver_cnt) <span class="ck">AS</span> supply_after_15m,
+       round(avg(a.driver_cnt) / <span class="cf">nullif</span>(avg(b.driver_cnt), 0), 2)
+                         <span class="ck">AS</span> supply_lift
+<span class="ck">FROM</span> onsets o
+<span class="ck">JOIN</span> supply_snapshots b
+  <span class="ck">ON</span> b.h3_cell = o.h3_cell
+ <span class="ck">AND</span> b.snapshot_ts <span class="ck">BETWEEN</span> o.onset_ts - <span class="ck">INTERVAL</span> <span class="cs">'15 min'</span> <span class="ck">AND</span> o.onset_ts
+<span class="ck">JOIN</span> supply_snapshots a
+  <span class="ck">ON</span> a.h3_cell = o.h3_cell
+ <span class="ck">AND</span> a.snapshot_ts <span class="ck">BETWEEN</span> o.onset_ts <span class="ck">AND</span> o.onset_ts + <span class="ck">INTERVAL</span> <span class="cs">'15 min'</span>
+<span class="ck">GROUP BY</span> o.h3_cell
+<span class="ck">ORDER BY</span> supply_lift <span class="ck">DESC</span>;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the system is alive</h2>
+    <p class="lede reveal">A senior design ends with observability, because every clever degradation mode above is invisible without it. The dashboard watches the three loops separately — each has a different definition of “healthy.”</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>FAST LOOP</dt><dd><span class="m">ping ingest rate</span> vs. expected (5M ÷ 4s), <span class="m">index freshness p99</span> (now − seen_ms across a sample), <span class="m">gateway buffer depth</span> and <span class="m">coalesce/drop rate</span>, <span class="m">TTL eviction rate</span> — a spike means a region went dark, not that drivers went home.</dd></div>
+      <div class="defrow"><dt>MEDIUM LOOP</dt><dd><span class="m">time-to-match p50/p95</span>, <span class="m">first-offer acceptance %</span>, <span class="m">offers per match</span> (the ranking-quality proxy), <span class="m">unfulfilled request %</span>, <span class="m">CAS conflict rate</span> — rising conflicts mean candidate sets overlap too much: rings too wide or supply too thin.</dd></div>
+      <div class="defrow"><dt>SLOW LOOP</dt><dd><span class="m">surge cell coverage %</span>, <span class="m">multiplier oscillation score</span> (sign-flips per cell-hour — the hysteresis health check), <span class="m">quote→request conversion by multiplier</span>, <span class="m">watermark lag</span> on the streaming job.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Marketplace Ops — SFO</span>
+        <span class="dash-sub">FRI 18:40 PT · ALL SYSTEMS · 30s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Ping Ingest</div><div class="tv">1.21<small>M/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 15,20 30,21 45,16 60,17 75,12 90,10 105,12 120,8" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Index Freshness p99</div><div class="tv ok">4.6<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,16 60,15 80,13 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Time-to-Match p95</div><div class="tv warn">14.2<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,24 20,22 40,20 60,18 80,14 100,10 120,7" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Unfulfilled Req</div><div class="tv ok">1.8<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,14 40,13 60,15 80,14 100,13 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Surge Heat — Mission District (H3 res 8) · concert letout 18:25</div>
+          <svg viewBox="0 0 240 84">
+            <g stroke="#211e18" stroke-width="1">
+              <polygon points="30,14 44,22 44,38 30,46 16,38 16,22" fill="#3a352b"/>
+              <polygon points="58,14 72,22 72,38 58,46 44,38 44,22" fill="#6e5a23"/>
+              <polygon points="86,14 100,22 100,38 86,46 72,38 72,22" fill="#a87b1e"/>
+              <polygon points="114,14 128,22 128,38 114,46 100,38 100,22" fill="#c25a2a"/>
+              <polygon points="142,14 156,22 156,38 142,46 128,38 128,22" fill="#a87b1e"/>
+              <polygon points="170,14 184,22 184,38 170,46 156,38 156,22" fill="#6e5a23"/>
+              <polygon points="44,38 58,46 58,62 44,70 30,62 30,46" fill="#4d4427"/>
+              <polygon points="72,38 86,46 86,62 72,70 58,62 58,46" fill="#a87b1e"/>
+              <polygon points="100,38 114,46 114,62 100,70 86,62 86,46" fill="#d8a44a"/>
+              <polygon points="128,38 142,46 142,62 128,70 114,62 114,46" fill="#c25a2a"/>
+              <polygon points="156,38 170,46 170,62 156,70 142,62 142,46" fill="#6e5a23"/>
+              <polygon points="184,38 198,46 198,62 184,70 170,62 170,46" fill="#3a352b"/>
+            </g>
+            <text x="212" y="30" font-size="9" fill="#d98e63" font-family="DM Mono,monospace">2.0×</text>
+            <text x="212" y="48" font-size="9" fill="#d8a44a" font-family="DM Mono,monospace">1.6×</text>
+            <text x="212" y="66" font-size="9" fill="#8f8672" font-family="DM Mono,monospace">1.0×</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">First-Offer Accept</div><div class="tv ok">71<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,13 40,15 60,12 80,13 100,11 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Gateway Drop Rate</div><div class="tv ok">0.02<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,16 100,15 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">CAS Conflict Rate</div><div class="tv warn">6.4<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,20 40,18 60,16 80,13 100,11 120,9" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Watermark Lag</div><div class="tv ok">7<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,14 100,16 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Oscillation Score</div><div class="tv ok">0.3</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">TTL Evictions</div><div class="tv">2.1<small>k/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,17 60,14 80,16 100,15 120,16" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy incident tells: surge heat rising, time-to-match drifting amber, CAS conflicts climbing as candidate sets overlap — and drop rate flat, because the gateway is coalescing exactly as designed.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates the concert letout from §02: demand spiked, surge painted the heat map, drivers are converging (TTL evictions normal, ingest steady), matching is briefly slower and more contended — and nothing was dropped that mattered. That is what a designed degradation looks like from the operator’s chair.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the trip details away and the question was testing five judgments, each of which generalizes far beyond ride-sharing:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>TEMPO</dt><dd>Seeing three loops where the prompt says one system — and letting write volume, not feature lists, dictate the architecture.</dd></div>
+      <div class="defrow"><dt>AUTHORITY</dt><dd>Keeping truth tiny and keyed; making everything large a rebuildable cache. The geo index owns nothing; one CAS owns everything that matters.</dd></div>
+      <div class="defrow"><dt>PHYSICS</dt><dd>Anchoring trade-offs to the world: a 100 ms batch against a 4 s ping interval and a 10 m GPS noise floor isn’t a latency cost, it’s a rounding error.</dd></div>
+      <div class="defrow"><dt>FAILURE SHAPE</dt><dd>Choosing degradations on purpose: data plane drops, control plane delays, and the matching pool shrinks rather than serving phantom drivers.</dd></div>
+      <div class="defrow"><dt>HONESTY</dt><dd>Engineering the promise: eventual consistency throughout the pipeline, determinism at the instant of the quote. The system may be approximate; the bill may not.</dd></div>
+    </dl>
+    <div class="pull reveal">Candidates come from geography. Truth comes from a compare-and-swap. Everything else is plumbing — excellent, carefully reasoned plumbing.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 01 — THE DISPATCH PROBLEM<br>DATA ARCHITECTURE · DISTRIBUTED SYSTEMS · THE CRAFT OF THE TRADE-OFF</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
