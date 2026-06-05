@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Feed Problem — PaddySpeaks</title>
+<meta name="description" content="Design the data backend for an Instagram-scale engagement feed — 100 billion impressions a day, a ranker that A/B-tests against itself, mutable likes that must never be deleted, and a single celebrity who can melt a partition. Data flow, schema, streaming Python, ranker-lift SQL, and the dashboard that watches it all.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 07</div>
+    <h1 class="reveal">The <em>Feed</em> Problem</h1>
+    <p class="deck reveal">Model the engagement behind an Instagram-scale feed — a hundred billion impressions a day, every one stamped with the model that ranked it, mutable likes that may never be deleted, and a single celebrity post that can melt a partition by itself. One prompt, three stakeholders who want contradictory truths, and the one decision that separates a senior answer: the impression is the fact, and the model version rides on every row. A complete working-through of data flow, schema, streaming Python, the aggregation layer, the ranker-lift SQL, and the dashboard that proves it.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Social / Feed</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One feed, three irreconcilable readers</h2>
+    <p class="lede reveal">Every data engineer who works near a social product eventually meets this question. It sounds like "log the likes." It is really "design a fact table that a ranking team, a creator-payments team, and a brand-safety team can all query without lying to any of them" — and those three stakeholders do not want the same number.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Model engagement on the Instagram feed — impressions, dwell time, likes, saves, comments, shares, plus the negative signals: hides and reports. It has to support feed-ranker training and A/B testing, creator analytics, and brand safety, at a hundred billion impressions a day. How do you grain it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The feed is the most-instrumented surface humans have built, and the trap is not the volume — it is that the cheapest mental model is wrong in a way that quietly poisons everything downstream. The naive design stores a counter: <em>post 001 has 9,412 likes</em>. That number cannot answer a single question the business actually asks. It cannot tell the ranking team whether the new model earned those likes or inherited them. It cannot tell finance which of them were unliked four minutes later — the canary for a low-quality recommendation. It cannot tell brand safety whether the hides clustered in one ugly hour. The moment you collapse engagement to a count, you have thrown away the dimension that every stakeholder is secretly asking about: <strong>which impression, ranked by which model, at what position, produced this reaction, and was it taken back?</strong></p>
+
+    <p class="reveal">A weak answer models the post and decrements a like counter on unlike. A strong answer notices that the unit of truth is not the post and not the like — it is the <em>impression</em>: one row every time a viewer is shown a post, stamped with the model that chose it. Engagements then hang off impressions, append-only, an unlike recorded as a second row rather than a deletion. Get that grain right and the ranker A/B becomes a <span class="m">GROUP BY</span>; get it wrong and it becomes a separate ETL pipeline you will rebuild every quarter. So before any boxes and arrows, the working frame for the whole session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE SERVED GRAIN</dt><dd><strong>Impressions.</strong> One row per (viewer × post × impression), a hundred billion a day, each carrying the <span class="m">ranker_model_id</span> that chose it, the <span class="m">predicted_score</span> it was chosen on, and the <span class="m">feed_position</span> it landed in. This is the spine. It is the most-written table on Earth, and it is the only place model-attribution can possibly live.</dd></div>
+      <div class="defrow"><dt>THE REACTION GRAIN</dt><dd><strong>Engagements.</strong> One row per (viewer × post × event × timestamp) — likes, saves, shares, comments, follows, and the negatives, hides and reports. Append-only. A like at T1 and an unlike at T2 are two rows, the second flagged <span class="m">is_undone</span>, never a DELETE — because the toggle history is itself a signal.</dd></div>
+      <div class="defrow"><dt>THE TIME-ON-POST GRAIN</dt><dd><strong>Dwell.</strong> One row per impression with total <span class="m">dwell_ms</span>, rolled up from 250-millisecond heartbeats <em>at ETL</em> — because the raw heartbeat grain is twelve trillion rows a day and no warehouse should ever see it. The aggregation is not an optimization; it is a precondition for the data existing at all.</dd></div>
+    </dl>
+
+    <div class="pull reveal">A like is mutable; the fact of the like is not. The instant you let an unlike DELETE a row, you have destroyed the one question the ranker most needs answered: how often does it make people regret the tap?</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you build, what you ignore, and the numbers that shape every later choice. Out of scope here, said explicitly: the ranking model itself (treated as a callable service that returns scored posts), the media CDN and transcoding, the social graph and follow-fan-out service, and the feed UI. In scope: how an impression becomes a row at a hundred billion a day, how the model version is stamped so A/B lift is a query rather than a project, how a mutable like is recorded without ever deleting, how dwell collapses from heartbeats to a per-impression number, and — the part that separates the seniors — how the system survives the single post from a celebrity that arrives a million times a second.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. Instagram-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Impressions / day</td><td class="mono">≈ 100 B</td><td>≈ 1.2 M/s average, multiples at peak — the firehose that defines the table</td></tr>
+      <tr><td>Raw dwell heartbeats</td><td class="mono">≈ 12 T / day</td><td>250 ms × ~30 s/impression — must die at ETL, never reaches the warehouse</td></tr>
+      <tr><td>Engagements / day</td><td class="mono">≈ 5 B</td><td>~5% of impressions react; append-only, so unlikes add rows, not subtract</td></tr>
+      <tr><td>Concurrent ranker versions</td><td class="mono">5–10</td><td>Forces <span class="m">ranker_model_id</span> onto every impression as a first-class dimension</td></tr>
+      <tr><td><strong>Hottest single post</strong></td><td class="mono"><strong>~10⁶ impressions/s</strong></td><td><strong>One celebrity melts any post-keyed partition — the row that shapes the architecture</strong></td></tr>
+      <tr><td>Distinct viewers / post / day</td><td class="mono">up to 10⁸</td><td>Exact <span class="m">COUNT DISTINCT</span> is unaffordable; HLL sketches are mandatory</td></tr>
+      <tr><td>Raw event retention</td><td class="mono">30 days</td><td>PII; aggregate to durable per-post and per-user rollups, expire the raw</td></tr>
+    </table>
+
+    <p class="reveal">Notice which row does the architectural work. The hundred-billion firehose dictates the partitioning and the sampling and the bill — but the row that dictates the <em>shape</em> is the hottest post. A uniform hundred-billion stream is easy; you hash it and walk away. The cruelty of a feed is that the distribution is violently skewed: the median post is seen a handful of times and a single celebrity post is seen a million times a second, into the same partition, at the same instant. Any design that keys the write path on <span class="m">post_id</span> has already lost — that post is a hot partition the moment it is published. The rest of this article follows that skew.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following an impression through the building</h2>
+    <p class="lede reveal">One feed, two tempos. The hot path logs an impression and freezes the model's prediction in under the serving budget; everything heavy — dwell aggregation, the per-post and per-user rollups, the ranker-lift join — happens offline, downstream of a single ordered log that is partitioned by viewer, never by post.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <!-- lanes -->
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">SERVING PATH · ~1.2M IMPRESSIONS/S · LOG + FREEZE SCORE</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">ANALYTICS PATH · DWELL ROLLUP · RANKER A/B · OFFLINE</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- client -->
+        <rect x="20" y="60" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="87" font-size="12.5" text-anchor="middle" fill="#23201a">CLIENT FEED</text>
+        <text x="95" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">scroll · 250ms heartbeats</text>
+
+        <!-- ingest gateway -->
+        <rect x="230" y="52" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="315" y="78" font-size="12.5" text-anchor="middle" fill="#23201a">INGEST GATEWAY</text>
+        <text x="315" y="96" font-size="10.5" text-anchor="middle" fill="#7d7567">stamp model_id + score</text>
+        <text x="315" y="112" font-size="10.5" text-anchor="middle" fill="#7d7567">key by viewer, NOT post</text>
+
+        <!-- log -->
+        <rect x="460" y="46" width="200" height="92" fill="#27241d"/>
+        <text x="560" y="76" font-size="12.5" text-anchor="middle" fill="#e9e2d0">EVENT LOG (KAFKA)</text>
+        <text x="560" y="94" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: hash(viewer_id) % N</text>
+        <text x="560" y="110" font-size="10.5" text-anchor="middle" fill="#b8ad93">celebrity post → spread, not stacked</text>
+
+        <!-- impression fact -->
+        <rect x="730" y="40" width="220" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="840" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">fct_impressions</text>
+        <text x="840" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">served grain · model_id · score</text>
+        <text x="840" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">partition by impression_ts (hour)</text>
+
+        <!-- engagement fact -->
+        <rect x="730" y="140" width="220" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="166" font-size="12.5" text-anchor="middle" fill="#8a5d12">fct_engagements</text>
+        <text x="840" y="184" font-size="10.5" text-anchor="middle" fill="#7d7567">append-only · is_undone for unlikes</text>
+
+        <!-- dwell raw -->
+        <rect x="730" y="224" width="220" height="56" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="840" y="248" font-size="12.5" text-anchor="middle" fill="#7d7567">RAW DWELL (TRANSIENT)</text>
+        <text x="840" y="265" font-size="10.5" text-anchor="middle" fill="#7d7567">12T heartbeats/day · TTL hours</text>
+
+        <!-- arrows serving -->
+        <line x1="170" y1="92" x2="226" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="92" x2="456" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="75" x2="726" y2="75" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="660" y1="120" x2="726" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="130" x2="726" y2="248" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- analytics path -->
+        <rect x="20" y="360" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="387" font-size="12.5" text-anchor="middle" fill="#23201a">DWELL ROLLUP</text>
+        <text x="95" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">heartbeats → dwell_ms</text>
+
+        <rect x="230" y="348" width="180" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="320" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">RANKER A/B LIFT</text>
+        <text x="320" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">like-rate v3.1 vs v3.2</text>
+        <text x="320" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">GROUP BY model_id</text>
+
+        <rect x="470" y="336" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="358" font-size="12" text-anchor="middle" fill="#23201a">mart_post_daily</text>
+        <text x="565" y="376" font-size="10.5" text-anchor="middle" fill="#a4502e">HLL reach · per-post rollup</text>
+
+        <rect x="470" y="408" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="430" font-size="12" text-anchor="middle" fill="#23201a">mart_user_daily</text>
+        <text x="565" y="448" font-size="10.5" text-anchor="middle" fill="#7d7567">per-viewer affinity rollup</text>
+
+        <rect x="730" y="330" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="354" font-size="12" text-anchor="middle" fill="#23201a">BRAND SAFETY</text>
+        <text x="840" y="372" font-size="10.5" text-anchor="middle" fill="#7d7567">hide+report rate · review queue</text>
+
+        <rect x="730" y="414" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="438" font-size="12" text-anchor="middle" fill="#23201a">RANKER TRAINING</text>
+        <text x="840" y="456" font-size="10.5" text-anchor="middle" fill="#7d7567">label = engaged? + dwell</text>
+
+        <!-- analytics arrows -->
+        <line x1="170" y1="392" x2="226" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="370" x2="466" y2="363" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="410" x2="466" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="363" x2="726" y2="360" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="440" x2="726" y2="444" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- raw dwell down to rollup -->
+        <path d="M 840 280 C 600 320, 250 320, 95 358" fill="none" stroke="#cfc5ac" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="430" y="316" font-size="10.5" fill="#7d7567">heartbeats collapse 100×</text>
+
+        <!-- impression + engagement feed lift -->
+        <path d="M 905 110 C 945 240, 470 300, 330 348" fill="none" stroke="#a4502e" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="660" y="262" font-size="10.5" fill="#a4502e">model_id × engagements</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — sustained event flow · DASHED — offline aggregation &amp; joins · The post proposes the spike; the viewer key disposes of it.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. The log is the spine; it is keyed on the viewer so no single post owns a partition; the model id rides every impression so lift is a join, not a pipeline.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the log is partitioned by <span class="m">viewer_id</span>, never by <span class="m">post_id</span> — because impressions of one celebrity post are produced by millions of <em>different</em> viewers, so keying on the viewer scatters that spike across every partition while a post-key would funnel it into one. The hottest object in the system is structurally prevented from being a hot partition. <strong>Second,</strong> the prediction is frozen on the hot path: the gateway stamps the serving <span class="m">ranker_model_id</span> and its <span class="m">predicted_score</span> onto the impression the instant the post is shown, before any reaction exists — the only moment that prediction is uncontaminated by what later happened. <strong>Third,</strong> the dashed lines are deliberate: raw dwell heartbeats are transient and collapse a hundred-to-one before any durable table sees them, and the ranker-lift join is offline against the append-only facts — the comparison that licenses promoting a model is a <span class="m">GROUP BY</span> on a column, not a bespoke experiment harness.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>Aggregate before you durably store; append rather than mutate; and never let one object key the write path.</strong> The twelve-trillion-row heartbeat stream is summarized to a hundred billion impression-dwell rows at ETL and the raw is thrown away — storing it would be a liability with no buyer. Engagements append: an unlike is a new row, because the warehouse's job is to remember what happened, not to depict the present. And the partition key is the viewer, so a post going viral degrades into <em>more rows spread evenly</em>, never <em>one partition on fire</em>. Each rule trades a tempting shortcut for the property that keeps the system queryable at the 99th percentile of skew.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>Three facts, the dimensions that version, and the rollups</h2>
+    <p class="lede reveal">The schema falls out of the grain question. The impression is the spine, stamped with the model that chose it. The engagement is the reaction, append-only. The dwell is the time-on-post, pre-aggregated. The dimensions are SCD2 because models, posts, and creators all change underneath the facts — and the per-post and per-user rollups exist because nobody can scan a hundred billion rows for a dashboard.</p>
+
+    <h3 class="reveal">The spine — one row per post shown</h3>
+    <p class="reveal">The impression fact is the most-written table in the design, so it is about discipline under skew. One row per (viewer × post × impression), stamped with the serving context the analytics layer will need: the <span class="m">feed_position</span> where position-bias lives, the <span class="m">surface</span> that separates feed from reels from explore, and — the column that makes A/B a query — the <span class="m">ranker_model_id</span> with the <span class="m">predicted_score</span> it chose on. The model id is a foreign key into a versioned dimension, not free text, because "which model" must survive a redeploy.</p>
+
+    <div class="codelabel">DDL · THE SPINE — IMPRESSION FACT</div>
+    <div class="codeblock"><span class="cl">-- The "served" grain. ~100B rows/day. Partitioned by impression_ts (hour),
+-- clustered on viewer_id. ranker_model_id is the bias firewall AND the A/B
+-- key: without it on the row, a 1% holdout can't be compared to the baseline.</span>
+<span class="ck">CREATE TABLE</span> fct_impressions (
+    impression_id   BIGINT       <span class="ck">PRIMARY KEY</span>,        <span class="cl">-- snowflake: time-ordered, shard-aware</span>
+    viewer_id       BIGINT       <span class="ck">NOT NULL</span>,            <span class="cl">-- the partition/cluster key, never post_id</span>
+    post_id         BIGINT       <span class="ck">NOT NULL</span>,
+    feed_position   SMALLINT     <span class="ck">NOT NULL</span>,            <span class="cl">-- position bias lives here</span>
+    surface         TEXT         <span class="ck">NOT NULL</span>
+                    <span class="ck">CHECK</span> (surface <span class="ck">IN</span> (<span class="cs">'feed'</span>,<span class="cs">'reels'</span>,<span class="cs">'stories'</span>,<span class="cs">'explore'</span>)),
+    ranker_model_id BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_ranker_models,  <span class="cl">-- ★ first-class</span>
+    predicted_score NUMERIC(8,6) <span class="ck">NOT NULL</span>,            <span class="cl">-- the score that ranked it, frozen</span>
+    device_id       BIGINT,
+    impression_ts   TIMESTAMPTZ  <span class="ck">NOT NULL</span>
+);
+<span class="ck">CREATE INDEX</span> idx_imp_post  <span class="ck">ON</span> fct_impressions (post_id, impression_ts <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_imp_model <span class="ck">ON</span> fct_impressions (ranker_model_id, impression_ts <span class="ck">DESC</span>);</div>
+
+    <h3 class="reveal">The reaction — engagement, append-only</h3>
+    <p class="reveal">Engagement is a separate fact, joined to the impression by <span class="m">impression_id</span> — nullable, because a comment can arrive on a post the viewer reached by deep link, with no prior feed impression. Every event type lives here: the positives the ranker optimizes and the negatives brand-safety polices. The non-negotiable design choice is that it is <strong>append-only</strong>. A like and its later unlike are two rows; the unlike is the original marked <span class="m">is_undone = TRUE</span> with an <span class="m">undone_ts</span>, never a deletion. That preserves the toggle time-series — which is the only way to answer "what fraction of likes are taken back within five minutes," the sharpest canary for a ranker pushing regret-bait.</p>
+
+    <div class="codelabel">DDL · THE REACTION — ENGAGEMENT FACT</div>
+    <div class="codeblock"><span class="cl">-- The "reaction" grain. One row per (viewer × post × event × ts).
+-- APPEND-ONLY. An unlike is a new row with is_undone=TRUE — never a DELETE.
+-- impression_id is NULLable: comments can arrive without a prior impression.</span>
+<span class="ck">CREATE TABLE</span> fct_engagements (
+    engagement_id   BIGINT       <span class="ck">PRIMARY KEY</span>,
+    impression_id   BIGINT       <span class="ck">REFERENCES</span> fct_impressions,   <span class="cl">-- NULLable on purpose</span>
+    viewer_id       BIGINT       <span class="ck">NOT NULL</span>,
+    post_id         BIGINT       <span class="ck">NOT NULL</span>,
+    event_type      TEXT         <span class="ck">NOT NULL</span>
+                    <span class="ck">CHECK</span> (event_type <span class="ck">IN</span> (<span class="cs">'like'</span>,<span class="cs">'save'</span>,<span class="cs">'share'</span>,<span class="cs">'comment'</span>,
+                                       <span class="cs">'follow_creator'</span>,<span class="cs">'hide'</span>,<span class="cs">'report'</span>)),
+    event_ts        TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    is_undone       BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,   <span class="cl">-- the unlike marker</span>
+    undone_ts       TIMESTAMPTZ                            <span class="cl">-- when it was taken back</span>
+);
+<span class="cl">-- Active state of any engagement = latest row per (viewer,post,event)
+-- with is_undone=FALSE. The HISTORY of toggles is the regret signal.</span>
+<span class="ck">CREATE INDEX</span> idx_eng_post <span class="ck">ON</span> fct_engagements (post_id, event_ts <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_eng_imp  <span class="ck">ON</span> fct_engagements (impression_id);</div>
+
+    <h3 class="reveal">The time-on-post — dwell, already collapsed</h3>
+    <p class="reveal">Dwell is the third fact, and it exists only because something upstream refused to let the raw grain survive. The client emits a heartbeat every 250 milliseconds a post is on screen; at a hundred billion impressions of ~30 seconds each that is twelve trillion rows a day — a number with no warehouse and no purpose. The streaming job sums those heartbeats into one <span class="m">dwell_ms</span> per impression and discards the rest. What lands is a hundred-billion-row table, the regression target the ranker trains on, with the watch-through signal for reels baked in.</p>
+
+    <div class="codelabel">DDL · THE TIME-ON-POST — DWELL FACT</div>
+    <div class="codeblock"><span class="cl">-- The "time-on-post" grain. One row per impression, summed from raw 250ms
+-- heartbeats AT ETL — collapsing ~100 heartbeats into one row. The raw
+-- heartbeat stream is transient and never durably stored.</span>
+<span class="ck">CREATE TABLE</span> fct_dwell_per_impression (
+    impression_id   BIGINT       <span class="ck">PRIMARY KEY REFERENCES</span> fct_impressions,
+    dwell_ms        INTEGER      <span class="ck">NOT NULL</span>,           <span class="cl">-- the regression target</span>
+    viewport_pct    NUMERIC(5,2) <span class="ck">NOT NULL</span>,           <span class="cl">-- how much of the post was visible</span>
+    was_full_view   BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>
+);</div>
+
+    <h3 class="reveal">The dimensions that version, and the rollups that survive scale</h3>
+    <p class="reveal">Two structural pieces finish the model. The dimensions are <strong>SCD2</strong> because the things they describe change while the facts keep flowing: a creator's follower count, a post's caption or swapped audio, and above all the ranker model — semver, deployed percentage, model-card URL — so that a query about a fact from last Tuesday joins to the model <em>as it was</em> last Tuesday. And the rollups exist because no dashboard can scan the spine: <span class="m">mart_post_engagement_daily</span> pre-aggregates per (post × day) with an HLL sketch for distinct reach, and <span class="m">mart_user_affinity_daily</span> rolls per (viewer × day) for personalization, both de-identified enough to keep long after the raw facts expire at thirty days.</p>
+
+    <div class="codelabel">DDL · VERSIONED DIMENSION + PER-POST &amp; PER-USER ROLLUPS</div>
+    <div class="codeblock"><span class="cl">-- SCD2: the model that ranked an impression must be reconstructable as it
+-- was AT impression-time, across redeploys and percentage ramps.</span>
+<span class="ck">CREATE TABLE</span> dim_ranker_models (
+    ranker_model_id BIGINT       <span class="ck">PRIMARY KEY</span>,        <span class="cl">-- surrogate, one per version-row</span>
+    model_semver    TEXT         <span class="ck">NOT NULL</span>,            <span class="cl">-- 'v3.2.1'</span>
+    feature_set     TEXT         <span class="ck">NOT NULL</span>,
+    deployed_pct    NUMERIC(5,2) <span class="ck">NOT NULL</span>,            <span class="cl">-- traffic share at this version</span>
+    model_card_url  TEXT,
+    valid_from      TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    valid_to        TIMESTAMPTZ,                          <span class="cl">-- NULL = current</span>
+    is_current      BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">true</span>
+);
+
+<span class="cl">-- Per-POST rollup. Grain: 1 per (post × day). HLL for distinct reach, because
+-- exact COUNT DISTINCT over 10^8 viewers/post is unaffordable at this volume.</span>
+<span class="ck">CREATE TABLE</span> mart_post_engagement_daily (
+    post_id          BIGINT      <span class="ck">NOT NULL</span>,
+    day              DATE        <span class="ck">NOT NULL</span>,
+    impressions      BIGINT      <span class="ck">NOT NULL</span>,
+    reach_hll        BYTEA       <span class="ck">NOT NULL</span>,           <span class="cl">-- APPROX_COUNT_DISTINCT(viewer_id) sketch</span>
+    like_rate        NUMERIC(7,5) <span class="ck">NOT NULL</span>,
+    save_rate        NUMERIC(7,5) <span class="ck">NOT NULL</span>,
+    share_rate       NUMERIC(7,5) <span class="ck">NOT NULL</span>,
+    negative_rate    NUMERIC(7,5) <span class="ck">NOT NULL</span>,          <span class="cl">-- (hide + report) / impressions</span>
+    avg_dwell_ms     INTEGER     <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (post_id, day)
+);
+
+<span class="cl">-- Per-USER rollup. Grain: 1 per (viewer × day). De-identified, kept long;
+-- feeds personalization while the raw impression rows expire at 30 days.</span>
+<span class="ck">CREATE TABLE</span> mart_user_affinity_daily (
+    viewer_id        BIGINT      <span class="ck">NOT NULL</span>,
+    day              DATE        <span class="ck">NOT NULL</span>,
+    impressions      BIGINT      <span class="ck">NOT NULL</span>,
+    engagements      BIGINT      <span class="ck">NOT NULL</span>,
+    avg_dwell_ms     INTEGER     <span class="ck">NOT NULL</span>,
+    top_audio_id     BIGINT,
+    <span class="ck">PRIMARY KEY</span> (viewer_id, day)
+);</div>
+
+    <p class="reveal">One subtlety worth saying out loud at the whiteboard: the rollups do not store a count of likes — they store a <em>rate</em>, computed from the append-only facts with <span class="m">is_undone = FALSE</span> applied at aggregation time. The raw facts remember every toggle; the marts remember only the settled truth. That separation is what lets the same engagement table serve a regret analysis (which needs the toggles) and a creator dashboard (which needs the net) without either one corrupting the other.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The fact is immutable; the model rides on it</h2>
+    <p class="lede reveal">The whole correctness of this system lives in one rule joining two halves: engagement facts are never mutated — an unlike appends — and every impression carries, frozen at serving time, the model version and score that chose it. Together they make two otherwise-impossible questions answerable: "did the new ranker actually lift engagement?" and "how often does the feed make people regret a tap?"</p>
+
+    <p class="reveal">Why this is the invariant and not a nice-to-have. Counters lie by forgetting. A like-count that decrements on unlike can tell you the present and nothing else — it cannot reconstruct that the like happened, that it survived four minutes, that it was then withdrawn. The ranker's most valuable training label is buried in exactly that history: a like taken back inside five minutes is a near-miss the model should learn from, indistinguishable from a like that never happened if you let the DELETE through. So the engagement table appends, always, and "active" is a query — the latest non-undone row — not a stored state. Symmetrically, the model id must be stamped <em>at impression-time</em>, because models redeploy daily and traffic ramps continuously; if you do not capture that this impression was served by <span class="m">v3.2</span> at the instant it happened, you can never reconstruct it, and the A/B comparison the whole feed team depends on evaporates.</p>
+
+    <div class="statechain reveal">
+      <span class="st">RANKED v3.2</span><span class="arr">→</span>
+      <span class="st">IMPRESSED @ pos</span><span class="arr">→</span>
+      <span class="st">LIKED @ T1</span><span class="arr">→</span>
+      <span class="st">UNLIKED @ T2</span><span class="arr">→</span>
+      <span class="st terminal">SETTLED: not liked</span>
+    </div>
+    <p class="reveal">Read the lifecycle left to right and notice that nothing is ever overwritten. The model id is frozen between <span class="m">RANKED</span> and <span class="m">IMPRESSED</span>, before any reaction exists. The like at T1 is a row; the unlike at T2 is a second row, not an edit of the first; the settled state is computed, not stored. Because every step is an append, the gap between the impression and the analysis can be arbitrarily long and the comparison stays honest — a post shown ten million times under <span class="m">v3.2</span> with a high predicted score and a wave of five-minute unlikes is not noise, it is the cleanest possible indictment of that model, and you only have it because nothing in the chain was allowed to mutate.</p>
+
+    <div class="codelabel">SQL · THE TWO INSERTS THAT REPLACE A DELETE</div>
+    <div class="codeblock"><span class="cl">-- A like, then an unlike five minutes later. TWO rows, never a DELETE.
+-- The first row stays; the second records the withdrawal.</span>
+<span class="ck">INSERT INTO</span> fct_engagements (engagement_id, impression_id, viewer_id, post_id,
+                              event_type, event_ts, is_undone, undone_ts)
+<span class="ck">VALUES</span> (<span class="cs">'ENG_1'</span>, <span class="cs">'IMP_A'</span>, <span class="cs">'U_42'</span>, <span class="cs">'POST_001'</span>, <span class="cs">'like'</span>, <span class="cs">'2025-05-01 09:00:04'</span>, <span class="ck">false</span>, <span class="ck">NULL</span>),
+       (<span class="cs">'ENG_4'</span>, <span class="cs">'IMP_A'</span>, <span class="cs">'U_42'</span>, <span class="cs">'POST_001'</span>, <span class="cs">'like'</span>, <span class="cs">'2025-05-01 09:05:00'</span>, <span class="ck">true</span>,
+        <span class="cs">'2025-05-01 09:05:00'</span>);   <span class="cl">-- the unlike: is_undone=TRUE</span>
+
+<span class="cl">-- "Active" is never stored — it is derived. The settled state of every
+-- engagement, and the regret signal, both fall out of the same history:</span>
+<span class="ck">SELECT</span> post_id,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'like'</span> <span class="ck">AND NOT</span> is_undone) <span class="ck">AS</span> active_likes,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'like'</span> <span class="ck">AND</span> is_undone
+              <span class="ck">AND</span> undone_ts - event_ts &lt; <span class="ck">INTERVAL</span> <span class="cs">'5 minutes'</span>) <span class="ck">AS</span> fast_regrets
+<span class="ck">FROM</span>   fct_engagements
+<span class="ck">GROUP BY</span> post_id;</div>
+
+    <p class="reveal">The <span class="m">ranker_model_id</span> foreign key and the immutability of the facts are doing the quiet work together. Because the model id is on the row and the row never changes, the same impression can be attributed to exactly one served model forever, and a head-to-head between <span class="m">v3.1</span> and <span class="m">v3.2</span> is a <span class="m">GROUP BY</span> over a column — no separate experiment store, no shadow pipeline, no reconciliation. That is the whole payoff: the experiment infrastructure is the schema.</p>
+
+    <div class="pull reveal">Never DELETE an unlike, and never serve an impression without stamping the model that chose it. The first preserves the regret; the second preserves the attribution. Lose either and the feed becomes a number you can no longer interrogate.<span>FEED RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the firehose</h2>
+    <p class="lede reveal">Three programs carry the system. The gateway that stamps the model id and partitions by viewer so no post can melt a shard, the heartbeat collapser that turns twelve trillion rows into a hundred billion, and the engagement applier that appends an unlike instead of deleting a like. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The ingest gateway — stamp the model, key by the viewer</h3>
+    <p class="reveal">This runs on the serving hot path. It does the minimum and emits asynchronously: it freezes the <span class="m">ranker_model_id</span> and <span class="m">predicted_score</span> onto the impression at the instant the post is shown, and — the load-bearing decision — it chooses the log partition by hashing the <span class="m">viewer_id</span>, never the <span class="m">post_id</span>. A celebrity post is impressed by millions of distinct viewers, so a viewer key scatters that million-per-second spike across all partitions, while a post key would bury it in one. The hottest object in the product is, by construction, incapable of being a hot partition.</p>
+
+    <div class="codelabel">PYTHON · INGEST GATEWAY — FREEZE MODEL, SPREAD THE HOT POST</div>
+    <div class="codeblock"><span class="ck">import</span> hashlib, time
+
+N_PARTITIONS = 4096
+
+<span class="ck">class</span> <span class="cf">ImpressionGateway</span>:
+    <span class="cs">"""Logs one impression per (viewer, post) shown. The partition key is
+    the VIEWER, never the post: a celebrity post is served to millions of
+    different viewers, so hashing the viewer scatters that spike evenly,
+    while hashing the post would funnel a million writes/sec into one
+    partition. Skew is defused at the key, not patched downstream."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, log, model_registry):
+        self.log, self.models = log, model_registry
+
+    <span class="ck">def</span> <span class="cf">log_impression</span>(self, viewer, post, slot, surface, served) -&gt; int:
+        <span class="cl"># 'served' is what the ranker returned: (model_id, predicted_score).</span>
+        imp_id = new_snowflake()
+        record = {
+            <span class="cs">"impression_id"</span>: imp_id,
+            <span class="cs">"viewer_id"</span>:     viewer.id,
+            <span class="cs">"post_id"</span>:       post.id,
+            <span class="cs">"feed_position"</span>: slot,
+            <span class="cs">"surface"</span>:       surface,
+            <span class="cs">"ranker_model_id"</span>: served.model_id,        <span class="cl"># ★ frozen at serve time</span>
+            <span class="cs">"predicted_score"</span>: served.score,           <span class="cl"># the score it was chosen on</span>
+            <span class="cs">"impression_ts"</span>: time.time_ns(),
+        }
+        <span class="cl"># Async emit — NEVER block the feed response on the log write:</span>
+        self.log.emit(self._partition(viewer.id), record)
+        <span class="ck">return</span> imp_id
+
+    <span class="ck">def</span> <span class="cf">_partition</span>(self, viewer_id: int) -&gt; int:
+        h = hashlib.blake2b(<span class="cs">f"v:{viewer_id}"</span>.encode(), digest_size=8)
+        <span class="ck">return</span> int.from_bytes(h.digest()) % N_PARTITIONS   <span class="cl"># viewer, not post</span></div>
+
+    <p class="reveal">One carve-out, always stated: <strong>the gateway never resolves the model id to a name on the hot path.</strong> It writes the surrogate <span class="m">ranker_model_id</span> only; the join to semver and deployed-percentage happens offline against the SCD2 dimension. Resolving on the hot path would couple a 1.2-million-per-second writer to a slowly-changing lookup, for a label nobody reads until analysis time. Stamp the key, defer the meaning.</p>
+
+    <h3 class="reveal">2 · The heartbeat collapser — twelve trillion into a hundred billion</h3>
+    <div class="codelabel">PYTHON · DWELL ROLLUP — SUM HEARTBEATS, DISCARD THE RAW</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">collapse_dwell</span>(impression_id, heartbeats) -&gt; dict:
+    <span class="cs">"""Raw heartbeats arrive every 250ms a post is on screen — ~12 trillion
+    rows/day across the firehose. This runs in the streaming layer and
+    summarizes them to ONE row per impression, then the raw heartbeats
+    are dropped (TTL of hours). The aggregation is not an optimization;
+    it is the precondition for the dwell data existing at warehouse scale."""</span>
+    <span class="ck">if not</span> heartbeats:
+        <span class="ck">return</span> <span class="ck">None</span>                                   <span class="cl"># no on-screen time → no dwell row</span>
+    beats = sorted(heartbeats, key=<span class="ck">lambda</span> h: h.ts)
+    dwell_ms     = 250 * len(beats)                  <span class="cl"># each beat = 250ms visible</span>
+    max_viewport = max(h.viewport_pct <span class="ck">for</span> h <span class="ck">in</span> beats)
+    <span class="ck">return</span> {
+        <span class="cs">"impression_id"</span>: impression_id,
+        <span class="cs">"dwell_ms"</span>:      dwell_ms,
+        <span class="cs">"viewport_pct"</span>:  max_viewport,
+        <span class="cs">"was_full_view"</span>: max_viewport &gt;= 0.99,       <span class="cl"># fully on screen at least once</span>
+    }
+    <span class="cl"># Note: we do NOT keep the heartbeats. Their only purpose was to be summed;
+    # storing 12T rows/day would be a standing cost with no consumer.</span></div>
+
+    <h3 class="reveal">3 · The engagement applier — append the unlike, never delete the like</h3>
+    <div class="codelabel">PYTHON · ENGAGEMENT APPLIER — IDEMPOTENT, APPEND-ONLY</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">apply_engagement</span>(store, ev) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""Every engagement is an INSERT. A toggle (like -> unlike) is a NEW row
+    flagged is_undone, NOT a delete or an update of the original. This is
+    what preserves the regret time-series the ranker trains on. Idempotent
+    on engagement_id so at-least-once delivery from the log is safe."""</span>
+    <span class="ck">if</span> ev.action == <span class="cs">"undo"</span>:
+        <span class="cl"># The user un-liked / un-saved. Do NOT touch the original row.</span>
+        <span class="ck">await</span> store.insert_engagement(
+            engagement_id = ev.id,
+            impression_id = ev.impression_id,        <span class="cl"># NULLable: may be a deep-link reaction</span>
+            viewer_id     = ev.viewer_id,
+            post_id       = ev.post_id,
+            event_type    = ev.event_type,           <span class="cl"># same type as the act being undone</span>
+            event_ts      = ev.original_ts,
+            is_undone     = <span class="ck">True</span>,                     <span class="cl"># the withdrawal marker</span>
+            undone_ts     = ev.ts)
+        <span class="ck">return</span>
+    <span class="cl"># A fresh positive or negative signal — a plain append.</span>
+    <span class="ck">await</span> store.insert_engagement(
+        engagement_id = ev.id,
+        impression_id = ev.impression_id,
+        viewer_id     = ev.viewer_id,
+        post_id       = ev.post_id,
+        event_type    = ev.event_type,               <span class="cl"># like|save|share|comment|hide|report|follow</span>
+        event_ts      = ev.ts,
+        is_undone     = <span class="ck">False</span>,
+        undone_ts     = <span class="ck">None</span>)
+    <span class="cl"># We never manufacture a row for an impression with no reaction. That</span>
+    <span class="cl"># ABSENCE is the swipe-past signal; a LEFT JOIN recovers it at analysis time.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Sketches, rollups, and the rate that is never a count</h2>
+    <p class="lede reveal">The aggregation layer turns the append-only firehose into something a dashboard can read in milliseconds. Two ideas carry it: HLL sketches that count distinct viewers without storing them, and per-post / per-user rollups that materialize the settled rates so nobody ever scans the spine. The craft is in counting <em>drivers, not pings</em> — distinct viewers, not impressions — and in computing rates from the append-only truth.</p>
+
+    <p class="reveal">The intuition first, because it is what an interviewer wants out loud. "How many people saw this post?" sounds trivial until you remember a single post can reach a hundred million distinct viewers in a day, and exact <span class="m">COUNT DISTINCT</span> at that cardinality, across petabytes, is a sort the size of a small country. The answer is a HyperLogLog sketch: a few kilobytes that estimate distinct count to within a couple of percent and — the property that makes them indispensable — <em>merge</em>. A per-hour sketch unions into a per-day sketch with no re-scan; a per-post sketch unions across posts for a creator total. You never store the viewers; you store the sketch, and the sketch composes.</p>
+
+    <div class="codelabel">PYTHON · ROLLUP JOB — HLL REACH + SETTLED RATES (SKETCH OF THE GRAPH)</div>
+    <div class="codeblock"><span class="cl"># Materialize mart_post_engagement_daily from the append-only facts.
+# Distinct reach via HLL (mergeable, ~2% error); rates computed with the
+# is_undone filter so the mart holds SETTLED truth, not raw toggle counts.</span>
+
+impressions = (fct_impressions
+    .filter(<span class="ck">lambda</span> i: i.day == target_day)
+    .key_by(<span class="ck">lambda</span> i: i.post_id)
+    .aggregate(impressions=count(),
+               reach=hll_sketch(<span class="cs">"viewer_id"</span>),           <span class="cl"># distinct viewers, not rows</span>
+               avg_dwell=mean(<span class="cs">"dwell_ms"</span>)))             <span class="cl"># joined from the dwell fact</span>
+
+engagements = (fct_engagements
+    .filter(<span class="ck">lambda</span> e: e.day == target_day <span class="ck">and not</span> e.is_undone)   <span class="cl"># SETTLED only</span>
+    .key_by(<span class="ck">lambda</span> e: e.post_id)
+    .aggregate(likes=count_where(<span class="cs">"event_type == 'like'"</span>),
+               saves=count_where(<span class="cs">"event_type == 'save'"</span>),
+               shares=count_where(<span class="cs">"event_type == 'share'"</span>),
+               negatives=count_where(<span class="cs">"event_type in ('hide','report')"</span>)))
+
+<span class="ck">def</span> <span class="cf">to_rates</span>(post, imp, eng):
+    <span class="ck">if</span> imp.impressions == 0:
+        <span class="ck">return</span> <span class="ck">None</span>                                   <span class="cl"># no denominator → no rate</span>
+    <span class="ck">return</span> {
+        <span class="cs">"post_id"</span>:       post,
+        <span class="cs">"impressions"</span>:   imp.impressions,
+        <span class="cs">"reach_hll"</span>:     imp.reach.serialize(),       <span class="cl"># store the sketch, never the ids</span>
+        <span class="cs">"like_rate"</span>:     eng.likes     / imp.impressions,
+        <span class="cs">"save_rate"</span>:     eng.saves     / imp.impressions,
+        <span class="cs">"share_rate"</span>:    eng.shares    / imp.impressions,
+        <span class="cs">"negative_rate"</span>: eng.negatives / imp.impressions,
+        <span class="cs">"avg_dwell_ms"</span>:  imp.avg_dwell,
+    }
+
+mart = (impressions.join(engagements, on=<span class="cs">"post_id"</span>, how=<span class="cs">"left"</span>)
+    .map(to_rates)
+    .sink(mart_post_engagement_daily))   <span class="cl"># read by every creator + brand-safety dashboard</span></div>
+
+    <p class="reveal">The per-user rollup is the mirror image and feeds personalization rather than reporting: per (viewer × day), how many impressions, how many settled engagements, the average dwell, the dominant audio — a compact affinity vector that survives long after the raw impressions expire at thirty days, because it is aggregate and de-identified where the raw is PII. The two marts are why the warehouse stays sane: the spine is written once and scanned by batch jobs, while every interactive query hits a table that is already at the grain the question asks. A dashboard never touches a hundred billion rows; it touches the few million rows of the rollup that already answered.</p>
+
+    <div class="pull reveal">Count distinct viewers with a sketch, never a sort; compute rates from the settled facts, never from a counter. The mart holds what is true today; the log holds everything that ever happened. Both are necessary, and they are not the same table.<span>FEED RULE Nº 2 — SKETCH THE REACH, SETTLE THE RATE</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the feed</h2>
+    <p class="lede reveal">The three facts are where the system explains itself. Three queries an interviewer loves, because each one carries a classic pattern on its back — conditional aggregation for the creator funnel, a window LAG for the brand-safety velocity, and the model-versioned GROUP BY that is the entire point of the ranker A/B.</p>
+
+    <h3 class="reveal">Creator analytics — conditional aggregation</h3>
+    <p class="reveal">The bread-and-butter question: per post, what are the like / save / share rates, the unique reach, and the average dwell — counting only <em>active</em> engagements, with the undone ones filtered out. The pattern is conditional aggregation: a single scan with <span class="m">FILTER</span> clauses fanning the one stream of engagements into per-type counts, joined to impressions for the denominator and to dwell for the time-on-post.</p>
+
+    <div class="codelabel">SQL · PER-POST ENGAGEMENT — COUNT … FILTER</div>
+    <div class="codeblock"><span class="ck">WITH</span> active_eng <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> impression_id, post_id, event_type
+    <span class="ck">FROM</span>   fct_engagements
+    <span class="ck">WHERE</span>  <span class="ck">NOT</span> is_undone               <span class="cl">-- settled state only; toggles excluded</span>
+)
+<span class="ck">SELECT</span>
+    i.post_id,
+    count(*)                                                   <span class="ck">AS</span> impressions,
+    <span class="cf">approx_count_distinct</span>(i.viewer_id)                         <span class="ck">AS</span> unique_viewers,
+    count(e.event_type) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> e.event_type = <span class="cs">'like'</span>)   <span class="ck">AS</span> likes,
+    count(e.event_type) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> e.event_type = <span class="cs">'save'</span>)   <span class="ck">AS</span> saves,
+    count(e.event_type) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> e.event_type = <span class="cs">'share'</span>)  <span class="ck">AS</span> shares,
+    round(100.0 * count(e.event_type) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> e.event_type = <span class="cs">'like'</span>)
+                / <span class="cf">nullif</span>(count(*), 0), 3)                          <span class="ck">AS</span> like_rate_pct,
+    round(avg(d.dwell_ms), 0)                                  <span class="ck">AS</span> avg_dwell_ms
+<span class="ck">FROM</span>       fct_impressions i
+<span class="ck">LEFT JOIN</span>  active_eng e               <span class="ck">ON</span> e.impression_id = i.impression_id
+<span class="ck">LEFT JOIN</span>  fct_dwell_per_impression d <span class="ck">ON</span> d.impression_id = i.impression_id
+<span class="ck">WHERE</span>      i.impression_ts &gt;= <span class="ck">CURRENT_DATE</span> - 1
+<span class="ck">GROUP BY</span>   i.post_id
+<span class="ck">ORDER BY</span>   like_rate_pct <span class="ck">DESC</span>;</div>
+
+    <h3 class="reveal">Brand safety — hide-rate velocity with a window LAG</h3>
+    <p class="reveal">A post going wrong is not a level, it is a <em>slope</em>: the negative rate jumping hour-over-hour is the alarm, because a steady 0.3% hide-rate is background noise while a leap from 0.1% to 0.9% in one hour is a post turning toxic in real time. The pattern is a window <span class="m">LAG</span> over the per-post-hour negative rate — compare each hour to the one before and surface the accelerations to the human review queue.</p>
+
+    <div class="codelabel">SQL · NEGATIVE-SIGNAL VELOCITY — LAG OVER POST-HOURS</div>
+    <div class="codeblock"><span class="ck">WITH</span> hourly <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> i.post_id,
+           date_trunc(<span class="cs">'hour'</span>, i.impression_ts)                     <span class="ck">AS</span> hr,
+           count(*)                                                <span class="ck">AS</span> impressions,
+           count(e.event_type) <span class="ck">FILTER</span> (
+               <span class="ck">WHERE</span> e.event_type <span class="ck">IN</span> (<span class="cs">'hide'</span>,<span class="cs">'report'</span>) <span class="ck">AND NOT</span> e.is_undone)  <span class="ck">AS</span> negatives
+    <span class="ck">FROM</span>   fct_impressions i
+    <span class="ck">LEFT JOIN</span> fct_engagements e <span class="ck">ON</span> e.impression_id = i.impression_id
+    <span class="ck">WHERE</span>  i.impression_ts &gt;= now() - <span class="ck">INTERVAL</span> <span class="cs">'24 hours'</span>
+    <span class="ck">GROUP BY</span> i.post_id, date_trunc(<span class="cs">'hour'</span>, i.impression_ts)
+),
+rated <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> post_id, hr, impressions,
+           negatives::numeric / <span class="cf">nullif</span>(impressions, 0)              <span class="ck">AS</span> neg_rate,
+           <span class="cf">lag</span>(negatives::numeric / <span class="cf">nullif</span>(impressions, 0)) <span class="ck">OVER</span>
+               (<span class="ck">PARTITION BY</span> post_id <span class="ck">ORDER BY</span> hr)                     <span class="ck">AS</span> prev_rate
+    <span class="ck">FROM</span>   hourly
+    <span class="ck">WHERE</span>  impressions &gt; 1000                <span class="cl">-- ignore low-volume noise</span>
+)
+<span class="ck">SELECT</span> post_id, hr,
+       round(100.0 * neg_rate, 3)                          <span class="ck">AS</span> neg_rate_pct,
+       round(100.0 * (neg_rate - <span class="cf">coalesce</span>(prev_rate, 0)), 3) <span class="ck">AS</span> rate_jump_pct
+<span class="ck">FROM</span>   rated
+<span class="ck">WHERE</span>  neg_rate &gt; 0.005                     <span class="cl">-- over the 0.5% brand-safety floor</span>
+  <span class="ck">AND</span>  neg_rate - <span class="cf">coalesce</span>(prev_rate, 0) &gt; 0.003   <span class="cl">-- AND accelerating fast</span>
+<span class="ck">ORDER BY</span> rate_jump_pct <span class="ck">DESC</span>;       <span class="cl">-- the queue: posts turning toxic right now</span></div>
+
+    <h3 class="reveal">Ranker A/B lift — the model-versioned GROUP BY</h3>
+    <p class="reveal">The query that justifies the entire schema, and the one that separates a senior answer. Because <span class="m">ranker_model_id</span> rides every impression, comparing two model versions is a <span class="m">GROUP BY</span> on that column — no separate experiment store, no bespoke pipeline. The senior framing is to compute both the positive and the negative rate per version, because a model that lifts likes while also lifting hides has not won: the new ranker ships only if it raises engagement <em>and</em> does not worsen the negatives.</p>
+
+    <div class="codelabel">SQL · ENGAGEMENT-RATE LIFT — v3.2 OVER v3.1</div>
+    <div class="codeblock"><span class="ck">WITH</span> per_model <span class="ck">AS</span> (
+    <span class="ck">SELECT</span>
+        m.model_semver,
+        count(*)                                                          <span class="ck">AS</span> impressions,
+        count(e.event_type) <span class="ck">FILTER</span> (
+            <span class="ck">WHERE</span> e.event_type = <span class="cs">'like'</span> <span class="ck">AND NOT</span> e.is_undone)             <span class="ck">AS</span> likes,
+        count(e.event_type) <span class="ck">FILTER</span> (
+            <span class="ck">WHERE</span> e.event_type = <span class="cs">'save'</span> <span class="ck">AND NOT</span> e.is_undone)             <span class="ck">AS</span> saves,
+        count(e.event_type) <span class="ck">FILTER</span> (
+            <span class="ck">WHERE</span> e.event_type <span class="ck">IN</span> (<span class="cs">'hide'</span>,<span class="cs">'report'</span>))                    <span class="ck">AS</span> negatives,
+        count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> e.event_type = <span class="cs">'like'</span> <span class="ck">AND</span> e.is_undone
+              <span class="ck">AND</span> e.undone_ts - e.event_ts &lt; <span class="ck">INTERVAL</span> <span class="cs">'5 minutes'</span>)         <span class="ck">AS</span> fast_regrets,
+        avg(d.dwell_ms)                                                   <span class="ck">AS</span> avg_dwell_ms
+    <span class="ck">FROM</span>       fct_impressions i
+    <span class="ck">JOIN</span>       dim_ranker_models m         <span class="ck">ON</span> m.ranker_model_id = i.ranker_model_id
+    <span class="ck">LEFT JOIN</span>  fct_engagements e           <span class="ck">ON</span> e.impression_id = i.impression_id
+    <span class="ck">LEFT JOIN</span>  fct_dwell_per_impression d  <span class="ck">ON</span> d.impression_id = i.impression_id
+    <span class="ck">WHERE</span>      i.impression_ts &gt;= <span class="ck">CURRENT_DATE</span> - 7
+      <span class="ck">AND</span>      m.model_semver <span class="ck">IN</span> (<span class="cs">'v3.1'</span>, <span class="cs">'v3.2'</span>)
+    <span class="ck">GROUP BY</span>   m.model_semver
+)
+<span class="ck">SELECT</span> model_semver,
+       round(100.0 * likes        / <span class="cf">nullif</span>(impressions, 0), 4) <span class="ck">AS</span> like_rate_pct,
+       round(100.0 * saves        / <span class="cf">nullif</span>(impressions, 0), 4) <span class="ck">AS</span> save_rate_pct,
+       round(100.0 * negatives    / <span class="cf">nullif</span>(impressions, 0), 4) <span class="ck">AS</span> negative_rate_pct,
+       round(100.0 * fast_regrets / <span class="cf">nullif</span>(likes, 0), 3)       <span class="ck">AS</span> regret_rate_pct,
+       round(avg_dwell_ms, 0)                                       <span class="ck">AS</span> avg_dwell_ms
+<span class="ck">FROM</span>   per_model
+<span class="ck">ORDER BY</span> model_semver;
+<span class="cl">-- v3.2 ships iff like_rate AND dwell rise, while negative_rate and regret do NOT.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the feed is healthy</h2>
+    <p class="lede reveal">A senior design ends with observability, because every safeguard above is invisible without it. The feed dashboard watches three readers at once: is the live ranker lifting without raising regret, is the firehose ingesting cleanly without a partition on fire, and is any post turning toxic in real time.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>RANKER HEALTH</dt><dd><span class="m">like-rate lift</span> (live model over the holdout), <span class="m">5-min regret rate</span> (likes taken back fast — the quality canary), <span class="m">negative-rate delta</span> vs baseline, <span class="m">avg dwell</span> — a model lifting likes while lifting hides or regret has not won.</dd></div>
+      <div class="defrow"><dt>INGEST HEALTH</dt><dd><span class="m">impression rate</span> vs expected, <span class="m">partition skew</span> (max-partition over mean — the celebrity-melt alarm), <span class="m">heartbeat collapse ratio</span> (should hover near 100×), <span class="m">log lag</span> — a skew spike means a post went viral and the viewer-key is earning its keep.</dd></div>
+      <div class="defrow"><dt>SAFETY HEALTH</dt><dd><span class="m">posts over hide-rate floor</span>, <span class="m">review-queue depth</span>, <span class="m">fastest-accelerating post</span> (the LAG velocity leader), <span class="m">report-rate p99</span> — the early warning that a single post is going wrong before it goes everywhere.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Feed Engagement Ops — Global</span>
+        <span class="dash-sub">FRI 20:10 UTC · LIVE v3.2 · HOLDOUT v3.1 · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Like-Rate Lift</div><div class="tv ok">+5.8<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 15,19 30,18 45,16 60,15 75,14 90,12 105,11 120,10" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">5-min Regret Rate</div><div class="tv warn">3.1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,17 20,16 40,17 60,15 80,14 100,13 120,12" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Negative-Rate Δ</div><div class="tv ok">-0.4<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,14 60,15 80,16 100,15 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Avg Dwell</div><div class="tv ok">28.4<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,14 100,13 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Per-post impression skew — last 60 min (one celebrity post arriving, viewer-key spreading it)</div>
+          <svg viewBox="0 0 240 84">
+            <g stroke="#211e18" stroke-width="0.5">
+              <rect x="6"   y="58" width="12" height="18" fill="#4d4427"/>
+              <rect x="24"  y="54" width="12" height="22" fill="#4d4427"/>
+              <rect x="42"  y="56" width="12" height="20" fill="#4d4427"/>
+              <rect x="60"  y="50" width="12" height="26" fill="#6e5a23"/>
+              <rect x="78"  y="52" width="12" height="24" fill="#4d4427"/>
+              <rect x="96"  y="44" width="12" height="32" fill="#6e5a23"/>
+              <rect x="114" y="24" width="12" height="52" fill="#c25a2a"/>
+              <rect x="132" y="14" width="12" height="62" fill="#d98e63"/>
+              <rect x="150" y="30" width="12" height="46" fill="#c25a2a"/>
+              <rect x="168" y="48" width="12" height="28" fill="#6e5a23"/>
+              <rect x="186" y="54" width="12" height="22" fill="#4d4427"/>
+              <rect x="204" y="56" width="12" height="20" fill="#4d4427"/>
+              <rect x="222" y="58" width="12" height="18" fill="#4d4427"/>
+            </g>
+            <line x1="0" y1="40" x2="240" y2="40" stroke="#8f8672" stroke-width="0.7" stroke-dasharray="3 3"/>
+            <text x="2" y="12" font-size="9" fill="#d98e63" font-family="DM Mono,monospace">viral post (spread across N partitions, none melts)</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Impression Rate</div><div class="tv ok">1.34<small>M/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,16 40,17 60,14 80,15 100,12 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Partition Skew</div><div class="tv ok">1.4<small>×</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,14 100,16 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Heartbeat Collapse</div><div class="tv ok">98<small>×</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,15 100,14 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Posts &gt; Hide Floor</div><div class="tv warn">23</div><svg viewBox="0 0 120 30"><polyline points="0,20 20,19 40,18 60,16 80,14 100,12 120,11" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Review Queue</div><div class="tv warn">147</div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,13 100,12 120,11" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Log Lag</div><div class="tv ok">3<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,16 60,14 80,15 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy-but-watched feed tells: live v3.2 lifting likes and dwell with negatives down — and the amber tiles, regret rate and the review queue, climbing as one viral post drives both engagement and complaints while the partition-skew bars stay flat, the viewer-key absorbing the spike exactly as designed.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates the central tension of the whole problem. The skew chart shows a single post arriving at a million impressions a second — the spike that would have melted a post-keyed partition — yet partition skew sits at 1.4×, because the viewer key scattered those writes across thousands of shards. Meanwhile the new ranker is winning on its own terms, likes and dwell up, negatives down; but the regret rate and the review queue climb, the canaries warning that the same viral content driving engagement is also driving complaints. That is exactly why regret and the safety velocity exist: they are the only instruments that see the feed straining underneath metrics that otherwise look excellent.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the Instagram details away and the question was testing five judgments, each of which generalizes far beyond a social feed:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>GRAIN</dt><dd>Seeing that the unit of truth is the impression, not the post or the count — and that a stamped <span class="m">ranker_model_id</span> on every served row turns a quarterly A/B project into a single <span class="m">GROUP BY</span>. The grain is the architecture.</dd></div>
+      <div class="defrow"><dt>IMMUTABILITY</dt><dd>Appending an unlike instead of deleting a like, because the warehouse's job is to remember what happened, not to depict the present. The toggle history is the regret signal, and a counter throws it away.</dd></div>
+      <div class="defrow"><dt>SKEW</dt><dd>Defusing the hot object at the partition key rather than patching it downstream — keying the write path on the viewer, not the post, so the one celebrity who could melt a shard becomes evenly-spread rows instead.</dd></div>
+      <div class="defrow"><dt>SCALE DISCIPLINE</dt><dd>Killing the twelve-trillion-row heartbeat grain at ETL, counting distinct viewers with a mergeable sketch instead of a sort, and materializing rollups so no dashboard ever scans the spine. Aggregate before you durably store.</dd></div>
+      <div class="defrow"><dt>STAKEHOLDER HONESTY</dt><dd>Serving three readers who want contradictory truths from one model — the raw facts for the ranker's regret analysis, the settled rates for the creator, the velocity for brand safety — without letting any of their needs corrupt the others' numbers.</dd></div>
+    </dl>
+    <div class="pull reveal">The post proposes the spike; the viewer key disposes of it. The model proposes the ranking; the frozen id makes it answerable. Everything else is the patient discipline of remembering exactly what happened — and never, ever overwriting it.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 07 — THE FEED PROBLEM<br>DATA ARCHITECTURE · IMPRESSION-AS-FACT · THE CRAFT OF THE GRAIN</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
