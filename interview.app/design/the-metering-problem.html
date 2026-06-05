@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Metering Problem — PaddySpeaks</title>
+<meta name="description" content="Design the billing backend for a usage-metered SaaS — flat-rate seats plus hourly metering, mid-cycle proration, overages, and multi-currency invoices. Data flow, schema, the append-only ledger, streaming Python, MRR, and the dashboard that proves the books balance.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 11</div>
+    <h1 class="reveal">The <em>Metering</em> Problem</h1>
+    <p class="deck reveal">Design the billing backend for a usage-metered SaaS — flat seats plus hourly metering, mid-cycle plan changes, overages, free trials, multi-currency. One prompt, two revenue streams of opposite shape, and a single decision that keeps the invoice honest: a complete working-through of data flow, schema, the append-only ledger, streaming Python, the MRR roll-up, and the dashboard that proves the books balance.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>SaaS / Billing</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One invoice, two clocks</h2>
+    <p class="lede reveal">Every data engineer who touches a revenue system eventually meets this question. It sounds like a CRUD app for invoices. It is two billing systems running on different clocks, joined only at the moment money is owed.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data model for a SaaS with mixed pricing — flat-rate seats plus usage-based metering, per-query, per-GB, per-API-call. Handle mid-cycle plan changes, prorations, overages, free trials, and multi-currency invoicing. How would you keep the bill correct?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The trap is to reach for one fact table and a column called <span class="m">amount</span>. The two revenue streams the prompt names have opposite shapes and opposite failure modes. <strong>Subscription</strong> is predictable, low-volume, and changes a handful of times per customer per year — a Pro seat is a flat number until someone clicks upgrade. <strong>Usage</strong> is volatile, arrives by the billion, and is worthless to restate after the fact — a per-query meter ticks tens of thousands of times a second across the fleet. A model that stores them at the same grain either crushes the subscription logic under usage volume or smears usage into a coarse monthly figure that finance can never audit. Keep them apart at the fact layer; join them only at invoice time.</p>
+
+    <p class="reveal">A weak answer treats the invoice as a mutable running total it edits as charges land. A strong answer notices that the invoice is the wrong place to hold truth at all — truth lives in an append-only log of charges, and the invoice is a <em>SUM</em> over a window. So before any boxes and arrows, the working frame for the whole session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE SLOW STREAM</dt><dd><strong>Subscription state.</strong> Plan, status, MRR — one row per subscription per day. A handful of state transitions a year, snapshotted daily so finance can ask "what was true on the 14th" without replaying a ledger. Bounded, cheap, queryable.</dd></div>
+      <div class="defrow"><dt>THE FAST STREAM</dt><dd><strong>Usage meter.</strong> Raw events rolled up to one row per subscription × meter × hour. Billions of raw ticks per day collapse to the hour at ingest. High volume, append-only, the integration point three teams read from.</dd></div>
+      <div class="defrow"><dt>THE LEDGER</dt><dd><strong>Billing events.</strong> One immutable row per charge, credit, proration, refund, or dunning step, keyed by an idempotent <span class="m">source_event_id</span>. The invoice is not stored authority — it is a derived roll-up of these rows over a billing period.</dd></div>
+    </dl>
+
+    <div class="pull reveal">The invoice is a SUM, never a recompute. Money that has happened is appended, never edited — because an edited charge is an argument you will lose with an auditor.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you build, what you ignore, and the numbers that shape every later choice. Out of scope here, said explicitly: the payment gateway itself (treated as a callable service that returns success/failure with its own idempotency key), tax engines and tax jurisdiction logic (a separate line-item service), revenue recognition under ASC 606 (downstream of this ledger), and fraud. In scope: how a charge becomes a row, how a row becomes an invoice, how a mid-cycle change stays correct to the penny, and how MRR is read in one query.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. Snowflake-shaped numbers — a usage warehouse where compute is metered by the credit:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Active subscriptions</td><td class="mono">2,000,000</td><td>Sets the daily snapshot size: 2 M rows/day, trivial</td></tr>
+      <tr><td>Raw meter events/day</td><td class="mono">≈ 5 B</td><td>Per-query, per-call — cannot live at raw grain forever</td></tr>
+      <tr><td><strong>Hourly meter rows/day</strong></td><td class="mono"><strong>≈ 2 M subs × 4 meters × 24 ≈ 190 M</strong></td><td><strong>The grain that shapes the whole architecture</strong></td></tr>
+      <tr><td>Billing events/day</td><td class="mono">~3 M</td><td>One charge stream; the audit spine, append-only</td></tr>
+      <tr><td>Invoices/month</td><td class="mono">~2 M</td><td>Derived rollup; never the source of a number</td></tr>
+      <tr><td>MRR query</td><td class="mono">SUM over 2 M rows, 1 day</td><td>Sub-second on a partitioned snapshot — a single SELECT</td></tr>
+      <tr><td>FX rates</td><td class="mono">~30 pairs × hourly</td><td>Locked at usage time; never restated when rates drift</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry. The raw meter firehose is three orders of magnitude above everything else, and the subscription state is so small it would be silly to model it as a slowly-changing dimension. That spread is the whole design: roll the firehose to the hour at the edge, snapshot the slow stream daily, and let an immutable ledger be the one place a dollar figure is ever authoritative. The rest of this article follows the money.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a dollar through the building</h2>
+    <p class="lede reveal">One ledger, two tributaries. The spine of the design is an append-only billing-event log fed by a metering pipeline on one side and a subscription state machine on the other — and read, at month-end, by a roll-up that mints invoices without ever holding a balance of its own.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <!-- lanes -->
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">FAST STREAM · ~5B RAW EVENTS/DAY → HOURLY</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">SLOW STREAM · ~2M SUBSCRIPTIONS · DAILY SNAPSHOT</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- meter sources -->
+        <rect x="20" y="60" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="87" font-size="12.5" text-anchor="middle" fill="#23201a">PRODUCT EDGE</text>
+        <text x="95" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">per-query / per-call emit</text>
+
+        <!-- meter aggregator -->
+        <rect x="230" y="52" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="315" y="78" font-size="12.5" text-anchor="middle" fill="#23201a">METER AGGREGATOR</text>
+        <text x="315" y="96" font-size="10.5" text-anchor="middle" fill="#7d7567">roll to hour · lock FX</text>
+        <text x="315" y="112" font-size="10.5" text-anchor="middle" fill="#7d7567">apply free allowance</text>
+
+        <!-- usage meter table -->
+        <rect x="460" y="46" width="200" height="92" fill="#27241d"/>
+        <text x="560" y="76" font-size="12.5" text-anchor="middle" fill="#e9e2d0">fct_usage_meter</text>
+        <text x="560" y="94" font-size="10.5" text-anchor="middle" fill="#b8ad93">grain: sub × meter × hour</text>
+        <text x="560" y="110" font-size="10.5" text-anchor="middle" fill="#b8ad93">billable = max(0, raw − free)</text>
+
+        <!-- usage charge -->
+        <rect x="730" y="40" width="220" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="840" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">USAGE ROLL-UP JOB</text>
+        <text x="840" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">period sum → usage_charge</text>
+        <text x="840" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">writes one ledger event</text>
+
+        <!-- adoption analytics -->
+        <rect x="730" y="140" width="220" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="166" font-size="12.5" text-anchor="middle" fill="#8a5d12">PRODUCT ANALYTICS</text>
+        <text x="840" y="184" font-size="10.5" text-anchor="middle" fill="#7d7567">same source · daily rollups</text>
+
+        <!-- upsell -->
+        <rect x="730" y="224" width="220" height="56" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="840" y="248" font-size="12.5" text-anchor="middle" fill="#7d7567">UPSELL SIGNAL (&gt;85%)</text>
+        <text x="840" y="265" font-size="10.5" text-anchor="middle" fill="#7d7567">usage × plan cap · CS team</text>
+
+        <!-- arrows fast stream -->
+        <line x1="170" y1="92" x2="226" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="92" x2="456" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="75" x2="726" y2="75" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="660" y1="120" x2="726" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="130" x2="726" y2="248" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- slow stream -->
+        <rect x="20" y="360" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="387" font-size="12.5" text-anchor="middle" fill="#23201a">SUBSCRIPTION API</text>
+        <text x="95" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">upgrade / cancel / pause</text>
+
+        <rect x="230" y="348" width="180" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="320" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">SUBSCRIPTION SVC</text>
+        <text x="320" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">state machine · proration</text>
+        <text x="320" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">emits 2 events on change</text>
+
+        <rect x="470" y="336" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="358" font-size="12" text-anchor="middle" fill="#23201a">fct_subscription_state</text>
+        <text x="565" y="376" font-size="10.5" text-anchor="middle" fill="#a4502e">daily snapshot · MRR</text>
+
+        <rect x="470" y="408" width="190" height="54" fill="#27241d"/>
+        <text x="565" y="430" font-size="12" text-anchor="middle" fill="#e9e2d0">fct_billing_events</text>
+        <text x="565" y="448" font-size="10.5" text-anchor="middle" fill="#b8ad93">append-only · idempotent</text>
+
+        <rect x="730" y="330" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="354" font-size="12" text-anchor="middle" fill="#23201a">INVOICE ROLL-UP</text>
+        <text x="840" y="372" font-size="10.5" text-anchor="middle" fill="#7d7567">SUM events in period · holds $0</text>
+
+        <rect x="730" y="414" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="438" font-size="12" text-anchor="middle" fill="#23201a">PAYMENT GATEWAY</text>
+        <text x="840" y="456" font-size="10.5" text-anchor="middle" fill="#7d7567">charge · webhook → ledger</text>
+
+        <!-- slow arrows -->
+        <line x1="170" y1="392" x2="226" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="370" x2="466" y2="363" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="410" x2="466" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="430" x2="726" y2="360" stroke="#a4502e" stroke-width="1.6" marker-end="url(#arrR)"/>
+        <line x1="660" y1="444" x2="726" y2="444" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- usage charge feeds ledger -->
+        <path d="M 840 110 C 700 250, 700 380, 660 420" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="690" y="250" font-size="10.5" fill="#a4502e">usage_charge → ledger</text>
+
+        <!-- gateway webhook back to ledger -->
+        <path d="M 840 414 C 880 400, 880 470, 660 458" fill="none" stroke="#8a5d12" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="700" y="492" font-size="10.5" fill="#8a5d12">paid webhook</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — sustained data flow · DASHED — period-close &amp; settlement writes · Two streams meet only in the ledger.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. The ledger is the spine; the meter and the snapshot are tributaries; the invoice is a query, not a store.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the firehose never reaches the ledger at raw grain — five billion daily ticks collapse to the hour at the aggregator, and only one <span class="m">usage_charge</span> per subscription per period ever becomes a billing event. <strong>Second,</strong> authority is deliberately one-directional: every dollar that will appear on an invoice is first an append-only row in <span class="m">fct_billing_events</span>, written exactly once, and the invoice roll-up holds no balance it could disagree with. <strong>Third,</strong> the two streams are joined only at the rightmost box — usage and subscription stay separate facts, at separate grains, until the moment finance asks "what does this customer owe," and the answer is a SUM with a <span class="m">GROUP BY</span>.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>The meter may lose a tick; the ledger may never lose a charge.</strong> A dropped raw usage event costs a fraction of a cent and self-heals at the next reconciliation pass against the warehouse's own audit logs — so the metering path optimizes for throughput and tolerates at-least-once duplication, made safe by idempotent upserts on the hour bucket. A lost <em>billing event</em> — a proration, a refund — is never acceptable: it lands through a durable, exactly-once-keyed write, and if the producer retries, <span class="m">UNIQUE(source_event_id)</span> swallows the duplicate silently. Approximate the usage; never approximate the bill.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — THE GRAIN</span>Two facts, a snapshot, and a ledger</h2>
+    <p class="lede reveal">The schema falls out of the grain question. Volatile, high-volume truth: the hourly meter. Bounded, slow truth: the daily subscription snapshot. Immutable money: the billing-event ledger. The invoice is a view, derived and re-derivable.</p>
+
+    <h3 class="reveal">The high-volume fact — the hourly meter</h3>
+    <p class="reveal">The meter is the integration point, so its grain is chosen to serve three masters at once: fine enough for product's adoption analytics, coarse enough that the table does not explode, and aligned to the unit finance bills on. One row per <span class="m">(subscription, meter, hour)</span>. The decisive columns are <span class="m">billable_quantity</span> — already net of the free allowance, so no consumer re-derives the allowance and they all agree — and the FX trio, locked at the hour the usage occurred and never restated.</p>
+
+    <div class="codelabel">DDL · FAST FACT — HOURLY USAGE METER</div>
+    <div class="codeblock"><span class="cl">-- One row per subscription × meter × hour. Raw per-query/per-call events
+-- roll up to the hour AT INGEST; this table never sees raw grain.
+-- Partitioned by hour_bucket_ts; clustered on subscription_id.</span>
+<span class="ck">CREATE TABLE</span> fct_usage_meter (
+    account_id        BIGINT       <span class="ck">NOT NULL</span>,
+    subscription_id   BIGINT       <span class="ck">NOT NULL</span>,
+    meter_id          TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- compute_credits | storage_gb | api_calls</span>
+    hour_bucket_ts    TIMESTAMPTZ  <span class="ck">NOT NULL</span>,   <span class="cl">-- truncated to the hour</span>
+    raw_quantity      NUMERIC(18,4) <span class="ck">NOT NULL</span>,
+    free_allowance    NUMERIC(18,4) <span class="ck">NOT NULL DEFAULT</span> 0,
+    billable_quantity NUMERIC(18,4) <span class="ck">NOT NULL</span>,  <span class="cl">-- = max(0, raw − free), materialized</span>
+    unit_price_local  NUMERIC(12,6) <span class="ck">NOT NULL</span>,  <span class="cl">-- the rate, locked at this hour</span>
+    currency_code     CHAR(3)      <span class="ck">NOT NULL</span>,
+    amount_local      NUMERIC(18,6) <span class="ck">NOT NULL</span>,  <span class="cl">-- billable × unit_price_local</span>
+    fx_rate_to_usd    NUMERIC(18,8) <span class="ck">NOT NULL</span>,  <span class="cl">-- locked at hour, never restated</span>
+    amount_usd        NUMERIC(18,6) <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (subscription_id, meter_id, hour_bucket_ts)  <span class="cl">-- idempotent upsert key</span>
+);
+<span class="ck">CREATE INDEX</span> idx_meter_sub_time <span class="ck">ON</span> fct_usage_meter (subscription_id, hour_bucket_ts <span class="ck">DESC</span>);</div>
+
+    <h3 class="reveal">The bounded fact — the daily subscription snapshot</h3>
+    <p class="reveal">A subscription changes a handful of times a year, so the temptation is to model it as a slowly-changing dimension and reconstruct any day's state with an as-of join. Resist it. There is enough daily flux — trials converting, accounts pausing, MRR ticking on plan change — that a daily snapshot is both simpler and faster to query than an SCD2 walk. The snapshot is bounded at two million rows a day and answers the question finance asks most: <span class="m">what was true on this day</span>.</p>
+
+    <div class="codelabel">DDL · SLOW FACT — DAILY SUBSCRIPTION STATE</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_subscription_state (
+    subscription_id BIGINT      <span class="ck">NOT NULL</span>,
+    day             DATE        <span class="ck">NOT NULL</span>,
+    account_id      BIGINT      <span class="ck">NOT NULL</span>,
+    plan_id         TEXT        <span class="ck">NOT NULL</span>,        <span class="cl">-- SCD2 surrogate, effective on this day</span>
+    status          TEXT        <span class="ck">NOT NULL</span>
+                    <span class="ck">CHECK</span> (status <span class="ck">IN</span> (<span class="cs">'trialing'</span>,<span class="cs">'active'</span>,<span class="cs">'paused'</span>,
+                                      <span class="cs">'canceled'</span>,<span class="cs">'past_due'</span>)),
+    mrr_usd         NUMERIC(14,2) <span class="ck">NOT NULL DEFAULT</span> 0,  <span class="cl">-- 0 while trialing — trials bill nothing</span>
+    currency_code   CHAR(3)     <span class="ck">NOT NULL</span>,
+    days_into_cycle SMALLINT    <span class="ck">NOT NULL</span>,
+    days_remaining  SMALLINT    <span class="ck">NOT NULL</span>,        <span class="cl">-- the proration denominator's numerator</span>
+    <span class="ck">PRIMARY KEY</span> (subscription_id, day)
+);
+<span class="ck">CREATE INDEX</span> idx_substate_day <span class="ck">ON</span> fct_subscription_state (day, status);  <span class="cl">-- MRR is one scan</span></div>
+
+    <h3 class="reveal">The ledger — append-only money</h3>
+    <p class="reveal">This is the table everything else exists to feed. Every movement of money is a row, never an update: a <span class="m">subscription_charge</span> at the cycle boundary, a <span class="m">usage_charge</span> at period close, a <span class="m">proration</span> credit and a <span class="m">proration</span> charge on a plan change, a <span class="m">refund</span>, a <span class="m">credit</span>, a <span class="m">dunning</span> step. The <span class="m">source_event_id</span> is the idempotency key — the producer's stable identifier for the thing that happened — and <span class="m">UNIQUE</span> on it is what makes the whole pipeline replay-safe. A retried plan-change webhook cannot double-charge, because the second insert is a no-op.</p>
+
+    <div class="codelabel">DDL · THE LEDGER — APPEND-ONLY BILLING EVENTS</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_billing_events (
+    event_id        BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    account_id      BIGINT       <span class="ck">NOT NULL</span>,
+    subscription_id BIGINT       <span class="ck">NOT NULL</span>,
+    event_type      TEXT         <span class="ck">NOT NULL</span>
+                    <span class="ck">CHECK</span> (event_type <span class="ck">IN</span> (<span class="cs">'subscription_charge'</span>,<span class="cs">'usage_charge'</span>,
+                          <span class="cs">'proration'</span>,<span class="cs">'refund'</span>,<span class="cs">'credit'</span>,<span class="cs">'dunning'</span>)),
+    plan_id         TEXT,                       <span class="cl">-- SCD2 plan effective at event_ts</span>
+    event_ts        TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    period_start    DATE         <span class="ck">NOT NULL</span>,       <span class="cl">-- the billing window this row belongs to</span>
+    period_end      DATE         <span class="ck">NOT NULL</span>,
+    amount_local    NUMERIC(14,2) <span class="ck">NOT NULL</span>,      <span class="cl">-- signed: credits and refunds are negative</span>
+    currency_code   CHAR(3)      <span class="ck">NOT NULL</span>,
+    amount_usd      NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    status          TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'pending'</span>,
+    source_event_id TEXT         <span class="ck">NOT NULL</span>,
+    <span class="ck">UNIQUE</span> (source_event_id)                  <span class="cl">-- idempotent + audit-defensible</span>
+);
+<span class="ck">CREATE INDEX</span> idx_be_invoice <span class="ck">ON</span> fct_billing_events (subscription_id, period_start);</div>
+
+    <p class="reveal">And the invoice — deliberately last, deliberately derived. It is a materialization of a SUM over the ledger for one subscription and one period, refreshed at close and re-derivable from the events at any time. It stores split totals (<span class="m">subscription_total</span>, <span class="m">usage_total</span>, <span class="m">overage</span>, <span class="m">proration</span>, <span class="m">credits</span>) for presentation, but it is never the place a figure originates. If the invoice and the ledger ever disagree, the ledger is right and the invoice is rebuilt.</p>
+
+    <div class="codelabel">DDL · DERIVED — INVOICE ROLL-UP</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_invoices (
+    invoice_id        BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    subscription_id   BIGINT       <span class="ck">NOT NULL</span>,
+    period_start      DATE         <span class="ck">NOT NULL</span>,
+    period_end        DATE         <span class="ck">NOT NULL</span>,
+    subscription_total NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    usage_total       NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    overage_total     NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    proration_net     NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    credits_total     NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    total_due_usd     NUMERIC(14,2) <span class="ck">NOT NULL</span>,   <span class="cl">-- = SUM(all the above) = SUM(ledger)</span>
+    currency_code     CHAR(3)      <span class="ck">NOT NULL</span>,
+    status            TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'open'</span>,
+    <span class="ck">UNIQUE</span> (subscription_id, period_start)
+);</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE INVARIANT</span>Proration is two events, not one</h2>
+    <p class="lede reveal">The whole correctness of this system lives in one rule about mutation: a plan change does not edit a charge, it appends two. Everything else — invoices, MRR, NRR — is arithmetic over an immutable log, and arithmetic over an immutable log is auditable by construction.</p>
+
+    <p class="reveal">Consider the canonical hard case. An account on Pro at $100/month upgrades to Enterprise at $300/month on day 15 of a 30-day cycle. The naive instinct is to find the existing $100 charge and change it. That instinct is the bug: it destroys the history a dispute needs, and it makes the invoice a recompute that can drift from what was actually billed. The correct move is to leave the original $100 charge untouched and append <em>two</em> proration rows — a credit for the unused remainder of the old plan, and a charge for the remainder of the new plan.</p>
+
+    <div class="statechain reveal">
+      <span class="st">TRIALING</span><span class="arr">→</span>
+      <span class="st">ACTIVE</span><span class="arr">→</span>
+      <span class="st">PAST_DUE</span><span class="arr">→</span>
+      <span class="st">PAUSED</span><span class="arr">→</span>
+      <span class="st terminal">CANCELED</span>
+    </div>
+    <p class="reveal">Each transition of the subscription lifecycle is itself a fact: a trial converting to active emits a <span class="m">subscription_charge</span> and bumps <span class="m">mrr_usd</span> in tomorrow's snapshot; a plan change inside <span class="m">ACTIVE</span> emits the two proration events; a <span class="m">PAST_DUE</span> step emits a <span class="m">dunning</span> row; a cancel freezes MRR to zero from the effective day forward. The state machine never overwrites — it appends, and the daily snapshot reads the latest state forward. Trials are the quiet edge case the prompt plants: they look exactly like active subscriptions in every column except that <span class="m">mrr_usd = 0</span>, so they appear in adoption analytics and trial-conversion cohorts without ever inflating revenue.</p>
+
+    <div class="codelabel">SQL · THE ATOMIC HEART — A PLAN CHANGE APPENDS TWO ROWS</div>
+    <div class="codeblock"><span class="cl">-- Pro ($100) → Enterprise ($300), day 15 of 30. days_remaining = 15.
+-- credit_old  = old_fee × (days_remaining / days_in_cycle) = 100 × 15/30 = −50
+-- charge_new  = new_fee × (days_remaining / days_in_cycle) = 300 × 15/30 = +150
+-- Net delta = +100. Two rows, both idempotent, the invoice picks both up.</span>
+<span class="ck">INSERT INTO</span> fct_billing_events
+  (account_id, subscription_id, event_type, plan_id, event_ts,
+   period_start, period_end, amount_local, currency_code, amount_usd,
+   status, source_event_id)
+<span class="ck">VALUES</span>
+  (:acct, :sub, <span class="cs">'proration'</span>, <span class="cs">'PLAN_PRO'</span>,        :ts,
+   :pstart, :pend, -50.00, <span class="cs">'USD'</span>, -50.00, <span class="cs">'applied'</span>, :sub||<span class="cs">':chg42:credit'</span>),
+  (:acct, :sub, <span class="cs">'proration'</span>, <span class="cs">'PLAN_ENTERPRISE'</span>, :ts,
+   :pstart, :pend, 150.00, <span class="cs">'USD'</span>, 150.00, <span class="cs">'paid'</span>,    :sub||<span class="cs">':chg42:charge'</span>)
+<span class="ck">ON CONFLICT</span> (source_event_id) <span class="ck">DO NOTHING</span>;   <span class="cl">-- replay-safe: retries are no-ops</span></div>
+
+    <p class="reveal">The deterministic identifiers <span class="m">:sub||':chg42:credit'</span> and <span class="m">:chg42:charge</span> are doing the heavy lifting. They are derived from the change request, not generated fresh, so the same plan-change event arriving twice — a webhook retry, a replayed Kafka offset, a backfill — produces the same two keys and the second attempt collides harmlessly. This is the difference between a billing system that is merely correct on the happy path and one that is correct under the duplicate-delivery realities of every distributed queue.</p>
+
+    <div class="pull reveal">Never edit money. Append it with a stable key, and let the invoice be a SUM. An edited charge is a number you cannot defend; an appended one is a number you can.<span>METERING RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the meter</h2>
+    <p class="lede reveal">Three programs carry the data. The aggregator that tames the firehose into the hour, the proration calculator that turns a plan change into exactly two events, and the gateway-webhook handler that records settlement idempotently. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The aggregator — roll to the hour, lock the rate</h3>
+    <p class="reveal">The reasoning is physical: at five billion raw events a day, storing raw grain is paying for resolution no one will ever query. The product team wants the hour; finance bills on the hour. So the aggregator folds raw ticks into hour buckets, computes <span class="m">billable_quantity</span> against the plan's free allowance once, and — critically — locks the FX rate to the hour the usage occurred. A rate that moves tomorrow must never change a charge that already happened. The write is an idempotent upsert keyed on <span class="m">(subscription, meter, hour)</span>, so an at-least-once stream that replays a window simply re-converges to the same totals.</p>
+
+    <div class="codelabel">PYTHON · METER AGGREGATOR — RAW → HOURLY, FX LOCKED</div>
+    <div class="codeblock"><span class="ck">import</span> time
+<span class="ck">from</span> collections <span class="ck">import</span> defaultdict
+<span class="ck">from</span> decimal <span class="ck">import</span> Decimal
+
+<span class="ck">class</span> <span class="cf">HourlyMeterAggregator</span>:
+    <span class="cs">"""Folds raw per-call events into (sub, meter, hour) buckets.
+    The write is an UPSERT, not an INSERT: replaying a Kafka window
+    re-converges to the same total instead of double-counting. Usage
+    is allowed to be at-least-once because the meter may lose a tick;
+    the bucket key makes duplicates harmless."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, plans, fx):
+        self.plans, self.fx = plans, fx          <span class="cl"># caches: allowances + hourly rates</span>
+        self.buckets = defaultdict(<span class="ck">lambda</span>: Decimal(0))
+
+    <span class="ck">def</span> <span class="cf">offer</span>(self, ev) -> <span class="ck">None</span>:
+        hour = ev.ts - (ev.ts % 3600)            <span class="cl"># truncate to the hour</span>
+        key  = (ev.subscription_id, ev.meter_id, hour)
+        self.buckets[key] += Decimal(ev.quantity)  <span class="cl"># accumulate raw</span>
+
+    <span class="ck">def</span> <span class="cf">flush</span>(self, sink) -> <span class="ck">None</span>:
+        <span class="ck">for</span> (sub, meter, hour), raw <span class="ck">in</span> self.buckets.items():
+            plan = self.plans.effective(sub, hour)
+            free = plan.free_allowance(meter)
+            billable = max(Decimal(0), raw - free)            <span class="cl"># the allowance, applied ONCE</span>
+            rate = plan.unit_price(meter)                     <span class="cl"># local-currency rate</span>
+            fx   = self.fx.rate(plan.currency, hour)          <span class="cl"># LOCKED at this hour</span>
+            amt_local = billable * rate
+            sink.upsert_usage_meter(                          <span class="cl"># PK (sub, meter, hour): idempotent</span>
+                sub, meter, hour, raw_quantity=raw,
+                free_allowance=free, billable_quantity=billable,
+                unit_price_local=rate, currency_code=plan.currency,
+                amount_local=amt_local, fx_rate_to_usd=fx,
+                amount_usd=(amt_local * fx).quantize(Decimal(<span class="cs">"0.000001"</span>)))
+        self.buckets.clear()</div>
+
+    <p class="reveal">One carve-out, always stated: <strong>the aggregator never emits a billing event.</strong> It fills the meter and stops. Turning a month of meter rows into a single <span class="m">usage_charge</span> is the roll-up job's responsibility at period close — separating "record the usage" from "bill the usage" is what lets product read the meter all month without any of those reads being mistaken for charges.</p>
+
+    <h3 class="reveal">2 · The proration calculator — exactly two events</h3>
+    <div class="codelabel">PYTHON · PRORATION — A PLAN CHANGE BECOMES TWO LEDGER ROWS</div>
+    <div class="codeblock"><span class="ck">from</span> decimal <span class="ck">import</span> Decimal, ROUND_HALF_UP
+
+CENTS = Decimal(<span class="cs">"0.01"</span>)
+
+<span class="ck">def</span> <span class="cf">prorate_plan_change</span>(change) -> list[dict]:
+    <span class="cs">"""A mid-cycle plan change is NEVER an edit to the original charge.
+    It is two new rows: a credit for the unused old plan, and a charge
+    for the remainder of the new plan. source_event_id is derived from
+    the change so retries collapse to no-ops."""</span>
+    ratio = Decimal(change.days_remaining) / Decimal(change.days_in_cycle)
+    credit_old = (-change.old_fee * ratio).quantize(CENTS, ROUND_HALF_UP)
+    charge_new = ( change.new_fee * ratio).quantize(CENTS, ROUND_HALF_UP)
+    base = <span class="cs">f"{change.subscription_id}:{change.change_id}"</span>     <span class="cl"># STABLE, not random</span>
+    <span class="ck">return</span> [
+        {<span class="cs">"event_type"</span>: <span class="cs">"proration"</span>, <span class="cs">"plan_id"</span>: change.old_plan,
+         <span class="cs">"amount_usd"</span>: credit_old, <span class="cs">"status"</span>: <span class="cs">"applied"</span>,
+         <span class="cs">"source_event_id"</span>: base + <span class="cs">":credit"</span>},
+        {<span class="cs">"event_type"</span>: <span class="cs">"proration"</span>, <span class="cs">"plan_id"</span>: change.new_plan,
+         <span class="cs">"amount_usd"</span>: charge_new, <span class="cs">"status"</span>: <span class="cs">"paid"</span>,
+         <span class="cs">"source_event_id"</span>: base + <span class="cs">":charge"</span>},
+    ]
+    <span class="cl"># Note what is absent: no UPDATE, no DELETE, no read of the old charge.
+    # The downgrade case falls out for free — new_fee &lt; old_fee makes the
+    # net delta negative, a credit the customer carries to next period.</span></div>
+
+    <h3 class="reveal">3 · The settlement handler — record paid, idempotently</h3>
+    <div class="codelabel">PYTHON · GATEWAY WEBHOOK → LEDGER STATUS</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">on_payment_webhook</span>(db, hook) -> str:
+    <span class="cs">"""The gateway is at-least-once too — it will redeliver the same
+    'charge.succeeded' webhook on timeout. We never trust the network's
+    delivery count; we trust the gateway's own idempotency key."""</span>
+    <span class="ck">if</span> <span class="ck">await</span> db.seen_webhook(hook.id):       <span class="cl"># dedupe table on the gateway's id</span>
+        <span class="ck">return</span> <span class="cs">"duplicate_ignored"</span>
+    <span class="ck">async with</span> db.transaction():
+        <span class="ck">await</span> db.mark_webhook(hook.id)
+        <span class="ck">if</span> hook.outcome == <span class="cs">"succeeded"</span>:
+            <span class="ck">await</span> db.update_invoice_status(hook.invoice_id, <span class="cs">"paid"</span>,
+                                          paid_amount=hook.amount,
+                                          paid_ts=hook.ts)
+        <span class="ck">elif</span> hook.outcome == <span class="cs">"failed"</span>:
+            <span class="cl"># Do not edit the charge. Append a dunning event; the</span>
+            <span class="cl"># subscription state machine moves the sub to past_due.</span>
+            <span class="ck">await</span> db.append_billing_event(event_type=<span class="cs">"dunning"</span>,
+                      subscription_id=hook.subscription_id, amount_usd=Decimal(0),
+                      source_event_id=<span class="cs">f"dun:{hook.id}"</span>)
+    <span class="ck">return</span> <span class="cs">"ok"</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — THE CLOSE</span>Period-end: the invoice as a query</h2>
+    <p class="lede reveal">Month-end is where the two streams finally meet. The close job does three things in order — turn the meter into one usage charge, sum the ledger into an invoice, and hand a balance to the gateway — and it holds no money of its own at any step.</p>
+
+    <p class="reveal">The first act collapses a subscription's entire month of meter rows into a single <span class="m">usage_charge</span> billing event. This is the one place usage crosses into the ledger, and it crosses as a SUM: all the hourly <span class="m">amount_usd</span> for the period, plus the overage split that customer success watches, condensed to one immutable row with a stable key derived from <span class="m">(subscription, period)</span>. Because the key is stable, re-running the close — after a late-arriving meter correction, say — does not double-bill; it either inserts the missing charge or collides on the one already there.</p>
+
+    <div class="codelabel">SQL · CLOSE STEP 1 — METER → ONE usage_charge PER PERIOD</div>
+    <div class="codeblock"><span class="cl">-- Collapse a month of hourly meter rows into a single ledger event.
+-- Idempotent: source_event_id is derived, ON CONFLICT DO NOTHING guards.</span>
+<span class="ck">INSERT INTO</span> fct_billing_events
+  (account_id, subscription_id, event_type, event_ts, period_start, period_end,
+   amount_local, currency_code, amount_usd, status, source_event_id)
+<span class="ck">SELECT</span>
+   m.account_id, m.subscription_id, <span class="cs">'usage_charge'</span>, now(),
+   :period_start, :period_end,
+   <span class="cf">sum</span>(m.amount_local), max(m.currency_code), <span class="cf">sum</span>(m.amount_usd),
+   <span class="cs">'pending'</span>,
+   <span class="cs">'usage:'</span> || m.subscription_id || <span class="cs">':'</span> || :period_start   <span class="cl">-- stable key</span>
+<span class="ck">FROM</span> fct_usage_meter m
+<span class="ck">WHERE</span> m.subscription_id = :sub
+  <span class="ck">AND</span> m.hour_bucket_ts >= :period_start
+  <span class="ck">AND</span> m.hour_bucket_ts <  :period_end
+<span class="ck">GROUP BY</span> m.account_id, m.subscription_id
+<span class="ck">ON CONFLICT</span> (source_event_id) <span class="ck">DO NOTHING</span>;</div>
+
+    <p class="reveal">The second act is the invoice itself — and it is, satisfyingly, just a pivoted SUM over the ledger. Every event type that landed in the period folds into its column; the grand total is the sum of all of them, which is identically the sum of the raw ledger rows. There is no balance being maintained, no running total to reconcile. The invoice is a photograph of the ledger taken at close, and if the photograph is ever doubted, you re-take it from the same rows and get the same picture.</p>
+
+    <div class="codelabel">SQL · CLOSE STEP 2 — LEDGER → INVOICE (CONDITIONAL AGGREGATION)</div>
+    <div class="codeblock"><span class="ck">INSERT INTO</span> fct_invoices
+  (subscription_id, period_start, period_end, subscription_total, usage_total,
+   overage_total, proration_net, credits_total, total_due_usd, currency_code, status)
+<span class="ck">SELECT</span>
+   subscription_id, :period_start, :period_end,
+   <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'subscription_charge'</span>) <span class="ck">AS</span> subscription_total,
+   <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'usage_charge'</span>)        <span class="ck">AS</span> usage_total,
+   <span class="cf">coalesce</span>(<span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'usage_charge'</span>
+                                <span class="ck">AND</span> amount_usd > 0), 0)               <span class="ck">AS</span> overage_total,
+   <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'proration'</span>)          <span class="ck">AS</span> proration_net,
+   <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type <span class="ck">IN</span> (<span class="cs">'credit'</span>,<span class="cs">'refund'</span>))   <span class="ck">AS</span> credits_total,
+   <span class="cf">sum</span>(amount_usd)                                                     <span class="ck">AS</span> total_due_usd,
+   max(currency_code), <span class="cs">'open'</span>
+<span class="ck">FROM</span> fct_billing_events
+<span class="ck">WHERE</span> subscription_id = :sub
+  <span class="ck">AND</span> period_start = :period_start
+<span class="ck">GROUP BY</span> subscription_id
+<span class="ck">ON CONFLICT</span> (subscription_id, period_start)
+<span class="ck">DO UPDATE SET</span> total_due_usd = <span class="ck">EXCLUDED</span>.total_due_usd,  <span class="cl">-- re-derive, never drift</span>
+              usage_total   = <span class="ck">EXCLUDED</span>.usage_total,
+              proration_net = <span class="ck">EXCLUDED</span>.proration_net;</div>
+
+    <div class="pull reveal">Eventual consistency everywhere in the pipeline; determinism at the moment of the invoice. The meter may lag, the FX feed may stutter — but the close is a pure function of the ledger, and a pure function is reproducible.<span>METERING RULE Nº 2 — THE CLOSE IS A FUNCTION</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the revenue</h2>
+    <p class="lede reveal">The snapshot and the ledger are where the business explains itself. Three queries an interviewer loves, because each one carries a classic SQL pattern on its back — the MRR scan, the upsell threshold, and the cohort retention join.</p>
+
+    <h3 class="reveal">MRR &amp; ARR — the one-scan snapshot read</h3>
+    <p class="reveal">The reason the daily snapshot earns its place: monthly recurring revenue is a single filtered SUM over today's partition. No ledger replay, no SCD2 walk, no window functions — active subscriptions, today, summed. Trials contribute nothing because their <span class="m">mrr_usd</span> is zero by construction, so the number is clean without a special case.</p>
+
+    <div class="codelabel">SQL · MRR / ARR — FILTERED AGGREGATION OVER ONE DAY</div>
+    <div class="codeblock"><span class="ck">SELECT</span>
+    count(*)                       <span class="ck">AS</span> active_subs,
+    round(<span class="cf">sum</span>(mrr_usd), 2)        <span class="ck">AS</span> mrr_usd,
+    round(<span class="cf">sum</span>(mrr_usd) * 12, 2)   <span class="ck">AS</span> arr_usd
+<span class="ck">FROM</span>   fct_subscription_state
+<span class="ck">WHERE</span>  day = <span class="ck">CURRENT_DATE</span>
+  <span class="ck">AND</span>  status = <span class="cs">'active'</span>;          <span class="cl">-- trials are mrr_usd = 0, excluded for free</span></div>
+
+    <h3 class="reveal">The upsell signal — threshold over a rolling window</h3>
+    <p class="reveal">Customer success wants accounts about to blow past their plan tier — the expansion trigger. This is a rolling-window aggregation of the meter joined to the plan cap, filtered at the 85% line. The shape is the classic "current usage versus an allowance" pattern: aggregate the fast fact over a trailing window, join the slow fact for the limit, and surface the ratio.</p>
+
+    <div class="codelabel">SQL · ACCOUNTS APPROACHING THEIR CAP — UPSELL CANDIDATES</div>
+    <div class="codeblock"><span class="ck">WITH</span> usage_30d <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> subscription_id, meter_id,
+           <span class="cf">sum</span>(billable_quantity) <span class="ck">AS</span> used
+    <span class="ck">FROM</span>   fct_usage_meter
+    <span class="ck">WHERE</span>  hour_bucket_ts >= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>
+    <span class="ck">GROUP BY</span> subscription_id, meter_id
+),
+plan_caps <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> s.subscription_id, p.meter_id, p.included_quantity
+    <span class="ck">FROM</span>   fct_subscription_state s
+    <span class="ck">JOIN</span>   dim_plan_meter_limits p <span class="ck">USING</span> (plan_id)
+    <span class="ck">WHERE</span>  s.day = <span class="ck">CURRENT_DATE</span> <span class="ck">AND</span> s.status = <span class="cs">'active'</span>
+)
+<span class="ck">SELECT</span> u.subscription_id, u.meter_id, u.used, c.included_quantity,
+       round(100.0 * u.used / <span class="cf">nullif</span>(c.included_quantity, 0), 1) <span class="ck">AS</span> pct_of_cap
+<span class="ck">FROM</span>   usage_30d u
+<span class="ck">JOIN</span>   plan_caps c <span class="ck">USING</span> (subscription_id, meter_id)
+<span class="ck">WHERE</span>  u.used > c.included_quantity * 0.85
+<span class="ck">ORDER BY</span> pct_of_cap <span class="ck">DESC</span>;
+<span class="cl">-- &gt;85% of cap = upsell trigger; &gt;100% = overage already hitting next invoice.</span></div>
+
+    <h3 class="reveal">Net revenue retention — cohort retention join</h3>
+    <p class="reveal">Sales lives on NRR: does a signup cohort's revenue grow as it ages, expansion outrunning churn? The pattern is cohort retention — anchor each subscription to its first-seen quarter and its starting MRR with a window function, join to its current MRR, and ratio the cohort sums. Above 100% is the SaaS holy grail: the cohort is worth more today than the day it arrived.</p>
+
+    <div class="codelabel">SQL · NRR BY SIGNUP COHORT — FIRST_VALUE + COHORT JOIN</div>
+    <div class="codeblock"><span class="ck">WITH</span> cohort_baseline <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> subscription_id,
+           date_trunc(<span class="cs">'quarter'</span>, min(day) <span class="ck">OVER</span> w)                <span class="ck">AS</span> cohort_q,
+           <span class="cf">first_value</span>(mrr_usd) <span class="ck">OVER</span> w                           <span class="ck">AS</span> starting_mrr
+    <span class="ck">FROM</span>   fct_subscription_state
+    <span class="ck">WINDOW</span> w <span class="ck">AS</span> (<span class="ck">PARTITION BY</span> subscription_id <span class="ck">ORDER BY</span> day
+                <span class="ck">ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</span>)
+),
+current_state <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> subscription_id, mrr_usd <span class="ck">AS</span> current_mrr
+    <span class="ck">FROM</span>   fct_subscription_state
+    <span class="ck">WHERE</span>  day = <span class="ck">CURRENT_DATE</span>
+)
+<span class="ck">SELECT</span> cb.cohort_q,
+       count(<span class="ck">DISTINCT</span> cb.subscription_id)                       <span class="ck">AS</span> cohort_size,
+       round(<span class="cf">sum</span>(cb.starting_mrr), 0)                            <span class="ck">AS</span> starting_mrr,
+       round(<span class="cf">sum</span>(<span class="cf">coalesce</span>(cs.current_mrr, 0)), 0)               <span class="ck">AS</span> current_mrr,
+       round(100.0 * <span class="cf">sum</span>(<span class="cf">coalesce</span>(cs.current_mrr, 0))
+                   / <span class="cf">nullif</span>(<span class="cf">sum</span>(cb.starting_mrr), 0), 1)         <span class="ck">AS</span> nrr_pct
+<span class="ck">FROM</span>   cohort_baseline cb
+<span class="ck">LEFT JOIN</span> current_state cs <span class="ck">USING</span> (subscription_id)
+<span class="ck">GROUP BY</span> cb.cohort_q
+<span class="ck">ORDER BY</span> cb.cohort_q;
+<span class="cl">-- NRR &gt; 100% = expansion outpaces churn. The number boards live and die on.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the books balance</h2>
+    <p class="lede reveal">A senior design ends with observability, because every guarantee above is invisible without it. The billing dashboard watches three things a healthy system keeps true: revenue is growing, money is flowing, and the ledger reconciles to the gateway to the cent.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>REVENUE HEALTH</dt><dd><span class="m">MRR</span> and net-new MRR (expansion − churn), <span class="m">trial→paid conversion</span> by cohort, <span class="m">NRR</span> trend — the numbers that say the business is compounding, read straight off the daily snapshot.</dd></div>
+      <div class="defrow"><dt>BILLING PIPELINE</dt><dd><span class="m">meter ingest lag</span> (raw → hour), <span class="m">unbilled usage</span> sitting in the meter before close, <span class="m">proration events/day</span>, <span class="m">dunning queue depth</span> — a spike in unbilled usage means the close job is behind, not that customers stopped using the product.</dd></div>
+      <div class="defrow"><dt>RECONCILIATION</dt><dd><span class="m">ledger SUM vs gateway settled</span> (must match to the cent), <span class="m">duplicate webhooks suppressed</span>, <span class="m">FX restatement attempts</span> (should be zero — a non-zero count is a bug), <span class="m">invoice re-derivation drift</span>.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Billing Ops — Global</span>
+        <span class="dash-sub">MON 00:10 UTC · MONTH CLOSE +1 · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">MRR</div><div class="tv">8.42<small>M$</small></div><svg viewBox="0 0 120 30"><polyline points="0,24 15,22 30,21 45,18 60,16 75,13 90,11 105,9 120,6" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Net-New MRR</div><div class="tv ok">+182<small>K$</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,18 40,19 60,15 80,16 100,12 120,10" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Meter Ingest Lag</div><div class="tv warn">6.8<small>min</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,17 60,16 80,18 100,20 120,22" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Dunning Queue</div><div class="tv ok">412</div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,13 60,15 80,14 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Revenue by Stream — May close · subscription vs usage (USD, daily accrual)</div>
+          <svg viewBox="0 0 240 84">
+            <polyline points="0,64 24,62 48,60 72,57 96,55 120,52 144,49 168,46 192,42 216,38 240,34" fill="none" stroke="#a8b58a" stroke-width="2.2"/>
+            <polyline points="0,74 24,72 48,70 72,66 96,62 120,55 144,58 168,48 192,52 216,40 240,44" fill="none" stroke="#d98e63" stroke-width="2.2"/>
+            <text x="6" y="20" font-size="9" fill="#a8b58a" font-family="DM Mono,monospace">— subscription (flat, predictable)</text>
+            <text x="6" y="32" font-size="9" fill="#d98e63" font-family="DM Mono,monospace">— usage (volatile, billions of ticks)</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Trial→Paid</div><div class="tv ok">28<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,14 60,15 80,13 100,14 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Unbilled Usage</div><div class="tv warn">1.9<small>M$</small></div><svg viewBox="0 0 120 30"><polyline points="0,8 20,10 40,12 60,15 80,18 100,21 120,24" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Ledger vs Gateway</div><div class="tv ok">$0.00</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Dup Webhooks Killed</div><div class="tv">3.1<small>k/h</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,17 60,14 80,16 100,15 120,16" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">FX Restatements</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">NRR (TTM)</div><div class="tv ok">118<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,14 100,12 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy close tells: MRR compounding, NRR above 100, ledger reconciling to the gateway at exactly $0.00 — and the two amber tiles, ingest lag and unbilled usage, climbing together because the close job is mid-run, not because anything is wrong.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates a month-end close in progress: usage is being rolled to charges, so unbilled usage is draining while ingest lag breathes — and the reconciliation row stays at zero throughout, because the invoice is a SUM of an immutable ledger and there is nothing for it to disagree with. That is what a designed billing system looks like from the controller's chair: the numbers move, but they never stop tying out.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the billing details away and the question was testing five judgments, each of which generalizes far beyond SaaS:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>GRAIN</dt><dd>Seeing two facts where the prompt says one — and letting each stream's volume and volatility, not a shared schema, pick its own resolution. Hourly for the firehose, daily snapshot for the slow state.</dd></div>
+      <div class="defrow"><dt>IMMUTABILITY</dt><dd>Refusing to edit money. A plan change appends two rows; a failed payment appends a dunning row; nothing is ever overwritten — so the invoice is a SUM and the ledger is an audit trail by construction.</dd></div>
+      <div class="defrow"><dt>IDEMPOTENCY</dt><dd>Deriving stable keys from the event, not the network. <span class="m">UNIQUE(source_event_id)</span> turns every retry, replay, and backfill into a harmless no-op — the only honest stance toward at-least-once delivery.</dd></div>
+      <div class="defrow"><dt>SEPARATION</dt><dd>Recording usage all month without billing it; joining the two streams only at close. Three teams read the same meter, and none of their reads are mistaken for charges.</dd></div>
+      <div class="defrow"><dt>HONESTY</dt><dd>Engineering the promise: FX locked at usage time, the invoice a pure function of the ledger, eventual consistency in the pipeline and determinism at the statement. The usage may be approximate; the bill may not.</dd></div>
+    </dl>
+    <div class="pull reveal">Usage is approximate; the invoice is exact. The art is keeping them in separate tables until the single instant they must agree — and making that agreement a SUM, not a recompute.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 11 — THE METERING PROBLEM<br>DATA ARCHITECTURE · THE APPEND-ONLY LEDGER · THE CRAFT OF THE GRAIN</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

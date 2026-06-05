@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Growth Problem — PaddySpeaks</title>
+<meta name="description" content="Growth accounting from first principles: DAU/WAU/MAU, the new/retained/resurrected/churned state machine, the FULL OUTER self-join offset by one period, quick-ratio, frozen SCD0 cohorts, and the retention triangle — in DDL, SQL and Python.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 17</div>
+    <h1 class="reveal">The <em>Growth</em> Problem</h1>
+    <p class="deck reveal">"How many monthly active users do we have?" is a one-line question with a one-line answer that is almost always a lie. A flat MAU can be a stable product or a bucket leaking and refilling — and the single number cannot tell you which. A complete working through: the activity grain, the four-state machine, the FULL OUTER self-join that decomposes it, the frozen cohort, the retention triangle, and the dashboard that exposes the leak.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Growth Analytics</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One number, four destinies</h2>
+    <p class="lede reveal">Every growth-stage data team eventually meets this question, and it is a trap disguised as a warm-up. It sounds like a SELECT COUNT and it is actually an accounting system.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"How would you measure whether this product is actually growing? Leadership reports MAU every month and it's been flat at ten million. Are we healthy?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The junior answer is <span class="m">COUNT(DISTINCT user_id)</span> over a trailing thirty-day window, and it is worse than useless because it radiates false confidence. Ten million active users this month and ten million last month is reported as "stable." But the same flat line describes a product that retained nine million and added one, and a product that retained <em>three</em> million, churned seven, and refilled the hole with seven million freshly-acquired strangers who will themselves be gone by summer. Those are not the same company. One has product-market fit; the other is renting its user base from the ad network and the lease is about to expire. A single scalar cannot distinguish a reservoir from a sieve.</p>
+
+    <p class="reveal">The framework that fixes this is <strong>growth accounting</strong> — the Social Capital / Reforge decomposition — and it forces four design problems before a single query is written:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE ACTIVITY GRAIN</dt><dd><strong>What counts as "active"?</strong> Netflix counts a viewing session of two minutes or more; Uber counts a completed trip; Spotify counts a track play of thirty seconds. The grain of the activity fact <em>is</em> the product's definition of active — get it wrong and every downstream number is wrong, silently.</dd></div>
+      <div class="defrow"><dt>THE STATE MACHINE</dt><dd><strong>Four mutually exclusive states.</strong> Each period, every user is exactly one of: <span class="m">new</span> (first-ever active period), <span class="m">retained</span> (active last period too), <span class="m">resurrected</span> (was dormant, came back), or <span class="m">churned</span> (active last period, gone this period).</dd></div>
+      <div class="defrow"><dt>THE FROZEN COHORT</dt><dd><strong>A user's cohort never moves.</strong> Cohort = the period of first activity, computed once, immutable. Retention and LTV curves are only meaningful if the cohort key is frozen — which makes it a derived dimension, SCD0.</dd></div>
+      <div class="defrow"><dt>THE VALUE COLUMN</dt><dd><strong>One column runs the whole engine.</strong> Set the incremental-value column to 1 and the identical machinery yields engagement growth; set it to daily revenue and it yields MRR growth with expansion and contraction. One model, two metrics.</dd></div>
+    </dl>
+
+    <div class="pull reveal">A flat MAU is not a measurement. It is a sum that has destroyed its own evidence.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and the candidates who skip it are the ones who never name the leaky bucket. State what you are building: a growth-accounting warehouse that decomposes every period's active base into the four states, computes a quick-ratio, and renders a cohort-retention triangle. State what you are deliberately ignoring: attribution and channel ROI (treated as a slice, not the spine), the event-collection SDK itself, real-time activation, and anti-fraud (active here means a real human session — bot-filtering is upstream). And state the one definitional landmine you will defend with a versioned dimension: when marketing later moves the bar for "active," last quarter's published numbers must <em>not</em> silently move.</p>
+
+    <p class="reveal">Then the envelope math, volunteered. A consumer product at ten-million-MAU scale:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Monthly active users</td><td class="mono">10,000,000</td><td>The headline number — and the one that lies</td></tr>
+      <tr><td>Activity events / day</td><td class="mono">~80–120 M</td><td>The atomic fact; rolls up to DAU/WAU/MAU</td></tr>
+      <tr><td><strong>Monthly churned</strong></td><td class="mono"><strong>≈ 2.4 M</strong></td><td><strong>The hidden row that shapes the whole architecture</strong></td></tr>
+      <tr><td>New + resurrected / month</td><td class="mono">≈ 2.5 M</td><td>Just barely covers the leak — quick-ratio ≈ 1.04</td></tr>
+      <tr><td>Distinct cohorts tracked</td><td class="mono">~60 months × channel</td><td>The frozen SCD0 dimension; never rewritten</td></tr>
+      <tr><td>Retention-triangle cells</td><td class="mono">~60² / 2 ≈ 1,800</td><td>Long-form fact a BI tool pivots into a heatmap</td></tr>
+      <tr><td>Growth-fact rows / period</td><td class="mono">1 per period</td><td>The decomposition is tiny; the join that builds it is not</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry the envelope exposes: the churned figure is invisible in the MAU headline yet nearly equal to everything the product acquired. That single row — the one the naive query cannot see — dictates the entire model. Everything below exists to make churn a first-class number instead of an inference.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>From a firehose of events to four numbers</h2>
+    <p class="lede reveal">One pipeline, three tempos. A raw activity firehose narrows to a per-period rollup, the rollup self-joins against its own previous period to produce the state machine, and the state machine fans out into cohort curves. The whole design is a funnel that turns volume into meaning.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 540" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">RAW PLANE · ~100M EVENTS/DAY</text>
+        <text x="20" y="318" font-size="11" letter-spacing="3" fill="#6f7d5c">DERIVED PLANE · 1 ROW/PERIOD</text>
+        <line x1="20" y1="292" x2="960" y2="292" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- raw events -->
+        <rect x="20" y="56" width="160" height="70" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="100" y="84" font-size="12.5" text-anchor="middle" fill="#23201a">CLIENT EVENTS</text>
+        <text x="100" y="102" font-size="10.5" text-anchor="middle" fill="#7d7567">session · play · trip</text>
+        <text x="100" y="117" font-size="10.5" text-anchor="middle" fill="#7d7567">at-least-once</text>
+
+        <!-- activity fact -->
+        <rect x="232" y="48" width="190" height="86" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="327" y="74" font-size="12.5" text-anchor="middle" fill="#a4502e">fact_activity</text>
+        <text x="327" y="92" font-size="10.5" text-anchor="middle" fill="#7d7567">grain: user × day × activity</text>
+        <text x="327" y="108" font-size="10.5" text-anchor="middle" fill="#7d7567">holds inc_amt (=1 or =$)</text>
+        <text x="327" y="123" font-size="10.5" text-anchor="middle" fill="#7d7567">the definition of "active"</text>
+
+        <!-- rollups -->
+        <rect x="470" y="50" width="190" height="82" fill="#27241d"/>
+        <text x="565" y="78" font-size="12.5" text-anchor="middle" fill="#e9e2d0">agg_dau · wau · mau</text>
+        <text x="565" y="96" font-size="10.5" text-anchor="middle" fill="#b8ad93">date_trunc rollups</text>
+        <text x="565" y="111" font-size="10.5" text-anchor="middle" fill="#b8ad93">1 row / (period, user)</text>
+        <text x="565" y="126" font-size="10.5" text-anchor="middle" fill="#b8ad93">summed inc_amt</text>
+
+        <!-- cohort (frozen) -->
+        <rect x="710" y="44" width="250" height="74" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="835" y="70" font-size="12.5" text-anchor="middle" fill="#8a5d12">dim_user_cohort · SCD0</text>
+        <text x="835" y="88" font-size="10.5" text-anchor="middle" fill="#7d7567">first_dt / week / month</text>
+        <text x="835" y="103" font-size="10.5" text-anchor="middle" fill="#7d7567">computed once · frozen forever</text>
+
+        <!-- the self-join -->
+        <rect x="232" y="330" width="280" height="92" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="372" y="358" font-size="12.5" text-anchor="middle" fill="#6f7d5c">FULL OUTER SELF-JOIN</text>
+        <text x="372" y="376" font-size="10.5" text-anchor="middle" fill="#7d7567">tm (this period) ⟗ lm (last)</text>
+        <text x="372" y="391" font-size="10.5" text-anchor="middle" fill="#7d7567">ON tm.user = lm.user · offset 1</text>
+        <text x="372" y="408" font-size="10.5" text-anchor="middle" fill="#a4502e">FULL OUTER or churn is invisible</text>
+
+        <!-- growth fact -->
+        <rect x="560" y="330" width="180" height="92" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="650" y="356" font-size="12" text-anchor="middle" fill="#23201a">fact_mau_growth</text>
+        <text x="650" y="374" font-size="10.5" text-anchor="middle" fill="#7d7567">new · retained</text>
+        <text x="650" y="389" font-size="10.5" text-anchor="middle" fill="#7d7567">resurrected · churned</text>
+        <text x="650" y="404" font-size="10.5" text-anchor="middle" fill="#7d7567">quick_ratio</text>
+
+        <!-- cohort curves -->
+        <rect x="788" y="330" width="172" height="92" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="874" y="356" font-size="11.5" text-anchor="middle" fill="#23201a">cohort_retention</text>
+        <text x="874" y="374" font-size="10.5" text-anchor="middle" fill="#7d7567">+ cohort_ltv</text>
+        <text x="874" y="389" font-size="10.5" text-anchor="middle" fill="#7d7567">retention triangle</text>
+        <text x="874" y="404" font-size="10.5" text-anchor="middle" fill="#7d7567">LTV : CAC gate</text>
+
+        <!-- arrows raw plane -->
+        <line x1="180" y1="91" x2="228" y2="91" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="422" y1="91" x2="466" y2="91" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="84" x2="706" y2="82" stroke="#a4502e" stroke-width="1.6" marker-end="url(#arrR)"/>
+
+        <!-- rollup down to self-join -->
+        <path d="M 540 132 C 470 220, 400 250, 372 326" fill="none" stroke="#8a5d12" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="430" y="232" font-size="10.5" fill="#8a5d12">this period + last period</text>
+
+        <!-- cohort down -->
+        <path d="M 835 118 C 880 220, 900 270, 874 326" fill="none" stroke="#8a5d12" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="846" y="232" font-size="10.5" fill="#8a5d12">frozen key</text>
+
+        <!-- self-join to facts -->
+        <line x1="512" y1="376" x2="556" y2="376" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="740" y1="376" x2="784" y2="376" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <text x="20" y="520" font-size="10.5" fill="#7d7567">SOLID — materialized flow · DASHED — the join's two inputs · The funnel turns volume into a decomposition.</text>
+      </svg>
+      <div class="caption">FIG. 1 — The growth funnel. Raw events narrow to a per-period rollup; the rollup self-joins against its own past to produce the four states; the states fan out into cohort curves.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the activity fact is the only place the product's definition of "active" lives — change the session threshold and everything downstream re-derives, which is exactly why that threshold belongs in a versioned dimension and not in a hard-coded WHERE clause. <strong>Second,</strong> the growth fact is produced by a <em>self-join of the rollup against itself, offset by one period</em> — the present joined to its own immediate past. <strong>Third,</strong> the cohort key descends from a frozen dimension that touches the curves but is never recomputed; the moment a user's cohort can move, every retention number becomes a fiction.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Decomposition Philosophy, In One Rule</div>
+      <p><strong>Never report a level without its flows.</strong> A stock — MAU, MRR, headcount — is the running total of four flows: arrivals, survivors, returns, and departures. Report the stock alone and you have hidden three of the four numbers that explain it. The entire architecture exists to make the flows as cheap to query as the stock, so that "MAU is flat" can never again be said without "...because we added 2.5M and lost 2.4M" in the same breath.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>An atomic fact, a frozen cohort, and a versioned definition</h2>
+    <p class="lede reveal">The schema falls out of the four design problems. One atomic activity fact carries the value column. One frozen cohort dimension is computed once. One SCD2 metric-definition dimension keeps history stable when the bar moves. The growth facts are derived from these and stay tiny.</p>
+
+    <h3 class="reveal">The atomic activity fact</h3>
+    <p class="reveal">Everything derives from <span class="m">fact_activity</span>, whose grain is one row per <span class="m">(user, day, activity_type)</span>. The single most consequential column is <span class="m">inc_amt</span> — incremental value created by a user in a period. It is the generalization that lets one model answer two questions: leave it 1 and the decomposition counts heads; set it to that day's revenue and the same decomposition counts dollars, with expansion and contraction appearing for free.</p>
+
+    <div class="codelabel">DDL · ATOMIC ACTIVITY + PERIOD ROLLUPS</div>
+    <div class="codeblock"><span class="cl">-- The grain IS the product's definition of "active". One row per user per</span>
+<span class="cl">-- day per activity. inc_amt = 1 for engagement, = revenue for MRR.</span>
+<span class="ck">CREATE TABLE</span> fact_activity (
+    user_id       BIGINT       <span class="ck">NOT NULL</span>,
+    activity_dt   DATE         <span class="ck">NOT NULL</span>,
+    activity_type TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- 'session' | 'trip' | 'track_play'</span>
+    inc_amt       NUMERIC(12,4) <span class="ck">NOT NULL DEFAULT</span> 1,  <span class="cl">-- the value column</span>
+    metric_def_id BIGINT       <span class="ck">NOT NULL</span>,   <span class="cl">-- which "active" rule qualified this row</span>
+    <span class="ck">PRIMARY KEY</span> (user_id, activity_dt, activity_type)
+);
+<span class="ck">CREATE INDEX</span> idx_activity_dt <span class="ck">ON</span> fact_activity (activity_dt, user_id);
+
+<span class="cl">-- Period rollups: one row per (period, user) with summed value. Materialized</span>
+<span class="cl">-- so the growth-accounting self-join never re-scans the raw firehose.</span>
+<span class="ck">CREATE TABLE</span> agg_mau (
+    period_month  DATE         <span class="ck">NOT NULL</span>,   <span class="cl">-- date_trunc('month', activity_dt)</span>
+    user_id       BIGINT       <span class="ck">NOT NULL</span>,
+    inc_amt       NUMERIC(14,4) <span class="ck">NOT NULL</span>,  <span class="cl">-- SUM over the month</span>
+    <span class="ck">PRIMARY KEY</span> (period_month, user_id)
+);
+<span class="cl">-- agg_dau and agg_wau are identical with date_trunc('day'|'week', ...).</span></div>
+
+    <h3 class="reveal">The frozen cohort (SCD0)</h3>
+    <p class="reveal">A cohort is the period of a user's <em>first</em> activity, and it must never change — which makes it a slowly-changing dimension of the simplest possible kind: <strong>type 0, write-once</strong>. The whole point of a retention curve is to compare January's signups at month three against February's signups at month three; if a backfill or a re-login could quietly re-stamp a user's cohort, the curves would shift under you and the comparison would be meaningless. So the cohort is computed exactly once, on first sighting, and is read-only thereafter.</p>
+
+    <div class="codelabel">DDL · FROZEN COHORT &amp; VERSIONED DEFINITION</div>
+    <div class="codeblock"><span class="cl">-- SCD0: computed once on a user's first-ever activity, never updated.</span>
+<span class="cl">-- This immutability is the precondition for meaningful cohort curves.</span>
+<span class="ck">CREATE TABLE</span> dim_user_cohort (
+    user_id                       BIGINT <span class="ck">PRIMARY KEY</span>,
+    first_dt                      DATE   <span class="ck">NOT NULL</span>,
+    first_week                    DATE   <span class="ck">NOT NULL</span>,
+    first_month                   DATE   <span class="ck">NOT NULL</span>,
+    acquisition_channel_at_signup TEXT   <span class="ck">NOT NULL</span>,  <span class="cl">-- frozen at signup, not "current"</span>
+    cohort_locked_at              TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="cl">-- SCD2: the versioned definition of "active". When marketing moves the bar,</span>
+<span class="cl">-- OLD published numbers must not silently move — so the rule is temporal.</span>
+<span class="ck">CREATE TABLE</span> dim_metric_definition (
+    metric_def_id    BIGINT       <span class="ck">PRIMARY KEY</span>,
+    metric_name      TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- 'active_user'</span>
+    active_threshold INTERVAL     <span class="ck">NOT NULL</span>,   <span class="cl">-- e.g. session >= '2 minutes'</span>
+    dedup_grain      TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- 'user_day'</span>
+    period_boundary  TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- 'calendar' | 'rolling_28'</span>
+    valid_from       TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    valid_to         TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>
+);
+
+<span class="cl">-- SCD2 on the attributes you want to SLICE growth accounting by.</span>
+<span class="ck">CREATE TABLE</span> dim_user (
+    user_sk     BIGINT       <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- surrogate; one row per version</span>
+    user_id     BIGINT       <span class="ck">NOT NULL</span>,
+    plan        TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- free | premium</span>
+    country     TEXT         <span class="ck">NOT NULL</span>,
+    channel     TEXT         <span class="ck">NOT NULL</span>,
+    valid_from  TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    valid_to    TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    is_current  BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> true
+);</div>
+
+    <h3 class="reveal">The derived growth facts</h3>
+    <p class="reveal">The growth facts are small — one row per period — but their columns are load-bearing. The engagement and revenue variants share a shape; the revenue variant adds <span class="m">expansion</span> and <span class="m">contraction</span>, the two states that only exist when the value column is money. These tables are produced by the self-join in §04, and they exist precisely so that the dashboard and the analysts never re-run that join.</p>
+
+    <div class="codelabel">DDL · GROWTH-ACCOUNTING FACTS + RETENTION TRIANGLE</div>
+    <div class="codeblock"><span class="cl">-- One row per period. Satisfies the two identities by construction.</span>
+<span class="ck">CREATE TABLE</span> fact_mau_growth (
+    period_month DATE          <span class="ck">PRIMARY KEY</span>,
+    active       BIGINT        <span class="ck">NOT NULL</span>,
+    new          BIGINT        <span class="ck">NOT NULL</span>,
+    retained     BIGINT        <span class="ck">NOT NULL</span>,
+    resurrected  BIGINT        <span class="ck">NOT NULL</span>,
+    churned      BIGINT        <span class="ck">NOT NULL</span>,   <span class="cl">-- stored as a negative magnitude</span>
+    quick_ratio  NUMERIC(6,3)             <span class="cl">-- (new + resurrected) / |churned|</span>
+);
+
+<span class="cl">-- The MRR variant: same shape, plus the two money-only states.</span>
+<span class="ck">CREATE TABLE</span> fact_mrr_growth (
+    period_month DATE          <span class="ck">PRIMARY KEY</span>,
+    mrr          NUMERIC(16,2) <span class="ck">NOT NULL</span>,
+    new_mrr      NUMERIC(16,2) <span class="ck">NOT NULL</span>,
+    retained_mrr NUMERIC(16,2) <span class="ck">NOT NULL</span>,
+    resurr_mrr   NUMERIC(16,2) <span class="ck">NOT NULL</span>,
+    expansion    NUMERIC(16,2) <span class="ck">NOT NULL</span>,   <span class="cl">-- retained user whose inc_amt rose</span>
+    contraction  NUMERIC(16,2) <span class="ck">NOT NULL</span>,   <span class="cl">-- retained user whose inc_amt fell</span>
+    churned_mrr  NUMERIC(16,2) <span class="ck">NOT NULL</span>
+);
+
+<span class="cl">-- The long-form retention triangle a BI tool pivots into a heatmap.</span>
+<span class="ck">CREATE TABLE</span> fact_cohort_retention (
+    first_month        DATE   <span class="ck">NOT NULL</span>,
+    active_month       DATE   <span class="ck">NOT NULL</span>,
+    months_since_first INT    <span class="ck">NOT NULL</span>,
+    active_users       BIGINT <span class="ck">NOT NULL</span>,
+    inc_amt            NUMERIC(16,4) <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (first_month, active_month)
+);
+
+<span class="cl">-- The cumulative LTV curve per cohort (semi-cartesian cumulative join).</span>
+<span class="ck">CREATE TABLE</span> fact_cohort_ltv (
+    first_month        DATE   <span class="ck">NOT NULL</span>,
+    months_since_first INT    <span class="ck">NOT NULL</span>,
+    retained_pctg      NUMERIC(6,3) <span class="ck">NOT NULL</span>,
+    cum_amt            NUMERIC(18,2) <span class="ck">NOT NULL</span>,
+    cum_amt_per_user   NUMERIC(14,4) <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (first_month, months_since_first)
+);</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The two identities, and the FULL OUTER that protects them</h2>
+    <p class="lede reveal">The correctness of the entire system lives in two algebraic identities and the one join clause that makes them hold. Get the join wrong — use an inner join, or a left join — and churn quietly reports as zero, which is the single most dangerous bug in growth analytics because it looks like good news.</p>
+
+    <p class="reveal">Each user, each period, is in exactly one of four states, and the states are defined by a self-join of the rollup against its own previous period:</p>
+
+    <div class="statechain reveal">
+      <span class="st">DORMANT</span><span class="arr">→</span>
+      <span class="st">NEW</span><span class="arr">→</span>
+      <span class="st">RETAINED</span><span class="arr">→</span>
+      <span class="st">CHURNED</span><span class="arr">→</span>
+      <span class="st">RESURRECTED</span><span class="arr">→</span>
+      <span class="st terminal">RETAINED</span>
+    </div>
+
+    <p class="reveal">Read the chain as a life: a user is dormant until their first active period (<span class="m">new</span>); they persist (<span class="m">retained</span>); they lapse (<span class="m">churned</span>); they return (<span class="m">resurrected</span>); they persist again. The distinction between <span class="m">new</span> and <span class="m">resurrected</span> is the cohort: a user present this period but not last is <em>new</em> if their first-ever activity equals this period, and <em>resurrected</em> otherwise. That is why the frozen cohort dimension is not optional — it is the only thing that tells arrivals from returns.</p>
+
+    <p class="reveal">The two identities below hold by construction once the join is right. Subtracting one from the other yields the decomposition that turns a flat headline into an alarm:</p>
+
+    <div class="note reveal">
+      <div class="nh">The Two Identities</div>
+      <p><strong>MAU(t) = retained(t) + new(t) + resurrected(t)</strong> — this period's active base is its survivors plus its arrivals plus its returns.<br>
+      <strong>MAU(t−1) = retained(t) + churned(t)</strong> — last period's base is the same survivors plus whoever left.<br>
+      Subtract: <strong>ΔMAU = new + resurrected − churned</strong>. The level is a consequence of the flows; the flows are the truth.</p>
+    </div>
+
+    <div class="pull reveal">FULL OUTER, or churn is invisible. Churned users live only on the previous-period side of the join — an inner or left join silently drops them and reports zero churn.<span>GROWTH RULE Nº 1</span></div>
+
+    <p class="reveal">Here is the atomic heart of the framework: a single FULL OUTER self-join of the rollup against itself, offset by one period. The <span class="m">COALESCE</span> on the join keys, and the <span class="m">CASE</span> over which side is NULL, is the entire state machine.</p>
+
+    <div class="codelabel">SQL · THE GROWTH-ACCOUNTING SELF-JOIN (THE INVARIANT)</div>
+    <div class="codeblock"><span class="cl">-- One period's decomposition. tm = this month, lm = last month, joined</span>
+<span class="cl">-- FULL OUTER on user. The cohort dim splits "tm only" into new vs resurrected.</span>
+<span class="ck">WITH</span> tm <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> user_id, inc_amt <span class="ck">FROM</span> agg_mau <span class="ck">WHERE</span> period_month = <span class="ck">:p</span>
+),
+lm <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> user_id, inc_amt <span class="ck">FROM</span> agg_mau
+    <span class="ck">WHERE</span> period_month = (<span class="ck">:p</span>::date - <span class="ck">INTERVAL</span> <span class="cs">'1 month'</span>)
+),
+classified <span class="ck">AS</span> (
+    <span class="ck">SELECT</span>
+        <span class="cf">coalesce</span>(tm.user_id, lm.user_id)            <span class="ck">AS</span> user_id,
+        <span class="ck">CASE</span>
+            <span class="ck">WHEN</span> lm.user_id <span class="ck">IS NULL</span> <span class="ck">AND</span> c.first_month = <span class="ck">:p</span>
+                                            <span class="ck">THEN</span> <span class="cs">'new'</span>
+            <span class="ck">WHEN</span> lm.user_id <span class="ck">IS NULL</span>          <span class="ck">THEN</span> <span class="cs">'resurrected'</span>
+            <span class="ck">WHEN</span> tm.user_id <span class="ck">IS NULL</span>          <span class="ck">THEN</span> <span class="cs">'churned'</span>
+            <span class="ck">ELSE</span>                                 <span class="cs">'retained'</span>
+        <span class="ck">END</span>                                         <span class="ck">AS</span> state,
+        <span class="cf">coalesce</span>(tm.inc_amt, 0) - <span class="cf">coalesce</span>(lm.inc_amt, 0) <span class="ck">AS</span> delta_amt
+    <span class="ck">FROM</span> tm
+    <span class="ck">FULL OUTER JOIN</span> lm <span class="ck">ON</span> tm.user_id = lm.user_id   <span class="cl">-- the load-bearing clause</span>
+    <span class="ck">LEFT JOIN</span> dim_user_cohort c <span class="ck">ON</span> c.user_id = <span class="cf">coalesce</span>(tm.user_id, lm.user_id)
+)
+<span class="ck">SELECT</span>
+    <span class="ck">:p</span>                                             <span class="ck">AS</span> period_month,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> state <span class="ck">&lt;&gt;</span> <span class="cs">'churned'</span>)  <span class="ck">AS</span> active,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> state = <span class="cs">'new'</span>)         <span class="ck">AS</span> new,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> state = <span class="cs">'retained'</span>)    <span class="ck">AS</span> retained,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> state = <span class="cs">'resurrected'</span>) <span class="ck">AS</span> resurrected,
+    -count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> state = <span class="cs">'churned'</span>)    <span class="ck">AS</span> churned
+<span class="ck">FROM</span> classified;</div>
+
+    <p class="reveal">The same query, with <span class="m">inc_amt</span> as money instead of a head count and the <span class="m">delta_amt</span> sign inspected on retained rows, splits retention into <span class="m">expansion</span> (delta &gt; 0) and <span class="m">contraction</span> (delta &lt; 0). That is the whole trick of the generalized value column: one join, two metrics, and the revenue identities — <span class="m">MRR(t) = retained + new + resurrected + expansion</span> and <span class="m">MRR(t−1) = retained + churned + contraction</span> — fall out of the same machinery.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python that refuses to double-count</h2>
+    <p class="lede reveal">Three programs carry the derived plane: the activity reducer that turns raw events into the dedup'd grain, the cohort stamper that writes once and never again, and the period roller that materializes the rollups. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The activity reducer — the grain is the definition</h3>
+    <p class="reveal">Raw events arrive at-least-once and at every imaginable granularity — a user opens the app forty times a day. The reducer collapses them to the qualifying grain: one row per user per day per activity, but <em>only</em> for events that clear the active threshold from the metric definition in force. The refusal here is the important part: a sub-threshold session is not "a small amount of active" — it is <em>not active</em>, and silently keeping it would inflate every number above.</p>
+
+    <div class="codelabel">PYTHON · ACTIVITY REDUCER → fact_activity</div>
+    <div class="codeblock"><span class="ck">from</span> datetime <span class="ck">import</span> date
+
+<span class="ck">def</span> <span class="cf">reduce_to_activity</span>(raw_events, metric_def):
+    <span class="cs">"""Collapse a user's raw events for one day into at most one qualifying
+    activity row per activity_type. The metric_def supplies the threshold;
+    a session below it is NOT active and is dropped, not down-weighted.
+
+    Idempotent by construction: re-reducing the same day converges to the
+    same row, so at-least-once delivery upstream is harmless."""</span>
+    threshold = metric_def[<span class="cs">"active_threshold_s"</span>]
+    qualifying = {}                       <span class="cl"># (user_id, dt, kind) -> inc_amt</span>
+    <span class="ck">for</span> e <span class="ck">in</span> raw_events:
+        <span class="ck">if</span> e[<span class="cs">"duration_s"</span>] &lt; threshold:
+            <span class="ck">continue</span>                      <span class="cl"># the refusal: sub-threshold is not active</span>
+        key = (e[<span class="cs">"user_id"</span>], e[<span class="cs">"event_dt"</span>], e[<span class="cs">"kind"</span>])
+        <span class="cl"># engagement: presence counts once. revenue: sum the money.</span>
+        <span class="ck">if</span> metric_def[<span class="cs">"mode"</span>] == <span class="cs">"revenue"</span>:
+            qualifying[key] = qualifying.get(key, 0.0) + e[<span class="cs">"amount"</span>]
+        <span class="ck">else</span>:
+            qualifying[key] = 1           <span class="cl"># dedup to presence, never a tally</span>
+    <span class="ck">return</span> [
+        {<span class="cs">"user_id"</span>: u, <span class="cs">"activity_dt"</span>: d, <span class="cs">"activity_type"</span>: k,
+         <span class="cs">"inc_amt"</span>: amt, <span class="cs">"metric_def_id"</span>: metric_def[<span class="cs">"id"</span>]}
+        <span class="ck">for</span> (u, d, k), amt <span class="ck">in</span> qualifying.items()
+    ]</div>
+
+    <h3 class="reveal">2 · The cohort stamper — write once, never again</h3>
+    <p class="reveal">The cohort stamper is the guardian of SCD0. Its entire job is to compute a user's first-activity period exactly once and then to <em>refuse every subsequent write</em>. The discipline lives in the SQL: an <span class="m">INSERT ... ON CONFLICT DO NOTHING</span>, so a re-login, a late event, or a replayed batch can never re-stamp a cohort. A user whose first event was in January is in the January cohort forever, even if the warehouse first sees them in March.</p>
+
+    <div class="codelabel">PYTHON · COHORT STAMPER (SCD0 — INSERT-ONCE)</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">stamp_cohorts</span>(conn, new_user_first_seen):
+    <span class="cs">"""Freeze each user's cohort on first sighting. The ON CONFLICT DO NOTHING
+    is the whole invariant: a cohort, once written, is immutable. Late-arriving
+    history that predates the stored first_dt is the ONE allowed correction,
+    handled explicitly below — everything else is a no-op."""</span>
+    <span class="ck">for</span> u <span class="ck">in</span> new_user_first_seen:
+        first_dt = u[<span class="cs">"first_dt"</span>]
+        conn.execute(<span class="cs">"""
+            INSERT INTO dim_user_cohort
+                (user_id, first_dt, first_week, first_month,
+                 acquisition_channel_at_signup)
+            VALUES (%s, %s, date_trunc('week', %s), date_trunc('month', %s), %s)
+            ON CONFLICT (user_id) DO UPDATE
+               SET first_dt    = LEAST(dim_user_cohort.first_dt, EXCLUDED.first_dt),
+                   first_week  = date_trunc('week',  LEAST(dim_user_cohort.first_dt, EXCLUDED.first_dt)),
+                   first_month = date_trunc('month', LEAST(dim_user_cohort.first_dt, EXCLUDED.first_dt))
+             WHERE EXCLUDED.first_dt &lt; dim_user_cohort.first_dt
+        """</span>, (u[<span class="cs">"user_id"</span>], first_dt, first_dt, first_dt,
+              u[<span class="cs">"channel"</span>]))
+    <span class="cl"># The cohort only ever moves EARLIER (a genuinely older event surfaced),</span>
+    <span class="cl"># never later. That asymmetry is what keeps retention curves honest.</span></div>
+
+    <h3 class="reveal">3 · The period roller — late events land in the right period</h3>
+    <p class="reveal">The roller materializes <span class="m">agg_mau</span> from <span class="m">fact_activity</span>. The judgment it encodes is <strong>event-time, not processing-time</strong>: an event with an <span class="m">activity_dt</span> of last month must land in last month's rollup even though it arrived today, and the roller therefore re-materializes a trailing window of recent periods on every run rather than only the current one. Without that, a late batch would understate a closed period and the self-join would manufacture phantom churn.</p>
+
+    <div class="codelabel">PYTHON · PERIOD ROLLER (EVENT-TIME, TRAILING RE-MATERIALIZE)</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">roll_periods</span>(conn, watermark_dt, lookback_months=2):
+    <span class="cs">"""Re-materialize agg_mau for the trailing `lookback_months` periods, not
+    just the current one. Calendars don't close instantly: a straggler event
+    timestamped to a past month must still update that month's rollup, or the
+    self-join sees a user vanish and reports churn that never happened."""</span>
+    lo = <span class="cf">month_floor</span>(watermark_dt, lookback_months)
+    conn.execute(<span class="cs">"""
+        INSERT INTO agg_mau (period_month, user_id, inc_amt)
+        SELECT date_trunc('month', activity_dt) AS period_month,
+               user_id,
+               SUM(inc_amt)                      AS inc_amt
+        FROM   fact_activity
+        WHERE  activity_dt >= %s                 -- event-time, trailing window
+        GROUP  BY 1, 2
+        ON CONFLICT (period_month, user_id)
+        DO UPDATE SET inc_amt = EXCLUDED.inc_amt  -- recompute, not increment
+    """</span>, (lo,))
+    <span class="cl"># Idempotent: the SUM is recomputed from the source, so replaying a batch</span>
+    <span class="cl"># can never double-count. The rollup is a projection, not a ledger.</span></div>
+
+    <p class="reveal">One carve-out, always stated: the rollups are <em>recomputed</em>, never incremented. A growth metric that adds deltas to a running total will, the first time a batch replays, drift — and the drift is invisible because the number still looks plausible. Recompute-from-source is slower and correct; increment-in-place is faster and a time bomb.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>The retention triangle and the cumulative LTV curve</h2>
+    <p class="lede reveal">The slow, derived layer is where cohorts become curves. The retention triangle is a self-join of cohort membership against later activity; the LTV curve is its cumulative cousin. Both are deterministic, so they are materialized once per period and read forever.</p>
+
+    <p class="reveal">The retention triangle is the framework's most legible artifact: a matrix whose rows are cohorts (by first month) and whose columns are <span class="m">months_since_first</span>, each cell holding the fraction of that cohort still active. Read down a column and you see whether successive cohorts retain better or worse; read across a row and you watch a single cohort's curve <em>flatten</em> — and the level at which it flattens is the retention floor, the population that genuinely found the product. A curve that decays to zero is a product nobody keeps; a curve that settles at forty per cent has forty per cent product-market fit.</p>
+
+    <div class="codelabel">SQL · MATERIALIZE THE RETENTION TRIANGLE</div>
+    <div class="codeblock"><span class="cl">-- Long-form triangle: for each cohort and each later period, how many of</span>
+<span class="cl">-- that cohort's users were active. A cohort-membership join to activity.</span>
+<span class="ck">INSERT INTO</span> fact_cohort_retention
+    (first_month, active_month, months_since_first, active_users, inc_amt)
+<span class="ck">SELECT</span>
+    c.first_month,
+    m.period_month                                         <span class="ck">AS</span> active_month,
+    (<span class="cf">extract</span>(year <span class="ck">FROM</span> m.period_month) * 12 + <span class="cf">extract</span>(month <span class="ck">FROM</span> m.period_month))
+  - (<span class="cf">extract</span>(year <span class="ck">FROM</span> c.first_month)  * 12 + <span class="cf">extract</span>(month <span class="ck">FROM</span> c.first_month))
+                                                           <span class="ck">AS</span> months_since_first,
+    count(<span class="ck">DISTINCT</span> m.user_id)                            <span class="ck">AS</span> active_users,
+    sum(m.inc_amt)                                         <span class="ck">AS</span> inc_amt
+<span class="ck">FROM</span> dim_user_cohort c
+<span class="ck">JOIN</span> agg_mau m <span class="ck">ON</span> m.user_id = c.user_id
+                <span class="ck">AND</span> m.period_month >= c.first_month   <span class="cl">-- never before the cohort</span>
+<span class="ck">GROUP BY</span> c.first_month, m.period_month
+<span class="ck">ON CONFLICT</span> (first_month, active_month) <span class="ck">DO UPDATE</span>
+   <span class="ck">SET</span> active_users = <span class="ck">EXCLUDED</span>.active_users,
+       inc_amt      = <span class="ck">EXCLUDED</span>.inc_amt;</div>
+
+    <p class="reveal">The LTV curve is the triangle's cumulative cousin. Where retention asks "what fraction remain at month N," LTV asks "how much value, per original cohort member, has accumulated by month N." It is a running sum of per-period value divided by the cohort's <em>original</em> size — a semi-cartesian cumulative join — and its asymptote, compared against the cost of acquiring that cohort, is the single number that decides whether growth spend is rational.</p>
+
+    <div class="codelabel">SQL · CUMULATIVE COHORT LTV (RUNNING SUM PER COHORT)</div>
+    <div class="codeblock"><span class="ck">INSERT INTO</span> fact_cohort_ltv
+    (first_month, months_since_first, retained_pctg, cum_amt, cum_amt_per_user)
+<span class="ck">SELECT</span>
+    r.first_month,
+    r.months_since_first,
+    round(100.0 * r.active_users
+          / <span class="cf">nullif</span>(<span class="cf">first_value</span>(r.active_users) <span class="ck">OVER</span> w, 0), 3)  <span class="ck">AS</span> retained_pctg,
+    sum(r.inc_amt) <span class="ck">OVER</span> w                                       <span class="ck">AS</span> cum_amt,
+    round(sum(r.inc_amt) <span class="ck">OVER</span> w
+          / <span class="cf">nullif</span>(<span class="cf">first_value</span>(r.active_users) <span class="ck">OVER</span> w, 0), 4) <span class="ck">AS</span> cum_amt_per_user
+<span class="ck">FROM</span> fact_cohort_retention r
+<span class="ck">WINDOW</span> w <span class="ck">AS</span> (<span class="ck">PARTITION BY</span> r.first_month
+              <span class="ck">ORDER BY</span> r.months_since_first
+              <span class="ck">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>)
+<span class="ck">ON CONFLICT</span> (first_month, months_since_first) <span class="ck">DO UPDATE</span>
+   <span class="ck">SET</span> retained_pctg    = <span class="ck">EXCLUDED</span>.retained_pctg,
+       cum_amt          = <span class="ck">EXCLUDED</span>.cum_amt,
+       cum_amt_per_user = <span class="ck">EXCLUDED</span>.cum_amt_per_user;</div>
+
+    <div class="pull reveal">The decomposition is the alarm; the triangle is the diagnosis. Quick-ratio tells you the bucket leaks; the retention floor tells you whether anyone was ever going to stay.<span>AGGREGATION RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Three questions, three classic patterns</h2>
+    <p class="lede reveal">The growth facts are where the product explains itself. Three queries an interviewer loves, because each carries a named pattern on its back — the quick-ratio gauge, the as-of cohort slice, and the window-function retention curve.</p>
+
+    <h3 class="reveal">Is the bucket leaking? — the quick-ratio gauge</h3>
+    <p class="reveal">The quick-ratio is the single number that exposes a flat-MAU treadmill: gains over losses, <span class="m">(new + resurrected) / |churned|</span>. Above one, the product grows; at one, it runs to stand still; below one, it shrinks even while the headline MAU looks flat. This is conditional aggregation reduced to one expressive ratio.</p>
+
+    <div class="codelabel">SQL · QUICK-RATIO OVER TIME (THE LEAK GAUGE)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> period_month,
+       active, new, resurrected, churned,
+       round((new + resurrected) / <span class="cf">nullif</span>(abs(churned), 0), 2) <span class="ck">AS</span> quick_ratio,
+       <span class="ck">CASE</span>
+           <span class="ck">WHEN</span> (new + resurrected) / <span class="cf">nullif</span>(abs(churned), 0) >= 1.10 <span class="ck">THEN</span> <span class="cs">'growing'</span>
+           <span class="ck">WHEN</span> (new + resurrected) / <span class="cf">nullif</span>(abs(churned), 0) >= 0.95 <span class="ck">THEN</span> <span class="cs">'treadmill'</span>
+           <span class="ck">ELSE</span> <span class="cs">'shrinking'</span>
+       <span class="ck">END</span> <span class="ck">AS</span> verdict
+<span class="ck">FROM</span> fact_mau_growth
+<span class="ck">ORDER BY</span> period_month;
+<span class="cl">-- A flat MAU with quick_ratio ~1.0 is the leaky bucket: huge gross flows,</span>
+<span class="cl">-- near-zero net. The verdict column says out loud what the level hides.</span></div>
+
+    <h3 class="reveal">Where is the leak coming from? — SCD2 as-of slice</h3>
+    <p class="reveal">"Is churn worse on free or premium, and in which country?" requires slicing the decomposition by attributes <em>as they were when the user was active</em>, not as they are now — a premium user who downgraded last week should not retroactively recolor their history. That is an SCD2 as-of join: bound each activity period to the dimension version valid at that time.</p>
+
+    <div class="codelabel">SQL · CHURN BY SEGMENT, AS-OF THE ACTIVE PERIOD</div>
+    <div class="codeblock"><span class="ck">WITH</span> tm <span class="ck">AS</span> (<span class="ck">SELECT</span> user_id <span class="ck">FROM</span> agg_mau <span class="ck">WHERE</span> period_month = <span class="ck">:p</span>),
+     lm <span class="ck">AS</span> (<span class="ck">SELECT</span> user_id <span class="ck">FROM</span> agg_mau
+            <span class="ck">WHERE</span> period_month = <span class="ck">:p</span>::date - <span class="ck">INTERVAL</span> <span class="cs">'1 month'</span>)
+<span class="ck">SELECT</span> d.plan, d.country,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> tm.user_id <span class="ck">IS NULL</span>)  <span class="ck">AS</span> churned,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> lm.user_id <span class="ck">IS NOT NULL</span>) <span class="ck">AS</span> base_last_period,
+       round(100.0 * count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> tm.user_id <span class="ck">IS NULL</span>)
+             / <span class="cf">nullif</span>(count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> lm.user_id <span class="ck">IS NOT NULL</span>), 0), 1)
+                                                       <span class="ck">AS</span> churn_pct
+<span class="ck">FROM</span> lm
+<span class="ck">FULL OUTER JOIN</span> tm <span class="ck">ON</span> tm.user_id = lm.user_id
+<span class="ck">JOIN</span> dim_user d
+  <span class="ck">ON</span> d.user_id = <span class="cf">coalesce</span>(lm.user_id, tm.user_id)
+ <span class="ck">AND</span> (<span class="ck">:p</span>::date - <span class="ck">INTERVAL</span> <span class="cs">'1 month'</span>) >= d.valid_from   <span class="cl">-- as-of last period</span>
+ <span class="ck">AND</span> (<span class="ck">:p</span>::date - <span class="ck">INTERVAL</span> <span class="cs">'1 month'</span>) &lt;  d.valid_to
+<span class="ck">GROUP BY</span> d.plan, d.country
+<span class="ck">ORDER BY</span> churn_pct <span class="ck">DESC</span>;</div>
+
+    <h3 class="reveal">Does retention floor out? — the window-function curve</h3>
+    <p class="reveal">The heatmap source: each cohort's active count normalized to its own month-zero size with <span class="m">FIRST_VALUE</span> over a cohort-partitioned window. A curve that flattens has found its floor; a curve still falling cohort-over-cohort is a widening leak the dashboard will paint red.</p>
+
+    <div class="codelabel">SQL · RETENTION CURVE (FIRST_VALUE NORMALIZATION)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> first_month, months_since_first,
+       active_users,
+       round(100.0 * active_users
+             / <span class="cf">first_value</span>(active_users) <span class="ck">OVER</span>
+                   (<span class="ck">PARTITION BY</span> first_month <span class="ck">ORDER BY</span> months_since_first), 1)
+                                                       <span class="ck">AS</span> retention_pct
+<span class="ck">FROM</span> fact_cohort_retention
+<span class="ck">WHERE</span> first_month >= <span class="ck">:since</span>
+<span class="ck">ORDER BY</span> first_month, months_since_first;
+<span class="cl">-- A curve that settles (e.g. flat at 41%) means the floor is found — those</span>
+<span class="cl">-- users ARE the product-market fit. A curve still sliding cohort-over-cohort</span>
+<span class="cl">-- says the leak is widening; the fix is the product, not the ad budget.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Making the leak impossible to miss</h2>
+    <p class="lede reveal">A senior design ends with the dashboard, because the entire point of growth accounting is to make a comfortable number alarming. The board shows the level and the flows side by side, so that "MAU flat" can never be read without "and here is why."</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE LEVEL</dt><dd><span class="m">MAU</span> and its trend — deliberately small on the board, because it is the number that lies. It is here only so the flows can contradict it.</dd></div>
+      <div class="defrow"><dt>THE FLOWS</dt><dd><span class="m">new</span>, <span class="m">resurrected</span>, and <span class="m">churned</span> as a stacked bar; the gross magnitude is the story even when the net is zero. A flat MAU with tall bars is the treadmill made visible.</dd></div>
+      <div class="defrow"><dt>THE GAUGE</dt><dd><span class="m">quick-ratio</span> with its verdict band — the single number an executive can read in one second. Below one is red regardless of what MAU is doing.</dd></div>
+      <div class="defrow"><dt>THE TRIANGLE</dt><dd>the <span class="m">retention heatmap</span> — cohorts down, months across, color = fraction surviving. A flattening row is a floor found; a darkening column is a regression shipping.</dd></div>
+      <div class="defrow"><dt>THE GATE</dt><dd><span class="m">LTV : CAC</span> by cohort — the asymptote of cumulative value per user against acquisition cost. Below the payback line, spend is destroying money.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Growth Accounting — April</span>
+        <span class="dash-sub">MAU 10.1M · QR 1.04 · MONTHLY REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">MAU (the level)</div><div class="tv">10.1<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,16 100,15 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Quick Ratio</div><div class="tv warn">1.04</div><svg viewBox="0 0 120 30"><polyline points="0,8 20,9 40,11 60,12 80,13 100,14 120,15" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Churned</div><div class="tv bad">2.4<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,15 60,13 80,11 100,9 120,7" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">New + Resurrected</div><div class="tv ok">2.5<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,10 20,11 40,10 60,12 80,11 100,12 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Flows — new (green) · resurrected (amber) · churned (rust) · Jan→Apr</div>
+          <svg viewBox="0 0 240 84">
+            <!-- baseline -->
+            <line x1="10" y1="70" x2="234" y2="70" stroke="#3a352b" stroke-width="1"/>
+            <!-- Jan -->
+            <rect x="22" y="40" width="14" height="30" fill="#a8b58a"/>
+            <rect x="22" y="30" width="14" height="10" fill="#d8a44a"/>
+            <rect x="38" y="40" width="14" height="28" fill="#d98e63"/>
+            <!-- Feb -->
+            <rect x="78" y="38" width="14" height="32" fill="#a8b58a"/>
+            <rect x="78" y="29" width="14" height="9" fill="#d8a44a"/>
+            <rect x="94" y="40" width="14" height="29" fill="#d98e63"/>
+            <!-- Mar -->
+            <rect x="134" y="39" width="14" height="31" fill="#a8b58a"/>
+            <rect x="134" y="30" width="14" height="9" fill="#d8a44a"/>
+            <rect x="150" y="39" width="14" height="30" fill="#d98e63"/>
+            <!-- Apr -->
+            <rect x="190" y="38" width="14" height="32" fill="#a8b58a"/>
+            <rect x="190" y="28" width="14" height="10" fill="#d8a44a"/>
+            <rect x="206" y="38" width="14" height="31" fill="#d98e63"/>
+            <text x="29" y="80" font-size="7" fill="#8f8672" text-anchor="middle" font-family="DM Mono,monospace">JAN</text>
+            <text x="85" y="80" font-size="7" fill="#8f8672" text-anchor="middle" font-family="DM Mono,monospace">FEB</text>
+            <text x="141" y="80" font-size="7" fill="#8f8672" text-anchor="middle" font-family="DM Mono,monospace">MAR</text>
+            <text x="197" y="80" font-size="7" fill="#8f8672" text-anchor="middle" font-family="DM Mono,monospace">APR</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Month-1 Retention</div><div class="tv warn">60<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,10 20,11 40,12 60,13 80,13 100,14 120,15" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">LTV : CAC</div><div class="tv ok">3.1<small>×</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,16 40,13 60,11 80,10 100,9 120,9" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Retention triangle — cohort (row) × months since first (col)</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace" font-size="7" fill="#8f8672">
+              <text x="6" y="20">2026-01</text>
+              <text x="6" y="40">2026-02</text>
+              <text x="6" y="60">2026-03</text>
+              <text x="58" y="10">M0</text><text x="98" y="10">M1</text><text x="138" y="10">M2</text><text x="178" y="10">M3</text>
+            </g>
+            <!-- row Jan: 100/62/48/41 -->
+            <rect x="52" y="14" width="34" height="14" fill="#6e5a23"/><text x="69" y="24" font-size="7" fill="#f0e9d6" text-anchor="middle" font-family="DM Mono,monospace">100</text>
+            <rect x="92" y="14" width="34" height="14" fill="#a87b1e"/><text x="109" y="24" font-size="7" fill="#23201a" text-anchor="middle" font-family="DM Mono,monospace">62</text>
+            <rect x="132" y="14" width="34" height="14" fill="#c89a4a"/><text x="149" y="24" font-size="7" fill="#23201a" text-anchor="middle" font-family="DM Mono,monospace">48</text>
+            <rect x="172" y="14" width="34" height="14" fill="#d8a44a"/><text x="189" y="24" font-size="7" fill="#23201a" text-anchor="middle" font-family="DM Mono,monospace">41</text>
+            <!-- row Feb: 100/58/44 -->
+            <rect x="52" y="34" width="34" height="14" fill="#6e5a23"/><text x="69" y="44" font-size="7" fill="#f0e9d6" text-anchor="middle" font-family="DM Mono,monospace">100</text>
+            <rect x="92" y="34" width="34" height="14" fill="#b08326"/><text x="109" y="44" font-size="7" fill="#23201a" text-anchor="middle" font-family="DM Mono,monospace">58</text>
+            <rect x="132" y="34" width="34" height="14" fill="#cc9a44"/><text x="149" y="44" font-size="7" fill="#23201a" text-anchor="middle" font-family="DM Mono,monospace">44</text>
+            <rect x="172" y="34" width="34" height="14" fill="#2b2820"/>
+            <!-- row Mar: 100/64 -->
+            <rect x="52" y="54" width="34" height="14" fill="#6e5a23"/><text x="69" y="64" font-size="7" fill="#f0e9d6" text-anchor="middle" font-family="DM Mono,monospace">100</text>
+            <rect x="92" y="54" width="34" height="14" fill="#a07520"/><text x="109" y="64" font-size="7" fill="#23201a" text-anchor="middle" font-family="DM Mono,monospace">64</text>
+            <rect x="132" y="54" width="34" height="14" fill="#2b2820"/>
+            <rect x="172" y="54" width="34" height="14" fill="#2b2820"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story the tiles tell: MAU sits flat and grey while the flow bars stand tall — huge gross churn barely covered by acquisition — the quick-ratio gauge drifts amber at 1.04, and the triangle's bottom rows are still filling, retention hovering at 60% month-one. A treadmill, painted.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the board top to bottom and it argues the §01 thesis without a word of prose: the level is stable, the flows are violent, the gauge says treadmill, and the only genuinely good news is the LTV:CAC of 3.1× — which means the acquired users who <em>do</em> stay are worth more than they cost, so the fix is to plug the leak, not to stop spending. That is the difference between a dashboard that reports a number and one that prescribes an action.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the users and sessions away and the question was testing five judgments, each of which generalizes far beyond growth analytics:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>LEVELS vs FLOWS</dt><dd>Refusing to report a stock without its flows. Every flat top-line metric — MAU, MRR, headcount, inventory — is four numbers wearing one number's clothes, and the senior move is to decompose before you reassure.</dd></div>
+      <div class="defrow"><dt>THE JOIN THAT TELLS THE TRUTH</dt><dd>Knowing that FULL OUTER, not inner, is what makes departures visible. The most dangerous bug in analytics is the one that drops the bad news on the floor and reports zero.</dd></div>
+      <div class="defrow"><dt>IMMUTABLE KEYS</dt><dd>Freezing the cohort (SCD0) so comparisons stay honest, and versioning the definition (SCD2) so history stays stable when the bar moves. Yesterday's published number must not move because today's rule changed.</dd></div>
+      <div class="defrow"><dt>ONE MODEL, TWO METRICS</dt><dd>Generalizing through the value column — 1 for engagement, money for revenue — so a single pipeline answers two questions and expansion/contraction fall out for free. The best abstraction is the one that pays for itself twice.</dd></div>
+      <div class="defrow"><dt>FROM NUMBER TO ACTION</dt><dd>Ending at the retention floor and the LTV:CAC gate, not the MAU headline. The deliverable is not a metric — it is the sentence "plug the leak, don't cut the spend," with the evidence to defend it.</dd></div>
+    </dl>
+    <div class="pull reveal">A single MAU is a vanity metric — a reservoir and a sieve draw the same flat line. Growth accounting is the act of refusing to be comforted by a number that has eaten its own evidence.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 17 — THE GROWTH PROBLEM<br>GROWTH ANALYTICS · THE STATE MACHINE · THE CRAFT OF THE DECOMPOSITION</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

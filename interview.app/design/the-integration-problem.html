@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Integration Problem — PaddySpeaks</title>
+<meta name="description" content="Your company just bought a $20B SaaS. Walk through the post-acquisition data integration: golden records and an append-only crosswalk that can un-merge, a strangler dual-write gated on 0.1% drift, and versioned metric definitions the board deck can audit. Schema, the matching playbook, the reconciliation SQL, and the cutover dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 15</div>
+    <h1 class="reveal">The <em>Integration</em> Problem</h1>
+    <p class="deck reveal">Your company just bought a twenty-billion-dollar SaaS. Two CRMs, two warehouses, two ID systems, two fiscal calendars — and an executive expecting unified KPIs on day ninety. The one decision that separates a senior answer: every merge must be reversible. A complete working-through — data flow, the golden-record schema, the matching playbook, the strangler dual-write, the reconciliation SQL, and the cutover dashboard.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Data Integration</b></span>
+      <span>READING · <b>~27 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One deal, four problems</h2>
+    <p class="lede reveal">Every acquisition press release says "stronger together." Every acquirer's data team hears "reconcile two of everything before the next board meeting." The senior signal is refusing to ship a single integration plan, and naming the four orthogonal problems first.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Your company just acquired a $20B SaaS business. Walk me through the data integration — how do you get to unified, trustworthy numbers without freezing either company's product?"</p>
+      <div class="qmeta"><span>LEVEL · STAFF / PRINCIPAL</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The mistake that fails the question is treating this as one migration. It is four, and they have different owners, different timelines, and different failure modes. <strong>Entity resolution</strong> asks whether <em>their</em> Acme Corp is <em>our</em> Acme Corp — a graph problem dressed as a join. <strong>Schema unification</strong> has to happen while both applications keep shipping, because you cannot freeze a database that is still taking customer writes. <strong>Warehouse consolidation</strong> is a vendor decision — Snowflake versus Databricks versus BigQuery — that can be deferred behind a bridge for six months. And <strong>multi-org metrics</strong> is the quiet killer: their DAU is not your DAU, their fiscal calendar is not your fiscal calendar, and the board deck on day ninety will be subtly, defensibly wrong unless the definitions are versioned. A junior answer reaches for a big-bang migration and a single "combined" view. A senior answer sequences the four, makes every merge reversible, and gates the cutover on a number.</p>
+
+    <p class="reveal">So before any boxes and arrows, the working frame for the session — the four problems, in the order they bite:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>ENTITY RESOLUTION</dt><dd><strong>Is their customer our customer?</strong> Golden record plus an ordered rule playbook (strict-then-fuzzy) plus an append-only crosswalk. The part everyone forgets is the <em>un</em>-merge — and you only learn you needed it two months in, mid-incident.</dd></div>
+      <div class="defrow"><dt>SCHEMA UNIFICATION</dt><dd><strong>Both apps keep shipping.</strong> You cannot freeze either database. Strangler pattern: stand the unified schema up alongside the sources, CDC every change through a translation layer, reconcile daily, cut over one entity at a time.</dd></div>
+      <div class="defrow"><dt>WAREHOUSE CONSOLIDATION</dt><dd><strong>Two vendors, one bill.</strong> Big-bang, federated query, or share-and-bridge. Every real deal share-and-bridges for the first six months, then commits — the warehouse decision is the one you are allowed to defer.</dd></div>
+      <div class="defrow"><dt>MULTI-ORG METRICS</dt><dd><strong>Their DAU isn't your DAU.</strong> Fiscal calendars, FX policy, consolidation rules, overlapping ARR. Bake the definitions into a versioned <span class="m">dim_metric_definition</span> the board deck can cite, not into SQL nobody can audit.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Never delete a merge. The first time an analyst says "those two companies are actually parent and subsidiary," an irreversible golden record becomes a two-week incident.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State the sequencing and the deferrals explicitly. In scope: master-data entity resolution, the strangler dual-write and its reconciliation gate, and the versioned metric layer — the three things that block the day-ninety board deck. Deferred on purpose: the warehouse vendor decision (bridged, not migrated, for six months), org-chart and HR-system merges, and the inevitable rationalization of overlapping product SKUs. The thread that ties scope together is reversibility — every structural decision in the first ninety days has to be undoable, because the integration will be re-litigated by Finance, Legal, and the regulators before it is finished.</p>
+
+    <p class="reveal">Then the envelope math, offered rather than extracted. Deal-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Deal size</td><td class="mono">$20 B</td><td>Board-level scrutiny on every reported KPI</td></tr>
+      <tr><td>Source systems to unify</td><td class="mono">2 CRMs + 2 warehouses</td><td>Two of everything: IDs, calendars, currencies</td></tr>
+      <tr><td>Customer-base overlap</td><td class="mono">~40% (pro tier)</td><td>1+1≠2 — ARR double-counts without dedup</td></tr>
+      <tr><td><strong>Reconciliation drift gate</strong></td><td class="mono"><strong>&lt; 0.1%</strong></td><td><strong>The number that gates cutover</strong></td></tr>
+      <tr><td>Cutover green window</td><td class="mono">72 consecutive hours</td><td>One amber hour resets the clock</td></tr>
+      <tr><td>Convergence horizon</td><td class="mono">6–18 months</td><td>Both apps ship the whole time</td></tr>
+      <tr><td>Day-90 reporting deadline</td><td class="mono">fixed</td><td>Share-and-bridge buys the warehouse decision time</td></tr>
+    </table>
+
+    <p class="reveal">Notice which number gates everything. The drift threshold — source row counts versus unified row counts, held under one-tenth of one percent for seventy-two straight hours — is the single quantity that decides whether an entity is allowed to cut over. It dictates the reconciliation cadence, the dual-write design, and the on-call posture for the whole convergence. The rest of this article follows the crosswalk.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a record into the golden core</h2>
+    <p class="lede reveal">One core, two living sources. Both CRMs keep writing; CDC streams every change through a translation layer into a unified read model; a daily reconciliation gates the cutover. The crosswalk sits in the middle, mapping every source ID to a golden ID — reversibly.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 580" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">SOURCE PLANE · BOTH APPS KEEP WRITING (6–18 MONTHS)</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">GOVERNANCE PLANE · RECONCILE DAILY · GATE THE CUTOVER</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- acquirer crm -->
+        <rect x="20" y="56" width="160" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="100" y="82" font-size="12.5" text-anchor="middle" fill="#23201a">acquirer_crm</text>
+        <text x="100" y="101" font-size="10.5" text-anchor="middle" fill="#7d7567">Postgres · customers</text>
+
+        <!-- target crm -->
+        <rect x="20" y="150" width="160" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="100" y="176" font-size="12.5" text-anchor="middle" fill="#23201a">target_crm</text>
+        <text x="100" y="195" font-size="10.5" text-anchor="middle" fill="#7d7567">MySQL · tenants</text>
+
+        <!-- cdc -->
+        <rect x="240" y="92" width="180" height="92" fill="#27241d"/>
+        <text x="330" y="120" font-size="12.5" text-anchor="middle" fill="#e9e2d0">CDC + TRANSLATION</text>
+        <text x="330" y="138" font-size="10.5" text-anchor="middle" fill="#b8ad93">Debezium → Kafka</text>
+        <text x="330" y="153" font-size="10.5" text-anchor="middle" fill="#b8ad93">field remap · ID rewrite</text>
+        <text x="330" y="168" font-size="10.5" text-anchor="middle" fill="#b8ad93">DLQ on contract violation</text>
+
+        <!-- matcher -->
+        <rect x="480" y="40" width="200" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="580" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">MATCH PLAYBOOK</text>
+        <text x="580" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">strict auto-merge</text>
+        <text x="580" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">fuzzy → analyst queue</text>
+
+        <!-- crosswalk -->
+        <rect x="480" y="130" width="200" height="70" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="580" y="156" font-size="12.5" text-anchor="middle" fill="#8a5d12">customer_xref</text>
+        <text x="580" y="174" font-size="10.5" text-anchor="middle" fill="#7d7567">source_id ↔ golden_id</text>
+        <text x="580" y="189" font-size="10.5" text-anchor="middle" fill="#7d7567">append-only · superseded_by</text>
+
+        <!-- golden -->
+        <rect x="740" y="40" width="210" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="845" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">golden_customer</text>
+        <text x="845" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">SCD2 master · sources[]</text>
+        <text x="845" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">canonical, mastered</text>
+
+        <!-- unified read model -->
+        <rect x="740" y="130" width="210" height="70" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="845" y="156" font-size="12.5" text-anchor="middle" fill="#23201a">unified.customers</text>
+        <text x="845" y="174" font-size="10.5" text-anchor="middle" fill="#7d7567">dual-write target</text>
+        <text x="845" y="189" font-size="10.5" text-anchor="middle" fill="#7d7567">reads via the xref</text>
+
+        <!-- arrows source plane -->
+        <line x1="180" y1="90" x2="236" y2="120" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="180" y1="182" x2="236" y2="156" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="420" y1="120" x2="476" y2="90" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="420" y1="150" x2="476" y2="160" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="680" y1="75" x2="736" y2="75" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="680" y1="165" x2="736" y2="165" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="580" y1="110" x2="580" y2="128" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- governance plane -->
+        <rect x="20" y="360" width="180" height="74" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="110" y="388" font-size="12.5" text-anchor="middle" fill="#6f7d5c">recon.daily_drift</text>
+        <text x="110" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">source vs unified counts</text>
+        <text x="110" y="421" font-size="10.5" text-anchor="middle" fill="#a4502e">pages if drift &gt; 0.1%</text>
+
+        <rect x="260" y="360" width="180" height="74" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="350" y="388" font-size="12" text-anchor="middle" fill="#23201a">match_candidates</text>
+        <text x="350" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">tier 3–4 fuzzy</text>
+        <text x="350" y="421" font-size="10.5" text-anchor="middle" fill="#7d7567">MDM analyst review</text>
+
+        <rect x="500" y="360" width="200" height="74" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="600" y="388" font-size="12" text-anchor="middle" fill="#23201a">CUTOVER GATE</text>
+        <text x="600" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">72h green required</text>
+        <text x="600" y="421" font-size="10.5" text-anchor="middle" fill="#7d7567">flip one entity at a time</text>
+
+        <rect x="740" y="360" width="210" height="74" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="845" y="388" font-size="12" text-anchor="middle" fill="#23201a">dim_metric_definition</text>
+        <text x="845" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">versioned · board cites</text>
+        <text x="845" y="421" font-size="10.5" text-anchor="middle" fill="#7d7567">auto-generates the SQL</text>
+
+        <!-- governance arrows -->
+        <path d="M 845 200 C 845 260, 700 300, 600 358" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="640" y="280" font-size="10.5" fill="#a4502e">drift gates the flip</text>
+        <line x1="500" y1="160" x2="350" y2="358" stroke="#8a5d12" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <line x1="200" y1="200" x2="110" y2="358" stroke="#8a5d12" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+
+        <text x="20" y="560" font-size="10.5" fill="#7d7567">SOLID — sustained data flow · DASHED — control signals · The crosswalk is the hinge; nothing is ever deleted.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. Sources keep writing; CDC translates and streams; the append-only crosswalk maps source IDs to a mastered golden record; reconciliation gates every cutover on drift.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the sources are never frozen — both CRMs take writes for the entire convergence, and the unified model is fed by CDC, not by a one-time dump that goes stale the moment it lands. <strong>Second,</strong> the crosswalk is the hinge of the whole design and it is <em>append-only</em>: a merge writes a row, an un-merge writes another row that supersedes it, and nothing is ever destroyed — which is the only way an analyst's "those are actually parent and subsidiary" becomes a correction instead of a catastrophe. <strong>Third,</strong> the dashed line from reconciliation is a gate, not a pipe: drift over one-tenth of a percent does not corrupt data, it <em>withholds permission</em> to cut over, and the clock resets.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>Every merge is a hypothesis, and every hypothesis must be retractable.</strong> Strict rules auto-merge because they are nearly certain; fuzzy rules stage candidates for a human because they are guesses. But even a strict merge can be wrong, so no merge ever rewrites or deletes — it appends a crosswalk row pointing source IDs at a golden ID, and the un-merge appends a superseding row pointing them somewhere new, emits a CDC event, and lets the facts re-attribute. The failure mode is a reversible correction, never an irreversible loss.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>A mastered core, a reversible crosswalk, a versioned metric</h2>
+    <p class="lede reveal">The schema falls out of reversibility and auditability. The golden record is SCD2 and lineage-bearing. The crosswalk is append-only with a supersession pointer. The metric layer is versioned so a number can be defended to the board.</p>
+
+    <h3 class="reveal">The golden record — mastered, lineage-bearing, SCD2</h3>
+    <p class="reveal">The master entity is a UUID-keyed <span class="m">golden_customer</span> that no source owns. Its canonical fields are SCD2 — a customer's industry classification or DUNS number can be corrected over time — and it carries a <span class="m">sources[]</span> array, the lineage that makes overlap analysis a column lookup rather than a join. The presence of <em>both</em> source systems in that array is exactly the "customer in both products" signal Sales and Finance fight over on day ninety.</p>
+
+    <div class="codelabel">DDL · GOLDEN MASTER (SCD2 + LINEAGE)</div>
+    <div class="codeblock"><span class="cl">-- The mastered entity. No source system owns it; it is synthesized. SCD2 on
+-- canonical fields; sources[] is the lineage that makes overlap a lookup.</span>
+<span class="ck">CREATE TABLE</span> golden_customer (
+    golden_customer_id  UUID         <span class="ck">PRIMARY KEY</span>,
+    canonical_name      TEXT         <span class="ck">NOT NULL</span>,
+    canonical_domain    TEXT,
+    duns                TEXT,                       <span class="cl">-- Dun &amp; Bradstreet number, if known</span>
+    industry            TEXT,
+    country             TEXT,
+    sources             TEXT[]       <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'{}'</span>,  <span class="cl">-- ['acquirer_crm','target_crm']</span>
+    first_seen_at       TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    effective_from      TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    effective_to        TIMESTAMPTZ,                <span class="cl">-- NULL = current; set on retire/un-merge</span>
+    status              TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'active'</span>
+                        <span class="ck">CHECK</span> (status <span class="ck">IN</span> (<span class="cs">'active'</span>,<span class="cs">'retired'</span>))
+);</div>
+
+    <h3 class="reveal">The crosswalk — append-only, reversible, audit-trailed</h3>
+    <p class="reveal">This is the most important table in the system. It maps every <span class="m">(source_system, source_customer_id)</span> to a <span class="m">golden_customer_id</span>, records which rule fired and at what confidence, and — the part everyone forgets — carries a <span class="m">superseded_by</span> pointer. The crosswalk is never updated in place and never deleted from; a re-match appends a new row and retires the old one by pointing at it. That single column is the difference between an un-merge being a SQL statement and being a two-week incident.</p>
+
+    <div class="codelabel">DDL · THE CROSSWALK (APPEND-ONLY + UN-MERGE)</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> customer_xref (
+    xref_id             BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    source_system       TEXT         <span class="ck">NOT NULL</span>,    <span class="cl">-- 'acquirer_crm' | 'target_crm'</span>
+    source_customer_id  TEXT         <span class="ck">NOT NULL</span>,
+    golden_customer_id  UUID         <span class="ck">NOT NULL REFERENCES</span> golden_customer,
+    match_rule          INT          <span class="ck">NOT NULL</span>,    <span class="cl">-- 1..5, from the playbook</span>
+    match_confidence    NUMERIC(4,3) <span class="ck">NOT NULL</span>,    <span class="cl">-- 0.000 .. 1.000</span>
+    matched_at          TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    matched_by          TEXT         <span class="ck">NOT NULL</span>,    <span class="cl">-- 'rule_engine' | analyst id</span>
+    superseded_by       BIGINT       <span class="ck">REFERENCES</span> customer_xref,  <span class="cl">-- un-merge pointer</span>
+    <span class="ck">CHECK</span> (superseded_by &lt;&gt; xref_id)
+);
+<span class="cl">-- The CURRENT mapping for a source ID is the row with no successor:</span>
+<span class="ck">CREATE INDEX</span> idx_xref_current <span class="ck">ON</span> customer_xref
+    (source_system, source_customer_id) <span class="ck">WHERE</span> superseded_by <span class="ck">IS NULL</span>;</div>
+
+    <h3 class="reveal">The unified read model and the reconciliation fact</h3>
+    <p class="reveal">The strangler's destination is <span class="m">unified.customers</span>, keyed by <span class="m">account_id</span> ≡ <span class="m">golden_customer_id</span>, carrying source lineage (<span class="m">source_system</span>, <span class="m">source_row_id</span>) so any unified row can be traced back to the record that produced it. Reads go through the crosswalk; writes arrive by dual-write from CDC. Watching over all of it is <span class="m">recon.daily_drift</span> — the reconciliation fact that compares source row counts to unified row counts per system and per day, and pages the on-call the moment drift crosses one-tenth of a percent.</p>
+
+    <div class="codelabel">DDL · UNIFIED READ MODEL + RECONCILIATION FACT</div>
+    <div class="codeblock"><span class="cl">-- Dual-write destination of the strangler. account_id IS the golden id.</span>
+<span class="ck">CREATE TABLE</span> unified_customers (
+    account_id      UUID         <span class="ck">NOT NULL</span>,        <span class="cl">-- = golden_customer_id</span>
+    source_system   TEXT         <span class="ck">NOT NULL</span>,        <span class="cl">-- lineage: which app wrote this</span>
+    source_row_id   TEXT         <span class="ck">NOT NULL</span>,
+    name            TEXT,
+    domain          TEXT,
+    industry        TEXT,
+    region          TEXT,
+    status          TEXT,
+    ingested_at     TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    ingest_status   TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'ok'</span>
+                    <span class="ck">CHECK</span> (ingest_status <span class="ck">IN</span> (<span class="cs">'ok'</span>,<span class="cs">'rejected'</span>)),
+    <span class="ck">PRIMARY KEY</span> (source_system, source_row_id)   <span class="cl">-- idempotent on re-delivery</span>
+);
+
+<span class="cl">-- The cutover gate, materialized. One row per (date, source). drift_pct is
+-- the single number that decides whether an entity may flip.</span>
+<span class="ck">CREATE TABLE</span> recon_daily_drift (
+    recon_date      DATE         <span class="ck">NOT NULL</span>,
+    source_system   TEXT         <span class="ck">NOT NULL</span>,
+    source_rows     BIGINT       <span class="ck">NOT NULL</span>,
+    unified_rows    BIGINT       <span class="ck">NOT NULL</span>,
+    rejected_rows   BIGINT       <span class="ck">NOT NULL</span>,
+    drift_pct       NUMERIC(6,4) <span class="ck">NOT NULL</span>,        <span class="cl">-- pages on-call if &gt; 0.1</span>
+    lag_seconds     BIGINT       <span class="ck">NOT NULL</span>,        <span class="cl">-- pages on-call if &gt; 300</span>
+    <span class="ck">PRIMARY KEY</span> (recon_date, source_system)
+);</div>
+
+    <p class="reveal">One more table completes the governance layer, and it is covered in §06: <span class="m">dim_metric_definition</span>, the versioned home for "what does combined DAU actually mean." It is the reason a board number can be audited rather than argued.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>No merge is ever final</h2>
+    <p class="lede reveal">Everything in this design protects one sentence: any merge can be undone without losing referential integrity in the pipelines that already consumed it. The invariant lives in the append-only crosswalk and its supersession pointer.</p>
+
+    <p class="reveal">The lifecycle of a golden record is not a straight line; it is a graph that can be walked backward. A source row is ingested, matched, and either auto-merged into an existing golden record or made into a distinct one. Months later an analyst discovers a mistake — two companies merged that should not have been — and the record must un-merge. The invariant says this is a forward operation: retire, re-point, log, emit. Nothing is destroyed; the history of who was merged into whom, by which rule, at what confidence, survives the correction intact.</p>
+
+    <div class="statechain reveal">
+      <span class="st">INGESTED</span><span class="arr">→</span>
+      <span class="st">MATCHED</span><span class="arr">→</span>
+      <span class="st">MERGED (golden_id)</span><span class="arr">→</span>
+      <span class="st">RETIRED</span><span class="arr">→</span>
+      <span class="st terminal">RE-POINTED (new golden_id)</span>
+    </div>
+
+    <p class="reveal">The un-merge is the atomic heart of the system, and it is the move that separates a designer who has shipped one of these from one who has only read about it. It runs as a single transaction: open a new golden record, append crosswalk rows pointing the affected source IDs at it, retire the old golden record by closing its SCD2 window, and stamp the supersession pointer so the audit trail is intact. The CDC event it emits lets downstream fact tables re-attribute on their own schedule. Never a <span class="m">DELETE</span>.</p>
+
+    <div class="codelabel">SQL · THE UN-MERGE (REVERSIBLE, AUDIT-TRAILED)</div>
+    <div class="codeblock"><span class="cl">-- "Acme Corp Holding" and "Acme Corporation" were merged but are actually
+-- parent/subsidiary. Split them WITHOUT deleting history. One transaction.</span>
+<span class="ck">BEGIN</span>;
+
+<span class="cl">-- 1. Mint the new golden record for the subsidiary.</span>
+<span class="ck">INSERT INTO</span> golden_customer (golden_customer_id, canonical_name, sources)
+<span class="ck">VALUES</span> (<span class="ck">:new_golden_id</span>, <span class="cs">'Acme Corporation'</span>, <span class="ck">ARRAY</span>[<span class="cs">'target_crm'</span>]);
+
+<span class="cl">-- 2. Append the corrected crosswalk rows (NEW rows; the old ones stay).</span>
+<span class="ck">INSERT INTO</span> customer_xref
+    (source_system, source_customer_id, golden_customer_id,
+     match_rule, match_confidence, matched_by)
+<span class="ck">SELECT</span> source_system, source_customer_id, <span class="ck">:new_golden_id</span>,
+       5, 1.000, <span class="cs">'analyst:mdm-07'</span>
+<span class="ck">FROM</span>   customer_xref
+<span class="ck">WHERE</span>  golden_customer_id = <span class="ck">:old_golden_id</span>
+  <span class="ck">AND</span>  source_customer_id = <span class="ck">ANY</span>(<span class="ck">:subsidiary_source_ids</span>)
+  <span class="ck">AND</span>  superseded_by <span class="ck">IS NULL</span>;
+
+<span class="cl">-- 3. Retire the old mappings by pointing them at their replacements.</span>
+<span class="ck">UPDATE</span> customer_xref old
+<span class="ck">SET</span>    superseded_by = new.xref_id
+<span class="ck">FROM</span>   customer_xref new
+<span class="ck">WHERE</span>  old.golden_customer_id = <span class="ck">:old_golden_id</span>
+  <span class="ck">AND</span>  new.golden_customer_id = <span class="ck">:new_golden_id</span>
+  <span class="ck">AND</span>  old.source_customer_id = new.source_customer_id
+  <span class="ck">AND</span>  old.superseded_by <span class="ck">IS NULL</span>;
+
+<span class="cl">-- 4. Close the old golden record's SCD2 window — retire, never delete.</span>
+<span class="ck">UPDATE</span> golden_customer
+<span class="ck">SET</span>    status = <span class="cs">'retired'</span>, effective_to = now()
+<span class="ck">WHERE</span>  golden_customer_id = <span class="ck">:old_golden_id</span>;
+
+<span class="ck">COMMIT</span>;
+<span class="cl">-- A CDC event on customer_xref lets fact tables re-attribute downstream.</span></div>
+
+    <div class="pull reveal">The crosswalk only ever grows. A merge appends a row; an un-merge appends another; the truth is the latest row with no successor.<span>INTEGRATION RULE Nº 1 — APPEND, NEVER DESTROY</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>The strangler dual-write in Python</h2>
+    <p class="lede reveal">Three programs carry the convergence: the translation layer that remaps source schemas without freezing them, the matching playbook that runs strict-before-fuzzy, and the dual-writer that lands records idempotently. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The translation layer — remap, rewrite, dead-letter</h3>
+    <p class="reveal">CDC gives you the raw source change; the translation layer turns it into the unified contract. It renames fields, rewrites source IDs into the unified namespace, and stamps lineage. Its one discipline is that a record violating the contract — an unexpected field, a missing key — goes to a dead-letter queue, not into the unified model and not silently dropped. A contract violation is a signal that a source app shipped a schema change; swallowing it is how drift creeps in unseen.</p>
+
+    <div class="codelabel">PYTHON · TRANSLATION LAYER (CDC → UNIFIED CONTRACT)</div>
+    <div class="codeblock"><span class="ck">from</span> dataclasses <span class="ck">import</span> dataclass
+
+<span class="ck">@dataclass</span>
+<span class="ck">class</span> <span class="cf">UnifiedCustomer</span>:
+    source_system: str
+    source_row_id: str
+    name:   str
+    domain: str | <span class="ck">None</span>
+    region: str
+
+<span class="cl"># Per-source field maps. Both apps keep their native schema; the translation</span>
+<span class="cl"># layer is the ONLY place the two vocabularies meet. Add a source = add a map.</span>
+FIELD_MAP = {
+    <span class="cs">"acquirer_crm"</span>: {<span class="cs">"customer_id"</span>: <span class="cs">"source_row_id"</span>, <span class="cs">"company"</span>: <span class="cs">"name"</span>,
+                     <span class="cs">"domain"</span>: <span class="cs">"domain"</span>,      <span class="cs">"country"</span>: <span class="cs">"region"</span>},
+    <span class="cs">"target_crm"</span>:   {<span class="cs">"tenant_id"</span>: <span class="cs">"source_row_id"</span>,   <span class="cs">"workspace_name"</span>: <span class="cs">"name"</span>,
+                     <span class="cs">"email_domain"</span>: <span class="cs">"domain"</span>, <span class="cs">"region"</span>: <span class="cs">"region"</span>},
+}
+
+<span class="ck">def</span> <span class="cf">translate</span>(source_system: str, change: dict, dlq) -> UnifiedCustomer | <span class="ck">None</span>:
+    <span class="cs">"""Map one CDC change to the unified contract. A contract violation is a
+    SIGNAL (a source shipped a schema change), so it goes to the DLQ to be
+    triaged — never into unified, never silently dropped."""</span>
+    fmap = FIELD_MAP[source_system]
+    <span class="ck">try</span>:
+        out = {dest: change[src] <span class="ck">for</span> src, dest <span class="ck">in</span> fmap.items()}
+    <span class="ck">except</span> KeyError <span class="ck">as</span> missing:
+        dlq.put({<span class="cs">"source"</span>: source_system, <span class="cs">"change"</span>: change,
+                 <span class="cs">"reason"</span>: <span class="cs">f"missing field {missing}"</span>})   <span class="cl"># triage, don't guess</span>
+        <span class="ck">return None</span>
+    <span class="ck">return</span> UnifiedCustomer(source_system=source_system, **out)</div>
+
+    <p class="reveal">One distinction, always stated: the translation layer never <em>matches</em>. It only normalizes shape. Deciding whether this normalized record is the same customer as another is the playbook's job, kept separate so that a schema change and a matching change can be reasoned about — and rolled back — independently.</p>
+
+    <h3 class="reveal">2 · The matching playbook — strict before fuzzy, first rule wins</h3>
+    <p class="reveal">You never decide two rows are the same customer with one rule. You run an ordered list from strict to permissive, and the first rule that fires wins — the same logic as airport security: passport first, then bag scan, then pat-down. Strict rules auto-merge into a golden record; fuzzy rules stage a candidate for a human via <span class="m">match_candidates</span>. The ordering is the whole point: a confident identifier match must never be overruled by a fuzzy name similarity.</p>
+
+    <div class="codelabel">PYTHON · THE MATCH-KEY CASCADE (STRICT → FUZZY)</div>
+    <div class="codeblock"><span class="ck">from</span> rapidfuzz <span class="ck">import</span> fuzz
+
+<span class="cl"># Ordered strict→permissive. First rule to fire wins. Strict auto-merges;</span>
+<span class="cl"># fuzzy stages a candidate for an MDM analyst. Confidence is recorded, never</span>
+<span class="cl"># discarded — it is what lets you audit and reverse a bad merge later.</span>
+<span class="ck">def</span> <span class="cf">match</span>(rec, golden) -> tuple[int, float, str]:
+    <span class="cs">"""Return (rule, confidence, disposition). disposition is 'auto' or 'review'."""</span>
+    <span class="ck">if</span> rec.domain == golden.canonical_domain <span class="ck">and</span> rec.duns == golden.duns:
+        <span class="ck">return</span> 1, 0.99, <span class="cs">"auto"</span>          <span class="cl"># strict: same domain AND same DUNS</span>
+    <span class="ck">if</span> rec.domain == golden.canonical_domain \
+       <span class="ck">and</span> normalize(rec.name) == normalize(golden.canonical_name):
+        <span class="ck">return</span> 2, 0.95, <span class="cs">"auto"</span>          <span class="cl"># strict: domain AND normalized name</span>
+    <span class="ck">if</span> fuzz.token_sort_ratio(rec.name, golden.canonical_name) &gt; 88 \
+       <span class="ck">and</span> rec.country == golden.country <span class="ck">and</span> rec.industry == golden.industry:
+        <span class="ck">return</span> 3, 0.80, <span class="cs">"review"</span>        <span class="cl"># fuzzy: typo-tolerant name + geo + industry</span>
+    <span class="ck">if</span> shared_employee_emails(rec, golden) &gt;= 3:
+        <span class="ck">return</span> 4, 0.70, <span class="cs">"review"</span>        <span class="cl"># fuzzy: 3+ @same-domain emails on both</span>
+    <span class="ck">return</span> 5, 0.0, <span class="cs">"distinct"</span>         <span class="cl"># nothing fired → its own golden record</span></div>
+
+    <h3 class="reveal">3 · The dual-writer — idempotent landing into the unified model</h3>
+    <div class="codelabel">PYTHON · DUAL-WRITE LANDING (IDEMPOTENT)</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">dual_write</span>(db, recs: list) -> <span class="ck">None</span>:
+    <span class="cs">"""Land translated records into unified.customers. Idempotent on
+    (source_system, source_row_id) so at-least-once CDC re-delivery is safe.
+    The golden id is resolved through the CURRENT crosswalk row (no successor)."""</span>
+    <span class="ck">for</span> r <span class="ck">in</span> recs:
+        <span class="ck">await</span> db.execute(
+            <span class="cs">"""INSERT INTO unified_customers
+                 (account_id, source_system, source_row_id,
+                  name, domain, region, status)
+               SELECT x.golden_customer_id, $1, $2, $3, $4, $5, 'active'
+               FROM   customer_xref x
+               WHERE  x.source_system = $1 AND x.source_customer_id = $2
+                 AND  x.superseded_by IS NULL          -- the current mapping
+               ON CONFLICT (source_system, source_row_id)
+               DO UPDATE SET name = EXCLUDED.name, domain = EXCLUDED.domain,
+                             region = EXCLUDED.region, ingested_at = now()"""</span>,
+            r.source_system, r.source_row_id, r.name, r.domain, r.region,
+        )</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Reconciliation gates, and metrics get a version</h2>
+    <p class="lede reveal">Two slow layers do the governance work. Reconciliation turns "are we drifting?" into a number that gates the cutover. The versioned metric definition turns "what is combined DAU?" from an argument into an auditable row. Both exist so a human can defend a decision.</p>
+
+    <p class="reveal">Reconciliation runs hourly during cutover and compares source row counts to what the unified model actually ingested, per source system. The output is <span class="m">drift_pct</span> and <span class="m">lag_seconds</span>; both have hard pager thresholds. Drift over one-tenth of a percent or lag over five minutes pages the on-call, and the cutover gate is the simple, unforgiving rule on top: seventy-two consecutive green hours before an entity is allowed to flip, and one amber hour resets the clock to zero.</p>
+
+    <div class="codelabel">SQL · RECONCILIATION (RUNS HOURLY DURING CUTOVER)</div>
+    <div class="codeblock"><span class="ck">WITH</span> source_counts <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> <span class="cs">'acquirer_crm'</span> <span class="ck">AS</span> src, count(*) <span class="ck">AS</span> n, max(updated_at) <span class="ck">AS</span> last_change
+    <span class="ck">FROM</span>   acquirer_crm.customers
+    <span class="ck">UNION ALL</span>
+    <span class="ck">SELECT</span> <span class="cs">'target_crm'</span>, count(*), max(updated_at) <span class="ck">FROM</span> target_crm.tenants
+),
+unified_counts <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> source_system <span class="ck">AS</span> src, count(*) <span class="ck">AS</span> n, max(ingested_at) <span class="ck">AS</span> last_ingest,
+           count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> ingest_status = <span class="cs">'rejected'</span>) <span class="ck">AS</span> rejected
+    <span class="ck">FROM</span>   unified_customers <span class="ck">GROUP BY</span> source_system
+)
+<span class="ck">SELECT</span> s.src, s.n <span class="ck">AS</span> source_rows, u.n <span class="ck">AS</span> unified_rows,
+       100.0 * <span class="cf">abs</span>(s.n - u.n) / <span class="cf">nullif</span>(s.n, 0) <span class="ck">AS</span> drift_pct,
+       u.rejected,
+       <span class="cf">extract</span>(epoch <span class="ck">FROM</span> (s.last_change - u.last_ingest)) <span class="ck">AS</span> lag_seconds
+<span class="ck">FROM</span>   source_counts s
+<span class="ck">LEFT JOIN</span> unified_counts u <span class="ck">USING</span> (src);
+<span class="cl">-- drift_pct &gt; 0.1 → page. lag_seconds &gt; 300 → page. Cutover: 72h all green.</span></div>
+
+    <p class="reveal">The second governance layer is the versioned metric. The board deck has "combined DAU" on slide three, and it is wrong — because the acquirer counts "any session in 24h" while the target counts "any session in 7 days, deduped to one row per user-day." Rather than bury that disagreement in SQL, bake the definition into a versioned dimension. Every dashboard tile cites a <span class="m">(metric_id, definition_version)</span>; combined DAU has three competing versions; Finance picks the one that matches the board narrative; the data layer auto-generates the SQL from the row.</p>
+
+    <div class="codelabel">DDL · VERSIONED METRIC DEFINITION (THE BOARD CAN AUDIT)</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> dim_metric_definition (
+    metric_id          TEXT <span class="ck">NOT NULL</span>,        <span class="cl">-- 'dau'</span>
+    definition_version INT  <span class="ck">NOT NULL</span>,
+    org_scope          TEXT <span class="ck">NOT NULL</span>,        <span class="cl">-- 'acquirer' | 'target' | 'combined'</span>
+    window_unit        TEXT <span class="ck">NOT NULL</span>,        <span class="cl">-- 'hour' | 'day' | 'week'</span>
+    window_size        INT  <span class="ck">NOT NULL</span>,
+    dedup_grain        TEXT <span class="ck">NOT NULL</span>,        <span class="cl">-- 'user' | 'user-day' | 'session'</span>
+    fiscal_calendar    TEXT <span class="ck">NOT NULL</span>,        <span class="cl">-- 'calendar' | '445'</span>
+    currency_policy    TEXT <span class="ck">NOT NULL</span>,        <span class="cl">-- 'lock-at-txn' | 'lock-at-month-end'</span>
+    effective_from     DATE <span class="ck">NOT NULL</span>,
+    effective_to       DATE,
+    <span class="ck">PRIMARY KEY</span> (metric_id, definition_version)
+);</div>
+
+    <div class="pull reveal">A number without a version is an opinion. The board deck does not cite a query; it cites a definition row — and three of them disagree, on purpose.<span>INTEGRATION RULE Nº 2 — VERSION THE DEFINITION</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>The day-90 questions</h2>
+    <p class="lede reveal">The golden core and its crosswalk are where the deal explains itself. Three queries an interviewer loves, because each carries a classic pattern: overlap as a set intersection, deduped roll-up through a crosswalk, and an as-of resolution over the append-only mappings.</p>
+
+    <h3 class="reveal">Overlap analysis — the set intersection Sales fights over</h3>
+    <p class="reveal">"How many customers are in <em>both</em> products?" is the first question Sales asks (for the cross-sell list) and the first Finance asks (to deduct overlapping ARR before announcing combined revenue). Because lineage lives in <span class="m">golden_customer.sources[]</span>, it is a containment test, not a join: the golden records whose sources array holds both systems are precisely the overlap.</p>
+
+    <div class="codelabel">SQL · CUSTOMERS IN BOTH SYSTEMS (LINEAGE CONTAINMENT)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> sources @&gt; <span class="ck">ARRAY</span>[<span class="cs">'acquirer_crm'</span>,<span class="cs">'target_crm'</span>])
+           <span class="ck">AS</span> in_both,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> sources = <span class="ck">ARRAY</span>[<span class="cs">'acquirer_crm'</span>])  <span class="ck">AS</span> acquirer_only,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> sources = <span class="ck">ARRAY</span>[<span class="cs">'target_crm'</span>])    <span class="ck">AS</span> target_only
+<span class="ck">FROM</span>   golden_customer
+<span class="ck">WHERE</span>  status = <span class="cs">'active'</span>;
+<span class="cl">-- @&gt; is array-containment: "sources holds both". The overlap (~40% on the</span>
+<span class="cl">-- pro tier in Adobe-Figma) is the cross-sell list AND the ARR-dedup base.</span></div>
+
+    <h3 class="reveal">Combined ARR — deduped roll-up through the crosswalk</h3>
+    <p class="reveal">Summing both companies' revenue naively gives <span class="m">1 + 1 = 2</span> for a customer that exists in both — overstating combined ARR by the overlap. The fix is to route every order through the current crosswalk row to its golden id, then sum by golden id, so a shared customer contributes once. The gap between the gross sum and this deduped figure is exactly the number Finance must disclose.</p>
+
+    <div class="codelabel">SQL · DEDUPED COMBINED ARR (NO 1+1=2)</div>
+    <div class="codeblock"><span class="ck">WITH</span> attributed <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> x.golden_customer_id, o.arr
+    <span class="ck">FROM</span>   orders o
+    <span class="ck">JOIN</span>   customer_xref x
+           <span class="ck">ON</span> x.source_system      = o.source_system
+          <span class="ck">AND</span> x.source_customer_id = o.source_customer_id
+          <span class="ck">AND</span> x.superseded_by <span class="ck">IS NULL</span>          <span class="cl">-- current mapping only</span>
+)
+<span class="ck">SELECT</span> sum(arr)                              <span class="ck">AS</span> gross_arr,
+       sum(arr_per_golden)                   <span class="ck">AS</span> deduped_arr,
+       sum(arr) - sum(arr_per_golden)        <span class="ck">AS</span> overlap_deduction
+<span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> golden_customer_id, sum(arr) <span class="ck">AS</span> arr_per_golden, sum(arr) <span class="ck">AS</span> arr
+    <span class="ck">FROM</span>   attributed
+    <span class="ck">GROUP BY</span> golden_customer_id
+) g;</div>
+
+    <h3 class="reveal">As-of mapping — which golden id did this order point at last quarter?</h3>
+    <p class="reveal">After an un-merge, "what was this source customer's golden id on a given date?" has two answers — before and after the correction. The append-only crosswalk makes the historical answer recoverable: walk the supersession chain and pick the row that was current as of the date in question. This is the audit query that defends a restated number to Finance.</p>
+
+    <div class="codelabel">SQL · AS-OF GOLDEN ID (TEMPORAL OVER THE CROSSWALK)</div>
+    <div class="codeblock"><span class="ck">SELECT DISTINCT ON</span> (source_system, source_customer_id)
+       source_system, source_customer_id, golden_customer_id,
+       matched_at, match_rule
+<span class="ck">FROM</span>   customer_xref
+<span class="ck">WHERE</span>  matched_at &lt;= <span class="ck">:as_of_date</span>           <span class="cl">-- mapping as it stood that day</span>
+<span class="ck">ORDER BY</span> source_system, source_customer_id, matched_at <span class="ck">DESC</span>;
+<span class="cl">-- Because the crosswalk is append-only, every historical mapping survives.</span>
+<span class="cl">-- A restated ARR figure can always show which golden id it rolled up to.</span></div>
+
+    <div class="note reveal">
+      <div class="nh">Warehouse Consolidation — Three Strategies, One Default</div>
+      <p>Big-bang migration (copy data, rewrite dbt models) fits a strategic incompatibility caught early. Federated query (Snowflake External Tables, Unity Catalog, Trino) fits stacks that complement and a vendor decision you want to defer. <strong>Share-and-bridge</strong> (cross-account Snowflake Share, Delta Sharing, Authorized Views) is what every real deal uses for the first six months — lowest engineering cost, unblocks day-90 reporting. Tag every query with <span class="m">cost_owner</span> ∈ {pre-merger-target, pre-merger-acquirer, post-merger-combined} so the CFO's "how much of last month's bill came from the acquired team" has an answer.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the cutover is safe</h2>
+    <p class="lede reveal">A senior design ends with observability, because the whole convergence is a bet that you can watch. The dashboard answers one operational question per loop: is the drift under the gate, is the analyst queue draining, and does every board number cite a version?</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>RECONCILIATION</dt><dd><span class="m">drift_pct</span> per source against the 0.1% gate, <span class="m">lag_seconds</span> against the 5-minute pager, <span class="m">reject rate</span> on the unified ingest, and the <span class="m">green-hours streak</span> — the count toward 72 that one amber hour resets.</dd></div>
+      <div class="defrow"><dt>ENTITY RESOLUTION</dt><dd><span class="m">auto-merge rate</span> (strict rules firing), <span class="m">candidate queue depth</span> awaiting analyst review, <span class="m">un-merge count</span> (a spike means a bad rule), and <span class="m">DLQ depth</span> on the translation layer — a rising DLQ means a source shipped a schema change.</dd></div>
+      <div class="defrow"><dt>BOARD READINESS</dt><dd><span class="m">overlap %</span> feeding the ARR deduction, <span class="m">tiles citing a metric version</span> (must be 100%), and <span class="m">cost by owner</span> so the CFO's bill-attribution question is answered before it is asked.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Integration Ops — Customer Entity Cutover</span>
+        <span class="dash-sub">DAY 61 OF 90 · 14:20 UTC · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Drift — acquirer</div><div class="tv ok">0.04<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,14 60,15 80,13 100,14 120,13" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Drift — target</div><div class="tv warn">0.12<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,16 40,15 60,13 80,11 100,9 120,8" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">CDC Lag p95</div><div class="tv ok">38<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,13 60,14 80,13 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Green-Hours Streak</div><div class="tv warn">19<small>/72</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,18 40,20 60,16 80,18 100,14 120,16" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Drift — target_crm vs gate · last 36 h (0.1% line)</div>
+          <svg viewBox="0 0 240 84">
+            <line x1="8" y1="46" x2="232" y2="46" stroke="#a4502e" stroke-width="1" stroke-dasharray="4 3"/>
+            <text x="232" y="42" font-size="8" fill="#d98e63" text-anchor="end" font-family="DM Mono,monospace">0.1% gate</text>
+            <polyline points="8,62 28,58 48,60 68,55 88,57 108,50 128,52 148,44 168,48 188,40 208,43 228,38"
+                      fill="none" stroke="#d8a44a" stroke-width="2"/>
+            <text x="8" y="78" font-size="8" fill="#8f8672" font-family="DM Mono,monospace">a backfill batch breached at hour 28 — clock reset</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Auto-Merge Rate</div><div class="tv ok">82<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,13 20,12 40,13 60,11 80,12 100,11 120,10" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Candidate Queue</div><div class="tv warn">1.4<small>k</small></div><svg viewBox="0 0 120 30"><polyline points="0,10 20,11 40,12 60,13 80,14 100,15 120,16" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Un-Merges 7d</div><div class="tv ok">6</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,16 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Translation DLQ</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,16 20,16 40,16 60,16 80,16 100,16 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Overlap %</div><div class="tv">39<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,14 40,13 60,14 80,13 100,13 120,13" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Tiles Versioned</div><div class="tv ok">100<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,12 40,12 60,12 80,12 100,12 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a careful cutover tells: the acquirer source is green and steady, but the target breached the 0.1% gate at hour 28 — a backfill batch outran ingestion — and the green-hours clock reset to 19. The cutover does not flip until the streak reaches 72.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates the discipline from §06: the target CRM's drift crept over the gate during a historical backfill, the on-call was paged, and the seventy-two-hour clock reset to nineteen — no data was lost, the cutover was simply <em>not yet permitted</em>. The DLQ at zero says both source schemas are still honoring the contract; the auto-merge rate at 82% says the strict rules are carrying the load while the analyst queue handles the fuzzy tail; every board tile cites a metric version. That is what a designed, reversible, gated integration looks like from the operator's chair on day sixty-one.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the deal away and the question was testing five judgments, each of which generalizes far beyond M&amp;A:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>DECOMPOSITION</dt><dd>Refusing to ship one "integration plan" — seeing four orthogonal problems (entity resolution, schema unification, warehouse consolidation, metrics) with different owners and timelines, and sequencing them.</dd></div>
+      <div class="defrow"><dt>REVERSIBILITY</dt><dd>Designing the un-merge before you need it: append-only crosswalk, <span class="m">superseded_by</span>, retire-never-delete. The first irreversible merge is the incident that teaches this the hard way.</dd></div>
+      <div class="defrow"><dt>LIVE MIGRATION</dt><dd>Knowing you cannot freeze a database that is still taking writes — strangler dual-write through a translation layer, with the contract violation dead-lettered, not swallowed.</dd></div>
+      <div class="defrow"><dt>GATING</dt><dd>Letting a single number — drift under 0.1% for 72 hours — hold the authority to cut over, so the decision is mechanical and defensible rather than a judgment call under deadline pressure.</dd></div>
+      <div class="defrow"><dt>DEFENSIBILITY</dt><dd>Versioning the metric definition so a board number can be audited: combined DAU has three competing versions, Finance picks one on the record, and the SQL is generated from the row.</dd></div>
+    </dl>
+    <div class="pull reveal">Adobe-Figma, Microsoft-Activision, Cisco-Splunk, Salesforce-Slack — all four hit the same four problems. The only difference is which one was hardest in their context, and whether the team built the un-merge before or after they needed it.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 15 — THE INTEGRATION PROBLEM<br>MASTER DATA · THE STRANGLER PATTERN · THE CRAFT OF THE REVERSIBLE MERGE</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

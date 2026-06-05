@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Ledger Problem — PaddySpeaks</title>
+<meta name="description" content="Design Stripe's double-entry payments ledger: an append-only spine where signed entries sum to zero per transaction and currency, idempotency as a unique constraint, refunds and chargebacks as new entries, and FX locked at event time. Schema, invariant SQL, replay-safe Python, and the reconciliation dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 09</div>
+    <h1 class="reveal">The <em>Ledger</em> Problem</h1>
+    <p class="deck reveal">Design Stripe's payments ledger across charges, refunds, chargebacks, payouts and multi-currency FX — where every transaction's entries must sum to exactly zero, nothing is ever updated, and a regulator can ask for the books as they stood on any past day. One decision separates the senior answer: append-only is not a style, it is the invariant. A full working-through — data flow, the double-entry schema, the SUM=0 heart, replay-safe ingestion, the daily integrity check, and the reconciliation dashboard.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Payments</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>The domain with no undo button</h2>
+    <p class="lede reveal">Most systems can afford a correction. Payments cannot. The instant money moves, the record of how it moved becomes evidence — and evidence you can edit is evidence you cannot defend. That single constraint dictates the entire model.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data model for Stripe's payment system — charges, refunds, chargebacks, payouts, multi-currency FX, reserves — with rigorous double-entry accounting where every transaction's entries sum to zero per currency. Append-only: never UPDATE, for regulatory audit compliance. How would you scope it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The prompt hands you the answer and then tests whether you understand why. "Double-entry" and "append-only" are not flourishes; they are the same idea viewed from two sides. A regulator can ask, of a system that moves a trillion dollars a year, "what was merchant X's balance on the fifteenth, as the books showed it <em>then</em>?" — and the answer must be correct regardless of every refund, chargeback, and correction posted since. You cannot reconstruct that from a mutable balance column. You can only reconstruct it from a history that was never allowed to change. The model is forced: an immutable log of signed movements, and a balance that is nothing but a sum over that log.</p>
+
+    <p class="reveal">The weak answer is a <span class="m">charges</span> table with a <span class="m">status</span> column that flips to <span class="cs">'refunded'</span>. It loses the past the moment it updates a row, it cannot survive a retry without double-charging, and it has no honest answer for FX. The strong answer notices that an accountant solved this in the fourteenth century: every event is a balanced set of debits and credits, recorded forever, and the truth is derived, not stored. So before any schema, the working frame for the session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE ATOM</dt><dd><strong>The ledger entry.</strong> One signed movement on one account in one currency. The source of truth, append-only. Billions of rows; the only thing the system truly persists. Everything else is derived from these.</dd></div>
+      <div class="defrow"><dt>THE EVENT</dt><dd><strong>The balance transaction.</strong> One business action — a charge, a refund, a payout — that groups its entries. The unit the SUM=0 invariant is enforced over, per currency. A charge with a fee is one event, several atoms.</dd></div>
+      <div class="defrow"><dt>THE STATE</dt><dd><strong>The balance.</strong> Never written by a human, only materialized: a running sum of entries per (account × currency). Fast to read, trivial to rebuild, impossible to corrupt independently of the log.</dd></div>
+    </dl>
+
+    <div class="pull reveal">A balance is not a fact you store. It is a fact you can always re-derive — which is precisely why no one is ever allowed to write it directly.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope, said before any boxes: in scope is the ledger spine, the SUM=0 invariant, idempotency, the reversal pattern for refunds and chargebacks, and multi-currency FX locked at event time. Explicitly out of scope, named aloud: card-network authorization and the issuer rails (we model the <em>outcome</em> of an auth, not the ISO 8583 handshake), fraud scoring (a separate system that reads the ledger), and the payout banking integration beyond the entries that represent it. One non-negotiable I will state up front: there is exactly one writer discipline — append a balanced set of entries, or append nothing. No partial transactions, ever.</p>
+
+    <p class="reveal">Then the envelope math, volunteered. Stripe-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Payment volume / year</td><td class="mono">~$1 T</td><td>Sets the regulatory bar: SOX, PCI, banking audit — all assume immutability</td></tr>
+      <tr><td>Charges / day</td><td class="mono">~10^8</td><td>The business-event rate; modest writes, enormous stakes</td></tr>
+      <tr><td><strong>Ledger entries / charge</strong></td><td class="mono"><strong>3–8</strong></td><td><strong>The fan-out that makes the SUM=0 invariant meaningful</strong></td></tr>
+      <tr><td>Chargeback arrival lag</td><td class="mono">30–90 days</td><td>The past must stay open to new entries long after it "closed"</td></tr>
+      <tr><td>Currencies in flight</td><td class="mono">~135</td><td>Every cross-currency event needs an FX leg with a locked rate</td></tr>
+      <tr><td>Acceptable balance error</td><td class="mono">$0.00</td><td>The invariant is exact, not approximate; any drift halts payments</td></tr>
+      <tr><td>Idempotency-key retries</td><td class="mono">routine</td><td>Networks fail mid-write; replay must be a no-op, not a double-charge</td></tr>
+    </table>
+
+    <p class="reveal">Notice the row that is unlike any other system: the acceptable error is zero. Not "five nines," not "eventually consistent" — zero, exactly, per currency, per transaction, continuously. A recommender can be noisy and a search index can be stale, but a ledger that is off by a cent is not a degraded ledger, it is a broken one. That absolutism is the spine of the whole design, and it is enforceable precisely because the model is append-only.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a charge into the books</h2>
+    <p class="lede reveal">One spine, two readers. Producers translate business events into balanced entry sets and append them through an idempotency gate. The ledger is the immutable record; balances and reports are derived views that can be thrown away and rebuilt at any time.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">WRITE PATH · BALANCED OR NOTHING</text>
+        <text x="20" y="338" font-size="11" letter-spacing="3" fill="#6f7d5c">READ PATH · DERIVED, REBUILDABLE</text>
+        <line x1="20" y1="308" x2="960" y2="308" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- producers -->
+        <rect x="20" y="56" width="156" height="70" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="98" y="82" font-size="12" text-anchor="middle" fill="#23201a">PRODUCERS</text>
+        <text x="98" y="100" font-size="10.5" text-anchor="middle" fill="#7d7567">charge · refund · payout</text>
+        <text x="98" y="115" font-size="10.5" text-anchor="middle" fill="#7d7567">dispute webhook</text>
+
+        <!-- builder -->
+        <rect x="228" y="48" width="178" height="86" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="317" y="74" font-size="12" text-anchor="middle" fill="#23201a">ENTRY BUILDER</text>
+        <text x="317" y="92" font-size="10.5" text-anchor="middle" fill="#7d7567">event → N signed entries</text>
+        <text x="317" y="108" font-size="10.5" text-anchor="middle" fill="#7d7567">FX rate locked here</text>
+        <text x="317" y="124" font-size="10.5" text-anchor="middle" fill="#a4502e">asserts Σ=0 before send</text>
+
+        <!-- idempotency gate -->
+        <rect x="458" y="48" width="150" height="86" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="533" y="78" font-size="12" text-anchor="middle" fill="#a4502e">IDEMPOTENCY GATE</text>
+        <text x="533" y="96" font-size="10.5" text-anchor="middle" fill="#7d7567">UNIQUE(source_event)</text>
+        <text x="533" y="112" font-size="10.5" text-anchor="middle" fill="#7d7567">retry → no-op</text>
+
+        <!-- ledger -->
+        <rect x="660" y="40" width="292" height="96" fill="#27241d"/>
+        <text x="806" y="72" font-size="13" text-anchor="middle" fill="#e9e2d0">fct_ledger_entries</text>
+        <text x="806" y="92" font-size="10.5" text-anchor="middle" fill="#b8ad93">APPEND-ONLY · the source of truth</text>
+        <text x="806" y="108" font-size="10.5" text-anchor="middle" fill="#b8ad93">signed amount · per (txn × currency) Σ=0</text>
+        <text x="806" y="123" font-size="10.5" text-anchor="middle" fill="#d98e63">no UPDATE · no DELETE · ever</text>
+
+        <!-- read path -->
+        <rect x="20" y="360" width="180" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="110" y="384" font-size="12" text-anchor="middle" fill="#23201a">INTEGRITY CHECK</text>
+        <text x="110" y="402" font-size="10.5" text-anchor="middle" fill="#a4502e">Σ per txn×ccy = 0?</text>
+        <text x="110" y="416" font-size="10.5" text-anchor="middle" fill="#7d7567">fail → halt + page</text>
+
+        <rect x="232" y="352" width="180" height="80" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="322" y="378" font-size="12" text-anchor="middle" fill="#6f7d5c">BALANCE MATERIALIZER</text>
+        <text x="322" y="396" font-size="10.5" text-anchor="middle" fill="#7d7567">running sum per account</text>
+        <text x="322" y="412" font-size="10.5" text-anchor="middle" fill="#7d7567">snapshot daily · rebuildable</text>
+
+        <rect x="446" y="360" width="172" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="532" y="384" font-size="12" text-anchor="middle" fill="#23201a">MERCHANT BALANCE API</text>
+        <text x="532" y="402" font-size="10.5" text-anchor="middle" fill="#7d7567">available · pending · reserve</text>
+
+        <rect x="660" y="360" width="292" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="806" y="384" font-size="12" text-anchor="middle" fill="#23201a">FINANCE · RECON · REGULATOR</text>
+        <text x="806" y="402" font-size="10.5" text-anchor="middle" fill="#7d7567">as-of-date queries · audit trail</text>
+
+        <!-- write arrows -->
+        <line x1="176" y1="90" x2="224" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="406" y1="90" x2="454" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="608" y1="90" x2="656" y2="88" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+
+        <!-- ledger to read path -->
+        <line x1="760" y1="136" x2="120" y2="356" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <line x1="806" y1="136" x2="340" y2="350" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <line x1="852" y1="136" x2="852" y2="356" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+
+        <!-- materializer to api -->
+        <line x1="412" y1="392" x2="444" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- late dispute loops back to write -->
+        <path d="M 806 424 C 806 470, 533 470, 533 138" fill="none" stroke="#a4502e" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="560" y="464" font-size="10.5" fill="#a4502e">chargeback 30–90d later → NEW entries, never an edit</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — the write path · DASHED — derived reads &amp; the late-dispute loop · The log is written once; everything else is recomputed.</text>
+      </svg>
+      <div class="caption">FIG. 1 — One immutable spine. Producers append balanced sets through an idempotency gate; balances, APIs and audits are views. A dispute that lands months later appends new entries — it does not reopen the old ones.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture carry the interview. <strong>First,</strong> the entry builder asserts SUM=0 <em>before</em> anything is sent — an unbalanced transaction never reaches the log, so the invariant is a precondition of writing, not a hope checked afterward. <strong>Second,</strong> the idempotency gate sits between the builder and the log, so a producer that retries after a timeout collides on a unique key and the second attempt is silently absorbed; money is moved at-most-once even though the network guarantees at-least-once delivery. <strong>Third,</strong> everything below the dashed line is derived: balances, the merchant API, the regulator's as-of-date view. Drop the entire read layer and you have lost nothing but cache — the truth survives intact in the append-only log, and the balances rebuild from a single scan.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>The log never lies, and the log never forgets.</strong> Under load, a balance read may serve a slightly stale snapshot — acceptable, because the merchant API is a convenience view. But a <em>write</em> degrades in exactly one direction: it either appends a fully balanced, idempotent set of entries, or it appends nothing and fails loudly. There is no half-posted transaction, no UPDATE to patch a mistake, no DELETE to make a problem disappear. Corrections move forward as new entries; the past is read-only by construction.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>One log, a chart of accounts, two derived views</h2>
+    <p class="lede reveal">The schema is almost austere. A single append-only fact carries every movement. A small chart of accounts gives each party a balance. FX rates are a slowly-changing dimension. The balance and the business-event grouping are derived. The discipline is in the constraints, not the column count.</p>
+
+    <h3 class="reveal">The atom — every movement, signed and immutable</h3>
+    <p class="reveal">The ledger entry is the only table the system genuinely owns. Each row is one signed amount on one account in one currency, tied to a business event by <span class="m">balance_txn_id</span>. The two load-bearing columns are <span class="m">source_event_id</span>, the idempotency key with a UNIQUE constraint that turns retries into no-ops, and <span class="m">reversal_of_id</span>, the self-reference that makes a refund or chargeback point back at what it undoes — without ever touching the original row.</p>
+
+    <div class="codelabel">DDL · THE APPEND-ONLY SPINE</div>
+    <div class="codeblock"><span class="cl">-- The "Atom" grain. One row per debit OR credit on (account, currency).
+-- APPEND-ONLY: no UPDATE, no DELETE. Enforced by permissions and by a
+-- trigger that raises on any modification. This is the source of truth.</span>
+<span class="ck">CREATE TABLE</span> fct_ledger_entries (
+    entry_id        BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    balance_txn_id  BIGINT       <span class="ck">NOT NULL</span>,   <span class="cl">-- groups one business event</span>
+    account_id      TEXT         <span class="ck">NOT NULL REFERENCES</span> dim_accounts,
+    merchant_id     BIGINT       <span class="ck">NOT NULL</span>,
+    currency_code   CHAR(3)      <span class="ck">NOT NULL</span>,
+    <span class="cl">-- Signed convention: positive = credit, negative = debit.</span>
+    <span class="cl">-- The invariant: SUM(amount) per (balance_txn_id, currency_code) = 0.</span>
+    amount          NUMERIC(20,4) <span class="ck">NOT NULL</span>,
+    entry_type      TEXT         <span class="ck">NOT NULL</span>      <span class="cl">-- charge|refund|fee|fx_gain|</span>
+                    <span class="ck">CHECK</span> (entry_type <span class="ck">IN</span>             <span class="cl">-- fx_loss|payout|chargeback|</span>
+                       (<span class="cs">'charge'</span>,<span class="cs">'refund'</span>,<span class="cs">'fee'</span>,    <span class="cl">-- reserve_hold|reserve_release</span>
+                        <span class="cs">'fx_gain'</span>,<span class="cs">'fx_loss'</span>,<span class="cs">'payout'</span>,
+                        <span class="cs">'chargeback'</span>,<span class="cs">'reserve_hold'</span>,<span class="cs">'reserve_release'</span>)),
+    fx_rate_locked  NUMERIC(18,8),               <span class="cl">-- the rate AT posting, frozen</span>
+    effective_ts    TIMESTAMPTZ  <span class="ck">NOT NULL</span>,   <span class="cl">-- when the event happened</span>
+    posted_ts       TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(), <span class="cl">-- when it hit the books</span>
+    reversal_of_id  BIGINT,                       <span class="cl">-- → the entry this undoes</span>
+    source_event_id TEXT         <span class="ck">NOT NULL</span>,
+    <span class="cl">-- Idempotency at the row: a producer retry writes the SAME key and</span>
+    <span class="cl">-- bounces off this constraint instead of duplicating money.</span>
+    <span class="ck">UNIQUE</span> (source_event_id)
+);
+<span class="ck">CREATE INDEX</span> idx_le_txn      <span class="ck">ON</span> fct_ledger_entries (balance_txn_id);
+<span class="ck">CREATE INDEX</span> idx_le_balance  <span class="ck">ON</span> fct_ledger_entries
+    (account_id, merchant_id, currency_code, posted_ts);</div>
+
+    <p class="reveal">Two timestamps, not one, and the distinction is the whole audit story. <span class="m">effective_ts</span> is when the money moved in the world; <span class="m">posted_ts</span> is when the row landed in the books. A chargeback that happened in March but posts in May has a March <span class="m">effective_ts</span> and a May <span class="m">posted_ts</span> — and "the balance as the books showed it on April 1" is a filter on <span class="m">posted_ts &lt;= '2025-04-01'</span>, which correctly excludes a movement not yet recorded then. One column separates economic reality from recorded reality, and regulators care about both.</p>
+
+    <h3 class="reveal">The chart of accounts and the FX dimension</h3>
+    <p class="reveal">Every party in a transaction is an account with a balance — not just merchants and customers, but internal accounts: <span class="m">fees</span>, <span class="m">reserve</span>, <span class="m">tax</span>, <span class="m">fx_holding</span>, <span class="m">chargeback_reserve</span>. This is what lets a single charge balance to zero: the money the merchant gains is exactly the money the customer's account loses plus the fee revenue Stripe recognizes. FX rates are SCD2 because the rate used must be the one that was in force at posting — frozen onto the entry, never re-derived at read time.</p>
+
+    <div class="codelabel">DDL · CHART OF ACCOUNTS &amp; FX RATES (SCD2)</div>
+    <div class="codeblock"><span class="cl">-- The chart. Each party is an account; internal accounts make every
+-- transaction self-balancing. SCD1 — the chart rarely changes shape.</span>
+<span class="ck">CREATE TABLE</span> dim_accounts (
+    account_id   TEXT  <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- 'merchant_balance','fees','reserve'…</span>
+    account_kind TEXT  <span class="ck">NOT NULL</span>      <span class="cl">-- asset|liability|revenue|holding</span>
+                 <span class="ck">CHECK</span> (account_kind <span class="ck">IN</span> (<span class="cs">'asset'</span>,<span class="cs">'liability'</span>,<span class="cs">'revenue'</span>,<span class="cs">'holding'</span>)),
+    is_internal  <span class="ck">BOOLEAN NOT NULL</span>
+);
+
+<span class="cl">-- FX rates as a daily SCD2 dimension. The entry builder reads the row
+-- valid at effective_ts and STAMPS the rate onto the ledger entry, so a
+-- later rate revision can never retroactively change a posted conversion.</span>
+<span class="ck">CREATE TABLE</span> dim_fx_rates (
+    currency_pair  TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- 'EUR/USD'</span>
+    rate           NUMERIC(18,8) <span class="ck">NOT NULL</span>,
+    effective_from TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to   TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    <span class="ck">PRIMARY KEY</span> (currency_pair, effective_from)
+);</div>
+
+    <h3 class="reveal">The derived views — balance and business event</h3>
+    <p class="reveal">Two more tables, both derived, neither a source of truth. <span class="m">fct_balance_transactions</span> groups the atoms of one business event for convenient query; <span class="m">snap_account_balance_daily</span> is the running sum materialized for sub-second balance reads. The crucial property: both can be dropped and rebuilt from the log by replaying it. They exist for speed, and they are allowed to be temporarily stale, because correctness lives upstream of them.</p>
+
+    <div class="codelabel">DDL · DERIVED — EVENT GROUPING &amp; DAILY BALANCE</div>
+    <div class="codeblock"><span class="cl">-- The "Business event" grain. One row per charge/refund/payout/dispute.
+-- A convenience grouping over the atoms; rebuildable from the log.</span>
+<span class="ck">CREATE TABLE</span> fct_balance_transactions (
+    balance_txn_id   BIGINT      <span class="ck">PRIMARY KEY</span>,
+    txn_type         TEXT        <span class="ck">NOT NULL</span>,   <span class="cl">-- charge|refund|payout|chargeback…</span>
+    source_object_id TEXT        <span class="ck">NOT NULL</span>,   <span class="cl">-- charge_id / refund_id</span>
+    merchant_id      BIGINT      <span class="ck">NOT NULL</span>,
+    status           TEXT        <span class="ck">NOT NULL</span>,
+    txn_ts           TIMESTAMPTZ <span class="ck">NOT NULL</span>
+);
+
+<span class="cl">-- The "State" grain. Running balance per (account × merchant × currency
+-- × day). DERIVED from fct_ledger_entries. Read for speed; if it ever
+-- disagrees with the log, the log wins and this is recomputed.</span>
+<span class="ck">CREATE TABLE</span> snap_account_balance_daily (
+    account_id    TEXT         <span class="ck">NOT NULL</span>,
+    merchant_id   BIGINT       <span class="ck">NOT NULL</span>,
+    currency_code CHAR(3)      <span class="ck">NOT NULL</span>,
+    as_of_date    DATE         <span class="ck">NOT NULL</span>,
+    opening       NUMERIC(20,4) <span class="ck">NOT NULL</span>,
+    debits        NUMERIC(20,4) <span class="ck">NOT NULL</span>,
+    credits       NUMERIC(20,4) <span class="ck">NOT NULL</span>,
+    closing       NUMERIC(20,4) <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (account_id, merchant_id, currency_code, as_of_date)
+);</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>SUM equals zero, or payments stop</h2>
+    <p class="lede reveal">Every correctness guarantee in this system collapses to one statement: for any business event, the signed entries sum to zero within each currency. It is not a report you run nightly to feel reassured. It is a gate the books are not allowed to pass through unbalanced.</p>
+
+    <p class="reveal">Double-entry's genius is that it makes a whole class of bugs <em>arithmetically</em> impossible to hide. If a producer drops a leg, miscomputes a fee, or fat-fingers a sign, the transaction's currency sum is no longer zero, and a single query finds it. There is no way for money to silently appear or vanish, because every credit is born with its matching debit. The model does not trust the producer to be correct; it gives the producer a property that is cheap to verify and impossible to fake.</p>
+
+    <p class="reveal">Consider a €100 charge with a €2.90 fee. It is one business event and four atoms, and the EUR sum is exactly zero:</p>
+
+    <div class="codelabel">SQL · A CHARGE, AS BALANCED ENTRIES</div>
+    <div class="codeblock"><span class="cl">-- Business event: charge €100, Stripe fee €2.90. One balance_txn, 4 atoms.</span>
+<span class="ck">INSERT INTO</span> fct_ledger_entries
+    (balance_txn_id, account_id, merchant_id, currency_code, amount,
+     entry_type, effective_ts, source_event_id) <span class="ck">VALUES</span>
+  (1001, <span class="cs">'merchant_balance'</span>, 42, <span class="cs">'EUR'</span>,  100.00, <span class="cs">'charge'</span>, now(), <span class="cs">'evt_a'</span>),
+  (1001, <span class="cs">'fees'</span>,            42, <span class="cs">'EUR'</span>,   -2.90, <span class="cs">'fee'</span>,    now(), <span class="cs">'evt_b'</span>),
+  (1001, <span class="cs">'customer_balance'</span>, 42, <span class="cs">'EUR'</span>, -100.00, <span class="cs">'charge'</span>, now(), <span class="cs">'evt_c'</span>),
+  (1001, <span class="cs">'fees_revenue'</span>,    42, <span class="cs">'EUR'</span>,    2.90, <span class="cs">'fee'</span>,    now(), <span class="cs">'evt_d'</span>);
+<span class="cl">-- SUM(amount WHERE currency='EUR') = 100 - 2.90 - 100 + 2.90 = 0  ✓</span></div>
+
+    <h3 class="reveal">The continuous integrity check</h3>
+    <p class="reveal">The invariant runs continuously, not as reassurance but as a circuit breaker. An empty result set is health; a single returned row is a producer bug, and the response is not a Jira ticket — it is to halt the payments pipeline before the corruption propagates into a merchant payout. This is the one query the on-call engineer is woken for.</p>
+
+    <div class="codelabel">SQL · THE INVARIANT AS A CIRCUIT BREAKER</div>
+    <div class="codeblock"><span class="cl">-- Continuous DQ. Empty = healthy. Any row = a producer regression that
+-- broke double-entry. Page on-call; freeze payouts until it is resolved.</span>
+<span class="ck">SELECT</span>
+    balance_txn_id,
+    currency_code,
+    <span class="cf">round</span>(<span class="cf">sum</span>(amount), 4) <span class="ck">AS</span> net,
+    <span class="cf">count</span>(*)            <span class="ck">AS</span> entry_count
+<span class="ck">FROM</span> fct_ledger_entries
+<span class="ck">WHERE</span> posted_ts &gt;= now() - <span class="ck">INTERVAL</span> <span class="cs">'1 hour'</span>
+<span class="ck">GROUP BY</span> balance_txn_id, currency_code
+<span class="ck">HAVING</span> <span class="cf">abs</span>(<span class="cf">sum</span>(amount)) &gt; 0.0001;   <span class="cl">-- exact-zero, modulo float dust</span></div>
+
+    <div class="pull reveal">A ledger off by a cent is not a degraded ledger. It is a broken one. The invariant does not warn — it stops the line.<span>LEDGER RULE Nº 1 — BALANCED OR NOT AT ALL</span></div>
+
+    <p class="reveal">There is a second invariant hiding inside the first, and it is what makes the system <em>replay-safe</em>: the UNIQUE constraint on <span class="m">source_event_id</span>. A producer that times out mid-write does not know whether its entries landed, so it retries with the identical event id. The retry's INSERT collides on the unique key; the application catches the violation and returns the original transaction. The money is moved exactly once even though the write was attempted twice — idempotency enforced at the database, not hoped for in application logic. SUM=0 keeps the books honest; UNIQUE keeps them from double-counting. Together they are the entire correctness story.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="ingestion">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; WRITES</span>Python that refuses to imbalance the books</h2>
+    <p class="lede reveal">Three small programs carry the write path: the entry builder that turns an event into a balanced set, the FX builder that locks a rate into the ledger, and the idempotent appender that makes a retry a no-op. Each is defined as much by what it refuses to do as by what it does.</p>
+
+    <h3 class="reveal">1 · The entry builder — balanced before it leaves the process</h3>
+    <p class="reveal">The builder's contract is absolute: it returns a set of entries whose per-currency sums are zero, or it raises. It never returns a partial transaction for the caller to "finish later," because a partial transaction is the one thing the ledger must never see. The SUM=0 assertion lives here, in the producer, so that an unbalanced set dies in application code and never reaches the durable log.</p>
+
+    <div class="codelabel">PYTHON · ENTRY BUILDER — Σ=0 IS A PRECONDITION</div>
+    <div class="codeblock"><span class="ck">from</span> collections <span class="ck">import</span> defaultdict
+<span class="ck">from</span> decimal <span class="ck">import</span> Decimal
+
+<span class="ck">class</span> <span class="cf">UnbalancedTransaction</span>(<span class="cf">Exception</span>): ...
+
+<span class="ck">def</span> <span class="cf">build_charge</span>(txn_id, merchant_id, currency, gross, fee, source_id):
+    <span class="cs">"""Return the balanced entry set for a charge, or raise. We assert the
+    invariant in the producer so an imbalanced transaction can never be
+    appended. There is no 'draft' state and no half-written charge."""</span>
+    g, f = Decimal(gross), Decimal(fee)
+    entries = [
+        _entry(txn_id, <span class="cs">"merchant_balance"</span>, merchant_id, currency,  g,
+               <span class="cs">"charge"</span>, <span class="cs">f"{source_id}:mb"</span>),
+        _entry(txn_id, <span class="cs">"fees"</span>,            merchant_id, currency, -f,
+               <span class="cs">"fee"</span>,    <span class="cs">f"{source_id}:fee"</span>),
+        _entry(txn_id, <span class="cs">"customer_balance"</span>, merchant_id, currency, -g,
+               <span class="cs">"charge"</span>, <span class="cs">f"{source_id}:cb"</span>),
+        _entry(txn_id, <span class="cs">"fees_revenue"</span>,    merchant_id, currency,  f,
+               <span class="cs">"fee"</span>,    <span class="cs">f"{source_id}:rev"</span>),
+    ]
+    _assert_balanced(entries)        <span class="cl"># the gate every builder funnels through</span>
+    <span class="ck">return</span> entries
+
+<span class="ck">def</span> <span class="cf">_assert_balanced</span>(entries) -> <span class="ck">None</span>:
+    sums = defaultdict(<span class="ck">lambda</span>: Decimal(0))
+    <span class="ck">for</span> e <span class="ck">in</span> entries:
+        sums[e[<span class="cs">"currency_code"</span>]] += e[<span class="cs">"amount"</span>]
+    <span class="ck">for</span> ccy, total <span class="ck">in</span> sums.items():
+        <span class="ck">if</span> total != Decimal(0):       <span class="cl"># Decimal, not float: cents are exact</span>
+            <span class="ck">raise</span> <span class="cf">UnbalancedTransaction</span>(<span class="cs">f"{ccy} nets {total}, must be 0"</span>)</div>
+
+    <p class="reveal">Note the use of <span class="m">Decimal</span>, not floating point. Money in binary float is a bug waiting for the right two numbers; cents must be exact, and the invariant must hold to the cent, not to the nearest epsilon. This is a small choice that an interviewer will notice you making, and a large one to get wrong.</p>
+
+    <h3 class="reveal">2 · The FX builder — lock the rate into the ledger</h3>
+    <p class="reveal">A cross-currency event is the canonical four-entry transaction, and its discipline is to <em>record</em> the conversion rather than compute it at read time. The rate is read from the SCD2 dimension as of the event, stamped onto the entries, and balanced per currency independently. "What did we earn in USD in March?" then sums the USD-denominated rows and never re-runs FX — because the rate that mattered is already frozen in the row.</p>
+
+    <div class="codelabel">PYTHON · FX PAYOUT — RATE FROZEN AT EVENT TIME</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">build_fx_payout</span>(txn_id, merchant_id, eur_amount, effective_ts,
+                    source_id, fx_lookup):
+    <span class="cs">"""EUR balance → USD bank. Four entries: the EUR side closes, the USD
+    side opens, and the locked rate is written onto the rows. We never
+    'convert at read time' — every conversion is a recorded event."""</span>
+    rate = fx_lookup(<span class="cs">"EUR/USD"</span>, as_of=effective_ts)   <span class="cl"># SCD2 as-of read</span>
+    eur  = Decimal(eur_amount)
+    usd  = (eur * rate).quantize(Decimal(<span class="cs">"0.0001"</span>))
+
+    entries = [
+        _entry(txn_id, <span class="cs">"merchant_balance"</span>, merchant_id, <span class="cs">"EUR"</span>, -eur,
+               <span class="cs">"payout"</span>, <span class="cs">f"{source_id}:eur_out"</span>, fx=rate),
+        _entry(txn_id, <span class="cs">"fx_holding"</span>,      merchant_id, <span class="cs">"EUR"</span>,  eur,
+               <span class="cs">"payout"</span>, <span class="cs">f"{source_id}:eur_hold"</span>, fx=rate),
+        _entry(txn_id, <span class="cs">"fx_holding"</span>,      merchant_id, <span class="cs">"USD"</span>, -usd,
+               <span class="cs">"payout"</span>, <span class="cs">f"{source_id}:usd_hold"</span>, fx=rate),
+        _entry(txn_id, <span class="cs">"merchant_bank"</span>,   merchant_id, <span class="cs">"USD"</span>,  usd,
+               <span class="cs">"payout"</span>, <span class="cs">f"{source_id}:usd_out"</span>, fx=rate),
+    ]
+    _assert_balanced(entries)        <span class="cl"># EUR nets 0; USD nets 0 — independently</span>
+    <span class="ck">return</span> entries</div>
+
+    <h3 class="reveal">3 · The idempotent appender — a retry is a no-op</h3>
+    <div class="codelabel">PYTHON · APPEND — IDEMPOTENT BY THE UNIQUE KEY</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">append_transaction</span>(db, entries) -> str:
+    <span class="cs">"""Append a balanced set atomically. The UNIQUE(source_event_id) does
+    the idempotency: a retried producer writes the same keys and collides,
+    and we return the ORIGINAL txn instead of doubling the money. No
+    UPDATE path exists in this function — there is no way to mutate the
+    past, only to append to it."""</span>
+    <span class="ck">try</span>:
+        <span class="ck">async with</span> db.transaction():       <span class="cl"># all entries land, or none do</span>
+            <span class="ck">await</span> db.execute_many(INSERT_ENTRY_SQL, entries)
+        <span class="ck">return</span> entries[0][<span class="cs">"balance_txn_id"</span>]
+    <span class="ck">except</span> UniqueViolation:
+        <span class="cl"># The retry path: the event already posted. Idempotent success —</span>
+        <span class="cl"># look up and return the transaction we wrote the first time.</span>
+        <span class="ck">return await</span> db.scalar(
+            <span class="cs">"SELECT balance_txn_id FROM fct_ledger_entries "</span>
+            <span class="cs">"WHERE source_event_id = $1"</span>, entries[0][<span class="cs">"source_event_id"</span>])</div>
+
+    <p class="reveal">The carve-out an interviewer listens for is in that docstring: <strong>this function has no UPDATE path.</strong> There is deliberately no code anywhere that mutates a posted entry, because the existence of such a path is itself the vulnerability. Append, or fail, or absorb a duplicate — those are the only three outcomes, by construction.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Reversals, balances, and the open past</h2>
+    <p class="lede reveal">Two derived layers sit atop the log: balances, which are running sums, and corrections, which are new transactions. A refund is not an edit. A chargeback is not an edit. They are fresh, balanced sets of entries that point back at what they undo — which is the only way the past can stay both correct and immutable.</p>
+
+    <p class="reveal">The junior instinct is to mark a charge "refunded" with an UPDATE. The double-entry answer appends the mirror image: every leg of the original, with the sign flipped, in a new transaction whose entries carry <span class="m">reversal_of_id</span> back to the originals. Both transactions exist forever. The merchant's balance moves because the sum over the log moved — not because any historical row changed.</p>
+
+    <div class="codelabel">SQL · A REFUND IS A NEW, BALANCED TRANSACTION</div>
+    <div class="codeblock"><span class="cl">-- Refund of balance_txn 1001. New txn 1002; each leg mirrors an original
+-- and links to it via reversal_of_id. The original rows are untouched.</span>
+<span class="ck">INSERT INTO</span> fct_ledger_entries
+    (balance_txn_id, account_id, merchant_id, currency_code, amount,
+     entry_type, effective_ts, reversal_of_id, source_event_id) <span class="ck">VALUES</span>
+  (1002, <span class="cs">'merchant_balance'</span>, 42, <span class="cs">'EUR'</span>, -100.00, <span class="cs">'refund'</span>, now(), 1, <span class="cs">'evt_r1'</span>),
+  (1002, <span class="cs">'fees'</span>,            42, <span class="cs">'EUR'</span>,    2.90, <span class="cs">'refund'</span>, now(), 2, <span class="cs">'evt_r2'</span>),
+  (1002, <span class="cs">'customer_balance'</span>, 42, <span class="cs">'EUR'</span>,  100.00, <span class="cs">'refund'</span>, now(), 3, <span class="cs">'evt_r3'</span>),
+  (1002, <span class="cs">'fees_revenue'</span>,    42, <span class="cs">'EUR'</span>,   -2.90, <span class="cs">'refund'</span>, now(), 4, <span class="cs">'evt_r4'</span>);
+<span class="cl">-- New txn nets 0 in EUR ✓ ; the merchant's running balance falls by 100,
+-- because SUM over the log fell — no historical row was ever rewritten.</span></div>
+
+    <p class="reveal">Balances, then, are pure derivation. The daily snapshot is a windowed running sum over the log per account and currency — materialized for speed, but defined entirely by the entries. Drop it and rebuild it from one scan and nothing is lost. This is the property that lets a finance team trust a sub-second balance read: it is not an independent number that could be wrong, it is a cache of a sum that is always recomputable.</p>
+
+    <div class="codelabel">SQL · BALANCE AS A MATERIALIZED RUNNING SUM</div>
+    <div class="codeblock"><span class="cl">-- Rebuild the daily balance snapshot from the log. Idempotent: re-running
+-- for a date reproduces the identical numbers, because the log is immutable.</span>
+<span class="ck">INSERT INTO</span> snap_account_balance_daily
+    (account_id, merchant_id, currency_code, as_of_date,
+     opening, debits, credits, closing)
+<span class="ck">SELECT</span>
+    account_id, merchant_id, currency_code,
+    <span class="ck">:as_of_date</span>                                          <span class="ck">AS</span> as_of_date,
+    <span class="cf">coalesce</span>(<span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> posted_ts &lt; <span class="ck">:as_of_date</span>), 0) <span class="ck">AS</span> opening,
+    <span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> amount &lt; 0
+                       <span class="ck">AND</span> posted_ts::date = <span class="ck">:as_of_date</span>)        <span class="ck">AS</span> debits,
+    <span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> amount &gt; 0
+                       <span class="ck">AND</span> posted_ts::date = <span class="ck">:as_of_date</span>)        <span class="ck">AS</span> credits,
+    <span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> posted_ts &lt;= <span class="ck">:as_of_date</span>)         <span class="ck">AS</span> closing
+<span class="ck">FROM</span> fct_ledger_entries
+<span class="ck">GROUP BY</span> account_id, merchant_id, currency_code;</div>
+
+    <div class="pull reveal">A monthly close locks the past. But the past is never sealed against new entries — a chargeback from sixty days ago lands today, in a post-close adjustment sub-period, as fresh entries that were never an edit.<span>LEDGER RULE Nº 2 — THE BOOKS CLOSE, BUT THEY NEVER LOCK OUT</span></div>
+
+    <p class="reveal">That rule resolves the hardest tension in payments accounting. Card networks deliver chargebacks thirty to ninety days after the charge — long after the period that contained the charge has "closed." A model that treats a closed month as immutable-and-sealed has nowhere to put them. This model does: the close locks the past against <em>edits</em>, but the append-only log always accepts <em>new</em> entries. A late chargeback posts today, with an <span class="m">effective_ts</span> back in the original month for economic reporting and a <span class="m">posted_ts</span> of now for the audit trail, attributed to a post-close adjustment sub-period. The merchant's balance silently steps down sixty days later — correctly, traceably, and without anyone having reopened a single historical row.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the books</h2>
+    <p class="lede reveal">The append-only log answers questions no mutable table can. Three queries an interviewer loves, each carrying a named pattern: the as-of-date audit reconstruction, a self-join for dispute lag, and conditional aggregation for realized FX.</p>
+
+    <h3 class="reveal">The balance as the books showed it then — as-of-date audit</h3>
+    <p class="reveal">The regulator's question, and the one the whole design exists to answer: merchant X's balance on a historical date, as it appeared <em>then</em>, regardless of corrections posted since. The pattern is the as-of-date reconstruction — a filter on <span class="m">posted_ts</span>, summing the immutable log. Because rows are never edited, the answer is stable forever; re-run it next year and it returns the same number.</p>
+
+    <div class="codelabel">SQL · BALANCE AS OF A HISTORICAL DATE</div>
+    <div class="codeblock"><span class="cl">-- Merchant balance per currency as the books showed it on a past date.
+-- posted_ts &lt;= cutoff: a chargeback that posted AFTER the cutoff (even if
+-- it happened before) is correctly excluded. Defensible regardless of any
+-- later correction — the append-only contract, expressed as a predicate.</span>
+<span class="ck">SELECT</span>
+    merchant_id,
+    currency_code,
+    <span class="cf">round</span>(<span class="cf">sum</span>(amount), 2) <span class="ck">AS</span> balance_as_of
+<span class="ck">FROM</span> fct_ledger_entries
+<span class="ck">WHERE</span> account_id = <span class="cs">'merchant_balance'</span>
+  <span class="ck">AND</span> merchant_id = <span class="ck">:merchant_id</span>
+  <span class="ck">AND</span> posted_ts &lt;= <span class="ck">:as_of_ts</span>          <span class="cl">-- recorded-reality cutoff</span>
+<span class="ck">GROUP BY</span> merchant_id, currency_code;</div>
+
+    <h3 class="reveal">Chargeback rate and dispute lag — the reversal self-join</h3>
+    <p class="reveal">Risk's question: which merchants are bleeding chargebacks, and how long after the charge do disputes land? The pattern is a self-join over the log — charges joined to their reversing chargebacks via <span class="m">reversal_of_id</span> — with conditional aggregation for the rate and a timestamp difference for the lag. Merchants over a threshold trigger a reserve increase, closing the loop back to the chart of accounts.</p>
+
+    <div class="codelabel">SQL · CHARGEBACK RATE &amp; DISPUTE LAG PER MERCHANT</div>
+    <div class="codeblock"><span class="ck">WITH</span> charges <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> merchant_id, balance_txn_id,
+           effective_ts <span class="ck">AS</span> charge_ts
+    <span class="ck">FROM</span>   fct_ledger_entries
+    <span class="ck">WHERE</span>  entry_type = <span class="cs">'charge'</span>
+      <span class="ck">AND</span>  account_id = <span class="cs">'merchant_balance'</span>
+      <span class="ck">AND</span>  amount &gt; 0
+),
+chargebacks <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> reversal_of_id,
+           effective_ts <span class="ck">AS</span> chargeback_ts
+    <span class="ck">FROM</span>   fct_ledger_entries
+    <span class="ck">WHERE</span>  entry_type = <span class="cs">'chargeback'</span>
+)
+<span class="ck">SELECT</span>
+    c.merchant_id,
+    <span class="cf">count</span>(c.balance_txn_id)                                  <span class="ck">AS</span> charges,
+    <span class="cf">count</span>(cb.reversal_of_id)                                 <span class="ck">AS</span> chargebacks,
+    <span class="cf">round</span>(100.0 * <span class="cf">count</span>(cb.reversal_of_id)
+          / <span class="cf">nullif</span>(<span class="cf">count</span>(c.balance_txn_id), 0), 2)            <span class="ck">AS</span> cb_rate_pct,
+    <span class="cf">round</span>(<span class="cf">avg</span>(<span class="cf">extract</span>(epoch <span class="ck">FROM</span> cb.chargeback_ts - c.charge_ts)
+              / 86400), 1)                                  <span class="ck">AS</span> avg_lag_days
+<span class="ck">FROM</span> charges c
+<span class="ck">LEFT JOIN</span> chargebacks cb <span class="ck">ON</span> cb.reversal_of_id = c.balance_txn_id
+<span class="ck">WHERE</span> c.charge_ts &gt;= now() - <span class="ck">INTERVAL</span> <span class="cs">'90 days'</span>
+<span class="ck">GROUP BY</span> c.merchant_id
+<span class="ck">HAVING</span> <span class="cf">count</span>(c.balance_txn_id) &gt; 100
+<span class="ck">ORDER BY</span> cb_rate_pct <span class="ck">DESC</span>;        <span class="cl">-- &gt;1% → raise reserve_pct</span></div>
+
+    <h3 class="reveal">Realized FX gain and loss — conditional aggregation by currency</h3>
+    <p class="reveal">Finance's question: how much did currency movement actually cost or earn? Because every conversion is a recorded entry with a frozen rate, realized FX is just the sum of the dedicated <span class="m">fx_gain</span> and <span class="m">fx_loss</span> legs — no re-conversion, no guessing what rate applied. The pattern is conditional aggregation, slicing the same log by entry type and reporting currency.</p>
+
+    <div class="codelabel">SQL · REALIZED FX, STRAIGHT FROM THE LEDGER</div>
+    <div class="codeblock"><span class="ck">SELECT</span>
+    merchant_id,
+    currency_code,
+    <span class="cf">round</span>(<span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> entry_type = <span class="cs">'fx_gain'</span>), 2) <span class="ck">AS</span> fx_gain,
+    <span class="cf">round</span>(<span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> entry_type = <span class="cs">'fx_loss'</span>), 2) <span class="ck">AS</span> fx_loss,
+    <span class="cf">round</span>(<span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> entry_type <span class="ck">IN</span>
+              (<span class="cs">'fx_gain'</span>,<span class="cs">'fx_loss'</span>)), 2)                       <span class="ck">AS</span> net_fx
+<span class="ck">FROM</span> fct_ledger_entries
+<span class="ck">WHERE</span> posted_ts &gt;= date_trunc(<span class="cs">'month'</span>, <span class="ck">CURRENT_DATE</span>)
+<span class="ck">GROUP BY</span> merchant_id, currency_code
+<span class="ck">HAVING</span> <span class="cf">sum</span>(amount) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> entry_type <span class="ck">IN</span>
+              (<span class="cs">'fx_gain'</span>,<span class="cs">'fx_loss'</span>)) &lt;&gt; 0
+<span class="ck">ORDER BY</span> net_fx;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the books are honest</h2>
+    <p class="lede reveal">A ledger's dashboard has one tile that matters more than all the others: the invariant. Everything else is context. The operator's first glance answers a single question — is every transaction still summing to zero? — and only then looks at volume, disputes, and FX.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>INTEGRITY</dt><dd><span class="m">unbalanced txns</span> in the last hour (must be zero — anything else freezes payouts), <span class="m">idempotency collisions</span> absorbed (proof retries are no-ops), and <span class="m">append latency p99</span> on the write path. This row is the heartbeat; if it is red, nothing else is read.</dd></div>
+      <div class="defrow"><dt>MONEY MOVEMENT</dt><dd><span class="m">charge volume</span>, <span class="m">refund rate</span>, <span class="m">payout backlog</span>, and <span class="m">reserve balance</span> across merchants — the business view, all derived from the same log the integrity row guards.</dd></div>
+      <div class="defrow"><dt>THE OPEN PAST</dt><dd><span class="m">chargeback arrivals</span> per day with their <span class="m">dispute-lag distribution</span>, <span class="m">post-close adjustments</span> landing against sealed months, and <span class="m">net realized FX</span> — the late-arriving truth the append-only model is built to absorb.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Ledger Ops — Global</span>
+        <span class="dash-sub">WED 14:05 UTC · ALL CURRENCIES · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Unbalanced Txns / 1h</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Idempotency Collisions</div><div class="tv">1.4<small>k/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,14 80,15 100,15 120,16" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Append Latency p99</div><div class="tv ok">11<small>ms</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,13 60,15 80,14 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Charge Volume</div><div class="tv">1.18<small>k/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 15,18 30,19 45,15 60,16 75,13 90,14 105,12 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Chargeback Dispute Lag — arrivals today by days-since-charge</div>
+          <svg viewBox="0 0 240 84">
+            <g fill="#6e5a23">
+              <rect x="10" y="60" width="14" height="16"/>
+              <rect x="30" y="48" width="14" height="28"/>
+              <rect x="50" y="34" width="14" height="42"/>
+              <rect x="70" y="26" width="14" height="50"/>
+              <rect x="90" y="30" width="14" height="46"/>
+              <rect x="110" y="40" width="14" height="36"/>
+              <rect x="130" y="50" width="14" height="26"/>
+              <rect x="150" y="56" width="14" height="20"/>
+              <rect x="170" y="62" width="14" height="14"/>
+              <rect x="190" y="66" width="14" height="10"/>
+              <rect x="210" y="70" width="14" height="6"/>
+            </g>
+            <line x1="6" y1="76" x2="232" y2="76" stroke="#3a352b" stroke-width="1"/>
+            <text x="60" y="20" font-size="8.5" fill="#d8a44a" font-family="DM Mono,monospace">peak ≈ 45–60d</text>
+            <text x="196" y="70" font-size="8" fill="#8f8672" font-family="DM Mono,monospace">90d</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Refund Rate</div><div class="tv ok">2.1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Payout Backlog</div><div class="tv warn">$4.2<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,12 60,14 80,15 100,16 120,17" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Reserve Held</div><div class="tv">$61<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,15 60,14 80,15 100,14 120,14" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Post-Close Adj</div><div class="tv warn">318</div><svg viewBox="0 0 120 30"><polyline points="0,17 20,16 40,15 60,15 80,14 100,13 120,13" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Net Realized FX</div><div class="tv bad">−$83<small>k</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,14 60,14 80,15 100,16 120,17" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Currencies Active</div><div class="tv">134</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,14 60,15 80,15 100,14 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — A healthy ledger. The integrity tile reads zero — the only number that can stop the line — while 1.4k idempotency collisions a second prove retries are being absorbed, not double-charged. The dispute-lag histogram peaks at 45–60 days, exactly the window the open-past design exists to serve.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber and red tiles together and the dashboard narrates the open past from §06. Chargebacks are landing on a 45-to-60-day lag, post-close adjustments are flowing into prior months as new entries, and net realized FX is mildly negative on a strong-dollar week. None of it touches a historical row; all of it moves balances forward. And the one green tile that governs everything — zero unbalanced transactions — is what lets finance trust every other number on the screen.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip away the payments specifics and the question was probing five judgments, each of which generalizes far past Stripe:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>DERIVE, DON'T STORE</dt><dd>Recognizing that the balance is a sum over an immutable log, not a column to mutate — so it can never be independently wrong and always rebuilds from truth.</dd></div>
+      <div class="defrow"><dt>INVARIANT AS GATE</dt><dd>Enforcing SUM=0 per transaction and currency as a precondition of writing and a continuous circuit breaker — making a whole class of bugs arithmetically impossible to hide.</dd></div>
+      <div class="defrow"><dt>IDEMPOTENCY AT THE ROW</dt><dd>Turning a unique constraint into replay-safety, so a retried write under a network partition is a no-op rather than a double-charge — correctness pushed down to the database.</dd></div>
+      <div class="defrow"><dt>CORRECTIONS MOVE FORWARD</dt><dd>Modeling refunds and chargebacks as new, balanced, back-linked transactions instead of edits — keeping the past simultaneously correct and immutable.</dd></div>
+      <div class="defrow"><dt>FREEZE THE RATE</dt><dd>Recording FX as ledger entries with the rate locked at event time, so reporting sums recorded reality and never re-converts — the same discipline any time-sensitive external input demands.</dd></div>
+    </dl>
+    <div class="pull reveal">The balance is a story you can always retell from the beginning, exactly the same way, no matter who asks or when. Append-only is not a constraint on the ledger — it is what makes the ledger worth believing.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 09 — THE LEDGER PROBLEM<br>DOUBLE-ENTRY ACCOUNTING · APPEND-ONLY DESIGN · THE CRAFT OF THE INVARIANT</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

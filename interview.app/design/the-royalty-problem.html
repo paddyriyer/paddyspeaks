@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Royalty Problem — PaddySpeaks</title>
+<meta name="description" content="Design Spotify's listening history and pool-model royalty distribution: the 30-second boundary, an SCD2 rights bridge, a frozen monthly country pool, a per-stream rate that only exists at period close, and the SQL that pays four rights holders per play.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 08</div>
+    <h1 class="reveal">The <em>Royalty</em> Problem</h1>
+    <p class="deck reveal">Model Spotify's listening history so that one fact serves recommendations <em>and</em> pays four rights holders per stream — under a pool where the per-stream rate doesn't exist until the month closes. One decision separates the senior answer: the rate is a stored fact, not a running number. A full working-through — data flow, schema, the 30-second boundary, the SCD2 rights bridge, the period-close pipeline, and the SQL that splits a fraction of a cent four ways.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Streaming / Royalties</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One stream, two ledgers</h2>
+    <p class="lede reveal">It sounds like an analytics question — store the plays, count them. It is really an accounting question wearing a product's clothes, and the moment money attaches to an event, every modeling shortcut becomes a future lawsuit.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Model Spotify's listening history to power recommendations and Year in Review, and to pay per-stream royalties to multiple rights holders — artist, label, publisher, songwriter — under the pool model, where each country-period's revenue is divided by its total qualified streams. How would you scope it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The trap is to hear one verb — "store the plays" — and reach for one table. But a single play is consumed by two organizations that disagree about what it even <em>is</em>. To <strong>Product</strong>, a play is behavioral signal: every tap counts, and a three-second skip is the most useful data point of all, because it teaches the recommender what not to do. To <strong>Finance</strong>, that same skip does not exist: industry custom pays royalty only on streams of thirty seconds or more, so a skip is a non-event with a dollar value of exactly zero. The fact table has to satisfy both readings without forking into two sources of truth that drift apart by the next quarter.</p>
+
+    <p class="reveal">Then the pool model adds a genuinely strange dependency. A stream's payout is not a price you can look up when it happens. It is <em>revenue ÷ total qualified streams in the country-period</em> — and the denominator is unknowable until the period ends and the last late-arriving offline play has landed. The rate a stream earns in April is only computable in May. That single fact reorders the whole architecture.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE EVENT GRAIN</dt><dd><strong>Plays.</strong> Billions of rows a day, append-only, every tap including skips. Owned by Product for recommendations; the raw material Finance filters down. Carries the <span class="m">qualified</span> flag that is the entire bridge between the two readings.</dd></div>
+      <div class="defrow"><dt>THE POOL GRAIN</dt><dd><strong>Country-period.</strong> One row per (country × month). Holds the frozen pool size and — the prize — the <span class="m">per_stream_rate</span>, which is derived exactly once at close and then is immutable forever. The denominator made durable.</dd></div>
+      <div class="defrow"><dt>THE PAYOUT GRAIN</dt><dd><strong>Attribution.</strong> One row per (qualified play × rights holder). About four rows per eligible stream. Generated in a single bulk write at period close, then read-only. The defensible per-play line item a label's auditor can subpoena.</dd></div>
+    </dl>
+
+    <div class="pull reveal">A play is behavior to Product and a liability to Finance. The thirty-second flag is the seam where those two readings are sewn into one row.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first thing scored, and it is mostly about what you refuse to build. In scope: the play event, the rights bridge, the pool close, the attribution output, and the queries each stakeholder lives on. Explicitly out of scope, said aloud: the recommender model itself (it consumes the play fact, it does not live here), the audio pipeline, subscriber billing internals (we take collected revenue as an input), and tax withholding on payouts. One deliberate non-goal worth naming: I am <em>not</em> hard-coding pro-rata. The schema must also express user-centric payout (UCPS) — where a subscriber's fee flows only to artists they personally played — without a rewrite, because that is the live policy debate in the industry and an interviewer will probe it.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than dragged out. Spotify-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Monthly active listeners</td><td class="mono">~600 M</td><td>Sets the play-event firehose and the user dimension size</td></tr>
+      <tr><td>Plays per day</td><td class="mono">≈ 4 B</td><td>Append-only event grain; partition by play_date or it is unqueryable</td></tr>
+      <tr><td><strong>Qualified-stream fraction</strong></td><td class="mono"><strong>~55–70%</strong></td><td><strong>The flag that splits Product's denominator from Finance's</strong></td></tr>
+      <tr><td>Rights holders per track</td><td class="mono">~4</td><td>Attribution rows ≈ 4 × qualified plays — linear, but 4× the firehose</td></tr>
+      <tr><td>Country pools / month</td><td class="mono">~180</td><td>Each freezes one revenue figure and one per-stream rate at close</td></tr>
+      <tr><td>Payout pool share of revenue</td><td class="mono">≈ 70%</td><td>The ~30% Spotify retains; pool = collected revenue × 0.70</td></tr>
+      <tr><td>Late offline streams</td><td class="mono">days after play</td><td>Attribution must key on month-<em>of-event</em>, never month-of-ingest</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry. The play firehose is enormous and cheap to be wrong about — a dropped skip costs nobody anything. The pool table is tiny, a few thousand rows a year, and catastrophic to be wrong about, because every payout in the country divides by its numbers. That inversion — vast-but-forgiving against tiny-but-sacred — is the spine of everything below. The architecture follows the dollars, not the bytes.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>From a tap to a line item</h2>
+    <p class="lede reveal">Two tempos share one spine. The hot path is a continuous play stream that fans out to recommendations the instant it lands. The cold path is a once-a-month batch that freezes a pool, joins a temporal bridge, and mints payouts that never change again.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 580" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">HOT PATH · ~4B PLAYS/DAY · CONTINUOUS</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">COLD PATH · ONCE PER MONTH · DETERMINISTIC</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- clients -->
+        <rect x="20" y="58" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="85" font-size="12.5" text-anchor="middle" fill="#23201a">PLAYERS</text>
+        <text x="95" y="104" font-size="10.5" text-anchor="middle" fill="#7d7567">tap · skip · offline cache</text>
+
+        <!-- ingest -->
+        <rect x="222" y="50" width="172" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="308" y="76" font-size="12.5" text-anchor="middle" fill="#23201a">PLAY INGEST</text>
+        <text x="308" y="94" font-size="10.5" text-anchor="middle" fill="#7d7567">stamp played_at + dur</text>
+        <text x="308" y="110" font-size="10.5" text-anchor="middle" fill="#7d7567">derive qualified ≥30s</text>
+
+        <!-- stream -->
+        <rect x="446" y="44" width="196" height="92" fill="#27241d"/>
+        <text x="544" y="74" font-size="12.5" text-anchor="middle" fill="#e9e2d0">PLAY STREAM</text>
+        <text x="544" y="92" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: hash(user_id)</text>
+        <text x="544" y="108" font-size="10.5" text-anchor="middle" fill="#b8ad93">partition by play_date</text>
+
+        <!-- recs -->
+        <rect x="712" y="40" width="240" height="64" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="832" y="64" font-size="12.5" text-anchor="middle" fill="#a4502e">RECOMMENDER · REAL-TIME</text>
+        <text x="832" y="82" font-size="10.5" text-anchor="middle" fill="#7d7567">every play, skips included</text>
+
+        <!-- fct_play -->
+        <rect x="712" y="118" width="240" height="64" fill="#fbf8f1" stroke="#1e40af" stroke-width="1.5"/>
+        <text x="832" y="142" font-size="12.5" text-anchor="middle" fill="#1e40af">fct_play_events · LAKE</text>
+        <text x="832" y="160" font-size="10.5" text-anchor="middle" fill="#7d7567">append-only · partitioned</text>
+
+        <!-- fraud -->
+        <rect x="446" y="200" width="196" height="58" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="544" y="224" font-size="12" text-anchor="middle" fill="#8a5d12">ANTI-FRAUD (SPARK)</text>
+        <text x="544" y="242" font-size="10.5" text-anchor="middle" fill="#7d7567">side-flags bots · never deletes</text>
+
+        <!-- cold: revenue -->
+        <rect x="20" y="360" width="170" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="105" y="384" font-size="12" text-anchor="middle" fill="#23201a">SUBSCRIPTION REV</text>
+        <text x="105" y="402" font-size="10.5" text-anchor="middle" fill="#7d7567">collected $ per user·country</text>
+
+        <!-- pool close -->
+        <rect x="232" y="348" width="180" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="322" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">PERIOD CLOSE JOB</text>
+        <text x="322" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">pool = rev × 70%</text>
+        <text x="322" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">rate = pool ÷ Σ qualified</text>
+
+        <!-- pool fact -->
+        <rect x="466" y="336" width="180" height="56" fill="#fbf8f1" stroke="#92400e" stroke-width="2"/>
+        <text x="556" y="358" font-size="12" text-anchor="middle" fill="#92400e">fct_royalty_periods</text>
+        <text x="556" y="376" font-size="10.5" text-anchor="middle" fill="#a4502e">FROZEN rate · denominator</text>
+
+        <!-- bridge -->
+        <rect x="466" y="408" width="180" height="56" fill="#fffbeb" stroke="#92400e" stroke-width="1.5"/>
+        <text x="556" y="430" font-size="11.5" text-anchor="middle" fill="#92400e">bridge_track_rights</text>
+        <text x="556" y="448" font-size="10.5" text-anchor="middle" fill="#7d7567">SCD2 · as-of played_at</text>
+
+        <!-- attribution -->
+        <rect x="712" y="346" width="240" height="68" fill="#fbf8f1" stroke="#166534" stroke-width="2"/>
+        <text x="832" y="372" font-size="12.5" text-anchor="middle" fill="#166534">fct_royalty_attributions</text>
+        <text x="832" y="390" font-size="10.5" text-anchor="middle" fill="#7d7567">~4 rows / qualified play</text>
+        <text x="832" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">bulk write · then read-only</text>
+
+        <!-- arrows hot -->
+        <line x1="170" y1="90" x2="218" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="394" y1="90" x2="442" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="642" y1="72" x2="708" y2="72" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="642" y1="108" x2="708" y2="148" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="544" y1="136" x2="544" y2="198" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- arrows cold -->
+        <line x1="190" y1="392" x2="228" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="412" y1="364" x2="462" y2="362" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="646" y1="362" x2="708" y2="372" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="646" y1="436" x2="708" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- play lake feeds close (qualified count) -->
+        <path d="M 832 182 C 832 250, 360 270, 322 344" fill="none" stroke="#1e40af" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="470" y="262" font-size="10.5" fill="#1e40af">Σ qualified plays (month-of-event) · the denominator</text>
+
+        <!-- play lake feeds attribution -->
+        <path d="M 905 182 C 945 240, 945 300, 905 344" fill="none" stroke="#166534" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="876" y="268" font-size="10.5" fill="#166534">each play</text>
+
+        <text x="20" y="560" font-size="10.5" fill="#7d7567">SOLID — sustained / batch flow · DASHED — the play lake feeding the close · The stream pays attention; the close pays money.</text>
+      </svg>
+      <div class="caption">FIG. 1 — Two paths off one event. Recommendations are eventual and forgiving; payouts are monthly and frozen. The play lake is the shared spine both consume.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture carry the interview. <strong>First,</strong> the hot path never waits for money: a play reaches the recommender in milliseconds and lands in <span class="m">fct_play_events</span> with its <span class="m">qualified</span> flag already computed, so Product is never blocked on Finance's monthly cadence. <strong>Second,</strong> the cold path is a pure function of frozen inputs — collected revenue, the qualified-stream count, and the rights bridge as it stood at play time — which is what lets an auditor replay any month from scratch and land on the identical number. <strong>Third,</strong> fraud is a side-flag, never a delete: the anti-fraud Spark job sets <span class="m">is_fraudulent</span> on offending rows so the close excludes them, but the original play survives, because "what was claimed versus what was paid" is itself a reportable, litigable fact.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>The hot path may forget; the cold path may never lie.</strong> A lost or duplicated play barely moves a recommendation and is invisible against billions of events, so the stream is at-least-once and best-effort. A wrong <em>payout</em> is a breach of a rights contract, so the close is deterministic, idempotent, and reproducible from immutable inputs. When the two philosophies conflict, the money wins — the recommender can tolerate noise the ledger cannot.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>One flag, one bridge, two frozen facts</h2>
+    <p class="lede reveal">The schema falls out of who owns what. Product owns the event grain. Finance owns three derived facts: the pool, the attribution, and the rights bridge that decides who gets paid. The cleverness is concentrated in two columns — a generated boolean and a pair of effective dates.</p>
+
+    <h3 class="reveal">The event grain — every tap, qualified or not</h3>
+    <p class="reveal">A play is a small, immutable record at colossal volume. The decisive choices are the generated <span class="m">is_royalty_eligible</span> column — the thirty-second boundary computed once at write so no downstream query can forget it — and <span class="m">context_type</span>, which tells the recommender which surface drove the play. Note what is <em>not</em> here: no payout amount. A play does not know what it earns until its country-period closes, so storing a dollar figure on this row would be a lie with a timestamp.</p>
+
+    <div class="codelabel">DDL · EVENT GRAIN (LAKE / COLUMNAR)</div>
+    <div class="codeblock"><span class="cl">-- The "Listen" grain. One row per play event, skips included.
+-- Append-only. Partitioned by play_date so a single month of a single
+-- country is a partition prune, not a full scan of four billion rows/day.</span>
+<span class="ck">CREATE TABLE</span> fct_play_events (
+    play_id            BIGINT       <span class="ck">NOT NULL</span>,   <span class="cl">-- snowflake: time-ordered</span>
+    user_id            BIGINT       <span class="ck">NOT NULL</span>,
+    track_id           BIGINT       <span class="ck">NOT NULL</span>,
+    country_id         CHAR(2)      <span class="ck">NOT NULL</span>,   <span class="cl">-- ISO country; the pool key</span>
+    played_at          TIMESTAMPTZ  <span class="ck">NOT NULL</span>,   <span class="cl">-- event time, NOT ingest time</span>
+    duration_played_s  INTEGER      <span class="ck">NOT NULL</span>,
+    <span class="cl">-- The seam between Product and Finance, materialized once at write:</span>
+    is_royalty_eligible <span class="ck">BOOLEAN</span>
+        <span class="ck">GENERATED ALWAYS AS</span> (duration_played_s &gt;= 30) <span class="ck">STORED</span>,
+    is_fraudulent      <span class="ck">BOOLEAN</span>      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,  <span class="cl">-- side-flag</span>
+    context_type       TEXT         <span class="ck">NOT NULL</span>    <span class="cl">-- playlist|algorithmic|search|radio</span>
+                       <span class="ck">CHECK</span> (context_type <span class="ck">IN</span>
+                          (<span class="cs">'playlist'</span>,<span class="cs">'algorithmic'</span>,<span class="cs">'search'</span>,<span class="cs">'radio'</span>)),
+    source_playlist_id BIGINT,
+    device_id          BIGINT
+)
+<span class="ck">PARTITION BY RANGE</span> (played_at);</div>
+
+    <p class="reveal">That one generated column does heavy lifting. Product queries the table raw — every row is signal. Finance adds <span class="m">WHERE is_royalty_eligible AND NOT is_fraudulent</span> and is instantly looking at the payable universe, from the same source of truth, with no parallel "finance plays" table to drift out of sync. The thirty-second rule lives in the schema, not in a hundred analysts' memories.</p>
+
+    <h3 class="reveal">The rights bridge — a ledger of deals, not a lookup</h3>
+    <p class="reveal">Here is where most candidates lose the plot. The split of a stream — how much to artist, label, publisher, songwriter — is not a property of the track. It is a property of the <em>deal that was in force when the stream happened</em>. Deals renegotiate mid-quarter; a label might cede 5% to an artist effective the 15th. So the bridge is Slowly-Changing-Dimension Type 2: every share is bounded by <span class="m">effective_from</span> and <span class="m">effective_to</span>, and history is never overwritten.</p>
+
+    <div class="codelabel">DDL · THE DEAL-TERMS LEDGER (SCD2)</div>
+    <div class="codeblock"><span class="cl">-- bridge_track_rights: who owns what share of a track, and WHEN.
+-- The contract: SUM(share_pct) per (track, rights_type) over any instant
+-- = 1.00. Rows are closed, never updated; a renegotiation closes the old
+-- row (sets effective_to) and inserts a new one.</span>
+<span class="ck">CREATE TABLE</span> bridge_track_rights (
+    track_id        BIGINT       <span class="ck">NOT NULL</span>,
+    rights_holder_id BIGINT      <span class="ck">NOT NULL</span>,
+    rights_type     TEXT         <span class="ck">NOT NULL</span>
+                    <span class="ck">CHECK</span> (rights_type <span class="ck">IN</span>
+                       (<span class="cs">'artist'</span>,<span class="cs">'label'</span>,<span class="cs">'publisher'</span>,<span class="cs">'songwriter'</span>)),
+    share_pct       NUMERIC(6,5) <span class="ck">NOT NULL</span>      <span class="cl">-- 0.45000 = 45%</span>
+                    <span class="ck">CHECK</span> (share_pct &gt;= 0 <span class="ck">AND</span> share_pct &lt;= 1),
+    effective_from  TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to    TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    <span class="ck">PRIMARY KEY</span> (track_id, rights_holder_id, rights_type, effective_from)
+);
+<span class="cl">-- Half-open intervals: [from, to). played_at &gt;= from AND played_at &lt; to.
+-- This makes the boundary instant unambiguous — a play at exactly the
+-- renegotiation timestamp belongs to the NEW deal, never both.</span>
+<span class="ck">CREATE INDEX</span> idx_bridge_asof
+    <span class="ck">ON</span> bridge_track_rights (track_id, effective_from, effective_to);</div>
+
+    <h3 class="reveal">The two frozen facts — pool and payout</h3>
+    <p class="reveal">The pool table is the smallest and most important object in the design. It exists to make the denominator durable. At month-close the job computes <span class="m">pool_usd</span> as collected revenue times the payout share (~70%), counts qualified non-fraud streams, divides, and writes <span class="m">per_stream_rate_usd</span> — then sets <span class="m">frozen_at</span> and never touches the row again. The attribution table is the output: one defensible line per (play × holder), produced in a single bulk write.</p>
+
+    <div class="codelabel">DDL · THE FROZEN POOL &amp; THE PAYOUT LINE ITEM</div>
+    <div class="codeblock"><span class="cl">-- The "Pool" grain. One row per (country × period). The denominator,
+-- made into a stored fact so it can be replayed and audited.</span>
+<span class="ck">CREATE TABLE</span> fct_royalty_periods (
+    period_id           TEXT         <span class="ck">PRIMARY KEY</span>,  <span class="cl">-- 'US_2025_04'</span>
+    country_id          CHAR(2)      <span class="ck">NOT NULL</span>,
+    period_start        DATE         <span class="ck">NOT NULL</span>,
+    period_end          DATE         <span class="ck">NOT NULL</span>,
+    collected_rev_usd   NUMERIC(18,2) <span class="ck">NOT NULL</span>,
+    pool_usd            NUMERIC(18,2) <span class="ck">NOT NULL</span>,   <span class="cl">-- ≈ collected_rev × 0.70</span>
+    total_qualified_plays BIGINT     <span class="ck">NOT NULL</span>,
+    per_stream_rate_usd NUMERIC(14,10) <span class="ck">NOT NULL</span>,  <span class="cl">-- pool ÷ qualified plays</span>
+    frozen_at           TIMESTAMPTZ,                <span class="cl">-- null until close; then immutable</span>
+    <span class="ck">CHECK</span> (period_end &gt; period_start)
+);
+
+<span class="cl">-- The "Payout" grain. One row per (qualified play × rights holder),
+-- generated at close. ~4 rows per eligible stream. Read-only after write.</span>
+<span class="ck">CREATE TABLE</span> fct_royalty_attributions (
+    play_id          BIGINT       <span class="ck">NOT NULL</span>,
+    period_id        TEXT         <span class="ck">NOT NULL REFERENCES</span> fct_royalty_periods,
+    rights_holder_id BIGINT       <span class="ck">NOT NULL</span>,
+    rights_type      TEXT         <span class="ck">NOT NULL</span>,
+    share_pct        NUMERIC(6,5) <span class="ck">NOT NULL</span>,    <span class="cl">-- snapshot of the as-of-play share</span>
+    attributed_payout_usd NUMERIC(14,10) <span class="ck">NOT NULL</span>, <span class="cl">-- rate × share_pct</span>
+    <span class="ck">PRIMARY KEY</span> (play_id, rights_holder_id, rights_type)
+);</div>
+
+    <p class="reveal">One subtlety worth saying out loud: the attribution row stores <span class="m">share_pct</span> as a snapshot, not a foreign key back into the bridge. The bridge is the source of truth at compute time, but freezing the resolved share onto the payout row means a future bridge correction — even a legitimate one — cannot silently restate a payout that has already been remitted and reported to a tax authority. The line item is a photograph, not a live view.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The rate that only exists at close</h2>
+    <p class="lede reveal">Every correctness property of this system reduces to one discipline: the per-stream rate is computed once, from frozen inputs, after the period is sealed — and never again. Get the timing of that single division right and the rest is bookkeeping.</p>
+
+    <p class="reveal">The pool model has a chicken-and-egg shape that breaks naive designs. You cannot pay a stream when it happens, because its rate is <span class="m">pool ÷ total_qualified_plays</span>, and the total is unknown until the last play of the period — including offline plays uploaded days late — has arrived. A junior model computes a "running rate" daily and pays against it; by month-end that rate has drifted, early payouts are wrong, and Finance is reconciling against a number that was never real. The senior move is to refuse to compute the rate until the denominator is final, and to make the period's transition through close an explicit, observable lifecycle.</p>
+
+    <h3 class="reveal">The period lifecycle</h3>
+    <div class="statechain reveal">
+      <span class="st">OPEN</span><span class="arr">→</span>
+      <span class="st">CUTOFF</span><span class="arr">→</span>
+      <span class="st">RECONCILING</span><span class="arr">→</span>
+      <span class="st">FROZEN</span><span class="arr">→</span>
+      <span class="st terminal">PAID</span>
+    </div>
+    <p class="reveal"><span class="m">OPEN</span> — plays land freely against the month-of-event. <span class="m">CUTOFF</span> — a grace window closes (say, period_end + 7 days) to admit late offline uploads that still belong to the period. <span class="m">RECONCILING</span> — fraud flags are finalized, revenue is confirmed, the qualified count is locked. <span class="m">FROZEN</span> — the single division runs, <span class="m">per_stream_rate_usd</span> and <span class="m">frozen_at</span> are written, and the row becomes immutable. <span class="m">PAID</span> — attribution is generated and remitted. A late chargeback or a discovered fraud cluster after <span class="m">FROZEN</span> is never an edit to this period; it is a correcting entry in a <em>subsequent</em> period's pool, exactly as a double-entry ledger appends a reversal rather than rewriting history.</p>
+
+    <div class="pull reveal">The rate is not a number you read. It is a number you mint, once, when the period is sealed — and then defend forever.<span>ROYALTY RULE Nº 1 — FREEZE BEFORE YOU DIVIDE</span></div>
+
+    <p class="reveal">The division itself is trivial; the discipline is in everything that must be true before it runs. Below is the atomic close — note it reads only frozen, period-bounded inputs and writes the rate exactly once, guarded so it can never double-run.</p>
+
+    <div class="codelabel">SQL · THE ATOMIC POOL CLOSE</div>
+    <div class="codeblock"><span class="cl">-- Compute and freeze the per-stream rate for one country-period.
+-- Idempotent: the WHERE frozen_at IS NULL guard means a retry after a
+-- partial failure is a no-op, never a second (different) rate.</span>
+<span class="ck">UPDATE</span> fct_royalty_periods rp
+<span class="ck">SET</span>    total_qualified_plays = q.cnt,
+       pool_usd              = <span class="cf">round</span>(rp.collected_rev_usd * 0.70, 2),
+       per_stream_rate_usd   = <span class="cf">round</span>(rp.collected_rev_usd * 0.70, 2)
+                               / <span class="cf">nullif</span>(q.cnt, 0),
+       frozen_at             = now()
+<span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> <span class="cf">count</span>(*) <span class="ck">AS</span> cnt
+    <span class="ck">FROM</span>   fct_play_events
+    <span class="ck">WHERE</span>  country_id = <span class="ck">:country</span>
+      <span class="ck">AND</span>  played_at &gt;= <span class="ck">:period_start</span>
+      <span class="ck">AND</span>  played_at &lt;  <span class="ck">:period_end_plus_grace</span>   <span class="cl">-- month-of-event window</span>
+      <span class="ck">AND</span>  is_royalty_eligible                       <span class="cl">-- the 30-second boundary</span>
+      <span class="ck">AND</span>  <span class="ck">NOT</span> is_fraudulent                        <span class="cl">-- side-flagged bots excluded</span>
+) q
+<span class="ck">WHERE</span> rp.period_id = <span class="ck">:period_id</span>
+  <span class="ck">AND</span> rp.frozen_at <span class="ck">IS NULL</span>;            <span class="cl">-- freeze-once guard IS the lock</span></div>
+
+    <p class="reveal">Once that row is frozen, the per-stream rate is a constant the rest of the pipeline multiplies against. Attribution becomes a join: each qualified play, times its as-of-play shares, times the frozen rate. The hard part is over before the first dollar is split.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="ingestion">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the play firehose</h2>
+    <p class="lede reveal">Three small programs carry the hot path: the ingest that normalizes a play and stamps the boundary, the consumer that fans plays out without blocking, and the fraud pass that flags without deleting. As always, the judgment is in what each refuses to do.</p>
+
+    <h3 class="reveal">1 · Play ingest — stamp event time, derive the boundary</h3>
+    <p class="reveal">The single most consequential rule in ingestion is invisible: <strong>trust the play's own clock, not the wall clock at the server.</strong> Offline plays — a subway commute cached on the phone — arrive in a batch days later but belong to the month they actually happened. If ingest stamped <span class="m">played_at</span> with arrival time, those streams would attribute to the wrong pool and quietly corrupt two months' payouts at once. The client's timestamp is authoritative; the server only validates it is sane.</p>
+
+    <div class="codelabel">PYTHON · PLAY INGEST → STREAM</div>
+    <div class="codeblock"><span class="ck">import</span> time
+
+ROYALTY_THRESHOLD_S = 30        <span class="cl"># the industry boundary, in one place</span>
+MAX_CLOCK_SKEW_S    = 90 * 86400  <span class="cl"># reject plays "from" &gt;90d ago/future</span>
+
+<span class="ck">def</span> <span class="cf">normalize_play</span>(raw: dict, now_s: float) -> dict | <span class="ck">None</span>:
+    <span class="cs">"""Take a raw client event, return a stream record — or None to drop.
+    We DO NOT invent played_at: an offline play that happened Tuesday must
+    bind to Tuesday's pool even if it uploads Friday. The client clock is
+    authoritative; we only sanity-bound it."""</span>
+    played_at = raw[<span class="cs">"played_at_ms"</span>] / 1000.0
+    <span class="ck">if</span> <span class="cf">abs</span>(now_s - played_at) &gt; MAX_CLOCK_SKEW_S:
+        <span class="ck">return</span> <span class="ck">None</span>                      <span class="cl"># implausible clock: drop, alarm on rate</span>
+
+    dur = <span class="cf">int</span>(raw[<span class="cs">"duration_played_s"</span>])
+    <span class="ck">return</span> {
+        <span class="cs">"play_id"</span>:   raw[<span class="cs">"play_id"</span>],         <span class="cl"># client-minted, for dedup</span>
+        <span class="cs">"user_id"</span>:   raw[<span class="cs">"user_id"</span>],
+        <span class="cs">"track_id"</span>:  raw[<span class="cs">"track_id"</span>],
+        <span class="cs">"country_id"</span>: raw[<span class="cs">"country_id"</span>],     <span class="cl"># where the listener was</span>
+        <span class="cs">"played_at"</span>: played_at,
+        <span class="cs">"duration_played_s"</span>: dur,
+        <span class="cl"># Derive the boundary at the edge too, so the recommender and</span>
+        <span class="cl"># the lake agree before the generated column ever runs:</span>
+        <span class="cs">"qualified"</span>: dur &gt;= ROYALTY_THRESHOLD_S,
+        <span class="cs">"context_type"</span>: raw.get(<span class="cs">"context_type"</span>, <span class="cs">"radio"</span>),
+    }</div>
+
+    <p class="reveal">The play_id is minted on the client, which makes the stream idempotent: a phone that retries an upload after a flaky connection produces the same play_id, and the lake's de-duplication on that key collapses the retry. At-least-once delivery plus a client key equals effectively-once payouts — the only acceptable guarantee when each row is money.</p>
+
+    <h3 class="reveal">2 · The fan-out consumer — Product never waits on Finance</h3>
+    <div class="codelabel">PYTHON · STREAM CONSUMER → RECOMMENDER + LAKE</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">consume</span>(stream, recommender, lake) -> <span class="ck">None</span>:
+    <span class="cs">"""Every play feeds the recommender immediately (skips are signal) and
+    is appended to the lake. The two sinks are independent: a slow lake
+    write must never delay a recommendation, and a recommender hiccup must
+    never drop a payable play. Different durability, different urgency."""</span>
+    <span class="ck">async for</span> batch <span class="ck">in</span> stream.read():
+        plays = [p <span class="ck">for</span> p <span class="ck">in</span> (normalize_play(r, time.time()) <span class="ck">for</span> r <span class="ck">in</span> batch)
+                 <span class="ck">if</span> p <span class="ck">is not</span> <span class="ck">None</span>]
+
+        <span class="cl"># Fire-and-forget to the recommender: best-effort, low-latency.</span>
+        recommender.observe(plays)            <span class="cl"># skips included — the whole point</span>
+
+        <span class="cl"># Durable append to the lake: at-least-once, deduped on play_id.</span>
+        <span class="ck">await</span> lake.append_idempotent(plays, key=<span class="cs">"play_id"</span>)
+        <span class="cl"># NOTE: we never compute payout here. A play's dollar value does not</span>
+        <span class="cl"># exist yet — it is born only when its country-period is frozen.</span></div>
+
+    <p class="reveal">The comment at the bottom is the carve-out an interviewer is listening for. The temptation, having a play in hand, is to look up "the rate" and write a payout immediately. There is no rate yet. Resisting that — keeping the hot path entirely free of money — is what keeps the two tempos from contaminating each other.</p>
+
+    <h3 class="reveal">3 · The fraud pass — flag, never delete</h3>
+    <div class="codelabel">PYTHON · ANTI-FRAUD SIDE-FLAGGER (BATCH)</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">flag_fraud_clusters</span>(spark, period_id: str) -> <span class="ck">None</span>:
+    <span class="cs">"""Bot farms inflate small artists with 30-to-35-second loops on repeat.
+    We detect and SIDE-FLAG — we never delete the rows. Legal needs the
+    'claimed vs paid' trail; deleting destroys the ability to report
+    'we caught X% of fraud'. is_fraudulent is set by THIS job, not the
+    player, and the close excludes flagged rows from the denominator."""</span>
+    plays = spark.table(<span class="cs">"fct_play_events"</span>).filter(
+        <span class="cs">f"period_id = '{period_id}' AND is_royalty_eligible"</span>)
+
+    <span class="cl"># Heuristic: same (user, track) replayed many times at near-threshold</span>
+    <span class="cl"># duration is the canonical loop-attack signature.</span>
+    suspects = (plays
+        .filter(<span class="cs">"duration_played_s BETWEEN 30 AND 35"</span>)
+        .groupBy(<span class="cs">"user_id"</span>, <span class="cs">"track_id"</span>)
+        .count()
+        .filter(<span class="cs">"count &gt; 200"</span>))          <span class="cl"># tune per market; this is a sketch</span>
+
+    spark.sql(<span class="cs">f"""
+        UPDATE fct_play_events SET is_fraudulent = true
+        WHERE play_id IN (SELECT play_id FROM suspect_plays)
+    """</span>)
+    <span class="cl"># The only UPDATE in the design — and it sets a flag, never erases a fact.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>The period close, end to end</h2>
+    <p class="lede reveal">The monthly close is the system's heartbeat. It freezes a pool, resolves every qualified play against the rights bridge as it stood at play time, multiplies by the frozen rate, and writes a few billion immutable line items in one bulk pass. Run twice, it produces the identical result.</p>
+
+    <p class="reveal">The close is deliberately a batch, not a stream, because it requires a property streams cannot give: a <em>sealed</em> input. Only after CUTOFF and RECONCILING is the qualified count final and the revenue confirmed; only then can the rate be honest. The whole job is structured as a pure function of frozen inputs so that auditors, finance, and a future re-run all land on the same dollar.</p>
+
+    <div class="codelabel">PYTHON · THE CLOSE ORCHESTRATION</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">close_period</span>(engine, country: str, period_id: str) -> <span class="ck">None</span>:
+    <span class="cs">"""Deterministic, idempotent month-close for one country-period.
+    Ordering is the contract: you cannot attribute before the rate is
+    frozen, and you cannot freeze the rate before fraud is finalized."""</span>
+    <span class="cl"># 1. Gate: the period must be reconciled. Refuse otherwise — better to</span>
+    <span class="cl">#    fail loudly than to pay against a denominator still in motion.</span>
+    <span class="ck">assert</span> engine.period_state(period_id) == <span class="cs">"RECONCILING"</span>, \
+        <span class="cs">f"{period_id} not ready to close"</span>
+
+    <span class="cl"># 2. Freeze the denominator and mint the rate (the atomic SQL, §04).</span>
+    engine.execute(POOL_CLOSE_SQL, country=country, period_id=period_id)
+    rate_row = engine.fetch_period(period_id)
+    <span class="ck">assert</span> rate_row.frozen_at <span class="ck">is not</span> <span class="ck">None</span>
+
+    <span class="cl"># 3. Generate attribution: each qualified play × as-of-play shares ×</span>
+    <span class="cl">#    frozen rate. A single INSERT...SELECT, partition-pruned to the</span>
+    <span class="cl">#    period. Re-runnable: it writes into a fresh partition we swap in.</span>
+    engine.execute(ATTRIBUTION_SQL, period_id=period_id)
+
+    <span class="cl"># 4. Prove it before paying: every qualified play's shares summed</span>
+    <span class="cl">#    across holders must reconstruct the rate to the penny.</span>
+    drift = engine.scalar(ATTRIBUTION_RECON_SQL, period_id=period_id)
+    <span class="ck">if</span> drift &gt; <span class="cs">0.01</span>:
+        engine.execute(<span class="cs">"ROLLBACK_PARTITION"</span>, period_id=period_id)
+        <span class="ck">raise</span> <span class="cf">PayoutReconciliationError</span>(period_id, drift)
+
+    <span class="cl"># 5. Only now: advance to PAID and hand off to remittance.</span>
+    engine.set_period_state(period_id, <span class="cs">"PAID"</span>)</div>
+
+    <p class="reveal">The attribution generation itself is the join the whole schema was built to make cheap. It reads the frozen rate, fans each eligible play across its rights holders using the bridge bounded by play time, and computes the per-line payout. The half-open interval predicate is what makes a play at the exact renegotiation instant resolve to one deal, never two.</p>
+
+    <div class="codelabel">SQL · ATTRIBUTION GENERATION (ONE BULK WRITE)</div>
+    <div class="codeblock"><span class="ck">INSERT INTO</span> fct_royalty_attributions
+    (play_id, period_id, rights_holder_id, rights_type, share_pct,
+     attributed_payout_usd)
+<span class="ck">SELECT</span>
+    p.play_id,
+    rp.period_id,
+    b.rights_holder_id,
+    b.rights_type,
+    b.share_pct,                                   <span class="cl">-- snapshot the share</span>
+    <span class="cf">round</span>(rp.per_stream_rate_usd * b.share_pct, 10) <span class="ck">AS</span> attributed_payout_usd
+<span class="ck">FROM</span> fct_play_events p
+<span class="ck">JOIN</span> fct_royalty_periods rp
+  <span class="ck">ON</span> rp.country_id = p.country_id
+ <span class="ck">AND</span> p.played_at &gt;= rp.period_start
+ <span class="ck">AND</span> p.played_at &lt;  rp.period_end + <span class="ck">INTERVAL</span> <span class="cs">'7 days'</span>   <span class="cl">-- grace window</span>
+<span class="ck">JOIN</span> bridge_track_rights b
+  <span class="ck">ON</span> b.track_id = p.track_id
+ <span class="ck">AND</span> p.played_at &gt;= b.effective_from
+ <span class="ck">AND</span> p.played_at &lt;  b.effective_to            <span class="cl">-- as-of-play, half-open</span>
+<span class="ck">WHERE</span> rp.period_id = <span class="ck">:period_id</span>
+  <span class="ck">AND</span> rp.frozen_at <span class="ck">IS NOT NULL</span>                <span class="cl">-- never attribute an unfrozen pool</span>
+  <span class="ck">AND</span> p.is_royalty_eligible
+  <span class="ck">AND</span> <span class="ck">NOT</span> p.is_fraudulent;</div>
+
+    <div class="pull reveal">Pro-rata and user-centric are not two schemas. They are two queries over the same frozen pool and the same temporal bridge — which is the entire reason the rate and the bridge are stored facts.<span>ROYALTY RULE Nº 2 — THE POLICY IS A JOIN, NOT A TABLE</span></div>
+
+    <p class="reveal">That last rule is the senior flourish. Because the pool, the rate, and the rights bridge are all durable facts rather than logic baked into a pipeline, switching from pro-rata (a stream earns <span class="m">rate × share</span>) to user-centric payout (a subscriber's fee splits only among artists <em>they</em> played) is a different aggregation over identical inputs — no migration, no restatement of closed months. The schema deliberately does not know which distribution algorithm it serves, which is exactly what lets the business change its mind without rewriting history.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the catalogue</h2>
+    <p class="lede reveal">The frozen facts are where the system explains itself to three different audiences. Three queries an interviewer loves, because each carries a named pattern on its back: an as-of-time temporal join, conditional aggregation, and window-ranked cohort share.</p>
+
+    <h3 class="reveal">Royalty attribution as-of-play — the SCD2 temporal join</h3>
+    <p class="reveal">This is the defensible line item: for one track in one period, who earned what, using the splits that were in force when each play happened. The pattern is the as-of join — a range predicate against the bridge's half-open validity interval. It is the answer to "pay me as of the deal that was active when my song was streamed," which is the only answer that survives a courtroom.</p>
+
+    <div class="codelabel">SQL · WHO EARNED WHAT, BY THE DEAL THAT WAS LIVE</div>
+    <div class="codeblock"><span class="cl">-- Per-play, per-holder payout for one track in one period, using the
+-- bridge row that was effective at played_at. Produces ~4 rows per play.</span>
+<span class="ck">SELECT</span>
+    p.play_id,
+    p.played_at,
+    b.rights_type,
+    b.rights_holder_id,
+    b.share_pct,
+    rp.per_stream_rate_usd,
+    <span class="cf">round</span>(rp.per_stream_rate_usd * b.share_pct, 6) <span class="ck">AS</span> payout_usd
+<span class="ck">FROM</span> fct_play_events p
+<span class="ck">JOIN</span> fct_royalty_periods rp
+  <span class="ck">ON</span> rp.country_id = p.country_id
+ <span class="ck">AND</span> p.played_at &gt;= rp.period_start
+ <span class="ck">AND</span> p.played_at &lt;  rp.period_end + <span class="ck">INTERVAL</span> <span class="cs">'7 days'</span>
+<span class="ck">JOIN</span> bridge_track_rights b
+  <span class="ck">ON</span> b.track_id = p.track_id
+ <span class="ck">AND</span> p.played_at &gt;= b.effective_from
+ <span class="ck">AND</span> p.played_at &lt;  b.effective_to              <span class="cl">-- the as-of-play predicate</span>
+<span class="ck">WHERE</span> p.track_id = <span class="ck">:track_id</span>
+  <span class="ck">AND</span> rp.period_id = <span class="ck">:period_id</span>
+  <span class="ck">AND</span> p.is_royalty_eligible
+  <span class="ck">AND</span> <span class="ck">NOT</span> p.is_fraudulent
+<span class="ck">ORDER BY</span> p.played_at, b.rights_type;</div>
+
+    <h3 class="reveal">Skip rate by surface — conditional aggregation</h3>
+    <p class="reveal">Product's question: is the recommender any good? Skip rate by <span class="m">context_type</span> answers it, and the pattern is conditional aggregation — counting a sub-population with <span class="m">FILTER</span> rather than a second pass. A high skip rate on <span class="m">algorithmic</span> is a recommender-quality alarm; the same rate on <span class="m">radio</span> is expected lean-back behavior. The thirty-second flag does double duty: a non-qualified play <em>is</em> a skip.</p>
+
+    <div class="codelabel">SQL · IS THE RECOMMENDER EARNING ITS SURFACE?</div>
+    <div class="codeblock"><span class="ck">SELECT</span>
+    context_type,
+    <span class="cf">count</span>(*)                                              <span class="ck">AS</span> plays,
+    <span class="cf">count</span>(*) <span class="ck">FILTER</span> (<span class="ck">WHERE NOT</span> is_royalty_eligible)   <span class="ck">AS</span> skips,
+    <span class="cf">round</span>(100.0 * <span class="cf">count</span>(*) <span class="ck">FILTER</span> (<span class="ck">WHERE NOT</span> is_royalty_eligible)
+                / <span class="cf">nullif</span>(<span class="cf">count</span>(*), 0), 2)               <span class="ck">AS</span> skip_rate_pct,
+    <span class="cf">round</span>(<span class="cf">avg</span>(duration_played_s), 1)                    <span class="ck">AS</span> avg_listen_s
+<span class="ck">FROM</span> fct_play_events
+<span class="ck">WHERE</span> played_at &gt;= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>
+<span class="ck">GROUP BY</span> context_type
+<span class="ck">ORDER BY</span> skip_rate_pct <span class="ck">DESC</span>;
+<span class="cl">-- High on 'algorithmic' = a recommender problem. High on 'radio' =
+-- lean-back listening, expected. The surface tells you which.</span></div>
+
+    <h3 class="reveal">The long tail — windowed cohort share</h3>
+    <p class="reveal">The pool model's central equity question: how concentrated are payouts? This ranks holders by earnings within a period and uses a window to compute each one's running share of the total — the gateway to "the top 1% of artists take N% of the pool," which is the headline pro-rata's critics aim at and the chart UCPS exists to change. The pattern is the windowed cumulative share, a cohort-concentration staple.</p>
+
+    <div class="codelabel">SQL · PAYOUT CONCENTRATION ACROSS THE CATALOGUE</div>
+    <div class="codeblock"><span class="ck">WITH</span> holder_take <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> rights_holder_id,
+           <span class="cf">sum</span>(attributed_payout_usd) <span class="ck">AS</span> earned_usd
+    <span class="ck">FROM</span>   fct_royalty_attributions
+    <span class="ck">WHERE</span>  period_id = <span class="ck">:period_id</span>
+    <span class="ck">GROUP BY</span> rights_holder_id
+),
+ranked <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> rights_holder_id, earned_usd,
+           <span class="cf">row_number</span>() <span class="ck">OVER</span> (<span class="ck">ORDER BY</span> earned_usd <span class="ck">DESC</span>) <span class="ck">AS</span> rnk,
+           <span class="cf">sum</span>(earned_usd) <span class="ck">OVER</span> (<span class="ck">ORDER BY</span> earned_usd <span class="ck">DESC</span>
+               <span class="ck">ROWS UNBOUNDED PRECEDING</span>)              <span class="ck">AS</span> cum_usd,
+           <span class="cf">sum</span>(earned_usd) <span class="ck">OVER</span> ()                     <span class="ck">AS</span> pool_total
+    <span class="ck">FROM</span>   holder_take
+)
+<span class="ck">SELECT</span> rnk, rights_holder_id,
+       <span class="cf">round</span>(earned_usd, 2)                              <span class="ck">AS</span> earned_usd,
+       <span class="cf">round</span>(100.0 * cum_usd / <span class="cf">nullif</span>(pool_total, 0), 2) <span class="ck">AS</span> cum_pct_of_pool
+<span class="ck">FROM</span>   ranked
+<span class="ck">WHERE</span>  rnk &lt;= 1000
+<span class="ck">ORDER BY</span> rnk;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Watching a close land</h2>
+    <p class="lede reveal">A royalty system is judged on a few days a month, when a period closes and money moves. The dashboard watches two things at once: the always-on play firehose, and the once-a-month close that must reconcile to the penny before a single payout is remitted.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE FIREHOSE</dt><dd><span class="m">play ingest rate</span> against expected, <span class="m">qualified-stream fraction</span> (a sudden drop means a client-clock bug or a skip surge), <span class="m">late-arrival lag</span> (offline uploads still landing against last period), and <span class="m">dedup collision rate</span> on play_id — the proof that retries are collapsing.</dd></div>
+      <div class="defrow"><dt>THE CLOSE</dt><dd><span class="m">period state</span> across countries, <span class="m">reconciliation drift</span> (attribution summed back to the pool — must be ~$0), <span class="m">fraud-excluded %</span> of streams, and <span class="m">per-stream rate</span> versus prior period — a rate that swings sharply flags a revenue or denominator anomaly before payout.</dd></div>
+      <div class="defrow"><dt>THE EQUITY LENS</dt><dd><span class="m">top-1% pool share</span>, <span class="m">long-tail count</span> earning below a floor, and <span class="m">pro-rata vs UCPS delta</span> — the simulation that tells policy what switching models would cost which artists.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Royalty Ops — US · 2025-04 close</span>
+        <span class="dash-sub">MON 06:10 UTC · STATE: RECONCILING → FROZEN · 5m REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Play Ingest</div><div class="tv">46.2<small>k/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 15,18 30,19 45,16 60,17 75,14 90,15 105,13 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Qualified Fraction</div><div class="tv ok">63<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Recon Drift</div><div class="tv ok">$0.004</div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,16 100,15 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Per-Stream Rate</div><div class="tv warn">0.00417<small>$</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,12 60,14 80,16 100,15 120,17" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Pool Concentration — US 2025-04 · cumulative % of pool by holder rank</div>
+          <svg viewBox="0 0 240 84">
+            <polyline points="4,72 30,40 60,26 90,19 120,15 150,12 180,10 210,9 236,8" fill="none" stroke="#d8a44a" stroke-width="2"/>
+            <line x1="4" y1="78" x2="236" y2="78" stroke="#3a352b" stroke-width="1"/>
+            <line x1="4" y1="8" x2="4" y2="78" stroke="#3a352b" stroke-width="1"/>
+            <circle cx="30" cy="40" r="2.5" fill="#d98e63"/>
+            <text x="36" y="40" font-size="8.5" fill="#b8ad93" font-family="DM Mono,monospace">top 1% = 54%</text>
+            <text x="150" y="70" font-size="8.5" fill="#8f8672" font-family="DM Mono,monospace">long tail</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Fraud Excluded</div><div class="tv ok">0.7<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,15 100,16 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Late Arrival Lag</div><div class="tv warn">31<small>h</small></div><svg viewBox="0 0 120 30"><polyline points="0,10 20,12 40,13 60,15 80,16 100,17 120,18" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Countries Frozen</div><div class="tv">168<small>/180</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,18 40,15 60,12 80,10 100,9 120,8" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Attribution Rows</div><div class="tv">7.9<small>B</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,17 40,14 60,12 80,11 100,10 120,9" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Dedup Collisions</div><div class="tv ok">0.04<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,15 60,15 80,16 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">UCPS Δ (sim)</div><div class="tv warn">+12<small>% tail</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,14 60,13 80,12 100,11 120,10" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — A close in flight. 168 of 180 pools are frozen; recon drift is four-tenths of a cent, well under the penny gate; the per-stream rate ticked up on confirmed revenue. Late-arrival lag is amber because offline uploads are still trickling against the grace window — exactly why CUTOFF exists.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates the close from §06. Revenue firmed up, nudging the rate; the last twelve countries are still admitting late offline plays before they freeze; and the UCPS simulation quietly shows the long tail would gain twelve percent if the policy switched — the schema's whole point, surfaced as a number a product executive can act on. Recon drift flat near zero is the load-bearing tile: nothing gets paid until that reads green.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip away the music and the question was probing five judgments, each of which generalizes far past streaming royalties:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>ONE FACT, TWO READERS</dt><dd>Serving Product and Finance from a single event grain via a generated flag, rather than forking into two tables that silently disagree by quarter-end. The seam is a column, not a copy.</dd></div>
+      <div class="defrow"><dt>DERIVE-AT-CLOSE</dt><dd>Recognizing that the per-stream rate is unknowable until the denominator is sealed, and modeling it as a frozen fact computed once — not a running number that drifts and forces restatement.</dd></div>
+      <div class="defrow"><dt>TEMPORAL TRUTH</dt><dd>Paying by the deal that was live at play time through an SCD2 bridge and an as-of-time join, turning a renegotiation from an audit nightmare into a range predicate.</dd></div>
+      <div class="defrow"><dt>APPEND, NEVER EDIT</dt><dd>Side-flagging fraud and posting late corrections to a subsequent period instead of rewriting a closed one — the same immutability discipline a payments ledger lives by.</dd></div>
+      <div class="defrow"><dt>POLICY AS QUERY</dt><dd>Keeping the distribution algorithm out of the schema so pro-rata and user-centric are two joins over identical frozen inputs. The model that doesn't bake in the answer is the one that survives the business changing its mind.</dd></div>
+    </dl>
+    <div class="pull reveal">A play is an event the moment it happens, but it does not become money until a country's month is sealed. The whole design is the discipline of keeping those two truths apart until exactly the instant they must meet.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 08 — THE ROYALTY PROBLEM<br>DIMENSIONAL MODELING · POOL ECONOMICS · THE CRAFT OF THE FROZEN FACT</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

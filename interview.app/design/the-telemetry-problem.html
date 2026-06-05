@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Telemetry Problem — PaddySpeaks</title>
+<meta name="description" content="Designing the data platform for spatial computing: a 90Hz eye/hand/room sensor firehose, a device-centric star keyed on the immersive session, biometric consent as SCD2, and gaze-confirmed attention that is billable only as-of the permission at capture — in DDL, SQL and Python.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 18</div>
+    <h1 class="reveal">The <em>Telemetry</em> Problem</h1>
+    <p class="deck reveal">A phone knows where you tapped. A headset knows where your eyes went, the geometry of your living room, and how your hands move — ninety times a second. Design the data platform for spatial computing, and the question is no longer how to store a firehose, but how to store the most sensitive data a consumer device has ever collected without drowning in it or mishandling it. A complete working through: the device-centric star, the sensor firehose boundary, consent as a temporal dimension, and the gaze-confirmed attention that is honest and lawful at once.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Spatial / XR</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>The device records your body and your home</h2>
+    <p class="lede reveal">This question arrives sounding like a logging exercise and turns, within two sentences, into the hardest privacy problem in the catalog. The data is a firehose, and the firehose is biometric.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data platform for a spatial-computing platform — Meta Quest, Apple Vision Pro. Headsets stream eye, hand, and room sensors during immersive sessions. Serve Product, Trust &amp; Privacy, and Monetization. How would you scope this out?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">Two facts make this unlike every other data platform. <strong>First,</strong> the most sensitive data classes arrive at firehose rates. Eye-gaze is biometric; the room mesh is a three-dimensional map of a private space; both stream continuously at sixty to a hundred and twenty hertz. You cannot weld a 90 Hz pose firehose to a queryable analytics fact any more than you could weld raw GPS to a ride-share trip log — the volume alone makes the table unusable, and here the volume is also the most private data a person owns. <strong>Second,</strong> capability is not uniform. A Vision Pro has eye-tracking; a Quest controller session does not; phone-AR has neither. <em>What data even exists</em> is a function of the device — so device capability is a dimension that <em>gates the schema</em>, not a footnote to it.</p>
+
+    <p class="reveal">A weak answer reaches for one giant events table and a boolean consent flag. A strong answer notices the three structural forces first, and names them before any boxes:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE FIREHOSE</dt><dd><strong>Raw pose &amp; gaze.</strong> 90 Hz × six degrees of freedom × head + two hands + two eyes is millions of samples per session. It is worthless inlined and absurd to store as rows — it belongs in object storage, with the warehouse holding a per-second rollup and a pointer.</dd></div>
+      <div class="defrow"><dt>THE CONSENT WINDOW</dt><dd><strong>Permission is temporal.</strong> A user grants eye-tracking, then withdraws it. The only question that matters — "was this gaze allowed when it was captured?" — is unanswerable with a mutable boolean and trivial with an SCD2 consent dimension. Consent is a window, not a flag.</dd></div>
+      <div class="defrow"><dt>THE CAPABILITY GATE</dt><dd><strong>The device decides the schema.</strong> A controller-only Quest session simply has no eye rows, and that absence is correct, not missing. The sensor suite lives on the device dimension and tells you which facts a session can even produce.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Inlining a 90 Hz multi-sensor firehose into an analytics fact does two crimes at once: it makes the table unqueryable, and it co-mingles raw biometric data with everything else.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope first, because the privacy boundary is the design. State what you are building: a device-centric star on the immersive session, with the sensor firehose in object storage, consent as a temporal dimension that gates every analytic read, and a gaze-confirmed attention fact for monetization. State what you are deliberately keeping <em>out of the warehouse entirely</em>: the raw room mesh — a 3-D scan of someone's home lives in encrypted, residency-pinned, short-TTL storage and only a relocalization <em>hash</em> ever reaches the analytics layer. State what you punt: the rendering pipeline, the content store, real-time comfort intervention (treated as an on-device loop), and cross-device identity resolution.</p>
+
+    <p class="reveal">Then the envelope, volunteered. A single immersive session on a fully-sensored headset:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Sample rate</td><td class="mono">90 Hz</td><td>The firehose tempo everything is measured against</td></tr>
+      <tr><td>Signals per frame</td><td class="mono">6-DoF × (head + 2 hands + 2 eyes)</td><td>~30 floats per frame — multiplies the rate</td></tr>
+      <tr><td><strong>Raw samples / 30-min session</strong></td><td class="mono"><strong>≈ 162 M</strong></td><td><strong>The number that forces the object-store boundary</strong></td></tr>
+      <tr><td>Per-second rollup rows / session</td><td class="mono">~1,800</td><td>The queryable fact — five orders of magnitude smaller</td></tr>
+      <tr><td>Consent categories × regions</td><td class="mono">6 × ~40</td><td>The SCD2 grain; append-only versions per user</td></tr>
+      <tr><td>Room-mesh footprint</td><td class="mono">tens of MB / scan</td><td>Never in the warehouse — hash only</td></tr>
+      <tr><td>Gaze dwell events / ad surface</td><td class="mono">1 per exposure</td><td>Billable only as-of consent + spoof check</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry: the per-second rollup is roughly ninety-thousand times smaller than the raw stream and carries everything analytics actually asks. That single ratio — 162 million samples reduced to eighteen hundred rows — dictates the storage tier, the privacy boundary, and the shape of every fact below. The rest of this article follows the sensor.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a frame through the building</h2>
+    <p class="lede reveal">One architecture, two planes. The raw plane carries biometric frames to encrypted object storage and never lets them touch the warehouse; the analytic plane carries a per-second rollup and pointers, gated at read time by consent that was in force at capture.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">RAW PLANE · ~162M SAMPLES / SESSION</text>
+        <text x="20" y="320" font-size="11" letter-spacing="3" fill="#6f7d5c">ANALYTIC PLANE · ~1.8K ROWS / SESSION</text>
+        <line x1="20" y1="296" x2="960" y2="296" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- headset -->
+        <rect x="20" y="56" width="160" height="76" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="100" y="82" font-size="12.5" text-anchor="middle" fill="#23201a">HEADSET</text>
+        <text x="100" y="100" font-size="10.5" text-anchor="middle" fill="#7d7567">eye · hand · room · 90Hz</text>
+        <text x="100" y="115" font-size="10.5" text-anchor="middle" fill="#7d7567">on-device consent gate</text>
+
+        <!-- edge rollup -->
+        <rect x="232" y="50" width="180" height="86" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="322" y="76" font-size="12.5" text-anchor="middle" fill="#23201a">EDGE ROLLUP</text>
+        <text x="322" y="94" font-size="10.5" text-anchor="middle" fill="#7d7567">per-second aggregate</text>
+        <text x="322" y="109" font-size="10.5" text-anchor="middle" fill="#7d7567">range · velocity · dwell</text>
+        <text x="322" y="124" font-size="10.5" text-anchor="middle" fill="#7d7567">splits raw from queryable</text>
+
+        <!-- object store (raw) -->
+        <rect x="710" y="44" width="250" height="78" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="835" y="70" font-size="12.5" text-anchor="middle" fill="#a4502e">OBJECT STORE · ENCRYPTED</text>
+        <text x="835" y="88" font-size="10.5" text-anchor="middle" fill="#7d7567">raw 90Hz frames · keyed by session</text>
+        <text x="835" y="103" font-size="10.5" text-anchor="middle" fill="#7d7567">residency-pinned · short TTL · never inlined</text>
+
+        <!-- raw arrows -->
+        <line x1="180" y1="92" x2="228" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <path d="M 412 80 C 560 60, 640 70, 706 78" fill="none" stroke="#a4502e" stroke-width="1.6" marker-end="url(#arrR)"/>
+        <text x="500" y="58" font-size="10.5" fill="#a4502e">raw_blob_uri (pointer only)</text>
+
+        <!-- analytic plane -->
+        <rect x="20" y="356" width="160" height="70" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="100" y="382" font-size="12.5" text-anchor="middle" fill="#6f7d5c">fct_xr_session</text>
+        <text x="100" y="400" font-size="10.5" text-anchor="middle" fill="#7d7567">the analytic grain</text>
+        <text x="100" y="415" font-size="10.5" text-anchor="middle" fill="#7d7567">on→off, one app</text>
+
+        <rect x="232" y="350" width="170" height="82" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="317" y="376" font-size="12" text-anchor="middle" fill="#23201a">fct_pose_sample</text>
+        <text x="317" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">per-second rollup</text>
+        <text x="317" y="409" font-size="10.5" text-anchor="middle" fill="#7d7567">+ raw_blob_uri</text>
+        <text x="317" y="424" font-size="10.5" text-anchor="middle" fill="#7d7567">queryable</text>
+
+        <rect x="452" y="350" width="180" height="82" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="542" y="376" font-size="12" text-anchor="middle" fill="#23201a">fct_attention</text>
+        <text x="542" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">gaze dwell / surface</text>
+        <text x="542" y="409" font-size="10.5" text-anchor="middle" fill="#a4502e">gated by consent</text>
+        <text x="542" y="424" font-size="10.5" text-anchor="middle" fill="#7d7567">as-of capture</text>
+
+        <!-- consent dim -->
+        <rect x="710" y="338" width="250" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="835" y="364" font-size="12.5" text-anchor="middle" fill="#8a5d12">dim_consent · SCD2</text>
+        <text x="835" y="382" font-size="10.5" text-anchor="middle" fill="#7d7567">user × category × region × version</text>
+        <text x="835" y="396" font-size="10.5" text-anchor="middle" fill="#7d7567">valid_from / valid_to — the window</text>
+
+        <!-- device dim -->
+        <rect x="710" y="420" width="250" height="58" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="835" y="444" font-size="12" text-anchor="middle" fill="#7d7567">dim_device (CONFORMED)</text>
+        <text x="835" y="461" font-size="10.5" text-anchor="middle" fill="#7d7567">sensor_suite · gates the schema</text>
+
+        <!-- analytic arrows -->
+        <line x1="180" y1="391" x2="228" y2="391" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="402" y1="391" x2="448" y2="391" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- edge to rollup fact -->
+        <path d="M 322 136 C 322 250, 320 300, 317 346" fill="none" stroke="#8a5d12" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="332" y="240" font-size="10.5" fill="#8a5d12">per-second rows</text>
+
+        <!-- consent gates attention (dashed up) -->
+        <path d="M 760 402 C 700 420, 640 430, 632 405" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="640" y="452" font-size="10.5" fill="#a4502e">as-of join · gates the read</text>
+
+        <!-- device gates session -->
+        <path d="M 760 460 C 400 500, 200 470, 100 428" fill="none" stroke="#7d7567" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="380" y="492" font-size="10.5" fill="#7d7567">sensor_suite decides which facts exist</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — sustained flow · DASHED — request-time gates · The raw plane never crosses into the warehouse.</text>
+      </svg>
+      <div class="caption">FIG. 1 — Two planes, one boundary. Raw frames flow to encrypted object storage; the warehouse holds a per-second rollup and pointers, gated at read time by consent and device capability.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the firehose never touches the warehouse — frames flow headset → edge rollup → encrypted object store, and only a per-second tributary plus a <span class="m">raw_blob_uri</span> pointer reaches the analytic plane. <strong>Second,</strong> consent is a temporal dimension read at query time, not a column on the fact: the dashed arrow into <span class="m">fct_attention</span> is an as-of join that asks "was this gaze allowed <em>when it was captured</em>," and a later withdrawal cannot rewrite a past answer. <strong>Third,</strong> the device dimension gates the schema — a session's facts are a function of its sensor suite, so the absence of eye rows for a controller session is correct, not a gap.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Boundary Philosophy, In One Rule</div>
+      <p><strong>The raw plane is write-only to object storage; the warehouse is read-only against permission.</strong> Biometric frames are captured, encrypted, pinned to a region, and pointed at — never queried directly, never joined, never inlined. Every analytic question is answered against the per-second rollup, and every question that touches biometrics is answered against the consent that existed at capture time. The two rules together are why a withdrawal plus an audit is survivable: the data that was lawful stays countable, the data that was not drops out, and nothing is ever overwritten.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>A device-centric star on the session</h2>
+    <p class="lede reveal">The grain all three stakeholders share is the immersive session — headset on to headset off, within one app. Finer signals (pose, gaze) aggregate up to it; coarser context (user, device, consent) hangs off it. The conformed device dimension carries the sensor suite that decides which facts a session can even produce.</p>
+
+    <h3 class="reveal">The conformed device dimension</h3>
+    <p class="reveal">The same <span class="m">dim_device</span> defined here is conformed across the wider platform — it keys ads attribution, fraud velocity, the engagement surface, and the autonomous fleet. The headset is simply its most sensor-rich member. The load-bearing column is <span class="m">sensor_suite</span>: it is the catalogue of what data <em>can</em> exist, and it is SCD2 because consent state and OS/runtime drift over the device's life.</p>
+
+    <div class="codelabel">DDL · CONFORMED DEVICE + TEMPORAL CONSENT</div>
+    <div class="codeblock"><span class="cl">-- Conformed across the platform; the headset is its richest member.</span>
+<span class="cl">-- SCD2 on consent + OS/runtime, which drift over the device's life.</span>
+<span class="ck">CREATE TABLE</span> dim_device (
+    device_key     BIGINT       <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- surrogate; one row per version</span>
+    device_id      BIGINT       <span class="ck">NOT NULL</span>,
+    device_type    TEXT         <span class="ck">NOT NULL</span>
+                   <span class="ck">CHECK</span> (device_type <span class="ck">IN</span>
+                       (<span class="cs">'phone'</span>,<span class="cs">'web'</span>,<span class="cs">'ctv'</span>,<span class="cs">'console'</span>,<span class="cs">'headset'</span>,<span class="cs">'vehicle'</span>,<span class="cs">'pos'</span>)),
+    make_model     TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- 'Quest 3' | 'Vision Pro' — drives capability</span>
+    sensor_suite   TEXT[]       <span class="ck">NOT NULL</span>,   <span class="cl">-- {eye,hand,face,room_mesh,passthrough}</span>
+    os_runtime     TEXT         <span class="ck">NOT NULL</span>,
+    app_version    TEXT         <span class="ck">NOT NULL</span>,
+    advertising_id TEXT,                       <span class="cl">-- IDFA / GAID — conformed marketing key</span>
+    ad_consent     TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'unknown'</span>,
+    valid_from     TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    valid_to       TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    is_current     BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> true
+);
+
+<span class="cl">-- The privacy dimension. One row per user × category × region × version.</span>
+<span class="cl">-- Append-only: a withdrawal CLOSES the granted row and OPENS a withdrawn one.</span>
+<span class="cl">-- The valid window is what lets you replay consent AS-OF capture time.</span>
+<span class="ck">CREATE TABLE</span> dim_consent (
+    consent_key   BIGINT       <span class="ck">PRIMARY KEY</span>,
+    user_key      BIGINT       <span class="ck">NOT NULL</span>,
+    data_category TEXT         <span class="ck">NOT NULL</span>
+                  <span class="ck">CHECK</span> (data_category <span class="ck">IN</span>
+                      (<span class="cs">'eye_tracking'</span>,<span class="cs">'hand_tracking'</span>,<span class="cs">'face'</span>,
+                       <span class="cs">'room_mesh'</span>,<span class="cs">'audio'</span>,<span class="cs">'attention_ads'</span>)),
+    region        TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- rules differ by regime (EU/CA/…)</span>
+    state         TEXT         <span class="ck">NOT NULL</span>
+                  <span class="ck">CHECK</span> (state <span class="ck">IN</span> (<span class="cs">'granted'</span>,<span class="cs">'denied'</span>,<span class="cs">'withdrawn'</span>)),
+    valid_from    TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    valid_to      TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>
+);
+<span class="ck">CREATE INDEX</span> idx_consent_asof
+    <span class="ck">ON</span> dim_consent (user_key, data_category, region, valid_from, valid_to);</div>
+
+    <h3 class="reveal">The session fact and the firehose rollup</h3>
+    <p class="reveal">The session is the shared grain: one row per immersive session, anchoring every consent as-of join through its <span class="m">start_ts</span>. The firehose is aggregated to one row per session-second; the raw 90 Hz stream is a blob URI, never inlined. The comfort score and guardian-breach count make physical safety a first-class column rather than an afterthought.</p>
+
+    <div class="codelabel">DDL · SESSION FACT + PER-SECOND POSE ROLLUP</div>
+    <div class="codeblock"><span class="cl">-- The analytic grain: one immersive session (headset on→off, one app).</span>
+<span class="ck">CREATE TABLE</span> fct_xr_session (
+    session_key     BIGINT       <span class="ck">PRIMARY KEY</span>,
+    device_key      BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_device(device_key),
+    user_key        BIGINT       <span class="ck">NOT NULL</span>,
+    app_key         BIGINT       <span class="ck">NOT NULL</span>,
+    region          TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- anchors the consent as-of join</span>
+    start_ts        TIMESTAMPTZ  <span class="ck">NOT NULL</span>,   <span class="cl">-- the as-of instant for ALL biometric reads</span>
+    end_ts          TIMESTAMPTZ,
+    duration_s      INT,
+    comfort_score   NUMERIC(4,2),               <span class="cl">-- motion-sickness signal</span>
+    guardian_breaches INT        <span class="ck">NOT NULL DEFAULT</span> 0,  <span class="cl">-- play-boundary exits (safety)</span>
+    terminal_reason TEXT
+                    <span class="ck">CHECK</span> (terminal_reason <span class="ck">IN</span>
+                        (<span class="cs">'removed'</span>,<span class="cs">'idle_timeout'</span>,<span class="cs">'battery'</span>,<span class="cs">'crash'</span>))
+);
+<span class="ck">CREATE INDEX</span> idx_session_user <span class="ck">ON</span> fct_xr_session (user_key, start_ts);
+
+<span class="cl">-- The firehose, aggregated. Grain: session × 1-second bucket — NOT 90Hz frame.</span>
+<span class="cl">-- The raw stream is a pointer; inlining it makes the table unqueryable.</span>
+<span class="ck">CREATE TABLE</span> fct_pose_sample (
+    session_key   BIGINT       <span class="ck">NOT NULL REFERENCES</span> fct_xr_session(session_key),
+    sec_bucket    TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    head_range    NUMERIC(6,3),               <span class="cl">-- per-second head-pose excursion</span>
+    head_velocity NUMERIC(6,3),
+    hand_activity NUMERIC(6,3),               <span class="cl">-- per-second hand-motion summary</span>
+    raw_blob_uri  TEXT,                        <span class="cl">-- full 90Hz stream in object storage</span>
+    <span class="ck">PRIMARY KEY</span> (session_key, sec_bucket)
+);
+
+<span class="cl">-- Attention: gaze dwell per UI / ad surface — privacy-gated at read time.</span>
+<span class="ck">CREATE TABLE</span> fct_attention (
+    session_key   BIGINT       <span class="ck">NOT NULL REFERENCES</span> fct_xr_session(session_key),
+    surface_id    TEXT         <span class="ck">NOT NULL</span>,
+    ad_id         TEXT,                        <span class="cl">-- NULL for non-ad surfaces</span>
+    dwell_ms      INT          <span class="ck">NOT NULL</span>,
+    gaze_confirmed BOOLEAN     <span class="ck">NOT NULL DEFAULT</span> false,  <span class="cl">-- true above a dwell threshold</span>
+    jitter_ok     BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> false   <span class="cl">-- passed the spoof check</span>
+);
+
+<span class="cl">-- Safety: one row per play-boundary breach. The boundary ENCODES room</span>
+<span class="cl">-- geometry, so store the breach event — never the mesh.</span>
+<span class="ck">CREATE TABLE</span> fct_guardian_event (
+    session_key BIGINT      <span class="ck">NOT NULL REFERENCES</span> fct_xr_session(session_key),
+    event_ts    TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    breach_type TEXT        <span class="ck">NOT NULL</span>
+                <span class="ck">CHECK</span> (breach_type <span class="ck">IN</span> (<span class="cs">'hand_exit'</span>,<span class="cs">'head_exit'</span>,<span class="cs">'proximity'</span>)),
+    severity    INT         <span class="ck">NOT NULL</span>
+);
+
+<span class="cl">-- Spatial anchor: persistent AR placement keyed to a room FINGERPRINT —</span>
+<span class="cl">-- never the raw mesh. The hash relocalizes; the geometry stays out.</span>
+<span class="ck">CREATE TABLE</span> dim_spatial_anchor (
+    anchor_id   TEXT         <span class="ck">PRIMARY KEY</span>,
+    room_hash   TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- fingerprint only</span>
+    placed_ts   TIMESTAMPTZ  <span class="ck">NOT NULL</span>
+);</div>
+
+    <p class="reveal">Two many-to-many cases hide in the corners and both have the same trap. A shared-space session has many users in one room sharing one spatial anchor; putting N users on one session row triple-counts engagement exactly the way a pooled ride does. The fix is a bridge — one row per <span class="m">(shared_space_id, anchor_id, user_session_key)</span> — so per-user metrics stay correct and "who was co-located when" is a join, not a self-join.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>Consent as-of capture, never as-of now</h2>
+    <p class="lede reveal">The correctness of this entire platform lives in one join predicate: every read of biometric data binds to the consent that was valid at the session's capture time. Get it wrong — read under "current" consent — and you have committed a retroactive consent rewrite, which is the failure that turns a data platform into a lawsuit.</p>
+
+    <p class="reveal">Consent is a lifecycle, and the lifecycle is non-destructive. A grant opens a window; a withdrawal closes that window and opens a new one; no state is ever overwritten:</p>
+
+    <div class="statechain reveal">
+      <span class="st">UNKNOWN</span><span class="arr">→</span>
+      <span class="st">GRANTED</span><span class="arr">→</span>
+      <span class="st">WITHDRAWN</span><span class="arr">→</span>
+      <span class="st">GRANTED</span><span class="arr">→</span>
+      <span class="st terminal">DENIED</span>
+    </div>
+
+    <p class="reveal">Each transition appends a row and closes the previous one's <span class="m">valid_to</span>. Because the history is preserved, the question "was this gaze allowed when it was captured?" is always answerable — and so is its grim cousin, "which exact rows must a deletion request purge?" Both are the same as-of predicate, run for analytics in one direction and for erasure in the other.</p>
+
+    <div class="pull reveal">Using today's permission to justify yesterday's capture is a retroactive consent rewrite. The SCD2 window exists precisely to make that impossible.<span>TELEMETRY RULE Nº 1</span></div>
+
+    <p class="reveal">Here is the atomic heart of the platform: aggregate gaze dwell per surface, but include only gaze captured while the user's eye-tracking consent was <span class="m">granted</span> in their region — resolved <em>as-of the session start</em>, not as-of now. The two timestamp comparisons against the consent window are the entire invariant.</p>
+
+    <div class="codelabel">SQL · ATTENTION, GATED BY CONSENT AS-OF CAPTURE</div>
+    <div class="codeblock"><span class="cl">-- The query that separates a senior answer from a lawsuit. The consent</span>
+<span class="cl">-- window is matched to s.start_ts (capture time), never to now().</span>
+<span class="ck">SELECT</span> a.surface_id,
+       count(*)               <span class="ck">AS</span> gaze_hits,
+       round(avg(a.dwell_ms)) <span class="ck">AS</span> avg_dwell_ms
+<span class="ck">FROM</span> fct_attention  a
+<span class="ck">JOIN</span> fct_xr_session s <span class="ck">ON</span> s.session_key = a.session_key
+<span class="ck">JOIN</span> dim_consent    c <span class="ck">ON</span> c.user_key      = s.user_key
+                     <span class="ck">AND</span> c.data_category = <span class="cs">'eye_tracking'</span>
+                     <span class="ck">AND</span> c.region        = s.region
+                     <span class="ck">AND</span> s.start_ts >= c.valid_from
+                     <span class="ck">AND</span> s.start_ts &lt;  c.valid_to     <span class="cl">-- consent AS-OF capture</span>
+<span class="ck">WHERE</span> c.state = <span class="cs">'granted'</span>
+<span class="ck">GROUP BY</span> a.surface_id
+<span class="ck">ORDER BY</span> gaze_hits <span class="ck">DESC</span>;
+<span class="cl">-- A user who later WITHDRAWS closes the granted window and opens a withdrawn</span>
+<span class="cl">-- one; this query automatically stops counting their future gaze, and a</span>
+<span class="cl">-- deletion job targets the same rows via the same predicate.</span></div>
+
+    <p class="reveal">The worked case makes the invariant concrete. A user grants eye-tracking at 10:00 and withdraws it at 10:40. Session S-1 starts at 10:05 (consent <em>granted</em> as-of start), session S-2 at 11:00 (consent <em>withdrawn</em> as-of start). The query counts S-1's gaze and silently excludes S-2's — even though S-2's rows physically exist, because the device captured them before the runtime flag propagated. Had consent been a single mutable boolean, withdrawing it would either have falsified S-1's history or failed to exclude S-2. Both are wrong; the window is right.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the sensor firehose</h2>
+    <p class="lede reveal">Three programs carry the raw plane: the edge aggregator that turns 90 Hz into one row per second, the room-mesh handler that refuses to let geometry into the warehouse, and the gaze-spoof check that decides whether attention is even real. Each is small; the judgment is in what they refuse to keep.</p>
+
+    <h3 class="reveal">1 · The edge aggregator — 90 Hz in, one row per second out</h3>
+    <p class="reveal">The aggregator runs at the edge and is the boundary itself. It reduces a second's worth of frames — ninety samples across head, hands, and eyes — to a handful of summary statistics, writes the raw window to encrypted object storage, and emits one rollup row carrying the blob pointer. The refusal is the design: the raw frames leave the aggregator only as an opaque, encrypted blob, and the warehouse never sees a single frame.</p>
+
+    <div class="codelabel">PYTHON · EDGE AGGREGATOR (FIREHOSE → PER-SECOND ROLLUP)</div>
+    <div class="codeblock"><span class="ck">import</span> statistics <span class="ck">as</span> st
+
+POSE_HZ = 90
+
+<span class="ck">def</span> <span class="cf">aggregate_second</span>(frames, session_key, sec_bucket, blob_store):
+    <span class="cs">"""Reduce one second of 90Hz pose/gaze frames to a single queryable row,
+    and push the raw window to encrypted object storage as an opaque blob.
+
+    The boundary lives here: the warehouse receives summary stats and a
+    pointer, never a frame. Raw biometrics are write-only to object storage."""</span>
+    <span class="ck">if not</span> frames:
+        <span class="ck">return None</span>
+
+    heads = [f[<span class="cs">"head_pose"</span>] <span class="ck">for</span> f <span class="ck">in</span> frames]
+    hands = [f[<span class="cs">"hand_speed"</span>] <span class="ck">for</span> f <span class="ck">in</span> frames]
+
+    <span class="cl"># encrypt + store the raw window; get back an opaque, residency-pinned URI</span>
+    blob_uri = blob_store.put_encrypted(
+        session_key, sec_bucket, frames, ttl_days=30, residency=<span class="cs">"eu"</span>)
+
+    <span class="ck">return</span> {
+        <span class="cs">"session_key"</span>:   session_key,
+        <span class="cs">"sec_bucket"</span>:    sec_bucket,
+        <span class="cs">"head_range"</span>:    max(heads) - min(heads),
+        <span class="cs">"head_velocity"</span>: st.mean(<span class="cf">_speeds</span>(heads)),
+        <span class="cs">"hand_activity"</span>: st.mean(hands),
+        <span class="cs">"raw_blob_uri"</span>:  blob_uri,        <span class="cl"># pointer only — the rule</span>
+    }
+    <span class="cl"># 90 samples in, 1 row out: a ~90x reduction at the edge, before a single</span>
+    <span class="cl"># frame crosses the network into the analytic plane.</span></div>
+
+    <h3 class="reveal">2 · The room-mesh handler — geometry never enters the warehouse</h3>
+    <p class="reveal">A 3-D scan of a private home is among the most sensitive data possible, and the handler's only job is to make sure it is the one thing the warehouse never receives. It computes a stable relocalization <em>fingerprint</em> from the mesh, persists that hash for AR placement, and routes the actual geometry to encrypted, residency-pinned, short-TTL storage outside the analytics estate entirely. The refusal is absolute: the mesh is not down-sampled into the warehouse, it is excluded from it.</p>
+
+    <div class="codelabel">PYTHON · ROOM-MESH HANDLER (FINGERPRINT, NOT GEOMETRY)</div>
+    <div class="codeblock"><span class="ck">import</span> hashlib
+
+<span class="ck">def</span> <span class="cf">handle_room_mesh</span>(mesh, user_key, region, anchor_store, vault):
+    <span class="cs">"""Persist a relocalization fingerprint for AR; route the actual 3-D mesh
+    to a short-TTL, residency-pinned vault OUTSIDE the warehouse. The mesh is
+    a map of someone's home — it is excluded from analytics, not anonymized
+    into it."""</span>
+    <span class="cl"># a stable hash of the geometry — enough to relocalize, not to reconstruct</span>
+    fingerprint = hashlib.blake2b(
+        <span class="cf">_canonical_planes</span>(mesh), digest_size=16).hexdigest()
+
+    <span class="cl"># the warehouse gets ONLY this hash, via dim_spatial_anchor</span>
+    anchor_store.upsert_anchor(room_hash=fingerprint, user_key=user_key)
+
+    <span class="cl"># the geometry goes to the vault: encrypted, region-pinned, short TTL</span>
+    vault.put(mesh, user_key=user_key, region=region,
+              ttl_days=7, purpose=<span class="cs">"relocalization_only"</span>)
+    <span class="ck">return</span> fingerprint
+    <span class="cl"># If a regulator asks "where is this user's room map?", the answer is a</span>
+    <span class="cl"># single vault object with a 7-day TTL — not a thousand warehouse rows.</span></div>
+
+    <h3 class="reveal">3 · The gaze-spoof check — is the attention even real?</h3>
+    <p class="reveal">Gaze-confirmed attention is a far stronger currency than a served impression — eye-tracking can prove a user <em>actually looked</em>. But that makes it forgeable and biometric at once, so before a dwell becomes billable it passes two gates: it must clear a dwell threshold (a glance is not attention), and it must survive a jitter check (a perfectly still, zero-jitter gaze is as fabricated as a phantom-convoy GPS track). The refusal here protects the advertiser and the user simultaneously.</p>
+
+    <div class="codelabel">PYTHON · GAZE-SPOOF + DWELL CONFIRMATION</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">confirm_gaze</span>(dwell_ms, gaze_trace, min_dwell_ms=400, min_jitter=0.15):
+    <span class="cs">"""Decide whether an ad exposure counts as gaze-confirmed AND real.
+    Two gates, both required: a dwell long enough to be attention, and enough
+    micro-jitter to be a living eye. A flawless, motionless gaze is fake."""</span>
+    confirmed = dwell_ms >= min_dwell_ms          <span class="cl"># a glance is not attention</span>
+
+    <span class="cl"># real human gaze has involuntary micro-saccades; a spoof is too smooth.</span>
+    jitter = <span class="cf">_rms_micro_saccade</span>(gaze_trace)
+    real   = jitter >= min_jitter                  <span class="cl"># zero-jitter == fabricated</span>
+
+    <span class="ck">return</span> {
+        <span class="cs">"gaze_confirmed"</span>: confirmed,
+        <span class="cs">"jitter_ok"</span>:     real,
+        <span class="cl"># billable requires BOTH gates here AND consent as-of capture in §04.</span>
+        <span class="cs">"billable_candidate"</span>: confirmed <span class="ck">and</span> real,
+    }</div>
+
+    <p class="reveal">One carve-out, always stated: the spoof check decides whether attention is real, but it does <em>not</em> decide whether it is lawful. A gaze can be perfectly genuine and still un-billable because consent was withdrawn at capture. Reality is a property of the signal; lawfulness is a property of the consent window. The §06 close enforces both, and never lets one stand in for the other.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Consented viewability, and the safety signal</h2>
+    <p class="lede reveal">The derived layer turns gated attention into a billable currency and turns guardian breaches into a comfort-and-safety signal. Both are deterministic rollups over the facts — and both refuse to count anything they cannot defend.</p>
+
+    <p class="reveal">Gaze-confirmed viewability is the monetization payoff: of the ads served, what fraction were <em>actually looked at</em>, counting only users who consented to eye-tracking at the time and only gaze that survived the spoof check. Served-but-never-looked-at impressions drop out of the billable metric; non-consented users never enter it. The result is a viewability number that is honest and lawful at once — a stronger currency than a served impression and a defensible one.</p>
+
+    <div class="codelabel">SQL · GAZE-CONFIRMED VIEWABILITY (CONSENTED + REAL)</div>
+    <div class="codeblock"><span class="cl">-- Of ads served, what fraction were genuinely looked at by a consented user.</span>
+<span class="ck">SELECT</span> a.ad_id,
+       count(*)                                 <span class="ck">AS</span> impressions,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> a.gaze_confirmed
+                          <span class="ck">AND</span> a.jitter_ok)        <span class="ck">AS</span> gaze_views,
+       round(100.0 * count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> a.gaze_confirmed <span class="ck">AND</span> a.jitter_ok)
+             / <span class="cf">nullif</span>(count(*), 0), 1)            <span class="ck">AS</span> gaze_viewability_pct
+<span class="ck">FROM</span> fct_attention  a
+<span class="ck">JOIN</span> fct_xr_session s <span class="ck">ON</span> s.session_key = a.session_key
+<span class="ck">JOIN</span> dim_consent    c <span class="ck">ON</span> c.user_key      = s.user_key
+                     <span class="ck">AND</span> c.data_category = <span class="cs">'eye_tracking'</span>
+                     <span class="ck">AND</span> c.region        = s.region
+                     <span class="ck">AND</span> s.start_ts >= c.valid_from
+                     <span class="ck">AND</span> s.start_ts &lt;  c.valid_to
+<span class="ck">WHERE</span> c.state = <span class="cs">'granted'</span>
+  <span class="ck">AND</span> a.ad_id <span class="ck">IS NOT NULL</span>
+<span class="ck">GROUP BY</span> a.ad_id
+<span class="ck">ORDER BY</span> gaze_viewability_pct <span class="ck">DESC</span>;</div>
+
+    <p class="reveal">The safety signal is the other half of the aggregation. A guardian breach — a hand or head crossing the play boundary — is the XR analog of a vehicle disengagement: a safety event that correlates with room size and content intensity. Rolled up per session and joined to comfort score, it answers the product question that the session grain alone cannot — which experiences are physically uncomfortable, and which rooms are too small for them — and it does so without ever touching the room mesh, because the breach event already encodes the only geometry that matters.</p>
+
+    <div class="codelabel">SQL · COMFORT &amp; SAFETY ROLLUP (BREACHES + COMFORT)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> d.make_model,
+       s.app_key,
+       count(*)                                  <span class="ck">AS</span> sessions,
+       round(avg(s.comfort_score), 2)            <span class="ck">AS</span> avg_comfort,
+       round(avg(s.guardian_breaches), 2)        <span class="ck">AS</span> avg_breaches,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> s.terminal_reason = <span class="cs">'crash'</span>)  <span class="ck">AS</span> crashes
+<span class="ck">FROM</span> fct_xr_session s
+<span class="ck">JOIN</span> dim_device d <span class="ck">ON</span> d.device_key = s.device_key
+<span class="ck">WHERE</span> s.start_ts >= now() - <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>
+<span class="ck">GROUP BY</span> d.make_model, s.app_key
+<span class="ck">HAVING</span> avg(s.comfort_score) &lt; 7.0          <span class="cl">-- surface the uncomfortable pairings</span>
+<span class="ck">ORDER BY</span> avg_comfort <span class="ck">ASC</span>;</div>
+
+    <div class="pull reveal">The pose firehose may be approximate; the consent window may not. Engagement is measured to the second, but the permission behind it is enforced to the instant.<span>AGGREGATION RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the headset</h2>
+    <p class="lede reveal">The facts are where the platform explains itself. Three queries an interviewer loves, because each carries a classic pattern on its back — the capability-gated join, the SCD2 as-of deletion sweep, and the sessionization of a continuous firehose.</p>
+
+    <h3 class="reveal">Capability-aware engagement — the gating join</h3>
+    <p class="reveal">"Average eye-engagement per app" is a trap unless you gate by capability. A controller-only Quest produces no eye rows, and naively dividing by all sessions would understate every Vision Pro app. Join through <span class="m">sensor_suite</span> so the denominator counts only sessions that <em>could</em> have produced gaze — absence is correct, not missing.</p>
+
+    <div class="codelabel">SQL · ENGAGEMENT, GATED BY DEVICE CAPABILITY</div>
+    <div class="codeblock"><span class="ck">SELECT</span> s.app_key,
+       count(*)                                   <span class="ck">AS</span> eye_capable_sessions,
+       round(avg(att.total_dwell_ms))             <span class="ck">AS</span> avg_gaze_dwell_ms
+<span class="ck">FROM</span> fct_xr_session s
+<span class="ck">JOIN</span> dim_device d <span class="ck">ON</span> d.device_key = s.device_key
+                  <span class="ck">AND</span> <span class="cs">'eye'</span> = <span class="ck">ANY</span>(d.sensor_suite)   <span class="cl">-- only eye-capable devices</span>
+<span class="ck">LEFT JOIN LATERAL</span> (
+    <span class="ck">SELECT</span> sum(a.dwell_ms) <span class="ck">AS</span> total_dwell_ms
+    <span class="ck">FROM</span>   fct_attention a
+    <span class="ck">WHERE</span>  a.session_key = s.session_key
+) att <span class="ck">ON TRUE</span>
+<span class="ck">WHERE</span> s.start_ts >= now() - <span class="ck">INTERVAL</span> <span class="cs">'7 days'</span>
+<span class="ck">GROUP BY</span> s.app_key
+<span class="ck">ORDER BY</span> avg_gaze_dwell_ms <span class="ck">DESC NULLS LAST</span>;
+<span class="cl">-- The denominator is eye-CAPABLE sessions only. A Quest controller session</span>
+<span class="cl">-- never enters it, so its missing gaze can't drag the average down.</span></div>
+
+    <h3 class="reveal">The deletion sweep — SCD2 as-of, in reverse</h3>
+    <p class="reveal">A withdrawal or an erasure request runs the consent invariant backward: find every gaze row captured while consent was <em>not</em> granted, so it can be purged. This is the same as-of predicate as the attention query, inverted — the dimension that proves you may use a row also proves which rows you must delete.</p>
+
+    <div class="codelabel">SQL · WHICH ROWS MUST A DELETION REQUEST PURGE?</div>
+    <div class="codeblock"><span class="cl">-- Rows captured outside a 'granted' eye-tracking window for this user.</span>
+<span class="cl">-- The deletion job's target list — and proof of compliance.</span>
+<span class="ck">SELECT</span> a.session_key, a.surface_id, a.dwell_ms, s.start_ts
+<span class="ck">FROM</span> fct_attention  a
+<span class="ck">JOIN</span> fct_xr_session s <span class="ck">ON</span> s.session_key = a.session_key
+<span class="ck">WHERE</span> s.user_key = <span class="ck">:user</span>
+  <span class="ck">AND NOT EXISTS</span> (
+      <span class="ck">SELECT</span> 1 <span class="ck">FROM</span> dim_consent c
+      <span class="ck">WHERE</span> c.user_key      = s.user_key
+        <span class="ck">AND</span> c.data_category = <span class="cs">'eye_tracking'</span>
+        <span class="ck">AND</span> c.region        = s.region
+        <span class="ck">AND</span> c.state         = <span class="cs">'granted'</span>
+        <span class="ck">AND</span> s.start_ts >= c.valid_from
+        <span class="ck">AND</span> s.start_ts &lt;  c.valid_to
+  );</div>
+
+    <h3 class="reveal">Comfort decay within a session — gaps and islands</h3>
+    <p class="reveal">"Does comfort degrade the longer a session runs?" The per-second pose rollup has no fatigue boundaries — only timestamps and motion summaries. Flagging sustained high-velocity stretches and running a window sum over the flags is the canonical gaps-and-islands move, turning a continuous firehose into discrete fatigue episodes.</p>
+
+    <div class="codelabel">SQL · FATIGUE EPISODES OVER THE POSE ROLLUP</div>
+    <div class="codeblock"><span class="ck">WITH</span> flagged <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> session_key, sec_bucket, head_velocity,
+           <span class="ck">CASE WHEN</span> head_velocity > 1.5
+                <span class="ck">AND</span> <span class="cf">lag</span>(head_velocity) <span class="ck">OVER</span> w &lt;= 1.5
+                <span class="ck">THEN</span> 1 <span class="ck">ELSE</span> 0 <span class="ck">END</span>                   <span class="ck">AS</span> new_episode
+    <span class="ck">FROM</span>   fct_pose_sample
+    <span class="ck">WHERE</span>  head_velocity > 1.5
+    <span class="ck">WINDOW</span> w <span class="ck">AS</span> (<span class="ck">PARTITION BY</span> session_key <span class="ck">ORDER BY</span> sec_bucket)
+),
+episodes <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> session_key, sec_bucket,
+           <span class="cf">sum</span>(new_episode) <span class="ck">OVER</span>
+               (<span class="ck">PARTITION BY</span> session_key <span class="ck">ORDER BY</span> sec_bucket) <span class="ck">AS</span> episode_id
+    <span class="ck">FROM</span>   flagged
+)
+<span class="ck">SELECT</span> session_key, episode_id,
+       min(sec_bucket)                 <span class="ck">AS</span> episode_start,
+       max(sec_bucket) - min(sec_bucket) <span class="ck">AS</span> episode_len
+<span class="ck">FROM</span>   episodes
+<span class="ck">GROUP BY</span> session_key, episode_id
+<span class="ck">HAVING</span> max(sec_bucket) - min(sec_bucket) >= <span class="ck">INTERVAL</span> <span class="cs">'20 seconds'</span>;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the platform is safe and lawful</h2>
+    <p class="lede reveal">A senior design ends with observability, because every privacy boundary above is invisible without it. The dashboard watches three different definitions of "healthy" — the firehose, the consent estate, and the monetization currency — and treats a consent leak as the page-worthy incident.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE FIREHOSE</dt><dd><span class="m">ingest reduction ratio</span> (frames in vs rollup rows out), <span class="m">blob-store backlog</span>, <span class="m">residency-violation count</span> — any frame written to the wrong region is an incident, not a metric.</dd></div>
+      <div class="defrow"><dt>THE CONSENT ESTATE</dt><dd><span class="m">consent propagation lag</span> (withdrawal to last-captured-row), <span class="m">ungated-read attempts</span> (queries that touched biometrics without the as-of join — these must be zero), <span class="m">deletion SLA</span>.</dd></div>
+      <div class="defrow"><dt>THE CURRENCY</dt><dd><span class="m">gaze viewability %</span>, <span class="m">spoof-rejection rate</span> (a spike means a fraud campaign), <span class="m">billable fraction</span> — the share of gaze that is both real and consented.</dd></div>
+      <div class="defrow"><dt>SAFETY</dt><dd><span class="m">comfort score p10</span>, <span class="m">guardian breaches per session</span> — the physical-safety health of the fleet, watched like an SLO.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Spatial Platform — Trust &amp; Telemetry</span>
+        <span class="dash-sub">FRI 14:20 · EU REGION · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Ingest Reduction</div><div class="tv ok">89.4<small>k×</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,14 60,15 80,14 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Ungated Reads</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Consent Prop. Lag</div><div class="tv warn">3.1<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,16 40,17 60,14 80,15 100,13 120,14" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Residency Violations</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Billable gaze fraction — served → confirmed → consented (last 6h)</div>
+          <svg viewBox="0 0 240 84">
+            <!-- funnel bars -->
+            <text x="6" y="22" font-size="8" fill="#8f8672" font-family="DM Mono,monospace">SERVED</text>
+            <rect x="64" y="14" width="168" height="14" fill="#4d4427"/>
+            <text x="6" y="42" font-size="8" fill="#8f8672" font-family="DM Mono,monospace">CONFIRM</text>
+            <rect x="64" y="34" width="116" height="14" fill="#a87b1e"/>
+            <text x="6" y="62" font-size="8" fill="#8f8672" font-family="DM Mono,monospace">REAL</text>
+            <rect x="64" y="54" width="104" height="14" fill="#c89a4a"/>
+            <text x="6" y="80" font-size="8" fill="#8f8672" font-family="DM Mono,monospace">BILLABLE</text>
+            <rect x="64" y="72" width="88" height="10" fill="#a8b58a"/>
+            <text x="236" y="80" font-size="7" fill="#a8b58a" text-anchor="end" font-family="DM Mono,monospace">52%</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Spoof Rejection</div><div class="tv warn">4.1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,16 40,15 60,13 80,12 100,10 120,9" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Gaze Viewability</div><div class="tv ok">63<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,12 60,11 80,12 100,11 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Comfort p10</div><div class="tv warn">6.4</div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,14 60,14 80,15 100,16 120,17" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Breaches / Session</div><div class="tv ok">0.3</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Deletion SLA</div><div class="tv ok">98<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,11 20,11 40,10 60,11 80,10 100,11 120,10" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Blob Backlog</div><div class="tv">1.2<small>k</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,16 100,15 120,16" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy day tells: the firehose reducing ninety-thousand-fold, zero ungated reads and zero residency violations (the two non-negotiables sitting green), spoof rejection drifting amber as a fraud campaign probes the gaze check, and the billable-gaze funnel collapsing served impressions down to the 52% that are both real and consented.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the green tiles first, because they are the ones that keep the company out of court: ungated reads at zero means every biometric query went through the as-of join, and residency violations at zero means no frame escaped its region. Then read the amber: comfort p10 is sliding and spoof rejection is climbing — a content problem and an adversary, both real, both contained. That is what a designed privacy posture looks like from the operator's chair: the dangerous failures are alarmed to zero, and the merely-bad ones are visible before they page.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the headset away and the question was testing five judgments, each of which generalizes far beyond spatial computing:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>THE FIREHOSE BOUNDARY</dt><dd>Refusing to inline a high-rate stream into a queryable fact. Per-second rollup in the warehouse, raw frames in object storage with a pointer — the same call as pre-aggregating GPS, made sharper because here the raw data is also the most private.</dd></div>
+      <div class="defrow"><dt>TIME-VERSIONED PERMISSION</dt><dd>Modeling consent as SCD2, not a boolean, so "could I use <em>that</em> capture?" survives a withdrawal and an audit. The same as-of discipline that locks an FX rate or a risk verdict to the instant it was true.</dd></div>
+      <div class="defrow"><dt>CAPABILITY IN THE DIMENSION</dt><dd>Letting the device decide the schema. Absence of eye rows for a controller session is correct, not missing — capability lives on the conformed device dimension, and the query gates on it.</dd></div>
+      <div class="defrow"><dt>EXCLUDE, DON'T ANONYMIZE</dt><dd>Keeping the room mesh out of the warehouse entirely — a fingerprint relocalizes, the geometry stays in a short-TTL vault. Some data is not made safe by aggregation; it is made safe by never arriving.</dd></div>
+      <div class="defrow"><dt>HONEST CURRENCY</dt><dd>Billing only attention that is both real and consented — a spoof check for reality, an as-of join for lawfulness, and never one standing in for the other. The signal may be strong; the right to use it is separate.</dd></div>
+    </dl>
+    <div class="pull reveal">The headset is the most extreme member of the device dimension, so the catalogue's disciplines do not change — they sharpen. Get the firehose boundary, the consent window, and the capability gate right, and spatial data stops being scary and starts being a star schema.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 18 — THE TELEMETRY PROBLEM<br>SPATIAL / XR · BIOMETRIC CONSENT · THE CRAFT OF THE BOUNDARY</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
