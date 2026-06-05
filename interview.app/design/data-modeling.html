@@ -7195,6 +7195,217 @@ ORDER BY recoverable_exposure_usd DESC;</code></pre>
 
 
 
+<article class="detail" id="detail-sc-google-calendar" aria-labelledby="h-sc-google-calendar">
+  <div class="detail__nav"><div class="detail__head"><button class="btn" type="button" data-back>← All scenarios</button><h2 id="h-sc-google-calendar">Recurring events, time zones &amp; free/busy</h2><span class="card__domain">Google Calendar · productivity · recurrence-as-rule + occurrence-as-fact</span></div><div class="detail__actions"><button class="btn btn--primary" type="button" data-study="sc-google-calendar" aria-pressed="false">Mark studied</button></div></div>
+  <div class="tablist" role="tablist" aria-label="Recurring events, time zones and free/busy study view"><button class="tab" role="tab" id="t-sc-google-calendar-prompt" aria-controls="p-sc-google-calendar-prompt" aria-selected="true">Prompt</button><button class="tab" role="tab" id="t-sc-google-calendar-model" aria-controls="p-sc-google-calendar-model" aria-selected="false" tabindex="-1">Data model</button><button class="tab" role="tab" id="t-sc-google-calendar-sql" aria-controls="p-sc-google-calendar-sql" aria-selected="false" tabindex="-1">SQL</button><button class="tab" role="tab" id="t-sc-google-calendar-tradeoffs" aria-controls="p-sc-google-calendar-tradeoffs" aria-selected="false" tabindex="-1">Trade-offs</button><button class="tab" role="tab" id="t-sc-google-calendar-example" aria-controls="p-sc-google-calendar-example" aria-selected="false" tabindex="-1">Worked example</button><button class="tab" role="tab" id="t-sc-google-calendar-drill" aria-controls="p-sc-google-calendar-drill" aria-selected="false" tabindex="-1">Drill</button></div>
+<div class="tabpanel" role="tabpanel" id="p-sc-google-calendar-prompt" aria-labelledby="t-sc-google-calendar-prompt" tabindex="0">
+<div class="prompt">Design the analytical model behind Google Calendar: recurring events with per-instance exceptions, IANA time zones with daylight-saving correctness, invitations with accept / decline / tentative, and "find a time" free/busy across many attendees — with point-in-time queryability ("what did my Tuesday look like as Calendar showed it last Monday?").</div>
+<h3>Why this is hard — the design tension</h3>
+<p>A recurring event is <strong>one logical row that denotes an unbounded set of occurrences</strong> — "every weekday, forever" is a single rule and an infinite series. Materialize occurrences as rows and you sign up for a horizon plus a forever-running backfill; expand the rule on every read and you recompute a deterministic answer, with a <code>FREQ=MINUTELY</code> rule waiting to blow up a query. The senior answer mirrors Airbnb's calendar-as-fact: keep the rule in an <strong>SCD2 series dimension</strong>, materialize an <strong>occurrence fact</strong> to a rolling horizon, and overlay <strong>exceptions</strong> as an append-only ledger keyed by <code>recurrence_id</code>. Time is the second landmine: a 09:00 stand-up must stay 09:00 across a DST change, so the rule lives in local wall-clock + IANA zone and the UTC instant is <em>derived per occurrence</em> — never frozen.</p>
+<h3>Section 1 — Dimensional Model Overview</h3>
+<p><strong>Fact Tables</strong></p>
+<ul>
+  <li><code>fct_event_occurrences</code> — <strong>The "Occurrence" grain.</strong> One row per (event × occurrence_start), materialized from the recurrence rule out to a rolling horizon. The hot read path for every calendar view.</li>
+  <li><code>fct_event_exceptions</code> — <strong>The "Override" grain.</strong> One append-only row per (series × recurrence_id) cancel / move / edit. Drives recurrence health.</li>
+  <li><code>fct_invitations</code> — <strong>The "RSVP" grain.</strong> One row per (occurrence × attendee), with response state and response latency. Append-only response changes.</li>
+  <li><code>fct_freebusy_slots</code> — <strong>The "Availability" grain.</strong> One row per (calendar × 15-min slot). The bitmap-as-fact behind "find a time".</li>
+</ul>
+<p><strong>Dimension Tables</strong></p>
+<ul>
+  <li><code>dim_events</code> (SCD2 — the recurrence master: title, RRULE, organizer drift)</li>
+  <li><code>dim_calendars</code> (kind ∈ primary / secondary / resource / room)</li>
+  <li><code>dim_users</code> (attendees &amp; organizers; home_tz)</li>
+  <li><code>dim_timezone</code> (IANA id → std / DST offset rules — the DST source of truth)</li>
+  <li><code>dim_date</code> (occurrence calendar date, day-of-week, is_weekday)</li>
+</ul>
+</div>
+<div class="tabpanel" role="tabpanel" id="p-sc-google-calendar-model" aria-labelledby="t-sc-google-calendar-model" tabindex="0" hidden>
+<h3>Section 2 — Logical Data Model (key columns)</h3>
+<p><strong><code>fct_event_occurrences</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>event_sk, recurrence_id</code></td><td>Composite PK</td><td><code>recurrence_id</code> = original wall-clock start; identifies an occurrence within its series.</td></tr>
+    <tr><td><code>occurrence_start_local, occurrence_end_local</code></td><td>TIMESTAMP</td><td>Wall-clock, no zone. The source of truth for a recurring event.</td></tr>
+    <tr><td><code>occurrence_start_utc, occurrence_end_utc</code></td><td>TIMESTAMPTZ</td><td><strong>Derived</strong> from local + <code>tz_id</code> per row. NULL when cancelled.</td></tr>
+    <tr><td><code>tz_id</code></td><td>TEXT</td><td>IANA zone, e.g. <code>America/Los_Angeles</code>. Never a raw offset.</td></tr>
+    <tr><td><code>is_override, is_cancelled</code></td><td>BOOLEAN</td><td>Set when an exception applies to this occurrence.</td></tr>
+    <tr><td><code>transparency</code></td><td>TEXT</td><td><code>opaque</code> = busy, <code>transparent</code> = free. Drives free/busy.</td></tr>
+  </tbody>
+</table>
+<p><strong><code>fct_event_exceptions</code></strong> — append-only: <code>series_sk, recurrence_id (original wall-clock start), exception_type ∈ {cancel, move, edit}, new_start_utc, overridden_cols, created_ts</code>. A "move" carries its own start; a "cancel" tombstones one occurrence; an "edit" records which columns the user pinned.</p>
+<h3>Section 3 — How the model serves each stakeholder</h3>
+<p><strong>User · calendar view</strong> — Reads <code>fct_event_occurrences</code> for the visible window WHERE <code>NOT is_cancelled</code>; the override row already carries the moved time, so no rule re-expansion at read time.</p>
+<p><strong>Organizer · response rollup</strong> — <code>fct_invitations</code> aggregated to (event, response) gives the accept / decline / tentative tally, with response latency for nudges.</p>
+<p><strong>Scheduler &amp; rooms · find-a-time</strong> — <code>fct_freebusy_slots</code> intersected across attendees returns common open slots. Rooms get a synchronous double-book check against real occurrences at booking time.</p>
+<p><strong>Workspace admin · meeting load</strong> — Busy minutes per user per day from <code>fct_freebusy_slots</code> surface focus-time erosion and meeting-heavy orgs.</p>
+<h3>Section 4 — Why occurrence-as-fact + a local-time rule</h3>
+<ul>
+  <li><strong>Without materialization:</strong> every calendar open re-expands every RRULE — deterministic work, redone forever, and exposed to expansion bombs.</li>
+  <li><strong>With a rolling horizon (12 months):</strong> a calendar view is a range scan on <code>fct_event_occurrences</code>; a change-stream job re-materializes only the touched series. Queries beyond the horizon fall back to on-demand expansion (rare).</li>
+  <li><strong>DST correctness:</strong> store <code>occurrence_start_local</code> + <code>tz_id</code>; derive <code>occurrence_start_utc</code> via <code>dim_timezone</code>. 09:00 Pacific is 16:00Z in summer and 17:00Z in winter — automatically, because UTC is never frozen.</li>
+  <li><strong>Exceptions append-only:</strong> a cancel or move never UPDATEs the series in place; it writes an <code>fct_event_exceptions</code> row and flips the occurrence's flags. Full audit trail; recurrence health is a <code>GROUP BY series</code>.</li>
+</ul>
+<h3>Enhanced graphical data model — Google Calendar</h3>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrGC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">GOOGLE CALENDAR · RECURRENCE-AS-RULE · OCCURRENCE-AS-FACT · FREE/BUSY</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,118)"><rect width="270" height="108" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📋 dim_events ★ SCD2</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">event_id · title · organizer</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">rrule · rrule_until · is_recurring</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">recurrence master — series properties drift</text><text x="20" y="98" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,240)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🗓 dim_calendars</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">calendar_id · owner · default_tz</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">kind {primary · secondary · resource · room}</text></g>
+  <g transform="translate(40,334)"><rect width="270" height="74" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">👤 dim_users</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · email · home_tz</text></g>
+  <g transform="translate(40,422)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🌐 dim_timezone ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">tz_id · std_offset · dst_offset</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">dst_rule (transition dates)</text><text x="20" y="84" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">derives UTC per occurrence</text></g>
+  <g transform="translate(40,536)"><rect width="270" height="70" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📆 dim_date</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">date · day_of_week · is_weekday</text></g>
+
+  <g transform="translate(385,118)"><rect width="280" height="180" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📅 fct_event_occurrences ★ HOT PATH</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ event_sk · ⛓ calendar_sk</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ recurrence_id (orig wall-clock)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">occ_start_local · occ_end_local</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">occ_start_utc · occ_end_utc (derived)</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">tz_id · is_override · is_cancelled</text><text x="20" y="145" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">transparency {opaque · transparent}</text><text x="20" y="166" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (event × occurrence_start)</text></g>
+  <g transform="translate(700,118)"><rect width="265" height="180" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">✉ fct_invitations</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ occurrence_sk · ⛓ attendee_sk</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">response {needs_action · accepted</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">· declined · tentative}</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ responded_ts · latency_min</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_optional · is_organizer</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">append-only · per-occurrence RSVP</text></g>
+  <g transform="translate(385,318)"><rect width="280" height="120" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🔄 fct_event_exceptions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ series_sk · ⌖ recurrence_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">type {cancel · move · edit}</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">new_start_utc · overridden_cols</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">append-only override ledger</text></g>
+  <g transform="translate(700,318)"><rect width="265" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🟦 fct_freebusy_slots ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ calendar_sk · slot_start_utc</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_busy · busy_count (15-min)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">bitmap-as-fact · OR across attendees</text></g>
+  <g transform="translate(385,460)"><rect width="580" height="56" fill="#fff" stroke="#1e40af" rx="6" stroke-dasharray="4,3"/><text x="290" y="26" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">OCCURRENCE = expand(RRULE, horizon) in LOCAL time → UTC derived per row</text><text x="290" y="44" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#92400e">exceptions overlay by recurrence_id · cancel tombstones · move carries new time</text></g>
+  <g transform="translate(385,540)"><rect width="580" height="60" fill="#fff" stroke="#cbd5e0" rx="6" stroke-dasharray="4,3"/><text x="290" y="26" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">FREE = slot WHERE SUM(is_busy)=0 across attendee calendars</text><text x="290" y="44" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">first zero-run ≥ ⌈duration / 15⌉ slots wins</text></g>
+
+  <g transform="translate(1015,118)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">MEETING LOAD &amp; FOCUS TIME</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">🟦 Busy minutes / day per user</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">🧩 Fragmentation · focus-block count</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_freebusy_slots</text></g>
+  <g transform="translate(1015,258)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">RSVP / INVITATION FUNNEL</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">✉ Sent → accepted / declined / tentative</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Response latency by attendee</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_invitations</text></g>
+  <g transform="translate(1015,398)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FREE/BUSY · FIND-A-TIME</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Common open slots across N attendees</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Room double-book detection</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_freebusy_slots × occurrences</text></g>
+  <g transform="translate(1015,538)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">RECURRENCE HEALTH</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">🔄 Exceptions per series · cancel rate</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">🧟 "Zombie" series (all-cancelled tails)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_event_exceptions</text></g>
+
+  <line x1="310" y1="172" x2="385" y2="190" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrGC)"/>
+  <line x1="310" y1="280" x2="385" y2="210" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrGC)"/>
+  <line x1="310" y1="472" x2="385" y2="230" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrGC)"/>
+  <line x1="310" y1="172" x2="385" y2="360" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrGC)"/>
+  <line x1="665" y1="208" x2="700" y2="208" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrGC)"/>
+  <line x1="525" y1="298" x2="525" y2="318" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrGC)"/>
+</svg>
+</div>
+<div class="tabpanel" role="tabpanel" id="p-sc-google-calendar-sql" aria-labelledby="t-sc-google-calendar-sql" tabindex="0" hidden>
+<h3>Section 7 — SQL analysis</h3>
+<p><strong>Sample data — one weekly stand-up series expanded to 5 occurrences (wk3 cancelled, wk4 moved Tue→Wed), 3 attendees, one day of free/busy</strong></p>
+<pre><code>-- the recurrence master (SCD2 series dimension)
+INSERT INTO dim_events VALUES
+  (501,'EVT_STANDUP','Daily Stand-up','FREQ=WEEKLY;BYDAY=TU','America/Los_Angeles',9001,TRUE);
+
+-- occurrences materialized from the rule; 09:00 PDT -&gt; 16:00Z (summer)
+INSERT INTO fct_event_occurrences VALUES
+-- event,cal, occ_start_local,    occ_start_utc,         occ_end_utc,          tz,   recurrence_id,      is_override,is_cancelled,transparency
+  (501,77,'2026-06-09 09:00','2026-06-09 16:00+00','2026-06-09 16:15+00','PT','2026-06-09 09:00',FALSE,FALSE,'opaque'),
+  (501,77,'2026-06-16 09:00','2026-06-16 16:00+00','2026-06-16 16:15+00','PT','2026-06-16 09:00',FALSE,FALSE,'opaque'),
+  (501,77,'2026-06-23 09:00', NULL,                 NULL,                'PT','2026-06-23 09:00',TRUE, TRUE, 'opaque'), -- cancelled
+  (501,77,'2026-07-01 14:00','2026-07-01 21:00+00','2026-07-01 21:15+00','PT','2026-06-30 09:00',TRUE, FALSE,'opaque'), -- moved from Tue 6/30
+  (501,77,'2026-07-07 09:00','2026-07-07 16:00+00','2026-07-07 16:15+00','PT','2026-07-07 09:00',FALSE,FALSE,'opaque');
+
+-- the append-only exception ledger that produced the two odd rows above
+INSERT INTO fct_event_exceptions VALUES
+  (501,'2026-06-23 09:00','cancel', NULL,                 NULL,        '2026-06-20 11:00'),
+  (501,'2026-06-30 09:00','move',  '2026-07-01 21:00+00','{start}',    '2026-06-28 09:30');
+
+-- per-occurrence RSVPs for the MOVED instance (someone declines just that one)
+INSERT INTO fct_invitations VALUES
+  (504,9001,'accepted', '2026-06-28 09:31', 1,  TRUE),    -- organizer
+  (504,9002,'accepted', '2026-06-28 12:00', 149,FALSE),
+  (504,9003,'declined', '2026-06-29 08:00', NULL,FALSE);  -- Chen can't do Wed
+
+-- one UTC day of 15-min free/busy for 3 attendee calendars (08:00-14:00 PT shown)
+INSERT INTO fct_freebusy_slots VALUES   -- (calendar_sk, slot_start_utc, is_busy)
+  (77,'2026-07-01 16:00+00',1),(77,'2026-07-01 16:15+00',1),  -- Alice 09:00-10:30
+  -- ... Bren cal 78, Chen cal 79 populated similarly ...
+  (78,'2026-07-01 15:30+00',1),(79,'2026-07-01 17:00+00',1);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. User · calendar view (exceptions already applied)</h4>
+<p><strong>Q1 — My stand-up occurrences over the next month, cancellations dropped, moves honored</strong></p>
+<pre><code>SELECT o.recurrence_id          AS original_slot,
+       o.occurrence_start_local AS shows_at_local,
+       o.occurrence_start_utc   AS instant_utc,
+       CASE WHEN o.is_override THEN 'moved' ELSE 'series' END AS kind
+FROM   fct_event_occurrences o
+WHERE  o.event_sk = 501
+  AND  o.is_cancelled = FALSE
+  AND  o.occurrence_start_local &gt;= '2026-06-09'
+  AND  o.occurrence_start_local &lt;  '2026-07-09'
+ORDER BY o.occurrence_start_local;
+-- 4 rows: 6/9, 6/16, (6/23 dropped), 7/1 14:00 'moved', 7/7. No RRULE re-expansion.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Scheduler · free/busy find-a-time</h4>
+<p><strong>Q2 — First 60-min slot on Jul 1 where Alice (77), Bren (78) and Chen (79) are all free</strong></p>
+<pre><code>WITH combined AS (
+  SELECT slot_start_utc, SUM(is_busy) AS busy_heads
+  FROM   fct_freebusy_slots
+  WHERE  calendar_sk IN (77,78,79)
+    AND  slot_start_utc &gt;= '2026-07-01 15:00+00'   -- 08:00 PT
+    AND  slot_start_utc &lt;  '2026-07-01 21:00+00'   -- 14:00 PT
+  GROUP  BY slot_start_utc
+),
+runs AS (   -- a free slot, and how many free slots have run up to it
+  SELECT slot_start_utc,
+         COUNT(*) FILTER (WHERE busy_heads &gt; 0)
+           OVER (ORDER BY slot_start_utc) AS busy_group
+  FROM   combined WHERE busy_heads = 0
+)
+SELECT MIN(slot_start_utc) AS open_from,
+       MIN(slot_start_utc) + INTERVAL '60 min' AS open_to
+FROM   runs
+GROUP  BY busy_group
+HAVING COUNT(*) &gt;= 4               -- 4 x 15-min = 60 min, all heads free
+ORDER  BY open_from
+LIMIT  1;                          -- -&gt; 18:00Z = 11:00 PT
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Organizer · RSVP funnel + recurrence health</h4>
+<p><strong>Q3 — Response mix for the moved instance, and exception load per series</strong></p>
+<pre><code>-- RSVP funnel for one occurrence
+SELECT response, COUNT(*) AS heads,
+       ROUND(AVG(latency_min)) AS avg_latency_min
+FROM   fct_invitations
+WHERE  occurrence_sk = 504
+GROUP  BY response;          -- accepted 2, declined 1
+
+-- recurrence health: which series churn their occurrences?
+SELECT series_sk,
+       COUNT(*)                                          AS exceptions,
+       COUNT(*) FILTER (WHERE exception_type = 'cancel') AS cancels,
+       COUNT(*) FILTER (WHERE exception_type = 'move')   AS moves
+FROM   fct_event_exceptions
+GROUP  BY series_sk
+HAVING COUNT(*) &gt;= 2
+ORDER  BY exceptions DESC;   -- a series with many cancels is a 'zombie' to nudge
+</code></pre>
+</div>
+<div class="tabpanel" role="tabpanel" id="p-sc-google-calendar-tradeoffs" aria-labelledby="t-sc-google-calendar-tradeoffs" tabindex="0" hidden>
+<h3>Section 8 — Why this works</h3>
+<ul>
+  <li><strong>Occurrence-as-fact + rolling horizon</strong> = calendar views are range scans, not RRULE re-expansions, and they survive open-ended series.</li>
+  <li><strong>Local time + dim_timezone</strong> = DST is correct by construction; UTC is derived, never frozen, so a clock change can't silently move a million stand-ups.</li>
+  <li><strong>Append-only exceptions keyed by <code>recurrence_id</code></strong> = cancels and moves carry an audit trail, and per-instance RSVPs fall out for free.</li>
+  <li><strong>Free/busy as a 15-min slot fact</strong> = "find a time" is a bitwise OR across attendees, advisory and microsecond-cheap; rooms get a synchronous check where double-booking is unacceptable.</li>
+</ul>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "Recurrence is the unlock and the trap: one row means infinite occurrences, so I keep the RRULE in an SCD2 series dim and materialize occurrence-as-fact to a rolling horizon — the calendar analogue of Airbnb's calendar-as-fact. The non-obvious correctness move is storing local wall-clock plus the IANA zone and <em>deriving</em> UTC per occurrence; freeze UTC and the next DST change moves every recurring meeting an hour. Exceptions are an append-only ledger keyed by <code>recurrence_id</code>, and free/busy is a 15-minute slot fact you OR across attendees — that's what makes 'find a time' cheap enough for AI agents to poll."
+</div>
+</div>
+<div class="tabpanel" role="tabpanel" id="p-sc-google-calendar-example" aria-labelledby="t-sc-google-calendar-example" tabindex="0" hidden>
+<h3>Worked example — the stand-up that skipped a week, then moved</h3>
+<ol>
+  <li>Series <code>EVT_STANDUP</code> = <code>FREQ=WEEKLY;BYDAY=TU</code> in <code>America/Los_Angeles</code>, 09:00–09:15. Expanded across June–July it yields Tuesdays 6/9, 6/16, 6/23, 6/30, 7/7.</li>
+  <li>Each occurrence's UTC is derived: it's <strong>summer (PDT, UTC−7)</strong>, so 09:00 local = <strong>16:00Z</strong>. In winter the same series would land at 17:00Z — no row rewrite needed.</li>
+  <li>Week 3 (6/23) is cancelled: one <code>fct_event_exceptions</code> row (<code>type=cancel</code>) and the occurrence flips <code>is_cancelled=TRUE</code> with NULL UTC. Q1 drops it.</li>
+  <li>Week 4 (6/30) is moved to Wed 7/1 14:00: an <code>exception</code> (<code>type=move</code>, <code>recurrence_id=2026-06-30 09:00</code>) and an override occurrence at <strong>21:00Z</strong> (14:00 PDT). The override carries its own attendees, so <strong>Chen declines just that instance</strong> while staying on the series.</li>
+  <li>Rescheduling the moved instance, the planner asks free/busy for 3 attendees on 7/1: Alice busy 09:00–10:30 &amp; 12:00–13:00, Bren 08:30–09:30 &amp; 13:00–14:00, Chen 10:00–11:00. OR the slot masks → the first all-free 60-min run is <strong>11:00–12:00 PT (18:00Z)</strong>. Q2 returns exactly that.</li>
+  <li>Recurrence health (Q3) shows series 501 with 2 exceptions (1 cancel, 1 move) — healthy. A series with cancels every week is a "zombie" the workspace nudges to delete.</li>
+</ol>
+</div>
+<div class="tabpanel" role="tabpanel" id="p-sc-google-calendar-drill" aria-labelledby="t-sc-google-calendar-drill" tabindex="0" hidden>
+<div class="drill"><p class="drill__q">Drill · answer this in 90 seconds:</p><p style="font-family:var(--font-read);margin:0 0 10px">Design the model behind Google Calendar: recurring events with per-instance exceptions, IANA time zones with DST correctness, accept/decline/tentative invitations, and free/busy "find a time" across many attendees — with point-in-time queryability.</p><button class="reveal" type="button" data-reveal>Reveal a senior-level framing</button><div class="drill__a" hidden><strong>Senior framing.</strong> "One row means infinite occurrences, so I keep the RRULE in an SCD2 series dim and materialize occurrence-as-fact to a rolling horizon — Airbnb's calendar-as-fact, applied to scheduling. I store local wall-clock + IANA zone and derive UTC per occurrence so DST can't move a million stand-ups. Exceptions are an append-only ledger keyed by <code>recurrence_id</code> (per-instance RSVPs fall out for free), and free/busy is a 15-minute slot fact I OR across attendees so 'find a time' is microsecond-cheap."</div></div>
+</div>
+</article>
+
 <footer class="site-foot">
   <div class="site-foot__ornament" aria-hidden="true">&#10070;</div>
   <p>Data Modeling Studio &middot; Interview Studio &middot; Design</p>
