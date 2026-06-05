@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Hierarchy Problem — PaddySpeaks</title>
+<meta name="description" content="Design the data model for an enterprise CRM with nested account hierarchies and absolute multi-tenant isolation. Hybrid parent_id plus materialized path, three-layer tenant isolation, stage-changes as a fact, recursive rollups. Data flow, schema, streaming Python, pipeline-velocity SQL, and the dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 13</div>
+    <h1 class="reveal">The <em>Hierarchy</em> Problem</h1>
+    <p class="deck reveal">Design the data model behind an enterprise CRM — nested account trees a hundred subsidiaries deep, revenue that must roll up to the parent without double-counting, and every tenant's data sharing the same physical tables. One prompt, two hard problems braided together, and a single decision that keeps a runaway query from reading another company's pipeline. A complete working-through of data flow, schema, the isolation stack, streaming Python, recursive-rollup SQL, and the dashboard that proves the walls hold.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>CRM / Multi-tenant</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One table, every customer, a tree inside</h2>
+    <p class="lede reveal">Every data engineer who builds B2B software eventually meets this question. It sounds like a schema for accounts and deals. It is two problems most consumer platforms never face — a recursive hierarchy and absolute tenant isolation — sharing one set of tables.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data model for a multi-tenant CRM with account hierarchies. JP Morgan has a hundred subsidiaries, each running its own pipeline, but the renewal happens at the parent. Revenue must roll up the tree correctly, and no tenant can ever see another's data. How do you model it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The two halves of this question pull in opposite directions, and a senior answer names that tension first. The <strong>hierarchy</strong> wants flexibility: enterprises re-org constantly, a subsidiary gets sold, a division is folded in, and the tree must bend without a migration. A revenue rollup that does not aggregate up the tree is simply wrong — JP Morgan's number is the sum of its hundred children — but one that aggregates carelessly double-counts a subsidiary that appears under two parents. The <strong>multi-tenancy</strong> wants rigidity: every Salesforce customer's rows live in the same physical tables, separated only by an <span class="m">org_id</span>, and one query that forgets the filter reads someone else's book of business. That is not a bug you log and fix next sprint — it is an existential, contract-ending breach. Flexibility and rigidity, in the same schema, is the whole assignment.</p>
+
+    <p class="reveal">A weak answer stores <span class="m">current_stage</span> as a column on the opportunity and trusts the application to add the tenant filter. A strong answer notices that current state is a lossy projection of an event stream, and that tenant isolation cannot live in application code where a single forgotten <span class="m">WHERE</span> clause defeats it. So before any boxes and arrows, the working frame for the whole session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE TREE</dt><dd><strong>Account hierarchy.</strong> A self-referencing <span class="m">parent_account_id</span> for clean writes, plus a materialized path for fast subtree reads, reconciled nightly. Re-orgs are cheap on the write side; rollups are cheap on the read side; the daily job keeps them honest.</dd></div>
+      <div class="defrow"><dt>THE WALL</dt><dd><strong>Tenant isolation.</strong> <span class="m">org_id</span> enforced at three layers — partition key, composite-index leading column, and a row-level security policy — so isolation survives a careless query, a rogue engineer, and a runaway scan. Defense in depth, because one layer is one mistake from a breach.</dd></div>
+      <div class="defrow"><dt>THE LEDGER</dt><dd><strong>Stage changes as fact.</strong> One row per opportunity stage transition, never a mutable <span class="m">current_stage</span> column. Current state is the latest event; velocity, conversion, and time-in-stage all fall out of the same append-only table. One source of truth for everything pipeline.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Losing tenant isolation is the one bug you cannot apologize your way out of. So you do not trust a query to remember the wall — you make the database refuse to serve without it.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you build, what you ignore, and the numbers that shape every later choice. Out of scope here, said explicitly: the CRM application layer and UI, the email/activity sync engine, territory assignment rules beyond the dimension, and the forecasting model itself (treated as a consumer of these facts). In scope: how the account tree is stored so re-orgs are cheap and rollups are fast, how tenant isolation is enforced so it cannot be bypassed, how pipeline state is modeled so velocity is derivable, and how record-sharing cascades up the role hierarchy.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. Salesforce-shaped numbers — a multi-tenant CRM serving every customer from shared infrastructure:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Tenants (orgs)</td><td class="mono">150,000</td><td>Every table is partitioned by org_id, period</td></tr>
+      <tr><td>Accounts (all tenants)</td><td class="mono">~2 B</td><td>The tree dimension; recursive, SCD2 on re-org</td></tr>
+      <tr><td>Max hierarchy depth</td><td class="mono">~10–15</td><td>Recursive CTE needs a cycle circuit-breaker</td></tr>
+      <tr><td><strong>Cross-tenant reads allowed</strong></td><td class="mono"><strong>0</strong></td><td><strong>The invariant that shapes the whole architecture</strong></td></tr>
+      <tr><td>Stage changes/day</td><td class="mono">~500 M</td><td>Append-only event fact; the pipeline spine</td></tr>
+      <tr><td>ARR snapshot rows/day</td><td class="mono">~2 B accounts × 1</td><td>Daily, partition-pruned by org; 7-yr retention</td></tr>
+      <tr><td>Largest single hierarchy</td><td class="mono">~100 subsidiaries</td><td>Rollup must be correct and not double-count</td></tr>
+    </table>
+
+    <p class="reveal">Notice the row that is a number and not a quantity: zero cross-tenant reads, ever. That single requirement is more architecturally decisive than any volume figure, because it dictates that <span class="m">org_id</span> is not just a column — it is the partition key, the leading index column, and the subject of a security policy the database enforces on every statement. Everything else in this design is dimensional modeling; that row is the reason the modeling has a security stack bolted underneath it. The rest of this article follows the wall and the tree.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a deal through the building</h2>
+    <p class="lede reveal">One platform, every tenant. The spine of the design is an append-only stage-change stream, partition-keyed by <span class="m">org_id</span> at the source, feeding the pipeline analytics on one side and the hierarchical ARR rollup on the other — with a row-level security policy standing guard on every read.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <!-- lanes -->
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">PIPELINE PATH · ~500M STAGE CHANGES/DAY · APPEND-ONLY</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">HIERARCHY PATH · TREE ROLLUP · NIGHTLY + ON-READ</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- reps -->
+        <rect x="20" y="60" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="87" font-size="12.5" text-anchor="middle" fill="#23201a">SALES REPS</text>
+        <text x="95" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">advance stage · UI</text>
+
+        <!-- app tier with RLS -->
+        <rect x="230" y="52" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="315" y="78" font-size="12.5" text-anchor="middle" fill="#23201a">APP TIER</text>
+        <text x="315" y="96" font-size="10.5" text-anchor="middle" fill="#7d7567">SET app.org_id = …</text>
+        <text x="315" y="112" font-size="10.5" text-anchor="middle" fill="#a4502e">RLS bound per session</text>
+
+        <!-- stage stream -->
+        <rect x="460" y="46" width="200" height="92" fill="#27241d"/>
+        <text x="560" y="76" font-size="12.5" text-anchor="middle" fill="#e9e2d0">fct_opp_stage_change</text>
+        <text x="560" y="94" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: (org_id, opp_id)</text>
+        <text x="560" y="110" font-size="10.5" text-anchor="middle" fill="#b8ad93">append-only · 1/transition</text>
+
+        <!-- velocity -->
+        <rect x="730" y="40" width="220" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="840" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">PIPELINE VELOCITY</text>
+        <text x="840" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">LEAD: time-in-stage</text>
+        <text x="840" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">conversion · stale alerts</text>
+
+        <!-- current stage view -->
+        <rect x="730" y="140" width="220" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="166" font-size="12.5" text-anchor="middle" fill="#8a5d12">CURRENT STAGE (VIEW)</text>
+        <text x="840" y="184" font-size="10.5" text-anchor="middle" fill="#7d7567">ROW_NUMBER latest event</text>
+
+        <!-- forecast -->
+        <rect x="730" y="224" width="220" height="56" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="840" y="248" font-size="12.5" text-anchor="middle" fill="#7d7567">FORECAST ACCURACY</text>
+        <text x="840" y="265" font-size="10.5" text-anchor="middle" fill="#7d7567">predicted − actual · MAPE</text>
+
+        <!-- arrows pipeline -->
+        <line x1="170" y1="92" x2="226" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="92" x2="456" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="75" x2="726" y2="75" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="660" y1="120" x2="726" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="130" x2="726" y2="248" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- hierarchy path -->
+        <rect x="20" y="360" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="387" font-size="12.5" text-anchor="middle" fill="#23201a">ACCOUNT ADMIN</text>
+        <text x="95" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">re-org · move parent</text>
+
+        <rect x="230" y="348" width="180" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="320" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">dim_account (RECURSIVE)</text>
+        <text x="320" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">parent_id · SCD2 on tier</text>
+        <text x="320" y="410" font-size="10.5" text-anchor="middle" fill="#a4502e">write = cheap, one row</text>
+
+        <rect x="470" y="336" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="358" font-size="12" text-anchor="middle" fill="#23201a">PATH REBUILD JOB</text>
+        <text x="565" y="376" font-size="10.5" text-anchor="middle" fill="#a4502e">nightly materialized_path</text>
+
+        <rect x="470" y="408" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="430" font-size="12" text-anchor="middle" fill="#23201a">fct_account_arr_snapshot</text>
+        <text x="565" y="448" font-size="10.5" text-anchor="middle" fill="#7d7567">daily ARR · per account</text>
+
+        <rect x="730" y="330" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="354" font-size="12" text-anchor="middle" fill="#23201a">SUBTREE ROLLUP</text>
+        <text x="840" y="372" font-size="10.5" text-anchor="middle" fill="#7d7567">path LIKE · no double-count</text>
+
+        <rect x="730" y="414" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="438" font-size="12" text-anchor="middle" fill="#23201a">SHARING CASCADE</text>
+        <text x="840" y="456" font-size="10.5" text-anchor="middle" fill="#7d7567">role tree → bridge rows</text>
+
+        <!-- hierarchy arrows -->
+        <line x1="170" y1="392" x2="226" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="370" x2="466" y2="363" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="410" x2="466" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="363" x2="726" y2="360" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="440" x2="726" y2="444" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- account tree feeds rollup over arr -->
+        <path d="M 320 348 C 320 250, 700 250, 800 392" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="470" y="262" font-size="10.5" fill="#a4502e">tree × ARR → top-level</text>
+
+        <!-- velocity feeds forecast -->
+        <path d="M 905 110 C 945 200, 945 240, 880 326" fill="none" stroke="#8a5d12" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="838" y="300" font-size="10.5" fill="#8a5d12">stage history</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — sustained data flow · DASHED — tree joins &amp; derived reads · Every arrow is filtered by org_id, always.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. The stage-change stream is the spine; the account tree is reconciled nightly; org_id rides every edge, and RLS guards every read.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> there is no <span class="m">current_stage</span> box anywhere — current state is a <em>view</em> over the append-only stream, the latest event per opportunity, so the same table that powers "where is this deal" also powers "how long did it sit in negotiation." <strong>Second,</strong> the tree is split across two representations on purpose: writes hit a cheap <span class="m">parent_account_id</span> on a single row, while reads hit a precomputed <span class="m">materialized_path</span>, and a nightly job reconciles the second from the first — flexibility on write, speed on read. <strong>Third,</strong> every edge in the diagram is implicitly filtered by <span class="m">org_id</span>, and the app tier binds the tenant to the session so the row-level security policy can enforce it; the wall is not drawn as a box because it is everywhere.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>A stale rollup is recoverable; a leaked row is not.</strong> If the nightly path rebuild lags, a subtree query falls back to the recursive CTE over <span class="m">parent_account_id</span> — slower, but correct, and self-healing at the next rebuild. But there is no fallback for a cross-tenant read: it is prevented, never detected-and-fixed, because by the time you detect it the data has already left the building. So the hierarchy degrades gracefully toward correctness, while isolation is made structurally impossible to violate — three independent layers, any one of which alone would stop the breach.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>A recursive dimension, a wall, and an event log</h2>
+    <p class="lede reveal">The schema falls out of the two tensions. The account dimension is recursive and hybrid — parent_id plus path. Every table carries a leading <span class="m">org_id</span>. And pipeline truth is an append-only fact of stage changes, never a mutable column.</p>
+
+    <h3 class="reveal">The tree — three ways, and why the hybrid wins</h3>
+    <p class="reveal">There are three honest ways to model a parent-child tree, and a senior answer names all three before choosing. <strong>Pure parent_id</strong> with a recursive CTE: cheap writes, clean schema, but every read recurses and it crawls past depth ten. <strong>Materialized path</strong> (<span class="m">'/JPM/Chase/Investment/'</span>): a <span class="m">LIKE 'path%'</span> makes subtree queries instant, but a re-org rewrites every descendant's path. <strong>Closure table</strong> (a row per ancestor-descendant pair): O(1) lookup in either direction, but a re-org cascades a heavy rewrite. Salesforce takes the hybrid: <span class="m">parent_account_id</span> for clean single-row writes plus a <span class="m">materialized_path</span> for fast reads, with a nightly job rebuilding paths from the parent links.</p>
+
+    <div class="codelabel">DDL · THE RECURSIVE DIMENSION — HYBRID PARENT_ID + PATH</div>
+    <div class="codeblock"><span class="cl">-- The account tree. parent_account_id is the source of truth for shape
+-- (cheap writes, one row touched on re-org). materialized_path is the
+-- read accelerator, rebuilt nightly. org_id LEADS the primary key —
+-- it is the partition key AND the first column of every index.</span>
+<span class="ck">CREATE TABLE</span> dim_account (
+    org_id            BIGINT      <span class="ck">NOT NULL</span>,        <span class="cl">-- the wall, layer 1: partition key</span>
+    account_id        BIGINT      <span class="ck">NOT NULL</span>,
+    parent_account_id BIGINT,                       <span class="cl">-- self-FK; NULL = top of a tree</span>
+    materialized_path TEXT        <span class="ck">NOT NULL</span>,        <span class="cl">-- '/JPM/Chase/Investment/' — read perf</span>
+    depth             SMALLINT    <span class="ck">NOT NULL</span>,
+    name              TEXT        <span class="ck">NOT NULL</span>,
+    tier              TEXT        <span class="ck">NOT NULL</span>,        <span class="cl">-- SCD2 dimension attribute</span>
+    valid_from        TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    valid_to          TIMESTAMPTZ,                   <span class="cl">-- NULL = current row (SCD2)</span>
+    is_current        BOOLEAN     <span class="ck">NOT NULL DEFAULT</span> <span class="ck">true</span>,
+    <span class="ck">PRIMARY KEY</span> (org_id, account_id, valid_from),
+    <span class="ck">FOREIGN KEY</span> (org_id, parent_account_id)
+        <span class="ck">REFERENCES</span> dim_account (org_id, account_id)  <span class="cl">-- parent in same tenant only</span>
+);
+<span class="cl">-- Layer 2: org_id-LEADING composite index. A subtree read is one range scan.</span>
+<span class="ck">CREATE INDEX</span> idx_acct_path <span class="ck">ON</span> dim_account (org_id, materialized_path text_pattern_ops);
+<span class="ck">CREATE INDEX</span> idx_acct_parent <span class="ck">ON</span> dim_account (org_id, parent_account_id);</div>
+
+    <h3 class="reveal">The wall — org_id at three layers</h3>
+    <p class="reveal">Tenant isolation is not one mechanism; it is three independent ones, because any single layer is one mistake from a breach. <strong>Layer one</strong> is the partition key: <span class="m">org_id</span> leads every primary key, so a tenant's rows are physically grouped and a per-tenant query cap can throttle a runaway scan without touching the cluster. <strong>Layer two</strong> is the index: every composite index begins with <span class="m">org_id</span>, so the planner cannot accidentally choose a cross-tenant scan. <strong>Layer three</strong> is the row-level security policy — the database itself appends the tenant filter to every query, so an engineer with raw SQL access still cannot read another org without going through the API that binds the session variable.</p>
+
+    <div class="codelabel">DDL · THE WALL — LAYER 3, ROW-LEVEL SECURITY</div>
+    <div class="codeblock"><span class="cl">-- The application binds the tenant per session: SET app.current_org = :org.
+-- Then the database FORCES the filter onto every statement — SELECT,
+-- UPDATE, DELETE — so a forgotten WHERE clause cannot leak a row.</span>
+<span class="ck">ALTER TABLE</span> dim_account <span class="ck">ENABLE ROW LEVEL SECURITY</span>;
+<span class="ck">ALTER TABLE</span> dim_account <span class="ck">FORCE ROW LEVEL SECURITY</span>;   <span class="cl">-- applies even to table owner</span>
+
+<span class="ck">CREATE POLICY</span> tenant_isolation <span class="ck">ON</span> dim_account
+    <span class="ck">USING</span>      (org_id = current_setting(<span class="cs">'app.current_org'</span>)::bigint)
+    <span class="ck">WITH CHECK</span> (org_id = current_setting(<span class="cs">'app.current_org'</span>)::bigint);
+<span class="cl">-- USING guards reads; WITH CHECK guards writes — you cannot INSERT a row
+-- into another tenant any more than you can SELECT one. Same policy shape
+-- is applied verbatim to every fact and dimension in the schema.</span></div>
+
+    <h3 class="reveal">The pipeline — stage changes as an append-only fact</h3>
+    <p class="reveal">The cardinal modeling sin here is a <span class="m">current_stage</span> column on the opportunity. It is lossy: the moment a deal moves from Negotiation to Closed-Won, the fact that it spent nineteen days in Negotiation is gone, and with it every velocity and conversion metric. Instead, every stage transition is an immutable row. Current stage is the latest event; time-in-stage is the gap to the next event; conversion is a count by stage. One append-only table is the single source of truth for everything pipeline.</p>
+
+    <div class="codelabel">DDL · THE PIPELINE SPINE — STAGE-CHANGE FACT</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_opportunity_stage_change (
+    org_id          BIGINT      <span class="ck">NOT NULL</span>,        <span class="cl">-- the wall rides every fact too</span>
+    event_id        BIGINT      <span class="ck">NOT NULL</span>,
+    opp_id          BIGINT      <span class="ck">NOT NULL</span>,
+    account_id      BIGINT      <span class="ck">NOT NULL</span>,
+    stage           TEXT        <span class="ck">NOT NULL</span>,        <span class="cl">-- prospecting → … → closed_won/lost</span>
+    entered_at      TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    owner_id        BIGINT      <span class="ck">NOT NULL</span>,
+    forecast_amount NUMERIC(16,2) <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (org_id, opp_id, entered_at)
+    <span class="cl">-- ⚠ There is NO current_stage column anywhere. Latest event wins.</span>
+);
+<span class="ck">CREATE INDEX</span> idx_stage_opp <span class="ck">ON</span> fct_opportunity_stage_change
+    (org_id, opp_id, entered_at <span class="ck">DESC</span>);
+
+<span class="cl">-- The daily snapshot that survives renewals and downgrades — one row per
+-- (account × day), the substrate the hierarchical rollup sums over.</span>
+<span class="ck">CREATE TABLE</span> fct_account_arr_snapshot (
+    org_id            BIGINT     <span class="ck">NOT NULL</span>,
+    account_id        BIGINT     <span class="ck">NOT NULL</span>,
+    snapshot_date     DATE       <span class="ck">NOT NULL</span>,
+    arr_usd           NUMERIC(16,2) <span class="ck">NOT NULL</span>,
+    plan_tier         TEXT       <span class="ck">NOT NULL</span>,
+    days_until_renewal SMALLINT  <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (org_id, account_id, snapshot_date)
+);</div>
+
+    <p class="reveal">And the bridge — record sharing, the many-to-many that powers "share this deal with my manager." Opportunity Y is owned by rep A but visible to manager B and VP C; that visibility is modeled as <span class="m">bridge_account_user_access(org_id, account_id, user_id, permission_level, granted_via)</span>, and the rows are generated by a daily job that cascades up the role hierarchy. The <span class="m">granted_via</span> column records whether access came from ownership, a role rule, or a sharing rule — so a permission can be revoked precisely when its source disappears.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE INVARIANT</span>org_id rides every query, or the query fails</h2>
+    <p class="lede reveal">The whole correctness of this system lives in one rule about access: no statement reaches a row without proving its tenant. Not by convention, not by a code-review checklist — by a database policy that rewrites every query to carry the filter, so the only way to read a row is to already be inside the right org.</p>
+
+    <p class="reveal">Why this, and not the rollup, is the invariant. A wrong rollup is embarrassing and fixable; a cross-tenant read is the end of the contract and possibly the company. So isolation cannot live where mistakes live — in application code, where a single hand-written report query that forgets <span class="m">WHERE org_id = ?</span> exposes every customer's pipeline. It must live in the engine. The application's only job is to bind the tenant to the session at the start of each request; from there the row-level security policy does the enforcing, on reads and writes alike, for every table in the schema.</p>
+
+    <div class="statechain reveal">
+      <span class="st">REQUEST IN</span><span class="arr">→</span>
+      <span class="st">SET app.current_org</span><span class="arr">→</span>
+      <span class="st">QUERY (no org filter)</span><span class="arr">→</span>
+      <span class="st">RLS REWRITES IT</span><span class="arr">→</span>
+      <span class="st terminal">ONLY TENANT ROWS</span>
+    </div>
+    <p class="reveal">Read the chain left to right. The application never writes the tenant filter into its analytics queries — it sets a session variable once, and the policy silently appends <span class="m">AND org_id = current_setting('app.current_org')</span> to every statement the session issues. A developer who writes <span class="m">SELECT sum(arr_usd) FROM fct_account_arr_snapshot</span> with no filter gets only their own tenant's rows, because the database refused to run the query the way it was written. <span class="m">FORCE ROW LEVEL SECURITY</span> means even the table owner is bound; there is no privileged path around the wall short of disabling the policy, which is an auditable, alarmed event.</p>
+
+    <div class="codelabel">SQL · THE ATOMIC HEART — ISOLATION IS NON-NEGOTIABLE</div>
+    <div class="codeblock"><span class="cl">-- What the application runs at the start of every request. One line.</span>
+<span class="ck">SET</span> app.current_org = <span class="cs">'JPM_ORG_8842'</span>;
+
+<span class="cl">-- What a developer writes — note the ABSENCE of an org_id filter:</span>
+<span class="ck">SELECT</span> account_id, <span class="cf">sum</span>(arr_usd) <span class="ck">AS</span> arr
+<span class="ck">FROM</span>   fct_account_arr_snapshot
+<span class="ck">WHERE</span>  snapshot_date = <span class="ck">CURRENT_DATE</span>
+<span class="ck">GROUP BY</span> account_id;
+
+<span class="cl">-- What the database ACTUALLY executes — RLS rewrote it:</span>
+<span class="ck">SELECT</span> account_id, <span class="cf">sum</span>(arr_usd) <span class="ck">AS</span> arr
+<span class="ck">FROM</span>   fct_account_arr_snapshot
+<span class="ck">WHERE</span>  snapshot_date = <span class="ck">CURRENT_DATE</span>
+  <span class="ck">AND</span>  org_id = current_setting(<span class="cs">'app.current_org'</span>)::bigint   <span class="cl">-- injected, always</span>
+<span class="ck">GROUP BY</span> account_id;
+<span class="cl">-- The forgotten filter is impossible to forget, because you never wrote it.</span></div>
+
+    <p class="reveal">The defense-in-depth matters precisely because each layer fails differently. RLS could be misconfigured on a new table; the partition key still groups the data so a per-tenant cap contains a runaway scan; the leading index column still steers the planner away from a cross-tenant seq-scan. Three independent mechanisms, and a breach requires all three to fail at once — which is the only acceptable posture for a bug you cannot take back.</p>
+
+    <div class="pull reveal">The wall is not a WHERE clause you remember to add. It is a policy the database adds for you, on every statement, whether you asked or not.<span>HIERARCHY RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the tree</h2>
+    <p class="lede reveal">Three programs carry the data. The session binder that makes isolation automatic, the nightly path rebuilder that keeps the hybrid tree honest, and the sharing-cascade job that turns the role hierarchy into bridge rows. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The session binder — isolation without ceremony</h3>
+    <p class="reveal">Every database connection a request touches must be bound to exactly one tenant before it issues a single query, and unbound before it returns to the pool. This is the one place tenant safety is the application's responsibility, so it is made impossible to forget: a context manager binds on entry and clears on exit, and any query that runs outside it hits an unbound session and fails closed rather than open.</p>
+
+    <div class="codelabel">PYTHON · TENANT SESSION BINDER — FAIL CLOSED</div>
+    <div class="codeblock"><span class="ck">from</span> contextlib <span class="ck">import</span> asynccontextmanager
+
+<span class="ck">class</span> <span class="cf">TenantContext</span>:
+    <span class="cs">"""Binds org_id to the DB session for the life of one request, then
+    clears it. RLS does the enforcing; this just sets the variable the
+    policy reads. The reset is in a finally — a pooled connection must
+    NEVER carry one tenant's binding into another tenant's request."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, pool):
+        self.pool = pool
+
+    <span class="ck">@asynccontextmanager</span>
+    <span class="ck">async def</span> <span class="cf">for_org</span>(self, org_id: int):
+        <span class="ck">if</span> org_id <span class="ck">is</span> <span class="ck">None</span>:
+            <span class="ck">raise</span> ValueError(<span class="cs">"no tenant — refusing to open an unbound session"</span>)
+        conn = <span class="ck">await</span> self.pool.acquire()
+        <span class="ck">try</span>:
+            <span class="cl"># set_config(..., is_local=true): scoped to this transaction only</span>
+            <span class="ck">await</span> conn.execute(<span class="cs">"SELECT set_config('app.current_org', $1, true)"</span>,
+                               str(org_id))
+            <span class="ck">yield</span> conn                      <span class="cl"># every query here is RLS-filtered to org_id</span>
+        <span class="ck">finally</span>:
+            <span class="ck">await</span> conn.execute(<span class="cs">"SELECT set_config('app.current_org', '', true)"</span>)
+            <span class="ck">await</span> self.pool.release(conn)   <span class="cl"># returns CLEAN to the pool</span></div>
+
+    <p class="reveal">One carve-out, always stated: <strong>cross-tenant platform jobs run under a separate, audited service role,</strong> never by loosening the policy on the shared path. The nightly billing aggregator that must read all orgs uses a role whose policy is "all orgs" by design, with its access logged — so the privileged path exists, but it is a deliberate, observable door, not a hole anyone can stumble through.</p>
+
+    <h3 class="reveal">2 · The path rebuilder — reconcile the hybrid tree</h3>
+    <div class="codelabel">PYTHON · NIGHTLY MATERIALIZED-PATH REBUILD</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">rebuild_paths</span>(accounts) -> dict[int, str]:
+    <span class="cs">"""parent_account_id is truth; materialized_path is a derived cache.
+    A re-org touches one parent_id cheaply during the day, leaving paths
+    stale; this job rebuilds every path from the parent links, per tenant.
+    Stale paths never cause WRONG answers — the rollup falls back to the
+    recursive CTE — they only cause slow ones until the rebuild lands."""</span>
+    by_id = {a.account_id: a <span class="ck">for</span> a <span class="ck">in</span> accounts}
+    cache: dict[int, str] = {}
+
+    <span class="ck">def</span> <span class="cf">path_of</span>(aid: int, seen: frozenset) -> str:
+        <span class="ck">if</span> aid <span class="ck">in</span> cache:
+            <span class="ck">return</span> cache[aid]
+        <span class="ck">if</span> aid <span class="ck">in</span> seen <span class="ck">or</span> len(seen) > 100:        <span class="cl"># cycle / runaway guard</span>
+            <span class="ck">raise</span> ValueError(<span class="cs">f"cycle or depth&gt;100 at account {aid}"</span>)
+        node = by_id[aid]
+        <span class="ck">if</span> node.parent_account_id <span class="ck">is</span> <span class="ck">None</span>:
+            cache[aid] = <span class="cs">f"/{aid}/"</span>                    <span class="cl"># root</span>
+        <span class="ck">else</span>:
+            parent = path_of(node.parent_account_id, seen | {aid})
+            cache[aid] = <span class="cs">f"{parent}{aid}/"</span>
+        <span class="ck">return</span> cache[aid]
+
+    <span class="ck">return</span> {a.account_id: path_of(a.account_id, frozenset()) <span class="ck">for</span> a <span class="ck">in</span> accounts}</div>
+
+    <h3 class="reveal">3 · The sharing cascade — role tree to bridge rows</h3>
+    <div class="codelabel">PYTHON · RECORD-SHARING CASCADE UP THE ROLE HIERARCHY</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">cascade_sharing</span>(owner_id, account_id, role_tree) -> list[dict]:
+    <span class="cs">"""'Share with my manager' in data terms: an account owned by a rep is
+    visible to everyone ABOVE them in the role tree. We walk up from the
+    owner's role, emitting one bridge row per ancestor, tagging granted_via
+    so the grant can be revoked precisely when its source disappears."""</span>
+    rows = [{<span class="cs">"account_id"</span>: account_id, <span class="cs">"user_id"</span>: owner_id,
+             <span class="cs">"permission_level"</span>: <span class="cs">"owner"</span>, <span class="cs">"granted_via"</span>: <span class="cs">"own"</span>}]
+    role = role_tree.role_of(owner_id)
+    depth = 0
+    <span class="ck">while</span> role.parent_role_id <span class="ck">is not</span> <span class="ck">None</span> <span class="ck">and</span> depth < 100:   <span class="cl"># circuit breaker</span>
+        role = role_tree.parent(role)
+        <span class="ck">for</span> manager <span class="ck">in</span> role_tree.users_in(role):
+            rows.append({<span class="cs">"account_id"</span>: account_id, <span class="cs">"user_id"</span>: manager,
+                         <span class="cs">"permission_level"</span>: <span class="cs">"read"</span>, <span class="cs">"granted_via"</span>: <span class="cs">"role"</span>})
+        depth += 1
+    <span class="ck">return</span> rows   <span class="cl"># written under the tenant's own org_id — sharing never crosses the wall</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — THE ROLLUP</span>Summing the tree without double-counting</h2>
+    <p class="lede reveal">The hierarchical rollup is where the tree pays off. Two ways to compute it — the recursive CTE for correctness, the materialized path for speed — and the discipline that keeps a subsidiary appearing under two parents from being counted twice.</p>
+
+    <p class="reveal">The recursive CTE is the always-correct path, and the one to show first. Start from the roots, walk down the <span class="m">parent_account_id</span> links accumulating each node's root, then join to the ARR snapshot and sum per root. The circuit-breaker on depth is not optional: a malformed tree with a cycle — a re-org that accidentally made a grandchild its own ancestor — would recurse forever without it, so the depth cap turns a data-quality bug into a bounded, loud failure instead of a hung query.</p>
+
+    <div class="codelabel">SQL · ROLLUP, THE CORRECT WAY — RECURSIVE CTE WITH A FUSE</div>
+    <div class="codeblock"><span class="ck">WITH RECURSIVE</span> descendants <span class="ck">AS</span> (
+    <span class="cl">-- anchor: every root account is its own subtree's top</span>
+    <span class="ck">SELECT</span> account_id, account_id <span class="ck">AS</span> root, 0 <span class="ck">AS</span> depth
+    <span class="ck">FROM</span>   dim_account
+    <span class="ck">WHERE</span>  parent_account_id <span class="ck">IS NULL</span> <span class="ck">AND</span> is_current
+  <span class="ck">UNION ALL</span>
+    <span class="cl">-- recurse: attach each child to its ancestor's root</span>
+    <span class="ck">SELECT</span> a.account_id, d.root, d.depth + 1
+    <span class="ck">FROM</span>   dim_account a
+    <span class="ck">JOIN</span>   descendants d <span class="ck">ON</span> a.parent_account_id = d.account_id
+    <span class="ck">WHERE</span>  a.is_current <span class="ck">AND</span> d.depth < 15            <span class="cl">-- the circuit breaker</span>
+)
+<span class="ck">SELECT</span> d.root <span class="ck">AS</span> top_level_account,
+       <span class="cf">sum</span>(s.arr_usd)                <span class="ck">AS</span> total_subtree_arr,
+       count(<span class="ck">DISTINCT</span> d.account_id) <span class="ck">AS</span> subsidiaries  <span class="cl">-- DISTINCT: no double-count</span>
+<span class="ck">FROM</span>   descendants d
+<span class="ck">JOIN</span>   fct_account_arr_snapshot s
+       <span class="ck">ON</span> s.account_id = d.account_id
+      <span class="ck">AND</span> s.snapshot_date = <span class="ck">CURRENT_DATE</span>
+<span class="ck">GROUP BY</span> d.root;</div>
+
+    <p class="reveal">The materialized-path version is the fast path, and the reason the hybrid model exists. Once the nightly job has stamped <span class="m">'/JPM/Chase/Investment/'</span> onto every node, the entire JP Morgan subtree is a single range scan: <span class="m">WHERE materialized_path LIKE '/JPM/%'</span>, no recursion at all. This is what makes a dashboard that rolls up a hundred-subsidiary hierarchy feel instant instead of grinding through ten levels of CTE on every page load. The two paths agree by construction — the path is built from the same parent links the CTE walks — so the fast path is a cache, never a second truth.</p>
+
+    <div class="codelabel">SQL · ROLLUP, THE FAST WAY — MATERIALIZED PATH RANGE SCAN</div>
+    <div class="codeblock"><span class="cl">-- The whole JPM subtree in one index range scan. No recursion.
+-- org_id-leading index makes this a tight, tenant-local seek.</span>
+<span class="ck">SELECT</span> count(<span class="ck">DISTINCT</span> a.account_id) <span class="ck">AS</span> subsidiaries,
+       <span class="cf">sum</span>(s.arr_usd)                <span class="ck">AS</span> total_subtree_arr
+<span class="ck">FROM</span>   dim_account a
+<span class="ck">JOIN</span>   fct_account_arr_snapshot s
+       <span class="ck">ON</span> s.account_id = a.account_id
+      <span class="ck">AND</span> s.snapshot_date = <span class="ck">CURRENT_DATE</span>
+<span class="ck">WHERE</span>  a.is_current
+  <span class="ck">AND</span>  a.materialized_path <span class="ck">LIKE</span> <span class="cs">'/JPM/%'</span>;   <span class="cl">-- the entire subtree, instantly</span></div>
+
+    <div class="pull reveal">Write to the parent link; read from the path. The tree bends cheaply when the org re-orgs, and the rollup stays fast — because the slow truth and the fast cache are rebuilt from each other every night.<span>HIERARCHY RULE Nº 2 — CHEAP WRITES, FAST READS</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the pipeline</h2>
+    <p class="lede reveal">The stage-change fact is where the business explains itself. Three queries an interviewer loves, because each one carries a classic pattern on its back — current-state via window, time-in-stage via LEAD, and forecast accuracy as a cohort comparison.</p>
+
+    <h3 class="reveal">Current stage — latest event via ROW_NUMBER</h3>
+    <p class="reveal">The query that justifies refusing a <span class="m">current_stage</span> column. Current state is simply the most recent stage-change row per opportunity — a <span class="m">ROW_NUMBER</span> partitioned by opp, ordered by time descending, filtered to the first. The same table that stores history answers "where is every deal right now," so there is exactly one source of truth and no risk of a denormalized column drifting from the events.</p>
+
+    <div class="codelabel">SQL · CURRENT STAGE — LATEST-EVENT WINDOW</div>
+    <div class="codeblock"><span class="ck">SELECT</span> opp_id, stage <span class="ck">AS</span> current_stage, entered_at, forecast_amount
+<span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> opp_id, stage, entered_at, forecast_amount,
+           <span class="cf">row_number</span>() <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> opp_id
+                              <span class="ck">ORDER BY</span> entered_at <span class="ck">DESC</span>) <span class="ck">AS</span> rn
+    <span class="ck">FROM</span>   fct_opportunity_stage_change
+    <span class="cl">-- org_id filter is injected by RLS; we never write it here</span>
+) latest
+<span class="ck">WHERE</span> rn = 1;   <span class="cl">-- the newest transition IS the current stage</span></div>
+
+    <h3 class="reveal">Pipeline velocity — time-in-stage via LEAD</h3>
+    <p class="reveal">The metric the whole event model was built to serve. The duration a deal spent in each stage is the gap between its entry and the <em>next</em> stage's entry — a textbook <span class="m">LEAD</span> over the ordered transitions. From this one derivation come average time-in-stage, conversion rates between stages, and the stale-opportunity early warning that flags deals sitting too long.</p>
+
+    <div class="codelabel">SQL · TIME-IN-STAGE — LEAD OVER THE TRANSITION STREAM</div>
+    <div class="codeblock"><span class="ck">WITH</span> spans <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> opp_id, account_id, stage, entered_at,
+           <span class="cf">lead</span>(entered_at) <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> opp_id
+                                <span class="ck">ORDER BY</span> entered_at)        <span class="ck">AS</span> left_at
+    <span class="ck">FROM</span>   fct_opportunity_stage_change
+)
+<span class="ck">SELECT</span> stage,
+       count(*)                                                  <span class="ck">AS</span> deals,
+       round(avg(<span class="cf">extract</span>(epoch <span class="ck">FROM</span>
+           <span class="cf">coalesce</span>(left_at, now()) - entered_at) / 86400), 1)     <span class="ck">AS</span> avg_days_in_stage,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> left_at <span class="ck">IS NULL</span>
+                       <span class="ck">AND</span> now() - entered_at > <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>) <span class="ck">AS</span> stale_now
+<span class="ck">FROM</span>   spans
+<span class="ck">WHERE</span>  stage <span class="ck">NOT IN</span> (<span class="cs">'closed_won'</span>,<span class="cs">'closed_lost'</span>)
+<span class="ck">GROUP BY</span> stage
+<span class="ck">ORDER BY</span> avg_days_in_stage <span class="ck">DESC</span>;
+<span class="cl">-- stale_now = open deals stuck &gt;30 days in a non-terminal stage: the warning list.</span></div>
+
+    <h3 class="reveal">Forecast accuracy — predicted versus actual, per rep</h3>
+    <p class="reveal">The query that keeps the forecast honest. Join each closed opportunity's actual outcome to the forecast that was on it, per rep per quarter, and compute bias (predicted minus actual) and MAPE. A rep whose forecast consistently lands above actual is sandbagging; one consistently below is happy-ears. Both are visible the moment you compare the frozen forecast on the stage-change events to the realized close amount.</p>
+
+    <div class="codelabel">SQL · FORECAST BIAS &amp; MAPE — COHORT BY REP &amp; QUARTER</div>
+    <div class="codeblock"><span class="ck">WITH</span> closed <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> c.opp_id, c.owner_id,
+           date_trunc(<span class="cs">'quarter'</span>, c.closed_at) <span class="ck">AS</span> close_q,
+           c.amount                          <span class="ck">AS</span> actual_amount,
+           f.forecast_amount                 <span class="ck">AS</span> predicted_amount
+    <span class="ck">FROM</span>   fct_opportunity_close c
+    <span class="ck">JOIN LATERAL</span> (                          <span class="cl">-- the forecast at the moment it entered final stage</span>
+        <span class="ck">SELECT</span> forecast_amount
+        <span class="ck">FROM</span>   fct_opportunity_stage_change s
+        <span class="ck">WHERE</span>  s.opp_id = c.opp_id
+        <span class="ck">ORDER BY</span> s.entered_at <span class="ck">DESC</span> <span class="ck">LIMIT</span> 1
+    ) f <span class="ck">ON TRUE</span>
+    <span class="ck">WHERE</span>  c.status = <span class="cs">'won'</span>
+)
+<span class="ck">SELECT</span> owner_id, close_q,
+       count(*)                                                       <span class="ck">AS</span> deals,
+       round(<span class="cf">sum</span>(predicted_amount - actual_amount), 0)               <span class="ck">AS</span> bias_usd,
+       round(100.0 * avg(<span class="cf">abs</span>(predicted_amount - actual_amount)
+                       / <span class="cf">nullif</span>(actual_amount, 0)), 1)                  <span class="ck">AS</span> mape_pct
+<span class="ck">FROM</span>   closed
+<span class="ck">GROUP BY</span> owner_id, close_q
+<span class="ck">ORDER BY</span> abs(round(<span class="cf">sum</span>(predicted_amount - actual_amount), 0)) <span class="ck">DESC</span>;
+<span class="cl">-- persistent positive bias = sandbagging; persistent negative = happy ears.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the walls hold</h2>
+    <p class="lede reveal">A senior design ends with observability, because both halves of this problem fail silently. The CRM dashboard watches three things: revenue is rolling up correctly, the pipeline is moving, and — above all — the tenant walls are intact.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>HIERARCHY HEALTH</dt><dd><span class="m">top-level ARR</span> by largest tree, <span class="m">path rebuild lag</span> (CTE-fallback queries running), <span class="m">orphaned accounts</span> (parent missing), <span class="m">cycle-guard trips</span> — a non-zero cycle count is a re-org that broke the tree.</dd></div>
+      <div class="defrow"><dt>PIPELINE HEALTH</dt><dd><span class="m">avg time-in-stage</span>, <span class="m">stage conversion</span>, <span class="m">stale-opp count</span>, <span class="m">forecast bias</span> — the velocity signals derived entirely from the stage-change fact.</dd></div>
+      <div class="defrow"><dt>ISOLATION HEALTH</dt><dd><span class="m">cross-tenant query attempts blocked</span> (RLS denials — should be the only place a leak is ever even attempted), <span class="m">unbound-session refusals</span>, <span class="m">per-tenant query cap trips</span>, <span class="m">privileged-role accesses</span> (audited platform jobs) — the wall's own telemetry.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">CRM Platform Ops — Multi-Tenant</span>
+        <span class="dash-sub">THU 09:15 PT · 150K ORGS · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Top Tree ARR (JPM)</div><div class="tv">418<small>M$</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 15,19 30,18 45,17 60,16 75,15 90,14 105,13 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Path Rebuild Lag</div><div class="tv ok">2.1<small>h</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Cycle-Guard Trips</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">RLS Denials</div><div class="tv warn">37<small>/h</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,18 60,16 80,17 100,15 120,16" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Stage funnel — current-quarter pipeline (deals by stage, org JPM_8842)</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace" font-size="8" fill="#8f8672">
+              <rect x="6"   y="20" width="40" height="54" fill="#4d4427"/><text x="10" y="80">PROSPECT</text>
+              <rect x="54"  y="30" width="40" height="44" fill="#6e5a23"/><text x="60" y="80">QUALIFY</text>
+              <rect x="102" y="40" width="40" height="34" fill="#a87b1e"/><text x="106" y="80">PROPOSE</text>
+              <rect x="150" y="48" width="40" height="26" fill="#c25a2a"/><text x="152" y="80">NEGOT.</text>
+              <rect x="198" y="56" width="40" height="18" fill="#a8b58a"/><text x="204" y="80">WON</text>
+            </g>
+            <text x="6" y="14" font-size="9" fill="#b8ad93" font-family="DM Mono,monospace">conversion narrows left → right · derived from stage-change events</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Avg Time-in-Stage</div><div class="tv warn">21<small>d</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,16 60,16 80,18 100,19 120,20" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Stale Opps</div><div class="tv warn">148</div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,14 60,15 80,16 100,18 120,19" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Unbound Refusals</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Query-Cap Trips</div><div class="tv ok">3<small>/h</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,16 100,15 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Forecast Bias</div><div class="tv warn">+9<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,12 60,14 80,13 100,15 120,14" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Privileged Access</div><div class="tv">4<small>/d</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,16 60,15 80,15 100,16 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy platform tells: top-tree ARR rolling up cleanly, cycle-guard and unbound-session refusals at exactly zero, RLS denials present but bounded — the wall is doing its job, catching the queries that would otherwise have leaked.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the tiles together and the dashboard narrates the two-front nature of the problem. On the pipeline side, amber is creeping — time-in-stage and stale opps rising, forecast running 9% hot — the ordinary drift of a sales org that needs a nudge. On the isolation side, the only numbers that matter are at zero or bounded: cycle trips zero, unbound refusals zero, RLS denials present but contained, each one a query the database refused to leak. That asymmetry is the whole design philosophy in one screen — the pipeline is allowed to wobble and self-correct; the wall is not allowed to fail at all, and the telemetry proves it did not.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the CRM details away and the question was testing five judgments, each of which generalizes far beyond Salesforce:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>REPRESENTATION</dt><dd>Choosing how to store a tree by what you do with it — naming parent_id, materialized path, and closure table, then picking the hybrid because writes and reads want different shapes. The right model is two models reconciled.</dd></div>
+      <div class="defrow"><dt>DEFENSE IN DEPTH</dt><dd>Putting tenant isolation where mistakes do not reach it — partition key, leading index column, and a database-enforced policy — so a breach needs three independent failures, not one forgotten clause.</dd></div>
+      <div class="defrow"><dt>EVENTS OVER STATE</dt><dd>Refusing a mutable current-stage column. State is a projection of a stream; store the transitions and current state, velocity, and conversion all fall out of one append-only table.</dd></div>
+      <div class="defrow"><dt>CORRECTNESS UNDER RECURSION</dt><dd>Summing a tree without double-counting and with a cycle fuse — DISTINCT on the descendant set, a depth cap that turns a malformed tree into a loud bounded error instead of a hung query.</dd></div>
+      <div class="defrow"><dt>FAILURE ASYMMETRY</dt><dd>Knowing which failures self-heal and which end the company — letting the rollup degrade toward correctness while making isolation structurally impossible to violate. Not all bugs are equal; design accordingly.</dd></div>
+    </dl>
+    <div class="pull reveal">The tree may be rebuilt every night; the wall may never be breached even once. The craft is letting the flexible thing bend and the rigid thing hold — in the same schema, on the same afternoon.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 13 — THE HIERARCHY PROBLEM<br>DATA ARCHITECTURE · MULTI-TENANT ISOLATION · THE CRAFT OF THE TREE</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
