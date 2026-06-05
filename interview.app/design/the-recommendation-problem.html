@@ -330,7 +330,7 @@ EXPLORE_RATE = 0.05        <span class="cl"># the control arm — guarded, never
     <span class="ck">def</span> <span class="cf">__init__</span>(self, ranker, random_pool, log):
         self.ranker, self.random_pool, self.log = ranker, random_pool, log
 
-    <span class="ck">def</span> <span class="cf">fill_slot</span>(self, user, request_id, slot_idx) -> dict:
+    <span class="ck">def</span> <span class="cf">fill_slot</span>(self, user, request_id, slot_idx) -&gt; dict:
         <span class="ck">if</span> self._is_exploration(user.id, request_id, slot_idx):
             video = self.random_pool.sample()              <span class="cl"># the ranker did NOT choose this</span>
             source, version = <span class="cs">"exploration"</span>, <span class="cs">"none"</span>
@@ -347,15 +347,15 @@ EXPLORE_RATE = 0.05        <span class="cl"># the control arm — guarded, never
                                   score.watch_seconds, score.engage_prob)
         <span class="ck">return</span> {<span class="cs">"impression_id"</span>: imp_id, <span class="cs">"video"</span>: video}
 
-    <span class="ck">def</span> <span class="cf">_is_exploration</span>(self, uid, req, slot) -> bool:
+    <span class="ck">def</span> <span class="cf">_is_exploration</span>(self, uid, req, slot) -&gt; bool:
         h = hashlib.blake2b(<span class="cs">f"{uid}:{req}:{slot}"</span>.encode(), digest_size=8)
-        <span class="ck">return</span> (int.from_bytes(h.digest()) % 10000) / 10000 < EXPLORE_RATE</div>
+        <span class="ck">return</span> (int.from_bytes(h.digest()) % 10000) / 10000 &lt; EXPLORE_RATE</div>
 
     <p class="reveal">One carve-out, always stated: <strong>the mixer never lets an experiment touch the exploration arm.</strong> A/B tests and feature flags partition the <em>ranked</em> 95%; the 5% control group is held constant across all of them, because a control group that is itself being experimented on is no longer a control group. This single discipline is what keeps every lift number downstream meaningful.</p>
 
     <h3 class="reveal">2 · The engagement logger — join the outcome to the impression</h3>
     <div class="codelabel">PYTHON · ENGAGEMENT LOGGER — IDEMPOTENT BY IMPRESSION</div>
-    <div class="codeblock"><span class="ck">async def</span> <span class="cf">log_engagement</span>(store, ev) -> <span class="ck">None</span>:
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">log_engagement</span>(store, ev) -&gt; <span class="ck">None</span>:
     <span class="cs">"""Engagement arrives on a separate stream, seconds-to-hours after
     the impression. Idempotent on impression_id: a video the user likes,
     then shares, then finishes is ONE evolving row, not three. The client
@@ -367,20 +367,20 @@ EXPLORE_RATE = 0.05        <span class="cl"># the control arm — guarded, never
         shared          = ev.shared,
         commented       = ev.commented,
         watched_seconds = ev.watched_seconds,       <span class="cl"># last-write-wins; final dwell</span>
-        completed       = ev.watched_seconds >= ev.video_duration * 0.95,
-        skipped         = ev.watched_seconds < 1.0)
+        completed       = ev.watched_seconds &gt;= ev.video_duration * 0.95,
+        skipped         = ev.watched_seconds &lt; 1.0)
     <span class="cl"># Note: we do NOT manufacture a row for impressions with no engagement.</span>
     <span class="cl"># The MISSING row is the swipe-away signal — absence carries information,</span>
     <span class="cl"># and a LEFT JOIN at analysis time recovers it precisely.</span></div>
 
     <h3 class="reveal">3 · The cold-start governor — force new videos into the light</h3>
     <div class="codelabel">PYTHON · COLD-START — FORCED EXPLORATION WITH A COUNTDOWN</div>
-    <div class="codeblock"><span class="ck">def</span> <span class="cf">cold_start_decision</span>(video, lifecycle) -> dict:
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">cold_start_decision</span>(video, lifecycle) -&gt; dict:
     <span class="cs">"""New videos have no engagement history, so the ranker cannot score
     them — and if left to the ranker they never get shown, never earn
     history, and starve. Two levers break the loop: a forced-exploration
     budget, and inherited priors as a fallback feature."""</span>
-    <span class="ck">if</span> lifecycle.bootstrap_pool_remaining > 0:
+    <span class="ck">if</span> lifecycle.bootstrap_pool_remaining &gt; 0:
         <span class="cl"># Guarantee the first ~1000 impressions regardless of score, so the</span>
         <span class="cl"># video earns real engagement data instead of dying in the dark.</span>
         lifecycle.bootstrap_pool_remaining -= 1          <span class="cl"># counted down per impression</span>
@@ -419,7 +419,7 @@ explore = (exploration_events
     .aggregate(ctr=mean(<span class="cs">"engaged"</span>), watch=mean(<span class="cs">"watched_seconds"</span>)))
 
 <span class="ck">def</span> <span class="cf">causal_lift</span>(cluster, ranked_ctr, explore_ctr):
-    <span class="ck">if</span> explore_ctr <= 0:                       <span class="cl"># no baseline → no causal claim</span>
+    <span class="ck">if</span> explore_ctr &lt;= 0:                       <span class="cl"># no baseline → no causal claim</span>
         <span class="ck">return</span> <span class="ck">None</span>
     <span class="ck">return</span> (ranked_ctr - explore_ctr) / explore_ctr   <span class="cl"># the only honest lift</span>
 
@@ -445,7 +445,7 @@ lift = (ranked.join(explore, on=<span class="cs">"video_cluster"</span>)
     <div class="codelabel">SQL · MODEL LIFT — ALGORITHM vs EXPLORATION BASELINE</div>
     <div class="codeblock"><span class="ck">WITH</span> ranked <span class="ck">AS</span> (
     <span class="ck">SELECT</span> v.video_cluster,
-           avg((e.watched_seconds > 0)::int)  <span class="ck">AS</span> algo_ctr,
+           avg((e.watched_seconds &gt; 0)::int)  <span class="ck">AS</span> algo_ctr,
            avg(e.watched_seconds)             <span class="ck">AS</span> algo_watch
     <span class="ck">FROM</span>   fct_impression i
     <span class="ck">JOIN</span>   dim_video v <span class="ck">USING</span> (video_id)
@@ -475,7 +475,7 @@ explore <span class="ck">AS</span> (
     <div class="codelabel">SQL · POSITION-NORMALIZED ENGAGEMENT — WINDOW BY SLOT</div>
     <div class="codeblock"><span class="ck">WITH</span> per_slot <span class="ck">AS</span> (
     <span class="ck">SELECT</span> i.position_in_feed,
-           avg((e.watched_seconds > 0)::int)              <span class="ck">AS</span> slot_ctr
+           avg((e.watched_seconds &gt; 0)::int)              <span class="ck">AS</span> slot_ctr
     <span class="ck">FROM</span>   fct_impression i
     <span class="ck">LEFT JOIN</span> fct_engagement e <span class="ck">USING</span> (impression_id)
     <span class="ck">WHERE</span>  i.source = <span class="cs">'exploration'</span>          <span class="cl">-- measure bias on UNranked slots</span>
@@ -483,15 +483,15 @@ explore <span class="ck">AS</span> (
 )
 <span class="ck">SELECT</span> v.video_id,
        count(*)                                            <span class="ck">AS</span> impressions,
-       avg((e.watched_seconds > 0)::int)                   <span class="ck">AS</span> raw_ctr,
-       avg((e.watched_seconds > 0)::int
+       avg((e.watched_seconds &gt; 0)::int)                   <span class="ck">AS</span> raw_ctr,
+       avg((e.watched_seconds &gt; 0)::int
            / <span class="cf">nullif</span>(s.slot_ctr, 0))                       <span class="ck">AS</span> position_adj_ctr
 <span class="ck">FROM</span>   fct_impression i
 <span class="ck">JOIN</span>   per_slot s <span class="ck">USING</span> (position_in_feed)
 <span class="ck">LEFT JOIN</span> fct_engagement e <span class="ck">USING</span> (impression_id)
 <span class="ck">JOIN</span>   dim_video v <span class="ck">USING</span> (video_id)
 <span class="ck">GROUP BY</span> v.video_id
-<span class="ck">HAVING</span> count(*) > 1000
+<span class="ck">HAVING</span> count(*) &gt; 1000
 <span class="ck">ORDER BY</span> position_adj_ctr <span class="ck">DESC</span>;
 <span class="cl">-- A video that beats its slot's baseline is genuinely good, not just well-placed.</span></div>
 

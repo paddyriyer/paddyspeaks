@@ -347,12 +347,12 @@
         self.plans, self.fx = plans, fx          <span class="cl"># caches: allowances + hourly rates</span>
         self.buckets = defaultdict(<span class="ck">lambda</span>: Decimal(0))
 
-    <span class="ck">def</span> <span class="cf">offer</span>(self, ev) -> <span class="ck">None</span>:
+    <span class="ck">def</span> <span class="cf">offer</span>(self, ev) -&gt; <span class="ck">None</span>:
         hour = ev.ts - (ev.ts % 3600)            <span class="cl"># truncate to the hour</span>
         key  = (ev.subscription_id, ev.meter_id, hour)
         self.buckets[key] += Decimal(ev.quantity)  <span class="cl"># accumulate raw</span>
 
-    <span class="ck">def</span> <span class="cf">flush</span>(self, sink) -> <span class="ck">None</span>:
+    <span class="ck">def</span> <span class="cf">flush</span>(self, sink) -&gt; <span class="ck">None</span>:
         <span class="ck">for</span> (sub, meter, hour), raw <span class="ck">in</span> self.buckets.items():
             plan = self.plans.effective(sub, hour)
             free = plan.free_allowance(meter)
@@ -376,7 +376,7 @@
 
 CENTS = Decimal(<span class="cs">"0.01"</span>)
 
-<span class="ck">def</span> <span class="cf">prorate_plan_change</span>(change) -> list[dict]:
+<span class="ck">def</span> <span class="cf">prorate_plan_change</span>(change) -&gt; list[dict]:
     <span class="cs">"""A mid-cycle plan change is NEVER an edit to the original charge.
     It is two new rows: a credit for the unused old plan, and a charge
     for the remainder of the new plan. source_event_id is derived from
@@ -399,7 +399,7 @@ CENTS = Decimal(<span class="cs">"0.01"</span>)
 
     <h3 class="reveal">3 · The settlement handler — record paid, idempotently</h3>
     <div class="codelabel">PYTHON · GATEWAY WEBHOOK → LEDGER STATUS</div>
-    <div class="codeblock"><span class="ck">async def</span> <span class="cf">on_payment_webhook</span>(db, hook) -> str:
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">on_payment_webhook</span>(db, hook) -&gt; str:
     <span class="cs">"""The gateway is at-least-once too — it will redeliver the same
     'charge.succeeded' webhook on timeout. We never trust the network's
     delivery count; we trust the gateway's own idempotency key."""</span>
@@ -444,8 +444,8 @@ CENTS = Decimal(<span class="cs">"0.01"</span>)
    <span class="cs">'usage:'</span> || m.subscription_id || <span class="cs">':'</span> || :period_start   <span class="cl">-- stable key</span>
 <span class="ck">FROM</span> fct_usage_meter m
 <span class="ck">WHERE</span> m.subscription_id = :sub
-  <span class="ck">AND</span> m.hour_bucket_ts >= :period_start
-  <span class="ck">AND</span> m.hour_bucket_ts <  :period_end
+  <span class="ck">AND</span> m.hour_bucket_ts &gt;= :period_start
+  <span class="ck">AND</span> m.hour_bucket_ts &lt;  :period_end
 <span class="ck">GROUP BY</span> m.account_id, m.subscription_id
 <span class="ck">ON CONFLICT</span> (source_event_id) <span class="ck">DO NOTHING</span>;</div>
 
@@ -460,7 +460,7 @@ CENTS = Decimal(<span class="cs">"0.01"</span>)
    <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'subscription_charge'</span>) <span class="ck">AS</span> subscription_total,
    <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'usage_charge'</span>)        <span class="ck">AS</span> usage_total,
    <span class="cf">coalesce</span>(<span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'usage_charge'</span>
-                                <span class="ck">AND</span> amount_usd > 0), 0)               <span class="ck">AS</span> overage_total,
+                                <span class="ck">AND</span> amount_usd &gt; 0), 0)               <span class="ck">AS</span> overage_total,
    <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type = <span class="cs">'proration'</span>)          <span class="ck">AS</span> proration_net,
    <span class="cf">sum</span>(amount_usd) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> event_type <span class="ck">IN</span> (<span class="cs">'credit'</span>,<span class="cs">'refund'</span>))   <span class="ck">AS</span> credits_total,
    <span class="cf">sum</span>(amount_usd)                                                     <span class="ck">AS</span> total_due_usd,
@@ -504,7 +504,7 @@ CENTS = Decimal(<span class="cs">"0.01"</span>)
     <span class="ck">SELECT</span> subscription_id, meter_id,
            <span class="cf">sum</span>(billable_quantity) <span class="ck">AS</span> used
     <span class="ck">FROM</span>   fct_usage_meter
-    <span class="ck">WHERE</span>  hour_bucket_ts >= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>
+    <span class="ck">WHERE</span>  hour_bucket_ts &gt;= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>
     <span class="ck">GROUP BY</span> subscription_id, meter_id
 ),
 plan_caps <span class="ck">AS</span> (
@@ -517,7 +517,7 @@ plan_caps <span class="ck">AS</span> (
        round(100.0 * u.used / <span class="cf">nullif</span>(c.included_quantity, 0), 1) <span class="ck">AS</span> pct_of_cap
 <span class="ck">FROM</span>   usage_30d u
 <span class="ck">JOIN</span>   plan_caps c <span class="ck">USING</span> (subscription_id, meter_id)
-<span class="ck">WHERE</span>  u.used > c.included_quantity * 0.85
+<span class="ck">WHERE</span>  u.used &gt; c.included_quantity * 0.85
 <span class="ck">ORDER BY</span> pct_of_cap <span class="ck">DESC</span>;
 <span class="cl">-- &gt;85% of cap = upsell trigger; &gt;100% = overage already hitting next invoice.</span></div>
 

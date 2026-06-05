@@ -353,7 +353,7 @@
 
     <h3 class="reveal">2 · The path rebuilder — reconcile the hybrid tree</h3>
     <div class="codelabel">PYTHON · NIGHTLY MATERIALIZED-PATH REBUILD</div>
-    <div class="codeblock"><span class="ck">def</span> <span class="cf">rebuild_paths</span>(accounts) -> dict[int, str]:
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">rebuild_paths</span>(accounts) -&gt; dict[int, str]:
     <span class="cs">"""parent_account_id is truth; materialized_path is a derived cache.
     A re-org touches one parent_id cheaply during the day, leaving paths
     stale; this job rebuilds every path from the parent links, per tenant.
@@ -362,10 +362,10 @@
     by_id = {a.account_id: a <span class="ck">for</span> a <span class="ck">in</span> accounts}
     cache: dict[int, str] = {}
 
-    <span class="ck">def</span> <span class="cf">path_of</span>(aid: int, seen: frozenset) -> str:
+    <span class="ck">def</span> <span class="cf">path_of</span>(aid: int, seen: frozenset) -&gt; str:
         <span class="ck">if</span> aid <span class="ck">in</span> cache:
             <span class="ck">return</span> cache[aid]
-        <span class="ck">if</span> aid <span class="ck">in</span> seen <span class="ck">or</span> len(seen) > 100:        <span class="cl"># cycle / runaway guard</span>
+        <span class="ck">if</span> aid <span class="ck">in</span> seen <span class="ck">or</span> len(seen) &gt; 100:        <span class="cl"># cycle / runaway guard</span>
             <span class="ck">raise</span> ValueError(<span class="cs">f"cycle or depth&gt;100 at account {aid}"</span>)
         node = by_id[aid]
         <span class="ck">if</span> node.parent_account_id <span class="ck">is</span> <span class="ck">None</span>:
@@ -379,7 +379,7 @@
 
     <h3 class="reveal">3 · The sharing cascade — role tree to bridge rows</h3>
     <div class="codelabel">PYTHON · RECORD-SHARING CASCADE UP THE ROLE HIERARCHY</div>
-    <div class="codeblock"><span class="ck">def</span> <span class="cf">cascade_sharing</span>(owner_id, account_id, role_tree) -> list[dict]:
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">cascade_sharing</span>(owner_id, account_id, role_tree) -&gt; list[dict]:
     <span class="cs">"""'Share with my manager' in data terms: an account owned by a rep is
     visible to everyone ABOVE them in the role tree. We walk up from the
     owner's role, emitting one bridge row per ancestor, tagging granted_via
@@ -388,7 +388,7 @@
              <span class="cs">"permission_level"</span>: <span class="cs">"owner"</span>, <span class="cs">"granted_via"</span>: <span class="cs">"own"</span>}]
     role = role_tree.role_of(owner_id)
     depth = 0
-    <span class="ck">while</span> role.parent_role_id <span class="ck">is not</span> <span class="ck">None</span> <span class="ck">and</span> depth < 100:   <span class="cl"># circuit breaker</span>
+    <span class="ck">while</span> role.parent_role_id <span class="ck">is not</span> <span class="ck">None</span> <span class="ck">and</span> depth &lt; 100:   <span class="cl"># circuit breaker</span>
         role = role_tree.parent(role)
         <span class="ck">for</span> manager <span class="ck">in</span> role_tree.users_in(role):
             rows.append({<span class="cs">"account_id"</span>: account_id, <span class="cs">"user_id"</span>: manager,
@@ -418,7 +418,7 @@
     <span class="ck">SELECT</span> a.account_id, d.root, d.depth + 1
     <span class="ck">FROM</span>   dim_account a
     <span class="ck">JOIN</span>   descendants d <span class="ck">ON</span> a.parent_account_id = d.account_id
-    <span class="ck">WHERE</span>  a.is_current <span class="ck">AND</span> d.depth < 15            <span class="cl">-- the circuit breaker</span>
+    <span class="ck">WHERE</span>  a.is_current <span class="ck">AND</span> d.depth &lt; 15            <span class="cl">-- the circuit breaker</span>
 )
 <span class="ck">SELECT</span> d.root <span class="ck">AS</span> top_level_account,
        <span class="cf">sum</span>(s.arr_usd)                <span class="ck">AS</span> total_subtree_arr,
@@ -482,7 +482,7 @@
        round(avg(<span class="cf">extract</span>(epoch <span class="ck">FROM</span>
            <span class="cf">coalesce</span>(left_at, now()) - entered_at) / 86400), 1)     <span class="ck">AS</span> avg_days_in_stage,
        count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> left_at <span class="ck">IS NULL</span>
-                       <span class="ck">AND</span> now() - entered_at > <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>) <span class="ck">AS</span> stale_now
+                       <span class="ck">AND</span> now() - entered_at &gt; <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>) <span class="ck">AS</span> stale_now
 <span class="ck">FROM</span>   spans
 <span class="ck">WHERE</span>  stage <span class="ck">NOT IN</span> (<span class="cs">'closed_won'</span>,<span class="cs">'closed_lost'</span>)
 <span class="ck">GROUP BY</span> stage
