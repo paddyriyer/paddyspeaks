@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Stacked-Delivery Problem — PaddySpeaks</title>
+<meta name="description" content="Designing the data backbone of a three-sided delivery marketplace: customer, courier and restaurant grains, the brg_dispatch bridge that makes stacked deliveries first-class, the SLA invariant, streaming Python, and the dashboard that proves it works.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 02</div>
+    <h1 class="reveal">The <em>Stacked-Delivery</em> Problem</h1>
+    <p class="deck reveal">Model the order lifecycle of a food-delivery marketplace — placement to prep to pickup to drop — for three stakeholders who want contradictory truths, while one courier carries two strangers' dinners on a single run. A complete working through: the three grains, the bridge that makes stacking honest, the SLA invariant, streaming ingestion, payout close, and the dashboard.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Distributed Systems</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One order, three stakeholders, two dinners in one bag</h2>
+    <p class="lede reveal">This prompt sounds like a CRUD app and is in fact a marketplace with three irreconcilable points of view — and the moment you allow one courier to carry two orders at once, the naïve schema lies to at least one of them.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Model the order lifecycle for a food-delivery platform — placement, restaurant prep, courier pickup, delivery — serving customers (on-time SLA), couriers (earnings), and restaurants (operations), with native support for <em>stacked</em> orders where one courier delivers several orders on a single dispatch. How do you scope it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The trap is the word <em>order</em>. It invites a single fact table — one fat row per order, with the customer columns, the restaurant columns, and the courier columns all sitting side by side — and for a while it works. Then the dispatch engine, hunting for efficiency, hands one courier two orders bound for the same block. Now there is no honest place to write the courier's pay. Split it across the two order rows and you have invented a fiction; the courier was never paid "per order," they were paid for a route. Write it once and double-count it on read. The single fact has no grain that fits all three readers, because there is no single event they are all watching.</p>
+
+    <p class="reveal">A weak answer reaches for one table and patches the stacked case with a nullable <span class="m">batch_id</span> and a prayer. A strong answer notices that the prompt names three actors who each live at a different <em>grain</em> — and that the only clean model is to give each their own fact and a bridge to reconcile them. So before any tables, the frame for the session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE CUSTOMER GRAIN</dt><dd><strong>One row per order.</strong> Promised time versus delivered time, five lifecycle timestamps, fees and the editable tip. This reader never wants to know that their dinner shared a car. Their question is binary: was it on time, and if not, whose fault.</dd></div>
+      <div class="defrow"><dt>THE COURIER GRAIN</dt><dd><strong>One row per dispatch.</strong> From "accept" to "all delivered" — a route, not an order. Carries the payout, the total distance, the batched flag. The courier is paid for the run; the run is the fact.</dd></div>
+      <div class="defrow"><dt>THE RESTAURANT GRAIN</dt><dd><strong>One row per order, read sideways.</strong> Prep variance, cancellation source, GMV. The restaurant shares the customer's table but asks a different column of it — how long did the kitchen take, and how often did it bail.</dd></div>
+    </dl>
+
+    <div class="pull reveal">A fact table has exactly one grain. Three readers asking three questions about three different events need three facts — and one bridge to make them agree on the money.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, so name it. In scope: the order/dispatch/bridge core, the state-event log that powers stage attribution, mutable tips, and the analytics that serve each side. Out of scope, said explicitly: the real-time dispatch <em>optimizer</em> (the routing brain that decides <em>which</em> orders to stack — treated as an upstream service that hands us a dispatch plan), menu and catalog, payments rails, fraud, and the customer-facing map. The caveat: the model must not <em>preclude</em> a courier picking up a third order mid-route, so stacking is N-ary from day one, never hard-coded to two.</p>
+
+    <p class="reveal">Then the envelope math, volunteered. Marketplace-shaped numbers at national scale:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Orders per day</td><td class="mono">25,000,000</td><td>≈ 290/s average, ~1.5 K at the dinner peak</td></tr>
+      <tr><td>State events per order</td><td class="mono">~7</td><td>placed, confirmed, ready, picked_up, delivered + retries</td></tr>
+      <tr><td><strong>State-event writes</strong></td><td class="mono"><strong>≈ 2,000/s peak</strong></td><td><strong>The append-only firehose that shapes the telemetry tier</strong></td></tr>
+      <tr><td>Batch rate (stacked share)</td><td class="mono">~35% of dispatches</td><td>The bridge is the common case, not an edge case</td></tr>
+      <tr><td>Tip-mutation window</td><td class="mono">24 h post-delivery</td><td>Economics must be append-only; no row is final on delivery</td></tr>
+      <tr><td>Active couriers at peak</td><td class="mono">~600,000</td><td>Sizes the dispatch fact and the earnings rollup</td></tr>
+      <tr><td>On-time SLA target</td><td class="mono">≥ 92% of orders</td><td>The single number the customer org is graded on</td></tr>
+    </table>
+
+    <p class="reveal">Read the table and the architecture is half-decided. The volume is trivial — 290 orders a second is a rounding error against the ride-sharing firehose. The pressure here is not throughput; it is <em>reconciliation</em>. One in three runs is stacked, every tip can move for a day after the fact, and three orgs will write conflicting SQL against the same data unless the grains are kept clean. The rest of this article follows the money through the bridge.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following an order through the building</h2>
+    <p class="lede reveal">Two write paths, one reconciliation. Orders and dispatches are born in separate services at separate tempos; the bridge is stamped the instant the dispatcher commits a plan; the state-event log is the spine that lets anyone reconstruct what happened and when.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 580" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">ORDER PLANE · CUSTOMER + RESTAURANT GRAIN</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">DISPATCH PLANE · COURIER GRAIN + THE BRIDGE</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- order plane -->
+        <rect x="20" y="58" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="85" font-size="12.5" text-anchor="middle" fill="#23201a">CUSTOMER APP</text>
+        <text x="95" y="104" font-size="10.5" text-anchor="middle" fill="#7d7567">place order · cart</text>
+
+        <rect x="228" y="50" width="172" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="314" y="76" font-size="12.5" text-anchor="middle" fill="#23201a">ORDER SERVICE</text>
+        <text x="314" y="94" font-size="10.5" text-anchor="middle" fill="#7d7567">writes fct_orders</text>
+        <text x="314" y="110" font-size="10.5" text-anchor="middle" fill="#7d7567">emits state events</text>
+
+        <rect x="458" y="44" width="200" height="92" fill="#27241d"/>
+        <text x="558" y="74" font-size="12.5" text-anchor="middle" fill="#e9e2d0">EVENT LOG</text>
+        <text x="558" y="92" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: order_id · ordered</text>
+        <text x="558" y="108" font-size="10.5" text-anchor="middle" fill="#b8ad93">PLACED…READY…DELIVERED</text>
+
+        <rect x="728" y="40" width="222" height="62" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="839" y="64" font-size="12" text-anchor="middle" fill="#a4502e">RESTAURANT TABLET</text>
+        <text x="839" y="82" font-size="10.5" text-anchor="middle" fill="#7d7567">confirm · mark ready</text>
+
+        <rect x="728" y="120" width="222" height="60" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="839" y="144" font-size="12" text-anchor="middle" fill="#8a5d12">STAGE-LATENCY JOB</text>
+        <text x="839" y="162" font-size="10.5" text-anchor="middle" fill="#7d7567">prep / pickup / drive</text>
+
+        <rect x="728" y="198" width="222" height="58" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="839" y="222" font-size="12" text-anchor="middle" fill="#7d7567">WAREHOUSE (PARQUET)</text>
+        <text x="839" y="239" font-size="10.5" text-anchor="middle" fill="#7d7567">facts + dims · SCD2</text>
+
+        <!-- order arrows -->
+        <line x1="170" y1="90" x2="224" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="90" x2="454" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="658" y1="72" x2="724" y2="70" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="658" y1="100" x2="724" y2="148" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="658" y1="110" x2="724" y2="224" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- dispatch plane -->
+        <rect x="20" y="358" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="385" font-size="12.5" text-anchor="middle" fill="#23201a">DISPATCH OPTIMIZER</text>
+        <text x="95" y="404" font-size="10.5" text-anchor="middle" fill="#7d7567">stack plan (upstream)</text>
+
+        <rect x="228" y="346" width="184" height="92" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="320" y="374" font-size="12.5" text-anchor="middle" fill="#6f7d5c">DISPATCH SERVICE</text>
+        <text x="320" y="392" font-size="10.5" text-anchor="middle" fill="#7d7567">writes fct_dispatches</text>
+        <text x="320" y="408" font-size="10.5" text-anchor="middle" fill="#7d7567">+ brg_dispatch_orders</text>
+
+        <rect x="470" y="334" width="192" height="54" fill="#fbf8f1" stroke="#92400e" stroke-width="2"/>
+        <text x="566" y="356" font-size="12" text-anchor="middle" fill="#92400e">BRIDGE WRITER</text>
+        <text x="566" y="374" font-size="10.5" text-anchor="middle" fill="#a4502e">one txn · SUM(share)=payout</text>
+
+        <rect x="470" y="406" width="192" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="566" y="428" font-size="12" text-anchor="middle" fill="#23201a">COURIER APP</text>
+        <text x="566" y="446" font-size="10.5" text-anchor="middle" fill="#7d7567">leg sequence · GPS legs</text>
+
+        <rect x="728" y="330" width="222" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="839" y="354" font-size="12" text-anchor="middle" fill="#23201a">EARNINGS / PAYOUT</text>
+        <text x="839" y="372" font-size="10.5" text-anchor="middle" fill="#7d7567">tip lock at +24h · close</text>
+
+        <rect x="728" y="408" width="222" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="839" y="432" font-size="12" text-anchor="middle" fill="#23201a">SLA / NOTIFICATIONS</text>
+        <text x="839" y="450" font-size="10.5" text-anchor="middle" fill="#7d7567">promised_ts watchdog</text>
+
+        <!-- dispatch arrows -->
+        <line x1="170" y1="390" x2="224" y2="390" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="412" y1="372" x2="466" y2="362" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="412" y1="410" x2="466" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="662" y1="360" x2="724" y2="358" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="662" y1="436" x2="724" y2="440" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- bridge stamps order ids -->
+        <path d="M 320 346 C 320 230, 560 210, 558 138" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="380" y="240" font-size="10.5" fill="#a4502e">bridge reads order_ids from log</text>
+
+        <text x="20" y="560" font-size="10.5" fill="#7d7567">SOLID — durable writes · DASHED — the reconciliation join · The order is the customer's truth; the dispatch is the courier's; the bridge is the treaty.</text>
+      </svg>
+      <div class="caption">FIG. 1 — Two planes, one bridge. Orders and dispatches are written independently; the bridge row is the single transaction that reconciles the courier's pay to the customers' orders.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the order plane and the dispatch plane never share a row — the customer's experience and the courier's pay are written by different services and only ever <em>joined</em>, never merged, so neither reader can corrupt the other's grain. <strong>Second,</strong> the bridge is the only place stacking is expressed, and it is written in a single transaction whose invariant is arithmetic: the per-leg payout shares must sum to exactly the dispatch payout. <strong>Third,</strong> the event log is dashed into everything because it owns no truth of its own — it is an append-only narration that lets the stage-latency job, finance, and disputes each reconstruct the timeline without locking a hot row.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Reconciliation Philosophy, In One Rule</div>
+      <p><strong>Each grain owns its own numbers; the bridge owns only the relationship.</strong> A late delivery is a fact of <span class="m">fct_orders</span> and never touches courier pay. A generous tip is a fact of <span class="m">fct_orders</span> that <em>flows</em> to the dispatch through the bridge's <span class="m">leg_payout_share</span>, but the order row remains the source of record. When the two disagree — and after a 24-hour tip edit they will — the order is authoritative for the customer, the dispatch is authoritative for the courier, and finance restates from the tip-lock boundary. No reader is ever forced to filter another reader's rows.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>Two facts, a bridge, and an append-only log</h2>
+    <p class="lede reveal">The schema falls out of the grain question. Customer truth: <span class="m">fct_orders</span>. Courier truth: <span class="m">fct_dispatches</span>. The treaty between them: <span class="m">brg_dispatch_orders</span>. The narration that explains everything: <span class="m">fct_order_state_events</span>. Around them, conformed dimensions, SCD2 where history has legal weight.</p>
+
+    <h3 class="reveal">The customer fact</h3>
+    <p class="reveal">One row per order, born at placement and filled in as the order moves. The five lifecycle timestamps are nullable until reached — a <span class="m">ready_ts</span> of NULL is not missing data, it is an order the kitchen has not finished. The two columns that earn their keep are <span class="m">tip_locked_ts</span> (the immutability boundary; NULL means the tip can still change) and <span class="m">terminal_state</span>, which records not just <em>that</em> an order ended but <em>who</em> ended it — the cancellation source is the difference between a refund and a restaurant warning.</p>
+
+    <div class="codelabel">DDL · CUSTOMER GRAIN</div>
+    <div class="codeblock"><span class="cl">-- Truth #1: the customer's order. One row, five lifecycle stamps,
+-- fees, and a tip that stays mutable for 24h after delivery.</span>
+<span class="ck">CREATE TABLE</span> fct_orders (
+    order_key        BIGINT        <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    order_id         UUID          <span class="ck">NOT NULL UNIQUE</span>,      <span class="cl">-- natural key</span>
+    customer_id      BIGINT        <span class="ck">NOT NULL REFERENCES</span> dim_customers,
+    restaurant_id    BIGINT        <span class="ck">NOT NULL REFERENCES</span> dim_restaurants,
+    delivery_h3      BIGINT        <span class="ck">NOT NULL</span>,             <span class="cl">-- H3 res 8 drop cell</span>
+    <span class="cl">-- the five timestamps: NULL until the stage is reached</span>
+    placed_ts        TIMESTAMPTZ   <span class="ck">NOT NULL</span>,
+    confirmed_ts     TIMESTAMPTZ,
+    ready_ts         TIMESTAMPTZ,
+    picked_up_ts     TIMESTAMPTZ,
+    delivered_ts     TIMESTAMPTZ,
+    promised_ts      TIMESTAMPTZ   <span class="ck">NOT NULL</span>,             <span class="cl">-- the SLA promise, set at placement</span>
+    <span class="cl">-- customer-facing economics</span>
+    subtotal_usd     NUMERIC(8,2)  <span class="ck">NOT NULL</span>,
+    tax_usd          NUMERIC(8,2)  <span class="ck">NOT NULL DEFAULT</span> 0,
+    delivery_fee_usd NUMERIC(8,2)  <span class="ck">NOT NULL DEFAULT</span> 0,
+    service_fee_usd  NUMERIC(8,2)  <span class="ck">NOT NULL DEFAULT</span> 0,
+    promo_applied_usd NUMERIC(8,2) <span class="ck">NOT NULL DEFAULT</span> 0,
+    tip_usd          NUMERIC(8,2)  <span class="ck">NOT NULL DEFAULT</span> 0,   <span class="cl">-- mutable up to tip_locked_ts</span>
+    tip_locked_ts    TIMESTAMPTZ,                          <span class="cl">-- NULL = tip still editable</span>
+    terminal_state   TEXT          <span class="ck">CHECK</span> (terminal_state <span class="ck">IN</span> (
+                       <span class="cs">'delivered'</span>,<span class="cs">'cancelled_customer'</span>,
+                       <span class="cs">'cancelled_restaurant'</span>,<span class="cs">'cancelled_courier'</span>,<span class="cs">'abandoned'</span>))
+);
+<span class="ck">CREATE INDEX</span> idx_orders_rest <span class="ck">ON</span> fct_orders (restaurant_id, placed_ts <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_orders_cust <span class="ck">ON</span> fct_orders (customer_id, placed_ts <span class="ck">DESC</span>);</div>
+
+    <h3 class="reveal">The courier fact and the bridge</h3>
+    <p class="reveal">The dispatch is the courier's shift-segment — accept to last drop — and its grain is deliberately blind to how many orders rode along. The count lives in <span class="m">total_orders</span> as a convenience denormalization, but the truth of <em>which</em> orders, in <em>which</em> sequence, at <em>what</em> per-leg distance and pay, lives only in the bridge. A single dispatch carrying one order produces one bridge row with <span class="m">leg_sequence = 1</span>; a stacked dispatch carrying three produces three. Stacking is not a flag bolted onto a 1:1 table — it is the cardinality of the bridge.</p>
+
+    <div class="codelabel">DDL · COURIER GRAIN + STACKING BRIDGE</div>
+    <div class="codeblock"><span class="cl">-- Truth #2: the courier's dispatch. One row per route, not per order.
+-- Pay is earned for the run; the bridge attributes it back to orders.</span>
+<span class="ck">CREATE TABLE</span> fct_dispatches (
+    dispatch_key      BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    dispatch_id       UUID         <span class="ck">NOT NULL UNIQUE</span>,
+    courier_id        BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_couriers,
+    dispatch_start_ts TIMESTAMPTZ  <span class="ck">NOT NULL</span>,        <span class="cl">-- "accept"</span>
+    dispatch_end_ts   TIMESTAMPTZ,                       <span class="cl">-- "all delivered"</span>
+    is_batched        BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">FALSE</span>,
+    total_orders      SMALLINT     <span class="ck">NOT NULL DEFAULT</span> 1,  <span class="cl">-- = COUNT(*) in the bridge</span>
+    total_distance_km NUMERIC(6,2) <span class="ck">NOT NULL DEFAULT</span> 0,
+    base_pay_usd      NUMERIC(8,2) <span class="ck">NOT NULL DEFAULT</span> 0,
+    tips_distributed_usd NUMERIC(8,2) <span class="ck">NOT NULL DEFAULT</span> 0,
+    payout_usd        NUMERIC(8,2) <span class="ck">NOT NULL DEFAULT</span> 0   <span class="cl">-- base + tips</span>
+);
+
+<span class="cl">-- The treaty. One row per (dispatch x order). N=1 normal, N&gt;1 stacked.
+-- leg_sequence is the delivery order on the route; the shares MUST
+-- sum to the dispatch payout (enforced at close — see &sect; 04).</span>
+<span class="ck">CREATE TABLE</span> brg_dispatch_orders (
+    dispatch_key         BIGINT     <span class="ck">NOT NULL REFERENCES</span> fct_dispatches,
+    order_key            BIGINT     <span class="ck">NOT NULL REFERENCES</span> fct_orders,
+    leg_sequence         SMALLINT   <span class="ck">NOT NULL</span>,        <span class="cl">-- 1, 2, 3 ...</span>
+    leg_distance_km      NUMERIC(6,2) <span class="ck">NOT NULL</span>,      <span class="cl">-- prev drop (or pickup) -&gt; this drop</span>
+    leg_payout_share_usd NUMERIC(8,2) <span class="ck">NOT NULL</span>,      <span class="cl">-- this leg's slice of payout</span>
+    <span class="ck">PRIMARY KEY</span> (dispatch_key, order_key),
+    <span class="ck">UNIQUE</span> (dispatch_key, leg_sequence)               <span class="cl">-- no two legs share a position</span>
+);</div>
+
+    <h3 class="reveal">The telemetry log</h3>
+    <p class="reveal">Every state transition lands in an append-only table, one row per change, never updated. This is what turns "the order was 18 minutes late" into "the restaurant prep took 22 minutes" — the difference between a complaint and an action. It also keeps the order row small and contention-free: payments, the SLA watchdog, and analytics are all downstream consumers of this log, not writers of <span class="m">fct_orders</span>.</p>
+
+    <div class="codelabel">DDL · TELEMETRY GRAIN (APPEND-ONLY)</div>
+    <div class="codeblock"><span class="cl">-- One row per order state change. Immutable. The stage-latency
+-- job and dispute tooling reconstruct any timeline from here.</span>
+<span class="ck">CREATE TABLE</span> fct_order_state_events (
+    event_id    BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    order_id    UUID         <span class="ck">NOT NULL</span>,
+    state       TEXT         <span class="ck">NOT NULL CHECK</span> (state <span class="ck">IN</span> (
+                  <span class="cs">'PLACED'</span>,<span class="cs">'CONFIRMED'</span>,<span class="cs">'READY'</span>,
+                  <span class="cs">'PICKED_UP'</span>,<span class="cs">'DELIVERED'</span>,<span class="cs">'CANCELLED'</span>)),
+    event_ts    TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    actor       TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- customer | restaurant | courier | system</span>
+    detail      JSONB
+);
+<span class="ck">CREATE INDEX</span> idx_ose_order <span class="ck">ON</span> fct_order_state_events (order_id, event_ts);</div>
+
+    <p class="reveal">The dimensions are conformed and mostly SCD2, because history here has consequences. <span class="m">dim_restaurants</span> versions its hours and menu so a dispute six weeks later reads against the menu that was live <em>then</em>. <span class="m">dim_addresses</span> is SCD2 for the same reason a refund is a legal artifact — you must be able to prove where the order was going on the night it failed. <span class="m">dim_couriers</span> versions vehicle type and rating tier; <span class="m">dim_h3_cell</span> is SCD1 because a hexagon's geometry does not have a history worth keeping.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>Where the money is conserved</h2>
+    <p class="lede reveal">The correctness of the whole model lives in one arithmetic identity and one immutability boundary. The identity: the bridge's per-leg shares sum to the dispatch payout. The boundary: <span class="m">tip_locked_ts</span>. Everything else is reporting.</p>
+
+    <p class="reveal">A stacked dispatch is dangerous precisely because the same dollars are visible from two grains. The courier sees <span class="m">payout_usd</span> on the dispatch; the customer's order contributes a tip that flows into that payout; an analyst joining the two can double-count or lose money in the seams. The guard is a closing transaction that refuses to commit a dispatch whose legs do not reconcile — <strong>RULE Nº 1</strong> made executable.</p>
+
+    <h3 class="reveal">The dispatch lifecycle</h3>
+    <div class="statechain reveal">
+      <span class="st">OFFERED</span><span class="arr">→</span>
+      <span class="st">ACCEPTED</span><span class="arr">→</span>
+      <span class="st">EN_ROUTE_PICKUP</span><span class="arr">→</span>
+      <span class="st">PICKED_UP</span><span class="arr">→</span>
+      <span class="st">DELIVERING</span><span class="arr">→</span>
+      <span class="st terminal">CLOSED</span>
+    </div>
+    <p class="reveal">A stacked dispatch loops through <span class="m">PICKED_UP → DELIVERING</span> once per leg, but reaches <span class="m">CLOSED</span> exactly once — and <span class="m">CLOSED</span> is the only state in which money is written. Closing is where the invariant is checked: the sum of the legs' <span class="m">leg_payout_share_usd</span> must equal the dispatch's <span class="m">payout_usd</span> to the cent, or the close aborts and the dispatch is held for review. This is the food-delivery equivalent of a ledger that must sum to zero: the route's pay is conserved across its legs.</p>
+
+    <div class="codelabel">SQL · THE CLOSING TRANSACTION — PAY IS CONSERVED</div>
+    <div class="codeblock"><span class="cl">-- Close a dispatch atomically. The bridge shares must reconcile to
+-- the payout, or nothing commits. This is the system's correctness.</span>
+<span class="ck">BEGIN</span>;
+
+<span class="cl">-- 1. recompute payout from base + the tips of the orders on this run</span>
+<span class="ck">UPDATE</span> fct_dispatches d
+<span class="ck">SET</span>    tips_distributed_usd = sub.tips,
+       payout_usd          = d.base_pay_usd + sub.tips,
+       dispatch_end_ts     = now()
+<span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> b.dispatch_key, <span class="cf">sum</span>(o.tip_usd) <span class="ck">AS</span> tips
+    <span class="ck">FROM</span>   brg_dispatch_orders b
+    <span class="ck">JOIN</span>   fct_orders o <span class="ck">USING</span> (order_key)
+    <span class="ck">WHERE</span>  b.dispatch_key = <span class="ck">:dispatch_key</span>
+    <span class="ck">GROUP BY</span> b.dispatch_key
+) sub
+<span class="ck">WHERE</span> d.dispatch_key = sub.dispatch_key;
+
+<span class="cl">-- 2. the invariant: leg shares must equal payout, to the cent.</span>
+<span class="ck">DO</span> $$
+<span class="ck">DECLARE</span> drift NUMERIC;
+<span class="ck">BEGIN</span>
+  <span class="ck">SELECT</span> d.payout_usd - <span class="cf">coalesce</span>(<span class="cf">sum</span>(b.leg_payout_share_usd), 0)
+    <span class="ck">INTO</span> drift
+    <span class="ck">FROM</span> fct_dispatches d
+    <span class="ck">LEFT JOIN</span> brg_dispatch_orders b <span class="ck">USING</span> (dispatch_key)
+    <span class="ck">WHERE</span> d.dispatch_key = <span class="ck">:dispatch_key</span>
+    <span class="ck">GROUP BY</span> d.payout_usd;
+  <span class="ck">IF</span> <span class="cf">abs</span>(drift) &gt; 0.005 <span class="ck">THEN</span>
+    <span class="ck">RAISE EXCEPTION</span> <span class="cs">'dispatch % unbalanced: drift=%'</span>, <span class="ck">:dispatch_key</span>, drift;
+  <span class="ck">END IF</span>;
+<span class="ck">END</span> $$;
+
+<span class="ck">COMMIT</span>;</div>
+
+    <div class="pull reveal">The sum of the legs equals the pay of the route. A dispatch that cannot prove it does not close.<span>STACKING RULE Nº 1 — THE BRIDGE BALANCES</span></div>
+
+    <p class="reveal">The second half of the invariant is temporal. A tip is mutable for 24 hours, which means a dispatch can close and its payout can still move. The model handles this without mutating closed facts: the tip edit is an append to the order's economic history, the dispatch's <span class="m">payout_usd</span> is recomputed by the close job's idempotent re-run, and the moment the 24-hour window expires the order's <span class="m">tip_locked_ts</span> is stamped. After that instant the order is frozen and finance restates the courier's earnings from the locked figure. Before the lock, every reader knows the number is provisional because the column tells them so.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the lifecycle</h2>
+    <p class="lede reveal">Three programs carry the write path: the state-event ingester that narrates every order, the bridge writer that stamps a stacked plan in one transaction, and the leg-share allocator that turns a route's pay into per-order credit. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The state-event ingester — append, never mutate</h3>
+    <p class="reveal">Every transition is an immutable row. The ingester is idempotent by construction — a redelivered event with the same <span class="m">(order_id, state)</span> is dropped, not double-written — so the upstream bus can be at-least-once without polluting the timeline. It refuses two things on principle: it never updates a prior state row, and it never advances <span class="m">fct_orders</span> directly. The order row is updated by a separate projection that reads this log; the log is the source of truth.</p>
+
+    <div class="codelabel">PYTHON · STATE-EVENT INGESTER (IDEMPOTENT)</div>
+    <div class="codeblock"><span class="ck">import</span> asyncpg
+
+VALID = {<span class="cs">"PLACED"</span>,<span class="cs">"CONFIRMED"</span>,<span class="cs">"READY"</span>,<span class="cs">"PICKED_UP"</span>,<span class="cs">"DELIVERED"</span>,<span class="cs">"CANCELLED"</span>}
+
+<span class="ck">async def</span> <span class="cf">ingest_state_event</span>(pool, ev: dict) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""One transition -&gt; one append. At-least-once safe: a duplicate
+    (order_id, state) is ignored, not re-inserted. We NEVER update an
+    earlier row -- a corrected timestamp is a new event with actor=system,
+    so the audit trail keeps the mistake AND the fix."""</span>
+    <span class="ck">if</span> ev[<span class="cs">"state"</span>] <span class="ck">not in</span> VALID:
+        <span class="ck">raise</span> ValueError(<span class="cs">f"unknown state {ev['state']!r}"</span>)
+    <span class="ck">async with</span> pool.acquire() <span class="ck">as</span> con:
+        <span class="ck">await</span> con.execute(<span class="cs">"""
+            INSERT INTO fct_order_state_events (order_id, state, event_ts, actor, detail)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT DO NOTHING
+        """</span>, ev[<span class="cs">"order_id"</span>], ev[<span class="cs">"state"</span>], ev[<span class="cs">"event_ts"</span>],
+             ev[<span class="cs">"actor"</span>], ev.get(<span class="cs">"detail"</span>))
+    <span class="cl"># the projection that advances fct_orders.{confirmed,ready,...}_ts</span>
+    <span class="cl"># is a separate consumer of this table -- ingestion stays pure append.</span></div>
+
+    <h3 class="reveal">2 · The bridge writer — a stacked plan in one transaction</h3>
+    <p class="reveal">The dispatch optimizer (upstream, out of scope) hands us a plan: one courier, an ordered list of orders, a per-leg distance. The bridge writer's whole job is to commit the dispatch row and every bridge row <em>together</em>, so the system is never observed in a state where a dispatch exists without its legs. It refuses partial writes — a plan with a gap in <span class="m">leg_sequence</span>, or a duplicated order, is rejected before any row is touched.</p>
+
+    <div class="codelabel">PYTHON · BRIDGE WRITER (ALL-OR-NOTHING)</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">write_dispatch</span>(pool, plan: dict) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""Commit a dispatch and its 1..N legs atomically. A stacked plan is
+    the common case (~35%), so this is the hot path, not an edge case.
+    Validate the shape BEFORE the transaction: legs must be 1..N with no
+    gaps and no repeated order -- the bridge's UNIQUE(dispatch,seq) is the
+    backstop, but we fail fast with a readable error first."""</span>
+    legs = plan[<span class="cs">"legs"</span>]
+    seqs = [l[<span class="cs">"leg_sequence"</span>] <span class="ck">for</span> l <span class="ck">in</span> legs]
+    <span class="ck">if</span> sorted(seqs) != list(range(1, len(legs) + 1)):
+        <span class="ck">raise</span> ValueError(<span class="cs">f"leg_sequence must be 1..N contiguous, got {seqs}"</span>)
+    <span class="ck">if</span> len({l[<span class="cs">"order_key"</span>] <span class="ck">for</span> l <span class="ck">in</span> legs}) != len(legs):
+        <span class="ck">raise</span> ValueError(<span class="cs">"an order may ride a dispatch at most once"</span>)
+
+    <span class="ck">async with</span> pool.acquire() <span class="ck">as</span> con, con.transaction():
+        dk = <span class="ck">await</span> con.fetchval(<span class="cs">"""
+            INSERT INTO fct_dispatches
+              (dispatch_id, courier_id, dispatch_start_ts,
+               is_batched, total_orders, total_distance_km, base_pay_usd)
+            VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING dispatch_key
+        """</span>, plan[<span class="cs">"dispatch_id"</span>], plan[<span class="cs">"courier_id"</span>],
+             plan[<span class="cs">"start_ts"</span>], len(legs) &gt; 1, len(legs),
+             sum(l[<span class="cs">"leg_distance_km"</span>] <span class="ck">for</span> l <span class="ck">in</span> legs), plan[<span class="cs">"base_pay_usd"</span>])
+        <span class="ck">await</span> con.executemany(<span class="cs">"""
+            INSERT INTO brg_dispatch_orders
+              (dispatch_key, order_key, leg_sequence,
+               leg_distance_km, leg_payout_share_usd)
+            VALUES ($1,$2,$3,$4,$5)
+        """</span>, [(dk, l[<span class="cs">"order_key"</span>], l[<span class="cs">"leg_sequence"</span>],
+              l[<span class="cs">"leg_distance_km"</span>], 0) <span class="ck">for</span> l <span class="ck">in</span> legs])
+    <span class="cl"># shares start at 0; the allocator fills them at close, then the</span>
+    <span class="cl"># &sect; 04 invariant proves they sum to payout. No partial dispatch is</span>
+    <span class="cl"># ever visible: the transaction makes the route and its legs one write.</span></div>
+
+    <h3 class="reveal">3 · The leg-share allocator — distance, then tip, then truth</h3>
+    <p class="reveal">When a dispatch closes, its payout must be split across the legs. The allocation is not arbitrary: base pay follows distance (the courier earned the miles), and each order's own tip is credited to its own leg (the tip belongs to the customer who gave it). The allocator's one discipline is that the parts must reconstitute the whole — it allocates by rounding down and assigns the residual cent to the longest leg, so the sum is exact and the <span class="m">§ 04</span> guard always passes.</p>
+
+    <div class="codelabel">PYTHON · LEG-SHARE ALLOCATOR (EXACT TO THE CENT)</div>
+    <div class="codeblock"><span class="ck">from</span> decimal <span class="ck">import</span> Decimal, ROUND_DOWN
+
+<span class="ck">def</span> <span class="cf">allocate_shares</span>(base_pay: Decimal, legs: list[dict]) -&gt; list[dict]:
+    <span class="cs">"""Split a dispatch payout across its legs so the parts sum to the
+    whole EXACTLY. Base pay is distance-weighted; each leg also keeps its
+    own order's tip. Rounding losses are swept to the longest leg, so
+    there is never a stray cent for the close invariant to trip on."""</span>
+    total_km = sum(Decimal(str(l[<span class="cs">"leg_distance_km"</span>])) <span class="ck">for</span> l <span class="ck">in</span> legs) <span class="ck">or</span> Decimal(1)
+    cent     = Decimal(<span class="cs">"0.01"</span>)
+    out, allocated_base = [], Decimal(0)
+
+    <span class="ck">for</span> l <span class="ck">in</span> legs:
+        km    = Decimal(str(l[<span class="cs">"leg_distance_km"</span>]))
+        share = (base_pay * km / total_km).quantize(cent, ROUND_DOWN)
+        allocated_base += share
+        out.append({**l, <span class="cs">"base_share"</span>: share, <span class="cs">"tip"</span>: Decimal(str(l[<span class="cs">"tip_usd"</span>]))})
+
+    <span class="cl"># sweep the rounding residual to the longest leg -- exact reconciliation</span>
+    residual = base_pay - allocated_base
+    longest  = max(out, key=<span class="ck">lambda</span> l: l[<span class="cs">"leg_distance_km"</span>])
+    longest[<span class="cs">"base_share"</span>] += residual
+
+    <span class="ck">for</span> l <span class="ck">in</span> out:
+        l[<span class="cs">"leg_payout_share_usd"</span>] = l[<span class="cs">"base_share"</span>] + l[<span class="cs">"tip"</span>]
+    <span class="ck">return</span> out      <span class="cl"># sum(leg_payout_share_usd) == base_pay + sum(tips), exactly</span></div>
+
+    <p class="reveal">One carve-out, always stated: <strong>the allocator never decides whether to stack.</strong> Which orders share a route is the optimizer's call, made on live road conditions and SLA risk; the allocator only divides money after the fact. Keeping the economic split downstream of the routing decision is what lets the marketplace re-tune its batching policy without ever touching the payout code.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Stage latency and the nightly payout close</h2>
+    <p class="lede reveal">Two derived layers carry the slow loop. Stage latency turns the event log into per-stage durations and a whose-fault verdict. The payout close, run nightly and again at the 24-hour tip-lock boundary, freezes earnings and proves the bridge still balances.</p>
+
+    <p class="reveal">Stage latency is a streaming projection over <span class="m">fct_order_state_events</span>. For each order it pairs adjacent transitions — <span class="m">CONFIRMED→READY</span> is prep, <span class="m">READY→PICKED_UP</span> is pickup wait, <span class="m">PICKED_UP→DELIVERED</span> is the drive — and writes them to a wide latency row that the restaurant and customer dashboards both read. The craft is in the attribution: a late order is not interesting; a late order with a 22-minute prep stage is an action item for a specific kitchen. The job is windowed on event time with a watermark, because a tablet that reconnects after a dead zone will deliver a <span class="m">READY</span> event minutes after the wall clock moved on, and processing-time windows would blame the courier for the restaurant's Wi-Fi.</p>
+
+    <div class="codelabel">PYTHON · STAGE-LATENCY PROJECTION (EVENT-TIME)</div>
+    <div class="codeblock"><span class="cl"># Pair adjacent state transitions into per-stage durations, keyed by
+# order, windowed on event time so reconnect-jitter can't misattribute.</span>
+
+stages = (events
+    .assign_timestamps(watermark_delay_s=120)       <span class="cl"># tablets reconnect late</span>
+    .key_by(<span class="ck">lambda</span> e: e.order_id)
+    .map_with_state(pair_adjacent))                  <span class="cl"># (from_state,to_state,dt)</span>
+
+<span class="ck">def</span> <span class="cf">stage_durations</span>(transitions):
+    <span class="cl"># transitions arrive ordered per order; emit durations once both ends seen</span>
+    seen = {t.state: t.event_ts <span class="ck">for</span> t <span class="ck">in</span> transitions}
+    <span class="ck">def</span> <span class="cf">mins</span>(a, b):
+        <span class="ck">return</span> (seen[b] - seen[a]).total_seconds() / 60 <span class="ck">if</span> a <span class="ck">in</span> seen <span class="ck">and</span> b <span class="ck">in</span> seen <span class="ck">else</span> <span class="ck">None</span>
+    <span class="ck">return</span> {
+        <span class="cs">"prep_min"</span>:        mins(<span class="cs">"CONFIRMED"</span>, <span class="cs">"READY"</span>),
+        <span class="cs">"pickup_wait_min"</span>: mins(<span class="cs">"READY"</span>,     <span class="cs">"PICKED_UP"</span>),
+        <span class="cs">"drive_min"</span>:       mins(<span class="cs">"PICKED_UP"</span>, <span class="cs">"DELIVERED"</span>),
+        <span class="cs">"total_min"</span>:       mins(<span class="cs">"PLACED"</span>,    <span class="cs">"DELIVERED"</span>),
+    }</div>
+
+    <p class="reveal">The payout close is the slow loop's other half — an idempotent batch that can be run any number of times and converges to the same answer. It recomputes each open dispatch's payout from the current tips, reruns the allocator, re-asserts the <span class="m">§ 04</span> invariant, and — for any order whose delivery is now more than 24 hours old — stamps <span class="m">tip_locked_ts</span>. Idempotence is the whole game: the close runs nightly for fresh dispatches and a second time after the lock window, and because every step is a recomputation rather than an increment, a retried or double-fired close never moves a courier's pay twice.</p>
+
+    <div class="pull reveal">The close may run a hundred times; the courier is paid once. Idempotence is the difference between a batch job and a liability.<span>PAYOUT RULE Nº 1 — CONVERGENT CLOSE</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating three stakeholders</h2>
+    <p class="lede reveal">The facts are where the system explains itself — once per grain. Three queries an interviewer loves, because each serves a different stakeholder and each carries a classic SQL pattern on its back.</p>
+
+    <h3 class="reveal">Whose fault was the late order? — conditional bucketing</h3>
+    <p class="reveal">The customer org's defining query. Decompose the order's lifecycle into stages and let a <span class="m">CASE</span> ladder name the bottleneck. The pattern is conditional aggregation's cousin — per-row classification — turning five timestamps into a single actionable verdict.</p>
+
+    <div class="codelabel">SQL · STAGE LATENCY + WHOSE-FAULT ATTRIBUTION</div>
+    <div class="codeblock"><span class="cl">-- Per-order stage breakdown with a bottleneck verdict. Customer-facing
+-- SLA plus the one thing support actually needs: who to call.</span>
+<span class="ck">SELECT</span>
+    order_id,
+    <span class="cf">extract</span>(epoch <span class="ck">FROM</span> confirmed_ts - placed_ts)    / 60 <span class="ck">AS</span> confirm_min,
+    <span class="cf">extract</span>(epoch <span class="ck">FROM</span> ready_ts     - confirmed_ts) / 60 <span class="ck">AS</span> prep_min,
+    <span class="cf">extract</span>(epoch <span class="ck">FROM</span> picked_up_ts - ready_ts)     / 60 <span class="ck">AS</span> pickup_wait_min,
+    <span class="cf">extract</span>(epoch <span class="ck">FROM</span> delivered_ts - picked_up_ts) / 60 <span class="ck">AS</span> drive_min,
+    <span class="cf">extract</span>(epoch <span class="ck">FROM</span> delivered_ts - placed_ts)    / 60 <span class="ck">AS</span> total_min,
+    (delivered_ts &lt;= promised_ts)                          <span class="ck">AS</span> on_time,
+    <span class="ck">CASE</span>
+      <span class="ck">WHEN</span> ready_ts     - confirmed_ts &gt; <span class="ck">INTERVAL</span> <span class="cs">'20 min'</span> <span class="ck">THEN</span> <span class="cs">'restaurant_slow'</span>
+      <span class="ck">WHEN</span> picked_up_ts - ready_ts     &gt; <span class="ck">INTERVAL</span> <span class="cs">'10 min'</span> <span class="ck">THEN</span> <span class="cs">'courier_late_pickup'</span>
+      <span class="ck">WHEN</span> delivered_ts - picked_up_ts &gt; <span class="ck">INTERVAL</span> <span class="cs">'20 min'</span> <span class="ck">THEN</span> <span class="cs">'courier_slow_drive'</span>
+      <span class="ck">ELSE</span> <span class="cs">'on_track'</span>
+    <span class="ck">END</span>                                                    <span class="ck">AS</span> bottleneck
+<span class="ck">FROM</span> fct_orders
+<span class="ck">WHERE</span> placed_ts::date = <span class="ck">CURRENT_DATE</span> - 1
+  <span class="ck">AND</span> delivered_ts <span class="ck">IS NOT NULL</span>;</div>
+
+    <h3 class="reveal">Is stacking worth it for couriers? — split aggregation over the bridge</h3>
+    <p class="reveal">The courier org's defining query, and the one that justifies the entire bridge. Compare earnings per hour for batched versus single dispatches. If stacking does not beat single by a clear margin, the optimizer should stop offering it — the whole economic case is in this <span class="m">GROUP BY is_batched</span>.</p>
+
+    <div class="codelabel">SQL · EARNINGS PER HOUR — STACKED VS SINGLE</div>
+    <div class="codeblock"><span class="cl">-- Stack uplift: the courier value of batching, quantified. If batched
+-- earns &lt; ~1.3x single per hour, stacking isn't paying the courier back.</span>
+<span class="ck">SELECT</span>
+    is_batched,
+    count(*)                                                   <span class="ck">AS</span> dispatches,
+    round(<span class="cf">sum</span>(payout_usd) /
+          <span class="cf">sum</span>(<span class="cf">extract</span>(epoch <span class="ck">FROM</span> dispatch_end_ts - dispatch_start_ts)
+              / 3600), 2)                                      <span class="ck">AS</span> earnings_per_hr,
+    round(<span class="cf">sum</span>(payout_usd) / <span class="cf">sum</span>(total_orders), 2)             <span class="ck">AS</span> payout_per_order,
+    round(<span class="cf">avg</span>(total_distance_km / total_orders), 2)          <span class="ck">AS</span> km_per_order
+<span class="ck">FROM</span> fct_dispatches
+<span class="ck">WHERE</span> dispatch_start_ts::date <span class="ck">BETWEEN</span> <span class="cs">'2025-05-01'</span> <span class="ck">AND</span> <span class="cs">'2025-05-31'</span>
+  <span class="ck">AND</span> dispatch_end_ts <span class="ck">IS NOT NULL</span>
+<span class="ck">GROUP BY</span> is_batched;</div>
+
+    <h3 class="reveal">Which kitchens are overloaded? — percentile aggregation with a filtered rate</h3>
+    <p class="reveal">The restaurant org's defining query. Prep-time p50/p95 per restaurant per day, beside the restaurant-sourced cancellation rate. The pattern is percentile aggregation paired with a <span class="m">FILTER</span>ed count — one pass yields both the typical kitchen and its tail, plus how often it bailed entirely.</p>
+
+    <div class="codelabel">SQL · PREP P50/P95 + CANCELLATION RATE PER RESTAURANT</div>
+    <div class="codeblock"><span class="cl">-- Kitchen health. Spiking p95 prep = overload; high cancel rate = a
+-- restaurant accepting orders it can't make. Both warned, then throttled.</span>
+<span class="ck">SELECT</span>
+    restaurant_id,
+    placed_ts::date                                            <span class="ck">AS</span> d,
+    count(*)                                                   <span class="ck">AS</span> orders,
+    percentile_cont(0.50) <span class="ck">WITHIN GROUP</span> (
+        <span class="ck">ORDER BY</span> <span class="cf">extract</span>(epoch <span class="ck">FROM</span> ready_ts - confirmed_ts) / 60)  <span class="ck">AS</span> prep_p50_min,
+    percentile_cont(0.95) <span class="ck">WITHIN GROUP</span> (
+        <span class="ck">ORDER BY</span> <span class="cf">extract</span>(epoch <span class="ck">FROM</span> ready_ts - confirmed_ts) / 60)  <span class="ck">AS</span> prep_p95_min,
+    round(100.0 * count(*) <span class="ck">FILTER</span> (
+        <span class="ck">WHERE</span> terminal_state = <span class="cs">'cancelled_restaurant'</span>)
+        / <span class="cf">nullif</span>(count(*), 0), 1)                              <span class="ck">AS</span> cancel_pct
+<span class="ck">FROM</span> fct_orders
+<span class="ck">WHERE</span> confirmed_ts <span class="ck">IS NOT NULL</span>
+<span class="ck">GROUP BY</span> restaurant_id, placed_ts::date
+<span class="ck">HAVING</span> count(*) &gt;= 10
+<span class="ck">ORDER BY</span> prep_p95_min <span class="ck">DESC</span>;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving three grains stay honest</h2>
+    <p class="lede reveal">A senior design ends with observability, because every clean grain above is invisible without it. The dashboard watches the three stakeholders separately — each has its own definition of "healthy" — and one tile watches the seam between them.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>CUSTOMER</dt><dd><span class="m">on-time %</span> (delivered_ts ≤ promised_ts), <span class="m">total delivery time p50/p95</span>, <span class="m">bottleneck mix</span> (the share of late orders blamed on prep vs pickup vs drive) — a shift toward restaurant_slow means the kitchens, not the couriers, need attention.</dd></div>
+      <div class="defrow"><dt>COURIER</dt><dd><span class="m">earnings per hour</span> split batched vs single, <span class="m">stack uplift ratio</span> (the multiplier that justifies stacking), <span class="m">idle time between dispatches</span>, <span class="m">legs per stacked dispatch</span> — uplift sliding toward 1.0 is the signal to dial batching back.</dd></div>
+      <div class="defrow"><dt>RESTAURANT</dt><dd><span class="m">prep p95</span>, <span class="m">cancelled_restaurant rate</span>, <span class="m">GMV per restaurant</span> — the throttle list is built from the top of the p95 distribution.</dd></div>
+      <div class="defrow"><dt>THE SEAM</dt><dd><span class="m">bridge balance drift</span> — the count of dispatches whose leg shares failed to reconcile at close. This should be exactly zero; any non-zero value is a money bug, not a metric.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Marketplace Ops — Bay Area</span>
+        <span class="dash-sub">FRI 19:10 PT · ALL GRAINS · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">On-Time %</div><div class="tv warn">90.4<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,8 20,9 40,11 60,12 80,15 100,17 120,18" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Delivery Time p95</div><div class="tv warn">48<small>min</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,20 40,19 60,16 80,13 100,11 120,9" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Stack Uplift</div><div class="tv ok">1.56<small>×</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,14 60,14 80,13 100,13 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Bridge Drift</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,16 20,16 40,16 60,16 80,16 100,16 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Late-Order Bottleneck Mix — dinner rush 18:30–19:10</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace">
+              <rect x="14" y="20" width="150" height="14" fill="#c25a2a"/>
+              <text x="170" y="31" font-size="9" fill="#d98e63">restaurant_slow 61%</text>
+              <rect x="14" y="40" width="64" height="14" fill="#d8a44a"/>
+              <text x="170" y="51" font-size="9" fill="#d8a44a">pickup_wait 26%</text>
+              <rect x="14" y="60" width="32" height="14" fill="#6f7d5c"/>
+              <text x="170" y="71" font-size="9" fill="#a8b58a">slow_drive 13%</text>
+            </g>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Earnings / Hr (batched)</div><div class="tv ok">43.75<small>$</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,13 40,13 60,12 80,12 100,11 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Earnings / Hr (single)</div><div class="tv">28.0<small>$</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,14 60,15 80,14 100,15 120,14" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Prep p95 (worst kitchen)</div><div class="tv bad">34<small>min</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,18 40,17 60,14 80,12 100,9 120,7" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Restaurant Cancel %</div><div class="tv warn">3.4<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,13 100,12 120,11" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Legs / Stacked Disp</div><div class="tv">2.2</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,14 100,13 120,14" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Tip Still Mutable</div><div class="tv">18<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,14 60,15 80,14 100,15 120,14" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy overload tells: on-time slipping amber and delivery time stretching, but the bottleneck bar says the kitchens are the cause — couriers are fine, stack uplift holds at 1.56×, and bridge drift is flat zero, because the money still reconciles.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates a Friday dinner rush from the operator's chair: demand spiked, kitchens fell behind (prep p95 at 34 minutes, restaurant_slow owning 61% of the late orders), so on-time dipped and delivery time stretched — while couriers kept earning, stacking kept paying its 1.56× premium, and the seam stayed honest. The single most important tile is the boring one: <strong>bridge drift at zero.</strong> Everything else is a tunable; that one is the law.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the dinners away and the question was testing five judgments, each of which generalizes far beyond food delivery:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>GRAIN</dt><dd>Hearing three readers where the prompt says one entity — and giving each a fact at its own grain instead of one fat table that lies to two of them.</dd></div>
+      <div class="defrow"><dt>THE BRIDGE</dt><dd>Modeling a many-to-many relationship as a first-class table, so stacking is the cardinality of a join, not a flag and a special case. The bridge is what makes batching expressible at all.</dd></div>
+      <div class="defrow"><dt>CONSERVATION</dt><dd>Finding the one arithmetic invariant — the legs sum to the payout — and making it executable at close, so a money bug aborts a transaction instead of leaking into a report.</dd></div>
+      <div class="defrow"><dt>MUTABILITY</dt><dd>Handling a number that changes after the fact without mutating closed facts: append the correction, recompute idempotently, freeze at the lock boundary. The tip moves; the audit trail doesn't.</dd></div>
+      <div class="defrow"><dt>ATTRIBUTION</dt><dd>Turning "it was late" into "the kitchen took 22 minutes" — designing the telemetry so every metric points at a stakeholder who can fix it.</dd></div>
+    </dl>
+    <div class="pull reveal">Three grains keep three stories honest. One bridge keeps the money whole. Everything else is reporting — careful, stakeholder-aware reporting.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 02 — THE STACKED-DELIVERY PROBLEM<br>DATA ARCHITECTURE · THE THREE-SIDED MARKETPLACE · THE CRAFT OF THE GRAIN</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

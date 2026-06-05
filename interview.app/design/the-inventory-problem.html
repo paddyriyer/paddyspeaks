@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Inventory Problem — PaddySpeaks</title>
+<meta name="description" content="Design the data model behind Netflix's ad-supported tier: every ad-slot opportunity filled or unfilled, frequency caps, contractual pacing, and make-good liability — the schema, the SQL, the streaming pipeline, and the dashboard that proves it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 05</div>
+    <h1 class="reveal">The <em>Inventory</em> Problem</h1>
+    <p class="deck reveal">Model Netflix's ad-supported tier — every ad slot, frequency caps, contractual pacing, and the make-good penalty when a guaranteed buy comes up short. The single decision that separates a senior answer: store the empty slots too. A full working through — data flow, schema, the invariant, streaming Python, the nightly pacing close, the analytics SQL, and the dashboard.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Ads / Inventory</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>A contract wearing an impression's clothes</h2>
+    <p class="lede reveal">Programmatic advertising sells what it can. Connected-TV advertising sells what it <em>promised</em> — and pays a penalty when it misses. That one difference turns an analytics warehouse into a finance system, and it is the whole question.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design a model for Netflix's ad-supported tier — capture every ad-slot opportunity, filled or unfilled, every ad served, frequency caps per user, and the contractual pacing guarantees per advertiser: ten million impressions by month-end, with a make-good if we under-deliver."</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The trap in this prompt is that it sounds like a logging problem. Count the ads, sum the revenue, build a dashboard — a junior answer ships an <span class="m">fct_ad_impressions</span> table and stops. But the prompt buried three forces in one sentence, and they pull in different directions. Maximize fill rate, so no slot goes to waste. Honor frequency caps, so a viewer does not see the same Ford spot eight times in one film. And hit the committed volume per advertiser per month, because the contract has teeth. A model tuned for any one of these starves the others, and the only artifact that lets you reason about all three at once is the one a logging mindset never builds: a row for the ad that <em>didn't</em> play.</p>
+
+    <p class="reveal">So before any boxes and arrows, the working frame for the session — three grains, three stakeholders, three tempos:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE SLOT GRAIN</dt><dd><strong>Every opportunity, filled or not.</strong> One row the instant a viewer's session opens an ad break. Most rows are won and monetized; the ones with a null creative are the most valuable rows in the warehouse, because they are the only record of revenue you could have earned and didn't.</dd></div>
+      <div class="defrow"><dt>THE CAP GRAIN</dt><dd><strong>Frequency state per viewer per campaign.</strong> The ad server reads this <em>before</em> every decision — it is the small, hot, write-heavy table that says "this profile has already seen Ford twice today." Get it wrong and you either annoy viewers or leave reach on the table.</dd></div>
+      <div class="defrow"><dt>THE CONTRACT GRAIN</dt><dd><strong>Pacing and obligation.</strong> A daily snapshot of delivered-versus-committed per campaign, and — when the month closes short — a make-good row that books real dollars Netflix owes. This is the grain finance audits, and it is why the model has to survive quarter-end, not just render a chart.</dd></div>
+    </dl>
+
+    <div class="pull reveal">An impression is something that happened. An unfilled opportunity is something that didn't. A warehouse that only stores what happened cannot answer the one question the business is actually asking.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. Said out loud: in scope is the inventory and contractual model — opportunities, impressions, caps, pacing, make-goods — and the analytics that hang off them. Out of scope, explicitly: the real-time bidding auction itself (treated as an upstream service that hands us a winner or a null), the creative-rendering and ad-stitching pipeline, billing and invoicing systems (we hand finance a liability, not an invoice), and identity resolution across devices (we assume a resolved <span class="m">profile_id</span>). The caveat: the model must not <em>preclude</em> programmatic — guaranteed buys and auction wins share the same opportunity row, distinguished by a fill reason, not a separate table.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. Mid-2025-shaped numbers for the ad tier:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Ad-supported profiles</td><td class="mono">~94 M</td><td>The audience the caps and pacing run against</td></tr>
+      <tr><td>Avg ad load</td><td class="mono">~4–5 min / hr</td><td>Sets slots per viewing hour</td></tr>
+      <tr><td>Avg slots per session</td><td class="mono">~6</td><td>Pre-roll + a handful of mid-rolls</td></tr>
+      <tr><td><strong>Opportunity rows / day</strong></td><td class="mono"><strong>≈ 1.5–2 B</strong></td><td><strong>The number that shapes the whole architecture</strong></td></tr>
+      <tr><td>Fill rate</td><td class="mono">~85–92 %</td><td>So ~10–15% of rows are the precious null-creative ones</td></tr>
+      <tr><td>Unfilled rows / day</td><td class="mono">~150–250 M</td><td>Doubles nothing — it's the diagnostic surface</td></tr>
+      <tr><td>Active campaigns</td><td class="mono">~10³–10⁴</td><td>The cardinality of pacing &amp; make-good math</td></tr>
+      <tr><td>Make-good exposure</td><td class="mono">$ millions / quarter</td><td>A balance-sheet liability, not a metric</td></tr>
+    </table>
+
+    <p class="reveal">Notice where the weight sits. The opportunity table is the firehose — a couple of billion rows a day, partitioned by date so it stays queryable — but the row that earns the architecture its keep is the unfilled one. Two billion rows is an engineering problem you solve with partitioning and columnar storage. The hundred-and-fifty million <em>empty</em> rows are a modeling decision, and refusing to make it is what fails the interview.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>From ad break to balance sheet</h2>
+    <p class="lede reveal">One opportunity row is born at the ad server, enriched if it fills, rolled up nightly into pacing, and — at month close — distilled into a liability. The spine is an append-only opportunity log feeding three derived layers that each run at their own tempo.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">DECISION PATH · PER AD BREAK · &lt;40MS BUDGET</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">SETTLEMENT PATH · NIGHTLY &amp; MONTH-CLOSE</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- player -->
+        <rect x="20" y="60" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="87" font-size="12.5" text-anchor="middle" fill="#23201a">CTV PLAYER</text>
+        <text x="95" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">ad break opens · SSAI</text>
+
+        <!-- ad server -->
+        <rect x="230" y="48" width="180" height="92" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="320" y="74" font-size="12.5" text-anchor="middle" fill="#a4502e">AD DECISION SERVER</text>
+        <text x="320" y="92" font-size="10.5" text-anchor="middle" fill="#7d7567">read caps + pacing</text>
+        <text x="320" y="108" font-size="10.5" text-anchor="middle" fill="#7d7567">pick creative OR</text>
+        <text x="320" y="124" font-size="10.5" text-anchor="middle" fill="#a4502e">emit unfilled row</text>
+
+        <!-- opportunity stream -->
+        <rect x="470" y="46" width="200" height="92" fill="#27241d"/>
+        <text x="570" y="76" font-size="12.5" text-anchor="middle" fill="#e9e2d0">OPPORTUNITY LOG</text>
+        <text x="570" y="94" font-size="10.5" text-anchor="middle" fill="#b8ad93">append-only · key: campaign_id</text>
+        <text x="570" y="110" font-size="10.5" text-anchor="middle" fill="#b8ad93">filled &amp; unfilled, both kept</text>
+
+        <!-- caps store -->
+        <rect x="730" y="40" width="220" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="840" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">FREQUENCY STATE · KV</text>
+        <text x="840" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">(profile × campaign × day)</text>
+        <text x="840" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">counter + TTL · read pre-decision</text>
+
+        <!-- impressions enrich -->
+        <rect x="730" y="138" width="220" height="60" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="162" font-size="12.5" text-anchor="middle" fill="#8a5d12">IMPRESSION BEACONS</text>
+        <text x="840" y="180" font-size="10.5" text-anchor="middle" fill="#7d7567">quartile pings · completion</text>
+
+        <!-- raw lake -->
+        <rect x="730" y="222" width="220" height="58" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="840" y="246" font-size="12.5" text-anchor="middle" fill="#7d7567">OPPORTUNITY LAKE</text>
+        <text x="840" y="264" font-size="10.5" text-anchor="middle" fill="#7d7567">Parquet · partitioned by date</text>
+
+        <!-- arrows decision -->
+        <line x1="170" y1="92" x2="226" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="92" x2="466" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="670" y1="76" x2="726" y2="75" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="670" y1="110" x2="726" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="670" y1="125" x2="726" y2="248" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- caps read back into ad server -->
+        <path d="M 840 110 C 840 200, 470 200, 412 110" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="500" y="196" font-size="10.5" fill="#a4502e">cap check · &lt;5ms before every fill</text>
+
+        <!-- settlement -->
+        <rect x="20" y="360" width="180" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="110" y="387" font-size="12.5" text-anchor="middle" fill="#23201a">OPPORTUNITY LAKE</text>
+        <text x="110" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">yesterday's partition</text>
+
+        <rect x="250" y="348" width="190" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="345" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">PACING ROLL-UP</text>
+        <text x="345" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">delivered vs committed</text>
+        <text x="345" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">pacing_index · days_left</text>
+
+        <rect x="490" y="336" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="585" y="358" font-size="12" text-anchor="middle" fill="#23201a">PACING SNAPSHOT</text>
+        <text x="585" y="376" font-size="10.5" text-anchor="middle" fill="#7d7567">1 row / campaign / day</text>
+
+        <rect x="490" y="408" width="190" height="56" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="585" y="430" font-size="12" text-anchor="middle" fill="#a4502e">MONTH-CLOSE JOB</text>
+        <text x="585" y="448" font-size="10.5" text-anchor="middle" fill="#7d7567">committed − delivered &gt; 0?</text>
+
+        <rect x="730" y="372" width="220" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="398" font-size="12" text-anchor="middle" fill="#8a5d12">MAKE-GOOD LEDGER</text>
+        <text x="840" y="416" font-size="10.5" text-anchor="middle" fill="#7d7567">owed_impressions · owed_$</text>
+        <text x="840" y="430" font-size="10.5" text-anchor="middle" fill="#a4502e">finance liability</text>
+
+        <!-- settlement arrows -->
+        <line x1="200" y1="392" x2="246" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="440" y1="370" x2="486" y2="363" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="440" y1="410" x2="486" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="680" y1="436" x2="726" y2="410" stroke="#a4502e" stroke-width="1.6" marker-end="url(#arrR)"/>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — data lands here · DASHED — request-time read · The empty slot is a first-class row, not an absence.</text>
+      </svg>
+      <div class="caption">FIG. 1 — Decision path runs in milliseconds and writes both fills and nulls; settlement path runs nightly and monthly, turning rows into dollars owed.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the ad decision server writes a row <em>whether or not it fills the slot</em> — the unfilled branch is not an error path, it is the diagnostic that later answers "why did we leave money on the table?" <strong>Second,</strong> the frequency-state store is the only hot, low-latency read on the decision path: a tiny counter keyed by <span class="m">(profile × campaign × day)</span> that the server consults before every fill, and the only place in the design where staleness costs money in real time. <strong>Third,</strong> pacing and make-goods are <em>derived, not live</em> — a daily roll-up and a month-close job — because a contract is measured against a calendar, not a clock, and pre-aggregating the snapshot keeps the account-manager dashboard fast.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>When in doubt, do not fill.</strong> The frequency-cap read is the one place a stale value is dangerous, so the cap check fails <em>closed</em>: if the counter store is unreachable or ambiguous, the server declines the impression and emits an unfilled row with reason <span class="m">cap_check_unavailable</span>. Over-delivering against a cap means a viewer sees the same spot too many times and the campaign's frequency promise is broken; under-delivering means an empty slot we can always diagnose later. One of those is a degraded experience we logged; the other is a contract violation we can't take back.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>Five facts, and the one that's empty on purpose</h2>
+    <p class="lede reveal">The schema falls out of the grain question. A wide append-only opportunity fact at the slot grain; a thin impression fact for the slots that filled; a daily pacing snapshot; a hot cap-state table; and a make-good ledger that finance treats as a liability.</p>
+
+    <h3 class="reveal">The opportunity fact — where the null is sacred</h3>
+    <p class="reveal">This is the spine. One row per ad-slot opportunity, written by the decision server. The <span class="m">served_creative_id</span> is nullable by design: a null is not missing data, it is a fully-formed fact that the slot existed and went unfilled, qualified by an <span class="m">unfilled_reason</span>. The mirror of that column, <span class="m">fill_reason</span>, records <em>how</em> a filled slot was won — a guaranteed buy, an auction, or a house ad — so guaranteed and programmatic inventory live in one table, distinguished by a value rather than a schema.</p>
+
+    <div class="codelabel">DDL · THE SLOT GRAIN (APPEND-ONLY)</div>
+    <div class="codeblock"><span class="cl">-- One row per ad-slot opportunity in a viewing session.
+-- Filled or unfilled — BOTH are kept. Partitioned by date; the
+-- null-creative rows are the entire reason this table exists.</span>
+<span class="ck">CREATE TABLE</span> fct_ad_opportunities (
+    opportunity_id     BIGINT       <span class="ck">NOT NULL</span>,
+    profile_id         BIGINT       <span class="ck">NOT NULL</span>,    <span class="cl">-- resolved ad-tier profile</span>
+    title_id           BIGINT       <span class="ck">NOT NULL</span>,
+    session_id         BIGINT       <span class="ck">NOT NULL</span>,
+    slot_type          TEXT         <span class="ck">NOT NULL</span>
+                       <span class="ck">CHECK</span> (slot_type <span class="ck">IN</span> (<span class="cs">'pre_roll'</span>,<span class="cs">'mid_roll'</span>,<span class="cs">'post_roll'</span>)),
+    slot_position_sec  INT          <span class="ck">NOT NULL</span>,    <span class="cl">-- offset into the title</span>
+    slot_duration_sec  SMALLINT     <span class="ck">NOT NULL</span>,
+    predicted_cpm      NUMERIC(7,2),                 <span class="cl">-- what the slot was worth</span>
+    served_creative_id BIGINT,                       <span class="cl">-- NULL  ==  UNFILLED</span>
+    fill_reason        TEXT                          <span class="cl">-- non-null iff filled</span>
+                       <span class="ck">CHECK</span> (fill_reason <span class="ck">IN</span> (<span class="cs">'won_auction'</span>,<span class="cs">'guaranteed_buy'</span>,<span class="cs">'house_ad'</span>)),
+    unfilled_reason    TEXT                          <span class="cl">-- non-null iff unfilled</span>
+                       <span class="ck">CHECK</span> (unfilled_reason <span class="ck">IN</span> (<span class="cs">'frequency_capped'</span>,
+                              <span class="cs">'no_eligible_demand'</span>,<span class="cs">'content_unsuitable'</span>,
+                              <span class="cs">'cap_check_unavailable'</span>)),
+    opportunity_ts     TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    <span class="cl">-- the model's own conscience: a slot is filled XOR explained.</span>
+    <span class="ck">CONSTRAINT</span> filled_xor_unfilled <span class="ck">CHECK</span> (
+        (served_creative_id <span class="ck">IS NOT NULL AND</span> fill_reason     <span class="ck">IS NOT NULL</span>
+                            <span class="ck">AND</span> unfilled_reason     <span class="ck">IS NULL</span>)
+     <span class="ck">OR</span> (served_creative_id <span class="ck">IS NULL     AND</span> unfilled_reason <span class="ck">IS NOT NULL</span>
+                            <span class="ck">AND</span> fill_reason         <span class="ck">IS NULL</span>))
+) <span class="ck">PARTITION BY RANGE</span> (opportunity_ts);</div>
+
+    <p class="reveal">The <span class="m">filled_xor_unfilled</span> constraint is doing real work, and it is worth saying out loud in the room: it makes the table physically incapable of holding an ambiguous row. Every slot is either won-and-explained or empty-and-explained — never both, never neither. That is what turns fill rate from a fragile derived metric into a trivial <span class="m">COUNT(*) FILTER</span>, and it is the difference between a model that lies quietly at quarter-end and one that can't.</p>
+
+    <h3 class="reveal">The impression fact — the subset that played</h3>
+    <p class="reveal">Filling a slot is a promise to play; an impression is the proof it played. The impression fact is a thin child of the opportunity, keyed by <span class="m">opportunity_id</span>, carrying the quartile-completion signal the beacons report and the <em>recognized</em> revenue — the money that actually counts toward delivery, which is not always the same as the money that was predicted.</p>
+
+    <div class="codelabel">DDL · THE SERVED GRAIN</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_ad_impressions (
+    impression_id    BIGINT       <span class="ck">PRIMARY KEY</span>,
+    opportunity_id   BIGINT       <span class="ck">NOT NULL</span>      <span class="cl">-- FK → fct_ad_opportunities</span>
+                     <span class="ck">REFERENCES</span> fct_ad_opportunities (opportunity_id),
+    started_ts       TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    completed_ts     TIMESTAMPTZ,
+    completion_pct   NUMERIC(5,2) <span class="ck">NOT NULL DEFAULT</span> 0,   <span class="cl">-- 0/25/50/75/100 quartiles</span>
+    skipped          BOOLEAN      <span class="ck">NOT NULL DEFAULT FALSE</span>,
+    recognized_cpm   NUMERIC(7,2) <span class="ck">NOT NULL</span>,            <span class="cl">-- billable rate, post-verification</span>
+    revenue_usd      NUMERIC(10,4) <span class="ck">NOT NULL</span>
+);
+<span class="cl">-- Only ~85-90% of opportunities ever land a row here. That gap,
+-- joined back to the unfilled_reason on the parent, IS the report.</span></div>
+
+    <h3 class="reveal">The contractual layer — snapshot, then ledger</h3>
+    <p class="reveal">Pacing is not computed on the fly. It is a daily snapshot per <span class="m">(campaign × day)</span> carrying a <span class="m">pacing_index</span> — where <span class="m">1.0</span> means exactly on track — so an account manager's morning dashboard reads one small pre-aggregated table instead of scanning two billion opportunity rows. When the flight closes short, the make-good obligation is born: a row in a ledger that finance carries as a balance-sheet liability until it is fulfilled with bonus inventory next period.</p>
+
+    <div class="codelabel">DDL · CONTRACT &amp; CAP STATE</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_pacing_daily (
+    campaign_id          BIGINT      <span class="ck">NOT NULL</span>,
+    day                  DATE        <span class="ck">NOT NULL</span>,
+    delivered            BIGINT      <span class="ck">NOT NULL</span>,   <span class="cl">-- impressions today</span>
+    committed_today      BIGINT      <span class="ck">NOT NULL</span>,   <span class="cl">-- even-pace daily target</span>
+    cumulative_delivered BIGINT      <span class="ck">NOT NULL</span>,
+    total_committed      BIGINT      <span class="ck">NOT NULL</span>,   <span class="cl">-- the contract number</span>
+    pacing_index         NUMERIC(6,3) <span class="ck">NOT NULL</span>,  <span class="cl">-- 1.000 = on track</span>
+    days_remaining       SMALLINT    <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (campaign_id, day)
+);
+
+<span class="cl">-- The liability. One row per under-delivered (campaign × month).
+-- This is finance's table, not the dashboard team's.</span>
+<span class="ck">CREATE TABLE</span> fct_makegood_obligations (
+    campaign_id      BIGINT      <span class="ck">NOT NULL</span>,
+    original_period  DATE        <span class="ck">NOT NULL</span>,   <span class="cl">-- the flight that fell short</span>
+    makegood_period  DATE,                     <span class="cl">-- where the owed inventory lands</span>
+    owed_impressions BIGINT      <span class="ck">NOT NULL</span>,
+    owed_value_usd   NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    status           TEXT        <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'pending'</span>
+                     <span class="ck">CHECK</span> (status <span class="ck">IN</span> (<span class="cs">'pending'</span>,<span class="cs">'scheduled'</span>,<span class="cs">'fulfilled'</span>)),
+    <span class="ck">PRIMARY KEY</span> (campaign_id, original_period)
+);
+
+<span class="cl">-- Frequency state: the hot, tiny table the ad server reads before
+-- every fill. Lives in a KV store in production; modeled here for the
+-- analytics mirror. Grain is what the server queries: per day, per cap.</span>
+<span class="ck">CREATE TABLE</span> fct_frequency_state (
+    profile_id         BIGINT     <span class="ck">NOT NULL</span>,
+    campaign_id        BIGINT     <span class="ck">NOT NULL</span>,
+    day                DATE       <span class="ck">NOT NULL</span>,
+    impressions_today  SMALLINT   <span class="ck">NOT NULL DEFAULT</span> 0,
+    impressions_week   SMALLINT   <span class="ck">NOT NULL DEFAULT</span> 0,
+    cap_today          SMALLINT   <span class="ck">NOT NULL</span>,    <span class="cl">-- e.g. 3</span>
+    cap_week           SMALLINT   <span class="ck">NOT NULL</span>,    <span class="cl">-- e.g. 10</span>
+    <span class="ck">PRIMARY KEY</span> (profile_id, campaign_id, day)
+);</div>
+
+    <p class="reveal">The dimensions are conventional and mostly SCD2 — <span class="m">dim_advertisers</span>, <span class="m">dim_campaigns</span>, <span class="m">dim_creatives</span>, <span class="m">dim_titles</span> (content ratings drive ad eligibility), <span class="m">dim_profiles</span> (the tier column gates the whole audience) — plus one that earns special mention: <span class="m">dim_campaign_flights</span>, which holds the <span class="m">start_date</span>, <span class="m">end_date</span>, and <span class="m">total_committed_impressions</span> that the entire pacing-and-make-good machinery measures itself against. The flight is the calendar the contract lives on.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The cap check, and the slot that is always accounted for</h2>
+    <p class="lede reveal">This system's correctness lives in two places: a counter the ad server increments atomically so a frequency cap is never silently breached, and a structural promise that every opportunity is conserved — filled plus unfilled equals offered, always.</p>
+
+    <p class="reveal">Walk the decision. An ad break opens; the server has a slot to fill. It pulls the candidate campaigns, and for each one it must answer a question the marketplace cannot get wrong: <em>has this profile already hit its cap?</em> That read-then-decide is a race — two ad breaks for the same viewer can open within milliseconds on two servers — so the increment has to be atomic, and it has to be conditional on staying under the cap. The guard is the lock.</p>
+
+    <div class="codelabel">SQL · THE ATOMIC HEART OF THE CAP</div>
+    <div class="codeblock"><span class="cl">-- Claim one impression against the frequency budget. Succeeds for
+-- exactly one concurrent caller per remaining unit under the cap.</span>
+<span class="ck">UPDATE</span> fct_frequency_state
+<span class="ck">SET</span>    impressions_today = impressions_today + 1,
+       impressions_week  = impressions_week  + 1
+<span class="ck">WHERE</span>  profile_id  = <span class="ck">:profile_id</span>
+  <span class="ck">AND</span>  campaign_id = <span class="ck">:campaign_id</span>
+  <span class="ck">AND</span>  day         = <span class="ck">CURRENT_DATE</span>
+  <span class="ck">AND</span>  impressions_today &lt; cap_today        <span class="cl">-- the guard IS the lock</span>
+  <span class="ck">AND</span>  impressions_week  &lt; cap_week;
+<span class="cl">-- rowcount = 1 → the slot is yours, serve the creative.
+-- rowcount = 0 → capped: skip this campaign, try the next, or emit
+--                an unfilled row with reason 'frequency_capped'.</span></div>
+
+    <p class="reveal">In production this counter lives in a key-value store, where the same logic is an atomic <span class="m">INCR</span> guarded by a compare against the cap; the SQL above is the mirror that makes the invariant legible. The point is identical either way: the cap is enforced by a single conditional write, not by reading the count and trusting it. Two simultaneous ad breaks racing for a viewer's last allowed Ford impression resolve with exactly one winner — and the loser does not error, it falls through to the next campaign or writes an honest empty row.</p>
+
+    <div class="pull reveal">Read-then-write is a bug at this scale. The cap is enforced by the write that refuses to exceed it, or it is not enforced at all.<span>INVENTORY RULE Nº 1 — THE GUARD IS THE LOCK</span></div>
+
+    <h3 class="reveal">The opportunity lifecycle</h3>
+    <div class="statechain reveal">
+      <span class="st">SLOT OPENED</span><span class="arr">→</span>
+      <span class="st">CAP CHECK</span><span class="arr">→</span>
+      <span class="st">DEMAND SELECT</span><span class="arr">→</span>
+      <span class="st terminal">FILLED · creative</span>
+      <span class="arr">/</span>
+      <span class="st terminal">UNFILLED · reason</span>
+    </div>
+    <p class="reveal">Every slot exits to exactly one terminal state, and both terminals are recorded. That is the second invariant, and it is a conservation law: for any campaign, day, or title, <span class="m">opportunities = filled + unfilled</span>, with no remainder. Because the opportunity fact's <span class="m">filled_xor_unfilled</span> constraint enforces it at write time, the accounting can never drift — there is no third bucket where lost slots hide. Fill rate, the most-watched number in the building, is therefore exact and cheap, and "money on the table" is just the unfilled side of the same ledger.</p>
+
+    <div class="codelabel">SQL · THE CONSERVATION CHECK (RUNS IN CI ON A SAMPLE)</div>
+    <div class="codeblock"><span class="cl">-- An opportunity is filled XOR explained-unfilled. This must return
+-- zero rows, forever. If it ever doesn't, the model is lying.</span>
+<span class="ck">SELECT</span> opportunity_id
+<span class="ck">FROM</span>   fct_ad_opportunities
+<span class="ck">WHERE</span>  opportunity_ts &gt;= <span class="ck">CURRENT_DATE</span> - 1
+  <span class="ck">AND</span> (
+        (served_creative_id <span class="ck">IS NOT NULL AND</span> unfilled_reason <span class="ck">IS NOT NULL</span>)
+     <span class="ck">OR</span> (served_creative_id <span class="ck">IS NULL     AND</span> unfilled_reason <span class="ck">IS NULL</span>)
+      );</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>The decision server, in Python</h2>
+    <p class="lede reveal">Three small programs carry the decision path: the slot resolver that fills or refuses, the impression-beacon consumer that promotes a fill into a verified play, and the cap-check primitive they both lean on. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The slot resolver — fill, or write the empty row</h3>
+    <p class="reveal">The resolver's most important behavior is the one a junior version omits: it <em>always</em> emits a row. Every branch — capped, no demand, unsuitable content, cap store down — ends in a write. There is no path where a slot quietly evaporates, because an evaporated slot is exactly the revenue leak the model exists to measure.</p>
+
+    <div class="codelabel">PYTHON · AD DECISION SERVER — RESOLVE ONE SLOT</div>
+    <div class="codeblock"><span class="ck">import</span> time, uuid
+
+<span class="ck">async def</span> <span class="cf">resolve_slot</span>(ctx, slot) -> dict:
+    <span class="cs">"""Decide one ad slot. The contract: ALWAYS return an opportunity
+    row. A filled slot carries a creative + fill_reason; an unfilled
+    slot carries an unfilled_reason. Never None, never a silent drop —
+    the empty row is the product."""</span>
+    base = {
+        <span class="cs">"opportunity_id"</span>: uuid.uuid4().int &gt;&gt; 64,
+        <span class="cs">"profile_id"</span>: slot.profile_id, <span class="cs">"title_id"</span>: slot.title_id,
+        <span class="cs">"session_id"</span>: slot.session_id, <span class="cs">"slot_type"</span>: slot.slot_type,
+        <span class="cs">"slot_position_sec"</span>: slot.position, <span class="cs">"opportunity_ts"</span>: time.time(),
+        <span class="cs">"served_creative_id"</span>: <span class="ck">None</span>, <span class="cs">"fill_reason"</span>: <span class="ck">None</span>,
+        <span class="cs">"unfilled_reason"</span>: <span class="ck">None</span>, <span class="cs">"predicted_cpm"</span>: <span class="ck">None</span>,
+    }
+
+    <span class="cl"># Content gate first: a TV-MA title is ineligible for some buys.</span>
+    eligible = <span class="ck">await</span> ctx.eligible_campaigns(slot.title_id, slot.profile_id)
+    <span class="ck">if not</span> eligible:
+        <span class="ck">return</span> {**base, <span class="cs">"unfilled_reason"</span>: <span class="cs">"no_eligible_demand"</span>}
+
+    <span class="cl"># Walk demand best-first; the FIRST campaign that clears its cap wins.</span>
+    <span class="ck">for</span> campaign <span class="ck">in</span> eligible:                 <span class="cl"># ranked by predicted_cpm × pacing_need</span>
+        ok = <span class="ck">await</span> claim_impression(ctx.kv, slot.profile_id, campaign.id)
+        <span class="ck">if</span> ok <span class="ck">is None</span>:                       <span class="cl"># cap store unreachable → FAIL CLOSED</span>
+            <span class="ck">return</span> {**base, <span class="cs">"unfilled_reason"</span>: <span class="cs">"cap_check_unavailable"</span>}
+        <span class="ck">if</span> ok:                              <span class="cl"># claimed a unit under the cap</span>
+            <span class="ck">return</span> {**base,
+                    <span class="cs">"served_creative_id"</span>: campaign.pick_creative(slot),
+                    <span class="cs">"fill_reason"</span>: campaign.fill_reason,   <span class="cl"># guaranteed_buy / won_auction</span>
+                    <span class="cs">"predicted_cpm"</span>: campaign.cpm}
+        <span class="cl"># ok is False → this profile is capped for THIS campaign; try next.</span>
+
+    <span class="cl"># Demand existed but everyone was capped for this viewer.</span>
+    <span class="ck">return</span> {**base, <span class="cs">"unfilled_reason"</span>: <span class="cs">"frequency_capped"</span>}</div>
+
+    <p class="reveal">One carve-out, always stated: <strong>house ads are the floor, not a branch here.</strong> Some designs backfill an unfilled premium slot with an owned-and-operated promo so the screen is never black; that is a policy layer above this resolver, and it changes the <span class="m">fill_reason</span> to <span class="cs">house_ad</span> rather than suppressing the unfilled accounting. The diagnostic still sees that no paying demand cleared — we just chose not to show a blank.</p>
+
+    <h3 class="reveal">2 · The cap-check primitive — atomic, fail-closed</h3>
+    <div class="codelabel">PYTHON · CLAIM ONE IMPRESSION AGAINST THE CAP</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">claim_impression</span>(kv, profile_id, campaign_id) -> bool | <span class="ck">None</span>:
+    <span class="cs">"""Atomic increment-under-cap. Returns True (claimed), False
+    (capped), or None (store unreachable → caller fails closed).
+    The whole frequency promise rides on this being one round-trip,
+    not a read followed by a write."""</span>
+    key = <span class="cs">f"freq:{profile_id}:{campaign_id}:{_today()}"</span>
+    cap = CAPS[campaign_id].daily
+    <span class="ck">try</span>:
+        <span class="cl"># Lua / server-side: INCR then compare, all under one lock.</span>
+        <span class="cl"># Returns the post-increment value, or -1 if it would exceed cap.</span>
+        n = <span class="ck">await</span> kv.eval(CLAIM_LUA, keys=[key], args=[cap, DAY_TTL])
+    <span class="ck">except</span> (ConnectionError, TimeoutError):
+        <span class="ck">return</span> <span class="ck">None</span>                 <span class="cl"># do NOT guess the count: refuse to fill</span>
+    <span class="ck">return</span> n != -1
+
+CLAIM_LUA = <span class="cs">"""
+  local n = tonumber(redis.call('GET', KEYS[1]) or '0')
+  if n &gt;= tonumber(ARGV[1]) then return -1 end      -- at cap: reject
+  n = redis.call('INCR', KEYS[1])
+  if n == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
+  return n
+"""</span></div>
+
+    <h3 class="reveal">3 · The beacon consumer — a fill becomes a play</h3>
+    <p class="reveal">A filled opportunity is a promise; the player's quartile beacons are the receipt. The consumer folds 0/25/50/75/100 pings into one impression row, and — the senior move — it only recognizes revenue past the contractual completion threshold, because a viewer who skipped at the two-second mark did not deliver the impression the advertiser bought.</p>
+
+    <div class="codelabel">PYTHON · BEACON CONSUMER → fct_ad_impressions</div>
+    <div class="codeblock"><span class="ck">from</span> collections <span class="ck">import</span> defaultdict
+
+RECOGNIZE_AT_PCT = 50      <span class="cl"># most CTV buys recognize at the 50% quartile</span>
+
+<span class="ck">async def</span> <span class="cf">fold_beacons</span>(stream, sink):
+    <span class="cs">"""Collapse quartile pings per opportunity into one impression row.
+    Idempotent by construction: a duplicated 75% ping cannot raise
+    completion above the max already seen, so at-least-once delivery
+    is safe — we never need exactly-once from the transport."""</span>
+    state: dict[int, dict] = defaultdict(<span class="ck">lambda</span>: {<span class="cs">"pct"</span>: 0, <span class="cs">"skipped"</span>: <span class="ck">False</span>})
+    <span class="ck">async for</span> ping <span class="ck">in</span> stream:
+        s = state[ping.opportunity_id]
+        s[<span class="cs">"pct"</span>]     = max(s[<span class="cs">"pct"</span>], ping.quartile_pct)   <span class="cl"># monotone, dup-safe</span>
+        s[<span class="cs">"skipped"</span>] = s[<span class="cs">"skipped"</span>] <span class="ck">or</span> ping.skipped
+        <span class="ck">if</span> ping.quartile_pct == 100 <span class="ck">or</span> ping.is_break_end:
+            cpm = ping.contract_cpm <span class="ck">if</span> s[<span class="cs">"pct"</span>] &gt;= RECOGNIZE_AT_PCT <span class="ck">else</span> 0
+            <span class="ck">await</span> sink.write({
+                <span class="cs">"opportunity_id"</span>: ping.opportunity_id,
+                <span class="cs">"completion_pct"</span>: s[<span class="cs">"pct"</span>], <span class="cs">"skipped"</span>: s[<span class="cs">"skipped"</span>],
+                <span class="cs">"recognized_cpm"</span>: cpm,                 <span class="cl"># 0 below threshold</span>
+                <span class="cs">"revenue_usd"</span>: cpm / 1000.0,            <span class="cl"># one impression = CPM/1000</span>
+            })
+            <span class="ck">del</span> state[ping.opportunity_id]</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>The nightly pace and the monthly reckoning</h2>
+    <p class="lede reveal">Two derived jobs turn rows into accountability. A nightly roll-up computes each campaign's pacing index against an even-delivery target; a month-close job reads the flights that ended and mints the make-good liability for the ones that fell short.</p>
+
+    <p class="reveal">The pacing index is the contract's pulse. The even-pace target for a flight is simply <span class="m">total_committed ÷ flight_days</span>; cumulative delivery divided by what <em>should</em> have been delivered by now gives an index where <span class="m">1.0</span> is on track, below is behind, above is ahead of plan. The subtlety is that pacing must not over-correct: a campaign at <span class="m">0.6</span> with twenty days left has time, while the same index with three days left is a five-alarm fire. So the job emits both the index and <span class="m">days_remaining</span>, and the alerting threshold is a function of both — pacing is read with the calendar, never alone.</p>
+
+    <div class="codelabel">PYTHON · NIGHTLY PACING ROLL-UP</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">build_pacing_snapshot</span>(spark, run_date):
+    <span class="cs">"""Pre-aggregate (campaign × day) so account managers read one small
+    table, not two billion opportunity rows. The pacing_index is the
+    whole point: 1.0 == exactly on the even-delivery line."""</span>
+    delivered = (spark.table(<span class="cs">"fct_ad_impressions"</span>)
+        .where(F.col(<span class="cs">"recognized_cpm"</span>) &gt; 0)          <span class="cl"># only recognized impressions count</span>
+        .join(spark.table(<span class="cs">"fct_ad_opportunities"</span>), <span class="cs">"opportunity_id"</span>)
+        .where(F.to_date(<span class="cs">"opportunity_ts"</span>) == run_date)
+        .groupBy(<span class="cs">"campaign_id"</span>).agg(F.count(<span class="cs">"*"</span>).alias(<span class="cs">"delivered"</span>)))
+
+    flights = spark.table(<span class="cs">"dim_campaign_flights"</span>)
+    snap = (delivered.join(flights, <span class="cs">"campaign_id"</span>)
+        .withColumn(<span class="cs">"flight_days"</span>,
+                    F.datediff(<span class="cs">"end_date"</span>, <span class="cs">"start_date"</span>) + 1)
+        .withColumn(<span class="cs">"days_elapsed"</span>,
+                    F.datediff(F.lit(run_date), <span class="cs">"start_date"</span>) + 1)
+        .withColumn(<span class="cs">"committed_today"</span>,
+                    F.col(<span class="cs">"total_committed_impressions"</span>) / F.col(<span class="cs">"flight_days"</span>))
+        .withColumn(<span class="cs">"days_remaining"</span>,
+                    F.col(<span class="cs">"flight_days"</span>) - F.col(<span class="cs">"days_elapsed"</span>))
+        <span class="cl"># cumulative is carried forward; shown here as the day's contribution</span>
+        .withColumn(<span class="cs">"should_have_by_now"</span>,
+                    F.col(<span class="cs">"committed_today"</span>) * F.col(<span class="cs">"days_elapsed"</span>))
+        .withColumn(<span class="cs">"pacing_index"</span>,
+                    F.col(<span class="cs">"cumulative_delivered"</span>) /
+                    F.greatest(F.col(<span class="cs">"should_have_by_now"</span>), F.lit(1))))
+    <span class="ck">return</span> snap.select(<span class="cs">"campaign_id"</span>, F.lit(run_date).alias(<span class="cs">"day"</span>),
+        <span class="cs">"delivered"</span>, <span class="cs">"committed_today"</span>, <span class="cs">"cumulative_delivered"</span>,
+        F.col(<span class="cs">"total_committed_impressions"</span>).alias(<span class="cs">"total_committed"</span>),
+        <span class="cs">"pacing_index"</span>, <span class="cs">"days_remaining"</span>)</div>
+
+    <p class="reveal">The month-close job runs once, the morning after a flight ends. For every campaign whose flight closed in the period, it compares cumulative delivery to the commitment; any shortfall becomes a make-good row, priced at the contracted CPM, and lands in finance's ledger as a pending liability. Nothing about this is approximate — a make-good is a real obligation to deliver bonus impressions next period or refund, and it sits on the balance sheet until <span class="m">status</span> moves to <span class="cs">fulfilled</span>.</p>
+
+    <div class="codelabel">PYTHON · MONTH-CLOSE — MINT THE MAKE-GOOD LIABILITY</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">close_flights</span>(spark, close_date):
+    <span class="cs">"""Run the morning after a flight ends. Under-delivery becomes a
+    booked liability — owed impressions AND owed dollars — not a metric
+    on a slide. Idempotent: keyed by (campaign, original_period), so a
+    re-run upserts the same obligation rather than double-booking."""</span>
+    closed = (spark.table(<span class="cs">"fct_pacing_daily"</span>)
+        .where(F.col(<span class="cs">"day"</span>) == close_date)
+        .where(F.col(<span class="cs">"days_remaining"</span>) == 0)         <span class="cl"># flight ended yesterday</span>
+        .withColumn(<span class="cs">"shortfall"</span>,
+                    F.col(<span class="cs">"total_committed"</span>) - F.col(<span class="cs">"cumulative_delivered"</span>)))
+
+    owed = (closed.where(F.col(<span class="cs">"shortfall"</span>) &gt; 0)
+        .join(spark.table(<span class="cs">"dim_campaigns"</span>), <span class="cs">"campaign_id"</span>)
+        .select(
+            <span class="cs">"campaign_id"</span>,
+            F.trunc(F.lit(close_date), <span class="cs">"month"</span>).alias(<span class="cs">"original_period"</span>),
+            F.lit(<span class="ck">None</span>).cast(<span class="cs">"date"</span>).alias(<span class="cs">"makegood_period"</span>),
+            F.col(<span class="cs">"shortfall"</span>).alias(<span class="cs">"owed_impressions"</span>),
+            (F.col(<span class="cs">"shortfall"</span>) / 1000.0 * F.col(<span class="cs">"contract_cpm"</span>))
+                .alias(<span class="cs">"owed_value_usd"</span>),
+            F.lit(<span class="cs">"pending"</span>).alias(<span class="cs">"status"</span>)))
+
+    owed.write.mode(<span class="cs">"merge"</span>).saveAsTable(<span class="cs">"fct_makegood_obligations"</span>)</div>
+
+    <div class="pull reveal">The pacing index may move every night. The make-good, once booked, is a number finance carries on the balance sheet — and the only way to retire it is to actually deliver the impressions.<span>INVENTORY RULE Nº 2 — THE OBLIGATION IS REAL MONEY</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Three questions the model was built to answer</h2>
+    <p class="lede reveal">The opportunity fact and the contractual layer are where the system explains itself. Three queries an interviewer loves, because each carries a classic pattern on its back — conditional aggregation, a window-LAG onset detector, and a liability roll-up.</p>
+
+    <h3 class="reveal">Where did the money leak? — conditional aggregation</h3>
+    <p class="reveal">The flagship report, and the reason the empty rows exist. Fill rate is a single <span class="m">COUNT(*) FILTER</span>, and the unfilled reasons fan out into a diagnosis: <span class="cs">no_eligible_demand</span> is the sales team's problem, <span class="cs">frequency_capped</span> is the cap-policy team's, <span class="cs">content_unsuitable</span> is eligibility rules. One scan tells you which lever to pull.</p>
+
+    <div class="codelabel">SQL · FILL RATE &amp; THE MONEY-ON-THE-TABLE BREAKDOWN</div>
+    <div class="codeblock"><span class="ck">SELECT</span>
+    slot_type,
+    count(*)                                                       <span class="ck">AS</span> opportunities,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> served_creative_id <span class="ck">IS NOT NULL</span>)      <span class="ck">AS</span> filled,
+    round(100.0 * count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> served_creative_id <span class="ck">IS NOT NULL</span>)
+                 / <span class="cf">nullif</span>(count(*), 0), 1)                          <span class="ck">AS</span> fill_rate_pct,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> unfilled_reason = <span class="cs">'no_eligible_demand'</span>)  <span class="ck">AS</span> no_demand,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> unfilled_reason = <span class="cs">'frequency_capped'</span>)    <span class="ck">AS</span> cap_blocked,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> unfilled_reason = <span class="cs">'content_unsuitable'</span>)  <span class="ck">AS</span> content_block,
+    <span class="cl">-- the dollar framing: unfilled rows priced at what they were worth</span>
+    round(sum(predicted_cpm) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> served_creative_id <span class="ck">IS NULL</span>)
+                 / 1000.0, 2)                                      <span class="ck">AS</span> est_revenue_lost
+<span class="ck">FROM</span>   fct_ad_opportunities
+<span class="ck">WHERE</span>  opportunity_ts &gt;= <span class="ck">CURRENT_DATE</span> - 1
+<span class="ck">GROUP BY</span> slot_type
+<span class="ck">ORDER BY</span> est_revenue_lost <span class="ck">DESC</span>;</div>
+
+    <h3 class="reveal">Which campaigns are about to breach? — pacing with a runway test</h3>
+    <p class="reveal">The account manager's morning alert. The pattern is a guarded read of the snapshot — index below a threshold <em>and</em> little runway left — that computes the catch-up rate now required. Note that "behind" alone is not actionable; "behind with no days left" is.</p>
+
+    <div class="codelabel">SQL · CAMPAIGNS AT RISK OF UNDER-DELIVERY</div>
+    <div class="codeblock"><span class="ck">SELECT</span> p.campaign_id, c.advertiser_id,
+       p.cumulative_delivered, p.total_committed,
+       round(100.0 * p.cumulative_delivered
+             / <span class="cf">nullif</span>(p.total_committed, 0), 1)             <span class="ck">AS</span> pct_delivered,
+       p.pacing_index, p.days_remaining,
+       <span class="cl">-- what daily rate closes the gap in the time that's left?</span>
+       <span class="ck">CEIL</span>((p.total_committed - p.cumulative_delivered)
+            / <span class="cf">nullif</span>(p.days_remaining, 0))                  <span class="ck">AS</span> daily_needed
+<span class="ck">FROM</span>   fct_pacing_daily p
+<span class="ck">JOIN</span>   dim_campaigns    c <span class="ck">USING</span> (campaign_id)
+<span class="ck">WHERE</span>  p.day = <span class="ck">CURRENT_DATE</span>
+  <span class="ck">AND</span>  p.pacing_index  &lt; 0.95
+  <span class="ck">AND</span>  p.days_remaining &lt; 5                          <span class="cl">-- behind AND out of runway</span>
+<span class="ck">ORDER BY</span> p.pacing_index <span class="ck">ASC</span>;                          <span class="cl">-- worst first → priority bump</span></div>
+
+    <h3 class="reveal">What do we owe, and when did caps start eating reach? — liability + LAG</h3>
+    <p class="reveal">Finance wants the standing liability; the cap-policy team wants to know the <em>moment</em> a campaign started bleeding fills to frequency caps. The first is a straight roll-up of the obligation ledger. The second is the classic onset detector: <span class="m">LAG</span> over an hourly cap-block rate to find where it first crossed a line — the same gaps-and-onsets shape that finds a surge or an incident.</p>
+
+    <div class="codelabel">SQL · STANDING MAKE-GOOD LIABILITY, AND CAP-BLOCK ONSET</div>
+    <div class="codeblock"><span class="cl">-- (a) What Netflix owes right now, by advertiser — the balance sheet.</span>
+<span class="ck">SELECT</span> c.advertiser_id,
+       count(<span class="ck">DISTINCT</span> mg.campaign_id)                <span class="ck">AS</span> campaigns_owed,
+       sum(mg.owed_impressions)                       <span class="ck">AS</span> impressions_owed,
+       round(sum(mg.owed_value_usd), 2)               <span class="ck">AS</span> dollars_owed
+<span class="ck">FROM</span>   fct_makegood_obligations mg
+<span class="ck">JOIN</span>   dim_campaigns            c <span class="ck">USING</span> (campaign_id)
+<span class="ck">WHERE</span>  mg.status <span class="ck">IN</span> (<span class="cs">'pending'</span>,<span class="cs">'scheduled'</span>)
+<span class="ck">GROUP BY</span> c.advertiser_id
+<span class="ck">ORDER BY</span> dollars_owed <span class="ck">DESC</span>;
+
+<span class="cl">-- (b) When did frequency capping START throttling a campaign's fills?
+--     LAG finds the hour the cap-block rate first crossed 20%.</span>
+<span class="ck">WITH</span> hourly <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> date_trunc(<span class="cs">'hour'</span>, opportunity_ts)                   <span class="ck">AS</span> hr,
+           count(*)                                            <span class="ck">AS</span> opps,
+           count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> unfilled_reason = <span class="cs">'frequency_capped'</span>)
+               * 1.0 / count(*)                                <span class="ck">AS</span> cap_rate
+    <span class="ck">FROM</span>   fct_ad_opportunities
+    <span class="ck">WHERE</span>  opportunity_ts &gt;= <span class="ck">CURRENT_DATE</span> - 2
+    <span class="ck">GROUP BY</span> 1
+)
+<span class="ck">SELECT</span> hr, round(100 * cap_rate, 1) <span class="ck">AS</span> cap_block_pct
+<span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> hr, cap_rate,
+           <span class="cf">lag</span>(cap_rate) <span class="ck">OVER</span> (<span class="ck">ORDER BY</span> hr) <span class="ck">AS</span> prev_rate
+    <span class="ck">FROM</span>   hourly
+) w
+<span class="ck">WHERE</span>  cap_rate &gt;= 0.20 <span class="ck">AND</span> <span class="cf">coalesce</span>(prev_rate, 0) &lt; 0.20    <span class="cl">-- the onset</span>
+<span class="ck">ORDER BY</span> hr;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Three audiences, one screen</h2>
+    <p class="lede reveal">A senior design ends with observability, because every careful accounting choice above is invisible without it. The inventory dashboard serves three audiences at once — ops watches fill, account managers watch pacing, finance watches the liability — and each reads a different definition of "healthy."</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>OPS · YIELD</dt><dd><span class="m">fill rate by slot_type</span>, <span class="m">unfilled-reason mix</span> (the leak diagnosis), <span class="m">estimated revenue lost</span> on null-creative rows, <span class="m">cap-block rate</span> — a rising cap-block share means the frequency policy, not demand, is throttling yield.</dd></div>
+      <div class="defrow"><dt>ACCOUNT MGMT · PACING</dt><dd><span class="m">campaigns under 0.95 with &lt;5 days left</span>, the <span class="m">daily-needed catch-up rate</span>, and the <span class="m">distribution of pacing_index</span> across the active book — a left-skewed cluster is a portfolio-wide under-delivery risk, not one bad campaign.</dd></div>
+      <div class="defrow"><dt>FINANCE · LIABILITY</dt><dd><span class="m">pending make-good $</span> on the books, <span class="m">make-good fulfilled this month</span>, and the <span class="m">owed-impression backlog</span> that next period's bonus inventory has to absorb — this is a balance-sheet line, refreshed nightly, not a vanity metric.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Inventory Ops — Ad Tier</span>
+        <span class="dash-sub">FRI 21:10 PT · ALL CAMPAIGNS · NIGHTLY CLOSE PENDING</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Fill Rate</div><div class="tv ok">88.6<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,13 40,15 60,12 80,13 100,11 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Cap-Block Rate</div><div class="tv warn">7.1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,21 40,19 60,17 80,14 100,11 120,9" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Est. Revenue Lost</div><div class="tv warn">$1.4<small>M/d</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,18 60,16 80,15 100,14 120,13" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Campaigns At Risk</div><div class="tv bad">12</div><svg viewBox="0 0 120 30"><polyline points="0,16 20,16 40,15 60,14 80,12 100,10 120,8" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Unfilled-reason mix · last 24h (share of empty slots)</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace" font-size="9" fill="#b8ad93">
+              <text x="0" y="16">no_eligible_demand</text>
+              <rect x="118" y="8" width="104" height="11" fill="#3a352b"/>
+              <rect x="118" y="8" width="74" height="11" fill="#c25a2a"/>
+              <text x="0" y="40">frequency_capped</text>
+              <rect x="118" y="32" width="104" height="11" fill="#3a352b"/>
+              <rect x="118" y="32" width="48" height="11" fill="#d8a44a"/>
+              <text x="0" y="64">content_unsuitable</text>
+              <rect x="118" y="56" width="104" height="11" fill="#3a352b"/>
+              <rect x="118" y="56" width="20" height="11" fill="#6e5a23"/>
+              <text x="196" y="80" fill="#8f8672">demand-led leak</text>
+            </g>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Recognized CPM</div><div class="tv ok">$31<small>avg</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Median Pacing Idx</div><div class="tv ok">1.02</div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,14 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Make-Good Pending</div><div class="tv bad">$6.8<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,19 40,18 60,16 80,15 100,13 120,12" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Owed Impr. Backlog</div><div class="tv warn">214<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,17 20,16 40,17 60,15 80,16 100,14 120,15" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">MG Fulfilled MTD</div><div class="tv ok">$2.1<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,20 40,18 60,16 80,13 100,11 120,9" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Avg Freq / User</div><div class="tv ok">2.4<small>×</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,14 100,16 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy-but-tightening night tells: fill is fine, but the cap-block rate and revenue-lost tiles are amber, twelve campaigns are out of runway, and the make-good liability is climbing — under-delivery is converting into dollars owed in real time.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the tiles together and the dashboard narrates a specific tension. Fill rate looks healthy at 88.6%, which a logging-only model would call a win and stop. But the unfilled-reason bar says most of the empty slots are <span class="m">no_eligible_demand</span> — a sales problem, not an ops one — and the cap-block rate is creeping up, which means the frequency policy is starting to suppress otherwise-fillable inventory. Meanwhile twelve campaigns are behind with the month nearly out, and the make-good liability has already grown to $6.8M. None of that is visible from impressions alone. It is visible only because the empty slots were stored as first-class rows.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the ad-tier specifics away and the question was testing five judgments, each of which generalizes far beyond CTV advertising:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>THE ABSENCE</dt><dd>Modeling what didn't happen as a first-class row. The unfilled opportunity is the only artifact that can answer "why did we leave money on the table?" — and the instinct to store absence, not just events, is the senior move in any inventory, funnel, or yield system.</dd></div>
+      <div class="defrow"><dt>THE INVARIANT</dt><dd>Enforcing correctness at write time, not query time. A frequency cap held by an atomic guarded increment, and an opportunity conserved by a filled-XOR-unfilled constraint, mean the numbers can't drift — fill rate is exact because the schema refuses ambiguity.</dd></div>
+      <div class="defrow"><dt>TEMPO</dt><dd>Separating the millisecond decision path from the nightly and monthly settlement. A contract is measured against a calendar; live consistency belongs only on the cap read, where staleness costs money in real time.</dd></div>
+      <div class="defrow"><dt>FAILURE SHAPE</dt><dd>Failing closed on purpose. When the cap store is unreachable, decline and log an honest empty row — a degraded experience you can diagnose beats a broken contract you can't undo.</dd></div>
+      <div class="defrow"><dt>HONESTY</dt><dd>Turning a revenue policy into queryable finance. Pacing as a snapshot and make-goods as a booked liability move the contractual layer out of a sales spreadsheet and onto the balance sheet, where a model has to survive quarter-end.</dd></div>
+    </dl>
+    <div class="pull reveal">Anyone can count the ads that played. The interview is won by the candidate who insists on a row for the ad that didn't — because that empty row is where the revenue, the diagnosis, and the contract all live.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 05 — THE INVENTORY PROBLEM<br>DATA ARCHITECTURE · INVENTORY &amp; PACING · THE CRAFT OF THE EMPTY ROW</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Recurrence Problem — PaddySpeaks</title>
+<meta name="description" content="Design Google Calendar: recurring events as an RRULE that denotes an unbounded set of occurrences, per-instance exceptions as an append-only ledger, IANA time zones with UTC derived per occurrence so DST can't move a million stand-ups, invitations, and free/busy 'find a time' as a 15-minute slot bitmap. Schema, the local-time invariant, DST-correct Python, the change-stream pipeline, and the analytics dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 20</div>
+    <h1 class="reveal">The <em>Recurrence</em> Problem</h1>
+    <p class="deck reveal">Design Google Calendar — recurring events with per-instance exceptions, IANA time zones that survive daylight saving, invitations that fan out to other people's calendars, and "find a time" across a room of attendees. One row can mean infinite meetings, and a single clock change can silently move a million stand-ups. The decision that separates a senior answer: store the rule, derive the instant. A full working-through — data flow, the schema, the local-time invariant, DST-correct expansion in Python, the free/busy bitmap, the change-stream pipeline, and the dashboard that proves it.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Productivity / Scheduling</b></span>
+      <span>READING · <b>~27 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One row, infinite meetings</h2>
+    <p class="lede reveal">A calendar looks like the easiest app you will ever build: a list of events with a start and an end, sorted by time. It is, in fact, one of the quietest correctness traps in consumer software — and the question reveals fast whether someone has shipped against time, or only read about it.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data model behind Google Calendar — recurring events with per-instance exceptions, IANA time zones with daylight-saving correctness, invitations that accept/decline/tentative, and 'find a time' free/busy across many attendees. And it has to answer point-in-time: what did my Tuesday look like as Calendar showed it last Monday? How would you scope it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">Two facts make this hard, and both are facts about <em>data</em>, not about the web tier. First, a recurring event is one row that denotes an unbounded number of occurrences — "every weekday, forever" is a single record and an infinite series. Second, the correct time of an event is a moving target: a 9:00&nbsp;AM stand-up has to stay 9:00&nbsp;AM <em>after</em> the clocks change, which means you cannot freeze it to a UTC instant and walk away. Layer invitations and "find a time across ten people" on top, and you have a read-heavy, latency-bound system where the bugs are measured in missed meetings. The weak answer draws a load balancer and three app servers. The strong answer names the forces that will deform the design first, because every later decision exists to survive one of them.</p>
+
+    <p class="reveal">There are exactly four forces, and they are not the usual suspects. So before any boxes and arrows, the working frame for the whole session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE EXPLOSION</dt><dd><strong>Recurrence-as-rule.</strong> "Daily stand-up, every weekday, no end date" is one row that denotes an infinite set. Materialize occurrences as rows and you sign up for a forever-running backfill and a thousand-row rewrite per series edit. Expand the rule on read and writes stay O(1) — but a malicious <span class="m">FREQ=MINUTELY</span> rule tries to emit a million instances for a one-month view.</dd></div>
+      <div class="defrow"><dt>THE MOVING CLOCK</dt><dd><strong>Time is not a number.</strong> Storing an event as a single UTC instant is correct for a one-off and wrong for anything that recurs. The rule has to live in <em>local wall-clock time</em> beside an IANA zone, and UTC is derived per occurrence — never frozen, or the day the clocks change the whole company's stand-up jumps an hour.</dd></div>
+      <div class="defrow"><dt>THE MANY CALENDARS</dt><dd><strong>One event, ten partitions.</strong> A meeting I organize belongs to my calendar and to all nine attendees' at once. Read-time fan-in turns the hottest path into a scatter-gather; write-time fan-out is the answer — until a 50,000-person all-hands turns one edit into 50,000 writes.</dd></div>
+      <div class="defrow"><dt>THE SECOND QUERY SYSTEM</dt><dd><strong>Free/busy is not a calendar read.</strong> "When is everyone free?" is a privacy-preserving projection — opaque busy intervals, never titles — computed across many people and hammered by schedulers, room booking, and now AI agents polling availability. Re-expanding everyone's recurrences on every call recomputes a deterministic answer forever.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Read those four again: every one is a data problem, not a web-tier problem. That is the tell of the question — the interesting engineering is in the model and the pipeline, and the request path is almost boring.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. In scope: event CRUD, recurrence with per-instance exceptions, invitations and RSVP, and free/busy. Out of scope, said explicitly: email-delivery internals, video conferencing, working-hours and appointment-slot features, and sharing ACLs — modeled-for, not designed in detail. One tension I state up front: this is <strong>read-heavy with a hard correctness requirement around time</strong>. A stale calendar <em>view</em> for a few seconds is fine, so availability beats strict consistency for reads — but RSVPs need read-your-writes, and free/busy must not double-book in obvious ways. Time gets stored three ways at once, which I will defend with the DDL.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. Google-class numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Monthly / daily active users</td><td class="mono">~500M / ~180M</td><td>Sets the read fan-out; everyone opens "this week" at once</td></tr>
+      <tr><td>Read : write ratio</td><td class="mono">~10 : 1</td><td>Make the common read nearly free; pay costs on the rare write</td></tr>
+      <tr><td><strong>Occurrences per series row</strong></td><td class="mono"><strong>1 row → ∞</strong></td><td><strong>The materialize-vs-expand call that shapes the whole architecture</strong></td></tr>
+      <tr><td>Event writes / day</td><td class="mono">50–80M</td><td>~1k writes/s average, spiking to 5–10k/s, business-hours-spiky</td></tr>
+      <tr><td>Peak reads / s</td><td class="mono">100k+</td><td>Sync clients + calendar opens; a latency problem, not a volume one</td></tr>
+      <tr><td>Free/busy slot</td><td class="mono">15 min · 96 bits/day</td><td>12 bytes/calendar-day; ten people for two weeks &lt; 2&nbsp;KB</td></tr>
+      <tr><td>Storage over years</td><td class="mono">single-digit PB</td><td>Not storage-bound. Correctness and read latency are the game</td></tr>
+    </table>
+
+    <p class="reveal">Notice the row unlike the others: a single physical row denotes an unbounded number of occurrences. That is not a detail — it dictates the storage layout, the write cost, and the entire free/busy design. The rest of this piece is a consequence of resolving it deliberately: store the rule, expand for the visible window only, and derive UTC per occurrence. Everything else follows the data.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following an edit through the building</h2>
+    <p class="lede reveal">One source of truth, four projections off one ordered log. The event store owns truth; attendee copies, the free/busy bitmap, the rendered-window cache, and client sync are all derived consumers of a single per-calendar change stream — fed by a transactional outbox so the stream can never miss a committed change or replay one that rolled back.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">WRITE PATH · ONE TX, RULE + OUTBOX</text>
+        <text x="20" y="338" font-size="11" letter-spacing="3" fill="#6f7d5c">PROJECTIONS · DERIVED, VERSIONED, REPLAYABLE</text>
+        <line x1="20" y1="308" x2="960" y2="308" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- client -->
+        <rect x="20" y="56" width="156" height="72" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="98" y="82" font-size="12" text-anchor="middle" fill="#23201a">CLIENT</text>
+        <text x="98" y="100" font-size="10.5" text-anchor="middle" fill="#7d7567">create · move · RSVP</text>
+        <text x="98" y="115" font-size="10.5" text-anchor="middle" fill="#7d7567">+ expected version</text>
+
+        <!-- write svc -->
+        <rect x="228" y="48" width="180" height="88" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="318" y="74" font-size="12" text-anchor="middle" fill="#23201a">EVENT WRITE SVC</text>
+        <text x="318" y="92" font-size="10.5" text-anchor="middle" fill="#7d7567">CAS on version</text>
+        <text x="318" y="108" font-size="10.5" text-anchor="middle" fill="#7d7567">store rule, not occurrences</text>
+        <text x="318" y="124" font-size="10.5" text-anchor="middle" fill="#a4502e">local time is the truth</text>
+
+        <!-- event store -->
+        <rect x="460" y="46" width="186" height="92" fill="#27241d"/>
+        <text x="553" y="76" font-size="12.5" text-anchor="middle" fill="#e9e2d0">EVENT STORE</text>
+        <text x="553" y="94" font-size="10.5" text-anchor="middle" fill="#b8ad93">events + outbox, one TX</text>
+        <text x="553" y="110" font-size="10.5" text-anchor="middle" fill="#b8ad93">sharded by calendar_id</text>
+        <text x="553" y="125" font-size="10.5" text-anchor="middle" fill="#d98e63">the source of truth</text>
+
+        <!-- change stream -->
+        <rect x="700" y="40" width="252" height="96" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="826" y="72" font-size="12.5" text-anchor="middle" fill="#a4502e">CHANGE STREAM (CDC)</text>
+        <text x="826" y="90" font-size="10.5" text-anchor="middle" fill="#7d7567">Debezium tails WAL → Kafka</text>
+        <text x="826" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">one ordered partition / calendar</text>
+        <text x="826" y="122" font-size="10.5" text-anchor="middle" fill="#7d7567">seq IS the sync token</text>
+
+        <!-- projections -->
+        <rect x="20" y="360" width="210" height="68" fill="#fbf8f1" stroke="#a4502e" stroke-width="1.5"/>
+        <text x="125" y="384" font-size="12" text-anchor="middle" fill="#a4502e">FAN-OUT CONSUMER</text>
+        <text x="125" y="402" font-size="10.5" text-anchor="middle" fill="#7d7567">copy into attendee shards</text>
+        <text x="125" y="417" font-size="10.5" text-anchor="middle" fill="#7d7567">&gt; threshold → reference-only</text>
+
+        <rect x="258" y="352" width="200" height="84" fill="#fbf8f1" stroke="#8a5d12" stroke-width="2"/>
+        <text x="358" y="378" font-size="12" text-anchor="middle" fill="#8a5d12">FREE/BUSY MATERIALIZER</text>
+        <text x="358" y="396" font-size="10.5" text-anchor="middle" fill="#7d7567">expand series to horizon</text>
+        <text x="358" y="412" font-size="10.5" text-anchor="middle" fill="#7d7567">stamp 15-min bitmaps</text>
+        <text x="358" y="428" font-size="10.5" text-anchor="middle" fill="#7d7567">only touched days</text>
+
+        <rect x="486" y="360" width="172" height="68" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="1.5"/>
+        <text x="572" y="384" font-size="12" text-anchor="middle" fill="#6f7d5c">CACHE-BUMP</text>
+        <text x="572" y="402" font-size="10.5" text-anchor="middle" fill="#7d7567">rotate calendar version</text>
+        <text x="572" y="417" font-size="10.5" text-anchor="middle" fill="#7d7567">keys roll over, no purge</text>
+
+        <rect x="686" y="360" width="172" height="68" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="772" y="384" font-size="12" text-anchor="middle" fill="#23201a">CLIENT SYNC</text>
+        <text x="772" y="402" font-size="10.5" text-anchor="middle" fill="#7d7567">"changed since token?"</text>
+        <text x="772" y="417" font-size="10.5" text-anchor="middle" fill="#7d7567">usually an empty delta</text>
+
+        <!-- write arrows -->
+        <line x1="176" y1="92" x2="224" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="408" y1="92" x2="456" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="646" y1="90" x2="696" y2="88" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+
+        <!-- stream forks down to four consumers -->
+        <line x1="760" y1="136" x2="160" y2="356" stroke="#a4502e" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <line x1="800" y1="136" x2="380" y2="348" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <line x1="850" y1="136" x2="572" y2="356" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <line x1="900" y1="136" x2="800" y2="356" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+
+        <!-- read path -->
+        <rect x="20" y="468" width="280" height="56" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="160" y="492" font-size="12" text-anchor="middle" fill="#7d7567">READ PATH · render window</text>
+        <text x="160" y="509" font-size="10.5" text-anchor="middle" fill="#7d7567">2 SELECTs + expand, cache by version</text>
+
+        <line x1="160" y1="428" x2="160" y2="464" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <line x1="572" y1="428" x2="300" y2="496" stroke="#8a5d12" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+
+        <text x="360" y="500" font-size="10.5" fill="#7d7567">L1 sync · L2 window cache · L3 replicas — most reads fetch nothing</text>
+        <text x="20" y="546" font-size="10.5" fill="#7d7567">SOLID — the write path · DASHED — derived projections &amp; cached reads · One log is written once; everything else is recomputed.</text>
+      </svg>
+      <div class="caption">FIG. 1 — One source of truth, four jobs off one ordered log. The event row and its outbox row commit together; the change stream fans out to attendee copies, the free/busy bitmap, cache versioning, and client sync — each replayable from a stored offset.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture carry the interview. <strong>First,</strong> the write stores the <em>rule</em>, not the occurrences — editing a series is one row touched, not thousands rewritten, so writes stay O(1) no matter how long the series runs. <strong>Second,</strong> the event row and its changelog row commit in one transaction, so a CDC connector turns committed rows into exactly one ordered stream message — no dual-write window where the bitmaps and attendee copies silently disagree with truth. <strong>Third,</strong> everything below the dashed line is derived: copies, bitmaps, the rendered-window cache, the client sync feed. Drop the whole projection layer and you have lost only cache — the event store survives, and every projection rebuilds by replaying the log.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>The store is truth; everything else degrades to stale, never to wrong.</strong> Because copies, bitmaps, and caches are versioned projections off one ordered log, every failure has the same shape: a consumer falls behind and a guest sees an invitation a few seconds late, or free/busy lags a write — both acceptable, because availability is advisory. A <em>write</em> degrades in exactly one direction: it either commits the rule plus its outbox row atomically, or it commits nothing. There is no half-fanned-out event and no orphaned bitmap, because the projections never hold authority — they hold a replayable copy of it.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>One overloaded table, and the columns that earn their keep</h2>
+    <p class="lede reveal">The entity skeleton is unremarkable: users, calendars, events, and an attendee join table. Every interesting decision is inside <span class="m">events</span> — where singles, recurring masters, and per-instance overrides all live in one table, disambiguated by which columns are populated, and time is stored three ways on purpose.</p>
+
+    <h3 class="reveal">The small tables — identity and the unit of sharing</h3>
+    <p class="reveal">A user owns several calendars; the calendar is the unit of ownership <em>and</em> of sharing. The <span class="m">kind</span> column lets rooms and resources reuse the exact same machinery as people, and the <span class="m">version</span> counter — bumped on any write — becomes the cache key that makes invalidation a non-event.</p>
+
+    <div class="codelabel">DDL · IDENTITY &amp; CALENDARS (POSTGRESQL)</div>
+    <div class="codeblock"><span class="cl">-- A login identity. home_tz is the user's default zone, used when an
+-- event is created without an explicit one. Always an IANA id, never an offset.</span>
+<span class="ck">CREATE TABLE</span> users (
+    user_id       BIGINT <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    email         CITEXT      <span class="ck">UNIQUE NOT NULL</span>,
+    display_name  TEXT        <span class="ck">NOT NULL</span>,
+    home_tz       TEXT        <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'UTC'</span>,   <span class="cl">-- IANA id</span>
+    created_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="cl">-- A calendar is the unit of ownership AND of sharing/ACLs. 'kind' lets
+-- rooms and resources reuse the exact same machinery as people's calendars.</span>
+<span class="ck">CREATE TABLE</span> calendars (
+    calendar_id   BIGINT <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    owner_id      BIGINT      <span class="ck">NOT NULL REFERENCES</span> users(user_id),
+    summary       TEXT        <span class="ck">NOT NULL</span>,
+    default_tz    TEXT        <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'UTC'</span>,
+    kind          TEXT        <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'primary'</span>
+                  <span class="ck">CHECK</span> (kind <span class="ck">IN</span> (<span class="cs">'primary'</span>,<span class="cs">'secondary'</span>,<span class="cs">'resource'</span>,<span class="cs">'room'</span>)),
+    version       BIGINT      <span class="ck">NOT NULL DEFAULT</span> 1,   <span class="cl">-- bumped on any write; used as a cache key</span>
+    created_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);</div>
+
+    <h3 class="reveal">The heart — single, master, and override in one table</h3>
+    <p class="reveal">The single most consequential choice: a row with an <span class="m">rrule</span> and no parent is a <em>master</em>; a row with a <span class="m">parent_event_id</span> and a <span class="m">recurrence_id</span> is an <em>override</em> of one occurrence; a plain row is a one-off. One table keeps the read path to two queries and lets an override carry its own attendees for free — which is what lets someone decline a single moved instance while staying accepted on the series. And time is stored three ways: <span class="m">*_utc</span> for range scans and one-off correctness, <span class="m">*_local</span> as bare wall-clock, and <span class="m">tz_id</span> as the IANA zone from which UTC for a recurrence is <em>derived</em>.</p>
+
+    <div class="codelabel">DDL · EVENTS — THE OVERLOADED CORE</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> events (
+    event_id        BIGINT <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    calendar_id     BIGINT <span class="ck">NOT NULL REFERENCES</span> calendars(calendar_id),
+    organizer_id    BIGINT <span class="ck">NOT NULL REFERENCES</span> users(user_id),
+    uid             TEXT   <span class="ck">NOT NULL</span>,        <span class="cl">-- RFC 5545 UID, stable across edits + ingest</span>
+
+    <span class="cl">-- content. On an OVERRIDE row, NULL means "inherit from the master"
+    -- (sparse override — see §04). On a master/single it is the value.</span>
+    title           TEXT,
+    description     TEXT,
+    location        TEXT,
+
+    <span class="cl">-- time, stored THREE ways on purpose:
+    --   *_utc   -> the instant, for range scans and one-off correctness
+    --   *_local -> wall-clock with NO zone, e.g. 2026-06-09 09:00
+    --   tz_id   -> IANA zone; UTC for a recurrence is DERIVED from these two</span>
+    start_utc       TIMESTAMPTZ,
+    end_utc         TIMESTAMPTZ,
+    start_local     TIMESTAMP,
+    end_local       TIMESTAMP,
+    tz_id           TEXT,
+    all_day         BOOLEAN <span class="ck">NOT NULL DEFAULT</span> false,
+
+    <span class="cl">-- recurrence (MASTER rows only)</span>
+    rrule           TEXT,                <span class="cl">-- 'FREQ=WEEKLY;BYDAY=TU'</span>
+    rdate           TIMESTAMP[],         <span class="cl">-- explicit extra occurrences</span>
+    exdate          TIMESTAMP[],         <span class="cl">-- cheap inline cancellations</span>
+    rrule_until_utc TIMESTAMPTZ,         <span class="cl">-- DENORMALIZED series end; NULL = open-ended</span>
+
+    <span class="cl">-- exception linkage (OVERRIDE rows only)</span>
+    parent_event_id BIGINT <span class="ck">REFERENCES</span> events(event_id),
+    recurrence_id   TIMESTAMP,           <span class="cl">-- original wall-clock start this row replaces</span>
+    overridden_cols TEXT[],              <span class="cl">-- field mask: cols the user explicitly set</span>
+
+    status          TEXT <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'confirmed'</span>
+                    <span class="ck">CHECK</span> (status <span class="ck">IN</span> (<span class="cs">'confirmed'</span>,<span class="cs">'tentative'</span>,<span class="cs">'cancelled'</span>)),
+    transparency    TEXT <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'opaque'</span>     <span class="cl">-- opaque=busy, transparent=free</span>
+                    <span class="ck">CHECK</span> (transparency <span class="ck">IN</span> (<span class="cs">'opaque'</span>,<span class="cs">'transparent'</span>)),
+
+    version         BIGINT <span class="ck">NOT NULL DEFAULT</span> 1,   <span class="cl">-- optimistic concurrency (compare-and-swap)</span>
+    sequence        INT    <span class="ck">NOT NULL DEFAULT</span> 0,   <span class="cl">-- RFC 5545 SEQUENCE, bumped on material change</span>
+    created_at      TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now(),
+    updated_at      TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now(),
+
+    <span class="cl">-- an override must name the occurrence it replaces</span>
+    <span class="ck">CONSTRAINT</span> override_names_occurrence
+        <span class="ck">CHECK</span> (parent_event_id <span class="ck">IS NULL OR</span> recurrence_id <span class="ck">IS NOT NULL</span>),
+    <span class="cl">-- a row is a recurring master XOR an override, never both</span>
+    <span class="ck">CONSTRAINT</span> master_xor_override
+        <span class="ck">CHECK</span> (<span class="ck">NOT</span> (rrule <span class="ck">IS NOT NULL AND</span> parent_event_id <span class="ck">IS NOT NULL</span>))
+);
+
+<span class="cl">-- Range scan: "singles + masters that could touch [lo, hi)" on one calendar.
+-- Partial index keeps cancelled rows and overrides out of the hot path.</span>
+<span class="ck">CREATE INDEX</span> idx_events_cal_window <span class="ck">ON</span> events (calendar_id, start_utc)
+    <span class="ck">WHERE</span> status &lt;&gt; <span class="cs">'cancelled'</span> <span class="ck">AND</span> parent_event_id <span class="ck">IS NULL</span>;
+
+<span class="cl">-- Open-ended series stay filterable thanks to the denormalized horizon.</span>
+<span class="ck">CREATE INDEX</span> idx_events_cal_series <span class="ck">ON</span> events (calendar_id, rrule_until_utc)
+    <span class="ck">WHERE</span> rrule <span class="ck">IS NOT NULL</span>;
+
+<span class="cl">-- Overlay path: fetch every override/cancel for a set of masters; and an
+-- occurrence can only be overridden once per series.</span>
+<span class="ck">CREATE UNIQUE INDEX</span> uq_override <span class="ck">ON</span> events (parent_event_id, recurrence_id)
+    <span class="ck">WHERE</span> parent_event_id <span class="ck">IS NOT NULL</span>;</div>
+
+    <div class="note reveal">
+      <div class="nh">Why three time columns, never a raw offset</div>
+      <p>An offset like <span class="m">-08:00</span> is a fact about an <em>instant</em>, not a place. Store it and you have thrown away the rule that produced it, so you cannot re-derive the right wall-clock after a DST transition or a government zone change. The IANA zone id (<span class="m">America/Los_Angeles</span>) is a pointer into the tz database, which <em>does</em> know the rules. So <span class="m">start_local</span> + <span class="m">tz_id</span> is the source of truth for anything that recurs, <span class="m">start_utc</span> is a derived convenience for range scans and one-offs, and the two are kept consistent by the app, not by the user.</p>
+    </div>
+
+    <p class="reveal">Attendees get their own table because RSVP state is per-person and, crucially, because an <em>override row can have its own attendee set</em>. External guests live by email and have a NULL <span class="m">attendee_id</span>; the inbox index answers "what am I invited to, and have I replied?" in one seek.</p>
+
+    <div class="codelabel">DDL · EVENT_ATTENDEES</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> event_attendees (
+    event_id      BIGINT <span class="ck">NOT NULL REFERENCES</span> events(event_id) <span class="ck">ON DELETE CASCADE</span>,
+    attendee_id   BIGINT  <span class="ck">REFERENCES</span> users(user_id),  <span class="cl">-- NULL for external guests</span>
+    email         CITEXT  <span class="ck">NOT NULL</span>,                    <span class="cl">-- external attendees live by email</span>
+    response      TEXT    <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'needs_action'</span>
+                  <span class="ck">CHECK</span> (response <span class="ck">IN</span> (<span class="cs">'needs_action'</span>,<span class="cs">'accepted'</span>,<span class="cs">'declined'</span>,<span class="cs">'tentative'</span>)),
+    optional      BOOLEAN <span class="ck">NOT NULL DEFAULT</span> false,
+    is_organizer  BOOLEAN <span class="ck">NOT NULL DEFAULT</span> false,
+    <span class="ck">PRIMARY KEY</span> (event_id, email)
+);
+
+<span class="cl">-- "what am I invited to, and have I replied?" — the invitation inbox.</span>
+<span class="ck">CREATE INDEX</span> idx_attendee_inbox <span class="ck">ON</span> event_attendees (attendee_id, response);</div>
+
+    <p class="reveal">That is the whole model the system rides on: two small tables, one carefully overloaded big one, and a join table that quietly carries the per-instance RSVP magic. The analytics warehouse mirrors this as a star — <span class="m">dim_events</span> (SCD2, the recurrence master whose title and organizer drift over time), <span class="m">dim_calendars</span>, <span class="m">dim_users</span>, a <span class="m">dim_timezone</span> that is the DST source of truth, and the occurrence, exception, invitation, and free/busy facts we interrogate in §07. The operational row shape and the dimensional grain are the same idea told twice.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The rule lives in local time; UTC is derived</h2>
+    <p class="lede reveal">Every correctness guarantee in this system collapses to one ordering: a recurrence is iterated in <em>local wall-clock</em> time, and the UTC instant is computed per occurrence afterward. Get that ordering backward — freeze each occurrence to UTC up front — and the next daylight-saving transition silently slides the whole series by an hour.</p>
+
+    <p class="reveal">Consider the canonical case. A 9:00&nbsp;AM Pacific stand-up is 17:00&nbsp;UTC in winter and 16:00&nbsp;UTC in summer, because <span class="m">America/Los_Angeles</span> is UTC−8 under standard time and UTC−7 under daylight time. If the system had stored each occurrence as a UTC instant, the spring-forward boundary would leave half the series at 17:00Z and half at 16:00Z — and on the morning the clocks changed, everyone would show up an hour wrong. Storing local time and deriving UTC makes the right answer automatic: the wall-clock never moves, and the offset is recomputed from the zone database, which is the only thing that knows the transition dates.</p>
+
+    <h3 class="reveal">The three edits, one primitive</h3>
+    <p class="reveal">A recurring event is one logical record but unbounded physical occurrences, and the model has to survive three kinds of edit. All three reduce to the same primitive — an <strong>exception row</strong>, a child pointing at the master via <span class="m">parent_event_id</span>, tagged with the <span class="m">recurrence_id</span> of the occurrence it is about.</p>
+
+    <div class="statechain reveal">
+      <span class="st">MASTER · RRULE</span><span class="arr">→</span>
+      <span class="st">EXPAND (local)</span><span class="arr">→</span>
+      <span class="st">DERIVE UTC</span><span class="arr">→</span>
+      <span class="st">OVERLAY EXCEPTIONS</span><span class="arr">→</span>
+      <span class="st terminal">OCCURRENCE LIST</span>
+    </div>
+    <p class="reveal">A <strong>cancel one instance</strong> is an override row with <span class="m">status = cancelled</span> for that <span class="m">recurrence_id</span> — iCalendar's EXDATE, but as a row so it can carry metadata. A <strong>move or edit one instance</strong> is an override row with its own start and, because it is a full row, its own attendees and RSVPs. <strong>This and all following</strong> is a series <em>split</em>: set the old master's <span class="m">UNTIL</span> to just before the split and create a new master from the split point. That third one is what people get wrong — they try to version a rule in place; the right move is two writes, history preserved, old exceptions still attached to the old master.</p>
+
+    <p class="reveal">The exception lives in an append-only ledger keyed by <span class="m">recurrence_id</span>: a cancel tombstones one occurrence, a move carries its own new start, an edit records which columns the user pinned. Recurrence health then becomes a <span class="m">GROUP BY series</span> — and nothing ever UPDATEs the series in place.</p>
+
+    <div class="codelabel">SQL · THE OPTIMISTIC WRITE (COMPARE-AND-SWAP ON VERSION)</div>
+    <div class="codeblock"><span class="cl">-- The organizer fixing the title and an attendee moving the instance can
+-- race. With sparse overrides they mostly write different rows, but both are
+-- guarded by a CAS on version: 0 rows affected => someone beat us; 409 to the
+-- client. Last-write-wins on the same row is never silently allowed.</span>
+<span class="ck">UPDATE</span> events
+<span class="ck">SET</span>    title = <span class="ck">:title</span>, location = <span class="ck">:location</span>,
+       version = version + 1, sequence = sequence + 1, updated_at = now()
+<span class="ck">WHERE</span>  event_id = <span class="ck">:id</span>
+  <span class="ck">AND</span>  version  = <span class="ck">:expected_version</span>     <span class="cl">-- the guard IS the lock</span>
+<span class="ck">RETURNING</span> version;</div>
+
+    <div class="pull reveal">Expand in local time, convert per occurrence. That single ordering is the entire daylight-saving fix — and the reason a clock change can't move a million stand-ups.<span>RECURRENCE RULE Nº 1 — STORE THE RULE, DERIVE THE INSTANT</span></div>
+
+    <p class="reveal">There is a second invariant hiding inside the first, and it is what makes the system <em>bounded</em>: the per-query window cap and the <span class="m">max_instances</span> guardrail. A recurrence yields occurrences in order, so expansion stops the instant it crosses the window's far edge — and a crafted <span class="m">FREQ=SECONDLY</span> rule that tries to emit millions of instances dies at the cap instead of melting a worker. Local time keeps the books honest; the cap keeps a single read from being weaponized. Together they are the entire correctness story of the read path.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="ingestion">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python that refuses to freeze time</h2>
+    <p class="lede reveal">Three programs carry the read and write loops: the expansion that turns one master into concrete occurrences without ever freezing UTC, the two-query read path that overlays exceptions in memory, and the iCalendar ingestion that maps the outside world onto the same columns. Each is small; the judgment is in what it refuses to do.</p>
+
+    <h3 class="reveal">1 · The expansion — DST-correct by construction</h3>
+    <p class="reveal">This is the procedure that makes or breaks the design. The rule is walked in local time; each occurrence is converted to UTC only after it is generated. The guardrail is not decoration — it is the line that stands between a worker and a <span class="m">FREQ=MINUTELY</span> abuse rule. And the merge of an override is <em>sparse</em>: it supplies its own time plus only the columns it explicitly set, so a later typo-fix on the series still reaches the moved Wednesday instance.</p>
+
+    <div class="codelabel">PYTHON · EXPAND ONE MASTER INTO OCCURRENCES (DST-CORRECT)</div>
+    <div class="codeblock"><span class="ck">from</span> datetime <span class="ck">import</span> timedelta
+<span class="ck">from</span> zoneinfo <span class="ck">import</span> ZoneInfo
+<span class="ck">from</span> dateutil.rrule <span class="ck">import</span> rrulestr
+
+UTC = ZoneInfo(<span class="cs">"UTC"</span>)
+INHERITABLE = (<span class="cs">"title"</span>, <span class="cs">"description"</span>, <span class="cs">"location"</span>, <span class="cs">"transparency"</span>)
+
+
+<span class="ck">def</span> <span class="cf">expand_series</span>(master, win_lo, win_hi, overrides, max_instances=730):
+    <span class="cs">"""Expand a recurring MASTER into occurrences within [win_lo, win_hi) UTC,
+    applying cancellations and per-instance overrides.
+
+    The rule is walked in LOCAL wall-clock time and each occurrence is then
+    converted to UTC. That order is the daylight-saving fix: 09:00 local maps
+    to 17:00Z in winter and 16:00Z in summer, automatically."""</span>
+    tz       = ZoneInfo(master[<span class="cs">"tz_id"</span>])
+    dtstart  = master[<span class="cs">"start_local"</span>].replace(tzinfo=tz)
+    duration = master[<span class="cs">"end_local"</span>] - master[<span class="cs">"start_local"</span>]
+    rule     = rrulestr(master[<span class="cs">"rrule"</span>], dtstart=dtstart)
+
+    <span class="cl"># index overrides by the occurrence they replace (naive local start)</span>
+    ov_by_rid = {o[<span class="cs">"recurrence_id"</span>]: o <span class="ck">for</span> o <span class="ck">in</span> overrides}
+    exdates   = set(master.get(<span class="cs">"exdate"</span>) <span class="ck">or</span> ())
+
+    out, count = [], 0
+    <span class="ck">for</span> local_start <span class="ck">in</span> rule:
+        <span class="ck">if</span> count &gt;= max_instances:
+            <span class="ck">break</span>                                 <span class="cl"># guardrail vs FREQ=MINUTELY abuse</span>
+        start_utc = local_start.astimezone(UTC)
+        <span class="ck">if</span> start_utc &gt;= win_hi:
+            <span class="ck">break</span>                                 <span class="cl"># rrule yields in order; safe to stop</span>
+        end_utc = (local_start + duration).astimezone(UTC)
+        <span class="ck">if</span> end_utc &lt;= win_lo:
+            <span class="ck">continue</span>                              <span class="cl"># before the window; keep walking</span>
+
+        rid = local_start.replace(tzinfo=<span class="ck">None</span>)   <span class="cl"># match key == recurrence_id</span>
+        <span class="ck">if</span> rid <span class="ck">in</span> exdates:
+            <span class="ck">continue</span>                              <span class="cl"># cheap inline cancel</span>
+
+        ov = ov_by_rid.get(rid)
+        <span class="ck">if</span> ov <span class="ck">is None</span>:
+            out.append(_plain(master, start_utc, end_utc, rid))
+        <span class="ck">elif</span> ov[<span class="cs">"status"</span>] != <span class="cs">"cancelled"</span>:
+            out.append(_merge_override(master, ov))   <span class="cl"># moved / edited instance</span>
+        <span class="cl"># else: cancelled override -> drop silently</span>
+        count += 1
+    <span class="ck">return</span> out
+
+
+<span class="ck">def</span> <span class="cf">_merge_override</span>(master, ov):
+    <span class="cs">"""Sparse merge: the override supplies its own time plus only the columns it
+    explicitly set (overridden_cols); everything else falls through to the
+    master's CURRENT value, so a later typo-fix on the series still reaches it."""</span>
+    merged = {<span class="cs">"event_id"</span>: ov[<span class="cs">"event_id"</span>], <span class="cs">"start_utc"</span>: ov[<span class="cs">"start_utc"</span>],
+              <span class="cs">"end_utc"</span>: ov[<span class="cs">"end_utc"</span>], <span class="cs">"recurrence_id"</span>: ov[<span class="cs">"recurrence_id"</span>]}
+    overridden = set(ov.get(<span class="cs">"overridden_cols"</span>) <span class="ck">or</span> ())
+    <span class="ck">for</span> col <span class="ck">in</span> INHERITABLE:
+        merged[col] = ov[col] <span class="ck">if</span> col <span class="ck">in</span> overridden <span class="ck">else</span> master[col]
+    <span class="ck">return</span> merged</div>
+
+    <p class="reveal">Notice the sparse-merge discipline. The naive instinct is a full snapshot — the override copies every field — which is simple and <em>wrong</em>, because the typo-fix never reaches the moved instance. The opposite extreme is a field-mask fan-out, which writes to every override on every master edit and can race or partially fail at occurrence 4,000 of 9,000. The sparse override makes propagation correct <em>by construction</em>: NULL means inherit, the merge is in-memory because we already loaded the master, and a series rename reaches the override for free.</p>
+
+    <h3 class="reveal">2 · The read path — two queries, not one</h3>
+    <p class="reveal">"Give me this calendar for June" is two SQL statements. First, pull the singles and masters that could touch the window — the denormalized <span class="m">rrule_until_utc</span> is exactly what keeps open-ended series index-filterable. Then pull every override for those masters and overlay them in the application after expansion.</p>
+
+    <div class="codelabel">SQL · STEP 1 — SINGLES + MASTERS OVERLAPPING THE WINDOW</div>
+    <div class="codeblock"><span class="ck">SELECT</span> event_id, title, location, transparency, all_day, tz_id,
+       start_utc, end_utc, start_local, end_local, rrule, rdate, exdate
+<span class="ck">FROM</span>   events
+<span class="ck">WHERE</span>  calendar_id = <span class="ck">:cal</span>
+  <span class="ck">AND</span>  status &lt;&gt; <span class="cs">'cancelled'</span>
+  <span class="ck">AND</span>  parent_event_id <span class="ck">IS NULL</span>          <span class="cl">-- masters + singles; overrides overlaid in step 2</span>
+  <span class="ck">AND</span>  (
+         <span class="cl">-- a one-off that overlaps [lo, hi)</span>
+         (rrule <span class="ck">IS NULL</span>  <span class="ck">AND</span> start_utc &lt; <span class="ck">:hi</span> <span class="ck">AND</span> end_utc &gt; <span class="ck">:lo</span>)
+      <span class="ck">OR</span>
+         <span class="cl">-- a series whose lifespan overlaps the window; the denormalized
+         -- rrule_until_utc is what keeps open-ended series index-filterable</span>
+         (rrule <span class="ck">IS NOT NULL AND</span> start_utc &lt; <span class="ck">:hi</span>
+                          <span class="ck">AND</span> (rrule_until_utc <span class="ck">IS NULL OR</span> rrule_until_utc &gt;= <span class="ck">:lo</span>))
+       );
+
+<span class="cl">-- step 2: overrides &amp; cancellations for those masters (hits uq_override)</span>
+<span class="ck">SELECT</span> parent_event_id, recurrence_id, status, overridden_cols,
+       title, location, description, transparency, start_utc, end_utc
+<span class="ck">FROM</span>   events
+<span class="ck">WHERE</span>  parent_event_id = <span class="ck">ANY</span>(<span class="ck">:master_ids</span>);
+<span class="cl">-- app then calls expand_series(master, lo, hi, overrides[master_id]); the two
+-- SELECTs merge into one ordered, exception-corrected occurrence list.</span></div>
+
+    <h3 class="reveal">3 · Ingesting the outside world</h3>
+    <p class="reveal">Half of "invitations" is interop — an Outlook export, a subscribed holiday feed, a room-booking system, all of which speak iCalendar. The payoff of modeling recurrence on RFC&nbsp;5545 in the first place is that ingestion is almost a straight column mapping: RRULE, EXDATE, and RECURRENCE-ID land on the columns we already have, and the <span class="m">uid</span> makes re-ingesting the same feed a no-op.</p>
+
+    <div class="codelabel">PYTHON · iCALENDAR (.ics) INGESTION — IDEMPOTENT UPSERT</div>
+    <div class="codeblock"><span class="ck">from</span> icalendar <span class="ck">import</span> Calendar
+
+
+<span class="ck">def</span> <span class="cf">ingest_ics</span>(feed_bytes, calendar_id, db):
+    <span class="cs">"""Ingest an external iCalendar feed into events. RRULE / EXDATE /
+    RECURRENCE-ID map straight onto our columns; (calendar_id, uid,
+    recurrence_id) is the idempotency key so re-pulling a feed is a no-op."""</span>
+    cal, rows = Calendar.from_ical(feed_bytes), []
+    <span class="ck">for</span> c <span class="ck">in</span> cal.walk(<span class="cs">"VEVENT"</span>):
+        start = c.decoded(<span class="cs">"dtstart"</span>)
+        end   = c.decoded(<span class="cs">"dtend"</span>, start)               <span class="cl"># default to start if absent</span>
+        rid   = c.get(<span class="cs">"recurrence-id"</span>)                  <span class="cl"># present => this VEVENT is an override</span>
+        rows.append({
+            <span class="cs">"calendar_id"</span>:   calendar_id,
+            <span class="cs">"uid"</span>:           str(c[<span class="cs">"uid"</span>]),
+            <span class="cs">"title"</span>:         str(c.get(<span class="cs">"summary"</span>, <span class="cs">""</span>)),
+            <span class="cs">"location"</span>:      str(c.get(<span class="cs">"location"</span>, <span class="cs">""</span>)),
+            <span class="cs">"start_local"</span>:   to_wall(start),  <span class="cs">"end_local"</span>: to_wall(end),
+            <span class="cs">"tz_id"</span>:         tzid_of(start),                <span class="cl"># 'floating' -> calendar default</span>
+            <span class="cs">"rrule"</span>:         rrule_text(c.get(<span class="cs">"rrule"</span>)),
+            <span class="cs">"exdate"</span>:        exdates(c.get(<span class="cs">"exdate"</span>)),
+            <span class="cs">"recurrence_id"</span>: to_wall(rid.dt) <span class="ck">if</span> rid <span class="ck">else None</span>,
+            <span class="cs">"status"</span>:        str(c.get(<span class="cs">"status"</span>, <span class="cs">"CONFIRMED"</span>)).lower(),
+        })
+    <span class="cl"># ON CONFLICT (calendar_id, uid, recurrence_id) DO UPDATE ...</span>
+    db.bulk_upsert_events(rows, conflict=(<span class="cs">"calendar_id"</span>, <span class="cs">"uid"</span>, <span class="cs">"recurrence_id"</span>))
+    <span class="ck">return</span> len(rows)</div>
+
+    <p class="reveal">The carve-out an interviewer listens for: the heavyweight case. When the master's rule or time changes, the occurrence grid moves out from under every <span class="m">recurrence_id</span>, and there is no clean automatic answer to "where does the cancelled-Tuesday exception go in a Thursday series." So that one edit is treated as a rebuild — warn the user that instance-level changes will be discarded, then split or recreate the series. Everything else is a sparse merge; only rule/time changes earn the heavy hammer.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Free/busy as a bitmap, and the change stream as the spine</h2>
+    <p class="lede reveal">Two derived layers sit atop the event store: the free/busy index, which materializes the very thing we refused to materialize for events, and the change-stream pipeline, which keeps every projection in lockstep. Both exist for speed; both can be thrown away and rebuilt from the log.</p>
+
+    <p class="reveal">For ten people over two weeks, computing free/busy live is genuinely fine — fan out to the ten calendars, expand each, project to busy intervals, merge per attendee, and intersect across attendees with a sweep line. So why not stop there? Three reasons: <strong>tail latency</strong> (one slow shard out of ten makes an interactive query slow, and people drag the duration slider, re-firing it), <strong>volume</strong> (schedulers, room booking, and AI agents hammer this far beyond the UI), and <strong>waste</strong> (recurrence expansion is deterministic, so re-expanding everyone on every call recomputes the same answer). The fix is a materialized free/busy index, separate from the source-of-truth event store.</p>
+
+    <p class="reveal">Per calendar, per UTC day, store a bitmap at 15-minute granularity — 96 bits, 12 bytes. Two weeks for one user is 168 bytes; ten users is under 2&nbsp;KB. The query collapses to: fetch the tiny per-day bitmaps, OR them together across attendees, and scan for a run of zero bits at least the meeting length long. What just came back through the side door is <em>materialization of recurrences</em> — the very thing rejected for the event store — and here it is right, because free/busy needs only coverage, not event identity, and the bitmap is fixed-size no matter how many events overlap a slot.</p>
+
+    <div class="codelabel">PYTHON · FREE/BUSY MATERIALIZER (EVENT CHANGE → BUSY BITMAPS)</div>
+    <div class="codeblock"><span class="ck">from</span> datetime <span class="ck">import</span> datetime, timedelta, time
+<span class="ck">from</span> collections <span class="ck">import</span> defaultdict
+<span class="ck">from</span> math <span class="ck">import</span> ceil
+
+SLOT_MIN, SLOTS = 15, 96                              <span class="cl"># 24h / 15min</span>
+
+
+<span class="ck">def</span> <span class="cf">stamp</span>(mask: bytearray, start_utc, end_utc, day):
+    <span class="cs">"""Set the 15-min bits [start, end) covers within one UTC day."""</span>
+    day0   = datetime.combine(day, time.min, tzinfo=UTC)
+    lo, hi = max(start_utc, day0), min(end_utc, day0 + timedelta(days=1))
+    <span class="ck">if</span> hi &lt;= lo:
+        <span class="ck">return</span>
+    first = int((lo - day0).total_seconds()) // (SLOT_MIN * 60)
+    last  = ceil(int((hi - day0).total_seconds()) / (SLOT_MIN * 60))
+    <span class="ck">for</span> s <span class="ck">in</span> range(first, min(last, SLOTS)):
+        mask[s &gt;&gt; 3] |= 1 &lt;&lt; (s &amp; 7)
+
+
+<span class="ck">def</span> <span class="cf">on_change_freebusy</span>(change, db, horizon_days=365):
+    <span class="cl"># recompute ONLY the UTC days this change touched, out to a rolling horizon</span>
+    cal = change[<span class="cs">"calendar_id"</span>]
+    lo  = change[<span class="cs">"win_lo"</span>]
+    hi  = min(change[<span class="cs">"win_hi"</span>], lo + timedelta(days=horizon_days))
+
+    <span class="cl"># authoritative busy intervals (singles + expanded series) for the span</span>
+    busy = load_busy_intervals(db, cal, lo, hi)       <span class="cl"># calls expand_series</span>
+
+    by_day = defaultdict(<span class="ck">lambda</span>: bytearray(SLOTS // 8))
+    <span class="ck">for</span> s, e <span class="ck">in</span> busy:
+        d = s.date()
+        <span class="ck">while</span> d &lt;= e.date():
+            stamp(by_day[d], s, e, d)
+            d += timedelta(days=1)
+
+    <span class="ck">for</span> day, mask <span class="ck">in</span> by_day.items():
+        db.upsert_freebusy(cal, day, bytes(mask), version=change[<span class="cs">"new_version"</span>])</div>
+
+    <p class="reveal">Only one thing makes those four projections consistent: the spine. Three different systems must react to one event write — attendee copies must fan out, free/busy bitmaps must rebuild, cache keys must rotate. Doing them inline makes "create event" latency hostage to three downstream systems, and a partial failure leaves the world inconsistent. The fix is a single ordered log per calendar fed by a <strong>transactional outbox</strong>: every mutation writes the event row <em>and</em> a changelog row in the same database transaction, so the stream can never miss a committed change or replay one that rolled back.</p>
+
+    <div class="codelabel">SQL · THE TRANSACTIONAL OUTBOX — EVENT + CHANGELOG COMMIT ATOMICALLY</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> calendar_changelog (
+    seq          BIGINT <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,  <span class="cl">-- IS the sync token</span>
+    calendar_id  BIGINT      <span class="ck">NOT NULL</span>,
+    event_id     BIGINT      <span class="ck">NOT NULL</span>,
+    op           TEXT        <span class="ck">NOT NULL CHECK</span> (op <span class="ck">IN</span> (<span class="cs">'insert'</span>,<span class="cs">'update'</span>,<span class="cs">'delete'</span>)),
+    new_version  BIGINT      <span class="ck">NOT NULL</span>,
+    win_lo       TIMESTAMPTZ <span class="ck">NOT NULL</span>,   <span class="cl">-- affected span, so the f/b consumer knows</span>
+    win_hi       TIMESTAMPTZ <span class="ck">NOT NULL</span>,   <span class="cl">-- which days to recompute (whole horizon for a series)</span>
+    payload      JSONB       <span class="ck">NOT NULL</span>,   <span class="cl">-- the changed row, for consumers that don't re-read</span>
+    created_at   TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="cl">-- The write: the rule edit and its intent-to-publish are ONE commit.</span>
+<span class="ck">BEGIN</span>;
+  <span class="ck">UPDATE</span> events
+     <span class="ck">SET</span> title = <span class="ck">:title</span>, location = <span class="ck">:location</span>,
+         version = version + 1, sequence = sequence + 1, updated_at = now()
+   <span class="ck">WHERE</span> event_id = <span class="ck">:id</span> <span class="ck">AND</span> version = <span class="ck">:expected</span>      <span class="cl">-- optimistic CAS from §04</span>
+  <span class="ck">RETURNING</span> version <span class="ck">INTO</span> <span class="ck">:new_version</span>;
+
+  <span class="ck">INSERT INTO</span> calendar_changelog
+        (calendar_id, event_id, op, new_version, win_lo, win_hi, payload)
+  <span class="ck">VALUES</span> (<span class="ck">:cal</span>, <span class="ck">:id</span>, <span class="cs">'update'</span>, <span class="ck">:new_version</span>, <span class="ck">:win_lo</span>, <span class="ck">:win_hi</span>, <span class="ck">:payload</span>);
+<span class="ck">COMMIT</span>;
+<span class="cl">-- a CDC connector (Debezium tailing the WAL) ships committed changelog rows
+-- to a Kafka topic keyed by calendar_id, preserving per-calendar order.</span></div>
+
+    <div class="pull reveal">Dual-writing is the difference between a pipeline that is eventually consistent and one that is eventually <em>wrong</em>. The outbox makes the change and its intent-to-publish one atomic commit; CDC turns committed rows into stream messages exactly once.<span>RECURRENCE RULE Nº 2 — ONE TRANSACTION, OR NONE</span></div>
+
+    <p class="reveal">From there the log forks into independent consumers that share nothing but the stream. <strong>Fan-out</strong> replicates an invitation into each attendee's calendar partition, carrying the <span class="m">version</span> so a stale copy is detectable and self-repairing — and above a threshold (a 50,000-person all-hands) it flips to reference-only, one source row resolved at read time the way feeds handle celebrity accounts. <strong>Free/busy</strong> runs the materializer above. <strong>Cache-bump</strong> rotates the calendar's version so rendered-window keys roll over and stale entries simply age out — no explicit invalidation. And <strong>client sync</strong> is the cheapest leverage of all: the changelog <span class="m">seq</span> is the sync token, so "what changed since X?" turns most phone wake-ups into a tiny, usually empty delta. One spine, four jobs — and the deep cut: when IANA ships a new tz release, you diff which zones changed over which future ranges and enqueue a synthetic "touch" through the very same stream, so the materializer and cache-bump do the rest with code that already exists.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the schedule</h2>
+    <p class="lede reveal">The occurrence, free/busy, invitation, and exception facts are where the system explains itself. Three queries an interviewer loves, each carrying a classic pattern on its back: the as-of read against materialized occurrences, gaps-and-islands for "find a time," and conditional aggregation over the append-only exception ledger.</p>
+
+    <h3 class="reveal">The calendar view — occurrence-as-fact, exceptions already applied</h3>
+    <p class="reveal">The user's question, and the hot path of the whole product: my stand-up over the next month, cancellations dropped and moves honored. Because occurrences are materialized to a rolling horizon, this is a range scan on <span class="m">fct_event_occurrences</span> — no RRULE re-expansion at read time, because the override row already carries its moved time and the cancelled occurrence already carries its tombstone flag.</p>
+
+    <div class="codelabel">SQL · MY OCCURRENCES, MOVES HONORED, CANCELS DROPPED</div>
+    <div class="codeblock"><span class="ck">SELECT</span> o.recurrence_id           <span class="ck">AS</span> original_slot,
+       o.occurrence_start_local  <span class="ck">AS</span> shows_at_local,
+       o.occurrence_start_utc    <span class="ck">AS</span> instant_utc,
+       <span class="ck">CASE WHEN</span> o.is_override <span class="ck">THEN</span> <span class="cs">'moved'</span> <span class="ck">ELSE</span> <span class="cs">'series'</span> <span class="ck">END</span> <span class="ck">AS</span> kind
+<span class="ck">FROM</span>   fct_event_occurrences o
+<span class="ck">WHERE</span>  o.event_sk = 501
+  <span class="ck">AND</span>  o.is_cancelled = <span class="ck">FALSE</span>
+  <span class="ck">AND</span>  o.occurrence_start_local &gt;= <span class="cs">'2026-06-09'</span>
+  <span class="ck">AND</span>  o.occurrence_start_local &lt;  <span class="cs">'2026-07-09'</span>
+<span class="ck">ORDER BY</span> o.occurrence_start_local;
+<span class="cl">-- 4 rows: 6/9, 6/16, (6/23 dropped), 7/1 14:00 'moved', 7/7. No re-expansion.
+-- 09:00 PDT shows as 16:00Z all summer; the same series lands at 17:00Z in winter.</span></div>
+
+    <h3 class="reveal">Find a time — gaps and islands over the slot bitmap</h3>
+    <p class="reveal">The scheduler's question: the first 60-minute slot where Alice, Bren, and Chen are all free. The pattern is the canonical gaps-and-islands move — OR the per-attendee masks (here a SUM across calendars), keep only the all-free slots, and let a running count of <em>busy</em> slots label each free run; the first island long enough wins. A 60-minute meeting needs four consecutive zero slots.</p>
+
+    <div class="codelabel">SQL · FIRST COMMON 60-MIN OPENING (GAPS-AND-ISLANDS)</div>
+    <div class="codeblock"><span class="ck">WITH</span> combined <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> slot_start_utc, <span class="cf">sum</span>(is_busy) <span class="ck">AS</span> busy_heads
+    <span class="ck">FROM</span>   fct_freebusy_slots
+    <span class="ck">WHERE</span>  calendar_sk <span class="ck">IN</span> (77,78,79)
+      <span class="ck">AND</span>  slot_start_utc &gt;= <span class="cs">'2026-07-01 15:00+00'</span>   <span class="cl">-- 08:00 PT</span>
+      <span class="ck">AND</span>  slot_start_utc &lt;  <span class="cs">'2026-07-01 21:00+00'</span>   <span class="cl">-- 14:00 PT</span>
+    <span class="ck">GROUP BY</span> slot_start_utc
+),
+runs <span class="ck">AS</span> (   <span class="cl">-- the islands trick: count busy slots seen so far to label free runs</span>
+    <span class="ck">SELECT</span> slot_start_utc,
+           <span class="cf">count</span>(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> busy_heads &gt; 0)
+             <span class="ck">OVER</span> (<span class="ck">ORDER BY</span> slot_start_utc) <span class="ck">AS</span> busy_group
+    <span class="ck">FROM</span>   combined <span class="ck">WHERE</span> busy_heads = 0
+)
+<span class="ck">SELECT</span> <span class="cf">min</span>(slot_start_utc)                        <span class="ck">AS</span> open_from,
+       <span class="cf">min</span>(slot_start_utc) + <span class="ck">INTERVAL</span> <span class="cs">'60 min'</span>    <span class="ck">AS</span> open_to
+<span class="ck">FROM</span>   runs
+<span class="ck">GROUP BY</span> busy_group
+<span class="ck">HAVING</span> <span class="cf">count</span>(*) &gt;= 4               <span class="cl">-- 4 x 15-min = 60 min, all heads free</span>
+<span class="ck">ORDER BY</span> open_from
+<span class="ck">LIMIT</span>  1;                         <span class="cl">-- -> 18:00Z = 11:00 PT</span></div>
+
+    <h3 class="reveal">RSVP funnel and recurrence health — conditional aggregation</h3>
+    <p class="reveal">The organizer's question and the workspace admin's, in one shape. Because invitations are per-occurrence and exceptions are an append-only ledger, the response mix is a <span class="m">GROUP BY response</span> on one occurrence, and recurrence health is conditional aggregation over <span class="m">fct_event_exceptions</span> — a series with cancels every week is a "zombie" the workspace nudges to delete.</p>
+
+    <div class="codelabel">SQL · RESPONSE MIX + WHICH SERIES CHURN THEIR OCCURRENCES</div>
+    <div class="codeblock"><span class="cl">-- RSVP funnel for one occurrence (the moved Wednesday instance)</span>
+<span class="ck">SELECT</span> response, <span class="cf">count</span>(*) <span class="ck">AS</span> heads,
+       <span class="cf">round</span>(<span class="cf">avg</span>(latency_min)) <span class="ck">AS</span> avg_latency_min
+<span class="ck">FROM</span>   fct_invitations
+<span class="ck">WHERE</span>  occurrence_sk = 504
+<span class="ck">GROUP BY</span> response;          <span class="cl">-- accepted 2, declined 1 (Chen can't do Wed)</span>
+
+<span class="cl">-- recurrence health: which series churn their occurrences?</span>
+<span class="ck">SELECT</span> series_sk,
+       <span class="cf">count</span>(*)                                          <span class="ck">AS</span> exceptions,
+       <span class="cf">count</span>(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> exception_type = <span class="cs">'cancel'</span>) <span class="ck">AS</span> cancels,
+       <span class="cf">count</span>(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> exception_type = <span class="cs">'move'</span>)   <span class="ck">AS</span> moves
+<span class="ck">FROM</span>   fct_event_exceptions
+<span class="ck">GROUP BY</span> series_sk
+<span class="ck">HAVING</span> <span class="cf">count</span>(*) &gt;= 2
+<span class="ck">ORDER BY</span> exceptions <span class="ck">DESC</span>;   <span class="cl">-- many cancels => a 'zombie' to nudge</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the schedule is alive</h2>
+    <p class="lede reveal">A senior design ends with observability, because every clever degradation above is invisible without it. The calendar dashboard watches three things that fail differently: the read path that must feel instant, the pipeline that keeps projections honest, and the time-correctness machinery that no one notices until it is wrong.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>READ PATH</dt><dd><span class="m">render p95</span> for a window, <span class="m">sync-delta hit rate</span> (how often "what changed?" returns nothing — the cheapest query is the one that fetches nothing), <span class="m">window-cache hit %</span>, and <span class="m">expansion guardrail trips</span> — a spike means someone shipped a <span class="m">FREQ=MINUTELY</span> rule into a hot calendar.</dd></div>
+      <div class="defrow"><dt>THE PIPELINE</dt><dd><span class="m">fan-out consumer lag</span> (seconds of staleness on attendee copies), <span class="m">free/busy lag</span>, <span class="m">dead-letter / reconcile</span> count, and <span class="m">stale-copy repairs</span> — proof that versioned copies are detecting and healing themselves instead of silently disagreeing with truth.</dd></div>
+      <div class="defrow"><dt>TIME &amp; RECURRENCE</dt><dd><span class="m">DST-affected occurrences pending recompute</span> after a tz-database bump, <span class="m">exceptions per series</span> and the zombie tail, <span class="m">find-a-time p99</span>, and <span class="m">RSVP response latency</span> — the late-arriving truth the model is built to absorb.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Calendar Ops — Global</span>
+        <span class="dash-sub">MON 09:12 UTC · ALL ZONES · 30s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Render p95</div><div class="tv ok">38<small>ms</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,16 60,14 80,15 100,13 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Sync-Delta Empty %</div><div class="tv ok">91<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,14 40,15 60,12 80,13 100,11 120,10" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Window-Cache Hit</div><div class="tv ok">87<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,16 40,15 60,14 80,13 100,12 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Fan-out Lag</div><div class="tv warn">4.1<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,20 40,19 60,16 80,14 100,11 120,9" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Find-a-Time — 3 attendees, 08:00–14:00 PT · OR the masks, first zero-run wins</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace" font-size="8" fill="#8f8672" text-anchor="middle">
+              <text x="20" y="10">08</text><text x="56" y="10">10</text><text x="92" y="10">12</text><text x="128" y="10">14</text>
+            </g>
+            <text x="6" y="26" font-size="8.5" fill="#8f8672" font-family="DM Mono,monospace">A</text>
+            <text x="6" y="42" font-size="8.5" fill="#8f8672" font-family="DM Mono,monospace">B</text>
+            <text x="6" y="58" font-size="8.5" fill="#8f8672" font-family="DM Mono,monospace">C</text>
+            <text x="6" y="76" font-size="8.5" fill="#d8a44a" font-family="DM Mono,monospace">∪</text>
+            <g>
+              <rect x="14" y="18" width="124" height="10" fill="#3a352b"/>
+              <rect x="14" y="34" width="124" height="10" fill="#3a352b"/>
+              <rect x="14" y="50" width="124" height="10" fill="#3a352b"/>
+              <rect x="14" y="68" width="124" height="11" fill="#2b2820"/>
+            </g>
+            <!-- Alice busy 09:00-10:30, 12:00-13:00 -->
+            <rect x="32" y="18" width="31" height="10" fill="#6e5a23"/>
+            <rect x="92" y="18" width="20" height="10" fill="#6e5a23"/>
+            <!-- Bren busy 08:30-09:30, 13:00-14:00 -->
+            <rect x="23" y="34" width="20" height="10" fill="#6e5a23"/>
+            <rect x="112" y="34" width="20" height="10" fill="#6e5a23"/>
+            <!-- Chen busy 10:00-11:00 -->
+            <rect x="56" y="50" width="20" height="10" fill="#6e5a23"/>
+            <!-- combined OR 08:30-11:00, 12:00-14:00 -->
+            <rect x="23" y="68" width="53" height="11" fill="#c25a2a"/>
+            <rect x="92" y="68" width="40" height="11" fill="#c25a2a"/>
+            <!-- free 11:00-12:00 -->
+            <rect x="76" y="68" width="16" height="11" fill="#a8b58a"/>
+            <text x="180" y="44" font-size="9" fill="#a8b58a" font-family="DM Mono,monospace">FREE 11:00 PT</text>
+            <text x="180" y="58" font-size="8" fill="#8f8672" font-family="DM Mono,monospace">= 18:00Z · 4 slots</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Free/Busy Lag</div><div class="tv ok">2.3<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Guardrail Trips</div><div class="tv ok">3<small>/h</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,14 100,15 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">DST Recompute Backlog</div><div class="tv warn">61<small>k</small></div><svg viewBox="0 0 120 30"><polyline points="0,9 20,11 40,13 60,14 80,16 100,18 120,20" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Stale-Copy Repairs</div><div class="tv">820<small>/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,16 40,13 60,15 80,14 100,16 120,13" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Zombie Series</div><div class="tv warn">1.2<small>k</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,13 80,14 100,13 120,12" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">RSVP Latency p50</div><div class="tv ok">2.4<small>h</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,14 60,15 80,14 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy tz-bump tells: a DST recompute backlog draining through the same change stream, fan-out lag drifting amber under the burst, find-a-time still landing 11:00 PT in microseconds — and render p95 flat, because reads come off bitmaps and version-keyed caches, untouched by the churn behind them.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates the deep cut from §06. IANA shipped a zone change overnight; the bump job diffed the affected zones and ranges and enqueued synthetic touches, so 61k future occurrences are being re-derived and their bitmaps restamped — and because every projection is versioned and replayable, fan-out merely lagged rather than corrupted, stale copies are repairing themselves at 820/s, and not one user's render got slower. That is what a designed degradation looks like from the operator's chair: the time machinery churns, and the front of the house stays boring.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the calendar details away and the question was probing five judgments, each of which generalizes far beyond scheduling:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>RULE OVER ROWS</dt><dd>Seeing that one row can denote an unbounded set, and storing the generator rather than the output — so writes stay O(1) and materialization is an optimization for hot windows, never the model.</dd></div>
+      <div class="defrow"><dt>DERIVE THE INSTANT</dt><dd>Storing local wall-clock plus an IANA zone and computing UTC per occurrence, never a frozen offset — because the only thing that knows the transition dates is the zone database, and a clock change must not move the meeting.</dd></div>
+      <div class="defrow"><dt>CORRECTIONS AS A LEDGER</dt><dd>Modeling cancels and moves as sparse, append-only override rows keyed by the occurrence they replace — so a series edit propagates by inheritance, per-instance RSVPs fall out for free, and recurrence health is a GROUP BY.</dd></div>
+      <div class="defrow"><dt>MATERIALIZE WHERE IDENTITY DOESN'T MATTER</dt><dd>Refusing materialization for events but embracing it for free/busy, because availability needs only coverage — a fixed-size bitmap you OR across attendees turns "find a time" into a popcount cheap enough for agents to poll.</dd></div>
+      <div class="defrow"><dt>ONE LOG, MANY JOBS</dt><dd>Making the change stream the spine: a transactional outbox feeds fan-out, bitmaps, cache versioning, and client sync, so every projection is derived, versioned, and replayable — and every failure degrades to stale, never to wrong.</dd></div>
+    </dl>
+    <div class="pull reveal">The calendar is a data-modeling problem wearing a UI. Get the row shape and the change stream right and the request path becomes almost boring — which, for something a billion people open every morning, is exactly what you want.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 20 — THE RECURRENCE PROBLEM<br>RECURRENCE-AS-RULE · OCCURRENCE-AS-FACT · THE CRAFT OF TIME</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

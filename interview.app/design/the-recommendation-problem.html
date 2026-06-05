@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Recommendation Problem — PaddySpeaks</title>
+<meta name="description" content="Design the data backend for a For-You-Page recommender that trains on itself. Echo-chamber bias, the 5% exploration table, off-policy evaluation, predicted scores frozen at impression-time, and shadow-traffic rollouts. Data flow, schema, streaming Python, causal-lift SQL, and the dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 12</div>
+    <h1 class="reveal">The <em>Recommendation</em> Problem</h1>
+    <p class="deck reveal">Design the data backend for a For-You-Page — billions of impressions a day, sub-200ms ranking, and a model that trains on its own output. One prompt, one vicious feedback loop, and a single decision that separates a senior answer: hold back 5% of traffic so you can ever know whether the algorithm caused anything. A complete working-through of data flow, schema, streaming Python, off-policy evaluation, the causal-lift SQL, and the dashboard that watches for drift.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>ML / Recsys</b></span>
+      <span>READING · <b>~27 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>The system that grades itself</h2>
+    <p class="lede reveal">Every ML engineer who works on ranking eventually meets this question. It sounds like "build a recommender." It is really "build a recommender that can tell whether it is any good" — and those are not the same system.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data model behind a For-You-Page recommendation feed. It serves billions of impressions a day and the ranker trains on the engagement it generates. How do you model it without producing a biased feedback loop — and how do you know if a new model is actually better?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The For-You-Page is the most-watched ML system on the planet, and the trap is not scale — it is the snake eating its tail. The ranker boosts videos that already get watched; users see them more; they get watched more; they are boosted more. New videos and new creators starve in the dark. This is <strong>echo-chamber bias</strong>, and it is not a tuning problem you smooth away later — it is baked into the data the moment you log only what the algorithm chose to show. Every engagement metric you compute is confounded by the ranker's own selection. "This video got an 80% completion rate" tells you nothing, because the ranker only showed it to the people it already believed would finish it.</p>
+
+    <p class="reveal">A weak answer logs impressions and engagements and calls it a recommender. A strong answer notices the missing table — the one that holds the videos the algorithm <em>did not</em> choose — and the missing column — the prediction the model made <em>before</em> it knew the outcome. Without those two, the system can attribute, but it can never measure causality, and a recommender that cannot measure its own causal lift cannot safely improve. So before any boxes and arrows, the working frame for the whole session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE LOGGING LOOP</dt><dd><strong>Impressions &amp; engagement.</strong> One row per video shown, billions a day, joined to likes / shares / watch-seconds / swipe-aways by impression id. The firehose — sampled to 1% for analytics, full-fidelity in the feature store. This is what every naive design captures, and on its own it is a hall of mirrors.</dd></div>
+      <div class="defrow"><dt>THE COUNTERFACTUAL</dt><dd><strong>Exploration events.</strong> 5% of traffic deliberately randomized or drawn from a holdout pool — videos the ranker would <em>not</em> have chosen. The control group that makes lift computable. Non-negotiable: without it you have attribution, not causation.</dd></div>
+      <div class="defrow"><dt>THE FROZEN PREDICTION</dt><dd><strong>Ranker scores at impression-time.</strong> The model's predicted engagement, stamped with its version, written the instant the video is shown — before the outcome exists. This is what makes "was the model right?" answerable retroactively, and what lets five model versions be compared on the same impressions.</dd></div>
+    </dl>
+
+    <div class="pull reveal">You cannot improve what you only observe through its own choices. The 5% you throw away on random videos is the only 5% that tells you the truth.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you build, what you ignore, and the numbers that shape every later choice. Out of scope here, said explicitly: the candidate-generation and ranking model internals (treated as a callable service that returns scored videos), the video CDN and transcoding stack, trust-and-safety classification, and the recommendation UI. In scope: how an impression becomes a row, how the exploration slice is carved and logged, how the predicted score is frozen for off-policy evaluation, how new rankers roll out under shadow traffic, and how cold-start videos escape the starvation trap.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. TikTok-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Daily active users</td><td class="mono">1,000,000,000</td><td>Sets the dimension cardinality, not the fact size</td></tr>
+      <tr><td>Impressions/day</td><td class="mono">≈ 100 B</td><td>The firehose — cannot land full-fidelity in the warehouse</td></tr>
+      <tr><td>Serving latency budget</td><td class="mono">&lt; 200 ms</td><td>Score is computed and frozen on the hot path, logged async</td></tr>
+      <tr><td><strong>Exploration slice</strong></td><td class="mono"><strong>5% ≈ 5 B impressions/day</strong></td><td><strong>The control group that shapes the whole architecture</strong></td></tr>
+      <tr><td>Analytics sample</td><td class="mono">1% of impressions</td><td>Tens of TB/day even sampled; full data in feature store</td></tr>
+      <tr><td>Concurrent ranker versions</td><td class="mono">5–10</td><td>Forces model_version on every score row</td></tr>
+      <tr><td>Raw event retention</td><td class="mono">30 days</td><td>PII; aggregate to durable rollups, expire the raw</td></tr>
+    </table>
+
+    <p class="reveal">Notice what the numbers say and what they do not. The hundred-billion firehose dictates the sampling and storage tiering — but the row that shapes the <em>architecture</em>, not just the bill, is the 5% exploration slice. Five billion deliberately un-ranked impressions a day is the price of being able to answer the only question that matters: did the algorithm cause the engagement, or did it just take credit for what was going to happen anyway? The rest of this article follows that question.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following an impression through the building</h2>
+    <p class="lede reveal">One feed, two regimes. The serving path splits at the source: 95% of impressions are ranked by the model, 5% are randomized — and both carry a frozen prediction downstream, so that weeks later the analytics layer can subtract one from the other and recover causal truth.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <!-- lanes -->
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">SERVING PATH · 95% RANKED + 5% EXPLORATION · &lt;200MS</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">LEARNING PATH · OFF-POLICY EVAL · OFFLINE</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- client -->
+        <rect x="20" y="60" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="87" font-size="12.5" text-anchor="middle" fill="#23201a">CLIENT FEED</text>
+        <text x="95" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">scroll · request batch</text>
+
+        <!-- serving / mixer -->
+        <rect x="230" y="52" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="315" y="78" font-size="12.5" text-anchor="middle" fill="#23201a">FEED MIXER</text>
+        <text x="315" y="96" font-size="10.5" text-anchor="middle" fill="#7d7567">95% ranker · 5% random</text>
+        <text x="315" y="112" font-size="10.5" text-anchor="middle" fill="#7d7567">tag each slot's source</text>
+
+        <!-- ranker -->
+        <rect x="460" y="46" width="200" height="92" fill="#27241d"/>
+        <text x="560" y="76" font-size="12.5" text-anchor="middle" fill="#e9e2d0">RANKER v118 (+shadow)</text>
+        <text x="560" y="94" font-size="10.5" text-anchor="middle" fill="#b8ad93">predict watch_seconds</text>
+        <text x="560" y="110" font-size="10.5" text-anchor="middle" fill="#b8ad93">freeze score @ impression</text>
+
+        <!-- impression log -->
+        <rect x="730" y="40" width="220" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="840" y="66" font-size="12.5" text-anchor="middle" fill="#a4502e">fct_impression</text>
+        <text x="840" y="84" font-size="10.5" text-anchor="middle" fill="#7d7567">+ fct_ranker_score (frozen)</text>
+        <text x="840" y="99" font-size="10.5" text-anchor="middle" fill="#7d7567">source · model_version</text>
+
+        <!-- exploration log -->
+        <rect x="730" y="140" width="220" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="166" font-size="12.5" text-anchor="middle" fill="#8a5d12">fct_exploration_event</text>
+        <text x="840" y="184" font-size="10.5" text-anchor="middle" fill="#7d7567">the 5% control group</text>
+
+        <!-- engagement -->
+        <rect x="730" y="224" width="220" height="56" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="840" y="248" font-size="12.5" text-anchor="middle" fill="#7d7567">fct_engagement</text>
+        <text x="840" y="265" font-size="10.5" text-anchor="middle" fill="#7d7567">like/share/watch · join by id</text>
+
+        <!-- arrows serving -->
+        <line x1="170" y1="92" x2="226" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="92" x2="456" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="75" x2="726" y2="75" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="400" y1="120" x2="726" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="130" x2="726" y2="248" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- learning path -->
+        <rect x="20" y="360" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="387" font-size="12.5" text-anchor="middle" fill="#23201a">FEATURE STORE</text>
+        <text x="95" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">full-fidelity events</text>
+
+        <rect x="230" y="348" width="180" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="320" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">OFF-POLICY EVAL</text>
+        <text x="320" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">algo CTR vs explore CTR</text>
+        <text x="320" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">lift = (a − e) / e</text>
+
+        <rect x="470" y="336" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="358" font-size="12" text-anchor="middle" fill="#23201a">SHADOW SCORING</text>
+        <text x="565" y="376" font-size="10.5" text-anchor="middle" fill="#a4502e">v119 scores, serves nothing</text>
+
+        <rect x="470" y="408" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="430" font-size="12" text-anchor="middle" fill="#23201a">COLD-START POOL</text>
+        <text x="565" y="448" font-size="10.5" text-anchor="middle" fill="#7d7567">forced explore · countdown</text>
+
+        <rect x="730" y="330" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="354" font-size="12" text-anchor="middle" fill="#23201a">MODEL TRAINING</text>
+        <text x="840" y="372" font-size="10.5" text-anchor="middle" fill="#7d7567">debiased w/ exploration data</text>
+
+        <rect x="730" y="414" width="220" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="840" y="438" font-size="12" text-anchor="middle" fill="#23201a">PROMOTE / ROLLBACK</text>
+        <text x="840" y="456" font-size="10.5" text-anchor="middle" fill="#7d7567">shadow → 1% A/B → 100%</text>
+
+        <!-- learning arrows -->
+        <line x1="170" y1="392" x2="226" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="370" x2="466" y2="363" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="410" y1="410" x2="466" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="363" x2="726" y2="360" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="440" x2="726" y2="444" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- exploration feeds eval -->
+        <path d="M 840 204 C 600 250, 420 300, 330 348" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="470" y="262" font-size="10.5" fill="#a4502e">5% control → lift</text>
+
+        <!-- frozen score feeds eval -->
+        <path d="M 905 110 C 945 230, 700 330, 660 360" fill="none" stroke="#8a5d12" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="838" y="300" font-size="10.5" fill="#8a5d12">frozen score</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — sustained data flow · DASHED — offline causal joins · The model proposes; the 5% disposes of the bias.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. The serving split is the spine; the exploration log is the control group; the frozen score is the time capsule that makes evaluation possible.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the split happens at the mixer and is <em>recorded</em>: every impression carries a <span class="m">source</span> tag — ranked or exploration — so the analytics layer can separate the two regimes without guessing. <strong>Second,</strong> the prediction is frozen on the hot path: the ranker writes <span class="m">predicted_watch_seconds</span> and its <span class="m">model_version</span> the instant the video is shown, before any outcome exists, which is the only moment the prediction is uncontaminated by what later happened. <strong>Third,</strong> the dashed lines are the whole point — the exploration log and the frozen scores flow into an <em>offline</em> evaluation that compares the algorithm's engagement against the random baseline, and that subtraction, not any online metric, is what licenses promoting a new model.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>The firehose may be sampled; the control group may never be.</strong> Dropping 99% of impressions for analytics is fine — a 1% sample of a hundred billion is still a billion rows, statistically lavish. But the 5% exploration slice is sampled at <em>full fidelity</em> and protected from any optimization that would shrink it, because the instant the control group is itself selected by the ranker, it stops being a control group and every lift number becomes a lie. Sample the firehose freely; never let an A/B test or a latency tweak quietly poison the exploration arm.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>Four facts, and a vault</h2>
+    <p class="lede reveal">The schema falls out of the causality question. The impression is the spine; the engagement hangs off it by id; the exploration event is the control arm at the same grain; the ranker score is the frozen prediction. And because engagement is high-PII, the identity lives behind a token in a separate vault.</p>
+
+    <h3 class="reveal">The spine — one row per video shown</h3>
+    <p class="reveal">The impression fact is the most-written table on Earth, so its design is about discipline under sampling. One row per video shown to a user, stamped with the serving context the analytics layer will need: the feed <span class="m">position</span>, the <span class="m">model_version</span> that ranked it, the <span class="m">source</span> that says whether this slot was ranked or exploration, and the <span class="m">sampled_pct</span> that lets a downstream query reweight a 1% sample back to population scale. Crucially the user is keyed by a <span class="m">user_id_token</span>, never the raw id — identity is borrowed, not stored.</p>
+
+    <div class="codelabel">DDL · THE SPINE — IMPRESSION FACT</div>
+    <div class="codeblock"><span class="cl">-- One row per video shown. Billions/day; sampled to 1% for analytics,
+-- full-fidelity in the feature store. Partitioned by shown_at (hour),
+-- clustered on user_id_token. The 'source' column is the bias firewall.</span>
+<span class="ck">CREATE TABLE</span> fct_impression (
+    impression_id   BIGINT       <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- snowflake: time-ordered</span>
+    user_id_token   BYTEA        <span class="ck">NOT NULL</span>,       <span class="cl">-- tokenized, NOT the raw user_id</span>
+    video_id        BIGINT       <span class="ck">NOT NULL</span>,
+    shown_at        TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    position_in_feed SMALLINT    <span class="ck">NOT NULL</span>,       <span class="cl">-- position bias lives here</span>
+    model_version   TEXT         <span class="ck">NOT NULL</span>,       <span class="cl">-- which ranker chose this (v117, v118…)</span>
+    source          TEXT         <span class="ck">NOT NULL</span>
+                    <span class="ck">CHECK</span> (source <span class="ck">IN</span> (<span class="cs">'ranked'</span>,<span class="cs">'exploration'</span>,<span class="cs">'cold_start'</span>)),
+    sampled_pct     NUMERIC(6,4) <span class="ck">NOT NULL</span>        <span class="cl">-- 1.0000 = kept; reweight factor</span>
+);
+<span class="ck">CREATE INDEX</span> idx_imp_video <span class="ck">ON</span> fct_impression (video_id, shown_at <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_imp_source <span class="ck">ON</span> fct_impression (source, shown_at <span class="ck">DESC</span>);  <span class="cl">-- carve the 5%</span></div>
+
+    <h3 class="reveal">The outcome — engagement, joined by id</h3>
+    <p class="reveal">Engagement is a separate fact, joined to the impression by <span class="m">impression_id</span>. Keeping it separate matters: an impression with no engagement row is a swipe-away, and that absence is itself a signal the ranker learns from. The watched-seconds column is the regression target the model predicts; the booleans are the classification targets. And like the spine, it is keyed by token, because this is the table a privacy review will scrutinize hardest.</p>
+
+    <div class="codelabel">DDL · THE OUTCOME — ENGAGEMENT FACT</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_engagement (
+    impression_id   BIGINT       <span class="ck">NOT NULL REFERENCES</span> fct_impression,
+    user_id_token   BYTEA        <span class="ck">NOT NULL</span>,
+    liked           BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,
+    shared          BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,
+    commented       BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,
+    watched_seconds NUMERIC(8,3) <span class="ck">NOT NULL DEFAULT</span> 0,   <span class="cl">-- the regression target</span>
+    completed       BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,
+    skipped         BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,
+    engaged_at      TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    <span class="ck">PRIMARY KEY</span> (impression_id)
+);
+<span class="cl">-- No engagement row for an impression = a swipe-away. The ABSENCE is data.</span></div>
+
+    <h3 class="reveal">The control arm and the frozen prediction</h3>
+    <p class="reveal">Two more facts, and they are the ones the naive design forgets. The exploration event records the 5% of impressions that were random or holdout — the counterfactual baseline that answers "if we showed this to a thousand random users, how many would engage?" The ranker-score fact freezes the model's prediction at impression-time, stamped with version, so that "was the model right?" becomes a join between a prediction made in the past and an outcome known in the present. Both are append-only; neither is ever back-filled with hindsight.</p>
+
+    <div class="codelabel">DDL · THE CONTROL ARM + THE TIME CAPSULE</div>
+    <div class="codeblock"><span class="cl">-- The 5%: videos the ranker would NOT have chosen. The control group.</span>
+<span class="ck">CREATE TABLE</span> fct_exploration_event (
+    impression_id   BIGINT       <span class="ck">PRIMARY KEY REFERENCES</span> fct_impression,
+    user_id_token   BYTEA        <span class="ck">NOT NULL</span>,
+    video_id        BIGINT       <span class="ck">NOT NULL</span>,
+    explore_kind    TEXT         <span class="ck">NOT NULL</span>
+                    <span class="ck">CHECK</span> (explore_kind <span class="ck">IN</span> (<span class="cs">'uniform_random'</span>,<span class="cs">'holdout_pool'</span>)),
+    shown_at        TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    engaged         BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,
+    watched_seconds NUMERIC(8,3) <span class="ck">NOT NULL DEFAULT</span> 0
+);
+
+<span class="cl">-- The frozen prediction. Written ON THE HOT PATH, before the outcome
+-- exists. Five-to-ten model versions write here concurrently; the version
+-- column is what lets us replay v117 vs v118 on the SAME impressions.</span>
+<span class="ck">CREATE TABLE</span> fct_ranker_score (
+    impression_id          BIGINT  <span class="ck">NOT NULL REFERENCES</span> fct_impression,
+    model_version          TEXT    <span class="ck">NOT NULL</span>,
+    predicted_watch_seconds NUMERIC(8,3) <span class="ck">NOT NULL</span>,  <span class="cl">-- e.g. 18.300</span>
+    predicted_engage_prob  NUMERIC(6,5) <span class="ck">NOT NULL</span>,
+    is_shadow              BOOLEAN <span class="ck">NOT NULL DEFAULT</span> <span class="ck">false</span>,   <span class="cl">-- scored but not served</span>
+    <span class="ck">PRIMARY KEY</span> (impression_id, model_version)        <span class="cl">-- one row per (imp × model)</span>
+);</div>
+
+    <p class="reveal">And the vault — deliberately apart. The token that keys every fact above maps to a real user id only inside <span class="m">vault.user_id_map</span>, an encrypted store with its own access pool that the analytics warehouse cannot read. Raw events carry a 30-day retention; the aggregated rollups (per-user-per-day-per-cluster) are de-identified enough to keep indefinitely. The separation is not decoration — it is what lets the firehose be useful to ML without being a standing liability to privacy.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE INVARIANT</span>The prediction is frozen before the outcome</h2>
+    <p class="lede reveal">The whole correctness of this system lives in one rule about time: the model's prediction is written before the model can possibly know whether it was right. Freeze the score at impression-time, stamp it with a version, and every later question about model quality becomes a deterministic join across time instead of an irreproducible guess.</p>
+
+    <p class="reveal">Why this is the invariant, and not a nice-to-have. Models are versioned and they change daily; today's recommendation was made by ranker v117, and replaying the same impression through v118 produces a different number. If you do not capture v117's prediction at the moment it was made, you lose it forever — there is no way to reconstruct what the deployed model believed about a video it has long since stopped seeing. Storing the score freezes the test. "Was the model right?" becomes comparing a prediction-then to an outcome-now, and "is the new model better?" becomes scoring it on the same impressions retroactively, with no online experiment required.</p>
+
+    <div class="statechain reveal">
+      <span class="st">CANDIDATE</span><span class="arr">→</span>
+      <span class="st">SCORED v118</span><span class="arr">→</span>
+      <span class="st">SHOWN @ pos</span><span class="arr">→</span>
+      <span class="st">ENGAGED / SKIPPED</span><span class="arr">→</span>
+      <span class="st terminal">EVALUATED</span>
+    </div>
+    <p class="reveal">Read the lifecycle left to right and notice where the freeze sits: between <span class="m">SCORED</span> and <span class="m">SHOWN</span>, before the outcome exists. The score row is written synchronously with the impression; the engagement arrives seconds-to-hours later; the evaluation happens days later, offline. Because the prediction was frozen, the gap between <span class="m">SHOWN</span> and <span class="m">EVALUATED</span> can be arbitrarily long and the comparison stays honest. A video shown ten million times with a high predicted score and a low actual watch-time is not noise — it is the cleanest possible diagnostic of model drift, and you only have it because the prediction was stamped before the truth came in.</p>
+
+    <div class="codelabel">SQL · THE FROZEN TEST — PREDICTED-THEN vs OUTCOME-NOW</div>
+    <div class="codeblock"><span class="cl">-- Per model version: how far did predicted watch-time miss the actual?
+-- This is only answerable because the score was frozen at impression-time.
+-- The same impressions scored by two versions → an honest head-to-head.</span>
+<span class="ck">SELECT</span>
+    r.model_version,
+    count(*)                                              <span class="ck">AS</span> n,
+    round(avg(r.predicted_watch_seconds), 3)             <span class="ck">AS</span> avg_predicted,
+    round(avg(e.watched_seconds), 3)                     <span class="ck">AS</span> avg_actual,
+    round(avg(<span class="cf">abs</span>(r.predicted_watch_seconds
+                  - e.watched_seconds)), 3)              <span class="ck">AS</span> mae,   <span class="cl">-- calibration error</span>
+    round(<span class="cf">corr</span>(r.predicted_watch_seconds,
+               e.watched_seconds)::numeric, 4)           <span class="ck">AS</span> rank_signal
+<span class="ck">FROM</span>       fct_ranker_score r
+<span class="ck">JOIN</span>       fct_engagement   e <span class="ck">USING</span> (impression_id)
+<span class="ck">WHERE</span>      r.is_shadow = <span class="ck">false</span>
+<span class="ck">GROUP BY</span>   r.model_version
+<span class="ck">ORDER BY</span>   mae <span class="ck">ASC</span>;     <span class="cl">-- the better-calibrated model has lower MAE on the same data</span></div>
+
+    <p class="reveal">The <span class="m">is_shadow</span> flag and the composite key <span class="m">(impression_id, model_version)</span> are doing the quiet work. A shadow model writes a prediction for an impression it did not serve — same impression id, different version, <span class="m">is_shadow = true</span> — so the head-to-head above can include a model that has never touched a real user. That is the whole game: you compare v119 to v118 on identical impressions, offline, before v119 is ever allowed to influence a single feed.</p>
+
+    <div class="pull reveal">Freeze the prediction before the outcome, or you can never prove the model improved. A score written after the fact is a memory; a score written before it is evidence.<span>RECSYS RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the feed</h2>
+    <p class="lede reveal">Three programs carry the system. The mixer that carves the exploration slice and freezes the score, the logger that joins engagement back to its impression, and the cold-start governor that forces new videos into the light. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The mixer — carve the 5%, freeze the score</h3>
+    <p class="reveal">This runs on the serving hot path, under the 200ms budget, so it does the minimum and logs asynchronously. It assigns each feed slot a source — ranked or exploration — by a stable hash, freezes the chosen ranker's prediction into the score buffer the instant the slot is filled, and never blocks the response on the log write. The carve is deterministic per (user, request) so the exploration assignment is reproducible and auditable, not a coin flip the system forgets.</p>
+
+    <div class="codelabel">PYTHON · FEED MIXER — DETERMINISTIC SPLIT + FROZEN SCORE</div>
+    <div class="codeblock"><span class="ck">import</span> hashlib
+
+EXPLORE_RATE = 0.05        <span class="cl"># the control arm — guarded, never optimized away</span>
+
+<span class="ck">class</span> <span class="cf">FeedMixer</span>:
+    <span class="cs">"""Fills feed slots from the ranker, but routes a deterministic 5%
+    to uniform-random exploration. The split is a STABLE hash, not a
+    coin flip: the same (user, request, slot) always lands the same way,
+    so the exploration assignment is reproducible for audit."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, ranker, random_pool, log):
+        self.ranker, self.random_pool, self.log = ranker, random_pool, log
+
+    <span class="ck">def</span> <span class="cf">fill_slot</span>(self, user, request_id, slot_idx) -&gt; dict:
+        <span class="ck">if</span> self._is_exploration(user.id, request_id, slot_idx):
+            video = self.random_pool.sample()              <span class="cl"># the ranker did NOT choose this</span>
+            source, version = <span class="cs">"exploration"</span>, <span class="cs">"none"</span>
+            score = <span class="ck">None</span>                                  <span class="cl"># no prediction to freeze</span>
+        <span class="ck">else</span>:
+            video, score = self.ranker.top(user)           <span class="cl"># returns (video, prediction)</span>
+            source, version = <span class="cs">"ranked"</span>, self.ranker.version
+        imp_id = new_snowflake()
+        <span class="cl"># Log async — NEVER block the 200ms response on the write:</span>
+        self.log.emit_impression(imp_id, user.token, video.id,
+                                 slot_idx, version, source)
+        <span class="ck">if</span> score <span class="ck">is not</span> <span class="ck">None</span>:
+            self.log.freeze_score(imp_id, version,            <span class="cl"># the time capsule</span>
+                                  score.watch_seconds, score.engage_prob)
+        <span class="ck">return</span> {<span class="cs">"impression_id"</span>: imp_id, <span class="cs">"video"</span>: video}
+
+    <span class="ck">def</span> <span class="cf">_is_exploration</span>(self, uid, req, slot) -&gt; bool:
+        h = hashlib.blake2b(<span class="cs">f"{uid}:{req}:{slot}"</span>.encode(), digest_size=8)
+        <span class="ck">return</span> (int.from_bytes(h.digest()) % 10000) / 10000 &lt; EXPLORE_RATE</div>
+
+    <p class="reveal">One carve-out, always stated: <strong>the mixer never lets an experiment touch the exploration arm.</strong> A/B tests and feature flags partition the <em>ranked</em> 95%; the 5% control group is held constant across all of them, because a control group that is itself being experimented on is no longer a control group. This single discipline is what keeps every lift number downstream meaningful.</p>
+
+    <h3 class="reveal">2 · The engagement logger — join the outcome to the impression</h3>
+    <div class="codelabel">PYTHON · ENGAGEMENT LOGGER — IDEMPOTENT BY IMPRESSION</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">log_engagement</span>(store, ev) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""Engagement arrives on a separate stream, seconds-to-hours after
+    the impression. Idempotent on impression_id: a video the user likes,
+    then shares, then finishes is ONE evolving row, not three. The client
+    sends the impression_id it was served, so the join is exact."""</span>
+    <span class="ck">await</span> store.upsert_engagement(
+        impression_id   = ev.impression_id,        <span class="cl"># the join key, from the served slot</span>
+        user_id_token   = ev.user_token,           <span class="cl"># tokenized, never raw id</span>
+        liked           = ev.liked,
+        shared          = ev.shared,
+        commented       = ev.commented,
+        watched_seconds = ev.watched_seconds,       <span class="cl"># last-write-wins; final dwell</span>
+        completed       = ev.watched_seconds &gt;= ev.video_duration * 0.95,
+        skipped         = ev.watched_seconds &lt; 1.0)
+    <span class="cl"># Note: we do NOT manufacture a row for impressions with no engagement.</span>
+    <span class="cl"># The MISSING row is the swipe-away signal — absence carries information,</span>
+    <span class="cl"># and a LEFT JOIN at analysis time recovers it precisely.</span></div>
+
+    <h3 class="reveal">3 · The cold-start governor — force new videos into the light</h3>
+    <div class="codelabel">PYTHON · COLD-START — FORCED EXPLORATION WITH A COUNTDOWN</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">cold_start_decision</span>(video, lifecycle) -&gt; dict:
+    <span class="cs">"""New videos have no engagement history, so the ranker cannot score
+    them — and if left to the ranker they never get shown, never earn
+    history, and starve. Two levers break the loop: a forced-exploration
+    budget, and inherited priors as a fallback feature."""</span>
+    <span class="ck">if</span> lifecycle.bootstrap_pool_remaining &gt; 0:
+        <span class="cl"># Guarantee the first ~1000 impressions regardless of score, so the</span>
+        <span class="cl"># video earns real engagement data instead of dying in the dark.</span>
+        lifecycle.bootstrap_pool_remaining -= 1          <span class="cl"># counted down per impression</span>
+        <span class="ck">return</span> {<span class="cs">"force_show"</span>: <span class="ck">True</span>, <span class="cs">"source"</span>: <span class="cs">"cold_start"</span>}
+    <span class="cl"># Pool spent: fall back to the creator's and sound's priors as features</span>
+    <span class="cl"># so the ranker has SOMETHING to go on until first-party signal arrives.</span>
+    <span class="ck">return</span> {<span class="cs">"force_show"</span>: <span class="ck">False</span>,
+            <span class="cs">"prior_engage_rate"</span>: video.creator.recent_engagement_rate,
+            <span class="cs">"prior_sound_rate"</span>:  video.sound.recent_engagement_rate}</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — OFF-POLICY EVALUATION</span>Subtracting the bias out</h2>
+    <p class="lede reveal">Aggregation here is not a roll-up — it is a causal estimate. The exploration arm gives the counterfactual; the ranked arm gives the observed; lift is the difference, normalized. This is the slow, offline computation that decides whether a model ships, and it is the reason the 5% exists.</p>
+
+    <p class="reveal">The intuition first, because it is the thing an interviewer wants to hear out loud. Suppose "videos liked by similar users" get clicked 80% of the time. Is the algorithm good, or were those videos going to win regardless of who surfaced them? The ranked data cannot tell you — it only ever showed those videos to people it already believed would click. The exploration arm can: show a thousand <em>random</em> users that same video and measure how many engage with no algorithmic selection at all. That random click-through is the counterfactual baseline. <strong>Model lift = (algorithmic CTR − exploration CTR) ÷ exploration CTR.</strong> Without exploration you can compute attribution; only with it can you compute causation. This is off-policy evaluation, and naming it is half the points.</p>
+
+    <div class="codelabel">PYTHON · OFF-POLICY LIFT — SKETCH OF THE ESTIMATION JOB</div>
+    <div class="codeblock"><span class="cl"># Compare what the algorithm achieved against the random baseline,
+# per video cluster. The exploration arm is the control; the ranked arm
+# is the treatment. Importance-weighting corrects the 1% sampling.</span>
+
+ranked = (impressions
+    .filter(<span class="ck">lambda</span> i: i.source == <span class="cs">"ranked"</span>)
+    .join(engagement, on=<span class="cs">"impression_id"</span>, how=<span class="cs">"left"</span>)   <span class="cl"># left: swipe-aways count as 0</span>
+    .with_weight(<span class="ck">lambda</span> i: 1.0 / i.sampled_pct)         <span class="cl"># reweight the 1% sample</span>
+    .key_by(<span class="ck">lambda</span> i: i.video_cluster)
+    .aggregate(ctr=mean(<span class="cs">"engaged"</span>), watch=mean(<span class="cs">"watched_seconds"</span>)))
+
+explore = (exploration_events
+    .key_by(<span class="ck">lambda</span> e: e.video_cluster)
+    .aggregate(ctr=mean(<span class="cs">"engaged"</span>), watch=mean(<span class="cs">"watched_seconds"</span>)))
+
+<span class="ck">def</span> <span class="cf">causal_lift</span>(cluster, ranked_ctr, explore_ctr):
+    <span class="ck">if</span> explore_ctr &lt;= 0:                       <span class="cl"># no baseline → no causal claim</span>
+        <span class="ck">return</span> <span class="ck">None</span>
+    <span class="ck">return</span> (ranked_ctr - explore_ctr) / explore_ctr   <span class="cl"># the only honest lift</span>
+
+lift = (ranked.join(explore, on=<span class="cs">"video_cluster"</span>)
+    .map(causal_lift)
+    .sink(model_lift_table))   <span class="cl"># read by the promote/rollback gate — the ship decision</span></div>
+
+    <p class="reveal">The shadow-traffic rollout is the operational half of the same idea, and it is why <span class="m">model_version</span> sits on every score row. A new ranker first runs as <em>shadow</em>: it scores the same impressions the live model serves, writes its predictions with <span class="m">is_shadow = true</span>, and influences nothing. If its frozen predictions correlate better with actual outcomes than the incumbent's — measured by the §04 head-to-head on identical impressions — it graduates to a 1% A/B, then ramps to 100%. Five to ten versions write to the same table concurrently, joined by version for evaluation; promotion is a data decision, not a deploy decision, and rollback is just routing traffic back to the previous version that is still scoring in shadow.</p>
+
+    <div class="pull reveal">A model earns production by beating the incumbent on the same impressions it never served. Ship on evidence frozen in the log, not on a hunch ramped to a hundred percent.<span>RECSYS RULE Nº 2 — SHADOW BEFORE SERVE</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the loop</h2>
+    <p class="lede reveal">The four facts are where the system explains itself. Three queries an interviewer loves, because each one carries a classic pattern on its back — the causal-lift join, position-bias as a window, and the cohort retention that exposes echo-chamber narrowing.</p>
+
+    <h3 class="reveal">Causal lift — the treatment-minus-control join</h3>
+    <p class="reveal">The single most important query in the system, and the one that separates a senior answer. It joins the ranked arm to the exploration arm per video cluster and computes lift as the normalized difference. A positive lift means the algorithm genuinely surfaced engagement the random baseline would not have; a lift near zero means the ranker is taking credit for videos that were going to win anyway.</p>
+
+    <div class="codelabel">SQL · MODEL LIFT — ALGORITHM vs EXPLORATION BASELINE</div>
+    <div class="codeblock"><span class="ck">WITH</span> ranked <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> v.video_cluster,
+           avg((e.watched_seconds &gt; 0)::int)  <span class="ck">AS</span> algo_ctr,
+           avg(e.watched_seconds)             <span class="ck">AS</span> algo_watch
+    <span class="ck">FROM</span>   fct_impression i
+    <span class="ck">JOIN</span>   dim_video v <span class="ck">USING</span> (video_id)
+    <span class="ck">LEFT JOIN</span> fct_engagement e <span class="ck">USING</span> (impression_id)   <span class="cl">-- LEFT: swipe-away = 0</span>
+    <span class="ck">WHERE</span>  i.source = <span class="cs">'ranked'</span>
+    <span class="ck">GROUP BY</span> v.video_cluster
+),
+explore <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> v.video_cluster,
+           avg(x.engaged::int)   <span class="ck">AS</span> base_ctr,
+           avg(x.watched_seconds) <span class="ck">AS</span> base_watch
+    <span class="ck">FROM</span>   fct_exploration_event x
+    <span class="ck">JOIN</span>   dim_video v <span class="ck">USING</span> (video_id)
+    <span class="ck">GROUP BY</span> v.video_cluster
+)
+<span class="ck">SELECT</span> r.video_cluster, r.algo_ctr, e.base_ctr,
+       round((r.algo_ctr - e.base_ctr)
+             / <span class="cf">nullif</span>(e.base_ctr, 0), 3)  <span class="ck">AS</span> causal_lift
+<span class="ck">FROM</span>   ranked r
+<span class="ck">JOIN</span>   explore e <span class="ck">USING</span> (video_cluster)
+<span class="ck">ORDER BY</span> causal_lift <span class="ck">DESC</span>;
+<span class="cl">-- lift &gt; 0: the algorithm caused engagement. lift ≈ 0: it only attributed it.</span></div>
+
+    <h3 class="reveal">Position bias — discount engagement by slot with a window</h3>
+    <p class="reveal">A video at the top of the feed gets watched more <em>because</em> it is at the top, not only because it is good. To learn an unbiased signal, you measure the baseline engagement per position and discount accordingly. The pattern is a window over position — average engagement at each slot, then express each impression's outcome relative to its slot's norm.</p>
+
+    <div class="codelabel">SQL · POSITION-NORMALIZED ENGAGEMENT — WINDOW BY SLOT</div>
+    <div class="codeblock"><span class="ck">WITH</span> per_slot <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> i.position_in_feed,
+           avg((e.watched_seconds &gt; 0)::int)              <span class="ck">AS</span> slot_ctr
+    <span class="ck">FROM</span>   fct_impression i
+    <span class="ck">LEFT JOIN</span> fct_engagement e <span class="ck">USING</span> (impression_id)
+    <span class="ck">WHERE</span>  i.source = <span class="cs">'exploration'</span>          <span class="cl">-- measure bias on UNranked slots</span>
+    <span class="ck">GROUP BY</span> i.position_in_feed
+)
+<span class="ck">SELECT</span> v.video_id,
+       count(*)                                            <span class="ck">AS</span> impressions,
+       avg((e.watched_seconds &gt; 0)::int)                   <span class="ck">AS</span> raw_ctr,
+       avg((e.watched_seconds &gt; 0)::int
+           / <span class="cf">nullif</span>(s.slot_ctr, 0))                       <span class="ck">AS</span> position_adj_ctr
+<span class="ck">FROM</span>   fct_impression i
+<span class="ck">JOIN</span>   per_slot s <span class="ck">USING</span> (position_in_feed)
+<span class="ck">LEFT JOIN</span> fct_engagement e <span class="ck">USING</span> (impression_id)
+<span class="ck">JOIN</span>   dim_video v <span class="ck">USING</span> (video_id)
+<span class="ck">GROUP BY</span> v.video_id
+<span class="ck">HAVING</span> count(*) &gt; 1000
+<span class="ck">ORDER BY</span> position_adj_ctr <span class="ck">DESC</span>;
+<span class="cl">-- A video that beats its slot's baseline is genuinely good, not just well-placed.</span></div>
+
+    <h3 class="reveal">Echo-chamber narrowing — cohort diversity retention</h3>
+    <p class="reveal">The failure the whole design fights, made visible. Track each user cohort's content diversity over their lifetime — are they being shown a narrowing set of clusters as the ranker learns them? This is a cohort retention shape applied to diversity instead of revenue: anchor on the user's first week, measure distinct clusters per week as the cohort ages, and watch for the collapse.</p>
+
+    <div class="codelabel">SQL · DIVERSITY DECAY BY USER COHORT — RETENTION SHAPE</div>
+    <div class="codeblock"><span class="ck">WITH</span> user_week <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> i.user_id_token,
+           date_trunc(<span class="cs">'week'</span>, min(i.shown_at) <span class="ck">OVER</span>
+                      (<span class="ck">PARTITION BY</span> i.user_id_token))        <span class="ck">AS</span> cohort_week,
+           date_trunc(<span class="cs">'week'</span>, i.shown_at)                    <span class="ck">AS</span> active_week,
+           v.video_cluster
+    <span class="ck">FROM</span>   fct_impression i
+    <span class="ck">JOIN</span>   dim_video v <span class="ck">USING</span> (video_id)
+    <span class="ck">WHERE</span>  i.source = <span class="cs">'ranked'</span>
+)
+<span class="ck">SELECT</span> cohort_week,
+       <span class="cf">extract</span>(week <span class="ck">FROM</span> age(active_week, cohort_week))::int <span class="ck">AS</span> weeks_in,
+       count(<span class="ck">DISTINCT</span> user_id_token)                          <span class="ck">AS</span> users,
+       round(avg(cluster_cnt), 1)                              <span class="ck">AS</span> avg_distinct_clusters
+<span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> user_id_token, cohort_week, active_week,
+           count(<span class="ck">DISTINCT</span> video_cluster) <span class="ck">AS</span> cluster_cnt
+    <span class="ck">FROM</span>   user_week
+    <span class="ck">GROUP BY</span> user_id_token, cohort_week, active_week
+) w
+<span class="ck">GROUP BY</span> cohort_week, weeks_in
+<span class="ck">ORDER BY</span> cohort_week, weeks_in;
+<span class="cl">-- avg_distinct_clusters falling week-over-week = the echo chamber tightening.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Watching the loop for drift</h2>
+    <p class="lede reveal">A senior design ends with observability, because every safeguard above is invisible without it. The recsys dashboard watches three things at once: is the live model causally lifting, is the candidate model safe to promote, and is the feedback loop narrowing the world.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>CAUSAL HEALTH</dt><dd><span class="m">model lift</span> (ranked CTR over exploration baseline), <span class="m">exploration coverage</span> (is the 5% intact?), <span class="m">prediction calibration MAE</span> on the live version — falling lift means the ranker is attributing, not causing.</dd></div>
+      <div class="defrow"><dt>ROLLOUT SAFETY</dt><dd><span class="m">shadow vs live MAE</span> on identical impressions, <span class="m">A/B ramp stage</span>, <span class="m">prediction drift</span> (a high-score / low-watch divergence), <span class="m">versions in flight</span> — the gate that decides promote or roll back.</dd></div>
+      <div class="defrow"><dt>LOOP HEALTH</dt><dd><span class="m">content diversity</span> per cohort over time, <span class="m">cold-start escape rate</span> (new videos that earned real signal), <span class="m">creator gini</span> (is engagement concentrating?) — the early warning that the system is eating itself.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">FYP Ranker Ops — Global</span>
+        <span class="dash-sub">WED 14:20 UTC · LIVE v118 · SHADOW v119 · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Model Lift (live)</div><div class="tv ok">+34<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 15,17 30,16 45,15 60,14 75,13 90,12 105,11 120,10" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Exploration Coverage</div><div class="tv ok">5.0<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Calibration MAE</div><div class="tv warn">4.1<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,17 80,18 100,19 120,21" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Shadow MAE (v119)</div><div class="tv ok">3.2<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,19 40,18 60,16 80,15 100,13 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Lift vs Calibration over 24h — live v118 (causal lift ↑ good, MAE ↓ good)</div>
+          <svg viewBox="0 0 240 84">
+            <polyline points="0,52 24,50 48,49 72,47 96,46 120,44 144,43 168,41 192,40 216,38 240,36" fill="none" stroke="#a8b58a" stroke-width="2.2"/>
+            <polyline points="0,58 24,57 48,58 72,56 96,57 120,55 144,58 168,54 192,57 216,53 240,56" fill="none" stroke="#d98e63" stroke-width="2.2"/>
+            <text x="6" y="20" font-size="9" fill="#a8b58a" font-family="DM Mono,monospace">— causal lift (rising — the model is working)</text>
+            <text x="6" y="32" font-size="9" fill="#d98e63" font-family="DM Mono,monospace">— calibration error (flat — predictions honest)</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Cold-Start Escape</div><div class="tv ok">82<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,14 60,15 80,13 100,14 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Content Diversity</div><div class="tv warn">6.4</div><svg viewBox="0 0 120 30"><polyline points="0,10 20,11 40,13 60,14 80,16 100,18 120,20" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Prediction Drift</div><div class="tv ok">0.7<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,14 100,16 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">A/B Ramp</div><div class="tv">1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,18 40,18 60,16 80,16 100,16 120,14" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Creator Gini</div><div class="tv warn">0.71</div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,13 60,14 80,15 100,15 120,16" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Versions In Flight</div><div class="tv">7</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy-but-watched system tells: live lift positive and rising, exploration locked at exactly 5.0%, shadow v119 already beating live on calibration — and the amber tiles, diversity and creator gini, drifting the wrong way as the loop quietly concentrates attention.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates the central tension of the whole problem: the model is winning on its own terms — lift up, shadow ready to promote — while content diversity sags and the creator gini climbs, the feedback loop tightening even as every serving metric looks excellent. That is exactly why the 5% and the diversity cohort exist: they are the only instruments that see the system narrowing the world while it congratulates itself on engagement.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the video details away and the question was testing five judgments, each of which generalizes far beyond recommendation:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>CONFOUNDING</dt><dd>Seeing that a system which logs only its own choices can never measure causality — and carving a deliberate control group out of production to recover it. The 5% is an epistemics decision, not a feature.</dd></div>
+      <div class="defrow"><dt>TEMPORAL HONESTY</dt><dd>Freezing the prediction before the outcome exists, stamped with its version, so model quality is a reproducible join across time rather than an irretrievable guess.</dd></div>
+      <div class="defrow"><dt>SAFE ITERATION</dt><dd>Shipping models on evidence, not hope: shadow-score the same impressions, compare offline, promote through a ramp, roll back by routing. Promotion is a data decision.</dd></div>
+      <div class="defrow"><dt>FEEDBACK AWARENESS</dt><dd>Designing against the loop the system creates — cold-start budgets so new entrants escape starvation, diversity instruments so the echo chamber is visible before it is irreversible.</dd></div>
+      <div class="defrow"><dt>PRIVACY POSTURE</dt><dd>Treating the firehose as a liability as well as an asset: tokens not raw ids, an isolated vault, short raw retention with de-identified rollups kept long.</dd></div>
+    </dl>
+    <div class="pull reveal">The algorithm proposes; the 5% disposes of the illusion. A recommender that cannot subtract its own bias is not learning — it is only agreeing with itself, louder each day.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 12 — THE RECOMMENDATION PROBLEM<br>MACHINE LEARNING · OFF-POLICY EVALUATION · THE CRAFT OF THE COUNTERFACTUAL</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

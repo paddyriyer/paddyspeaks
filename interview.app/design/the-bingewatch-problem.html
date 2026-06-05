@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Bingewatch Problem — PaddySpeaks</title>
+<meta name="description" content="Design the analytics backend for a global streaming service: 15 billion play events a day, late-arriving dimensions on launch night, series-vs-episode grain, and bingewatching that has to be computed rather than recorded. Data flow, schema, the LAD-defensive join, streaming Python, the nightly derivation, and the dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 14</div>
+    <h1 class="reveal">The <em>Bingewatch</em> Problem</h1>
+    <p class="deck reveal">Model the analytics backend for a global streaming service. Fifteen billion play events a day, a content tree four levels deep, and a behavior — bingewatching — that is never recorded and must be derived. The one decision that separates a senior answer: a play event is not allowed to wait for its metadata. A complete working-through — data flow, schema, the defensive join, streaming Python, the nightly derivation, and the dashboard.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Streaming</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One sentence, four time horizons</h2>
+    <p class="lede reveal">It sounds like a reporting task. It is really a question about time — three different definitions of it, fighting over the same fact table.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data model behind a streaming service like Netflix — play events, series and episodes, and bingewatching. Two hundred and fifty million subscribers, fifteen billion plays a day. How would you scope it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The trap is that all three sub-problems hide inside the word "play." A play event is dense, immutable, and arrives in a torrent. But the moment you ask anything interesting of it — <em>what</em> was watched, by <em>whom</em>, as part of <em>what behavior</em> — you discover three separate clocks. Content metadata propagates on its own schedule, regionally, over minutes to hours. The content hierarchy must roll up without double-counting, so that a subscriber who watches eight episodes is one series-bingewatcher and not eight series-views. And bingewatching itself is not a column you can write; it is a shape in the play stream that only exists once you have stitched a night's worth of sessions together. A junior answer reaches for a star schema and a <span class="m">risk_score</span>-shaped <span class="m">is_binge</span> flag. A senior answer notices that the fact arrives before its dimension, that the dimension changes underneath the fact, and that the behavior is downstream of both.</p>
+
+    <p class="reveal">So before any boxes and arrows, the working frame for the session — three structural challenges that the schema has to hold simultaneously:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>LATE-ARRIVING DIM</dt><dd><strong>Metadata trails the event.</strong> A Netflix Original drops at midnight Pacific. Plays fire <em>before</em> the title row propagates to every regional shard. An <span class="m">INNER JOIN</span> silently drops those plays, and Content Strategy stares at "zero views in the first three minutes" of the most-anticipated launch of the quarter.</dd></div>
+      <div class="defrow"><dt>THE GRAIN STACK</dt><dd><strong>Four levels, one count.</strong> "Stranger Things S5 E1" is an episode, of a season, of a series, of a franchise. Aggregations must roll up cleanly: eight episodes watched is one bingewatcher, not eight series-views — and a re-titled show must not rewrite five years of history.</dd></div>
+      <div class="defrow"><dt>DERIVED BEHAVIOR</dt><dd><strong>Binge is computed, not logged.</strong> No event says "the user binged." It is reconstructed from the play stream — and there are <em>two</em> definitions that must coexist: per-session (for the auto-play algorithm) and per-day (for the marketing rollup), neither blocking the other.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Keep every play, even the orphans. A view you dropped on launch night is a number that never comes back — and launch night is the only night that matters.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you are building and what you are deliberately ignoring. Out of scope, said explicitly: the recommendation model itself (a consumer of these facts, not part of this design), the CDN and adaptive-bitrate delivery path, billing and payments, and the encode pipeline. In scope: the play fact and its companions, the content and subscriber dimensions, the late-arriving-dimension defense, the bingewatch and streak derivations, and the analytics surface those feed. One caveat, volunteered: the design should not preclude the password-sharing analysis that Trust &amp; Safety will ask for later — which means the account and the profile must both live on every play row from day one.</p>
+
+    <p class="reveal">Then the envelope math, offered rather than extracted. Netflix-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Subscribers</td><td class="mono">250,000,000</td><td>Up to 5 profiles each — the dual-key population</td></tr>
+      <tr><td><strong>Play events</strong></td><td class="mono"><strong>≈ 15 B / day → ~175 K/s</strong></td><td><strong>The number that shapes the whole architecture</strong></td></tr>
+      <tr><td>Heartbeats (every 60 s)</td><td class="mono">~120 B / day</td><td>8× the plays — split to its own table, downsample</td></tr>
+      <tr><td>Launch-night metadata lag</td><td class="mono">seconds to hours</td><td>The orphan window every join must survive</td></tr>
+      <tr><td>Orphan-rate SLO</td><td class="mono">&lt; 0.5%</td><td>Above 1% pages the data-platform on-call</td></tr>
+      <tr><td>Binge derivation</td><td class="mono">nightly batch</td><td>Materialized so analyst queries never re-derive</td></tr>
+      <tr><td>Raw plays, 5-yr title history</td><td class="mono">tens of PB</td><td>Episode-only fact + bridge — never backfill on re-title</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry. The heartbeat stream is an order of magnitude heavier than the play stream, and the play stream is itself heavy enough that no per-event synchronous lookup against a regional dimension can be on its critical path. That single fact dictates the join strategy, the partition layout, and the failure philosophy. The rest of this article follows the play.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a play through the building</h2>
+    <p class="lede reveal">One pipeline, two clocks. Plays land immediately and unconditionally; metadata propagates on its own schedule and is reconciled at read time, never at write time. The fact never waits for the dimension.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 580" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">EVENT PLANE · ~175K PLAYS/S · ARRIVES UNCONDITIONALLY</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">METADATA PLANE · PROPAGATES IN SECONDS-TO-HOURS</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- devices -->
+        <rect x="20" y="58" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="85" font-size="12.5" text-anchor="middle" fill="#23201a">CLIENT DEVICES</text>
+        <text x="95" y="104" font-size="10.5" text-anchor="middle" fill="#7d7567">TV · mobile · web · offline</text>
+
+        <!-- collector -->
+        <rect x="228" y="50" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="313" y="76" font-size="12.5" text-anchor="middle" fill="#23201a">EVENT COLLECTOR</text>
+        <text x="313" y="94" font-size="10.5" text-anchor="middle" fill="#7d7567">validates shape only</text>
+        <text x="313" y="110" font-size="10.5" text-anchor="middle" fill="#7d7567">never resolves the title</text>
+
+        <!-- stream -->
+        <rect x="456" y="44" width="200" height="92" fill="#27241d"/>
+        <text x="556" y="74" font-size="12.5" text-anchor="middle" fill="#e9e2d0">PLAY STREAM</text>
+        <text x="556" y="92" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: (profile_id) · by play_date</text>
+        <text x="556" y="108" font-size="10.5" text-anchor="middle" fill="#b8ad93">append-only · ordered per profile</text>
+
+        <!-- raw fact -->
+        <rect x="726" y="38" width="224" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="838" y="64" font-size="12.5" text-anchor="middle" fill="#a4502e">fct_play_event · RAW</text>
+        <text x="838" y="82" font-size="10.5" text-anchor="middle" fill="#7d7567">episode_id only · no title</text>
+        <text x="838" y="97" font-size="10.5" text-anchor="middle" fill="#7d7567">partitioned by play_date</text>
+
+        <!-- heartbeat -->
+        <rect x="726" y="138" width="224" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="838" y="164" font-size="12.5" text-anchor="middle" fill="#8a5d12">fct_play_heartbeat</text>
+        <text x="838" y="182" font-size="10.5" text-anchor="middle" fill="#7d7567">QoE · downsampled to 5-min</text>
+
+        <!-- derived -->
+        <rect x="726" y="222" width="224" height="58" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="838" y="246" font-size="12.5" text-anchor="middle" fill="#7d7567">DERIVED FACTS (NIGHTLY)</text>
+        <text x="838" y="264" font-size="10.5" text-anchor="middle" fill="#7d7567">binge · streak · QoE summary</text>
+
+        <!-- arrows event plane -->
+        <line x1="170" y1="90" x2="224" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="398" y1="90" x2="452" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="656" y1="72" x2="722" y2="72" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="656" y1="118" x2="722" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="838" y1="108" x2="838" y2="218" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- metadata plane -->
+        <rect x="20" y="360" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="387" font-size="12.5" text-anchor="middle" fill="#23201a">CONTENT CMS</text>
+        <text x="95" y="406" font-size="10.5" text-anchor="middle" fill="#7d7567">titles · seasons · franchises</text>
+
+        <rect x="228" y="348" width="180" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="318" y="376" font-size="12.5" text-anchor="middle" fill="#6f7d5c">REGIONAL FAN-OUT</text>
+        <text x="318" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">propagates per region</text>
+        <text x="318" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">eventually consistent</text>
+
+        <rect x="466" y="336" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="561" y="358" font-size="12" text-anchor="middle" fill="#23201a">dim_episode (SCD2)</text>
+        <text x="561" y="376" font-size="10.5" text-anchor="middle" fill="#a4502e">effective_from / _to</text>
+
+        <rect x="466" y="408" width="190" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="561" y="430" font-size="12" text-anchor="middle" fill="#23201a">dim_series · _season</text>
+        <text x="561" y="448" font-size="10.5" text-anchor="middle" fill="#7d7567">parent FKs · SCD2 titles</text>
+
+        <rect x="726" y="330" width="224" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="838" y="356" font-size="12" text-anchor="middle" fill="#23201a">LAD-DEFENSIVE READ</text>
+        <text x="838" y="374" font-size="10.5" text-anchor="middle" fill="#7d7567">LEFT JOIN · rn=1 · COALESCE</text>
+
+        <rect x="726" y="410" width="224" height="58" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="838" y="434" font-size="12" text-anchor="middle" fill="#23201a">BI / DASHBOARDS</text>
+        <text x="838" y="452" font-size="10.5" text-anchor="middle" fill="#7d7567">"Pending Sync" surfaces orphans</text>
+
+        <!-- metadata arrows -->
+        <line x1="170" y1="392" x2="224" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="408" y1="370" x2="462" y2="363" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="408" y1="410" x2="462" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="656" y1="363" x2="722" y2="360" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="838" y1="394" x2="838" y2="406" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- the join: raw fact down to LAD read -->
+        <path d="M 838 108 C 700 150, 690 250, 726 350" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="610" y="232" font-size="10.5" fill="#a4502e">resolved at read time, never write time</text>
+
+        <text x="20" y="560" font-size="10.5" fill="#7d7567">SOLID — sustained data flow · DASHED — read-time resolution · The fact lands first; the title catches up.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. The play fact is durable and title-free; the content dimension is eventually consistent; the join that marries them lives at read time, where lateness is survivable.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the collector validates <em>shape</em> and nothing else — it never calls the content service to confirm the episode exists, because a regional metadata miss at 175 K events per second would either block the firehose or drop the launch. <strong>Second,</strong> the fact stores <span class="m">episode_id</span> and only <span class="m">episode_id</span> — the immutable identity — never the title, never the series name; every human-readable attribute is resolved by joining the dimension at query time. <strong>Third,</strong> the dashed line is dashed on purpose: the marriage of fact and dimension is deferred to the read path, where a missing or stale title degrades into a labeled placeholder rather than a dropped row.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>The fact plane never blocks on the metadata plane.</strong> When the dimension is missing, the play is still written, still counted, and still attributed — to a searchable placeholder ("Pending Sync") that the BI tool can filter on. The orphan is visible, measurable against a &lt; 0.5% SLO, and self-heals the instant metadata propagates, because the join re-resolves on the next query. The failure mode is a labeled unknown, never a silent zero.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>A content tree, a dual key, and an append-only firehose</h2>
+    <p class="lede reveal">The schema falls out of two questions: what is immutable, and what changes underneath us. Immutable identity goes on the fact. Mutable, re-titleable, late-arriving description goes in SCD2 dimensions, resolved at read time.</p>
+
+    <h3 class="reveal">The content tree</h3>
+    <p class="reveal">Four dimensions, each pointing at its parent: <span class="m">dim_franchise</span> → <span class="m">dim_series</span> → <span class="m">dim_season</span> → <span class="m">dim_episode</span>. The titles are SCD2 — Marvel acquires a show and renames it; a series gets re-genre'd — so each carries <span class="m">effective_from</span> and <span class="m">effective_to</span>. The fact never stores the title; it stores the leaf identity and walks up the tree at query time.</p>
+
+    <div class="codelabel">DDL · THE CONTENT HIERARCHY (SCD2)</div>
+    <div class="codeblock"><span class="cl">-- Each level links to its parent. Titles are SCD2: a re-title opens a new
+-- version row rather than rewriting history. The fact stores episode_id ONLY.</span>
+<span class="ck">CREATE TABLE</span> dim_franchise (
+    franchise_id   BIGINT       <span class="ck">PRIMARY KEY</span>,
+    name           TEXT         <span class="ck">NOT NULL</span>
+);
+
+<span class="ck">CREATE TABLE</span> dim_series (
+    series_sk      BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    series_id      BIGINT       <span class="ck">NOT NULL</span>,        <span class="cl">-- stable natural key</span>
+    franchise_id   BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_franchise,
+    series_title   TEXT         <span class="ck">NOT NULL</span>,        <span class="cl">-- SCD2-tracked: re-titled / re-genre'd</span>
+    genre          TEXT,
+    effective_from TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to   TIMESTAMPTZ,                  <span class="cl">-- NULL = current version</span>
+    <span class="ck">UNIQUE</span> (series_id, effective_from)
+);
+
+<span class="ck">CREATE TABLE</span> dim_season (
+    season_sk      BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    season_id      BIGINT       <span class="ck">NOT NULL</span>,
+    series_id      BIGINT       <span class="ck">NOT NULL</span>,
+    season_number  INT          <span class="ck">NOT NULL</span>
+);
+
+<span class="cl">-- The late-arriving one. On launch night, rows for new episodes may not
+-- have propagated to this region yet; the join must survive their absence.</span>
+<span class="ck">CREATE TABLE</span> dim_episode (
+    episode_sk     BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    episode_id     BIGINT       <span class="ck">NOT NULL</span>,        <span class="cl">-- immutable identity, lives on the fact</span>
+    series_id      BIGINT       <span class="ck">NOT NULL</span>,
+    season_number  INT          <span class="ck">NOT NULL</span>,
+    episode_number INT          <span class="ck">NOT NULL</span>,
+    title          TEXT         <span class="ck">NOT NULL</span>,
+    runtime_sec    INT,
+    effective_from TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to   TIMESTAMPTZ,
+    <span class="ck">UNIQUE</span> (episode_id, effective_from)
+);
+<span class="ck">CREATE INDEX</span> idx_episode_id <span class="ck">ON</span> dim_episode (episode_id, effective_from <span class="ck">DESC</span>);</div>
+
+    <h3 class="reveal">The subscriber: account above, profile below</h3>
+    <p class="reveal">Netflix's identity model is unusual and load-bearing: one billing account, up to five profiles. Billing, plan tier, and payment events are account-grain — they cross profile boundaries. Every play, search, browse, and rating is profile-grain. The rule that makes everything downstream tractable is that <strong>both keys live on every play row</strong> — never just one. Roll up "minutes per account" and you simply sum without re-joining; ask "which profiles on this account watched from incompatible geographies" and the password-sharing analysis is a <span class="m">GROUP BY</span>, not a join puzzle.</p>
+
+    <div class="codelabel">DDL · ACCOUNT / PROFILE DUAL KEY (SCD2)</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> dim_account (
+    account_sk     BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    account_id     BIGINT       <span class="ck">NOT NULL</span>,
+    plan_tier      TEXT         <span class="ck">NOT NULL</span>,        <span class="cl">-- basic | standard | premium</span>
+    country        TEXT         <span class="ck">NOT NULL</span>,
+    primary_region TEXT         <span class="ck">NOT NULL</span>,        <span class="cl">-- home geo, for sharing analysis</span>
+    effective_from TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to   TIMESTAMPTZ,
+    <span class="ck">UNIQUE</span> (account_id, effective_from)
+);
+
+<span class="ck">CREATE TABLE</span> dim_profile (
+    profile_id     BIGINT       <span class="ck">PRIMARY KEY</span>,
+    account_id     BIGINT       <span class="ck">NOT NULL</span>,        <span class="cl">-- a profile belongs to one account</span>
+    is_kids        BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> false,
+    age_range      TEXT
+);                                                <span class="cl">-- &le; 5 profiles per account</span></div>
+
+    <h3 class="reveal">The facts: one raw firehose, one companion, two derivations</h3>
+    <p class="reveal">The grain of <span class="m">fct_play_event</span> is one row per playback session start. It is append-only and partitioned by <span class="m">play_date</span> so that launch night is one hot partition and last year is cold Parquet. Critically it carries <span class="m">account_id</span> <em>and</em> <span class="m">profile_id</span>, the bare <span class="m">episode_id</span> (no resolved title), and the wall-clock <span class="m">played_at</span> — which is the timestamp every temporal join will pivot on. Quality-of-experience telemetry — rebuffering, bitrate, startup latency — is an order of magnitude heavier, so it splits into <span class="m">fct_play_heartbeat</span> and is downsampled in the warehouse. The two derived facts, <span class="m">fct_binge_session</span> and <span class="m">fct_series_streak</span>, are computed nightly and materialized so that analyst queries read them rather than re-deriving them from fifteen billion rows.</p>
+
+    <div class="codelabel">DDL · FACT TABLES &amp; DERIVED FACTS</div>
+    <div class="codeblock"><span class="cl">-- Grain: one row per playback session start. Append-only. 15B/day.
+-- Stores BOTH account_id and profile_id, and the bare episode_id.</span>
+<span class="ck">CREATE TABLE</span> fct_play_event (
+    play_id        BIGINT       <span class="ck">NOT NULL</span>,
+    account_id     BIGINT       <span class="ck">NOT NULL</span>,        <span class="cl">-- dual key, always both</span>
+    profile_id     BIGINT       <span class="ck">NOT NULL</span>,
+    episode_id     BIGINT       <span class="ck">NOT NULL</span>,        <span class="cl">-- identity only; title resolved at read</span>
+    played_at      TIMESTAMPTZ  <span class="ck">NOT NULL</span>,        <span class="cl">-- the pivot for every temporal join</span>
+    watch_minutes  NUMERIC(8,2) <span class="ck">NOT NULL</span>,
+    device_type    TEXT         <span class="ck">NOT NULL</span>,
+    country        TEXT         <span class="ck">NOT NULL</span>,
+    play_date      DATE         <span class="ck">NOT NULL</span>,        <span class="cl">-- partition key</span>
+    <span class="ck">PRIMARY KEY</span> (play_date, play_id)
+) <span class="ck">PARTITION BY RANGE</span> (play_date);
+
+<span class="cl">-- Grain: one row per 60-sec sample, downsampled to 5-min in the warehouse.
+-- Split off because it is ~8x the volume of the play fact.</span>
+<span class="ck">CREATE TABLE</span> fct_play_heartbeat (
+    play_id        BIGINT       <span class="ck">NOT NULL</span>,
+    heartbeat_at   TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    position_sec   INT          <span class="ck">NOT NULL</span>,
+    bitrate_kbps   INT,
+    rebuffer_ms    INT
+);
+
+<span class="cl">-- DERIVED nightly: 3+ same-series episodes, &lt;30-min gaps. Algorithm input.</span>
+<span class="ck">CREATE TABLE</span> fct_binge_session (
+    account_id     BIGINT       <span class="ck">NOT NULL</span>,
+    profile_id     BIGINT       <span class="ck">NOT NULL</span>,
+    series_id      BIGINT       <span class="ck">NOT NULL</span>,
+    session_id     BIGINT       <span class="ck">NOT NULL</span>,
+    session_start  TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    session_end    TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    episodes_in_session INT     <span class="ck">NOT NULL CHECK</span> (episodes_in_session &gt;= 3)
+);
+
+<span class="cl">-- DERIVED nightly: consecutive-day engagement per (account, series). Loyalty.</span>
+<span class="ck">CREATE TABLE</span> fct_series_streak (
+    account_id     BIGINT       <span class="ck">NOT NULL</span>,
+    series_id      BIGINT       <span class="ck">NOT NULL</span>,
+    streak_start   DATE         <span class="ck">NOT NULL</span>,
+    streak_end     DATE         <span class="ck">NOT NULL</span>,
+    streak_days    INT          <span class="ck">NOT NULL</span>
+);</div>
+
+    <p class="reveal">One bridge completes the model. Temporal correctness — attributing a play to the title that was current <em>at the time of the event</em>, not now — is handled by an SCD2 bridge keyed on <span class="m">episode_id</span> with <span class="m">effective_from</span>/<span class="m">effective_to</span>. It is the same SCD2 mechanism the dimensions use, exposed as a thin join surface for the read path.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The play is never dropped, and never mis-titled</h2>
+    <p class="lede reveal">Everything in this design protects one sentence: every play is counted exactly once, attributed to the version of the truth that was current when it happened. Two defenses enforce it — a defensive join for lateness, and a temporal join for change.</p>
+
+    <p class="reveal">The lifecycle of a single play is short but it crosses both clocks. It is collected, streamed, and written with <span class="m">episode_id</span> intact. At that moment the episode's dimension row may not exist in this region yet. Later — seconds, or hours — it propagates. Later still the show may be re-titled. The invariant says none of these later events is allowed to change the count or corrupt the attribution of the play that already happened.</p>
+
+    <div class="statechain reveal">
+      <span class="st">PLAYED</span><span class="arr">→</span>
+      <span class="st">COLLECTED</span><span class="arr">→</span>
+      <span class="st">STREAMED</span><span class="arr">→</span>
+      <span class="st">WRITTEN (episode_id)</span><span class="arr">→</span>
+      <span class="st">RESOLVED @ read</span><span class="arr">→</span>
+      <span class="st terminal">ATTRIBUTED</span>
+    </div>
+
+    <p class="reveal">The defensive read is where correctness lives. It is three moves working as one. <span class="m">LEFT JOIN</span> keeps every play, orphan or not. <span class="m">ROW_NUMBER() … rn = 1</span> picks the most-recent SCD2 version of the dimension when several exist. <span class="m">COALESCE</span> with a searchable placeholder turns a missing title into a visible, filterable "Pending Sync" rather than a NULL that silently vanishes from a <span class="m">GROUP BY</span>. This is the make-or-break pattern of the whole system, and an interviewer is watching for it by name.</p>
+
+    <div class="codelabel">SQL · THE LAD-DEFENSIVE READ (THE MAKE-OR-BREAK PATTERN)</div>
+    <div class="codeblock"><span class="cl">-- Every play-to-content join is defensive. Keep the play, take the newest
+-- dim version, and label the orphan so the BI dropdown can surface it.</span>
+<span class="ck">WITH</span> current_episode <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> episode_id, title, series_id, season_number, episode_number,
+           <span class="cf">row_number</span>() <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> episode_id
+                                <span class="ck">ORDER BY</span> effective_from <span class="ck">DESC</span>) <span class="ck">AS</span> rn
+    <span class="ck">FROM</span>   dim_episode
+)
+<span class="ck">SELECT</span> p.play_id, p.account_id, p.profile_id,
+       <span class="cf">coalesce</span>(e.title,
+                <span class="cs">'Episode ID: '</span> || p.episode_id || <span class="cs">' (Pending Sync)'</span>) <span class="ck">AS</span> title,
+       <span class="cf">coalesce</span>(e.series_id,     -1) <span class="ck">AS</span> series_id_safe,
+       <span class="cf">coalesce</span>(e.season_number, -1) <span class="ck">AS</span> season_number_safe,
+       p.watch_minutes
+<span class="ck">FROM</span>   fct_play_event p
+<span class="ck">LEFT JOIN</span> current_episode e
+       <span class="ck">ON</span> e.episode_id = p.episode_id <span class="ck">AND</span> e.rn = 1;
+<span class="cl">-- Orphan-rate SLO: &lt; 0.5%. Above 1% pages the data-platform on-call.</span></div>
+
+    <p class="reveal">The cousin of lateness is change, and it is handled by the same machinery pointed the other way. A user watches an episode offline on the subway; the device uploads the play four hours later, by which time the dimension has moved on. The temporal join binds the play to the version that was effective at <span class="m">played_at</span>, not the version that is current now.</p>
+
+    <div class="codelabel">SQL · TEMPORAL ATTRIBUTION (AS-OF THE EVENT)</div>
+    <div class="codeblock"><span class="ck">JOIN</span> dim_episode e
+  <span class="ck">ON</span> e.episode_id = p.episode_id
+ <span class="ck">AND</span> p.played_at <span class="ck">BETWEEN</span> e.effective_from
+                  <span class="ck">AND</span> <span class="cf">coalesce</span>(e.effective_to, <span class="cs">'9999-12-31'</span>);
+<span class="cl">-- Plays during the OLD title attribute to the OLD title; new plays to the new.
+-- No backfill of 5 years of history when a show is re-titled.</span></div>
+
+    <div class="pull reveal">A play that lost its title is a row with a placeholder. A play that lost its row is a number that never existed. Choose the first failure, always.<span>BINGEWATCH RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the firehose</h2>
+    <p class="lede reveal">Three programs carry the event plane: the collector that refuses to resolve titles, the consumer that lands plays idempotently, and the orphan monitor that turns the SLO into a number. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The collector — validate shape, never resolve identity</h3>
+    <p class="reveal">The collector's one temptation is to be helpful: to look up the episode and stamp the title onto the event before it streams, so downstream joins are simpler. It must refuse. A synchronous content-service call at 175 K events per second couples the firehose to a regional cache that, by design, is sometimes behind. The collector validates that the event has the fields it needs — both keys, an <span class="m">episode_id</span>, a timestamp — and streams it. Resolution is somebody else's job, later, where lateness is cheap.</p>
+
+    <div class="codelabel">PYTHON · EVENT COLLECTOR: SHAPE-ONLY VALIDATION</div>
+    <div class="codeblock"><span class="ck">import</span> orjson, time
+
+REQUIRED = (<span class="cs">"account_id"</span>, <span class="cs">"profile_id"</span>, <span class="cs">"episode_id"</span>, <span class="cs">"played_at"</span>)
+
+<span class="ck">class</span> <span class="cf">PlayCollector</span>:
+    <span class="cs">"""Validates the SHAPE of a play event and nothing else. It does NOT
+    call the content service to confirm the episode exists: a regional
+    metadata miss must never block ingestion or drop a launch-night play.
+    The title is resolved downstream, at read time, where lateness is cheap."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, producer):
+        self.producer = producer
+        self.rejected = 0
+
+    <span class="ck">def</span> <span class="cf">accept</span>(self, raw: bytes) -> <span class="ck">bool</span>:
+        <span class="ck">try</span>:
+            ev = orjson.loads(raw)
+        <span class="ck">except</span> orjson.JSONDecodeError:
+            self.rejected += 1
+            <span class="ck">return False</span>
+        <span class="ck">if</span> <span class="ck">any</span>(ev.get(k) <span class="ck">is None</span> <span class="ck">for</span> k <span class="ck">in</span> REQUIRED):
+            self.rejected += 1                 <span class="cl"># malformed, not orphan: drop loudly</span>
+            <span class="ck">return False</span>
+        <span class="cl"># Partition by profile_id so one viewer's plays stay ordered, while</span>
+        <span class="cl"># 250M profiles spread evenly — no hot key on a viral launch night.</span>
+        ev[<span class="cs">"play_date"</span>] = ev[<span class="cs">"played_at"</span>][:10]
+        self.producer.send(key=ev[<span class="cs">"profile_id"</span>], value=orjson.dumps(ev))
+        <span class="ck">return True</span></div>
+
+    <p class="reveal">One distinction, always stated: a <em>malformed</em> event — missing a required field — is dropped loudly and counted as a reject, because it can never be made correct. An <em>orphan</em> event — well-formed but pointing at a title that hasn't propagated — is kept, because it will become correct on its own. The collector handles the first; the read path handles the second. Conflating them is how a launch-night metadata lag turns into thrown-away analytics.</p>
+
+    <h3 class="reveal">2 · The play consumer — idempotent landing, partition by date</h3>
+    <div class="codelabel">PYTHON · STREAM CONSUMER → fct_play_event</div>
+    <div class="codeblock"><span class="ck">import</span> orjson
+
+<span class="ck">async def</span> <span class="cf">land_plays</span>(db, msgs: list[bytes]) -> <span class="ck">None</span>:
+    <span class="cs">"""Idempotent by construction: (play_date, play_id) is the primary key,
+    so re-delivery from the stream is a no-op. No title resolution happens
+    here either — episode_id goes in raw. The fact is title-free on disk."""</span>
+    rows = []
+    <span class="ck">for</span> m <span class="ck">in</span> msgs:
+        e = orjson.loads(m)
+        rows.append((
+            e[<span class="cs">"play_id"</span>], e[<span class="cs">"account_id"</span>], e[<span class="cs">"profile_id"</span>],
+            e[<span class="cs">"episode_id"</span>], e[<span class="cs">"played_at"</span>], e[<span class="cs">"watch_minutes"</span>],
+            e[<span class="cs">"device_type"</span>], e[<span class="cs">"country"</span>], e[<span class="cs">"play_date"</span>],
+        ))
+    <span class="ck">await</span> db.executemany(
+        <span class="cs">"""INSERT INTO fct_play_event
+             (play_id, account_id, profile_id, episode_id, played_at,
+              watch_minutes, device_type, country, play_date)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           ON CONFLICT (play_date, play_id) DO NOTHING"""</span>,        <span class="cl"># at-least-once is fine</span>
+        rows,
+    )</div>
+
+    <h3 class="reveal">3 · The orphan monitor — the SLO as a live number</h3>
+    <p class="reveal">The defensive join keeps orphans countable; this job makes the count actionable. It measures the fraction of recent plays whose <span class="m">episode_id</span> has no resolvable dimension version, compares it to the SLO, and pages only on a rate — never a raw count, because the raw count spikes mechanically every launch night and then drains as metadata catches up. The signal is the <em>persistence</em> of orphans, not their existence.</p>
+
+    <div class="codelabel">PYTHON · ORPHAN-RATE MONITOR (PAGES ON RATE, NOT COUNT)</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">orphan_rate</span>(db, window_min=15) -> <span class="ck">float</span>:
+    <span class="cs">"""An orphan is a well-formed play whose episode_id has not yet resolved
+    to any dim version. Expected to spike at launch and drain as metadata
+    propagates, so we alarm on the RATE crossing the SLO, never the count."""</span>
+    row = <span class="ck">await</span> db.fetchrow(
+        <span class="cs">"""SELECT count(*)                                   AS plays,
+                  count(*) FILTER (WHERE d.episode_id IS NULL) AS orphans
+             FROM fct_play_event p
+             LEFT JOIN LATERAL (
+                 SELECT 1 AS episode_id FROM dim_episode e
+                 WHERE e.episode_id = p.episode_id LIMIT 1
+             ) d ON true
+             WHERE p.played_at &gt;= now() - make_interval(mins => $1)"""</span>,
+        window_min,
+    )
+    rate = row[<span class="cs">"orphans"</span>] / <span class="ck">max</span>(row[<span class="cs">"plays"</span>], 1)
+    <span class="ck">if</span> rate &gt; 0.01:                                       <span class="cl"># 1% → page; 0.5% → SLO breach</span>
+        page(<span class="cs">f"orphan rate {rate:.2%} over {window_min}m — metadata stuck?"</span>)
+    <span class="ck">return</span> rate</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Bingewatching, derived two ways</h2>
+    <p class="lede reveal">Bingewatching is not an event; it is a pattern in the play stream. There are two definitions, they answer different questions, and the schema must carry both without one re-writing the other. The craft is in the sessionization — and in the discipline of materializing nightly.</p>
+
+    <p class="reveal">The two definitions are not interchangeable. <strong>Per-session binge</strong> — three or more episodes of the same series within twenty-four hours, with gaps under thirty minutes — is the signal the auto-play algorithm tunes against: it captures a continuous sitting. <strong>Per-day binge</strong> — any three-plus episodes of the same series in a calendar day — is the marketing rollup: "what percentage of subscribers binged this month." Force them into one definition and you mislead one stakeholder to please the other. So both are derived facts, computed nightly, materialized so analysts never re-derive from the raw firehose.</p>
+
+    <p class="reveal">The per-session derivation is a sessionization — the canonical gaps-and-islands move applied to time. Partition the same-series plays by <span class="m">(account_id, profile_id, series_id)</span>, look back one row with <span class="m">LAG</span>, and start a new session every time the gap exceeds thirty minutes. A running sum of those session-start flags becomes the session id; group, count, and keep only the sittings of three or more.</p>
+
+    <div class="codelabel">SQL · fct_binge_session DERIVATION (NIGHTLY, SESSIONIZED)</div>
+    <div class="codeblock"><span class="ck">WITH</span> same_series_runs <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> account_id, profile_id, series_id, episode_id, played_at,
+           <span class="cf">lag</span>(played_at) <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> account_id, profile_id, series_id
+                              <span class="ck">ORDER BY</span> played_at) <span class="ck">AS</span> prev_start
+    <span class="ck">FROM</span>   fct_play_event p
+    <span class="ck">JOIN</span>   dim_episode e <span class="ck">ON</span> e.episode_id = p.episode_id <span class="ck">AND</span> e.effective_to <span class="ck">IS NULL</span>
+),
+sessioned <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> *,
+           <span class="cf">sum</span>(<span class="ck">CASE WHEN</span> prev_start <span class="ck">IS NULL</span>
+                    <span class="ck">OR</span> played_at - prev_start &gt; <span class="ck">INTERVAL</span> <span class="cs">'30 min'</span>
+                    <span class="ck">THEN</span> 1 <span class="ck">ELSE</span> 0 <span class="ck">END</span>)
+               <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> account_id, profile_id, series_id
+                     <span class="ck">ORDER BY</span> played_at) <span class="ck">AS</span> session_id
+    <span class="ck">FROM</span>   same_series_runs
+)
+<span class="ck">INSERT INTO</span> fct_binge_session
+<span class="ck">SELECT</span> account_id, profile_id, series_id, session_id,
+       min(played_at) <span class="ck">AS</span> session_start,
+       max(played_at) <span class="ck">AS</span> session_end,
+       count(*)       <span class="ck">AS</span> episodes_in_session
+<span class="ck">FROM</span>   sessioned
+<span class="ck">GROUP BY</span> account_id, profile_id, series_id, session_id
+<span class="ck">HAVING</span> count(*) &gt;= 3;        <span class="cl">-- 3+ episodes = a binge sitting</span></div>
+
+    <p class="reveal">The per-day rollup is a different shape entirely — and notably simpler, which is itself the point: it counts distinct episodes of a series within a single <span class="m">play_date</span>, no gap logic, because the marketing question does not care whether the sitting was continuous. Two derivations, two grains, one fact stream feeding both.</p>
+
+    <div class="codelabel">SQL · PER-DAY BINGE ROLLUP (MARKETING GRAIN)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> account_id, profile_id, e.series_id, p.play_date,
+       count(<span class="ck">DISTINCT</span> p.episode_id) <span class="ck">AS</span> episodes_that_day
+<span class="ck">FROM</span>   fct_play_event p
+<span class="ck">JOIN</span>   dim_episode e <span class="ck">ON</span> e.episode_id = p.episode_id <span class="ck">AND</span> e.effective_to <span class="ck">IS NULL</span>
+<span class="ck">GROUP BY</span> account_id, profile_id, e.series_id, p.play_date
+<span class="ck">HAVING</span> count(<span class="ck">DISTINCT</span> p.episode_id) &gt;= 3;   <span class="cl">-- 3+ same-series eps in a day</span></div>
+
+    <div class="pull reveal">Materialize the behavior, never re-derive it. The algorithm reads last night's sittings; it does not re-walk fifteen billion plays at query time.<span>BINGEWATCH RULE Nº 2 — DERIVE ONCE, READ MANY</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the catalog</h2>
+    <p class="lede reveal">The fact stream and its derivations are where the system explains itself. Three queries an interviewer loves, because each one carries a classic pattern on its back: SCD2 as-of attribution, conditional rollup over a content tree, and gaps-and-islands across consecutive days.</p>
+
+    <h3 class="reveal">Top binged series — SCD2 as-of join</h3>
+    <p class="reveal">"Top binged series this week" requires going from episode to series without letting a re-title rewrite history. Store only <span class="m">episode_id</span> on the fact; join up through the SCD2 hierarchy with a temporal predicate so each play attributes to the title that was current when it happened. The distinct-viewer count keys on <span class="m">account_id || '|' || series_id</span> so eight episodes by one household are one viewer of one series — the grain discipline made literal.</p>
+
+    <div class="codelabel">SQL · TOP SERIES BY UNIQUE VIEWERS (TEMPORAL-CORRECT)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> s.series_title,
+       count(<span class="ck">DISTINCT</span> p.account_id || <span class="cs">'|'</span> || s.series_id) <span class="ck">AS</span> unique_viewers
+<span class="ck">FROM</span>   fct_play_event p
+<span class="ck">JOIN</span>   dim_episode e <span class="ck">USING</span> (episode_id)
+<span class="ck">JOIN</span>   dim_series s
+       <span class="ck">ON</span> s.series_id = e.series_id
+      <span class="ck">AND</span> p.played_at <span class="ck">BETWEEN</span> s.effective_from
+                       <span class="ck">AND</span> <span class="cf">coalesce</span>(s.effective_to, <span class="cs">'9999-12-31'</span>)
+<span class="ck">WHERE</span>  p.play_date &gt;= <span class="ck">CURRENT_DATE</span> - 7
+<span class="ck">GROUP BY</span> s.series_title
+<span class="ck">ORDER BY</span> unique_viewers <span class="ck">DESC</span>;
+<span class="cl">-- Plays during the OLD title roll up to the OLD title. Re-titling needs</span>
+<span class="cl">-- no backfill: the temporal predicate routes each play to its own era.</span></div>
+
+    <h3 class="reveal">Series streaks — gaps and islands across days</h3>
+    <p class="reveal">"Watched at least one episode every day for five days" is the loyalty signal content acquisition uses for renewal decisions. It is a different shape from binge: same household across <em>consecutive days</em>, not many episodes in one sitting. The pattern is gaps-and-islands by date — subtract a dense row number from the date, and every run of consecutive days collapses to a constant island id.</p>
+
+    <div class="codelabel">SQL · CONSECUTIVE-DAY STREAKS PER (USER, SERIES)</div>
+    <div class="codeblock"><span class="ck">WITH</span> active_days <span class="ck">AS</span> (
+    <span class="ck">SELECT DISTINCT</span> account_id, e.series_id, p.play_date <span class="ck">AS</span> active_date
+    <span class="ck">FROM</span>   fct_play_event p
+    <span class="ck">JOIN</span>   dim_episode e <span class="ck">ON</span> e.episode_id = p.episode_id <span class="ck">AND</span> e.effective_to <span class="ck">IS NULL</span>
+),
+islands <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> account_id, series_id, active_date,
+           active_date - (<span class="cf">row_number</span>() <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> account_id, series_id
+                                          <span class="ck">ORDER BY</span> active_date))::int
+               <span class="ck">AS</span> island_id          <span class="cl">-- date minus its rank = run constant</span>
+    <span class="ck">FROM</span>   active_days
+)
+<span class="ck">SELECT</span> account_id, series_id,
+       min(active_date) <span class="ck">AS</span> streak_start,
+       max(active_date) <span class="ck">AS</span> streak_end,
+       count(*)         <span class="ck">AS</span> streak_days
+<span class="ck">FROM</span>   islands
+<span class="ck">GROUP BY</span> account_id, series_id, island_id
+<span class="ck">HAVING</span> count(*) &gt;= 5;        <span class="cl">-- 5 days in a row = a hooked viewer</span></div>
+
+    <h3 class="reveal">Profile mix per account — the sharing precursor</h3>
+    <p class="reveal">Because both keys live on every play, the password-sharing question that Trust &amp; Safety will eventually ask is a conditional aggregation, not a join expedition. Per account, count distinct profiles, distinct countries, and distinct devices in a window; the accounts whose plays span geographically incompatible patterns are the candidates. The dual key — not a clever model — is what makes this cheap.</p>
+
+    <div class="codelabel">SQL · ACCOUNT FOOTPRINT (PASSWORD-SHARING PRECURSOR)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> account_id,
+       count(<span class="ck">DISTINCT</span> profile_id)  <span class="ck">AS</span> profiles_active,
+       count(<span class="ck">DISTINCT</span> country)     <span class="ck">AS</span> countries_7d,
+       count(<span class="ck">DISTINCT</span> device_type) <span class="ck">AS</span> devices_7d,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> country &lt;&gt; a.primary_region) <span class="ck">AS</span> away_plays
+<span class="ck">FROM</span>   fct_play_event p
+<span class="ck">JOIN</span>   dim_account a <span class="ck">ON</span> a.account_id = p.account_id <span class="ck">AND</span> a.effective_to <span class="ck">IS NULL</span>
+<span class="ck">WHERE</span>  p.play_date &gt;= <span class="ck">CURRENT_DATE</span> - 7
+<span class="ck">GROUP BY</span> account_id, a.primary_region
+<span class="ck">HAVING</span> count(<span class="ck">DISTINCT</span> country) &gt;= 3;   <span class="cl">-- 3+ geos in a week → review</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the launch landed</h2>
+    <p class="lede reveal">A senior design ends with observability, because every defensive choice above is invisible without it. The dashboard watches two things at once: the health of the pipeline (is the orphan rate draining?) and the shape of the behavior (did the season get binged?).</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>PIPELINE HEALTH</dt><dd><span class="m">play ingest rate</span> vs. expected, <span class="m">orphan rate</span> against the 0.5% SLO, <span class="m">metadata propagation lag</span> per region, <span class="m">reject rate</span> (malformed, never orphans) — a flat-but-nonzero orphan rate hours after launch means metadata is genuinely stuck, not merely racing.</dd></div>
+      <div class="defrow"><dt>LAUNCH SHAPE</dt><dd><span class="m">plays in first hour</span>, <span class="m">unique viewers</span>, <span class="m">completion rate</span> from heartbeat position, <span class="m">per-session binge count</span> — the auto-play signal — and <span class="m">episodes-per-sitting p50</span>, which tells Content Strategy whether the season is a sprint or a slow burn.</dd></div>
+      <div class="defrow"><dt>LOYALTY</dt><dd><span class="m">active 5-day streaks</span> per series, <span class="m">day-2 retention</span> on the new season, and the <span class="m">binge-to-streak ratio</span> — a show binged once and abandoned looks very different from one watched a little every night.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Launch Ops — "Stranger Things S5" · Day 1</span>
+        <span class="dash-sub">FRI 00:42 PT · GLOBAL · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Play Ingest</div><div class="tv">182<small>K/s</small></div><svg viewBox="0 0 120 30"><polyline points="0,24 15,20 30,18 45,14 60,12 75,9 90,8 105,7 120,6" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Orphan Rate</div><div class="tv warn">0.7<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,6 20,7 40,9 60,12 80,15 100,18 120,21" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Metadata Lag p95</div><div class="tv warn">41<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,22 20,18 40,16 60,14 80,12 100,11 120,10" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Reject Rate</div><div class="tv ok">0.01<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,16 100,15 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Episodes-per-sitting distribution · first 8 hours (per-session binge)</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace">
+              <rect x="14" y="58" width="22" height="18" fill="#4d4427"/>
+              <rect x="44" y="44" width="22" height="32" fill="#6e5a23"/>
+              <rect x="74" y="30" width="22" height="46" fill="#a87b1e"/>
+              <rect x="104" y="20" width="22" height="56" fill="#d8a44a"/>
+              <rect x="134" y="34" width="22" height="42" fill="#a87b1e"/>
+              <rect x="164" y="48" width="22" height="28" fill="#6e5a23"/>
+              <rect x="194" y="60" width="22" height="16" fill="#4d4427"/>
+              <text x="25" y="82" font-size="8" fill="#8f8672" text-anchor="middle">1</text>
+              <text x="55" y="82" font-size="8" fill="#8f8672" text-anchor="middle">2</text>
+              <text x="85" y="82" font-size="8" fill="#8f8672" text-anchor="middle">3</text>
+              <text x="115" y="82" font-size="8" fill="#d8a44a" text-anchor="middle">4</text>
+              <text x="145" y="82" font-size="8" fill="#8f8672" text-anchor="middle">5</text>
+              <text x="175" y="82" font-size="8" fill="#8f8672" text-anchor="middle">6</text>
+              <text x="205" y="82" font-size="8" fill="#8f8672" text-anchor="middle">7</text>
+              <text x="120" y="12" font-size="8" fill="#b8ad93" text-anchor="middle">mode = 4 eps · the whole season in two sittings</text>
+            </g>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Unique Viewers 1h</div><div class="tv ok">8.4<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,26 20,22 40,17 60,13 80,10 100,8 120,6" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Completion Rate</div><div class="tv ok">87<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,11 40,12 60,10 80,11 100,10 120,9" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Binge Sessions</div><div class="tv ok">3.1<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,24 20,20 40,16 60,13 80,10 100,8 120,7" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Eps/Sitting p50</div><div class="tv">4.0</div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,13 60,13 80,12 100,12 120,11" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Rebuffer Ratio</div><div class="tv ok">0.4<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,14 100,16 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Day-1 Streaks</div><div class="tv">—</div><svg viewBox="0 0 120 30"><polyline points="0,16 20,16 40,16 60,16 80,16 100,16 120,16" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy launch tells: ingest steady at peak, orphan rate climbing as plays outrun metadata — but reject rate flat, so nothing is being lost, only delayed — and the binge distribution already peaking at four episodes a sitting.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates the launch from §02: fifteen billion plays a day means the first hour outruns the regional metadata fan-out, so orphans rise while propagation lag is still draining — exactly the designed race. The tell that it is healthy and not broken is the reject rate pinned at one in ten thousand: every play is landing, none malformed, the orphans are well-formed rows wearing "Pending Sync" until their titles arrive. And the season is being devoured four episodes at a time. That is what a designed degradation looks like from the operator's chair on the biggest night of the quarter.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the show away and the question was testing five judgments, each of which generalizes far beyond streaming:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>LATENESS</dt><dd>Seeing that a fact can arrive before its dimension, and refusing to let the dimension's tardiness drop the fact. <span class="m">LEFT JOIN + ROW_NUMBER + COALESCE</span> is not a flourish; it is the whole defense, and it has a name.</dd></div>
+      <div class="defrow"><dt>GRAIN</dt><dd>Counting at the right level of a hierarchy — eight episodes is one bingewatcher — and storing immutable identity on the fact so a re-title never costs a five-year backfill.</dd></div>
+      <div class="defrow"><dt>DERIVATION</dt><dd>Recognizing that a behavior can be a shape in the data rather than a logged event, and that two valid definitions can coexist as two materialized facts instead of one lossy flag.</dd></div>
+      <div class="defrow"><dt>DUAL KEY</dt><dd>Carrying both account and profile on every row so that rollups and abuse-detection are aggregations, not join gymnastics. The cheapest modeling decision pays the largest dividend later.</dd></div>
+      <div class="defrow"><dt>HONESTY</dt><dd>Engineering the failure mode you can see: a labeled "Pending Sync" against an SLO beats a silent zero, because the number you never recorded is the number nobody knows is missing.</dd></div>
+    </dl>
+    <div class="pull reveal">The play lands first; the title catches up; the behavior is computed after both. Get the order of those three clocks right and the schema writes itself — get it wrong and launch night reports a zero.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 14 — THE BINGEWATCH PROBLEM<br>DIMENSIONAL MODELING · LATE-ARRIVING DIMENSIONS · THE CRAFT OF THE DERIVED FACT</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

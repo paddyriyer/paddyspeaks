@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Autonomy Problem — PaddySpeaks</title>
+<meta name="description" content="Designing the data platform for a driverless robotaxi fleet: the human driver replaced by four versioned dimensions, append-only disengagements with frozen version FKs, deterministic incident replay, the temporal geofence ODD, the rescue chain, and a liability ledger — in DDL, SQL and Python.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 19</div>
+    <h1 class="reveal">The <em>Autonomy</em> Problem</h1>
+    <p class="deck reveal">Every ride-share schema attributes a trip to a driver. Here the driver is software — and that single fact rewrites the model into a question about versioned responsibility, terabytes of sensor data per vehicle per day, and a regulator who owns one of your fact tables. A complete working through: the four versioned dimensions that replace the driver, the append-only disengagement with frozen version keys, the deterministic incident replay, the temporal geofence, the rescue chain, and the liability ledger where a wrong join is a subpoena.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Autonomous Systems</b></span>
+      <span>READING · <b>~28 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>There is no driver to blame</h2>
+    <p class="lede reveal">This is the capstone of the marketplace family, and it is hard for one reason that reshapes everything: the entity every other ride-share model leans on — the driver — has been deleted and replaced by a release pipeline.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data platform for a driverless ride-hail fleet — Waymo, a Tesla robotaxi, Uber AV. The autonomy stack replaces the human driver. Serve Operations, Safety &amp; Regulatory, and Finance — at terabytes of sensor data per vehicle per day. How would you scope this out?"</p>
+      <div class="qmeta"><span>LEVEL · STAFF / PRINCIPAL</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">Every human ride-share model attributes a trip to a driver, prices insurance on that driver, and presumes them at fault when something goes wrong. Remove the driver and all three assumptions collapse at once. Responsibility for any action now traces to a <em>software release</em> crossed with an <em>HD-map version</em>, a <em>sensor calibration</em>, and an <em>operational design domain</em> — each of which changes over time and must be reconstructable to the millisecond, because a regulator will ask, a court will ask, and "the current version" is the wrong answer to both. The driver did not vanish; it became a stack of versioned dimensions, and the entire schema is organized around making that stack replayable.</p>
+
+    <p class="reveal">A weak answer models the AV like a human driver with a robot in the seat. A strong answer notices the three structural forces first and names them before any boxes:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE VERSIONED DRIVER</dt><dd><strong>Responsibility is a join of four SCD2 dimensions.</strong> Release × HD-map × calibration × ODD — each drifts, each must be recoverable as-of any instant. Ship v9 tomorrow and last week's incident must still attribute to v8.</dd></div>
+      <div class="defrow"><dt>THE REGULATOR'S FACT TABLE</dt><dd><strong>A disengagement is the safety currency.</strong> When autonomy hands control to a safety driver or remote operator, that event is counted, reported, and litigated. It is append-only and must replay against the exact versions that were driving.</dd></div>
+      <div class="defrow"><dt>THE FIREHOSE AT EXTREME SCALE</dt><dd><strong>The sensor log is terabytes per vehicle per day.</strong> Camera, lidar, radar — none of it belongs in the warehouse. The analytics layer holds events and pointers; the raw drive-logs sit in object storage.</dd></div>
+    </dl>
+
+    <div class="pull reveal">A mutable "current stack version" column is the cardinal sin. Overwrite the vehicle row on every over-the-air update and you can never answer "which release was driving last Tuesday" — and the entire safety case collapses.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope first, because the safety boundary is the design. State what you are building: a fleet data platform whose spine is versioned attribution — every safety-relevant event freezes the versions that produced it — folding into a shared marketplace trip fact so Finance never forks human and robot. State what you are deliberately treating as a callable service: the perception and planning stacks themselves (the platform records <em>which</em> stack ran, not how it thinks), the maps survey pipeline, and real-time motion control. State what you punt: payments rails (treated as a downstream double-entry ledger), the consumer rendering of the app, and rider identity beyond the trip.</p>
+
+    <p class="reveal">Then the envelope, volunteered. A fleet at city scale:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Vehicles in fleet</td><td class="mono">~10,000</td><td>Sets the telemetry fan-in</td></tr>
+      <tr><td>Telemetry cadence</td><td class="mono">100 ms</td><td>The event-time tempo</td></tr>
+      <tr><td><strong>Telemetry events</strong></td><td class="mono"><strong>≈ 100 K / s</strong></td><td><strong>Hot path vs cold path — the number that splits the pipeline</strong></td></tr>
+      <tr><td>Raw sensor data</td><td class="mono">terabytes / vehicle / day</td><td>Never in the warehouse — drive-log + pointer only</td></tr>
+      <tr><td>Disengagements / 1k miles</td><td class="mono">~0.1–1</td><td>The MMBD denominator; the regulatory north star</td></tr>
+      <tr><td>Version dims (the "driver")</td><td class="mono">4 × SCD2</td><td>Frozen onto every safety event at write time</td></tr>
+      <tr><td>Cellular dead-zone buffer</td><td class="mono">up to 15 min</td><td>Late, out-of-order data — event-time or be wrong</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry: a hundred thousand telemetry events a second is a modest stream, but the raw sensor data behind each vehicle is terabytes a day — three orders of magnitude apart. That gap is the whole architecture. The warehouse holds the small, structured stream and a pointer; the firehose stays in object storage. And the single most consequential design choice — frozen version keys on the safety event — is invisible in the numbers and decisive in court.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a drive through the building</h2>
+    <p class="lede reveal">One architecture, two paths and one spine. A hot path serves sub-two-second fleet-ops alerts; a cold path lands the same events for overnight safety reporting; and the spine is the versioned-dimension join that every safety event freezes at write time, so replay is deterministic forever.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 580" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">FIREHOSE · TB / VEHICLE / DAY</text>
+        <text x="20" y="318" font-size="11" letter-spacing="3" fill="#6f7d5c">WAREHOUSE · ~100K EVENTS/S + POINTERS</text>
+        <line x1="20" y1="294" x2="960" y2="294" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- vehicle -->
+        <rect x="20" y="56" width="150" height="76" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="82" font-size="12.5" text-anchor="middle" fill="#23201a">VEHICLE</text>
+        <text x="95" y="100" font-size="10.5" text-anchor="middle" fill="#7d7567">lidar · camera · radar</text>
+        <text x="95" y="115" font-size="10.5" text-anchor="middle" fill="#7d7567">Protobuf · cellular</text>
+
+        <!-- ingest -->
+        <rect x="220" y="48" width="170" height="86" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="305" y="74" font-size="12.5" text-anchor="middle" fill="#23201a">INGEST · Pub/Sub</text>
+        <text x="305" y="92" font-size="10.5" text-anchor="middle" fill="#7d7567">event-time + watermark</text>
+        <text x="305" y="107" font-size="10.5" text-anchor="middle" fill="#7d7567">15-min allowed lateness</text>
+        <text x="305" y="122" font-size="10.5" text-anchor="middle" fill="#7d7567">never processing-time</text>
+
+        <!-- object store -->
+        <rect x="710" y="44" width="250" height="76" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="835" y="70" font-size="12.5" text-anchor="middle" fill="#a4502e">OBJECT STORE · DRIVE-LOGS</text>
+        <text x="835" y="88" font-size="10.5" text-anchor="middle" fill="#7d7567">raw lidar/camera · keyed by drive_id</text>
+        <text x="835" y="103" font-size="10.5" text-anchor="middle" fill="#7d7567">never in warehouse · replay source</text>
+
+        <!-- raw arrows -->
+        <line x1="170" y1="92" x2="216" y2="92" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <path d="M 390 78 C 560 56, 640 66, 706 76" fill="none" stroke="#a4502e" stroke-width="1.6" marker-end="url(#arrR)"/>
+        <text x="500" y="56" font-size="10.5" fill="#a4502e">raw_log_uri (pointer only)</text>
+
+        <!-- hot path -->
+        <rect x="220" y="156" width="170" height="60" fill="#27241d"/>
+        <text x="305" y="182" font-size="12" text-anchor="middle" fill="#e9e2d0">HOT PATH</text>
+        <text x="305" y="200" font-size="10.5" text-anchor="middle" fill="#b8ad93">&lt;2s alerts · live map</text>
+
+        <line x1="305" y1="134" x2="305" y2="154" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- warehouse facts -->
+        <rect x="20" y="350" width="170" height="80" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="105" y="376" font-size="11.5" text-anchor="middle" fill="#6f7d5c">fact_av_trips</text>
+        <text x="105" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">frozen version FKs</text>
+        <text x="105" y="409" font-size="10.5" text-anchor="middle" fill="#7d7567">→ fct_trips (#1)</text>
+        <text x="105" y="424" font-size="10.5" text-anchor="middle" fill="#7d7567">rescue chain</text>
+
+        <rect x="220" y="344" width="180" height="92" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="310" y="370" font-size="11.5" text-anchor="middle" fill="#a4502e">fact_disengagement</text>
+        <text x="310" y="388" font-size="10.5" text-anchor="middle" fill="#7d7567">append-only</text>
+        <text x="310" y="403" font-size="10.5" text-anchor="middle" fill="#a4502e">FROZEN: release·map·odd</text>
+        <text x="310" y="418" font-size="10.5" text-anchor="middle" fill="#7d7567">failed_sensor_id</text>
+
+        <rect x="430" y="350" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="515" y="376" font-size="11" text-anchor="middle" fill="#23201a">fact_telemetry</text>
+        <text x="515" y="394" font-size="10.5" text-anchor="middle" fill="#7d7567">per-second rollup</text>
+        <text x="515" y="409" font-size="10.5" text-anchor="middle" fill="#7d7567">+ raw_log_uri</text>
+        <text x="515" y="424" font-size="10.5" text-anchor="middle" fill="#7d7567">+ fact_incidents</text>
+
+        <!-- version dims -->
+        <rect x="710" y="338" width="250" height="98" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="835" y="364" font-size="12" text-anchor="middle" fill="#8a5d12">THE "DRIVER" · 4 × SCD2</text>
+        <text x="835" y="382" font-size="10.5" text-anchor="middle" fill="#7d7567">dim_software_release</text>
+        <text x="835" y="396" font-size="10.5" text-anchor="middle" fill="#7d7567">dim_hd_map · dim_vehicles</text>
+        <text x="835" y="410" font-size="10.5" text-anchor="middle" fill="#7d7567">dim_odd (temporal geofence)</text>
+        <text x="835" y="425" font-size="10.5" text-anchor="middle" fill="#7d7567">frozen onto events at write time</text>
+
+        <!-- warehouse arrows -->
+        <line x1="190" y1="390" x2="218" y2="390" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="390" x2="428" y2="390" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- cold path down -->
+        <path d="M 305 216 C 305 270, 310 310, 310 340" fill="none" stroke="#8a5d12" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="316" y="262" font-size="10.5" fill="#8a5d12">cold path · same events</text>
+
+        <!-- version dims freeze onto disengagement -->
+        <path d="M 760 408 C 600 440, 460 430, 402 405" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="500" y="452" font-size="10.5" fill="#a4502e">snapshot at event time · never re-pointed</text>
+
+        <text x="20" y="558" font-size="10.5" fill="#7d7567">SOLID — sustained flow · DASHED — the freeze &amp; the cold path · Geography proposes; the frozen FK adjudicates forever.</text>
+      </svg>
+      <div class="caption">FIG. 1 — Hot path, cold path, frozen spine. The firehose stays in object storage; the warehouse holds structured events and pointers; every safety event freezes the four version keys at write time.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the firehose never touches the warehouse — raw lidar and camera flow vehicle → object store, and only a per-second rollup plus a <span class="m">raw_log_uri</span> pointer reaches the analytic layer. <strong>Second,</strong> the version dimensions are <em>frozen onto the safety event at write time</em>, not looked up at query time: the dashed arrow into the disengagement fact is a one-time snapshot, so when the stack ships v9 tomorrow, last week's incident still attributes to v8. <strong>Third,</strong> ingestion is event-time with bounded allowed lateness, because a vehicle buffers fifteen minutes in a cellular dead zone and dumps it on reconnect — process on arrival order and your safety metrics are computed against the network, not the world.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Attribution Philosophy, In One Rule</div>
+      <p><strong>Freeze the versions on the event; never resolve "current" at query time.</strong> A safety event is a photograph of a moment — which release was driving, which map it believed in, which sensors it trusted, where it was allowed to be. Snapshot all four onto the event the instant it is written and the photograph is permanent: the regulatory record cannot be falsified by tomorrow's deployment, the v8-vs-v9 comparison stays honest, and incident replay is a plain join that survives every future upgrade. Resolve "current" instead and you re-attribute history to whatever is running now — which is how a safety case becomes a liability.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>The driver becomes four versioned dimensions</h2>
+    <p class="lede reveal">The schema falls out of the versioned-driver insight. Four SCD2 dimensions replace the human; an append-only disengagement fact freezes foreign keys to all four; a telemetry rollup keeps the firehose at arm's length; and the trip fact folds into the shared marketplace grain so Finance never forks human and robot.</p>
+
+    <h3 class="reveal">The four versioned dimensions</h3>
+    <p class="reveal">"Who was driving" is no longer a person — it is the join of four things that drift: the autonomy <span class="m">release</span>, the <span class="m">HD-map</span> it believed in, the vehicle's sensor <span class="m">calibration</span>, and the <span class="m">operational design domain</span> that says where and when it may drive. Each is SCD2 because each changes, and the as-of-trip configuration must be recoverable. The ODD is a temporal geofence — exactly the surge-zone pattern — so a multi-city rollout is just a new versioned row.</p>
+
+    <div class="codelabel">DDL · THE VERSIONED "DRIVER" (FOUR SCD2 DIMENSIONS)</div>
+    <div class="codeblock"><span class="cl">-- Vehicle master asset (the car); SCD2 — sensors re-calibrate over its life.</span>
+<span class="ck">CREATE TABLE</span> dim_vehicles (
+    vehicle_key         BIGINT       <span class="ck">NOT NULL</span>,
+    vin                 VARCHAR(32)  <span class="ck">NOT NULL</span>,
+    platform            VARCHAR(40)  <span class="ck">NOT NULL</span>,   <span class="cl">-- 'Waymo Driver Gen 5'</span>
+    deployment_city     VARCHAR(40)  <span class="ck">NOT NULL</span>,
+    calibration_version VARCHAR(40)  <span class="ck">NOT NULL</span>,
+    valid_from          TIMESTAMP    <span class="ck">NOT NULL</span>,
+    valid_to            TIMESTAMP    <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    <span class="ck">PRIMARY KEY</span> (vehicle_key)
+);
+
+<span class="cl">-- The "driver": the autonomy stack. This IS who was driving; SCD2.</span>
+<span class="ck">CREATE TABLE</span> dim_software_release (
+    release_key           BIGINT      <span class="ck">NOT NULL</span>,
+    stack_version         VARCHAR(40) <span class="ck">NOT NULL</span>,   <span class="cl">-- 'v9.0.3'</span>
+    perception_model_hash VARCHAR(64) <span class="ck">NOT NULL</span>,
+    planner_version       VARCHAR(40) <span class="ck">NOT NULL</span>,
+    valid_from            TIMESTAMP   <span class="ck">NOT NULL</span>,
+    valid_to              TIMESTAMP   <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    <span class="ck">PRIMARY KEY</span> (release_key)
+);
+
+<span class="cl">-- The map the car believed in; a stale tile can cause a fault. SCD2.</span>
+<span class="ck">CREATE TABLE</span> dim_hd_map (
+    map_key     BIGINT      <span class="ck">NOT NULL</span>,
+    map_version VARCHAR(40) <span class="ck">NOT NULL</span>,
+    tile_set    VARCHAR(60) <span class="ck">NOT NULL</span>,
+    survey_date DATE        <span class="ck">NOT NULL</span>,
+    valid_from  TIMESTAMP   <span class="ck">NOT NULL</span>,
+    valid_to    TIMESTAMP   <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    <span class="ck">PRIMARY KEY</span> (map_key)
+);
+
+<span class="cl">-- Operational Design Domain: a TEMPORAL GEOFENCE — where/when the AV may</span>
+<span class="cl">-- drive. SCD2, so a city expansion is one new versioned row, no new machinery.</span>
+<span class="ck">CREATE TABLE</span> dim_odd (
+    odd_key     BIGINT      <span class="ck">NOT NULL</span>,
+    geofence_h3 VARCHAR[],                  <span class="cl">-- set of allowed H3 cells</span>
+    weather_env VARCHAR(60) <span class="ck">NOT NULL</span>,      <span class="cl">-- 'clear|light_rain'</span>
+    time_env    VARCHAR(60) <span class="ck">NOT NULL</span>,      <span class="cl">-- 'always' | 'day_only'</span>
+    valid_from  TIMESTAMP   <span class="ck">NOT NULL</span>,
+    valid_to    TIMESTAMP   <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    <span class="ck">PRIMARY KEY</span> (odd_key)
+);
+
+<span class="cl">-- Per-sensor hardware inventory, snowflaked off the vehicle; SCD2. A LiDAR</span>
+<span class="cl">-- is swapped individually, so the grain is the COMPONENT, not the car.</span>
+<span class="ck">CREATE TABLE</span> dim_devices (
+    sensor_id        VARCHAR(50) <span class="ck">NOT NULL</span>,
+    vehicle_key      BIGINT      <span class="ck">NOT NULL</span>,
+    sensor_type      VARCHAR(30) <span class="ck">NOT NULL</span>,   <span class="cl">-- 'LiDAR','Camera','Radar','Compute'</span>
+    manufacturer     VARCHAR(50) <span class="ck">NOT NULL</span>,   <span class="cl">-- the key to failure-profile + subrogation</span>
+    firmware_version VARCHAR(50) <span class="ck">NOT NULL</span>,
+    status           VARCHAR(20) <span class="ck">NOT NULL</span>,   <span class="cl">-- 'active','degraded','failed'</span>
+    valid_from       TIMESTAMP   <span class="ck">NOT NULL</span>,
+    valid_to         TIMESTAMP   <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    <span class="ck">PRIMARY KEY</span> (sensor_id, valid_from),
+    <span class="ck">FOREIGN KEY</span> (vehicle_key) <span class="ck">REFERENCES</span> dim_vehicles(vehicle_key)
+);</div>
+
+    <h3 class="reveal">The trip fact and the firehose rollup</h3>
+    <p class="reveal">The trip fact freezes the four version keys at dispatch and folds into the marketplace grain through <span class="m">marketplace_trip_key</span>, so a city dispatching humans <em>and</em> robots reports revenue once. It also carries the exception machinery — a status state machine, a self-referencing <span class="m">parent_trip_id</span>, and a <span class="m">fare_adjustment</span> — for the rescue chain. The telemetry fact is a per-second rollup with a pointer; the raw frames never arrive.</p>
+
+    <div class="codelabel">DDL · TRIP FACT + TELEMETRY ROLLUP</div>
+    <div class="codeblock"><span class="cl">-- Autonomous trip; version FKs frozen at dispatch; self-FK rescue chain.</span>
+<span class="ck">CREATE TABLE</span> fact_av_trips (
+    trip_key             BIGINT       <span class="ck">NOT NULL</span>,
+    request_id           VARCHAR(50)  <span class="ck">NOT NULL</span>,   <span class="cl">-- shared across rescue legs</span>
+    marketplace_trip_key BIGINT,                       <span class="cl">-- folds into fct_trips (#1)</span>
+    vehicle_key          BIGINT       <span class="ck">NOT NULL</span>,
+    release_key          BIGINT       <span class="ck">NOT NULL</span>,   <span class="cl">-- frozen at dispatch</span>
+    map_key              BIGINT       <span class="ck">NOT NULL</span>,   <span class="cl">-- frozen</span>
+    odd_key              BIGINT       <span class="ck">NOT NULL</span>,   <span class="cl">-- frozen</span>
+    user_id              VARCHAR(50)  <span class="ck">NOT NULL</span>,
+    start_ts             TIMESTAMP,
+    end_ts               TIMESTAMP,
+    autonomous_miles     DECIMAL(8,2) <span class="ck">DEFAULT</span> 0,
+    actual_fare          DECIMAL(8,2) <span class="ck">DEFAULT</span> 0,
+    fare_adjustment      DECIMAL(8,2) <span class="ck">DEFAULT</span> 0,   <span class="cl">-- the rescue comp</span>
+    trip_status          VARCHAR(30)  <span class="ck">NOT NULL</span>,   <span class="cl">-- state machine, below</span>
+    parent_trip_id       BIGINT,                       <span class="cl">-- self-FK: rescue -> broken trip</span>
+    <span class="ck">PRIMARY KEY</span> (trip_key),
+    <span class="ck">FOREIGN KEY</span> (release_key)    <span class="ck">REFERENCES</span> dim_software_release(release_key),
+    <span class="ck">FOREIGN KEY</span> (parent_trip_id) <span class="ck">REFERENCES</span> fact_av_trips(trip_key)
+);
+
+<span class="cl">-- Telemetry firehose: per-second rollup; raw frames in object store.</span>
+<span class="ck">CREATE TABLE</span> fact_vehicle_telemetry (
+    vehicle_key     BIGINT      <span class="ck">NOT NULL</span>,
+    event_ts        TIMESTAMP   <span class="ck">NOT NULL</span>,   <span class="cl">-- vehicle clock (event-time)</span>
+    sec_bucket      TIMESTAMP   <span class="ck">NOT NULL</span>,
+    h3_index        VARCHAR(15) <span class="ck">NOT NULL</span>,
+    speed_mph       INT,
+    soc_pct         INT,                        <span class="cl">-- state of charge (a dispatch gate)</span>
+    autonomy_mode   VARCHAR(20) <span class="ck">NOT NULL</span>,   <span class="cl">-- fully_autonomous|remote_guidance|manual</span>
+    active_trip_key BIGINT,                     <span class="cl">-- NULL when cruising empty</span>
+    raw_log_uri     VARCHAR(255)                <span class="cl">-- pointer to the full drive-log</span>
+);</div>
+
+    <h3 class="reveal">The append-only disengagement — the regulator's table</h3>
+    <p class="reveal">This is the table the regulator owns, and it has two non-negotiable properties: it is append-only, and it <em>freezes</em> the version keys at event time. Re-classifying a takeover after review appends a new adjudication row elsewhere; the original event is never updated. The <span class="m">failed_sensor_id</span> column does triple duty — root cause, failure-profile analysis, and, in §08, subrogation against the manufacturer.</p>
+
+    <div class="codelabel">DDL · DISENGAGEMENT (APPEND-ONLY, FROZEN FKs)</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fact_disengagement_events (
+    disengagement_id VARCHAR(50) <span class="ck">NOT NULL</span>,
+    trip_key         BIGINT,                <span class="cl">-- NULL if no passenger</span>
+    vehicle_key      BIGINT      <span class="ck">NOT NULL</span>,
+    release_key      BIGINT      <span class="ck">NOT NULL</span>,  <span class="cl">-- frozen — the release that was driving</span>
+    map_key          BIGINT      <span class="ck">NOT NULL</span>,  <span class="cl">-- frozen</span>
+    odd_key          BIGINT      <span class="ck">NOT NULL</span>,  <span class="cl">-- frozen</span>
+    failed_sensor_id VARCHAR(50),           <span class="cl">-- -> dim_devices (root-cause / subrogation)</span>
+    event_ts         TIMESTAMP   <span class="ck">NOT NULL</span>,
+    location_h3      VARCHAR(15) <span class="ck">NOT NULL</span>,
+    type             VARCHAR(30) <span class="ck">NOT NULL</span>,  <span class="cl">-- safety_driver_takeover|remote_operator|</span>
+                                            <span class="cl">--   system_fault|hard_brake</span>
+    reg_reportable   BOOLEAN     <span class="ck">NOT NULL</span>,  <span class="cl">-- counts toward the CA DMV report</span>
+    raw_log_uri      VARCHAR(255),          <span class="cl">-- the replay source for §06</span>
+    <span class="ck">PRIMARY KEY</span> (disengagement_id),
+    <span class="ck">FOREIGN KEY</span> (release_key)      <span class="ck">REFERENCES</span> dim_software_release(release_key),
+    <span class="ck">FOREIGN KEY</span> (failed_sensor_id) <span class="ck">REFERENCES</span> dim_devices(sensor_id)
+);</div>
+
+    <p class="reveal">Two more facts complete the picture without inflating the headline. <strong>Remote assistance is not a disengagement</strong>: most human-in-the-loop moments are the car <em>asking</em> a remote operator to confirm an ambiguous scene while staying in control, so they get their own far-more-frequent <span class="m">fact_remote_assists</span> — folding them into disengagements would inflate the safety rate and hide the real ops load. And the <strong>app layer</strong> gets a clickstream fact keyed on app version, so a dropped booking-conversion number has an answer: a buggy build, or cars failing pickups.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>Frozen keys, and the replay that survives every upgrade</h2>
+    <p class="lede reveal">The correctness of this entire platform lives in one discipline: the safety event freezes its version foreign keys at write time, so incident replay is a deterministic join that gives the same answer forever — even after the stack, the map, and the calibration have all advanced.</p>
+
+    <p class="reveal">A trip is a state machine, and the exception edges are where the schema earns its grade. A sensor cracks mid-trip; the car can no longer drive autonomously, executes a fail-safe stop, and writes a disengagement row stamped with the failed sensor. The passenger's trip flips to a terminal failure state; dispatch auto-assigns a rescue:</p>
+
+    <div class="statechain reveal">
+      <span class="st">EN_ROUTE</span><span class="arr">→</span>
+      <span class="st">IN_TRANSIT</span><span class="arr">→</span>
+      <span class="st terminal">COMPLETED</span>
+      <span class="arr">│</span>
+      <span class="st">ABORTED_FAILSAFE</span><span class="arr">→</span>
+      <span class="st">RESCUE_DISPATCHED</span>
+    </div>
+
+    <p class="reveal">The rescue is a <em>new</em> trip row carrying the same <span class="m">request_id</span> (same rider intent) and a <span class="m">parent_trip_id</span> pointing back at the broken leg. Billing walks that parent chain, sums both legs' distance, applies a <span class="m">fare_adjustment</span> — usually comping the ride — and posts one clean invoice. The self-referencing chain keeps the incident, the rescue, and the billing on a single auditable thread, with no patchy side-tables.</p>
+
+    <div class="pull reveal">Snapshot the release, map, calibration, and ODD onto the event at write time. Resolve "current" at query time and you re-attribute last week's incident to today's stack — destroying the regulatory record.<span>AUTONOMY RULE Nº 1</span></div>
+
+    <p class="reveal">Here is the atomic heart of the platform: the regulator's question — "what was in control when this happened?" — answered as a plain join, correct forever because the keys were frozen. Beside it, the north-star regression: Mean Miles Between Disengagements by release.</p>
+
+    <div class="codelabel">SQL · INCIDENT REPLAY + MMBD REGRESSION (THE INVARIANT)</div>
+    <div class="codeblock"><span class="cl">-- Attribute every disengagement to the EXACT state that was driving. Because</span>
+<span class="cl">-- the FKs were frozen at event time, this stays correct after any upgrade.</span>
+<span class="ck">SELECT</span> d.disengagement_id, d.event_ts, d.type, d.location_h3,
+       r.stack_version,
+       m.map_version,
+       v.calibration_version
+<span class="ck">FROM</span> fact_disengagement_events d
+<span class="ck">JOIN</span> dim_vehicles         v <span class="ck">ON</span> v.vehicle_key = d.vehicle_key
+<span class="ck">JOIN</span> dim_software_release r <span class="ck">ON</span> r.release_key = d.release_key   <span class="cl">-- frozen key</span>
+<span class="ck">JOIN</span> dim_hd_map           m <span class="ck">ON</span> m.map_key     = d.map_key       <span class="cl">-- frozen key</span>
+<span class="ck">WHERE</span> d.reg_reportable = <span class="ck">TRUE</span>
+  <span class="ck">AND</span> d.event_ts >= <span class="ck">DATE</span> <span class="cs">'2026-01-01'</span>
+<span class="ck">ORDER BY</span> d.event_ts;
+
+<span class="cl">-- MMBD by release: "is v9 safer than v8?" in one line. The metric every AV</span>
+<span class="cl">-- program — and the CA DMV report — lives or dies by.</span>
+<span class="ck">SELECT</span> r.stack_version,
+       count(*)                <span class="ck">AS</span> disengagements,
+       sum(t.autonomous_miles) <span class="ck">AS</span> miles,
+       round(sum(t.autonomous_miles) / <span class="cf">nullif</span>(count(*), 0), 1) <span class="ck">AS</span> mmbd
+<span class="ck">FROM</span> fact_disengagement_events d
+<span class="ck">JOIN</span> dim_software_release r <span class="ck">ON</span> r.release_key = d.release_key
+<span class="ck">JOIN</span> fact_av_trips        t <span class="ck">ON</span> t.trip_key    = d.trip_key
+<span class="ck">WHERE</span> d.reg_reportable = <span class="ck">TRUE</span>
+<span class="ck">GROUP BY</span> r.stack_version
+<span class="ck">ORDER BY</span> mmbd <span class="ck">DESC</span>;</div>
+
+    <p class="reveal">The worked case makes the invariant concrete. Vehicle AV-7 has a <span class="m">remote_operator</span> disengagement on May 2 while running stack v8.2, map 2026.4, calibration C-19. The next day the fleet upgrades to v9.0 — a new SCD2 release row. Run the replay query on May 2 and it returns v8.2; run it on May 10, with v9.0 live, and it <em>still</em> returns v8.2, because the release key was frozen at event time. A live lookup of "AV-7's current release" would now wrongly blame v9.0 — falsifying both the regulatory record and the v8-vs-v9 comparison. Frozen keys make replay deterministic; live lookups make it a fiction.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the firehose and the freeze</h2>
+    <p class="lede reveal">Three programs carry the platform: the telemetry consumer that handles late, out-of-order data on event-time, the disengagement writer that freezes the version keys, and the rescue dispatcher that threads a broken trip to its rescue. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The telemetry consumer — event-time, never arrival order</h3>
+    <p class="reveal">A vehicle buffers fifteen minutes in a cellular dead zone and dumps it all on reconnect. The consumer's defining refusal is that it <em>never</em> trusts arrival order: it windows on the vehicle's own clock with a bounded allowed-lateness, so a fifteen-minute-old event lands in the bucket it belongs to. Process on processing-time and a tunnel makes MMBD and the live map simply wrong — computed against the network, not the road.</p>
+
+    <div class="codelabel">PYTHON · TELEMETRY CONSUMER (EVENT-TIME WINDOWING)</div>
+    <div class="codeblock"><span class="ck">ALLOWED_LATENESS_S</span> = 900        <span class="cl"># 15-min dead-zone buffer tolerance</span>
+
+<span class="ck">def</span> <span class="cf">consume_telemetry</span>(events, watermark, sink):
+    <span class="cs">"""Land per-second telemetry rollups keyed by the VEHICLE clock, not arrival
+    time. A burst replayed after a tunnel is bucketed by event_ts, so a
+    15-minute-old reading updates the minute it actually belongs to.
+
+    The refusal: arrival order is never the grain. Processing-time windows let
+    a cellular dead zone masquerade as a fleet that went dark."""</span>
+    <span class="ck">for</span> e <span class="ck">in</span> events:
+        event_ts = e[<span class="cs">"vehicle_clock"</span>]            <span class="cl"># the source of truth for time</span>
+        <span class="ck">if</span> watermark - event_ts > <span class="ck">ALLOWED_LATENESS_S</span>:
+            sink.dead_letter(e)                  <span class="cl"># beyond the window: quarantine,</span>
+            <span class="ck">continue</span>                             <span class="cl"># never silently fold into "now"</span>
+        sink.upsert_rollup(
+            vehicle_key = e[<span class="cs">"vehicle_key"</span>],
+            sec_bucket  = <span class="cf">floor_to_second</span>(event_ts),   <span class="cl"># event-time bucket</span>
+            speed_mph   = e[<span class="cs">"speed_mph"</span>],
+            soc_pct     = e[<span class="cs">"soc_pct"</span>],
+            autonomy_mode = e[<span class="cs">"autonomy_mode"</span>],
+            raw_log_uri = e[<span class="cs">"raw_log_uri"</span>],     <span class="cl"># pointer only — frames stay in object store</span>
+        )
+    <span class="cl"># Idempotent upsert keyed by (vehicle_key, sec_bucket): a replayed burst</span>
+    <span class="cl"># re-states a bucket, never double-counts it.</span></div>
+
+    <h3 class="reveal">2 · The disengagement writer — freeze the versions, then it's immutable</h3>
+    <p class="reveal">The writer is the guardian of the invariant. Its one job is to resolve the four version keys <em>as-of the event instant</em> and stamp them onto the row, after which the row is never touched again. The refusal is structural: there is no update path. A re-classification of the takeover type, after human review, appends a new adjudication row in the liability layer — it does not mutate the original safety event, because the original is evidence.</p>
+
+    <div class="codelabel">PYTHON · DISENGAGEMENT WRITER (FREEZE-AT-WRITE)</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">write_disengagement</span>(conn, ev):
+    <span class="cs">"""Resolve the four version keys AS-OF the event instant and freeze them onto
+    an append-only row. There is deliberately no UPDATE path: a disengagement,
+    once written, is immutable evidence. Re-classification appends elsewhere."""</span>
+    ts = ev[<span class="cs">"event_ts"</span>]
+
+    <span class="cl"># resolve each SCD2 dimension to the version valid AT THE EVENT INSTANT</span>
+    release = <span class="cf">scd2_asof</span>(conn, <span class="cs">"dim_software_release"</span>, ev[<span class="cs">"vehicle_key"</span>], ts)
+    hd_map  = <span class="cf">scd2_asof</span>(conn, <span class="cs">"dim_hd_map"</span>,           ev[<span class="cs">"vehicle_key"</span>], ts)
+    odd     = <span class="cf">scd2_asof</span>(conn, <span class="cs">"dim_odd"</span>,              ev[<span class="cs">"vehicle_key"</span>], ts)
+
+    conn.execute(<span class="cs">"""
+        INSERT INTO fact_disengagement_events
+            (disengagement_id, trip_key, vehicle_key, release_key, map_key,
+             odd_key, failed_sensor_id, event_ts, location_h3, type,
+             reg_reportable, raw_log_uri)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        -- no ON CONFLICT DO UPDATE: append-only by construction
+    """</span>, (ev[<span class="cs">"id"</span>], ev.get(<span class="cs">"trip_key"</span>), ev[<span class="cs">"vehicle_key"</span>],
+          release[<span class="cs">"release_key"</span>], hd_map[<span class="cs">"map_key"</span>], odd[<span class="cs">"odd_key"</span>],
+          ev.get(<span class="cs">"failed_sensor_id"</span>), ts, ev[<span class="cs">"location_h3"</span>],
+          ev[<span class="cs">"type"</span>], ev[<span class="cs">"reg_reportable"</span>], ev[<span class="cs">"raw_log_uri"</span>]))
+    <span class="cl"># From here the row is frozen. v9 shipping tomorrow cannot re-point it at v9.</span></div>
+
+    <h3 class="reveal">3 · The rescue dispatcher — thread the broken trip to its rescue</h3>
+    <p class="reveal">When a trip aborts to fail-safe, the dispatcher creates the rescue leg as a new trip that <em>inherits the rider intent</em> — same <span class="m">request_id</span> — and <em>points back</em> at the broken trip via <span class="m">parent_trip_id</span>. The refusal here is against side-tables: the rescue relationship lives on the trip fact itself, so billing and "how long was the rider stranded" are both plain joins rather than forensic reconstructions.</p>
+
+    <div class="codelabel">PYTHON · RESCUE DISPATCHER (SELF-REFERENCING CHAIN)</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">dispatch_rescue</span>(conn, broken_trip, rescue_vehicle_key):
+    <span class="cs">"""A trip aborted to fail-safe; strand a rider. Create the rescue as a NEW
+    trip carrying the SAME request_id (same rider intent) and a parent_trip_id
+    back to the broken leg. The chain lives on the fact — not a side-table — so
+    billing walks one auditable thread."""</span>
+    conn.execute(<span class="cs">"""
+        UPDATE fact_av_trips SET trip_status = 'rescue_dispatched'
+        WHERE trip_key = %s
+    """</span>, (broken_trip[<span class="cs">"trip_key"</span>],))
+
+    conn.execute(<span class="cs">"""
+        INSERT INTO fact_av_trips
+            (trip_key, request_id, vehicle_key, release_key, map_key, odd_key,
+             user_id, trip_status, parent_trip_id, fare_adjustment)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'en_route', %s, %s)
+    """</span>, (<span class="cf">next_trip_key</span>(),
+          broken_trip[<span class="cs">"request_id"</span>],        <span class="cl"># SAME intent, new leg</span>
+          rescue_vehicle_key,
+          <span class="cf">current_release</span>(conn, rescue_vehicle_key),  <span class="cl"># the rescue car's own stack</span>
+          <span class="cf">current_map</span>(conn, rescue_vehicle_key),
+          <span class="cf">current_odd</span>(conn, rescue_vehicle_key),
+          broken_trip[<span class="cs">"user_id"</span>],
+          broken_trip[<span class="cs">"trip_key"</span>],          <span class="cl"># parent_trip_id -> the broken trip</span>
+          <span class="cf">comp_fare</span>(broken_trip)))           <span class="cl"># usually comps the ride</span></div>
+
+    <p class="reveal">One carve-out, always stated: the rescue leg's version keys are the <em>rescue vehicle's own</em> current stack, not a copy of the broken trip's. The two legs were driven by two different cars under two different releases, and conflating them would corrupt the per-release safety statistics. The chain links the legs; it does not merge their attribution.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Counterfactual replay, and liability with money attached</h2>
+    <p class="lede reveal">The derived layer is where the frozen-state discipline pays its largest dividend. Because every disengagement froze its version keys <em>and</em> a pointer to the drive-log, you can re-simulate the logged sensor stream through a new stack and ask "would v9 have disengaged here?" — turning the safety case from "we shipped it and watched" into "we proved the regression was gone before we shipped."</p>
+
+    <p class="reveal">Counterfactual replay is the capstone move. The same content-addressed inputs that explain a past incident become the inputs to a forward simulation: take the logged sensor stream, run it through a candidate release, and log the outcome. A regression that no longer disengages is proof, not hope. The run is recorded as a fact so the safety case is itself auditable.</p>
+
+    <div class="codelabel">PYTHON · COUNTERFACTUAL REPLAY HARNESS</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">replay_against_candidate</span>(conn, disengagement_id, candidate_release, sim):
+    <span class="cs">"""Re-simulate a past disengagement's logged sensor stream through a NEW stack.
+    Frozen state + the drive-log pointer make this deterministic: the question
+    'would v9 have disengaged here?' becomes answerable BEFORE v9 ships."""</span>
+    d = conn.fetch_one(<span class="cs">"""
+        SELECT raw_log_uri, release_key, location_h3, event_ts
+        FROM fact_disengagement_events WHERE disengagement_id = %s
+    """</span>, (disengagement_id,))
+
+    <span class="cl"># fetch the exact logged frames that the OLD stack disengaged on</span>
+    frames  = sim.load_drive_log(d[<span class="cs">"raw_log_uri"</span>])
+    outcome = sim.run(candidate_release, frames)   <span class="cl"># 'disengaged' | 'nominal'</span>
+
+    conn.execute(<span class="cs">"""
+        INSERT INTO fact_sim_runs (disengagement_id, candidate_release, outcome, ran_at)
+        VALUES (%s, %s, %s, now())
+    """</span>, (disengagement_id, candidate_release, outcome))
+    <span class="ck">return</span> outcome
+    <span class="cl"># A wall of 'nominal' outcomes across last quarter's disengagements is the</span>
+    <span class="cl"># regression-gone proof — the frozen-state discipline, run forward.</span></div>
+
+    <p class="reveal">Liability is the same replay with money attached. Remove the driver and fault shifts from a person to product liability — the operator and its software stack — which promotes the data platform from analytics to the system of record for legal fault. The schema was already quietly satisfying the requirement: the frozen version keys and the failed sensor on every disengagement <em>are</em> the fault attribution, now adjudicated. An appeal appends a new finding version; the finding that was current when a payout posted is never overwritten — the risk-decision replay pattern, in a courtroom.</p>
+
+    <div class="codelabel">DDL · LIABILITY — INCIDENT + APPEND-ONLY FAULT FINDINGS</div>
+    <div class="codeblock"><span class="cl">-- One row per reportable collision/claim. The evidence is content-addressed</span>
+<span class="cl">-- and write-once: append-only stops being tidiness and becomes admissibility.</span>
+<span class="ck">CREATE TABLE</span> fact_incidents (
+    incident_id             VARCHAR(50)  <span class="ck">NOT NULL</span>,
+    disengagement_id        VARCHAR(50),
+    vehicle_key             BIGINT       <span class="ck">NOT NULL</span>,
+    failed_sensor_id        VARCHAR(50),                 <span class="cl">-- the subrogation path</span>
+    counterparty_type       VARCHAR(20),   <span class="cl">-- vehicle|pedestrian|cyclist|property</span>
+    severity                VARCHAR(20),
+    claim_amount_usd        DECIMAL(12,2) <span class="ck">DEFAULT</span> 0,
+    evidence_hash           VARCHAR(64)  <span class="ck">NOT NULL</span>,  <span class="cl">-- content hash of sealed evidence</span>
+    current_finding_version INT          <span class="ck">NOT NULL DEFAULT</span> 1,
+    event_ts                TIMESTAMP    <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (incident_id),
+    <span class="ck">FOREIGN KEY</span> (disengagement_id)
+        <span class="ck">REFERENCES</span> fact_disengagement_events(disengagement_id)
+);
+
+<span class="cl">-- One row per adjudication version. An appeal APPENDS; nothing is overwritten.</span>
+<span class="ck">CREATE TABLE</span> fact_fault_findings (
+    incident_id         VARCHAR(50) <span class="ck">NOT NULL</span>,
+    finding_version     INT         <span class="ck">NOT NULL</span>,   <span class="cl">-- append-only; appeals add a version</span>
+    at_fault            VARCHAR(20) <span class="ck">NOT NULL</span>,   <span class="cl">-- av|third_party|shared|undetermined</span>
+    contributing_factor VARCHAR(20),            <span class="cl">-- sensor|perception|planning|road</span>
+    adjudicator         VARCHAR(20) <span class="ck">NOT NULL</span>,   <span class="cl">-- internal|insurer|court</span>
+    decided_at          TIMESTAMP   <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (incident_id, finding_version),
+    <span class="ck">FOREIGN KEY</span> (incident_id) <span class="ck">REFERENCES</span> fact_incidents(incident_id)
+);</div>
+
+    <div class="pull reveal">Append-only stops being a tidiness preference and becomes admissibility. The original verdict, the original versions, the sealed evidence — none of them may move, because someone will challenge whether they did.<span>AGGREGATION RULE Nº 1</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the fleet</h2>
+    <p class="lede reveal">The facts are where the platform explains itself. Three queries an interviewer loves, because each carries a classic pattern on its back — the self-join rescue chain, the cross-ecosystem root-cause funnel, and the subrogation aggregation that turns a safety column into a recovery ledger.</p>
+
+    <h3 class="reveal">How long was the rider stranded? — the self-join</h3>
+    <p class="reveal">Because the rescue trip carries <span class="m">parent_trip_id</span>, "who hit a vehicle failure today, and how long until rescue?" is a clean self-join rather than a forensic reconstruction. The broken legs and the rescue legs are the same table, joined to itself on the parent link.</p>
+
+    <div class="codelabel">SQL · RESCUE LATENCY (SELF-JOIN ON PARENT_TRIP_ID)</div>
+    <div class="codeblock"><span class="ck">WITH</span> failed <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> trip_key, user_id, vehicle_key <span class="ck">AS</span> broken_vehicle,
+           end_ts <span class="ck">AS</span> failure_time
+    <span class="ck">FROM</span>   fact_av_trips
+    <span class="ck">WHERE</span>  trip_status = <span class="cs">'aborted_failsafe'</span>
+      <span class="ck">AND</span>  <span class="cf">date</span>(start_ts) = <span class="ck">CURRENT_DATE</span>
+),
+rescue <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> parent_trip_id, vehicle_key <span class="ck">AS</span> rescue_vehicle,
+           start_ts <span class="ck">AS</span> rescue_pickup
+    <span class="ck">FROM</span>   fact_av_trips
+    <span class="ck">WHERE</span>  parent_trip_id <span class="ck">IS NOT NULL</span>
+      <span class="ck">AND</span>  <span class="cf">date</span>(start_ts) = <span class="ck">CURRENT_DATE</span>
+)
+<span class="ck">SELECT</span> f.user_id, f.broken_vehicle, r.rescue_vehicle,
+       <span class="cf">extract</span>(epoch <span class="ck">FROM</span> r.rescue_pickup - f.failure_time) / 60 <span class="ck">AS</span> minutes_stranded
+<span class="ck">FROM</span> failed f
+<span class="ck">JOIN</span> rescue r <span class="ck">ON</span> r.parent_trip_id = f.trip_key
+<span class="ck">ORDER BY</span> minutes_stranded <span class="ck">DESC</span>;</div>
+
+    <h3 class="reveal">App bug or fleet failure? — the cross-ecosystem funnel</h3>
+    <p class="reveal">The query the app-vs-fleet bridge exists for: booking-conversion by app release, cross-referenced with the physical fail-safes those same sessions witnessed. Low conversion with near-zero fail-safes points at the app build; low conversion with elevated fail-safes points at the fleet. One query, two ecosystems, root cause isolated.</p>
+
+    <div class="codelabel">SQL · CONVERSION × FAIL-SAFES BY APP RELEASE</div>
+    <div class="codeblock"><span class="ck">SELECT</span> v.platform, v.semantic_version,
+       count(<span class="ck">DISTINCT</span> c.session_id)                     <span class="ck">AS</span> app_sessions,
+       count(<span class="ck">DISTINCT</span> r.request_id)                     <span class="ck">AS</span> ride_requests,
+       round(100.0 * count(<span class="ck">DISTINCT</span> r.request_id)
+             / <span class="cf">nullif</span>(count(<span class="ck">DISTINCT</span> c.session_id), 0), 1) <span class="ck">AS</span> booking_conversion_pct,
+       count(<span class="ck">DISTINCT</span> <span class="ck">CASE WHEN</span> t.trip_status = <span class="cs">'aborted_failsafe'</span>
+                          <span class="ck">THEN</span> t.trip_key <span class="ck">END</span>)        <span class="ck">AS</span> failsafes_witnessed
+<span class="ck">FROM</span> fact_mobile_clickstream_events c
+<span class="ck">JOIN</span> dim_mobile_app_versions  v <span class="ck">ON</span> v.app_version_key = c.app_version_key
+<span class="ck">LEFT JOIN</span> fact_ride_requests  r <span class="ck">ON</span> r.session_id      = c.session_id
+<span class="ck">LEFT JOIN</span> fact_av_trips       t <span class="ck">ON</span> t.request_id      = r.request_id
+<span class="ck">WHERE</span> c.event_ts >= now() - <span class="ck">INTERVAL</span> <span class="cs">'7 days'</span>
+<span class="ck">GROUP BY</span> v.platform, v.semantic_version
+<span class="ck">ORDER BY</span> booking_conversion_pct <span class="ck">ASC</span>;
+<span class="cl">-- Low conversion + ~0 fail-safes -> blame the build. Low conversion +</span>
+<span class="cl">-- elevated fail-safes -> blame the fleet. The blind spot is closed.</span></div>
+
+    <h3 class="reveal">Which vendor's sensors are costing us? — subrogation</h3>
+    <p class="reveal">When a component caused the incident, the operator recovers from the manufacturer. The same <span class="m">failed_sensor_id</span> that explained a disengagement now sizes a vendor recovery — one column, three uses: root-cause, failure-profile, and subrogation. The adjudication join takes only the <em>current</em> finding version, so an appealed claim doesn't double-count.</p>
+
+    <div class="codelabel">SQL · SUBROGATION EXPOSURE BY MANUFACTURER</div>
+    <div class="codeblock"><span class="ck">SELECT</span> s.manufacturer, s.sensor_type,
+       count(<span class="ck">DISTINCT</span> i.incident_id) <span class="ck">AS</span> incidents,
+       sum(i.claim_amount_usd)       <span class="ck">AS</span> recoverable_exposure_usd
+<span class="ck">FROM</span> fact_incidents      i
+<span class="ck">JOIN</span> fact_fault_findings f <span class="ck">ON</span> f.incident_id    = i.incident_id
+                       <span class="ck">AND</span> f.finding_version = i.current_finding_version  <span class="cl">-- latest only</span>
+<span class="ck">JOIN</span> dim_devices        s <span class="ck">ON</span> s.sensor_id       = i.failed_sensor_id
+<span class="ck">WHERE</span> f.contributing_factor = <span class="cs">'sensor'</span>
+  <span class="ck">AND</span> f.at_fault <span class="ck">IN</span> (<span class="cs">'av'</span>, <span class="cs">'shared'</span>)
+<span class="ck">GROUP BY</span> s.manufacturer, s.sensor_type
+<span class="ck">ORDER BY</span> recoverable_exposure_usd <span class="ck">DESC</span>;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the fleet is safe</h2>
+    <p class="lede reveal">A senior design ends with observability, because every safety discipline above is invisible without it. The board watches three different definitions of "healthy" — the safety case, the fleet operations, and the liability ledger — and treats a release-over-release MMBD regression as the page-worthy incident.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE SAFETY CASE</dt><dd><span class="m">MMBD by release</span> (is v9 safer than v8?), <span class="m">reg-reportable count</span> vs the filing deadline, <span class="m">assist-to-disengage ratio</span> — a rising ratio means the car asks for help instead of ceding control, which is maturity.</dd></div>
+      <div class="defrow"><dt>FLEET OPS</dt><dd><span class="m">vehicles in ODD</span> vs out (a low-state-of-charge car is outside its envelope for a long trip), <span class="m">telemetry watermark lag</span>, <span class="m">rescue latency p95</span>, <span class="m">charging downtime</span>.</dd></div>
+      <div class="defrow"><dt>THE LEDGER</dt><dd><span class="m">open incidents</span>, <span class="m">subrogation exposure</span> by vendor, <span class="m">COPQ</span> (comped fare + recovery credit) — the cost of poor quality, watched like a budget.</dd></div>
+      <div class="defrow"><dt>THE GATE</dt><dd><span class="m">counterfactual pass rate</span> — the share of last quarter's disengagements the candidate release no longer trips. Below the bar, the release does not ship.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Fleet Safety &amp; Ops — Phoenix</span>
+        <span class="dash-sub">FRI 19:05 MST · STACK v9.0 ROLLING · 2s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">MMBD v9.0</div><div class="tv ok">17.4<small>k mi</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,18 40,16 60,14 80,12 100,10 120,8" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">MMBD v8.2</div><div class="tv">11.9<small>k mi</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,16 60,15 80,16 100,15 120,16" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Reg-Reportable (mo)</div><div class="tv warn">7</div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,14 100,13 120,13" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Assists : Disengage</div><div class="tv ok">9.2<small>×</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,18 40,16 60,14 80,12 100,11 120,10" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Disengagements by H3 cell — downtown grid (darker = more)</div>
+          <svg viewBox="0 0 240 84">
+            <g stroke="#211e18" stroke-width="1">
+              <polygon points="30,14 44,22 44,38 30,46 16,38 16,22" fill="#3a352b"/>
+              <polygon points="58,14 72,22 72,38 58,46 44,38 44,22" fill="#6e5a23"/>
+              <polygon points="86,14 100,22 100,38 86,46 72,38 72,22" fill="#a87b1e"/>
+              <polygon points="114,14 128,22 128,38 114,46 100,38 100,22" fill="#c25a2a"/>
+              <polygon points="142,14 156,22 156,38 142,46 128,38 128,22" fill="#a87b1e"/>
+              <polygon points="170,14 184,22 184,38 170,46 156,38 156,22" fill="#6e5a23"/>
+              <polygon points="44,38 58,46 58,62 44,70 30,62 30,46" fill="#4d4427"/>
+              <polygon points="72,38 86,46 86,62 72,70 58,62 58,46" fill="#a87b1e"/>
+              <polygon points="100,38 114,46 114,62 100,70 86,62 86,46" fill="#d8a44a"/>
+              <polygon points="128,38 142,46 142,62 128,70 114,62 114,46" fill="#c25a2a"/>
+              <polygon points="156,38 170,46 170,62 156,70 142,62 142,46" fill="#6e5a23"/>
+              <polygon points="184,38 198,46 198,62 184,70 170,62 170,46" fill="#3a352b"/>
+            </g>
+            <text x="212" y="30" font-size="9" fill="#d98e63" font-family="DM Mono,monospace">HIGH</text>
+            <text x="212" y="66" font-size="9" fill="#8f8672" font-family="DM Mono,monospace">LOW</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Vehicles Out-of-ODD</div><div class="tv warn">14</div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,14 60,16 80,15 100,16 120,15" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Rescue Latency p95</div><div class="tv ok">8.1<small>min</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,12 60,13 80,12 100,13 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Counterfactual Pass</div><div class="tv ok">96<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,15 40,13 60,11 80,10 100,9 120,9" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Watermark Lag</div><div class="tv ok">6<small>s</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,14 100,16 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Subrogation Exp.</div><div class="tv bad">412<small>k$</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,18 40,16 60,15 80,13 100,12 120,11" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">COPQ (today)</div><div class="tv warn">3.8<small>k$</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,14 80,15 100,14 120,15" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a maturing fleet tells: MMBD on v9.0 climbing well clear of v8.2 with a 96% counterfactual pass rate, the assist-to-disengage ratio rising to 9.2× (the car asking for help, not ceding control), disengagements clustering on the downtown hot cells, and a single sensor vendor's failures driving a $412k subrogation exposure the ledger is already chasing.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the green tiles together and the board argues that v9.0 is a genuine safety improvement, not a hopeful one: MMBD is up, the counterfactual harness proved the regression gone before the release shipped, and the rising assist ratio says the stack is learning to defer rather than fail. Read the amber and rust and it tells the operator exactly where to spend: fourteen cars drifting out of their ODD envelope on low charge, a downtown intersection generating most of the disengagements, and one vendor's sensors carrying nearly half a million dollars of recoverable exposure. Every number on the board traces back to a frozen key — which is what makes it admissible as well as actionable.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the robots away and the question was testing five judgments, each of which generalizes far beyond autonomous vehicles:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>VERSIONED ATTRIBUTION</dt><dd>Replacing an entity with the stack of versioned dimensions that produced its behavior. When the actor is software, "who did this" is a join of releases, and each must be reconstructable as-of any instant.</dd></div>
+      <div class="defrow"><dt>FREEZE, DON'T LOOK UP</dt><dd>Snapshotting the version keys onto the event at write time, so the record survives every future deployment. Resolving "current" at query time re-attributes history — the single bug that collapses the safety case.</dd></div>
+      <div class="defrow"><dt>APPEND-ONLY AS ADMISSIBILITY</dt><dd>Treating the disengagement and the fault finding as immutable evidence, with appeals appending versions. When the data is the legal record, an UPDATE is not a convenience — it is spoliation.</dd></div>
+      <div class="defrow"><dt>THE FIREHOSE BOUNDARY, AT SCALE</dt><dd>Keeping terabytes of raw sensor data in object storage with a per-second rollup and a pointer — and processing on event-time, because a vehicle that buffers in a tunnel will lie to a processing-time clock.</dd></div>
+      <div class="defrow"><dt>ONE GRAIN FOR A MIXED FLEET</dt><dd>Folding robot trips into the same marketplace fact as human trips so Finance reconciles once. The grain was built platform-agnostic for exactly this; forking it double-counts the market.</dd></div>
+    </dl>
+    <div class="pull reveal">Replace the driver with a stack and the whole model becomes versioned attribution. Nothing here is new — it is the catalogue's SCD2, decision-replay, temporal-geofence, and firehose patterns, at the grade where a wrong join is a subpoena.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 19 — THE AUTONOMY PROBLEM<br>AUTONOMOUS SYSTEMS · VERSIONED ATTRIBUTION · THE CRAFT OF THE FROZEN KEY</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Auction Problem — PaddySpeaks</title>
+<meta name="description" content="Designing the data backbone of a search-ads auction: the causal chain from auction clearing to impression to click to conversion, the auction_decision_id join key, append-only re-runnable attribution, loser sampling, quality-score calibration, and the dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 03</div>
+    <h1 class="reveal">The <em>Auction</em> Problem</h1>
+    <p class="deck reveal">Model a search-ads system end to end — a hundred advertisers compete in under a hundred milliseconds, one wins, and the conversion lands four days later on a different device. A complete working through: the causal chain across four facts, the one join key that threads it, append-only attribution you can re-run, loser sampling for the ranker, quality-score calibration, and the dashboard.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Ads / Real-Time Bidding</b></span>
+      <span>READING · <b>~27 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One key, four facts, a causal chain</h2>
+    <p class="lede reveal">This prompt asks for "an ads model" and is in fact a causal chain stretched across four orders of magnitude and several days — where the hardest requirement is not volume but the ability to <em>re-decide the past</em> without rewriting it.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design a data model for search ads that captures the whole chain — auction clearing, impression, click, conversion — and supports advertiser billing, quality-score recomputation, ranker training, incrementality measurement, and re-runnable attribution windows. How do you scope it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The trap is to model the four stages as one event. They are not: they are four facts at violently different cardinalities and tempos. Two billion auctions a day clear in under a hundred milliseconds each; roughly a hundred ads compete in every one of them and exactly one wins, so the losing candidates outnumber the winners twentyfold. Impressions follow auctions, clicks follow impressions at a few percent, conversions follow clicks hours or days later — and the click can be invalidated by bot-detection that runs long after billing thought it was done. Collapse this into one table and the join becomes a timestamp-matching séance; keep it as four and you need one thing above all: a key that is born once and travels the whole way down.</p>
+
+    <p class="reveal">A weak answer fuzzy-joins clicks to conversions on user and time and calls attribution a pipeline. A strong answer notices that attribution is not <em>collected</em>, it is <em>computed</em> — and that the moment a model changes, you must be able to recompute it over the same raw events without losing the old answer. So before any tables, the frame for the session:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE JOIN KEY</dt><dd><strong><span class="m">auction_decision_id</span>.</strong> Minted once at auction time, stamped onto the impression, carried by the click, threaded to the conversion. No timestamp matching, no fuzzy joins — the chain is one column wide.</dd></div>
+      <div class="defrow"><dt>THE COUNTERFACTUAL</dt><dd><strong>The losers.</strong> Twenty times the winners by volume and worthless to keep whole, but indispensable as a balanced training set for the ranker. Sampled at 1% with a reweighting column, kept honest.</dd></div>
+      <div class="defrow"><dt>THE RE-RUN</dt><dd><strong>Attribution as a function, not a fact.</strong> Each model run is an append-only batch tagged with a run id. Last-click and data-driven live side by side; switching models is a <span class="m">SELECT</span>, never a re-ingest.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Attribution is computed, not collected. The day a model changes you must be able to re-decide every past conversion — and still be able to prove what you decided yesterday.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, so name it. In scope: the four-fact chain, the loser counterfactual, the append-only attribution layer with versioned models, and the analytics for billing, the ranker, and measurement. Out of scope, said explicitly: the real-time auction <em>engine</em> itself (the sub-100 ms serving path that runs the second-price auction — treated as the producer of <span class="m">fct_auctions</span>), the bidding/budget pacing controller, creative storage, and spam/fraud beyond the invalid-click hook. The caveat: the model must not <em>preclude</em> privacy carve-outs, so a <span class="m">privacy_path</span> is first-class from the start rather than retrofitted.</p>
+
+    <p class="reveal">Then the envelope math, volunteered. Search-ads numbers at planetary scale:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Ad requests / day</td><td class="mono">2,000,000,000</td><td>≈ 23 K auctions/s average, ~6× at peak</td></tr>
+      <tr><td>Candidates per auction</td><td class="mono">~100</td><td>Sets the raw counterfactual volume before sampling</td></tr>
+      <tr><td><strong>Loser rows / day (raw)</strong></td><td class="mono"><strong>≈ 200 B</strong></td><td><strong>20× winners — the row that forces sampling, not retention</strong></td></tr>
+      <tr><td>Click-through rate</td><td class="mono">~3%</td><td>Clicks are 1/30th of impressions; conversions rarer still</td></tr>
+      <tr><td>Conversion lag</td><td class="mono">minutes → days</td><td>Attribution windows must span 1–28 days; facts arrive late</td></tr>
+      <tr><td>Invalid-click detection lag</td><td class="mono">hours → days</td><td>Clicks are a slowly-changing fact; billing must be restatable</td></tr>
+      <tr><td>Attribution re-runs</td><td class="mono">on every model ship</td><td>Re-attribution must be a query, not a re-ingestion</td></tr>
+    </table>
+
+    <p class="reveal">Read the table and the architecture is half-decided. The loser row dictates that the counterfactual is sampled and reweighted, never stored whole. The two lag rows — conversions arriving days late, invalid clicks landing later still — dictate that nothing downstream may assume a fact is final when it lands. And the re-run row dictates the central design move: attribution is a derived, append-only layer keyed by a run id, so the past can be re-decided without being overwritten. The rest of this article follows the key down the chain.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following one auction down the chain</h2>
+    <p class="lede reveal">One key, four facts, two tempos. The serving path mints the decision and races on; the measurement path stitches the chain together hours later and re-runs attribution whenever a model ships — from the same immutable events.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 580" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">SERVING PATH · &lt;100 MS · ~23K AUCTIONS/S</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">MEASUREMENT PATH · HOURS LATER · RE-RUNNABLE</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- serving path -->
+        <rect x="20" y="58" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="85" font-size="12.5" text-anchor="middle" fill="#23201a">QUERY + CONTEXT</text>
+        <text x="95" y="104" font-size="10.5" text-anchor="middle" fill="#7d7567">user types, page loads</text>
+
+        <rect x="228" y="50" width="172" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="314" y="76" font-size="12.5" text-anchor="middle" fill="#23201a">AUCTION ENGINE</text>
+        <text x="314" y="94" font-size="10.5" text-anchor="middle" fill="#7d7567">rank ~100 · 2nd-price</text>
+        <text x="314" y="110" font-size="10.5" text-anchor="middle" fill="#7d7567">mint decision_id</text>
+
+        <rect x="458" y="44" width="200" height="92" fill="#27241d"/>
+        <text x="558" y="74" font-size="12.5" text-anchor="middle" fill="#e9e2d0">EVENT LOG</text>
+        <text x="558" y="92" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: auction_decision_id</text>
+        <text x="558" y="108" font-size="10.5" text-anchor="middle" fill="#b8ad93">winner + sampled losers</text>
+
+        <rect x="728" y="40" width="222" height="62" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="839" y="64" font-size="12" text-anchor="middle" fill="#a4502e">IMPRESSION SERVED</text>
+        <text x="839" y="82" font-size="10.5" text-anchor="middle" fill="#7d7567">carries decision_id</text>
+
+        <rect x="728" y="120" width="222" height="60" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="839" y="144" font-size="12" text-anchor="middle" fill="#8a5d12">CLICK BEACON</text>
+        <text x="839" y="162" font-size="10.5" text-anchor="middle" fill="#7d7567">later: invalidation</text>
+
+        <rect x="728" y="198" width="222" height="58" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="839" y="222" font-size="12" text-anchor="middle" fill="#7d7567">LOSER SAMPLER (1%)</text>
+        <text x="839" y="239" font-size="10.5" text-anchor="middle" fill="#7d7567">reservoir + sample_weight</text>
+
+        <!-- serving arrows -->
+        <line x1="170" y1="90" x2="224" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="400" y1="90" x2="454" y2="90" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="658" y1="72" x2="724" y2="70" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="658" y1="100" x2="724" y2="148" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="658" y1="110" x2="724" y2="224" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- measurement path -->
+        <rect x="20" y="358" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="385" font-size="12.5" text-anchor="middle" fill="#23201a">CONVERSION PING</text>
+        <text x="95" y="404" font-size="10.5" text-anchor="middle" fill="#7d7567">days later · advertiser</text>
+
+        <rect x="228" y="346" width="184" height="92" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="320" y="374" font-size="12.5" text-anchor="middle" fill="#6f7d5c">CHAIN STITCHER</text>
+        <text x="320" y="392" font-size="10.5" text-anchor="middle" fill="#7d7567">join on decision_id</text>
+        <text x="320" y="408" font-size="10.5" text-anchor="middle" fill="#7d7567">eligible-touchpoint set</text>
+
+        <rect x="470" y="334" width="192" height="54" fill="#fbf8f1" stroke="#92400e" stroke-width="2"/>
+        <text x="566" y="356" font-size="12" text-anchor="middle" fill="#92400e">ATTRIBUTION RUN</text>
+        <text x="566" y="374" font-size="10.5" text-anchor="middle" fill="#a4502e">append · run_id · model_id</text>
+
+        <rect x="470" y="406" width="192" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="566" y="428" font-size="12" text-anchor="middle" fill="#23201a">RANKER TRAINING</text>
+        <text x="566" y="446" font-size="10.5" text-anchor="middle" fill="#7d7567">winners + weighted losers</text>
+
+        <rect x="728" y="330" width="222" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="839" y="354" font-size="12" text-anchor="middle" fill="#23201a">BILLING / ROAS</text>
+        <text x="839" y="372" font-size="10.5" text-anchor="middle" fill="#7d7567">latest run · valid clicks</text>
+
+        <rect x="728" y="408" width="222" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="839" y="432" font-size="12" text-anchor="middle" fill="#23201a">CALIBRATION / QS</text>
+        <text x="839" y="450" font-size="10.5" text-anchor="middle" fill="#7d7567">predicted vs realized pCTR</text>
+
+        <!-- measurement arrows -->
+        <line x1="170" y1="390" x2="224" y2="390" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="412" y1="372" x2="466" y2="362" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="412" y1="410" x2="466" y2="430" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="662" y1="360" x2="724" y2="358" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="662" y1="436" x2="724" y2="440" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- stitcher reads the log -->
+        <path d="M 320 346 C 320 230, 560 210, 558 138" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="372" y="240" font-size="10.5" fill="#a4502e">stitch on auction_decision_id</text>
+
+        <text x="20" y="560" font-size="10.5" fill="#7d7567">SOLID — immutable event writes · DASHED — the re-runnable join · The engine decides once; attribution re-decides forever.</text>
+      </svg>
+      <div class="caption">FIG. 1 — The chain and its two tempos. The serving path mints the key and emits immutable facts; the measurement path joins on that key and re-runs attribution as an append-only layer.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> every fact on the serving path is immutable and carries <span class="m">auction_decision_id</span>, so the chain is reconstructed by an equi-join on one column rather than by guessing which click caused which conversion. <strong>Second,</strong> attribution is a separate plane entirely — the stitcher pairs each conversion with its eligible touchpoints and an attribution <em>run</em> writes credit as new rows, so last-click and data-driven coexist and yesterday's answer is never destroyed. <strong>Third,</strong> the loser sampler is dashed off to the side because the counterfactual is a sampled tributary, not the main flow: 1% of losers reweighted is a balanced training set; 100% of losers is a bankrupt warehouse.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Lateness Philosophy, In One Rule</div>
+      <p><strong>No fact is final when it lands; correctness is a function of when you ask.</strong> A conversion can arrive four days after its click, so attribution windows are evaluated at read time against the touchpoints that existed in-window. A click can be invalidated hours after it billed, so invalidation is an <em>append</em> — <span class="m">is_invalid = TRUE</span> with an <span class="m">invalidation_ts</span> — never an update, and billing is restated from the corrected view. The system is eventually consistent by design; its honesty lives in the run id and the timestamp, which let any number be reproduced exactly as it stood on the day it was reported.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>Four facts, one key, an append-only attribution layer</h2>
+    <p class="lede reveal">The schema falls out of the chain. Four immutable facts threaded by <span class="m">auction_decision_id</span>; a fifth fact, attribution, that is derived and append-only; a sampled sixth for the counterfactual; and versioned dimensions where a model or a creative has a history that billing must reproduce.</p>
+
+    <h3 class="reveal">The decision and what it served</h3>
+    <p class="reveal">The auction is the head of the chain. It records the winner, the second-price clearance, and the privacy path — and it mints <span class="m">auction_decision_id</span>, the single most important column in the model. The impression is what actually rendered, joined to the auction on that key, and it carries the ranker's own prediction (<span class="m">predicted_pctr</span>, <span class="m">quality_score</span>, <span class="m">ad_rank</span>) so the ranker can later be graded against reality.</p>
+
+    <div class="codelabel">DDL · DECISION + IMPRESSION (IMMUTABLE)</div>
+    <div class="codeblock"><span class="cl">-- Head of the chain. One row per auction clearing. The decision_id
+-- minted here is stamped onto everything downstream -- the join key.</span>
+<span class="ck">CREATE TABLE</span> fct_auctions (
+    auction_decision_id  TEXT          <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- the join key for the chain</span>
+    query_text_hash      TEXT          <span class="ck">NOT NULL</span>,      <span class="cl">-- hashed, never raw query</span>
+    keyword_id           BIGINT        <span class="ck">REFERENCES</span> dim_keywords,
+    user_token           TEXT,                          <span class="cl">-- privacy-tokenized, nullable</span>
+    device_id            TEXT,
+    auction_ts           TIMESTAMPTZ   <span class="ck">NOT NULL</span>,      <span class="cl">-- within ~100ms of the request</span>
+    winning_ad_id        BIGINT        <span class="ck">NOT NULL</span>,
+    clearing_price_local NUMERIC(10,4) <span class="ck">NOT NULL</span>,
+    fx_rate_to_usd       NUMERIC(12,6) <span class="ck">NOT NULL</span>,
+    clearing_price_usd   NUMERIC(10,4) <span class="ck">NOT NULL</span>,      <span class="cl">-- second-price clearance</span>
+    privacy_path         TEXT          <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'standard'</span>
+                         <span class="ck">CHECK</span> (privacy_path <span class="ck">IN</span>
+                           (<span class="cs">'standard'</span>,<span class="cs">'att_optout'</span>,<span class="cs">'sandbox'</span>,<span class="cs">'floc'</span>))
+);
+
+<span class="cl">-- What actually rendered. Joins to auctions on the decision_id.
+-- Carries the ranker's prediction so we can grade it later (&sect; 07).</span>
+<span class="ck">CREATE TABLE</span> fct_impressions (
+    impression_id        BIGINT        <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    auction_decision_id  TEXT          <span class="ck">NOT NULL REFERENCES</span> fct_auctions,
+    creative_id          BIGINT        <span class="ck">NOT NULL REFERENCES</span> dim_creatives,
+    served_ts            TIMESTAMPTZ   <span class="ck">NOT NULL</span>,
+    predicted_pctr       NUMERIC(6,5)  <span class="ck">NOT NULL</span>,      <span class="cl">-- the ranker's CTR guess</span>
+    quality_score        NUMERIC(4,3)  <span class="ck">NOT NULL</span>,
+    ad_rank              NUMERIC(8,5)  <span class="ck">NOT NULL</span>       <span class="cl">-- bid x pctr x quality</span>
+);
+<span class="ck">CREATE INDEX</span> idx_imp_decision <span class="ck">ON</span> fct_impressions (auction_decision_id);</div>
+
+    <h3 class="reveal">The click and the conversion</h3>
+    <p class="reveal">The click is the chain's one mutable-by-append fact. It is born clean, and bot-detection may later mark it invalid — but the model never overwrites it. <span class="m">is_invalid</span> flips to TRUE with an <span class="m">invalidation_ts</span>, so the billing history that charged the advertiser yesterday remains reproducible while today's credit is corrected. The conversion is the tail: an advertiser-reported event with a value, arriving hours or days after the click, owning no knowledge of which touchpoint earned it — that is attribution's job.</p>
+
+    <div class="codelabel">DDL · CLICK (SLOWLY-CHANGING) + CONVERSION</div>
+    <div class="codeblock"><span class="cl">-- The click. Validation is asynchronous: bot-detection runs for hours
+-- to days. We APPEND the verdict, never UPDATE -- billing stays auditable.</span>
+<span class="ck">CREATE TABLE</span> fct_clicks (
+    click_id        BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    impression_id   BIGINT       <span class="ck">NOT NULL REFERENCES</span> fct_impressions,
+    click_ts        TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    is_invalid      BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> <span class="ck">FALSE</span>,  <span class="cl">-- set later by detection</span>
+    invalidation_ts TIMESTAMPTZ                            <span class="cl">-- when, and only when, invalid</span>
+);
+<span class="ck">CREATE INDEX</span> idx_clk_imp <span class="ck">ON</span> fct_clicks (impression_id);
+
+<span class="cl">-- The conversion. Advertiser-reported, lands days after the click,
+-- and knows nothing of which touchpoint caused it. Attribution decides.</span>
+<span class="ck">CREATE TABLE</span> fct_conversions (
+    conversion_id        BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    advertiser_id        BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_advertisers,
+    conversion_ts        TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    conversion_type      TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- purchase | signup | install</span>
+    conversion_value_usd NUMERIC(10,2) <span class="ck">NOT NULL DEFAULT</span> 0
+);</div>
+
+    <h3 class="reveal">Attribution as an append-only fact</h3>
+    <p class="reveal">This is the table that makes the system senior. It is not collected — it is the materialized output of running a model over the chain. One row per <span class="m">(conversion × eligible-touchpoint × model × run)</span>, partitioned by <span class="m">attribution_run_id</span>. The same conversion appears under <span class="m">MODEL_LAST_CLICK</span> with credit 1.0 and under <span class="m">MODEL_DDA_v3</span> with a fractional credit, in the same run, never destroying the other. Re-attributing a quarter when the model upgrades is a new run id over the same immutable events — the old run is preserved, and an advertiser can compare the two side by side.</p>
+
+    <div class="codelabel">DDL · ATTRIBUTION (DERIVED · APPEND-ONLY) + LOSERS</div>
+    <div class="codeblock"><span class="cl">-- The crux. NOT ingested -- computed. One row per (conversion x
+-- touchpoint x model x run). New model = new run_id over the SAME events.
+-- Old runs are never overwritten: re-attribution is append, not rebuild.</span>
+<span class="ck">CREATE TABLE</span> fct_attributions (
+    attribution_id       BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    conversion_id        BIGINT       <span class="ck">NOT NULL REFERENCES</span> fct_conversions,
+    impression_id        BIGINT,
+    click_id             BIGINT,
+    model_id             TEXT         <span class="ck">NOT NULL REFERENCES</span> dim_attribution_models,
+    attribution_run_id   TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- the partition; latest wins on read</span>
+    window_type          TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- click_24h, click_7d, view_1d ...</span>
+    fractional_credit    NUMERIC(5,4) <span class="ck">NOT NULL</span>,   <span class="cl">-- 1.0 last-click; &lt;1 distributed</span>
+    attributed_value_usd NUMERIC(10,2) <span class="ck">NOT NULL</span>
+);
+<span class="ck">CREATE INDEX</span> idx_attr_run <span class="ck">ON</span> fct_attributions (attribution_run_id, model_id);
+
+<span class="cl">-- The counterfactual. 20x the winners raw -- reservoir-sampled to 1%.
+-- sample_weight = 1/rate reconstitutes the population in training.</span>
+<span class="ck">CREATE TABLE</span> fct_auction_losers (
+    auction_decision_id  TEXT         <span class="ck">NOT NULL REFERENCES</span> fct_auctions,
+    candidate_ad_id      BIGINT       <span class="ck">NOT NULL</span>,
+    ad_rank              NUMERIC(8,5) <span class="ck">NOT NULL</span>,
+    sample_weight        INT          <span class="ck">NOT NULL DEFAULT</span> 100   <span class="cl">-- 1 / 0.01</span>
+);</div>
+
+    <p class="reveal">The dimensions are conformed and mostly SCD2, because the chain spans days and budgets drift hourly. <span class="m">dim_advertisers</span>, <span class="m">dim_campaigns</span>, <span class="m">dim_ad_groups</span>, and <span class="m">dim_creatives</span> all version their attributes so a quality-score regression can be debugged against the creative that was live <em>at impression time</em>, not the one live today. <span class="m">dim_keywords</span> is SCD1 and high-cardinality — its history is not worth the storage. <span class="m">dim_attribution_models</span> is SCD2 and is the keystone of re-attribution: the model is a versioned row, so "last-click vs data-driven" is a join, not an ETL fork. And <span class="m">dim_users</span> is privacy-tokenized — never a raw user id, only a token and a privacy path.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>Where the credit is conserved</h2>
+    <p class="lede reveal">The correctness of the whole model lives in two rules. The join rule: the chain is reconstructed only by <span class="m">auction_decision_id</span>, never by timestamp proximity. The conservation rule: within a single run and model, the fractional credits for a conversion sum to one.</p>
+
+    <p class="reveal">Attribution is dangerous because credit is real money divided among contenders. Give a conversion's full value to two touchpoints and you have double-paid; lose a fraction and an advertiser's ROAS is understated. The guard is arithmetic and per-conversion: across the eligible touchpoints for one conversion under one model in one run, <span class="m">fractional_credit</span> sums to exactly 1.0 (or to 0.0 when the conversion falls in no window — unattributed, which is itself a valid, recorded answer). This is the auction's version of a ledger that must balance — <strong>RULE Nº 1</strong>, made executable.</p>
+
+    <h3 class="reveal">The chain as a state lifecycle</h3>
+    <div class="statechain reveal">
+      <span class="st">AUCTION_CLEARED</span><span class="arr">→</span>
+      <span class="st">IMPRESSION</span><span class="arr">→</span>
+      <span class="st">CLICK</span><span class="arr">→</span>
+      <span class="st">CONVERSION</span><span class="arr">→</span>
+      <span class="st terminal">ATTRIBUTED</span>
+    </div>
+    <p class="reveal">Two edges branch off this spine. From <span class="m">CLICK</span>, an <span class="m">INVALIDATED</span> edge appends a verdict without rewinding billing. From <span class="m">CONVERSION</span>, a re-run re-enters <span class="m">ATTRIBUTED</span> under a new <span class="m">attribution_run_id</span> — the only state that is allowed to happen more than once, because re-deciding the past is the entire point. Every other transition is immutable and append-once.</p>
+
+    <div class="codelabel">SQL · THE ATTRIBUTION RUN — CREDIT SUMS TO ONE</div>
+    <div class="codeblock"><span class="cl">-- Materialize one attribution run. Pair each conversion with its
+-- eligible in-window touchpoints, distribute credit per the model, and
+-- ASSERT the credits sum to 1 per conversion before the run is sealed.</span>
+<span class="ck">INSERT INTO</span> fct_attributions
+  (conversion_id, impression_id, click_id, model_id,
+   attribution_run_id, window_type, fractional_credit, attributed_value_usd)
+<span class="ck">SELECT</span>
+    cv.conversion_id, tp.impression_id, tp.click_id,
+    <span class="ck">:model_id</span>, <span class="ck">:run_id</span>, tp.window_type,
+    tp.credit,
+    round(cv.conversion_value_usd * tp.credit, 2)
+<span class="ck">FROM</span> fct_conversions cv
+<span class="ck">JOIN LATERAL</span> <span class="cf">eligible_touchpoints</span>(cv.conversion_id, <span class="ck">:model_id</span>) tp <span class="ck">ON TRUE</span>
+<span class="ck">WHERE</span> cv.conversion_ts &gt;= <span class="ck">:window_start</span>;
+
+<span class="cl">-- the invariant: per conversion, credit sums to 1 (or 0 = unattributed).</span>
+<span class="ck">DO</span> $$
+<span class="ck">DECLARE</span> bad INT;
+<span class="ck">BEGIN</span>
+  <span class="ck">SELECT</span> count(*) <span class="ck">INTO</span> bad <span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> conversion_id, <span class="cf">sum</span>(fractional_credit) <span class="ck">AS</span> c
+    <span class="ck">FROM</span> fct_attributions
+    <span class="ck">WHERE</span> attribution_run_id = <span class="ck">:run_id</span> <span class="ck">AND</span> model_id = <span class="ck">:model_id</span>
+    <span class="ck">GROUP BY</span> conversion_id
+    <span class="ck">HAVING</span> <span class="cf">abs</span>(<span class="cf">sum</span>(fractional_credit) - 1.0) &gt; 0.001
+       <span class="ck">AND</span> <span class="cf">sum</span>(fractional_credit) &gt; 0.0          <span class="cl">-- 0 = legitimately unattributed</span>
+  ) q;
+  <span class="ck">IF</span> bad &gt; 0 <span class="ck">THEN</span>
+    <span class="ck">RAISE EXCEPTION</span> <span class="cs">'run % model %: % conversions do not sum to 1'</span>,
+      <span class="ck">:run_id</span>, <span class="ck">:model_id</span>, bad;
+  <span class="ck">END IF</span>;
+<span class="ck">END</span> $$;</div>
+
+    <div class="pull reveal">A conversion's credit sums to one, across every touchpoint that earned it. The model decides the split; the invariant decides whether the run is allowed to exist.<span>ATTRIBUTION RULE Nº 1 — CREDIT IS CONSERVED</span></div>
+
+    <p class="reveal">The second half of the invariant is the join discipline. Because every fact carries <span class="m">auction_decision_id</span>, the chain is never reconstructed by matching a click's timestamp to a conversion's — a method that silently mis-attributes whenever two users share a device or a household IP. The key is deterministic; the séance is banned. When the chain cannot be completed — an iOS opt-out left <span class="m">user_token</span> null, so the conversion cannot be tied to an impression — the model does not guess. It records the conversion as unattributed and routes the measurement to the aggregate path, where SKAN-style postbacks live. Honesty about what cannot be joined is part of the invariant.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the chain</h2>
+    <p class="lede reveal">Three programs carry the write path: the impression joiner that completes the head of the chain, the click-invalidation consumer that corrects without overwriting, and the reservoir sampler that keeps the counterfactual affordable. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The impression joiner — the key, or nothing</h3>
+    <p class="reveal">An impression is only useful if it carries its <span class="m">auction_decision_id</span>; a beacon that lost the key on the wire is unjoinable and therefore worthless to the chain. The joiner's whole discipline is to refuse keyless impressions to a quarantine rather than fabricate a join. It never invents a decision id, and it never timestamp-matches an orphan impression to a nearby auction — a guess here poisons every downstream metric.</p>
+
+    <div class="codelabel">PYTHON · IMPRESSION JOINER (KEY-OR-QUARANTINE)</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">ingest_impression</span>(pool, ev: dict) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""An impression without its auction_decision_id cannot join the chain
+    and must never be faked. We refuse to timestamp-match an orphan to a
+    nearby auction -- a fabricated join silently corrupts ROAS for the
+    whole campaign. Keyless beacons go to quarantine for offline repair."""</span>
+    did = ev.get(<span class="cs">"auction_decision_id"</span>)
+    <span class="ck">if not</span> did:
+        <span class="ck">await</span> quarantine(<span class="cs">"impression_no_key"</span>, ev)      <span class="cl"># never invent one</span>
+        <span class="ck">return</span>
+    <span class="ck">async with</span> pool.acquire() <span class="ck">as</span> con:
+        ok = <span class="ck">await</span> con.fetchval(
+            <span class="cs">"SELECT 1 FROM fct_auctions WHERE auction_decision_id = $1"</span>, did)
+        <span class="ck">if not</span> ok:
+            <span class="ck">await</span> quarantine(<span class="cs">"impression_orphan"</span>, ev)    <span class="cl"># auction not seen yet</span>
+            <span class="ck">return</span>                                       <span class="cl"># a late retry will re-land it</span>
+        <span class="ck">await</span> con.execute(<span class="cs">"""
+            INSERT INTO fct_impressions
+              (auction_decision_id, creative_id, served_ts,
+               predicted_pctr, quality_score, ad_rank)
+            VALUES ($1,$2,$3,$4,$5,$6)
+            ON CONFLICT DO NOTHING
+        """</span>, did, ev[<span class="cs">"creative_id"</span>], ev[<span class="cs">"served_ts"</span>],
+             ev[<span class="cs">"predicted_pctr"</span>], ev[<span class="cs">"quality_score"</span>], ev[<span class="cs">"ad_rank"</span>])</div>
+
+    <h3 class="reveal">2 · The invalidation consumer — append the verdict</h3>
+    <p class="reveal">Bot-detection produces a stream of click ids it has judged invalid, sometimes days after the click billed. The consumer's one rule is that it corrects by appending a verdict, never by deleting the click — the row that charged the advertiser must remain to make billing reproducible. It is idempotent: a click already marked invalid is left exactly as it was, so a replayed detection batch cannot move the invalidation timestamp.</p>
+
+    <div class="codelabel">PYTHON · CLICK-INVALIDATION CONSUMER (CORRECT, DON'T DELETE)</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">apply_invalidations</span>(pool, click_ids: list[int]) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""Bot-detection lands hours-to-days late. We mark the click invalid
+    by setting a flag + timestamp -- we do NOT delete it, because the row
+    is the evidence for the bill we already sent. Idempotent: a click
+    already invalid keeps its original invalidation_ts on replay."""</span>
+    <span class="ck">async with</span> pool.acquire() <span class="ck">as</span> con:
+        <span class="ck">await</span> con.executemany(<span class="cs">"""
+            UPDATE fct_clicks
+               SET is_invalid = TRUE, invalidation_ts = now()
+             WHERE click_id = $1
+               AND is_invalid = FALSE        -- only the first verdict stamps the time
+        """</span>, [(cid,) <span class="ck">for</span> cid <span class="ck">in</span> click_ids])
+    <span class="cl"># downstream billing reads `WHERE is_invalid = FALSE` for current credit,</span>
+    <span class="cl"># but the historical bill is still reproducible from invalidation_ts.</span></div>
+
+    <h3 class="reveal">3 · The loser sampler — keep 1%, reconstitute 100%</h3>
+    <p class="reveal">The losers are twenty times the winners and cannot be stored whole, but the ranker needs a balanced training set, so they are reservoir-sampled per auction and tagged with the inverse sampling rate. The sampler refuses to drop the population's shape: by stamping <span class="m">sample_weight = 1/rate</span> on every retained row, downstream training reweights a 1% sample back to the full distribution without ever touching the discarded 99%.</p>
+
+    <div class="codelabel">PYTHON · RESERVOIR LOSER SAMPLER (REWEIGHTED)</div>
+    <div class="codeblock"><span class="ck">import</span> random
+
+SAMPLE_RATE = 0.01                       <span class="cl"># keep 1% of losing candidates</span>
+WEIGHT      = round(1 / SAMPLE_RATE)     <span class="cl"># 100: each kept row stands for 100</span>
+
+<span class="ck">def</span> <span class="cf">sample_losers</span>(decision_id: str, candidates: list[dict]) -&gt; list[tuple]:
+    <span class="cs">"""Per-auction reservoir sample of the losing candidates. The kept
+    rows carry sample_weight = 1/rate so training reconstitutes the full
+    20x population -- we never need the discarded 99%. Sampling is what
+    makes the counterfactual affordable AND statistically honest."""</span>
+    losers = [c <span class="ck">for</span> c <span class="ck">in</span> candidates <span class="ck">if not</span> c[<span class="cs">"won"</span>]]
+    kept = []
+    <span class="ck">for</span> c <span class="ck">in</span> losers:
+        <span class="ck">if</span> random.random() &lt; SAMPLE_RATE:
+            kept.append((decision_id, c[<span class="cs">"ad_id"</span>], c[<span class="cs">"ad_rank"</span>], WEIGHT))
+    <span class="ck">return</span> kept       <span class="cl"># -&gt; fct_auction_losers; SUM(sample_weight) ~= true loser count</span></div>
+
+    <p class="reveal">One carve-out, always stated: <strong>the sampler never touches winners.</strong> Every impression is retained in full, because the winner is the billed, served reality and the positive class of the training set — only the unbilled, unserved counterfactual is thinned. Keeping the asymmetry explicit is what lets the ranker team reweight correctly instead of training on an accidentally balanced sample that lies about how rare a win is.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>The attribution run and pCTR calibration</h2>
+    <p class="lede reveal">Two derived layers carry the slow loop. The attribution run materializes credit as an append-only batch tagged with a run id. Calibration grades the ranker by comparing the pCTR it predicted against the click-through it actually got — the feedback that keeps the auction's prices honest.</p>
+
+    <p class="reveal">The attribution run is the slow loop's heart, and its defining property is that it is <em>re-runnable</em>. A run takes a model id, a window definition, and a slice of conversions; it pairs each conversion with its eligible in-window touchpoints, asks the model to distribute credit, and writes the result as new rows under a fresh <span class="m">attribution_run_id</span>. Last-click is the trivial case — full credit to the last valid click in window. Data-driven splits credit across the path using the model's learned weights. The two run side by side over the identical events, and the latest run wins on read while every prior run remains queryable for audit. Re-attributing an entire quarter when <span class="m">MODEL_DDA_v2</span> becomes <span class="m">v3</span> is a batch job, not a re-ingestion — the raw facts never move.</p>
+
+    <div class="codelabel">PYTHON · ATTRIBUTION RUN (RE-RUNNABLE · APPEND-ONLY)</div>
+    <div class="codeblock"><span class="cl"># One run = one (model, window, conversion-slice). Emits new rows under
+# a fresh run_id. Old runs are preserved; the latest_run view wins on read.</span>
+
+<span class="ck">def</span> <span class="cf">run_attribution</span>(model, window, conversions, touchpoints):
+    run_id = <span class="cs">f"RUN_{date.today():%Y_%m_%d}_{model.id}"</span>
+    rows = []
+    <span class="ck">for</span> cv <span class="ck">in</span> conversions:
+        eligible = touchpoints.in_window(cv, window)     <span class="cl"># clicks+views, in-window</span>
+        <span class="ck">if not</span> eligible:
+            rows.append(unattributed(cv, run_id))        <span class="cl"># credit 0 -- a real answer</span>
+            <span class="ck">continue</span>
+        credits = model.distribute(eligible)             <span class="cl"># last_click -&gt; {last:1.0}</span>
+                                                         <span class="cl"># DDA       -&gt; learned split</span>
+        <span class="ck">assert</span> <span class="cf">abs</span>(sum(credits.values()) - 1.0) &lt; 1e-3   <span class="cl"># &sect; 04 invariant, in code</span>
+        <span class="ck">for</span> tp, credit <span class="ck">in</span> credits.items():
+            rows.append(attribution_row(
+                cv, tp, model.id, run_id, window.name,
+                credit, round(cv.value_usd * credit, 2)))
+    <span class="ck">return</span> run_id, rows     <span class="cl"># append; never UPDATE a prior run</span></div>
+
+    <p class="reveal">Calibration is the other half — the loop that grades the ranker. The auction's prices are only as fair as its pCTR predictions: a creative whose realized click-through drifts far from its predicted <span class="m">pCTR</span> is either over- or under-priced, and the gap is a retraining signal. The job buckets impressions by creative, computes the realized CTR from the click join, and flags any creative whose calibration error exceeds a threshold. It runs nightly because pCTR drift is slow and statistical — a single hour's clicks are too noisy to act on.</p>
+
+    <div class="pull reveal">The ranker's prediction is grade-able the moment the click lands. A creative that mis-predicts its own click-through is mis-priced in every auction it enters.<span>RANKER RULE Nº 1 — CALIBRATE OR RE-TRAIN</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the auction</h2>
+    <p class="lede reveal">The facts are where the system explains itself — once you have the key. Three queries an interviewer loves, because each serves a different team and each carries a classic pattern on its back.</p>
+
+    <h3 class="reveal">CTR, CPA, ROAS per campaign — the four-fact join on one key</h3>
+    <p class="reveal">The advertiser's defining query, and the whole reason for <span class="m">auction_decision_id</span>. Four facts collapse into one campaign narrative by joining on a single column, with the latest attribution run pinned and invalid clicks excluded. The pattern is the conformed-key fact join — the chain reconstructed deterministically, not guessed.</p>
+
+    <div class="codelabel">SQL · CTR + CPA + ROAS (LATEST RUN, VALID CLICKS)</div>
+    <div class="codeblock"><span class="cl">-- The advertiser narrative: four facts, one join key, latest run. ROAS
+-- is attributed revenue over spend -- the number every advertiser lives by.</span>
+<span class="ck">WITH</span> latest_run <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> max(attribution_run_id) <span class="ck">AS</span> run_id <span class="ck">FROM</span> fct_attributions
+),
+campaign_metrics <span class="ck">AS</span> (
+    <span class="ck">SELECT</span>
+        c.campaign_id,
+        count(<span class="ck">DISTINCT</span> i.impression_id)                              <span class="ck">AS</span> impressions,
+        count(<span class="ck">DISTINCT</span> cl.click_id)
+            <span class="ck">FILTER</span> (<span class="ck">WHERE</span> cl.is_invalid = <span class="ck">FALSE</span>)                    <span class="ck">AS</span> clicks,
+        <span class="cf">sum</span>(a.clearing_price_usd)                                    <span class="ck">AS</span> spend_usd,
+        count(<span class="ck">DISTINCT</span> atr.conversion_id)                          <span class="ck">AS</span> conversions,
+        <span class="cf">sum</span>(atr.attributed_value_usd)                               <span class="ck">AS</span> attributed_revenue
+    <span class="ck">FROM</span> fct_auctions a
+    <span class="ck">JOIN</span> fct_impressions i  <span class="ck">USING</span> (auction_decision_id)
+    <span class="ck">JOIN</span> dim_creatives    cr <span class="ck">ON</span> i.creative_id = cr.creative_id
+    <span class="ck">JOIN</span> dim_campaigns    c  <span class="ck">ON</span> cr.campaign_id = c.campaign_id
+    <span class="ck">LEFT JOIN</span> fct_clicks       cl  <span class="ck">USING</span> (impression_id)
+    <span class="ck">LEFT JOIN</span> fct_attributions atr <span class="ck">ON</span> atr.click_id = cl.click_id
+        <span class="ck">AND</span> atr.attribution_run_id = (<span class="ck">SELECT</span> run_id <span class="ck">FROM</span> latest_run)
+        <span class="ck">AND</span> atr.model_id = <span class="cs">'MODEL_LAST_CLICK'</span>
+    <span class="ck">WHERE</span> a.auction_ts &gt;= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'7 days'</span>
+    <span class="ck">GROUP BY</span> c.campaign_id
+)
+<span class="ck">SELECT</span> campaign_id, impressions, clicks, spend_usd, conversions, attributed_revenue,
+    round(100.0 * clicks / <span class="cf">nullif</span>(impressions, 0), 3)   <span class="ck">AS</span> ctr_pct,
+    round(spend_usd / <span class="cf">nullif</span>(clicks, 0), 2)             <span class="ck">AS</span> cpc_usd,
+    round(spend_usd / <span class="cf">nullif</span>(conversions, 0), 2)        <span class="ck">AS</span> cpa_usd,
+    round(attributed_revenue / <span class="cf">nullif</span>(spend_usd, 0), 2) <span class="ck">AS</span> roas
+<span class="ck">FROM</span> campaign_metrics <span class="ck">ORDER BY</span> roas <span class="ck">DESC</span>;</div>
+
+    <h3 class="reveal">Last-click vs data-driven — the model as a column, not an ETL fork</h3>
+    <p class="reveal">The measurement team's defining query. Because every model's output lives in the same table under the same run, comparing them is a <span class="m">GROUP BY model_id</span> — last-click's full-credit world beside data-driven's distributed one. The pattern is dimensional comparison over a derived fact: the same conversions, two lenses, one scan.</p>
+
+    <div class="codelabel">SQL · ATTRIBUTED VALUE BY MODEL (SAME RUN)</div>
+    <div class="codeblock"><span class="cl">-- Last-click vs DDA, side by side, from one run. Last-click hands full
+-- credit (avg ~1.0); DDA distributes -- the gap diagnoses over-attribution.</span>
+<span class="ck">SELECT</span>
+    atr.model_id,
+    count(<span class="ck">DISTINCT</span> atr.conversion_id)        <span class="ck">AS</span> conversions,
+    round(<span class="cf">sum</span>(atr.attributed_value_usd), 2)   <span class="ck">AS</span> total_attributed_value,
+    round(<span class="cf">avg</span>(atr.fractional_credit), 3)      <span class="ck">AS</span> avg_credit
+<span class="ck">FROM</span> fct_attributions atr
+<span class="ck">WHERE</span> atr.attribution_run_id =
+      (<span class="ck">SELECT</span> max(attribution_run_id) <span class="ck">FROM</span> fct_attributions)
+<span class="ck">GROUP BY</span> atr.model_id
+<span class="ck">ORDER BY</span> total_attributed_value <span class="ck">DESC</span>;</div>
+
+    <h3 class="reveal">Predicted vs realized pCTR — calibration as a windowed rate</h3>
+    <p class="reveal">The ranker team's defining query. Per creative, compare the average predicted <span class="m">pCTR</span> against the realized click-through, and surface the creatives whose calibration error is large enough to demand retraining. The pattern is a <span class="m">FILTER</span>ed conditional rate against a predicted baseline — model accuracy, measured directly off the impression/click join.</p>
+
+    <div class="codelabel">SQL · pCTR CALIBRATION PER CREATIVE</div>
+    <div class="codeblock"><span class="cl">-- The ranker's report card. Realized CTR vs the pCTR it predicted, per
+-- creative. Calibration error &gt; 20% means the ranker needs attention.</span>
+<span class="ck">SELECT</span>
+    i.creative_id,
+    count(*)                                                         <span class="ck">AS</span> impressions,
+    round(<span class="cf">avg</span>(i.predicted_pctr), 4)                                  <span class="ck">AS</span> predicted_pctr,
+    round(count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> c.click_id <span class="ck">IS NOT NULL</span>)::decimal
+          / count(*), 4)                                            <span class="ck">AS</span> realized_pctr,
+    round(100.0 * (count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> c.click_id <span class="ck">IS NOT NULL</span>)::decimal
+                   / count(*) - <span class="cf">avg</span>(i.predicted_pctr))
+          / <span class="cf">nullif</span>(<span class="cf">avg</span>(i.predicted_pctr), 0), 1)                       <span class="ck">AS</span> calibration_error_pct
+<span class="ck">FROM</span> fct_impressions i
+<span class="ck">LEFT JOIN</span> fct_clicks c <span class="ck">USING</span> (impression_id)
+<span class="ck">WHERE</span> i.served_ts &gt;= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'7 days'</span>
+<span class="ck">GROUP BY</span> i.creative_id
+<span class="ck">HAVING</span> count(*) &gt; 1000
+<span class="ck">ORDER BY</span> <span class="cf">abs</span>(calibration_error_pct) <span class="ck">DESC</span>;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the chain holds</h2>
+    <p class="lede reveal">A senior design ends with observability, because every clever re-run and carve-out above is invisible without it. The dashboard watches the chain from three seats — the auction, the funnel, and attribution — and one tile watches the thing that breaks silently: the join.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>AUCTION HEALTH</dt><dd><span class="m">win rate per advertiser</span>, <span class="m">average ad_rank</span>, <span class="m">average clearing price (CPC)</span> — a sudden CPC jump with flat win rate means the second-price floor moved, not that demand did.</dd></div>
+      <div class="defrow"><dt>THE FUNNEL</dt><dd><span class="m">CTR</span>, <span class="m">CPA</span>, <span class="m">ROAS</span> on the latest run, plus <span class="m">pCTR calibration error</span> — calibration drifting wide is an early warning that prices are going stale before ROAS even moves.</dd></div>
+      <div class="defrow"><dt>ATTRIBUTION</dt><dd><span class="m">% conversions attributed to a click</span>, <span class="m">last-click vs DDA delta</span>, <span class="m">invalid-click rate</span> — a widening last-click/DDA gap means last-click is over-crediting the final touch.</dd></div>
+      <div class="defrow"><dt>THE JOIN</dt><dd><span class="m">chain match rate</span> — the share of conversions that successfully threaded back to an impression. This is the silent killer: when it falls, every ROAS above it is quietly understated.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Search Ads Ops — Global</span>
+        <span class="dash-sub">THU 14:35 UTC · LATEST RUN 2025-05-02 · 5m REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Avg Clearing Price</div><div class="tv">1.92<small>$</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">CTR (7d)</div><div class="tv ok">3.1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,15 60,14 80,14 100,13 120,13" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Chain Match Rate</div><div class="tv warn">81<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,9 20,10 40,12 60,13 80,15 100,16 120,18" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Credit Sum Errors</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,16 20,16 40,16 60,16 80,16 100,16 120,16" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">ROAS — last-click vs DDA · Nike "running shoe" campaign</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace">
+              <text x="14" y="22" font-size="9" fill="#8f8672">LAST-CLICK</text>
+              <rect x="14" y="26" width="200" height="14" fill="#c25a2a"/>
+              <text x="120" y="37" font-size="9" fill="#1a1712">67.7×</text>
+              <text x="14" y="56" font-size="9" fill="#8f8672">DATA-DRIVEN v3</text>
+              <rect x="14" y="60" width="124" height="14" fill="#d8a44a"/>
+              <text x="78" y="71" font-size="9" fill="#1a1712">42.0×</text>
+            </g>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">% Conv. Attributed</div><div class="tv ok">79<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,13 40,14 60,13 80,13 100,12 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Invalid-Click Rate</div><div class="tv warn">2.7<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,13 100,12 120,11" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Worst Calibration Err</div><div class="tv bad">+34<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,18 40,17 60,14 80,12 100,9 120,7" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Loser Sample Rate</div><div class="tv ok">1.0<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,15 60,15 80,15 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Conv. Lag p50</div><div class="tv">11<small>h</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,14 60,15 80,14 100,15 120,14" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Re-Attribution Lag</div><div class="tv ok">38<small>min</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,14 80,15 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy iOS shift tells: chain match rate drifting amber as opt-outs grow, ROAS reading 67.7× under last-click but 42.0× under data-driven — and credit-sum errors flat zero, because every run still reconciles to one.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber tiles together and the dashboard narrates a privacy-driven shift from the operator's chair: identity is harder to join (match rate falling), so a growing share of conversions route to the aggregate path, and last-click flatters the final touch while data-driven tells the truer story at 42.0× — yet nothing leaked, because the invariant held. The single most important tile is the boring one: <strong>credit-sum errors at zero.</strong> Match rate is a coverage problem you manage; credit conservation is a law you do not break.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the ads away and the question was testing five judgments, each of which generalizes far beyond search advertising:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>THE KEY</dt><dd>Threading a causal chain with one deterministic id minted at the source, so a four-fact join is an equi-join — never a timestamp séance that mis-attributes the moment two users share a device.</dd></div>
+      <div class="defrow"><dt>COMPUTE, DON'T COLLECT</dt><dd>Recognizing that attribution is a function over events, and modeling it as a derived, append-only, run-tagged layer — so re-deciding the past is a query that preserves yesterday's answer.</dd></div>
+      <div class="defrow"><dt>LATENESS</dt><dd>Treating no fact as final on arrival: conversions land days late, invalid clicks later still, and the design restates by appending verdicts rather than overwriting billed rows.</dd></div>
+      <div class="defrow"><dt>ASYMMETRY</dt><dd>Sampling the 20× counterfactual to 1% and reweighting, instead of paying to store losers whole — and never thinning the winners, so the ranker learns how rare a win truly is.</dd></div>
+      <div class="defrow"><dt>HONEST PRIVACY</dt><dd>Making the privacy path first-class, so unjoinable conversions are recorded as unattributed and routed to the aggregate world — the model refuses to guess what consent withheld.</dd></div>
+    </dl>
+    <div class="pull reveal">One key threads the chain. One run id lets you re-decide it. One sum-to-one keeps the credit honest. Everything else is the price of asking a question days after the auction already moved on.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 03 — THE AUCTION PROBLEM<br>DATA ARCHITECTURE · REAL-TIME BIDDING · THE CRAFT OF THE JOIN KEY</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

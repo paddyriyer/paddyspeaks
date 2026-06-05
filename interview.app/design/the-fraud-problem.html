@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Fraud Problem — PaddySpeaks</title>
+<meta name="description" content="Design the data model for a fraud system at a fintech or marketplace. A typed-strength identity graph that resolves into connected components, SCD2 on ruleset and model and feature snapshot so a six-month-old block can be replayed, impossible-travel via session LEAD, and a feedback loop that turns chargebacks into labels. Schema, the cluster expansion, the replay SQL, and the ops dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 16</div>
+    <h1 class="reveal">The <em>Fraud</em> Problem</h1>
+    <p class="deck reveal">Model the data behind a fraud system at a fintech or marketplace. One bad actor wears three emails, two phones, four devices, five IPs — and a chargeback you have to defend to a regulator arrives six months after you blocked it. The one decision that separates a senior answer: fraud is a graph, frozen in time, with a feedback loop. A complete working-through — data flow, schema, the cluster expansion, the replay SQL, and the dashboard.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Trust &amp; Safety</b></span>
+      <span>READING · <b>~27 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One model, five problems</h2>
+    <p class="lede reveal">It sounds like a column. It is really a graph, a time machine, and a feedback loop — three systems the prompt hides inside the word "score."</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data model for a fraud system at a fintech / marketplace / streaming product. How do you detect it, and how do you defend a decision six months later?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The junior answer stops at "a transaction table with a <span class="m">risk_score</span> column," and the interviewer knows it within thirty seconds, because that schema cannot answer any of the questions that actually matter. It cannot tell you that the account you just blocked shares a payment instrument with forty-seven others. It cannot reproduce <em>why</em> you blocked the September 14 transaction when the regulator asks in March. And it cannot learn, because the chargeback that proves you were right arrives ninety days after the decision and has nowhere to land. The senior signal is naming the five orthogonal sub-problems first, and noticing that three of them — the graph, the frozen decision context, and the feedback loop — are the parts the naive schema has no room for.</p>
+
+    <p class="reveal">So before any boxes and arrows, the working frame for the session — five problems pretending to be one model:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>IDENTITY GRAPH</dt><dd><strong>The same user is many rows.</strong> Three emails, two phones, four devices, five IPs. Build a graph with <em>typed-strength</em> edges — strong (shared payment instrument), medium (shared device), weak (shared IP within an hour) — not a row, and resolve it into connected components.</dd></div>
+      <div class="defrow"><dt>IMPOSSIBLE TRAVEL</dt><dd><strong>Velocity, not parallelism.</strong> Login from Lagos, transaction from Berlin eighteen minutes later. Great-circle distance over elapsed time exceeds any plane — the canonical <span class="m">LEAD</span> over session events.</dd></div>
+      <div class="defrow"><dt>SHARING vs ATO</dt><dd><strong>Three things look identical in raw transactions.</strong> Account sharing, account takeover, and multi-account fraud all read as "identity ↔ account isn't 1:1." The schema must disambiguate them, or every rule produces the wrong false-positive class.</dd></div>
+      <div class="defrow"><dt>DECISION REPLAY</dt><dd><strong>Defend a block six months later.</strong> Freeze the ruleset, the model version, and the feature snapshot at decision time. SCD2 everywhere, all three IDs stamped on every fact row — or "why did you block this customer?" becomes "we don't know."</dd></div>
+      <div class="defrow"><dt>FEEDBACK LOOP</dt><dd><strong>Labels come back late, from two sources.</strong> Analyst verdicts in hours, chargebacks in 30–180 days, and they disagree. A union fact reconciles them into the training set of record — without it, the model degrades silently.</dd></div>
+    </dl>
+
+    <div class="pull reveal">The feedback loop matters more than the model. A model with no labels coming back is a model quietly rotting — and you will not see it in any dashboard until the fraud is already paid out.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State the disambiguation up front, because conflating the three "identity ≠ account" patterns is the classic pitfall. In scope: the typed identity graph and its connected-component rollup, the frozen decision context for replay, the velocity and sharing detectors, and the label-reconciliation feedback fact. Out of scope, said explicitly: the model training code itself (a consumer of these tables), the real-time feature store internals, the case-management UI, and the choice of graph backend — Neo4j versus JanusGraph versus a Postgres recursive CTE — which is an implementation detail the schema is deliberately agnostic to. The thread tying scope together is defensibility: every decision the system makes must be reproducible and every outcome must flow back as a label.</p>
+
+    <p class="reveal">Then the envelope math, offered rather than extracted. Fintech-shaped numbers:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Decision latency budget</td><td class="mono">&lt; 100 ms</td><td>Graph lookup must be precomputed, not walked live</td></tr>
+      <tr><td>Strong-edge cluster job</td><td class="mono">nightly + incremental</td><td>Connected components batched; new edges merged online</td></tr>
+      <tr><td><strong>Decision-replay window</strong></td><td class="mono"><strong>6 months</strong></td><td><strong>The horizon that forces SCD2 on everything</strong></td></tr>
+      <tr><td>Chargeback delay</td><td class="mono">30–180 days</td><td>Labels are late-arriving facts — idempotent merge</td></tr>
+      <tr><td>Signal-fact volume</td><td class="mono">1 row / rule firing</td><td>High — partition by day, 90-day hot tier</td></tr>
+      <tr><td>Cluster expansion haul</td><td class="mono">30–200× the seed</td><td>One mule surfaces a whole ring</td></tr>
+      <tr><td>Impossible-travel threshold</td><td class="mono">&gt; 900 km/h</td><td>Faster than any plane ⇒ two identities</td></tr>
+    </table>
+
+    <p class="reveal">Notice which number forces the architecture. The six-month replay window is the constraint that turns "store a score" into "freeze the entire decision context" — the ruleset, the model, and the exact feature vector the model saw, all SCD2, all stamped on the fact. That single requirement dictates the dimensional design, the partition strategy, and the audit posture. The rest of this article follows the decision.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Following a transaction through the decision</h2>
+    <p class="lede reveal">One decision path, two slower loops feeding it. The graph is precomputed and read in milliseconds; the decision freezes its context as it writes; and labels return on their own delayed schedule to retrain the next model. The score is the cheap part.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 580" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">DECISION PATH · &lt;100 MS · FREEZES ITS OWN CONTEXT</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">FEEDBACK LOOP · LABELS RETURN IN HOURS-TO-MONTHS</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- request -->
+        <rect x="20" y="56" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="82" font-size="12.5" text-anchor="middle" fill="#23201a">LOGIN / TXN</text>
+        <text x="95" y="101" font-size="10.5" text-anchor="middle" fill="#7d7567">user · device · ip · amount</text>
+
+        <!-- feature read -->
+        <rect x="228" y="48" width="170" height="80" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="313" y="74" font-size="12.5" text-anchor="middle" fill="#23201a">FEATURE ASSEMBLY</text>
+        <text x="313" y="92" font-size="10.5" text-anchor="middle" fill="#7d7567">velocity · device trust</text>
+        <text x="313" y="108" font-size="10.5" text-anchor="middle" fill="#a4502e">cluster lookup (precomputed)</text>
+
+        <!-- scorer -->
+        <rect x="456" y="44" width="200" height="92" fill="#27241d"/>
+        <text x="556" y="74" font-size="12.5" text-anchor="middle" fill="#e9e2d0">RULES + MODEL</text>
+        <text x="556" y="92" font-size="10.5" text-anchor="middle" fill="#b8ad93">ruleset_id · model_id</text>
+        <text x="556" y="108" font-size="10.5" text-anchor="middle" fill="#b8ad93">allow / step_up / block</text>
+
+        <!-- decision fact -->
+        <rect x="726" y="38" width="224" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="838" y="64" font-size="12.5" text-anchor="middle" fill="#a4502e">fact_transaction</text>
+        <text x="838" y="82" font-size="10.5" text-anchor="middle" fill="#7d7567">score · decision · 3 frozen IDs</text>
+        <text x="838" y="97" font-size="10.5" text-anchor="middle" fill="#7d7567">feature_snapshot_id</text>
+
+        <!-- signal facts -->
+        <rect x="726" y="138" width="224" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="838" y="164" font-size="12.5" text-anchor="middle" fill="#8a5d12">fact_rule_firing</text>
+        <text x="838" y="182" font-size="10.5" text-anchor="middle" fill="#7d7567">1 row / rule · score_delta</text>
+
+        <!-- frozen dims -->
+        <rect x="726" y="222" width="224" height="58" fill="#fbf8f1" stroke="#854d0e" stroke-width="1.5"/>
+        <text x="838" y="246" font-size="12.5" text-anchor="middle" fill="#854d0e">FROZEN CONTEXT (SCD2)</text>
+        <text x="838" y="264" font-size="10.5" text-anchor="middle" fill="#7d7567">ruleset · model · snapshot</text>
+
+        <!-- arrows decision path -->
+        <line x1="170" y1="88" x2="224" y2="88" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="398" y1="88" x2="452" y2="88" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="656" y1="72" x2="722" y2="72" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="656" y1="118" x2="722" y2="166" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="838" y1="108" x2="838" y2="218" stroke="#854d0e" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- graph store feeding feature assembly -->
+        <rect x="228" y="336" width="180" height="64" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="318" y="362" font-size="12" text-anchor="middle" fill="#6f7d5c">identity_cluster</text>
+        <text x="318" y="380" font-size="10.5" text-anchor="middle" fill="#7d7567">connected components</text>
+        <text x="318" y="395" font-size="10.5" text-anchor="middle" fill="#7d7567">strong edges · nightly</text>
+
+        <rect x="20" y="336" width="170" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="105" y="362" font-size="12" text-anchor="middle" fill="#23201a">brg_user_* edges</text>
+        <text x="105" y="380" font-size="10.5" text-anchor="middle" fill="#7d7567">typed strength</text>
+        <text x="105" y="395" font-size="10.5" text-anchor="middle" fill="#7d7567">append-only</text>
+
+        <!-- labels -->
+        <rect x="456" y="330" width="180" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="546" y="352" font-size="12" text-anchor="middle" fill="#23201a">fact_case / labels</text>
+        <text x="546" y="370" font-size="10.5" text-anchor="middle" fill="#7d7567">analyst · hours</text>
+
+        <rect x="456" y="402" width="180" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="546" y="424" font-size="12" text-anchor="middle" fill="#23201a">fact_chargeback</text>
+        <text x="546" y="442" font-size="10.5" text-anchor="middle" fill="#a4502e">30–180 days · idempotent</text>
+
+        <rect x="700" y="330" width="170" height="54" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="785" y="352" font-size="12" text-anchor="middle" fill="#6f7d5c">fact_outcome_label</text>
+        <text x="785" y="370" font-size="10.5" text-anchor="middle" fill="#7d7567">union · source of truth</text>
+
+        <rect x="700" y="402" width="170" height="54" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="785" y="424" font-size="12" text-anchor="middle" fill="#23201a">RETRAIN (weekly)</text>
+        <text x="785" y="442" font-size="10.5" text-anchor="middle" fill="#7d7567">writes new model_id</text>
+
+        <!-- feedback arrows -->
+        <line x1="190" y1="368" x2="224" y2="368" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="636" y1="357" x2="696" y2="357" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="636" y1="429" x2="696" y2="370" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="785" y1="384" x2="785" y2="400" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- cluster feeds feature assembly (dashed, precomputed) -->
+        <path d="M 318 336 C 318 240, 320 180, 313 130" fill="none" stroke="#a4502e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="324" y="232" font-size="10.5" fill="#a4502e">cluster read · precomputed, &lt;100ms</text>
+
+        <!-- retrain back to model (dashed) -->
+        <path d="M 870 412 C 930 360, 930 200, 660 96" fill="none" stroke="#6f7d5c" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="836" y="300" font-size="10.5" fill="#6f7d5c">new model → SCD2 dim</text>
+
+        <text x="20" y="560" font-size="10.5" fill="#7d7567">SOLID — sustained data flow · DASHED — precomputed reads &amp; the retrain loop · The graph is read, never walked, at decision time.</text>
+      </svg>
+      <div class="caption">FIG. 1 — End-to-end flow. The decision reads a precomputed cluster and freezes its own context as it writes; labels return from two sources on a delay; the union feeds the retrain that mints the next model version.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the cluster lookup on the decision path is a <em>read</em> of a precomputed component, never a live graph walk — at a sub-100ms budget you cannot traverse edges synchronously, so the connected-component job runs nightly and incrementally and the decision path simply reads a cluster id. <strong>Second,</strong> the decision freezes its own context as it writes: <span class="m">ruleset_id</span>, <span class="m">model_id</span>, and <span class="m">feature_snapshot_id</span> land on the fact row in the same transaction as the score, because a context reconstructed later is a context you cannot trust. <strong>Third,</strong> the feedback arrows are slow and they close the loop: analyst labels in hours, chargebacks in months, both flowing into a union fact that the retrain reads — the loop, not the model, is what keeps the system from rotting.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>A decision you cannot reproduce is a decision you cannot defend.</strong> Every fact row carries the three frozen IDs so that six months later the exact ruleset, the exact model SHA, and the exact feature vector are recoverable — not approximated from "what the rules probably were." Strong-edge clusters drive automated action; weak-edge graphs are advisory and go to an analyst, never to an auto-block, because a weak edge is a coincidence until a human says otherwise. The failure mode is a defensible, replayable record — never a score with no provenance.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>A typed graph, a frozen context, a union of labels</h2>
+    <p class="lede reveal">The schema falls out of three demands: resolve identity as a graph, freeze the decision so it can be replayed, and reconcile two late label sources. Subject dimensions are SCD2; edges are append-only and typed; the decision context is frozen on the fact.</p>
+
+    <h3 class="reveal">Subjects and locations — SCD2 on the risk-bearing attributes</h3>
+    <p class="reveal">The subject dimensions — <span class="m">dim_user</span>, <span class="m">dim_device</span>, <span class="m">dim_payment_instrument</span> — are SCD2, but only on the attributes that bear risk and must be frozen at decision time: <span class="m">kyc_status</span>, <span class="m">account_state</span>, <span class="m">device_trust_score</span>, <span class="m">bin_country</span>. Location dimensions carry the third-party signals — <span class="m">is_vpn</span>, <span class="m">is_proxy</span>, <span class="m">is_datacenter</span>, <span class="m">asn_risk_class</span> — also SCD2, because an ASN's risk classification changes and a replay must use the classification that was current then.</p>
+
+    <div class="codelabel">DDL · SUBJECT &amp; LOCATION DIMENSIONS (SCD2 ON RISK ATTRS)</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> dim_user (
+    user_sk        BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    user_id        BIGINT       <span class="ck">NOT NULL</span>,
+    email          TEXT,
+    phone          TEXT,
+    kyc_status     TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- frozen at decision time</span>
+    risk_tier      TEXT         <span class="ck">NOT NULL</span>,
+    account_state  TEXT         <span class="ck">NOT NULL</span>,
+    effective_from TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to   TIMESTAMPTZ,
+    is_current     BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> true,
+    <span class="ck">UNIQUE</span> (user_id, effective_from)
+);
+
+<span class="ck">CREATE TABLE</span> dim_ip (
+    ip_sk          BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    ip             INET         <span class="ck">NOT NULL</span>,
+    city           TEXT, country TEXT, asn INT,
+    is_vpn         BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> false,
+    is_proxy       BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> false,
+    is_datacenter  BOOLEAN      <span class="ck">NOT NULL DEFAULT</span> false,
+    asn_risk_class TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'unknown'</span>,  <span class="cl">-- SCD2 from feed</span>
+    effective_from TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to   TIMESTAMPTZ
+);</div>
+
+    <h3 class="reveal">The identity graph — typed-strength edges, append-only</h3>
+    <p class="reveal">This is the part the naive schema has no room for, and the part the interviewer is really probing. Identity is not a row; it is a graph. Edges connect users to the things they share — devices, IPs, payment instruments — and each edge carries a <span class="m">edge_strength</span> that encodes how much that sharing means. Strong (1.0): the same payment instrument, the same KYC document hash, the same SIM. Medium (0.5): the same device fingerprint within twenty-four hours. Weak (0.2): the same IP within an hour, the same residential ASN within a week. The edges are append-only — you never un-observe a coincidence — and the strengths are what let the connected-component job draw the line between an action cluster and an advisory one.</p>
+
+    <div class="codelabel">DDL · IDENTITY-GRAPH EDGES + CLUSTER ROLLUP</div>
+    <div class="codeblock"><span class="cl">-- Append-only typed edges. edge_strength is the whole game: it decides which
+-- edges form the ACTION cluster vs which merely advise the analyst.</span>
+<span class="ck">CREATE TABLE</span> brg_user_device (
+    edge_id        BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    user_a         BIGINT       <span class="ck">NOT NULL</span>,
+    user_b         BIGINT       <span class="ck">NOT NULL</span>,
+    edge_strength  NUMERIC(2,1) <span class="ck">NOT NULL</span>,   <span class="cl">-- 1.0 strong / 0.5 medium / 0.2 weak</span>
+    via            TEXT         <span class="ck">NOT NULL</span>,   <span class="cl">-- 'device_fp' | 'payment' | 'ip' | 'sim'</span>
+    first_seen     TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    last_seen      TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    <span class="ck">CHECK</span> (user_a &lt; user_b)                 <span class="cl">-- canonical undirected ordering</span>
+);
+<span class="cl">-- (brg_user_ip and brg_user_payment mirror this shape, different `via`.)</span>
+
+<span class="cl">-- The connected-component rollup over strong+medium edges (&gt;= 0.5).
+-- Recomputed nightly; new edges merged incrementally during the day.</span>
+<span class="ck">CREATE TABLE</span> identity_cluster (
+    cluster_id     BIGINT       <span class="ck">NOT NULL</span>,
+    user_id        BIGINT       <span class="ck">NOT NULL</span>,
+    cluster_score  NUMERIC(5,2) <span class="ck">NOT NULL</span>,   <span class="cl">-- aggregate risk of the component</span>
+    member_count   INT          <span class="ck">NOT NULL</span>,
+    computed_at    TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    <span class="ck">PRIMARY KEY</span> (cluster_id, user_id)
+);</div>
+
+    <h3 class="reveal">Decision facts and the frozen context</h3>
+    <p class="reveal">The decision facts — <span class="m">fact_transaction</span>, <span class="m">fact_login_attempt</span>, <span class="m">fact_session_event</span> — are one row per attempt and each carries the score, the decision, and the three frozen IDs. The frozen context lives in three SCD2 dimensions: <span class="m">dim_ruleset</span> (the rules JSON and its effective window), <span class="m">dim_risk_model</span> (the model SHA, training cutoff, feature-set hash), and <span class="m">dim_feature_snapshot</span> (the exact feature vector the model saw, computed at decision time). Stamping all three IDs on the fact is what makes a six-month-old block replayable to the byte.</p>
+
+    <div class="codelabel">DDL · DECISION FACT + FROZEN CONTEXT (SCD2)</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fact_transaction (
+    txn_id              BIGINT       <span class="ck">NOT NULL</span>,
+    user_id             BIGINT       <span class="ck">NOT NULL</span>,
+    payment_id          BIGINT       <span class="ck">NOT NULL</span>,
+    amount              NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    currency            TEXT         <span class="ck">NOT NULL</span>,
+    merchant            TEXT,
+    ip_id               BIGINT       <span class="ck">NOT NULL</span>,
+    device_id           BIGINT       <span class="ck">NOT NULL</span>,
+    ts                  TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    risk_score          NUMERIC(6,2) <span class="ck">NOT NULL</span>,
+    decision            TEXT         <span class="ck">NOT NULL</span>      <span class="cl">-- allow | step_up | block</span>
+                        <span class="ck">CHECK</span> (decision <span class="ck">IN</span> (<span class="cs">'allow'</span>,<span class="cs">'step_up'</span>,<span class="cs">'block'</span>)),
+    ruleset_id          BIGINT       <span class="ck">NOT NULL</span>,      <span class="cl">-- frozen: which rules ran</span>
+    model_id            TEXT         <span class="ck">NOT NULL</span>,      <span class="cl">-- frozen: which model scored</span>
+    feature_snapshot_id BIGINT       <span class="ck">NOT NULL</span>,      <span class="cl">-- frozen: what it saw</span>
+    txn_date            DATE         <span class="ck">NOT NULL</span>,
+    <span class="ck">PRIMARY KEY</span> (txn_date, txn_id)
+) <span class="ck">PARTITION BY RANGE</span> (txn_date);
+
+<span class="cl">-- The three frozen dims. SCD2 is ESSENTIAL — the only way to replay.</span>
+<span class="ck">CREATE TABLE</span> dim_risk_model (
+    model_id        TEXT         <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- 'v7.2'</span>
+    sha             TEXT         <span class="ck">NOT NULL</span>,
+    training_cutoff TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    feature_set_hash TEXT        <span class="ck">NOT NULL</span>,
+    effective_from  TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    effective_to    TIMESTAMPTZ
+);
+
+<span class="ck">CREATE TABLE</span> dim_feature_snapshot (
+    feature_snapshot_id BIGINT      <span class="ck">PRIMARY KEY</span>,
+    feature_vector_json JSONB       <span class="ck">NOT NULL</span>,    <span class="cl">-- exact inputs at decision time</span>
+    computed_at         TIMESTAMPTZ <span class="ck">NOT NULL</span>
+);</div>
+
+    <p class="reveal">Two append-only signal facts trace <em>why</em>: <span class="m">fact_rule_firing</span> (one row per rule that contributed, with its <span class="m">score_delta</span>) and <span class="m">fact_model_score</span> (the raw score, plus shadow-model scores for the next candidate). They are high-volume — partitioned by day, ninety-day hot tier — and they are what turn a single number into an explainable chain of contributions.</p>
+
+    <h3 class="reveal">The feedback facts — and the union that reconciles them</h3>
+    <p class="reveal">Labels arrive from two places on two timelines and they disagree. <span class="m">fact_analyst_label</span> records a human verdict — fraud, clean, inconclusive — within hours. <span class="m">fact_chargeback</span> arrives 30–180 days later, idempotent because card networks retry. The reconciliation is <span class="m">fact_outcome_label</span>: a union that resolves disagreements (analyst said clean, a chargeback came back ninety days later → final label is fraud) into the training-set source of truth.</p>
+
+    <div class="codelabel">DDL · FEEDBACK FACTS + THE OUTCOME UNION</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fact_chargeback (
+    txn_id          BIGINT       <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- idempotent: network retries dedup here</span>
+    network         TEXT         <span class="ck">NOT NULL</span>,
+    reason_code     TEXT         <span class="ck">NOT NULL</span>,
+    disputed_amount NUMERIC(14,2) <span class="ck">NOT NULL</span>,
+    arrived_ts      TIMESTAMPTZ  <span class="ck">NOT NULL</span>       <span class="cl">-- 30–180 days after the txn</span>
+);
+
+<span class="cl">-- The training set of record. Reconciles analyst + chargeback disagreements.</span>
+<span class="ck">CREATE TABLE</span> fact_outcome_label (
+    txn_id          BIGINT       <span class="ck">PRIMARY KEY</span>,
+    final_label     TEXT         <span class="ck">NOT NULL</span>      <span class="cl">-- fraud | clean</span>
+                    <span class="ck">CHECK</span> (final_label <span class="ck">IN</span> (<span class="cs">'fraud'</span>,<span class="cs">'clean'</span>)),
+    source          TEXT         <span class="ck">NOT NULL</span>,     <span class="cl">-- 'analyst' | 'chargeback' | 'agreed'</span>
+    resolved_at     TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now()
+);</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>Every decision is replayable to the byte</h2>
+    <p class="lede reveal">Everything in this design protects one sentence: the exact inputs to any decision are recoverable six months later. The invariant lives in three frozen IDs stamped on the fact in the same write as the score.</p>
+
+    <p class="reveal">The lifecycle of a decision is short, but its defense is long. Features are assembled, the rules and model produce a score, a decision is rendered, and — atomically — the fact is written with the ruleset, model, and feature-snapshot IDs frozen alongside it. Then come the labels: a case opens, an analyst rules, and months later a chargeback may or may not agree. The invariant says the decision's <em>provenance</em> never decays: the rules that ran, the model that scored, and the precise vector it saw are pinned, not reconstructed.</p>
+
+    <div class="statechain reveal">
+      <span class="st">FEATURES ASSEMBLED</span><span class="arr">→</span>
+      <span class="st">SCORED</span><span class="arr">→</span>
+      <span class="st">DECIDED + FROZEN</span><span class="arr">→</span>
+      <span class="st">CASE / LABEL</span><span class="arr">→</span>
+      <span class="st terminal">OUTCOME RECONCILED</span>
+    </div>
+
+    <p class="reveal">The replay query is where correctness lives. Join the transaction to its frozen model and feature snapshot by the IDs on the fact, and you reproduce exactly what the model saw — not an approximation assembled from "what the features probably were that day." Without this, every "why did you block this customer?" audit ends in "we don't know," which in a regulated context is not an inconvenience but a liability.</p>
+
+    <div class="codelabel">SQL · DECISION REPLAY (REPRODUCE WHAT v7.2 SAW)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> t.txn_id, t.risk_score, t.decision,
+       t.model_id, m.sha, m.training_cutoff,
+       r.rules_json,
+       fs.feature_vector_json
+<span class="ck">FROM</span>   fact_transaction t
+<span class="ck">JOIN</span>   dim_risk_model       m  <span class="ck">ON</span> t.model_id = m.model_id
+<span class="ck">JOIN</span>   dim_ruleset          r  <span class="ck">ON</span> t.ruleset_id = r.ruleset_id
+<span class="ck">JOIN</span>   dim_feature_snapshot fs <span class="ck">ON</span> t.feature_snapshot_id = fs.feature_snapshot_id
+<span class="ck">WHERE</span>  t.txn_id = <span class="ck">:txn_id</span>;
+<span class="cl">-- Reproduces the EXACT inputs the model used 6 months ago. The three frozen</span>
+<span class="cl">-- IDs on the fact are the entire defense; reconstructed context is no defense.</span></div>
+
+    <p class="reveal">The graph supplies the other half of correctness: the connected-component lookup that turns a per-account question into a per-cluster one. Clusters are formed on edges of strength ≥ 0.5 so that strong and medium ties draw the action graph while weak ties stay advisory. The component itself is computed off the hot path; the decision merely reads which cluster a user belongs to.</p>
+
+    <div class="codelabel">SQL · CONNECTED-COMPONENT MEMBERSHIP (READ AT DECISION TIME)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> cluster_id, cluster_score, member_count
+<span class="ck">FROM</span>   identity_cluster
+<span class="ck">WHERE</span>  user_id = <span class="ck">:user_id</span>;            <span class="cl">-- O(1) read; the walk happened nightly</span>
+<span class="cl">-- Strong+medium edges (&gt;= 0.5) form this component. Weak edges (0.2) are NOT</span>
+<span class="cl">-- here — they feed the analyst as "may be related," never an auto-block.</span></div>
+
+    <div class="pull reveal">A risk score is an opinion until you can show the rules, the model, and the vector behind it. Freeze all three on the fact, or do not write the fact at all.<span>FRAUD RULE Nº 1 — FREEZE THE CONTEXT</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python on the decision path</h2>
+    <p class="lede reveal">Three programs carry the system: the scorer that freezes its context as it writes, the edge ingester that types every observed coincidence, and the chargeback merger that lands late labels idempotently. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The scorer — decide, then freeze, in one transaction</h3>
+    <p class="reveal">The scorer's one discipline is atomicity of provenance: the score and the three frozen IDs are written together, never in two steps. It assembles the feature vector, persists that vector as a snapshot, runs the rules and the model against the <em>currently effective</em> ruleset and model, renders the decision, and writes the fact with all three IDs in a single transaction. The thing it refuses to do is reconstruct context after the fact — a feature vector re-derived at audit time is not the vector the model saw, and pretending otherwise is the bug that loses the regulator's trust.</p>
+
+    <div class="codelabel">PYTHON · SCORER: DECIDE AND FREEZE ATOMICALLY</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">decide</span>(db, txn: dict) -> str:
+    <span class="cs">"""Assemble features, score, decide — and freeze the EXACT context on the
+    fact in one transaction. The feature vector is persisted as a snapshot
+    BEFORE the decision row references it, so replay is always exact."""</span>
+    rs    = <span class="ck">await</span> current_ruleset(db)            <span class="cl"># effective-now ruleset</span>
+    model = <span class="ck">await</span> current_model(db)               <span class="cl"># effective-now model</span>
+    feats = <span class="ck">await</span> assemble_features(db, txn)      <span class="cl"># incl. cluster_id lookup (precomputed)</span>
+
+    <span class="ck">async with</span> db.transaction():
+        snap_id = <span class="ck">await</span> db.fetchval(
+            <span class="cs">"""INSERT INTO dim_feature_snapshot (feature_vector_json, computed_at)
+               VALUES ($1, now()) RETURNING feature_snapshot_id"""</span>,
+            feats.as_json(),                       <span class="cl"># the exact inputs, frozen</span>
+        )
+        score, deltas = score_txn(rs, model, feats)
+        decision = (<span class="cs">"block"</span>    <span class="ck">if</span> score &gt;= rs.block_threshold
+                    <span class="ck">else</span> <span class="cs">"step_up"</span> <span class="ck">if</span> score &gt;= rs.step_up_threshold
+                    <span class="ck">else</span> <span class="cs">"allow"</span>)
+        <span class="ck">await</span> db.execute(
+            <span class="cs">"""INSERT INTO fact_transaction
+                 (txn_id, user_id, payment_id, amount, currency, ip_id,
+                  device_id, ts, risk_score, decision,
+                  ruleset_id, model_id, feature_snapshot_id, txn_date)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,now(),$8,$9,$10,$11,$12,current_date)"""</span>,
+            txn[<span class="cs">"txn_id"</span>], txn[<span class="cs">"user_id"</span>], txn[<span class="cs">"payment_id"</span>], txn[<span class="cs">"amount"</span>],
+            txn[<span class="cs">"currency"</span>], txn[<span class="cs">"ip_id"</span>], txn[<span class="cs">"device_id"</span>], score, decision,
+            rs.ruleset_id, model.model_id, snap_id,            <span class="cl"># the three frozen IDs</span>
+        )
+        <span class="ck">await</span> db.executemany(
+            <span class="cs">"""INSERT INTO fact_rule_firing (txn_id, rule_id, score_delta)
+               VALUES ($1, $2, $3)"""</span>,
+            [(txn[<span class="cs">"txn_id"</span>], r, d) <span class="ck">for</span> r, d <span class="ck">in</span> deltas],   <span class="cl"># the explainable chain</span>
+        )
+    <span class="ck">return</span> decision</div>
+
+    <p class="reveal">One distinction, always stated: the scorer reads the cluster id from the precomputed <span class="m">identity_cluster</span> table; it never traverses edges live. The sub-100ms budget forbids a graph walk on the decision path, and the freshness cost — a cluster up to one nightly cycle stale, patched by the incremental merge — is far cheaper than the latency a live traversal would add.</p>
+
+    <h3 class="reveal">2 · The edge ingester — type every coincidence</h3>
+    <div class="codelabel">PYTHON · EDGE INGESTER (TYPED STRENGTH, APPEND-ONLY)</div>
+    <div class="codeblock"><span class="cl"># Strength is assigned by HOW the two users are linked. Shared payment is</span>
+<span class="cl"># near-certain; shared IP within an hour is a coincidence until corroborated.</span>
+STRENGTH = {<span class="cs">"payment"</span>: 1.0, <span class="cs">"kyc_doc"</span>: 1.0, <span class="cs">"sim"</span>: 1.0,
+            <span class="cs">"device_fp"</span>: 0.5, <span class="cs">"ip"</span>: 0.2, <span class="cs">"residential_asn"</span>: 0.2}
+
+<span class="ck">async def</span> <span class="cf">observe_edge</span>(db, ua: int, ub: int, via: str, seen) -> <span class="ck">None</span>:
+    <span class="cs">"""Record a typed edge between two users. Append-only: a coincidence is
+    never un-observed. Canonical ordering (ua &lt; ub) keeps the graph undirected
+    and the edge idempotent on (user_a, user_b, via)."""</span>
+    <span class="ck">if</span> ua == ub:
+        <span class="ck">return</span>
+    ua, ub = <span class="ck">sorted</span>((ua, ub))                       <span class="cl"># canonical undirected pair</span>
+    <span class="ck">await</span> db.execute(
+        <span class="cs">"""INSERT INTO brg_user_device (user_a, user_b, edge_strength, via,
+                                       first_seen, last_seen)
+           VALUES ($1, $2, $3, $4, $5, $5)
+           ON CONFLICT (user_a, user_b, via)
+           DO UPDATE SET last_seen = GREATEST(brg_user_device.last_seen,
+                                              EXCLUDED.last_seen)"""</span>,
+        ua, ub, STRENGTH[via], via, seen,
+    )</div>
+
+    <h3 class="reveal">3 · The chargeback merger — idempotent late labels</h3>
+    <p class="reveal">Chargebacks arrive months late and the networks retry them, so the merge must be idempotent — the same dispute landing twice is one row, not two. And it must reconcile: a chargeback that contradicts an earlier "clean" analyst verdict overrides it in <span class="m">fact_outcome_label</span>, because money changing hands is the ground truth that an opinion is not.</p>
+
+    <div class="codelabel">PYTHON · CHARGEBACK MERGE → OUTCOME RECONCILIATION</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">merge_chargeback</span>(db, cb: dict) -> <span class="ck">None</span>:
+    <span class="cs">"""Land a late chargeback idempotently and reconcile the outcome label.
+    A chargeback is ground truth: where it disagrees with an earlier analyst
+    'clean', the final label flips to fraud."""</span>
+    <span class="ck">async with</span> db.transaction():
+        <span class="ck">await</span> db.execute(
+            <span class="cs">"""INSERT INTO fact_chargeback
+                 (txn_id, network, reason_code, disputed_amount, arrived_ts)
+               VALUES ($1,$2,$3,$4,$5)
+               ON CONFLICT (txn_id) DO NOTHING"""</span>,             <span class="cl"># network retries dedup</span>
+            cb[<span class="cs">"txn_id"</span>], cb[<span class="cs">"network"</span>], cb[<span class="cs">"reason_code"</span>],
+            cb[<span class="cs">"disputed_amount"</span>], cb[<span class="cs">"arrived_ts"</span>],
+        )
+        <span class="ck">await</span> db.execute(
+            <span class="cs">"""INSERT INTO fact_outcome_label (txn_id, final_label, source)
+               VALUES ($1, 'fraud', 'chargeback')
+               ON CONFLICT (txn_id) DO UPDATE
+                 SET final_label = 'fraud',
+                     source = CASE WHEN fact_outcome_label.final_label = 'fraud'
+                                   THEN 'agreed' ELSE 'chargeback' END"""</span>,
+            cb[<span class="cs">"txn_id"</span>],
+        )</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>The cluster job, and the moment you find the ring</h2>
+    <p class="lede reveal">Two slow layers do the heavy thinking. The nightly connected-component job turns millions of typed edges into clusters the decision path can read in O(1). And cluster expansion is the payoff: confirm one mule, and the graph hands you the other forty-seven.</p>
+
+    <p class="reveal">The connected-component job is the aggregation that makes the graph usable. Walking edges live at decision time is impossible under a 100ms budget, so the job runs nightly over all edges of strength ≥ 0.5, assigns each maximal component a <span class="m">cluster_id</span>, scores the component by the risk of its members, and writes the flat <span class="m">identity_cluster</span> rollup. New edges observed during the day are merged incrementally — a new strong edge between two existing clusters unions them — so the decision path always reads a near-current component without ever traversing the graph itself.</p>
+
+    <div class="codelabel">PYTHON · NIGHTLY CONNECTED-COMPONENT JOB (UNION-FIND)</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">build_clusters</span>(edges) -> dict[int, int]:
+    <span class="cs">"""Connected components over strong+medium edges (&gt;= 0.5) via union-find.
+    Runs nightly over the full edge set; the result is the flat membership the
+    decision path reads in O(1). Weak edges (0.2) are deliberately EXCLUDED —
+    they would collapse half the user base into one giant useless component."""</span>
+    parent: dict[int, int] = {}
+
+    <span class="ck">def</span> <span class="cf">find</span>(x):
+        parent.setdefault(x, x)
+        <span class="ck">while</span> parent[x] != x:
+            parent[x] = parent[parent[x]]          <span class="cl"># path compression</span>
+            x = parent[x]
+        <span class="ck">return</span> x
+
+    <span class="ck">def</span> <span class="cf">union</span>(a, b):
+        parent[find(a)] = find(b)
+
+    <span class="ck">for</span> ua, ub, strength <span class="ck">in</span> edges:
+        <span class="ck">if</span> strength &gt;= 0.5:                          <span class="cl"># the action-graph threshold</span>
+            union(ua, ub)
+    <span class="ck">return</span> {u: find(u) <span class="ck">for</span> u <span class="ck">in</span> parent}        <span class="cl"># user_id → cluster_id (= root)</span></div>
+
+    <p class="reveal">The expansion query is the operational climax of the whole system, and it is a recursive walk on strong edges out from a confirmed-fraud seed. When an analyst confirms one account as fraud, the system does not stop there — it expands outward up to four hops on edges of strength ≥ 0.5 and surfaces every account in the same component, most of which the analyst never knew were related. The typical haul is thirty to two hundred times the seed for mule rings, and none of those accounts had individually crossed the per-account threshold; only the cluster tied them together.</p>
+
+    <div class="codelabel">SQL · CLUSTER EXPANSION (FIND ONE MULE, FIND THE RING)</div>
+    <div class="codeblock"><span class="ck">WITH RECURSIVE</span> walk <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> user_id, 0 <span class="ck">AS</span> hop
+    <span class="ck">FROM</span>   fact_analyst_label al
+    <span class="ck">JOIN</span>   fact_case c <span class="ck">USING</span> (case_id)
+    <span class="ck">WHERE</span>  c.case_id = <span class="ck">:seed_case</span> <span class="ck">AND</span> al.label = <span class="cs">'fraud'</span>
+    <span class="ck">UNION</span>
+    <span class="ck">SELECT</span> <span class="ck">CASE WHEN</span> e.user_a = w.user_id <span class="ck">THEN</span> e.user_b <span class="ck">ELSE</span> e.user_a <span class="ck">END</span>,
+           w.hop + 1
+    <span class="ck">FROM</span>   walk w
+    <span class="ck">JOIN</span>   brg_user_device e <span class="ck">ON</span> w.user_id <span class="ck">IN</span> (e.user_a, e.user_b)
+    <span class="ck">WHERE</span>  e.edge_strength &gt;= 0.5 <span class="ck">AND</span> w.hop &lt; 4    <span class="cl">-- strong edges, 4 hops out</span>
+)
+<span class="ck">SELECT DISTINCT</span> user_id, min(hop) <span class="ck">AS</span> hops_from_seed
+<span class="ck">FROM</span>   walk
+<span class="ck">GROUP BY</span> user_id
+<span class="ck">ORDER BY</span> hops_from_seed;
+<span class="cl">-- Typical haul: 30–200x the seed for mule rings, 2–5x for friendly fraud.</span></div>
+
+    <div class="pull reveal">The threshold catches one account at a time. The graph catches the whole ring — accounts no single rule would ever have flagged.<span>FRAUD RULE Nº 2 — ACT ON THE COMPONENT</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the system, by who asks</h2>
+    <p class="lede reveal">The decision facts, the graph, and the outcome union are where the system explains itself. Three queries an interviewer loves, each grouped by its stakeholder and each carrying a classic pattern: window LEAD for velocity, conditional aggregation for parallelism, and an SCD2-joined false-positive rate.</p>
+
+    <h3 class="reveal">Detection engineer — impossible travel (window LEAD)</h3>
+    <p class="reveal">Impossible travel is about velocity, not parallelism: the same user appears in two geographies faster than any aircraft could carry them. The canonical move is <span class="m">LEAD</span> over each user's session events ordered by time — pair each event with the next, compute great-circle distance over elapsed time, and flag anything exceeding 900 km/h.</p>
+
+    <div class="codelabel">SQL · IMPOSSIBLE-TRAVEL SIGNAL (LEAD OVER SESSIONS)</div>
+    <div class="codeblock"><span class="ck">WITH</span> paired <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> s.user_id, s.ts <span class="ck">AS</span> ts_a, s.geo <span class="ck">AS</span> geo_a,
+           <span class="cf">lead</span>(s.ts)  <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> s.user_id <span class="ck">ORDER BY</span> s.ts) <span class="ck">AS</span> ts_b,
+           <span class="cf">lead</span>(s.geo) <span class="ck">OVER</span> (<span class="ck">PARTITION BY</span> s.user_id <span class="ck">ORDER BY</span> s.ts) <span class="ck">AS</span> geo_b
+    <span class="ck">FROM</span>   fact_session_event s
+)
+<span class="ck">SELECT</span> user_id, ts_a, geo_a, ts_b, geo_b,
+       <span class="cf">extract</span>(epoch <span class="ck">FROM</span> (ts_b - ts_a)) / 60        <span class="ck">AS</span> gap_minutes,
+       <span class="cf">great_circle_km</span>(geo_a, geo_b)                  <span class="ck">AS</span> distance_km
+<span class="ck">FROM</span>   paired
+<span class="ck">WHERE</span>  ts_b <span class="ck">IS NOT NULL</span> <span class="ck">AND</span> geo_a &lt;&gt; geo_b
+  <span class="ck">AND</span>  <span class="cf">great_circle_km</span>(geo_a, geo_b)
+       / <span class="cf">nullif</span>(<span class="cf">extract</span>(epoch <span class="ck">FROM</span> (ts_b - ts_a)) / 3600, 0) &gt; 900
+<span class="ck">ORDER BY</span> gap_minutes;
+<span class="cl">-- &gt; 900 km/h ⇒ faster than any plane ⇒ two identities, not one traveler.</span></div>
+
+    <h3 class="reveal">Detection engineer — account sharing (conditional aggregation)</h3>
+    <p class="reveal">Account sharing is the inverse shape: parallelism, not velocity. One user, many simultaneous devices and geographies — the Netflix-family or Spotify-share pattern. The detector counts distinct geos and distinct devices per user in a window; three-plus of each is a candidate for shared-account review, explicitly separated from impossible travel because the two have different false-positive classes and different remediations.</p>
+
+    <div class="codelabel">SQL · ACCOUNT-SHARING DETECTOR (PARALLELISM, NOT VELOCITY)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> user_id,
+       count(<span class="ck">DISTINCT</span> geo)       <span class="ck">AS</span> distinct_geos_24h,
+       count(<span class="ck">DISTINCT</span> device_id) <span class="ck">AS</span> distinct_devices_24h
+<span class="ck">FROM</span>   fact_session_event
+<span class="ck">WHERE</span>  ts &gt;= now() - <span class="ck">INTERVAL</span> <span class="cs">'24 hours'</span>
+<span class="ck">GROUP BY</span> user_id
+<span class="ck">HAVING</span> count(<span class="ck">DISTINCT</span> geo) &gt;= 3
+   <span class="ck">AND</span> count(<span class="ck">DISTINCT</span> device_id) &gt;= 3;
+<span class="cl">-- 3+ geos AND 3+ devices in 24h = shared-account candidate. Distinct from</span>
+<span class="cl">-- impossible-travel (velocity) and from ATO (one new device, one new geo).</span></div>
+
+    <h3 class="reveal">Risk PM — false-positive rate by ruleset version (SCD2 as-of)</h3>
+    <p class="reveal">"Which ruleset version is over-blocking?" is the question that decides whether a rule ships or rolls back. Because the ruleset id is frozen on every fact and the final verdict lives in the outcome union, the false-positive rate per ruleset version is a left join from decisions to outcomes — blocks that the ground truth later called clean, divided by all blocks, grouped by the version that made them.</p>
+
+    <div class="codelabel">SQL · FALSE-POSITIVE RATE BY RULESET VERSION (LAST 30 D)</div>
+    <div class="codeblock"><span class="ck">SELECT</span> t.ruleset_id, r.rules_json -&gt; <span class="cs">'name'</span> <span class="ck">AS</span> ruleset_name,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> t.decision = <span class="cs">'block'</span>) <span class="ck">AS</span> blocked,
+       count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> t.decision = <span class="cs">'block'</span>
+                          <span class="ck">AND</span> ol.final_label = <span class="cs">'clean'</span>)   <span class="ck">AS</span> false_pos,
+       round(100.0 * count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> t.decision = <span class="cs">'block'</span>
+                                       <span class="ck">AND</span> ol.final_label = <span class="cs">'clean'</span>)
+             / <span class="cf">nullif</span>(count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> t.decision = <span class="cs">'block'</span>), 0), 2)
+                                                       <span class="ck">AS</span> fp_pct
+<span class="ck">FROM</span>   fact_transaction t
+<span class="ck">JOIN</span>   dim_ruleset r <span class="ck">ON</span> t.ruleset_id = r.ruleset_id
+<span class="ck">LEFT JOIN</span> fact_outcome_label ol <span class="ck">ON</span> t.txn_id = ol.txn_id
+<span class="ck">WHERE</span>  t.ts &gt;= now() - <span class="ck">INTERVAL</span> <span class="cs">'30 days'</span>
+<span class="ck">GROUP BY</span> t.ruleset_id, r.rules_json -&gt; <span class="cs">'name'</span>
+<span class="ck">ORDER BY</span> fp_pct <span class="ck">DESC</span>;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the system is honest</h2>
+    <p class="lede reveal">A senior design ends with observability, because a fraud system that cannot see its own false-positive rate is a liability with a UI. The dashboard watches three things: are we blocking the right things, is the loop closing, and can we still replay?</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>DECISION QUALITY</dt><dd><span class="m">block rate</span>, <span class="m">step-up rate</span>, <span class="m">false-positive rate</span> by ruleset version against the outcome union, and <span class="m">approval friction</span> — every false positive is a real customer turned away, so a rising FP rate is a revenue alarm, not just a model one.</dd></div>
+      <div class="defrow"><dt>FEEDBACK HEALTH</dt><dd><span class="m">label latency</span> (analyst hours, chargeback days), <span class="m">outcome agreement %</span> between the two sources, <span class="m">unlabeled-decision backlog</span>, and <span class="m">chargeback rate on allowed txns</span> — the leakage the model missed, the truest measure of the loop.</dd></div>
+      <div class="defrow"><dt>GRAPH &amp; REPLAY</dt><dd><span class="m">cluster job freshness</span>, <span class="m">largest component size</span> (a sudden giant means a weak edge leaked into the ≥ 0.5 set), <span class="m">expansion haul per confirmed seed</span>, and <span class="m">replay coverage</span> — the fraction of decisions whose three frozen IDs all resolve, which must be 100%.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Trust &amp; Safety Ops — Decision Engine</span>
+        <span class="dash-sub">TUE 03:10 UTC · MODEL v7.2 · 60s REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Block Rate</div><div class="tv ok">1.9<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,13 60,14 80,13 100,14 120,13" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">False-Positive Rate</div><div class="tv warn">4.1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,18 40,17 60,15 80,13 100,11 120,10" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Step-Up Rate</div><div class="tv ok">3.4<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,13 20,12 40,13 60,12 80,13 100,12 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Chargeback Leakage</div><div class="tv bad">0.18<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,14 80,15 100,13 120,12" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Cluster expansion · accounts surfaced per confirmed seed (last 12 cases)</div>
+          <svg viewBox="0 0 240 84">
+            <g font-family="DM Mono,monospace">
+              <rect x="8" y="60" width="14" height="16" fill="#4d4427"/>
+              <rect x="26" y="40" width="14" height="36" fill="#6e5a23"/>
+              <rect x="44" y="20" width="14" height="56" fill="#c25a2a"/>
+              <rect x="62" y="52" width="14" height="24" fill="#6e5a23"/>
+              <rect x="80" y="64" width="14" height="12" fill="#4d4427"/>
+              <rect x="98" y="34" width="14" height="42" fill="#a87b1e"/>
+              <rect x="116" y="14" width="14" height="62" fill="#c25a2a"/>
+              <rect x="134" y="48" width="14" height="28" fill="#6e5a23"/>
+              <rect x="152" y="58" width="14" height="18" fill="#4d4427"/>
+              <rect x="170" y="28" width="14" height="48" fill="#a87b1e"/>
+              <rect x="188" y="44" width="14" height="32" fill="#6e5a23"/>
+              <rect x="206" y="22" width="14" height="54" fill="#c25a2a"/>
+              <text x="120" y="10" font-size="8" fill="#b8ad93" text-anchor="middle">tallest bars = mule rings (~180x) · short = friendly fraud (~3x)</text>
+            </g>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Replay Coverage</div><div class="tv ok">100<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,12 40,12 60,12 80,12 100,12 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Outcome Agreement</div><div class="tv ok">91<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,13 20,13 40,12 60,13 80,12 100,12 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Cluster Freshness</div><div class="tv ok">7<small>h</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,13 60,14 80,13 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Largest Component</div><div class="tv warn">412</div><svg viewBox="0 0 120 30"><polyline points="0,18 20,16 40,17 60,14 80,12 100,11 120,10" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Label Backlog</div><div class="tv ok">2.1<small>k</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Impossible-Travel Hits</div><div class="tv">340<small>/d</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,16 40,14 60,15 80,14 100,16 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a working loop tells: replay coverage pinned at 100% so every decision is defensible, expansion hauls spiking on mule rings, outcome agreement healthy at 91% — but a false-positive rate drifting amber and a largest-component creeping up, two signals that want investigating before the next model ships.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the amber and red tiles together and the dashboard narrates the two failure modes from §06 and §04. The largest component climbing toward 412 is the tell that a weak edge has leaked into the ≥ 0.5 action set — a single mislabeled <span class="m">device_fp</span> strength can chain hundreds of unrelated users into one false cluster, so it is investigated before the cluster job runs again. The chargeback-leakage tile glowing red is the truest alarm in the room: it is fraud the model <em>allowed</em>, surfacing 30–180 days later, and it is the number that justifies the whole feedback apparatus. Replay coverage at 100% is the quiet hero — it means every one of these decisions can be defended to a regulator. That is what a designed, auditable fraud system looks like from the operator's chair at three in the morning.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the transactions away and the question was testing five judgments, each of which generalizes far beyond fraud:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>GRAPH</dt><dd>Modeling identity as a typed-strength graph resolved into connected components, not a row — and knowing that strong edges drive action while weak edges only advise. The schema, not a rule, is what disambiguates sharing from takeover from multi-account abuse.</dd></div>
+      <div class="defrow"><dt>PROVENANCE</dt><dd>Freezing the ruleset, the model, and the feature vector on every fact so a six-month-old decision is replayable to the byte. Reconstructed context is no defense; stamped context is the whole defense.</dd></div>
+      <div class="defrow"><dt>VELOCITY vs PARALLELISM</dt><dd>Distinguishing impossible travel (one identity moving too fast) from account sharing (one account in too many places at once) — different windows, different patterns, different false-positive classes.</dd></div>
+      <div class="defrow"><dt>FEEDBACK</dt><dd>Closing the loop with a union of two late, disagreeing label sources — analyst verdicts in hours, chargebacks in months — into a single training-set source of truth. The loop is what keeps the model from rotting unseen.</dd></div>
+      <div class="defrow"><dt>PRECOMPUTATION</dt><dd>Reading the graph, never walking it, at decision time — the connected-component job runs off the hot path so a 100ms budget is honored, with incremental merges keeping the read near-current.</dd></div>
+    </dl>
+    <div class="pull reveal">Stripe, Wise, Coinbase, PayPal all land on this shape. The differences are which graph backend, whether the cluster job is real-time or batch, and how aggressively the feature store separates online from offline — never whether you need the graph, the frozen context, and the loop.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 16 — THE FRAUD PROBLEM<br>IDENTITY GRAPHS · DECISION REPLAY · THE CRAFT OF THE FEEDBACK LOOP</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
