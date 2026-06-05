@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Booking Problem — PaddySpeaks</title>
+<meta name="description" content="Design Airbnb's booking and calendar model — search availability, the request→accepted→stayed→reviewed lifecycle, cancellation refunds, host payouts and bilateral reviews — where the calendar is a fact you snapshot daily so the price of any listing on any night can be time-travelled. Schema, the snapshot-key invariant, append-only ingestion, the refund close, three analytics queries, and the marketplace dashboard.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 10</div>
+    <h1 class="reveal">The <em>Booking</em> Problem</h1>
+    <p class="deck reveal">Design the data model behind Airbnb — search and availability, the request→accepted→stayed→reviewed lifecycle, cancellation refunds, host payouts and bilateral reviews. It reads like a CRUD app and hides a time machine: a pricing team must be able to ask what a listing cost on July 4th last year, as the site showed it on June 1st. One decision separates the senior answer — the calendar is not a state you mutate, it is a fact you snapshot. A full working-through: data flow, the dimensional schema, the snapshot-key invariant, append-only ingestion, the refund close, three analytics queries, and the dashboard that proves it.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Marketplace</b></span>
+      <span>READING · <b>~26 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>A booking app that is secretly a time machine</h2>
+    <p class="lede reveal">Most candidates hear "model Airbnb" and reach for three tables and a status column. The question is harder than it sounds, and the difficulty is hiding in a single innocent-looking sentence near the end of the prompt: <em>what was the price of this listing, on that night, as we showed it back then?</em></p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design a data model for Airbnb supporting search/availability lookup, the booking lifecycle — request → accepted → stayed → reviewed — cancellation-policy refund logic, host payouts after stay completion, bilateral guest-and-host reviews, and dynamic pricing, with full point-in-time queryability: what was the price of listing X on July 4 last year? How would you scope it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The prompt names five subsystems and tests whether you notice they pull in opposite directions. Search wants a fat, denormalized read path — "Paris, July 4–7, 2 guests" must scan millions of listing-night cells and return in milliseconds. The booking lifecycle wants a strict, transactional spine where a confirmed reservation is sacred and a refund is arithmetic, not opinion. And dynamic pricing wants <em>history</em> — not the current price, but the price as it stood on every past day, because that is the only data a pricing experiment can be measured against. A naïve schema can serve any one of these. A senior schema notices that the last requirement quietly rewrites the first two: the calendar cannot be a mutable grid of "is this night free and what does it cost." It has to be an accumulating record of what was true, and what was shown, on each day it was observed.</p>
+
+    <p class="reveal">The weak answer is a <span class="m">calendar</span> table keyed by <span class="m">(listing_id, night_date)</span> that you <span class="ck">UPDATE</span> as prices change and nights get booked. It can answer "what is the price tonight" and nothing else. The instant a host nudges a price or an algorithm re-prices a weekend, yesterday's number is gone, and the pricing team's most important question becomes un-answerable. The strong answer treats the calendar the way a warehouse treats any fast-moving dimension that must be auditable: snapshot it. So before any boxes, the working frame for the session — three grains, three tempos:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE CALENDAR</dt><dd><strong>One row per listing × night × snapshot.</strong> The hot read path and the time machine in one table. A daily photograph of "is this night available, and what does it cost" for every future night, kept so the past is queryable, not reconstructed. The largest object in the system by three orders of magnitude.</dd></div>
+      <div class="defrow"><dt>THE BOOKING</dt><dd><strong>One row per reservation lifecycle.</strong> Request → accepted → stayed → reviewed, plus cancellation. Append-only: a modification is a new row linked by <span class="m">parent_booking_id</span>, never an edit in place. Low volume, high stakes — this is where money and trust live.</dd></div>
+      <div class="defrow"><dt>THE REVIEW &amp; PAYOUT</dt><dd><strong>The settlement layer.</strong> Bilateral reviews (guest→host and host→guest) and host payouts that fire only after a completed stay. Slow, derived, eventually consistent — but the source of the superhost signal and the trust-and-safety alarm.</dd></div>
+    </dl>
+
+    <div class="pull reveal">The current price is the cheap question. The interview is the expensive one: what was the price, on that night, the day the guest looked? You cannot derive that from a row you overwrote.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope is the first scored dimension, so name it before any schema. In scope: the calendar-as-fact with daily snapshots, the booking lifecycle and its append-only modification chain, refund computation locked at cancel time, host payouts after stay, bilateral reviews, and multi-currency with the FX rate frozen at booking. Out of scope, stated aloud: the search ranking model itself (we feed it; we do not design it), the maps and geocoding stack, the messaging and payments rails beyond the entries that represent them, and fraud scoring (a downstream consumer of this model, not part of it). One discipline I will state up front: <em>nothing in the booking spine is ever updated in place except the three timestamps that mark a state transition.</em> Price changes, cancellations, modifications — all of them move the system forward by adding a row, never by erasing one.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. Airbnb-shaped numbers, and one row that reshapes the whole design:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Active listings</td><td class="mono">~7 M</td><td>The width of every calendar snapshot</td></tr>
+      <tr><td>Future nights tracked / listing</td><td class="mono">~365</td><td>How far the bookable horizon extends</td></tr>
+      <tr><td><strong>Calendar rows / day</strong></td><td class="mono"><strong>7M × 365 ≈ 2.5 B</strong></td><td><strong>One daily snapshot — the number that shapes the whole storage strategy</strong></td></tr>
+      <tr><td>Bookings / day</td><td class="mono">~2 M</td><td>Tiny by comparison; a conventional row store</td></tr>
+      <tr><td>Search queries / s (peak)</td><td class="mono">~10 K</td><td>Served from Elasticsearch, not the warehouse</td></tr>
+      <tr><td>Snapshot retention</td><td class="mono">90 d raw, then weekly</td><td>Full grain is unaffordable forever; downsample old snapshots</td></tr>
+      <tr><td>Reviews / booking</td><td class="mono">0–2</td><td>Bilateral; both sides may stay silent</td></tr>
+    </table>
+
+    <p class="reveal">Notice the asymmetry. Bookings are a rounding error — two million rows a day is gigabytes. The calendar is the whole problem: a daily snapshot is billions of rows, and naïvely keeping every snapshot forever is petabytes a year for a question most listings will never be asked. That single row of the table dictates the partitioning, the retention ladder, and the entire reason the calendar looks the way it does. The rest of this article follows the calendar.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>From a host's slider to a pricing team's question</h2>
+    <p class="lede reveal">One transactional spine, one snapshot tributary, two read shapes. Hosts and guests mutate a small operational store; a nightly job freezes the calendar into the warehouse; search reads a fast index, and the pricing team reads the frozen past.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+        </defs>
+        <!-- lanes -->
+        <text x="20" y="30" font-size="11" letter-spacing="3" fill="#a4502e">OPERATIONAL · ONLINE TRANSACTIONS</text>
+        <text x="20" y="330" font-size="11" letter-spacing="3" fill="#6f7d5c">ANALYTICAL · CALENDAR-AS-FACT + READ SHAPES</text>
+        <line x1="20" y1="300" x2="960" y2="300" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <!-- host app -->
+        <rect x="20" y="60" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="87" font-size="12.5" text-anchor="middle" fill="#23201a">HOST APP</text>
+        <text x="95" y="106" font-size="10.5" text-anchor="middle" fill="#7d7567">price · block · accept</text>
+
+        <!-- guest app -->
+        <rect x="20" y="150" width="150" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="177" font-size="12.5" text-anchor="middle" fill="#23201a">GUEST APP</text>
+        <text x="95" y="196" font-size="10.5" text-anchor="middle" fill="#7d7567">search · request · cancel</text>
+
+        <!-- booking service -->
+        <rect x="230" y="60" width="190" height="92" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="325" y="88" font-size="12.5" text-anchor="middle" fill="#a4502e">BOOKING SERVICE (OLTP)</text>
+        <text x="325" y="108" font-size="10.5" text-anchor="middle" fill="#7d7567">lifecycle txn · refund calc</text>
+        <text x="325" y="124" font-size="10.5" text-anchor="middle" fill="#7d7567">append-only · FX lock</text>
+
+        <!-- pricing engine -->
+        <rect x="230" y="170" width="190" height="64" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="325" y="196" font-size="12.5" text-anchor="middle" fill="#8a5d12">SMART-PRICING ENGINE</text>
+        <text x="325" y="214" font-size="10.5" text-anchor="middle" fill="#7d7567">writes nightly price guidance</text>
+
+        <!-- CDC log -->
+        <rect x="470" y="78" width="190" height="86" fill="#27241d"/>
+        <text x="565" y="108" font-size="12.5" text-anchor="middle" fill="#e9e2d0">CHANGE LOG (CDC)</text>
+        <text x="565" y="126" font-size="10.5" text-anchor="middle" fill="#b8ad93">bookings · listings · prices</text>
+        <text x="565" y="142" font-size="10.5" text-anchor="middle" fill="#b8ad93">ordered per listing_id</text>
+
+        <!-- ES index -->
+        <rect x="720" y="60" width="240" height="70" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="840" y="86" font-size="12.5" text-anchor="middle" fill="#a4502e">SEARCH INDEX · ELASTICSEARCH</text>
+        <text x="840" y="104" font-size="10.5" text-anchor="middle" fill="#7d7567">live availability · &lt; 50 ms</text>
+        <text x="840" y="119" font-size="10.5" text-anchor="middle" fill="#7d7567">rebuildable cache, owns nothing</text>
+
+        <!-- live calendar store -->
+        <rect x="470" y="194" width="190" height="64" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="565" y="220" font-size="12" text-anchor="middle" fill="#23201a">LIVE CALENDAR (OLTP)</text>
+        <text x="565" y="238" font-size="10.5" text-anchor="middle" fill="#a4502e">(listing × night) · mutable</text>
+
+        <!-- snapshot job -->
+        <rect x="230" y="346" width="200" height="88" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="330" y="374" font-size="12.5" text-anchor="middle" fill="#6f7d5c">NIGHTLY SNAPSHOT JOB</text>
+        <text x="330" y="392" font-size="10.5" text-anchor="middle" fill="#7d7567">freeze calendar @ 00:00 UTC</text>
+        <text x="330" y="408" font-size="10.5" text-anchor="middle" fill="#7d7567">stamp snapshot_date · immutable</text>
+
+        <!-- calendar fact -->
+        <rect x="470" y="330" width="220" height="74" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="580" y="356" font-size="12" text-anchor="middle" fill="#23201a">fct_calendar_nights</text>
+        <text x="580" y="374" font-size="10.5" text-anchor="middle" fill="#7d7567">listing × night × snapshot</text>
+        <text x="580" y="390" font-size="10.5" text-anchor="middle" fill="#a4502e">partitioned by night_date</text>
+
+        <!-- booking + dims fact -->
+        <rect x="470" y="420" width="220" height="62" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="580" y="444" font-size="12" text-anchor="middle" fill="#23201a">fct_bookings · dims (SCD2)</text>
+        <text x="580" y="462" font-size="10.5" text-anchor="middle" fill="#7d7567">payouts · reviews · policies</text>
+
+        <!-- time travel -->
+        <rect x="720" y="330" width="240" height="70" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="840" y="356" font-size="12" text-anchor="middle" fill="#8a5d12">PRICING / TIME-TRAVEL</text>
+        <text x="840" y="374" font-size="10.5" text-anchor="middle" fill="#7d7567">price on night N, as of date D</text>
+        <text x="840" y="390" font-size="10.5" text-anchor="middle" fill="#7d7567">experiments · dispute resolution</text>
+
+        <!-- retention -->
+        <rect x="720" y="420" width="240" height="60" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="840" y="444" font-size="12" text-anchor="middle" fill="#7d7567">RETENTION LADDER</text>
+        <text x="840" y="462" font-size="10.5" text-anchor="middle" fill="#7d7567">90d raw → weekly → cold Parquet</text>
+
+        <!-- operational arrows -->
+        <line x1="170" y1="92" x2="226" y2="100" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="170" y1="182" x2="226" y2="120" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="170" y1="190" x2="226" y2="200" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="420" y1="110" x2="466" y2="115" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="420" y1="200" x2="466" y2="220" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="660" y1="105" x2="716" y2="98" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+
+        <!-- snapshot arrows -->
+        <line x1="565" y1="258" x2="430" y2="380" stroke="#6f7d5c" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="430" y="300" font-size="10.5" fill="#6f7d5c">read live grid @ 00:00</text>
+        <line x1="430" y1="370" x2="466" y2="368" stroke="#6f7d5c" stroke-width="1.8" marker-end="url(#arr)"/>
+        <line x1="690" y1="362" x2="716" y2="360" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="690" y1="450" x2="716" y2="450" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="565" y1="404" x2="565" y2="420" stroke="#8a5d12" stroke-width="1.4" marker-end="url(#arr)"/>
+
+        <!-- CDC to facts -->
+        <path d="M 590 164 C 700 250, 700 270, 600 326" fill="none" stroke="#8a5d12" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+        <text x="612" y="250" font-size="10.5" fill="#8a5d12">stream bookings → fact</text>
+
+        <text x="20" y="540" font-size="10.5" fill="#7d7567">SOLID — online writes &amp; rebuilds · DASHED — the nightly freeze and CDC load · The live grid forgets; the snapshot remembers.</text>
+      </svg>
+      <div class="caption">FIG. 1 — Two worlds joined by one job. The operational calendar is mutable and amnesiac; the nightly snapshot stamps it with a date and makes it immortal.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> search never touches the warehouse — it reads a rebuildable Elasticsearch index fed from the change log, because a guest typing "Paris, 2 guests" needs a 50 ms answer over live availability, not a scan of a 2.5-billion-row fact table. <strong>Second,</strong> the snapshot job is the only bridge between the two worlds, and it runs exactly once per night: it reads the entire live calendar, stamps every row with today's <span class="m">snapshot_date</span>, and appends — it never updates a prior snapshot, because a prior snapshot is, by definition, what was true then. <strong>Third,</strong> the live calendar is allowed to forget. It holds only the current state; the moment a price changes, the old number is overwritten in OLTP and preserved only in the warehouse. The operational store optimizes for the booking flow; the fact table carries the memory.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>The operational store may lie about the past; the warehouse may never lie about it.</strong> If the search index is stale by a minute, a guest occasionally sees a night that was just booked — annoying, self-healing, recoverable at request time by the booking service's transactional check. But if a snapshot is wrong, or a refund is restated because a policy changed, the system has corrupted evidence — and disputes, pricing experiments, and host trust all rest on that evidence. So freshness is negotiable on the read path and non-negotiable in the fact: snapshots are written once, refunds are frozen at cancel time, and FX is locked at booking. The past is a contract.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>Four facts, four dimensions, one grain that matters</h2>
+    <p class="lede reveal">The schema falls out of the three tempos. A snapshotted calendar fact for the hot path and the time machine; an append-only booking fact for the lifecycle; reviews and payouts for settlement; and slowly-changing dimensions so a booking made last year still joins to the listing as it was, not as it is.</p>
+
+    <h3 class="reveal">The calendar fact — the time machine</h3>
+    <p class="reveal">Everything turns on the grain of one table. <span class="m">fct_calendar_nights</span> carries one row per <span class="m">(listing_id, night_date, snapshot_date)</span> — and that triple is the primary key. The first two columns say <em>which night of which listing</em>; the third says <em>which day we are looking at it from</em>. Put <span class="m">snapshot_date</span> in the key and time-travel becomes a <span class="ck">WHERE</span> clause; leave it out and the question "what did this cost on July 4th, as shown on June 1st" becomes an archaeology project against SCD2 history and booking events — slow, brittle, often impossible after data drift. The three price columns earn their place: <span class="m">base_price_local</span> is what the host set, <span class="m">smart_price_local</span> is what the algorithm suggested, and <span class="m">effective_price_local</span> is what a guest would actually have been charged. Keeping all three lets the pricing team measure the algorithm against the host against reality.</p>
+
+    <div class="codelabel">DDL · FACT — CALENDAR-AS-FACT (THE HOT PATH)</div>
+    <div class="codeblock"><span class="cl">-- One row per (listing × night × snapshot_date). The whole design is
+-- here: snapshot_date is IN the primary key, which is what turns
+-- "the price now" into "the price on any night, as seen on any day."
+-- Partitioned by night_date; ~2.5B rows land per daily snapshot.</span>
+<span class="ck">CREATE TABLE</span> fct_calendar_nights (
+    listing_id            BIGINT       <span class="ck">NOT NULL</span>,
+    night_date            DATE         <span class="ck">NOT NULL</span>,   <span class="cl">-- the night being stayed</span>
+    snapshot_date         DATE         <span class="ck">NOT NULL</span>,   <span class="cl">-- the day we observed it</span>
+    is_available          BOOLEAN      <span class="ck">NOT NULL</span>,
+    is_blocked            BOOLEAN      <span class="ck">NOT NULL</span>,   <span class="cl">-- host-blocked, not for sale</span>
+    is_booked             BOOLEAN      <span class="ck">NOT NULL</span>,   <span class="cl">-- the three are mutually exclusive</span>
+    booking_id            BIGINT,                    <span class="cl">-- FK, set only when is_booked</span>
+    base_price_local      NUMERIC(10,2) <span class="ck">NOT NULL</span>,  <span class="cl">-- host-set nightly rate</span>
+    smart_price_local     NUMERIC(10,2),             <span class="cl">-- algorithm's suggestion</span>
+    effective_price_local NUMERIC(10,2) <span class="ck">NOT NULL</span>,  <span class="cl">-- what a guest would pay</span>
+    currency_code         CHAR(3)      <span class="ck">NOT NULL</span>,   <span class="cl">-- the listing's currency</span>
+    <span class="ck">PRIMARY KEY</span> (listing_id, night_date, snapshot_date),
+    <span class="ck">CHECK</span> ( (is_available::int + is_blocked::int + is_booked::int) = 1 )
+) <span class="ck">PARTITION BY RANGE</span> (night_date);
+<span class="cl">-- search reads only the freshest snapshot; pricing reads a chosen one.</span>
+<span class="ck">CREATE INDEX</span> idx_cal_search <span class="ck">ON</span> fct_calendar_nights
+    (night_date, snapshot_date, is_available) <span class="ck">INCLUDE</span> (listing_id, effective_price_local);</div>
+
+    <h3 class="reveal">The booking fact — append-only lifecycle</h3>
+    <p class="reveal">A booking is a small record at trivial volume, so a conventional row store is the right home — but it is governed by one rule that separates seniors from juniors: <strong>append-only.</strong> A modification — a date change, an extra guest, a renegotiated price — does not <span class="ck">UPDATE</span> the original row; it inserts a new booking that points back via <span class="m">parent_booking_id</span>, and the original's <span class="m">terminal_state</span> becomes <span class="cs">'modified'</span>. The chain is the audit trail. The only in-place writes permitted are the three lifecycle timestamps and the cancellation fields, because those record <em>when a transition happened</em>, which is itself a fact, not a rewrite of history.</p>
+
+    <div class="codelabel">DDL · FACT — BOOKING LIFECYCLE (APPEND-ONLY)</div>
+    <div class="codeblock"><span class="cl">-- One row per booking lifecycle. Modifications append a new row linked
+-- by parent_booking_id; the original is retired to terminal_state.
+-- Money is captured in local currency AND in USD with the FX rate that
+-- was true at booking time — frozen, never re-converted.</span>
+<span class="ck">CREATE TABLE</span> fct_bookings (
+    booking_id          BIGINT       <span class="ck">PRIMARY KEY</span>,
+    parent_booking_id   BIGINT       <span class="ck">REFERENCES</span> fct_bookings(booking_id),
+    listing_id          BIGINT       <span class="ck">NOT NULL</span>,
+    guest_id            BIGINT       <span class="ck">NOT NULL</span>,
+    host_id             BIGINT       <span class="ck">NOT NULL</span>,
+    request_ts          TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    accepted_ts         TIMESTAMPTZ,                <span class="cl">-- null until host accepts</span>
+    cancelled_ts        TIMESTAMPTZ,                <span class="cl">-- null unless cancelled</span>
+    cancellation_actor  TEXT         <span class="ck">CHECK</span> (cancellation_actor <span class="ck">IN</span>
+                        (<span class="cs">'guest'</span>,<span class="cs">'host'</span>,<span class="cs">'platform'</span>)),
+    check_in_date       DATE         <span class="ck">NOT NULL</span>,
+    check_out_date      DATE         <span class="ck">NOT NULL</span>,
+    nights              INT          <span class="ck">NOT NULL</span>,
+    guests              INT          <span class="ck">NOT NULL</span>,
+    subtotal_local      NUMERIC(10,2) <span class="ck">NOT NULL</span>,  <span class="cl">-- nightly × nights</span>
+    cleaning_local      NUMERIC(10,2) <span class="ck">NOT NULL DEFAULT</span> 0,
+    service_local       NUMERIC(10,2) <span class="ck">NOT NULL DEFAULT</span> 0,
+    taxes_local         NUMERIC(10,2) <span class="ck">NOT NULL DEFAULT</span> 0,
+    total_local         NUMERIC(10,2) <span class="ck">NOT NULL</span>,
+    currency_code       CHAR(3)      <span class="ck">NOT NULL</span>,
+    fx_rate_to_usd      NUMERIC(12,6) <span class="ck">NOT NULL</span>,  <span class="cl">-- LOCKED at booking time</span>
+    total_usd           NUMERIC(12,2) <span class="ck">NOT NULL</span>,  <span class="cl">-- total_local × fx_rate_to_usd</span>
+    cancellation_policy TEXT         <span class="ck">NOT NULL</span> <span class="ck">CHECK</span> (cancellation_policy <span class="ck">IN</span>
+                        (<span class="cs">'flexible'</span>,<span class="cs">'moderate'</span>,<span class="cs">'strict'</span>,<span class="cs">'super_strict'</span>)),
+    refund_amount_usd   NUMERIC(12,2),              <span class="cl">-- locked at cancel time</span>
+    terminal_state      TEXT         <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'requested'</span>
+                        <span class="ck">CHECK</span> (terminal_state <span class="ck">IN</span> (<span class="cs">'requested'</span>,<span class="cs">'confirmed'</span>,
+                        <span class="cs">'stayed'</span>,<span class="cs">'cancelled'</span>,<span class="cs">'modified'</span>,<span class="cs">'declined'</span>))
+);
+<span class="ck">CREATE INDEX</span> idx_bk_host  <span class="ck">ON</span> fct_bookings (host_id, request_ts <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_bk_guest <span class="ck">ON</span> fct_bookings (guest_id, request_ts <span class="ck">DESC</span>);</div>
+
+    <h3 class="reveal">Settlement &amp; the policy dimension</h3>
+    <p class="reveal">Reviews are bilateral and typed, so one table with a <span class="m">review_type</span> discriminator carries both directions without a self-join nightmare. Payouts fire after a completed stay and reference the booking they settle. And the cancellation policy is a real dimension, not an enum scattered through code: <span class="m">dim_cancellation_policies</span> stores a <span class="m">refund_curve_json</span> mapping days-to-check-in to the refundable fraction, so the refund math is data, versioned and auditable, not a buried <span class="ck">CASE</span> statement.</p>
+
+    <div class="codelabel">DDL · SETTLEMENT + THE REFUND-CURVE DIMENSION</div>
+    <div class="codeblock"><span class="cl">-- Bilateral reviews: one row per direction, typed. Double-blind reveal
+-- handled in the app; here we only record what was written and when.</span>
+<span class="ck">CREATE TABLE</span> fct_reviews (
+    review_id     BIGINT       <span class="ck">PRIMARY KEY</span>,
+    booking_id    BIGINT       <span class="ck">NOT NULL REFERENCES</span> fct_bookings(booking_id),
+    review_type   TEXT         <span class="ck">NOT NULL</span> <span class="ck">CHECK</span> (review_type <span class="ck">IN</span>
+                  (<span class="cs">'guest_to_host'</span>,<span class="cs">'host_to_guest'</span>)),
+    overall       SMALLINT     <span class="ck">CHECK</span> (overall <span class="ck">BETWEEN</span> 1 <span class="ck">AND</span> 5),
+    cleanliness   SMALLINT, accuracy SMALLINT, communication SMALLINT,
+    submitted_ts  TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    <span class="ck">UNIQUE</span> (booking_id, review_type)        <span class="cl">-- at most one each way</span>
+);
+
+<span class="cl">-- Host payouts: only ever created after terminal_state = 'stayed'.</span>
+<span class="ck">CREATE TABLE</span> fct_host_payouts (
+    payout_id     BIGINT       <span class="ck">PRIMARY KEY</span>,
+    host_id       BIGINT       <span class="ck">NOT NULL</span>,
+    booking_id    BIGINT       <span class="ck">REFERENCES</span> fct_bookings(booking_id), <span class="cl">-- NULL for batch settle</span>
+    payout_ts     TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    amount_local  NUMERIC(12,2) <span class="ck">NOT NULL</span>,
+    fx_rate_to_usd NUMERIC(12,6) <span class="ck">NOT NULL</span>,   <span class="cl">-- payout-time FX, distinct from booking FX</span>
+    amount_usd    NUMERIC(12,2) <span class="ck">NOT NULL</span>,
+    status        TEXT         <span class="ck">NOT NULL</span> <span class="ck">CHECK</span> (status <span class="ck">IN</span>
+                  (<span class="cs">'pending'</span>,<span class="cs">'paid'</span>,<span class="cs">'failed'</span>,<span class="cs">'reversed'</span>))
+);
+
+<span class="cl">-- The refund rule, as data. days_to_check_in → refundable fraction.</span>
+<span class="ck">CREATE TABLE</span> dim_cancellation_policies (
+    policy            TEXT      <span class="ck">PRIMARY KEY</span>,
+    refund_curve_json JSONB     <span class="ck">NOT NULL</span>,   <span class="cl">-- e.g. {"30":1.0,"7":0.5,"0":0.0}</span>
+    cleaning_refunded BOOLEAN   <span class="ck">NOT NULL DEFAULT TRUE</span>,
+    service_refunded  BOOLEAN   <span class="ck">NOT NULL DEFAULT FALSE</span>
+);</div>
+
+    <h3 class="reveal">The dimensions that change slowly</h3>
+    <p class="reveal">A booking made in July must, a year later, still join to the listing's price, capacity, and policy <em>as they were in July</em> — not as they are now. That is the textbook job of a Type-2 slowly-changing dimension. <span class="m">dim_listings</span> and <span class="m">dim_hosts</span> carry validity windows, so an as-of join recovers the historical row. The calendar snapshot already freezes the price; SCD2 freezes everything else about the listing and host.</p>
+
+    <div class="codelabel">DDL · SCD2 DIMENSIONS (AS-OF JOINABLE)</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> dim_listings (
+    listing_sk         BIGINT       <span class="ck">PRIMARY KEY</span>,   <span class="cl">-- surrogate, one per version</span>
+    listing_id         BIGINT       <span class="ck">NOT NULL</span>,        <span class="cl">-- natural key, stable</span>
+    title              TEXT,
+    capacity           INT          <span class="ck">NOT NULL</span>,
+    room_type          TEXT,
+    cancellation_policy TEXT        <span class="ck">NOT NULL</span>,
+    geography_id       BIGINT       <span class="ck">NOT NULL</span>,
+    valid_from         TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    valid_to           TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    is_current         BOOLEAN      <span class="ck">NOT NULL DEFAULT TRUE</span>
+);
+<span class="ck">CREATE INDEX</span> idx_listing_asof <span class="ck">ON</span> dim_listings (listing_id, valid_from, valid_to);
+
+<span class="ck">CREATE TABLE</span> dim_hosts (
+    host_sk        BIGINT      <span class="ck">PRIMARY KEY</span>,
+    host_id        BIGINT      <span class="ck">NOT NULL</span>,
+    is_superhost   BOOLEAN     <span class="ck">NOT NULL</span>,
+    response_rate  NUMERIC(4,3),
+    valid_from     TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    valid_to       TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    is_current     BOOLEAN     <span class="ck">NOT NULL DEFAULT TRUE</span>
+);</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The snapshot is the grain, and the grain is the proof</h2>
+    <p class="lede reveal">Every system has one place its correctness lives. Here it is not a transaction or a lock — it is a column in a primary key. Put <span class="m">snapshot_date</span> in the key and the past becomes addressable; the time machine is not a feature you build, it is a consequence of the grain you chose.</p>
+
+    <p class="reveal">Consider the two designs side by side. In the mutable calendar, the price of listing 42 on July 4th is a single cell, repeatedly overwritten — by the host on June 1st, by the algorithm on June 3rd, by a last-minute discount on July 2nd. Ask "what did it cost on June 1st" and the only honest answer is a shrug. In the snapshotted calendar, that same night exists as <em>many</em> rows — one per day it was observed — and the question is a coordinate lookup: fix the listing, fix the night, fix the day you are asking from. The price is wherever those three lines cross. The cost of this is real and must be named: roughly 2.5 billion rows per nightly snapshot. The payback is that an entire class of question — pricing experiments, dispute resolution, "show me what the guest saw" — moves from impossible to a single indexed read.</p>
+
+    <h3 class="reveal">The booking lifecycle, as a chain not a column</h3>
+    <p class="reveal">The same forward-only discipline governs the booking. A reservation walks a state machine, and a modification does not mutate it — it forks it. <span class="m">CANCELLED</span> and <span class="m">MODIFIED</span> are terminal; the chain of <span class="m">parent_booking_id</span> links reconstructs the full history of a stay that changed three times.</p>
+
+    <div class="statechain reveal">
+      <span class="st">REQUESTED</span><span class="arr">→</span>
+      <span class="st">CONFIRMED</span><span class="arr">→</span>
+      <span class="st">STAYED</span><span class="arr">→</span>
+      <span class="st terminal">REVIEWED</span>
+      <span class="arr">·</span>
+      <span class="st terminal">CANCELLED</span>
+      <span class="arr">·</span>
+      <span class="st terminal">MODIFIED</span>
+    </div>
+
+    <p class="reveal">The single most senior move in the whole problem is the refund. When a guest cancels, the refundable amount is computed <em>once</em>, from the policy's curve and the days remaining until check-in, and the result is written into <span class="m">refund_amount_usd</span> and never recomputed. This is not laziness — it is correctness. Cancellation policies change; a host moves from <span class="cs">'moderate'</span> to <span class="cs">'strict'</span> next quarter. If refunds were computed on read, that change would silently restate every historical refund, and a guest's settled $496.80 would quietly become a different number. Locking the refund at cancel time means the past stays the past.</p>
+
+    <div class="codelabel">SQL · TIME-TRAVEL + THE REFUND LOCK</div>
+    <div class="codeblock"><span class="cl">-- THE invariant query: the price of a listing on a night, as it was
+-- shown on a chosen day. snapshot_date in the PK makes this O(1)-ish.</span>
+<span class="ck">SELECT</span> listing_id, night_date,
+       base_price_local, smart_price_local, effective_price_local
+<span class="ck">FROM</span>   fct_calendar_nights
+<span class="ck">WHERE</span>  listing_id    = 42
+  <span class="ck">AND</span>  night_date    = <span class="cs">'2025-07-04'</span>
+  <span class="ck">AND</span>  snapshot_date = <span class="cs">'2025-06-01'</span>;   <span class="cl">-- the day the guest looked</span>
+<span class="cl">-- The data product the dynamic-pricing team cannot ship without.</span>
+
+<span class="cl">-- The refund, locked once at cancel time. days_to_check_in indexes
+-- the policy curve; the answer is frozen onto the booking row.</span>
+<span class="ck">UPDATE</span> fct_bookings b
+<span class="ck">SET</span>    cancelled_ts       = now(),
+       cancellation_actor = <span class="cs">'guest'</span>,
+       terminal_state     = <span class="cs">'cancelled'</span>,
+       refund_amount_usd  = b.total_usd * (
+           <span class="ck">SELECT</span> <span class="cf">refund_fraction</span>(p.refund_curve_json,
+                                  b.check_in_date - <span class="ck">current_date</span>)
+           <span class="ck">FROM</span>   dim_cancellation_policies p
+           <span class="ck">WHERE</span>  p.policy = b.cancellation_policy)
+<span class="ck">WHERE</span>  b.booking_id = 777
+  <span class="ck">AND</span>  b.terminal_state = <span class="cs">'confirmed'</span>;   <span class="cl">-- guard: cannot cancel a cancelled booking</span></div>
+
+    <div class="pull reveal">The price is locked in the snapshot. The refund is locked at cancellation. The FX is locked at booking. A senior model is a museum of frozen moments — and the freezing is the whole point.<span>BOOKING RULE Nº 1 — FREEZE AT THE EVENT</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python that writes the past down carefully</h2>
+    <p class="lede reveal">Three programs carry the load: the nightly snapshot that freezes the calendar, the booking writer that appends modifications instead of editing them, and the search-index updater that keeps live availability fresh. Each is small; the judgment is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The snapshot job — freeze, never overwrite</h3>
+    <p class="reveal">The snapshot runs once a night and has exactly one rule: it appends rows stamped with today's date and never touches a prior snapshot. It is idempotent on <span class="m">(listing_id, night_date, snapshot_date)</span>, so a retried run after a crash is a no-op rather than a duplicate. The reasoning is the whole design: a snapshot is a photograph, and you do not edit a photograph — you take a new one tomorrow.</p>
+
+    <div class="codelabel">PYTHON · NIGHTLY CALENDAR SNAPSHOT</div>
+    <div class="codeblock"><span class="ck">import</span> datetime <span class="ck">as</span> dt
+
+HORIZON_DAYS = 365        <span class="cl"># how far the bookable future extends</span>
+BATCH_ROWS   = 50_000     <span class="cl"># keep the append transactions bounded</span>
+
+<span class="ck">def</span> <span class="cf">snapshot_calendar</span>(live, warehouse, snapshot_date=<span class="ck">None</span>) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""Freeze the live calendar into fct_calendar_nights for one day.
+    Append-only and idempotent: the PK (listing_id, night_date,
+    snapshot_date) makes a re-run a no-op, never a duplicate. We do not
+    UPDATE yesterday's snapshot, EVER — yesterday is what was true then."""</span>
+    snapshot_date = snapshot_date <span class="ck">or</span> dt.date.today()
+    horizon = snapshot_date + dt.timedelta(days=HORIZON_DAYS)
+
+    <span class="ck">for</span> batch <span class="ck">in</span> live.stream_calendar(through=horizon, size=BATCH_ROWS):
+        rows = [
+            (c.listing_id, c.night_date, snapshot_date,
+             c.is_available, c.is_blocked, c.is_booked, c.booking_id,
+             c.base_price, c.smart_price, c.effective_price, c.currency)
+            <span class="ck">for</span> c <span class="ck">in</span> batch
+        ]
+        warehouse.execute(<span class="cs">"""
+            INSERT INTO fct_calendar_nights VALUES %s
+            ON CONFLICT (listing_id, night_date, snapshot_date)
+            DO NOTHING        -- the snapshot is immutable once written
+        """</span>, rows)
+
+    <span class="cl"># the retention ladder runs AFTER the fresh snapshot is durable:</span>
+    <span class="cl"># keep daily for 90 days, then thin to one snapshot per week.</span>
+    warehouse.execute(<span class="cs">"""
+        DELETE FROM fct_calendar_nights
+        WHERE snapshot_date &lt; %s - INTERVAL '90 days'
+          AND EXTRACT(DOW FROM snapshot_date) &lt;&gt; 0   -- keep Sundays
+    """</span>, [snapshot_date])</div>
+
+    <p class="reveal">One carve-out, always stated: the retention thinning runs only after the new snapshot is confirmed durable. Deleting old history before the new photograph is safely written would risk a window where the system has neither — the kind of ordering bug that looks fine in code review and loses a quarter of pricing data the one night the job is killed mid-run.</p>
+
+    <h3 class="reveal">2 · The booking writer — modify by appending</h3>
+    <p class="reveal">The booking writer enforces the append-only law in code so no caller can forget it. A modification reads the parent, computes the new totals with FX frozen at <em>this</em> moment, inserts a fresh booking pointing back, and retires the parent — all in one transaction. The parent is never edited except to set its terminal state, which is itself an immutable fact about when it was superseded.</p>
+
+    <div class="codelabel">PYTHON · APPEND-ONLY BOOKING MODIFICATION</div>
+    <div class="codeblock"><span class="ck">import</span> uuid
+
+<span class="ck">def</span> <span class="cf">modify_booking</span>(db, parent_id: int, changes: dict, fx) -&gt; int:
+    <span class="cs">"""A modification is a NEW booking linked by parent_booking_id, never
+    an UPDATE of the original. The chain is the audit trail. FX is locked
+    again, at modification time, because the money is being re-agreed."""</span>
+    <span class="ck">with</span> db.transaction():
+        parent = db.fetch_one(
+            <span class="cs">"SELECT * FROM fct_bookings WHERE booking_id = %s FOR UPDATE"</span>,
+            [parent_id])
+        <span class="ck">if</span> parent[<span class="cs">"terminal_state"</span>] <span class="ck">not in</span> (<span class="cs">"confirmed"</span>, <span class="cs">"stayed"</span>):
+            <span class="ck">raise</span> <span class="cf">IllegalTransition</span>(<span class="cs">"only a live booking can be modified"</span>)
+
+        new_id   = uuid.uuid4().int &gt;&gt; 64
+        rate     = fx.rate(parent[<span class="cs">"currency_code"</span>], <span class="cs">"USD"</span>)   <span class="cl"># NOW, not parent's</span>
+        new_total_local = <span class="cf">price_booking</span>(parent, changes)
+        db.execute(<span class="cs">"""
+            INSERT INTO fct_bookings
+              (booking_id, parent_booking_id, listing_id, guest_id, host_id,
+               request_ts, check_in_date, check_out_date, nights, guests,
+               total_local, currency_code, fx_rate_to_usd, total_usd,
+               cancellation_policy, terminal_state)
+            VALUES (%s, %s, ...,  %s, %s, %s,  %s)
+        """</span>, [new_id, parent_id, ...,
+                  new_total_local, parent[<span class="cs">"currency_code"</span>], rate,
+                  round(new_total_local * rate, 2),
+                  parent[<span class="cs">"cancellation_policy"</span>], <span class="cs">"confirmed"</span>])
+
+        <span class="cl"># retire the parent — the ONLY write to it, and it records a fact:</span>
+        <span class="cl"># the instant this booking was superseded.</span>
+        db.execute(<span class="cs">"UPDATE fct_bookings SET terminal_state = 'modified' "</span>
+                   <span class="cs">"WHERE booking_id = %s"</span>, [parent_id])
+        <span class="ck">return</span> new_id</div>
+
+    <h3 class="reveal">3 · The search-index updater — fresh, lossy, rebuildable</h3>
+    <div class="codelabel">PYTHON · CDC → SEARCH INDEX</div>
+    <div class="codeblock"><span class="ck">async def</span> <span class="cf">apply_changes</span>(es, change_log) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""The search index is a rebuildable cache that owns nothing. It may
+    lag the live store by seconds and that is fine: the booking service
+    re-checks availability transactionally at request time, so a stale
+    'available' costs a retry, never a double-booking."""</span>
+    <span class="ck">async for</span> ev <span class="ck">in</span> change_log.consume(<span class="cs">"calendar"</span>, <span class="cs">"bookings"</span>):
+        <span class="ck">if</span> ev.table == <span class="cs">"bookings"</span> <span class="ck">and</span> ev.new[<span class="cs">"terminal_state"</span>] == <span class="cs">"confirmed"</span>:
+            <span class="cl"># a confirmed booking blocks its nights immediately</span>
+            <span class="ck">await</span> es.update_nights(ev.new[<span class="cs">"listing_id"</span>],
+                                  ev.new[<span class="cs">"check_in_date"</span>],
+                                  ev.new[<span class="cs">"check_out_date"</span>], available=<span class="ck">False</span>)
+        <span class="ck">elif</span> ev.table == <span class="cs">"calendar"</span>:
+            <span class="ck">await</span> es.upsert(ev.new[<span class="cs">"listing_id"</span>], ev.new[<span class="cs">"night_date"</span>],
+                            price=ev.new[<span class="cs">"effective_price_local"</span>],
+                            available=ev.new[<span class="cs">"is_available"</span>])
+        <span class="cl"># no fsync, no ledger: if the index dies, rebuild from the live</span>
+        <span class="cl"># calendar in minutes. Truth lives in OLTP and the snapshots.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>The settlement close: pay the host, only once, only after the stay</h2>
+    <p class="lede reveal">The slow loop has one job and one promise: money moves to a host after a completed stay, exactly once, net of any refund, with the payout-time FX recorded distinctly from the booking-time FX. The craft is in the idempotency and in keeping two exchange rates honest.</p>
+
+    <p class="reveal">A payout is not a read-time calculation; it is a daily close that materializes a row into <span class="m">fct_host_payouts</span>. The trigger is a state, not a timer: a booking becomes eligible only when its <span class="m">terminal_state</span> reaches <span class="cs">'stayed'</span> and the guest's check-out has passed. The amount is the host's earnings — the subtotal less the platform's service fee — and, critically, it is converted at the FX rate true on the <em>payout</em> day, which is generally not the rate locked at booking. The system therefore carries two FX facts per stay: one frozen at booking (what the guest was charged) and one frozen at payout (what the host received). The gap between them is realized currency drift, and a senior model surfaces it rather than hiding it inside a single blended number.</p>
+
+    <div class="codelabel">PYTHON · DAILY PAYOUT CLOSE (IDEMPOTENT)</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">run_payout_close</span>(db, fx, close_date) -&gt; int:
+    <span class="cs">"""Settle every booking whose stay has completed and which has not
+    already been paid. Idempotent by a unique (booking_id) in payouts:
+    re-running the close pays no one twice. A refund reduces the payout;
+    a fully refunded booking pays the host nothing."""</span>
+    eligible = db.fetch_all(<span class="cs">"""
+        SELECT b.booking_id, b.host_id, b.subtotal_local, b.service_local,
+               b.currency_code, b.refund_amount_usd, b.fx_rate_to_usd
+        FROM   fct_bookings b
+        WHERE  b.terminal_state = 'stayed'
+          AND  b.check_out_date &lt;= %s
+          AND  NOT EXISTS (SELECT 1 FROM fct_host_payouts p
+                           WHERE p.booking_id = b.booking_id)
+    """</span>, [close_date])
+
+    paid = 0
+    <span class="ck">for</span> b <span class="ck">in</span> eligible:
+        host_earn_local = b.subtotal_local - b.service_local
+        rate            = fx.rate(b.currency_code, <span class="cs">"USD"</span>, on=close_date)
+        amount_usd      = round(host_earn_local * rate, 2)
+        <span class="cl"># a refund already paid back to the guest is netted out of the host:</span>
+        amount_usd      = max(<span class="ck">0</span>, amount_usd - (b.refund_amount_usd <span class="ck">or</span> <span class="ck">0</span>))
+
+        db.execute(<span class="cs">"""
+            INSERT INTO fct_host_payouts
+              (host_id, booking_id, payout_ts, amount_local,
+               fx_rate_to_usd, amount_usd, status)
+            VALUES (%s, %s, now(), %s, %s, %s, 'pending')
+            ON CONFLICT (booking_id) DO NOTHING   -- pay once, never twice
+        """</span>, [b.host_id, b.booking_id, host_earn_local, rate, amount_usd])
+        paid += 1
+    <span class="ck">return</span> paid</div>
+
+    <div class="pull reveal">The guest's price freezes at booking. The host's payment freezes at the stay's end. The two exchange rates almost never agree — and pretending they do is how a marketplace quietly loses money it cannot explain.<span>SETTLEMENT RULE Nº 1 — TWO RATES, BOTH RECORDED</span></div>
+
+    <p class="reveal">The same daily rhythm closes the reviews window. Airbnb's reviews are double-blind: neither side sees the other's until both have submitted or a fourteen-day window expires. The aggregation that drives the <em>superhost</em> signal therefore reads only revealed reviews, recomputes a host's trailing rating and response rate, and writes a new <span class="m">dim_hosts</span> version when the status flips — SCD2 again, so "was this host a superhost when the booking was made" stays answerable forever.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating the marketplace</h2>
+    <p class="lede reveal">The frozen tables are where the system explains itself. Three queries an interviewer loves, because each one carries a classic SQL pattern on its back: the as-of join, the funnel by conditional aggregation, and the window-function gap detector.</p>
+
+    <h3 class="reveal">Availability search — the as-of join over snapshots</h3>
+    <p class="reveal">Search is a join against one chosen snapshot. "Paris, July 4–7, 2 guests" filters the freshest <span class="m">snapshot_date</span> to available nights, joins the listing dimension as-of the same instant, and demands the listing have all three nights free — the <span class="ck">HAVING COUNT(*) = 3</span> that turns "some nights available" into "the whole stay is bookable."</p>
+
+    <div class="codelabel">SQL · AVAILABLE LISTINGS, AS-OF A SNAPSHOT</div>
+    <div class="codeblock"><span class="cl">-- All Paris listings free for every night of Jul 4-6, for 2 guests,
+-- priced as the freshest snapshot shows them. The SCD2 as-of join
+-- pins dim_listings to the listing as it was on the snapshot date.</span>
+<span class="ck">SELECT</span> l.listing_id, l.title,
+       min(c.effective_price_local) <span class="ck">AS</span> price_low,
+       max(c.effective_price_local) <span class="ck">AS</span> price_high
+<span class="ck">FROM</span>   fct_calendar_nights c
+<span class="ck">JOIN</span>   dim_listings l
+       <span class="ck">ON</span>  l.listing_id = c.listing_id
+       <span class="ck">AND</span> c.snapshot_date::timestamptz <span class="ck">BETWEEN</span> l.valid_from <span class="ck">AND</span> l.valid_to
+<span class="ck">JOIN</span>   dim_geography g <span class="ck">ON</span> g.geography_id = l.geography_id
+<span class="ck">WHERE</span>  c.snapshot_date = (<span class="ck">SELECT</span> max(snapshot_date) <span class="ck">FROM</span> fct_calendar_nights)
+  <span class="ck">AND</span>  c.night_date <span class="ck">BETWEEN</span> <span class="cs">'2025-07-04'</span> <span class="ck">AND</span> <span class="cs">'2025-07-06'</span>
+  <span class="ck">AND</span>  c.is_available = <span class="ck">TRUE</span>
+  <span class="ck">AND</span>  l.capacity &gt;= 2
+  <span class="ck">AND</span>  g.market_id = <span class="cs">'PARIS'</span>
+<span class="ck">GROUP BY</span> l.listing_id, l.title
+<span class="ck">HAVING</span> count(*) = 3;        <span class="cl">-- every one of the 3 nights is free</span></div>
+
+    <h3 class="reveal">The booking funnel — conditional aggregation</h3>
+    <p class="reveal">"Where do bookings die?" The lifecycle timestamps make the funnel a single pass of <span class="ck">COUNT(*) FILTER</span>: requested, accepted, stayed, plus the host's median time-to-accept. The same conditional-aggregation pattern that powers every funnel in analytics, applied to one append-only fact.</p>
+
+    <div class="codelabel">SQL · REQUEST → ACCEPT → STAY FUNNEL</div>
+    <div class="codeblock"><span class="ck">SELECT</span>
+    date_trunc(<span class="cs">'week'</span>, b.request_ts)                          <span class="ck">AS</span> wk,
+    count(*)                                                  <span class="ck">AS</span> requested,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> b.accepted_ts <span class="ck">IS NOT NULL</span>)        <span class="ck">AS</span> accepted,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> b.terminal_state = <span class="cs">'stayed'</span>)        <span class="ck">AS</span> stayed,
+    count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> b.cancellation_actor = <span class="cs">'host'</span>)     <span class="ck">AS</span> host_cancels,
+    round(100.0 * count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> b.terminal_state = <span class="cs">'stayed'</span>)
+                 / <span class="cf">nullif</span>(count(*), 0), 1)                    <span class="ck">AS</span> stay_rate_pct,
+    percentile_cont(0.50) <span class="ck">WITHIN GROUP</span> (
+        <span class="ck">ORDER BY</span> <span class="cf">extract</span>(epoch <span class="ck">FROM</span> b.accepted_ts - b.request_ts)/3600.0)
+                                                              <span class="ck">AS</span> p50_accept_hrs
+<span class="ck">FROM</span>   fct_bookings b
+<span class="ck">WHERE</span>  b.parent_booking_id <span class="ck">IS NULL</span>          <span class="cl">-- count original requests, not mods</span>
+  <span class="ck">AND</span>  b.request_ts &gt;= now() - <span class="ck">INTERVAL</span> <span class="cs">'90 days'</span>
+<span class="ck">GROUP BY</span> 1 <span class="ck">ORDER BY</span> 1;</div>
+
+    <h3 class="reveal">Price drift before booking — window LAG over snapshots</h3>
+    <p class="reveal">"How much did a listing's price move in the run-up to the night, and did the smart-pricing engine chase demand?" This is the snapshot table's signature query: for one night, walk its successive snapshots in date order and <span class="ck">LAG</span> to measure day-over-day change. It is the time machine doing what only it can — and it doubles as a price-dispute resolver.</p>
+
+    <div class="codelabel">SQL · DAY-OVER-DAY PRICE DRIFT FOR ONE NIGHT</div>
+    <div class="codeblock"><span class="cl">-- Trace how the price of one (listing, night) evolved across the
+-- snapshots leading up to it. LAG over snapshot_date is the move.</span>
+<span class="ck">WITH</span> trail <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> snapshot_date, effective_price_local, is_booked,
+           <span class="cf">lag</span>(effective_price_local) <span class="ck">OVER</span> w <span class="ck">AS</span> prev_price,
+           <span class="cf">lag</span>(snapshot_date)          <span class="ck">OVER</span> w <span class="ck">AS</span> prev_snap
+    <span class="ck">FROM</span>   fct_calendar_nights
+    <span class="ck">WHERE</span>  listing_id = 42
+      <span class="ck">AND</span>  night_date = <span class="cs">'2025-07-04'</span>
+    <span class="ck">WINDOW</span> w <span class="ck">AS</span> (<span class="ck">ORDER BY</span> snapshot_date)
+)
+<span class="ck">SELECT</span> snapshot_date,
+       effective_price_local,
+       effective_price_local - prev_price                <span class="ck">AS</span> day_move,
+       round(100.0 * (effective_price_local - prev_price)
+             / <span class="cf">nullif</span>(prev_price, 0), 1)                   <span class="ck">AS</span> pct_move,
+       is_booked
+<span class="ck">FROM</span>   trail
+<span class="ck">WHERE</span>  prev_price <span class="ck">IS NOT NULL</span>
+  <span class="ck">AND</span>  effective_price_local &lt;&gt; prev_price        <span class="cl">-- only the days it moved</span>
+<span class="ck">ORDER BY</span> snapshot_date;</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving the marketplace is healthy</h2>
+    <p class="lede reveal">A senior design ends with observability, because every frozen moment above is invisible without it. The dashboard watches the three loops separately — supply and search, the booking funnel, and settlement &amp; trust — each with its own definition of healthy.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>SUPPLY &amp; SEARCH</dt><dd><span class="m">snapshot freshness</span> (did last night's 2.5 B rows land on time), <span class="m">calendar utilization</span> by market, <span class="m">search→view conversion</span>, and <span class="m">effective vs base price spread</span> — the smart-pricing engine's footprint on the marketplace.</dd></div>
+      <div class="defrow"><dt>BOOKING FUNNEL</dt><dd><span class="m">request→accept→stay rates</span>, <span class="m">host time-to-accept p50/p95</span>, <span class="m">modification rate</span> (how often a stay changes after confirmation), and <span class="m">instant-book share</span> — the friction map of the lifecycle.</dd></div>
+      <div class="defrow"><dt>SETTLEMENT &amp; TRUST</dt><dd><span class="m">payout backlog</span> and <span class="m">payouts settled / day</span>, <span class="m">host-cancel rate</span> (the trust-and-safety alarm), <span class="m">review submission rate</span>, and <span class="m">realized FX drift</span> between booking-time and payout-time rates.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Marketplace Ops — Global</span>
+        <span class="dash-sub">SAT 09:10 UTC · ALL SYSTEMS · SNAPSHOT 00:00 OK · 5m REFRESH</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Snapshot Freshness</div><div class="tv ok">8.4<small>h ago</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,14 60,15 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Calendar Rows / Snap</div><div class="tv">2.49<small>B</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,15 100,16 120,15" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Calendar Utilization</div><div class="tv ok">63<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,15 100,14 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Search → View</div><div class="tv ok">11.2<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,13 100,14 120,13" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Effective vs Base Price — Paris market · snapshots, last 30 days</div>
+          <svg viewBox="0 0 240 84">
+            <polyline points="0,58 24,56 48,57 72,52 96,49 120,44 144,40 168,33 192,30 216,26 240,24" fill="none" stroke="#d8a44a" stroke-width="2"/>
+            <polyline points="0,62 24,62 48,61 72,61 96,60 120,60 144,59 168,59 192,58 216,58 240,57" fill="none" stroke="#8f8672" stroke-width="1.6" stroke-dasharray="3 3"/>
+            <text x="6" y="14" font-size="9" fill="#d8a44a" font-family="DM Mono,monospace">effective (smart)</text>
+            <text x="6" y="78" font-size="9" fill="#8f8672" font-family="DM Mono,monospace">base (host-set)</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Request → Accept</div><div class="tv ok">78<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,13 60,14 80,13 100,14 120,13" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Accept → Stay</div><div class="tv ok">91<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,13 20,13 40,14 60,13 80,13 100,14 120,13" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Host Time-to-Accept</div><div class="tv warn">5.8<small>h</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,14 60,15 80,16 100,17 120,18" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Host-Cancel Rate</div><div class="tv bad">3.4<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,18 20,17 40,16 60,15 80,14 100,13 120,11" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Payout Backlog</div><div class="tv warn">$2.1<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,13 20,13 40,14 60,15 80,15 100,16 120,17" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Realized FX Drift</div><div class="tv bad">−$54<small>k</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,13 60,14 80,15 100,16 120,17" fill="none" stroke="#d98e63" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Review Submit Rate</div><div class="tv ok">68<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,14 80,15 100,14 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Modification Rate</div><div class="tv">4.7<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,16 60,15 80,16 100,15 120,16" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Instant-Book Share</div><div class="tv ok">59<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,16 20,15 40,14 60,15 80,14 100,13 120,13" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Payouts Settled / d</div><div class="tv">1.9<small>M</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,15 40,14 60,15 80,14 100,15 120,14" fill="none" stroke="#8f8672" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a healthy weekend tells: the snapshot landed, the smart-price line is pulling away from host-set base as summer demand builds, the funnel is wide — and two amber-to-red signals worth watching: host time-to-accept creeping up and one market's host-cancel rate crossing the trust threshold.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the warning tiles together and the dashboard narrates a marketplace under demand pressure. The effective-vs-base spread widening is the smart-pricing engine doing its job — and the snapshot table is the only reason that line can be drawn at all, because it remembers every price the algorithm ever showed. Meanwhile the red host-cancel tile is the trust-and-safety alarm from §07 firing in real time: that is the query that costs a host their superhost status, and it is visible here the moment it crosses the line.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the listings and the reviews away and the question was testing five judgments, each of which generalizes far beyond travel:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>THE GRAIN IS THE ARCHITECTURE</dt><dd>Choosing one row per listing × night × snapshot — putting time in the key — so the system's hardest question becomes a coordinate lookup. The grain you pick decides which questions are cheap and which are impossible.</dd></div>
+      <div class="defrow"><dt>SNAPSHOT OVER MUTATE</dt><dd>Treating a fast-moving, audit-critical state as a sequence of photographs rather than a single editable cell — and paying the storage to keep the past addressable instead of reconstructing it.</dd></div>
+      <div class="defrow"><dt>APPEND, NEVER EDIT</dt><dd>Modeling modifications as new, back-linked rows so the history of a changing booking stays simultaneously correct and complete. The chain is the audit trail; the edit is the bug.</dd></div>
+      <div class="defrow"><dt>FREEZE AT THE EVENT</dt><dd>Locking the refund at cancel time, the FX at booking, the payout rate at the stay's end — so a later policy or market change can never silently restate a settled fact.</dd></div>
+      <div class="defrow"><dt>RIGHT STORE, RIGHT TEMPO</dt><dd>Serving search from a rebuildable index, the lifecycle from a transactional spine, and history from a partitioned fact — and letting write volume, not the feature list, decide where each lives.</dd></div>
+    </dl>
+    <div class="pull reveal">A booking app is easy until someone asks what was true last July. The senior answer is a schema that never forgets and never lies — because it was built to remember the past the day the past happened, not to reconstruct it under pressure.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 10 — THE BOOKING PROBLEM<br>DIMENSIONAL MODELING · CALENDAR-AS-FACT · THE CRAFT OF THE SNAPSHOT</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
