@@ -1,0 +1,640 @@
+{
+  "section": "topics2026",
+  "title": "2026 Hot Topics Skill Check",
+  "tagline": "Storage Lens & FinOps, Iceberg catalogs, partitioning, skew, streaming, CDC, reliability, security, lineage, metadata, event-driven, vector infra and data mesh",
+  "duration_minutes": 30,
+  "passing_score": 70,
+  "quiz_length": 20,
+  "questions": [
+    {
+      "id": "tt-001",
+      "type": "single",
+      "topic": "Storage Lens / FinOps",
+      "difficulty": "easy",
+      "prompt": "What does AWS S3 Storage Lens primarily give you?",
+      "options": [
+        "A SQL query engine over objects in S3",
+        "Org-wide visibility into storage usage and activity across accounts, buckets and prefixes",
+        "A service that automatically deletes cold data",
+        "A managed Spark cluster for ETL"
+      ],
+      "answer": 1,
+      "explanation": "Storage Lens aggregates usage and activity metrics across the whole organization (the advanced tier adds prefix-level detail and recommendations). It is the visibility layer — lifecycle policies do the actual transitions/deletes."
+    },
+    {
+      "id": "tt-002",
+      "type": "single",
+      "topic": "Storage Lens / FinOps",
+      "difficulty": "medium",
+      "prompt": "What is the main trade-off of S3 Glacier Deep Archive versus S3 Standard?",
+      "options": [
+        "It is faster to read but more expensive",
+        "It is far cheaper per GB but has multi-hour retrieval and a long minimum-storage charge",
+        "It has identical retrieval latency but no durability guarantee",
+        "It is only available for objects under 1 MB"
+      ],
+      "answer": 1,
+      "explanation": "Deep Archive is roughly 20x+ cheaper than Standard but has retrieval times measured in hours and a 180-day minimum-storage duration. That is why you only transition genuinely cold data there, and why transitioning millions of tiny objects can cost more than it saves."
+    },
+    {
+      "id": "tt-003",
+      "type": "multi",
+      "topic": "Storage Lens / FinOps",
+      "difficulty": "medium",
+      "prompt": "Which of these are genuine storage-waste categories a FinOps review surfaces? (Select all that apply)",
+      "options": [
+        "Incomplete multipart uploads that were never aborted",
+        "Non-current object versions in a versioned bucket",
+        "Orphaned objects no table or job references",
+        "Any object currently stored in S3 Standard"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "Incomplete multipart uploads, non-current versions, and orphaned/uncompressed data are real waste you can lifecycle away. Simply being in S3 Standard is not waste — hot, frequently-read data belongs there."
+    },
+    {
+      "id": "tt-004",
+      "type": "single",
+      "topic": "Iceberg Catalogs",
+      "difficulty": "medium",
+      "prompt": "In Apache Iceberg, what is the correct top-down order of the metadata tree a query walks?",
+      "options": [
+        "data files -> manifest files -> manifest list -> metadata.json",
+        "metadata.json -> manifest list -> manifest files -> data files",
+        "catalog -> data files -> snapshots -> manifests",
+        "manifest list -> metadata.json -> data files -> manifests"
+      ],
+      "answer": 1,
+      "explanation": "A query resolves the current snapshot in metadata.json, reads the manifest list, prunes to the manifest files whose partition/column stats can match, and only then reads surviving data files. Pruning happens at planning time, before data I/O."
+    },
+    {
+      "id": "tt-005",
+      "type": "single",
+      "topic": "Iceberg Catalogs",
+      "difficulty": "medium",
+      "prompt": "Now that Iceberg has effectively won the table-format war, where has the senior-interview focus moved?",
+      "options": [
+        "To choosing between CSV and JSON",
+        "To the catalog and metadata layer — REST catalogs, planning efficiency and governance",
+        "To deciding whether to use a database at all",
+        "To row-by-row OLTP tuning"
+      ],
+      "answer": 1,
+      "explanation": "With the format settled, differentiation and the hard problems moved up the stack to the catalog (Polaris, Unity, Glue, Nessie), metadata/planning efficiency, and governance — the real 2026 battleground."
+    },
+    {
+      "id": "tt-006",
+      "type": "single",
+      "topic": "Iceberg Catalogs",
+      "difficulty": "medium",
+      "prompt": "What distinguishes Project Nessie among Iceberg catalogs?",
+      "options": [
+        "It is the only catalog that supports Parquet",
+        "It adds git-like branches and tags for data, enabling isolated writes and rollbacks",
+        "It runs queries itself instead of an engine",
+        "It stores data in a relational OLTP database"
+      ],
+      "answer": 1,
+      "explanation": "Nessie brings version-control semantics (branches, tags, commits) to the catalog, so you can write on a branch, validate, and merge or roll back atomically."
+    },
+    {
+      "id": "tt-007",
+      "type": "single",
+      "topic": "Partitioning & Layout",
+      "difficulty": "medium",
+      "prompt": "What is the most common consequence of partitioning a table by a high-cardinality column (e.g., user_id)?",
+      "options": [
+        "Faster writes with no downside",
+        "The small-file problem — millions of tiny partitions that wreck planning and read performance",
+        "Automatic data compression",
+        "Stronger ACID guarantees"
+      ],
+      "answer": 1,
+      "explanation": "Over-partitioning explodes the number of partitions and files. Per-file overhead then dominates: planning lists millions of files and reads tiny footers. Partition on low-cardinality, frequently-filtered columns (usually date)."
+    },
+    {
+      "id": "tt-008",
+      "type": "single",
+      "topic": "Partitioning & Layout",
+      "difficulty": "hard",
+      "prompt": "What does Iceberg 'hidden partitioning' provide?",
+      "options": [
+        "It hides the table from unauthorized users",
+        "Partition values are derived via transforms (e.g., day(ts)) so queries need no partition column, and partitioning can evolve without rewriting data",
+        "It encrypts the partition column",
+        "It removes the need for any metadata"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg stores transform-based partitioning (day(ts), bucket(N, id)) so queries filter on the natural column and still prune. Because partitioning is logical, you can evolve the scheme with no full-table rewrite."
+    },
+    {
+      "id": "tt-009",
+      "type": "single",
+      "topic": "Partitioning & Layout",
+      "difficulty": "medium",
+      "prompt": "Z-ordering (or clustering) a table by its common filter columns improves performance by:",
+      "options": [
+        "Compressing the data more aggressively",
+        "Physically co-locating related values so per-file min/max stats can skip non-matching files for multi-dimensional filters",
+        "Adding a secondary index to every row",
+        "Converting the table to row-oriented storage"
+      ],
+      "answer": 1,
+      "explanation": "Data skipping only works if matching rows are physically clustered. Z-order/clustering narrows each file's value range so min/max stats prune files for filters on the clustered columns."
+    },
+    {
+      "id": "tt-010",
+      "type": "single",
+      "topic": "Data Skew",
+      "difficulty": "hard",
+      "prompt": "A Spark stage has one task running for hours while the rest finished in seconds, because one key owns most rows. What is the right fix?",
+      "options": [
+        "Add more shuffle partitions globally",
+        "Salt the hot key (and replicate the small side) or enable AQE skew-join handling",
+        "Increase the driver memory",
+        "Switch the output format to CSV"
+      ],
+      "answer": 1,
+      "explanation": "Salting splits the hot key across N partitions; AQE skew-join splits oversized partitions at runtime. Adding partitions globally does not help — the hot key still hashes to one partition."
+    },
+    {
+      "id": "tt-011",
+      "type": "single",
+      "topic": "Data Skew",
+      "difficulty": "easy",
+      "prompt": "Which phrase best captures the nature of a data-skew problem?",
+      "options": [
+        "There is simply too much total data to process",
+        "The total work is reasonable, but its distribution across tasks is not",
+        "The cluster has too few CPUs",
+        "The query returns the wrong answer"
+      ],
+      "answer": 1,
+      "explanation": "Skew is a distribution problem: a few hot keys do most of the work, so one straggler holds the whole stage hostage even though aggregate work is fine."
+    },
+    {
+      "id": "tt-012",
+      "type": "single",
+      "topic": "Stream Partitioning",
+      "difficulty": "hard",
+      "prompt": "Why is choosing a low-cardinality Kafka partition key (e.g., country) usually a mistake at high throughput?",
+      "options": [
+        "It breaks exactly-once semantics",
+        "Popular key values create hot partitions that overload one consumer and cause lag",
+        "It prevents compression",
+        "Kafka does not allow string keys"
+      ],
+      "answer": 1,
+      "explanation": "Same-key rows go to the same partition. A skewed low-cardinality key sends a disproportionate share to one partition, overloading its consumer and building lag. Prefer a high-cardinality, evenly-hashed key (e.g., hash(device_id))."
+    },
+    {
+      "id": "tt-013",
+      "type": "single",
+      "topic": "Stream Partitioning",
+      "difficulty": "medium",
+      "prompt": "What ordering guarantee does Kafka provide?",
+      "options": [
+        "Global total ordering across the whole topic",
+        "Ordering within a single partition (i.e., per key), not across partitions",
+        "No ordering guarantees at all",
+        "Ordering only if there is exactly one consumer"
+      ],
+      "answer": 1,
+      "explanation": "Kafka guarantees order within a partition. Keying by the entity (e.g., primary key) gives per-entity ordering; there is no global order across partitions, which is the trade-off against parallelism."
+    },
+    {
+      "id": "tt-014",
+      "type": "single",
+      "topic": "Schema Evolution",
+      "difficulty": "hard",
+      "prompt": "Under a schema registry's BACKWARD compatibility mode, which deployment order is safe?",
+      "options": [
+        "Upgrade producers first; consumers cannot read the new data otherwise",
+        "Upgrade consumers first — a consumer on the new schema can read data written with the old schema",
+        "Order does not matter under any compatibility mode",
+        "You must upgrade producers and consumers in the exact same instant"
+      ],
+      "answer": 1,
+      "explanation": "BACKWARD means the new schema can read data produced with the previous schema, so you upgrade consumers first. (FORWARD is the mirror image — upgrade producers first.) Knowing the direction in deploy-order terms is the senior tell."
+    },
+    {
+      "id": "tt-015",
+      "type": "single",
+      "topic": "Schema Evolution",
+      "difficulty": "medium",
+      "prompt": "Why is Iceberg schema evolution (add/drop/rename/reorder columns) safe where Hive/positional Parquet schemas break?",
+      "options": [
+        "Iceberg rewrites the whole table on every change",
+        "Iceberg tracks columns by unique field IDs, not by position or name",
+        "Iceberg disallows dropping columns",
+        "Iceberg stores data as JSON"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg assigns each column a stable field ID, so renames/reorders/drops are metadata-only and never silently misread data — unlike position-based schemas that corrupt on a column reorder."
+    },
+    {
+      "id": "tt-016",
+      "type": "single",
+      "topic": "Data Contracts & Quality",
+      "difficulty": "medium",
+      "prompt": "What is a data contract?",
+      "options": [
+        "A dashboard test that runs after data lands",
+        "A versioned producer/consumer agreement (schema + semantics + SLAs) enforced at the source, typically in CI",
+        "A legal document signed by the data team",
+        "A backup-and-restore policy"
+      ],
+      "answer": 1,
+      "explanation": "A data contract shifts quality enforcement left: the producer agrees to a versioned schema/semantics/SLA, enforced in their CI so a breaking change is caught in the PR rather than downstream."
+    },
+    {
+      "id": "tt-017",
+      "type": "single",
+      "topic": "Data Contracts & Quality",
+      "difficulty": "medium",
+      "prompt": "What does a 'circuit breaker' assertion do in an ingestion pipeline?",
+      "options": [
+        "It speeds up the pipeline by skipping checks",
+        "On a failed quality check it stops the run and quarantines the bad batch so it does not propagate downstream",
+        "It restarts the database",
+        "It silently drops the failing rows and continues"
+      ],
+      "answer": 1,
+      "explanation": "Tools like Great Expectations, Soda and dbt tests act as circuit breakers — fail fast and dead-letter/quarantine the batch rather than poisoning every downstream consumer."
+    },
+    {
+      "id": "tt-018",
+      "type": "multi",
+      "topic": "Data Contracts & Quality",
+      "difficulty": "medium",
+      "prompt": "Which of these are commonly cited pillars of data observability? (Select all that apply)",
+      "options": [
+        "Freshness",
+        "Volume",
+        "Schema and distribution",
+        "Lineage"
+      ],
+      "answer": [0, 1, 2, 3],
+      "explanation": "The five data-observability pillars are freshness, volume, schema, distribution, and lineage — the dimensions that tell you a dataset has silently broken."
+    },
+    {
+      "id": "tt-019",
+      "type": "single",
+      "topic": "Lineage & Observability",
+      "difficulty": "medium",
+      "prompt": "Why is column-level lineage preferred over table-level for real impact analysis?",
+      "options": [
+        "It uses less storage",
+        "It precisely shows which downstream fields depend on a given column, so you know exactly what breaks if it changes",
+        "It is required by SQL",
+        "Table-level lineage is always wrong"
+      ],
+      "answer": 1,
+      "explanation": "Table-level lineage is too coarse — a change to one column may affect only some downstream fields. Column-level lineage gives accurate blast-radius for change management and root-cause."
+    },
+    {
+      "id": "tt-020",
+      "type": "single",
+      "topic": "Lineage & Observability",
+      "difficulty": "medium",
+      "prompt": "What is the main value of OpenLineage / OpenTelemetry in a data platform?",
+      "options": [
+        "They are proprietary tools that lock you into one vendor",
+        "Vendor-neutral, standardized lineage and telemetry that every tool in the stack can emit and consume",
+        "They replace the need for a catalog",
+        "They are only for application performance monitoring, not data"
+      ],
+      "answer": 1,
+      "explanation": "The shift in 2026 is toward open, vendor-neutral standards so lineage and observability are one consistent signal across orchestrators, engines and BI — not N disconnected tools."
+    },
+    {
+      "id": "tt-021",
+      "type": "single",
+      "topic": "Data Tiering & TTL",
+      "difficulty": "hard",
+      "prompt": "Why can't you pre-compute a daily 'distinct users' integer and sum 30 of them to get monthly distinct users?",
+      "options": [
+        "Because integers overflow",
+        "Because distinct counts are not additive — a user active on multiple days would be counted multiple times",
+        "Because daily tables are deleted",
+        "Because SUM is slower than COUNT"
+      ],
+      "answer": 1,
+      "explanation": "Distinct counts are non-additive. To keep roll-ups correct and cheap, store a mergeable HyperLogLog sketch per day and union sketches for any window — never sum pre-computed distinct integers."
+    },
+    {
+      "id": "tt-022",
+      "type": "single",
+      "topic": "AI-Ready Infrastructure",
+      "difficulty": "hard",
+      "prompt": "What is the primary job of a feature store?",
+      "options": [
+        "To train the model",
+        "To provide online/offline parity and point-in-time-correct features, preventing training/serving skew",
+        "To store raw logs cheaply",
+        "To serve the final LLM prompt"
+      ],
+      "answer": 1,
+      "explanation": "A feature store guarantees the features used at serving match those used in training (point-in-time correctness), eliminating training/serving skew — the most common reason a well-tested model fails in production."
+    },
+    {
+      "id": "tt-023",
+      "type": "single",
+      "topic": "AI-Ready Infrastructure",
+      "difficulty": "medium",
+      "prompt": "From a data-engineering viewpoint, RAG answer quality depends most on:",
+      "options": [
+        "The cleverness of the prompt alone",
+        "The freshness, quality and lineage of the data that is indexed and retrieved",
+        "The size of the GPU",
+        "The programming language used"
+      ],
+      "answer": 1,
+      "explanation": "Retrieval is only as good as what's in the index. Freshness (re-embedding on change), quality (contracts) and lineage (doc to chunk to answer) are the levers a data engineer owns — not the prompt."
+    },
+    {
+      "id": "tt-024",
+      "type": "single",
+      "topic": "Multi-Region & DR",
+      "difficulty": "medium",
+      "prompt": "What is the difference between RPO and RTO?",
+      "options": [
+        "RPO is recovery time; RTO is data loss",
+        "RPO is the acceptable amount of data loss (time window); RTO is the acceptable time to recover service",
+        "They are two names for the same metric",
+        "RPO applies to storage, RTO applies to networking"
+      ],
+      "answer": 1,
+      "explanation": "RPO (Recovery Point Objective) = how much data you can afford to lose, set by replication lag. RTO (Recovery Time Objective) = how long recovery may take. Both must be agreed before choosing a DR topology."
+    },
+    {
+      "id": "tt-025",
+      "type": "single",
+      "topic": "Multi-Region & DR",
+      "difficulty": "hard",
+      "prompt": "In a lakehouse, what is usually the hardest part of recovering after a region outage?",
+      "options": [
+        "Re-uploading all the Parquet files by hand",
+        "Recovering the catalog/metadata consistently — the data files themselves replicate cheaply via cross-region replication",
+        "Rewriting every query",
+        "Choosing a new file format"
+      ],
+      "answer": 1,
+      "explanation": "Cross-region replication handles the data files. The blocker is a consistent catalog (Glue/Nessie/Polaris) pointing at them — DR for a lakehouse is mostly a metadata-recovery problem."
+    },
+    {
+      "id": "tt-026",
+      "type": "single",
+      "topic": "Multi-Region & DR",
+      "difficulty": "medium",
+      "prompt": "How do active-active and active-passive multi-region designs differ?",
+      "options": [
+        "Active-active is always cheaper",
+        "Active-active has both regions serving traffic (needing conflict resolution); active-passive keeps one warm standby with a slower failover",
+        "Active-passive serves from both regions simultaneously",
+        "They are identical except for naming"
+      ],
+      "answer": 1,
+      "explanation": "Active-active gives fast failover but requires conflict resolution / single-writer-per-key; active-passive is simpler and cheaper but has a longer RTO while you promote the standby."
+    },
+    {
+      "id": "tt-027",
+      "type": "single",
+      "topic": "Table Maintenance",
+      "difficulty": "medium",
+      "prompt": "A growing share of 2026 lakehouse production incidents are best described as:",
+      "options": [
+        "Compute failures from slow CPUs",
+        "Metadata failures — unmaintained tables with too many snapshots, manifests and small files that strangle planning",
+        "Network outages only",
+        "Bugs in the SQL parser"
+      ],
+      "answer": 1,
+      "explanation": "Every write adds snapshots, manifests and files. Without scheduled maintenance, planning time and storage creep up until the table itself becomes the incident — a metadata failure, not a compute one."
+    },
+    {
+      "id": "tt-028",
+      "type": "multi",
+      "topic": "Table Maintenance",
+      "difficulty": "medium",
+      "prompt": "Which are standard Iceberg table-maintenance operations? (Select all that apply)",
+      "options": [
+        "Compaction (rewrite_data_files)",
+        "Expiring old snapshots",
+        "Rewriting/compacting manifests",
+        "Removing orphan files"
+      ],
+      "answer": [0, 1, 2, 3],
+      "explanation": "Compaction, snapshot expiration, manifest rewrites and orphan-file removal are the core maintenance jobs that keep planning fast and storage lean. Automate them as policy-as-code on a schedule."
+    },
+    {
+      "id": "tt-029",
+      "type": "single",
+      "topic": "Reliability (DPRE)",
+      "difficulty": "medium",
+      "prompt": "What is an 'error budget' in data platform reliability engineering?",
+      "options": [
+        "The money allocated to fix bugs",
+        "The allowed amount of unreliability (1 minus the SLO); burning it gates risky changes",
+        "The number of engineers on call",
+        "The maximum file size allowed"
+      ],
+      "answer": 1,
+      "explanation": "If the freshness SLO is 99%, the error budget is the remaining 1%. Spend it down and you freeze risky releases until reliability recovers — the SRE mechanism applied to pipelines."
+    },
+    {
+      "id": "tt-030",
+      "type": "single",
+      "topic": "Reliability (DPRE)",
+      "difficulty": "hard",
+      "prompt": "Best senior answer to 'what happens if Kafka is unavailable for 4 hours?'",
+      "options": [
+        "All data is permanently lost",
+        "If retention exceeds the outage, consumers replay from their last committed offsets on recovery — recoverable with zero data loss but an SLO breach to account for",
+        "The pipeline must be rebuilt from scratch",
+        "Nothing — Kafka can never go down"
+      ],
+      "answer": 1,
+      "explanation": "With sufficient retention, consumers resume from committed offsets and replay the backlog; you quantify the freshness SLO breach and error-budget spend. The senior signal is concrete numbers, not 'it depends'."
+    },
+    {
+      "id": "tt-031",
+      "type": "single",
+      "topic": "Security & Governance",
+      "difficulty": "hard",
+      "prompt": "How do you honor a GDPR 'right to be forgotten' delete on an immutable lakehouse?",
+      "options": [
+        "You cannot — immutable means data can never be removed",
+        "Issue row-level deletes and then compact/rewrite the affected files so the data is physically purged, not just hidden",
+        "Drop the entire table",
+        "Add a WHERE clause to every query to exclude the user"
+      ],
+      "answer": 1,
+      "explanation": "Formats like Iceberg/Delta support row-level deletes; the key is to then rewrite/compact the affected files so the bytes are actually gone. Hiding rows with a filter does not satisfy deletion requirements."
+    },
+    {
+      "id": "tt-032",
+      "type": "single",
+      "topic": "Security & Governance",
+      "difficulty": "medium",
+      "prompt": "What is dynamic data masking?",
+      "options": [
+        "Encrypting the whole table at rest",
+        "Masking sensitive column values at query time based on the role of the user running the query",
+        "Deleting sensitive columns permanently",
+        "Compressing PII columns"
+      ],
+      "answer": 1,
+      "explanation": "Dynamic masking applies at read time per role: an analyst sees ***-**-1234 while an authorized role sees the full value — enforced centrally as policy-as-code rather than copied into every query."
+    },
+    {
+      "id": "tt-033",
+      "type": "single",
+      "topic": "Change Data Capture (CDC)",
+      "difficulty": "medium",
+      "prompt": "Which describes the canonical modern CDC architecture replacing nightly batch ETL?",
+      "options": [
+        "Spreadsheet exports emailed nightly",
+        "OLTP -> log-based CDC (Debezium) -> Kafka -> MERGE/upsert into Iceberg -> Trino",
+        "OLTP -> full table dump -> rebuild warehouse from scratch daily",
+        "OLAP -> CDC -> OLTP"
+      ],
+      "answer": 1,
+      "explanation": "Log-based CDC streams every change with low latency: Debezium reads the WAL/binlog, publishes to Kafka, a processor merges into Iceberg, and Trino queries it — a continuous mirror instead of batch."
+    },
+    {
+      "id": "tt-034",
+      "type": "single",
+      "topic": "Change Data Capture (CDC)",
+      "difficulty": "hard",
+      "prompt": "How do you make CDC upserts into Iceberg safe against replays and out-of-order events (exactly-once apply)?",
+      "options": [
+        "Hope events never arrive out of order",
+        "Make the apply idempotent: upsert keyed on the primary key and dedup/order on a monotonic op_seq or LSN",
+        "Disable retries entirely",
+        "Use INSERT only and never update"
+      ],
+      "answer": 1,
+      "explanation": "Kafka only orders within a key, so you key by primary key and make the MERGE idempotent with a monotonic tiebreaker (op_seq/LSN). Replays and late events then cannot corrupt the current state."
+    },
+    {
+      "id": "tt-035",
+      "type": "single",
+      "topic": "Compute Cost",
+      "difficulty": "hard",
+      "prompt": "For an interruption-tolerant batch job, what is usually the single biggest lever to cut compute cost?",
+      "options": [
+        "Rewriting it in a different language",
+        "Spot/preemptible instances combined with autoscaling (with an on-demand base for the critical path)",
+        "Adding more on-demand nodes permanently",
+        "Storing the output as CSV"
+      ],
+      "answer": 1,
+      "explanation": "Spot/preemptible capacity is dramatically cheaper, and autoscaling removes idle burn. Keep the driver/critical path on on-demand. This typically beats micro-optimizing the transformation."
+    },
+    {
+      "id": "tt-036",
+      "type": "single",
+      "topic": "Compute Cost",
+      "difficulty": "medium",
+      "prompt": "What does Spark Adaptive Query Execution (AQE) do at runtime?",
+      "options": [
+        "Nothing — the plan is fixed at compile time",
+        "Re-optimizes using real statistics: coalesces shuffle partitions, splits skewed partitions, and can switch join strategies",
+        "Automatically writes the SQL for you",
+        "Encrypts the shuffle data"
+      ],
+      "answer": 1,
+      "explanation": "AQE adapts the plan mid-query from actual shuffle sizes — coalescing tiny partitions, splitting skewed ones, and flipping sort-merge to broadcast when the real size allows. It's the zero-code first move for skew and cost."
+    },
+    {
+      "id": "tt-037",
+      "type": "single",
+      "topic": "Metadata Engineering",
+      "difficulty": "medium",
+      "prompt": "What is the central goal of metadata engineering as an emerging specialty?",
+      "options": [
+        "To store as much raw data as possible",
+        "To make data discoverable and trustworthy — search/discovery, a business glossary, semantic definitions and clear ownership",
+        "To delete unused tables automatically",
+        "To replace the query engine"
+      ],
+      "answer": 1,
+      "explanation": "With thousands of datasets, the bottleneck is finding the right, trustworthy one. Metadata engineering treats the catalog as a product: discovery, glossary, semantic layer, and ownership/SLAs."
+    },
+    {
+      "id": "tt-038",
+      "type": "single",
+      "topic": "Event-Driven Architecture",
+      "difficulty": "hard",
+      "prompt": "What problem does the transactional outbox pattern solve?",
+      "options": [
+        "Slow database reads",
+        "The dual-write inconsistency between updating the database and publishing an event — by writing state and the event in one transaction, then relaying the outbox",
+        "Schema evolution",
+        "Vector search latency"
+      ],
+      "answer": 1,
+      "explanation": "Writing to the DB and separately publishing to Kafka can leave them inconsistent on failure. The outbox writes the event into the same transaction as the state change; a relay (often CDC) then publishes it — no lost or phantom events."
+    },
+    {
+      "id": "tt-039",
+      "type": "single",
+      "topic": "Event-Driven Architecture",
+      "difficulty": "medium",
+      "prompt": "What does CQRS (Command Query Responsibility Segregation) separate?",
+      "options": [
+        "Reads and writes — one write model and multiple purpose-built read models/projections",
+        "Compute and storage",
+        "Producers and the schema registry",
+        "Batch and streaming engines"
+      ],
+      "answer": 0,
+      "explanation": "CQRS splits the write model from many read models, each optimized for its query pattern (search, analytics, cache). Paired with event sourcing, projections are rebuilt by replaying the event log."
+    },
+    {
+      "id": "tt-040",
+      "type": "single",
+      "topic": "Vector Data Infrastructure",
+      "difficulty": "medium",
+      "prompt": "An approximate-nearest-neighbor (ANN) index such as HNSW or IVF trades off:",
+      "options": [
+        "Color depth vs resolution",
+        "Recall vs latency vs memory",
+        "Rows vs columns",
+        "ACID vs BASE"
+      ],
+      "answer": 1,
+      "explanation": "ANN indexes give up exactness for speed: you tune recall (answer quality) against query latency and memory footprint. Exact nearest-neighbor over millions of vectors is too slow for interactive retrieval."
+    },
+    {
+      "id": "tt-041",
+      "type": "single",
+      "topic": "Vector Data Infrastructure",
+      "difficulty": "medium",
+      "prompt": "What is 'hybrid search' in a retrieval pipeline?",
+      "options": [
+        "Running the query on two clouds at once",
+        "Combining vector (semantic) similarity with keyword/BM25 search, then re-ranking, for better relevance",
+        "Mixing SQL and Python",
+        "Searching both rows and columns"
+      ],
+      "answer": 1,
+      "explanation": "Pure vector recall misses exact-term matches; pure keyword misses semantics. Hybrid search fuses both and re-ranks the candidates — the standard pattern for production RAG relevance."
+    },
+    {
+      "id": "tt-042",
+      "type": "single",
+      "topic": "Data Mesh",
+      "difficulty": "hard",
+      "prompt": "What does 'federated computational governance' mean in a data mesh?",
+      "options": [
+        "A central committee approves every change manually",
+        "Global, automated standards (interop, security, quality) combined with local domain autonomy",
+        "No governance at all",
+        "Each domain invents its own incompatible standards"
+      ],
+      "answer": 1,
+      "explanation": "Federated computational governance sets global, automatically-enforced rules so domain data products interoperate and stay secure, while leaving day-to-day ownership and modeling to the domains. Without it, mesh just becomes silos."
+    }
+  ]
+}

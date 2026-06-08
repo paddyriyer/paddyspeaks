@@ -14,6 +14,7 @@ const SECTIONS = {
   sql:    { slug: "sql",    label: "SQL",            file: "./data/sql.json",    companyFile: "./data/sql-companies.json" },
   python: { slug: "python", label: "Python",         file: "./data/python.json", companyFile: "./data/python-companies.json" },
   design: { slug: "design", label: "Data & System Design", file: "./data/design.json" },
+  topics2026: { slug: "topics2026", label: "2026 Hot Topics", file: "./data/hot-topics-2026.json" },
 };
 
 const params = new URLSearchParams(window.location.search);
