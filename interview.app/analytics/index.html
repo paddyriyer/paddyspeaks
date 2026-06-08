@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics, Dashboard &amp; Optimization — 19 BI Serving-Layer Patterns Used at FAANG · PaddySpeaks Interview Studio</title>
+<meta name="description" content="The serving-layer half of data-engineering performance: how FAANG turns a petabyte warehouse into sub-second dashboards. 19 practical patterns — rollup/aggregate tables, one-big-table marts, aggregate awareness, a semantic/metrics layer, materialized views and result cache, Druid/Pinot/ClickHouse OLAP engines, extracts vs live query, additive metrics and stored HLL sketches, and the dashboard anti-patterns that quietly burn the warehouse. Each an anti-pattern → optimized rewrite.">
+<meta name="keywords" content="analytics engineering, dashboard optimization, BI performance, rollup tables, aggregate table, one big table, OBT, aggregate awareness, semantic layer, metrics layer, materialized view, result cache, BigQuery BI Engine, Apache Druid, Apache Pinot, ClickHouse, Tableau extract, Power BI import vs directquery, additive metrics, HyperLogLog sketch, pre-aggregation, OLAP cube, dashboard concurrency, FAANG analytics interview">
+<meta name="author" content="Padmanabhan Iyer">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://paddyspeaks.com/interview.app/analytics/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Analytics, Dashboard &amp; Optimization — 19 BI Serving-Layer Patterns">
+<meta property="og:description" content="Turn a petabyte warehouse into sub-second dashboards: rollups, one-big-table marts, aggregate awareness, a semantic layer, materialized views, Druid/Pinot/ClickHouse, extracts and additive metrics.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/analytics/">
+<meta property="og:image" content="https://paddyspeaks.com/images/og-default.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="PaddySpeaks">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Analytics, Dashboard &amp; Optimization — 19 Serving-Layer Patterns">
+<meta name="twitter:description" content="Rollups · OBT marts · aggregate awareness · semantic layer · materialized views · Druid/Pinot/ClickHouse · extracts · additive metrics. Anti-pattern → rewrite.">
+<meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","@id":"https://paddyspeaks.com/interview.app/analytics/#article","headline":"Analytics, Dashboard & Optimization — 19 BI Serving-Layer Patterns Used at FAANG","description":"Nineteen practical analytics and dashboard optimization patterns for the serving layer, each presented as an anti-pattern and its optimized rewrite.","author":{"@type":"Person","name":"Padmanabhan Iyer","url":"https://paddyspeaks.com/about.html"},"publisher":{"@type":"Organization","name":"PaddySpeaks","url":"https://paddyspeaks.com/"},"url":"https://paddyspeaks.com/interview.app/analytics/","isPartOf":{"@id":"https://paddyspeaks.com/interview.app/#app"},"keywords":"rollup tables, aggregate awareness, semantic layer, materialized views, OLAP, Druid, Pinot, ClickHouse, additive metrics, dashboard optimization","about":["Analytics Engineering","Dashboard Optimization","Rollup Tables","Aggregate Awareness","Semantic Layer","Materialized Views","OLAP Serving"]},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"PaddySpeaks","item":"https://paddyspeaks.com/"},{"@type":"ListItem","position":2,"name":"Interview Studio","item":"https://paddyspeaks.com/interview.app/"},{"@type":"ListItem","position":3,"name":"Analytics","item":"https://paddyspeaks.com/interview.app/analytics/"}]}]}
+</script>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/studio.css">
+<style>
+/* ---- Analytics-pillar additions (token-driven, dark-aware) ---- */
+.netflix-prep h3.section-head{padding-left:14px;border-left:4px solid var(--accent)}
+.bills-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0 8px}
+.bill-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:18px 20px;box-shadow:var(--shadow)}
+.bill-card .bill-k{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent-2);margin-bottom:6px}
+.bill-card h4{font-family:var(--font-display);font-size:21px;margin:0 0 6px;color:var(--text)}
+.bill-card p{font-size:14px;color:var(--text-2);margin:0;line-height:1.5}
+.fam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:18px 0 8px}
+.fam-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s,box-shadow .15s}
+.fam-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-lg);text-decoration:none}
+.fam-card .fam-n{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--accent-2);text-transform:uppercase}
+.fam-card h4{font-family:var(--font-display);font-size:18px;margin:6px 0 6px;color:var(--text)}
+.fam-card p{font-size:13px;color:var(--text-2);margin:0;line-height:1.45}
+.opt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;margin:26px 0;box-shadow:var(--shadow)}
+.opt-card-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.opt-num{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-2);letter-spacing:1px}
+.opt-card h3.opt-title{font-family:var(--font-display);font-size:23px;font-weight:700;margin:0;color:var(--text);line-height:1.18;border:none;padding:0}
+.opt-tags{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.opt-tag{font-family:var(--font-mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;background:var(--surface-3);color:var(--text-2);padding:3px 8px;border-radius:999px;white-space:nowrap}
+.opt-tag.eng{background:var(--accent-weak);color:var(--accent-2)}
+.opt-scenario{font-size:15px;color:var(--text-2);margin:2px 0 14px;line-height:1.55}
+.opt-scenario .co{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--accent-2);font-weight:700}
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
+.opt-pane{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;display:flex;flex-direction:column}
+.opt-pane-label{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;padding:8px 13px}
+.opt-pane.bad .opt-pane-label{background:var(--trap-bg);color:var(--trap-fg)}
+.opt-pane.good .opt-pane-label{background:var(--note-bg);color:var(--note-fg)}
+.opt-pane pre{margin:0;border:none;border-radius:0;box-shadow:none;flex:1;font-size:12.5px;line-height:1.55}
+.opt-impact{background:var(--note-bg);border-left:4px solid var(--note-fg);padding:11px 16px;border-radius:var(--radius-sm);font-size:14.5px;margin-top:12px;color:var(--text)}
+.opt-impact strong{color:var(--note-fg)}
+.opt-why{font-size:15px;color:var(--text-2);margin:12px 0 0;line-height:1.6}
+.opt-why strong{color:var(--text)}
+.eng-table code{white-space:nowrap}
+@media (max-width:760px){.bills-grid{grid-template-columns:1fr}.opt-grid{grid-template-columns:1fr}}
+.ornament{text-align:center;color:var(--muted);letter-spacing:.8em;margin:44px 0;font-size:18px}
+</style>
+<script>try{var t=localStorage.getItem('ps-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body id="top" class="studio-skin">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="../../" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+  <div class="top-bar-links">
+    <a href="../">Practice · Q&amp;A</a>
+    <a href="../design/">Design</a>
+    <a href="../performance/">Performance</a>
+    <a href="./" aria-current="page" style="font-weight:700;">Analytics</a>
+    <a href="../evaluate/">Skill Check</a>
+    <a href="../sql.html">SQL Playground</a>
+    <a href="../python.html">Python Playground</a>
+  </div>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="../" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="../design/" style="color:#64748b;text-decoration:none;">Design</a>
+    <a href="../performance/" style="color:#64748b;text-decoration:none;">Performance</a>
+    <a href="./" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid var(--accent);padding-bottom:2px;">Analytics</a>
+    <span style="margin-left:auto;color:#a8a29e;font-size:10px;">paddyspeaks.com/interview.app/analytics/</span>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ ANALYTICS · the serving layer · petabyte warehouse → sub-second dashboard</div>
+<h1 class="hero-title">Analytics, Dashboard &amp; Optimization.</h1>
+<p class="hero-sub">The <a href="../performance/">Performance</a> pillar makes one petabyte query cheap. This pillar is the other half of the job: turning that warehouse into a <strong>sub-second, hundred-viewer dashboard</strong> that doesn't reprice itself every refresh. Nineteen patterns across modelling for the dashboard, accelerating the serve, restraining the dashboard itself, and the analytics-correctness traps that make a chart quietly lie.</p>
+
+<div class="callout">
+  <strong>The mental model — a dashboard is a latency budget you spend three ways.</strong> Every panel that loads in 300&nbsp;ms instead of 30&nbsp;s did one of three things: it <em>pre-computed</em> the answer before you asked, it <em>served</em> the answer from something faster than a warehouse scan, or it simply <em>asked for less</em>. The fourth concern is correctness: a fast dashboard that lies is worse than a slow one.
+</div>
+
+<div class="bills-grid">
+  <div class="bill-card">
+    <div class="bill-k">Lever №1 · Model</div>
+    <h4>Pre-compute it</h4>
+    <p>Rollups, one-big-table marts, aggregate awareness and a semantic layer — so the dashboard reads a small table instead of scanning raw events at view time.</p>
+  </div>
+  <div class="bill-card">
+    <div class="bill-k">Lever №2 · Serve</div>
+    <h4>Accelerate it</h4>
+    <p>Materialized views, result cache, extracts and purpose-built OLAP engines (Druid / Pinot / ClickHouse) for interactive latency at high concurrency.</p>
+  </div>
+  <div class="bill-card">
+    <div class="bill-k">Lever №3 · Restrain</div>
+    <h4>Ask for less</h4>
+    <p>Bounded default windows, filter-aligned partitioning, lazy tiles and caching — the dashboard shouldn't fire thirty "all-time" queries on first paint.</p>
+  </div>
+</div>
+
+<p style="margin-top:18px;">…plus a fourth, non-negotiable concern — <strong>don't let the chart lie.</strong> Averages over skewed data, non-additive metrics rolled up wrong, and a half-loaded latest partition are the ways a fast dashboard ships a confident, wrong number.</p>
+
+<h4 class="sub-head" style="margin-top:30px;">Serving-layer cheatsheet — same need, different stacks</h4>
+<table class="eng-table">
+<thead><tr><th>Need</th><th>Snowflake</th><th>BigQuery</th><th>Databricks / Spark</th><th>Real-time OLAP</th></tr></thead>
+<tbody>
+<tr><td>Pre-aggregate</td><td>materialized view / table</td><td>materialized view</td><td>gold table / DLT</td><td>Druid / Pinot rollup</td></tr>
+<tr><td>Instant repeat query</td><td>result cache (24h)</td><td>cached results</td><td>Delta / disk cache</td><td>broker cache</td></tr>
+<tr><td>Sub-second @ concurrency</td><td>multi-cluster warehouse</td><td>BI Engine</td><td>SQL warehouse + Photon</td><td>Druid / Pinot / ClickHouse</td></tr>
+<tr><td>BI extract</td><td>—</td><td>BI Engine</td><td>—</td><td>Tableau Hyper · Power BI import</td></tr>
+<tr><td>Approx distinct</td><td><code>APPROX_COUNT_DISTINCT</code></td><td><code>APPROX_COUNT_DISTINCT</code></td><td><code>approx_count_distinct</code></td><td>Theta / HLL sketch</td></tr>
+<tr><td>Semantic layer</td><td>—</td><td>—</td><td>Unity metric views</td><td>dbt / Looker / Cube</td></tr>
+</tbody>
+</table>
+
+<div class="toc">
+<h4>The four levers</h4>
+<ol>
+  <li><a href="#fam-a">Model for the dashboard — pre-compute everything</a> <span style="color:var(--text-3)">(№1–5)</span></li>
+  <li><a href="#fam-b">Accelerate the serve — MVs, cache, OLAP engines</a> <span style="color:var(--text-3)">(№6–10)</span></li>
+  <li><a href="#fam-c">Restrain the dashboard — ask for less</a> <span style="color:var(--text-3)">(№11–15)</span></li>
+  <li><a href="#fam-d">Don't let the chart lie — analytics correctness</a> <span style="color:var(--text-3)">(№16–19)</span></li>
+</ol>
+</div>
+
+<div class="fam-grid">
+  <a class="fam-card" href="#fam-a"><div class="fam-n">Lever A · model</div><h4>Pre-compute everything</h4><p>Rollup tables, one-big-table marts, aggregate awareness, a semantic layer, and additive metrics that roll up correctly.</p></a>
+  <a class="fam-card" href="#fam-b"><div class="fam-n">Lever B · serve</div><h4>Accelerate the serve</h4><p>Materialized views + result cache, real-time OLAP engines, BI extracts, incremental refresh, and approximate counters.</p></a>
+  <a class="fam-card" href="#fam-c"><div class="fam-n">Lever C · restrain</div><h4>Ask for less</h4><p>Bounded windows, filter-aligned partitioning, concurrency caching, lazy tiles, and killing the 50k-row table widget.</p></a>
+  <a class="fam-card" href="#fam-d"><div class="fam-n">Lever D · correctness</div><h4>Don't lie</h4><p>Mean vs median on skew, time zones &amp; late data, non-additive ratios, and labelling the approximate panels.</p></a>
+</div>
+
+<!-- ============================================================ FAMILY A ============================================================ -->
+<section id="fam-a">
+<div class="part-eyebrow">§ Lever A — model for the dashboard · pre-compute everything</div>
+<h2 class="part-title">The answer should exist before the question.</h2>
+<p>The single biggest determinant of dashboard speed isn't the BI tool or the warehouse size — it's whether the panel reads a <em>pre-aggregated table</em> or scans raw events. Every pattern here moves work out of view-time and into a scheduled job that runs once.</p>
+
+<div class="opt-card" id="opt-1">
+<div class="opt-card-head"><span class="opt-num">№ 01</span><h3 class="opt-title">Dashboards read rollup tables, never raw events</h3><div class="opt-tags"><span class="opt-tag">rollup / aggregate table</span><span class="opt-tag eng">all warehouses</span></div></div>
+<p class="opt-scenario"><span class="co">Spotify</span> — a "streams per day, last 90 days" tile wired straight to the raw play-events firehose, re-scanned on every load by every viewer.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — view-time scan of raw</div><pre><code>-- the panel's query, run on every page load:
+SELECT ds, COUNT(*) AS streams
+FROM   play_events            -- billions of rows/day
+WHERE  ds &gt;= DATEADD(day,-90,CURRENT_DATE)
+GROUP BY ds;</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — read the daily rollup</div><pre><code>-- scheduled once/day: agg_streams_daily (1 row/day/dim)
+INSERT INTO agg_streams_daily
+SELECT ds, country, COUNT(*) streams, ...
+FROM play_events WHERE ds = CURRENT_DATE GROUP BY ds, country;
+-- the panel now scans ~90 rows:
+SELECT ds, SUM(streams) FROM agg_streams_daily
+WHERE ds &gt;= DATEADD(day,-90,CURRENT_DATE) GROUP BY ds;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A dashboard is read hundreds of times between data refreshes, so paying the scan once in a scheduled job and serving everyone from a one-row-per-day×dimension table is the highest-leverage move in all of analytics. Keep a small ladder of grains (hourly → daily → monthly) and point each panel at the coarsest one that answers it.</p>
+<div class="opt-impact"><strong>Impact:</strong> billions of rows scanned per load → ~90 rows; warehouse spend on that tile drops by 3–4 orders of magnitude.</div>
+</div>
+
+<div class="opt-card" id="opt-2">
+<div class="opt-card-head"><span class="opt-num">№ 02</span><h3 class="opt-title">Pre-join a one-big-table mart so the dashboard never joins</h3><div class="opt-tags"><span class="opt-tag">OBT · denormalization</span><span class="opt-tag eng">all warehouses</span></div></div>
+<p class="opt-scenario"><span class="co">Airbnb</span> — a bookings dashboard whose every filter triggers a 6-table star-schema join at query time, multiplied across panels.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — join the star at view time</div><pre><code>SELECT d.market, l.room_type, SUM(f.gbv)
+FROM   fact_bookings f
+JOIN dim_listing  l ON l.listing_id = f.listing_id
+JOIN dim_market   d ON d.market_id  = l.market_id
+JOIN dim_date     dt ON dt.ds = f.ds
+JOIN dim_guest    g ON g.guest_id = f.guest_id
+... GROUP BY 1,2;   -- every panel re-runs the joins</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — read one wide mart</div><pre><code>-- built once in ELT: bookings_obt has the dims'
+-- attributes denormalized onto each fact row.
+SELECT market, room_type, SUM(gbv)
+FROM   bookings_obt
+WHERE  ds BETWEEN :start AND :end
+GROUP BY market, room_type;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Star schemas are the right <em>storage</em> model, but joins are the most expensive thing a dashboard does repeatedly. Flattening the hot dimensions onto the fact in an ELT step (a "one big table") trades a little storage and refresh cost for join-free reads — and columnar compression makes the duplicated dimension values nearly free. The semantic layer (№4) can still present it as a clean star.</p>
+<div class="opt-impact"><strong>Impact:</strong> N panels × a 6-way join per refresh → a single wide scan; the most common cause of a "slow dashboard, idle warehouse… then a spike."</div>
+</div>
+
+<div class="opt-card" id="opt-3">
+<div class="opt-card-head"><span class="opt-num">№ 03</span><h3 class="opt-title">Aggregate awareness — route each query to the smallest table that answers it</h3><div class="opt-tags"><span class="opt-tag">aggregate navigation</span><span class="opt-tag eng">Looker · Cube · dbt</span></div></div>
+<p class="opt-scenario"><span class="co">Uber</span> — the same metric is asked at city-month, country-week and global-day granularity; one table can't be optimal for all three.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — one grain for everything</div><pre><code>-- every query hits the finest table (trip-level)
+-- even when it only needs country-month totals,
+-- OR analysts hard-code which rollup to use and
+-- the wiring rots as rollups change.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — let the layer pick the rollup</div><pre><code># Cube / Looker style: declare rollups; the
+# query planner rewrites to the coarsest match.
+pre_aggregations:
+  by_country_month: {measures: [gbv], dimensions: [country],
+                     granularity: month}
+  by_city_day:      {measures: [gbv], dimensions: [city],
+                     granularity: day}
+# a country-month question auto-routes to by_country_month</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Aggregate awareness (Looker's <code>aggregate_awareness</code>, Cube pre-aggregations, Mondrian agg tables) lets you define a hierarchy of rollups and have the BI layer automatically rewrite each query to the smallest pre-aggregation that can answer it — transparently falling back to raw for unusual cuts. Analysts write one logical query; the engine routes it.</p>
+<div class="opt-impact"><strong>Impact:</strong> coarse questions hit kilobyte tables, fine questions still work — without analysts hand-picking the source.</div>
+</div>
+
+<div class="opt-card" id="opt-4">
+<div class="opt-card-head"><span class="opt-num">№ 04</span><h3 class="opt-title">A semantic layer — define each metric once</h3><div class="opt-tags"><span class="opt-tag">metrics / semantic layer</span><span class="opt-tag eng">dbt · LookML · Cube</span></div></div>
+<p class="opt-scenario"><span class="co">Meta</span> — five teams each hand-write "active user," with subtly different filters, and three dashboards disagree by 4% in the same all-hands.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — metric re-defined per dashboard</div><pre><code>-- dashboard A
+COUNT(DISTINCT CASE WHEN events &gt; 0 THEN user_id END)
+-- dashboard B (forgot the bot filter)
+COUNT(DISTINCT user_id)
+-- dashboard C (different session window)
+COUNT(DISTINCT CASE WHEN session_min &gt;= 1 THEN user_id END)</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — one governed definition</div><pre><code># semantic_model.yml — defined once, reused everywhere
+metrics:
+  - name: weekly_active_users
+    label: WAU
+    calculation: count_distinct(user_id)
+    filter: "is_bot = false AND events &gt; 0"
+# every dashboard references metric('weekly_active_users')</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A semantic/metrics layer makes the metric definition a single governed object that every tool consumes, so the numbers reconcile by construction. It also centralises the join paths and rollup routing — which means the performance wins of №1–3 are applied <em>once</em> and inherited by every dashboard instead of re-litigated in each.</p>
+<div class="opt-impact"><strong>Impact:</strong> dashboards stop disagreeing; one change to the definition propagates everywhere; "whose number is right?" stops being a meeting.</div>
+</div>
+
+<div class="opt-card" id="opt-5">
+<div class="opt-card-head"><span class="opt-num">№ 05</span><h3 class="opt-title">Store sketches, not counts — so distinct metrics stay roll-up-able</h3><div class="opt-tags"><span class="opt-tag">additivity · HLL sketch</span><span class="opt-tag eng">Snowflake · BQ · Druid</span></div></div>
+<p class="opt-scenario"><span class="co">Reddit</span> — a rollup stores <code>daily_distinct_users</code> as an integer, then a PM asks for the monthly distinct and the dashboard "helpfully" sums 30 days of it.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — sum of daily distincts (wrong)</div><pre><code>-- agg_daily.dau is an INT count of distinct users
+SELECT SUM(dau) AS "MAU"      -- ❌ double-counts
+FROM   agg_daily              -- anyone active on
+WHERE  month = '2024-01';     -- 5 days counts 5×</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — store a mergeable HLL sketch</div><pre><code>-- agg_daily.dau_hll holds a HyperLogLog sketch
+SELECT HLL_ESTIMATE(HLL_COMBINE(dau_hll)) AS mau
+FROM   agg_daily
+WHERE  month = '2024-01';
+-- sketches MERGE across any window → correct MAU,
+-- L7, L28, quarter — all without rescanning raw.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Sums, counts and min/max are additive — you can roll them up freely. <em>Distinct counts are not</em>, and pre-aggregating them as integers bakes in a double-counting bug. Storing a HyperLogLog sketch instead keeps the metric mergeable: any time window is a union of sketches, so the rollup stays both correct and cheap. (Same engine as Performance №14, used here to keep the serving layer honest.)</p>
+<div class="opt-impact"><strong>Impact:</strong> distinct-user metrics become rollup-safe at every grain — no raw rescans, no silent over-count.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY B ============================================================ -->
+<section id="fam-b">
+<div class="part-eyebrow">§ Lever B — accelerate the serve · faster than a warehouse scan</div>
+<h2 class="part-title">When pre-aggregation isn't enough, change the engine.</h2>
+<p>Some dashboards are interactive (slice, drill, filter) or high-concurrency (an exec floor at 9am Monday) and even a rollup scan on a warehouse is too slow. These patterns put a faster serving tier in front of the data.</p>
+
+<div class="opt-card" id="opt-6">
+<div class="opt-card-head"><span class="opt-num">№ 06</span><h3 class="opt-title">Materialized views + result cache for repeated queries</h3><div class="opt-tags"><span class="opt-tag">materialized view · cache</span><span class="opt-tag eng">Snowflake · BQ · Redshift</span></div></div>
+<p class="opt-scenario"><span class="co">Salesforce</span> — a heavy aggregate behind a popular tile, recomputed from scratch for every viewer although the underlying data changes hourly.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — recompute per view</div><pre><code>-- complex GROUP BY over a large base table,
+-- executed fresh on every dashboard open even
+-- though inputs only change once an hour.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — materialize + let cache serve</div><pre><code>CREATE MATERIALIZED VIEW mv_kpi AS
+SELECT region, ds, SUM(amount) amt, COUNT(*) n
+FROM base GROUP BY region, ds;
+-- MV auto-maintains incrementally; identical
+-- repeat queries also return from the result
+-- cache instantly until the data changes.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A materialized view persists the aggregate and (on Snowflake/BigQuery/Redshift) maintains it incrementally as the base changes, so viewers read a small, current result. The warehouse result cache stacks on top: byte-identical repeat queries return with zero compute until the inputs change. Together they absorb the "everyone opens the same dashboard" load.</p>
+<div class="opt-impact"><strong>Impact:</strong> the first viewer pays; the next hundred are served from MV + cache for ~free until the next data load.</div>
+</div>
+
+<div class="opt-card" id="opt-7">
+<div class="opt-card-head"><span class="opt-num">№ 07</span><h3 class="opt-title">Put a real-time OLAP engine in front for sub-second @ high concurrency</h3><div class="opt-tags"><span class="opt-tag">Druid · Pinot · ClickHouse</span><span class="opt-tag eng">serving store</span></div></div>
+<p class="opt-scenario"><span class="co">LinkedIn / Uber</span> — a member-facing "who viewed your profile / trips this week" analytics surface: thousands of concurrent users, &lt;200&nbsp;ms expected, fresh to the minute. A batch warehouse can't do this.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — interactive app on a batch warehouse</div><pre><code>-- every user request fires a warehouse query;
+-- queue depth explodes at concurrency, p99 is
+-- seconds, and freshness lags the batch job.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — pre-aggregated columnar OLAP tier</div><pre><code>-- ingest the stream into Druid/Pinot/ClickHouse:
+--  • rollup at ingestion (pre-aggregated segments)
+--  • columnar + inverted/bitmap indexes
+--  • scatter-gather across data nodes
+-- the app queries the OLAP store, not the warehouse:
+SELECT dim, SUM(metric) FROM events_realtime
+WHERE ts &gt; now() - INTERVAL '7' DAY GROUP BY dim;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Druid, Pinot and ClickHouse are built for exactly this: roll-up at ingestion, columnar segments with bitmap/inverted indexes, and scatter-gather execution tuned for many small concurrent aggregations with sub-second p99. They ingest from Kafka for minute-fresh data. It's the standard pattern when a dashboard is really a <em>product surface</em>, not an internal report.</p>
+<div class="opt-impact"><strong>Impact:</strong> seconds-and-queueing → sub-200&nbsp;ms at thousands of QPS, minute-fresh — latency a warehouse fundamentally can't hit at that concurrency.</div>
+</div>
+
+<div class="opt-card" id="opt-8">
+<div class="opt-card-head"><span class="opt-num">№ 08</span><h3 class="opt-title">Extract vs live connection — cache the data next to the BI tool</h3><div class="opt-tags"><span class="opt-tag">extract · import mode</span><span class="opt-tag eng">Tableau · Power BI</span></div></div>
+<p class="opt-scenario"><span class="co">Walmart</span> — a Tableau workbook on a live warehouse connection where every filter click round-trips a fresh query, and 300 analysts do it all day.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — live query on every interaction</div><pre><code>-- LIVE connection: each filter/drill = a new
+-- warehouse query. Interactive latency is at the
+-- mercy of warehouse load; cost scales with clicks.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — columnar extract as a cache</div><pre><code>-- Tableau Hyper extract / Power BI Import:
+--  • a compressed columnar snapshot lives with the
+--    BI engine; interactions hit RAM, not the WH
+--  • scheduled refresh keeps it current
+--  • filter to the needed rows/cols at extract time
+-- use LIVE/DirectQuery only when true real-time
+-- freshness is the requirement.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A Tableau Hyper extract or Power BI import is a purpose-built columnar cache sitting next to the BI engine — interactions resolve in memory instead of round-tripping to the warehouse, which is both faster and dramatically cheaper. Reserve live/DirectQuery for genuinely real-time needs, and even then back it with aggregate awareness. Extract only the fields and grain the workbook uses (never <code>SELECT *</code>).</p>
+<div class="opt-impact"><strong>Impact:</strong> interaction latency decouples from warehouse load; the per-click warehouse bill goes to roughly zero.</div>
+</div>
+
+<div class="opt-card" id="opt-9">
+<div class="opt-card-head"><span class="opt-num">№ 09</span><h3 class="opt-title">Refresh extracts and MVs incrementally, not full-rebuild</h3><div class="opt-tags"><span class="opt-tag">incremental refresh</span><span class="opt-tag eng">Power BI · dbt · MVs</span></div></div>
+<p class="opt-scenario"><span class="co">Datadog</span> — a 2-year extract behind a usage dashboard, fully rebuilt every hour because "refresh" was left on the default.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — full refresh of all history</div><pre><code>-- hourly job re-reads and re-loads 730 days of
+-- data to pick up the last hour of changes.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — only the changed window</div><pre><code>-- Power BI incremental refresh policy:
+--   archive &gt; 2 years, refresh last 3 days
+-- dbt incremental model:
+{{ config(materialized='incremental') }}
+SELECT ... FROM events
+{% if is_incremental() %}
+  WHERE ds &gt; (SELECT MAX(ds) FROM {{ this }})
+{% endif %}</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> The same "compute once" discipline from the Performance pillar (№23–24) applied to the serving layer: partition the extract/MV by date and refresh only the recent, mutable window — archiving the stable history. Refresh cost scales with new data, not total history, so the hourly job stays flat as the dataset grows.</p>
+<div class="opt-impact"><strong>Impact:</strong> an hourly refresh that read 730 days now reads ~3; refresh time and cost stop growing with the table.</div>
+</div>
+
+<div class="opt-card" id="opt-10">
+<div class="opt-card-head"><span class="opt-num">№ 10</span><h3 class="opt-title">Approximate counters for the headline tiles</h3><div class="opt-tags"><span class="opt-tag">approximate analytics</span><span class="opt-tag eng">all warehouses</span></div></div>
+<p class="opt-scenario"><span class="co">TikTok</span> — a real-time "unique viewers" big-number tile recomputing an exact <code>COUNT(DISTINCT)</code> over the live firehose every few seconds.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — exact distinct for a glanceable KPI</div><pre><code>SELECT COUNT(DISTINCT viewer_id) AS unique_viewers
+FROM   live_views;        -- exact, expensive, and
+                          -- nobody reads the last 3 digits
+                          -- of a 14,237,1•• counter.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — approximate for the headline</div><pre><code>SELECT APPROX_COUNT_DISTINCT(viewer_id) AS unique_viewers
+FROM   live_views;        -- ~1–2% error, a fraction
+                          -- of the cost; exact reserved
+                          -- for billing/export drill-downs.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A headline counter is read at a glance — 14.2M vs 14,237,104 changes no decision, so paying for exactness is pure waste. Approximate distinct/percentile (HLL, t-digest) give the number in a fraction of the cost and memory. Keep exact computation for the places that legally require it — billing, finance, compliance exports.</p>
+<div class="opt-impact"><strong>Impact:</strong> the most-viewed tiles get cheap and fast; exactness is spent only where it actually matters.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY C ============================================================ -->
+<section id="fam-c">
+<div class="part-eyebrow">§ Lever C — restrain the dashboard · ask for less</div>
+<h2 class="part-title">The cheapest query is the one the dashboard never fires.</h2>
+<p>A lot of dashboard cost is self-inflicted by the dashboard's own defaults — unbounded windows, filters that don't prune, and a wall of panels that all fire on first paint. These patterns are about the dashboard asking the warehouse for less in the first place.</p>
+
+<div class="opt-card" id="opt-11">
+<div class="opt-card-head"><span class="opt-num">№ 11</span><h3 class="opt-title">Bounded default window + lazy-loaded tiles</h3><div class="opt-tags"><span class="opt-tag">default window · lazy load</span><span class="opt-tag eng">BI layer</span></div></div>
+<p class="opt-scenario"><span class="co">GitHub</span> — a 30-panel dashboard that defaults to "all time" and fires all 30 queries the instant it opens, including tiles below the fold nobody scrolls to.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — all-time, all-at-once</div><pre><code>-- default range: since the beginning of time
+WHERE ds &gt;= '2015-01-01'
+-- and 30 panels issue their queries on page load,
+-- 25 of them never scrolled into view.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — bounded default + on-demand</div><pre><code>-- default to the window people actually look at:
+WHERE ds &gt;= DATEADD(day,-28,CURRENT_DATE)
+-- render above-the-fold tiles first; defer the
+-- rest until scrolled/expanded; let users opt in
+-- to longer ranges explicitly.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Most dashboard views only need a recent window, and most panels are never looked at in a given session. A sensible bounded default plus lazy tile loading turns a 30-query thundering herd on every open into a handful of small, recent-window queries — which also prune partitions cleanly. Longer ranges become an explicit, infrequent choice.</p>
+<div class="opt-impact"><strong>Impact:</strong> queries per open drop from 30 to ~5, each scanning a recent slice instead of all history.</div>
+</div>
+
+<div class="opt-card" id="opt-12">
+<div class="opt-card-head"><span class="opt-num">№ 12</span><h3 class="opt-title">Align partition &amp; cluster keys to the dashboard's filters</h3><div class="opt-tags"><span class="opt-tag">filter-aligned layout</span><span class="opt-tag eng">all warehouses</span></div></div>
+<p class="opt-scenario"><span class="co">Stripe</span> — every dashboard filters by <code>merchant_id</code> and date, but the serving table is partitioned only by date, so the merchant filter scans every file in the range.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — layout ignores the filters</div><pre><code>-- table partitioned by ds only; merchant scattered.
+SELECT ... FROM payments_mart
+WHERE ds &gt;= :start AND merchant_id = :m;
+-- merchant_id = :m touches every file in the date
+-- range — no skipping on the most-used filter.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — cluster on the hot filter</div><pre><code>-- Snowflake: CLUSTER BY (ds, merchant_id)
+-- BigQuery:  PARTITION BY ds CLUSTER BY merchant_id
+-- Delta:     OPTIMIZE ... ZORDER BY (merchant_id)
+-- now merchant_id prunes via min/max stats and the
+-- dashboard's most common filter skips most files.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> The serving table should be physically organised around how the dashboard actually filters. Partition by the coarse time dimension, cluster/Z-order by the high-selectivity filter columns (merchant, account, country), and every interactive filter prunes instead of scans. This is Performance №26 applied with the dashboard's <code>WHERE</code> clause as the design input.</p>
+<div class="opt-impact"><strong>Impact:</strong> the most-used filter goes from "scan the whole date range" to "skip to the matching files."</div>
+</div>
+
+<div class="opt-card" id="opt-13">
+<div class="opt-card-head"><span class="opt-num">№ 13</span><h3 class="opt-title">Survive concurrency with caching + elastic warehouses</h3><div class="opt-tags"><span class="opt-tag">concurrency · autoscale</span><span class="opt-tag eng">Snowflake · BQ</span></div></div>
+<p class="opt-scenario"><span class="co">Atlassian</span> — Monday 9am, 500 people open the same exec dashboard in five minutes; the warehouse queues and everyone watches spinners.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — 500 identical live queries</div><pre><code>-- single-cluster warehouse; 500 concurrent runs of
+-- the same uncached aggregate queue behind each
+-- other → p99 measured in minutes.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — serve from cache, scale out the rest</div><pre><code>-- 1) MV + result cache so identical queries don't
+--    recompute (see №6) — most of the 500 are cache hits
+-- 2) multi-cluster / autoscaling warehouse for the
+--    concurrent misses:
+ALTER WAREHOUSE bi SET MIN_CLUSTER_COUNT=1
+  MAX_CLUSTER_COUNT=10 SCALING_POLICY='STANDARD';
+-- 3) BigQuery: a BI Engine reservation for the dash.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> High-concurrency spikes are a different problem from slow queries — the fix is to (a) make most requests cache hits so they never touch compute, and (b) let the remainder fan out across auto-added clusters instead of queueing. The combination handles the Monday-morning herd without permanently over-provisioning a giant warehouse that sits idle the rest of the week.</p>
+<div class="opt-impact"><strong>Impact:</strong> the herd is mostly cache hits; the rest scale out and back in — interactive latency holds, idle cost doesn't.</div>
+</div>
+
+<div class="opt-card" id="opt-14">
+<div class="opt-card-head"><span class="opt-num">№ 14</span><h3 class="opt-title">Don't render a 50,000-row table widget</h3><div class="opt-tags"><span class="opt-tag">viz cardinality</span><span class="opt-tag eng">BI layer</span></div></div>
+<p class="opt-scenario"><span class="co">Shopify</span> — a "detail" tab is a raw table widget returning every transaction, so the warehouse ships 50k rows and the browser chokes rendering them.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — dump everything into a grid</div><pre><code>SELECT * FROM transactions
+WHERE ds &gt;= :start;     -- 50k+ rows to a table viz
+-- huge result transfer, slow render, and no human
+-- reads a 50,000-row on-screen table anyway.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — aggregate, top-N, paginate, export</div><pre><code>-- show the aggregate the chart actually needs:
+SELECT category, SUM(amount) FROM transactions
+WHERE ds &gt;= :start GROUP BY category ORDER BY 2 DESC LIMIT 50;
+-- row-level detail → a paginated drill-down or a
+-- "download CSV" that runs an async export job.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A visualization should return what a human can perceive — a few dozen bars, a ranked top-N, a trend line. Massive table widgets pay twice: a large result transfer from the warehouse and an expensive client-side render. Aggregate or top-N for the on-screen view, and route true row-level needs to pagination or an async export.</p>
+<div class="opt-impact"><strong>Impact:</strong> result size drops from tens of thousands of rows to dozens; the panel renders instantly.</div>
+</div>
+
+<div class="opt-card" id="opt-15">
+<div class="opt-card-head"><span class="opt-num">№ 15</span><h3 class="opt-title">Cache with a TTL tied to the data-freshness SLA</h3><div class="opt-tags"><span class="opt-tag">caching · warm-up</span><span class="opt-tag eng">BI layer</span></div></div>
+<p class="opt-scenario"><span class="co">Pinterest</span> — a dashboard fed by an hourly pipeline, but with caching off, so it recomputes continuously to show numbers that only change once an hour.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — recompute faster than data changes</div><pre><code>-- cache disabled / 0s TTL: the dashboard recomputes
+-- on every interaction even though the source only
+-- lands new data once per hour.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — TTL = freshness, scheduled warm-up</div><pre><code>-- cache TTL set to the pipeline cadence (e.g. 1h);
+-- a scheduled "warm-up" runs the heavy queries right
+-- AFTER each load so the first human always hits a
+-- warm cache. Invalidate on load completion, not by
+-- a guessed timer.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> There's no value in recomputing a number more often than its inputs change. Setting the cache TTL to the data-freshness SLA, and warming the cache immediately after each pipeline load, means viewers almost always hit a fresh cache and the warehouse runs the heavy query once per load instead of once per click. Best of all is event-driven invalidation keyed to load completion.</p>
+<div class="opt-impact"><strong>Impact:</strong> the expensive query runs ~once per data load, not once per interaction; every viewer still sees current numbers.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY D ============================================================ -->
+<section id="fam-d">
+<div class="part-eyebrow">§ Lever D — don't let the chart lie · analytics correctness</div>
+<h2 class="part-title">A fast dashboard that's wrong is the worst kind.</h2>
+<p>Optimization isn't only about speed — a pre-aggregated, cached, sub-second panel that shows a confidently wrong number does real damage. These four patterns are the correctness traps that the serving layer specifically introduces.</p>
+
+<div class="opt-card" id="opt-16">
+<div class="opt-card-head"><span class="opt-num">№ 16</span><h3 class="opt-title">Mean lies on skewed data — show median / percentiles</h3><div class="opt-tags"><span class="opt-tag">distribution</span><span class="opt-tag eng">analytics</span></div></div>
+<p class="opt-scenario"><span class="co">DoorDash</span> — an "average order value" KPI that a handful of catering whales drag 30% above what any typical customer ever spends.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — a single mean on a long tail</div><pre><code>SELECT AVG(order_value) AS "Typical order"
+FROM   orders;        -- one $9,000 catering order
+                      -- per 1,000 lifts the "average"
+                      -- away from reality.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — median + percentile spread</div><pre><code>SELECT APPROX_PERCENTILE(order_value,0.50) AS p50,
+       APPROX_PERCENTILE(order_value,0.90) AS p90,
+       AVG(order_value)                    AS mean
+FROM   orders;        -- show p50 as "typical", and
+                      -- the p50-vs-mean gap reveals skew.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> On the heavy-tailed distributions that dominate real business data, the mean is pulled toward the whales and misrepresents the typical case. Lead with the median, show a percentile spread, and consider a log scale for whale-heavy charts. The gap between mean and median is itself the skew signal. (Vocabulary on the <a href="../design/skew-and-distributions.html">Skew &amp; Distributions</a> page.)</p>
+<div class="opt-impact"><strong>Impact:</strong> the KPI reflects the typical customer instead of being silently governed by the top 0.1%.</div>
+</div>
+
+<div class="opt-card" id="opt-17">
+<div class="opt-card-head"><span class="opt-num">№ 17</span><h3 class="opt-title">Time zones &amp; late data — define "today" and don't plot a half-loaded partition</h3><div class="opt-tags"><span class="opt-tag">as-of correctness</span><span class="opt-tag eng">analytics</span></div></div>
+<p class="opt-scenario"><span class="co">Netflix</span> — a global daily-active chart whose latest bar craters every morning, sparking a false-alarm Slack thread, because today's partition is only partly loaded and "day" is in UTC for a US-centric audience.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — naive latest day, ambiguous TZ</div><pre><code>SELECT ds, COUNT(*) FROM events GROUP BY ds;
+-- today's bar is partial (data still arriving) and
+-- "ds" is UTC, so the curve dips every morning and
+-- is shifted vs the users' local day.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — complete days, explicit TZ</div><pre><code>SELECT DATE(ts AT TIME ZONE 'America/Los_Angeles') AS day,
+       COUNT(*)
+FROM   events
+WHERE  ts &lt; DATE_TRUNC('day', CURRENT_TIMESTAMP)  -- exclude
+GROUP BY 1;                                       -- partial today
+-- or mark the in-progress day as provisional in the viz.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Two classic dashboard lies: plotting an incomplete current partition as if it were a finished day, and aggregating by an implicit UTC "day" that doesn't match how the business thinks about time. Excluding (or visibly flagging) the in-progress day kills the daily false-drop, and converting to a declared business time zone makes day-over-day comparisons honest.</p>
+<div class="opt-impact"><strong>Impact:</strong> no more morning false-alarms; day boundaries match the business, and trends are comparable.</div>
+</div>
+
+<div class="opt-card" id="opt-18">
+<div class="opt-card-head"><span class="opt-num">№ 18</span><h3 class="opt-title">Never pre-aggregate a ratio — store numerator and denominator</h3><div class="opt-tags"><span class="opt-tag">non-additive metrics</span><span class="opt-tag eng">analytics</span></div></div>
+<p class="opt-scenario"><span class="co">Robinhood</span> — a rollup stores <code>conversion_rate</code> per day, and a weekly tile averages the seven daily rates, producing a number that's mathematically wrong.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — average of daily rates</div><pre><code>-- agg_daily.conv_rate = conversions/visits per day
+SELECT AVG(conv_rate) AS weekly_rate   -- ❌ a day with
+FROM   agg_daily                       -- 2 visits counts
+WHERE  week = :w;                      -- as much as one
+                                       -- with 2,000,000.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — keep the additive parts</div><pre><code>-- store conversions and visits (both additive):
+SELECT SUM(conversions) * 1.0 / SUM(visits) AS weekly_rate
+FROM   agg_daily
+WHERE  week = :w;       -- ratio computed at read time
+                        -- from rolled-up components.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Ratios, rates and averages are <em>not</em> additive — you can't sum or average them across grains without weighting. The rule is to pre-aggregate only additive components (numerator and denominator, sums and counts) and compute the ratio at read time. Same family as storing sketches instead of distinct counts (№5): keep the building blocks, derive the metric.</p>
+<div class="opt-impact"><strong>Impact:</strong> rates and averages roll up correctly to any grain; the weekly number stops being a meaningless average-of-averages.</div>
+</div>
+
+<div class="opt-card" id="opt-19">
+<div class="opt-card-head"><span class="opt-num">№ 19</span><h3 class="opt-title">Label the approximate &amp; sampled panels</h3><div class="opt-tags"><span class="opt-tag">disclosure · trust</span><span class="opt-tag eng">analytics</span></div></div>
+<p class="opt-scenario"><span class="co">Coinbase</span> — finance pulls a "total settled volume" number off a dashboard tile that's quietly powered by <code>APPROX_COUNT_DISTINCT</code> and a 1% sample, and reconciliation later disagrees by 1.5%.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — approximate dressed as exact</div><pre><code>-- tile shows "Settled volume: 14,237,104" but it's
+-- really a sampled/approximate estimate. Someone
+-- treats it as the book of record.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — disclose &amp; route exactness</div><pre><code>-- label it: "≈ 14.2M (approx, ±2%)"
+-- approximate/sampled → exploration &amp; glance KPIs
+-- exact, un-sampled query → the path used for
+--   billing, finance, compliance and any export.
+-- one click from the tile to the exact drill-down.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Approximation (№10) and sampling are the right call for speed — but only if consumers know which numbers are estimates. Visibly labelling approximate/sampled panels and routing finance-grade questions to an exact, un-sampled path preserves both speed <em>and</em> trust. The failure mode isn't the approximation; it's an estimate masquerading as the source of truth.</p>
+<div class="opt-impact"><strong>Impact:</strong> fast approximate tiles for everyday use, an audited exact path where it counts, and nobody reconciles against the wrong one.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<section id="closing">
+<div class="part-eyebrow">§ The 60-second articulation</div>
+<h2 class="part-title">How to say it in the interview.</h2>
+<p>When you're asked to make a slow, expensive dashboard fast, walk the four levers in order — it shows you treat the dashboard as a system, not a pile of SQL:</p>
+<div class="senior-signal"><strong>"First I'd move work out of view-time</strong> — does the panel scan raw events, or a rollup? Pre-aggregate, build a one-big-table mart, and put a semantic layer over it so metrics are defined once and aggregate-aware. <strong>Then I'd accelerate the serve</strong> — materialized views and result cache for the repeated queries, and if it's an interactive product surface, a Druid/Pinot/ClickHouse tier rather than a batch warehouse. <strong>Then I'd restrain the dashboard</strong> — a bounded default window, partitioning aligned to the filters, lazy tiles, and caching keyed to the freshness SLA. <strong>And throughout I'd protect correctness</strong> — median not mean on skew, additive components not pre-baked ratios, sketches not distinct counts, and a clear line between approximate and exact."</div>
+<p>That's the whole pillar in one breath. Notice how it dovetails with <a href="../performance/">Performance</a>: the rollups and sketches you build here are made cheap by the scan/shuffle/skew techniques there, and both rest on the schemas from <a href="../design/">Design</a>. Pre-compute, accelerate, restrain, and don't lie — in that order.</p>
+
+<div class="callout" style="margin-top:24px;">
+  <strong>The three engineering pillars together →</strong> <a href="../design/">Design</a> is the schema the data lives in. <a href="../performance/">Performance</a> is making one petabyte query over it cheap. <strong>Analytics</strong> is turning the whole thing into a fast, honest dashboard. Practice the query mechanics in <a href="../">Practice · Q&amp;A</a> and check yourself in <a href="../evaluate/">Skill Check</a>.
+</div>
+</section>
+
+<p style="margin-top:48px;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);">
+  <a href="../performance/" style="color:var(--text-3);">← Performance pillar</a> &nbsp;·&nbsp;
+  <a href="../" style="color:var(--text-3);">Practice · Q&amp;A</a> &nbsp;·&nbsp;
+  <a href="#top" style="color:var(--text-3);">↑ Top</a>
+</p>
+
+</article>
+
+</main>
+
+<script defer src="/lib/ps.js"></script>
+<button class="studio-themetoggle" type="button" id="psThemeToggle" aria-label="Toggle light or dark theme">◑ Theme</button>
+<script>(function(){var d=document.documentElement,b=document.getElementById('psThemeToggle');if(b)b.addEventListener('click',function(){var c=d.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var n=c==='dark'?'light':'dark';d.setAttribute('data-theme',n);try{localStorage.setItem('ps-theme',n);}catch(e){}});})();</script>
+</body>
+</html>

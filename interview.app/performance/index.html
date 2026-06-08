@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Performance Optimization — 28 Petabyte-Scale SQL Patterns Used at FAANG · PaddySpeaks Interview Studio</title>
+<meta name="description" content="The senior data-engineer treatment of SQL performance at petabyte scale: 28 real, practical query optimizations used at Google, Amazon, Meta, Netflix and Uber. Partition pruning, broadcast joins, skew/salting, HyperLogLog approximate aggregation, QUALIFY windows, incremental MERGE, clustering and data skipping — each as an anti-pattern → optimized rewrite with the byte-level reason it wins. Not LeetCode; the queries you actually tune in production.">
+<meta name="keywords" content="SQL performance optimization, petabyte scale SQL, FAANG SQL interview, partition pruning, predicate pushdown, broadcast join, data skew salting, AQE skew join, APPROX_COUNT_DISTINCT, HyperLogLog, approx_percentile, QUALIFY window, incremental processing, MERGE upsert, Z-order clustering, data skipping, small files, Spark SQL, Snowflake, BigQuery, Trino, query tuning interview">
+<meta name="author" content="Padmanabhan Iyer">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://paddyspeaks.com/interview.app/performance/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Performance Optimization — 28 Petabyte-Scale SQL Patterns Used at FAANG">
+<meta property="og:description" content="Partition pruning · broadcast joins · skew salting · HyperLogLog · QUALIFY windows · incremental MERGE · clustering. Each an anti-pattern → optimized rewrite with the byte-level reason it wins at petabyte scale.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/performance/">
+<meta property="og:image" content="https://paddyspeaks.com/images/og-default.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="PaddySpeaks">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Performance Optimization — 28 Petabyte-Scale SQL Patterns">
+<meta name="twitter:description" content="The query optimizations FAANG data engineers actually use: scan less, shuffle less, write once. Anti-pattern → rewrite → the byte-level reason.">
+<meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","@id":"https://paddyspeaks.com/interview.app/performance/#article","headline":"Performance Optimization — 28 Petabyte-Scale SQL Patterns Used at FAANG","description":"Twenty-eight practical SQL performance optimizations for petabyte-scale data, each presented as an anti-pattern and its optimized rewrite with the byte-level reason it wins.","author":{"@type":"Person","name":"Padmanabhan Iyer","url":"https://paddyspeaks.com/about.html"},"publisher":{"@type":"Organization","name":"PaddySpeaks","url":"https://paddyspeaks.com/"},"url":"https://paddyspeaks.com/interview.app/performance/","isPartOf":{"@id":"https://paddyspeaks.com/interview.app/#app"},"keywords":"SQL performance, partition pruning, broadcast join, data skew, HyperLogLog, QUALIFY, incremental MERGE, clustering, data skipping","about":["SQL Performance Optimization","Partition Pruning","Broadcast Join","Data Skew","Approximate Aggregation","Incremental Processing"]},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"PaddySpeaks","item":"https://paddyspeaks.com/"},{"@type":"ListItem","position":2,"name":"Interview Studio","item":"https://paddyspeaks.com/interview.app/"},{"@type":"ListItem","position":3,"name":"Performance","item":"https://paddyspeaks.com/interview.app/performance/"}]}]}
+</script>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/studio.css">
+<style>
+/* ---- Performance-pillar additions (token-driven, dark-aware) ---- */
+.netflix-prep h3.section-head{padding-left:14px;border-left:4px solid var(--accent)}
+.bills-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0 8px}
+.bill-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:18px 20px;box-shadow:var(--shadow)}
+.bill-card .bill-k{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent-2);margin-bottom:6px}
+.bill-card h4{font-family:var(--font-display);font-size:21px;margin:0 0 6px;color:var(--text)}
+.bill-card p{font-size:14px;color:var(--text-2);margin:0;line-height:1.5}
+.fam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:18px 0 8px}
+.fam-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s,box-shadow .15s}
+.fam-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-lg);text-decoration:none}
+.fam-card .fam-n{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--accent-2);text-transform:uppercase}
+.fam-card h4{font-family:var(--font-display);font-size:18px;margin:6px 0 6px;color:var(--text)}
+.fam-card p{font-size:13px;color:var(--text-2);margin:0;line-height:1.45}
+.opt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;margin:26px 0;box-shadow:var(--shadow)}
+.opt-card-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.opt-num{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-2);letter-spacing:1px}
+.opt-card h3.opt-title{font-family:var(--font-display);font-size:23px;font-weight:700;margin:0;color:var(--text);line-height:1.18;border:none;padding:0}
+.opt-tags{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.opt-tag{font-family:var(--font-mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;background:var(--surface-3);color:var(--text-2);padding:3px 8px;border-radius:999px;white-space:nowrap}
+.opt-tag.eng{background:var(--accent-weak);color:var(--accent-2)}
+.opt-scenario{font-size:15px;color:var(--text-2);margin:2px 0 14px;line-height:1.55}
+.opt-scenario .co{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--accent-2);font-weight:700}
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
+.opt-pane{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;display:flex;flex-direction:column}
+.opt-pane-label{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;padding:8px 13px}
+.opt-pane.bad .opt-pane-label{background:var(--trap-bg);color:var(--trap-fg)}
+.opt-pane.good .opt-pane-label{background:var(--note-bg);color:var(--note-fg)}
+.opt-pane pre{margin:0;border:none;border-radius:0;box-shadow:none;flex:1;font-size:12.5px;line-height:1.55}
+.opt-impact{background:var(--note-bg);border-left:4px solid var(--note-fg);padding:11px 16px;border-radius:var(--radius-sm);font-size:14.5px;margin-top:12px;color:var(--text)}
+.opt-impact strong{color:var(--note-fg)}
+.opt-why{font-size:15px;color:var(--text-2);margin:12px 0 0;line-height:1.6}
+.opt-why strong{color:var(--text)}
+.eng-table code{white-space:nowrap}
+@media (max-width:760px){.bills-grid{grid-template-columns:1fr}.opt-grid{grid-template-columns:1fr}}
+.ornament{text-align:center;color:var(--muted);letter-spacing:.8em;margin:44px 0;font-size:18px}
+</style>
+<script>try{var t=localStorage.getItem('ps-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body id="top" class="studio-skin">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="../../" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+  <div class="top-bar-links">
+    <a href="../">Practice · Q&amp;A</a>
+    <a href="../design/">Design</a>
+    <a href="./" aria-current="page" style="font-weight:700;">Performance</a>
+    <a href="../analytics/">Analytics</a>
+    <a href="../evaluate/">Skill Check</a>
+    <a href="../sql.html">SQL Playground</a>
+    <a href="../python.html">Python Playground</a>
+  </div>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="../" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="../design/" style="color:#64748b;text-decoration:none;">Design</a>
+    <a href="./" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid var(--accent);padding-bottom:2px;">Performance</a>
+    <a href="../analytics/" style="color:#64748b;text-decoration:none;">Analytics</a>
+    <span style="margin-left:auto;color:#a8a29e;font-size:10px;">paddyspeaks.com/interview.app/performance/</span>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ PERFORMANCE · petabyte-scale SQL · the optimizations FAANG actually uses</div>
+<h1 class="hero-title">Performance — 28 SQL optimizations for the petabyte table.</h1>
+<p class="hero-sub">Not LeetCode. These are the rewrites a senior data engineer reaches for when the table is 5&nbsp;PB, the cluster bill is real, and "it returns the right answer" is the easy part. Each card is an <strong>anti-pattern you'll see in a PR</strong>, the <strong>optimized rewrite</strong>, and the byte-level reason it wins. Dialect notes for Spark SQL, Snowflake, BigQuery and Trino throughout.</p>
+
+<div class="callout">
+  <strong>The mental model — at petabyte scale you pay three bills.</strong> Every optimization on this page reduces at least one of them. If you can name <em>which bill</em> a rewrite cuts, you're already answering the interview question.
+</div>
+
+<div class="bills-grid">
+  <div class="bill-card">
+    <div class="bill-k">Bill №1 · I/O</div>
+    <h4>Bytes scanned</h4>
+    <p>What you read off storage. Cut it with partition pruning, column projection, data skipping and clustering. The cheapest byte is the one you never read.</p>
+  </div>
+  <div class="bill-card">
+    <div class="bill-k">Bill №2 · Network</div>
+    <h4>Bytes shuffled</h4>
+    <p>What crosses the wire between stages — joins, <code>GROUP BY</code>, <code>DISTINCT</code>, global sorts. Cut it with broadcast joins, pre-aggregation, bucketing and approximate sketches.</p>
+  </div>
+  <div class="bill-card">
+    <div class="bill-k">Bill №3 · Write</div>
+    <h4>Bytes written</h4>
+    <p>What you re-materialize every run. Cut it by computing incrementally — touch only the new partition, <code>MERGE</code> the delta, and compact instead of rewriting.</p>
+  </div>
+</div>
+
+<p style="margin-top:18px;">A useful rule of thumb when you read each rewrite: <strong>scan less, shuffle less, write once.</strong> The skew cards are the exception — there the total work is fine, it's the <em>distribution</em> of work that kills you, and one straggler holds the whole stage hostage.</p>
+
+<h4 class="sub-head" style="margin-top:30px;">Dialect cheatsheet — the same idea, four engines</h4>
+<table class="eng-table">
+<thead><tr><th>Optimization</th><th>Spark SQL</th><th>Snowflake</th><th>BigQuery</th><th>Trino / Presto</th></tr></thead>
+<tbody>
+<tr><td>Force broadcast</td><td><code>/*+ BROADCAST(t) */</code></td><td>automatic (stats)</td><td>automatic</td><td><code>/*+ BROADCAST */</code> / <code>join_distribution_type</code></td></tr>
+<tr><td>Top-N per group filter</td><td>subquery + <code>WHERE rn&lt;=k</code></td><td><code>QUALIFY</code></td><td><code>QUALIFY</code></td><td><code>QUALIFY</code> (363+)</td></tr>
+<tr><td>Approx distinct</td><td><code>approx_count_distinct</code></td><td><code>APPROX_COUNT_DISTINCT</code></td><td><code>APPROX_COUNT_DISTINCT</code> / HLL</td><td><code>approx_distinct</code></td></tr>
+<tr><td>Approx percentile</td><td><code>approx_percentile</code></td><td><code>APPROX_PERCENTILE</code></td><td><code>APPROX_QUANTILES</code></td><td><code>approx_percentile</code></td></tr>
+<tr><td>Skew join</td><td>AQE skew join / salt</td><td>automatic + salt</td><td>automatic</td><td>salt / <code>partitioning</code></td></tr>
+<tr><td>Data skipping</td><td>Z-ORDER (Delta)</td><td><code>CLUSTER BY</code></td><td>clustering</td><td>sorted files / Iceberg sort</td></tr>
+<tr><td>Upsert</td><td><code>MERGE INTO</code> (Delta/Iceberg)</td><td><code>MERGE</code></td><td><code>MERGE</code></td><td><code>MERGE</code> (Iceberg/Delta)</td></tr>
+</tbody>
+</table>
+
+<div class="toc">
+<h4>The seven families</h4>
+<ol>
+  <li><a href="#fam-1">Scan less — pruning, projection, pushdown</a> <span style="color:var(--text-3)">(№1–5)</span></li>
+  <li><a href="#fam-2">Shuffle less — join strategy</a> <span style="color:var(--text-3)">(№6–10)</span></li>
+  <li><a href="#fam-3">Beat skew — the whale problem</a> <span style="color:var(--text-3)">(№11–13)</span></li>
+  <li><a href="#fam-4">Aggregate smarter — approximate &amp; multi-grain</a> <span style="color:var(--text-3)">(№14–18)</span></li>
+  <li><a href="#fam-5">Windows beat self-joins — dedup &amp; top-N</a> <span style="color:var(--text-3)">(№19–22)</span></li>
+  <li><a href="#fam-6">Compute once — incremental, MERGE, compaction</a> <span style="color:var(--text-3)">(№23–25)</span></li>
+  <li><a href="#fam-7">Storage &amp; cost traps — clustering, JSON, casts</a> <span style="color:var(--text-3)">(№26–28)</span></li>
+</ol>
+</div>
+
+<div class="fam-grid">
+  <a class="fam-card" href="#fam-1"><div class="fam-n">Family 1 · scan less</div><h4>Read fewer bytes</h4><p>Stop the full scan before it starts: prune partitions, project columns, push predicates, let a dim prune the fact.</p></a>
+  <a class="fam-card" href="#fam-2"><div class="fam-n">Family 2 · shuffle less</div><h4>Keep data off the wire</h4><p>Broadcast the small side, pre-aggregate before the join, co-bucket, and anti-join instead of <code>NOT IN</code>.</p></a>
+  <a class="fam-card" href="#fam-3"><div class="fam-n">Family 3 · beat skew</div><h4>Kill the straggler</h4><p>One celebrity key owns half the rows. Salt it, split it, or let AQE rebalance — so no single task runs for hours.</p></a>
+  <a class="fam-card" href="#fam-4"><div class="fam-n">Family 4 · aggregate smarter</div><h4>Don't count the hard way</h4><p>HyperLogLog distinct, t-digest percentiles, grouping sets in one pass, and rollups that turn PB into KB.</p></a>
+  <a class="fam-card" href="#fam-5"><div class="fam-n">Family 5 · windows</div><h4>One pass, not O(n²)</h4><p><code>QUALIFY</code> top-N, latest-per-key dedup, and gaps-and-islands sessionization — windows where juniors reach for self-joins.</p></a>
+  <a class="fam-card" href="#fam-6"><div class="fam-n">Family 6 · compute once</div><h4>Touch only the delta</h4><p>Incremental partitions, <code>MERGE</code> upserts, and compaction — stop recomputing five years of history every night.</p></a>
+  <a class="fam-card" href="#fam-7"><div class="fam-n">Family 7 · storage traps</div><h4>The silent full scans</h4><p>Clustering for data skipping, flatten JSON once, and the implicit cast that quietly disables every pruning optimization.</p></a>
+</div>
+
+<!-- ============================================================ FAMILY 1 ============================================================ -->
+<section id="fam-1">
+<div class="part-eyebrow">§ Family 1 — scan less · the cheapest byte is the one you never read</div>
+<h2 class="part-title">Pruning, projection &amp; pushdown.</h2>
+<p>At petabyte scale, storage I/O is usually the dominant line on the bill. These five cards are all variations on one idea: <strong>convince the planner to skip files before it opens them.</strong> Get this family right and the rest of the query is operating on a thousandth of the data.</p>
+
+<div class="opt-card" id="opt-1">
+<div class="opt-card-head"><span class="opt-num">№ 01</span><h3 class="opt-title">Never wrap the partition column in a function</h3><div class="opt-tags"><span class="opt-tag">partition pruning</span><span class="opt-tag eng">Hive · Spark · Trino</span></div></div>
+<p class="opt-scenario"><span class="co">Meta</span> — pull one day from an events table partitioned by <code>ds</code> that lands ~100&nbsp;TB/day. The query "works" but scans the whole table.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — full scan</div><pre><code>SELECT user_id, event_type
+FROM   events
+WHERE  CAST(event_ts AS DATE) = DATE '2024-01-01';
+-- ds is the partition key, but the planner
+-- can't see through CAST(event_ts) → it reads
+-- every partition, then filters row by row.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — pruned to one partition</div><pre><code>SELECT user_id, event_type
+FROM   events
+WHERE  ds = '2024-01-01'              -- partition key, bare
+  AND  event_ts &gt;= TIMESTAMP '2024-01-01 00:00:00'
+  AND  event_ts &lt;  TIMESTAMP '2024-01-02 00:00:00';</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Partition pruning happens in the metastore, against partition <em>values</em> — before a single file is opened. The moment you wrap <code>ds</code> (or a column functionally tied to it) in <code>CAST</code>, <code>DATE()</code>, <code>SUBSTR</code> or string concatenation, the optimizer can no longer map the expression back to partition directories and falls back to a full scan. Keep the partition column bare on one side of the predicate.</p>
+<div class="opt-impact"><strong>Impact:</strong> ~100&nbsp;TB scanned → ~100&nbsp;GB. Same result, 1000× less I/O, and the job stops being a noisy-neighbour on the cluster.</div>
+</div>
+
+<div class="opt-card" id="opt-2">
+<div class="opt-card-head"><span class="opt-num">№ 02</span><h3 class="opt-title">Contiguous range beats a derived bucket or a 365-value IN-list</h3><div class="opt-tags"><span class="opt-tag">partition pruning</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Amazon</span> — "last 7 days of orders." The partition key is a <code>yyyy-MM-dd</code> string.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern</div><pre><code>-- derives the month from the key → can't prune
+WHERE SUBSTR(ds,1,7) = '2024-01'
+-- or a hand-built list the planner treats opaquely
+WHERE ds IN ('2024-01-01', ... 365 values ...)</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized</div><pre><code>WHERE ds BETWEEN '2024-01-01' AND '2024-01-07'
+-- lexical order == date order for yyyy-MM-dd,
+-- so the metastore returns exactly 7 directories.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A <code>BETWEEN</code> on a sortable partition key lets the catalog do a range scan over partition metadata and hand back the precise file list. <code>SUBSTR</code> derives a value the planner can't invert; a giant <code>IN</code>-list is evaluated per partition and bloats the query plan. The <code>yyyy-MM-dd</code> convention exists precisely so lexical order equals chronological order.</p>
+<div class="opt-impact"><strong>Impact:</strong> the difference between touching 7 partitions and listing/opening thousands.</div>
+</div>
+
+<div class="opt-card" id="opt-3">
+<div class="opt-card-head"><span class="opt-num">№ 03</span><h3 class="opt-title">Project columns — <code>SELECT *</code> is a tax on columnar storage</h3><div class="opt-tags"><span class="opt-tag">column pruning</span><span class="opt-tag eng">Parquet · ORC</span></div></div>
+<p class="opt-scenario"><span class="co">Netflix</span> — a 400-column wide playback-events table in Parquet; the report needs three columns.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern</div><pre><code>SELECT *
+FROM   playback_events
+WHERE  ds = '2024-01-01';
+-- reads all 400 column chunks off disk,
+-- decompresses them, ships them — to use 3.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized</div><pre><code>SELECT user_id, title_id, watch_seconds
+FROM   playback_events
+WHERE  ds = '2024-01-01';
+-- columnar readers fetch only the 3 column
+-- chunks; the other 397 are never touched.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Parquet/ORC store data column-by-column, so projection is a genuine I/O reduction, not just a narrower result. <code>SELECT *</code> also defeats column-level predicate pushdown and forces the engine to carry wide rows through every downstream shuffle. Name your columns — always.</p>
+<div class="opt-impact"><strong>Impact:</strong> 3 of 400 columns ≈ a <strong>100× cut</strong> in bytes scanned, plus lighter shuffles downstream.</div>
+</div>
+
+<div class="opt-card" id="opt-4">
+<div class="opt-card-head"><span class="opt-num">№ 04</span><h3 class="opt-title">Filter before the join, not in the outer <code>WHERE</code></h3><div class="opt-tags"><span class="opt-tag">predicate pushdown</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Uber</span> — join the trips fact (PB) to a small <code>dim_city</code>, but you only care about one city and one week.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — join then filter</div><pre><code>SELECT t.*, c.city_name
+FROM   trips t
+JOIN   dim_city c ON c.city_id = t.city_id
+WHERE  c.city_name = 'Delhi'
+  AND  t.ds BETWEEN '2024-01-01' AND '2024-01-07';
+-- with a weak optimizer the whole trips table
+-- is shuffled into the join first.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — shrink each side first</div><pre><code>SELECT t.*, c.city_name
+FROM  (SELECT * FROM trips
+       WHERE ds BETWEEN '2024-01-01' AND '2024-01-07'
+         AND city_id = 9) t          -- resolve the id once
+JOIN  (SELECT city_id, city_name FROM dim_city
+       WHERE city_name = 'Delhi') c
+  ON  c.city_id = t.city_id;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> The join input is the thing you shuffle, and shuffle volume is what you pay. Modern cost-based optimizers push selective predicates down automatically, but the moment a UDF, an <code>OR</code> across both tables, or a late-resolved value blocks them, you eat a full-table shuffle. Filtering the big side <em>inside the scan</em> guarantees the optimizer can't get it wrong.</p>
+<div class="opt-impact"><strong>Impact:</strong> the join sees rows × (date-selectivity × city-selectivity) instead of the whole fact — often a 1000×+ smaller shuffle.</div>
+</div>
+
+<div class="opt-card" id="opt-5">
+<div class="opt-card-head"><span class="opt-num">№ 05</span><h3 class="opt-title">Dynamic partition pruning — let a tiny dim prune the giant fact</h3><div class="opt-tags"><span class="opt-tag">DPP</span><span class="opt-tag eng">Spark · BigQuery</span></div></div>
+<p class="opt-scenario"><span class="co">Spark</span> — <code>fact_sales</code> partitioned by <code>ds</code>, joined to <code>dim_date</code> to pull only holidays. The filter is on the dim, but the fact still full-scans.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern</div><pre><code>SELECT s.*
+FROM   fact_sales s
+JOIN   dim_date d ON d.ds = s.ds
+WHERE  d.is_holiday = true;
+-- the holiday filter lives on dim_date; without
+-- DPP, Spark scans every ds partition of the fact.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — push the key set</div><pre><code>SET spark.sql.optimizer.dynamicPartitionPruning.enabled=true;
+-- ...or make it explicit so any engine prunes:
+SELECT s.*
+FROM   fact_sales s
+WHERE  s.ds IN (SELECT ds FROM dim_date WHERE is_holiday);</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> DPP runs the small dimension first, collects the surviving partition keys, and injects them as a runtime filter on the fact's partition column — so the fact scan is pruned to just the holiday partitions. When you can't rely on the optimizer, a semi-join (<code>IN (SELECT …)</code> / <code>EXISTS</code>) on the partition key reproduces it deterministically.</p>
+<div class="opt-impact"><strong>Impact:</strong> fact scan drops from 365 partitions to ~11 — the join key <em>is</em> the partition key, so pruning is exact.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY 2 ============================================================ -->
+<section id="fam-2">
+<div class="part-eyebrow">§ Family 2 — shuffle less · the network is the wall</div>
+<h2 class="part-title">Join strategy.</h2>
+<p>Once you've stopped scanning needless bytes, the next bill is the shuffle — the all-to-all exchange a sort-merge join, <code>GROUP BY</code> or <code>DISTINCT</code> triggers. A 5&nbsp;PB shuffle can dominate wall-clock and cost. These five cards keep the big table off the wire.</p>
+
+<div class="opt-card" id="opt-6">
+<div class="opt-card-head"><span class="opt-num">№ 06</span><h3 class="opt-title">Broadcast the small side of a big-vs-small join</h3><div class="opt-tags"><span class="opt-tag">broadcast / map-side join</span><span class="opt-tag eng">Spark · Trino</span></div></div>
+<p class="opt-scenario"><span class="co">Google</span> — a 5&nbsp;PB <code>fact_events</code> joined to a 40&nbsp;MB <code>dim_country</code>. The default plan shuffles the 5&nbsp;PB side.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — sort-merge, both sides shuffled</div><pre><code>SELECT e.*, c.country_name
+FROM   fact_events e
+JOIN   dim_country c ON c.country_id = e.country_id;
+-- hash-partitions and sorts BOTH inputs by
+-- country_id → 5 PB crosses the network.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — broadcast hash join</div><pre><code>SELECT /*+ BROADCAST(c) */ e.*, c.country_name
+FROM   fact_events e
+JOIN   dim_country c ON c.country_id = e.country_id;
+-- 40 MB dim is copied to every executor; the
+-- 5 PB fact is probed in place and never moves.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> If one side fits in memory, ship <em>it</em> to where the big side already lives. A broadcast hash join turns an O(N log N) shuffle-and-sort into a streaming hash probe with zero exchange on the large input. Snowflake and BigQuery choose this automatically from table statistics; in Spark/Trino you nudge it with a hint (and watch <code>spark.sql.autoBroadcastJoinThreshold</code>).</p>
+<div class="opt-impact"><strong>Impact:</strong> eliminates a 5&nbsp;PB network exchange — frequently the single biggest win in a join-heavy pipeline.</div>
+</div>
+
+<div class="opt-card" id="opt-7">
+<div class="opt-card-head"><span class="opt-num">№ 07</span><h3 class="opt-title">Pre-aggregate before joining the big dimension</h3><div class="opt-tags"><span class="opt-tag">agg-before-join</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Amazon</span> — revenue per category from 50&nbsp;B <code>order_items</code> joined to <code>dim_product</code>.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — join 50B rows, then group</div><pre><code>SELECT p.category, SUM(oi.revenue) AS rev
+FROM   order_items oi
+JOIN   dim_product p ON p.product_id = oi.product_id
+GROUP BY p.category;
+-- shuffles all 50B item rows through the join.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — collapse first</div><pre><code>WITH per_product AS (
+  SELECT product_id, SUM(revenue) AS rev
+  FROM   order_items
+  GROUP BY product_id)            -- 50B → ~few M rows
+SELECT p.category, SUM(pp.rev) AS rev
+FROM   per_product pp
+JOIN   dim_product p ON p.product_id = pp.product_id
+GROUP BY p.category;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> <code>SUM</code> is associative, so you can collapse <code>order_items</code> to one row per product <em>before</em> touching the dimension. The join then runs on millions of rows instead of tens of billions, and (bonus) the per-product aggregate is broadcast-eligible. Push aggregation as deep as the algebra allows.</p>
+<div class="opt-impact"><strong>Impact:</strong> join input 50&nbsp;B → ~few&nbsp;M rows; the expensive shuffle moves to the cheap pre-agg stage.</div>
+</div>
+
+<div class="opt-card" id="opt-8">
+<div class="opt-card-head"><span class="opt-num">№ 08</span><h3 class="opt-title">Anti-join, not <code>NOT IN</code> — correctness <em>and</em> speed</h3><div class="opt-tags"><span class="opt-tag">anti-join</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Stripe</span> — charges that never got refunded. <code>NOT IN</code> over a big subquery is both slow and quietly wrong.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — NULL-unsafe + un-optimizable</div><pre><code>SELECT *
+FROM   charges
+WHERE  charge_id NOT IN (
+         SELECT charge_id FROM refunds);
+-- if ANY refunds.charge_id is NULL, the whole
+-- predicate is UNKNOWN → ZERO rows returned.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — left anti-join</div><pre><code>SELECT c.*
+FROM   charges c
+LEFT JOIN refunds r ON r.charge_id = c.charge_id
+WHERE  r.charge_id IS NULL;
+-- or: WHERE NOT EXISTS (SELECT 1 FROM refunds r
+--                       WHERE r.charge_id = c.charge_id)</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Two reasons. <em>Correctness:</em> <code>NOT IN</code> with a single NULL in the list returns nothing — a classic production bug. <em>Speed:</em> <code>NOT EXISTS</code> / <code>LEFT JOIN … IS NULL</code> compile to a hash anti-join (one shuffle, streamed), while <code>NOT IN</code> often degrades to a correlated or nested-loop check. <code>NOT EXISTS</code> is the safe default.</p>
+<div class="opt-impact"><strong>Impact:</strong> a NULL-safe single-shuffle anti-join — and it doesn't silently drop every row when a NULL sneaks in.</div>
+</div>
+
+<div class="opt-card" id="opt-9">
+<div class="opt-card-head"><span class="opt-num">№ 09</span><h3 class="opt-title">Bucket / cluster co-located tables to delete the shuffle</h3><div class="opt-tags"><span class="opt-tag">bucketing · SMB join</span><span class="opt-tag eng">Spark · Hive · Iceberg</span></div></div>
+<p class="opt-scenario"><span class="co">LinkedIn</span> — two large facts joined on <code>member_id</code> in a <em>daily</em> pipeline, so the same shuffle runs every single night.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — re-shuffle every run</div><pre><code>SELECT a.*, b.*
+FROM   member_events a
+JOIN   member_profile b ON b.member_id = a.member_id;
+-- both sides hash-partitioned by member_id from
+-- scratch on every execution.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — bucket once, join free forever</div><pre><code>-- one-time DDL: same key, same bucket count
+CREATE TABLE member_events (...)
+  CLUSTERED BY (member_id) INTO 1024 BUCKETS;
+CREATE TABLE member_profile (...)
+  CLUSTERED BY (member_id) INTO 1024 BUCKETS;
+-- now the join is sort-merge-bucket: no shuffle.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Bucketing physically lays each table's rows into N hash buckets on the join key. When both tables share the key and bucket count, matching buckets are already co-located, so the engine does a local sort-merge with <em>no exchange</em>. You pay the partitioning cost once at write time and bank it on every subsequent join.</p>
+<div class="opt-impact"><strong>Impact:</strong> a recurring full shuffle becomes shuffle-free — compounding savings on anything that runs on a schedule.</div>
+</div>
+
+<div class="opt-card" id="opt-10">
+<div class="opt-card-head"><span class="opt-num">№ 10</span><h3 class="opt-title">Replace a self-join with a window aggregate</h3><div class="opt-tags"><span class="opt-tag">window vs self-join</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Robinhood</span> — each trade's running total of volume per account. The textbook self-join is quadratic.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — O(n²) self-join</div><pre><code>SELECT t.trade_id, SUM(p.qty) AS running_qty
+FROM   trades t
+JOIN   trades p
+  ON  p.account_id = t.account_id
+ AND  p.ts &lt;= t.ts
+GROUP BY t.trade_id;
+-- every trade re-joins all prior trades; a hot
+-- account with 10M trades explodes the join.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — one ordered pass</div><pre><code>SELECT trade_id,
+       SUM(qty) OVER (PARTITION BY account_id
+                      ORDER BY ts
+                      ROWS UNBOUNDED PRECEDING) AS running_qty
+FROM   trades;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> An inequality self-join (<code>p.ts &lt;= t.ts</code>) materializes a triangular cross-product — O(n²) per group. A window function sorts each partition once and sweeps it in a single linear pass. Any "running / cumulative / compare-to-neighbour" requirement is a window function, never a self-join.</p>
+<div class="opt-impact"><strong>Impact:</strong> O(n²) → O(n log n); a 10&nbsp;M-trade account goes from "never finishes" to seconds.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY 3 ============================================================ -->
+<section id="fam-3">
+<div class="part-eyebrow">§ Family 3 — beat skew · the whale problem</div>
+<h2 class="part-title">When one key owns half the rows.</h2>
+<p>Skew is the optimization juniors miss because the query is "correct" and the plan looks fine — yet one task runs for three hours while the other 999 finished in thirty seconds. The total work is reasonable; its <em>distribution</em> is not. (Deeper operational treatment on the <a href="../design/hot-shards-and-skew.html">Hot Shards &amp; Data Skew</a> page.)</p>
+
+<div class="opt-card" id="opt-11">
+<div class="opt-card-head"><span class="opt-num">№ 11</span><h3 class="opt-title">Salt the hot join key</h3><div class="opt-tags"><span class="opt-tag">salting</span><span class="opt-tag eng">Spark · Trino</span></div></div>
+<p class="opt-scenario"><span class="co">Meta</span> — join engagements to users where 0.1% of users (celebrities) own 50% of rows. The reducer that owns a celebrity key is the straggler that holds the stage.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — one reducer melts</div><pre><code>SELECT u.name, COUNT(*) AS engagements
+FROM   engagements e
+JOIN   users u ON u.user_id = e.user_id
+GROUP BY u.name;
+-- all of @celebrity's rows hash to ONE partition.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — spread the hot key N ways</div><pre><code>WITH e AS (        -- salt the skewed (fact) side
+  SELECT *, CAST(FLOOR(RAND()*16) AS INT) AS salt
+  FROM engagements),
+u AS (             -- fan the small side out to match
+  SELECT u.*, s.salt
+  FROM users u
+  CROSS JOIN UNNEST(SEQUENCE(0,15)) AS s(salt))
+SELECT u.name, COUNT(*) AS engagements
+FROM   e JOIN u
+  ON  u.user_id = e.user_id AND u.salt = e.salt
+GROUP BY u.name;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Appending a random salt to the hot key splits its rows across N partitions instead of one; replicating the small side N times keeps the join correct. Sixteen evenly-loaded tasks beat one task doing 50% of the work. You only need to salt the keys that are actually hot — salt everything and you just inflate the small side.</p>
+<div class="opt-impact"><strong>Impact:</strong> the 3-hour straggler becomes sixteen ~12-minute tasks; the stage finishes when the <em>median</em> task does, not the max.</div>
+</div>
+
+<div class="opt-card" id="opt-12">
+<div class="opt-card-head"><span class="opt-num">№ 12</span><h3 class="opt-title">Let AQE rebalance skew automatically</h3><div class="opt-tags"><span class="opt-tag">adaptive query execution</span><span class="opt-tag eng">Spark 3+</span></div></div>
+<p class="opt-scenario"><span class="co">Airbnb</span> — same skewed join, but you'd rather not hand-salt every pipeline. Let the engine split hot partitions at runtime.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — static plan, blind to skew</div><pre><code>-- AQE off: the plan is fixed at compile time;
+-- a partition that turns out 200× the median
+-- size still runs as a single task.
+SET spark.sql.adaptive.enabled=false;</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — runtime skew split</div><pre><code>SET spark.sql.adaptive.enabled=true;
+SET spark.sql.adaptive.skewJoin.enabled=true;
+-- Spark measures actual partition sizes mid-query
+-- and splits any partition &gt; skewedPartitionFactor ×
+-- median into sub-partitions, each its own task.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> AQE re-plans using <em>real</em> shuffle statistics instead of compile-time estimates: it splits oversized partitions, coalesces tiny ones, and can flip a sort-merge to a broadcast once it sees the true sizes. It's the zero-code first move for skew — reach for manual salting (№11) only when AQE isn't available or isn't enough.</p>
+<div class="opt-impact"><strong>Impact:</strong> stragglers handled by the engine, no query rewrite — turn it on by default on Spark 3+.</div>
+</div>
+
+<div class="opt-card" id="opt-13">
+<div class="opt-card-head"><span class="opt-num">№ 13</span><h3 class="opt-title">Isolate the hot keys and union them back</h3><div class="opt-tags"><span class="opt-tag">skew isolation</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">TikTok</span> — a handful of mega-viral creators dominate. You know exactly who they are, so handle them on a separate path.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — one path for all keys</div><pre><code>SELECT creator_id, SUM(views)
+FROM   video_events
+GROUP BY creator_id;
+-- the top 20 creators each get a giant group
+-- while millions of long-tail creators are tiny.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — split hot vs cold</div><pre><code>-- cold tail: normal aggregation
+SELECT creator_id, SUM(views) AS views
+FROM   video_events
+WHERE  creator_id NOT IN (SELECT creator_id FROM hot_creators)
+GROUP BY creator_id
+UNION ALL
+-- hot keys: pre-split with a salt, then re-sum
+SELECT creator_id, SUM(views) AS views FROM (
+  SELECT creator_id,
+         SUM(views) AS views
+  FROM   video_events
+  WHERE  creator_id IN (SELECT creator_id FROM hot_creators)
+  GROUP BY creator_id, CAST(FLOOR(RAND()*64) AS INT)
+) t GROUP BY creator_id;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> When the hot set is small and known, you don't have to penalise the whole query. The long tail aggregates normally; the few whales get a salted two-phase aggregation. Same idea as salting, but surgically applied so you don't replicate the dimension for keys that were never hot.</p>
+<div class="opt-impact"><strong>Impact:</strong> balanced stages with no broad replication cost; the 20 whales stop dictating the runtime of millions of minnows.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY 4 ============================================================ -->
+<section id="fam-4">
+<div class="part-eyebrow">§ Family 4 — aggregate smarter · approximate &amp; multi-grain</div>
+<h2 class="part-title">Don't count the hard way.</h2>
+<p>The most expensive aggregates are the exact-distinct and exact-percentile ones, because they need to see — and shuffle — every value. At petabyte scale, "within 2%" is almost always good enough for a dashboard, and one pass can answer many grains at once.</p>
+
+<div class="opt-card" id="opt-14">
+<div class="opt-card-head"><span class="opt-num">№ 14</span><h3 class="opt-title"><code>APPROX_COUNT_DISTINCT</code> for DAU/MAU — HyperLogLog</h3><div class="opt-tags"><span class="opt-tag">HyperLogLog</span><span class="opt-tag eng">Spark · Snowflake · BQ · Trino</span></div></div>
+<p class="opt-scenario"><span class="co">Meta</span> — distinct daily active users over a 100&nbsp;B-row event table. Exact <code>COUNT(DISTINCT)</code> must shuffle every <code>user_id</code> to dedupe it.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — exact distinct, huge shuffle</div><pre><code>SELECT ds, COUNT(DISTINCT user_id) AS dau
+FROM   events
+GROUP BY ds;
+-- every user_id is shuffled and held in memory
+-- to be deduplicated, per day.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — HLL sketch, ~2% error</div><pre><code>SELECT ds, APPROX_COUNT_DISTINCT(user_id) AS dau
+FROM   events
+GROUP BY ds;
+-- even better, persist a mergeable sketch per day:
+-- HLL_SKETCH_AGG → MAU = merge of 30 daily sketches,
+-- no re-scan of the raw events.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> HyperLogLog estimates cardinality from a fixed-size sketch (KBs) instead of materialising every distinct value, so the shuffle and memory footprint are tiny and bounded. The killer feature is that sketches are <em>mergeable</em>: store one per day and you can compute any week/month/quarter by unioning sketches — never rescanning raw events. Standard error ~1–2%.</p>
+<div class="opt-impact"><strong>Impact:</strong> orders of magnitude cheaper, and rolling windows (MAU, L28) become a sketch merge instead of a re-aggregation.</div>
+</div>
+
+<div class="opt-card" id="opt-15">
+<div class="opt-card-head"><span class="opt-num">№ 15</span><h3 class="opt-title"><code>APPROX_PERCENTILE</code> for p95 latency — t-digest</h3><div class="opt-tags"><span class="opt-tag">t-digest quantiles</span><span class="opt-tag eng">Spark · Snowflake · BQ · Trino</span></div></div>
+<p class="opt-scenario"><span class="co">Datadog</span> — p50/p95/p99 request latency over trillions of spans for an SLO dashboard.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — exact percentile = global sort</div><pre><code>SELECT service,
+       PERCENTILE_CONT(0.95)
+         WITHIN GROUP (ORDER BY latency_ms) AS p95
+FROM   spans
+GROUP BY service;
+-- exact quantile must sort the entire group.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — bounded-memory sketch</div><pre><code>SELECT service,
+       APPROX_PERCENTILE(latency_ms, 0.95) AS p95
+FROM   spans
+GROUP BY service;
+-- BigQuery: APPROX_QUANTILES(latency_ms, 100)[OFFSET(95)]</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Exact percentiles need the whole group ordered; a t-digest/Q-digest sketch summarises the distribution in bounded memory with high accuracy in the tails (exactly where p95/p99 live). It's the default for any latency or SLO panel — nobody sorts a trillion spans to draw a line chart.</p>
+<div class="opt-impact"><strong>Impact:</strong> no global sort, constant memory per group; the standard pattern behind every latency dashboard.</div>
+</div>
+
+<div class="opt-card" id="opt-16">
+<div class="opt-card-head"><span class="opt-num">№ 16</span><h3 class="opt-title"><code>GROUPING SETS</code> — every grain in one scan</h3><div class="opt-tags"><span class="opt-tag">grouping sets · rollup</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Amazon</span> — revenue by country, by country×category, and the grand total. Three reports, ideally one scan.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — three scans, UNION-ed</div><pre><code>SELECT country, NULL cat, SUM(rev) FROM f GROUP BY country
+UNION ALL
+SELECT country, category, SUM(rev) FROM f GROUP BY country,category
+UNION ALL
+SELECT NULL, NULL, SUM(rev) FROM f;
+-- scans the PB fact three times.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — one pass, all grains</div><pre><code>SELECT country, category, SUM(rev) AS rev
+FROM   f
+GROUP BY GROUPING SETS (
+  (country, category),
+  (country),
+  ()                      -- grand total
+);</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> <code>GROUPING SETS</code> (and its shorthands <code>ROLLUP</code>/<code>CUBE</code>) compute multiple aggregation grains from a <em>single</em> read of the fact, sharing the scan and much of the shuffle. Each extra grain you'd have UNION-ed is another full PB scan you just deleted.</p>
+<div class="opt-impact"><strong>Impact:</strong> 3 PB-scans → 1. Use <code>GROUPING()</code> to tell the subtotal rows apart.</div>
+</div>
+
+<div class="opt-card" id="opt-17">
+<div class="opt-card-head"><span class="opt-num">№ 17</span><h3 class="opt-title">Map-side pre-aggregation cuts the shuffle (the combiner)</h3><div class="opt-tags"><span class="opt-tag">partial aggregation</span><span class="opt-tag eng">Spark · Trino</span></div></div>
+<p class="opt-scenario"><span class="co">Cloudflare</span> — request counts grouped by a high-cardinality key over a firehose. Every raw row crossing the wire is wasted.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — distinct-then-count, all rows shuffled</div><pre><code>SELECT zone_id, COUNT(DISTINCT ip) AS uniques
+FROM   requests
+GROUP BY zone_id;
+-- (zone_id, ip) pairs all shuffle so DISTINCT
+-- can dedupe globally.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — pre-collapse, then count</div><pre><code>SELECT zone_id, COUNT(*) AS uniques
+FROM ( SELECT zone_id, ip
+       FROM   requests
+       GROUP BY zone_id, ip )   -- map-side combine
+GROUP BY zone_id;
+-- or just approx_count_distinct(ip) (see №14)</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Algebraic aggregates (<code>SUM</code>, <code>COUNT</code>, <code>MIN</code>/<code>MAX</code>) get a free map-side combine — each task pre-aggregates locally and ships only partial results, so shuffle volume drops by the group-collapse factor. <code>COUNT(DISTINCT)</code> doesn't combine for free; rewriting it as <em>group-then-count</em> restores the partial-aggregation, and an HLL sketch removes the shuffle entirely.</p>
+<div class="opt-impact"><strong>Impact:</strong> shuffle shrinks from "every row" to "every distinct group key" — often 100×+.</div>
+</div>
+
+<div class="opt-card" id="opt-18">
+<div class="opt-card-head"><span class="opt-num">№ 18</span><h3 class="opt-title">Materialize daily rollups — dashboards read the rollup, not raw events</h3><div class="opt-tags"><span class="opt-tag">pre-aggregation</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Every FAANG</span> — a 90-day trend tile that re-scans the raw event firehose on every single dashboard load.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — dashboard scans raw events</div><pre><code>-- runs on every page load, ×100s of viewers
+SELECT ds, COUNT(*) AS events, SUM(rev) AS rev
+FROM   raw_events
+WHERE  ds &gt;= DATE_SUB(CURRENT_DATE, 90)
+GROUP BY ds;</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — build once, read forever</div><pre><code>-- scheduled job, once a day:
+INSERT OVERWRITE TABLE agg_daily PARTITION (ds)
+SELECT ds, COUNT(*) events, SUM(rev) rev, ...
+FROM   raw_events WHERE ds = CURRENT_DATE GROUP BY ds;
+-- dashboard query → scans one tiny table:
+SELECT ds, events, rev FROM agg_daily
+WHERE ds &gt;= DATE_SUB(CURRENT_DATE, 90);</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> The single highest-leverage move in analytics: pay the scan <em>once</em> in a scheduled job, then serve every dashboard from a table that's one row per day×dimension. A 90-day tile reads kilobytes. (This is the bridge into the <a href="../analytics/">Analytics, Dashboard &amp; Optimization</a> pillar, where the whole serving layer is built on this idea.)</p>
+<div class="opt-impact"><strong>Impact:</strong> PB scanned per load → KB. With 200 viewers a day, that's the difference between a five-figure monthly bill and a rounding error.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY 5 ============================================================ -->
+<section id="fam-5">
+<div class="part-eyebrow">§ Family 5 — windows beat self-joins · dedup &amp; top-N</div>
+<h2 class="part-title">One ordered pass where juniors write a join.</h2>
+<p>Three of the most common interview prompts — top-N per group, latest-record-per-key, and sessionization — have a tempting self-join answer that's quadratic, and a window-function answer that's linear. Knowing the window form cold is a senior signal.</p>
+
+<div class="opt-card" id="opt-19">
+<div class="opt-card-head"><span class="opt-num">№ 19</span><h3 class="opt-title"><code>QUALIFY ROW_NUMBER()</code> for top-N per group</h3><div class="opt-tags"><span class="opt-tag">top-N per group</span><span class="opt-tag eng">Snowflake · BQ · Trino</span></div></div>
+<p class="opt-scenario"><span class="co">Netflix</span> — the top-3 titles per user by watch time.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — correlated count subquery</div><pre><code>SELECT *
+FROM   watch w
+WHERE (SELECT COUNT(*) FROM watch w2
+       WHERE w2.user_id = w.user_id
+         AND w2.secs &gt; w.secs) &lt; 3;
+-- correlated subquery re-scans per row.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — window + QUALIFY</div><pre><code>SELECT *
+FROM   watch
+QUALIFY ROW_NUMBER() OVER (PARTITION BY user_id
+                           ORDER BY secs DESC) &lt;= 3;
+-- Spark/PG: wrap it and filter:
+-- SELECT * FROM (… ROW_NUMBER() AS rn …) WHERE rn &lt;= 3
+</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> <code>QUALIFY</code> filters on a window result without a subquery; one partition-and-sort answers the whole top-N. The correlated-count form re-scans the group for every row — quadratic. Use <code>RANK()</code> if you want ties to share a place, <code>ROW_NUMBER()</code> for a hard cut.</p>
+<div class="opt-impact"><strong>Impact:</strong> O(n²) correlated scans → a single windowed pass.</div>
+</div>
+
+<div class="opt-card" id="opt-20">
+<div class="opt-card-head"><span class="opt-num">№ 20</span><h3 class="opt-title">Latest-record-per-key dedup (CDC) with a tiebreaker</h3><div class="opt-tags"><span class="opt-tag">dedup · CDC</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Snowflake</span> — collapse an append-only change log to the current row per primary key.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — correlated MAX, non-deterministic</div><pre><code>SELECT *
+FROM   changes c
+WHERE  c.updated_at = (
+  SELECT MAX(updated_at) FROM changes c2
+  WHERE c2.pk = c.pk);
+-- re-scans per pk, AND returns 2 rows when two
+-- updates share the same updated_at.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — deterministic window</div><pre><code>SELECT *
+FROM   changes
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY pk
+  ORDER BY updated_at DESC, op_seq DESC) = 1;
+-- op_seq breaks ties → exactly one row per pk.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> One window pass replaces a correlated subquery, and the secondary sort key (<code>op_seq</code>, an offset, a monotonic id) guarantees <em>exactly one</em> winner per key even when timestamps collide — a real bug in high-throughput CDC. This is the canonical "current state from a change stream" pattern.</p>
+<div class="opt-impact"><strong>Impact:</strong> single scan + window, and deterministic — no duplicate keys leaking downstream.</div>
+</div>
+
+<div class="opt-card" id="opt-21">
+<div class="opt-card-head"><span class="opt-num">№ 21</span><h3 class="opt-title">Sessionize with <code>LAG</code> + running sum, not a self-join</h3><div class="opt-tags"><span class="opt-tag">gaps &amp; islands</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Spotify</span> — split each user's event stream into sessions with a 30-minute inactivity gap.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — self-join to find gaps</div><pre><code>-- join each event to its predecessor by a
+-- correlated subquery / inequality self-join,
+-- then diff timestamps → O(n²) per user.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — two linear window passes</div><pre><code>SELECT *,
+  SUM(is_new) OVER (PARTITION BY user_id
+                    ORDER BY ts) AS session_id
+FROM (
+  SELECT *,
+    CASE WHEN ts - LAG(ts) OVER (PARTITION BY user_id
+                                 ORDER BY ts)
+              &gt; INTERVAL '30' MINUTE
+         THEN 1 ELSE 0 END AS is_new
+  FROM events
+) s;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> <code>LAG</code> gives each event its predecessor's timestamp in one pass; a gap over the threshold flags a session boundary; a running <code>SUM</code> of those flags numbers the sessions. Two ordered sweeps replace a quadratic self-join — the textbook gaps-and-islands solution.</p>
+<div class="opt-impact"><strong>Impact:</strong> linear sessionization that scales to a user with millions of events.</div>
+</div>
+
+<div class="opt-card" id="opt-22">
+<div class="opt-card-head"><span class="opt-num">№ 22</span><h3 class="opt-title">Push the <code>LIMIT</code> — don't globally sort a PB to take 100 rows</h3><div class="opt-tags"><span class="opt-tag">top-N / limit pushdown</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Pinterest</span> — "top 100 pins by saves this week" off a huge fact.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — sort the world, then cut</div><pre><code>SELECT pin_id, saves
+FROM   wide_join_of_everything   -- PB of rows
+ORDER BY saves DESC
+LIMIT 100;
+-- a global sort over a PB to keep 100 rows.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — aggregate, then top-N heap</div><pre><code>SELECT pin_id, SUM(saves) AS saves
+FROM   save_events
+WHERE  ds BETWEEN '2024-01-01' AND '2024-01-07'
+GROUP BY pin_id
+ORDER BY saves DESC
+LIMIT 100;          -- engine keeps a 100-entry heap
+                    -- per partition, then merges.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> <code>ORDER BY … LIMIT k</code> over an <em>aggregated</em> input lets the engine maintain a bounded top-k heap per partition and merge them — no full global sort. Sorting a raw PB-wide join to discard all but 100 rows is pure waste; collapse to the grain first, filter early, and only then take the top-N.</p>
+<div class="opt-impact"><strong>Impact:</strong> a bounded-memory partial top-N instead of a full distributed sort of petabytes.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY 6 ============================================================ -->
+<section id="fam-6">
+<div class="part-eyebrow">§ Family 6 — compute once · incremental, MERGE, compaction</div>
+<h2 class="part-title">Stop recomputing five years every night.</h2>
+<p>The third bill is bytes <em>written</em>. The most common waste in a scheduled pipeline is recomputing the entire history when only today changed. These cards make write cost scale with the delta, not the table.</p>
+
+<div class="opt-card" id="opt-23">
+<div class="opt-card-head"><span class="opt-num">№ 23</span><h3 class="opt-title">Incremental partition overwrite, not full recompute</h3><div class="opt-tags"><span class="opt-tag">incremental</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Airbnb</span> — a daily aggregate over a 5-year fact, rebuilt from scratch every night.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — recompute all of history</div><pre><code>INSERT OVERWRITE TABLE agg
+SELECT ds, dim, SUM(x)
+FROM   fact            -- all 1,825 days, nightly
+GROUP BY ds, dim;</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — only the new partition</div><pre><code>INSERT OVERWRITE TABLE agg PARTITION (ds = '2024-01-08')
+SELECT '2024-01-08' AS ds, dim, SUM(x)
+FROM   fact
+WHERE  ds = '2024-01-08'      -- read &amp; write one day
+GROUP BY dim;
+-- dynamic-partition variant handles late data:
+-- WHERE ds &gt;= CURRENT_DATE - INTERVAL '3' DAY</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Yesterday's partitions didn't change, so reading and rewriting them is pure waste. Overwriting only the affected partition makes both read and write O(one day) instead of O(history). For late-arriving data, reprocess a small trailing window (e.g., last 3 days) rather than everything.</p>
+<div class="opt-impact"><strong>Impact:</strong> a nightly job that grew linearly with history becomes flat — runtime and cost stop creeping up as the table ages.</div>
+</div>
+
+<div class="opt-card" id="opt-24">
+<div class="opt-card-head"><span class="opt-num">№ 24</span><h3 class="opt-title"><code>MERGE</code> the delta for upserts / SCD, not a full rebuild</h3><div class="opt-tags"><span class="opt-tag">MERGE · upsert</span><span class="opt-tag eng">Snowflake · Delta · Iceberg · BQ</span></div></div>
+<p class="opt-scenario"><span class="co">Stripe</span> — apply a batch of CDC changes to a dimension on a lakehouse table.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — rebuild the whole table</div><pre><code>CREATE OR REPLACE TABLE dim_customer AS
+SELECT ... FROM dim_customer
+  -- hand-merge old + new by UNION/JOIN, rewrite
+  -- every row even though 0.1% changed.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — touch only changed files</div><pre><code>MERGE INTO dim_customer d
+USING staged_changes s ON d.customer_id = s.customer_id
+WHEN MATCHED AND s.op = 'U'
+  THEN UPDATE SET d.email = s.email, d.updated_at = s.ts
+WHEN MATCHED AND s.op = 'D' THEN DELETE
+WHEN NOT MATCHED
+  THEN INSERT (customer_id, email, updated_at)
+       VALUES (s.customer_id, s.email, s.ts);</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> On Delta/Iceberg/Snowflake, <code>MERGE</code> rewrites only the data files that contain matched keys, leaving the rest untouched. Write amplification scales with the size of the change set, not the table — and it's one atomic statement instead of a fragile rebuild-and-swap.</p>
+<div class="opt-impact"><strong>Impact:</strong> a 0.1% daily change set rewrites ~0.1% of the files, not 100%.</div>
+</div>
+
+<div class="opt-card" id="opt-25">
+<div class="opt-card-head"><span class="opt-num">№ 25</span><h3 class="opt-title">Compact small files — stop dying by a thousand opens</h3><div class="opt-tags"><span class="opt-tag">small-files problem</span><span class="opt-tag eng">Delta · Iceberg · Hive</span></div></div>
+<p class="opt-scenario"><span class="co">DoorDash</span> — a streaming ingest writes millions of 1&nbsp;MB files a day; downstream batch reads spend all their time listing and opening files.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — 1M × 1MB files</div><pre><code>-- micro-batch every few seconds, no compaction:
+-- read planning lists millions of files, opens
+-- each one, reads a tiny footer — overhead &gt;&gt;
+-- actual data read.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — compact to ~128–512 MB</div><pre><code>-- Delta
+OPTIMIZE events WHERE ds = '2024-01-08';
+-- Iceberg
+CALL system.rewrite_data_files('events');
+-- plain Spark/Hive
+INSERT OVERWRITE TABLE events PARTITION (ds='2024-01-08')
+SELECT /*+ COALESCE(64) */ * FROM events WHERE ds='2024-01-08';</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Every file carries fixed per-file overhead — a list entry, an open, a footer read, a task. A million tiny files means the engine spends its life on bookkeeping instead of data. Compacting into a few hundred right-sized files (≈128–512&nbsp;MB) collapses planning and read time and restores healthy parallelism.</p>
+<div class="opt-impact"><strong>Impact:</strong> file count ↓ ~1000×; query <em>planning</em> alone often drops from minutes to seconds.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<!-- ============================================================ FAMILY 7 ============================================================ -->
+<section id="fam-7">
+<div class="part-eyebrow">§ Family 7 — storage &amp; cost traps · the silent full scans</div>
+<h2 class="part-title">Clustering, JSON &amp; the cast that kills pruning.</h2>
+<p>The last family is the set of quiet mistakes that disable everything above — a layout that prevents skipping, a JSON blob re-parsed a million times, and the single most common pruning-killer in real code: an implicit type cast on a key.</p>
+
+<div class="opt-card" id="opt-26">
+<div class="opt-card-head"><span class="opt-num">№ 26</span><h3 class="opt-title">Cluster / Z-order by your filter columns for data skipping</h3><div class="opt-tags"><span class="opt-tag">clustering · data skipping</span><span class="opt-tag eng">Snowflake · Delta · BQ</span></div></div>
+<p class="opt-scenario"><span class="co">Snowflake</span> — a huge table partitioned by date but almost always filtered by <code>(event_date, country)</code>. Within a day, countries are scattered across every micro-partition.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — country scattered, no skipping</div><pre><code>SELECT ...
+FROM   events
+WHERE  ds = '2024-01-08' AND country = 'IN';
+-- country='IN' rows live in EVERY micro-partition
+-- of that day → min/max can't skip any of them.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — co-locate by the filter key</div><pre><code>ALTER TABLE events CLUSTER BY (ds, country);
+-- Delta:  OPTIMIZE events ZORDER BY (country);
+-- BigQuery: CLUSTER BY country at table creation.
+-- now each file holds a narrow country range →
+-- min/max stats skip the non-'IN' files.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Engines keep per-file/micro-partition min/max stats and skip any file whose range can't match the predicate. That only helps if matching rows are <em>physically clustered</em>; clustering or Z-ordering by your common filter columns narrows each file's range so data skipping actually fires. Partitioning gives coarse pruning; clustering gives fine-grained skipping inside the partition.</p>
+<div class="opt-impact"><strong>Impact:</strong> a within-partition scan of everything becomes a read of the handful of files that hold <code>country='IN'</code>.</div>
+</div>
+
+<div class="opt-card" id="opt-27">
+<div class="opt-card-head"><span class="opt-num">№ 27</span><h3 class="opt-title">Flatten JSON once into typed columns — don't re-parse per query</h3><div class="opt-tags"><span class="opt-tag">semi-structured ELT</span><span class="opt-tag eng">Snowflake · Spark · BQ</span></div></div>
+<p class="opt-scenario"><span class="co">Shopify</span> — a raw <code>payload</code> JSON string that ten different dashboards each parse on the fly over raw events.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — parse JSON in every query</div><pre><code>SELECT
+  GET_PATH(PARSE_JSON(payload), 'checkout.total') AS total,
+  GET_PATH(PARSE_JSON(payload), 'checkout.currency') AS ccy
+FROM   raw_events
+WHERE  ds = '2024-01-08';
+-- parse + path-extract on every row, every query,
+-- and the blob defeats column pruning/skipping.</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — extract once in ELT</div><pre><code>-- one curated table, built once per partition:
+CREATE TABLE checkout_facts AS
+SELECT order_id, ds,
+       payload:checkout.total::NUMBER   AS total,
+       payload:checkout.currency::STRING AS currency
+FROM   raw_events;
+-- dashboards now read typed columns:
+SELECT total, currency FROM checkout_facts WHERE ds='2024-01-08';</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> JSON parsing is CPU-heavy and a string blob can't be column-pruned or min/max-skipped. Doing the extraction once in an ELT step turns hot paths into typed, columnar fields — parse cost is paid a single time, and every downstream query gets projection and data skipping back.</p>
+<div class="opt-impact"><strong>Impact:</strong> N dashboards × per-row parse → one parse at write time; reads become cheap columnar scans.</div>
+</div>
+
+<div class="opt-card" id="opt-28">
+<div class="opt-card-head"><span class="opt-num">№ 28</span><h3 class="opt-title">Don't cast the join / partition key — implicit casts kill pruning</h3><div class="opt-tags"><span class="opt-tag">type alignment</span><span class="opt-tag eng">all engines</span></div></div>
+<p class="opt-scenario"><span class="co">Visa</span> — joining a <code>STRING user_id</code> to a <code>BIGINT user_id</code>, and filtering a string partition key with an integer literal. Both quietly disable optimizations.</p>
+<div class="opt-grid">
+<div class="opt-pane bad"><div class="opt-pane-label">✗ Anti-pattern — implicit cast on the key</div><pre><code>-- partition key ds is STRING; literal is INT →
+-- engine casts the COLUMN, pruning is disabled:
+WHERE ds = 20240108
+
+-- join keys differ in type → re-hash both sides,
+-- bucketing/co-location no longer applies:
+ON CAST(a.user_id AS STRING) = b.user_id</code></pre></div>
+<div class="opt-pane good"><div class="opt-pane-label">✓ Optimized — compare like with like</div><pre><code>-- compare the partition column to its OWN type:
+WHERE ds = '20240108'
+
+-- align key types at modeling time, then join bare:
+ON a.user_id = b.user_id        -- both BIGINT</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> When you compare a column to a value of a different type, the engine usually casts the <em>column</em> — and a cast wrapped around a partition key disables partition pruning (same trap as №1), while a cast on a join key forces a re-hash that defeats bucketing and broadcast co-location. Fix the types in the model so every key comparison is bare. It's the highest "silent tax" per character of SQL.</p>
+<div class="opt-impact"><strong>Impact:</strong> restores partition pruning and shuffle-free joins that an invisible one-character type mismatch had switched off.</div>
+</div>
+</section>
+
+<div class="ornament">✦ ✦ ✦</div>
+
+<section id="closing">
+<div class="part-eyebrow">§ The 60-second articulation</div>
+<h2 class="part-title">How to say it in the interview.</h2>
+<p>When an interviewer drops a slow query in front of you, narrate the diagnosis in the order the bytes flow — it signals you think in physical plans, not just SQL syntax:</p>
+<div class="senior-signal"><strong>"First I'd cut what we scan</strong> — is the partition key bare, are we projecting only needed columns, can a dim prune the fact? <strong>Then what we shuffle</strong> — broadcast the small side, pre-aggregate before the join, and check for a skewed key that needs salting or AQE. <strong>Then how often we write it</strong> — can this be incremental or a MERGE instead of a full recompute? <strong>And for the metrics themselves</strong>, an approximate distinct or percentile is almost always good enough at this scale. I'd confirm each hypothesis against the query plan and the bytes-scanned number before and after."</div>
+<p>That paragraph maps one-to-one onto the seven families above. The named techniques — partition pruning, broadcast join, salting, HyperLogLog, <code>QUALIFY</code>, incremental <code>MERGE</code>, clustering — are the vocabulary that reads as senior. The discipline of always asking <em>"which of the three bills does this cut?"</em> is what reads as <em>staff</em>.</p>
+
+<div class="callout" style="margin-top:24px;">
+  <strong>Keep going →</strong> Performance is the compute layer — making one petabyte query cheap. The next pillar, <a href="../analytics/">Analytics, Dashboard &amp; Optimization</a>, is the serving layer: turning that warehouse into sub-second dashboards with rollups, materialized views, a semantic layer, and OLAP engines. And <a href="../design/">Design</a> covers the schemas these queries run on.
+</div>
+</section>
+
+<p style="margin-top:48px;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);">
+  <a href="../" style="color:var(--text-3);">← Back to Practice · Q&amp;A</a> &nbsp;·&nbsp;
+  <a href="#top" style="color:var(--text-3);">↑ Top</a>
+</p>
+
+</article>
+
+</main>
+
+<script defer src="/lib/ps.js"></script>
+<button class="studio-themetoggle" type="button" id="psThemeToggle" aria-label="Toggle light or dark theme">◑ Theme</button>
+<script>(function(){var d=document.documentElement,b=document.getElementById('psThemeToggle');if(b)b.addEventListener('click',function(){var c=d.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var n=c==='dark'?'light':'dark';d.setAttribute('data-theme',n);try{localStorage.setItem('ps-theme',n);}catch(e){}});})();</script>
+</body>
+</html>
