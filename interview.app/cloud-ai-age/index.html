@@ -401,16 +401,19 @@ client.create_table(
   name='user_logs',
   format='ICEBERG'
 )</code></pre></details></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>BigQuery Omni</div><p>Query files sitting in external S3 / Azure Blob with no cross-cloud egress fees.</p><details class="cmcode"><summary>sql</summary><pre><code>-- executed natively from the GCP console
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>BigQuery Omni</div><p>Query files sitting in external S3 / Azure Blob with no cross-cloud egress fees.</p><details class="cmcode"><summary>sql</summary><pre><code>-- THE point of Omni: this table LIVES in AWS S3,
+-- queried from BigQuery in place — zero egress copy
 SELECT user_id, action
-FROM `aws_us_east_1.s3_logs`
+FROM `aws_us_east_1.s3_logs`   -- Omni connection (AWS region)
 WHERE date = CURRENT_DATE();</code></pre></details></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>OneLake Shortcuts</div><p>Virtualize external storage into the tenant workspace — no copy, no move.</p><details class="cmcode"><summary>http</summary><pre><code>POST https://api.fabric.microsoft.com/v1
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>OneLake Shortcuts</div><p>Virtualize external storage into the tenant workspace — no copy, no move.</p><details class="cmcode"><summary>http</summary><pre><code>// virtualize an EXTERNAL AWS S3 bucket into
+// the Fabric tenant — no copy, no move
+POST https://api.fabric.microsoft.com/v1
   /workspaces/{id}/items/{id}/shortcuts
 {
   "name": "External_S3_Shortcut",
   "target": {
-    "adlsGen2": { "location": "..." }
+    "amazonS3": { "location": "https://bucket.s3..." }
   }
 }</code></pre></details></div>
   </div>
