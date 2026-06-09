@@ -12734,6 +12734,136 @@
         "GROUP BY title_id, title_name",
         "ORDER BY completers DESC, title_id"
       ]
+    },
+    {
+      "id": "sql-cost-01",
+      "type": "code",
+      "topic": "Cost & FinOps",
+      "difficulty": "medium",
+      "prompt": "Overage File 01 — the runaway agent loop. `agent_events(conversation_id, ts, cost_cents)` logs one row per agent cycle. A conversation is RUNAWAY when it has accumulated 10 or more cycles. Return the runaway conversations as `conversation_id, cycles, total_cost_cents`, ordered by total_cost_cents descending — this is the query behind the kill-switch alarm.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE agent_events (conversation_id INT, ts TIMESTAMP, cost_cents INT);\nINSERT INTO agent_events VALUES (101,'2026-06-01 20:00:00',75),(101,'2026-06-01 20:01:00',75),(101,'2026-06-01 20:02:00',75),(101,'2026-06-01 20:03:00',75),(101,'2026-06-01 20:04:00',75),(101,'2026-06-01 20:05:00',75),(101,'2026-06-01 20:06:00',75),(101,'2026-06-01 20:07:00',75),(101,'2026-06-01 20:08:00',75),(101,'2026-06-01 20:09:00',75),(101,'2026-06-01 20:10:00',75),(101,'2026-06-01 20:11:00',75),(102,'2026-06-01 20:00:00',75),(102,'2026-06-01 20:01:00',75),(102,'2026-06-01 20:02:00',75),(103,'2026-06-01 21:00:00',75),(103,'2026-06-01 21:01:00',75),(103,'2026-06-01 21:02:00',75),(103,'2026-06-01 21:03:00',75),(103,'2026-06-01 21:04:00',75),(103,'2026-06-01 21:05:00',75),(103,'2026-06-01 21:06:00',75),(103,'2026-06-01 21:07:00',75),(103,'2026-06-01 21:08:00',75),(103,'2026-06-01 21:09:00',75),(103,'2026-06-01 21:10:00',75),(103,'2026-06-01 21:11:00',75),(103,'2026-06-01 21:12:00',75),(103,'2026-06-01 21:13:00',75),(103,'2026-06-01 21:14:00',75),(104,'2026-06-01 21:00:00',75),(104,'2026-06-01 21:01:00',75),(104,'2026-06-01 21:02:00',75),(104,'2026-06-01 21:03:00',75),(104,'2026-06-01 21:04:00',75),(104,'2026-06-01 21:05:00',75),(104,'2026-06-01 21:06:00',75),(104,'2026-06-01 21:07:00',75),(104,'2026-06-01 21:08:00',75);",
+      "model_answer": "SELECT conversation_id, COUNT(*) AS cycles, SUM(cost_cents) AS total_cost_cents\nFROM agent_events\nGROUP BY conversation_id\nHAVING COUNT(*) >= 10\nORDER BY total_cost_cents DESC;",
+      "expected_rows": [
+        {
+          "conversation_id": 103,
+          "cycles": 15,
+          "total_cost_cents": 1125
+        },
+        {
+          "conversation_id": 101,
+          "cycles": 12,
+          "total_cost_cents": 900
+        }
+      ],
+      "key_points": [
+        "GROUP BY conversation_id with COUNT(*) as the cycle count",
+        "HAVING COUNT(*) >= 10 — aggregate filters live in HAVING, not WHERE",
+        "SUM(cost_cents) for the money already burned",
+        "ORDER BY total cost DESC so the worst offender pages first"
+      ]
+    },
+    {
+      "id": "sql-cost-02",
+      "type": "code",
+      "topic": "Cost & FinOps",
+      "difficulty": "medium",
+      "prompt": "Overage File 02 — the context nobody trimmed. `requests(feature, request_id, tokens)` logs prompt size per request. The token budget is an AVERAGE of 8,000 tokens per request per feature. Return the features in breach as `feature, avg_tokens, requests` (avg strictly greater than 8000), highest average first — the p95-tokens-per-request SLO in miniature.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE requests (feature TEXT, request_id INT, tokens INT);\nINSERT INTO requests VALUES\n  ('helpdesk',1,60000),('helpdesk',2,58000),('helpdesk',3,62000),\n  ('eta',4,1500),('eta',5,2500),\n  ('search',6,9000),('search',7,7000),('search',8,8000),\n  ('summarizer',9,12000),('summarizer',10,10000);",
+      "model_answer": "SELECT feature, AVG(tokens) AS avg_tokens, COUNT(*) AS requests\nFROM requests\nGROUP BY feature\nHAVING AVG(tokens) > 8000\nORDER BY avg_tokens DESC;",
+      "expected_rows": [
+        {
+          "feature": "helpdesk",
+          "avg_tokens": 60000,
+          "requests": 3
+        },
+        {
+          "feature": "summarizer",
+          "avg_tokens": 11000,
+          "requests": 2
+        }
+      ],
+      "key_points": [
+        "AVG(tokens) per feature; HAVING AVG(tokens) > 8000",
+        "Strictly greater — a feature sitting exactly on budget is not in breach",
+        "COUNT(*) shows blast radius (how many requests pay the bloat)",
+        "Treat tokens-per-request like latency: a tracked, alertable metric"
+      ]
+    },
+    {
+      "id": "sql-cost-03",
+      "type": "code",
+      "topic": "Cost & FinOps",
+      "difficulty": "medium",
+      "prompt": "Overage File 03 — flagship for everything. `model_usage(route, model, tokens_m)` holds today's traffic (tokens in millions) and `price(model, usd_per_m)` the per-million price. Return ONE row: `actual_usd` (what today cost with the current routing), `flagship_only_usd` (what it would cost if every token ran on the flagship model), and `savings_usd` (the difference) — the business case for the routing cascade.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE price (model TEXT PRIMARY KEY, usd_per_m INT);\nINSERT INTO price VALUES ('small',1),('flagship',15);\nCREATE TABLE model_usage (route TEXT, model TEXT, tokens_m INT);\nINSERT INTO model_usage VALUES\n  ('eta','small',9000),('status','small',9000),('analysis','flagship',2000);",
+      "model_answer": "SELECT\n  SUM(u.tokens_m * p.usd_per_m) AS actual_usd,\n  SUM(u.tokens_m) * (SELECT usd_per_m FROM price WHERE model='flagship') AS flagship_only_usd,\n  SUM(u.tokens_m) * (SELECT usd_per_m FROM price WHERE model='flagship')\n    - SUM(u.tokens_m * p.usd_per_m) AS savings_usd\nFROM model_usage u\nJOIN price p ON p.model = u.model;",
+      "expected_rows": [
+        {
+          "actual_usd": 48000,
+          "flagship_only_usd": 300000,
+          "savings_usd": 252000
+        }
+      ],
+      "key_points": [
+        "JOIN usage to price on model for actual spend",
+        "A scalar subquery fetches the flagship price for the counterfactual",
+        "flagship_only = total tokens x flagship price; savings = counterfactual - actual",
+        "Cost per route, not one blended number, is what makes routing decisions visible"
+      ]
+    },
+    {
+      "id": "sql-cost-04",
+      "type": "code",
+      "topic": "Cost & FinOps",
+      "difficulty": "hard",
+      "prompt": "Overage File 05 — the canary that never gated cost. `deploy_metrics(version, requests, total_cost_cents)` has one row for 'baseline' and one for 'canary'. Return ONE row: `baseline_cpr` and `canary_cpr` (cost in cents per request for each version) and `pct_increase` (percent change of canary vs baseline). This is the Delta cost-per-request gate that should block the promote.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE deploy_metrics (version TEXT, requests INT, total_cost_cents INT);\nINSERT INTO deploy_metrics VALUES ('baseline',950000,1900000),('canary',50000,625000);",
+      "model_answer": "WITH cpr AS (\n  SELECT version, total_cost_cents * 1.0 / requests AS cents_per_request\n  FROM deploy_metrics)\nSELECT\n  (SELECT cents_per_request FROM cpr WHERE version='baseline') AS baseline_cpr,\n  (SELECT cents_per_request FROM cpr WHERE version='canary')   AS canary_cpr,\n  ((SELECT cents_per_request FROM cpr WHERE version='canary')\n   / (SELECT cents_per_request FROM cpr WHERE version='baseline') - 1) * 100 AS pct_increase;",
+      "expected_rows": [
+        {
+          "baseline_cpr": 2.0,
+          "canary_cpr": 12.5,
+          "pct_increase": 525.0
+        }
+      ],
+      "key_points": [
+        "cents-per-request = total_cost_cents * 1.0 / requests (multiply by 1.0 to avoid integer division)",
+        "A CTE computes per-version unit cost once; scalar subqueries pick each side",
+        "pct_increase = (canary/baseline - 1) * 100",
+        "The senior point: this number belongs NEXT TO latency in the canary gate"
+      ]
+    },
+    {
+      "id": "sql-cost-05",
+      "type": "code",
+      "topic": "Cost & FinOps",
+      "difficulty": "medium",
+      "prompt": "Overage File 06 — the acquisition that shipped two clouds. `datasets(dataset, size_gb, monthly_queries)` is the acquired company's lake on another cloud. Egress costs 8 cents per GB. The federate-before-migrate rule: only datasets with at least 100 queries/month are migrated; cold data is queried in place. Return ONE row: `migrate_all_usd` (naive plan: move everything), `migrate_hot_only_usd` (the rule), and `egress_saved_usd`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE datasets (dataset TEXT, size_gb INT, monthly_queries INT);\nINSERT INTO datasets VALUES\n  ('raw_logs',3000000,5),('clickstream',2000000,450),\n  ('ml_features',800000,1200),('cold_archive',200000,0);",
+      "model_answer": "SELECT\n  SUM(size_gb) * 8 / 100 AS migrate_all_usd,\n  SUM(CASE WHEN monthly_queries >= 100 THEN size_gb ELSE 0 END) * 8 / 100 AS migrate_hot_only_usd,\n  (SUM(size_gb) - SUM(CASE WHEN monthly_queries >= 100 THEN size_gb ELSE 0 END)) * 8 / 100 AS egress_saved_usd\nFROM datasets;",
+      "expected_rows": [
+        {
+          "migrate_all_usd": 480000,
+          "migrate_hot_only_usd": 224000,
+          "egress_saved_usd": 256000
+        }
+      ],
+      "key_points": [
+        "USD = SUM(size_gb) * 8 / 100 — keep it in integer cents-per-GB for exact math",
+        "Conditional aggregation (CASE WHEN monthly_queries >= 100) splits hot from cold in one scan",
+        "savings = total - hot, all in the same pass",
+        "Federate-before-migrate turns egress into a per-dataset decision instead of a lump sum"
+      ]
     }
   ]
 }

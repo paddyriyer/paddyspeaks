@@ -695,6 +695,100 @@
       ],
       "answer": 1,
       "explanation": "Data CI/CD gates on more than code: contract/schema compatibility, data-quality assertions, and the downstream blast radius (from lineage) of the change. That systems view — not just green unit tests — is the senior signal."
+    },
+    {
+      "id": "tt-047",
+      "type": "single",
+      "topic": "FinOps & Overage",
+      "difficulty": "medium",
+      "prompt": "A runaway agent retry loop burns ~$450K overnight. What monitoring gap most directly allowed it?",
+      "options": [
+        "The team had no latency dashboard",
+        "Cost was reviewed at monthly/invoice granularity while the burn happened per-minute — no spend-rate ($/min) alarm or kill switch existed",
+        "The agents lacked GPU quota",
+        "The model provider had an outage"
+      ],
+      "answer": 1,
+      "explanation": "Each call was individually cheap and 'correct'; the failure was treating cost as a monthly report instead of a runtime metric. The guardrails are spend-rate alarms in $/minute wired to a per-fleet kill switch, plus hard turn caps and backoff in code."
+    },
+    {
+      "id": "tt-048",
+      "type": "single",
+      "topic": "FinOps & Overage",
+      "difficulty": "hard",
+      "prompt": "During a 20-minute provider brownout, spend spikes ~30x. Retries were x3, queue redelivery x2, tool fan-out x5 — each configured correctly by a different team. What is the lesson?",
+      "options": [
+        "One of the three teams misconfigured their component",
+        "Amplification multipliers COMPOUND — the 30x exists only at the system level, so cost blast-radius must be reviewed end-to-end, with retry budgets, circuit breakers and idempotency keys",
+        "Autoscaling should never be enabled",
+        "Brownouts are too rare to design for"
+      ],
+      "answer": 1,
+      "explanation": "3 x 2 x 5 = 30: each default is reasonable in isolation and catastrophic as a product. Retry budgets, circuit breakers, bounded queues/DLQs, cost-aware autoscaler caps and end-to-end idempotency keep a brownout from becoming a 30x bill plus duplicate writes."
+    },
+    {
+      "id": "tt-049",
+      "type": "single",
+      "topic": "CI/CD & DataOps (AI)",
+      "difficulty": "medium",
+      "prompt": "A prompt/tooling change ships through a canary that checks p95 latency and error rate, both green — yet the deploy costs ~$735K extra over the next week. What was missing from the gate?",
+      "options": [
+        "A longer soak time at 5%",
+        "Delta cost-per-request (and quality evals) as first-class promote/rollback gates next to latency and errors",
+        "More canary traffic percentage",
+        "A manual approval step"
+      ],
+      "answer": 1,
+      "explanation": "In the token era a one-line prompt edit is a pricing change. Tokens-per-request tripled while latency and errors stayed flat, so the canary promoted it. Gate the canary on Delta cost-per-request with auto-rollback on band breach, and alert on hourly budget anomalies."
+    },
+    {
+      "id": "tt-050",
+      "type": "multi",
+      "topic": "FinOps & Overage",
+      "difficulty": "medium",
+      "prompt": "Which of these are real cost guardrails for AI systems (not just reporting)? (Select all that apply)",
+      "options": [
+        "Per-conversation/per-tenant token budgets enforced in code, failing closed",
+        "Spend-rate alarms in dollars-per-minute wired to kill switches",
+        "A model routing cascade — the smallest model that passes the evals",
+        "Always using the flagship model so quality is never at risk"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Budgets in code, minute-granularity alarms with kill switches, and eval-gated routing are enforcement. 'Flagship for everything' is the anti-pattern from Overage File 03 — it pays ~8-20x for work a small model passes evals on."
+    },
+    {
+      "id": "tt-051",
+      "type": "single",
+      "topic": "Cloud M&A",
+      "difficulty": "hard",
+      "prompt": "Your AWS-native company acquires a GCP-native target with a 6 PB lake. What is the senior first move?",
+      "options": [
+        "Bulk-migrate all 6 PB to AWS in the first quarter so there is one platform",
+        "Federate first — query the data in place across clouds (cross-cloud query engines / an open table format), migrate only datasets that prove hot, with an egress-priced plan and a dated dual-run shutdown",
+        "Keep both stacks forever with no consolidation plan",
+        "Re-ingest everything from the original sources instead of migrating"
+      ],
+      "answer": 1,
+      "explanation": "Data has gravity: bulk egress on 6 PB costs ~$480K per copy before re-runs, and 'consolidate in a quarter' becomes 18 months of dual-run. Federate-before-migrate makes egress a per-dataset decision, while contracts (committed-use true-up) and one governance plane are handled on day one."
+    },
+    {
+      "id": "tt-052",
+      "type": "single",
+      "topic": "Cloud M&A",
+      "difficulty": "medium",
+      "prompt": "Why does Apache Iceberg specifically reduce the cost of a cross-cloud acquisition integration?",
+      "options": [
+        "Iceberg compresses data better than Parquet",
+        "It is an open table format that engines on BOTH clouds can read — one copy of the data serves Spark, Trino, BigQuery and Snowflake without per-engine conversion or forced migration",
+        "It automatically replicates data between clouds for free",
+        "It eliminates the need for a catalog"
+      ],
+      "answer": 1,
+      "explanation": "The format war's winner is also the M&A escape hatch: with the acquired lake in an open format, the acquirer's engines can query it in place (or via a shared REST catalog) instead of converting/moving petabytes. Egress becomes a choice driven by access patterns, not a prerequisite."
     }
   ]
 }
