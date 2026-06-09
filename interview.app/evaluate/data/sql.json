@@ -12626,6 +12626,114 @@
       ],
       "answer": 1,
       "explanation": "A multi-cluster warehouse scales OUT for concurrency: when queries start queuing, Snowflake spins up additional clusters of the SAME size (up to MAX) and retires them as demand drops. It does not make an individual query faster \u2014 that is scaling UP to a bigger warehouse size. The STANDARD policy favors starting clusters sooner to minimize queuing; ECONOMY favors keeping running clusters fully loaded to conserve credits."
+    },
+    {
+      "id": "sql-netflix-01",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Netflix-scale viewing model. Tables: `accounts(account_id, account_name, country)`, `titles(title_id, title_name, release_year, launch_date, runtime_seconds)`, and `viewing_history(account_id, title_id, view_time_seconds, last_watched_at)` — one row per (account, title) holding the cumulative seconds that account has watched that title.\n\nReturn the TOP 3 titles by total cumulative watch time across all accounts. Return columns: `title_id, title_name, total_watch_time`, ordered by total_watch_time descending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE accounts (account_id INT PRIMARY KEY, account_name TEXT, country TEXT);\nINSERT INTO accounts VALUES\n  (1,'Alice','US'),(2,'Bob','US'),(3,'Cara','UK'),(4,'Dan','IN'),(5,'Eve','US');\nCREATE TABLE titles (title_id INT PRIMARY KEY, title_name TEXT, release_year INT, launch_date DATE, runtime_seconds INT);\nINSERT INTO titles VALUES\n  (101,'Nova',2024,'2024-07-01',3600),\n  (102,'Echoes',2024,'2024-08-15',1800),\n  (103,'Old Hit',2023,'2024-07-10',3000),\n  (104,'Spring',2024,'2024-03-01',2400),\n  (105,'Pulse',2024,'2024-09-01',1200);\nCREATE TABLE viewing_history (account_id INT, title_id INT, view_time_seconds INT, last_watched_at TIMESTAMP, PRIMARY KEY (account_id, title_id));\nINSERT INTO viewing_history VALUES\n  (1,101,3000,'2024-09-10 20:00:00'),(1,102,1500,'2024-09-11 21:00:00'),(1,105,500,'2024-09-12 19:00:00'),\n  (2,101,3400,'2024-09-09 18:00:00'),(2,105,1000,'2024-09-10 22:00:00'),\n  (3,101,2000,'2024-09-08 20:00:00'),(3,102,1700,'2024-09-09 21:00:00'),\n  (4,103,2900,'2024-09-07 20:00:00'),(4,104,2300,'2024-09-06 19:00:00'),\n  (5,105,1100,'2024-09-10 20:00:00'),(5,102,1450,'2024-09-11 21:00:00');",
+      "model_answer": "SELECT t.title_id, t.title_name, SUM(v.view_time_seconds) AS total_watch_time\nFROM viewing_history v\nJOIN titles t ON t.title_id = v.title_id\nGROUP BY t.title_id, t.title_name\nORDER BY total_watch_time DESC\nLIMIT 3;",
+      "expected_rows": [
+        {
+          "title_id": 101,
+          "title_name": "Nova",
+          "total_watch_time": 8400
+        },
+        {
+          "title_id": 102,
+          "title_name": "Echoes",
+          "total_watch_time": 4650
+        },
+        {
+          "title_id": 103,
+          "title_name": "Old Hit",
+          "total_watch_time": 2900
+        }
+      ],
+      "key_points": [
+        "JOIN viewing_history to titles on title_id",
+        "SUM(view_time_seconds) aggregated per title",
+        "GROUP BY title_id (and title_name)",
+        "ORDER BY the total DESC, then LIMIT 3"
+      ]
+    },
+    {
+      "id": "sql-netflix-02",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Same Netflix schema as the title leaderboard. As of a report date of 2024-09-15, find the TOP 3 accounts by qualifying watch time, where a viewing row qualifies only if all hold:\n- the title was released in 2024 (`release_year = 2024`), AND\n- the title launched within the last 100 days of the report date (`launch_date >= DATE '2024-06-07'`), AND\n- the account watched MORE THAN 80% of the title's runtime (`view_time_seconds > 0.80 * runtime_seconds`).\n\nReturn columns: `account_id, account_name, total_qualifying_watch_time`, ordered by total_qualifying_watch_time descending. (The 100-day window is precomputed: 2024-09-15 less 100 days = 2024-06-07.)",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE accounts (account_id INT PRIMARY KEY, account_name TEXT, country TEXT);\nINSERT INTO accounts VALUES\n  (1,'Alice','US'),(2,'Bob','US'),(3,'Cara','UK'),(4,'Dan','IN'),(5,'Eve','US');\nCREATE TABLE titles (title_id INT PRIMARY KEY, title_name TEXT, release_year INT, launch_date DATE, runtime_seconds INT);\nINSERT INTO titles VALUES\n  (101,'Nova',2024,'2024-07-01',3600),\n  (102,'Echoes',2024,'2024-08-15',1800),\n  (103,'Old Hit',2023,'2024-07-10',3000),\n  (104,'Spring',2024,'2024-03-01',2400),\n  (105,'Pulse',2024,'2024-09-01',1200);\nCREATE TABLE viewing_history (account_id INT, title_id INT, view_time_seconds INT, last_watched_at TIMESTAMP, PRIMARY KEY (account_id, title_id));\nINSERT INTO viewing_history VALUES\n  (1,101,3000,'2024-09-10 20:00:00'),(1,102,1500,'2024-09-11 21:00:00'),(1,105,500,'2024-09-12 19:00:00'),\n  (2,101,3400,'2024-09-09 18:00:00'),(2,105,1000,'2024-09-10 22:00:00'),\n  (3,101,2000,'2024-09-08 20:00:00'),(3,102,1700,'2024-09-09 21:00:00'),\n  (4,103,2900,'2024-09-07 20:00:00'),(4,104,2300,'2024-09-06 19:00:00'),\n  (5,105,1100,'2024-09-10 20:00:00'),(5,102,1450,'2024-09-11 21:00:00');",
+      "model_answer": "SELECT a.account_id, a.account_name, SUM(v.view_time_seconds) AS total_qualifying_watch_time\nFROM viewing_history v\nJOIN accounts a ON a.account_id = v.account_id\nJOIN titles   t ON t.title_id   = v.title_id\nWHERE t.release_year = 2024\n  AND t.launch_date >= DATE '2024-06-07'        -- report date 2024-09-15 less 100 days\n  AND v.view_time_seconds > 0.80 * t.runtime_seconds\nGROUP BY a.account_id, a.account_name\nORDER BY total_qualifying_watch_time DESC\nLIMIT 3;",
+      "expected_rows": [
+        {
+          "account_id": 1,
+          "account_name": "Alice",
+          "total_qualifying_watch_time": 4500
+        },
+        {
+          "account_id": 2,
+          "account_name": "Bob",
+          "total_qualifying_watch_time": 4400
+        },
+        {
+          "account_id": 5,
+          "account_name": "Eve",
+          "total_qualifying_watch_time": 2550
+        }
+      ],
+      "key_points": [
+        "Three-table join: viewing_history to accounts and titles",
+        "Filter release_year = 2024 AND launch_date >= DATE '2024-06-07' (the 100-day window)",
+        "Threshold filter view_time_seconds > 0.80 * runtime_seconds (strictly greater = 'more than 80%')",
+        "SUM qualifying seconds per account, ORDER BY DESC, LIMIT 3",
+        "'Released in 2024' and 'launched in the window' are two different filters — a 2024 title launched in March is excluded"
+      ]
+    },
+    {
+      "id": "sql-netflix-03",
+      "type": "code",
+      "topic": "Conditional Aggregation",
+      "difficulty": "medium",
+      "prompt": "Same Netflix schema. Call an account a COMPLETER of a title when it watched MORE THAN 80% of the title's runtime. For every title released in 2024, return how many accounts completed it. Return columns: `title_id, title_name, completers`, ordered by completers descending then title_id.\n\n(This filters on `release_year = 2024` only — unlike the account leaderboard there is no launch-date window, so a 2024 title launched in March still counts.)",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE accounts (account_id INT PRIMARY KEY, account_name TEXT, country TEXT);\nINSERT INTO accounts VALUES\n  (1,'Alice','US'),(2,'Bob','US'),(3,'Cara','UK'),(4,'Dan','IN'),(5,'Eve','US');\nCREATE TABLE titles (title_id INT PRIMARY KEY, title_name TEXT, release_year INT, launch_date DATE, runtime_seconds INT);\nINSERT INTO titles VALUES\n  (101,'Nova',2024,'2024-07-01',3600),\n  (102,'Echoes',2024,'2024-08-15',1800),\n  (103,'Old Hit',2023,'2024-07-10',3000),\n  (104,'Spring',2024,'2024-03-01',2400),\n  (105,'Pulse',2024,'2024-09-01',1200);\nCREATE TABLE viewing_history (account_id INT, title_id INT, view_time_seconds INT, last_watched_at TIMESTAMP, PRIMARY KEY (account_id, title_id));\nINSERT INTO viewing_history VALUES\n  (1,101,3000,'2024-09-10 20:00:00'),(1,102,1500,'2024-09-11 21:00:00'),(1,105,500,'2024-09-12 19:00:00'),\n  (2,101,3400,'2024-09-09 18:00:00'),(2,105,1000,'2024-09-10 22:00:00'),\n  (3,101,2000,'2024-09-08 20:00:00'),(3,102,1700,'2024-09-09 21:00:00'),\n  (4,103,2900,'2024-09-07 20:00:00'),(4,104,2300,'2024-09-06 19:00:00'),\n  (5,105,1100,'2024-09-10 20:00:00'),(5,102,1450,'2024-09-11 21:00:00');",
+      "model_answer": "SELECT t.title_id, t.title_name, COUNT(DISTINCT v.account_id) AS completers\nFROM viewing_history v\nJOIN titles t ON t.title_id = v.title_id\nWHERE t.release_year = 2024\n  AND v.view_time_seconds > 0.80 * t.runtime_seconds\nGROUP BY t.title_id, t.title_name\nORDER BY completers DESC, t.title_id;",
+      "expected_rows": [
+        {
+          "title_id": 102,
+          "title_name": "Echoes",
+          "completers": 3
+        },
+        {
+          "title_id": 101,
+          "title_name": "Nova",
+          "completers": 2
+        },
+        {
+          "title_id": 105,
+          "title_name": "Pulse",
+          "completers": 2
+        },
+        {
+          "title_id": 104,
+          "title_name": "Spring",
+          "completers": 1
+        }
+      ],
+      "key_points": [
+        "WHERE release_year = 2024 AND view_time_seconds > 0.80 * runtime_seconds",
+        "COUNT(DISTINCT account_id) per title (the completion count)",
+        "GROUP BY title_id, title_name",
+        "ORDER BY completers DESC, title_id"
+      ]
     }
   ]
 }
