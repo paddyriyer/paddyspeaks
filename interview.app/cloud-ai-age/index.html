@@ -83,6 +83,14 @@
 .cmcell .cmtag{font-family:var(--font-mono);font-size:8.5px;font-weight:700;letter-spacing:.5px;color:#fff;background:var(--cmc);padding:1px 5px;border-radius:4px;margin-right:6px;vertical-align:middle}
 .cmcell p{font-size:12px;color:var(--text-2);margin:0;line-height:1.42}
 @media (max-width:760px){.cmrow{grid-template-columns:1fr}.cmrow.head{display:none}.cmfeat{padding:8px 12px}}
+/* expandable code sketch inside each matrix cell */
+.cmcell .cmcode{margin-top:8px}
+.cmcell .cmcode summary{font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cmc);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px}
+.cmcell .cmcode summary::-webkit-details-marker{display:none}
+.cmcell .cmcode summary::before{content:"‹/›";font-size:10px;font-weight:700}
+.cmcell .cmcode[open] summary{margin-bottom:6px}
+.cmcell .cmcode pre{margin:0;background:var(--code-bg);color:var(--code-fg);font-family:var(--font-mono);font-size:10.5px;line-height:1.5;padding:10px 12px;border-radius:6px;overflow-x:auto;border-left:3px solid var(--cmc)}
+.cmcell .cmcode pre code{background:transparent;color:inherit;padding:0;font-size:inherit}
 </style>
 <script>try{var t=localStorage.getItem('ps-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 </head>
@@ -377,7 +385,7 @@
 <p>Notice the convergence: all three are racing to the <em>same</em> place — an open-ish data layer, agentic and sandboxed delivery, and economics driven by custom silicon and automated tuning. The differentiator is less the feature list than the <em>ecosystem</em> you're already standing in. The real competition isn't "AWS vs Azure vs GCP" — it's whether your org can <em>govern AI-built systems</em> on whichever one you picked.</p>
 
 <h4 class="sub-head">The feature matrix — a 2026 snapshot</h4>
-<p>This is the <em>perishable</em> layer: the product names will churn, but the ten capability categories (the rows) are durable. Read it as a current map and a vocabulary check — not a spec to memorize. Colour marks the provider; each cell is the offering and what it actually does.</p>
+<p>This is the <em>perishable</em> layer: the product names will churn, but the ten capability categories (the rows) are durable. Read it as a current map and a vocabulary check — not a spec to memorize. Colour marks the provider; each cell is the offering and what it actually does, and the <strong>‹/› toggle expands a minimal code sketch</strong> so you can see the shape of each API. Sketches are illustrative — check the provider docs for current syntax before copy-pasting.</p>
 
 <div class="cmatrix">
   <div class="cmrow head"><div></div><div class="cmhead aws">AWS</div><div class="cmhead gcp">Google Cloud</div><div class="cmhead azure">Azure</div></div>
@@ -385,67 +393,177 @@
   <div class="cmpillar">▸ Part 1 · Data Engineering</div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 01</span><h5>Modern Lakehouse</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>S3 Tables (Iceberg)</div><p>Managed Apache Iceberg inside S3 with native auto-compaction &amp; optimization.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>BigQuery Omni</div><p>Query files sitting in external S3 / Azure Blob with no cross-cloud egress fees.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>OneLake Shortcuts</div><p>Virtualize external storage into the tenant workspace — no copy, no move.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>S3 Tables (Iceberg)</div><p>Managed Apache Iceberg inside S3 with native auto-compaction &amp; optimization.</p><details class="cmcode"><summary>python</summary><pre><code>import boto3
+client = boto3.client('s3tables')
+client.create_table(
+  tableBucketARN='arn:aws:s3tables:...',
+  namespace='analytics_db',
+  name='user_logs',
+  format='ICEBERG'
+)</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>BigQuery Omni</div><p>Query files sitting in external S3 / Azure Blob with no cross-cloud egress fees.</p><details class="cmcode"><summary>sql</summary><pre><code>-- executed natively from the GCP console
+SELECT user_id, action
+FROM `aws_us_east_1.s3_logs`
+WHERE date = CURRENT_DATE();</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>OneLake Shortcuts</div><p>Virtualize external storage into the tenant workspace — no copy, no move.</p><details class="cmcode"><summary>http</summary><pre><code>POST https://api.fabric.microsoft.com/v1
+  /workspaces/{id}/items/{id}/shortcuts
+{
+  "name": "External_S3_Shortcut",
+  "target": {
+    "adlsGen2": { "location": "..." }
+  }
+}</code></pre></details></div>
   </div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 02</span><h5>Unstructured Data</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>S3 Event Vector Ingestion</div><p>Serverless pipelines triggered the instant raw objects land in storage.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>In-place Row Tokenization</div><p><code>ML.PROCESS_DOCUMENT</code> extracts structure from PDFs/images inside the warehouse.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Real-Time KQL Streaming</div><p>Binds incoming streaming formats directly to the analytical engine.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>S3 Event Vector Ingestion</div><p>Serverless pipelines triggered the instant raw objects land in storage.</p><details class="cmcode"><summary>json</summary><pre><code>{
+  "LambdaConfiguration": {
+    "Events": ["s3:ObjectCreated:*"],
+    "Function": "arn:aws:lambda:...VectorParse"
+  }
+}</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>In-place Row Tokenization</div><p><code>ML.PROCESS_DOCUMENT</code> extracts structure from PDFs/images inside the warehouse.</p><details class="cmcode"><summary>sql</summary><pre><code>SELECT * FROM ML.PROCESS_DOCUMENT(
+  MODEL `my_project.invoice_parser`,
+  TABLE `my_project.raw_pdf_blobs`
+);</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Real-Time KQL Streaming</div><p>Binds incoming streaming formats directly to the analytical engine.</p><details class="cmcode"><summary>kql</summary><pre><code>// continuous ingestion mapping
+.create table StreamedDocs
+  ingestion json mapping 'Map'
+  '[{"column":"Text","path":"$.body"}]'</code></pre></details></div>
   </div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 03</span><h5>Continuous DB Replication</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Zero-ETL Operational Sync</div><p>Transactional DBs into analytics with no hand-built Spark/Python pipeline.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>AlloyDB / Spanner CDC</div><p>Streams operational-DB changes straight into analytical targets.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Native Fabric Mirroring</div><p>Mirrors cloud or local SQL into OneLake in real time.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Zero-ETL Operational Sync</div><p>Transactional DBs into analytics with no hand-built Spark/Python pipeline.</p><details class="cmcode"><summary>bash</summary><pre><code># zero-ETL integration: RDS -&gt; Redshift
+aws rds create-integration \
+  --integration-name prod-sync \
+  --source-arn arn:aws:rds:...:cluster:prod-db \
+  --target-arn arn:aws:redshift:...:namespace/analytics</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>AlloyDB / Spanner CDC</div><p>Streams operational-DB changes straight into analytical targets.</p><details class="cmcode"><summary>sql</summary><pre><code>-- Spanner: emit every change for analytics
+CREATE CHANGE STREAM analytics_stream FOR ALL;</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Native Fabric Mirroring</div><p>Mirrors cloud or local SQL into OneLake in real time.</p><details class="cmcode"><summary>sql</summary><pre><code>-- source DB: enable the change feed that
+-- Fabric Mirroring replicates from
+EXEC sys.sp_change_feed_enable_db;</code></pre></details></div>
   </div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 04</span><h5>Workspace Convergence</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>SageMaker Unified Studio</div><p>Pipelines, eval metrics and training code in one standardized ecosystem.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Gemini Enterprise Agent Hub</div><p>From isolated prompts to long-running, autonomous developer tasks.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Unified SaaS Fabric</div><p>Warehouses, lakehouses and compute in a single enterprise portal.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>SageMaker Unified Studio</div><p>Pipelines, eval metrics and training code in one standardized ecosystem.</p><details class="cmcode"><summary>python</summary><pre><code>import sagemaker
+sess = sagemaker.Session()
+pipeline = sagemaker.workflow.pipeline.Pipeline(
+    name="UnifiedStudioPipeline", steps=[...]
+)</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Gemini Enterprise Agent Hub</div><p>From isolated prompts to long-running, autonomous developer tasks.</p><details class="cmcode"><summary>python</summary><pre><code>from google.cloud import aiplatform
+aiplatform.init(project='prod-agents')
+agent = aiplatform.AgentInstance(id='de-pipeline-agent')</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Unified SaaS Fabric</div><p>Warehouses, lakehouses and compute in a single enterprise portal.</p><details class="cmcode"><summary>bash</summary><pre><code>az fabric capacity create \
+  --resource-group rg-data \
+  --sku F64 --location eastus</code></pre></details></div>
   </div>
 
   <div class="cmpillar">▸ Part 2 · DevOps &amp; Automation</div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 05</span><h5>Infrastructure Deployment</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Kiro Engine</div><p>Compiles conversational intent into production-grade IaC templates.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Cloud Workstations Guardrails</div><p>Enforces org compliance constraints on code-generation suites.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>GitHub Action Automation</div><p>Deploys infrastructure natively from your primary source-control repo.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Kiro Engine</div><p>Compiles conversational intent into production-grade IaC templates.</p><details class="cmcode"><summary>json</summary><pre><code>{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Agent-generated cloud structure",
+  "Resources": {
+    "DataBucket": { "Type": "AWS::S3::Bucket" }
+  }
+}</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Cloud Workstations Guardrails</div><p>Enforces org compliance constraints on code-generation suites.</p><details class="cmcode"><summary>yaml</summary><pre><code>apiVersion: workstations.cloud.google.com/v1
+kind: WorkstationConfig
+metadata:
+  name: secure-code-box</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>GitHub Action Automation</div><p>Deploys infrastructure natively from your primary source-control repo.</p><details class="cmcode"><summary>yaml</summary><pre><code>- name: Deploy Azure Resources
+  uses: azure/arm-deploy@v1
+  with:
+    resourceGroupName: rg-prod
+    template: ./azuredeploy.json</code></pre></details></div>
   </div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 06</span><h5>Testing &amp; Validation</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Bedrock Policy Guardrails</div><p>Evaluates autonomous code against safety constraints before live updates.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Isolated Sandbox Containers</div><p>Runs agent-written code in sealed, egress-blocked test environments.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Foundry Monitoring</div><p>Tracks model performance, prompt changes and trace histories.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Bedrock Policy Guardrails</div><p>Evaluates autonomous code against safety constraints before live updates.</p><details class="cmcode"><summary>python</summary><pre><code>bedrock.apply_guardrail(
+  guardrailIdentifier='gr-devops-rules',
+  source='SYSTEM_PROMPT',
+  content=agent_iac_code
+)</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Isolated Sandbox Containers</div><p>Runs agent-written code in sealed, egress-blocked test environments.</p><details class="cmcode"><summary>yaml</summary><pre><code>run:
+  environment: agent-sandbox-secure
+  isolation: containerized
+  network: egress-blocked</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Foundry Monitoring</div><p>Tracks model performance, prompt changes and trace histories.</p><details class="cmcode"><summary>python</summary><pre><code>from azure.ai.evaluation import evaluate
+res = evaluate(
+  evaluation_name="canary_run",
+  target=autonomous_agent_wf
+)</code></pre></details></div>
   </div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 07</span><h5>System Observability</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>CloudWatch Automated Triage</div><p>Anomaly-detection bands over infra traces to watch stability.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Model Armor + API Gateway</div><p>Blocks prompt injection and data exfiltration at the edge.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Eventhouse Telemetry</div><p>Pipeline latency surfaced on a central diagnostic canvas.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>CloudWatch Automated Triage</div><p>Anomaly-detection bands over infra traces to watch stability.</p><details class="cmcode"><summary>json</summary><pre><code>{
+  "AlarmName": "PipelineAnomalyDetection",
+  "Metrics": [{
+    "Id": "m1",
+    "ReturnData": true,
+    "Expression": "ANOMALY_DETECTION_BAND(m1, 2)"
+  }]
+}</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Model Armor + API Gateway</div><p>Blocks prompt injection and data exfiltration at the edge.</p><details class="cmcode"><summary>json</summary><pre><code>{
+  "action": "BLOCK",
+  "filter_settings": {
+    "prompt_injection": { "threshold": "HIGH" }
+  }
+}</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Eventhouse Telemetry</div><p>Pipeline latency surfaced on a central diagnostic canvas.</p><details class="cmcode"><summary>kql</summary><pre><code>// query the diagnostic stream
+AzureDiagnostics
+| where Category == "PipelineRuns"
+| summarize avg(DurationMs)
+    by bin(TimeGenerated, 5m)</code></pre></details></div>
   </div>
 
   <div class="cmpillar">▸ Part 3 · Optimization &amp; Cost</div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 08</span><h5>Custom Hardware</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Trainium3 Clustering</div><p>Optimized interconnect for distributed deep-learning training (Neuron SDK).</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>TPU Micro-Architectures</div><p>Splits clusters between training (TPU-8T) and inference (TPU-8I).</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>High-Throughput GPU Clusters</div><p>Scales across custom NVIDIA Blackwell / Rubin virtualization tiers.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Trainium3 Clustering</div><p>Optimized interconnect for distributed deep-learning training (Neuron SDK).</p><details class="cmcode"><summary>python</summary><pre><code># PyTorch Neuron configuration
+import torch, torch_neuronx
+x = torch.randn(2, 3).to("neuron")</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>TPU Micro-Architectures</div><p>Splits clusters between training (TPU-8T) and inference (TPU-8I).</p><details class="cmcode"><summary>python</summary><pre><code>import tensorflow as tf
+resolver = tf.distribute.cluster_resolver \
+             .TPUClusterResolver()
+tf.config.experimental_connect_to_cluster(resolver)</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>High-Throughput GPU Clusters</div><p>Scales across custom NVIDIA Blackwell / Rubin virtualization tiers.</p><details class="cmcode"><summary>bash</summary><pre><code>az vm create \
+  --resource-group rg-ai \
+  --name ND-Blackwell-Node \
+  --image Ubuntu2204</code></pre></details></div>
   </div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 09</span><h5>Cost &amp; Storage Tiering</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Intelligent S3 Metadata Caching</div><p>Shifts quiet blocks to colder storage without losing index pointers.</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Dynamic Resource Profiling</div><p>Binds short-lived serverless GPU only during intense query loops.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Fabric Capacity Shifting</div><p>Scales resource tokens to match heavy pipeline-processing spikes.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Intelligent S3 Metadata Caching</div><p>Shifts quiet blocks to colder storage without losing index pointers.</p><details class="cmcode"><summary>python</summary><pre><code>client.put_bucket_lifecycle_configuration(
+  Bucket='iceberg-data-bucket',
+  LifecycleConfiguration={'Rules': [{
+    'Status': 'Enabled',
+    'Transitions': [{'Days': 30,
+      'StorageClass': 'GLACIER'}]}]}
+)</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>Dynamic Resource Profiling</div><p>Binds short-lived serverless GPU only during intense query loops.</p><details class="cmcode"><summary>bash</summary><pre><code>gcloud compute instance-groups managed \
+  set-autoscaling my-group \
+  --max-num-replicas=10 \
+  --target-cpu-utilization=0.75</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>Fabric Capacity Shifting</div><p>Scales resource tokens to match heavy pipeline-processing spikes.</p><details class="cmcode"><summary>powershell</summary><pre><code>Update-AzFabricCapacity `
+  -ResourceGroupName "rg" `
+  -Name "myFabric" `
+  -Sku "F128"</code></pre></details></div>
   </div>
   <div class="cmrow">
     <div class="cmfeat"><span class="cmn">№ 10</span><h5>Database State Tracking</h5></div>
-    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Valkey Caching Layers</div><p>Open-source cache for repeat lookups (ElastiCache Valkey).</p></div>
-    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>BigQuery Structural Cache</div><p>Reuses cached results for identical query logic, saving token compute.</p></div>
-    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>SQL Time Travel</div><p>Queries historical schemas with no manual, expensive snapshot tables.</p></div>
+    <div class="cmcell aws"><div class="cmprod"><span class="cmtag">AWS</span>Valkey Caching Layers</div><p>Open-source cache for repeat lookups (ElastiCache Valkey).</p><details class="cmcode"><summary>python</summary><pre><code>import redis  # Valkey-compatible client
+r = redis.Redis(host='valkey.cache.aws')
+r.setex('query_cache_hash', 3600, query_results)</code></pre></details></div>
+    <div class="cmcell gcp"><div class="cmprod"><span class="cmtag">GCP</span>BigQuery Structural Cache</div><p>Reuses cached results for identical query logic, saving token compute.</p><details class="cmcode"><summary>sql</summary><pre><code>-- identical query shapes reuse cached results
+ALTER PROJECT SET OPTIONS(
+  use_cached_results = true
+);</code></pre></details></div>
+    <div class="cmcell azure"><div class="cmprod"><span class="cmtag">AZ</span>SQL Time Travel</div><p>Queries historical schemas with no manual, expensive snapshot tables.</p><details class="cmcode"><summary>sql</summary><pre><code>SELECT * FROM FabricWarehouse.sales
+FOR SYSTEM_TIME AS OF
+  '2026-06-01 12:00:00';</code></pre></details></div>
   </div>
 </div>
 <p style="font-size:13.5px;color:var(--text-3);margin-top:6px;">Read each row across to see how the same capability category is expressed three ways — and read each column down to feel a provider's personality. The skill the matrix is really testing: can you map a requirement to the right primitive on whichever cloud you're handed?</p>
