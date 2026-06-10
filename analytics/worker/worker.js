@@ -90,8 +90,8 @@ async function handleCollect(request, env, ctx, ch) {
     // Page view event — insert new row with all dimensions
     ctx.waitUntil(
       env.DB.prepare(`
-        INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id, visitor_id, is_new, viewport, utm_source, utm_medium, utm_campaign, dark_mode, timezone)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id, visitor_id, is_new, viewport, utm_source, utm_medium, utm_campaign, dark_mode, timezone, asn, as_org)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         sanitize(data.p || '/'),
         sanitize(data.r || ''),
@@ -111,7 +111,9 @@ async function handleCollect(request, env, ctx, ch) {
         sanitize(data.ut_m || ''),
         sanitize(data.ut_c || ''),
         data.dark ? 1 : 0,
-        cf.timezone || ''
+        cf.timezone || '',
+        cf.asn || 0,
+        cf.asOrganization || ''
       ).run().catch(e => console.error('DB write error:', e.message))
     );
 
@@ -149,6 +151,7 @@ async function handleStats(request, env, url, ch) {
   const filterOs = url.searchParams.get('os') || '';
   const filterDevice = url.searchParams.get('device') || '';
   const filterReferrer = url.searchParams.get('referrer') || '';
+  const filterOrg = url.searchParams.get('as_org') || '';
 
   let filterSQL = '';
   const filterBinds = [since];
@@ -159,6 +162,7 @@ async function handleStats(request, env, url, ch) {
   if (filterOs) { filterSQL += ' AND os = ?'; filterBinds.push(filterOs); }
   if (filterDevice) { filterSQL += ' AND device_type = ?'; filterBinds.push(filterDevice); }
   if (filterReferrer) { filterSQL += ' AND referrer = ?'; filterBinds.push(filterReferrer); }
+  if (filterOrg) { filterSQL += ' AND as_org = ?'; filterBinds.push(filterOrg); }
 
   // Exclude admin visitors
   const excludeMe = url.searchParams.get('exclude_me') !== '0';
@@ -188,7 +192,9 @@ async function handleStats(request, env, url, ch) {
     // 14: day of week
     env.DB.prepare(`SELECT CAST(strftime('%w', created_at) AS INTEGER) as dow, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} GROUP BY dow ORDER BY dow`).bind(...b),
     // 15: recent activity (last 50 visits with full context)
-    env.DB.prepare(`SELECT created_at, page, country, city, browser, os, device_type, referrer, duration, scroll_depth, is_new, utm_source FROM page_views ${w} ORDER BY created_at DESC LIMIT 50`).bind(...b),
+    env.DB.prepare(`SELECT created_at, page, country, city, browser, os, device_type, referrer, duration, scroll_depth, is_new, utm_source, as_org FROM page_views ${w} ORDER BY created_at DESC LIMIT 50`).bind(...b),
+    // 16: organizations (company/ISP from ASN)
+    env.DB.prepare(`SELECT as_org, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, COUNT(DISTINCT visitor_id) as people FROM page_views ${w} AND as_org != '' GROUP BY as_org ORDER BY views DESC LIMIT 30`).bind(...b),
   ]);
 
   const filters = {};
@@ -199,6 +205,7 @@ async function handleStats(request, env, url, ch) {
   if (filterOs) filters.os = filterOs;
   if (filterDevice) filters.device = filterDevice;
   if (filterReferrer) filters.referrer = filterReferrer;
+  if (filterOrg) filters.as_org = filterOrg;
 
   const data = {
     period,
@@ -219,6 +226,7 @@ async function handleStats(request, env, url, ch) {
     timezones: batch[13].results,
     dayOfWeek: batch[14].results,
     recentActivity: batch[15].results,
+    organizations: batch[16].results,
   };
 
   const response = new Response(JSON.stringify(data), {

@@ -413,6 +413,12 @@
             </div>
         </div>
 
+        <!-- ── Organizations (Company / ISP) ── -->
+        <div class="panel">
+            <div class="panel-title">Organizations (Company / ISP)</div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableOrgs"><tbody></tbody></table></div>
+        </div>
+
         <!-- ── Day of Week ── -->
         <div class="panel">
             <div class="panel-title">Traffic by Day of Week</div>
@@ -687,6 +693,7 @@
         // v2: Timezones
         renderSimpleTable('tableTimezones', data.timezones || [], 'timezone', 'views');
         // v3: Day of week + recent activity
+        renderOrgsTable(data.organizations || []);
         renderDowChart(data.dayOfWeek || []);
         renderActivityTable(data.recentActivity || []);
 
@@ -893,6 +900,28 @@
         });
     }
 
+    // ── Organizations Table ──────────────────
+    function renderOrgsTable(orgs) {
+        var maxViews = orgs.length ? orgs[0].views : 1;
+        var html = '<thead><tr><th>Organization</th><th style="text-align:right">Views</th><th style="text-align:right">Visitors</th><th style="text-align:right">People</th></tr></thead><tbody>';
+        if (!orgs.length) {
+            html += '<tr><td colspan="4" style="color:var(--muted);text-align:center">No organization data yet</td></tr>';
+        }
+        orgs.forEach(function(o) {
+            var w = Math.round((o.views / maxViews) * 100);
+            var name = o.as_org || 'Unknown';
+            var isCompany = /META|GOOGLE|APPLE|MICROSOFT|AMAZON|LINKEDIN|NETFLIX|UBER|TWITTER|SALESFORCE|ORACLE|ADOBE|SNAP|PAYPAL|INTUIT|CISCO|VMWARE|IBM|INTEL|NVIDIA/i.test(name);
+            var badge = isCompany ? '<span style="background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:6px">COMPANY</span>' : '';
+            html += '<tr style="cursor:pointer" onclick="drillDown(\'as_org\',\'' + escHtml(name).replace(/'/g, "\\'") + '\')">';
+            html += '<td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label" style="font-family:var(--font-mono);font-size:0.85rem">' + escHtml(name) + badge + '</span></td>';
+            html += '<td class="num">' + fmt(o.views) + '</td>';
+            html += '<td class="num">' + fmt(o.visitors) + '</td>';
+            html += '<td class="num">' + fmt(o.people) + '</td></tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableOrgs').innerHTML = html;
+    }
+
     // ── Day of Week Chart ────────────────────
     function renderDowChart(dow) {
         var ctx = document.getElementById('chartDow');
@@ -926,7 +955,7 @@
 
     // ── Recent Activity Table ───────────────
     function renderActivityTable(activity) {
-        var html = '<thead><tr><th>When</th><th>Page</th><th>Location</th><th>Device</th><th>Browser</th><th style="text-align:right">Time</th><th style="text-align:right">Scroll</th></tr></thead><tbody>';
+        var html = '<thead><tr><th>When</th><th>Page</th><th>Location</th><th>Org</th><th>Device</th><th style="text-align:right">Time</th><th style="text-align:right">Scroll</th></tr></thead><tbody>';
         if (!activity.length) {
             html += '<tr><td colspan="7" style="color:var(--muted);text-align:center">No activity yet</td></tr>';
         }
@@ -937,12 +966,14 @@
             var device = a.device_type || '-';
             var newBadge = a.is_new ? '<span style="background:#2a7a4a;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">NEW</span>' : '';
             var utmBadge = a.utm_source ? '<span style="background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">' + escHtml(a.utm_source) + '</span>' : '';
+            var org = a.as_org || '';
+            var orgCompany = /META|GOOGLE|APPLE|MICROSOFT|AMAZON|LINKEDIN|NETFLIX|UBER/i.test(org);
             html += '<tr>';
             html += '<td style="font-family:var(--font-mono);font-size:0.8rem;white-space:nowrap">' + when + '</td>';
             html += '<td style="font-family:var(--font-mono);font-size:0.8rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(a.page) + '">' + escHtml(page) + newBadge + utmBadge + '</td>';
             html += '<td style="font-size:0.85rem;white-space:nowrap">' + loc + '</td>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.75rem' + (orgCompany ? ';color:#2563a8;font-weight:600' : '') + '">' + (org ? escHtml(org) : '-') + '</td>';
             html += '<td style="font-size:0.85rem">' + device + '</td>';
-            html += '<td style="font-size:0.85rem">' + (a.browser || '-') + '</td>';
             html += '<td class="num">' + (a.duration > 0 ? fmtTime(a.duration) : '-') + '</td>';
             html += '<td class="num">' + (a.scroll_depth > 0 ? a.scroll_depth + '%' : '-') + '</td>';
             html += '</tr>';
