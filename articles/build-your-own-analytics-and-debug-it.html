@@ -176,8 +176,8 @@ footer a{color:var(--accent-teal)}
 <section class="hero">
   <div class="hero-badge">Visual Guide | Technology</div>
   <h1>Build Your Own Analytics<br><em>& Debug It Like a Pro</em></h1>
-  <p class="hero-sub">A complete guide to self-hosted, cookie-free analytics with Cloudflare Workers — and the Chrome DevTools debugging masterclass that followed when nothing worked.</p>
-  <div class="hero-meta">By Paddy Iyer &nbsp;&middot;&nbsp; PaddySpeaks.com &nbsp;&middot;&nbsp; 30 min read</div>
+  <p class="hero-sub">Cookie-free. Privacy-respecting. Ad-blocker-proof. 16 dimensions, 26 dashboard queries, drill-down filtering, org identification, reading completion tracking, CSV export, dark mode — and the Chrome DevTools debugging story when nothing worked.</p>
+  <div class="hero-meta">By Paddy Iyer &nbsp;&middot;&nbsp; PaddySpeaks.com &nbsp;&middot;&nbsp; 35 min read</div>
   <div class="scroll-hint"><span>Scroll</span><div class="scroll-line"></div></div>
 </section>
 
@@ -241,54 +241,83 @@ footer a{color:var(--accent-teal)}
   <p>All of this comes free from the browser and Cloudflare's edge network:</p>
   <div class="insight-grid">
     <div class="insight-card"><div class="ic-icon">&#x1F30D;</div><h4>Country & City</h4><p>Cloudflare's <code>request.cf</code> gives you country, city, region, and timezone — no geo IP API needed.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F3E2;</div><h4>Organization / ISP</h4><p>Cloudflare's <code>request.cf.asOrganization</code> identifies the visitor's company or ISP from their ASN — for free.</p></div>
     <div class="insight-card"><div class="ic-icon">&#x1F4F1;</div><h4>Device Type</h4><p>Mobile, Desktop, or Tablet — parsed from the User-Agent string on the server side.</p></div>
     <div class="insight-card"><div class="ic-icon">&#x1F310;</div><h4>Browser & OS</h4><p>Chrome, Safari, Firefox, Edge — plus Windows, macOS, iOS, Android, Linux.</p></div>
-    <div class="insight-card"><div class="ic-icon">&#x1F4D0;</div><h4>Screen Resolution</h4><p>Captured from <code>screen.width</code> and <code>screen.height</code> on the client side.</p></div>
-    <div class="insight-card"><div class="ic-icon">&#x1F517;</div><h4>Referrer</h4><p>Where they came from: Google, Twitter, LinkedIn, or a direct visit. <code>document.referrer</code> tells all.</p></div>
-    <div class="insight-card"><div class="ic-icon">&#x1F4C4;</div><h4>Page Path</h4><p>Which pages are popular? <code>location.pathname</code> captures the exact URL path.</p></div>
-    <div class="insight-card"><div class="ic-icon">&#x1F30E;</div><h4>Language</h4><p><code>navigator.language</code> reveals whether visitors prefer English, Hindi, Spanish, or others.</p></div>
-    <div class="insight-card"><div class="ic-icon">&#x1F504;</div><h4>Sessions</h4><p>A random UUID in <code>sessionStorage</code> tracks unique sessions — no cookies, no PII, resets on tab close.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F4D0;</div><h4>Screen & Viewport</h4><p>Both monitor resolution (<code>screen.width</code>) and actual browser window size (<code>innerWidth</code>).</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F517;</div><h4>Referrer</h4><p>Where they came from — search engines, social media, direct visits. <code>document.referrer</code> tells all.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F50D;</div><h4>Search Keywords</h4><p>What they Googled before finding you — parsed from the referrer's <code>q=</code> query parameter.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x23F1;</div><h4>Time on Page</h4><p>How long they actually stayed. Sent via <code>visibilitychange</code> exit beacon when the tab hides.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F4C9;</div><h4>Scroll Depth</h4><p>How far they scrolled — tracked via <code>requestAnimationFrame</code>. Max percentage captured on exit.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F504;</div><h4>New vs Returning</h4><p>A persistent <code>localStorage</code> visitor ID distinguishes first-timers from returning readers.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F4C4;</div><h4>Entry & Exit Pages</h4><p>Where journeys start and where people leave. Session page counter identifies the first and last page.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F3F7;</div><h4>UTM Campaigns</h4><p>Track shared links: <code>?utm_source=linkedin&amp;utm_medium=social</code> shows exactly which campaigns drive traffic.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x26A0;</div><h4>404 Detection</h4><p>Broken links detected automatically — the tracker checks if the page title or H1 contains "404" or "not found".</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x26A1;</div><h4>Page Load Time</h4><p>From the <code>Performance Navigation Timing API</code> — average and slowest load times across the site.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F30E;</div><h4>Language & Timezone</h4><p><code>navigator.language</code> and <code>request.cf.timezone</code> reveal when and how your global audience reads.</p></div>
+    <div class="insight-card"><div class="ic-icon">&#x1F319;</div><h4>Dark Mode Preference</h4><p><code>prefers-color-scheme</code> tells you whether visitors prefer light or dark interfaces.</p></div>
   </div>
 </div>
 
 <!-- ── Section 03: The Tracker ── -->
 <div class="section reveal" id="s-tracker">
   <div class="section-number">03 — The Tracker</div>
-  <h2>1KB That Does Everything</h2>
-  <p>The entire tracking script fits in under 1 kilobyte. Here's what it does:</p>
-  <div class="code-block"><span class="cm">// ps.js — PaddySpeaks Analytics Tracker</span>
+  <h2>One Script. Sixteen Dimensions.</h2>
+  <p>The tracker does far more than record a page view. It captures scroll depth, time on page, search keywords, page load time, 404 detection, and UTM campaigns — all without cookies. Here is a simplified view of what it sends:</p>
+  <div class="code-block"><span class="cm">// ps.js — PaddySpeaks Analytics Tracker v3</span>
 (function () {
   <span class="kw">var</span> ENDPOINT = <span class="st">'https://ps.yourdomain.com/api/v'</span>;
 
-  <span class="cm">// Skip prerendered pages</span>
-  <span class="kw">if</span> (document.visibilityState === <span class="st">'prerender'</span>) <span class="kw">return</span>;
+  <span class="cm">// Session ID (sessionStorage — resets on tab close)</span>
+  <span class="kw">var</span> sid = sessionStorage.getItem(<span class="st">'_ps_sid'</span>) || crypto.randomUUID();
 
-  <span class="cm">// Session ID — sessionStorage, not cookies</span>
-  <span class="kw">var</span> sid = sessionStorage.getItem(<span class="st">'_ps_sid'</span>);
-  <span class="kw">if</span> (!sid) {
-    sid = crypto.randomUUID();
-    sessionStorage.setItem(<span class="st">'_ps_sid'</span>, sid);
-  }
+  <span class="cm">// Visitor ID (localStorage — persists across visits)</span>
+  <span class="kw">var</span> vid = localStorage.getItem(<span class="st">'_ps_vid'</span>);
+  <span class="kw">var</span> isNew = !vid;
+  <span class="kw">if</span> (!vid) vid = crypto.randomUUID();
 
-  <span class="cm">// Payload — minimal, no PII</span>
-  <span class="kw">var</span> data = JSON.stringify({
-    p: location.pathname,
-    r: document.referrer,
-    s: screen.width + <span class="st">'x'</span> + screen.height,
-    l: navigator.language,
-    sid: sid
+  <span class="cm">// Session page counter (for entry/exit detection)</span>
+  <span class="kw">var</span> pageCount = parseInt(sessionStorage.getItem(<span class="st">'_ps_pc'</span>) || <span class="st">'0'</span>) + 1;
+
+  <span class="cm">// Search keywords from referrer</span>
+  <span class="kw">var</span> searchQuery = <span class="kw">new</span> URL(document.referrer).searchParams.get(<span class="st">'q'</span>);
+
+  <span class="cm">// Page view beacon — 16 dimensions</span>
+  navigator.sendBeacon(ENDPOINT, <span class="kw">new</span> <span class="fn">Blob</span>([JSON.stringify({
+    p: location.pathname,       <span class="cm">// page path</span>
+    r: document.referrer,       <span class="cm">// referrer</span>
+    s: screen.width+<span class="st">'x'</span>+screen.height, <span class="cm">// screen</span>
+    v: innerWidth+<span class="st">'x'</span>+innerHeight,   <span class="cm">// viewport</span>
+    l: navigator.language,      <span class="cm">// language</span>
+    sid: sid, vid: vid,         <span class="cm">// session + visitor</span>
+    new: isNew ? 1 : 0,         <span class="cm">// first visit?</span>
+    pc: pageCount,              <span class="cm">// page # in session</span>
+    sq: searchQuery,            <span class="cm">// search keywords</span>
+    is404: is404,               <span class="cm">// broken link?</span>
+    lt: loadTime,               <span class="cm">// page load ms</span>
+    ut_s: utm.source,           <span class="cm">// UTM source</span>
+    dark: prefersDark ? 1 : 0   <span class="cm">// dark mode?</span>
+  })], { type: <span class="st">'application/json'</span> }));
+
+  <span class="cm">// Exit beacon — fires when tab hides</span>
+  document.addEventListener(<span class="st">'visibilitychange'</span>, <span class="kw">function</span>() {
+    <span class="kw">if</span> (document.visibilityState === <span class="st">'hidden'</span>) {
+      navigator.sendBeacon(ENDPOINT, <span class="kw">new</span> <span class="fn">Blob</span>([JSON.stringify({
+        t: <span class="st">'exit'</span>, p: location.pathname, sid: sid,
+        dur: secondsOnPage,  <span class="cm">// time spent</span>
+        scroll: maxScrollPct <span class="cm">// max scroll %</span>
+      })], { type: <span class="st">'application/json'</span> }));
+    }
   });
-
-  <span class="cm">// Send as Blob with correct Content-Type</span>
-  <span class="kw">var</span> blob = <span class="kw">new</span> <span class="fn">Blob</span>([data], { type: <span class="st">'application/json'</span> });
-  navigator.sendBeacon(ENDPOINT, blob);
 })();</div>
 
   <div class="callout"><p>The file is named <code>ps.js</code>, not <code>tracker.js</code>. The directory is <code>/lib/</code>, not <code>/analytics/</code>. Names matter when ad blockers are watching. More on this in Part 2.</p></div>
 
-  <p>Two critical details most tutorials miss:</p>
-  <p><strong>1. Use a Blob, not a string.</strong> <code>sendBeacon(url, string)</code> sends with Content-Type <code>text/plain</code>. The server's <code>request.json()</code> may silently fail. Wrapping in <code>new Blob([data], { type: 'application/json' })</code> ensures correct parsing.</p>
-  <p><strong>2. sessionStorage, not cookies.</strong> The session ID resets when the tab closes. No cookie banners needed. No GDPR headaches. No PII stored.</p>
+  <p>Key design decisions:</p>
+  <p><strong>1. Two beacons per page.</strong> The first fires on load (page view + all dimensions). The second fires on <code>visibilitychange</code> (time on page + scroll depth). This captures both "what" and "how long".</p>
+  <p><strong>2. Use a Blob, not a string.</strong> <code>sendBeacon(url, string)</code> sends with Content-Type <code>text/plain</code>. The server's <code>request.json()</code> may silently fail. Wrapping in <code>new Blob([data], { type: 'application/json' })</code> ensures correct parsing.</p>
+  <p><strong>3. sessionStorage + localStorage.</strong> Session ID resets on tab close (session tracking). Visitor ID persists forever (new vs returning). Neither is a cookie. No consent banners needed.</p>
+  <p><strong>4. 404 detection.</strong> The tracker checks if the page title contains "404" — broken links get flagged automatically in the dashboard.</p>
 </div>
 
 <!-- ── Section 04: The Worker ── -->
@@ -302,12 +331,16 @@ footer a{color:var(--accent-teal)}
     <li><code>GET /api/realtime</code> — Active visitors in last 5 minutes</li>
   </ul>
 
-  <h3>Geo enrichment — free from Cloudflare</h3>
-  <div class="code-block"><span class="cm">// The magic: Cloudflare gives you geo data for free</span>
+  <h3>Geo + organization enrichment — free from Cloudflare</h3>
+  <div class="code-block"><span class="cm">// Cloudflare gives you geo AND organization data for free</span>
 <span class="kw">const</span> cf = request.cf || {};
-<span class="kw">const</span> country = cf.country;  <span class="cm">// "US", "IN", "DE"</span>
-<span class="kw">const</span> city    = cf.city;     <span class="cm">// "San Francisco"</span>
-<span class="kw">const</span> region  = cf.region;   <span class="cm">// "California"</span></div>
+<span class="kw">const</span> country  = cf.country;         <span class="cm">// "US", "IN", "DE"</span>
+<span class="kw">const</span> city     = cf.city;            <span class="cm">// "San Francisco"</span>
+<span class="kw">const</span> region   = cf.region;          <span class="cm">// "California"</span>
+<span class="kw">const</span> timezone = cf.timezone;        <span class="cm">// "America/Los_Angeles"</span>
+<span class="kw">const</span> asn      = cf.asn;             <span class="cm">// 32934</span>
+<span class="kw">const</span> org      = cf.asOrganization;  <span class="cm">// Organization name from ASN</span></div>
+  <p>The <code>asOrganization</code> field identifies the company or ISP that owns the visitor's IP range. When someone visits from a corporate network, you see the organization name. When they visit from home, you see their ISP. No third-party reverse-IP service needed.</p>
 
   <h3>Non-blocking writes — return instantly</h3>
   <div class="code-block"><span class="cm">// Return "ok" immediately. DB write happens in background.</span>
@@ -318,15 +351,24 @@ ctx.<span class="fn">waitUntil</span>(
 );
 <span class="kw">return new</span> Response(<span class="st">'ok'</span>);</div>
 
-  <h3>Batch queries — one round-trip for the entire dashboard</h3>
-  <div class="code-block"><span class="cm">// 11 queries in a single D1 round-trip</span>
+  <h3>Batch queries — one round-trip, 26 queries</h3>
+  <div class="code-block"><span class="cm">// 26 queries in a single D1 batch() call</span>
 <span class="kw">const</span> batch = <span class="kw">await</span> env.DB.<span class="fn">batch</span>([
-  env.DB.prepare(<span class="st">`SELECT COUNT(*) ... FROM page_views`</span>),
-  env.DB.prepare(<span class="st">`SELECT DATE(created_at), COUNT(*) ... GROUP BY date`</span>),
-  env.DB.prepare(<span class="st">`SELECT page, COUNT(*) ... GROUP BY page`</span>),
-  env.DB.prepare(<span class="st">`SELECT country, COUNT(*) ... GROUP BY country`</span>),
-  <span class="cm">// ... 7 more queries</span>
+  <span class="cm">// Overview: views, visitors, avg time, avg scroll, new/returning</span>
+  <span class="cm">// Daily views + visitors (line chart)</span>
+  <span class="cm">// Top pages with avg read time and scroll depth</span>
+  <span class="cm">// Countries, Cities, Browsers, OS, Devices</span>
+  <span class="cm">// Referrers, Screens, Languages</span>
+  <span class="cm">// UTM campaigns, Hourly heatmap, Timezones</span>
+  <span class="cm">// Day of week, Recent activity feed</span>
+  <span class="cm">// Organizations (company/ISP from ASN)</span>
+  <span class="cm">// Content groups, Bounce rate</span>
+  <span class="cm">// Previous period (week-over-week comparison)</span>
+  <span class="cm">// Entry pages, Exit pages</span>
+  <span class="cm">// Search keywords, 404 broken links</span>
+  <span class="cm">// Reading completion, Page load performance</span>
 ]);</div>
+  <p>All 26 queries execute in a single D1 round-trip. The dashboard loads in under 200ms. Results are edge-cached for 60 seconds — repeat loads are instant.</p>
 </div>
 
 <!-- ── Section 05: Dashboard ── -->
@@ -344,7 +386,38 @@ ctx.<span class="fn">waitUntil</span>(
   <img src="/images/articles/analytics-dashboard/dashboard-v2-bottom.png" alt="PaddySpeaks Analytics Dashboard v2 — cities, device/browser/OS doughnut charts, referrers, UTM campaigns, hourly traffic bar chart, and visitor timezones" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:24px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
 
   <p>When you log in, the page hashes your password with SHA-256 in the browser, sends it as a <code>Bearer</code> token, and the Worker compares it against the stored hash. If it matches, you get your data. If not, nothing.</p>
-  <p>The dashboard shows: visitors over time (line chart), top pages (bar chart), countries with flag emojis, cities, device breakdown (doughnut), browsers, operating systems, referrers, screen resolutions, and languages. Chart.js handles the rendering. A real-time "active now" counter refreshes every 30 seconds.</p>
+
+  <h3>What the dashboard shows</h3>
+  <p>The dashboard has over 20 panels organized in a clear hierarchy:</p>
+  <ul>
+    <li><strong>Summary cards:</strong> Page views, unique visitors, avg time on page, avg scroll depth, new visitors, returning visitors, bounce rate — each with week-over-week trend arrows.</li>
+    <li><strong>Visitors over time:</strong> Line chart with daily views and visitors.</li>
+    <li><strong>Top pages:</strong> With avg read time and scroll % per page. Click any row to drill down.</li>
+    <li><strong>Geography:</strong> Countries with flag emojis, cities — all clickable for drill-down.</li>
+    <li><strong>Content groups:</strong> Automatic categorization — Philosophy, Interview Prep, Sacred Texts, Technology — with a doughnut chart and avg time per group.</li>
+    <li><strong>Devices, Browsers, OS:</strong> Three doughnut charts side by side.</li>
+    <li><strong>Organizations:</strong> Which company or ISP visitors come from — identified by ASN via Cloudflare. Clickable to see which pages each organization reads.</li>
+    <li><strong>Referrers, Screen Resolutions, Languages, UTM Campaigns, Hourly Traffic, Timezones, Day of Week.</strong></li>
+    <li><strong>Entry & Exit pages:</strong> Where journeys start, where people leave.</li>
+    <li><strong>Reading completion:</strong> Articles where readers scrolled 75%+ AND spent 60s+ = "actually read it".</li>
+    <li><strong>Search keywords:</strong> What people searched before finding you.</li>
+    <li><strong>404 broken links:</strong> Pages returning "not found" with hit count and timestamp.</li>
+    <li><strong>Page load performance:</strong> Average and slowest load times.</li>
+    <li><strong>Recent Activity feed:</strong> Last 50 visits with timestamp, page, location, organization, device, time on page, scroll depth, and badges for new visitors and UTM sources.</li>
+  </ul>
+
+  <h3>Drill-down filtering</h3>
+  <p>Click any row in the Countries, Pages, Cities, Organizations, or Referrers tables — the entire dashboard filters to show only that dimension. Click "US" to see which pages US visitors read. Click an article to see which countries read it. Combine filters: click US, then click a specific article, and see that article's US traffic. A filter bar at the top shows active filters with clear buttons.</p>
+
+  <h3>Self-exclusion</h3>
+  <p>Click "Exclude Me" in the dashboard header to remove your own visits from all stats. Works per device — click once from your work laptop, once from your phone, once from home. The dashboard then shows only real visitor traffic.</p>
+
+  <h3>CSV export</h3>
+  <p>Click "Export CSV" to download raw analytics data (up to 10,000 rows) for offline analysis in Excel, Google Sheets, or Python.</p>
+
+  <h3>Dark mode</h3>
+  <p>The dashboard automatically switches to dark mode based on your system preference via <code>prefers-color-scheme</code>.</p>
+
   <p>The page is marked <code>noindex, nofollow</code> so search engines ignore it entirely.</p>
 </div>
 
