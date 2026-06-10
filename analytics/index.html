@@ -242,6 +242,28 @@
             color: var(--muted); font-size: 0.8rem;
             font-family: var(--font-mono);
         }
+
+        /* ═══ Dark Mode ═══ */
+        @media (prefers-color-scheme: dark) {
+            body { background: #1a1a2e; color: #e0e0e0; }
+            .login-box { background: #25253e; border-color: #3a3a5e; }
+            .login-box h1 { color: #e0e0e0; }
+            .login-input { background: #1a1a2e; border-color: #3a3a5e; color: #e0e0e0; }
+            .dash-header { background: #25253e; border-color: #3a3a5e; }
+            .dash-content { background: #1a1a2e; }
+            .stat-card, .panel { background: #25253e; border-color: #3a3a5e; }
+            .stat-value { color: #e0e0e0; }
+            .data-table th { color: #888; border-color: #3a3a5e; }
+            .data-table td { border-color: #2a2a4e; color: #ccc; }
+            .num { color: #6ba3d6; }
+            .bar-bg { background: #2a2a4e; }
+            .period-btn { background: #25253e; border-color: #3a3a5e; color: #aaa; }
+            .period-btn.active { background: var(--color-gold); color: #fff; }
+            .dash-footer { border-color: #3a3a5e; color: #888; }
+            .part-nav { background: rgba(26,26,46,.85); border-color: #3a3a5e; }
+            #filterBar { background: #25253e !important; border-color: #3a3a5e !important; }
+            .login-overlay { background: #1a1a2e; }
+        }
     </style>
 </head>
 <body>
@@ -445,6 +467,45 @@
             <div class="panel-title">Traffic by Day of Week</div>
             <div class="chart-container line" style="height:220px">
                 <canvas id="chartDow"></canvas>
+            </div>
+        </div>
+
+        <!-- ── Entry & Exit Pages ── -->
+        <div class="grid-2">
+            <div class="panel">
+                <div class="panel-title">Entry Pages (Where Journeys Start)</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableEntry"><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Exit Pages (Where People Leave)</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableExit"><tbody></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- ── Reading Completion ── -->
+        <div class="panel">
+            <div class="panel-title">Reading Completion (articles with 75%+ scroll AND 60s+ time)</div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableCompletion"><tbody></tbody></table></div>
+        </div>
+
+        <!-- ── Search Keywords + 404s + Performance ── -->
+        <div class="grid-3">
+            <div class="panel">
+                <div class="panel-title">Search Keywords</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableSearch"><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">404 Pages (Broken Links)</div>
+                <div style="overflow-x:auto"><table class="data-table" id="table404"><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Page Load Performance</div>
+                <div id="perfStats" style="text-align:center;padding:20px">
+                    <div style="font-family:var(--font-mono);font-size:0.8rem;color:var(--color-muted);margin-bottom:8px">AVG LOAD TIME</div>
+                    <div id="avgLoadTime" style="font-family:var(--font-display);font-size:2rem;color:var(--color-ink)">-</div>
+                    <div style="font-family:var(--font-mono);font-size:0.8rem;color:var(--color-muted);margin-top:16px">SLOWEST PAGE LOAD</div>
+                    <div id="maxLoadTime" style="font-family:var(--font-display);font-size:1.4rem;color:var(--color-rust)">-</div>
+                </div>
             </div>
         </div>
 
@@ -726,6 +787,20 @@
         renderTrend('trendViews', ov.total_views, prev.total_views);
         renderTrend('trendVisitors', ov.unique_visitors, prev.unique_visitors);
 
+        // Entry/exit pages
+        renderSimpleTable('tableEntry', data.entryPages || [], 'page', 'entries');
+        renderSimpleTable('tableExit', data.exitPages || [], 'page', 'exits');
+        // Reading completion
+        renderCompletionTable(data.readingCompletion || []);
+        // Search keywords
+        renderSimpleTable('tableSearch', data.searchKeywords || [], 'search_query', 'views');
+        // 404s
+        render404Table(data.notFoundPages || []);
+        // Performance
+        var perf = data.performance || {};
+        document.getElementById('avgLoadTime').textContent = perf.avg_load ? (perf.avg_load / 1000).toFixed(1) + 's' : '-';
+        document.getElementById('maxLoadTime').textContent = perf.max_load ? (perf.max_load / 1000).toFixed(1) + 's' : '-';
+
         renderOrgsTable(data.organizations || []);
         renderDowChart(data.dayOfWeek || []);
         renderActivityTable(data.recentActivity || []);
@@ -977,6 +1052,44 @@
         });
         html += '</tbody>';
         document.getElementById('tableGroups').innerHTML = html;
+    }
+
+    // ── Reading Completion Table ─────────────
+    function renderCompletionTable(items) {
+        var html = '<thead><tr><th>Article</th><th style="text-align:right">Total</th><th style="text-align:right">Completed</th><th style="text-align:right">Rate</th></tr></thead><tbody>';
+        if (!items.length) {
+            html += '<tr><td colspan="4" style="color:var(--muted);text-align:center">Need more data (scroll 75%+ AND 60s+)</td></tr>';
+        }
+        items.forEach(function(i) {
+            var label = i.page.replace(/^\/articles\//, '').replace(/\.html$/, '');
+            var rate = i.completion_rate || 0;
+            var color = rate >= 60 ? '#2a7a4a' : rate >= 30 ? '#D4870E' : '#c44b2b';
+            html += '<tr>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.85rem" title="' + escHtml(i.page) + '">' + escHtml(label) + '</td>';
+            html += '<td class="num">' + fmt(i.total) + '</td>';
+            html += '<td class="num">' + fmt(i.completed) + '</td>';
+            html += '<td class="num" style="color:' + color + ';font-weight:600">' + rate + '%</td>';
+            html += '</tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableCompletion').innerHTML = html;
+    }
+
+    // ── 404 Table ───────────────────────────
+    function render404Table(items) {
+        var html = '<thead><tr><th>Page</th><th style="text-align:right">Hits</th><th>Last Hit</th></tr></thead><tbody>';
+        if (!items.length) {
+            html += '<tr><td colspan="3" style="color:var(--muted);text-align:center">No 404s detected</td></tr>';
+        }
+        items.forEach(function(i) {
+            html += '<tr>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.85rem;color:var(--color-rust)">' + escHtml(i.page) + '</td>';
+            html += '<td class="num">' + fmt(i.hits) + '</td>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.8rem">' + (i.last_hit ? formatDateTime(i.last_hit) : '-') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('table404').innerHTML = html;
     }
 
     // ── CSV Export ──────────────────────────

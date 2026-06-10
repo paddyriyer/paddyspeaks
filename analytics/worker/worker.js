@@ -94,8 +94,8 @@ async function handleCollect(request, env, ctx, ch) {
     // Page view event — insert new row with all dimensions
     ctx.waitUntil(
       env.DB.prepare(`
-        INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id, visitor_id, is_new, viewport, utm_source, utm_medium, utm_campaign, dark_mode, timezone, asn, as_org)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id, visitor_id, is_new, viewport, utm_source, utm_medium, utm_campaign, dark_mode, timezone, asn, as_org, page_num, search_query, is_404, load_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         sanitize(data.p || '/'),
         sanitize(data.r || ''),
@@ -117,7 +117,11 @@ async function handleCollect(request, env, ctx, ch) {
         data.dark ? 1 : 0,
         cf.timezone || '',
         cf.asn || 0,
-        cf.asOrganization || ''
+        cf.asOrganization || '',
+        data.pc || 1,
+        sanitize(data.sq || ''),
+        data.is404 ? 1 : 0,
+        data.lt || 0
       ).run().catch(e => console.error('DB write error:', e.message))
     );
 
@@ -205,6 +209,18 @@ async function handleStats(request, env, url, ch) {
     env.DB.prepare(`SELECT COUNT(*) as total_sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced_sessions FROM (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id)`).bind(...b),
     // 19: previous period overview (for week-over-week comparison)
     env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ? AND created_at < ?` + (excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '')).bind(new Date(Date.now() - days * 2 * 86400000).toISOString(), since),
+    // 20: entry pages (first page per session, page_num = 1)
+    env.DB.prepare(`SELECT page, COUNT(*) as entries FROM page_views ${w} AND page_num = 1 GROUP BY page ORDER BY entries DESC LIMIT 15`).bind(...b),
+    // 21: exit pages (last page per session — highest page_num)
+    env.DB.prepare(`SELECT page, COUNT(*) as exits FROM (SELECT session_id, page, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn FROM page_views ${w}) WHERE rn = 1 GROUP BY page ORDER BY exits DESC LIMIT 15`).bind(...b),
+    // 22: search keywords from referrer
+    env.DB.prepare(`SELECT search_query, COUNT(*) as views FROM page_views ${w} AND search_query != '' GROUP BY search_query ORDER BY views DESC LIMIT 20`).bind(...b),
+    // 23: 404 pages
+    env.DB.prepare(`SELECT page, COUNT(*) as hits, MAX(created_at) as last_hit FROM page_views ${w} AND is_404 = 1 GROUP BY page ORDER BY hits DESC LIMIT 15`).bind(...b),
+    // 24: reading completion (scroll >= 75 AND duration >= 60 = "completed")
+    env.DB.prepare(`SELECT page, COUNT(*) as total, SUM(CASE WHEN scroll_depth >= 75 AND duration >= 60 THEN 1 ELSE 0 END) as completed, ROUND(100.0 * SUM(CASE WHEN scroll_depth >= 75 AND duration >= 60 THEN 1 ELSE 0 END) / COUNT(*)) as completion_rate FROM page_views ${w} AND page LIKE '/articles/%' GROUP BY page HAVING total >= 2 ORDER BY completion_rate DESC LIMIT 20`).bind(...b),
+    // 25: avg page load time
+    env.DB.prepare(`SELECT ROUND(AVG(CASE WHEN load_time > 0 AND load_time < 30000 THEN load_time END)) as avg_load, ROUND(MAX(CASE WHEN load_time > 0 THEN load_time END)) as max_load FROM page_views ${w}`).bind(...b),
   ]);
 
   const filters = {};
@@ -240,6 +256,12 @@ async function handleStats(request, env, url, ch) {
     contentGroups: batch[17].results,
     bounce: batch[18].results[0] || { total_sessions: 0, bounced_sessions: 0 },
     previousPeriod: batch[19].results[0] || { total_views: 0, unique_visitors: 0 },
+    entryPages: batch[20].results,
+    exitPages: batch[21].results,
+    searchKeywords: batch[22].results,
+    notFoundPages: batch[23].results,
+    readingCompletion: batch[24].results,
+    performance: batch[25].results[0] || { avg_load: 0, max_load: 0 },
   };
 
   const response = new Response(JSON.stringify(data), {
