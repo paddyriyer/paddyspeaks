@@ -41,6 +41,10 @@ export default {
       return handleRealtime(request, env, ch);
     }
 
+    if (url.pathname === '/api/export' && request.method === 'GET') {
+      return handleExport(request, env, url, ch);
+    }
+
     if (url.pathname === '/api/exclude' && request.method === 'POST') {
       return handleExcludeAdd(request, env, ch);
     }
@@ -195,6 +199,12 @@ async function handleStats(request, env, url, ch) {
     env.DB.prepare(`SELECT created_at, page, country, city, browser, os, device_type, referrer, duration, scroll_depth, is_new, utm_source, as_org FROM page_views ${w} ORDER BY created_at DESC LIMIT 50`).bind(...b),
     // 16: organizations (company/ISP from ASN)
     env.DB.prepare(`SELECT as_org, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, COUNT(DISTINCT visitor_id) as people FROM page_views ${w} AND as_org != '' GROUP BY as_org ORDER BY views DESC LIMIT 30`).bind(...b),
+    // 17: content groups
+    env.DB.prepare(`SELECT CASE WHEN page LIKE '/articles/%' AND page LIKE '%gita%' OR page LIKE '%shankara%' OR page LIKE '%govindam%' OR page LIKE '%vedant%' OR page LIKE '%lotus%' OR page LIKE '%skull%' OR page LIKE '%discipline%' OR page LIKE '%chamakam%' OR page LIKE '%ashtavakra%' OR page LIKE '%narayaneeyam%' OR page LIKE '%frankl%' OR page LIKE '%fear-greed%' OR page LIKE '%death-fear%' OR page LIKE '%frenemies%' OR page LIKE '%prana%' OR page LIKE '%breathing%' OR page LIKE '%dharmakshetre%' THEN 'Philosophy' WHEN page LIKE '/interview%' THEN 'Interview Prep' WHEN page LIKE '/bhagavad-gita/%' OR page LIKE '/vishnu-sahasranama/%' OR page LIKE '/lalitha-sahasranama/%' OR page LIKE '/hanumanchalisa/%' OR page LIKE '/rudramchamakam/%' OR page LIKE '/soundarya-Lahari/%' OR page LIKE '/narayaneeyam/%' OR page LIKE '/bhaja-govindam/%' OR page LIKE '/durga-suktam/%' OR page LIKE '/sri-suktam/%' OR page LIKE '/purusha-suktam/%' OR page LIKE '/medha-suktam/%' OR page LIKE '/aditya-hridayam/%' OR page LIKE '/bajrang-baan/%' OR page LIKE '/sandhyavandanam/%' OR page LIKE '/navagraha/%' OR page LIKE '/abhirami-andhadhi/%' OR page LIKE '/subramanya-bhujangam/%' OR page LIKE '/rama-raksha-stotram/%' OR page LIKE '/ApaduddharakaStotram/%' OR page LIKE '/shashtikavacham/%' OR page LIKE '/mahAnyAsam/%' OR page LIKE '/amavasya-tharpanam/%' THEN 'Sacred Texts' WHEN page LIKE '/articles/%' THEN 'Technology' WHEN page = '/' OR page = '/index.html' THEN 'Homepage' ELSE 'Other' END as content_group, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_time FROM page_views ${w} GROUP BY content_group ORDER BY views DESC`).bind(...b),
+    // 18: bounce rate (sessions with only 1 page view)
+    env.DB.prepare(`SELECT COUNT(*) as total_sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced_sessions FROM (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id)`).bind(...b),
+    // 19: previous period overview (for week-over-week comparison)
+    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ? AND created_at < ?` + (excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '')).bind(new Date(Date.now() - days * 2 * 86400000).toISOString(), since),
   ]);
 
   const filters = {};
@@ -227,6 +237,9 @@ async function handleStats(request, env, url, ch) {
     dayOfWeek: batch[14].results,
     recentActivity: batch[15].results,
     organizations: batch[16].results,
+    contentGroups: batch[17].results,
+    bounce: batch[18].results[0] || { total_sessions: 0, bounced_sessions: 0 },
+    previousPeriod: batch[19].results[0] || { total_views: 0, unique_visitors: 0 },
   };
 
   const response = new Response(JSON.stringify(data), {
@@ -259,6 +272,37 @@ async function handleRealtime(request, env, ch) {
 }
 
 /* ───────── Helpers ───────── */
+
+/* ───────── CSV Export ───────── */
+
+async function handleExport(request, env, url, ch) {
+  const authError = authenticate(request, env, ch);
+  if (authError) return authError;
+
+  const period = url.searchParams.get('period') || '30d';
+  const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 30;
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const result = await env.DB.prepare(`
+    SELECT created_at, page, referrer, country, city, region, browser, os, device_type, screen, language, duration, scroll_depth, is_new, utm_source, utm_medium, utm_campaign, as_org, timezone
+    FROM page_views WHERE created_at >= ?
+    ORDER BY created_at DESC LIMIT 10000
+  `).bind(since).all();
+
+  const headers = ['date','page','referrer','country','city','region','browser','os','device','screen','language','duration_sec','scroll_pct','is_new','utm_source','utm_medium','utm_campaign','organization','timezone'];
+  let csv = headers.join(',') + '\n';
+  for (const r of result.results) {
+    csv += [r.created_at, '"'+r.page+'"', '"'+r.referrer+'"', r.country, '"'+r.city+'"', '"'+r.region+'"', r.browser, r.os, r.device_type, r.screen, r.language, r.duration, r.scroll_depth, r.is_new, r.utm_source, r.utm_medium, r.utm_campaign, '"'+r.as_org+'"', r.timezone].join(',') + '\n';
+  }
+
+  return new Response(csv, {
+    headers: {
+      ...ch,
+      'Content-Type': 'text/csv',
+      'Content-Disposition': 'attachment; filename="paddyspeaks-analytics-' + period + '.csv"',
+    },
+  });
+}
 
 /* ───────── Exclude Visitors ───────── */
 

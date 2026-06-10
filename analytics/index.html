@@ -272,6 +272,7 @@
         <button class="period-btn" data-period="90d">90 days</button>
         <button class="period-btn" data-period="all">All time</button>
         <button class="dash-refresh" onclick="loadDashboard()">Refresh</button>
+        <button class="dash-refresh" onclick="exportCSV()" style="border-color:var(--color-gold-dark);color:var(--color-gold-dark)">Export CSV</button>
         <button class="dash-refresh" onclick="excludeMe()" id="btnExclude" style="border-color:#c44b2b;color:#c44b2b">Exclude Me</button>
         <button class="dash-refresh" onclick="showExcluded()" style="border-color:var(--color-muted);color:var(--color-muted)">Excluded</button>
         <button class="dash-logout" onclick="logout()">Logout</button>
@@ -294,10 +295,12 @@
             <div class="stat-card highlight">
                 <div class="stat-label">Page Views</div>
                 <div class="stat-value" id="totalViews">-</div>
+                <div class="stat-trend" id="trendViews" style="font-family:var(--font-mono);font-size:0.75rem;margin-top:4px"></div>
             </div>
             <div class="stat-card highlight">
                 <div class="stat-label">Unique Visitors</div>
                 <div class="stat-value" id="uniqueVisitors">-</div>
+                <div class="stat-trend" id="trendVisitors" style="font-family:var(--font-mono);font-size:0.75rem;margin-top:4px"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Top Page</div>
@@ -326,6 +329,10 @@
             <div class="stat-card">
                 <div class="stat-label">Returning</div>
                 <div class="stat-value" id="returningVisitors" style="font-size:1.8rem;color:var(--color-gold-dark)">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Bounce Rate</div>
+                <div class="stat-value" id="bounceRate" style="font-size:1.8rem">-</div>
             </div>
         </div>
 
@@ -410,6 +417,20 @@
             <div class="panel">
                 <div class="panel-title">Visitor Timezones</div>
                 <div style="overflow-x:auto"><table class="data-table" id="tableTimezones"><tbody></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- ── Content Groups ── -->
+        <div class="grid-2">
+            <div class="panel">
+                <div class="panel-title">Content Groups</div>
+                <div class="chart-container doughnut">
+                    <canvas id="chartGroups"></canvas>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Content Groups Detail</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableGroups"><tbody></tbody></table></div>
             </div>
         </div>
 
@@ -693,6 +714,18 @@
         // v2: Timezones
         renderSimpleTable('tableTimezones', data.timezones || [], 'timezone', 'views');
         // v3: Day of week + recent activity
+        // Content groups + bounce rate
+        renderContentGroups(data.contentGroups || []);
+        // Bounce rate
+        var bounce = data.bounce || {};
+        var bounceRate = bounce.total_sessions > 0 ? Math.round((bounce.bounced_sessions / bounce.total_sessions) * 100) : 0;
+        document.getElementById('bounceRate').textContent = bounceRate + '%';
+        document.getElementById('bounceRate').style.color = bounceRate > 70 ? 'var(--color-rust)' : bounceRate > 50 ? 'var(--color-gold-dark)' : 'var(--color-sage)';
+        // Week-over-week comparison
+        var prev = data.previousPeriod || {};
+        renderTrend('trendViews', ov.total_views, prev.total_views);
+        renderTrend('trendVisitors', ov.unique_visitors, prev.unique_visitors);
+
         renderOrgsTable(data.organizations || []);
         renderDowChart(data.dayOfWeek || []);
         renderActivityTable(data.recentActivity || []);
@@ -899,6 +932,69 @@
             }
         });
     }
+
+    // ── Trend Indicator ──────────────────────
+    function renderTrend(elementId, current, previous) {
+        var el = document.getElementById(elementId);
+        if (!el || !previous) { if(el) el.textContent = ''; return; }
+        var pct = Math.round(((current - previous) / (previous || 1)) * 100);
+        var arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
+        var color = pct > 0 ? '#2a7a4a' : pct < 0 ? '#c44b2b' : 'var(--color-muted)';
+        el.innerHTML = '<span style="color:' + color + '">' + arrow + ' ' + Math.abs(pct) + '% vs prev period</span>';
+    }
+
+    // ── Content Groups ──────────────────────
+    function renderContentGroups(groups) {
+        // Doughnut chart
+        var ctx = document.getElementById('chartGroups');
+        if (ctx) {
+            if (charts.groups) charts.groups.destroy();
+            charts.groups = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: groups.map(function(g) { return g.content_group; }),
+                    datasets: [{
+                        data: groups.map(function(g) { return g.views; }),
+                        backgroundColor: CHART_COLORS.slice(0, groups.length),
+                        borderWidth: 2, borderColor: '#ffffff',
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '55%',
+                    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+                }
+            });
+        }
+        // Table
+        var html = '<thead><tr><th>Group</th><th style="text-align:right">Views</th><th style="text-align:right">Visitors</th><th style="text-align:right">Avg Time</th></tr></thead><tbody>';
+        groups.forEach(function(g) {
+            html += '<tr>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.85rem">' + escHtml(g.content_group) + '</td>';
+            html += '<td class="num">' + fmt(g.views) + '</td>';
+            html += '<td class="num">' + fmt(g.visitors) + '</td>';
+            html += '<td class="num">' + (g.avg_time ? fmtTime(g.avg_time) : '-') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableGroups').innerHTML = html;
+    }
+
+    // ── CSV Export ──────────────────────────
+    window.exportCSV = function() {
+        var url = API_BASE + '/api/export?period=' + currentPeriod;
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'paddyspeaks-analytics.csv';
+        // Need auth header — use fetch + blob
+        fetch(url, { headers: { 'Authorization': 'Bearer ' + authToken } })
+            .then(function(r) { return r.blob(); })
+            .then(function(blob) {
+                var u = URL.createObjectURL(blob);
+                a.href = u;
+                a.click();
+                URL.revokeObjectURL(u);
+            });
+    };
 
     // ── Organizations Table ──────────────────
     function renderOrgsTable(orgs) {
