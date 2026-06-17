@@ -209,18 +209,21 @@ async function handleStats(request, env, url, ch) {
     env.DB.prepare(`SELECT COUNT(*) as total_sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced_sessions FROM (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id)`).bind(...b),
     // 19: previous period overview (for week-over-week comparison)
     env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ? AND created_at < ?` + (excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '')).bind(new Date(Date.now() - days * 2 * 86400000).toISOString(), since),
-    // 20: entry pages (first page per session, page_num = 1)
+    // 20-25: existing queries...
     env.DB.prepare(`SELECT page, COUNT(*) as entries FROM page_views ${w} AND page_num = 1 GROUP BY page ORDER BY entries DESC LIMIT 15`).bind(...b),
-    // 21: exit pages (last page per session — highest page_num)
     env.DB.prepare(`SELECT page, COUNT(*) as exits FROM (SELECT session_id, page, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn FROM page_views ${w}) WHERE rn = 1 GROUP BY page ORDER BY exits DESC LIMIT 15`).bind(...b),
-    // 22: search keywords from referrer
     env.DB.prepare(`SELECT search_query, COUNT(*) as views FROM page_views ${w} AND search_query != '' GROUP BY search_query ORDER BY views DESC LIMIT 20`).bind(...b),
-    // 23: 404 pages
     env.DB.prepare(`SELECT page, COUNT(*) as hits, MAX(created_at) as last_hit FROM page_views ${w} AND is_404 = 1 GROUP BY page ORDER BY hits DESC LIMIT 15`).bind(...b),
-    // 24: reading completion (scroll >= 75 AND duration >= 60 = "completed")
     env.DB.prepare(`SELECT page, COUNT(*) as total, SUM(CASE WHEN scroll_depth >= 75 AND duration >= 60 THEN 1 ELSE 0 END) as completed, ROUND(100.0 * SUM(CASE WHEN scroll_depth >= 75 AND duration >= 60 THEN 1 ELSE 0 END) / COUNT(*)) as completion_rate FROM page_views ${w} AND page LIKE '/articles/%' GROUP BY page HAVING total >= 2 ORDER BY completion_rate DESC LIMIT 20`).bind(...b),
-    // 25: avg page load time
     env.DB.prepare(`SELECT ROUND(AVG(CASE WHEN load_time > 0 AND load_time < 30000 THEN load_time END)) as avg_load, ROUND(MAX(CASE WHEN load_time > 0 THEN load_time END)) as max_load FROM page_views ${w}`).bind(...b),
+    // 26: bounce rate by landing page
+    env.DB.prepare(`SELECT page, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.page, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY page HAVING sessions >= 2 ORDER BY sessions DESC LIMIT 20`).bind(since),
+    // 27: bounce rate by device type
+    env.DB.prepare(`SELECT device_type, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.device_type, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY device_type ORDER BY sessions DESC`).bind(since),
+    // 28: bounce rate by referrer source
+    env.DB.prepare(`SELECT CASE WHEN referrer = '' THEN 'Direct' WHEN referrer LIKE '%google%' THEN 'Google Search' WHEN referrer LIKE '%linkedin%' THEN 'LinkedIn' WHEN referrer LIKE '%twitter%' OR referrer LIKE '%t.co%' THEN 'Twitter/X' WHEN referrer LIKE '%facebook%' THEN 'Facebook' WHEN referrer LIKE '%chatgpt%' THEN 'ChatGPT' WHEN referrer LIKE '%paddyspeaks%' THEN 'Internal' ELSE 'Other Referral' END as source, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.referrer, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY source HAVING sessions >= 2 ORDER BY sessions DESC`).bind(since),
+    // 29: bounce rate new vs returning
+    env.DB.prepare(`SELECT CASE WHEN is_new = 1 THEN 'New Visitor' ELSE 'Returning' END as visitor_type, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.is_new, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY visitor_type ORDER BY sessions DESC`).bind(since),
   ]);
 
   const filters = {};
@@ -262,6 +265,10 @@ async function handleStats(request, env, url, ch) {
     notFoundPages: batch[23].results,
     readingCompletion: batch[24].results,
     performance: batch[25].results[0] || { avg_load: 0, max_load: 0 },
+    bounceByPage: batch[26].results,
+    bounceByDevice: batch[27].results,
+    bounceBySource: batch[28].results,
+    bounceByVisitorType: batch[29].results,
   };
 
   const response = new Response(JSON.stringify(data), {
