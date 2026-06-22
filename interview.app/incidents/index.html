@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production Incident Scenarios — Data Engineering | PaddySpeaks Interview Studio</title>
+<meta name="description" content="Real production incident scenarios for data engineers: pipeline failures, data quality crises, cascading outages, and SLA breaches. Diagnosis paths, postmortem templates, and what interviewers are probing when they ask about your worst incident.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Production Incident Scenarios — Data Engineering">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/incidents/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+.ps-page { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.7; color: #1a2332; }
+.ps-page h1.hero-title { font-family: 'Playfair Display', serif; font-size: 52px; line-height: 1.05; margin: 24px 0 12px; color: #0b0f17; }
+.ps-page .hero-sub { font-size: 19px; line-height: 1.5; color: #4a5568; margin: 0 0 28px; }
+.ps-page .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
+.ps-page h2.part-title { font-family: 'Playfair Display', serif; font-size: 34px; line-height: 1.15; margin: 72px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
+.ps-page .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; }
+.ps-page h3 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 40px 0 10px; color: #1a2332; padding-left: 14px; border-left: 4px solid #b91c1c; }
+.ps-page p { margin: 0 0 16px; }
+.ps-page ul, .ps-page ol { margin: 0 0 18px; padding-left: 24px; }
+.ps-page ul li, .ps-page ol li { margin: 6px 0; }
+.ps-page .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px 28px; margin: 28px 0 40px; }
+.ps-page .toc h4 { margin: 0 0 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #4a5568; }
+.ps-page .toc ol { margin: 0; padding-left: 22px; }
+.ps-page .toc ol li { margin: 6px 0; }
+.ps-page .toc ol li a { color: #1a2332; text-decoration: none; border-bottom: 1px dotted #94a3b8; }
+.ps-page .callout { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.ps-page .callout strong { color: #991b1b; }
+.ps-page .good-box { background: #f0fdf4; border-left: 4px solid #15803d; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.ps-page .good-box strong { color: #14532d; }
+.ps-page table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.ps-page table th { text-align: left; background: #1a2332; color: #f5f0e8; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.ps-page table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.ps-page table tr:nth-child(even) td { background: #f8fafc; }
+
+/* incident card */
+.inc-card { background: #0f172a; border-radius: 10px; padding: 0; margin: 28px 0; border: 1px solid #1e293b; overflow: hidden; }
+.inc-header { background: #1e293b; padding: 18px 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.inc-sev { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; flex-shrink: 0; }
+.sev-p0 { background: #7f1d1d; color: #fca5a5; }
+.sev-p1 { background: #78350f; color: #fcd34d; }
+.sev-p2 { background: #1e3a5f; color: #93c5fd; }
+.inc-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: #f1f5f9; }
+.inc-company { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #64748b; letter-spacing: 1px; margin-left: auto; }
+.inc-body { padding: 22px 24px; }
+.inc-section { margin-bottom: 18px; }
+.inc-section-title { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
+.inc-section-body { font-family: 'Source Serif 4', serif; font-size: 14.5px; line-height: 1.65; color: #cbd5e0; }
+.inc-section-body strong { color: #f1f5f9; }
+.inc-section-body code { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; background: #0f172a; border: 1px solid #334155; padding: 1px 6px; border-radius: 3px; color: #7dd3fc; }
+.inc-timeline { list-style: none; padding: 0; margin: 8px 0; }
+.inc-timeline li { display: flex; gap: 12px; padding: 5px 0; font-family: 'Source Serif 4', serif; font-size: 14px; color: #cbd5e0; }
+.inc-timeline li .t { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #f59e0b; width: 48px; flex-shrink: 0; padding-top: 2px; }
+.inc-probe { background: rgba(220,38,38,.08); border-radius: 6px; padding: 12px 16px; margin-top: 14px; }
+.inc-probe-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #f87171; margin-bottom: 6px; }
+.inc-probe-body { font-family: 'Source Serif 4', serif; font-size: 13.5px; color: #fca5a5; font-style: italic; line-height: 1.6; }
+
+.ornament { text-align:center; color:#94a3b8; letter-spacing:.8em; margin:40px 0; font-size:18px; }
+</style>
+</head>
+<body id="top">
+<main>
+<nav class="ip-topnav" aria-label="Primary" style="background:#fff;border-bottom:1px solid #e2e8f0;padding:0;position:sticky;top:0;z-index:100;backdrop-filter:saturate(180%) blur(10px);background:rgba(255,255,255,0.94);">
+  <div style="max-width:1400px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <a href="/interview.app/" style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#0b0f17;text-decoration:none;white-space:nowrap;">Interview Studio</a>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:0.01em;line-height:1.5;text-decoration:none;">
+      <style>nav.ip-topnav a:hover{color:#0b0f17 !important;} nav.ip-topnav a{text-decoration:none;white-space:nowrap;padding:3px 2px;}</style>
+      <a href="/interview.app/" style="color:#475569;">Practice</a>
+      <a href="/interview.app/ai-engineering/" style="color:#475569;">AI</a>
+      <a href="/interview.app/behavioral/" style="color:#475569;">Behavioral</a>
+      <a href="/interview.app/companies/" style="color:#475569;">Companies</a>
+      <a href="/interview.app/stories/" style="color:#475569;">Stories</a>
+      <a href="/interview.app/career/" style="color:#475569;">Career</a>
+      <a href="/interview.app/mock/" style="color:#475569;">Mock</a>
+      <a href="/interview.app/design/" style="color:#475569;">Design</a>
+      <a href="/interview.app/performance/" style="color:#475569;">Performance</a>
+      <a href="/interview.app/analytics/" style="color:#475569;">Analytics</a>
+      <a href="/interview.app/cloud-ai-age/" style="color:#475569;">Cloud · AI</a>
+      <a href="/interview.app/hot-topics-2026/" style="color:#475569;">★ Hot 2026</a>
+      <a href="/interview.app/evaluate/" style="color:#475569;">Skill Check</a>
+      <a href="/interview.app/elevator-pitch/" style="color:#475569;">Pitch</a>
+      <a href="/interview.app/company-research/" style="color:#475569;">Research</a>
+      <a href="/interview.app/incidents/" style="color:#0b0f17;font-weight:700;border-bottom:2px solid #b91c1c;">Incidents</a>
+      <a href="/interview.app/interviewer/" style="color:#475569;">Interviewer</a>
+      <a href="/interview.app/red-flags/" style="color:#475569;">Red Flags</a>
+      <a href="/interview.app/resume/" style="color:#475569;">Resume</a>
+      <a href="/interview.app/mistakes/" style="color:#475569;">Mistakes</a>
+    </div>
+    <a href="/" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#94a3b8;text-decoration:none;white-space:nowrap;">← PaddySpeaks</a>
+  </div>
+</nav>
+
+<article class="ps-page">
+<div class="hero-meta">▸ INTERVIEW SKILLS · the war stories</div>
+<h1 class="hero-title">Production incident scenarios.</h1>
+<p class="hero-sub">Every senior interview has a variant of "Tell me about a time you dealt with a production incident." What interviewers are really probing: how you diagnose under pressure, how you communicate, and what you learned. Here are 8 real-pattern scenarios with full diagnosis paths.</p>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+  <li><a href="#what-they-probe">What interviewers are actually probing</a></li>
+  <li><a href="#framework">The STAR+T framework for incidents</a></li>
+  <li><a href="#scenarios">8 Incident scenarios</a></li>
+  <li><a href="#postmortem">Postmortem template</a></li>
+</ol>
+</div>
+
+<h2 class="part-title" id="what-they-probe">What interviewers are actually probing</h2>
+<div class="part-eyebrow">THE HIDDEN RUBRIC</div>
+<p>When an interviewer asks about a production incident, they're not looking for drama. They're grading on four signals:</p>
+<ol>
+  <li><strong>Diagnosis speed.</strong> Did you know where to look, or did you thrash? Engineers who've seen real incidents know the first 10 minutes — check the obvious things first, confirm the blast radius, stop the bleeding before root-causing.</li>
+  <li><strong>Communication quality.</strong> Did you keep stakeholders informed without overwhelming them? Senior engineers manage information flow as carefully as they manage the incident itself.</li>
+  <li><strong>Blamelessness.</strong> Did you own it, or deflect? The best incident stories name your own decisions that contributed — and what you changed.</li>
+  <li><strong>Prevention thinking.</strong> What broke the system, not just what broke? The answer should always include systemic changes, not just the fix.</li>
+</ol>
+
+<div class="callout"><strong>What tanks incident answers:</strong> Vague timelines ("it took a while to figure out") · Blaming upstream teams · No concrete numbers (how bad was it? how long?) · Jumping to the fix without diagnosing · No postmortem or prevention step.</div>
+
+<h2 class="part-title" id="framework">The STAR+T framework for incidents</h2>
+<div class="part-eyebrow">STRUCTURE YOUR ANSWER</div>
+<table>
+  <thead><tr><th>Beat</th><th>Content</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Situation</strong></td><td>What system, what was normal, what broke. One sentence each.</td><td>20 sec</td></tr>
+    <tr><td><strong>Task</strong></td><td>Your role in the incident. Incident commander? On-call? Escalated in?</td><td>10 sec</td></tr>
+    <tr><td><strong>Action</strong></td><td>Your actual diagnosis path — what you checked, when, why. This is the meat.</td><td>60–90 sec</td></tr>
+    <tr><td><strong>Result</strong></td><td>Time to resolution, business impact, SLA outcome. Numbers required.</td><td>20 sec</td></tr>
+    <tr><td><strong>+Takeaway</strong></td><td>What systemic change came out of it. This is what separates L5 from L6.</td><td>20 sec</td></tr>
+  </tbody>
+</table>
+
+<div class="ornament">· · ·</div>
+
+<h2 class="part-title" id="scenarios">8 Incident scenarios</h2>
+<div class="part-eyebrow">REAL PATTERNS · WORKED THROUGH</div>
+
+<!-- 1 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p0">P0</span>
+    <span class="inc-title">Silent data loss in the revenue pipeline</span>
+    <span class="inc-company">Fintech / Stripe-pattern</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">Finance notices the daily revenue reconciliation is $2.3M short. Your Kafka-to-Snowflake pipeline has been running green for 3 days. No alerts fired. The discrepancy covers 72 hours of production data.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Confirm the blast radius. Pull row counts from Snowflake vs Kafka consumer lag metrics. Find the divergence timestamp.</li>
+        <li><span class="t">T+8m</span> Check consumer group lag. If lag is zero, the consumer processed the messages — the issue is downstream (transformation or load). If lag is nonzero, the consumer stalled.</li>
+        <li><span class="t">T+15m</span> Query the Snowflake load history. Look for failed COPY commands, partial loads, or microbatch gaps. Cross-reference with your Airflow DAG run history.</li>
+        <li><span class="t">T+25m</span> Find the gap: a schema change on a source table (new nullable column) caused a <code>VARIANT</code> parse to silently null-coalesce rather than fail. Rows loaded with <code>amount = NULL</code> instead of the real value.</li>
+        <li><span class="t">T+40m</span> Patch: replay from Kafka offset at the divergence point, fix the parser, backfill the 72-hour window.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Added <strong>null-rate monitors</strong> on all financial columns — alert if null rate on <code>amount</code> changes by more than 0.1% relative to the prior 24h. Added schema evolution tests in CI that catch nullable column additions. Added a reconciliation check (row count + sum) to every DAG run, not just the nightly batch.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"Why didn't your monitoring catch this?" — They want to hear you acknowledge the monitoring gap and describe a systemic fix, not just "we added an alert."</div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p0">P0</span>
+    <span class="inc-title">Cascading failure from a bad dbt model promotion</span>
+    <span class="inc-company">Analytics platform</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">A dbt model change went to production on Friday at 4pm. By Saturday morning, 40 downstream dashboards show wrong numbers. The change was a DISTINCT that was removed from a CTE — 10x fanout on a join made aggregate metrics look like growth was 900% WoW.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Identify the blast radius. Which dashboards? Which models? Run <code>dbt ls --select +affected_model</code> to see all dependents.</li>
+        <li><span class="t">T+10m</span> Check dbt run history. Find the first run where row counts diverged — compare <code>fct_orders</code> row count before and after the deploy.</li>
+        <li><span class="t">T+18m</span> Isolate the commit. <code>git log</code> on the model. The DISTINCT removal is immediately visible in the diff.</li>
+        <li><span class="t">T+25m</span> Rollback the model. Push the revert, trigger a full dbt run. 40 dashboards self-heal within the next refresh cycle.</li>
+        <li><span class="t">T+2h</span> Manually audit any reports that were pulled and shared externally during the window.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Added <strong>row count and cardinality tests</strong> to every fact model in dbt — tests block deployment if row count changes by more than 20%. Added a <strong>staging environment</strong> with a 24-hour bake period before production promotion. No Friday afternoon deploys rule added to the runbook.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"How did this get through code review?" — Answer honestly. Usually: the reviewer looked at the logic but not the data impact. What changed: added data validation as a mandatory PR checklist item, not just code review.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p0">P0</span>
+    <span class="inc-title">Kafka consumer lag spike — real-time pipeline collapses</span>
+    <span class="inc-company">Streaming platform / Netflix-pattern</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">Consumer lag on your event ingestion topic goes from 0 to 14 million messages in 20 minutes. Your Flink job is processing but not keeping up. SLA for freshness is 5 minutes; you're now at 47 minutes and climbing. Product teams are paging you.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Check producer throughput. Is this a traffic spike (normal) or a consumer slowdown (abnormal)? Kafka topic in/sec vs consumer out/sec in your metrics dashboard.</li>
+        <li><span class="t">T+5m</span> Traffic spike confirmed: a new product event (push notification batch) sent 50M events in 8 minutes — 10× the normal peak.</li>
+        <li><span class="t">T+8m</span> Check Flink task manager metrics — CPU at 100%, GC pressure. The job is not crashing but can't keep up with this volume.</li>
+        <li><span class="t">T+12m</span> Increase Flink parallelism by 3×. Scale up task managers. Consumer lag starts decreasing within 6 minutes.</li>
+        <li><span class="t">T+38m</span> Lag returns to zero. Total gap: 67 minutes of data was delayed, not lost — Kafka retained everything.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Added <strong>auto-scaling policy</strong> on the Flink cluster triggered by consumer lag > 500K messages. Added a traffic spike coordination process — product teams must notify data infra before batch notification sends over 10M events. Added lag SLA alerting at 10-minute freshness, not just 5-minute breach.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"What would you have done if scaling wasn't enough?" — Backpressure strategy: drop non-critical events, prioritize revenue-critical topics, shed load at the producer if necessary. Shows you think in layers.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 4 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p1">P1</span>
+    <span class="inc-title">SCD Type 2 dimension corrupted — history overwritten</span>
+    <span class="inc-company">E-commerce / Amazon-pattern</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">A data engineer ran a backfill job on <code>dim_customer</code> without setting the <code>is_current</code> flag correctly. All historical rows now have <code>is_current = TRUE</code>. Point-in-time queries for the last 6 months of customer attributes return wrong results. 14 downstream models are affected.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Confirm: <code>SELECT customer_id, COUNT(*) FROM dim_customer WHERE is_current = TRUE GROUP BY 1 HAVING COUNT(*) > 1</code>. If any customer has more than one "current" row, it's confirmed.</li>
+        <li><span class="t">T+10m</span> Assess recovery options: (a) restore from last clean snapshot, (b) re-derive the correct SCD2 state from the source transaction log.</li>
+        <li><span class="t">T+20m</span> Option (a): restore <code>dim_customer</code> from the pre-backfill snapshot. Replay the 3 hours of legitimate changes that happened between the snapshot and now from the CDC log.</li>
+        <li><span class="t">T+90m</span> Dimension restored. Trigger downstream model refreshes. Validate with row count + unique key checks.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Added a <strong>pre-commit hook</strong> on any DML touching <code>dim_*</code> tables that requires review sign-off. Added a data contract test: "for each customer_id, exactly one row has <code>is_current = TRUE</code>" — runs on every load. Added snapshot retention policy (72h minimum) so rollback is always available.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"How did you communicate this to downstream teams?" — They want to see triage communication: immediate alert with blast radius assessment, ETA to resolution, a post-incident report. Not silence followed by a fix.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 5 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p1">P1</span>
+    <span class="inc-title">Query cost explosion — Snowflake bill 40× normal</span>
+    <span class="inc-company">SaaS / Snowflake-heavy</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">Overnight your Snowflake credits burned 40× the daily baseline. Finance pages the data team at 8am. A $180K monthly budget is now $12K into the first week. No obvious pipeline changes were deployed.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Run <code>QUERY_HISTORY</code>: find the top 10 queries by credits consumed in the last 24 hours. Sort by <code>CREDITS_USED_CLOUD_SERVICES</code>.</li>
+        <li><span class="t">T+8m</span> One query consumed 92% of the total: a new analyst wrote a self-join on a 4B-row table without a filter. The query ran 47 times via a scheduled BI tool refresh.</li>
+        <li><span class="t">T+12m</span> Kill any still-running instances. Suspend the offending warehouse. Fix the query (add date filter + limit self-join to the CTE).</li>
+        <li><span class="t">T+20m</span> Enable <strong>resource monitors</strong> with a credit limit and suspend-on-exceed policy. Should have been there from day one.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Resource monitors on every warehouse with hard credit limits and email alerts at 50%/80%/100%. Query governance policy: analysts cannot run unfiltered full-table scans above 100M rows without a reviewer sign-off. Added a cost estimation step to the BI tool's query queue for queries above a threshold.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"How did you prevent blaming the analyst?" — Blameless postmortem: the analyst didn't know. The system had no guardrails. You owned the systemic failure.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 6 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p1">P1</span>
+    <span class="inc-title">Late data from a third-party source breaks ML feature freshness</span>
+    <span class="inc-company">ML platform</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">Your feature store relies on a third-party credit bureau feed that arrives at 2am. Today it arrived at 9:15am. Your fraud model has been scoring transactions for 7 hours using 24-hour-old features. Risk team needs to know the blast radius before market open.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Quantify: how many transactions were scored in the 7-hour window? What's the expected model accuracy degradation with 24h-old credit features vs. 2h-old? Pull from model evaluation data.</li>
+        <li><span class="t">T+15m</span> Risk decision: the accuracy delta is 1.8% — below the risk team's threshold of 5% for manual review. Document and move on.</li>
+        <li><span class="t">T+30m</span> Re-score transactions in the window using the now-arrived fresh features. Flag any decisions that would have changed. 3 high-value transactions get a second look.</li>
+        <li><span class="t">T+60m</span> Notify risk team with the full analysis. No escalation needed.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Added freshness SLA monitoring on all third-party data sources with alerting at T+30min past expected arrival. Added a fallback policy: if credit features are stale beyond threshold, the model switches to a degraded-mode feature set that uses internal-only signals. Negotiated an SLA with the data vendor with financial penalties for late delivery.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"What if the accuracy delta had been 8%?" — Shows you know the decision tree: at what threshold do you halt scoring, route to human review, or revert to a simpler model?</div>
+    </div>
+  </div>
+</div>
+
+<!-- 7 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p0">P0</span>
+    <span class="inc-title">Duplicate transactions in the financial ledger</span>
+    <span class="inc-company">Payments / Stripe-pattern</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">A retry storm during a brief network partition caused your idempotency layer to fail. 14,000 transactions were written twice to the ledger. Reconciliation is off by $8.7M. The window is 11 minutes.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Confirm duplicates: <code>SELECT transaction_id, COUNT(*) FROM ledger GROUP BY 1 HAVING COUNT(*) > 1</code>. Verify the count.</li>
+        <li><span class="t">T+5m</span> Check idempotency key table. The partition caused a brief window where the cache missed and keys were re-processed.</li>
+        <li><span class="t">T+15m</span> Quarantine the duplicate rows (soft-delete with audit flag, never hard-delete financial data).</li>
+        <li><span class="t">T+30m</span> Re-run reconciliation. Confirm the $8.7M delta is now explained and resolved.</li>
+        <li><span class="t">T+2h</span> Legal and compliance notified per protocol. Written incident report submitted.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Moved idempotency key storage from cache-only to a durable database with cache-aside pattern. Added a reconciliation check that runs every 15 minutes, not just nightly. Added circuit breaker on the retry logic: after 3 retries, route to a dead-letter queue for manual review rather than continuing to retry.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"Why did you soft-delete instead of hard-delete?" — Audit trail. Financial data must be immutable — you mark it void, you never delete it. Shows regulatory awareness.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 8 -->
+<div class="inc-card">
+  <div class="inc-header">
+    <span class="inc-sev sev-p2">P2</span>
+    <span class="inc-title">Airflow DAG slowdown — morning jobs take 4× normal time</span>
+    <span class="inc-company">Analytics engineering</span>
+  </div>
+  <div class="inc-body">
+    <div class="inc-section">
+      <div class="inc-section-title">The scenario</div>
+      <div class="inc-section-body">Monday morning. Your 7am DAG run that normally completes by 8:30am isn't done at 10am. Dashboards are stale. Analysts are asking. No failures — just very, very slow.</div>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Diagnosis path</div>
+      <ul class="inc-timeline">
+        <li><span class="t">T+0</span> Check Airflow task durations vs. historical baseline. Which tasks are slow vs. which are fast?</li>
+        <li><span class="t">T+8m</span> The dbt transformation tasks are normal. The slow tasks are the Snowflake loads. Check the Snowflake query history for the warehouse in use.</li>
+        <li><span class="t">T+15m</span> Warehouse is heavily queued — 47 concurrent queries waiting. Someone started a large ad-hoc analysis on the same warehouse at 6:55am.</li>
+        <li><span class="t">T+18m</span> Move the DAG to the dedicated transform warehouse. Jobs complete within 35 minutes of the switch.</li>
+      </ul>
+    </div>
+    <div class="inc-section">
+      <div class="inc-section-title">Prevention</div>
+      <div class="inc-section-body">Separated Snowflake warehouses by workload type: ETL/transform, ad-hoc/analyst, BI/serving. Each warehouse has resource monitors. Added a "warehouse health" check as the first task in every critical DAG — if the warehouse queue depth is above threshold, alert and optionally re-route before the DAG proceeds.</div>
+    </div>
+    <div class="inc-probe">
+      <div class="inc-probe-label">What the interviewer asks next</div>
+      <div class="inc-probe-body">"How did you catch this before analysts escalated?" — Honest answer: you didn't. The right answer adds: what monitoring would have caught it 30 minutes earlier.</div>
+    </div>
+  </div>
+</div>
+
+<div class="ornament">· · ·</div>
+
+<h2 class="part-title" id="postmortem">Postmortem template</h2>
+<div class="part-eyebrow">WRITE THIS AFTER EVERY P0/P1</div>
+<p>Having a postmortem template in your head tells the interviewer you've done this for real. Here's the structure that senior engineers recognize as correct:</p>
+<table>
+  <thead><tr><th>Section</th><th>Content</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Summary</strong></td><td>One paragraph. What broke, when, for how long, business impact. No blame.</td></tr>
+    <tr><td><strong>Timeline</strong></td><td>Timestamped sequence from first signal to resolution. Include what you checked that turned out to be wrong — shows honest diagnosis.</td></tr>
+    <tr><td><strong>Root cause</strong></td><td>The technical cause, one level deeper than "the query was slow" — why was it slow, and why wasn't that caught?</td></tr>
+    <tr><td><strong>Contributing factors</strong></td><td>What made the impact worse than it needed to be. Usually: late detection, missing runbooks, or unclear ownership.</td></tr>
+    <tr><td><strong>Action items</strong></td><td>Named owner + due date for each item. Vague action items do not get done.</td></tr>
+    <tr><td><strong>What went well</strong></td><td>Blameless culture requires honoring what the team did right. Communication was good? Say so.</td></tr>
+  </tbody>
+</table>
+<div class="good-box"><strong>Interview tip:</strong> If you say "we wrote a postmortem," be ready to describe what was in it. If you can't, the interviewer knows you didn't own the incident — you were a bystander.</div>
+
+<p style="margin-top:40px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#94a3b8;">
+  ← <a href="/interview.app/behavioral/" style="color:#b91c1c;">Behavioral prep</a> &nbsp;·&nbsp;
+  <a href="/interview.app/interviewer/" style="color:#b91c1c;">Interviewer's Mind →</a>
+</p>
+</article>
+</main>
+<script defer src="/lib/ps.js"></script>
+</body>
+</html>
