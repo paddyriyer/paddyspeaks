@@ -1034,2862 +1034,805 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 1",
       titleSanskrit: "प्रथमोऽनुवाकः",
-      subtitle: "Body, Breath, Senses, and Integrated Faculties",
-      description: "The opening anuvaka of the Chamakam prays for 36 blessings relating to food, vital breaths, senses, mental faculties, bodily structure, and longevity. The word कल्पतां (may be available) from the tenth anuvaka must be attached to all words. The word च (and) indicates togetherness — all these should be available together.",
+      subtitle: "The Pre-Flight Checklist — Body, Breath, Senses, and Faculty",
+      description: "The opening anuvaka of the Chamakam prays for 36 blessings: food-strength, all five prāṇas, intelligence, resolve, speech, senses, vitality, long life, and the complete physical body. The refrain 'cha me' — and for me — repeats through each request. These are not desires but conditions for a dharmic life.",
       mantras: [
         {
-          devanagari: "वाजः",
-          text: "vājaḥ",
-          meaning: "Food — nourishment-strength, the fuel that makes every other capacity possible.",
+          devanagari: "वाजः प्रसवः प्रयतिः प्रसितिः धीतिः क्रतुः",
+          text: "vājaḥ prasavaḥ prayatiḥ prasatiḥ dhītiḥ kratuḥ",
+          meaning: "Nourishing strength, the initial impulse, sustained effort, far-reaching extension, intelligence, and sacred resolve — and for me.",
           words: [
-            { word: "वाजः", transliteration: "vājaḥ", meaning: "Food" },
-          ]
+            { word: "वाजः", transliteration: "vājaḥ", meaning: "food-strength/nourishment" },
+            { word: "प्रसवः", transliteration: "prasavaḥ", meaning: "initial impulse" },
+            { word: "प्रयतिः", transliteration: "prayatiḥ", meaning: "sustained effort" },
+            { word: "प्रसितिः", transliteration: "prasatiḥ", meaning: "far-reaching extension" },
+            { word: "धीतिः", transliteration: "dhītiḥ", meaning: "intelligence/insight" },
+            { word: "क्रतुः", transliteration: "kratuḥ", meaning: "sacred resolve" },
+          ],
+          esotericMeaning: "Vāja (food-strength) is listed first because everything downstream depends on it — the meal before the marathon, the glucose before the exam. Dhīti is the split-second insight a doctor spots in a scan; kratu is the will that acts on it. Insight without will is daydreaming; will without insight is brute force. Together they are the launchpad for all purposeful action."
         },
         {
-          devanagari: "प्रसवः",
-          text: "prasavaḥ",
-          meaning: "Permission — for making food available, eating it, etc. Wherever I go, I should get this kind of permission.",
+          devanagari: "स्वरः श्लोकः श्रावः श्रुतिः ज्योतिः सुवः",
+          text: "svaraḥ ślokaḥ śrāvaḥ śrutiḥ jyotiḥ suvaḥ",
+          meaning: "Intoned voice, hymnic expression, renown, sacred listening, light, and wellbeing — and for me.",
           words: [
-            { word: "प्रसवः", transliteration: "prasavaḥ", meaning: "Permission" },
-          ]
+            { word: "स्वरः", transliteration: "svaraḥ", meaning: "intoned voice" },
+            { word: "श्लोकः", transliteration: "ślokaḥ", meaning: "hymnic expression" },
+            { word: "श्रावः", transliteration: "śrāvaḥ", meaning: "renown/fame" },
+            { word: "श्रुतिः", transliteration: "śrutiḥ", meaning: "sacred listening" },
+            { word: "ज्योतिः", transliteration: "jyotiḥ", meaning: "light" },
+            { word: "सुवः", transliteration: "suvaḥ", meaning: "wellbeing" },
+          ],
+          esotericMeaning: "Speech moves outward (svara → śloka → śrāva), and wisdom moves inward (śruti). Light (jyotiḥ) is both the sun that sustains the body and the inner luminosity of awareness. Together these six represent the communicative and perceptual capacities that make a human being more than an animal — the poet, the listener, the one who is known and who knows."
         },
         {
-          devanagari: "प्रयतिः",
-          text: "prayatiḥ",
-          meaning: "Purity — cleanliness and sanctity required before partaking of food.",
+          devanagari: "प्राणः अपानः व्यानः असुः चित्तम् आधीतम्",
+          text: "prāṇaḥ apānaḥ vyānaḥ asuḥ cittam ādhītam",
+          meaning: "In-breath, downward breath, circulating breath, life-force, the mind-field, and learned knowledge — and for me.",
           words: [
-            { word: "प्रयतिः", transliteration: "prayatiḥ", meaning: "Purity" },
-          ]
+            { word: "प्राणः", transliteration: "prāṇaḥ", meaning: "life-breath/inhalation" },
+            { word: "अपानः", transliteration: "apānaḥ", meaning: "downward breath/exhalation" },
+            { word: "व्यानः", transliteration: "vyānaḥ", meaning: "circulating breath" },
+            { word: "असुः", transliteration: "asuḥ", meaning: "life-force" },
+            { word: "चित्तम्", transliteration: "cittam", meaning: "mind-field/awareness" },
+            { word: "आधीतम्", transliteration: "ādhītam", meaning: "learned knowledge" },
+          ],
+          esotericMeaning: "Three prāṇa functions in sequence: inhalation, exhalation, circulation. A runner who cannot control breath cannot control pace. Cittam is not the thoughts — it is the space that holds them. A swimmer mid-race has a thousand sensations; cittam holds all of it without drowning in any single one. Wim Hof repackaged the prāṇas; mindfulness research confirmed cittam; the Vedas wrote both as prayer three thousand years before the treadmill."
         },
         {
-          devanagari: "प्रसितिः",
-          text: "prasitiḥ",
-          meaning: "Yearning — on seeing food, staying there with desire to eat.",
+          devanagari: "वाक् मनः चक्षुः श्रोत्रम् दक्षः बलम्",
+          text: "vāk manaḥ cakṣuḥ śrotram dakṣaḥ balam",
+          meaning: "Speech, mind, sight, hearing, competence, and strength — and for me.",
           words: [
-            { word: "प्रसितिः", transliteration: "prasitiḥ", meaning: "Yearning" },
-          ]
+            { word: "वाक्", transliteration: "vāk", meaning: "speech" },
+            { word: "मनः", transliteration: "manaḥ", meaning: "mind" },
+            { word: "चक्षुः", transliteration: "cakṣuḥ", meaning: "sight" },
+            { word: "श्रोत्रम्", transliteration: "śrotram", meaning: "hearing" },
+            { word: "दक्षः", transliteration: "dakṣaḥ", meaning: "competence/skill" },
+            { word: "बलम्", transliteration: "balam", meaning: "strength" },
+          ],
+          esotericMeaning: "Speech appears between mind and sight because vāk is the bridge between inner and outer. A coach whose speech is chaotic produces chaotic teams. One poorly worded message can wreck a week; one honest, calm sentence can de-escalate a crisis. Speech is not decoration — it is infrastructure. The Vedas placed vāk exactly where it belongs: between thinking and perceiving."
         },
         {
-          devanagari: "धीतिः",
-          text: "dhītiḥ",
-          meaning: "Acceptance — the act of accepting food offered to oneself.",
+          devanagari: "ओजः सहः आयुः जरा आत्मा तनूः",
+          text: "ojaḥ sahaḥ āyuḥ jarā ātmā tanūḥ",
+          meaning: "Vitality, endurance, lifespan, old age, the Self, and the body — and for me.",
           words: [
-            { word: "धीतिः", transliteration: "dhītiḥ", meaning: "Acceptance" },
-          ]
+            { word: "ओजः", transliteration: "ojaḥ", meaning: "vital energy/vitality" },
+            { word: "सहः", transliteration: "sahaḥ", meaning: "endurance" },
+            { word: "आयुः", transliteration: "āyuḥ", meaning: "lifespan" },
+            { word: "जरा", transliteration: "jarā", meaning: "old age" },
+            { word: "आत्मा", transliteration: "ātmā", meaning: "the Self" },
+            { word: "तनूः", transliteration: "tanūḥ", meaning: "the body" },
+          ],
+          esotericMeaning: "They are praying for old age — not dreading it. Because jarā means graduation. The runner who completes 40 marathons over 40 years has a different fitness than the sprinter who peaks at 22. Jarā means: may I live long enough to see the full arc, to accumulate wisdom, to finish what I started. Anti-aging culture fears wrinkles; the Vedas prayed for them because longevity without dread is the real ask."
         },
         {
-          devanagari: "क्रतुः",
-          text: "kratuḥ",
-          meaning: "Yagna — the sacrifice that is the cause of food production.",
+          devanagari: "शर्म वर्म अङ्गानि अस्थानि परूंषि शरीराणि",
+          text: "śarma varma aṅgāni asthāni parūṁṣi śarīrāṇi",
+          meaning: "Comfort, protection, limbs, bones, joints, and all bodily systems — and for me.",
           words: [
-            { word: "क्रतुः", transliteration: "kratuḥ", meaning: "Yagna" },
-          ]
+            { word: "शर्म", transliteration: "śarma", meaning: "comfort/shelter" },
+            { word: "वर्म", transliteration: "varma", meaning: "armor/protection" },
+            { word: "अङ्गानि", transliteration: "aṅgāni", meaning: "limbs" },
+            { word: "अस्थानि", transliteration: "asthāni", meaning: "bones" },
+            { word: "परूंषि", transliteration: "parūṁṣi", meaning: "joints" },
+            { word: "शरीराणि", transliteration: "śarīrāṇi", meaning: "all bodily systems" },
+          ],
+          esotericMeaning: "The body needs both softness and hardness. Śarma is the recovery day, the warm bed, the ice bath. Varma is the immune system, the shin guard, the emotional boundary. A body always armored is rigid; a body always soft is vulnerable. Compression socks AND rest days. Firewalls AND user experience. Boundaries AND vulnerability. The Vedas paired śarma and varma as co-requirements — not opposites — because the instrument must be both protected and at ease."
         },
-        {
-          devanagari: "स्वरः",
-          text: "svaraḥ",
-          meaning: "Intonation — the proper Vedic accent (Udātta etc.) in chanting mantras.",
-          words: [
-            { word: "स्वरः", transliteration: "svaraḥ", meaning: "Intonation" },
-          ]
-        },
-        {
-          devanagari: "श्लोकः",
-          text: "ślokaḥ",
-          meaning: "Praise — hymns of glorification and poetic expression.",
-          words: [
-            { word: "श्लोकः", transliteration: "ślokaḥ", meaning: "Praise" },
-          ]
-        },
-        {
-          devanagari: "श्रावः",
-          text: "śrāvaḥ",
-          meaning: "Eloquence — capacity to speak such that many people enjoy listening.",
-          words: [
-            { word: "श्रावः", transliteration: "śrāvaḥ", meaning: "Eloquence" },
-          ]
-        },
-        {
-          devanagari: "श्रुतिः",
-          text: "śrutiḥ",
-          meaning: "Listening — capacity to enjoy and absorb what is heard.",
-          words: [
-            { word: "श्रुतिः", transliteration: "śrutiḥ", meaning: "Listening" },
-          ]
-        },
-        {
-          devanagari: "ज्योतिः",
-          text: "jyotiḥ",
-          meaning: "Light — illumination, both physical and spiritual.",
-          words: [
-            { word: "ज्योतिः", transliteration: "jyotiḥ", meaning: "Light" },
-          ]
-        },
-        {
-          devanagari: "सुवः",
-          text: "suvaḥ",
-          meaning: "Swarga — the heavenly realm, higher state of being.",
-          words: [
-            { word: "सुवः", transliteration: "suvaḥ", meaning: "Swarga" },
-          ]
-        },
-        {
-          devanagari: "प्राणः",
-          text: "prāṇaḥ",
-          meaning: "Prāṇavāyu — the air going from outside into the body (inhalation).",
-          words: [
-            { word: "प्राणः", transliteration: "prāṇaḥ", meaning: "Prāṇavāyu" },
-          ]
-        },
-        {
-          devanagari: "अपानः",
-          text: "apānaḥ",
-          meaning: "Apānavāyu — the air emerging out of the body (exhalation).",
-          words: [
-            { word: "अपानः", transliteration: "apānaḥ", meaning: "Apānavāyu" },
-          ]
-        },
-        {
-          devanagari: "व्यानः",
-          text: "vyānaḥ",
-          meaning: "Vyānavāyu — the air present in the joints of limbs (circulation).",
-          words: [
-            { word: "व्यानः", transliteration: "vyānaḥ", meaning: "Vyānavāyu" },
-          ]
-        },
-        {
-          devanagari: "असुः",
-          text: "asuḥ",
-          meaning: "Air — the vital air in general that sustains life.",
-          words: [
-            { word: "असुः", transliteration: "asuḥ", meaning: "Air" },
-          ]
-        },
-        {
-          devanagari: "चित्तम्",
-          text: "cittam",
-          meaning: "Mind-knowledge — awareness and knowledge present in the mind.",
-          words: [
-            { word: "चित्तम्", transliteration: "cittam", meaning: "Mind-knowledge" },
-          ]
-        },
-        {
-          devanagari: "अधीतम्",
-          text: "adhītam",
-          meaning: "Learned knowledge — matters appearing in that knowledge through study.",
-          words: [
-            { word: "अधीतम्", transliteration: "adhītam", meaning: "Learned knowledge" },
-          ]
-        },
-        {
-          devanagari: "वाक्",
-          text: "vāk",
-          meaning: "Speech — the organ and faculty of speech.",
-          words: [
-            { word: "वाक्", transliteration: "vāk", meaning: "Speech" },
-          ]
-        },
-        {
-          devanagari: "मनः",
-          text: "manaḥ",
-          meaning: "Mind — the thinking faculty, the inner instrument of thought.",
-          words: [
-            { word: "मनः", transliteration: "manaḥ", meaning: "Mind" },
-          ]
-        },
-        {
-          devanagari: "चक्षुः",
-          text: "cakṣuḥ",
-          meaning: "Eye — the faculty of sight and perception.",
-          words: [
-            { word: "चक्षुः", transliteration: "cakṣuḥ", meaning: "Eye" },
-          ]
-        },
-        {
-          devanagari: "श्रोत्रम्",
-          text: "śrotram",
-          meaning: "Ear — the faculty of hearing and discernment.",
-          words: [
-            { word: "श्रोत्रम्", transliteration: "śrotram", meaning: "Ear" },
-          ]
-        },
-        {
-          devanagari: "दक्षः",
-          text: "dakṣaḥ",
-          meaning: "Dexterity — capacity and fine functioning of the Jñānendriyas (sense organs).",
-          words: [
-            { word: "दक्षः", transliteration: "dakṣaḥ", meaning: "Dexterity" },
-          ]
-        },
-        {
-          devanagari: "बलम्",
-          text: "balam",
-          meaning: "Strength — capacity and power of the Karmendriyas (action organs).",
-          words: [
-            { word: "बलम्", transliteration: "balam", meaning: "Strength" },
-          ]
-        },
-        {
-          devanagari: "ओजः",
-          text: "ojaḥ",
-          meaning: "Virulence — the vital vigour (eighth dhātu) that is the cause of strength.",
-          words: [
-            { word: "ओजः", transliteration: "ojaḥ", meaning: "Virulence" },
-          ]
-        },
-        {
-          devanagari: "सहः",
-          text: "sahaḥ",
-          meaning: "Endurance — capacity to attack and overcome the enemy.",
-          words: [
-            { word: "सहः", transliteration: "sahaḥ", meaning: "Endurance" },
-          ]
-        },
-        {
-          devanagari: "आयुः",
-          text: "āyuḥ",
-          meaning: "Lifespan — the full duration of one's life.",
-          words: [
-            { word: "आयुः", transliteration: "āyuḥ", meaning: "Lifespan" },
-          ]
-        },
-        {
-          devanagari: "जरा",
-          text: "jarā",
-          meaning: "Old age — life till attaining a venerable and respected old age.",
-          words: [
-            { word: "जरा", transliteration: "jarā", meaning: "Old age" },
-          ]
-        },
-        {
-          devanagari: "आत्मा",
-          text: "ātmā",
-          meaning: "Ātmā — the Paramātmā, the Self reputed in the Śāstras.",
-          words: [
-            { word: "आत्मा", transliteration: "ātmā", meaning: "Ātmā" },
-          ]
-        },
-        {
-          devanagari: "तनूः",
-          text: "tanūḥ",
-          meaning: "Body — a handsome, well-formed body.",
-          words: [
-            { word: "तनूः", transliteration: "tanūḥ", meaning: "Body" },
-          ]
-        },
-        {
-          devanagari: "शर्म",
-          text: "śarma",
-          meaning: "Comfort — ease, happiness, and shelter.",
-          words: [
-            { word: "शर्म", transliteration: "śarma", meaning: "Comfort" },
-          ]
-        },
-        {
-          devanagari: "वर्म",
-          text: "varma",
-          meaning: "Armour — protection for the body, both physical and subtle.",
-          words: [
-            { word: "वर्म", transliteration: "varma", meaning: "Armour" },
-          ]
-        },
-        {
-          devanagari: "अङ्गानि",
-          text: "aṅgāni",
-          meaning: "Limbs — full and complete limbs of the body.",
-          words: [
-            { word: "अङ्गानि", transliteration: "aṅgāni", meaning: "Limbs" },
-          ]
-        },
-        {
-          devanagari: "अस्थानि",
-          text: "asthāni",
-          meaning: "Bones — bones properly placed in required positions.",
-          words: [
-            { word: "अस्थानि", transliteration: "asthāni", meaning: "Bones" },
-          ]
-        },
-        {
-          devanagari: "परूंषि",
-          text: "parūṁṣi",
-          meaning: "Joints — the joints in hands, legs, and other parts.",
-          words: [
-            { word: "परूंषि", transliteration: "parūṁṣi", meaning: "Joints" },
-          ]
-        },
-        {
-          devanagari: "शरीराणि",
-          text: "śarīrāṇi",
-          meaning: "Body parts — all other parts and systems of the body.",
-          words: [
-            { word: "शरीराणि", transliteration: "śarīrāṇi", meaning: "Body parts" },
-          ]
-        }
       ]
     },
+
     {
       id: 13,
       part: "chamakam",
       title: "Anuvaka 2",
       titleSanskrit: "द्वितीयोऽनुवाकः",
-      subtitle: "Excellence, Leadership, Truth, Play, and Legacy",
-      description: "This anuvaka prays for prominence, leadership, righteous anger, victory, truth, faith, wealth, self-mastery, play, and legacy. It encompasses 38 aspirations relating to character, worldly success, and the wisdom to manage both present and future.",
+      subtitle: "Blueprint for Adult Strength — Character, Leadership, Truth, Play, Legacy",
+      description: "The second anuvaka prays for 38 blessings spanning leadership with maturity, righteous fire with self-mastery, wealth with knowledge, and play alongside truth. This is not a prayer for power — it is a prayer for power wisely held.",
       mantras: [
         {
-          devanagari: "ज्यैष्ठ्यम्",
-          text: "jyaiṣṭhyam",
-          meaning: "Excellence — eminence and superiority in everything.",
+          devanagari: "ज्यैष्ठ्यम् आधिपत्यम् मन्युः भामः",
+          text: "jyaiṣṭhyam ādhipatyam manyuḥ bhāmaḥ",
+          meaning: "Excellence, lordship, righteous anger, and radiant force — and for me.",
           words: [
-            { word: "ज्यैष्ठ्यम्", transliteration: "jyaiṣṭhyam", meaning: "Excellence" },
-          ]
+            { word: "ज्यैष्ठ्यम्", transliteration: "jyaiṣṭhyam", meaning: "excellence/eminence" },
+            { word: "आधिपत्यम्", transliteration: "ādhipatyam", meaning: "lordship/leadership" },
+            { word: "मन्युः", transliteration: "manyuḥ", meaning: "righteous anger/inner heat" },
+            { word: "भामः", transliteration: "bhāmaḥ", meaning: "radiant force" },
+          ],
+          esotericMeaning: "A pressure cooker without heat cooks nothing; without a valve it explodes. Manyu is the heat — the surgeon's controlled intensity, the whistleblower's righteous fire. The padārtha specifies manyu 'to be mastered, not uncontrolled.' Modern psychology calls it anger regulation. The Vedas distinguished destructive rage from sacred fire — and placed lordship (ādhipatya) right beside it, because authority without the capacity for righteous indignation is not authority at all."
         },
         {
-          devanagari: "आधिपत्यम्",
-          text: "ādhipatyam",
-          meaning: "Lordship — leadership and sovereignty over one's domain.",
+          devanagari: "जेमा महिमा वरिमा प्रथिमा वर्ष्मा द्राघुया वृद्धम् वृद्धिः",
+          text: "jemā mahimā varimā prathimā varṣmā drāghuyā vṛddham vṛddhiḥ",
+          meaning: "Victory, greatness, breadth, proportion, stature, length, mature growth, and growth — and for me.",
           words: [
-            { word: "आधिपत्यम्", transliteration: "ādhipatyam", meaning: "Lordship" },
-          ]
+            { word: "जेमा", transliteration: "jemā", meaning: "victory" },
+            { word: "महिमा", transliteration: "mahimā", meaning: "greatness" },
+            { word: "वरिमा", transliteration: "varimā", meaning: "breadth/width" },
+            { word: "प्रथिमा", transliteration: "prathimā", meaning: "proportion" },
+            { word: "वर्ष्मा", transliteration: "varṣmā", meaning: "stature/height" },
+            { word: "द्राघुया", transliteration: "drāghuyā", meaning: "length/endurance" },
+            { word: "वृद्धम्", transliteration: "vṛddham", meaning: "mature growth" },
+            { word: "वृद्धिः", transliteration: "vṛddhiḥ", meaning: "growth/increase" },
+          ],
+          esotericMeaning: "Six dimensions of expansion — victory, greatness, breadth, proportion, stature, length — followed by mature growth and growth itself. The Vedic vision of success is not one-dimensional. A tall tree that cannot bend breaks in a storm; a wide one that cannot stand tall has no reach. These eight together describe a life that expands in every direction simultaneously, like a banyan."
         },
         {
-          devanagari: "मन्युः",
-          text: "manyuḥ",
-          meaning: "Mental anger — inner righteous fire, needed on certain occasions.",
+          devanagari: "सत्यम् श्रद्धा जगत् धनम् वशः त्विषिः",
+          text: "satyam śraddhā jagat dhanam vaśaḥ tviṣiḥ",
+          meaning: "Truth, faith, the world, wealth, self-mastery, and radiance — and for me.",
           words: [
-            { word: "मन्युः", transliteration: "manyuḥ", meaning: "Mental anger" },
-          ]
+            { word: "सत्यम्", transliteration: "satyam", meaning: "truth" },
+            { word: "श्रद्धा", transliteration: "śraddhā", meaning: "faith/trust" },
+            { word: "जगत्", transliteration: "jagat", meaning: "the world" },
+            { word: "धनम्", transliteration: "dhanam", meaning: "wealth" },
+            { word: "वशः", transliteration: "vaśaḥ", meaning: "self-mastery" },
+            { word: "त्विषिः", transliteration: "tviṣiḥ", meaning: "radiance/luster" },
+          ],
+          esotericMeaning: "Vaśa is not control over others — control over yourself. The person who doesn't reply-all in rage. The parent who pauses before yelling. Viktor Frankl called it the gap between stimulus and response — the seat of human freedom. In a world of hot takes and instant reactions, vaśa is the rarest leadership skill. The Vedas placed it alongside wealth and radiance because self-mastery is what keeps both from destroying you."
         },
         {
-          devanagari: "भामः",
-          text: "bhāmaḥ",
-          meaning: "Expressed anger — anger expressing in external signs when required.",
+          devanagari: "क्रीडा मोदः जातम् जनिष्यमाणम् सूक्तम् सुकृतम्",
+          text: "krīḍā modaḥ jātam janiṣyamāṇam sūktam sukṛtam",
+          meaning: "Play, joy, what is born, what will be born, good speech, and good deeds — and for me.",
           words: [
-            { word: "भामः", transliteration: "bhāmaḥ", meaning: "Expressed anger" },
-          ]
+            { word: "क्रीडा", transliteration: "krīḍā", meaning: "play/sport" },
+            { word: "मोदः", transliteration: "modaḥ", meaning: "joy/healthy enjoyment" },
+            { word: "जातम्", transliteration: "jātam", meaning: "what is born/the past" },
+            { word: "जनिष्यमाणम्", transliteration: "janiṣyamāṇam", meaning: "what will be born/the future" },
+            { word: "सूक्तम्", transliteration: "sūktam", meaning: "good speech/well-said" },
+            { word: "सुकृतम्", transliteration: "sukṛtam", meaning: "good deeds/well-done" },
+          ],
+          esotericMeaning: "In the same breath as truth and wealth, the Vedas ask for play. Google's 20% time produced Gmail. The weekend soccer game keeps a stressed executive sane. Krīḍā is not the opposite of work — it is the prerequisite for sustainable work. And they ask for both jātam (what has been) and janiṣyamāṇam (what will be) — because integration before progression is the formula. Therapy teaches it; post-mortems teach it; the Chamakam encoded it as prayer."
         },
         {
-          devanagari: "अमः",
-          text: "amaḥ",
-          meaning: "Inscrutability — a nature that cannot be deciphered by enemies.",
+          devanagari: "वित्तम् वेद्यम् भूतम् भविष्यत् सुगम् सुपथम् ऋद्धम् ऋद्धिः कॢप्तम् कॢप्तिः मतिः सुमतिः",
+          text: "vittam vedyam bhūtam bhaviṣyat sugam supathm ṛddham ṛddhiḥ kḷptam kḷptiḥ matiḥ sumatiḥ",
+          meaning: "Resource, knowledge, past, future, good progress, good path, stability, prosperity, arrangement, preparedness, intelligence, and wise discernment — and for me.",
           words: [
-            { word: "अमः", transliteration: "amaḥ", meaning: "Inscrutability" },
-          ]
+            { word: "वित्तम्", transliteration: "vittam", meaning: "resource/wealth" },
+            { word: "वेद्यम्", transliteration: "vedyam", meaning: "knowledge" },
+            { word: "भूतम्", transliteration: "bhūtam", meaning: "the past" },
+            { word: "भविष्यत्", transliteration: "bhaviṣyat", meaning: "the future" },
+            { word: "सुगम्", transliteration: "sugam", meaning: "good progress" },
+            { word: "सुपथम्", transliteration: "supathm", meaning: "good path" },
+            { word: "ऋद्धम्", transliteration: "ṛddham", meaning: "stability" },
+            { word: "ऋद्धिः", transliteration: "ṛddhiḥ", meaning: "prosperity" },
+            { word: "कॢप्तम्", transliteration: "kḷptam", meaning: "proper arrangement" },
+            { word: "कॢप्तिः", transliteration: "kḷptiḥ", meaning: "preparedness" },
+            { word: "मतिः", transliteration: "matiḥ", meaning: "intelligence" },
+            { word: "सुमतिः", transliteration: "sumatiḥ", meaning: "wise discernment" },
+          ],
+          esotericMeaning: "The anuvaka ends not with a grand vision but with kḷpti — the shoes laid out the night before, the meal-prepped containers, the calendar blocked for deep work. 'Amateurs talk strategy. Professionals talk logistics.' Preparedness is where intention meets reality. The Vedas placed kḷpti as the final word because readiness is not glamorous — it is decisive."
         },
-        {
-          devanagari: "अम्भः",
-          text: "ambhaḥ",
-          meaning: "Water — cool, sweet, wholesome drinking water.",
-          words: [
-            { word: "अम्भः", transliteration: "ambhaḥ", meaning: "Water" },
-          ]
-        },
-        {
-          devanagari: "जेमा",
-          text: "jemā",
-          meaning: "Victory — capacity to win and prevail over adversaries.",
-          words: [
-            { word: "जेमा", transliteration: "jemā", meaning: "Victory" },
-          ]
-        },
-        {
-          devanagari: "महिमा",
-          text: "mahimā",
-          meaning: "Greatness — possessing wealth etc. obtained through success.",
-          words: [
-            { word: "महिमा", transliteration: "mahimā", meaning: "Greatness" },
-          ]
-        },
-        {
-          devanagari: "वरिमा",
-          text: "varimā",
-          meaning: "Honour — being valued and respected by others.",
-          words: [
-            { word: "वरिमा", transliteration: "varimā", meaning: "Honour" },
-          ]
-        },
-        {
-          devanagari: "प्रथिमा",
-          text: "prathimā",
-          meaning: "Expansion — growth in properties like house, land, etc.",
-          words: [
-            { word: "प्रथिमा", transliteration: "prathimā", meaning: "Expansion" },
-          ]
-        },
-        {
-          devanagari: "वर्ष्मा",
-          text: "varṣmā",
-          meaning: "Stature — excellent bodies of son, grandson, etc.",
-          words: [
-            { word: "वर्ष्मा", transliteration: "varṣmā", meaning: "Stature" },
-          ]
-        },
-        {
-          devanagari: "द्राघुया",
-          text: "drāghuyā",
-          meaning: "Lineage — growth and continuity of the family line.",
-          words: [
-            { word: "द्राघुया", transliteration: "drāghuyā", meaning: "Lineage" },
-          ]
-        },
-        {
-          devanagari: "वृद्धम्",
-          text: "vṛddham",
-          meaning: "Abundant wealth — plentiful food and material prosperity.",
-          words: [
-            { word: "वृद्धम्", transliteration: "vṛddham", meaning: "Abundant wealth" },
-          ]
-        },
-        {
-          devanagari: "वृद्धिः",
-          text: "vṛddhiḥ",
-          meaning: "Growth — honour through learning and accomplishments.",
-          words: [
-            { word: "वृद्धिः", transliteration: "vṛddhiḥ", meaning: "Growth" },
-          ]
-        },
-        {
-          devanagari: "सत्यम्",
-          text: "satyam",
-          meaning: "Truth — the practice of speaking truth always.",
-          words: [
-            { word: "सत्यम्", transliteration: "satyam", meaning: "Truth" },
-          ]
-        },
-        {
-          devanagari: "श्रद्धा",
-          text: "śraddhā",
-          meaning: "Faith — faith in the existence of after-worlds and higher order.",
-          words: [
-            { word: "श्रद्धा", transliteration: "śraddhā", meaning: "Faith" },
-          ]
-        },
-        {
-          devanagari: "जगत्",
-          text: "jagat",
-          meaning: "Movable wealth — cattle and other movable property.",
-          words: [
-            { word: "जगत्", transliteration: "jagat", meaning: "Movable wealth" },
-          ]
-        },
-        {
-          devanagari: "धनम्",
-          text: "dhanam",
-          meaning: "Wealth — other forms of riches and possessions.",
-          words: [
-            { word: "धनम्", transliteration: "dhanam", meaning: "Wealth" },
-          ]
-        },
-        {
-          devanagari: "वशः",
-          text: "vaśaḥ",
-          meaning: "Self-mastery — bringing all under one's own control.",
-          words: [
-            { word: "वशः", transliteration: "vaśaḥ", meaning: "Self-mastery" },
-          ]
-        },
-        {
-          devanagari: "त्विषिः",
-          text: "tviṣiḥ",
-          meaning: "Radiance — the natural shine and lustre of the body.",
-          words: [
-            { word: "त्विषिः", transliteration: "tviṣiḥ", meaning: "Radiance" },
-          ]
-        },
-        {
-          devanagari: "क्रीडा",
-          text: "krīḍā",
-          meaning: "Play — recreation, sport, and healthy enjoyment.",
-          words: [
-            { word: "क्रीडा", transliteration: "krīḍā", meaning: "Play" },
-          ]
-        },
-        {
-          devanagari: "मोदः",
-          text: "modaḥ",
-          meaning: "Delight — joy and happiness on account of play and life.",
-          words: [
-            { word: "मोदः", transliteration: "modaḥ", meaning: "Delight" },
-          ]
-        },
-        {
-          devanagari: "जातम्",
-          text: "jātam",
-          meaning: "Children born — offspring already brought into the world.",
-          words: [
-            { word: "जातम्", transliteration: "jātam", meaning: "Children born" },
-          ]
-        },
-        {
-          devanagari: "जनिष्यमाणम्",
-          text: "janiṣyamāṇam",
-          meaning: "Children yet to be born — future progeny and descendants.",
-          words: [
-            { word: "जनिष्यमाणम्", transliteration: "janiṣyamāṇam", meaning: "Children yet to be born" },
-          ]
-        },
-        {
-          devanagari: "सूक्तम्",
-          text: "sūktam",
-          meaning: "Good hymns — a group of Ṛk mantras, well-composed praise.",
-          words: [
-            { word: "सूक्तम्", transliteration: "sūktam", meaning: "Good hymns" },
-          ]
-        },
-        {
-          devanagari: "सुकृतम्",
-          text: "sukṛtam",
-          meaning: "Merit — the spiritual merit earned from chanting those Ṛks.",
-          words: [
-            { word: "सुकृतम्", transliteration: "sukṛtam", meaning: "Merit" },
-          ]
-        },
-        {
-          devanagari: "वित्तम्",
-          text: "vittam",
-          meaning: "Wealth earned — riches and resources already acquired.",
-          words: [
-            { word: "वित्तम्", transliteration: "vittam", meaning: "Wealth earned" },
-          ]
-        },
-        {
-          devanagari: "वेद्यम्",
-          text: "vedyam",
-          meaning: "Wealth to be earned — future resources yet to be obtained.",
-          words: [
-            { word: "वेद्यम्", transliteration: "vedyam", meaning: "Wealth to be earned" },
-          ]
-        },
-        {
-          devanagari: "भूतम्",
-          text: "bhūtam",
-          meaning: "Past possessions — land etc. already with me.",
-          words: [
-            { word: "भूतम्", transliteration: "bhūtam", meaning: "Past possessions" },
-          ]
-        },
-        {
-          devanagari: "भविष्यत्",
-          text: "bhaviṣyat",
-          meaning: "Future possessions — land etc. to be acquired in future.",
-          words: [
-            { word: "भविष्यत्", transliteration: "bhaviṣyat", meaning: "Future possessions" },
-          ]
-        },
-        {
-          devanagari: "सुगम्",
-          text: "sugam",
-          meaning: "Good places — places to be surely visited, village of relatives etc.",
-          words: [
-            { word: "सुगम्", transliteration: "sugam", meaning: "Good places" },
-          ]
-        },
-        {
-          devanagari: "सुपथम्",
-          text: "supatham",
-          meaning: "Good path — a road free from thieves and dangers.",
-          words: [
-            { word: "सुपथम्", transliteration: "supatham", meaning: "Good path" },
-          ]
-        },
-        {
-          devanagari: "ऋद्धम्",
-          text: "ṛddham",
-          meaning: "Fruit of past karma — wealth accumulated from actions performed so far.",
-          words: [
-            { word: "ऋद्धम्", transliteration: "ṛddham", meaning: "Fruit of past karma" },
-          ]
-        },
-        {
-          devanagari: "ऋद्धिः",
-          text: "ṛddhiḥ",
-          meaning: "Future fruit — fruit of yāga called Satra, to be performed in future.",
-          words: [
-            { word: "ऋद्धिः", transliteration: "ṛddhiḥ", meaning: "Future fruit" },
-          ]
-        },
-        {
-          devanagari: "कॢप्तम्",
-          text: "kḷptam",
-          meaning: "Materials — all materials required for performing karmas.",
-          words: [
-            { word: "कॢप्तम्", transliteration: "kḷptam", meaning: "Materials" },
-          ]
-        },
-        {
-          devanagari: "कॢप्तिः",
-          text: "kḷptiḥ",
-          meaning: "Capability — one's own capacity and preparedness to act.",
-          words: [
-            { word: "कॢप्तिः", transliteration: "kḷptiḥ", meaning: "Capability" },
-          ]
-        },
-        {
-          devanagari: "मतिः",
-          text: "matiḥ",
-          meaning: "Intelligence — determination and judgement in ordinary matters.",
-          words: [
-            { word: "मतिः", transliteration: "matiḥ", meaning: "Intelligence" },
-          ]
-        },
-        {
-          devanagari: "सुमतिः",
-          text: "sumatiḥ",
-          meaning: "Wise discernment — determination of very intricate royal matters.",
-          words: [
-            { word: "सुमतिः", transliteration: "sumatiḥ", meaning: "Wise discernment" },
-          ]
-        }
       ]
     },
+
     {
       id: 14,
       part: "chamakam",
       title: "Anuvaka 3",
       titleSanskrit: "तृतीयोऽनुवाकः",
-      subtitle: "Comfort, Desire, Health, Fearlessness, and Good Sleep",
-      description: "This anuvaka prays for emotional and ethical health — peace in this world and the next, aligned desire, good fortune, guidance, freedom from disease and fear, and the simple blessing of a good night's sleep and an auspicious dawn.",
+      subtitle: "The Wellbeing Anuvaka — Peace, Joy, Fearlessness, Cosmic Order, Good Sleep",
+      description: "The third anuvaka prays for 36 blessings of emotional and ethical health: aligned desire, freedom from fear, cosmic order, restful sleep, and a good dawn. It pairs immortality and sleep in the same breath — which tells you everything about Vedic priorities.",
       mantras: [
         {
-          devanagari: "शम्",
-          text: "śam",
-          meaning: "Comfort — peace and happiness in this world.",
+          devanagari: "शम् मयः प्रियम् अनुकामः कामः सौमनसः",
+          text: "śam mayaḥ priyam anukāmaḥ kāmaḥ saumanasaḥ",
+          meaning: "Peace, joy, belovedness, aligned desire, desire rightly placed, and a cheerful mind — and for me.",
           words: [
-            { word: "शम्", transliteration: "śam", meaning: "Comfort" },
-          ]
+            { word: "शम्", transliteration: "śam", meaning: "peace" },
+            { word: "मयः", transliteration: "mayaḥ", meaning: "joy" },
+            { word: "प्रियम्", transliteration: "priyam", meaning: "belovedness" },
+            { word: "अनुकामः", transliteration: "anukāmaḥ", meaning: "aligned/appropriate desire" },
+            { word: "कामः", transliteration: "kāmaḥ", meaning: "desire/wish" },
+            { word: "सौमनसः", transliteration: "saumanasaḥ", meaning: "cheerful mind" },
+          ],
+          esotericMeaning: "Anukāma — desire that is aligned, proportionate, appropriate. The Vedas don't suppress wanting; they filter it. Anukāma is the difference between craving a midnight scroll session and wanting to read a good book. Between impulse-buying and saving for something meaningful. It is the same desire — just refined through discernment. Saumanasa (cheerful mind) is the natural state when desire is properly calibrated."
         },
         {
-          devanagari: "मयः",
-          text: "mayaḥ",
-          meaning: "Bliss — comfort and happiness in the next world.",
+          devanagari: "भद्रम् श्रेयः वस्यः यशः भगः द्रविणम् यन्ता धर्ता",
+          text: "bhadram śreyaḥ vasyaḥ yaśaḥ bhagaḥ draviṇam yantā dhartā",
+          meaning: "The auspicious, the highest good, better fortune, fame, divine grace, wealth, a guide, and a sustainer — and for me.",
           words: [
-            { word: "मयः", transliteration: "mayaḥ", meaning: "Bliss" },
-          ]
+            { word: "भद्रम्", transliteration: "bhadram", meaning: "the auspicious" },
+            { word: "श्रेयः", transliteration: "śreyaḥ", meaning: "the highest good" },
+            { word: "वस्यः", transliteration: "vasyaḥ", meaning: "better fortune" },
+            { word: "यशः", transliteration: "yaśaḥ", meaning: "reputation/fame" },
+            { word: "भगः", transliteration: "bhagaḥ", meaning: "divine grace/fortune" },
+            { word: "द्रविणम्", transliteration: "draviṇam", meaning: "wealth" },
+            { word: "यन्ता", transliteration: "yantā", meaning: "a guide" },
+            { word: "धर्ता", transliteration: "dhartā", meaning: "a sustainer" },
+          ],
+          esotericMeaning: "After praying for peace and cheerfulness, the anuvaka asks for a guide (yantā) and a sustainer (dhartā). No journey is made alone. The mentor who gives direction and the community that provides stability are both sacred necessities — as much as wealth or reputation. The Vedas understood that human flourishing is always relational."
         },
         {
-          devanagari: "प्रियम्",
-          text: "priyam",
-          meaning: "Beloved object — that which is dear and loved in this world.",
+          devanagari: "क्षेमः धृतिः विश्वम् महः संवित् ज्ञात्रम् सूः प्रसूः सीरम् लयः",
+          text: "kṣemaḥ dhṛtiḥ viśvam mahaḥ saṁvit jñātram sūḥ prasūḥ sīram layaḥ",
+          meaning: "Security, steadiness, allness, greatness, knowledge, the ability to teach, generative power, growth, the ploughed line, and settling rest — and for me.",
           words: [
-            { word: "प्रियम्", transliteration: "priyam", meaning: "Beloved object" },
-          ]
+            { word: "क्षेमः", transliteration: "kṣemaḥ", meaning: "security/safety" },
+            { word: "धृतिः", transliteration: "dhṛtiḥ", meaning: "steadiness/resolve" },
+            { word: "विश्वम्", transliteration: "viśvam", meaning: "allness/totality" },
+            { word: "महः", transliteration: "mahaḥ", meaning: "greatness" },
+            { word: "संवित्", transliteration: "saṁvit", meaning: "knowledge/awareness" },
+            { word: "ज्ञात्रम्", transliteration: "jñātram", meaning: "teaching ability" },
+            { word: "सूः", transliteration: "sūḥ", meaning: "generative power" },
+            { word: "प्रसूः", transliteration: "prasūḥ", meaning: "growth" },
+            { word: "सीरम्", transliteration: "sīram", meaning: "ploughed line" },
+            { word: "लयः", transliteration: "layaḥ", meaning: "settling rest" },
+          ],
+          esotericMeaning: "Sīra (the ploughed line) and laya (settling rest) balance each other: the furrow that makes growth possible and the fallow that makes the next season possible. Every creative life needs both the groove of discipline and the pause of restoration. When life aligns with ṛtam (cosmic order), fear reduces and health improves — because we stop fighting reality with ego."
         },
         {
-          devanagari: "अनुकामः",
-          text: "anukāmaḥ",
-          meaning: "Aligned desire — an object much loved; indicates greater love than priyam.",
+          devanagari: "ऋतम् अमृतम् अयक्ष्मम् अनामयम् जीवातुः दीर्घायुत्वम् अनमित्रम् अभयम् सुगम् शयनम् सूषा सुदिनम्",
+          text: "ṛtam amṛtam ayakṣmam anāmayam jīvātuḥ dīrghāyutvam anamitram abhayam sugam śayanam sūṣā sudinam",
+          meaning: "Cosmic order, immortality, freedom from wasting disease, freedom from illness, vitality, long life, absence of enemies, fearlessness, good passage, restful sleep, a good dawn, and a good day — and for me.",
           words: [
-            { word: "अनुकामः", transliteration: "anukāmaḥ", meaning: "Aligned desire" },
-          ]
+            { word: "ऋतम्", transliteration: "ṛtam", meaning: "cosmic order" },
+            { word: "अमृतम्", transliteration: "amṛtam", meaning: "immortality" },
+            { word: "अयक्ष्मम्", transliteration: "ayakṣmam", meaning: "freedom from wasting disease" },
+            { word: "अनामयम्", transliteration: "anāmayam", meaning: "freedom from illness" },
+            { word: "जीवातुः", transliteration: "jīvātuḥ", meaning: "vitality/life-force" },
+            { word: "दीर्घायुत्वम्", transliteration: "dīrghāyutvam", meaning: "long life" },
+            { word: "अनमित्रम्", transliteration: "anamitram", meaning: "absence of enemies" },
+            { word: "अभयम्", transliteration: "abhayam", meaning: "fearlessness" },
+            { word: "शयनम्", transliteration: "śayanam", meaning: "restful sleep" },
+            { word: "सूषा", transliteration: "sūṣā", meaning: "good dawn" },
+            { word: "सुदिनम्", transliteration: "sudinam", meaning: "good day" },
+          ],
+          esotericMeaning: "Matthew Walker: sleep is the single greatest performance enhancer, better than any supplement. The Vedas listed śayanam alongside cosmic order (ṛtam) and immortality (amṛtam) — same tier, same prayer. After praying for immortality, the sage prays for a pleasant morning. That is not anticlimactic — it is profound. Cosmic order means nothing if your alarm is jarring and your commute is miserable. The Vedas end this anuvaka where life actually lives: in the texture of a single day."
         },
-        {
-          devanagari: "कामः",
-          text: "kāmaḥ",
-          meaning: "Pleasure — enjoyment in the next world, Swarga etc.",
-          words: [
-            { word: "कामः", transliteration: "kāmaḥ", meaning: "Pleasure" },
-          ]
-        },
-        {
-          devanagari: "सौमनसः",
-          text: "saumanasaḥ",
-          meaning: "Peace of mind — relatives and companions who provide mental peace.",
-          words: [
-            { word: "सौमनसः", transliteration: "saumanasaḥ", meaning: "Peace of mind" },
-          ]
-        },
-        {
-          devanagari: "भद्रम्",
-          text: "bhadram",
-          meaning: "Auspiciousness — beautiful and auspicious objects of this world.",
-          words: [
-            { word: "भद्रम्", transliteration: "bhadram", meaning: "Auspiciousness" },
-          ]
-        },
-        {
-          devanagari: "श्रेयः",
-          text: "śreyaḥ",
-          meaning: "Highest good — that which leads to good in the next world.",
-          words: [
-            { word: "श्रेयः", transliteration: "śreyaḥ", meaning: "Highest good" },
-          ]
-        },
-        {
-          devanagari: "वस्यः",
-          text: "vasyaḥ",
-          meaning: "Dwelling — a house and comfortable place for living.",
-          words: [
-            { word: "वस्यः", transliteration: "vasyaḥ", meaning: "Dwelling" },
-          ]
-        },
-        {
-          devanagari: "यशः",
-          text: "yaśaḥ",
-          meaning: "Fame — reputation and renown among people.",
-          words: [
-            { word: "यशः", transliteration: "yaśaḥ", meaning: "Fame" },
-          ]
-        },
-        {
-          devanagari: "भगः",
-          text: "bhagaḥ",
-          meaning: "Good luck — fortune and divine grace.",
-          words: [
-            { word: "भगः", transliteration: "bhagaḥ", meaning: "Good luck" },
-          ]
-        },
-        {
-          devanagari: "द्रविणम्",
-          text: "draviṇam",
-          meaning: "Wealth — material riches and financial resources.",
-          words: [
-            { word: "द्रविणम्", transliteration: "draviṇam", meaning: "Wealth" },
-          ]
-        },
-        {
-          devanagari: "यन्ता",
-          text: "yantā",
-          meaning: "Guide — an Ācārya or teacher who gives instructions.",
-          words: [
-            { word: "यन्ता", transliteration: "yantā", meaning: "Guide" },
-          ]
-        },
-        {
-          devanagari: "धर्ता",
-          text: "dhartā",
-          meaning: "Sustainer — a father or protector who safeguards.",
-          words: [
-            { word: "धर्ता", transliteration: "dhartā", meaning: "Sustainer" },
-          ]
-        },
-        {
-          devanagari: "क्षेमः",
-          text: "kṣemaḥ",
-          meaning: "Security — the power to preserve existing wealth.",
-          words: [
-            { word: "क्षेमः", transliteration: "kṣemaḥ", meaning: "Security" },
-          ]
-        },
-        {
-          devanagari: "धृतिः",
-          text: "dhṛtiḥ",
-          meaning: "Steadfastness — not getting shaken even during times of danger.",
-          words: [
-            { word: "धृतिः", transliteration: "dhṛtiḥ", meaning: "Steadfastness" },
-          ]
-        },
-        {
-          devanagari: "विश्वम्",
-          text: "viśvam",
-          meaning: "All-favourableness — being favourable to all, universality.",
-          words: [
-            { word: "विश्वम्", transliteration: "viśvam", meaning: "All-favourableness" },
-          ]
-        },
-        {
-          devanagari: "महः",
-          text: "mahaḥ",
-          meaning: "Adoration — respect done by us to superiors, or by many to us.",
-          words: [
-            { word: "महः", transliteration: "mahaḥ", meaning: "Adoration" },
-          ]
-        },
-        {
-          devanagari: "संवित्",
-          text: "saṁvit",
-          meaning: "Vedic knowledge — knowledge of the Vedas and Śāstras.",
-          words: [
-            { word: "संवित्", transliteration: "saṁvit", meaning: "Vedic knowledge" },
-          ]
-        },
-        {
-          devanagari: "ज्ञात्रम्",
-          text: "jñātram",
-          meaning: "Recall — capacity to remember knowledge at the right time.",
-          words: [
-            { word: "ज्ञात्रम्", transliteration: "jñātram", meaning: "Recall" },
-          ]
-        },
-        {
-          devanagari: "सूः",
-          text: "sūḥ",
-          meaning: "Generative power — capacity to engage sons etc. in activities.",
-          words: [
-            { word: "सूः", transliteration: "sūḥ", meaning: "Generative power" },
-          ]
-        },
-        {
-          devanagari: "प्रसूः",
-          text: "prasūḥ",
-          meaning: "Authority — capacity to order and direct servants.",
-          words: [
-            { word: "प्रसूः", transliteration: "prasūḥ", meaning: "Authority" },
-          ]
-        },
-        {
-          devanagari: "सीरम्",
-          text: "sīram",
-          meaning: "Plough — possession of plough, bull, and farming instruments.",
-          words: [
-            { word: "सीरम्", transliteration: "sīram", meaning: "Plough" },
-          ]
-        },
-        {
-          devanagari: "लयः",
-          text: "layaḥ",
-          meaning: "Restoration — undoing of damages to those implements.",
-          words: [
-            { word: "लयः", transliteration: "layaḥ", meaning: "Restoration" },
-          ]
-        },
-        {
-          devanagari: "ऋतम्",
-          text: "ṛtam",
-          meaning: "Sacred duty — karmas like yajña, cosmic order.",
-          words: [
-            { word: "ऋतम्", transliteration: "ṛtam", meaning: "Sacred duty" },
-          ]
-        },
-        {
-          devanagari: "अमृतम्",
-          text: "amṛtam",
-          meaning: "Immortal fruit — the fruits of those sacred karmas.",
-          words: [
-            { word: "अमृतम्", transliteration: "amṛtam", meaning: "Immortal fruit" },
-          ]
-        },
-        {
-          devanagari: "अयक्ष्मम्",
-          text: "ayakṣmam",
-          meaning: "Freedom from TB — freedom from incurable, serious disease (yakṣmā).",
-          words: [
-            { word: "अयक्ष्मम्", transliteration: "ayakṣmam", meaning: "Freedom from TB" },
-          ]
-        },
-        {
-          devanagari: "अनामयम्",
-          text: "anāmayam",
-          meaning: "Freedom from illness — freedom from ordinary diseases like fever etc.",
-          words: [
-            { word: "अनामयम्", transliteration: "anāmayam", meaning: "Freedom from illness" },
-          ]
-        },
-        {
-          devanagari: "जीवातुः",
-          text: "jīvātuḥ",
-          meaning: "Medicine — cause of life; medicine to cure disease.",
-          words: [
-            { word: "जीवातुः", transliteration: "jīvātuḥ", meaning: "Medicine" },
-          ]
-        },
-        {
-          devanagari: "दीर्घायुत्वम्",
-          text: "dīrghāyutvam",
-          meaning: "Long life — freedom from untimely death.",
-          words: [
-            { word: "दीर्घायुत्वम्", transliteration: "dīrghāyutvam", meaning: "Long life" },
-          ]
-        },
-        {
-          devanagari: "अनमित्रम्",
-          text: "anamitram",
-          meaning: "Freedom from enemies — a life without adversaries.",
-          words: [
-            { word: "अनमित्रम्", transliteration: "anamitram", meaning: "Freedom from enemies" },
-          ]
-        },
-        {
-          devanagari: "अभयम्",
-          text: "abhayam",
-          meaning: "Fearlessness — complete freedom from fear.",
-          words: [
-            { word: "अभयम्", transliteration: "abhayam", meaning: "Fearlessness" },
-          ]
-        },
-        {
-          devanagari: "सुगम्",
-          text: "sugam",
-          meaning: "Good conduct — behaviour acceptable to all people.",
-          words: [
-            { word: "सुगम्", transliteration: "sugam", meaning: "Good conduct" },
-          ]
-        },
-        {
-          devanagari: "शयनम्",
-          text: "śayanam",
-          meaning: "Good bed — a comfortable bed for restful sleep.",
-          words: [
-            { word: "शयनम्", transliteration: "śayanam", meaning: "Good bed" },
-          ]
-        },
-        {
-          devanagari: "सूषा",
-          text: "sūṣā",
-          meaning: "Good dawn — an auspicious morning with bath, Sandhyāvandanam etc.",
-          words: [
-            { word: "सूषा", transliteration: "sūṣā", meaning: "Good dawn" },
-          ]
-        },
-        {
-          devanagari: "सुदिनम्",
-          text: "sudinam",
-          meaning: "Good day — an auspicious day with yajña, dānam, and Vedic study.",
-          words: [
-            { word: "सुदिनम्", transliteration: "sudinam", meaning: "Good day" },
-          ]
-        }
       ]
     },
+
     {
       id: 15,
       part: "chamakam",
       title: "Anuvaka 4",
       titleSanskrit: "चतुर्थोऽनुवाकः",
-      subtitle: "Food, Rain, Grain, and Abundance",
-      description: "This anuvaka prays for all forms of food, nourishment, dairy, agriculture, rain, and specific grains. The seven words from vibhu to akṣiti indicate progressive increase in growth of foodgrains. It names at least a dozen specific grains — an agricultural census of Vedic civilization.",
+      subtitle: "The Farmer's Prayer — Food, Rain, Grain, and Shared Community",
+      description: "The fourth anuvaka names at least a dozen specific grains alongside the conditions that make them possible — rain, agriculture, shared eating. This is not mysticism. It is an agricultural census, a prayer for food security, and a manifesto for crop diversity.",
       mantras: [
         {
-          devanagari: "ऊर्क्",
-          text: "ūrk",
-          meaning: "Food material — wholesome nourishing food.",
+          devanagari: "ऊर्क् सूनृता पयः रसः घृतम् मधु सग्धिः सपीतिः",
+          text: "ūrk sūnṛtā payaḥ rasaḥ ghṛtam madhu sagdhiḥ sapītiḥ",
+          meaning: "Nourishment, truthful speech, milk, taste, ghee, honey, shared eating, and shared drinking — and for me.",
           words: [
-            { word: "ऊर्क्", transliteration: "ūrk", meaning: "Food material" },
-          ]
+            { word: "ऊर्क्", transliteration: "ūrk", meaning: "nourishment/food-strength" },
+            { word: "सूनृता", transliteration: "sūnṛtā", meaning: "truthful speech" },
+            { word: "पयः", transliteration: "payaḥ", meaning: "milk" },
+            { word: "रसः", transliteration: "rasaḥ", meaning: "taste/juice/essence" },
+            { word: "घृतम्", transliteration: "ghṛtam", meaning: "ghee/clarified butter" },
+            { word: "मधु", transliteration: "madhu", meaning: "honey" },
+            { word: "सग्धिः", transliteration: "sagdhiḥ", meaning: "shared eating" },
+            { word: "सपीतिः", transliteration: "sapītiḥ", meaning: "shared drinking" },
+          ],
+          esotericMeaning: "The prayer doesn't ask for food alone — it asks for the community of eating. Sagdhi and sapīti: shared meals reduce anxiety in children, improve marriages, and build team cohesion. Research shows what the Vedas encoded as prayer: food consumed alone nourishes the body; food shared nourishes the bond. The family dinner table is not a convenience — it is an institution."
         },
         {
-          devanagari: "सूनृता",
-          text: "sūnṛtā",
-          meaning: "Good word — pleasing, truthful, and endearing speech.",
+          devanagari: "कृषिः वृष्टिः जैत्रम् औद्भिद्यम् रयिः राया पुष्टम् पुष्टिः",
+          text: "kṛṣiḥ vṛṣṭiḥ jaitram audbhidyam rayiḥ rāyā puṣṭam puṣṭiḥ",
+          meaning: "Agriculture, rain, victory over obstruction, earth's sprouting, wealth, prosperity, nourishment, and growth — and for me.",
           words: [
-            { word: "सूनृता", transliteration: "sūnṛtā", meaning: "Good word" },
-          ]
+            { word: "कृषिः", transliteration: "kṛṣiḥ", meaning: "agriculture/farming" },
+            { word: "वृष्टिः", transliteration: "vṛṣṭiḥ", meaning: "rain" },
+            { word: "जैत्रम्", transliteration: "jaitram", meaning: "victory/triumph" },
+            { word: "औद्भिद्यम्", transliteration: "audbhidyam", meaning: "sprouting from earth" },
+            { word: "रयिः", transliteration: "rayiḥ", meaning: "wealth" },
+            { word: "राया", transliteration: "rāyā", meaning: "prosperity" },
+            { word: "पुष्टम्", transliteration: "puṣṭam", meaning: "nourishment" },
+            { word: "पुष्टिः", transliteration: "puṣṭiḥ", meaning: "growth/flourishing" },
+          ],
+          esotericMeaning: "Kṛṣi and vṛṣṭi listed side by side: no rain → no crop → no civilization. The rishis who composed this had dirt under their fingernails. They tracked monsoons. They prayed for harvest because harvest was survival. Climate change has made rainfall unpredictable. Farmers in Karnataka, Kenya, and California watch the sky the same way. Vṛṣṭi — the prayer for rain — has never been more current."
         },
         {
-          devanagari: "पयः",
-          text: "payaḥ",
-          meaning: "Milk — nourishing dairy.",
+          devanagari: "विभु प्रभु बहु भूयः पूर्णम् पूर्णतरम् अक्षितिः कूयवाः अन्नम् अक्षुत्",
+          text: "vibhu prabhu bahu bhūyaḥ pūrṇam pūrṇataram akṣitiḥ kūyavāḥ annam akṣut",
+          meaning: "Plenty, mastery, abundance, increasing abundance, fullness, greater fullness, earthly support, maize, food, and freedom from hunger — and for me.",
           words: [
-            { word: "पयः", transliteration: "payaḥ", meaning: "Milk" },
-          ]
+            { word: "विभु", transliteration: "vibhu", meaning: "pervading/plenty" },
+            { word: "प्रभु", transliteration: "prabhu", meaning: "mastery" },
+            { word: "बहु", transliteration: "bahu", meaning: "abundance" },
+            { word: "भूयः", transliteration: "bhūyaḥ", meaning: "increasing" },
+            { word: "पूर्णम्", transliteration: "pūrṇam", meaning: "fullness" },
+            { word: "पूर्णतरम्", transliteration: "pūrṇataram", meaning: "greater fullness" },
+            { word: "अक्षितिः", transliteration: "akṣitiḥ", meaning: "earthly support" },
+            { word: "कूयवाः", transliteration: "kūyavāḥ", meaning: "maize/grain" },
+            { word: "अन्नम्", transliteration: "annam", meaning: "food" },
+            { word: "अक्षुत्", transliteration: "akṣut", meaning: "freedom from hunger" },
+          ],
+          esotericMeaning: "Not just full — fuller than full. Because overflow is what allows generosity. A family with exactly enough can eat; a family with pūrṇataram can feed the neighbor. The Vedas don't pray for 'just enough' — they pray for margin. Every charity, every scholarship, every community kitchen runs on pūrṇataram — the surplus beyond survival. Scarcity mindset says 'protect what you have.' The Chamakam says 'ask for overflow so you can give.'"
         },
         {
-          devanagari: "रसः",
-          text: "rasaḥ",
-          meaning: "Taste — the sweetness and flavour in milk and food.",
+          devanagari: "व्रीहयः यवाः माषाः तिलाः मुद्गाः खल्वाः गोधूमाः मसुराः प्रियङ्गवः अणवः श्यामाकाः नीवाराः",
+          text: "vrīhayaḥ yavāḥ māṣāḥ tilāḥ mudgāḥ khalvāḥ godhūmāḥ masurāḥ priyaṅgavaḥ aṇavaḥ śyāmākāḥ nīvārāḥ",
+          meaning: "Rice, barley, black gram, sesame, green gram, gram, wheat, lentils, priyangu millet, nava grain, syamaka millet, and wild rice — and for me.",
           words: [
-            { word: "रसः", transliteration: "rasaḥ", meaning: "Taste" },
-          ]
+            { word: "व्रीहयः", transliteration: "vrīhayaḥ", meaning: "rice" },
+            { word: "यवाः", transliteration: "yavāḥ", meaning: "barley" },
+            { word: "माषाः", transliteration: "māṣāḥ", meaning: "black gram" },
+            { word: "तिलाः", transliteration: "tilāḥ", meaning: "sesame" },
+            { word: "मुद्गाः", transliteration: "mudgāḥ", meaning: "green gram" },
+            { word: "खल्वाः", transliteration: "khalvāḥ", meaning: "gram varieties" },
+            { word: "गोधूमाः", transliteration: "godhūmāḥ", meaning: "wheat" },
+            { word: "मसुराः", transliteration: "masurāḥ", meaning: "lentils" },
+            { word: "प्रियङ्गवः", transliteration: "priyaṅgavaḥ", meaning: "priyangu millet" },
+            { word: "अणवः", transliteration: "aṇavaḥ", meaning: "nava grain" },
+            { word: "श्यामाकाः", transliteration: "śyāmākāḥ", meaning: "syamaka millet" },
+            { word: "नीवाराः", transliteration: "nīvārāḥ", meaning: "wild rice" },
+          ],
+          esotericMeaning: "Not 'food' in the abstract — twelve specific grains, each serving a different biological niche. This is an agricultural census and a manifesto for crop diversity. Monoculture farming depletes soil; the Chamakam's grain list is the Vedic answer: pray for many types, not one engineered variety. Regenerative agriculture is slowly catching up to this ancient common sense."
         },
-        {
-          devanagari: "घृतम्",
-          text: "ghṛtam",
-          meaning: "Ghee — clarified butter, essential for yajña and nourishment.",
-          words: [
-            { word: "घृतम्", transliteration: "ghṛtam", meaning: "Ghee" },
-          ]
-        },
-        {
-          devanagari: "मधु",
-          text: "madhu",
-          meaning: "Honey — natural sweetness.",
-          words: [
-            { word: "मधु", transliteration: "madhu", meaning: "Honey" },
-          ]
-        },
-        {
-          devanagari: "सग्धिः",
-          text: "sagdhiḥ",
-          meaning: "Shared eating — the joy of eating together with relatives.",
-          words: [
-            { word: "सग्धिः", transliteration: "sagdhiḥ", meaning: "Shared eating" },
-          ]
-        },
-        {
-          devanagari: "सपीतिः",
-          text: "sapītiḥ",
-          meaning: "Shared drinking — the joy of drinking together with relatives.",
-          words: [
-            { word: "सपीतिः", transliteration: "sapītiḥ", meaning: "Shared drinking" },
-          ]
-        },
-        {
-          devanagari: "कृषिः",
-          text: "kṛṣiḥ",
-          meaning: "Agriculture — farming and cultivation of crops.",
-          words: [
-            { word: "कृषिः", transliteration: "kṛṣiḥ", meaning: "Agriculture" },
-          ]
-        },
-        {
-          devanagari: "वृष्टिः",
-          text: "vṛṣṭiḥ",
-          meaning: "Rain — timely, seasonal rainfall essential for crops.",
-          words: [
-            { word: "वृष्टिः", transliteration: "vṛṣṭiḥ", meaning: "Rain" },
-          ]
-        },
-        {
-          devanagari: "जैत्रम्",
-          text: "jaitram",
-          meaning: "Victorious land — good-yielding, fertile, successful land.",
-          words: [
-            { word: "जैत्रम्", transliteration: "jaitram", meaning: "Victorious land" },
-          ]
-        },
-        {
-          devanagari: "औद्भिद्यम्",
-          text: "audbhidyam",
-          meaning: "Sprouting growth — growth of plants, creepers, and vegetation.",
-          words: [
-            { word: "औद्भिद्यम्", transliteration: "audbhidyam", meaning: "Sprouting growth" },
-          ]
-        },
-        {
-          devanagari: "रयिः",
-          text: "rayiḥ",
-          meaning: "Gold — precious metal wealth.",
-          words: [
-            { word: "रयिः", transliteration: "rayiḥ", meaning: "Gold" },
-          ]
-        },
-        {
-          devanagari: "रायः",
-          text: "rāyaḥ",
-          meaning: "Gems — precious stones and jewels.",
-          words: [
-            { word: "रायः", transliteration: "rāyaḥ", meaning: "Gems" },
-          ]
-        },
-        {
-          devanagari: "पुष्टम्",
-          text: "puṣṭam",
-          meaning: "Abundance — plentiful gems, pearls, and treasures.",
-          words: [
-            { word: "पुष्टम्", transliteration: "puṣṭam", meaning: "Abundance" },
-          ]
-        },
-        {
-          devanagari: "पुष्टिः",
-          text: "puṣṭiḥ",
-          meaning: "Bodily strength — a well-nourished, robust physique.",
-          words: [
-            { word: "पुष्टिः", transliteration: "puṣṭiḥ", meaning: "Bodily strength" },
-          ]
-        },
-        {
-          devanagari: "विभु",
-          text: "vibhu",
-          meaning: "Plenty (1st degree) — progressive increase in foodgrains begins here.",
-          words: [
-            { word: "विभु", transliteration: "vibhu", meaning: "Plenty (1st degree)" },
-          ]
-        },
-        {
-          devanagari: "प्रभु",
-          text: "prabhu",
-          meaning: "Profuse (2nd degree) — a higher growth than the first.",
-          words: [
-            { word: "प्रभु", transliteration: "prabhu", meaning: "Profuse (2nd degree)" },
-          ]
-        },
-        {
-          devanagari: "बहु",
-          text: "bahu",
-          meaning: "Much (3rd degree) — many multiples of provisions.",
-          words: [
-            { word: "बहु", transliteration: "bahu", meaning: "Much (3rd degree)" },
-          ]
-        },
-        {
-          devanagari: "भूयः",
-          text: "bhūyaḥ",
-          meaning: "More (4th degree) — further development and increase.",
-          words: [
-            { word: "भूयः", transliteration: "bhūyaḥ", meaning: "More (4th degree)" },
-          ]
-        },
-        {
-          devanagari: "पूर्णम्",
-          text: "pūrṇam",
-          meaning: "Full (5th degree) — provisions filled to the brim.",
-          words: [
-            { word: "पूर्णम्", transliteration: "pūrṇam", meaning: "Full (5th degree)" },
-          ]
-        },
-        {
-          devanagari: "पूर्णतरम्",
-          text: "pūrṇataram",
-          meaning: "Overflowing (6th degree) — supply above the maximum extent.",
-          words: [
-            { word: "पूर्णतरम्", transliteration: "pūrṇataram", meaning: "Overflowing (6th degree)" },
-          ]
-        },
-        {
-          devanagari: "अक्षितिः",
-          text: "akṣitiḥ",
-          meaning: "Inexhaustible (7th degree) — an everlasting, incessant supply.",
-          words: [
-            { word: "अक्षितिः", transliteration: "akṣitiḥ", meaning: "Inexhaustible (7th degree)" },
-          ]
-        },
-        {
-          devanagari: "कूयवाः",
-          text: "kūyavāḥ",
-          meaning: "Minor foodgrains — small cereals and fine grains.",
-          words: [
-            { word: "कूयवाः", transliteration: "kūyavāḥ", meaning: "Minor foodgrains" },
-          ]
-        },
-        {
-          devanagari: "अन्नम्",
-          text: "annam",
-          meaning: "Reputed food — staple, well-known food.",
-          words: [
-            { word: "अन्नम्", transliteration: "annam", meaning: "Reputed food" },
-          ]
-        },
-        {
-          devanagari: "अक्षुत्",
-          text: "akṣut",
-          meaning: "Freedom from hunger — relief from starvation.",
-          words: [
-            { word: "अक्षुत्", transliteration: "akṣut", meaning: "Freedom from hunger" },
-          ]
-        },
-        {
-          devanagari: "व्रीहयः",
-          text: "vrīhayaḥ",
-          meaning: "Paddy — rice in its unhusked form.",
-          words: [
-            { word: "व्रीहयः", transliteration: "vrīhayaḥ", meaning: "Paddy" },
-          ]
-        },
-        {
-          devanagari: "यवाः",
-          text: "yavāḥ",
-          meaning: "Barley — one of the oldest cultivated grains.",
-          words: [
-            { word: "यवाः", transliteration: "yavāḥ", meaning: "Barley" },
-          ]
-        },
-        {
-          devanagari: "माषाः",
-          text: "māṣāḥ",
-          meaning: "Black gram — urad dal.",
-          words: [
-            { word: "माषाः", transliteration: "māṣāḥ", meaning: "Black gram" },
-          ]
-        },
-        {
-          devanagari: "तिलाः",
-          text: "tilāḥ",
-          meaning: "Sesame — gingelly seeds.",
-          words: [
-            { word: "तिलाः", transliteration: "tilāḥ", meaning: "Sesame" },
-          ]
-        },
-        {
-          devanagari: "मुद्गाः",
-          text: "mudgāḥ",
-          meaning: "Green gram — kidney-bean, moong dal.",
-          words: [
-            { word: "मुद्गाः", transliteration: "mudgāḥ", meaning: "Green gram" },
-          ]
-        },
-        {
-          devanagari: "खल्वाः",
-          text: "khalvāḥ",
-          meaning: "Beans — another variety of legume.",
-          words: [
-            { word: "खल्वाः", transliteration: "khalvāḥ", meaning: "Beans" },
-          ]
-        },
-        {
-          devanagari: "गोधूमाः",
-          text: "godhūmāḥ",
-          meaning: "Wheat — a staple grain across civilizations.",
-          words: [
-            { word: "गोधूमाः", transliteration: "godhūmāḥ", meaning: "Wheat" },
-          ]
-        },
-        {
-          devanagari: "मसुराः",
-          text: "masurāḥ",
-          meaning: "Lentils — masoor dal.",
-          words: [
-            { word: "मसुराः", transliteration: "masurāḥ", meaning: "Lentils" },
-          ]
-        },
-        {
-          devanagari: "प्रियङ्गवः",
-          text: "priyaṅgavaḥ",
-          meaning: "Long pepper — priyaṅgu millet.",
-          words: [
-            { word: "प्रियङ्गवः", transliteration: "priyaṅgavaḥ", meaning: "Long pepper" },
-          ]
-        },
-        {
-          devanagari: "अणवः",
-          text: "aṇavaḥ",
-          meaning: "Thin paddy — fine, delicate rice variety.",
-          words: [
-            { word: "अणवः", transliteration: "aṇavaḥ", meaning: "Thin paddy" },
-          ]
-        },
-        {
-          devanagari: "श्यामाकाः",
-          text: "śyāmākāḥ",
-          meaning: "Corn — śyāmāka millet, a coarse grain.",
-          words: [
-            { word: "श्यामाकाः", transliteration: "śyāmākāḥ", meaning: "Corn" },
-          ]
-        },
-        {
-          devanagari: "नीवाराः",
-          text: "nīvārāḥ",
-          meaning: "Wild rice — rice that grows naturally without cultivation.",
-          words: [
-            { word: "नीवाराः", transliteration: "nīvārāḥ", meaning: "Wild rice" },
-          ]
-        }
       ]
     },
+
     {
       id: 16,
       part: "chamakam",
       title: "Anuvaka 5",
       titleSanskrit: "पञ्चमोऽनुवाकः",
-      subtitle: "Stone, Metals, Herbs, Animals, and Purpose",
-      description: "This anuvaka prays for the natural world — stone, soil, mountains, metals, fire, water, herbs, crops, and animals. The seal 'yajñena kalpantām' (may all be attained through yajña) turns every resource into a responsibility. It ends with a complete work philosophy: karma, śakti, artha, gati.",
+      subtitle: "The Stewardship Anuvaka — Stones, Metals, Herbs, Animals, and Purposeful Action",
+      description: "The fifth anuvaka prays for all natural resources — from stone and clay to gold and iron, herbs and trees, domestic and wild animals — and seals every request with 'yajñena kalpantām' (may all be attained through sacrifice). Ownership here is stewardship, not accumulation.",
       mantras: [
         {
-          devanagari: "अश्माः",
-          text: "aśmāḥ",
-          meaning: "Stone — precious and useful stones.",
+          devanagari: "अश्मा मृत्तिका गिरयः पर्वताः सिकताः वनस्पतयः",
+          text: "aśmā mṛttikā girayaḥ parvatāḥ sikatāḥ vanaspatayaḥ",
+          meaning: "Stone, clay, hills, mountains, sand, and trees — and for me.",
           words: [
-            { word: "अश्माः", transliteration: "aśmāḥ", meaning: "Stone" },
-          ]
+            { word: "अश्मा", transliteration: "aśmā", meaning: "stone" },
+            { word: "मृत्तिका", transliteration: "mṛttikā", meaning: "clay" },
+            { word: "गिरयः", transliteration: "girayaḥ", meaning: "hills" },
+            { word: "पर्वताः", transliteration: "parvatāḥ", meaning: "mountains" },
+            { word: "सिकताः", transliteration: "sikatāḥ", meaning: "sand" },
+            { word: "वनस्पतयः", transliteration: "vanaspatayaḥ", meaning: "trees" },
+          ],
+          esotericMeaning: "The rishis pray for the entire geological spectrum — from sand grain to mountain peak. In the Vedic vision, a mountain is not scenery; it is a living entity that holds water, generates weather, and stabilizes entire ecosystems. When you bow to a mountain, you are acknowledging the source of every river that feeds every field below it."
         },
         {
-          devanagari: "मृत्तिकाः",
-          text: "mṛttikāḥ",
-          meaning: "Soil — fertile earth and clay.",
+          devanagari: "हिरण्यम् अयः सीसम् त्रपुः श्यामम् लोहम् अग्निः आपः वीरुधः ओषधयः",
+          text: "hiraṇyam ayaḥ sīsam trapuḥ śyāmam loham agniḥ āpaḥ vīrudhaḥ oṣadhayaḥ",
+          meaning: "Gold, iron, lead, tin, dark metal, copper, fire, water, creepers, and medicinal herbs — and for me.",
           words: [
-            { word: "मृत्तिकाः", transliteration: "mṛttikāḥ", meaning: "Soil" },
-          ]
+            { word: "हिरण्यम्", transliteration: "hiraṇyam", meaning: "gold" },
+            { word: "अयः", transliteration: "ayaḥ", meaning: "iron" },
+            { word: "सीसम्", transliteration: "sīsam", meaning: "lead" },
+            { word: "त्रपुः", transliteration: "trapuḥ", meaning: "tin" },
+            { word: "श्यामम्", transliteration: "śyāmam", meaning: "dark metal" },
+            { word: "लोहम्", transliteration: "loham", meaning: "copper" },
+            { word: "अग्निः", transliteration: "agniḥ", meaning: "fire" },
+            { word: "आपः", transliteration: "āpaḥ", meaning: "water" },
+            { word: "वीरुधः", transliteration: "vīrudhaḥ", meaning: "creepers" },
+            { word: "ओषधयः", transliteration: "oṣadhayaḥ", meaning: "medicinal herbs" },
+          ],
+          esotericMeaning: "Not generic 'plants' — specifically oṣadhayaḥ: medicinal herbs. The Vedas distinguished general vegetation (vīrudha) from medicine. 40% of modern pharmaceuticals derive from plant compounds: aspirin from willow bark, taxol from Pacific yew. The Chamakam prayed for the pharmacy before the pharmacy existed. Fire (agni) and water (āpas) complete the material spectrum from solid metals to the most subtle of the five elements."
         },
         {
-          devanagari: "गिरयः",
-          text: "girayaḥ",
-          meaning: "Sacred mountains — mountains worthy of worship, Kulāchala ranges.",
+          devanagari: "कृष्टपच्यम् अकृष्टपच्यम् ग्राम्याः पशवः यज्ञेन कल्पन्ताम् आरण्याः यज्ञेन कल्पन्ताम्",
+          text: "kṛṣṭapacyam akṛṣṭapacyam grāmyāḥ paśavaḥ yajñena kalpantām āraṇyāḥ yajñena kalpantām",
+          meaning: "Cultivated and uncultivated produce, domestic animals — may all be attained through sacrifice; wild animals — may all be attained through sacrifice.",
           words: [
-            { word: "गिरयः", transliteration: "girayaḥ", meaning: "Sacred mountains" },
-          ]
+            { word: "कृष्टपच्यम्", transliteration: "kṛṣṭapacyam", meaning: "cultivated produce" },
+            { word: "अकृष्टपच्यम्", transliteration: "akṛṣṭapacyam", meaning: "uncultivated produce" },
+            { word: "ग्राम्याः", transliteration: "grāmyāḥ", meaning: "domestic" },
+            { word: "पशवः", transliteration: "paśavaḥ", meaning: "animals/beings" },
+            { word: "यज्ञेन", transliteration: "yajñena", meaning: "through sacrifice/offering" },
+            { word: "कल्पन्ताम्", transliteration: "kalpantām", meaning: "may they be available" },
+            { word: "आरण्याः", transliteration: "āraṇyāḥ", meaning: "wild/forest" },
+          ],
+          esotericMeaning: "The seal changes everything: yajñena kalpantām — may these be attained through offering, not through hoarding. 'Be mine' means 'be within my sphere of care.' Tena tyaktena bhuñjīthāḥ — enjoy through non-grasping. When you treat water, energy, and materials as borrowed, restraint becomes natural. The Vedic sense of ownership is stewardship: you receive by giving."
         },
         {
-          devanagari: "पर्वताः",
-          text: "parvatāḥ",
-          meaning: "Ordinary mountains — hills and mountain ranges.",
+          devanagari: "वित्तम् वित्तिः भूतम् भूतिः वसुः वसतिः कर्म शक्तिः अर्थः एमः इतिः गतिः",
+          text: "vittam vittiḥ bhūtam bhūtiḥ vasuḥ vasatiḥ karma śaktiḥ arthaḥ emaḥ itiḥ gatiḥ",
+          meaning: "Resources, resource-management, existing wealth, prosperity, precious possessions, dwelling, action, power, purpose, security, completion, and forward movement — and for me.",
           words: [
-            { word: "पर्वताः", transliteration: "parvatāḥ", meaning: "Ordinary mountains" },
-          ]
+            { word: "वित्तम्", transliteration: "vittam", meaning: "resources" },
+            { word: "वित्तिः", transliteration: "vittiḥ", meaning: "resource-management" },
+            { word: "भूतम्", transliteration: "bhūtam", meaning: "existing wealth" },
+            { word: "भूतिः", transliteration: "bhūtiḥ", meaning: "prosperity" },
+            { word: "वसुः", transliteration: "vasuḥ", meaning: "precious possessions" },
+            { word: "वसतिः", transliteration: "vasatiḥ", meaning: "dwelling" },
+            { word: "कर्म", transliteration: "karma", meaning: "action" },
+            { word: "शक्तिः", transliteration: "śaktiḥ", meaning: "power/capacity" },
+            { word: "अर्थः", transliteration: "arthaḥ", meaning: "purpose/meaning" },
+            { word: "एमः", transliteration: "emaḥ", meaning: "security" },
+            { word: "इतिः", transliteration: "itiḥ", meaning: "completion" },
+            { word: "गतिः", transliteration: "gatiḥ", meaning: "forward movement" },
+          ],
+          esotericMeaning: "Four words forming a complete work philosophy: karma (the action itself), śakti (the capacity to execute), artha (the purpose behind it), and gati (the momentum it creates). Not just doing — doing with power, toward meaning, with measurable progress. The runner needs action (lacing up), power (trained legs), purpose (the finish line), and momentum (pace). Every modern management framework is a gloss on these four."
         },
-        {
-          devanagari: "सिकताः",
-          text: "sikatāḥ",
-          meaning: "Sand — fine sand used in rituals and construction.",
-          words: [
-            { word: "सिकताः", transliteration: "sikatāḥ", meaning: "Sand" },
-          ]
-        },
-        {
-          devanagari: "वनस्पतयः",
-          text: "vanaspatayaḥ",
-          meaning: "Trees — trees that bear fruit without flowering.",
-          words: [
-            { word: "वनस्पतयः", transliteration: "vanaspatayaḥ", meaning: "Trees" },
-          ]
-        },
-        {
-          devanagari: "हिरण्यम्",
-          text: "hiraṇyam",
-          meaning: "Gold — the most precious of metals.",
-          words: [
-            { word: "हिरण्यम्", transliteration: "hiraṇyam", meaning: "Gold" },
-          ]
-        },
-        {
-          devanagari: "अयः",
-          text: "ayaḥ",
-          meaning: "Iron — strong metal for tools and implements.",
-          words: [
-            { word: "अयः", transliteration: "ayaḥ", meaning: "Iron" },
-          ]
-        },
-        {
-          devanagari: "सीसम्",
-          text: "sīsam",
-          meaning: "Lead — a heavy, useful metal.",
-          words: [
-            { word: "सीसम्", transliteration: "sīsam", meaning: "Lead" },
-          ]
-        },
-        {
-          devanagari: "त्रपुः",
-          text: "trapuḥ",
-          meaning: "Tin — a soft, workable metal.",
-          words: [
-            { word: "त्रपुः", transliteration: "trapuḥ", meaning: "Tin" },
-          ]
-        },
-        {
-          devanagari: "श्यामम्",
-          text: "śyāmam",
-          meaning: "Rock salt — dark-coloured mineral salt.",
-          words: [
-            { word: "श्यामम्", transliteration: "śyāmam", meaning: "Rock salt" },
-          ]
-        },
-        {
-          devanagari: "लोहम्",
-          text: "loham",
-          meaning: "Bronze/Copper — reddish metals for vessels and tools.",
-          words: [
-            { word: "लोहम्", transliteration: "loham", meaning: "Bronze/Copper" },
-          ]
-        },
-        {
-          devanagari: "अग्निः",
-          text: "agniḥ",
-          meaning: "Fire — the sacred element of transformation.",
-          words: [
-            { word: "अग्निः", transliteration: "agniḥ", meaning: "Fire" },
-          ]
-        },
-        {
-          devanagari: "आपः",
-          text: "āpaḥ",
-          meaning: "Water — the element that sustains all life.",
-          words: [
-            { word: "आपः", transliteration: "āpaḥ", meaning: "Water" },
-          ]
-        },
-        {
-          devanagari: "वीरुधः",
-          text: "vīrudhaḥ",
-          meaning: "Plants — creepers and general vegetation.",
-          words: [
-            { word: "वीरुधः", transliteration: "vīrudhaḥ", meaning: "Plants" },
-          ]
-        },
-        {
-          devanagari: "ओषधयः",
-          text: "oṣadhayaḥ",
-          meaning: "Medicinal herbs — plants with healing properties.",
-          words: [
-            { word: "ओषधयः", transliteration: "oṣadhayaḥ", meaning: "Medicinal herbs" },
-          ]
-        },
-        {
-          devanagari: "कृष्टपच्यम्",
-          text: "kṛṣṭapacyam",
-          meaning: "Cultivated crops — produce grown by planting and farming.",
-          words: [
-            { word: "कृष्टपच्यम्", transliteration: "kṛṣṭapacyam", meaning: "Cultivated crops" },
-          ]
-        },
-        {
-          devanagari: "अकृष्टपच्यम्",
-          text: "akṛṣṭapacyam",
-          meaning: "Wild produce — crops that grow on their own without farming.",
-          words: [
-            { word: "अकृष्टपच्यम्", transliteration: "akṛṣṭapacyam", meaning: "Wild produce" },
-          ]
-        },
-        {
-          devanagari: "ग्राम्याः पशवः",
-          text: "grāmyāḥ paśavaḥ",
-          meaning: "Domestic animals — animals growing in villages.",
-          words: [
-            { word: "ग्राम्याः पशवः", transliteration: "grāmyāḥ paśavaḥ", meaning: "Domestic animals" },
-          ]
-        },
-        {
-          devanagari: "आरण्याश्च",
-          text: "āraṇyāśca",
-          meaning: "Wild animals — animals growing in forests.",
-          words: [
-            { word: "आरण्याश्च", transliteration: "āraṇyāśca", meaning: "Wild animals" },
-          ]
-        },
-        {
-          devanagari: "यज्ञेन कल्पन्ताम्",
-          text: "yajñena kalpantām",
-          meaning: "Through yajña — may all become capable of doing their acts through sacrifice.",
-          words: [
-            { word: "यज्ञेन कल्पन्ताम्", transliteration: "yajñena kalpantām", meaning: "Through yajña" },
-          ]
-        },
-        {
-          devanagari: "वित्तम्",
-          text: "vittam",
-          meaning: "Wealth earned — resources already acquired.",
-          words: [
-            { word: "वित्तम्", transliteration: "vittam", meaning: "Wealth earned" },
-          ]
-        },
-        {
-          devanagari: "वित्तिः",
-          text: "vittiḥ",
-          meaning: "Profit — wealth and profit yet to be obtained.",
-          words: [
-            { word: "वित्तिः", transliteration: "vittiḥ", meaning: "Profit" },
-          ]
-        },
-        {
-          devanagari: "भूतम्",
-          text: "bhūtam",
-          meaning: "Wealthy progeny — prosperous sons and descendants.",
-          words: [
-            { word: "भूतम्", transliteration: "bhūtam", meaning: "Wealthy progeny" },
-          ]
-        },
-        {
-          devanagari: "भूतिः",
-          text: "bhūtiḥ",
-          meaning: "Prosperity — wealth and possessions owned by me.",
-          words: [
-            { word: "भूतिः", transliteration: "bhūtiḥ", meaning: "Prosperity" },
-          ]
-        },
-        {
-          devanagari: "वसु",
-          text: "vasu",
-          meaning: "Cattle — cows etc. required for living.",
-          words: [
-            { word: "वसु", transliteration: "vasu", meaning: "Cattle" },
-          ]
-        },
-        {
-          devanagari: "वसतिः",
-          text: "vasatiḥ",
-          meaning: "Dwelling — a house and place for living.",
-          words: [
-            { word: "वसतिः", transliteration: "vasatiḥ", meaning: "Dwelling" },
-          ]
-        },
-        {
-          devanagari: "कर्म",
-          text: "karma",
-          meaning: "Action — karmas like Agnihotram and sacred duties.",
-          words: [
-            { word: "कर्म", transliteration: "karma", meaning: "Action" },
-          ]
-        },
-        {
-          devanagari: "शक्तिः",
-          text: "śaktiḥ",
-          meaning: "Capacity — the power and ability to perform those karmas.",
-          words: [
-            { word: "शक्तिः", transliteration: "śaktiḥ", meaning: "Capacity" },
-          ]
-        },
-        {
-          devanagari: "अर्थः",
-          text: "arthaḥ",
-          meaning: "Purpose — the benefit and meaning derived from actions.",
-          words: [
-            { word: "अर्थः", transliteration: "arthaḥ", meaning: "Purpose" },
-          ]
-        },
-        {
-          devanagari: "एमः",
-          text: "emaḥ",
-          meaning: "Pleasure — the joy and satisfaction to be attained.",
-          words: [
-            { word: "एमः", transliteration: "emaḥ", meaning: "Pleasure" },
-          ]
-        },
-        {
-          devanagari: "इतिः",
-          text: "itiḥ",
-          meaning: "Means — the method and means of attaining that pleasure.",
-          words: [
-            { word: "इतिः", transliteration: "itiḥ", meaning: "Means" },
-          ]
-        },
-        {
-          devanagari: "गतिः",
-          text: "gatiḥ",
-          meaning: "Forward movement — attaining the desired object, progress.",
-          words: [
-            { word: "गतिः", transliteration: "gatiḥ", meaning: "Forward movement" },
-          ]
-        }
       ]
     },
+
     {
       id: 17,
       part: "chamakam",
       title: "Anuvaka 6",
       titleSanskrit: "षष्ठोऽनुवाकः",
-      subtitle: "Twenty Deities Paired with Indra",
-      description: "In this anuvaka, every deity is paired with Indra. As Indra enjoys pleasures equal to each deity, he is cited alongside each one. The prayer asks that all these divine powers be favourable. मूर्धा (Ūrdhvadik) is mentioned separately as the upward direction is considered more important than all others.",
+      subtitle: "The Cosmic Org Chart — Every Function Paired with Coordination",
+      description: "The sixth anuvaka pairs every Vedic deity with Indra — the coordinating authority. No divine function acts alone. Inspiration without protection becomes anxiety; learning without order becomes noise. This anuvaka encodes a structured collaboration of cosmic functions.",
       mantras: [
         {
-          devanagari: "अग्निश्च म इन्द्रश्च मे",
-          text: "agniśca ma indraśca me",
-          meaning: "Agni (fire deity) and Indra — may both be favourable to me.",
+          devanagari: "अग्निः च इन्द्रः च सोमः च इन्द्रः च सविता च इन्द्रः च सरस्वती च इन्द्रः च",
+          text: "agniś ca indraś ca somaś ca indraś ca savitā ca indraś ca sarasvatī ca indraś ca",
+          meaning: "Agni and Indra, Soma and Indra, Savitā and Indra, Sarasvatī and Indra — and for me.",
           words: [
-            { word: "अग्निश्च म इन्द्रश्च मे", transliteration: "agniśca ma indraśca me", meaning: "Agni (fire deity) and Indra" },
-          ]
+            { word: "अग्निः", transliteration: "agniḥ", meaning: "fire/Agni — purification" },
+            { word: "इन्द्रः", transliteration: "indraḥ", meaning: "Indra — coordination/strength" },
+            { word: "सोमः", transliteration: "somaḥ", meaning: "Soma — nourishment/bliss" },
+            { word: "सविता", transliteration: "savitā", meaning: "Savitā — the solar energizer" },
+            { word: "सरस्वती", transliteration: "sarasvatī", meaning: "Sarasvatī — knowledge/wisdom" },
+          ],
+          esotericMeaning: "Sarasvatī + Indra: knowledge paired with power. A research paper without policy is a shelf decoration. A policy without research is a gamble. The gap between a medical study and a public health policy; between an AI research paper and an ethical framework; between knowing what to do and having the authority to do it — Sarasvatī + Indra = informed leadership."
         },
         {
-          devanagari: "सोमश्च म इन्द्रश्च मे",
-          text: "somaśca ma indraśca me",
-          meaning: "Soma (moon deity / sacred juice) and Indra — may both be favourable to me.",
+          devanagari: "पूषा च इन्द्रः च बृहस्पतिः च इन्द्रः च मित्रः च इन्द्रः च वरुणः च इन्द्रः च",
+          text: "pūṣā ca indraś ca bṛhaspatiś ca indraś ca mitraś ca indraś ca varuṇaś ca indraś ca",
+          meaning: "Pūṣā and Indra, Bṛhaspati and Indra, Mitra and Indra, Varuṇa and Indra — and for me.",
           words: [
-            { word: "सोमश्च म इन्द्रश्च मे", transliteration: "somaśca ma indraśca me", meaning: "Soma (moon deity / sacred juice) and Indra" },
-          ]
+            { word: "पूषा", transliteration: "pūṣā", meaning: "Pūṣā — nourisher/guide of paths" },
+            { word: "बृहस्पतिः", transliteration: "bṛhaspatiḥ", meaning: "Bṛhaspati — divine teacher/wisdom" },
+            { word: "मित्रः", transliteration: "mitraḥ", meaning: "Mitra — friendship/contract/sun" },
+            { word: "वरुणः", transliteration: "varuṇaḥ", meaning: "Varuṇa — cosmic order/moral law" },
+            { word: "इन्द्रः", transliteration: "indraḥ", meaning: "Indra — coordinating strength" },
+          ],
+          esotericMeaning: "Varuṇa is cosmic moral law — the conscience of the universe. Mitra is the covenant of friendship and contract. Together with Indra, these three form the basis of any functional society: law (Varuṇa), relationship (Mitra), and governance (Indra). Bṛhaspati adds the wisdom to know what those laws should be."
         },
         {
-          devanagari: "सविता च म इन्द्रश्च मे",
-          text: "savitā ca ma indraśca me",
-          meaning: "Savitā (the impeller, Sun as creator) and Indra — may both be favourable to me.",
+          devanagari: "त्वष्टा च इन्द्रः च धाता च इन्द्रः च विष्णुः च इन्द्रः च अश्विनौ च इन्द्रः च मरुतः च इन्द्रः च विश्वे च देवाः इन्द्रः च",
+          text: "tvaṣṭā ca indraś ca dhātā ca indraś ca viṣṇuś ca indraś ca aśvinau ca indraś ca marutaś ca indraś ca viśve ca devā indraś ca",
+          meaning: "Tvaṣṭā and Indra, Dhātā and Indra, Viṣṇu and Indra, the Aśvins and Indra, the Maruts and Indra, and all the gods and Indra — and for me.",
           words: [
-            { word: "सविता च म इन्द्रश्च मे", transliteration: "savitā ca ma indraśca me", meaning: "Savitā (the impeller, Sun as creator) and Indra" },
-          ]
+            { word: "त्वष्टा", transliteration: "tvaṣṭā", meaning: "Tvaṣṭā — cosmic craftsman/form-giver" },
+            { word: "धाता", transliteration: "dhātā", meaning: "Dhātā — creator/sustainer" },
+            { word: "विष्णुः", transliteration: "viṣṇuḥ", meaning: "Viṣṇu — the pervader/sustainer" },
+            { word: "अश्विनौ", transliteration: "aśvinau", meaning: "the Aśvins — divine physicians" },
+            { word: "मरुतः", transliteration: "marutaḥ", meaning: "the Maruts — storm gods/vital forces" },
+            { word: "विश्वे देवाः", transliteration: "viśve devāḥ", meaning: "all the gods together" },
+            { word: "इन्द्रः", transliteration: "indraḥ", meaning: "Indra — the coordinator" },
+          ],
+          esotericMeaning: "No department operates in isolation. Engineering without product management ships what nobody wants. Marketing without data burns budget. Every function needs coordination. Indra is the COO of the cosmic org chart. This is not polytheism as competition — it is function-awareness. Ēkaṃ sad viprāḥ bahudhā vadanti: Truth is one; the sages speak of it in many ways."
         },
         {
-          devanagari: "सरस्वती च म इन्द्रश्च मे",
-          text: "sarasvatī ca ma indraśca me",
-          meaning: "Sarasvatī (goddess of wisdom and speech) and Indra — may both be favourable to me.",
+          devanagari: "पृथिवी च इन्द्रः च अन्तरिक्षम् च इन्द्रः च द्यौः च इन्द्रः च दिशः च इन्द्रः च मूर्धा च इन्द्रः च प्रजापतिः च इन्द्रः च",
+          text: "pṛthivī ca indraś ca antarikṣam ca indraś ca dyauś ca indraś ca diśaś ca indraś ca mūrdhā ca indraś ca prajāpatiś ca indraś ca",
+          meaning: "Earth and Indra, the mid-space and Indra, heaven and Indra, the directions and Indra, the crown principle and Indra, and Prajāpati and Indra — and for me.",
           words: [
-            { word: "सरस्वती च म इन्द्रश्च मे", transliteration: "sarasvatī ca ma indraśca me", meaning: "Sarasvatī (goddess of wisdom and speech) and Indra" },
-          ]
+            { word: "पृथिवी", transliteration: "pṛthivī", meaning: "Earth" },
+            { word: "अन्तरिक्षम्", transliteration: "antarikṣam", meaning: "mid-space/atmosphere" },
+            { word: "द्यौः", transliteration: "dyauḥ", meaning: "heaven/sky" },
+            { word: "दिशः", transliteration: "diśaḥ", meaning: "the directions" },
+            { word: "मूर्धा", transliteration: "mūrdhā", meaning: "the crown/apex principle" },
+            { word: "प्रजापतिः", transliteration: "prajāpatiḥ", meaning: "lord of all creatures" },
+            { word: "इन्द्रः", transliteration: "indraḥ", meaning: "Indra — strength/coordination" },
+          ],
+          esotericMeaning: "The three cosmic realms — earth, mid-space, heaven — plus the four directions, the crown, and the Lord of all creatures. When all these are paired with Indra, the prayer is for coherent functioning across every level of reality simultaneously. The discipline is integration: respect multiple approaches without turning them into enemies."
         },
-        {
-          devanagari: "पूषा च म इन्द्रश्च मे",
-          text: "pūṣā ca ma indraśca me",
-          meaning: "Pūṣā (deity of nourishment and journeys) and Indra — may both be favourable to me.",
-          words: [
-            { word: "पूषा च म इन्द्रश्च मे", transliteration: "pūṣā ca ma indraśca me", meaning: "Pūṣā (deity of nourishment and journeys) and Indra" },
-          ]
-        },
-        {
-          devanagari: "बृहस्पतिश्च म इन्द्रश्च मे",
-          text: "bṛhaspatiśca ma indraśca me",
-          meaning: "Bṛhaspati (preceptor of the gods) and Indra — may both be favourable to me.",
-          words: [
-            { word: "बृहस्पतिश्च म इन्द्रश्च मे", transliteration: "bṛhaspatiśca ma indraśca me", meaning: "Bṛhaspati (preceptor of the gods) and Indra" },
-          ]
-        },
-        {
-          devanagari: "मित्रश्च म इन्द्रश्च मे",
-          text: "mitraśca ma indraśca me",
-          meaning: "Mitra (deity of friendship and contracts) and Indra — may both be favourable to me.",
-          words: [
-            { word: "मित्रश्च म इन्द्रश्च मे", transliteration: "mitraśca ma indraśca me", meaning: "Mitra (deity of friendship and contracts) and Indra" },
-          ]
-        },
-        {
-          devanagari: "वरुणश्च म इन्द्रश्च मे",
-          text: "varuṇaśca ma indraśca me",
-          meaning: "Varuṇa (deity of cosmic order and waters) and Indra — may both be favourable to me.",
-          words: [
-            { word: "वरुणश्च म इन्द्रश्च मे", transliteration: "varuṇaśca ma indraśca me", meaning: "Varuṇa (deity of cosmic order and waters) and Indra" },
-          ]
-        },
-        {
-          devanagari: "त्वष्टा च म इन्द्रश्च मे",
-          text: "tvaṣṭā ca ma indraśca me",
-          meaning: "Tvaṣṭā (the divine craftsman) and Indra — may both be favourable to me.",
-          words: [
-            { word: "त्वष्टा च म इन्द्रश्च मे", transliteration: "tvaṣṭā ca ma indraśca me", meaning: "Tvaṣṭā (the divine craftsman) and Indra" },
-          ]
-        },
-        {
-          devanagari: "धाता च म इन्द्रश्च मे",
-          text: "dhātā ca ma indraśca me",
-          meaning: "Dhātā (the creator, establisher) and Indra — may both be favourable to me.",
-          words: [
-            { word: "धाता च म इन्द्रश्च मे", transliteration: "dhātā ca ma indraśca me", meaning: "Dhātā (the creator, establisher) and Indra" },
-          ]
-        },
-        {
-          devanagari: "विष्णुश्च म इन्द्रश्च मे",
-          text: "viṣṇuśca ma indraśca me",
-          meaning: "Viṣṇu (the all-pervading preserver) and Indra — may both be favourable to me.",
-          words: [
-            { word: "विष्णुश्च म इन्द्रश्च मे", transliteration: "viṣṇuśca ma indraśca me", meaning: "Viṣṇu (the all-pervading preserver) and Indra" },
-          ]
-        },
-        {
-          devanagari: "अश्विनौ च म इन्द्रश्च मे",
-          text: "aśvinau ca ma indraśca me",
-          meaning: "Aśvinī Devas (the twin divine physicians) and Indra — may both be favourable to me.",
-          words: [
-            { word: "अश्विनौ च म इन्द्रश्च मे", transliteration: "aśvinau ca ma indraśca me", meaning: "Aśvinī Devas (the twin divine physicians) and Indra" },
-          ]
-        },
-        {
-          devanagari: "मरुतश्च म इन्द्रश्च मे",
-          text: "marutaśca ma indraśca me",
-          meaning: "Maruts (storm gods, Indra's companions) and Indra — may both be favourable to me.",
-          words: [
-            { word: "मरुतश्च म इन्द्रश्च मे", transliteration: "marutaśca ma indraśca me", meaning: "Maruts (storm gods, Indra's companions) and Indra" },
-          ]
-        },
-        {
-          devanagari: "विश्वे च मे देवा इन्द्रश्च मे",
-          text: "viśve ca me devā indraśca me",
-          meaning: "Viśvedevas (all the gods collectively) and Indra — may both be favourable to me.",
-          words: [
-            { word: "विश्वे च मे देवा इन्द्रश्च मे", transliteration: "viśve ca me devā indraśca me", meaning: "Viśvedevas (all the gods collectively) and Indra" },
-          ]
-        },
-        {
-          devanagari: "पृथिवी च म इन्द्रश्च मे",
-          text: "pṛthivī ca ma indraśca me",
-          meaning: "Pṛthivī (Earth deity) and Indra — may both be favourable to me.",
-          words: [
-            { word: "पृथिवी च म इन्द्रश्च मे", transliteration: "pṛthivī ca ma indraśca me", meaning: "Pṛthivī (Earth deity) and Indra" },
-          ]
-        },
-        {
-          devanagari: "अन्तरिक्षं च म इन्द्रश्च मे",
-          text: "antarikṣaṁ ca ma indraśca me",
-          meaning: "Antarikṣa (intermediate space / atmosphere deity) and Indra — may both be favourable to me.",
-          words: [
-            { word: "अन्तरिक्षं च म इन्द्रश्च मे", transliteration: "antarikṣaṁ ca ma indraśca me", meaning: "Antarikṣa (intermediate space / atmosphere deity) and Indra" },
-          ]
-        },
-        {
-          devanagari: "द्यौश्च म इन्द्रश्च मे",
-          text: "dyauśca ma indraśca me",
-          meaning: "Dyuloka (heaven / Swarga deity) and Indra — may both be favourable to me.",
-          words: [
-            { word: "द्यौश्च म इन्द्रश्च मे", transliteration: "dyauśca ma indraśca me", meaning: "Dyuloka (heaven / Swarga deity) and Indra" },
-          ]
-        },
-        {
-          devanagari: "दिशश्च म इन्द्रश्च मे",
-          text: "diśaśca ma indraśca me",
-          meaning: "Diśas (deities of the cardinal directions) and Indra — may both be favourable to me.",
-          words: [
-            { word: "दिशश्च म इन्द्रश्च मे", transliteration: "diśaśca ma indraśca me", meaning: "Diśas (deities of the cardinal directions) and Indra" },
-          ]
-        },
-        {
-          devanagari: "मूर्धा च म इन्द्रश्च मे",
-          text: "mūrdhā ca ma indraśca me",
-          meaning: "Mūrdhā (Ūrdhvadik — the upward direction, considered most important) and Indra — may both be favourable to me.",
-          words: [
-            { word: "मूर्धा च म इन्द्रश्च मे", transliteration: "mūrdhā ca ma indraśca me", meaning: "Mūrdhā (Ūrdhvadik" },
-          ]
-        },
-        {
-          devanagari: "प्रजापतिश्च म इन्द्रश्च मे",
-          text: "prajāpatiśca ma indraśca me",
-          meaning: "Prajāpati (Lord of all creatures) and Indra — may both be favourable to me.",
-          words: [
-            { word: "प्रजापतिश्च म इन्द्रश्च मे", transliteration: "prajāpatiśca ma indraśca me", meaning: "Prajāpati (Lord of all creatures) and Indra" },
-          ]
-        }
       ]
     },
+
     {
       id: 18,
       part: "chamakam",
       title: "Anuvaka 7",
       titleSanskrit: "सप्तमोऽनुवाकः",
-      subtitle: "Soma Vessels and Ritual Implements (Graha)",
-      description: "The items in this anuvaka are specific vessels called 'Graha', used in Somayāga. Raśmi is not a Graha but is mentioned as it is used for picking up Ādābhya. The word Adhipati indicates Dadhigraha, which is the greatest of all Grahas. The Graha Dhruvam is indicated by the term Vaiśvānara. The Grahas Sārasvata and Pauṣṇa are used in Vikṛtiyāga.",
+      subtitle: "The Components Anuvaka — Sacred Vessels, Seasonal Cups, Right Process",
+      description: "The seventh anuvaka names all the vessels and cups used in the Soma sacrifice. The deeper teaching: process matters. A yajña with a missing cup is incomplete — as is a meal without salt, a team without a tester, a surgery without the right instrument.",
       mantras: [
         {
-          devanagari: "अंशुः",
-          text: "aṁśuḥ",
-          meaning: "Aṁśu — the Soma plant stalk; the primary ingredient of the Soma sacrifice.",
+          devanagari: "अंशुः रश्मिः अदाभ्यः अधिपतिः उपांशुः अन्तर्यामः",
+          text: "aṁśuḥ raśmiḥ adābhyaḥ adhipatiḥ upāṁśuḥ antaryāmaḥ",
+          meaning: "The Aṁśu cup, the Raśmi cup, the Adābhya cup, the Adhipati cup, the Upāṁśu cup, and the Antaryāma cup — and for me.",
           words: [
-            { word: "अंशुः", transliteration: "aṁśuḥ", meaning: "Aṁśu" },
-          ]
+            { word: "अंशुः", transliteration: "aṁśuḥ", meaning: "Soma-shoot cup" },
+            { word: "रश्मिः", transliteration: "raśmiḥ", meaning: "ray cup" },
+            { word: "अदाभ्यः", transliteration: "adābhyaḥ", meaning: "inviolable cup" },
+            { word: "अधिपतिः", transliteration: "adhipatiḥ", meaning: "chief cup" },
+            { word: "उपांशुः", transliteration: "upāṁśuḥ", meaning: "whispered-offering cup" },
+            { word: "अन्तर्यामः", transliteration: "antaryāmaḥ", meaning: "inner-cup" },
+          ],
+          esotericMeaning: "Every vessel has a specific function. The deeper message: sacred outcomes require disciplined process. A chef with a dull knife, a surgeon with the wrong scalpel, a coder with a broken IDE — the same principle as a yajña with missing vessels. Precision is not bureaucracy; it is devotion."
         },
         {
-          devanagari: "रश्मिः",
-          text: "raśmiḥ",
-          meaning: "Raśmi — the ray/rope used for picking up the Ādābhya graha; not a graha itself.",
+          devanagari: "ऐन्द्रवायवः मैत्रावरुणः आश्विनः प्रतिप्रस्थानः शुक्रः मन्थी आग्रयणः वैश्वदेवः ध्रुवः वैश्वानरः",
+          text: "aindrāvāyavaḥ maitrāvaruṇaḥ āśvinaḥ pratiprasthānaḥ śukraḥ manthī āgrayaṇaḥ vaiśvadevaḥ dhruvaḥ vaiśvānaraḥ",
+          meaning: "The cups for Indra-Vāyu, Mitra-Varuṇa, the Aśvins, the counter-presser, the bright one, the churned one, the first-fruit, the All-gods, the fixed one, and the All-men — and for me.",
           words: [
-            { word: "रश्मिः", transliteration: "raśmiḥ", meaning: "Raśmi" },
-          ]
+            { word: "ऐन्द्रवायवः", transliteration: "aindrāvāyavaḥ", meaning: "Indra-Vāyu cup" },
+            { word: "मैत्रावरुणः", transliteration: "maitrāvaruṇaḥ", meaning: "Mitra-Varuṇa cup" },
+            { word: "आश्विनः", transliteration: "āśvinaḥ", meaning: "Aśvins cup" },
+            { word: "शुक्रः", transliteration: "śukraḥ", meaning: "bright/pure cup" },
+            { word: "मन्थी", transliteration: "manthī", meaning: "churned cup" },
+            { word: "आग्रयणः", transliteration: "āgrayaṇaḥ", meaning: "first-fruit cup" },
+            { word: "वैश्वदेवः", transliteration: "vaiśvadevaḥ", meaning: "All-gods cup" },
+            { word: "ध्रुवः", transliteration: "dhruvaḥ", meaning: "fixed/stable cup" },
+            { word: "वैश्वानरः", transliteration: "vaiśvānaraḥ", meaning: "All-men cup" },
+          ],
+          esotericMeaning: "Each cup serves a specific divine pairing at a specific moment in the rite. The rishis were engineers of sacred time. The Soma sacrifice was not ad hoc — it was a living system where each component fit precisely into a sequence. Modern analogies: SOPs, quality control, DevOps pipelines. The sacred world rediscovered what Vedic ritualists always knew: sacred outcomes require disciplined process."
         },
         {
-          devanagari: "अदाभ्यः",
-          text: "adābhyaḥ",
-          meaning: "Ādābhya — a specific Soma vessel that cannot be harmed or deceived.",
+          devanagari: "ऋतुग्राहाः अतिग्राह्याः ऐन्द्राग्नः वैश्वदेवः मरुत्वतीयाः माहेन्द्रः आदित्यः सावित्रः सारस्वतः पौष्णः पात्नीवतः हारियोजनः",
+          text: "ṛtugrahāḥ atigrahyāḥ aindrāgnaḥ vaiśvadevaḥ marutvatīyāḥ māhendraḥ ādityaḥ sāvitraḥ sārasvataḥ pauṣṇaḥ pātnivatāḥ hāriyojanaḥ",
+          meaning: "The seasonal cups, the extra cups, cups for Indra-Agni, for the All-gods, for the Maruts, for Mahendra, for the Sun, Savitā, Sarasvatī, Pūṣā, the wives of the gods, and for good yoking — and for me.",
           words: [
-            { word: "अदाभ्यः", transliteration: "adābhyaḥ", meaning: "Ādābhya" },
-          ]
+            { word: "ऋतुग्राहाः", transliteration: "ṛtugrahāḥ", meaning: "seasonal cups" },
+            { word: "अतिग्राह्याः", transliteration: "atigrahyāḥ", meaning: "extra/supplementary cups" },
+            { word: "ऐन्द्राग्नः", transliteration: "aindrāgnaḥ", meaning: "Indra-Agni cup" },
+            { word: "वैश्वदेवः", transliteration: "vaiśvadevaḥ", meaning: "All-gods cup" },
+            { word: "मरुत्वतीयाः", transliteration: "marutvatīyāḥ", meaning: "Maruts cups" },
+            { word: "माहेन्द्रः", transliteration: "māhendraḥ", meaning: "great Indra cup" },
+            { word: "आदित्यः", transliteration: "ādityaḥ", meaning: "solar cup" },
+            { word: "सावित्रः", transliteration: "sāvitraḥ", meaning: "Savitā cup" },
+            { word: "सारस्वतः", transliteration: "sārasvataḥ", meaning: "Sarasvatī cup" },
+            { word: "पौष्णः", transliteration: "pauṣṇaḥ", meaning: "Pūṣā cup" },
+            { word: "पात्नीवतः", transliteration: "pātnivatāḥ", meaning: "goddess cups" },
+            { word: "हारियोजनः", transliteration: "hāriyojanaḥ", meaning: "good-yoking cup" },
+          ],
+          esotericMeaning: "Different vessels for different seasons. You don't use the same method year-round. The rishis adapted to cosmic rhythms — the right approach at the right time. Quarterly planning, seasonal launches, fiscal rhythms: all context-aware process. What are the neglected components of your week? Sleep, exercise, study, service, silence, friendship? Choose the missing one and restore it. That is how completeness becomes lived, not merely chanted."
         },
-        {
-          devanagari: "अधिपतिः",
-          text: "adhipatiḥ",
-          meaning: "Adhipati — indicates the Dadhigraha; greatest among all Grahas as per Śruti.",
-          words: [
-            { word: "अधिपतिः", transliteration: "adhipatiḥ", meaning: "Adhipati" },
-          ]
-        },
-        {
-          devanagari: "उपांशुः",
-          text: "upāṁśuḥ",
-          meaning: "Upāṁśu — a Soma cup offered silently, in a low voice.",
-          words: [
-            { word: "उपांशुः", transliteration: "upāṁśuḥ", meaning: "Upāṁśu" },
-          ]
-        },
-        {
-          devanagari: "अन्तर्यामः",
-          text: "antaryāmaḥ",
-          meaning: "Antaryāma — a Soma cup offered to the inner controller.",
-          words: [
-            { word: "अन्तर्यामः", transliteration: "antaryāmaḥ", meaning: "Antaryāma" },
-          ]
-        },
-        {
-          devanagari: "ऐन्द्रवायवः",
-          text: "aindrāvāyavaḥ",
-          meaning: "Aindrāvāyava — the Soma cup offered jointly to Indra and Vāyu.",
-          words: [
-            { word: "ऐन्द्रवायवः", transliteration: "aindrāvāyavaḥ", meaning: "Aindrāvāyava" },
-          ]
-        },
-        {
-          devanagari: "मैत्रावरुणः",
-          text: "maitrāvaruṇaḥ",
-          meaning: "Maitrāvaruṇa — the Soma cup offered jointly to Mitra and Varuṇa.",
-          words: [
-            { word: "मैत्रावरुणः", transliteration: "maitrāvaruṇaḥ", meaning: "Maitrāvaruṇa" },
-          ]
-        },
-        {
-          devanagari: "आश्विनः",
-          text: "āśvinaḥ",
-          meaning: "Āśvina — the Soma cup offered to the twin Aśvinī Devas.",
-          words: [
-            { word: "आश्विनः", transliteration: "āśvinaḥ", meaning: "Āśvina" },
-          ]
-        },
-        {
-          devanagari: "प्रतिप्रस्थानः",
-          text: "pratiprasthānaḥ",
-          meaning: "Pratiprasthāna — a secondary Soma cup used in the ritual sequence.",
-          words: [
-            { word: "प्रतिप्रस्थानः", transliteration: "pratiprasthānaḥ", meaning: "Pratiprasthāna" },
-          ]
-        },
-        {
-          devanagari: "शुक्रः",
-          text: "śukraḥ",
-          meaning: "Śukra — the bright, clear Soma cup; a graha of luminous Soma juice.",
-          words: [
-            { word: "शुक्रः", transliteration: "śukraḥ", meaning: "Śukra" },
-          ]
-        },
-        {
-          devanagari: "मन्थी",
-          text: "manthī",
-          meaning: "Manthī — the churned Soma cup; Soma mixed and stirred with grain.",
-          words: [
-            { word: "मन्थी", transliteration: "manthī", meaning: "Manthī" },
-          ]
-        },
-        {
-          devanagari: "आग्रयणः",
-          text: "āgrayaṇaḥ",
-          meaning: "Āgrayaṇa — the first-offering cup; the initial Soma extraction.",
-          words: [
-            { word: "आग्रयणः", transliteration: "āgrayaṇaḥ", meaning: "Āgrayaṇa" },
-          ]
-        },
-        {
-          devanagari: "वैश्वदेवः",
-          text: "vaiśvadevaḥ",
-          meaning: "Vaiśvadeva (first) — the Soma cup for all gods in Prātaḥsavanam (morning pressing).",
-          words: [
-            { word: "वैश्वदेवः", transliteration: "vaiśvadevaḥ", meaning: "Vaiśvadeva (first)" },
-          ]
-        },
-        {
-          devanagari: "ध्रुवः",
-          text: "dhruvaḥ",
-          meaning: "Dhruva — the fixed/stable Soma cup; sometimes called Vaiśvānara.",
-          words: [
-            { word: "ध्रुवः", transliteration: "dhruvaḥ", meaning: "Dhruva" },
-          ]
-        },
-        {
-          devanagari: "वैश्वानरः",
-          text: "vaiśvānaraḥ",
-          meaning: "Vaiśvānara — indicates the Dhruva graha; used on specific occasions.",
-          words: [
-            { word: "वैश्वानरः", transliteration: "vaiśvānaraḥ", meaning: "Vaiśvānara" },
-          ]
-        },
-        {
-          devanagari: "ऋतुग्रहाः",
-          text: "ṛtugrahāḥ",
-          meaning: "Ṛtugraha — seasonal Soma cups, offered according to the time of year.",
-          words: [
-            { word: "ऋतुग्रहाः", transliteration: "ṛtugrahāḥ", meaning: "Ṛtugraha" },
-          ]
-        },
-        {
-          devanagari: "अतिग्राह्याः",
-          text: "atigrāhyāḥ",
-          meaning: "Atigrāhya — extra or additional Soma cups beyond the standard set.",
-          words: [
-            { word: "अतिग्राह्याः", transliteration: "atigrāhyāḥ", meaning: "Atigrāhya" },
-          ]
-        },
-        {
-          devanagari: "ऐन्द्राग्नः",
-          text: "aindrāgnaḥ",
-          meaning: "Aindrāgna — the Soma cup offered jointly to Indra and Agni.",
-          words: [
-            { word: "ऐन्द्राग्नः", transliteration: "aindrāgnaḥ", meaning: "Aindrāgna" },
-          ]
-        },
-        {
-          devanagari: "वैश्वदेवः",
-          text: "vaiśvadevaḥ (second)",
-          meaning: "Vaiśvadeva (second) — the Soma cup for all gods in Tṛtīyasavanam (third pressing).",
-          words: [
-            { word: "वैश्वदेवः", transliteration: "vaiśvadevaḥ (second)", meaning: "Vaiśvadeva (second)" },
-          ]
-        },
-        {
-          devanagari: "मरुत्वतीयाः",
-          text: "marutvatīyāḥ",
-          meaning: "Marutvatīya — Soma cups associated with the Maruts (storm gods).",
-          words: [
-            { word: "मरुत्वतीयाः", transliteration: "marutvatīyāḥ", meaning: "Marutvatīya" },
-          ]
-        },
-        {
-          devanagari: "माहेन्द्रः",
-          text: "māhendraḥ",
-          meaning: "Māhendra — the great Soma cup offered to Mahendra (great Indra).",
-          words: [
-            { word: "माहेन्द्रः", transliteration: "māhendraḥ", meaning: "Māhendra" },
-          ]
-        },
-        {
-          devanagari: "आदित्यः",
-          text: "ādityaḥ",
-          meaning: "Āditya — the Soma cup offered to the Sun deity.",
-          words: [
-            { word: "आदित्यः", transliteration: "ādityaḥ", meaning: "Āditya" },
-          ]
-        },
-        {
-          devanagari: "सावित्रः",
-          text: "sāvitraḥ",
-          meaning: "Sāvitra — the Soma cup offered to Savitā, the impelling deity.",
-          words: [
-            { word: "सावित्रः", transliteration: "sāvitraḥ", meaning: "Sāvitra" },
-          ]
-        },
-        {
-          devanagari: "सारस्वतः",
-          text: "sārasvataḥ",
-          meaning: "Sārasvata — the Soma cup offered to Sarasvatī; used in Vikṛtiyāga.",
-          words: [
-            { word: "सारस्वतः", transliteration: "sārasvataḥ", meaning: "Sārasvata" },
-          ]
-        },
-        {
-          devanagari: "पौष्णः",
-          text: "pauṣṇaḥ",
-          meaning: "Pauṣṇa — the Soma cup offered to Pūṣā; used in Vikṛtiyāga.",
-          words: [
-            { word: "पौष्णः", transliteration: "pauṣṇaḥ", meaning: "Pauṣṇa" },
-          ]
-        },
-        {
-          devanagari: "पात्नीवतः",
-          text: "pātnīvataḥ",
-          meaning: "Pātnīvata — the Soma cup associated with the wife of the yajamāna.",
-          words: [
-            { word: "पात्नीवतः", transliteration: "pātnīvataḥ", meaning: "Pātnīvata" },
-          ]
-        },
-        {
-          devanagari: "हारियोजनः",
-          text: "hāriyojanaḥ",
-          meaning: "Hāriyojana — the Soma cup associated with Indra's horses (Hari).",
-          words: [
-            { word: "हारियोजनः", transliteration: "hāriyojanaḥ", meaning: "Hāriyojana" },
-          ]
-        }
       ]
     },
+
     {
       id: 19,
       part: "chamakam",
       title: "Anuvaka 8",
       titleSanskrit: "अष्टमोऽनुवाकः",
-      subtitle: "Tools, Vessels, and Articles of Yāga",
-      description: "All items in this anuvaka are articles used in yāga (sacrifice). They are well known in Yajñaprakaraṇam. The prayer asks that all these instruments, spaces, and ritual processes be favourable and properly available.",
+      subtitle: "Tools and Platform — Instruments, Spaces, and the Skill of Finishing",
+      description: "The eighth anuvaka names the physical infrastructure of the sacrifice: fuel, altar, ladles, cups, pressing stones, vessels, ritual chambers — and ends with the avabhṛtha, the concluding bath, and the svagākāra, the utterance of release. Intention alone is not enough; preparation matters.",
       mantras: [
         {
-          devanagari: "इध्मः",
-          text: "idhmaḥ",
-          meaning: "Fuel sticks — the sacred firewood used to kindle the sacrificial fire.",
+          devanagari: "इध्मः बर्हिः वेदिः दिष्ण्याः स्रुचः चमसाः ग्रावाणः स्वरवः",
+          text: "idhmaḥ barhiḥ vediḥ diṣṇyāḥ srucaḥ camasāḥ grāvāṇaḥ svaravaḥ",
+          meaning: "Fuel sticks, sacred grass, the altar, subsidiary fire-seats, ladles, cups, pressing stones, and pressing boards — and for me.",
           words: [
-            { word: "इध्मः", transliteration: "idhmaḥ", meaning: "Fuel sticks" },
-          ]
+            { word: "इध्मः", transliteration: "idhmaḥ", meaning: "fuel sticks" },
+            { word: "बर्हिः", transliteration: "barhiḥ", meaning: "sacred grass/kuśa" },
+            { word: "वेदिः", transliteration: "vediḥ", meaning: "the altar/platform" },
+            { word: "दिष्ण्याः", transliteration: "diṣṇyāḥ", meaning: "subsidiary fire-seats" },
+            { word: "स्रुचः", transliteration: "srucaḥ", meaning: "ladles" },
+            { word: "चमसाः", transliteration: "camasāḥ", meaning: "cups/vessels" },
+            { word: "ग्रावाणः", transliteration: "grāvāṇaḥ", meaning: "pressing stones" },
+            { word: "स्वरवः", transliteration: "svaravaḥ", meaning: "pressing boards" },
+          ],
+          esotericMeaning: "The vedi is built to precise geometric rules from the Śulba Sūtras. Without the platform, the offering has no place to land. A kitchen counter. A server rack. A stage. A runway. Every vēdi is the infrastructure on which the critical work happens. Idhma (fuel sticks) are sleep and nutrition. When those supports exist, practice stops being a mood and becomes a skill."
         },
         {
-          devanagari: "बर्हिः",
-          text: "barhiḥ",
-          meaning: "Sacred grass — kuśa/darbha grass spread on the altar for seating deities.",
+          devanagari: "उपरवाः अधिषवणे द्रोणकलशः वायव्यानि पूतभृत् आधवनीयः आग्नीध्रम् हविर्धानम्",
+          text: "uparavāḥ adhiṣavaṇe droṇakalaśaḥ vāyavyāni pūtabhṛt ādhvanīyaḥ āgnīdhram havirdhānam",
+          meaning: "Pressing pits, pressing vessels, the Droṇa pot, wind-group vessels, the purifier, the washing vessel, the fire-priest's station, and the oblation shed — and for me.",
           words: [
-            { word: "बर्हिः", transliteration: "barhiḥ", meaning: "Sacred grass" },
-          ]
-        },
-        {
-          devanagari: "वेदिः",
-          text: "vediḥ",
-          meaning: "Altar — the sacred platform built to precise geometric rules for the sacrifice.",
-          words: [
-            { word: "वेदिः", transliteration: "vediḥ", meaning: "Altar" },
-          ]
-        },
-        {
-          devanagari: "दिष्णियाः",
-          text: "diṣṇiyāḥ",
-          meaning: "Subsidiary fire-seats — smaller fire-pits for assistant priests.",
-          words: [
-            { word: "दिष्णियाः", transliteration: "diṣṇiyāḥ", meaning: "Subsidiary fire-seats" },
-          ]
-        },
-        {
-          devanagari: "स्रुचः",
-          text: "srucaḥ",
-          meaning: "Ladles — wooden spoons used for pouring ghee into the fire.",
-          words: [
-            { word: "स्रुचः", transliteration: "srucaḥ", meaning: "Ladles" },
-          ]
-        },
-        {
-          devanagari: "चमसाः",
-          text: "camasāḥ",
-          meaning: "Cups — wooden vessels used for holding and offering Soma juice.",
-          words: [
-            { word: "चमसाः", transliteration: "camasāḥ", meaning: "Cups" },
-          ]
-        },
-        {
-          devanagari: "ग्रावाणः",
-          text: "grāvāṇaḥ",
-          meaning: "Pressing stones — stones used to press and extract Soma juice.",
-          words: [
-            { word: "ग्रावाणः", transliteration: "grāvāṇaḥ", meaning: "Pressing stones" },
-          ]
-        },
-        {
-          devanagari: "स्वरवः",
-          text: "svaravaḥ",
-          meaning: "Wooden boards — upper boards used in the Soma pressing process.",
-          words: [
-            { word: "स्वरवः", transliteration: "svaravaḥ", meaning: "Wooden boards" },
-          ]
-        },
-        {
-          devanagari: "उपरवाः",
-          text: "uparavāḥ",
-          meaning: "Lower boards — the base boards on which Soma is pressed.",
-          words: [
-            { word: "उपरवाः", transliteration: "uparavāḥ", meaning: "Lower boards" },
-          ]
-        },
-        {
-          devanagari: "अधिषवणे",
-          text: "adhiṣavaṇe",
-          meaning: "Pressing pits — the pair of vessels where Soma extraction happens.",
-          words: [
-            { word: "अधिषवणे", transliteration: "adhiṣavaṇe", meaning: "Pressing pits" },
-          ]
-        },
-        {
-          devanagari: "द्रोणकलशः",
-          text: "droṇakalaśaḥ",
-          meaning: "Droṇa pot — the large wooden trough for collecting pressed Soma.",
-          words: [
+            { word: "उपरवाः", transliteration: "uparavāḥ", meaning: "pressing pits" },
+            { word: "अधिषवणे", transliteration: "adhiṣavaṇe", meaning: "pressing vessels" },
             { word: "द्रोणकलशः", transliteration: "droṇakalaśaḥ", meaning: "Droṇa pot" },
-          ]
+            { word: "वायव्यानि", transliteration: "vāyavyāni", meaning: "wind vessels" },
+            { word: "पूतभृत्", transliteration: "pūtabhṛt", meaning: "the purifier" },
+            { word: "आधवनीयः", transliteration: "ādhvanīyaḥ", meaning: "washing vessel" },
+            { word: "आग्नीध्रम्", transliteration: "āgnīdhram", meaning: "fire-priest's station" },
+            { word: "हविर्धानम्", transliteration: "havirdhānam", meaning: "oblation shed" },
+          ],
+          esotericMeaning: "Each station in a Vedic yajña has a designated custodian. The fire-priest (āgnīdhra) ensures the flames are tended; the oblation shed (havirdhāna) protects the offerings before they reach the fire. Every complex system needs custodians: the database admin, the quality engineer, the process owner. Sacred outcomes require not just the right tools but the right people at the right stations."
         },
         {
-          devanagari: "वायव्यानि",
-          text: "vāyavyāni",
-          meaning: "Wind vessels — vessels associated with Vāyu (wind deity) in the ritual.",
+          devanagari: "गृहाः सदः पुरोडाशाः पचताः अवभृथः स्वगाकारः",
+          text: "gṛhāḥ sadaḥ puroḍāśāḥ pacatāḥ avabhṛthaḥ svagākāraḥ",
+          meaning: "The ritual chambers, the assembly hall, the sacrificial cakes, the cooking fires, the concluding bath, and the utterance of offering — and for me.",
           words: [
-            { word: "वायव्यानि", transliteration: "vāyavyāni", meaning: "Wind vessels" },
-          ]
+            { word: "गृहाः", transliteration: "gṛhāḥ", meaning: "ritual chambers/homes" },
+            { word: "सदः", transliteration: "sadaḥ", meaning: "assembly hall" },
+            { word: "पुरोडाशाः", transliteration: "puroḍāśāḥ", meaning: "sacrificial cakes" },
+            { word: "पचताः", transliteration: "pacatāḥ", meaning: "cooking fires" },
+            { word: "अवभृथः", transliteration: "avabhṛthaḥ", meaning: "concluding bath" },
+            { word: "स्वगाकारः", transliteration: "svagākāraḥ", meaning: "utterance of release/svāhā" },
+          ],
+          esotericMeaning: "Svagākāra is the capacity to say svāhā — spoken as the offering enters the fire, the signal that transfer from human to divine is complete. Perfectionism is the enemy of svagākāra. At some point, you light the fire and let go. The avabhṛtha (concluding bath) acknowledges that completing something changes you. Post-mortems, retrospectives, the long shower after a marathon — finishing a major endeavor needs a deliberate process of release. The Vedas built it into the protocol."
         },
-        {
-          devanagari: "पूतभृत्",
-          text: "pūtabhṛt",
-          meaning: "Purifying vessel — the container that holds filtered/purified Soma.",
-          words: [
-            { word: "पूतभृत्", transliteration: "pūtabhṛt", meaning: "Purifying vessel" },
-          ]
-        },
-        {
-          devanagari: "आधवनीयः",
-          text: "ādhavānīyaḥ",
-          meaning: "Washing vessel — the vessel used for washing and rinsing Soma stalks.",
-          words: [
-            { word: "आधवनीयः", transliteration: "ādhavānīyaḥ", meaning: "Washing vessel" },
-          ]
-        },
-        {
-          devanagari: "आग्नीध्रम्",
-          text: "āgnīdhram",
-          meaning: "Fire-priest's station — the seat/enclosure of the Āgnīdhra priest.",
-          words: [
-            { word: "आग्नीध्रम्", transliteration: "āgnīdhram", meaning: "Fire-priest's station" },
-          ]
-        },
-        {
-          devanagari: "हविर्धानम्",
-          text: "havirdhānam",
-          meaning: "Oblation shed — the shed housing the Soma cart and offerings.",
-          words: [
-            { word: "हविर्धानम्", transliteration: "havirdhānam", meaning: "Oblation shed" },
-          ]
-        },
-        {
-          devanagari: "गृहाः",
-          text: "gṛhāḥ",
-          meaning: "Ritual chambers — the enclosed spaces used during the sacrifice.",
-          words: [
-            { word: "गृहाः", transliteration: "gṛhāḥ", meaning: "Ritual chambers" },
-          ]
-        },
-        {
-          devanagari: "सदः",
-          text: "sadaḥ",
-          meaning: "Assembly hall — the hall where priests gather during the sacrifice.",
-          words: [
-            { word: "सदः", transliteration: "sadaḥ", meaning: "Assembly hall" },
-          ]
-        },
-        {
-          devanagari: "पुरोडाशाः",
-          text: "puroḍāśāḥ",
-          meaning: "Sacrificial cakes — rice cakes offered on potsherds in the fire.",
-          words: [
-            { word: "पुरोडाशाः", transliteration: "puroḍāśāḥ", meaning: "Sacrificial cakes" },
-          ]
-        },
-        {
-          devanagari: "पचताः",
-          text: "pacatāḥ",
-          meaning: "Cooking fires — the fires used for cooking sacrificial offerings.",
-          words: [
-            { word: "पचताः", transliteration: "pacatāḥ", meaning: "Cooking fires" },
-          ]
-        },
-        {
-          devanagari: "अवभृथः",
-          text: "avabhṛthaḥ",
-          meaning: "Concluding bath — the purificatory bath taken after completing the sacrifice.",
-          words: [
-            { word: "अवभृथः", transliteration: "avabhṛthaḥ", meaning: "Concluding bath" },
-          ]
-        },
-        {
-          devanagari: "स्वगाकारः",
-          text: "svagākāraḥ",
-          meaning: "Utterance of Svāhā — the sacred declaration 'Svāhā' as the offering enters the fire.",
-          words: [
-            { word: "स्वगाकारः", transliteration: "svagākāraḥ", meaning: "Utterance of Svāhā" },
-          ]
-        }
       ]
     },
+
     {
       id: 20,
       part: "chamakam",
       title: "Anuvaka 9",
       titleSanskrit: "नवमोऽनुवाकः",
-      subtitle: "Sacrificial Fires, Vedas, Disciplines, and Vows",
-      description: "This anuvaka prays for specific yāgas, cosmic deities, the three Vedas, and the disciplines of initiation, tapas, seasons, and vows. The closing line prays for rain during day and night and the two great Sāma hymns Bṛhat and Rathantara.",
+      subtitle: "The Disciplines Anuvaka — Vows, Rhythms, Three Vedas, and Governance of Energy",
+      description: "The ninth anuvaka asks not just for energy but for the governance of energy — the three Vedas, initiation, austerity, sacred rhythm, vows, and day-night cycles. Energy without structure dissipates; structure without energy is empty form.",
       mantras: [
         {
-          devanagari: "अग्निः",
-          text: "agniḥ",
-          meaning: "Agni — the fire used in the Sāyanam yāga (evening sacrifice).",
+          devanagari: "अग्निः घर्मः अर्कः सूर्यः प्राणः अश्वमेधः",
+          text: "agniḥ gharmaḥ arkaḥ sūryaḥ prāṇaḥ aśvamedhaḥ",
+          meaning: "Fire, heat, the Arka rite, the Sun, life-breath, and the self-offering — and for me, attained through sacrifice.",
           words: [
-            { word: "अग्निः", transliteration: "agniḥ", meaning: "Agni" },
-          ]
+            { word: "अग्निः", transliteration: "agniḥ", meaning: "fire" },
+            { word: "घर्मः", transliteration: "gharmaḥ", meaning: "heat/the hot-milk rite" },
+            { word: "अर्कः", transliteration: "arkaḥ", meaning: "the Arka solar rite" },
+            { word: "सूर्यः", transliteration: "sūryaḥ", meaning: "the Sun" },
+            { word: "प्राणः", transliteration: "prāṇaḥ", meaning: "life-breath" },
+            { word: "अश्वमेधः", transliteration: "aśvamedhaḥ", meaning: "the self-offering/Aśvamedha" },
+          ],
+          esotericMeaning: "The progression from fire to heat to the sun to life-breath maps the Vedic understanding of energy: from gross to subtle to cosmic to vital. The Aśvamedha (horse sacrifice) here represents the supreme sacrifice — the offering of one's own ego and limitation. All spiritual practice is ultimately a form of this offering."
         },
         {
-          devanagari: "धर्मः",
-          text: "dharmaḥ",
-          meaning: "Dharma — the karma called Pravargyam (hot-milk oblation).",
-          words: [
-            { word: "धर्मः", transliteration: "dharmaḥ", meaning: "Dharma" },
-          ]
-        },
-        {
-          devanagari: "अर्कः",
-          text: "arkaḥ",
-          meaning: "Arka — the yāga indicated by the passage 'indrāyārkavate puroḍāśam'.",
-          words: [
-            { word: "अर्कः", transliteration: "arkaḥ", meaning: "Arka" },
-          ]
-        },
-        {
-          devanagari: "सूर्यः",
-          text: "sūryaḥ",
-          meaning: "Sūrya — the yāga indicated by the passage 'sauryaṁ carum'.",
-          words: [
-            { word: "सूर्यः", transliteration: "sūryaḥ", meaning: "Sūrya" },
-          ]
-        },
-        {
-          devanagari: "प्राणः",
-          text: "prāṇaḥ",
-          meaning: "Prāṇa — the Homam indicated by 'prāṇāya svāhā'.",
-          words: [
-            { word: "प्राणः", transliteration: "prāṇaḥ", meaning: "Prāṇa" },
-          ]
-        },
-        {
-          devanagari: "अश्वमेधः",
-          text: "aśvamedhaḥ",
-          meaning: "Aśvamedha — the great horse sacrifice; the supreme Vedic ritual.",
-          words: [
-            { word: "अश्वमेधः", transliteration: "aśvamedhaḥ", meaning: "Aśvamedha" },
-          ]
-        },
-        {
-          devanagari: "पृथिवी",
-          text: "pṛthivī",
-          meaning: "Earth — the Earth deity and her presiding powers.",
+          devanagari: "पृथिवी अदितिः दितिः द्यौः शक्वरीः अङ्गुलयः दिशः यज्ञेन कल्पन्ताम्",
+          text: "pṛthivī aditiḥ ditiḥ dyauḥ śakvarīḥ aṅgulayaḥ diśaḥ yajñena kalpantām",
+          meaning: "Earth, Aditi, Diti, Heaven, the Śakvarī meter, the fingers, and the Directions — may all be accomplished through sacrifice.",
           words: [
             { word: "पृथिवी", transliteration: "pṛthivī", meaning: "Earth" },
-          ]
-        },
-        {
-          devanagari: "अदितिः",
-          text: "aditiḥ",
-          meaning: "Aditi — the mother of the Ādityas, deity of boundless freedom.",
-          words: [
-            { word: "अदितिः", transliteration: "aditiḥ", meaning: "Aditi" },
-          ]
-        },
-        {
-          devanagari: "दितिः",
-          text: "ditiḥ",
-          meaning: "Diti — the mother of the Daityas, deity of division.",
-          words: [
-            { word: "दितिः", transliteration: "ditiḥ", meaning: "Diti" },
-          ]
-        },
-        {
-          devanagari: "द्यौः",
-          text: "dyauḥ",
-          meaning: "Heaven — the celestial realm and its presiding deity.",
-          words: [
+            { word: "अदितिः", transliteration: "aditiḥ", meaning: "Aditi — the boundless" },
+            { word: "दितिः", transliteration: "ditiḥ", meaning: "Diti — the bounded" },
             { word: "द्यौः", transliteration: "dyauḥ", meaning: "Heaven" },
-          ]
+            { word: "शक्वरीः", transliteration: "śakvarīḥ", meaning: "the Śakvarī meter" },
+            { word: "अङ्गुलयः", transliteration: "aṅgulayaḥ", meaning: "the fingers" },
+            { word: "दिशः", transliteration: "diśaḥ", meaning: "the Directions" },
+            { word: "यज्ञेन कल्पन्ताम्", transliteration: "yajñena kalpantām", meaning: "may all be accomplished through sacrifice" },
+          ],
+          esotericMeaning: "Aditi (the boundless) and Diti (the bounded) are cosmic mothers of the two orders of beings — the infinite and the finite, held together in one prayer. The 'fingers' appear here because in Vedic recitation, the fingers count the syllables of the meter. Even the body participates in the act of sacred speech. Everything — bounded and unbounded — is accomplished through offering."
         },
         {
-          devanagari: "शक्वरीः अङ्गुलयः",
-          text: "śakvarīḥ aṅgulayaḥ",
-          meaning: "Fingers of Virāṭ Purusha — the Śakvarī metre and the finger-like limbs of the Cosmic Being, viz. deities Pṛthivī, Aditi, Diti, Dyau.",
-          words: [
-            { word: "शक्वरीः अङ्गुलयः", transliteration: "śakvarīḥ aṅgulayaḥ", meaning: "Fingers of Virāṭ Purusha" },
-          ]
-        },
-        {
-          devanagari: "दिशः",
-          text: "diśaḥ",
-          meaning: "Directions — the cardinal directions. The 'cha' also indicates Vidiks (intermediate directions).",
-          words: [
-            { word: "दिशः", transliteration: "diśaḥ", meaning: "Directions" },
-          ]
-        },
-        {
-          devanagari: "यज्ञेन कल्पन्ताम्",
-          text: "yajñena kalpantām",
-          meaning: "Through yajña — may all these become capable of doing their duties through sacrifice.",
-          words: [
-            { word: "यज्ञेन कल्पन्ताम्", transliteration: "yajñena kalpantām", meaning: "Through yajña" },
-          ]
-        },
-        {
-          devanagari: "ऋक्",
-          text: "ṛk",
-          meaning: "Ṛg Veda — the Ṛk mantras, hymns of praise.",
+          devanagari: "ऋक् साम स्तोमः यजुः दीक्षा तपः ऋतुः व्रतम् अहोरात्रयोः वृष्ट्या बृहद्रथन्तरे",
+          text: "ṛk sāma stomaḥ yajuḥ dīkṣā tapaḥ ṛtuḥ vrataṃ ahorātrayoḥ vṛṣṭyā bṛhadrathantare",
+          meaning: "The Ṛg, Sāma, Stoma, and Yajur Vedas; initiation, austerity, right season, and sacred vow; and the day-night rhythm with rain, and the Bṛhat and Rathantara chants — and for me, through sacrifice.",
           words: [
             { word: "ऋक्", transliteration: "ṛk", meaning: "Ṛg Veda" },
-          ]
-        },
-        {
-          devanagari: "साम",
-          text: "sāma",
-          meaning: "Sāma Veda — the Sāma mantras, musical chants.",
-          words: [
             { word: "साम", transliteration: "sāma", meaning: "Sāma Veda" },
-          ]
-        },
-        {
-          devanagari: "स्तोमः",
-          text: "stomaḥ",
-          meaning: "Stoma — continuous rendering of Sāma hymns in a specific arrangement.",
-          words: [
-            { word: "स्तोमः", transliteration: "stomaḥ", meaning: "Stoma" },
-          ]
-        },
-        {
-          devanagari: "यजुः",
-          text: "yajuḥ",
-          meaning: "Yajur Veda — the Yajur mantras, sacrificial formulas.",
-          words: [
+            { word: "स्तोमः", transliteration: "stomaḥ", meaning: "the praise/Stoma" },
             { word: "यजुः", transliteration: "yajuḥ", meaning: "Yajur Veda" },
-          ]
+            { word: "दीक्षा", transliteration: "dīkṣā", meaning: "initiation/consecration" },
+            { word: "तपः", transliteration: "tapaḥ", meaning: "austerity/inner fire" },
+            { word: "ऋतुः", transliteration: "ṛtuḥ", meaning: "right season/rhythm" },
+            { word: "व्रतम्", transliteration: "vrataṃ", meaning: "sacred vow/chosen constraint" },
+            { word: "अहोरात्रयोः", transliteration: "ahorātrayoḥ", meaning: "day-night cycle" },
+            { word: "बृहद्रथन्तरे", transliteration: "bṛhadrathantare", meaning: "the Bṛhat and Rathantara chants" },
+          ],
+          esotericMeaning: "Tapas: the 5 AM alarm when it's raining, the extra set when muscles scream, the silence held when you want to defend yourself. Deep work, deliberate practice, the 10,000-hour rule — all modern formulations of tapas. Vratam is the chosen constraint: 'No lying for 7 days.' 'No screen after 10 PM.' Even one vow for a week rewires the mind faster than vague motivation. A vrata is a gym for character. The Vedas understood: energy without governance is chaos."
         },
-        {
-          devanagari: "दीक्षा",
-          text: "dīkṣā",
-          meaning: "Initiation — the consecration and saṁskāra for the yajamāna (performer of yāga).",
-          words: [
-            { word: "दीक्षा", transliteration: "dīkṣā", meaning: "Initiation" },
-          ]
-        },
-        {
-          devanagari: "तपः",
-          text: "tapaḥ",
-          meaning: "Tapas — fasting and austerities performed for annihilation of sins.",
-          words: [
-            { word: "तपः", transliteration: "tapaḥ", meaning: "Tapas" },
-          ]
-        },
-        {
-          devanagari: "ऋतुः",
-          text: "ṛtuḥ",
-          meaning: "Season — the right and proper time for performing the yajña.",
-          words: [
-            { word: "ऋतुः", transliteration: "ṛtuḥ", meaning: "Season" },
-          ]
-        },
-        {
-          devanagari: "व्रतम्",
-          text: "vratam",
-          meaning: "Sacred vow — discipline and rules observed during the yajña.",
-          words: [
-            { word: "व्रतम्", transliteration: "vratam", meaning: "Sacred vow" },
-          ]
-        },
-        {
-          devanagari: "बृहद्रथन्तरे",
-          text: "bṛhadrathantare",
-          meaning: "Bṛhat and Rathantara — the two great Sāma Veda hymns.",
-          words: [
-            { word: "बृहद्रथन्तरे", transliteration: "bṛhadrathantare", meaning: "Bṛhat and Rathantara" },
-          ]
-        },
-        {
-          devanagari: "अहोरात्रयोः वृष्ट्या",
-          text: "ahorātrayoḥ vṛṣṭyā",
-          meaning: "By rain during day and night — may my crops grow in fertile manner through timely rainfall.",
-          words: [
-            { word: "अहोरात्रयोः वृष्ट्या", transliteration: "ahorātrayoḥ vṛṣṭyā", meaning: "By rain during day and night" },
-          ]
-        }
       ]
     },
+
     {
       id: 21,
       part: "chamakam",
       title: "Anuvaka 10",
       titleSanskrit: "दशमोऽनुवाकः",
-      subtitle: "Cattle, Life Stages, and the Virtuous Cycle of Sacrifice",
-      description: "This anuvaka is a complete census of livestock at every life-stage and gender, followed by a profound pivot: all vital faculties (life, breath, mind, speech, the Self) are said to be 'accomplished through yajña.' The final line is recursive: 'may sacrifice itself be accomplished through sacrifice' — the act of giving creates the capacity for more giving.",
+      subtitle: "The Offering Anuvaka — Cattle, Life Stages, and the Recursive Power of Giving",
+      description: "The tenth anuvaka catalogues cattle at every age and gender — a portfolio of living capital — then pivots to the metaphysical: may life itself, breath itself, the soul itself be accomplished through offering. It ends with the recursive principle: may sacrifice be accomplished through sacrifice.",
       mantras: [
         {
-          devanagari: "गर्भाः",
-          text: "garbhāḥ",
-          meaning: "Calves in womb — unborn cattle still developing.",
+          devanagari: "गर्भाः वत्साः त्र्यविः त्र्यवी दित्यवाट् दित्योही पञ्चाविः पञ्चावी त्रिवत्सः त्रिवत्सा",
+          text: "garbhāḥ vatsāḥ tryaviḥ tryavī dityavāṭ dityauhī pañcāviḥ pañcāvī trivatsaḥ trivatsā",
+          meaning: "Pregnant cattle, calves, one-and-a-half-year bulls and heifers, three-year bulls and heifers, five-year bulls and heifers — and for me.",
           words: [
-            { word: "गर्भाः", transliteration: "garbhāḥ", meaning: "Calves in womb" },
-          ]
+            { word: "गर्भाः", transliteration: "garbhāḥ", meaning: "pregnant cattle" },
+            { word: "वत्साः", transliteration: "vatsāḥ", meaning: "calves" },
+            { word: "त्र्यविः", transliteration: "tryaviḥ", meaning: "1.5-year bull" },
+            { word: "त्र्यवी", transliteration: "tryavī", meaning: "1.5-year heifer" },
+            { word: "दित्यवाट्", transliteration: "dityavāṭ", meaning: "3-year bull" },
+            { word: "दित्योही", transliteration: "dityauhī", meaning: "3-year heifer" },
+            { word: "पञ्चाविः", transliteration: "pañcāviḥ", meaning: "5-year bull" },
+            { word: "पञ्चावी", transliteration: "pañcāvī", meaning: "5-year heifer" },
+            { word: "त्रिवत्सः", transliteration: "trivatsaḥ", meaning: "3-year old bull" },
+            { word: "त्रिवत्सा", transliteration: "trivatsā", meaning: "3-year old heifer" },
+          ],
+          esotericMeaning: "A complete census of livestock at every life-stage, each serving a different economic purpose. Replace 'cattle' with 'assets' and you have diversified investing: seed-stage, growth-stage, mature, income-generating. The Vedas prayed for assets at every stage of maturity — the same principle behind modern portfolio theory, three millennia early. One hand on the plough, one hand on the prayer."
         },
         {
-          devanagari: "वत्साः",
-          text: "vatsāḥ",
-          meaning: "Young calves — calves less than one year old.",
+          devanagari: "तुर्यवाट् तुर्योही पष्ठवाट् पष्ठोही उक्षा वशा ऋषभः वेहः अनड्वान् धेनुः",
+          text: "turyavāṭ turyauhī paṣṭhavāṭ paṣṭhauhī ukṣā vaśā ṛṣabhaḥ vehaḥ anaḍvān dhenuḥ",
+          meaning: "Six-year bulls and heifers, mature bulls and heifers, a breeding bull, a barren cow, a powerful bull, a draught bull, a working ox, and a milking cow — and for me.",
           words: [
-            { word: "वत्साः", transliteration: "vatsāḥ", meaning: "Young calves" },
-          ]
+            { word: "तुर्यवाट्", transliteration: "turyavāṭ", meaning: "6-year bull" },
+            { word: "तुर्योही", transliteration: "turyauhī", meaning: "6-year heifer" },
+            { word: "पष्ठवाट्", transliteration: "paṣṭhavāṭ", meaning: "mature bull" },
+            { word: "पष्ठोही", transliteration: "paṣṭhauhī", meaning: "mature heifer" },
+            { word: "उक्षा", transliteration: "ukṣā", meaning: "a breeding bull" },
+            { word: "वशा", transliteration: "vaśā", meaning: "a barren cow" },
+            { word: "ऋषभः", transliteration: "ṛṣabhaḥ", meaning: "a powerful bull" },
+            { word: "वेहः", transliteration: "vehaḥ", meaning: "a draught bull" },
+            { word: "अनड्वान्", transliteration: "anaḍvān", meaning: "a working ox" },
+            { word: "धेनुः", transliteration: "dhenuḥ", meaning: "a milking cow" },
+          ],
+          esotericMeaning: "Even the barren cow (vaśā) is in the prayer. The Vedas include in their petition even that which seems unproductive. Every living being has value — not just the ones currently yielding. This is the radical inclusivity of the Chamakam's vision of abundance: nothing and no one is left out of the circle of care."
         },
         {
-          devanagari: "त्र्यविः",
-          text: "tryaviḥ",
-          meaning: "Bull (1½ years) — a bull one and a half years old.",
+          devanagari: "आयुः यज्ञेन कल्पताम् प्राणः यज्ञेन कल्पताम् अपानः यज्ञेन कल्पताम् व्यानः यज्ञेन कल्पताम् चक्षुः यज्ञेन कल्पताम् श्रोत्रम् यज्ञेन कल्पताम् मनः यज्ञेन कल्पताम् वाक् यज्ञेन कल्पताम् आत्मा यज्ञेन कल्पताम् यज्ञः यज्ञेन कल्पताम्",
+          text: "āyur yajñena kalpatām prāṇo yajñena kalpatām apāno yajñena kalpatām vyāno yajñena kalpatām cakṣur yajñena kalpatām śrotram yajñena kalpatām mano yajñena kalpatām vāg yajñena kalpatām ātmā yajñena kalpatām yajño yajñena kalpatām",
+          meaning: "May life, in-breath, out-breath, circulating breath, sight, hearing, mind, speech, and the Self be accomplished through sacrifice. May sacrifice itself be accomplished through sacrifice.",
           words: [
-            { word: "त्र्यविः", transliteration: "tryaviḥ", meaning: "Bull (1½ years)" },
-          ]
+            { word: "आयुः", transliteration: "āyuḥ", meaning: "life/lifespan" },
+            { word: "प्राणः", transliteration: "prāṇaḥ", meaning: "in-breath" },
+            { word: "अपानः", transliteration: "apānaḥ", meaning: "out-breath" },
+            { word: "व्यानः", transliteration: "vyānaḥ", meaning: "circulating breath" },
+            { word: "चक्षुः", transliteration: "cakṣuḥ", meaning: "sight" },
+            { word: "श्रोत्रम्", transliteration: "śrotram", meaning: "hearing" },
+            { word: "मनः", transliteration: "manaḥ", meaning: "mind" },
+            { word: "वाक्", transliteration: "vāk", meaning: "speech" },
+            { word: "आत्मा", transliteration: "ātmā", meaning: "the Self" },
+            { word: "यज्ञः", transliteration: "yajñaḥ", meaning: "sacrifice/offering" },
+            { word: "यज्ञेन कल्पताम्", transliteration: "yajñena kalpatām", meaning: "may it be accomplished through sacrifice" },
+          ],
+          esotericMeaning: "Yajño yajñena kalpatām — the final line is recursive: the act of giving creates the capacity for more giving. Compound interest in the spiritual domain. Each offering generates the energy for the next offering. Service-oriented leadership, open-source ethos, mentorship — all embody this principle. The Gītā: yajñārthāt karmaṇo anyatra — actions done as offering liberate; otherwise they bind. Use your voice to encourage, your eyes to learn, your hands to build. This is the difference between consumption and contribution."
         },
-        {
-          devanagari: "त्र्यवी",
-          text: "tryavī",
-          meaning: "Cow (1½ years) — a cow one and a half years old.",
-          words: [
-            { word: "त्र्यवी", transliteration: "tryavī", meaning: "Cow (1½ years)" },
-          ]
-        },
-        {
-          devanagari: "दित्यवाट्",
-          text: "dityavāṭ",
-          meaning: "Bull (2 years) — a bull two years old.",
-          words: [
-            { word: "दित्यवाट्", transliteration: "dityavāṭ", meaning: "Bull (2 years)" },
-          ]
-        },
-        {
-          devanagari: "दित्यौही",
-          text: "dityauhī",
-          meaning: "Cow (2 years) — a cow two years old.",
-          words: [
-            { word: "दित्यौही", transliteration: "dityauhī", meaning: "Cow (2 years)" },
-          ]
-        },
-        {
-          devanagari: "पञ्चाविः",
-          text: "pañcāviḥ",
-          meaning: "Bull (2½ years) — a bull two and a half years old.",
-          words: [
-            { word: "पञ्चाविः", transliteration: "pañcāviḥ", meaning: "Bull (2½ years)" },
-          ]
-        },
-        {
-          devanagari: "पञ्चावी",
-          text: "pañcāvī",
-          meaning: "Cow (2½ years) — a cow two and a half years old.",
-          words: [
-            { word: "पञ्चावी", transliteration: "pañcāvī", meaning: "Cow (2½ years)" },
-          ]
-        },
-        {
-          devanagari: "त्रिवत्सः",
-          text: "trivatsaḥ",
-          meaning: "Bull (3 years) — a bull three years old.",
-          words: [
-            { word: "त्रिवत्सः", transliteration: "trivatsaḥ", meaning: "Bull (3 years)" },
-          ]
-        },
-        {
-          devanagari: "त्रिवत्सा",
-          text: "trivatsā",
-          meaning: "Cow (3 years) — a cow three years old.",
-          words: [
-            { word: "त्रिवत्सा", transliteration: "trivatsā", meaning: "Cow (3 years)" },
-          ]
-        },
-        {
-          devanagari: "तुर्यवाट्",
-          text: "turyavāṭ",
-          meaning: "Bull (3½ years) — a bull three and a half years old.",
-          words: [
-            { word: "तुर्यवाट्", transliteration: "turyavāṭ", meaning: "Bull (3½ years)" },
-          ]
-        },
-        {
-          devanagari: "तुर्यौही",
-          text: "turyauhī",
-          meaning: "Cow (3½ years) — a cow three and a half years old.",
-          words: [
-            { word: "तुर्यौही", transliteration: "turyauhī", meaning: "Cow (3½ years)" },
-          ]
-        },
-        {
-          devanagari: "पष्ठवाट्",
-          text: "paṣṭhavāṭ",
-          meaning: "Bull (4 years) — a bull four years old.",
-          words: [
-            { word: "पष्ठवाट्", transliteration: "paṣṭhavāṭ", meaning: "Bull (4 years)" },
-          ]
-        },
-        {
-          devanagari: "पष्ठौही",
-          text: "paṣṭhauhī",
-          meaning: "Cow (4 years) — a cow four years old.",
-          words: [
-            { word: "पष्ठौही", transliteration: "paṣṭhauhī", meaning: "Cow (4 years)" },
-          ]
-        },
-        {
-          devanagari: "उक्षा",
-          text: "ukṣā",
-          meaning: "Breeding bull — a bull capable of producing progeny.",
-          words: [
-            { word: "उक्षा", transliteration: "ukṣā", meaning: "Breeding bull" },
-          ]
-        },
-        {
-          devanagari: "वशा",
-          text: "vaśā",
-          meaning: "Barren cow — a cow that does not bear calves.",
-          words: [
-            { word: "वशा", transliteration: "vaśā", meaning: "Barren cow" },
-          ]
-        },
-        {
-          devanagari: "ऋषभः",
-          text: "ṛṣabhaḥ",
-          meaning: "Senior bull — a bull older than Ukṣā, fully mature.",
-          words: [
-            { word: "ऋषभः", transliteration: "ṛṣabhaḥ", meaning: "Senior bull" },
-          ]
-        },
-        {
-          devanagari: "वेहत्",
-          text: "vehat",
-          meaning: "Cow that lost foetus — a cow which has lost its foetus due to attack by a bull.",
-          words: [
-            { word: "वेहत्", transliteration: "vehat", meaning: "Cow that lost foetus" },
-          ]
-        },
-        {
-          devanagari: "अनड्वान्",
-          text: "anaḍvān",
-          meaning: "Draught bull — a bull bearing burden in cart etc., a working ox.",
-          words: [
-            { word: "अनड्वान्", transliteration: "anaḍvān", meaning: "Draught bull" },
-          ]
-        },
-        {
-          devanagari: "धेनुः",
-          text: "dhenuḥ",
-          meaning: "Milking cow — a cow with a young calf, producing milk.",
-          words: [
-            { word: "धेनुः", transliteration: "dhenuḥ", meaning: "Milking cow" },
-          ]
-        },
-        {
-          devanagari: "आयुर्यज्ञेन कल्पताम्",
-          text: "āyuryajñena kalpatām",
-          meaning: "May lifespan be accomplished through sacrifice.",
-          words: [
-            { word: "आयुर्यज्ञेन कल्पताम्", transliteration: "āyuryajñena kalpatām", meaning: "May lifespan be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "प्राणो यज्ञेन कल्पताम्",
-          text: "prāṇo yajñena kalpatām",
-          meaning: "May Prāṇa (life-breath) be accomplished through sacrifice.",
-          words: [
-            { word: "प्राणो यज्ञेन कल्पताम्", transliteration: "prāṇo yajñena kalpatām", meaning: "May Prāṇa (life-breath) be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "अपानो यज्ञेन कल्पताम्",
-          text: "apāno yajñena kalpatām",
-          meaning: "May Apāna (downward breath) be accomplished through sacrifice.",
-          words: [
-            { word: "अपानो यज्ञेन कल्पताम्", transliteration: "apāno yajñena kalpatām", meaning: "May Apāna (downward breath) be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "व्यानो यज्ञेन कल्पताम्",
-          text: "vyāno yajñena kalpatām",
-          meaning: "May Vyāna (circulating breath) be accomplished through sacrifice.",
-          words: [
-            { word: "व्यानो यज्ञेन कल्पताम्", transliteration: "vyāno yajñena kalpatām", meaning: "May Vyāna (circulating breath) be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "चक्षुर्यज्ञेन कल्पताम्",
-          text: "cakṣuryajñena kalpatām",
-          meaning: "May sight be accomplished through sacrifice.",
-          words: [
-            { word: "चक्षुर्यज्ञेन कल्पताम्", transliteration: "cakṣuryajñena kalpatām", meaning: "May sight be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "श्रोत्रं यज्ञेन कल्पताम्",
-          text: "śrotraṁ yajñena kalpatām",
-          meaning: "May hearing be accomplished through sacrifice.",
-          words: [
-            { word: "श्रोत्रं यज्ञेन कल्पताम्", transliteration: "śrotraṁ yajñena kalpatām", meaning: "May hearing be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "मनो यज्ञेन कल्पताम्",
-          text: "mano yajñena kalpatām",
-          meaning: "May mind be accomplished through sacrifice.",
-          words: [
-            { word: "मनो यज्ञेन कल्पताम्", transliteration: "mano yajñena kalpatām", meaning: "May mind be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "वाग्यज्ञेन कल्पताम्",
-          text: "vāgyajñena kalpatām",
-          meaning: "May speech be accomplished through sacrifice.",
-          words: [
-            { word: "वाग्यज्ञेन कल्पताम्", transliteration: "vāgyajñena kalpatām", meaning: "May speech be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "आत्मा यज्ञेन कल्पताम्",
-          text: "ātmā yajñena kalpatām",
-          meaning: "May the Self be accomplished through sacrifice.",
-          words: [
-            { word: "आत्मा यज्ञेन कल्पताम्", transliteration: "ātmā yajñena kalpatām", meaning: "May the Self be accomplished through sacrifice." },
-          ]
-        },
-        {
-          devanagari: "यज्ञो यज्ञेन कल्पताम्",
-          text: "yajño yajñena kalpatām",
-          meaning: "May sacrifice itself be accomplished through sacrifice — the recursive, self-sustaining cycle of giving.",
-          words: [
-            { word: "यज्ञो यज्ञेन कल्पताम्", transliteration: "yajño yajñena kalpatām", meaning: "May sacrifice itself be accomplished through sacrifice" },
-          ]
-        }
       ]
     },
+
     {
       id: 22,
       part: "chamakam",
       title: "Anuvaka 11",
       titleSanskrit: "एकादशोऽनुवाकः",
-      subtitle: "The Sacred Numbers — Odd and Even",
-      description: "By the odd numbers from 1 to 33, Chandas (metres) liked by Devas are attained. By the even numbers from 4 to 48, Chandas liked by humans are attained. Both are mentioned to gain the love of Devas as well as humans. The twelve words from Vāja to Adhipati may also be taken as names of the twelve months from Chaitra to Phālguna. Translated by: P R Kannan, Navi Mumbai.",
+      subtitle: "The Numbers Anuvaka — Mathematics as Prayer, Proportion as Devotion",
+      description: "The eleventh and final anuvaka prays through sacred numbers: odd numbers from 1 to 33 (mapping cosmic layers), even numbers from 4 to 48 (encoding Vedic meters), and concludes with vigor, the crown, and the Lord of all worlds. After counting everything, the prayer arrives at the One who holds it all.",
       mantras: [
         {
-          devanagari: "एका",
-          text: "ekā",
-          meaning: "One (1) — the first odd number; the singular cosmic principle.",
+          devanagari: "एका तिस्रः पञ्च सप्त नव एकादश त्रयोदश पञ्चदश सप्तदश नवदश एकविंशतिः त्रयोविंशतिः पञ्चविंशतिः सप्तविंशतिः नवविंशतिः एकत्रिंशत् त्रयस्त्रिंशत्",
+          text: "ekā tisraḥ pañca sapta nava ekādaśa trayodaśa pañcadaśa saptadaśa navadaśa ekāviṁśatiḥ trayoviṁśatiḥ pañcaviṁśatiḥ saptaviṁśatiḥ navaviṁśatiḥ ekatriṁśat trayatriṁśat",
+          meaning: "May 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, and 33 — all odd numbers — be mine.",
           words: [
-            { word: "एका", transliteration: "ekā", meaning: "One (1)" },
-          ]
+            { word: "एका", transliteration: "ekā", meaning: "1 — Nature/Prakṛti" },
+            { word: "तिस्रः", transliteration: "tisraḥ", meaning: "3 — three guṇas" },
+            { word: "पञ्च", transliteration: "pañca", meaning: "5 — five elements" },
+            { word: "सप्त", transliteration: "sapta", meaning: "7 — senses+mind+intellect" },
+            { word: "नव", transliteration: "nava", meaning: "9 — nine gates of body" },
+            { word: "एकादश", transliteration: "ekādaśa", meaning: "11 — ten prāṇas+suṣumnā" },
+            { word: "त्रयोदश", transliteration: "trayodaśa", meaning: "13" },
+            { word: "पञ्चदश", transliteration: "pañcadaśa", meaning: "15" },
+            { word: "सप्तदश", transliteration: "saptadaśa", meaning: "17" },
+            { word: "नवदश", transliteration: "navadaśa", meaning: "19" },
+            { word: "एकविंशतिः", transliteration: "ekāviṁśatiḥ", meaning: "21" },
+            { word: "त्रयोविंशतिः", transliteration: "trayoviṁśatiḥ", meaning: "23" },
+            { word: "पञ्चविंशतिः", transliteration: "pañcaviṁśatiḥ", meaning: "25 — twenty-five tattvas" },
+            { word: "सप्तविंशतिः", transliteration: "saptaviṁśatiḥ", meaning: "27 — lunar stations" },
+            { word: "नवविंशतिः", transliteration: "navaviṁśatiḥ", meaning: "29" },
+            { word: "एकत्रिंशत्", transliteration: "ekatriṁśat", meaning: "31" },
+            { word: "त्रयस्त्रिंशत्", transliteration: "trayatriṁśat", meaning: "33 — thirty-three Vedic devas" },
+          ],
+          esotericMeaning: "Odd numbers resist neat partition — they carry asymmetry, a charge of incompleteness that drives movement. 1 = the undivided; 3 = the three guṇas (sattva, rajas, tamas); 5 = the five elements; 7 = the senses plus mind and intellect; 9 = the nine gates of the body; 11 = the ten prāṇas plus the suṣumnā; 33 = the complete set of Vedic devas. In music, odd time signatures (7/8, 5/4) create urgency. In design, odd groupings create visual interest. The Vedas sensed what number theory later formalized."
         },
         {
-          devanagari: "तिस्रः",
-          text: "tisraḥ",
-          meaning: "Three (3) — the three Vedas, three worlds, three guṇas.",
+          devanagari: "चतस्रः अष्टौ द्वादश षोडश विंशतिः चतुर्विंशतिः अष्टाविंशतिः द्वात्रिंशत् षट्त्रिंशत् चत्वारिंशत् चतुश्चत्वारिंशत् अष्टाचत्वारिंशत्",
+          text: "catasraḥ aṣṭau dvādaśa ṣoḍaśa viṁśatiḥ caturviṁśatiḥ aṣṭāviṁśatiḥ dvātriṁśat ṣaṭtriṁśat catvāriṁśat catuścatvāriṁśat aṣṭācatvāriṁśat",
+          meaning: "May 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, and 48 — all even numbers — be mine.",
           words: [
-            { word: "तिस्रः", transliteration: "tisraḥ", meaning: "Three (3)" },
-          ]
+            { word: "चतस्रः", transliteration: "catasraḥ", meaning: "4 — four puruṣārthas" },
+            { word: "अष्टौ", transliteration: "aṣṭau", meaning: "8 — Vedas+Upavedas" },
+            { word: "द्वादश", transliteration: "dvādaśa", meaning: "12 — months of the year" },
+            { word: "षोडश", transliteration: "ṣoḍaśa", meaning: "16 — sixteen vowels/half of Gāyatrī" },
+            { word: "विंशतिः", transliteration: "viṁśatiḥ", meaning: "20" },
+            { word: "चतुर्विंशतिः", transliteration: "caturviṁśatiḥ", meaning: "24 — Gāyatrī syllables" },
+            { word: "अष्टाविंशतिः", transliteration: "aṣṭāviṁśatiḥ", meaning: "28 — Uṣṇik meter" },
+            { word: "द्वात्रिंशत्", transliteration: "dvātriṁśat", meaning: "32 — Anuṣṭup meter" },
+            { word: "षट्त्रिंशत्", transliteration: "ṣaṭtriṁśat", meaning: "36 — Bṛhatī meter" },
+            { word: "चत्वारिंशत्", transliteration: "catvāriṁśat", meaning: "40 — Paṅkti meter" },
+            { word: "चतुश्चत्वारिंशत्", transliteration: "catuścatvāriṁśat", meaning: "44 — Triṣṭup meter" },
+            { word: "अष्टाचत्वारिंशत्", transliteration: "aṣṭācatvāriṁśat", meaning: "48 — Jagatī meter" },
+          ],
+          esotericMeaning: "The even numbers encode the rhythmic architecture of sacred sound — the engineering specifications of Vedic poetry. 24 = Gāyatrī (8×3); 28 = Uṣṇik; 32 = Anuṣṭup; 36 = Bṛhatī; 40 = Paṅkti; 44 = Triṣṭup; 48 = Jagatī. Meter is the architecture of language. Poetry has meter. Music has meter. Code has rhythm. These are the specifications for how knowledge should sound when spoken aloud. The Vedas were engineering sound itself."
         },
         {
-          devanagari: "पञ्च",
-          text: "pañca",
-          meaning: "Five (5) — the five elements, five senses, five prāṇas.",
+          devanagari: "वाजः प्रसवः अपिजः क्रतुः सुवः मूर्धा व्यश्नियः अन्त्यायनः अन्त्यः भौवनः भुवनः अधिपतिः",
+          text: "vājaḥ prasavaḥ apijaḥ kratuḥ suvaḥ mūrdhā vyaśniyaḥ antyāyanaḥ antyaḥ bhuvanaḥ bhauvanaḥ adhipatiḥ",
+          meaning: "Vigor, initiative, the all-pervading, resolve, wellbeing, the crown, the all-consuming, finality, the last, the cosmic world, the one belonging to the world, and the Lord of all worlds — and for me.",
           words: [
-            { word: "पञ्च", transliteration: "pañca", meaning: "Five (5)" },
-          ]
+            { word: "वाजः", transliteration: "vājaḥ", meaning: "vigor/strength" },
+            { word: "प्रसवः", transliteration: "prasavaḥ", meaning: "initiative/impulse" },
+            { word: "अपिजः", transliteration: "apijaḥ", meaning: "the all-pervading" },
+            { word: "क्रतुः", transliteration: "kratuḥ", meaning: "resolve/sacred will" },
+            { word: "सुवः", transliteration: "suvaḥ", meaning: "wellbeing" },
+            { word: "मूर्धा", transliteration: "mūrdhā", meaning: "the crown/apex" },
+            { word: "व्यश्नियः", transliteration: "vyaśniyaḥ", meaning: "the all-consuming" },
+            { word: "अन्त्यायनः", transliteration: "antyāyanaḥ", meaning: "finality" },
+            { word: "अन्त्यः", transliteration: "antyaḥ", meaning: "the last" },
+            { word: "भौवनः", transliteration: "bhauvanaḥ", meaning: "belonging to the world" },
+            { word: "भुवनः", transliteration: "bhuvanḥ", meaning: "the cosmic world" },
+            { word: "अधिपतिः", transliteration: "adhipatiḥ", meaning: "Lord of all worlds" },
+          ],
+          esotericMeaning: "After counting every number, every element, every vessel, every grain — the prayer arrives at Adhipati: the Lord of all worlds, the one who presides over all. The inventory was never about the items. It was about the One who holds them. After the spreadsheet, after the org chart, after the roadmap — remains the question: what is this all for? The Chamakam's final word is its answer. The system has a purpose. You are part of it. The last word is not a number. It is a name."
         },
-        {
-          devanagari: "सप्त",
-          text: "sapta",
-          meaning: "Seven (7) — the seven metres, seven ṛṣis, seven flames.",
-          words: [
-            { word: "सप्त", transliteration: "sapta", meaning: "Seven (7)" },
-          ]
-        },
-        {
-          devanagari: "नव",
-          text: "nava",
-          meaning: "Nine (9) — the nine bodily gates, nine forms of devotion.",
-          words: [
-            { word: "नव", transliteration: "nava", meaning: "Nine (9)" },
-          ]
-        },
-        {
-          devanagari: "एकादश",
-          text: "ekādaśa",
-          meaning: "Eleven (11) — the eleven Rudras.",
-          words: [
-            { word: "एकादश", transliteration: "ekādaśa", meaning: "Eleven (11)" },
-          ]
-        },
-        {
-          devanagari: "त्रयोदश",
-          text: "trayodaśa",
-          meaning: "Thirteen (13) — the thirteen months of the ritual year.",
-          words: [
-            { word: "त्रयोदश", transliteration: "trayodaśa", meaning: "Thirteen (13)" },
-          ]
-        },
-        {
-          devanagari: "पञ्चदश",
-          text: "pañcadaśa",
-          meaning: "Fifteen (15) — the fifteen nights of the waxing moon (śukla pakṣa).",
-          words: [
-            { word: "पञ्चदश", transliteration: "pañcadaśa", meaning: "Fifteen (15)" },
-          ]
-        },
-        {
-          devanagari: "सप्तदश",
-          text: "saptadaśa",
-          meaning: "Seventeen (17) — the Saptadaśa Stoma arrangement.",
-          words: [
-            { word: "सप्तदश", transliteration: "saptadaśa", meaning: "Seventeen (17)" },
-          ]
-        },
-        {
-          devanagari: "नवदश",
-          text: "navadaśa",
-          meaning: "Nineteen (19) — higher Stoma and cosmic configurations.",
-          words: [
-            { word: "नवदश", transliteration: "navadaśa", meaning: "Nineteen (19)" },
-          ]
-        },
-        {
-          devanagari: "एकविंशतिः",
-          text: "ekaviṁśatiḥ",
-          meaning: "Twenty-one (21) — the Ekaviṁśa Stoma; layers of creation.",
-          words: [
-            { word: "एकविंशतिः", transliteration: "ekaviṁśatiḥ", meaning: "Twenty-one (21)" },
-          ]
-        },
-        {
-          devanagari: "त्रयोविंशतिः",
-          text: "trayoviṁśatiḥ",
-          meaning: "Twenty-three (23) — higher Stoma configurations.",
-          words: [
-            { word: "त्रयोविंशतिः", transliteration: "trayoviṁśatiḥ", meaning: "Twenty-three (23)" },
-          ]
-        },
-        {
-          devanagari: "पञ्चविंशतिः",
-          text: "pañcaviṁśatiḥ",
-          meaning: "Twenty-five (25) — the twenty-five tattvas of Sāṅkhya.",
-          words: [
-            { word: "पञ्चविंशतिः", transliteration: "pañcaviṁśatiḥ", meaning: "Twenty-five (25)" },
-          ]
-        },
-        {
-          devanagari: "सप्तविंशतिः",
-          text: "saptaviṁśatiḥ",
-          meaning: "Twenty-seven (27) — the twenty-seven Nakṣatras (lunar stations).",
-          words: [
-            { word: "सप्तविंशतिः", transliteration: "saptaviṁśatiḥ", meaning: "Twenty-seven (27)" },
-          ]
-        },
-        {
-          devanagari: "नवविंशतिः",
-          text: "navaviṁśatiḥ",
-          meaning: "Twenty-nine (29) — higher sacred configurations.",
-          words: [
-            { word: "नवविंशतिः", transliteration: "navaviṁśatiḥ", meaning: "Twenty-nine (29)" },
-          ]
-        },
-        {
-          devanagari: "एकत्रिंशत्",
-          text: "ekatriṁśat",
-          meaning: "Thirty-one (31) — the culminating Stoma arrangement.",
-          words: [
-            { word: "एकत्रिंशत्", transliteration: "ekatriṁśat", meaning: "Thirty-one (31)" },
-          ]
-        },
-        {
-          devanagari: "त्रयस्त्रिंशत्",
-          text: "trayastriṁśat",
-          meaning: "Thirty-three (33) — the thirty-three Devas who govern all cosmic functions.",
-          words: [
-            { word: "त्रयस्त्रिंशत्", transliteration: "trayastriṁśat", meaning: "Thirty-three (33)" },
-          ]
-        },
-        {
-          devanagari: "चतस्रः",
-          text: "catasraḥ",
-          meaning: "Four (4) — the four Vedas, four directions, four puruṣārthas.",
-          words: [
-            { word: "चतस्रः", transliteration: "catasraḥ", meaning: "Four (4)" },
-          ]
-        },
-        {
-          devanagari: "अष्टौ",
-          text: "aṣṭau",
-          meaning: "Eight (8) — the eight Vasus, eight directions.",
-          words: [
-            { word: "अष्टौ", transliteration: "aṣṭau", meaning: "Eight (8)" },
-          ]
-        },
-        {
-          devanagari: "द्वादश",
-          text: "dvādaśa",
-          meaning: "Twelve (12) — the twelve Ādityas, twelve months.",
-          words: [
-            { word: "द्वादश", transliteration: "dvādaśa", meaning: "Twelve (12)" },
-          ]
-        },
-        {
-          devanagari: "षोडश",
-          text: "ṣoḍaśa",
-          meaning: "Sixteen (16) — the sixteen kalās (phases of the moon).",
-          words: [
-            { word: "षोडश", transliteration: "ṣoḍaśa", meaning: "Sixteen (16)" },
-          ]
-        },
-        {
-          devanagari: "विंशतिः",
-          text: "viṁśatiḥ",
-          meaning: "Twenty (20) — sacred ritual configurations.",
-          words: [
-            { word: "विंशतिः", transliteration: "viṁśatiḥ", meaning: "Twenty (20)" },
-          ]
-        },
-        {
-          devanagari: "चतुर्विंशतिः",
-          text: "caturviṁśatiḥ",
-          meaning: "Twenty-four (24) — the 24 syllables of the Gāyatrī metre.",
-          words: [
-            { word: "चतुर्विंशतिः", transliteration: "caturviṁśatiḥ", meaning: "Twenty-four (24)" },
-          ]
-        },
-        {
-          devanagari: "अष्टाविंशतिः",
-          text: "aṣṭāviṁśatiḥ",
-          meaning: "Twenty-eight (28) — the Uṣṇik metre; 28 Nakṣatras in the lunar cycle.",
-          words: [
-            { word: "अष्टाविंशतिः", transliteration: "aṣṭāviṁśatiḥ", meaning: "Twenty-eight (28)" },
-          ]
-        },
-        {
-          devanagari: "द्वात्रिंशत्",
-          text: "dvātriṁśat",
-          meaning: "Thirty-two (32) — the Anuṣṭup metre (32 syllables).",
-          words: [
-            { word: "द्वात्रिंशत्", transliteration: "dvātriṁśat", meaning: "Thirty-two (32)" },
-          ]
-        },
-        {
-          devanagari: "षट्त्रिंशत्",
-          text: "ṣaṭtriṁśat",
-          meaning: "Thirty-six (36) — the Bṛhatī metre (36 syllables).",
-          words: [
-            { word: "षट्त्रिंशत्", transliteration: "ṣaṭtriṁśat", meaning: "Thirty-six (36)" },
-          ]
-        },
-        {
-          devanagari: "चत्वारिंशत्",
-          text: "catvāriṁśat",
-          meaning: "Forty (40) — the Paṅkti metre (40 syllables).",
-          words: [
-            { word: "चत्वारिंशत्", transliteration: "catvāriṁśat", meaning: "Forty (40)" },
-          ]
-        },
-        {
-          devanagari: "चतुश्चत्वारिंशत्",
-          text: "catuścatvāriṁśat",
-          meaning: "Forty-four (44) — the Triṣṭup metre (44 syllables).",
-          words: [
-            { word: "चतुश्चत्वारिंशत्", transliteration: "catuścatvāriṁśat", meaning: "Forty-four (44)" },
-          ]
-        },
-        {
-          devanagari: "अष्टाचत्वारिंशत्",
-          text: "aṣṭācatvāriṁśat",
-          meaning: "Forty-eight (48) — the Jagatī metre (48 syllables); the fullness of all cosmic and ritual harmonies.",
-          words: [
-            { word: "अष्टाचत्वारिंशत्", transliteration: "aṣṭācatvāriṁśat", meaning: "Forty-eight (48)" },
-          ]
-        },
-        {
-          devanagari: "वाजः",
-          text: "vājaḥ",
-          meaning: "Food — nourishment; also the name of month Chaitra.",
-          words: [
-            { word: "वाजः", transliteration: "vājaḥ", meaning: "Food" },
-          ]
-        },
-        {
-          devanagari: "प्रसवः",
-          text: "prasavaḥ",
-          meaning: "Production — its production; also Vaiśākha.",
-          words: [
-            { word: "प्रसवः", transliteration: "prasavaḥ", meaning: "Production" },
-          ]
-        },
-        {
-          devanagari: "अपिजः",
-          text: "apijaḥ",
-          meaning: "Frequent production — its repeated generation; also Jyeṣṭha.",
-          words: [
-            { word: "अपिजः", transliteration: "apijaḥ", meaning: "Frequent production" },
-          ]
-        },
-        {
-          devanagari: "क्रतुः",
-          text: "kratuḥ",
-          meaning: "Resolve — the resolve to enjoy it, or yāga; also Āṣāḍha.",
-          words: [
-            { word: "क्रतुः", transliteration: "kratuḥ", meaning: "Resolve" },
-          ]
-        },
-        {
-          devanagari: "सुवः",
-          text: "suvaḥ",
-          meaning: "Sūrya — the Sun, cause of food production; also Śrāvaṇa.",
-          words: [
-            { word: "सुवः", transliteration: "suvaḥ", meaning: "Sūrya" },
-          ]
-        },
-        {
-          devanagari: "मूर्धा",
-          text: "mūrdhā",
-          meaning: "Sky — the crown, the vault of heaven; also Bhādrapada.",
-          words: [
-            { word: "मूर्धा", transliteration: "mūrdhā", meaning: "Sky" },
-          ]
-        },
-        {
-          devanagari: "व्यश्नियः",
-          text: "vyaśniyaḥ",
-          meaning: "Born in sky — celestial being; also Āśvina.",
-          words: [
-            { word: "व्यश्नियः", transliteration: "vyaśniyaḥ", meaning: "Born in sky" },
-          ]
-        },
-        {
-          devanagari: "अन्त्यः",
-          text: "antyaḥ",
-          meaning: "Born at the end — the final one; also Kārttika.",
-          words: [
-            { word: "अन्त्यः", transliteration: "antyaḥ", meaning: "Born at the end" },
-          ]
-        },
-        {
-          devanagari: "भौवनः",
-          text: "bhauvanaḥ",
-          meaning: "Born in the world — of worldly origin; also Mārgaśīrṣa.",
-          words: [
-            { word: "भौवनः", transliteration: "bhauvanaḥ", meaning: "Born in the world" },
-          ]
-        },
-        {
-          devanagari: "भुवनः",
-          text: "bhuvanaḥ",
-          meaning: "The world — the entire universe itself; also Puṣya (Pauṣa).",
-          words: [
-            { word: "भुवनः", transliteration: "bhuvanaḥ", meaning: "The world" },
-          ]
-        },
-        {
-          devanagari: "अधिपतिः",
-          text: "adhipatiḥ",
-          meaning: "King/Lord — the sovereign ruler of all; also Māgha. May all this be very favourable to me.",
-          words: [
-            { word: "अधिपतिः", transliteration: "adhipatiḥ", meaning: "King/Lord" },
-          ]
-        }
       ]
-    }
+    },
   ]
 };
