@@ -470,9 +470,169 @@ spec:
 </section>
 
 <hr class="rule">
+<section id="nuanced-qa">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — NUANCED Q&amp;A</span>Twenty-two questions the loop actually asks</h2>
+    <p class="lede reveal">The basics get you to the phone screen. These questions separate the staff-level answer from the senior one — curl behavior, REST API flows, lifecycle triggers, and how certs accumulate (and expire) inside a real machine.</p>
+
+    <h3 class="reveal">CLI &amp; curl</h3>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 01</span>
+      <p class="qtext">When I run <code>curl https://example.com</code>, what cert-related work does curl actually do?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">curl opens a TCP connection, then initiates a TLS handshake. It sends a <code>ClientHello</code>, receives the server's <code>Certificate</code> message (leaf + intermediates), and validates the chain against the CA bundle at <code>/etc/ssl/certs/ca-certificates.crt</code> (Linux) or the system Keychain (macOS). It checks the SAN matches the hostname, the cert is not expired, and — if the OCSP URL is present — may do a live OCSP check. Use <code>curl -v</code> to see every handshake message. Use <code>curl --cacert custom.crt</code> to override the CA bundle. Use <code>curl -k</code> to skip verification entirely (never in production). The critical point: curl uses <em>its own</em> CA bundle, not the browser's — so a cert that works in Chrome may fail in curl if the intermediate isn't in the system bundle.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 02</span>
+      <p class="qtext">How do you use curl to inspect a certificate without a browser?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Three approaches: (1) <code>curl -vI https://example.com 2&gt;&amp;1 | grep -A5 "SSL"</code> — shows TLS version, cipher, cert subject. (2) <code>openssl s_client -connect example.com:443 -showcerts &lt;/dev/null 2&gt;&amp;1 | openssl x509 -noout -text</code> — dumps every cert field. (3) <code>openssl s_client -connect example.com:443 &lt;/dev/null 2&gt;&amp;1 | openssl x509 -noout -dates -subject -issuer</code> — just expiry, subject, issuer. In a K8s context: <code>kubectl get secret tls-cert -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -text</code>. These commands are table-stakes for debugging "why is my cert not trusted."</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 03</span>
+      <p class="qtext">curl returns <code>SSL certificate problem: unable to get local issuer certificate</code>. Walk me through diagnosis.</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">The server is presenting only the leaf cert — it is not sending the intermediate. The CA bundle on the client has the Root CA but not the Intermediate, so the chain can't be built. Diagnosis: <code>openssl s_client -connect host:443 -showcerts</code> — if you only see one cert, the server is misconfigured. Fix on nginx: <code>ssl_certificate</code> must point to a bundle (leaf + intermediate concatenated). Fix on Apache: <code>SSLCertificateChainFile</code>. Client-side workaround: download the intermediate from DigiCert's AIA URL and use <code>--cacert</code>. Root cause is almost always a server misconfiguration at deployment time.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 04</span>
+      <p class="qtext">What does <code>curl --resolve example.com:443:1.2.3.4 https://example.com</code> do, and when is it useful?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><code>--resolve</code> overrides DNS — it forces curl to connect to IP <code>1.2.3.4</code> but still send <code>example.com</code> as the TLS SNI hostname. This is critical for testing a new cert before DNS cutover: you can point curl at a staging server's IP while still triggering the correct TLS certificate (servers use SNI to select which cert to serve on a shared IP). Equally useful for verifying that a Kubernetes Ingress has picked up the new 90-day renewal without affecting live traffic.</p>
+    </div>
+
+    <h3 class="reveal" style="margin-top:48px;">REST API &amp; the ACME Protocol</h3>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 05</span>
+      <p class="qtext">How does the ACME REST API flow work, end to end? What are the actual HTTP calls?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">ACME (RFC 8555) is a JSON-over-HTTPS REST API. The full flow:<br><br>
+      <strong>1. Directory</strong> — <code>GET /acme/directory</code> → JSON map of all endpoint URLs.<br>
+      <strong>2. New Account</strong> — <code>POST /acme/new-account</code> (JWS-signed, contact + ToS) → account URL.<br>
+      <strong>3. New Order</strong> — <code>POST /acme/new-order</code> with DNS identifiers → order URL + authz URLs + finalize URL.<br>
+      <strong>4. Authorization</strong> — <code>GET /acme/authz/{id}</code> → challenge list (http-01, dns-01, tls-alpn-01).<br>
+      <strong>5. Provision Challenge</strong> — client publishes the token (DNS TXT or well-known file).<br>
+      <strong>6. Challenge Ready</strong> — <code>POST /acme/challenge/{id}</code> → tells server to validate now.<br>
+      <strong>7. Poll</strong> — <code>GET /acme/authz/{id}</code> until status = <code>valid</code>.<br>
+      <strong>8. Finalize</strong> — <code>POST /acme/order/{id}/finalize</code> with DER-encoded CSR → DigiCert signs.<br>
+      <strong>9. Download</strong> — <code>GET /acme/cert/{id}</code> → PEM chain.<br><br>
+      Every POST is JWS-signed with the account key. Replay protection via a server-issued <code>Replay-Nonce</code> header consumed on each POST.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 06</span>
+      <p class="qtext">DigiCert also has a non-ACME REST API (CertCentral). How does that differ from ACME?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">CertCentral is DigiCert's proprietary portal API — <code>POST https://www.digicert.com/services/v2/order/certificate/ssl_plus</code> with an API key header and a JSON body with CSR, validity, SANs, and org details. It supports OV and EV (ACME is DV-only). ACME is stateless and fully automated; CertCentral supports human approval workflows, multi-year subscriptions, org validation queues, and webhook callbacks when certs are ready. Practical choice: ACME for anything automated (cert-manager, certbot, any devops pipeline); CertCentral API for enterprise OV/EV orders needing human review, or for DigiCert's managed PKI (MPKI) for IoT device certs at scale.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 07</span>
+      <p class="qtext">How does DigiCert's REST API handle idempotency? What happens if my client crashes mid-order and retries?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">ACME orders are keyed by account + identifier set. If you <code>POST /acme/new-order</code> again with the same identifiers before the prior order expires, the server returns the existing order URL (status <code>ready</code> or <code>valid</code>) — no duplicate. Challenge tokens are stable for the order lifetime. On finalize, posting the same CSR twice returns the same cert. The ACME nonce prevents literal request replay, but semantic idempotency is built into the order state machine. For CertCentral, store the order ID on the first successful POST and reference it on retries rather than issuing a new order.</p>
+    </div>
+
+    <h3 class="reveal" style="margin-top:48px;">Lifecycle — When Does DigiCert Know to Issue a New Cert?</h3>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 08</span>
+      <p class="qtext">DigiCert doesn't "push" certs to you — so what triggers a new certificate being issued?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">DigiCert is always <em>pull</em>, never push. A cert is issued only when something on the customer's side initiates a request. Four triggers: (1) <strong>Manual</strong> — human logs into CertCentral and clicks "Request Certificate." (2) <strong>ACME client cron</strong> — certbot / acme.sh runs on schedule, checks local cert expiry, and POSTs a new-order if expiry is within the renewal window (typically 30 days). (3) <strong>cert-manager controller</strong> — watches the <code>Certificate</code> CRD's <code>renewBefore</code> field; triggers when <code>notAfter - renewBefore &lt; now</code>. (4) <strong>Deployment pipeline webhook</strong> — customer's CI/CD calls DigiCert's API at deploy time. DigiCert has no visibility into your cert's expiry unless you use its managed renewal service.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 09</span>
+      <p class="qtext">How does cert-manager decide it's time to renew? Walk through the controller logic.</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">cert-manager runs a reconcile loop on every <code>Certificate</code> resource. Each reconcile checks: <code>notAfter - spec.renewBefore &lt; time.Now()</code>. If true, it creates a <code>CertificateRequest</code> resource (a CSR wrapper), which triggers the Issuer to submit to ACME or DigiCert's API. The controller also watches the Secret — if it's missing or the cert inside is expired/about-to-expire, it triggers immediately. Rotation without downtime: cert-manager writes the new cert before the old one expires (grace period = <code>renewBefore</code>), so the server can load the new cert via volume mount refresh while still serving the old cert to in-flight connections.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 10</span>
+      <p class="qtext">What happens if renewal fails and nobody notices? How do you design for this?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Cert expiry is a silent killer — the site goes dark at midnight UTC when the cert crosses <code>notAfter</code>. Design for failure: (1) <strong>Prometheus alert</strong> on <code>tls_cert_days_remaining &lt; 14</code> (critical) and <code>&lt; 30</code> (warning). (2) <strong>cert-manager condition alert</strong> on <code>Certificate.Ready=False</code> for more than 1 hour. (3) <strong>External blackbox probe</strong> — a cron or Checkly check probing the cert expiry from outside the cluster. (4) <strong>Runbook</strong> — if ACME fails (DNS solver permissions revoked, rate limit hit, CT log outage): check <code>kubectl describe certificate</code>, check ACME account status, manually re-trigger by deleting the Secret. Defence-in-depth: monitor at the platform layer AND the external-check layer.</p>
+    </div>
+
+    <h3 class="reveal" style="margin-top:48px;">How Certs Grow &amp; Sink on a Machine</h3>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 11</span>
+      <p class="qtext">How does a certificate "get onto" a user's computer? Nobody installs DigiCert manually.</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Root CA certs arrive bundled with the OS or browser — shipped as part of the OS update cycle. Apple ships ~170 root CAs with macOS; Microsoft ships 200+ with Windows; Mozilla maintains its own root program bundled into Firefox. When you visit an HTTPS site, the server sends its leaf + intermediate chain in the TLS handshake; your machine builds the chain upward to a root it already trusts. The leaf cert is <em>not</em> stored permanently — it lives only for the duration of the TLS session. What does accumulate: (1) intermediates may be cached after first use (Chrome/Firefox maintain an intermediate CA cache); (2) HSTS preload entries; (3) CT SCTs are validated at connection time, not stored. Nothing about a specific site's cert "installs" on your machine — the trust anchors (root CAs) are what matter.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 12</span>
+      <p class="qtext">If a root CA is added to my macOS Keychain, what exactly changes? And how does software know to use it?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><code>sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ca.crt</code> writes a trust record into the keychain database. macOS's Security framework (SecureTransport / Network.framework) reads System and System Roots keychains — used by Safari, curl (when compiled against SecureTransport), and most native apps. What doesn't change: Firefox (uses its own NSS bundle), Node.js (bundles Mozilla roots), Java (uses JVM cacerts). "Adding a root to macOS" helps about half your tooling. For corporate environments, MDM (Jamf, Intune) pushes root CAs to all managed devices — this is how internal CAs (HTTPS inspection proxies, internal services) get distributed without per-machine steps.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 13</span>
+      <p class="qtext">How do certs "sink" — accumulate and go stale on a machine over time?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Several accumulation patterns: (1) <strong>Stale intermediate CA cache</strong> — Chrome and Firefox cache intermediates encountered in TLS connections; revoked or expired intermediates linger until the cache is cleared. (2) <strong>Keychain bloat</strong> — manually installed certs (dev self-signed, old corporate CAs) stay until explicitly removed; expired ones show a red X in Keychain Access. (3) <strong>JVM cacerts growth</strong> — adding intermediates via <code>keytool -importcert</code> and never pruning after rotation. (4) <strong>Firefox cert9.db</strong> — imported site certs and old CAs accumulate per-profile. (5) <strong>Docker base images</strong> — if <code>ca-certificates</code> isn't updated in the image, containers ship with expired roots baked in. Fix: treat CA bundles as versioned artifacts, update them in the build pipeline, prune expired entries on a schedule.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 14</span>
+      <p class="qtext">A root CA is removed from the Apple/Mozilla root program. What happens to machines that already have it?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Root program removal is distributed via OS/browser updates, not real-time. Timeline: (1) Mozilla/Apple/Google announce distrust — browsers start treating the root as untrusted in the next release. (2) Machines that apply the update stop trusting certs signed by that root — TLS connections fail with a chain validation error. (3) Machines that haven't updated yet continue trusting it. For operators: monitor which CA issued your certs, subscribe to CA/B Forum and browser security mailing lists, and have a plan to re-issue from a different CA within 24 hours if yours is distrusted. Never be single-CA dependent for critical services.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 15</span>
+      <p class="qtext">What is certificate pinning, and why is it almost always a mistake?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Certificate pinning hard-codes the expected public key (or its hash) into an application, so it rejects any cert from any CA that doesn't match. Intended as a defense against rogue CAs. In practice: (1) <strong>Rotation is catastrophic</strong> — when the cert renews, the pin must update in the app before the old cert expires; if the app hasn't been updated, all users are locked out. Google removed Chrome's HPKP (HTTP Public Key Pinning) in 2018 after catastrophic customer incidents. (2) <strong>CT makes it redundant</strong> — CT already detects rogue CA issuance within minutes; pinning solves a problem CT solved more gracefully. Acceptable use: mobile apps that control their own update cycle AND pin the root or intermediate (not the leaf), with a key continuity plan. Never pin the leaf cert — it will break on the next renewal.</p>
+    </div>
+
+    <h3 class="reveal" style="margin-top:48px;">Edge Cases &amp; Gotchas</h3>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 16</span>
+      <p class="qtext">What is SNI and why does it matter for multi-tenant hosting?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Server Name Indication is a TLS extension in the <code>ClientHello</code> that carries the hostname in plaintext, so the server can select the right certificate before the handshake completes. Without SNI, a server can only serve one cert per IP address. With SNI, a single Nginx or AWS ALB can serve thousands of different domains (each with its own cert) on a single IP. Implications: (1) SNI leaks the hostname to network observers — visible to ISPs and firewalls even over HTTPS. (2) Encrypted Client Hello (ECH) is the in-progress IETF standard to encrypt the SNI field; Cloudflare and Firefox already support it experimentally.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 17</span>
+      <p class="qtext">Your company uses a TLS inspection proxy (MITM). How does that work cryptographically, and what breaks?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">A TLS inspection proxy (Zscaler, BlueCoat, Palo Alto) terminates TLS from the client and re-establishes a new TLS connection to the origin. It uses its own CA (corporate-issued, installed on all managed machines via MDM) to dynamically generate a cert for each destination hostname. The client sees a cert from the corporate CA, not DigiCert. What breaks: (1) <strong>Certificate pinning</strong> — the public key no longer matches the pin. (2) <strong>CT verification</strong> — the dynamically-generated cert was never submitted to CT logs. (3) <strong>Client certs / mTLS</strong> — the proxy sees client certs it may not forward. The proxy must be trusted by the client's OS — it is a deliberately inserted MITM by the enterprise, trading user privacy for corporate visibility and DLP.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 18</span>
+      <p class="qtext">What is a wildcard certificate? When should you use one, and what are its security limits?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">A wildcard cert has a SAN of <code>*.example.com</code> — valid for any single-label subdomain but not the apex (<code>example.com</code> unless listed) or deeper subdomains (<code>sub.api.example.com</code>). One cert, many subdomains — operationally simpler. Security limits: (1) <strong>Key compromise is catastrophic</strong> — one stolen key invalidates all subdomains. (2) <strong>Shared blast radius</strong> — if <code>api</code> and <code>marketing</code> share the same wildcard cert, a marketing server compromise affects the API cert. Best practice: use wildcard for services you trust equally and control fully; use per-service certs for sensitive endpoints (payment API, auth server).</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 19</span>
+      <p class="qtext">What is DANE and why hasn't it replaced CA-signed certs?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">DANE (DNS-based Authentication of Named Entities, RFC 6698) publishes a cert's fingerprint in a DNS TLSA record secured by DNSSEC. Instead of trusting a CA, the client trusts the DNS record. Why it hasn't won: (1) DNSSEC adoption is low (~30% of TLDs); without it, TLSA records are spoofable. (2) Browser support is near-zero — Chrome and Safari have never shipped it; Firefox removed it. (3) Browser vendors control the ecosystem and have declined to change their trust model. DANE is used in email (SMTP DANE for mail servers) but is essentially dead for web TLS. CT + short cert lifetimes solve the same rogue-CA problem without requiring DNSSEC.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 20</span>
+      <p class="qtext">DigiCert had a misissuance that required revoking 83,000 certificates in 24 hours. How do you design the operator-side response?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">This was real (August 2024 — non-compliant domain validation method). Steps: (1) <strong>Inventory</strong> — query CT logs via crt.sh for all certs from the affected CA on your domains: <code>curl "https://crt.sh/?q=%25.example.com&amp;output=json"</code>. (2) <strong>Automated re-issue</strong> — if using cert-manager, delete affected Secrets to trigger immediate re-issuance; have a secondary ClusterIssuer (e.g., Let's Encrypt fallback) configured before an incident. (3) <strong>Monitor OCSP</strong> — verify affected certs' OCSP status flips to <code>revoked</code> within the 24-hour window. (4) <strong>Staging test</strong> — verify the new cert is being served before the revocation deadline. (5) <strong>Runbook in advance</strong> — the 24-hour window is too short to design the response under pressure. Key lesson: no single CA dependency; always have a secondary issuance path ready.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 21</span>
+      <p class="qtext">What is the difference between DV, OV, and EV certificates? Does EV still matter?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><strong>DV</strong>: CA proves domain control only (http-01 / dns-01). Issued in minutes. The padlock on 99% of public sites. <strong>OV</strong>: additionally verifies the legal organization (WHOIS, business registry, phone call). Org name appears in the cert's Subject O= field. <strong>EV</strong>: strongest vetting — legal entity, physical address, phone, LEI/GLEIF check. Historically showed a green bar + company name in the browser URL bar. Does EV still matter? Chrome and Safari removed the green bar in 2019, making EV visually indistinguishable from DV. Today EV is primarily a compliance requirement (PCI-DSS, some financial regulators), a trust signal in B2B cert inspection, and a procurement checkbox. For most public websites, DV is sufficient and operationally simpler.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 22</span>
+      <p class="qtext">A developer checks a private key into git. What do you do?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Treat it as confirmed compromise — not a "maybe." In order: (1) <strong>Revoke immediately</strong> — call DigiCert's API to revoke the cert. CA/B Forum requires revocation within 24 hours of confirmed key compromise. (2) <strong>Rotate the key</strong> — generate a new key pair, new CSR, new cert. The old cert is now revoked and worthless. (3) <strong>Purge git history</strong> — <code>git filter-repo</code> or BFG Repo Cleaner; force-push. If the repo was public even for 1 minute, assume the key was already harvested by secret-scanning bots. (4) <strong>Audit access logs</strong> — check server logs for any connections using the compromised cert during the exposure window. (5) <strong>Post-mortem</strong> — add pre-commit hook (git-secrets, truffleHog) and enable GitHub secret scanning in CI. (6) <strong>Move to Vault</strong> — HashiCorp Vault or AWS Secrets Manager for all key material going forward.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
 <section id="summary">
   <div class="wrap">
-    <h2 class="reveal"><span class="num">§ 10 — SUMMARY</span>What the strong answer looks like</h2>
+    <h2 class="reveal"><span class="num">§ 11 — SUMMARY</span>What the strong answer looks like</h2>
 
     <table class="reveal">
       <tr><th>Dimension</th><th>Weak answer</th><th>Strong answer</th></tr>
