@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <title>Designing DigiCert — PKI, X.509 Certificates &amp; Kubernetes at Scale | PaddySpeaks</title>
+    <meta name="description" content="A senior system-design deep-dive on PKI and digital certificates: what a cert is, where it lives (Keychain, Windows Store, NSS, JVM), how TLS handshakes work, and how DigiCert-scale issuance runs on Kubernetes with cert-manager, SPIFFE/SPIRE, and mTLS service meshes.">
+    <meta name="keywords" content="digicert, PKI, x509 certificate, TLS handshake, certificate authority, cert-manager, kubernetes, SPIFFE, SPIRE, mTLS, Istio, keychain, windows certificate store, OCSP, CRL, system design, data engineering interview">
+    <meta name="author" content="Paddy Iyer">
+    <link rel="canonical" href="https://paddyspeaks.com/articles/digicert-pki-certificates-kubernetes-design.html">
+    <meta property="og:title" content="Designing DigiCert — PKI, X.509 Certificates &amp; Kubernetes at Scale">
+    <meta property="og:description" content="From the byte layout of a cert to a CA issuing a million certs a day on Kubernetes — the full stack, with schemas, Python, and real architecture decisions.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://paddyspeaks.com/articles/digicert-pki-certificates-kubernetes-design.html">
+    <meta property="og:site_name" content="PaddySpeaks">
+    <meta property="og:image" content="https://paddyspeaks.com/images/og-default.png">
+    <meta property="article:author" content="Paddy Iyer">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Designing DigiCert — PKI, X.509 &amp; Kubernetes at Scale">
+    <meta name="twitter:description" content="What a cert is, where it lives, how TLS works, and how to run a CA on Kubernetes. The full PKI stack in schema, Python, and architecture diagrams.">
+    <meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"Article","headline":"Designing DigiCert — PKI, X.509 Certificates & Kubernetes at Scale","description":"A senior system-design deep-dive on PKI and digital certificates: what a cert is, where it lives, how TLS handshakes work, and how DigiCert-scale issuance runs on Kubernetes with cert-manager, SPIFFE/SPIRE, and mTLS service meshes.","author":{"@type":"Person","name":"Paddy Iyer","url":"https://paddyspeaks.com/about.html"},"publisher":{"@type":"Organization","name":"PaddySpeaks","url":"https://paddyspeaks.com","logo":{"@type":"ImageObject","url":"https://paddyspeaks.com/favicon.png"}},"mainEntityOfPage":"https://paddyspeaks.com/articles/digicert-pki-certificates-kubernetes-design.html","datePublished":"2026-06-23","dateModified":"2026-06-23","inLanguage":"en-US","keywords":"digicert, PKI, x509, TLS, certificate authority, cert-manager, kubernetes, SPIFFE, SPIRE, mTLS, Istio, OCSP, CRL, system design","image":{"@type":"ImageObject","url":"https://paddyspeaks.com/images/og-default.png","width":1200,"height":630}}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style.css">
+<style>
+/* ============================================================
+   DigiCert PKI article — local palette
+   midnight navy #080f1e · teal #0fccb0 · amber #f59e0b · crimson #ef4444
+   ============================================================ */
+
+/* --- cinematic hero --- */
+.dc-hero { position: relative; margin: 28px 0 40px; padding: 48px 36px 44px; border-radius: 8px; overflow: hidden;
+    background: radial-gradient(ellipse at top left, #0a1f3a 0%, #050c18 72%); color: #f4f6fb;
+    box-shadow: 0 22px 60px -22px rgba(0,0,0,0.7); }
+.dc-hero::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 14% 20%, rgba(15,204,176,0.22) 0%, transparent 38%),
+                radial-gradient(circle at 82% 78%, rgba(245,158,11,0.14) 0%, transparent 42%),
+                radial-gradient(circle at 50% 100%, rgba(99,102,241,0.14) 0%, transparent 44%);
+    animation: dcGlow 22s ease-in-out infinite alternate; }
+@keyframes dcGlow { 0% { transform: scale(1); opacity:.8; } 100% { transform: scale(1.06); opacity:1; } }
+.dc-hero .hero-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.32em;
+    text-transform: uppercase; color: #0fccb0; margin-bottom: 14px; position: relative; z-index: 2; }
+.dc-hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.9rem, 4vw, 2.9rem);
+    font-weight: 700; line-height: 1.18; margin: 0 0 16px; position: relative; z-index: 2; }
+.dc-hero h1 em { font-style: italic; color: #0fccb0; }
+.dc-hero .hero-sub { font-family: 'Source Serif 4', serif; font-size: 1.08rem; color: #b8c8d8;
+    line-height: 1.65; max-width: 680px; position: relative; z-index: 2; margin: 0 0 24px; }
+.dc-hero .hero-meta { display: flex; gap: 18px; flex-wrap: wrap; position: relative; z-index: 2; }
+.dc-hero .hero-meta span { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: #6a8aaa; letter-spacing: 0.1em; }
+.dc-hero .hero-meta span strong { color: #d0dcea; }
+
+/* stats bar */
+.dc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; margin: 28px 0; }
+.dc-stats .stat { background: #0c1a2a; border: 1px solid #1a3050; border-left: 4px solid #0fccb0;
+    padding: 14px 16px; border-radius: 6px; }
+.dc-stats .stat .num { font-family: 'Playfair Display', serif; font-size: 24px; color: #ffffff; display: block; margin-bottom: 2px; }
+.dc-stats .stat .lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #607080;
+    text-transform: uppercase; letter-spacing: 0.12em; }
+
+/* interview blocks */
+.iv-block { margin: 26px 0; padding: 18px 20px; background: #fdf6ee; border: 1px solid #efd9b8;
+    border-left: 4px solid #c8915a; border-radius: 4px; }
+.iv-block .iv-tag { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: #8a5a1a; font-weight: 700; margin-bottom: 6px; display: block; }
+.iv-block .iv-q { font-family: 'Playfair Display', serif; font-size: 18px; color: #2a1a0a; margin: 0 0 8px; }
+.iv-block .iv-a { color: #3a2a1a; line-height: 1.65; margin: 0; }
+
+/* code blocks */
+.code-block { margin: 18px 0; }
+.code-block .code-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: #5a6b7e; font-weight: 600; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px; }
+.code-block .code-label .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.code-block .code-label .dot.sql { background: #1a4f8a; }
+.code-block .code-label .dot.py  { background: #0fccb0; }
+.code-block .code-label .dot.yml { background: #f59e0b; }
+.code-block .code-label .dot.out { background: #c8915a; }
+.code-block pre { margin: 0; padding: 16px 18px; background: #060e1c; color: #e8f0f8; border-radius: 4px;
+    font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+    line-height: 1.58; overflow-x: auto; border-left: 4px solid #1a4f8a; }
+.code-block.py-block  pre { border-left-color: #0fccb0; }
+.code-block.yml-block pre { border-left-color: #f59e0b; }
+.code-block.out-block pre { background: #0a1420; border-left-color: #c8915a; }
+.article-content .code-block pre,
+.article-content .code-block pre code { white-space: pre; word-wrap: normal; word-break: normal; tab-size: 4; }
+.article-content .code-block pre code { font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12.5px; line-height: 1.58; color: inherit; background: transparent; border: 0; padding: 0; display: block; }
+.article-content .iv-block code { background: rgba(200,145,90,.10); border-color: #efd9b8; padding: 1px 6px; font-size: 13px; }
+
+/* viz grid */
+.viz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 18px 0; }
+.viz-card { background: #ffffff; border: 1px solid #dbe2ec; border-left: 4px solid #0fccb0;
+    border-radius: 4px; padding: 14px 16px; }
+.viz-card h5 { margin: 0 0 6px; font-family: 'Playfair Display', serif; font-size: 15px; color: #0a1929; }
+.viz-card p { margin: 0; color: #3a4a5e; font-size: 13.5px; line-height: 1.55; }
+.viz-card .num { display: block; font-family: 'Playfair Display', serif; font-size: 26px; color: #0c7a68; margin-bottom: 4px; }
+.viz-card.warn { border-left-color: #ef4444; }
+.viz-card.warn .num { color: #b91c1c; }
+.viz-card.amber { border-left-color: #f59e0b; }
+.viz-card.amber .num { color: #92400e; }
+
+/* flow boxes */
+.flow-box { background: #f4f8fe; border: 1px solid #c8d4e2; border-radius: 6px; padding: 16px 18px;
+    margin: 18px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    line-height: 1.7; color: #1a2332; white-space: pre; overflow-x: auto; }
+.flow-box.dark { background: #060e1c; color: #a8c0d8; border-color: #1a3050; }
+
+/* cert anatomy */
+.cert-anatomy { background: #060e1c; border: 1px solid #1a3050; border-radius: 6px;
+    padding: 20px 22px; margin: 22px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c8dde8; }
+.cert-anatomy .field { display: flex; gap: 16px; padding: 6px 0; border-bottom: 1px solid #0f1e30; }
+.cert-anatomy .field:last-child { border-bottom: none; }
+.cert-anatomy .field .fname { color: #0fccb0; min-width: 220px; font-weight: 600; }
+.cert-anatomy .field .fval  { color: #8aabb8; }
+.cert-anatomy .field .fnote { color: #506070; font-size: 11px; margin-left: auto; }
+
+/* store table */
+.store-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; }
+.store-table th, .store-table td { padding: 9px 12px; text-align: left; border: 1px solid #e2e8f0; }
+.store-table th { background: #060e1c; color: #b8ccd8; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.store-table td { color: #2a3848; }
+.store-table tr:nth-child(even) td { background: #f7fafd; }
+.store-table code { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    background: #eef2f6; border: 1px solid #d0d8e4; padding: 1px 5px; border-radius: 2px; }
+
+/* chain diagram */
+.chain-diagram { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 22px 0; }
+.chain-node { background: #0c1a2a; border: 2px solid #1a3050; border-radius: 8px;
+    padding: 12px 28px; text-align: center; min-width: 240px; position: relative; }
+.chain-node.root { border-color: #f59e0b; background: #1a1200; }
+.chain-node.inter { border-color: #0fccb0; background: #041412; }
+.chain-node.leaf  { border-color: #6366f1; background: #0c0a24; }
+.chain-node .cn-label { font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: .2em; text-transform: uppercase; margin-bottom: 4px; }
+.chain-node.root .cn-label { color: #f59e0b; }
+.chain-node.inter .cn-label { color: #0fccb0; }
+.chain-node.leaf  .cn-label { color: #818cf8; }
+.chain-node .cn-name { font-family: 'Playfair Display', serif; font-size: 14px; color: #e8f0f8; }
+.chain-node .cn-detail { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #506070; margin-top: 2px; }
+.chain-arrow { font-size: 22px; color: #2a4050; line-height: 1; margin: 4px 0; }
+
+/* k8s architecture */
+.k8s-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 20px 0; }
+.k8s-pod { background: #060e1c; border: 1px solid #1a3050; border-radius: 8px; padding: 16px 18px; }
+.k8s-pod .pod-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .2em;
+    text-transform: uppercase; color: #0fccb0; margin-bottom: 8px; }
+.k8s-pod h5 { margin: 0 0 6px; font-family: 'Playfair Display', serif; font-size: 15px; color: #dce8f0; }
+.k8s-pod p { margin: 0; color: #607888; font-size: 13px; line-height: 1.55; }
+.k8s-pod ul { margin: 8px 0 0; padding-left: 16px; color: #607888; font-size: 12.5px; line-height: 1.7; }
+.k8s-pod.amber { border-color: #78420a; }
+.k8s-pod.amber .pod-label { color: #f59e0b; }
+.k8s-pod.purple { border-color: #3b3580; }
+.k8s-pod.purple .pod-label { color: #818cf8; }
+.k8s-pod.red { border-color: #7a1a1a; }
+.k8s-pod.red .pod-label { color: #ef4444; }
+
+/* tls handshake */
+.handshake { display: grid; grid-template-columns: 1fr 80px 1fr; gap: 0; margin: 22px 0; }
+.hs-col { display: flex; flex-direction: column; gap: 4px; }
+.hs-actor { background: #060e1c; border: 2px solid #1a3050; border-radius: 6px;
+    padding: 10px 14px; text-align: center; font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: #0fccb0; letter-spacing: .1em; }
+.hs-actor.srv { border-color: #6366f1; color: #818cf8; }
+.hs-msg { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #405060; padding: 6px 4px; line-height: 1.4; }
+.hs-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding-top: 50px; }
+.hs-arrow { font-size: 18px; color: #2a5070; line-height: 1; }
+.hs-arrow.right { align-self: stretch; display: flex; align-items: center; justify-content: center; }
+.hs-step { background: #0c1a2a; border: 1px solid #1a3050; border-radius: 4px;
+    padding: 7px 10px; margin: 4px 0; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: #8aabb8; letter-spacing: .08em; }
+.hs-step.send { border-left: 3px solid #0fccb0; }
+.hs-step.recv { border-left: 3px solid #6366f1; }
+.hs-step.both { border-left: 3px solid #f59e0b; }
+
+/* section headings */
+.domain-header { margin: 48px 0 10px; padding-bottom: 8px; border-bottom: 2px solid #e8eff6; }
+.domain-header .domain-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: .28em; text-transform: uppercase; color: #0fccb0; margin-bottom: 6px; }
+.domain-header h2 { font-family: 'Playfair Display', serif; font-size: clamp(1.55rem, 3vw, 2.1rem);
+    font-weight: 700; color: #0a1929; margin: 0; }
+
+.ornament-divider { text-align: center; color: #b0bcc8; font-size: 22px; margin: 36px 0; letter-spacing: 12px; }
+.pull-quote-divider { border-left: 5px solid #0fccb0; padding: 12px 20px; margin: 28px 0;
+    background: #f0fbf9; font-family: 'Playfair Display', serif; font-style: italic;
+    font-size: 1.15rem; color: #1a3a34; line-height: 1.6; border-radius: 0 4px 4px 0; }
+
+/* spiffe diagram */
+.spiffe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 18px 0; }
+.spiffe-node { border: 1px solid #1a3050; border-radius: 6px; padding: 12px 14px;
+    background: #08141e; text-align: center; }
+.spiffe-node .sn-id { font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: #0fccb0; letter-spacing: .1em; word-break: break-all; margin-bottom: 6px; }
+.spiffe-node .sn-name { font-family: 'Playfair Display', serif; font-size: 13px; color: #c8d8e4; }
+</style>
+</head>
+<body>
+<nav class="article-nav">
+    <a href="../index.html" class="nav-home">← PaddySpeaks</a>
+    <div class="nav-meta">
+        <span class="nav-category">Technology · System Design</span>
+        <span class="dot"></span>
+        <span>38 min read</span>
+    </div>
+</nav>
+
+<article class="article-container">
+<div class="article-content">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HERO
+════════════════════════════════════════════════════════════════ -->
+<div class="dc-hero">
+    <div class="hero-eyebrow">System Design Deep-Dive · Security Infrastructure</div>
+    <h1>Designing <em>DigiCert</em><br>PKI, X.509 &amp; Certificates<br>at Kubernetes Scale</h1>
+    <p class="hero-sub">From the byte layout of a certificate to a CA issuing a million certs a day on Kubernetes — the full stack, built out in schema, Python, cert-manager YAML, and real architecture decisions that keep the internet's TLS working.</p>
+    <div class="hero-meta">
+        <span><strong>Paddy Iyer</strong></span>
+        <span>·</span>
+        <span>Jun 23, 2026</span>
+        <span>·</span>
+        <span>38 min read</span>
+        <span>·</span>
+        <span>Technology</span>
+    </div>
+</div>
+
+<div class="dc-stats">
+    <div class="stat"><span class="num">~9B</span><span class="lbl">Certs issued (DigiCert lifetime)</span></div>
+    <div class="stat"><span class="num">8B+</span><span class="lbl">OCSP checks / day</span></div>
+    <div class="stat"><span class="num">90 days</span><span class="lbl">Max TLS cert lifetime (2026 CA/B Forum)</span></div>
+    <div class="stat"><span class="num">47 ms</span><span class="lbl">Median TLS handshake (p50, modern TLS 1.3)</span></div>
+    <div class="stat"><span class="num">&gt;500</span><span class="lbl">Root CA programs (Mozilla, Apple, MS, Google)</span></div>
+</div>
+
+<p>When your browser shows the padlock on <em>https://paddyspeaks.com</em> a surprisingly deep ceremony happened in under 50 milliseconds. A certificate was presented, a chain of trust was walked, cryptographic signatures were verified, and a symmetric session key was negotiated — all before a single byte of HTTP was exchanged. DigiCert is the company that, in many cases, signed the certificate that made that padlock possible. But DigiCert is also the infrastructure problem of our time: issuing, renewing, revoking, and auditing hundreds of millions of certificates across browsers, operating systems, IoT devices, cloud workloads, and Kubernetes pods — at sub-second latency, with zero tolerance for error.</p>
+
+<p>This article is an interview-ready, practitioner-level breakdown: what a certificate actually is, where it lives on your machine, how TLS handshakes work, and then the design deep-dive — how you build the issuance pipeline, the revocation infrastructure, and the Kubernetes-native PKI that keeps modern microservices mutually authenticated.</p>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 1 — THE CERTIFICATE ITSELF
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 1 — The Fundamentals</div>
+    <h2>What Is a Certificate?</h2>
+</div>
+
+<p>A digital certificate is a <strong>signed data structure that binds a public key to an identity</strong>. Think of it as a passport: the document carries your name (the Subject), a photo (the public key), an expiry date, and — critically — a stamp from a recognized authority (the CA signature). Anyone who trusts the authority can trust the document, without needing to know you personally.</p>
+
+<p>Certificates follow the <strong>X.509 v3</strong> standard (RFC 5280). Here is what lives in every cert your browser, OS, or Kubernetes pod processes:</p>
+
+<div class="cert-anatomy">
+    <div class="field"><span class="fname">Version</span><span class="fval">3 (X.509 v3, the current standard)</span><span class="fnote">integer</span></div>
+    <div class="field"><span class="fname">Serial Number</span><span class="fval">A3:0F:81:C2:…  (CA-unique, 20 bytes)</span><span class="fnote">used for revocation</span></div>
+    <div class="field"><span class="fname">Signature Algorithm</span><span class="fval">sha256WithRSAEncryption  /  ecdsa-with-SHA384</span><span class="fnote">OID</span></div>
+    <div class="field"><span class="fname">Issuer</span><span class="fval">CN=DigiCert TLS RSA SHA256 2020 CA1, O=DigiCert Inc, C=US</span><span class="fnote">Intermediate CA</span></div>
+    <div class="field"><span class="fname">Validity: Not Before</span><span class="fval">2026-01-01 00:00:00 UTC</span><span class="fnote"></span></div>
+    <div class="field"><span class="fname">Validity: Not After</span><span class="fval">2026-04-01 23:59:59 UTC  (90-day leaf)</span><span class="fnote">shortening to 47d in 2027</span></div>
+    <div class="field"><span class="fname">Subject</span><span class="fval">CN=paddyspeaks.com</span><span class="fnote">DV cert; no O/OU for DV</span></div>
+    <div class="field"><span class="fname">Subject Public Key Info</span><span class="fval">RSA 2048-bit  /  ECDSA P-256 — the public key bytes</span><span class="fnote">~270 bytes for P-256</span></div>
+    <div class="field"><span class="fname">Extensions: SAN</span><span class="fval">DNS:paddyspeaks.com, DNS:*.paddyspeaks.com</span><span class="fnote">Subject Alternative Names</span></div>
+    <div class="field"><span class="fname">Extensions: Key Usage</span><span class="fval">Digital Signature, Key Encipherment</span><span class="fnote">bitfield</span></div>
+    <div class="field"><span class="fname">Extensions: Extended Key Usage</span><span class="fval">TLS Web Server Authentication (1.3.6.1.5.5.7.3.1)</span><span class="fnote">OID</span></div>
+    <div class="field"><span class="fname">Extensions: Authority Key Id</span><span class="fval">SHA-1 of Issuer Public Key</span><span class="fnote">chain walking</span></div>
+    <div class="field"><span class="fname">Extensions: OCSP URL</span><span class="fval">http://ocsp.digicert.com</span><span class="fnote">revocation check</span></div>
+    <div class="field"><span class="fname">Extensions: CRL Distribution</span><span class="fval">http://crl3.digicert.com/DigiCertTLS2020CA1.crl</span><span class="fnote">revocation list</span></div>
+    <div class="field"><span class="fname">Extensions: CT Poison / SCT List</span><span class="fval">Signed Certificate Timestamps (2+ logs required)</span><span class="fnote">Certificate Transparency</span></div>
+    <div class="field"><span class="fname">Signature</span><span class="fval">Intermediate CA's private key signs all fields above</span><span class="fnote">256 bytes RSA / 72 bytes ECDSA</span></div>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">What's the difference between a self-signed cert and a CA-signed cert? When would you use each?</p>
+    <p class="iv-a">A self-signed cert is signed by the same key it describes — no third-party trust. Your browser rejects it because no root store vouches for the signer. Use them for local development, internal testing, or mTLS in a controlled private PKI where you control the trust anchor. A CA-signed cert involves a trusted third party (DigiCert, Let's Encrypt) vouching that they verified the domain (DV), organization (OV), or identity (EV) before signing. Use for anything public-facing or where clients have no out-of-band reason to trust you.</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 2 — THE CHAIN OF TRUST
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 2 — Chain of Trust</div>
+    <h2>Root CA → Intermediate CA → Leaf</h2>
+</div>
+
+<p>No browser trusts a leaf certificate directly. Trust flows through a <strong>chain</strong>. The chain exists because Root CAs are kept offline (air-gapped, HSM-locked) and never issue directly to websites. Intermediates carry the operational risk.</p>
+
+<div class="chain-diagram">
+    <div class="chain-node root">
+        <div class="cn-label">Root CA — Offline / Air-Gapped</div>
+        <div class="cn-name">DigiCert Global Root G2</div>
+        <div class="cn-detail">RSA 2048 · Self-signed · Valid 30+ years · In every OS root store</div>
+    </div>
+    <div class="chain-arrow">↓ signs</div>
+    <div class="chain-node inter">
+        <div class="cn-label">Intermediate CA — Online / HSM</div>
+        <div class="cn-name">DigiCert TLS RSA SHA256 2020 CA1</div>
+        <div class="cn-detail">RSA 2048 · Signed by Root G2 · Valid 10 years · Issues leaf certs</div>
+    </div>
+    <div class="chain-arrow">↓ signs</div>
+    <div class="chain-node leaf">
+        <div class="cn-label">Leaf / End-Entity Cert</div>
+        <div class="cn-name">paddyspeaks.com</div>
+        <div class="cn-detail">P-256 or RSA 2048 · Signed by Intermediate · Valid 90 days</div>
+    </div>
+</div>
+
+<p>When your browser validates a cert it walks this chain upwards: leaf → intermediate → root. At each step it checks: does the <code>Issuer</code> field match the <code>Subject</code> of the next cert? Does the signature verify with the next cert's public key? Is anything expired or revoked? Does the root appear in the OS trust store? Only when all checks pass does the padlock appear.</p>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">Why do CAs use intermediate certificates instead of signing everything from the Root?</p>
+    <p class="iv-a">Root private keys are the crown jewels. Compromise of a root means every certificate ever signed by it must be distrusted — browser vendors remove the root and millions of sites go dark. By never using the root online, you limit blast radius to the intermediate if it's compromised. The root can then revoke the intermediate (publish an updated CRL) and issue a replacement intermediate, without touching the trust anchors baked into every OS worldwide. This is defense-in-depth at the PKI layer. DigiCert typically has dozens of active intermediates, each scoped by key type, use case, or geography.</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 3 — WHERE CERTS LIVE
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 3 — Trust Stores</div>
+    <h2>Where Certificates Are Stored</h2>
+</div>
+
+<p>Your machine maintains multiple layers of certificate storage — OS trust anchors, application-level trust stores, and per-user keystores. Understanding which one an application uses is the difference between "the cert works in Chrome but not in curl" (a classic production mystery).</p>
+
+<table class="store-table">
+    <thead>
+        <tr><th>Platform / Store</th><th>Location / Tool</th><th>Who reads it</th><th>User modifiable?</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><strong>macOS Keychain</strong></td><td>System Keychain (<code>/Library/Keychains/System.keychain</code>) + System Roots</td><td>Safari, curl (via SecureTransport), most apps</td><td>Admin can add to System; users to Login</td></tr>
+        <tr><td><strong>macOS Login Keychain</strong></td><td><code>~/Library/Keychains/login.keychain-db</code></td><td>User-space apps, Keychain Access.app</td><td>Yes</td></tr>
+        <tr><td><strong>Windows Certificate Store</strong></td><td>Registry-backed: <code>Cert:\LocalMachine\Root</code>, <code>Cert:\CurrentUser\Root</code></td><td>IE, Edge, Chrome (on Windows), WinHTTP, .NET, PowerShell</td><td>Admin for LocalMachine; user for CurrentUser</td></tr>
+        <tr><td><strong>Mozilla NSS</strong></td><td>Firefox-bundled <code>cert9.db</code> in profile folder; <code>certutil</code> (libnss)</td><td>Firefox, Thunderbird, LibreOffice on Linux</td><td>Yes, per-profile</td></tr>
+        <tr><td><strong>Linux System (ca-certificates)</strong></td><td><code>/etc/ssl/certs/ca-certificates.crt</code> (Debian/Ubuntu) or <code>/etc/pki/tls/certs/ca-bundle.crt</code> (RHEL)</td><td>OpenSSL-linked apps, curl, wget, Python requests</td><td>Root only; <code>update-ca-certificates</code></td></tr>
+        <tr><td><strong>JVM KeyStore (JKS/PKCS12)</strong></td><td><code>$JAVA_HOME/lib/security/cacerts</code>; custom via <code>-Djavax.net.ssl.trustStore=</code></td><td>Java, Kafka, Elasticsearch, Hadoop</td><td><code>keytool</code> (admin)</td></tr>
+        <tr><td><strong>Node.js</strong></td><td>Bundles its own Mozilla root store (<code>npm config get cafile</code>); bypasses OS</td><td>Node.js apps, npm</td><td><code>NODE_EXTRA_CA_CERTS</code> env var</td></tr>
+        <tr><td><strong>Kubernetes Secret</strong></td><td><code>kubectl get secret tls-cert -n default</code>; mounted at <code>/etc/ssl/certs/</code></td><td>Pods that mount the secret</td><td>Yes, via kubectl / cert-manager</td></tr>
+        <tr><td><strong>Browser (Chrome)</strong></td><td>macOS/Windows: delegates to OS. Linux: bundles its own NSS <code>~/.pki/nssdb</code></td><td>Chrome, Chromium</td><td>Settings → Certificates; <code>certutil</code> on Linux</td></tr>
+        <tr><td><strong>iOS / iPadOS</strong></td><td>Settings → General → About → Certificate Trust Settings</td><td>Safari, native apps, WKWebView</td><td>Users can toggle trust; MDM can push roots</td></tr>
+    </tbody>
+</table>
+
+<div class="pull-quote-divider">"The cert works in Chrome but not in curl" — 9 times out of 10 this is because Chrome delegates to the macOS System Keychain while curl uses OpenSSL's ca-certificates bundle, and the intermediate wasn't installed in the right store.</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">A Java microservice throws <code>PKIX path building failed: unable to find valid certification path to requested target</code>. The same endpoint works in curl. Walk me through your diagnosis.</p>
+    <p class="iv-a">The Java process uses its own <code>cacerts</code> keystore (JKS), not the OS store. curl uses the system CA bundle. Likely the server cert's intermediate CA is not in the JVM keystore. Steps: (1) <code>openssl s_client -connect host:443 -showcerts</code> to dump the full chain. (2) <code>keytool -list -cacerts -alias digicert-inter</code> to check if the intermediate is present. (3) If missing: <code>keytool -importcert -alias &lt;alias&gt; -file inter.crt -cacerts -storepass changeit</code>. In Kubernetes: update the trust bundle ConfigMap and restart pods. Prefer using PKCS12 trust stores over JKS (deprecated since Java 9); and prefer injecting the CA bundle as a volume rather than modifying the base image's <code>cacerts</code>.</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 4 — TLS HANDSHAKE
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 4 — The Protocol</div>
+    <h2>The TLS 1.3 Handshake</h2>
+</div>
+
+<p>TLS 1.3 reduced the handshake to <strong>1 round-trip</strong> (down from 2 in TLS 1.2). Here is every message exchanged when you hit <em>https://paddyspeaks.com</em>:</p>
+
+<div class="flow-box dark">CLIENT                                          SERVER
+──────                                          ──────
+ClientHello                    ──────────────►  (TLS version, cipher suites,
+  - supported versions: TLS 1.3                  key_share: client's ephemeral
+  - key_share (X25519 ECDH pub)                  Diffie-Hellman public key,
+  - supported_groups                             random bytes)
+  - signature_algorithms
+
+                               ◄──────────────  ServerHello
+                                                  - selected cipher: TLS_AES_256_GCM_SHA384
+                                                  - key_share: server's DH pub key
+                                                  ← BOTH SIDES NOW DERIVE session keys →
+                                                  (no more plaintext after this point)
+
+                               ◄ ─ ─ ─ ─ ─ ─   EncryptedExtensions
+                               ◄ ─ ─ ─ ─ ─ ─   Certificate (leaf + intermediates)
+                               ◄ ─ ─ ─ ─ ─ ─   CertificateVerify (server signs handshake hash)
+                               ◄ ─ ─ ─ ─ ─ ─   Finished (HMAC over entire handshake)
+
+CLIENT verifies:
+  1. Chain: leaf → intermediate → trusted root
+  2. SANs match the hostname
+  3. Cert not expired
+  4. Signature on CertificateVerify valid
+  5. OCSP staple or online check → not revoked
+  6. CT SCTs present (Chrome requires 2+)
+
+Finished                       ──────────────►  (client confirms receipt)
+
+                               ═══════════════  Application Data (HTTP/2 frames, encrypted)
+                                                Total new RTTs: 1 (+ 0-RTT resumption possible)</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">What is OCSP stapling and why does it matter at DigiCert scale?</p>
+    <p class="iv-a">Online Certificate Status Protocol (OCSP) lets a client ask "is this cert revoked?" in real time. Without stapling, the client must call DigiCert's OCSP responder for every TLS handshake — at 8 billion handshakes a day that's a privacy leak (DigiCert sees every site you visit) and a latency hit. OCSP Stapling inverts this: the server periodically fetches a signed OCSP response from DigiCert, then attaches ("staples") it to the TLS handshake in the <code>CertificateStatus</code> message. The client gets a CA-signed "this cert is good as of T" response with zero extra RTT, and DigiCert doesn't learn about individual client connections. Stapled responses are typically valid for 24–48 hours, so the server must refresh them on a cron. Nginx: <code>ssl_stapling on; ssl_stapling_verify on;</code>. Failure to staple → browsers either soft-fail or hard-fail depending on the CA/B Forum ballot (OCSP Must-Staple extension enforces hard-fail).</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 5 — THE DATA MODEL
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 5 — Schema Design</div>
+    <h2>The Certificate Issuance Database</h2>
+</div>
+
+<p>DigiCert needs to track every certificate it has issued — for billing, for revocation, for audit, and for CA/Browser Forum compliance. Here is the core schema:</p>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL — Core PKI Schema (PostgreSQL)</div>
+    <pre><code>-- Certificate Authorities (roots + intermediates)
+CREATE TABLE certificate_authority (
+    ca_id           BIGSERIAL PRIMARY KEY,
+    common_name     TEXT NOT NULL,
+    subject_dn      TEXT NOT NULL,                      -- full distinguished name
+    ca_type         TEXT NOT NULL CHECK (ca_type IN ('root','intermediate','issuing')),
+    parent_ca_id    BIGINT REFERENCES certificate_authority(ca_id),
+    public_key_sha256 BYTEA NOT NULL UNIQUE,            -- key fingerprint
+    cert_pem        TEXT NOT NULL,
+    valid_from      TIMESTAMPTZ NOT NULL,
+    valid_until     TIMESTAMPTZ NOT NULL,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    hsm_slot_id     TEXT,                               -- HSM partition reference
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Issued certificates (leaf + subordinate CAs)
+CREATE TABLE certificate (
+    cert_id         BIGSERIAL PRIMARY KEY,
+    serial_number   BYTEA NOT NULL,                     -- 20 bytes, CA-unique
+    issuing_ca_id   BIGINT NOT NULL REFERENCES certificate_authority(ca_id),
+    subject_cn      TEXT NOT NULL,
+    subject_dn      TEXT NOT NULL,
+    cert_type       TEXT NOT NULL CHECK (cert_type IN ('dv','ov','ev','code_sign','s_mime','client','device')),
+    san_list        TEXT[] NOT NULL DEFAULT '{}',       -- DNS names, IPs, emails
+    public_key_algo TEXT NOT NULL,                      -- RSA, EC, Ed25519
+    key_size_bits   INT,                                -- 2048, 4096; null for EC
+    ec_curve        TEXT,                               -- P-256, P-384; null for RSA
+    public_key_sha256 BYTEA NOT NULL,
+    cert_pem        TEXT NOT NULL,
+    valid_from      TIMESTAMPTZ NOT NULL,
+    valid_until     TIMESTAMPTZ NOT NULL,
+    issued_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    customer_id     BIGINT NOT NULL,
+    order_id        BIGINT NOT NULL,
+    domain_validated_at TIMESTAMPTZ,                    -- DCV timestamp
+    status          TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active','revoked','expired','hold')),
+    ct_log_ids      TEXT[] NOT NULL DEFAULT '{}',       -- SCT log IDs
+    UNIQUE (issuing_ca_id, serial_number)
+);
+
+-- Revocation events
+CREATE TABLE revocation (
+    revocation_id   BIGSERIAL PRIMARY KEY,
+    cert_id         BIGINT NOT NULL REFERENCES certificate(cert_id),
+    revoked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reason_code     INT NOT NULL,                       -- RFC 5280 CRLReason
+    reason_text     TEXT,
+    requested_by    TEXT NOT NULL,                      -- customer / admin / auto
+    ocsp_next_update TIMESTAMPTZ,                       -- OCSP response cache TTL
+    crl_published_at TIMESTAMPTZ
+);
+
+-- Domain Control Validation
+CREATE TABLE dcv_event (
+    dcv_id          BIGSERIAL PRIMARY KEY,
+    cert_id         BIGINT REFERENCES certificate(cert_id),
+    domain          TEXT NOT NULL,
+    method          TEXT NOT NULL CHECK (method IN ('http-01','dns-01','tls-alpn-01','email')),
+    challenge_token TEXT NOT NULL,
+    challenge_value TEXT NOT NULL,
+    validated_at    TIMESTAMPTZ,
+    expires_at      TIMESTAMPTZ NOT NULL,               -- reuse window (825 days → 90 days)
+    ip_logged       INET                                -- requester IP for audit
+);
+
+-- OCSP response cache (hot read path)
+CREATE TABLE ocsp_response_cache (
+    cert_id         BIGINT NOT NULL REFERENCES certificate(cert_id),
+    ca_id           BIGINT NOT NULL REFERENCES certificate_authority(ca_id),
+    this_update     TIMESTAMPTZ NOT NULL,
+    next_update     TIMESTAMPTZ NOT NULL,
+    ocsp_status     TEXT NOT NULL CHECK (ocsp_status IN ('good','revoked','unknown')),
+    signed_response BYTEA NOT NULL,                     -- DER-encoded OCSPResponse
+    PRIMARY KEY (cert_id)
+);
+
+-- Indexes
+CREATE INDEX idx_cert_serial    ON certificate (issuing_ca_id, serial_number);
+CREATE INDEX idx_cert_customer  ON certificate (customer_id, status, valid_until);
+CREATE INDEX idx_cert_san       ON certificate USING GIN (san_list);
+CREATE INDEX idx_cert_expiring  ON certificate (valid_until) WHERE status = 'active';
+CREATE INDEX idx_rev_published  ON revocation (crl_published_at) WHERE crl_published_at IS NULL;
+CREATE INDEX idx_ocsp_next_upd  ON ocsp_response_cache (next_update);</code></pre>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">How would you design the serial number generation to guarantee uniqueness across a distributed CA cluster?</p>
+    <p class="iv-a">The CA/B Forum requires serial numbers to contain at least 64 bits of CSPRNG entropy (Ballot SC63). A simple sequence doesn't satisfy this. Approach: generate 20 random bytes from a CSPRNG (e.g., <code>os.urandom(20)</code> in Python), store it as <code>BYTEA</code>, and use <code>ON CONFLICT DO NOTHING … RETURNING cert_id</code> to detect the rare collision (statistically impossible in 20-byte space but good practice). Never use sequential integers — they leak issuance volume to competitors reading CT logs and provide no entropy guarantee. Alternatively, use a ULID-like scheme (48-bit timestamp prefix + 80 bits of randomness) so the serial is also monotonically sortable without leaking counts.</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 6 — ISSUANCE PIPELINE
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 6 — Issuance Pipeline</div>
+    <h2>From CSR to Signed Certificate</h2>
+</div>
+
+<p>Every certificate starts as a <strong>Certificate Signing Request (CSR)</strong> — a PKCS#10 document the applicant generates from their private key. The CA validates the request, then uses its own private key (held in an HSM) to sign and return the certificate.</p>
+
+<div class="flow-box">Applicant (e.g., customer ACME Corp or cert-manager operator)
+  │
+  │  1. Generate key pair locally:  openssl genrsa -out key.pem 2048
+  │  2. Create CSR:                 openssl req -new -key key.pem -out csr.pem
+  │  3. POST /certificate   {csr_pem, order_id, dcv_method}
+  │
+  ▼
+DigiCert RA (Registration Authority) — validates identity
+  │
+  ├─ DV: Did they control the domain?
+  │     └─ http-01:   GET /.well-known/acme-challenge/{token}  → must return {token}.{account_thumbprint}
+  │     └─ dns-01:    TXT _acme-challenge.example.com = base64url(sha256(keyAuthorization))
+  │     └─ tls-alpn:  TLS handshake on port 443 with acmeValidation-v1 OID in SAN
+  │
+  ├─ OV/EV: Additional org checks (WHOIS, phone, Dun & Bradstreet, LEI, GLEIF)
+  │
+  ├─ Policy checks: key size ≥ 2048 RSA / P-256+ EC; SHA-256+ only; SAN present
+  │
+  ├─ CT pre-certificate submission → get SCTs from 2+ independent logs (Google Argon, Cloudflare Nimbus)
+  │
+  └─ HSM sign: CA private key (never leaves HSM; PKCS#11 or AWS CloudHSM API)
+       │
+       ▼
+  Return signed cert_pem (leaf + intermediate bundle)
+  Write to DB: certificate table, CT log IDs, dcv_event.validated_at</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python — Automated ACME issuance (cert-manager style logic)</div>
+    <pre><code>import hashlib, base64, json, time
+from cryptography import x509
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
+import datetime, ipaddress
+
+def generate_csr(domain: str, sans: list[str]) -> tuple[bytes, bytes]:
+    """Generate EC P-256 private key + CSR. Returns (private_key_pem, csr_pem)."""
+    key = ec.generate_private_key(ec.SECP256R1())
+
+    csr = (
+        x509.CertificateSigningRequestBuilder()
+        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, domain)]))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(s) for s in sans]),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    return (
+        key.private_bytes(serialization.Encoding.PEM,
+                          serialization.PrivateFormat.TraditionalOpenSSL,
+                          serialization.NoEncryption()),
+        csr.public_bytes(serialization.Encoding.PEM),
+    )
+
+
+def dns01_key_authorization(token: str, account_key_thumbprint: str) -> str:
+    """Build the DNS TXT record value for dns-01 challenge."""
+    key_auth = f"{token}.{account_key_thumbprint}"
+    digest = hashlib.sha256(key_auth.encode()).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
+def poll_order(acme_client, order_url: str, timeout: int = 120) -> dict:
+    """Poll ACME order until valid or timeout."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        order = acme_client.get(order_url)
+        if order["status"] == "valid":
+            return order
+        if order["status"] == "invalid":
+            raise RuntimeError(f"ACME order invalid: {order.get('error')}")
+        time.sleep(3)
+    raise TimeoutError("ACME order did not complete in time")
+
+
+def build_cert_bundle(leaf_pem: bytes, intermediates: list[bytes]) -> bytes:
+    """Concatenate leaf + chain for nginx ssl_certificate."""
+    return leaf_pem + b"\n".join(intermediates)
+
+
+# ── Usage ──────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    domain = "paddyspeaks.com"
+    sans   = ["paddyspeaks.com", "www.paddyspeaks.com"]
+
+    key_pem, csr_pem = generate_csr(domain, sans)
+    print(csr_pem.decode())
+
+    # In a real flow:
+    # 1. Submit csr_pem to ACME newOrder → get challenge URLs
+    # 2. Publish DNS TXT = dns01_key_authorization(token, thumbprint)
+    # 3. Tell ACME server challenge is ready → poll_order(client, order_url)
+    # 4. Download cert → build_cert_bundle(leaf, [intermediate_pem])
+    # 5. Store key_pem in a secret (Vault, K8s Secret) — never log it</code></pre>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">What is Certificate Transparency and why can't DigiCert issue a cert without it?</p>
+    <p class="iv-a">Certificate Transparency (CT, RFC 9162) is a public, append-only audit log of every certificate issued. Before a CA can issue a certificate that Chrome will accept, it must submit a "pre-certificate" (the cert with a poison extension) to at least 2 independent CT logs, receive Signed Certificate Timestamps (SCTs) back, and embed those SCTs in the final cert. Chrome hardcoded this requirement in 2018. The logs are Merkle trees: any observer can check whether a cert was logged, and auditors can look for misissued certs. This means if DigiCert (or a rogue CA) issues a cert for google.com without Google's consent, Google's CT monitor will catch it within minutes. Before CT, rogue CA incidents (DigiNotar 2011, Comodo 2011) took months to discover. Now the detection window is under 5 minutes for any actively monitored domain.</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 7 — REVOCATION
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 7 — Revocation Infrastructure</div>
+    <h2>CRL, OCSP, and the Revocation Crisis</h2>
+</div>
+
+<p>When a private key is compromised, the certificate must be revoked — marked invalid before its natural expiry. DigiCert must make this revocation available to <em>every browser in the world</em> within 24 hours (CA/B Forum Baseline Requirements). There are two mechanisms:</p>
+
+<div class="viz-grid">
+    <div class="viz-card">
+        <h5>Certificate Revocation List (CRL)</h5>
+        <p>A CA-signed list of revoked serial numbers, published as a file at the CRL Distribution Point URL. Browsers download periodically. Can grow very large for big CAs — DigiCert's intermediate CRLs are partitioned to stay under 10 MB. Update cycle: typically 24–48 hours, up to 7 days for Root CRLs.</p>
+    </div>
+    <div class="viz-card">
+        <h5>OCSP — Online Certificate Status Protocol</h5>
+        <p>Real-time HTTP query per cert: "Is serial X from CA Y good or revoked?" DigiCert's OCSP responders are globally distributed via Anycast and must respond in under 75 ms (BR requirement). Signed responses cached for 24–48 h. The OCSP URL is embedded in every leaf cert's AIA extension.</p>
+    </div>
+    <div class="viz-card warn">
+        <h5>The Revocation Problem</h5>
+        <p>Browsers mostly <em>soft-fail</em> on OCSP errors (if DigiCert's OCSP is down, the cert is accepted). This breaks the revocation guarantee. Chrome removed soft-fail CRL/OCSP in 2023, instead relying on <strong>CRLite</strong> — a probabilistic Bloom filter pushed to every Chrome browser daily, capturing all revocations for all CAs. Firefox uses <strong>CRLite</strong> + <strong>OneCRL</strong> for intermediates.</p>
+    </div>
+    <div class="viz-card amber">
+        <h5>CRLite / CRLSets</h5>
+        <p>Google CRLSets / Mozilla CRLite compile every revoked serial number from all CT-logged certs into a compressed Bloom filter (~2 MB). Shipped daily with browser updates. Zero OCSP latency, zero privacy leak, and works offline. The future of revocation — CAs still need to update CT logs within 24 h, but clients don't need OCSP anymore.</p>
+    </div>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python — OCSP Request / Response (checking cert status)</div>
+    <pre><code>from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.x509 import ocsp
+import urllib.request, ssl
+
+def check_ocsp_status(cert_pem: bytes, issuer_pem: bytes) -> str:
+    """Check OCSP status of a leaf cert against its issuer."""
+    cert   = x509.load_pem_x509_certificate(cert_pem)
+    issuer = x509.load_pem_x509_certificate(issuer_pem)
+
+    # Build OCSP request
+    builder = ocsp.OCSPRequestBuilder()
+    builder = builder.add_certificate(cert, issuer, hashes.SHA256())
+    req = builder.build()
+    req_der = req.public_bytes(serialization.Encoding.DER)
+
+    # Find OCSP URL from cert's AIA extension
+    aia = cert.extensions.get_extension_for_class(x509.AuthorityInformationAccess)
+    ocsp_url = next(
+        ad.access_location.value
+        for ad in aia.value
+        if ad.access_method == x509.AuthorityInformationAccessOID.OCSP
+    )
+
+    # HTTP POST OCSP request
+    http_req = urllib.request.Request(
+        ocsp_url,
+        data=req_der,
+        headers={"Content-Type": "application/ocsp-request"},
+        method="POST",
+    )
+    with urllib.request.urlopen(http_req, timeout=5) as resp:
+        resp_der = resp.read()
+
+    # Parse OCSP response
+    ocsp_resp = ocsp.load_der_ocsp_response(resp_der)
+
+    status_map = {
+        ocsp.OCSPCertStatus.GOOD: "GOOD",
+        ocsp.OCSPCertStatus.REVOKED: f"REVOKED (reason={ocsp_resp.revocation_reason})",
+        ocsp.OCSPCertStatus.UNKNOWN: "UNKNOWN",
+    }
+    return status_map.get(ocsp_resp.certificate_status, "PARSE_ERROR")
+
+
+# ── Quick cert inspection utility ─────────────────────────────────
+def inspect_cert(cert_pem: bytes) -> dict:
+    """Return key fields from a PEM certificate."""
+    cert = x509.load_pem_x509_certificate(cert_pem)
+    try:
+        san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+        sans = san.value.get_values_for_type(x509.DNSName)
+    except x509.ExtensionNotFound:
+        sans = []
+    return {
+        "subject":      cert.subject.rfc4514_string(),
+        "issuer":       cert.issuer.rfc4514_string(),
+        "serial":       hex(cert.serial_number),
+        "not_before":   cert.not_valid_before_utc.isoformat(),
+        "not_after":    cert.not_valid_after_utc.isoformat(),
+        "sans":         sans,
+        "key_algo":     cert.public_key().__class__.__name__,
+        "fingerprint":  cert.fingerprint(hashes.SHA256()).hex(),
+    }</code></pre>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 8 — KUBERNETES DEEP DIVE
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 8 — Kubernetes Architecture</div>
+    <h2>PKI at Kubernetes Scale</h2>
+</div>
+
+<p>Modern cloud-native infrastructure doesn't manually issue certificates. Instead, Kubernetes has a rich ecosystem for certificate lifecycle management, from <strong>cert-manager</strong> (the de facto operator) to <strong>SPIFFE/SPIRE</strong> (workload identity) and service meshes like <strong>Istio</strong> and <strong>Linkerd</strong> that provide transparent mTLS between every pod.</p>
+
+<div class="k8s-grid">
+    <div class="k8s-pod">
+        <div class="pod-label">Layer 1 — Cert Lifecycle</div>
+        <h5>cert-manager</h5>
+        <p>The Kubernetes operator for certificate issuance. Watches <code>Certificate</code> CRDs, submits ACME challenges, renews 30 days before expiry, and writes results into Kubernetes <code>Secrets</code>.</p>
+        <ul>
+            <li>Issuers: ACME (Let's Encrypt, DigiCert ACME), Vault PKI, DigiCert CertCentral API, self-signed, CA bundle</li>
+            <li>Supports DNS-01 via Route53, Cloud DNS, Cloudflare solvers</li>
+            <li>Rotation: automatic; zero-downtime via grace period + pod annotation</li>
+        </ul>
+    </div>
+    <div class="k8s-pod amber">
+        <div class="pod-label">Layer 2 — Workload Identity</div>
+        <h5>SPIFFE / SPIRE</h5>
+        <p>Standard for cryptographic workload identity. Each pod gets a <strong>SPIFFE ID</strong> (<code>spiffe://cluster/ns/default/sa/payments-svc</code>) and a short-lived X.509 SVID (SPIFFE Verifiable Identity Document). No secrets in images or env vars.</p>
+        <ul>
+            <li>SPIRE Server: validates node attestation (TPM, k8s SA token)</li>
+            <li>SPIRE Agent: DaemonSet; delivers SVIDs via Unix socket</li>
+            <li>SVIDs auto-rotate every 1 hour; apps re-read via Workload API</li>
+        </ul>
+    </div>
+    <div class="k8s-pod purple">
+        <div class="pod-label">Layer 3 — Service Mesh mTLS</div>
+        <h5>Istio / Linkerd</h5>
+        <p>Transparent mutual TLS between every pod-to-pod connection. Sidecar proxies (Envoy in Istio, micro-proxy in Linkerd) intercept all traffic and perform TLS termination/origination, no app code changes required.</p>
+        <ul>
+            <li>Istio Citadel (now istiod) acts as internal CA; issues workload certs via CSR to API server</li>
+            <li>Linkerd identity component issues P-256 certs valid 24 h, issued from a trust anchor</li>
+            <li>AuthorizationPolicy: deny unless cert SAN matches expected workload identity</li>
+        </ul>
+    </div>
+    <div class="k8s-pod red">
+        <div class="pod-label">Layer 4 — Secrets Management</div>
+        <h5>HashiCorp Vault PKI</h5>
+        <p>Vault's PKI secrets engine acts as a subordinate CA. Services call Vault's API to get short-lived certs (e.g., 24 h). No long-lived certs in etcd. Integrates with cert-manager via <code>VaultIssuer</code>.</p>
+        <ul>
+            <li>Audit log of every cert issued; correlate with workload identity</li>
+            <li>Dynamic credentials: cert tied to k8s service account token</li>
+            <li>Supports HSM backend for Vault's own CA key</li>
+        </ul>
+    </div>
+</div>
+
+<div class="code-block yml-block">
+    <div class="code-label"><span class="dot yml"></span>YAML — cert-manager Certificate CRD (DigiCert ACME issuer)</div>
+    <pre><code>---
+# ClusterIssuer — DigiCert ACME endpoint
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: digicert-acme
+spec:
+  acme:
+    server: https://acme.digicert.com/v2/acme/directory
+    email: ops@example.com
+    privateKeySecretRef:
+      name: digicert-acme-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: us-east-1
+            accessKeyIDSecretRef:
+              name: route53-creds
+              key: access-key-id
+            secretAccessKeySecretRef:
+              name: route53-creds
+              key: secret-access-key
+
+---
+# Certificate — requested certificate resource
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: paddyspeaks-tls
+  namespace: default
+spec:
+  secretName: paddyspeaks-tls-secret     # written as kubernetes.io/tls Secret
+  issuerRef:
+    name: digicert-acme
+    kind: ClusterIssuer
+  commonName: paddyspeaks.com
+  dnsNames:
+    - paddyspeaks.com
+    - "*.paddyspeaks.com"
+  duration: 2160h                        # 90 days (DigiCert max)
+  renewBefore: 720h                      # renew 30 days before expiry
+  privateKey:
+    algorithm: ECDSA
+    size: 256                            # P-256
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+
+---
+# Ingress — mounts the cert Secret automatically
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paddyspeaks-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "digicert-acme"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - paddyspeaks.com
+      secretName: paddyspeaks-tls-secret
+  rules:
+    - host: paddyspeaks.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: paddyspeaks-app
+                port:
+                  number: 80</code></pre>
+</div>
+
+<div class="code-block yml-block">
+    <div class="code-label"><span class="dot yml"></span>YAML — SPIFFE/SPIRE workload identity for microservices</div>
+    <pre><code>---
+# SPIRE Server — runs as StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: spire-server }
+  template:
+    spec:
+      containers:
+        - name: spire-server
+          image: ghcr.io/spiffe/spire-server:1.9
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config/
+            - name: spire-data
+              mountPath: /run/spire/data/
+
+---
+# SPIRE Agent — DaemonSet (one per node)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: spire
+spec:
+  selector:
+    matchLabels: { app: spire-agent }
+  template:
+    spec:
+      hostPID: true                         # needed for k8s node attestor
+      containers:
+        - name: spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.9
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets  # Workload API socket
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate
+
+---
+# Registration Entry — bind k8s service account → SPIFFE ID
+# kubectl exec spire-server -- spire-server entry create \
+#   -spiffeID spiffe://cluster.local/ns/default/sa/payments-svc \
+#   -parentID spiffe://cluster.local/k8s-workload-registrar/node \
+#   -selector k8s:ns:default \
+#   -selector k8s:sa:payments-svc
+#   -ttl 3600    # 1-hour SVIDs</code></pre>
+</div>
+
+<div class="spiffe-grid">
+    <div class="spiffe-node">
+        <div class="sn-id">spiffe://cluster.local/ns/payments/sa/checkout-api</div>
+        <div class="sn-name">checkout-api service</div>
+    </div>
+    <div class="spiffe-node">
+        <div class="sn-id">spiffe://cluster.local/ns/payments/sa/fraud-scorer</div>
+        <div class="sn-name">fraud-scorer service</div>
+    </div>
+    <div class="spiffe-node">
+        <div class="sn-id">spiffe://cluster.local/ns/data/sa/warehouse-writer</div>
+        <div class="sn-name">warehouse-writer service</div>
+    </div>
+    <div class="spiffe-node">
+        <div class="sn-id">spiffe://cluster.local/ns/infra/sa/kafka-consumer</div>
+        <div class="sn-name">kafka-consumer service</div>
+    </div>
+</div>
+<p style="font-size:13px;color:#607888;margin-top:-6px;">Each pod gets a unique SPIFFE ID. Istio AuthorizationPolicy can allow <em>only</em> <code>checkout-api</code>'s SPIFFE ID to call <code>fraud-scorer</code>, enforcing zero-trust service-to-service auth — no passwords, no API keys, just cert identity.</p>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">cert-manager is renewing a cert but pods keep serving the old cert. What happened?</p>
+    <p class="iv-a">cert-manager writes the renewed cert into the Kubernetes Secret, but running pods that have already loaded the cert (via volume mount or env var) won't see the update automatically. Three causes: (1) <strong>Volume mount caching</strong> — kubelet updates secret volume mounts eventually (default sync period: 60 s), but the app process must re-read the file. Most TLS libraries (nginx, Envoy) support hot-reload via SIGHUP or <code>ssl_stapling_responder</code> re-read. (2) <strong>Secret mounted as env var</strong> — env vars are never updated in running pods; you must restart the pod. (3) <strong>App holds a cached TLS context</strong> — the Go <code>tls.Config</code> or Java <code>SSLContext</code> was loaded at startup and not refreshed. Fix: use <code>tls.Config.GetCertificate</code> callback in Go that reads from disk on each handshake, or deploy Envoy/Istio as the TLS terminator and hot-reload via xDS. For Nginx on Kubernetes, the ingress controller watches the Secret and runs <code>nginx -s reload</code> automatically.</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 9 — DIGICERT SCALE DESIGN
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Part 9 — Designing at DigiCert Scale</div>
+    <h2>The Architecture Decisions</h2>
+</div>
+
+<div class="k8s-grid">
+    <div class="k8s-pod">
+        <div class="pod-label">Issuance API</div>
+        <h5>Horizontally Scaled REST + ACME</h5>
+        <p>Stateless issuance service pods behind a load balancer. The expensive work (DCV validation, HSM signing) is done async via a queue. Issuance latency budget: &lt;300 ms for DV-auto (no human review). Key design: <strong>idempotent order IDs</strong> — if the client retries, return the same cert if DCV already passed.</p>
+        <ul>
+            <li>Rate limiting: per-customer, per-domain (abuse prevention)</li>
+            <li>ACME replay-nonce: Postgres-backed nonce store, TTL 1 h</li>
+            <li>HSM pool: PKCS#11 load-balanced across 8 HSM partitions</li>
+        </ul>
+    </div>
+    <div class="k8s-pod amber">
+        <div class="pod-label">OCSP Infrastructure</div>
+        <h5>Anycast OCSP Responders</h5>
+        <p>OCSP must respond in &lt;75 ms globally. DigiCert runs OCSP responders in every major cloud region, behind BGP Anycast IPs. Responses are pre-signed and cached in Redis. Cache miss → look up <code>ocsp_response_cache</code> table → sign → store.</p>
+        <ul>
+            <li>Cache TTL: 24–48 h (matches <code>next_update</code> in OCSP response)</li>
+            <li>Revocation write-through: revoke → immediately update Redis + publish to CRL queue</li>
+            <li>SLA: 99.99% availability (4 nines); OCSP downtime = soft-fail = security hole</li>
+        </ul>
+    </div>
+    <div class="k8s-pod purple">
+        <div class="pod-label">CT Log Submission</div>
+        <h5>Pre-cert → SCT → Final Cert</h5>
+        <p>Must submit to 2+ independent logs and receive SCTs before signing the final cert. Google Argon and Cloudflare Nimbus are the dominant logs. Each submit is an HTTP POST; SCT is a 104-byte signed timestamp. DigiCert pre-fetches SCTs in parallel before the HSM signing step.</p>
+        <ul>
+            <li>Retry logic: CT log outages require fallback to alternate logs</li>
+            <li>Log-qualified: certs must remain qualified for their lifetime (5-year logs for 5-year EV)</li>
+            <li>Monitoring: CT monitor scrapes all logs, alerts on any cert for customer domains</li>
+        </ul>
+    </div>
+    <div class="k8s-pod red">
+        <div class="pod-label">Compliance + Audit</div>
+        <h5>WebTrust / ETSI Audit Trail</h5>
+        <p>Every issuance event is immutably logged (append-only Kafka topic → S3 + Iceberg table). CA/B Forum Baseline Requirements mandate 7-year retention. External auditors (e.g., KPMG for WebTrust) get read-only access to the audit trail. HSM audit logs are separately stored on write-once media.</p>
+        <ul>
+            <li>CRL/OCSP SLA monitoring: alerting if CRL not refreshed within 90% of validity window</li>
+            <li>Misissuance detection: automated linting (pkilint, zlint) on every cert before issuance</li>
+            <li>Incident response: revoke all certs from compromised intermediate within 24 h (BR §4.9.1.1)</li>
+        </ul>
+    </div>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python — Cert expiry monitoring (Prometheus metrics style)</div>
+    <pre><code>"""
+Scan a list of hostnames, check TLS cert expiry, emit Prometheus metrics.
+Deploy as a CronJob in Kubernetes or as a Prometheus exporter DaemonSet.
+"""
+import ssl, socket, datetime, logging
+from dataclasses import dataclass
+from typing import Iterator
+
+@dataclass
+class CertInfo:
+    hostname: str
+    port: int
+    subject_cn: str
+    issuer: str
+    not_after: datetime.datetime
+    days_remaining: int
+    serial: str
+
+def check_cert(hostname: str, port: int = 443, timeout: int = 10) -> CertInfo:
+    ctx = ssl.create_default_context()
+    with socket.create_connection((hostname, port), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
+            info = ssock.getpeercert()
+
+    not_after = datetime.datetime.strptime(
+        info["notAfter"], "%b %d %H:%M:%S %Y %Z"
+    ).replace(tzinfo=datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    days = (not_after - now).days
+
+    subject = dict(x[0] for x in info["subject"])
+    issuer  = dict(x[0] for x in info["issuer"])
+    serial  = str(info.get("serialNumber", "unknown"))
+
+    return CertInfo(
+        hostname=hostname,
+        port=port,
+        subject_cn=subject.get("commonName", hostname),
+        issuer=issuer.get("organizationName", "unknown"),
+        not_after=not_after,
+        days_remaining=days,
+        serial=serial,
+    )
+
+
+def scan_fleet(hostnames: list[str]) -> Iterator[CertInfo]:
+    for h in hostnames:
+        try:
+            yield check_cert(h)
+        except Exception as e:
+            logging.warning("cert check failed for %s: %s", h, e)
+
+
+def emit_prometheus_metrics(results: list[CertInfo]) -> str:
+    """Return Prometheus text format metrics."""
+    lines = [
+        "# HELP tls_cert_days_remaining Days until TLS certificate expires",
+        "# TYPE tls_cert_days_remaining gauge",
+    ]
+    for r in results:
+        label = f'hostname="{r.hostname}",issuer="{r.issuer}",serial="{r.serial}"'
+        lines.append(f"tls_cert_days_remaining{{{label}}} {r.days_remaining}")
+    return "\n".join(lines)
+
+
+# ── Usage ─────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    fleet = [
+        "paddyspeaks.com", "google.com", "github.com",
+        "api.stripe.com", "s3.amazonaws.com",
+    ]
+    results = list(scan_fleet(fleet))
+    for r in sorted(results, key=lambda x: x.days_remaining):
+        status = "CRITICAL" if r.days_remaining < 14 else ("WARNING" if r.days_remaining < 30 else "OK")
+        print(f"[{status:8s}] {r.hostname:30s}  {r.days_remaining:3d} days  issuer={r.issuer}")
+    print()
+    print(emit_prometheus_metrics(results))</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Sample Output</div>
+    <pre><code>[OK      ] paddyspeaks.com                 72 days  issuer=DigiCert Inc
+[OK      ] github.com                      61 days  issuer=DigiCert Inc
+[OK      ] google.com                      58 days  issuer=Google Trust Services
+[WARNING ] api.stripe.com                  28 days  issuer=DigiCert Inc
+[CRITICAL] internal-legacy-api.corp        11 days  issuer=Self-signed
+
+# HELP tls_cert_days_remaining Days until TLS certificate expires
+# TYPE tls_cert_days_remaining gauge
+tls_cert_days_remaining{hostname="paddyspeaks.com",issuer="DigiCert Inc",...} 72
+tls_cert_days_remaining{hostname="api.stripe.com",issuer="DigiCert Inc",...} 28
+tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed",...} 11</code></pre>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Q&A</span>
+    <p class="iv-q">The CA/B Forum is shortening max TLS cert lifetimes to 47 days by 2027. How does this change DigiCert's architecture?</p>
+    <p class="iv-a">Shorter lifetimes force <em>automation first</em> — you can't manually renew every 47 days at scale. For DigiCert it means: (1) <strong>Issuance volume spike</strong>: same number of certs but ~6x renewal frequency; issuance pipeline must scale horizontally with no per-order human review for DV. (2) <strong>ACME becomes mandatory in practice</strong>: customers who don't automate will face constant outages; DigiCert must offer first-class ACME, ACME-profiles (RFC draft), and SDK-level client support. (3) <strong>DCV reuse window shrinks</strong>: Domain validation used to be reusable for 825 days, then 398 days; short-lived certs push toward per-issuance DCV or very short reuse windows, requiring faster DNS propagation checks. (4) <strong>Monitoring / alerting</strong>: customers need Prometheus-style cert expiry dashboards (like the snippet above) because the cost of a missed renewal doubles. (5) On the positive side: shorter lifetimes shrink the window of exposure if a key is compromised — reducing the need for OCSP/CRL revocation infrastructure, since an attacker can only exploit a stolen key for 47 days max before the cert naturally expires.</p>
+</div>
+
+<div class="ornament-divider">· · ·</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLOSING
+════════════════════════════════════════════════════════════════ -->
+<div class="domain-header">
+    <div class="domain-eyebrow">Putting It Together</div>
+    <h2>The DigiCert Design Summary</h2>
+</div>
+
+<p>PKI looks like bureaucracy — certificates, CRLs, HSMs, audit logs — until you realize it is the cryptographic backbone of all trust on the internet. Every lock icon, every API token, every mTLS microservice handshake traces back to a signed X.509 structure and a chain of organizations that agreed to trust each other.</p>
+
+<div class="viz-grid">
+    <div class="viz-card">
+        <span class="num">X.509 v3</span>
+        <h5>The Lingua Franca</h5>
+        <p>Every cert — web TLS, code signing, email, IoT device, Kubernetes pod — is an X.509 structure with the same field layout. Learn to read a cert (serial, SAN, AKI, EKU, OCSP URL) and you can debug any TLS problem.</p>
+    </div>
+    <div class="viz-card">
+        <span class="num">Chain</span>
+        <h5>Trust is Delegated</h5>
+        <p>Root → Intermediate → Leaf. Roots never go online. Intermediates carry operational risk. This is defense-in-depth: a compromised intermediate is contained and revocable without touching OS trust stores.</p>
+    </div>
+    <div class="viz-card">
+        <span class="num">cert-manager</span>
+        <h5>Automation Wins</h5>
+        <p>Manual certificate management doesn't survive 90-day (soon 47-day) lifetimes. cert-manager + ACME is the answer for Kubernetes. SPIFFE/SPIRE + Istio is the answer for workload-to-workload identity.</p>
+    </div>
+    <div class="viz-card amber">
+        <span class="num">HSM + CT</span>
+        <h5>The Two Pillars of CA Trust</h5>
+        <p>HSMs prevent private key exfiltration even under full server compromise. CT logs prevent silent misissaunce. Together they are why browsers can trust a CA — and why a rogue issuance is detectable within minutes.</p>
+    </div>
+</div>
+
+<div class="pull-quote-divider">The padlock is not a feature. It is a ceremony — a chain of cryptographic signatures, a walk through a trust hierarchy, a query to a revocation service, and a key negotiation — all in under 50 milliseconds. DigiCert's job is to make that ceremony reliable for a billion connections a day.</div>
+
+</div><!-- .article-content -->
+</article>
+
+<footer class="article-footer">
+    <div class="footer-inner">
+        <a href="../index.html" class="footer-home">← Back to PaddySpeaks</a>
+        <div class="footer-meta">
+            <span>Paddy Iyer</span>
+            <span class="dot"></span>
+            <span>Jun 23, 2026</span>
+            <span class="dot"></span>
+            <span>Technology · System Design</span>
+        </div>
+    </div>
+</footer>
+</body>
+</html>
