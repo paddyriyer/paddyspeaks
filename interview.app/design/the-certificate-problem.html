@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Certificate Problem — PaddySpeaks</title>
+<meta name="description" content="Design DigiCert: PKI, X.509 certificates, chain of trust, TLS handshakes, CRL/OCSP revocation, and a Kubernetes-native CA. The schema, the issuance pipeline, cert-manager YAML, SPIFFE/SPIRE workload identity, and the data architecture that keeps the internet's TLS working at a billion connections a day.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+<style>
+/* teal accent for cert / security theme */
+:root { --teal: #0a8070; --teal-deep: #065a50; --teal-light: rgba(10,128,112,.10); }
+h1 em { color: var(--teal) !important; }
+.chain-diagram { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 32px 0; }
+.chain-node { border: 2px solid var(--line-strong); border-radius: 8px; padding: 14px 32px;
+  text-align: center; min-width: 260px; background: var(--cream); }
+.chain-node.root  { border-color: var(--amber); }
+.chain-node.inter { border-color: var(--teal); }
+.chain-node.leaf  { border-color: var(--rust); }
+.chain-node .cn-type { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; margin-bottom: 4px; }
+.chain-node.root  .cn-type { color: var(--amber-deep); }
+.chain-node.inter .cn-type { color: var(--teal); }
+.chain-node.leaf  .cn-type { color: var(--rust); }
+.chain-node .cn-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; color: var(--ink); }
+.chain-node .cn-detail { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-mute); margin-top: 2px; }
+.chain-arrow { font-family: 'DM Mono', monospace; font-size: 22px; color: var(--line-strong); line-height: 1; margin: 6px 0; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 24</div>
+    <h1 class="reveal">The <em>Certificate</em> Problem</h1>
+    <p class="deck reveal">Design DigiCert — the PKI that issues, renews, and revokes X.509 certificates at a billion TLS connections a day. What a certificate actually is, where it lives (Keychain, Windows Store, JVM, Kubernetes Secrets), how the TLS handshake uses it, how revocation works (CRL, OCSP, CRLite), and how a Kubernetes-native CA — cert-manager, SPIFFE/SPIRE, Istio mTLS — replaces the manual ceremony at cloud scale. The schema, the issuance pipeline, the YAML, and the data architecture behind the padlock every browser shows.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Security Infrastructure / PKI</b></span>
+      <span>READING · <b>~38 min</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>The padlock is a ceremony</h2>
+    <p class="lede reveal">A lock icon looks like a feature. It is, in fact, a chain of cryptographic signatures, a trust hierarchy burned into every operating system worldwide, a real-time revocation check, and a key-agreement protocol — all resolved in under 50 milliseconds before a single byte of HTTP is exchanged.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design DigiCert's certificate issuance and lifecycle platform. Walk me through what an X.509 certificate actually is, where it lives on a client machine, how TLS uses it, how you handle revocation, and how you'd build the issuance pipeline that can issue a million certs a day with sub-300ms latency, zero downtime, and full audit compliance. Then tell me how this changes in a Kubernetes environment."</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The question catches most candidates off-guard because PKI sits at an uncomfortable intersection: it's security infrastructure, but the interesting engineering is data modeling and distributed systems. A weak answer draws a box labeled "Certificate Authority" and calls it done. A strong answer names the four forces that make this hard, then shows how every later decision exists to survive one of them.</p>
+
+    <p class="reveal">There are exactly four forces, and they are not the usual suspects:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE TRUST ANCHOR</dt><dd><strong>Root CA keys are the crown jewels.</strong> Every certificate ever issued traces back to a root key that must never touch an online system. If the root is compromised, every browser in the world must remove it — and millions of sites go dark. The design has to protect the root unconditionally, which means an offline HSM, air-gapped signing, and an intermediate CA layer that carries all operational risk.</dd></div>
+      <div class="defrow"><dt>THE REVOCATION PROBLEM</dt><dd><strong>You cannot un-issue a certificate.</strong> A cert is valid on its face — any browser can verify the signature without calling anyone. Revocation is a second, out-of-band signal (CRL or OCSP) that the CA must serve globally at low latency, or browsers soft-fail and accept the cert anyway. The PKI is only as strong as its revocation infrastructure.</dd></div>
+      <div class="defrow"><dt>THE 90-DAY WALL</dt><dd><strong>Short lifetimes mean automation is not optional.</strong> The CA/Browser Forum is shortening max TLS cert lifetimes — 90 days today, 47 days by 2027. No human renews every 47 days at scale. Every architectural choice flows from "the client must automate renewal, period."</dd></div>
+      <div class="defrow"><dt>THE TRANSPARENCY REQUIREMENT</dt><dd><strong>Every cert must be publicly logged before it's accepted.</strong> Chrome has required Certificate Transparency (CT) since 2018 — a cert not in 2+ public append-only Merkle logs is rejected outright. This means the issuance pipeline has a mandatory, latency-adding step (get SCTs from independent logs) before signing.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Read those four again: every one is a data and pipeline problem, not a web-tier problem. The web tier is nearly boring. The interesting engineering is in the trust model, the schema, the revocation infrastructure, and the Kubernetes automation.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">In scope: certificate issuance (DV, OV, EV), the chain of trust, TLS handshake mechanics, CRL/OCSP/CRLite revocation, domain control validation (DCV), Certificate Transparency, and the Kubernetes-native CA (cert-manager, SPIFFE/SPIRE, Istio mTLS). Out of scope (modeled-for, not designed in detail): email signing (S/MIME), code signing, document signing, IoT device enrollment internals, and HSM hardware procurement. Two tensions I name up front: (1) <strong>issuance must be fast</strong> (sub-300ms for DV-auto) but also <strong>auditable forever</strong> (7-year retention per CA/B Forum); (2) <strong>revocation must be real-time</strong> but also <strong>work offline</strong> (CRLite).</p>
+
+    <p class="reveal">Envelope math, volunteered:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>TLS connections / day (global)</td><td class="mono">~8–10B</td><td>OCSP responders need Anycast + Redis cache; can't be DB-hit per request</td></tr>
+      <tr><td>Certs issued / day (DigiCert)</td><td class="mono">~3–5M</td><td>At 47-day lifetime: 6× renewal frequency = 18–30M/day by 2027</td></tr>
+      <tr><td>OCSP response TTL</td><td class="mono">24–48 h</td><td>Pre-sign and cache; revocation latency ≤ 24 h from CA/B Forum baseline</td></tr>
+      <tr><td>CRL size (intermediate)</td><td class="mono">&lt;10 MB</td><td>Must be partitioned; browsers don't download unbounded CRLs</td></tr>
+      <tr><td>CT log submission latency</td><td class="mono">50–200 ms</td><td>2 independent logs in parallel; retry on failure; budget this in issuance SLA</td></tr>
+      <tr><td>Issuance latency target (DV-auto)</td><td class="mono">&lt;300 ms</td><td>DCV via http-01 or dns-01 is the bottleneck; not the signing itself</td></tr>
+      <tr><td>Audit retention</td><td class="mono">7 years</td><td>Append-only event log (Kafka → Iceberg / S3); WebTrust / ETSI audit access</td></tr>
+    </table>
+
+    <p class="reveal">The number unlike the others: 8–10 billion OCSP checks per day. That is not a database problem. It is a CDN/Anycast problem — pre-signed responses, Redis-cached, refreshed before TTL expires. Every other number follows from resolving that one deliberately.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="anatomy">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — THE CERTIFICATE</span>What's actually in an X.509 cert</h2>
+    <p class="lede reveal">A certificate is a signed data structure that binds a public key to an identity. Think of it as a passport: it carries your name (Subject), a photo (public key), an expiry date, and a stamp from a recognized authority (CA signature). Anyone who trusts the authority can trust the document without knowing you personally.</p>
+
+    <p class="reveal">Every cert your browser, OS, or Kubernetes pod processes follows <strong>X.509 v3</strong> (RFC 5280). The fields that matter most in a senior interview:</p>
+
+    <table class="reveal">
+      <tr><th>Field</th><th>Example value</th><th>Why it matters</th></tr>
+      <tr><td>Serial Number</td><td class="mono">A3:0F:81:C2:… (20 bytes)</td><td>CA-unique; the key used in CRL and OCSP revocation lookups</td></tr>
+      <tr><td>Issuer</td><td class="mono">CN=DigiCert TLS RSA SHA256 2020 CA1</td><td>Points to the Intermediate CA that signed this cert</td></tr>
+      <tr><td>Subject / SAN</td><td class="mono">DNS:example.com, DNS:*.example.com</td><td>What the cert is valid for; CNs are deprecated — SAN is canonical</td></tr>
+      <tr><td>Not Before / Not After</td><td class="mono">90-day window</td><td>The validity window; cert is worthless outside it</td></tr>
+      <tr><td>Subject Public Key</td><td class="mono">ECDSA P-256 public key bytes</td><td>The key the server proves it holds during the TLS handshake</td></tr>
+      <tr><td>Extended Key Usage</td><td class="mono">TLS Web Server Authentication (OID 1.3.6.1.5.5.7.3.1)</td><td>Restricts what the cert can be used for; prevents misuse</td></tr>
+      <tr><td>OCSP URL (AIA)</td><td class="mono">http://ocsp.digicert.com</td><td>Where clients check revocation status in real time</td></tr>
+      <tr><td>CRL Distribution Point</td><td class="mono">http://crl3.digicert.com/DigiCertTLS2020CA1.crl</td><td>URL of the revocation list file</td></tr>
+      <tr><td>CT SCT List</td><td class="mono">2+ Signed Certificate Timestamps</td><td>Proof the cert was submitted to CT logs; Chrome requires this</td></tr>
+      <tr><td>Signature</td><td class="mono">Intermediate CA's private key signs all fields above</td><td>~72 bytes (ECDSA) or 256 bytes (RSA); verified against Issuer's public key</td></tr>
+    </table>
+
+    <h3 class="reveal">The chain of trust</h3>
+    <p class="reveal">No browser trusts a leaf cert directly. Trust flows through a chain. The chain exists because Root CA private keys are kept offline (air-gapped, HSM-locked) and never issue directly to websites — Intermediate CAs carry the operational risk.</p>
+
+    <div class="chain-diagram reveal">
+      <div class="chain-node root">
+        <div class="cn-type">Root CA — Offline / Air-Gapped</div>
+        <div class="cn-name">DigiCert Global Root G2</div>
+        <div class="cn-detail">RSA 2048 · Self-signed · Valid 30+ years · In every OS root store</div>
+      </div>
+      <div class="chain-arrow">↓ signs Intermediate</div>
+      <div class="chain-node inter">
+        <div class="cn-type">Intermediate CA — Online / HSM</div>
+        <div class="cn-name">DigiCert TLS RSA SHA256 2020 CA1</div>
+        <div class="cn-detail">Signed by Root G2 · Valid 10 years · Issues leaf certs daily</div>
+      </div>
+      <div class="chain-arrow">↓ signs Leaf</div>
+      <div class="chain-node leaf">
+        <div class="cn-type">Leaf / End-Entity Cert</div>
+        <div class="cn-name">example.com</div>
+        <div class="cn-detail">P-256 or RSA 2048 · Signed by Intermediate · Valid 90 days</div>
+      </div>
+    </div>
+
+    <p class="reveal">When a browser validates a cert it walks the chain upwards — leaf → intermediate → root — checking at each step: does <span class="m">Issuer</span> match the next cert's <span class="m">Subject</span>? Does the signature verify? Is anything expired or revoked? Does the root appear in the OS trust store? Every check must pass.</p>
+
+    <div class="pull reveal">Why not sign directly from the root? Because if the intermediate is compromised, the root revokes it (publishes an updated CRL) and issues a replacement — without touching the trust anchors baked into every OS worldwide. Root compromise means removing the root from every browser globally. That is not recoverable. DigiNotar 2011 was that scenario. The two-tier design exists to limit that blast radius.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="trust-stores">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — TRUST STORES</span>Where certificates live on a machine</h2>
+    <p class="lede reveal">Your machine maintains multiple layers of certificate storage — OS trust anchors, application-level trust stores, and per-user keystores. Understanding which one an application uses is the difference between "the cert works in Chrome but not in curl" and knowing exactly why.</p>
+
+    <table class="reveal">
+      <tr><th>Platform / Store</th><th>Location / Tool</th><th>Who reads it</th></tr>
+      <tr><td><strong>macOS Keychain</strong></td><td class="mono">/Library/Keychains/System.keychain</td><td>Safari, curl (SecureTransport), most native apps</td></tr>
+      <tr><td><strong>Windows Cert Store</strong></td><td class="mono">Cert:\LocalMachine\Root (registry-backed)</td><td>Edge, Chrome (on Windows), WinHTTP, .NET, PowerShell</td></tr>
+      <tr><td><strong>Mozilla NSS</strong></td><td class="mono">~/.mozilla/firefox/*.default/cert9.db</td><td>Firefox, Thunderbird (bundles own store, ignores OS)</td></tr>
+      <tr><td><strong>Linux ca-certificates</strong></td><td class="mono">/etc/ssl/certs/ca-certificates.crt</td><td>OpenSSL-linked apps, curl, wget, Python requests</td></tr>
+      <tr><td><strong>JVM cacerts</strong></td><td class="mono">$JAVA_HOME/lib/security/cacerts</td><td>Java, Kafka, Elasticsearch — completely separate from OS</td></tr>
+      <tr><td><strong>Node.js</strong></td><td>Bundles Mozilla root store; ignores OS</td><td>Node apps, npm; override via NODE_EXTRA_CA_CERTS</td></tr>
+      <tr><td><strong>Kubernetes Secret</strong></td><td class="mono">kubectl get secret tls-cert -n default</td><td>Pods that mount the secret; managed by cert-manager</td></tr>
+    </table>
+
+    <div class="pull reveal">"The cert works in Chrome but not in curl" — Chrome on macOS delegates to the System Keychain; curl uses OpenSSL's ca-certificates bundle. If the intermediate CA wasn't installed in both places, one works and the other doesn't. The JVM cacerts problem is even more common: Java ships its own root store and ignores the OS entirely, so <span class="m">keytool -importcert</span> is the fix, not the OS certificate manager.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="handshake">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — TLS 1.3</span>The handshake, message by message</h2>
+    <p class="lede reveal">TLS 1.3 reduced the handshake to one round-trip (down from two in TLS 1.2). Here is every message exchanged — and what the client verifies before accepting the cert.</p>
+
+    <pre class="reveal"><code>CLIENT                                          SERVER
+──────                                          ──────
+ClientHello ──────────────────────────────────►
+  - TLS version: 1.3
+  - key_share: client's ephemeral X25519 pub key
+  - supported cipher suites
+
+                     ◄─────────────────────────── ServerHello
+                                                    - selected cipher: TLS_AES_256_GCM_SHA384
+                                                    - key_share: server's X25519 pub key
+                                                    ← BOTH SIDES DERIVE session keys now →
+                                                    (all subsequent messages are encrypted)
+
+                     ◄───────────────────────────  EncryptedExtensions
+                     ◄───────────────────────────  Certificate (leaf + intermediates)
+                     ◄───────────────────────────  CertificateVerify (server signs handshake hash
+                                                    with its private key — proves key possession)
+                     ◄───────────────────────────  Finished (HMAC over entire handshake)
+
+CLIENT verifies the cert:
+  1. Chain: leaf → intermediate → trusted root in local trust store
+  2. SANs include the hostname being connected to
+  3. Not Before ≤ now ≤ Not After
+  4. CertificateVerify signature validates against cert's public key
+  5. OCSP staple (or online OCSP call) → status = GOOD
+  6. CT SCTs present (Chrome requires 2+ from independent logs)
+
+Finished ─────────────────────────────────────►  (confirms receipt)
+
+═══════════════════════════════════════════════  Application Data (HTTP/2, encrypted)
+Total added RTTs: 1   (0-RTT resumption possible on reconnect)</code></pre>
+
+    <h3 class="reveal">OCSP stapling</h3>
+    <p class="reveal">Without stapling, the client must call DigiCert's OCSP responder for every TLS handshake — at 8 billion handshakes a day that is a privacy leak (DigiCert learns every site you visit) and an added RTT. OCSP Stapling inverts this: the <em>server</em> periodically fetches a signed OCSP response from DigiCert, then attaches ("staples") it to the TLS handshake in the <span class="m">CertificateStatus</span> message. The client gets a CA-signed "this cert is good as of T" response with zero extra RTT, and DigiCert learns nothing about individual client connections. Stapled responses are typically valid for 24–48 hours — the server must refresh them on a schedule.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="schema">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — THE SCHEMA</span>The issuance database</h2>
+    <p class="lede reveal">DigiCert must track every certificate issued — for billing, revocation, CA/B Forum audit, and CT compliance. The schema is surprisingly normalized: the interesting design is the OCSP cache as a separate hot read-path table, and the serial number generation constraint.</p>
+
+    <pre class="reveal"><code>-- Certificate Authorities (roots + intermediates)
+CREATE TABLE certificate_authority (
+    ca_id           BIGSERIAL PRIMARY KEY,
+    ca_type         TEXT NOT NULL CHECK (ca_type IN ('root','intermediate','issuing')),
+    parent_ca_id    BIGINT REFERENCES certificate_authority(ca_id),
+    common_name     TEXT NOT NULL,
+    subject_dn      TEXT NOT NULL,
+    public_key_sha256 BYTEA NOT NULL UNIQUE,   -- key fingerprint
+    cert_pem        TEXT NOT NULL,
+    valid_from      TIMESTAMPTZ NOT NULL,
+    valid_until     TIMESTAMPTZ NOT NULL,
+    hsm_slot_id     TEXT,                      -- HSM partition reference (never the key itself)
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Every issued certificate
+CREATE TABLE certificate (
+    cert_id         BIGSERIAL PRIMARY KEY,
+    serial_number   BYTEA NOT NULL,            -- 20 bytes CSPRNG entropy (RFC 5280 / SC63)
+    issuing_ca_id   BIGINT NOT NULL REFERENCES certificate_authority(ca_id),
+    subject_cn      TEXT NOT NULL,
+    san_list        TEXT[] NOT NULL,           -- DNS names, IPs — indexed via GIN
+    cert_type       TEXT NOT NULL CHECK (cert_type IN ('dv','ov','ev','code_sign','s_mime','client')),
+    public_key_algo TEXT NOT NULL,             -- RSA, EC, Ed25519
+    public_key_sha256 BYTEA NOT NULL,
+    cert_pem        TEXT NOT NULL,
+    valid_from      TIMESTAMPTZ NOT NULL,
+    valid_until     TIMESTAMPTZ NOT NULL,
+    issued_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    status          TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active','revoked','expired','hold')),
+    customer_id     BIGINT NOT NULL,
+    order_id        BIGINT NOT NULL,
+    ct_log_ids      TEXT[] NOT NULL DEFAULT '{}',  -- SCT log IDs (must have 2+)
+    UNIQUE (issuing_ca_id, serial_number)
+);
+
+-- Revocation (append-only; never delete)
+CREATE TABLE revocation (
+    revocation_id   BIGSERIAL PRIMARY KEY,
+    cert_id         BIGINT NOT NULL REFERENCES certificate(cert_id),
+    revoked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reason_code     INT NOT NULL,              -- RFC 5280 CRLReason (1=keyCompromise, 4=superseded, etc.)
+    reason_text     TEXT,
+    requested_by    TEXT NOT NULL,             -- customer / admin / automated
+    crl_published_at TIMESTAMPTZ              -- null until included in next CRL
+);
+
+-- Domain Control Validation events
+CREATE TABLE dcv_event (
+    dcv_id          BIGSERIAL PRIMARY KEY,
+    domain          TEXT NOT NULL,
+    method          TEXT NOT NULL CHECK (method IN ('http-01','dns-01','tls-alpn-01','email')),
+    challenge_token TEXT NOT NULL,
+    challenge_value TEXT NOT NULL,
+    validated_at    TIMESTAMPTZ,
+    expires_at      TIMESTAMPTZ NOT NULL,      -- reuse window (was 825d → now 90d)
+    cert_id         BIGINT REFERENCES certificate(cert_id),
+    ip_logged       INET                       -- requester IP for audit trail
+);
+
+-- OCSP response cache — the hot read path (8B req/day)
+-- Populated at issuance and on revocation; refreshed before next_update
+CREATE TABLE ocsp_response_cache (
+    cert_id         BIGINT PRIMARY KEY REFERENCES certificate(cert_id),
+    ca_id           BIGINT NOT NULL REFERENCES certificate_authority(ca_id),
+    this_update     TIMESTAMPTZ NOT NULL,
+    next_update     TIMESTAMPTZ NOT NULL,      -- cache TTL
+    ocsp_status     TEXT NOT NULL CHECK (ocsp_status IN ('good','revoked','unknown')),
+    signed_response BYTEA NOT NULL             -- DER-encoded OCSPResponse; serve directly
+);
+
+-- Indexes
+CREATE INDEX idx_cert_san       ON certificate USING GIN (san_list);
+CREATE INDEX idx_cert_serial    ON certificate (issuing_ca_id, serial_number);
+CREATE INDEX idx_cert_expiring  ON certificate (valid_until) WHERE status = 'active';
+CREATE INDEX idx_cert_customer  ON certificate (customer_id, status, valid_until);
+CREATE INDEX idx_rev_crl        ON revocation (crl_published_at) WHERE crl_published_at IS NULL;
+CREATE INDEX idx_ocsp_refresh   ON ocsp_response_cache (next_update);</code></pre>
+
+    <p class="reveal"><strong>Serial number design:</strong> never use a sequence. CA/B Forum Ballot SC63 requires at least 64 bits of CSPRNG entropy in every serial. Use <span class="m">os.urandom(20)</span> (20 bytes = 160 bits), store as <span class="m">BYTEA</span>. The <span class="m">UNIQUE(issuing_ca_id, serial_number)</span> constraint catches the astronomically-rare collision and lets the application retry. Sequential serials would leak issuance volume to anyone watching CT logs.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="pipeline">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — ISSUANCE PIPELINE</span>From CSR to signed certificate</h2>
+    <p class="lede reveal">Every certificate starts as a Certificate Signing Request (CSR) — a PKCS#10 document the applicant generates from their private key. The CA validates the request, then uses its own private key (in an HSM) to sign and return the certificate. For DV-auto, this must complete in under 300 ms.</p>
+
+    <pre class="reveal"><code>Applicant (customer / cert-manager operator)
+  │
+  │  1. Generate key pair locally — private key NEVER leaves applicant
+  │  2. Create CSR: openssl req -new -key key.pem -out csr.pem
+  │  3. POST /certificate  { csr_pem, order_id, dcv_method }
+  │
+  ▼
+DigiCert RA — Registration Authority (validates domain control)
+  │
+  ├─ DV (Domain Validation — automated):
+  │   http-01:      GET /.well-known/acme-challenge/{token}
+  │                 → must return "{token}.{account_thumbprint}"
+  │   dns-01:       TXT _acme-challenge.example.com
+  │                 = base64url(sha256("{token}.{account_thumbprint}"))
+  │   tls-alpn-01:  TLS handshake on :443 with acmeValidation-v1 OID in SAN
+  │
+  ├─ OV/EV: org checks (WHOIS, phone call, Dun & Bradstreet / GLEIF / LEI)
+  │
+  ├─ Policy linting:
+  │   - Key size ≥ RSA 2048 or EC P-256+; SHA-256+ only; SAN required
+  │   - Not validity > 90 days; no wildcards on EV; EKU must match cert type
+  │   - Run pkilint + zlint — any WARN/ERR blocks issuance
+  │
+  ├─ CT pre-certificate submission (in parallel to 2+ independent logs):
+  │   POST https://ct.googleapis.com/logs/argon2025h2/ct/v1/add-pre-chain
+  │   POST https://ct.cloudflare.com/logs/nimbus2025/ct/v1/add-pre-chain
+  │   ← receive Signed Certificate Timestamps (SCTs, 104 bytes each)
+  │
+  └─ HSM sign (PKCS#11 call; private key never leaves the HSM):
+       Build final TBSCertificate with SCTs embedded
+       Sign with Intermediate CA private key
+       Return: { cert_pem, chain_pem }
+
+Write to DB:
+  INSERT certificate(..., ct_log_ids, status='active')
+  INSERT ocsp_response_cache(cert_id, status='good', next_update=NOW()+48h, signed_response=...)
+  INSERT dcv_event(validated_at=NOW(), ...)
+  Publish to Kafka topic cert.issued → audit log → S3/Iceberg</code></pre>
+
+    <h3 class="reveal">The CT pre-certificate step</h3>
+    <p class="reveal">Certificate Transparency requires submitting a "pre-certificate" (the cert with a poison extension that makes it unusable on its own) to at least 2 independent CT logs <em>before</em> signing the final cert. Each log returns an SCT — a signed timestamp proving the cert was logged. The SCTs are embedded in the final cert, and Chrome verifies them. If a CT log is down, DigiCert must have 3+ log relationships and fail-over logic. Budget 50–200 ms for this step. It is the primary latency variable in DV-auto issuance.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="revocation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — REVOCATION</span>CRL, OCSP, and CRLite</h2>
+    <p class="lede reveal">When a private key is compromised, the certificate must be revoked — marked invalid before its natural expiry. DigiCert must make revocation available to every browser in the world within 24 hours (CA/B Forum §4.9.1.1). The three mechanisms, and their trade-offs:</p>
+
+    <table class="reveal">
+      <tr><th>Mechanism</th><th>How it works</th><th>Latency</th><th>Privacy</th><th>Offline?</th></tr>
+      <tr><td><strong>CRL</strong></td><td>CA publishes a signed list of revoked serials as a file. Browsers download periodically (24–48 h). Partitioned to stay &lt;10 MB per intermediate.</td><td>Up to 48 h</td><td>✓ (no per-lookup call)</td><td>✓ (file cached)</td></tr>
+      <tr><td><strong>OCSP</strong></td><td>Client makes an HTTP request per cert: "Is serial X revoked?" CA responds with a signed status. Stapling moves this onto the server.</td><td>&lt;75 ms (w/ staple: 0 ms)</td><td>✗ (CA sees every connection) / ✓ with stapling</td><td>✗ (requires connectivity)</td></tr>
+      <tr><td><strong>CRLite / CRLSets</strong></td><td>All revoked serials from all CT logs compiled into a Bloom filter (~2 MB). Pushed to browsers daily with software updates. Zero OCSP latency, zero privacy leak.</td><td>0 ms</td><td>✓</td><td>✓</td></tr>
+    </table>
+
+    <p class="reveal"><strong>The soft-fail problem:</strong> if DigiCert's OCSP responder is unreachable, most browsers historically "soft-failed" — accepted the cert anyway. This completely breaks the revocation guarantee. Chrome removed soft-fail OCSP in 2023 and moved to CRLite. Firefox uses CRLite + OneCRL (a curated list for high-priority intermediates). The practical conclusion: CRLite is the future; OCSP is still required by the CA/B Forum but is increasingly a belt-and-suspenders mechanism.</p>
+
+    <div class="pull reveal">Revocation write-through on compromise: revoke the cert → immediately update <span class="m">ocsp_response_cache</span> in Redis (pre-signed "revoked" response) → queue CRL republication → publish to Kafka audit topic. The OCSP cache flip is the fastest possible user-visible action — it propagates within seconds to the Anycast OCSP responders. The CRL update propagates within the next scheduled refresh (max 24 h per baseline requirements).</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="kubernetes">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — KUBERNETES</span>PKI at cloud-native scale</h2>
+    <p class="lede reveal">In Kubernetes, certificates are not manually issued. Three tools compose to give you a complete PKI: cert-manager handles the ACME/DigiCert lifecycle, SPIFFE/SPIRE provides cryptographic workload identity, and Istio/Linkerd provides transparent mutual TLS between every pod — no application code changes required.</p>
+
+    <h3 class="reveal">cert-manager (the ACME operator)</h3>
+    <p class="reveal">cert-manager watches <span class="m">Certificate</span> custom resources, submits ACME challenges, renews 30 days before expiry, and writes the result into a Kubernetes <span class="m">Secret</span>. The Ingress controller reads that Secret automatically.</p>
+
+    <pre class="reveal"><code>---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: digicert-acme
+spec:
+  acme:
+    server: https://acme.digicert.com/v2/acme/directory
+    email: ops@example.com
+    privateKeySecretRef:
+      name: digicert-acme-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: us-east-1
+            accessKeyIDSecretRef:
+              name: route53-creds
+              key: access-key-id
+            secretAccessKeySecretRef:
+              name: route53-creds
+              key: secret-access-key
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: example-com-tls
+  namespace: default
+spec:
+  secretName: example-com-tls-secret
+  issuerRef:
+    name: digicert-acme
+    kind: ClusterIssuer
+  dnsNames:
+    - example.com
+    - "*.example.com"
+  duration: 2160h          # 90 days
+  renewBefore: 720h        # renew 30 days before expiry
+  privateKey:
+    algorithm: ECDSA
+    size: 256              # P-256</code></pre>
+
+    <h3 class="reveal">SPIFFE / SPIRE (workload identity)</h3>
+    <p class="reveal">SPIFFE is the standard for cryptographic workload identity. Each pod gets a SPIFFE ID — <span class="m">spiffe://cluster.local/ns/payments/sa/checkout-api</span> — and a short-lived X.509 SVID (SPIFFE Verifiable Identity Document) valid for 1 hour. No passwords, no API keys, no secrets in environment variables. The SPIRE Agent (a DaemonSet) delivers SVIDs via a Unix socket using the Workload API.</p>
+
+    <pre class="reveal"><code># Registration: bind k8s service account → SPIFFE ID
+# spiffe://cluster.local/ns/payments/sa/checkout-api
+#   selector: k8s:ns:payments + k8s:sa:checkout-api
+#   ttl: 3600  (1-hour SVIDs, auto-rotated by SPIRE agent)
+
+# Each pod gets its SVID at /run/spire/sockets/agent.sock
+# Istio or app reads the SVID and uses it for mTLS
+
+# AuthorizationPolicy: only checkout-api may call fraud-scorer
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: fraud-scorer-allow
+  namespace: payments
+spec:
+  selector:
+    matchLabels:
+      app: fraud-scorer
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/payments/sa/checkout-api"</code></pre>
+
+    <h3 class="reveal">The hot-reload problem</h3>
+    <p class="reveal">cert-manager writes a renewed cert into the Kubernetes Secret, but running pods that already loaded the cert won't see it automatically. Three failure modes: (1) <strong>env var mount</strong> — env vars are set at pod start and never updated; requires pod restart; (2) <strong>volume mount</strong> — kubelet syncs secret volume mounts within 60 s, but the app must re-read the file; most TLS libraries don't do this automatically; (3) <strong>cached TLS context</strong> — Go's <span class="m">tls.Config</span> or Java's <span class="m">SSLContext</span> was loaded at startup. Fix: use <span class="m">tls.Config.GetCertificate</span> callback in Go that reads from disk on every handshake, or let Istio/Envoy be the TLS terminator (it polls for cert updates via xDS and reloads with zero downtime).</p>
+
+    <div class="pull reveal">The Kubernetes cert-manager + Istio stack is the answer to 90-day (and future 47-day) cert lifetimes for internal services. For external TLS (the Ingress), cert-manager + DigiCert ACME handles renewal automatically. For pod-to-pod mTLS, Istio + SPIFFE means services authenticate each other by SPIFFE ID — zero passwords, zero shared secrets, cryptographically verified identity on every single connection.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="scale">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — DIGICERT AT SCALE</span>The architecture decisions</h2>
+    <p class="lede reveal">Running a CA at DigiCert's scale means solving four distinct system design problems simultaneously: low-latency issuance, globally-distributed revocation, audit compliance at 7-year retention, and Kubernetes-native automation for the customers who need it most.</p>
+
+    <table class="reveal">
+      <tr><th>Problem</th><th>Decision</th><th>Trade-off</th></tr>
+      <tr><td>OCSP at 8B req/day</td><td>BGP Anycast + pre-signed Redis cache; DB is never in the hot path</td><td>Cache TTL vs revocation freshness — 24 h is the CA/B Forum floor</td></tr>
+      <tr><td>Root CA protection</td><td>Air-gapped HSM; only the intermediate CA is online; Root signs intermediates in quarterly ceremonies</td><td>Speed of intermediate rotation vs security; quarterly is the industry norm</td></tr>
+      <tr><td>CT log submission latency</td><td>Submit to 3 logs in parallel, require 2 successes, timeout 250 ms; maintain 5 log relationships</td><td>Latency budget vs log diversity; more logs = more resilience at marginal cost</td></tr>
+      <tr><td>DCV reuse</td><td>Cache validated domains for 90 days (down from 825); reuse avoids re-challenge on renewal</td><td>Shorter reuse window = more DCV overhead; shorter lifetime cert = more renewals</td></tr>
+      <tr><td>Audit trail</td><td>Every issuance event → Kafka topic (immutable) → S3 Iceberg table (7-year retention)</td><td>Storage cost is trivial vs compliance cost of gaps; append-only is non-negotiable</td></tr>
+      <tr><td>Serial number</td><td>20 bytes os.urandom(); UNIQUE constraint catches collision (2⁻¹⁵⁶ probability)</td><td>No sequential leak to CT log observers; entropy requirement met per SC63</td></tr>
+      <tr><td>47-day cert lifetime (2027)</td><td>ACME becomes mandatory in practice; issuance pipeline must scale 6× without human review</td><td>Revocation matters less (47-day exposure window); automation matters more</td></tr>
+    </table>
+
+    <h3 class="reveal">The 47-day wall</h3>
+    <p class="reveal">The CA/B Forum is shortening max TLS cert lifetimes to 47 days by 2027. The same number of certs must now be renewed ~6× more often. For DigiCert this means: (1) <strong>issuance pipeline must scale horizontally</strong> with no per-order human review for DV; (2) <strong>ACME becomes the default</strong> — customers who don't automate face constant outages; (3) <strong>DCV reuse window must be short</strong> — faster DNS propagation checks, or per-issuance DCV; (4) <strong>OCSP/CRL infrastructure matters less</strong> — if a key is compromised, the cert expires in 47 days anyway, shrinking the window a stolen key is exploitable; (5) <strong>cert monitoring dashboards become table stakes</strong> — a missed renewal at 47 days takes a site dark in under 7 weeks with no buffer. The architectural shift is from "mostly-manual with automation optional" to "automation-first with manual as the edge case."</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="summary">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — SUMMARY</span>What the strong answer looks like</h2>
+
+    <table class="reveal">
+      <tr><th>Dimension</th><th>Weak answer</th><th>Strong answer</th></tr>
+      <tr><td>What is a cert?</td><td>"A file that proves identity"</td><td>X.509 v3: serial, SAN, EKU, OCSP URL, CT SCTs, CA signature — and walks the chain</td></tr>
+      <tr><td>Trust stores</td><td>Vague about "the browser's cert store"</td><td>Names macOS Keychain vs JVM cacerts vs NSS; explains why "works in Chrome not curl"</td></tr>
+      <tr><td>TLS handshake</td><td>"Client connects and a key is exchanged"</td><td>Describes 1-RTT TLS 1.3, what client verifies (chain, SAN, OCSP, CT), OCSP stapling</td></tr>
+      <tr><td>Revocation</td><td>"The cert is revoked"</td><td>Differentiates CRL/OCSP/CRLite; names the soft-fail problem; explains OCSP stapling and CRLite Bloom filter</td></tr>
+      <tr><td>Schema</td><td>Single certs table</td><td>CA table, cert table, revocation (append-only), dcv_event, ocsp_response_cache (hot path separated); serial number = CSPRNG not sequence</td></tr>
+      <tr><td>Kubernetes</td><td>"Use Let's Encrypt"</td><td>cert-manager + ClusterIssuer, SPIFFE/SPIRE for workload identity, Istio mTLS + AuthorizationPolicy, hot-reload solution</td></tr>
+      <tr><td>47-day implication</td><td>Doesn't mention it</td><td>6× issuance volume; ACME mandatory; revocation less critical; monitoring dashboards required</td></tr>
+    </table>
+
+    <div class="pull reveal">The padlock is not a feature. It is a ceremony — a chain of cryptographic signatures, a walk through a trust hierarchy baked into every OS, a query to a globally-distributed revocation service, and a key-agreement protocol — all resolved in under 50 milliseconds. DigiCert's job is to make that ceremony reliable for a billion connections a day, with a 7-year audit trail, and zero tolerance for a misissuance that Chrome would detect within 5 minutes via Certificate Transparency.</div>
+
+    <p class="reveal"><a href="/interview.app/design/" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--teal);text-decoration:none;letter-spacing:.06em;">← Back to Design Scenarios</a></p>
+  </div>
+</section>
+
+<script>
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
