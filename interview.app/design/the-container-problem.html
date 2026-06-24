@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Container Problem — PaddySpeaks</title>
+<meta name="description" content="Design a container runtime and image registry at Docker/GitHub Container Registry scale. What a container image actually is, how layers work, OverlayFS union filesystems, OCI image spec, registry push/pull protocol, container networking (namespaces, veth pairs, VXLAN), runc/containerd internals, security scanning, and how to serve 10 billion pulls per day.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+<style>
+/* teal accent for container / infra theme */
+:root { --teal: #0a8070; --teal-deep: #065a50; --teal-light: rgba(10,128,112,.10); }
+h1 em { color: var(--teal) !important; }
+.svg-diagram { width: 100%; max-width: 700px; margin: 32px auto; display: block; overflow: hidden; }
+.svg-diagram text { font-family: 'DM Mono', monospace; }
+
+/* ── Consolidated SVG keyframes ───────────────────────────────────
+   ls-  = layer stack (image anatomy)
+   pp-  = push/pull flow (registry)
+   bn-  = bridge network (container networking)
+   re-  = runtime exec (docker run flow)
+   ---------------------------------------------------------------- */
+/* ls- layer stack */
+@keyframes ls-drop   { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
+@keyframes ls-fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes ls-cow    { 0%,100%{opacity:.6} 50%{opacity:1} }
+/* pp- push/pull */
+@keyframes pp-slideR { from{transform:translateX(-40px);opacity:0} to{transform:translateX(0);opacity:1} }
+@keyframes pp-slideL { from{transform:translateX(40px);opacity:0}  to{transform:translateX(0);opacity:1} }
+@keyframes pp-arrowR { from{stroke-dashoffset:300} to{stroke-dashoffset:0} }
+@keyframes pp-arrowL { from{stroke-dashoffset:-300} to{stroke-dashoffset:0} }
+@keyframes pp-fadeIn { from{opacity:0} to{opacity:1} }
+/* bn- bridge network */
+@keyframes bn-fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes bn-pulse  { 0%,100%{stroke-opacity:.4} 50%{stroke-opacity:1} }
+@keyframes bn-drop   { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+/* re- runtime exec */
+@keyframes re-step   { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+@keyframes re-arrowD { from{stroke-dashoffset:80} to{stroke-dashoffset:0} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 25</div>
+    <h1 class="reveal">The <em>Container</em> Problem</h1>
+    <p class="deck reveal">Design a container runtime and image registry at Docker/GitHub Container Registry scale — what a container image actually is, how OverlayFS layers stack and copy-on-write, the OCI image spec and content-addressable blob storage, the push/pull protocol, container networking from veth pairs to VXLAN overlays, what runc and containerd actually do when you run <code>docker run</code>, image security scanning, and how you serve 10 billion pulls per day with CDN layers, P2P distribution, and lazy-loading.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Container Infrastructure / Systems</b></span>
+      <span>READING · <b>~35 min</b></span>
+    </div>
+  </div>
+</header>
+
+<!-- ── CROSS-LINK CALLOUT ── -->
+<div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:24px auto;max-width:900px;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;">
+  📦 <strong>Using containers in production?</strong> See how Kubernetes orchestrates them at scale →
+  <a href="./the-orchestration-problem.html" style="color:#0a8070;font-weight:600;">The Orchestration Problem (Kubernetes)</a>
+  <span style="color:#5a8a7a;"> (pods, scheduling, control plane, operators)</span>
+</div>
+
+<section id="question">
+  <div class="wrap">
+
+<!-- one-screen summary -->
+<table style="width:100%;border-collapse:collapse;margin:0 0 28px;font-family:'DM Mono',monospace;font-size:12px;" class="reveal">
+  <thead>
+    <tr style="background:#1a1208;">
+      <th style="padding:9px 13px;text-align:left;color:#d98e63;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">Question</th>
+      <th style="padding:9px 13px;text-align:left;color:#d98e63;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">60-second answer</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background:#120e06;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">What is a container?</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">A process with its own filesystem (OverlayFS), network namespace, and cgroup limits — not a VM; shares the host kernel.</td>
+    </tr>
+    <tr style="background:#1a1208;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">What is an image?</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">A stack of read-only content-addressable layers (SHA256 blobs) plus a JSON config — described by an OCI manifest.</td>
+    </tr>
+    <tr style="background:#120e06;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">How does a registry work?</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">Content-addressable blob store + manifest index. Pull: check local cache → HEAD blob → GET blob chunks. Deduplication is free — same SHA256 blob serves thousands of images.</td>
+    </tr>
+    <tr style="background:#1a1208;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">How is networking isolated?</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">Linux network namespaces + veth pairs + a bridge (docker0) + iptables NAT. Multi-host: VXLAN overlay encapsulation.</td>
+    </tr>
+    <tr style="background:#120e06;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">10B pulls/day?</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">CDN edge caching of blobs by SHA256, P2P distribution (Dragonfly/Kraken), lazy loading (eStargz streaming pulls), multi-region blob replication.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Interview Studio comparison -->
+<table style="width:100%;border-collapse:collapse;margin:0 0 36px;font-family:'DM Mono',monospace;font-size:12px;" class="reveal">
+  <thead>
+    <tr style="background:#1a1208;">
+      <th style="padding:9px 13px;text-align:left;color:#8f8672;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">Typical Interview Site</th>
+      <th style="padding:9px 13px;text-align:left;color:#d8a44a;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">Interview Studio</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background:#120e06;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Memorization</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Understanding</td></tr>
+    <tr style="background:#1a1208;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Coding only</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Coding + Architecture + Data Modeling</td></tr>
+    <tr style="background:#120e06;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Short answers</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Deep reasoning with trade-offs</td></tr>
+    <tr style="background:#1a1208;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">LeetCode style</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Real-world engineering at scale</td></tr>
+    <tr style="background:#120e06;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Junior focus</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Senior / Staff / L6–L7</td></tr>
+  </tbody>
+</table>
+
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>Containers are not VMs</h2>
+    <p class="lede reveal">A container looks like isolation. It is, in fact, a regular Linux process using kernel namespaces, cgroups, and a union filesystem to create the illusion of a private machine — without the hypervisor overhead that makes VMs take 30+ seconds to boot.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design a container runtime and image registry at Docker/GitHub Container Registry scale. Walk me through what a container image actually is, how layers work, how networking is isolated, and how you'd build a registry that serves 10 billion pulls per day."</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The question catches most candidates because containers sit at an uncomfortable intersection: it's operating systems, distributed storage, networking, and a high-scale CDN problem all at once. A weak answer draws a box labeled "Docker" and describes <code>docker run</code>. A strong answer names the four forces that make the design hard — then shows how every later decision exists to survive one of them.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE LAYER SHARING PROBLEM</dt><dd><strong>Images are expensive; layers are cheap.</strong> A base Ubuntu layer (100 MB) used by 10,000 images should be stored and transferred exactly once — not once per image. The whole registry design flows from this: content-addressable storage by SHA256 digest means a layer appears once in the blob store no matter how many images reference it. Pull deduplication is free.</dd></div>
+      <div class="defrow"><dt>THE ISOLATION ILLUSION</dt><dd><strong>Containers share the host kernel — they don't own it.</strong> Network, PID, mount, UTS, and IPC namespaces create the <em>appearance</em> of isolation. cgroups enforce resource limits. OverlayFS creates the private filesystem view. If any of these kernel primitives is misconfigured, containers can escape to the host. This is why container security is fundamentally harder than VM security.</dd></div>
+      <div class="defrow"><dt>THE 10B PULLS PROBLEM</dt><dd><strong>A registry is the hottest cache in infrastructure.</strong> Every CI job, every pod startup, every autoscale event pulls layers. The bottleneck is not compute — it's bandwidth, and specifically the last-mile latency between the registry and the cluster. CDN, P2P, and lazy-loading each exist to solve a different part of this bandwidth cliff.</dd></div>
+      <div class="defrow"><dt>THE FORMAT FRAGMENTATION PROBLEM</dt><dd><strong>Docker format ≠ OCI format — but compatibility is expected.</strong> Docker's v2 manifest schema and the OCI Image Spec are nearly identical but differ in media types. Multi-arch image support (arm64, amd64, arm/v7) requires a manifest list (OCI: image index). BuildKit, Podman, containerd, and the CRI all have their own quirks. A registry must handle all of them seamlessly.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Read those four again. Every one is a data and architecture problem, not a container-feature problem. The interesting engineering is in the content-addressable blob store, the union filesystem, the namespace orchestration, and the CDN hierarchy — not the <code>docker run</code> command itself.</div>
+
+    <p class="reveal">Envelope math, volunteered:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Docker Hub pulls / day</td><td class="mono">~10B</td><td>CDN is not optional; origin cannot absorb this traffic</td></tr>
+      <tr><td>Avg image size (layers)</td><td class="mono">~200 MB (compressed)</td><td>10B pulls × 200 MB = 2 EB/day data transfer (CDN cache hit rate must be &gt;99%)</td></tr>
+      <tr><td>Distinct layer blobs (Docker Hub)</td><td class="mono">~50–100M</td><td>Content-addressed; each stored once regardless of how many images reference it</td></tr>
+      <tr><td>Typical layer count per image</td><td class="mono">5–15 layers</td><td>Each layer is a separate blob pull; shallow caches help less than deep blob deduplication</td></tr>
+      <tr><td>Image pull latency target (CI)</td><td class="mono">&lt;10 s</td><td>Warm cache: check-layer-exists (HEAD) → skip unchanged layers; cold: parallel chunk download</td></tr>
+      <tr><td>Registry HA requirement</td><td class="mono">99.99% uptime</td><td>~52 min/year downtime; multi-region active-active with blob replication</td></tr>
+      <tr><td>Garbage collection window</td><td class="mono">7–30 days</td><td>Dangling layers deleted after all manifests referencing them are GC'd; soft-delete then sweep</td></tr>
+    </table>
+
+  </div>
+</section>
+
+<hr class="rule">
+<section id="plain-language">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — PLAIN LANGUAGE</span>What is a container, really?</h2>
+    <p class="lede reveal">Before the engineering, the mental model. Three analogies that actually hold up under scrutiny.</p>
+
+    <h3 class="reveal">The VM analogy (and why it breaks)</h3>
+    <p class="reveal">A virtual machine is a full computer running inside your computer — it has its own kernel, its own memory allocator, its own device drivers. Starting one takes 30 seconds because the OS is actually booting. A container is not a virtual machine. It is a <strong>process that thinks it has its own computer</strong> — it runs directly on the host kernel, uses the host's network stack, and shares memory with the host. The kernel creates an illusion of isolation using namespaces. The illusion is convincing, but it is not a hard wall.</p>
+
+    <table class="reveal">
+      <tr><th></th><th>Virtual Machine</th><th>Container</th></tr>
+      <tr><td>Kernel</td><td>Its own (Guest OS)</td><td>Shared host kernel</td></tr>
+      <tr><td>Startup time</td><td>30–120 seconds</td><td>100–500 ms</td></tr>
+      <tr><td>Memory overhead</td><td>100–500 MB (OS overhead)</td><td>~1 MB (just the process)</td></tr>
+      <tr><td>Isolation level</td><td>Hardware-level (hypervisor)</td><td>Kernel-level (namespaces)</td></tr>
+      <tr><td>Security boundary</td><td>Very hard to escape</td><td>Kernel vulnerabilities can escape</td></tr>
+      <tr><td>Use case</td><td>Full OS, different kernels, strong multi-tenancy</td><td>Microservices, CI, ephemeral workloads</td></tr>
+    </table>
+
+    <h3 class="reveal">What Docker solves — "works on my machine"</h3>
+    <p class="reveal">Before Docker, deploying software meant: (1) install the right version of Java/Python/Node on the server, (2) hope it matches your laptop, (3) debug the production difference at 2 AM. Docker's insight was simple: <strong>ship the filesystem, not just the code.</strong> Package the app, its runtime, its libraries, and its configuration into an image — and that image runs identically on your laptop, in CI, and in production. The image is the deployment unit. "Works on my machine" becomes "this <em>is</em> the machine."</p>
+
+    <h3 class="reveal">The shipping container analogy</h3>
+    <p class="reveal">Before standardized shipping containers, loading a cargo ship meant custom-stacking thousands of different-shaped parcels — slow, lossy, requiring specialists at every port. After: everything fits into an ISO-standard container. The crane operator doesn't care what's inside. The port doesn't care about the contents. The ship is fully interchangeable.</p>
+    <p class="reveal">Docker containers work identically. The runtime (containerd/runc) doesn't care if your container runs Python, Go, or a Postgres database. The orchestrator (Kubernetes) doesn't care about your app. The cloud (ECS, GKE, AKS) doesn't care about your runtime. The standard interface — OCI Image Spec + OCI Runtime Spec — is the interoperability layer, exactly like ISO 668 for shipping.</p>
+
+    <div class="pull reveal">The shipping container transformed global trade not by changing what was shipped, but by standardizing how it was moved. Docker transformed software deployment not by changing how apps are written, but by standardizing how they are packaged and run. The analogy is not metaphorical — it is precisely structural.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="image-anatomy">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — IMAGE ANATOMY</span>What's actually in an OCI image</h2>
+    <p class="lede reveal">An image is a stack of immutable, content-addressed filesystem layers plus a JSON config. The OCI Image Spec formalizes what Docker invented. Understanding the anatomy is the prerequisite for understanding the registry, the runtime, and security.</p>
+
+    <h3 class="reveal">OverlayFS: the union filesystem</h3>
+    <p class="reveal">When you run a container, Linux mounts a union filesystem using OverlayFS. OverlayFS takes multiple directory trees ("lower layers") and presents them as a single unified view. Each image layer is a tar archive of filesystem changes. Layers are stacked bottom-up. A container gets a writable "upper" layer on top — and copy-on-write means files from lower layers are only copied to the writable layer when modified.</p>
+
+    <!-- ── LAYER STACK SVG ──────────────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 400" aria-label="Container image layer stack animation" style="overflow:hidden">
+      <defs>
+        <style>
+          .ls-l1 { animation: ls-drop .5s .10s ease both; }
+          .ls-l2 { animation: ls-drop .5s .30s ease both; }
+          .ls-l3 { animation: ls-drop .5s .50s ease both; }
+          .ls-l4 { animation: ls-drop .5s .70s ease both; }
+          .ls-l5 { animation: ls-drop .5s .90s ease both; }
+          .ls-cow { animation: ls-cow 2.5s 1.2s ease-in-out infinite; }
+          .ls-lab { animation: ls-fadeIn .4s 1.0s both; }
+        </style>
+        <marker id="ls-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#8a7c6a"/>
+        </marker>
+      </defs>
+      <!-- background -->
+      <rect width="700" height="400" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="24" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">OCI Image Layer Stack — OverlayFS Union Mount</text>
+
+      <!-- layer 5: writable container layer (top) -->
+      <g class="ls-l5">
+        <rect x="80" y="40" width="400" height="52" rx="6" fill="#fff5e0" stroke="#c97b1a" stroke-width="2" stroke-dasharray="6 3"/>
+        <text x="110" y="62" fill="#7a4a00" font-size="11" font-weight="700" font-family="'DM Mono',monospace">WRITABLE LAYER</text>
+        <text x="110" y="78" fill="#a07030" font-size="10" font-family="'DM Mono',monospace">Container's upper dir — copy-on-write — deleted when container stops</text>
+        <rect x="430" y="48" width="40" height="20" rx="3" fill="#c97b1a"/>
+        <text x="450" y="62" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'DM Mono',monospace">R/W</text>
+      </g>
+      <!-- divider line -->
+      <line x1="80" y1="95" x2="480" y2="95" stroke="#c8bfa8" stroke-width="1" stroke-dasharray="3 2"/>
+      <text x="490" y="99" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace" class="ls-lab">← OverlayFS</text>
+      <text x="490" y="111" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace" class="ls-lab">    mount point</text>
+
+      <!-- layer 4: app code -->
+      <g class="ls-l4">
+        <rect x="80" y="100" width="400" height="52" rx="6" fill="#e8f7f5" stroke="#0a8070" stroke-width="2"/>
+        <text x="110" y="122" fill="#065a50" font-size="11" font-weight="700" font-family="'DM Mono',monospace">LAYER 4 — App code</text>
+        <text x="110" y="138" fill="#0a8070" font-size="10" font-family="'DM Mono',monospace">/app/*.py  /app/requirements.txt         sha256:f9e2…</text>
+        <rect x="430" y="108" width="40" height="20" rx="3" fill="#0a8070"/>
+        <text x="450" y="122" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'DM Mono',monospace">R/O</text>
+      </g>
+
+      <!-- layer 3: app deps -->
+      <g class="ls-l3">
+        <rect x="80" y="156" width="400" height="52" rx="6" fill="#e8f7f5" stroke="#0a8070" stroke-width="2"/>
+        <text x="110" y="178" fill="#065a50" font-size="11" font-weight="700" font-family="'DM Mono',monospace">LAYER 3 — App dependencies</text>
+        <text x="110" y="194" fill="#0a8070" font-size="10" font-family="'DM Mono',monospace">/usr/local/lib/python3.11/…  pandas, numpy      sha256:3c8a…</text>
+        <rect x="430" y="164" width="40" height="20" rx="3" fill="#0a8070"/>
+        <text x="450" y="178" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'DM Mono',monospace">R/O</text>
+      </g>
+
+      <!-- layer 2: runtime -->
+      <g class="ls-l2">
+        <rect x="80" y="212" width="400" height="52" rx="6" fill="#f0f4ff" stroke="#3060c0" stroke-width="2"/>
+        <text x="110" y="234" fill="#1a3a8a" font-size="11" font-weight="700" font-family="'DM Mono',monospace">LAYER 2 — Runtime</text>
+        <text x="110" y="250" fill="#3060c0" font-size="10" font-family="'DM Mono',monospace">/usr/bin/python3.11  /usr/lib/…                sha256:8b1f…</text>
+        <rect x="430" y="220" width="40" height="20" rx="3" fill="#3060c0"/>
+        <text x="450" y="234" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'DM Mono',monospace">R/O</text>
+      </g>
+
+      <!-- layer 1: base OS -->
+      <g class="ls-l1">
+        <rect x="80" y="268" width="400" height="52" rx="6" fill="#fdf5f3" stroke="#b84c36" stroke-width="2"/>
+        <text x="110" y="290" fill="#7a1a0a" font-size="11" font-weight="700" font-family="'DM Mono',monospace">LAYER 1 — Base OS (ubuntu:22.04)</text>
+        <text x="110" y="306" fill="#b84c36" font-size="10" font-family="'DM Mono',monospace">/bin  /lib  /usr/bin  /etc                      sha256:1a2b…</text>
+        <rect x="430" y="276" width="40" height="20" rx="3" fill="#b84c36"/>
+        <text x="450" y="290" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'DM Mono',monospace">R/O</text>
+      </g>
+
+      <!-- copy-on-write annotation -->
+      <g class="ls-cow">
+        <rect x="520" y="56" width="158" height="64" rx="6" fill="#fffce8" stroke="#c97b1a" stroke-width="1.5"/>
+        <text x="530" y="74" fill="#7a4a00" font-size="9" font-weight="700" font-family="'DM Mono',monospace">COPY-ON-WRITE</text>
+        <text x="530" y="88" fill="#a07030" font-size="9" font-family="'DM Mono',monospace">Read: from any lower layer</text>
+        <text x="530" y="101" fill="#a07030" font-size="9" font-family="'DM Mono',monospace">Write: copy to upper first</text>
+        <text x="530" y="114" fill="#a07030" font-size="9" font-family="'DM Mono',monospace">Delete: whiteout file</text>
+      </g>
+
+      <!-- manifest reference -->
+      <rect x="80" y="332" width="400" height="50" rx="6" fill="#1a1208" class="ls-lab"/>
+      <text x="280" y="353" text-anchor="middle" fill="#d98e63" font-size="10" font-weight="600" font-family="'DM Mono',monospace">OCI MANIFEST  (application/vnd.oci.image.manifest.v1+json)</text>
+      <text x="280" y="369" text-anchor="middle" fill="#8f8672" font-size="9" font-family="'DM Mono',monospace">config: sha256:abc123…   layers: [sha256:1a2b…, sha256:8b1f…, sha256:3c8a…, sha256:f9e2…]</text>
+
+    </svg>
+
+    <h3 class="reveal">The OCI Image Spec — three artifacts</h3>
+    <dl class="reveal">
+      <div class="defrow"><dt>MANIFEST</dt><dd>A JSON document that lists the image config blob (SHA256) and all layer blobs (SHA256) with their sizes. This is what a registry returns when you request an image by tag. It is the "table of contents" of the image. For multi-arch, an <strong>image index</strong> (manifest list) contains multiple manifests, one per platform.</dd></div>
+      <div class="defrow"><dt>CONFIG</dt><dd>A JSON blob containing environment variables, entrypoint, working directory, exposed ports, and the history of commands used to build the image. The config SHA256 is the image ID you see in <code>docker images</code>. It does not describe what the image <em>does</em> — it describes how to <em>run</em> it.</dd></div>
+      <div class="defrow"><dt>LAYERS</dt><dd>Each layer is a gzip-compressed tar archive of filesystem changes (adds, modifies, deletes as whiteout files). Layers are content-addressed by the SHA256 of the compressed blob. The same Ubuntu base layer — pulled once — is shared by every image that uses it. This is where the storage efficiency comes from.</dd></div>
+    </dl>
+
+    <pre class="codeblock reveal"><code># OCI Manifest (simplified)
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "config": {
+    "mediaType": "application/vnd.oci.image.config.v1+json",
+    "digest": "sha256:abc123...",
+    "size": 7023
+  },
+  "layers": [
+    { "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:1a2b3c...", "size": 30428672 },   // ubuntu base
+    { "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:8b1f2e...", "size": 45678901 },   // python runtime
+    { "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:3c8a9d...", "size": 12345678 },   // app deps
+    { "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:f9e2a1...", "size": 234567  }     // app code
+  ]
+}
+
+# The digest is the SHA256 of the compressed layer tar.
+# The diffID (in config) is the SHA256 of the uncompressed tar.
+# Content-addressable: if sha256 matches, the blob is valid — no trust required.</code></pre>
+
+    <div class="pull reveal">Copy-on-write means a modified file in a running container is NOT written back to the image layer. It is copied into the writable upper layer and modified there. The lower layer is unchanged. When the container stops, the upper layer is discarded. This is why containers are ephemeral by default — and why you mount a volume for anything you want to persist.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="registry">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE REGISTRY</span>How Docker Hub and GHCR work</h2>
+    <p class="lede reveal">A container registry is a content-addressable blob store plus a metadata index. The OCI Distribution Spec formalizes the API. The interesting engineering is deduplication, CDN caching, multi-arch support, and garbage collection.</p>
+
+    <h3 class="reveal">The push/pull protocol (OCI Distribution Spec)</h3>
+
+    <!-- ── PUSH/PULL FLOW SVG ──────────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 460" aria-label="Container registry push/pull flow" style="overflow:hidden">
+      <defs>
+        <style>
+          .pp-client  { animation: pp-fadeIn .4s .1s both; }
+          .pp-cdn     { animation: pp-fadeIn .4s .2s both; }
+          .pp-reg     { animation: pp-fadeIn .4s .3s both; }
+          .pp-store   { animation: pp-fadeIn .4s .4s both; }
+          /* push arrows */
+          .pp-p1a { stroke-dasharray:300; animation: pp-arrowR .5s .8s ease both; }
+          .pp-p1l { animation: pp-slideR .4s 1.2s both; }
+          .pp-p2a { stroke-dasharray:300; animation: pp-arrowR .5s 1.6s ease both; }
+          .pp-p2l { animation: pp-slideR .4s 2.0s both; }
+          .pp-p3a { stroke-dasharray:300; animation: pp-arrowR .5s 2.4s ease both; }
+          .pp-p3l { animation: pp-slideR .4s 2.8s both; }
+          /* pull arrows */
+          .pp-q1a { stroke-dasharray:300; animation: pp-arrowL .5s 3.5s ease both; }
+          .pp-q1l { animation: pp-slideL .4s 3.9s both; }
+          .pp-q2a { stroke-dasharray:300; animation: pp-arrowL .5s 4.3s ease both; }
+          .pp-q2l { animation: pp-slideL .4s 4.7s both; }
+          .pp-q3a { stroke-dasharray:300; animation: pp-arrowL .5s 5.1s ease both; }
+          .pp-q3l { animation: pp-slideL .4s 5.5s both; }
+        </style>
+        <marker id="pp-arrR" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#0a8070"/>
+        </marker>
+        <marker id="pp-arrL" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto-start-reverse">
+          <path d="M7,0 L0,3.5 L7,7 z" fill="#3060c0"/>
+        </marker>
+      </defs>
+      <rect width="700" height="460" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="24" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">Registry Push/Pull — OCI Distribution Spec</text>
+
+      <!-- actors -->
+      <g class="pp-client">
+        <rect x="20" y="38" width="110" height="36" rx="6" fill="#1a1208"/>
+        <text x="75" y="61" text-anchor="middle" fill="#f7f4ee" font-size="10" font-weight="600" font-family="'DM Mono',monospace">🖥 Client</text>
+      </g>
+      <g class="pp-cdn">
+        <rect x="260" y="38" width="110" height="36" rx="6" fill="#0d2d1a" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="315" y="57" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">CDN Edge</text>
+        <text x="315" y="69" text-anchor="middle" fill="#0a8070" font-size="8" font-family="'DM Mono',monospace">(blobs only)</text>
+      </g>
+      <g class="pp-reg">
+        <rect x="460" y="38" width="110" height="36" rx="6" fill="#0d1f35" stroke="#3060c0" stroke-width="1.5"/>
+        <text x="515" y="57" text-anchor="middle" fill="#60a0e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Registry API</text>
+        <text x="515" y="69" text-anchor="middle" fill="#3060c0" font-size="8" font-family="'DM Mono',monospace">(manifests+tags)</text>
+      </g>
+      <g class="pp-store">
+        <rect x="610" y="38" width="80" height="36" rx="6" fill="#1a1208"/>
+        <text x="650" y="57" text-anchor="middle" fill="#d98e63" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Blob Store</text>
+        <text x="650" y="69" text-anchor="middle" fill="#8f8672" font-size="8" font-family="'DM Mono',monospace">S3/GCS</text>
+      </g>
+
+      <!-- lifelines -->
+      <line x1="75"  y1="74" x2="75"  y2="430" stroke="#c8bfa8" stroke-width="1" stroke-dasharray="3 2"/>
+      <line x1="315" y1="74" x2="315" y2="430" stroke="#c8bfa8" stroke-width="1" stroke-dasharray="3 2"/>
+      <line x1="515" y1="74" x2="515" y2="430" stroke="#c8bfa8" stroke-width="1" stroke-dasharray="3 2"/>
+      <line x1="650" y1="74" x2="650" y2="430" stroke="#c8bfa8" stroke-width="1" stroke-dasharray="3 2"/>
+
+      <!-- PUSH section header -->
+      <rect x="20" y="88" width="660" height="18" rx="3" fill="#1a1208" opacity=".7"/>
+      <text x="350" y="101" text-anchor="middle" fill="#d98e63" font-size="9" font-weight="600" font-family="'DM Mono',monospace">── PUSH FLOW ──</text>
+
+      <!-- P1: POST /v2/{name}/blobs/uploads -->
+      <line x1="79" y1="118" x2="507" y2="118" stroke="#0a8070" stroke-width="1.5" marker-end="url(#pp-arrR)" class="pp-p1a"/>
+      <g class="pp-p1l">
+        <rect x="110" y="104" width="350" height="16" rx="3" fill="#e8f7f5"/>
+        <text x="285" y="116" text-anchor="middle" fill="#065a50" font-size="9" font-weight="600" font-family="'DM Mono',monospace">1. POST /v2/myimage/blobs/uploads/ → get upload URL</text>
+      </g>
+
+      <!-- P2: PUT blob with content -->
+      <line x1="79" y1="144" x2="507" y2="144" stroke="#0a8070" stroke-width="1.5" marker-end="url(#pp-arrR)" class="pp-p2a"/>
+      <g class="pp-p2l">
+        <rect x="110" y="130" width="350" height="16" rx="3" fill="#e8f7f5"/>
+        <text x="285" y="142" text-anchor="middle" fill="#065a50" font-size="9" font-weight="600" font-family="'DM Mono',monospace">2. PUT blob (each layer) → registry checks if sha256 already exists</text>
+      </g>
+
+      <!-- P3: PUT manifest -->
+      <line x1="79" y1="170" x2="507" y2="170" stroke="#0a8070" stroke-width="1.5" marker-end="url(#pp-arrR)" class="pp-p3a"/>
+      <g class="pp-p3l">
+        <rect x="110" y="156" width="350" height="16" rx="3" fill="#e8f7f5"/>
+        <text x="285" y="168" text-anchor="middle" fill="#065a50" font-size="9" font-weight="600" font-family="'DM Mono',monospace">3. PUT /v2/myimage/manifests/latest → tag written, blobs linked</text>
+      </g>
+
+      <!-- registry → blob store arrow -->
+      <line x1="522" y1="190" x2="642" y2="190" stroke="#d98e63" stroke-width="1.5" marker-end="url(#pp-arrR)" class="pp-p3a" style="animation-delay:.2s"/>
+      <text x="582" y="184" text-anchor="middle" fill="#d98e63" font-size="8" font-family="'DM Mono',monospace">store blob</text>
+
+      <!-- PULL section header -->
+      <rect x="20" y="210" width="660" height="18" rx="3" fill="#0d1f35" opacity=".8"/>
+      <text x="350" y="223" text-anchor="middle" fill="#60a0e0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">── PULL FLOW ──</text>
+
+      <!-- Q1: GET manifest by tag -->
+      <line x1="507" y1="244" x2="83" y2="244" stroke="#3060c0" stroke-width="1.5" marker-end="url(#pp-arrL)" class="pp-q1a"/>
+      <g class="pp-q1l">
+        <rect x="110" y="230" width="350" height="16" rx="3" fill="#e8f0ff"/>
+        <text x="285" y="242" text-anchor="middle" fill="#1a3a8a" font-size="9" font-weight="600" font-family="'DM Mono',monospace">1. GET /v2/myimage/manifests/latest → JSON manifest returned</text>
+      </g>
+
+      <!-- Q2: HEAD each blob (check local cache) -->
+      <line x1="507" y1="272" x2="83" y2="272" stroke="#3060c0" stroke-width="1.5" stroke-dasharray="5 2" marker-end="url(#pp-arrL)" class="pp-q2a"/>
+      <g class="pp-q2l">
+        <rect x="110" y="258" width="350" height="16" rx="3" fill="#e8f0ff"/>
+        <text x="285" y="270" text-anchor="middle" fill="#1a3a8a" font-size="9" font-family="'DM Mono',monospace">2. HEAD /v2/myimage/blobs/{digest} per layer → 200 or 404</text>
+      </g>
+
+      <!-- Q3: GET missing blobs via CDN redirect -->
+      <line x1="507" y1="300" x2="321" y2="300" stroke="#3060c0" stroke-width="1.5" marker-end="url(#pp-arrL)" class="pp-q3a"/>
+      <line x1="307" y1="300" x2="83" y2="300" stroke="#0a8070" stroke-width="1.5" marker-end="url(#pp-arrL)" class="pp-q3a" style="animation-delay:.2s"/>
+      <g class="pp-q3l">
+        <rect x="90" y="286" width="370" height="16" rx="3" fill="#e8f7f5"/>
+        <text x="275" y="298" text-anchor="middle" fill="#065a50" font-size="9" font-family="'DM Mono',monospace">3. GET blob → 307 redirect to CDN presigned URL → download from edge</text>
+      </g>
+
+      <!-- dedup note -->
+      <rect x="60" y="325" width="580" height="48" rx="6" fill="#fffce8" stroke="#c97b1a" stroke-width="1.5" class="pp-q3l" style="animation-delay:.8s"/>
+      <text x="350" y="341" text-anchor="middle" fill="#7a4a00" font-size="10" font-weight="700" font-family="'DM Mono',monospace">DEDUPLICATION IS FREE</text>
+      <text x="350" y="358" text-anchor="middle" fill="#a07030" font-size="9" font-family="'DM Mono',monospace">If sha256:1a2b3c already in blob store → skip upload. Docker checks with HEAD before PUT.</text>
+      <text x="350" y="372" text-anchor="middle" fill="#a07030" font-size="9" font-family="'DM Mono',monospace">ubuntu:22.04 base layer stored once — serves 50M+ images. CDN caches blobs by digest.</text>
+
+      <!-- pull optimization note -->
+      <rect x="60" y="382" width="580" height="40" rx="6" fill="#f0f4ff" stroke="#3060c0" stroke-width="1" class="pp-q3l" style="animation-delay:1.0s"/>
+      <text x="350" y="399" text-anchor="middle" fill="#1a3a8a" font-size="9" font-weight="700" font-family="'DM Mono',monospace">PULL OPTIMIZATION: only missing layers downloaded</text>
+      <text x="350" y="414" text-anchor="middle" fill="#3060c0" font-size="9" font-family="'DM Mono',monospace">Existing local layers skip the GET. CI warm cache: only changed layers (~10 MB vs 200 MB full pull).</text>
+    </svg>
+
+    <h3 class="reveal">Content-addressable storage — why SHA256 is the key</h3>
+    <p class="reveal">Every blob in a registry is addressed by its SHA256 digest: <code>sha256:1a2b3c...</code>. This has three profound consequences:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>DEDUPLICATION</dt><dd>Any two images that share a layer — identical Ubuntu base, identical Python runtime — share exactly one copy of that layer in the blob store. Storage cost is O(unique layers), not O(images × layers).</dd></div>
+      <div class="defrow"><dt>CONTENT INTEGRITY</dt><dd>Before using a blob, recompute its SHA256. If it doesn't match the manifest's declared digest, the download is corrupt or tampered. No signature required for layer integrity — the hash is the trust anchor.</dd></div>
+      <div class="defrow"><dt>CACHE-FRIENDLY CDN</dt><dd>Blobs addressed by SHA256 are immutable — the same digest always means the same content. CDN edge nodes can cache blobs indefinitely with no TTL. A cache hit for sha256:ubuntu-base saves 100 MB of origin bandwidth for every pull worldwide.</dd></div>
+    </dl>
+
+    <h3 class="reveal">Multi-arch: manifest lists (OCI image index)</h3>
+    <pre class="codeblock reveal"><code># docker manifest inspect ubuntu:22.04 --verbose
+# An OCI Image Index ("fat manifest") points to per-platform manifests
+
+{
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "manifests": [
+    { "digest": "sha256:amd64...", "platform": {"os":"linux","architecture":"amd64"} },
+    { "digest": "sha256:arm64...", "platform": {"os":"linux","architecture":"arm64"} },
+    { "digest": "sha256:armv7...", "platform": {"os":"linux","architecture":"arm","variant":"v7"} }
+  ]
+}
+
+# docker pull resolves the correct manifest for the host platform automatically.
+# buildx --platform linux/amd64,linux/arm64 builds and pushes all platforms in one push.</code></pre>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="networking">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — CONTAINER NETWORKING</span>From veth pairs to VXLAN overlays</h2>
+    <p class="lede reveal">Container networking is Linux networking — namespaces, veth pairs, bridges, iptables NAT. Multi-host adds VXLAN overlay encapsulation. Understanding the primitives is the prerequisite for debugging any networking issue in Kubernetes.</p>
+
+    <h3 class="reveal">Single-host: bridge networking (docker0)</h3>
+
+    <!-- ── BRIDGE NETWORK SVG ─────────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 400" aria-label="Container bridge networking diagram" style="overflow:hidden">
+      <defs>
+        <style>
+          .bn-host  { animation: bn-drop .5s .1s both; }
+          .bn-c1    { animation: bn-drop .5s .3s both; }
+          .bn-c2    { animation: bn-drop .5s .5s both; }
+          .bn-br    { animation: bn-drop .5s .7s both; }
+          .bn-nat   { animation: bn-drop .5s .9s both; }
+          .bn-link1 { stroke-dasharray:120; animation: bn-pulse 2s 1.2s ease-in-out infinite; }
+          .bn-link2 { stroke-dasharray:120; animation: bn-pulse 2s 1.4s ease-in-out infinite; }
+          .bn-ann   { animation: bn-fadeIn .5s 1.5s both; }
+        </style>
+        <marker id="bn-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0a8070"/>
+        </marker>
+      </defs>
+      <rect width="700" height="400" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="24" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">Docker Bridge Networking — Single Host</text>
+
+      <!-- host namespace box -->
+      <g class="bn-host">
+        <rect x="20" y="36" width="660" height="330" rx="8" fill="none" stroke="#c8bfa8" stroke-width="2" stroke-dasharray="6 3"/>
+        <text x="40" y="56" fill="#8a7c6a" font-size="10" font-family="'DM Mono',monospace">HOST NETWORK NAMESPACE</text>
+      </g>
+
+      <!-- container 1 namespace -->
+      <g class="bn-c1">
+        <rect x="60" y="68" width="220" height="130" rx="6" fill="#e8f7f5" stroke="#0a8070" stroke-width="2"/>
+        <text x="170" y="90" text-anchor="middle" fill="#065a50" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Container 1</text>
+        <text x="170" y="106" text-anchor="middle" fill="#0a8070" font-size="9" font-family="'DM Mono',monospace">Network namespace</text>
+        <rect x="90" y="114" width="160" height="28" rx="4" fill="#fff" stroke="#0a8070" stroke-width="1"/>
+        <text x="170" y="133" text-anchor="middle" fill="#065a50" font-size="9" font-family="'DM Mono',monospace">eth0  172.17.0.2/16</text>
+        <text x="170" y="178" text-anchor="middle" fill="#5a8a7a" font-size="9" font-family="'DM Mono',monospace">veth pair endpoint</text>
+      </g>
+
+      <!-- container 2 namespace -->
+      <g class="bn-c2">
+        <rect x="420" y="68" width="220" height="130" rx="6" fill="#e8f7f5" stroke="#0a8070" stroke-width="2"/>
+        <text x="530" y="90" text-anchor="middle" fill="#065a50" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Container 2</text>
+        <text x="530" y="106" text-anchor="middle" fill="#0a8070" font-size="9" font-family="'DM Mono',monospace">Network namespace</text>
+        <rect x="450" y="114" width="160" height="28" rx="4" fill="#fff" stroke="#0a8070" stroke-width="1"/>
+        <text x="530" y="133" text-anchor="middle" fill="#065a50" font-size="9" font-family="'DM Mono',monospace">eth0  172.17.0.3/16</text>
+        <text x="530" y="178" text-anchor="middle" fill="#5a8a7a" font-size="9" font-family="'DM Mono',monospace">veth pair endpoint</text>
+      </g>
+
+      <!-- veth pair lines to bridge -->
+      <line x1="170" y1="198" x2="280" y2="240" stroke="#0a8070" stroke-width="2" class="bn-link1" marker-end="url(#bn-arr)"/>
+      <line x1="530" y1="198" x2="420" y2="240" stroke="#0a8070" stroke-width="2" class="bn-link2" marker-end="url(#bn-arr)"/>
+      <text x="200" y="228" fill="#5a8a7a" font-size="8" font-family="'DM Mono',monospace" class="bn-ann">veth→vethXXX</text>
+      <text x="455" y="228" fill="#5a8a7a" font-size="8" font-family="'DM Mono',monospace" class="bn-ann">veth→vethYYY</text>
+
+      <!-- docker0 bridge -->
+      <g class="bn-br">
+        <rect x="220" y="242" width="260" height="50" rx="6" fill="#1a1208" stroke="#d98e63" stroke-width="2"/>
+        <text x="350" y="262" text-anchor="middle" fill="#d98e63" font-size="10" font-weight="700" font-family="'DM Mono',monospace">docker0 bridge</text>
+        <text x="350" y="278" text-anchor="middle" fill="#8f8672" font-size="9" font-family="'DM Mono',monospace">172.17.0.1/16  (virtual switch)</text>
+      </g>
+
+      <!-- iptables NAT -->
+      <g class="bn-nat">
+        <rect x="220" y="308" width="260" height="44" rx="6" fill="#1a0d00" stroke="#c97b1a" stroke-width="1.5"/>
+        <text x="350" y="326" text-anchor="middle" fill="#c97b1a" font-size="10" font-weight="700" font-family="'DM Mono',monospace">iptables MASQUERADE</text>
+        <text x="350" y="342" text-anchor="middle" fill="#8a5a30" font-size="9" font-family="'DM Mono',monospace">POSTROUTING: 172.17.0.0/16 → eth0 (SNAT)</text>
+      </g>
+
+      <!-- bridge to NAT arrow -->
+      <line x1="350" y1="294" x2="350" y2="306" stroke="#d98e63" stroke-width="1.5" marker-end="url(#bn-arr)" class="bn-ann"/>
+
+      <!-- annotation right side -->
+      <g class="bn-ann">
+        <text x="570" y="256" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">Container-to-container:</text>
+        <text x="570" y="268" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">via bridge directly</text>
+        <text x="570" y="286" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">Container-to-internet:</text>
+        <text x="570" y="298" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">iptables MASQUERADE</text>
+        <text x="570" y="316" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">Port publish (-p 8080:80):</text>
+        <text x="570" y="328" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">iptables DNAT rule</text>
+      </g>
+    </svg>
+
+    <h3 class="reveal">Network namespaces and veth pairs — the mechanics</h3>
+    <dl class="reveal">
+      <div class="defrow"><dt>NETWORK NAMESPACE</dt><dd>Each container gets its own network stack: interfaces, routing table, iptables rules, sockets — fully isolated. <code>ip netns exec container1 ip addr</code> shows only that container's interfaces. The host namespace and container namespace are completely separate — a port conflict in one is invisible to the other.</dd></div>
+      <div class="defrow"><dt>VETH PAIR</dt><dd>A virtual Ethernet cable with two ends. One end is placed inside the container namespace (appears as <code>eth0</code>); the other is placed in the host namespace (appears as <code>vethXXXX</code>) and attached to the docker0 bridge. Traffic flows between them — whatever enters one end exits the other. This is the only "wire" between the container and the host network.</dd></div>
+      <div class="defrow"><dt>DOCKER0 BRIDGE</dt><dd>A virtual switch at <code>172.17.0.1/16</code>. All container veth pairs attach here. Container-to-container traffic within the same bridge is direct — no NAT, no kernel routing, just a virtual switch forward. The bridge also has an IP on the host, allowing the host to reach containers.</dd></div>
+      <div class="defrow"><dt>IPTABLES MASQUERADE</dt><dd>For container-to-internet traffic: the kernel NATs the source IP from 172.17.0.x to the host's public IP. For inbound port publishing (<code>-p 8080:80</code>): iptables DNAT rewrites destination from host:8080 to 172.17.0.x:80. This is why <code>docker run -p</code> works — it's just iptables rules.</dd></div>
+    </dl>
+
+    <h3 class="reveal">Multi-host: VXLAN overlay networking</h3>
+    <p class="reveal">Single-host bridge networking doesn't cross machines. For multi-host clusters (Docker Swarm, Kubernetes), an overlay network encapsulates container frames inside UDP packets using VXLAN (Virtual Extensible LAN). Container 172.17.0.2 on host A communicating with container 172.17.0.3 on host B: the frame is wrapped in a VXLAN UDP packet (destination: host B's physical IP, port 4789) and unwrapped on arrival. Flannel, Calico, Cilium, and Weave all implement variations of this model.</p>
+
+    <pre class="codeblock reveal"><code># VXLAN packet structure (simplified)
+Outer Ethernet frame:
+  src MAC: host-A NIC
+  dst MAC: host-B NIC
+
+Outer IP header:
+  src: 10.0.0.1  (host A physical IP)
+  dst: 10.0.0.2  (host B physical IP)
+
+UDP header:
+  dst port: 4789 (VXLAN)
+
+VXLAN header:
+  VNI: 100  (virtual network identifier — which overlay network)
+
+Inner Ethernet frame:
+  src MAC: veth in container-A namespace
+  dst MAC: veth in container-B namespace
+
+Inner IP:
+  src: 10.244.1.2  (pod/container IP on host A)
+  dst: 10.244.2.3  (pod/container IP on host B)
+
+# The kernel's VXLAN driver on host B strips the outer headers and
+# delivers the inner frame to the correct container namespace.
+# To the container, it looks like a normal Ethernet packet.</code></pre>
+
+    <div class="pull reveal">DNS inside containers: Docker embeds a DNS resolver at 127.0.0.11. Container-to-container by service name (e.g., <code>curl http://db:5432</code>) resolves via Docker's embedded DNS which maps service names to 172.17.0.x IPs. In Kubernetes, CoreDNS does the same job for pod-to-service resolution: <code>my-service.default.svc.cluster.local → 10.96.x.x</code>.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="schema">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — SCHEMA DESIGN</span>The registry database</h2>
+    <p class="lede reveal">The interesting design is layer deduplication (blobs are shared across images), garbage collection (GC blobs only when no manifest references them), quota enforcement per repository, and pull event analytics. Each table serves a distinct operational requirement.</p>
+
+    <pre class="codeblock reveal"><code>-- Repositories (e.g. library/ubuntu, ghcr.io/org/app)
+CREATE TABLE repository (
+    repo_id         BIGSERIAL PRIMARY KEY,
+    registry        TEXT NOT NULL,              -- 'docker.io', 'ghcr.io', 'gcr.io'
+    namespace        TEXT NOT NULL,             -- 'library', 'myorg'
+    name             TEXT NOT NULL,             -- 'ubuntu', 'myapp'
+    is_public        BOOLEAN NOT NULL DEFAULT TRUE,
+    owner_id         BIGINT NOT NULL,
+    storage_bytes    BIGINT NOT NULL DEFAULT 0, -- updated by trigger on blob insert
+    quota_bytes      BIGINT,                    -- NULL = unlimited
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (registry, namespace, name)
+);
+
+-- Content-addressed blobs — shared across ALL images/repositories
+CREATE TABLE blob (
+    blob_id          BIGSERIAL PRIMARY KEY,
+    digest           TEXT NOT NULL UNIQUE,      -- sha256:hex — THE primary key conceptually
+    media_type       TEXT NOT NULL,             -- 'application/vnd.oci.image.layer.v1.tar+gzip' etc.
+    size_bytes       BIGINT NOT NULL,
+    storage_path     TEXT NOT NULL,             -- s3://blobs/{digest[0:2]}/{digest[2:4]}/{digest}
+    uploaded_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_referenced_at TIMESTAMPTZ,             -- updated on pull; used by GC
+    gc_eligible      BOOLEAN NOT NULL DEFAULT FALSE  -- set true when ref_count → 0
+);
+
+-- OCI Manifests (one per image+platform)
+CREATE TABLE manifest (
+    manifest_id      BIGSERIAL PRIMARY KEY,
+    repo_id          BIGINT NOT NULL REFERENCES repository(repo_id),
+    digest           TEXT NOT NULL,             -- sha256 of the manifest JSON
+    media_type       TEXT NOT NULL,             -- OCI manifest or manifest list
+    raw_json         JSONB NOT NULL,            -- full manifest content
+    config_digest    TEXT REFERENCES blob(digest),  -- null for manifest lists
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (repo_id, digest)
+);
+
+-- Manifest ↔ blob association (many-to-many — core deduplication)
+CREATE TABLE manifest_blob (
+    manifest_id      BIGINT NOT NULL REFERENCES manifest(manifest_id),
+    blob_id          BIGINT NOT NULL REFERENCES blob(blob_id),
+    layer_order      INT NOT NULL,              -- 0-based order in manifest layers array
+    PRIMARY KEY (manifest_id, blob_id)
+);
+
+-- Tags (mutable pointers to manifests)
+CREATE TABLE tag (
+    tag_id           BIGSERIAL PRIMARY KEY,
+    repo_id          BIGINT NOT NULL REFERENCES repository(repo_id),
+    name             TEXT NOT NULL,             -- 'latest', 'v1.2.3', 'main'
+    manifest_id      BIGINT NOT NULL REFERENCES manifest(manifest_id),
+    pushed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    pushed_by        TEXT NOT NULL,
+    UNIQUE (repo_id, name)
+);
+
+-- Image index (multi-arch / manifest list → per-platform manifests)
+CREATE TABLE image_index_entry (
+    parent_manifest_id BIGINT NOT NULL REFERENCES manifest(manifest_id),
+    child_manifest_id  BIGINT NOT NULL REFERENCES manifest(manifest_id),
+    platform_os        TEXT NOT NULL,           -- 'linux'
+    platform_arch      TEXT NOT NULL,           -- 'amd64', 'arm64', 'arm'
+    platform_variant   TEXT,                    -- 'v7' for arm/v7
+    PRIMARY KEY (parent_manifest_id, child_manifest_id)
+);
+
+-- Pull events (analytics + rate limiting)
+CREATE TABLE pull_event (
+    event_id         BIGSERIAL PRIMARY KEY,
+    repo_id          BIGINT NOT NULL REFERENCES repository(repo_id),
+    manifest_id      BIGINT REFERENCES manifest(manifest_id),
+    tag_name         TEXT,
+    puller_id        BIGINT,                    -- authenticated user / org, null for anon
+    client_ip        INET NOT NULL,
+    pulled_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    bytes_transferred BIGINT NOT NULL DEFAULT 0,
+    was_cache_hit    BOOLEAN NOT NULL DEFAULT FALSE
+) PARTITION BY RANGE (pulled_at);  -- monthly partitions; archive to S3 after 90 days
+
+CREATE TABLE pull_event_2026_01 PARTITION OF pull_event
+    FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
+
+-- Indexes
+CREATE INDEX idx_blob_digest         ON blob (digest);
+CREATE INDEX idx_manifest_repo       ON manifest (repo_id, created_at DESC);
+CREATE INDEX idx_tag_repo_name       ON tag (repo_id, name);
+CREATE INDEX idx_manifest_blob_blob  ON manifest_blob (blob_id);  -- for GC ref-count
+CREATE INDEX idx_pull_event_repo     ON pull_event (repo_id, pulled_at DESC);
+CREATE INDEX idx_blob_gc             ON blob (gc_eligible, last_referenced_at)
+    WHERE gc_eligible = TRUE;
+
+-- Garbage collection query: find blobs with no manifest references
+-- Run periodically after tag deletes / manifest deletes
+UPDATE blob SET gc_eligible = TRUE
+WHERE blob_id NOT IN (SELECT DISTINCT blob_id FROM manifest_blob)
+  AND uploaded_at < NOW() - INTERVAL '7 days';  -- soft-delete grace period</code></pre>
+
+    <div class="pull reveal"><strong>GC design:</strong> never delete a blob immediately when a manifest is deleted — there is a grace period (7–30 days) during which a push can restore the reference. Soft-delete: mark <code>gc_eligible = TRUE</code>, then a GC worker sweeps blobs with no references and no recent push. This prevents races between concurrent push and delete operations.</div>
+
+    <p class="reveal"><strong>Quota enforcement:</strong> <code>storage_bytes</code> on <code>repository</code> is updated by a trigger on <code>manifest_blob</code> insert. Before accepting a push, check <code>storage_bytes + new_layer_sizes &lt;= quota_bytes</code>. Deduplication means shared layers don't count against individual repo quotas — only layers unique to that repo.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="runtime">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — RUNTIME INTERNALS</span>What happens when you run <code>docker run</code></h2>
+    <p class="lede reveal">Eight steps from command to running process. Each step is a distinct subsystem: registry pull, layer unpacking, rootfs construction, namespace setup, cgroup limits, and exec. runc is the last mile — it executes exactly one process.</p>
+
+    <!-- ── RUNTIME EXEC FLOW SVG ──────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 490" aria-label="Docker run execution flow" style="overflow:hidden">
+      <defs>
+        <style>
+          .re-s1 { animation: re-step .45s .10s both; }
+          .re-s2 { animation: re-step .45s .35s both; }
+          .re-s3 { animation: re-step .45s .60s both; }
+          .re-s4 { animation: re-step .45s .85s both; }
+          .re-s5 { animation: re-step .45s 1.10s both; }
+          .re-s6 { animation: re-step .45s 1.35s both; }
+          .re-s7 { animation: re-step .45s 1.60s both; }
+          .re-s8 { animation: re-step .45s 1.85s both; }
+          .re-a1 { stroke-dasharray:80; animation: re-arrowD .4s .32s ease both; }
+          .re-a2 { stroke-dasharray:80; animation: re-arrowD .4s .57s ease both; }
+          .re-a3 { stroke-dasharray:80; animation: re-arrowD .4s .82s ease both; }
+          .re-a4 { stroke-dasharray:80; animation: re-arrowD .4s 1.07s ease both; }
+          .re-a5 { stroke-dasharray:80; animation: re-arrowD .4s 1.32s ease both; }
+          .re-a6 { stroke-dasharray:80; animation: re-arrowD .4s 1.57s ease both; }
+          .re-a7 { stroke-dasharray:80; animation: re-arrowD .4s 1.82s ease both; }
+        </style>
+        <marker id="re-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0a8070"/>
+        </marker>
+      </defs>
+      <rect width="700" height="490" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="24" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">docker run nginx:alpine — Eight Steps to a Running Process</text>
+
+      <!-- Step 1 -->
+      <g class="re-s1">
+        <rect x="100" y="34" width="500" height="40" rx="5" fill="#0d1f35" stroke="#3060c0" stroke-width="1.5"/>
+        <text x="120" y="53" fill="#60a0e0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[1] Docker CLI → Docker daemon (dockerd) via Unix socket /var/run/docker.sock</text>
+        <text x="120" y="67" fill="#3060a0" font-size="9" font-family="'DM Mono',monospace">POST /containers/create + POST /containers/{id}/start</text>
+      </g>
+      <line x1="350" y1="76" x2="350" y2="88" stroke="#0a8070" stroke-width="1.5" marker-end="url(#re-arr)" class="re-a1"/>
+
+      <!-- Step 2 -->
+      <g class="re-s2">
+        <rect x="100" y="90" width="500" height="40" rx="5" fill="#0d2d1a" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="120" y="109" fill="#0fccb0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[2] dockerd → containerd (gRPC) — containerd manages image snapshots + container lifecycle</text>
+        <text x="120" y="123" fill="#0a8070" font-size="9" font-family="'DM Mono',monospace">containerd pulls image if not cached (OCI Distribution Spec pull)</text>
+      </g>
+      <line x1="350" y1="132" x2="350" y2="144" stroke="#0a8070" stroke-width="1.5" marker-end="url(#re-arr)" class="re-a2"/>
+
+      <!-- Step 3 -->
+      <g class="re-s3">
+        <rect x="100" y="146" width="500" height="40" rx="5" fill="#1a1208" stroke="#d98e63" stroke-width="1.5"/>
+        <text x="120" y="165" fill="#d98e63" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[3] Unpack layers → snapshotter (OverlayFS)</text>
+        <text x="120" y="179" fill="#8f8672" font-size="9" font-family="'DM Mono',monospace">Each layer decompressed + applied as an OverlayFS lower dir. Upper dir = writable layer.</text>
+      </g>
+      <line x1="350" y1="188" x2="350" y2="200" stroke="#0a8070" stroke-width="1.5" marker-end="url(#re-arr)" class="re-a3"/>
+
+      <!-- Step 4 -->
+      <g class="re-s4">
+        <rect x="100" y="202" width="500" height="40" rx="5" fill="#0d1a2d" stroke="#3060c0" stroke-width="1.5"/>
+        <text x="120" y="221" fill="#60a0e0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[4] Create container namespaces (kernel unshare syscall)</text>
+        <text x="120" y="235" fill="#3060c0" font-size="9" font-family="'DM Mono',monospace">CLONE_NEWNET · CLONE_NEWPID · CLONE_NEWNS (mount) · CLONE_NEWUTS · CLONE_NEWIPC</text>
+      </g>
+      <line x1="350" y1="244" x2="350" y2="256" stroke="#0a8070" stroke-width="1.5" marker-end="url(#re-arr)" class="re-a4"/>
+
+      <!-- Step 5 -->
+      <g class="re-s5">
+        <rect x="100" y="258" width="500" height="40" rx="5" fill="#1a1208" stroke="#c97b1a" stroke-width="1.5"/>
+        <text x="120" y="277" fill="#c97b1a" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[5] Create veth pair — attach one end to container netns, other end to docker0 bridge</text>
+        <text x="120" y="291" fill="#8a5a30" font-size="9" font-family="'DM Mono',monospace">Assign 172.17.0.x IP via DHCP from Docker's IPAM. Add iptables rules for port mappings.</text>
+      </g>
+      <line x1="350" y1="300" x2="350" y2="312" stroke="#0a8070" stroke-width="1.5" marker-end="url(#re-arr)" class="re-a5"/>
+
+      <!-- Step 6 -->
+      <g class="re-s6">
+        <rect x="100" y="314" width="500" height="40" rx="5" fill="#1a0d00" stroke="#c97b1a" stroke-width="1.5"/>
+        <text x="120" y="333" fill="#c97b1a" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[6] Apply cgroup limits (cgroupv2)</text>
+        <text x="120" y="347" fill="#8a5a30" font-size="9" font-family="'DM Mono',monospace">cpu.max, memory.max, blkio.weight — written to /sys/fs/cgroup/{container-id}/</text>
+      </g>
+      <line x1="350" y1="356" x2="350" y2="368" stroke="#0a8070" stroke-width="1.5" marker-end="url(#re-arr)" class="re-a6"/>
+
+      <!-- Step 7 -->
+      <g class="re-s7">
+        <rect x="100" y="370" width="500" height="40" rx="5" fill="#0d2d1a" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="120" y="389" fill="#0fccb0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[7] containerd → runc (OCI Runtime Spec) via shim</text>
+        <text x="120" y="403" fill="#0a8070" font-size="9" font-family="'DM Mono',monospace">containerd-shim-runc-v2 bridges containerd and runc; manages container lifecycle</text>
+      </g>
+      <line x1="350" y1="412" x2="350" y2="424" stroke="#0a8070" stroke-width="1.5" marker-end="url(#re-arr)" class="re-a7"/>
+
+      <!-- Step 8 -->
+      <g class="re-s8">
+        <rect x="100" y="426" width="500" height="50" rx="5" fill="#1a1208" stroke="#0fccb0" stroke-width="2"/>
+        <text x="120" y="447" fill="#0fccb0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">[8] runc: pivot_root → exec PID 1 in container namespace</text>
+        <text x="120" y="461" fill="#8f8672" font-size="9" font-family="'DM Mono',monospace">pivot_root changes the container's root filesystem. execve() starts PID 1 (/usr/sbin/nginx).</text>
+        <text x="120" y="471" fill="#5a8070" font-size="9" font-family="'DM Mono',monospace">runc exits; the shim holds the container's stdio. Container is now running.</text>
+      </g>
+    </svg>
+
+    <h3 class="reveal">runc, containerd, CRI — the component stack</h3>
+    <table class="reveal">
+      <tr><th>Component</th><th>Responsibility</th><th>Interface</th></tr>
+      <tr><td><strong>runc</strong></td><td>OCI runtime — creates namespaces, applies cgroup limits, execs PID 1. Does exactly one thing: start a container. Exits afterward.</td><td>OCI Runtime Spec (config.json)</td></tr>
+      <tr><td><strong>containerd</strong></td><td>Container lifecycle, image pull/store, snapshot management, shim management. Does NOT know about pods or services.</td><td>gRPC CRI (from Kubernetes), containerd client API</td></tr>
+      <tr><td><strong>CRI</strong></td><td>Container Runtime Interface — the Kubernetes API for talking to container runtimes. Kubelet speaks CRI; containerd implements it.</td><td>gRPC (RunPodSandbox, CreateContainer, StartContainer…)</td></tr>
+      <tr><td><strong>dockerd</strong></td><td>Docker daemon — legacy wrapper that translates Docker API calls to containerd calls. Not needed in Kubernetes (kubelet speaks CRI directly).</td><td>Docker Engine API (HTTP/Unix socket)</td></tr>
+      <tr><td><strong>containerd shim</strong></td><td>Per-container process that bridges containerd and runc. Keeps running after runc exits to hold stdio and report exit status.</td><td>TTRpc (tiny RPC between containerd and shim)</td></tr>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="security">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — SECURITY</span>Image scanning, content trust, and container hardening</h2>
+    <p class="lede reveal">Container security has two distinct layers: image security (what's in the image before it runs) and runtime security (what a running container can do). Both require explicit design decisions — the defaults are permissive.</p>
+
+    <h3 class="reveal">Image scanning: Trivy and Grype</h3>
+    <p class="reveal">Image scanning tools (Trivy, Grype, Snyk Container) inspect the image's layer contents for known CVEs in OS packages (apt/yum), language runtimes (pip, npm, maven), and application dependencies. They do not run the image — they parse the filesystem statically.</p>
+
+    <table class="reveal">
+      <tr><th></th><th>Trivy</th><th>Grype</th></tr>
+      <tr><td>Vulnerability DB</td><td>NVD, GHSA, OS advisories (Ubuntu, Alpine, RHEL…)</td><td>NVD, GHSA + Anchore Feed</td></tr>
+      <tr><td>SBOM output</td><td>CycloneDX, SPDX, Syft JSON</td><td>CycloneDX, SPDX</td></tr>
+      <tr><td>CI integration</td><td>GitHub Actions, GitLab CI, Tekton, GitHub Advanced Security</td><td>GitHub Actions, Jenkins</td></tr>
+      <tr><td>Secret scanning</td><td>Yes (finds hardcoded secrets in image layers)</td><td>No</td></tr>
+      <tr><td>Registry scan (without pull)</td><td>Yes (remote scan via registry API)</td><td>Yes</td></tr>
+    </table>
+
+    <h3 class="reveal">Content trust: Notary v2 / cosign (Sigstore)</h3>
+    <p class="reveal">An image tag (<code>nginx:latest</code>) is mutable — someone can push a new image and overwrite the tag. Content trust creates a cryptographic signature over a manifest digest, stored alongside the image in the registry. The consumer verifies the signature before pulling.</p>
+
+    <pre class="codeblock reveal"><code># cosign (Sigstore) — keyless signing via OIDC (no long-lived key)
+# Sign in CI with GitHub Actions OIDC token:
+cosign sign --yes ghcr.io/myorg/myapp@sha256:abc123...
+# cosign uploads a signature as a separate OCI artifact in the registry
+
+# Verify before pull (in production admission controller):
+cosign verify --certificate-identity=https://github.com/myorg/myapp/.github/workflows/build.yaml \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              ghcr.io/myorg/myapp:latest
+
+# Notary v2 (nv2) — policy-based: only trusted images run
+# OPA Gatekeeper or Kyverno enforces policy at admission:
+# "any Pod spec.containers[].image must have a valid cosign signature"</code></pre>
+
+    <h3 class="reveal">Runtime hardening — the defense-in-depth checklist</h3>
+    <table class="reveal">
+      <tr><th>Control</th><th>How</th><th>What it prevents</th></tr>
+      <tr><td><strong>Read-only root filesystem</strong></td><td><code>docker run --read-only</code> or <code>securityContext.readOnlyRootFilesystem: true</code></td><td>Malware can't write to the container's root FS; pivots and persistence attacks</td></tr>
+      <tr><td><strong>Non-root user</strong></td><td>Dockerfile <code>USER 1001</code> or <code>securityContext.runAsNonRoot: true</code></td><td>Reduces blast radius if container is compromised; root in container = root on host with some escape paths</td></tr>
+      <tr><td><strong>No new privileges</strong></td><td><code>--security-opt=no-new-privileges</code> or <code>securityContext.allowPrivilegeEscalation: false</code></td><td>Blocks setuid binaries from escalating privileges inside the container</td></tr>
+      <tr><td><strong>Seccomp profile</strong></td><td>Docker default seccomp blocks ~44 syscalls. RuntimeDefault in Kubernetes.</td><td>Limits available kernel attack surface; blocks ptrace, kexec_load, etc.</td></tr>
+      <tr><td><strong>Drop capabilities</strong></td><td><code>--cap-drop=ALL --cap-add=NET_BIND_SERVICE</code></td><td>Removes CAP_SYS_ADMIN, CAP_NET_ADMIN, etc. — the dangerous capabilities that enable container escapes</td></tr>
+      <tr><td><strong>Rootless containers</strong></td><td>Podman rootless / rootless containerd / Docker rootless mode</td><td>Container root maps to unprivileged host user via user namespace — host cannot be root-escaped into</td></tr>
+      <tr><td><strong>Distroless images</strong></td><td>Google's gcr.io/distroless — no shell, no package manager</td><td>No shell = no interactive exploits; nothing to exec into. Attack surface reduced to the app binary only.</td></tr>
+    </table>
+
+    <div class="pull reveal">The most important container security insight: running as root inside a container is nearly the same as running as root on the host if there is a kernel vulnerability or misconfigured capability. Rootless containers (user namespaces) are the only defense that survives a kernel namespace escape — because even escaped, the attacker has only unprivileged host user access.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="scale">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — SCALE</span>Serving 10 billion pulls per day</h2>
+    <p class="lede reveal">Docker Hub serves ~10B pulls/day. GitHub Container Registry, GCR, and ECR handle similar scale. The architecture has three layers: CDN edge caching, P2P distribution for large-scale cluster pulls, and lazy loading for eliminating unnecessary data transfer entirely.</p>
+
+    <h3 class="reveal">Layer 1: CDN edge caching</h3>
+    <p class="reveal">Blobs are addressed by SHA256 digest — they are immutable and can be cached indefinitely. The registry redirects blob GETs to a CDN presigned URL (S3/GCS + CloudFront/Fastly). Cache hit rates for popular base images (ubuntu, alpine, python, node) exceed 99%. This means the origin registry handles only cache misses — roughly 1% of 10B = 100M requests/day.</p>
+
+    <pre class="codeblock reveal"><code># Registry blob GET → 307 redirect to CDN URL
+GET /v2/library/ubuntu/blobs/sha256:1a2b3c...
+→ 307 Location: https://cdn.hub.docker.com/v2/blobs/sha256:1a2b3c...?X-Amz-Expires=3600&X-Amz-Signature=...
+
+# CDN cache key = sha256 digest (immutable — no TTL needed)
+# Popular blobs (ubuntu, alpine base layers) served from CDN PoP nearest to client
+# Cold miss → CDN fetches from S3, caches permanently</code></pre>
+
+    <h3 class="reveal">Layer 2: P2P distribution (Dragonfly / Kraken)</h3>
+    <p class="reveal">When a Kubernetes cluster autoscales from 10 pods to 1000 pods simultaneously, each pod tries to pull the same image. Without P2P, 1000 nodes all hit the CDN/registry simultaneously. With P2P distribution (Alibaba's Dragonfly or Uber's Kraken), nodes form a BitTorrent-like swarm: each node that has pulled a chunk seeds it to peers. The registry/CDN serves only the initial seeder, and the swarm handles the fan-out.</p>
+
+    <table class="reveal">
+      <tr><th>Solution</th><th>Architecture</th><th>Best for</th></tr>
+      <tr><td><strong>Dragonfly (CNCF)</strong></td><td>Manager + Scheduler + Seed Peer + Dfdaemon agent on each node. Content splits into P2P chunks. Used by Alibaba, Ant Group.</td><td>Large-scale clusters (1000+ nodes), frequent mass-scale deployments</td></tr>
+      <tr><td><strong>Kraken (Uber)</strong></td><td>Tracker + Origin + Proxy + Agent. Uses BitTorrent protocol. Written in Go.</td><td>Uber's scale — 1M+ container starts/day across hundreds of clusters</td></tr>
+      <tr><td><strong>containerd mirror</strong></td><td>Simpler: configure a local registry mirror per cluster (Harbor, Nexus). Node pulls from mirror; mirror pulls from Docker Hub once.</td><td>Single cluster, simpler ops, acceptable latency</td></tr>
+    </table>
+
+    <h3 class="reveal">Layer 3: Lazy loading — eStargz and streaming pulls</h3>
+    <p class="reveal">The fundamental insight: most containers start after pulling 30% of their layers, because only the files accessed during startup are needed immediately. eStargz (CNCF Stargz Snapshotter) reformats image layers so individual files are addressable and fetchable on-demand. Container startup begins <em>before</em> the image is fully downloaded.</p>
+
+    <pre class="codeblock reveal"><code># eStargz: Seekable GZIP layer format
+# Each file within the layer is independently seekable
+# Manifest includes a "stargz" footer with a TOC (table of contents)
+
+# Startup latency comparison (Node.js app, 500 MB image):
+# Traditional pull:  download 500 MB → unpack → start    ≈ 60 s on cold node
+# eStargz lazy:      download TOC (1 MB) → start → fetch on demand  ≈ 3 s
+
+# Enable in containerd config.toml:
+[proxy_plugins]
+  [proxy_plugins.stargz]
+    type = "snapshot"
+    address = "/run/containerd-stargz-grpc/containerd-stargz-grpc.sock"
+
+# Build eStargz-compatible image:
+ctr-remote image optimize --oci \
+  nginx:alpine \
+  ghcr.io/myorg/nginx:alpine-sgz</code></pre>
+
+    <h3 class="reveal">Registry HA architecture</h3>
+    <table class="reveal">
+      <tr><th>Component</th><th>Architecture</th><th>Why</th></tr>
+      <tr><td>Blob storage</td><td>Multi-region S3/GCS with cross-region replication. Blobs are immutable — eventual consistency is fine.</td><td>CDN pulls from nearest region; durability via replication; no single point of failure</td></tr>
+      <tr><td>Manifest/tag DB</td><td>PostgreSQL (primary + replicas per region) or CockroachDB for global active-active. Tags are mutable — strong consistency needed for writes.</td><td>Tag write must be globally consistent to avoid split-brain (two regions serving different digests for same tag)</td></tr>
+      <tr><td>Registry API</td><td>Stateless containers behind ALB in each region. Auto-scale on CPU.</td><td>Horizontal scaling; no session state; blob redirect offloads bandwidth</td></tr>
+      <tr><td>CDN</td><td>CloudFront / Fastly global PoP network. Cache blobs by SHA256 digest permanently.</td><td>Last-mile latency; absorbs 99%+ of blob traffic without touching origin</td></tr>
+      <tr><td>Rate limiting</td><td>Redis (or DynamoDB for multi-region) token bucket per IP/authenticated user. Unauthenticated Docker Hub: 100 pulls/6 hrs.</td><td>Protect origin from unauthenticated scraping; incentivize authentication</td></tr>
+    </table>
+
+    <div class="pull reveal">The 10B pulls/day number becomes tractable once you accept that 99% of it is CDN traffic serving immutable blobs by SHA256. The registry origin handles tags (mutable, ~1% of requests), new blob uploads (push path, rare), and cache misses. The hard problems are tag consistency across regions and garbage collection correctness — not raw throughput.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="qa">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — Q&amp;A</span>Fifteen questions the loop actually asks</h2>
+    <p class="lede reveal">These separate the staff-level answer from the senior one — layer caching, BuildKit, distroless images, and container escapes.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 01</span>
+      <p class="qtext">How does layer caching work in CI, and why does it break?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Dockerfile instructions are cached by their checksum + parent layer digest — if neither changes, the layer is reused. Cache breaks when any earlier layer changes (e.g., <code>COPY . .</code> before <code>RUN pip install</code> means every code change invalidates the pip layer). Fix: put <code>COPY requirements.txt</code> + <code>RUN pip install</code> before <code>COPY . .</code>.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 02</span>
+      <p class="qtext">What are multi-stage builds and why do they matter?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Multi-stage builds use multiple <code>FROM</code> instructions — a "builder" stage compiles the binary, a "runtime" stage copies only the compiled artifact. The final image contains no compiler, no build tools, no source code — just the binary and its runtime deps. A Go app goes from 1.2 GB (with Go toolchain) to 15 MB (scratch + binary).</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 03</span>
+      <p class="qtext">What is a distroless image and when should you use one?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Distroless images (gcr.io/distroless) contain only the application runtime (Java 17, Python 3.11, etc.) and no shell, no package manager, no OS utilities. <code>docker exec</code> fails — there is nothing to exec into. Use when you want to minimize attack surface in production; accept the operational cost: debugging requires ephemeral debug sidecar containers (<code>kubectl debug</code>).</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 04</span>
+      <p class="qtext">How do you minimize image size?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Use alpine or distroless base, multi-stage builds, combine RUN commands to reduce layer count, <code>--no-cache</code> in apk/apt, <code>.dockerignore</code> to exclude test files and docs, and <code>docker scout</code> or <code>dive</code> to inspect layer contents. Target: &lt;100 MB for most production services; &lt;20 MB for Go/Rust binaries on scratch/distroless.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 05</span>
+      <p class="qtext">What is BuildKit and how does it improve on the classic Docker build engine?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">BuildKit (docker/buildkit) replaces the sequential layer-by-layer builder with a DAG executor: independent <code>RUN</code> stages run in parallel, build cache is external (registry-based, shared across CI workers), secrets can be passed as tmpfs mounts (never baked into layers), and output supports multiple exporters (OCI, Docker, local). <code>DOCKER_BUILDKIT=1</code> or <code>docker buildx build</code>.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 06</span>
+      <p class="qtext">What is an SBOM and why does it matter for containers?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">An SBOM (Software Bill of Materials) is a machine-readable inventory of every package in an image: name, version, license, source repo. In CycloneDX or SPDX format. Executive Order 14028 (US federal) requires SBOMs for federal software procurement. In practice: store the SBOM alongside the image in the registry (as a cosign-attached OCI artifact), and query it when a new CVE drops to find all images containing the vulnerable package.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 07</span>
+      <p class="qtext">What is a container escape and how does it happen?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">A container escape is when a process inside a container gains access to the host. Three common paths: (1) kernel vulnerability that bypasses namespace isolation (CVE-2019-5736 runc overwrite, CVE-2022-0185); (2) misconfigured capabilities — <code>CAP_SYS_ADMIN</code> is nearly equivalent to root on host; (3) privileged container (<code>--privileged</code>) which disables all security mechanisms. Defence: rootless containers, seccomp, drop all caps, no privileged containers in production.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 08</span>
+      <p class="qtext">What is cgroup v2 and what does it change for containers?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">cgroupv2 (unified hierarchy) replaces cgroupv1's split per-controller hierarchy. Key changes: memory.oom.group for coordinated OOM killing of a container (not just the worst-fit process), PSI (Pressure Stall Information) for detecting resource contention, and unified delegation of cgroup management to the container runtime. Kubernetes 1.25+ requires cgroupv2; Amazon Linux 2023 and Ubuntu 22.04 default to cgroupv2.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 09</span>
+      <p class="qtext">What is the difference between OCI format and Docker image format?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Docker's image format (schema 2) and OCI Image Spec 1.0 are nearly identical — OCI was derived from Docker's format and standardized by the OCI working group. Key differences: OCI uses different media types (<code>application/vnd.oci.image.manifest.v1+json</code> vs Docker's <code>application/vnd.docker.distribution.manifest.v2+json</code>), OCI uses "image index" where Docker uses "manifest list." All modern runtimes (containerd, Podman, buildah) speak both formats transparently.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 10</span>
+      <p class="qtext">How do you design registry HA? What fails when a region goes down?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Blobs are in multi-region S3 with CRR — CDN serves from nearest region, unaffected. Tag writes (manifest PUT) need cross-region consistency — use CockroachDB or geo-distributed Postgres with synchronous replication for writes, or accept that tag writes fail during a region outage and pulls continue serving stale-but-consistent cached manifests. The worst failure mode: a region outage during a mass autoscale event causes thundering-herd on the remaining region's API tier — rate limit by cluster/namespace, not by IP.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 11</span>
+      <p class="qtext">Walk me through what happens when Kubernetes pulls an image.</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Kubelet detects a new Pod, calls CRI (containerd) <code>PullImage</code>. containerd checks its snapshot store for existing layers. For missing layers: GET manifest from registry, compare layer digests against local cache, GET missing blobs (via CDN redirect). Unpack blobs via snapshotter (OverlayFS). Report ImagePulled back to kubelet. Kubelet then calls <code>CreateContainer</code> and <code>StartContainer</code>. <code>imagePullPolicy: IfNotPresent</code> skips manifest fetch if image is already in containerd's image store.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 12</span>
+      <p class="qtext">How does Docker's rate limiting (100 pulls/6 hrs) work technically?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Rate limiting is applied per authenticated user (or per IP for anonymous). Each manifest GET (not blob GET) counts as a pull. The counter is stored in a Redis token bucket keyed by user/IP, decremented per manifest pull, refilled over 6 hours. Solution: authenticate in CI (<code>docker login</code>), or run a registry mirror (Harbor) in your cluster that pulls from Docker Hub once and serves internally unlimited.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 13</span>
+      <p class="qtext">What is the difference between <code>docker stop</code> and <code>docker kill</code>?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><code>docker stop</code> sends SIGTERM to PID 1 in the container, waits 10 seconds for graceful shutdown, then sends SIGKILL. <code>docker kill</code> sends SIGKILL immediately (or a specified signal). Apps should handle SIGTERM for graceful shutdown (drain connections, flush buffers). Kubernetes Pod termination follows the same pattern: SIGTERM → grace period → SIGKILL, with configurable <code>terminationGracePeriodSeconds</code>.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 14</span>
+      <p class="qtext">What is the FROM scratch base image and when do you use it?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><code>FROM scratch</code> is literally an empty filesystem — no OS, no libc, nothing. A single statically-linked binary is the entire container. Go and Rust compile to static binaries; a Go HTTP server on scratch is ~5 MB. The tradeoff: no <code>sh</code>, no <code>wget</code>, no debugging tools. <code>curl</code> healthcheck doesn't work. Use distroless instead of scratch when you need TLS root CAs, timezone data, or a minimal libc.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 15</span>
+      <p class="qtext">How do you handle secrets in containers — what are the anti-patterns?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Anti-patterns: ENV vars (visible in <code>docker inspect</code>, process env, and image history), ARGs baked into layers (visible in image history), secret files in image layers (visible in layer extraction). Correct patterns: Kubernetes Secrets mounted as tmpfs volumes (<code>volumeMounts: secretKeyRef</code>), Vault Agent Injector sidecar, AWS Secrets Manager + IAM IRSA, or BuildKit secret mounts (<code>--mount=type=secret</code>) during build — secrets available in RUN but never in final image.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="summary">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 11 — SUMMARY</span>What the strong answer looks like</h2>
+
+    <table class="reveal">
+      <tr><th>Dimension</th><th>Weak answer</th><th>Strong answer</th></tr>
+      <tr><td>What is a container?</td><td>"An isolated process"</td><td>Linux namespaces + cgroups + OverlayFS union mount. Shares host kernel. Not a VM.</td></tr>
+      <tr><td>Image anatomy</td><td>"A Docker image with layers"</td><td>OCI manifest + config + content-addressed layer blobs. SHA256 digest is the trust anchor and cache key.</td></tr>
+      <tr><td>Registry design</td><td>"Store images in S3"</td><td>Blob store keyed by SHA256 digest + manifest DB + CDN redirect on blob GET. Deduplication is free via content addressing.</td></tr>
+      <tr><td>Networking</td><td>"Containers have their own network"</td><td>Network namespaces + veth pairs + docker0 bridge + iptables NAT. Multi-host: VXLAN overlay. DNS via embedded resolver.</td></tr>
+      <tr><td>Schema</td><td>"Tables for images and tags"</td><td>blob (deduplicated), manifest, manifest_blob (junction), tag (mutable), pull_event (partitioned). GC via manifest_blob ref-count.</td></tr>
+      <tr><td>Runtime</td><td>"Docker runs the container"</td><td>dockerd → containerd (CRI) → containerd-shim → runc → namespace + cgroup setup → exec PID 1. runc exits after start.</td></tr>
+      <tr><td>10B pulls/day</td><td>"Use a CDN"</td><td>CDN for blob serving (immutable by SHA256), P2P (Dragonfly/Kraken) for cluster autoscale bursts, eStargz lazy loading for cold start latency.</td></tr>
+      <tr><td>Security</td><td>"Scan for vulnerabilities"</td><td>Trivy scanning in CI + cosign signing + rootless containers + drop all caps + read-only rootfs + no-new-privileges + distroless base.</td></tr>
+    </table>
+
+    <div class="pull reveal">A container is not magic isolation. It is a Linux process with a private view of the filesystem (OverlayFS), a private network stack (namespace + veth pair), and resource limits (cgroup). Every container problem — networking bugs, security escapes, slow pulls, fat images — traces back to understanding which of these three primitives is involved. Start there, not with Docker commands.</div>
+
+    <!-- cross-link to orchestration -->
+    <div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:32px 0;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;" class="reveal">
+      📦 <strong>Using containers in production?</strong> The next problem is orchestration —
+      <a href="./the-orchestration-problem.html" style="color:#0a8070;font-weight:600;">The Orchestration Problem: Kubernetes →</a>
+      <span style="color:#5a8a7a;"> (pods, scheduling, control plane, operators, HPA)</span>
+    </div>
+
+    <p class="reveal"><a href="/interview.app/design/" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--teal);text-decoration:none;letter-spacing:.06em;">← Back to Design Scenarios</a></p>
+  </div>
+</section>
+
+<script>
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
