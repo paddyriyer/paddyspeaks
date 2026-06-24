@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The AWS Problem — PaddySpeaks · Interview Studio Nº 27</title>
+<meta name="description" content="Design a multi-region, fault-tolerant SaaS platform on AWS. Compute families, S3 storage classes, VPC anatomy, database decision trees, Lambda cold starts, IAM policy evaluation, and a multi-tenant schema. Systems at the Whiteboard Nº 27.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+<style>
+:root { --teal: #0a8070; --teal-deep: #065a50; --teal-light: rgba(10,128,112,.10); --amber: #f59e0b; }
+h1 em { color: var(--teal) !important; }
+
+/* ── Anchor Nav ───────────────────────────────────────────────── */
+.anchor-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #faf8f4;
+  border-bottom: 1px solid #e8e0d0;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 0 24px;
+}
+.anchor-nav a {
+  padding: 10px 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #8f8672;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.anchor-nav a:hover { color: #0a8070; }
+
+/* ── SVG wrappers ─────────────────────────────────────────────── */
+.svg-diagram { width: 100%; max-width: 700px; margin: 28px auto; display: block; overflow: hidden; }
+.svg-diagram text { font-family: 'DM Mono', monospace; }
+
+/* ── Comparison table ─────────────────────────────────────────── */
+.cmp-table { width:100%; border-collapse:collapse; margin:24px 0; font-family:'DM Mono',monospace; font-size:12px; }
+.cmp-table th { background:#1a1208; color:#d8a44a; padding:9px 13px; text-align:left; font-size:10px; letter-spacing:.12em; text-transform:uppercase; border:1px solid #3a2e1a; }
+.cmp-table td { padding:9px 13px; border:1px solid #3a2e1a; color:#8f8672; vertical-align:top; }
+.cmp-table tr:nth-child(odd) td { background:#120e06; }
+.cmp-table tr:nth-child(even) td { background:#1a1208; }
+.cmp-table td:first-child { color:#e9e2d0; font-weight:600; }
+
+/* ── keyframes ─────────────────────────────────────────────────── */
+@keyframes gi-fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes ec-pop  { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+@keyframes s3-slide{ from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+@keyframes vpc-draw{ from{opacity:0} to{opacity:1} }
+@keyframes db-drop { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes sl-bar  { from{width:0} to{width:100%} }
+@keyframes iam-seq { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 27</div>
+    <h1 class="reveal">The <em>AWS</em> Problem</h1>
+    <p class="deck reveal">Design a multi-region, fault-tolerant SaaS platform on AWS. Compute families, S3 storage classes, VPC anatomy with subnets and security groups, the full database decision tree, Lambda cold-start mechanics, IAM policy evaluation flow, a multi-tenant schema, and twelve rapid-fire interview questions — every layer visual-first.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Cloud Infrastructure / AWS</b></span>
+      <span>READING · <b>~30 min</b></span>
+    </div>
+  </div>
+</header>
+
+<!-- anchor nav -->
+<nav class="anchor-nav">
+  <a href="#compute">Compute</a>
+  <a href="#storage">Storage</a>
+  <a href="#networking">Networking</a>
+  <a href="#database">Database</a>
+  <a href="#serverless">Serverless</a>
+  <a href="#iam">IAM</a>
+  <a href="#schema">Schema</a>
+  <a href="#qa">Q&amp;A</a>
+</nav>
+
+<!-- cross-link callout -->
+<div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:24px auto;max-width:900px;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;">
+  ☁️ <strong>Cloud series:</strong>
+  <a href="the-gcp-problem.html" style="color:#0a8070;font-weight:600;">Nº 28 · The GCP Problem →</a>
+  &nbsp;|&nbsp;
+  <a href="the-azure-problem.html" style="color:#0a8070;font-weight:600;">Nº 29 · The Azure Problem →</a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="question">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>Multi-region SaaS on AWS</h2>
+  <div class="qcard reveal">
+    <span class="tag">Interview Prompt</span>
+    <p class="qtext">"Design a multi-region, fault-tolerant SaaS platform on AWS. Walk me through your choices for compute, storage, networking, and database tiers — and how you'd handle DR, cost optimization, and security at scale."</p>
+    <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+  </div>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>Weak answer</th><th>Strong answer</th></tr></thead>
+    <tbody>
+      <tr><td>"Use EC2 and RDS"</td><td>Names specific instance families, justifies with workload shape</td></tr>
+      <tr><td>Ignores AZ topology</td><td>3-AZ active-active, explains what fails if one AZ goes dark</td></tr>
+      <tr><td>"S3 for storage"</td><td>Maps workload to the right storage class with cost and retrieval tradeoff</td></tr>
+      <tr><td>Generic "use IAM"</td><td>Explains evaluation order: Deny → SCP → Boundary → Resource → Identity</td></tr>
+      <tr><td>No DR plan</td><td>RPO/RTO targets, pilot light vs warm standby vs multi-region active-active</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="compute">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 02 — GLOBAL INFRASTRUCTURE</span>Regions → AZs → Edge</h2>
+  <p class="lede reveal">AWS runs 33+ regions, each with 3+ isolated Availability Zones connected by private fiber. Edge Locations (400+) serve CloudFront CDN and Route 53 DNS.</p>
+
+  <!-- Global map concept SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 280" aria-label="AWS global infrastructure diagram" style="overflow:hidden">
+    <defs>
+      <style>
+        .gi-region { animation: gi-fade .6s .1s both; }
+        .gi-az     { animation: gi-fade .5s ease both; }
+        .gi-az:nth-child(1) { animation-delay:.3s }
+        .gi-az:nth-child(2) { animation-delay:.5s }
+        .gi-az:nth-child(3) { animation-delay:.7s }
+        .gi-edge   { animation: gi-fade .4s ease both; }
+      </style>
+      <marker id="gi-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+      </marker>
+    </defs>
+    <rect width="680" height="280" fill="#060e1c" rx="8"/>
+    <text x="340" y="22" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".12em">AWS GLOBAL INFRASTRUCTURE</text>
+
+    <!-- Region box -->
+    <g class="gi-region">
+      <rect x="180" y="38" width="320" height="200" rx="10" fill="none" stroke="#0fccb0" stroke-width="2" stroke-dasharray="8 4"/>
+      <text x="340" y="58" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".15em">REGION · us-east-1</text>
+      <text x="340" y="71" text-anchor="middle" fill="#5a7a8a" font-size="9" font-family="'DM Mono',monospace">3+ AZs · private fiber interconnect</text>
+
+      <!-- AZ boxes -->
+      <g class="gi-az">
+        <rect x="196" y="82" width="82" height="140" rx="6" fill="#0a1a28" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="237" y="100" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">AZ — a</text>
+        <rect x="206" y="108" width="62" height="22" rx="3" fill="#0a2a20"/>
+        <text x="237" y="123" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">EC2 / ECS</text>
+        <rect x="206" y="136" width="62" height="22" rx="3" fill="#1a0a28"/>
+        <text x="237" y="151" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">RDS primary</text>
+        <rect x="206" y="164" width="62" height="22" rx="3" fill="#0a1a28"/>
+        <text x="237" y="179" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="'DM Mono',monospace">EBS / EFS</text>
+        <rect x="206" y="192" width="62" height="20" rx="3" fill="#1a1208"/>
+        <text x="237" y="205" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">NAT GW</text>
+      </g>
+      <g class="gi-az">
+        <rect x="299" y="82" width="82" height="140" rx="6" fill="#0a1a28" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="340" y="100" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">AZ — b</text>
+        <rect x="309" y="108" width="62" height="22" rx="3" fill="#0a2a20"/>
+        <text x="340" y="123" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">EC2 / ECS</text>
+        <rect x="309" y="136" width="62" height="22" rx="3" fill="#1a0a28"/>
+        <text x="340" y="151" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">RDS replica</text>
+        <rect x="309" y="164" width="62" height="22" rx="3" fill="#0a1a28"/>
+        <text x="340" y="179" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="'DM Mono',monospace">EBS / EFS</text>
+        <rect x="309" y="192" width="62" height="20" rx="3" fill="#1a1208"/>
+        <text x="340" y="205" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">NAT GW</text>
+      </g>
+      <g class="gi-az">
+        <rect x="402" y="82" width="82" height="140" rx="6" fill="#0a1a28" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="443" y="100" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">AZ — c</text>
+        <rect x="412" y="108" width="62" height="22" rx="3" fill="#0a2a20"/>
+        <text x="443" y="123" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">EC2 / ECS</text>
+        <rect x="412" y="136" width="62" height="22" rx="3" fill="#1a0a28"/>
+        <text x="443" y="151" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">RDS replica</text>
+        <rect x="412" y="164" width="62" height="22" rx="3" fill="#0a1a28"/>
+        <text x="443" y="179" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="'DM Mono',monospace">EBS / EFS</text>
+        <rect x="412" y="192" width="62" height="20" rx="3" fill="#1a1208"/>
+        <text x="443" y="205" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">NAT GW</text>
+      </g>
+
+      <!-- inter-AZ lines -->
+      <line x1="278" y1="152" x2="299" y2="152" stroke="#0fccb0" stroke-width="1" stroke-dasharray="3 2" opacity=".5"/>
+      <line x1="381" y1="152" x2="402" y2="152" stroke="#0fccb0" stroke-width="1" stroke-dasharray="3 2" opacity=".5"/>
+    </g>
+
+    <!-- Edge locations -->
+    <g class="gi-edge">
+      <rect x="20" y="110" width="120" height="50" rx="5" fill="#0a1a28" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="80" y="130" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">EDGE LOCATION</text>
+      <text x="80" y="146" text-anchor="middle" fill="#8fa8b8" font-size="8" font-family="'DM Mono',monospace">CloudFront · R53</text>
+      <line x1="140" y1="135" x2="180" y2="155" stroke="#ef4444" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#gi-arr)"/>
+
+      <rect x="540" y="110" width="120" height="50" rx="5" fill="#0a1a28" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="600" y="130" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">EDGE LOCATION</text>
+      <text x="600" y="146" text-anchor="middle" fill="#8fa8b8" font-size="8" font-family="'DM Mono',monospace">CloudFront · R53</text>
+      <line x1="540" y1="135" x2="500" y2="155" stroke="#ef4444" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#gi-arr)"/>
+    </g>
+
+    <!-- Legend -->
+    <g font-family="'DM Mono',monospace" font-size="9">
+      <rect x="20" y="220" width="10" height="10" rx="2" fill="none" stroke="#0fccb0" stroke-width="1.5"/>
+      <text x="35" y="229" fill="#8fa8b8">Region boundary</text>
+      <rect x="140" y="220" width="10" height="10" rx="2" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="155" y="229" fill="#8fa8b8">Availability Zone</text>
+      <rect x="280" y="220" width="10" height="10" rx="2" fill="none" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="295" y="229" fill="#8fa8b8">Edge Location (400+)</text>
+    </g>
+    <text x="340" y="260" text-anchor="middle" fill="#3a5a6a" font-size="9" font-family="'DM Mono',monospace">33+ Regions · 105+ AZs · Private backbone between regions</text>
+  </svg>
+
+  <h2 class="reveal"><span class="num">§ 03 — COMPUTE</span>Instance families &amp; decision tree</h2>
+  <p class="lede reveal">Choose the instance family by workload shape, not by reflex. The decision tree below saves you from paying for memory you don't use.</p>
+
+  <!-- EC2 family grid SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 320" aria-label="EC2 instance families" style="overflow:hidden">
+    <defs>
+      <style>
+        .ec-cell { animation: ec-pop .4s ease both; }
+        .ec-cell:nth-child(1){animation-delay:.05s}.ec-cell:nth-child(2){animation-delay:.10s}
+        .ec-cell:nth-child(3){animation-delay:.15s}.ec-cell:nth-child(4){animation-delay:.20s}
+        .ec-cell:nth-child(5){animation-delay:.25s}.ec-cell:nth-child(6){animation-delay:.30s}
+      </style>
+    </defs>
+    <rect width="680" height="320" fill="#060e1c" rx="8"/>
+    <text x="340" y="22" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".12em">EC2 INSTANCE FAMILIES</text>
+
+    <!-- Row 1 -->
+    <g class="ec-cell">
+      <rect x="20" y="36" width="196" height="120" rx="6" fill="#0a1a14" stroke="#0fccb0" stroke-width="1.5"/>
+      <text x="118" y="60" text-anchor="middle" fill="#0fccb0" font-size="28" font-weight="900" font-family="'Cormorant Garamond',serif">M/T</text>
+      <text x="118" y="78" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">GENERAL PURPOSE</text>
+      <text x="118" y="97" text-anchor="middle" fill="#6aaa8a" font-size="9" font-family="'DM Mono',monospace">Balanced CPU + RAM</text>
+      <text x="118" y="112" text-anchor="middle" fill="#6aaa8a" font-size="9" font-family="'DM Mono',monospace">Web servers, microservices</text>
+      <text x="118" y="127" text-anchor="middle" fill="#6aaa8a" font-size="9" font-family="'DM Mono',monospace">m7g · t3 · t4g</text>
+      <text x="28" y="56" font-size="18">🌐</text>
+    </g>
+    <g class="ec-cell">
+      <rect x="242" y="36" width="196" height="120" rx="6" fill="#14100a" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="340" y="60" text-anchor="middle" fill="#f59e0b" font-size="28" font-weight="900" font-family="'Cormorant Garamond',serif">C</text>
+      <text x="340" y="78" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">COMPUTE OPTIMIZED</text>
+      <text x="340" y="97" text-anchor="middle" fill="#aa8a4a" font-size="9" font-family="'DM Mono',monospace">High vCPU:RAM ratio</text>
+      <text x="340" y="112" text-anchor="middle" fill="#aa8a4a" font-size="9" font-family="'DM Mono',monospace">Batch, gaming, HPC</text>
+      <text x="340" y="127" text-anchor="middle" fill="#aa8a4a" font-size="9" font-family="'DM Mono',monospace">c7g · c6i · c6a</text>
+      <text x="250" y="56" font-size="18">⚙️</text>
+    </g>
+    <g class="ec-cell">
+      <rect x="464" y="36" width="196" height="120" rx="6" fill="#0a0a1a" stroke="#c084fc" stroke-width="1.5"/>
+      <text x="562" y="60" text-anchor="middle" fill="#c084fc" font-size="28" font-weight="900" font-family="'Cormorant Garamond',serif">R/X</text>
+      <text x="562" y="78" text-anchor="middle" fill="#c084fc" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">MEMORY OPTIMIZED</text>
+      <text x="562" y="97" text-anchor="middle" fill="#9a6acc" font-size="9" font-family="'DM Mono',monospace">High RAM:CPU ratio</text>
+      <text x="562" y="112" text-anchor="middle" fill="#9a6acc" font-size="9" font-family="'DM Mono',monospace">In-memory DB, SAP HANA</text>
+      <text x="562" y="127" text-anchor="middle" fill="#9a6acc" font-size="9" font-family="'DM Mono',monospace">r7g · x2idn · u-6tb1</text>
+      <text x="472" y="56" font-size="18">🧠</text>
+    </g>
+
+    <!-- Row 2 -->
+    <g class="ec-cell">
+      <rect x="20" y="172" width="196" height="120" rx="6" fill="#100a0a" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="118" y="196" text-anchor="middle" fill="#ef4444" font-size="28" font-weight="900" font-family="'Cormorant Garamond',serif">I/D</text>
+      <text x="118" y="214" text-anchor="middle" fill="#ef4444" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">STORAGE OPTIMIZED</text>
+      <text x="118" y="233" text-anchor="middle" fill="#aa4a4a" font-size="9" font-family="'DM Mono',monospace">NVMe SSD local storage</text>
+      <text x="118" y="248" text-anchor="middle" fill="#aa4a4a" font-size="9" font-family="'DM Mono',monospace">NoSQL, data warehouses</text>
+      <text x="118" y="263" text-anchor="middle" fill="#aa4a4a" font-size="9" font-family="'DM Mono',monospace">i4i · d3 · h1</text>
+      <text x="28" y="192" font-size="18">💾</text>
+    </g>
+    <g class="ec-cell">
+      <rect x="242" y="172" width="196" height="120" rx="6" fill="#0a1418" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="340" y="196" text-anchor="middle" fill="#22d3ee" font-size="20" font-weight="900" font-family="'Cormorant Garamond',serif">P/G/Inf</text>
+      <text x="340" y="214" text-anchor="middle" fill="#22d3ee" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">ACCELERATED</text>
+      <text x="340" y="233" text-anchor="middle" fill="#4aaabb" font-size="9" font-family="'DM Mono',monospace">GPU / Inferentia chips</text>
+      <text x="340" y="248" text-anchor="middle" fill="#4aaabb" font-size="9" font-family="'DM Mono',monospace">ML training &amp; inference</text>
+      <text x="340" y="263" text-anchor="middle" fill="#4aaabb" font-size="9" font-family="'DM Mono',monospace">p4d · g5 · inf2 · trn1</text>
+      <text x="250" y="192" font-size="18">🚀</text>
+    </g>
+    <g class="ec-cell">
+      <rect x="464" y="172" width="196" height="120" rx="6" fill="#0a1808" stroke="#4ade80" stroke-width="1.5"/>
+      <text x="562" y="196" text-anchor="middle" fill="#4ade80" font-size="28" font-weight="900" font-family="'Cormorant Garamond',serif">Hpc</text>
+      <text x="562" y="214" text-anchor="middle" fill="#4ade80" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">HPC / CLUSTER</text>
+      <text x="562" y="233" text-anchor="middle" fill="#4a8a5a" font-size="9" font-family="'DM Mono',monospace">EFA network, low-latency</text>
+      <text x="562" y="248" text-anchor="middle" fill="#4a8a5a" font-size="9" font-family="'DM Mono',monospace">CFD, simulations, HPC</text>
+      <text x="562" y="263" text-anchor="middle" fill="#4a8a5a" font-size="9" font-family="'DM Mono',monospace">hpc6a · hpc7g</text>
+      <text x="472" y="192" font-size="18">🔬</text>
+    </g>
+
+    <!-- Graviton badge -->
+    <text x="340" y="305" text-anchor="middle" fill="#3a5a6a" font-size="9" font-family="'DM Mono',monospace">Graviton (g suffix) = ARM · 20–40% cheaper · same or better perf for most workloads</text>
+  </svg>
+
+  <!-- Decision tree SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 220" aria-label="Compute decision tree" style="overflow:hidden;max-width:680px">
+    <defs>
+      <marker id="ec-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 z" fill="#0fccb0"/>
+      </marker>
+    </defs>
+    <rect width="680" height="220" fill="#060e1c" rx="8"/>
+    <text x="340" y="20" text-anchor="middle" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".12em">COMPUTE DECISION TREE</text>
+
+    <!-- Start -->
+    <rect x="270" y="30" width="140" height="28" rx="4" fill="#0fccb0"/>
+    <text x="340" y="48" text-anchor="middle" fill="#060e1c" font-size="10" font-weight="700" font-family="'DM Mono',monospace">New workload?</text>
+
+    <!-- Branch 1: containers -->
+    <line x1="270" y1="44" x2="160" y2="80" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#ec-arr)"/>
+    <text x="195" y="68" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">Containers?</text>
+    <rect x="80" y="82" width="160" height="26" rx="4" fill="#0a1a14" stroke="#0fccb0" stroke-width="1"/>
+    <text x="160" y="99" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">ECS / EKS + Fargate</text>
+
+    <!-- Branch 2: serverless -->
+    <line x1="340" y1="58" x2="340" y2="80" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#ec-arr)"/>
+    <text x="350" y="75" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Serverless?</text>
+    <rect x="260" y="82" width="160" height="26" rx="4" fill="#14100a" stroke="#f59e0b" stroke-width="1"/>
+    <text x="340" y="99" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">Lambda / Fargate</text>
+
+    <!-- Branch 3: GPU -->
+    <line x1="410" y1="44" x2="520" y2="80" stroke="#c084fc" stroke-width="1.5" marker-end="url(#ec-arr)"/>
+    <text x="485" y="68" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">GPU / ML?</text>
+    <rect x="440" y="82" width="160" height="26" rx="4" fill="#0a0a1a" stroke="#c084fc" stroke-width="1"/>
+    <text x="520" y="99" text-anchor="middle" fill="#c084fc" font-size="9" font-family="'DM Mono',monospace">P4/G5 instances</text>
+
+    <!-- Second level -->
+    <line x1="160" y1="108" x2="100" y2="140" stroke="#6a8a7a" stroke-width="1" marker-end="url(#ec-arr)"/>
+    <rect x="20" y="142" width="160" height="26" rx="4" fill="#0a1a14" stroke="#4ade80" stroke-width="1"/>
+    <text x="100" y="159" text-anchor="middle" fill="#4ade80" font-size="9" font-family="'DM Mono',monospace">Managed · no infra ops</text>
+
+    <line x1="160" y1="108" x2="220" y2="140" stroke="#6a8a7a" stroke-width="1" marker-end="url(#ec-arr)"/>
+    <rect x="160" y="142" width="160" height="26" rx="4" fill="#0a1a14" stroke="#0fccb0" stroke-width="1"/>
+    <text x="240" y="159" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">Control plane: EKS &gt; ECS</text>
+
+    <line x1="340" y1="108" x2="340" y2="140" stroke="#6a8a7a" stroke-width="1" marker-end="url(#ec-arr)"/>
+    <rect x="260" y="142" width="160" height="26" rx="4" fill="#14100a" stroke="#f59e0b" stroke-width="1"/>
+    <text x="340" y="159" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">Cold start? → Provisioned Concurrency</text>
+
+    <line x1="520" y1="108" x2="520" y2="140" stroke="#6a8a7a" stroke-width="1" marker-end="url(#ec-arr)"/>
+    <rect x="440" y="142" width="160" height="26" rx="4" fill="#0a0a1a" stroke="#22d3ee" stroke-width="1"/>
+    <text x="520" y="159" text-anchor="middle" fill="#22d3ee" font-size="9" font-family="'DM Mono',monospace">Training: p4d · Inf: inf2/trn1</text>
+
+    <!-- Savings plans note -->
+    <rect x="20" y="185" width="640" height="24" rx="4" fill="#0a1208" stroke="#3a4a3a" stroke-width="1"/>
+    <text x="340" y="200" text-anchor="middle" fill="#5a8a6a" font-size="9" font-family="'DM Mono',monospace">Cost levers: Reserved (1–3yr) → Savings Plans → Spot (interruptible, 70–90% off) → On-Demand</text>
+  </svg>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="storage">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 04 — STORAGE</span>S3 classes · EBS · EFS · FSx</h2>
+  <p class="lede reveal">S3 is object storage — not a filesystem. Choose the right storage class by access frequency; the price delta between Standard and Deep Archive is 23×.</p>
+
+  <!-- S3 tiers timeline SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 160" aria-label="S3 storage class timeline" style="overflow:hidden">
+    <defs>
+      <style>
+        .s3-node { animation: s3-slide .4s ease both; }
+        .s3-node:nth-child(1){animation-delay:.1s}.s3-node:nth-child(2){animation-delay:.25s}
+        .s3-node:nth-child(3){animation-delay:.4s}.s3-node:nth-child(4){animation-delay:.55s}
+        .s3-node:nth-child(5){animation-delay:.7s}.s3-node:nth-child(6){animation-delay:.85s}
+        .s3-node:nth-child(7){animation-delay:1s}
+      </style>
+    </defs>
+    <rect width="680" height="160" fill="#060e1c" rx="8"/>
+    <text x="20" y="20" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">◀ HOT — FREQUENT ACCESS</text>
+    <text x="660" y="20" text-anchor="end" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">COLD — RARE ACCESS ▶</text>
+
+    <!-- Timeline bar -->
+    <rect x="20" y="70" width="640" height="6" rx="3" fill="#1a2a3a"/>
+    <!-- gradient overlay -->
+    <defs>
+      <linearGradient id="s3-grad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#0fccb0"/>
+        <stop offset="100%" stop-color="#ef4444"/>
+      </linearGradient>
+    </defs>
+    <rect x="20" y="70" width="640" height="6" rx="3" fill="url(#s3-grad)" opacity=".4"/>
+
+    <!-- Nodes: 7 tiers -->
+    <!-- Standard -->
+    <g class="s3-node">
+      <circle cx="55" cy="73" r="8" fill="#0fccb0"/>
+      <text x="55" y="58" text-anchor="middle" fill="#0fccb0" font-size="8" font-weight="600" font-family="'DM Mono',monospace">Standard</text>
+      <text x="55" y="95" text-anchor="middle" fill="#6aaa8a" font-size="7" font-family="'DM Mono',monospace">ms</text>
+      <text x="55" y="107" text-anchor="middle" fill="#3a6a5a" font-size="7" font-family="'DM Mono',monospace">$0.023/GB</text>
+    </g>
+    <!-- Intelligent-Tiering -->
+    <g class="s3-node">
+      <circle cx="143" cy="73" r="8" fill="#22d3ee"/>
+      <text x="143" y="58" text-anchor="middle" fill="#22d3ee" font-size="8" font-weight="600" font-family="'DM Mono',monospace">Int-Tiering</text>
+      <text x="143" y="95" text-anchor="middle" fill="#4a9aaa" font-size="7" font-family="'DM Mono',monospace">ms</text>
+      <text x="143" y="107" text-anchor="middle" fill="#2a6a7a" font-size="7" font-family="'DM Mono',monospace">auto-tiers</text>
+    </g>
+    <!-- Standard-IA -->
+    <g class="s3-node">
+      <circle cx="237" cy="73" r="8" fill="#38bdf8"/>
+      <text x="237" y="58" text-anchor="middle" fill="#38bdf8" font-size="8" font-weight="600" font-family="'DM Mono',monospace">Std-IA</text>
+      <text x="237" y="95" text-anchor="middle" fill="#4a8aaa" font-size="7" font-family="'DM Mono',monospace">ms</text>
+      <text x="237" y="107" text-anchor="middle" fill="#2a5a7a" font-size="7" font-family="'DM Mono',monospace">$0.0125/GB</text>
+    </g>
+    <!-- One Zone-IA -->
+    <g class="s3-node">
+      <circle cx="330" cy="73" r="8" fill="#fb923c"/>
+      <text x="330" y="58" text-anchor="middle" fill="#fb923c" font-size="8" font-weight="600" font-family="'DM Mono',monospace">1Zone-IA</text>
+      <text x="330" y="95" text-anchor="middle" fill="#aa6a3a" font-size="7" font-family="'DM Mono',monospace">ms</text>
+      <text x="330" y="107" text-anchor="middle" fill="#7a4a2a" font-size="7" font-family="'DM Mono',monospace">$0.01/GB</text>
+    </g>
+    <!-- Glacier Instant -->
+    <g class="s3-node">
+      <circle cx="421" cy="73" r="8" fill="#f59e0b"/>
+      <text x="421" y="58" text-anchor="middle" fill="#f59e0b" font-size="8" font-weight="600" font-family="'DM Mono',monospace">Glac-Inst</text>
+      <text x="421" y="95" text-anchor="middle" fill="#aa8a3a" font-size="7" font-family="'DM Mono',monospace">ms</text>
+      <text x="421" y="107" text-anchor="middle" fill="#7a6a2a" font-size="7" font-family="'DM Mono',monospace">$0.004/GB</text>
+    </g>
+    <!-- Glacier Flexible -->
+    <g class="s3-node">
+      <circle cx="510" cy="73" r="8" fill="#ef4444"/>
+      <text x="510" y="58" text-anchor="middle" fill="#ef4444" font-size="8" font-weight="600" font-family="'DM Mono',monospace">Glac-Flex</text>
+      <text x="510" y="95" text-anchor="middle" fill="#aa4a4a" font-size="7" font-family="'DM Mono',monospace">min–hrs</text>
+      <text x="510" y="107" text-anchor="middle" fill="#7a3a3a" font-size="7" font-family="'DM Mono',monospace">$0.0036/GB</text>
+    </g>
+    <!-- Deep Archive -->
+    <g class="s3-node">
+      <circle cx="620" cy="73" r="8" fill="#dc2626"/>
+      <text x="620" y="58" text-anchor="middle" fill="#dc2626" font-size="8" font-weight="600" font-family="'DM Mono',monospace">Deep Arch</text>
+      <text x="620" y="95" text-anchor="middle" fill="#8a2a2a" font-size="7" font-family="'DM Mono',monospace">12+ hrs</text>
+      <text x="620" y="107" text-anchor="middle" fill="#6a2020" font-size="7" font-family="'DM Mono',monospace">$0.001/GB</text>
+    </g>
+
+    <text x="340" y="145" text-anchor="middle" fill="#3a5a6a" font-size="8" font-family="'DM Mono',monospace">Lifecycle policies auto-transition objects between tiers · S3 Intelligent-Tiering monitors access and moves automatically</text>
+  </svg>
+
+  <!-- Storage type comparison table -->
+  <table class="cmp-table reveal">
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Type</th>
+        <th>Primary use case</th>
+        <th>Throughput</th>
+        <th>Cost tier</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>S3</td>
+        <td>Object</td>
+        <td>Static files, backups, data lake, ML datasets</td>
+        <td>Very high (parallel)</td>
+        <td>Lowest ($0.001–$0.023/GB)</td>
+      </tr>
+      <tr>
+        <td>EBS</td>
+        <td>Block</td>
+        <td>EC2 root volumes, databases, single-AZ apps</td>
+        <td>Up to 256K IOPS (io2 BE)</td>
+        <td>Medium ($0.08–$0.125/GB)</td>
+      </tr>
+      <tr>
+        <td>EFS</td>
+        <td>NFS (managed)</td>
+        <td>Shared filesystem across multiple EC2 / Lambda</td>
+        <td>10 GB/s burst</td>
+        <td>Higher ($0.30/GB)</td>
+      </tr>
+      <tr>
+        <td>FSx for Lustre</td>
+        <td>HPC filesystem</td>
+        <td>ML training I/O, HPC simulations</td>
+        <td>1 TB/s+</td>
+        <td>High ($0.14+/GB)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="networking">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 05 — NETWORKING</span>VPC anatomy</h2>
+  <p class="lede reveal">A VPC is a logically isolated network. Public subnets face the internet via an Internet Gateway; private subnets reach the internet via NAT. Security Groups are stateful; NACLs are stateless.</p>
+
+  <!-- VPC anatomy SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 360" aria-label="VPC anatomy diagram" style="overflow:hidden">
+    <defs>
+      <style>
+        .vpc-box { animation: vpc-draw .5s ease both; }
+        .vpc-box:nth-child(1){animation-delay:.1s}.vpc-box:nth-child(2){animation-delay:.3s}
+        .vpc-box:nth-child(3){animation-delay:.5s}.vpc-box:nth-child(4){animation-delay:.7s}
+      </style>
+      <marker id="vpc-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 z" fill="#0fccb0"/>
+      </marker>
+      <marker id="vpc-arr-r" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto-start-reverse">
+        <path d="M7,0 L0,3.5 L7,7 z" fill="#0fccb0"/>
+      </marker>
+    </defs>
+    <rect width="680" height="360" fill="#060e1c" rx="8"/>
+
+    <!-- VPC boundary -->
+    <rect x="14" y="50" width="652" height="296" rx="8" fill="none" stroke="#0fccb0" stroke-width="2" stroke-dasharray="10 5"/>
+    <text x="340" y="44" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".15em">VPC  10.0.0.0/16</text>
+
+    <!-- Internet Gateway -->
+    <rect x="270" y="8" width="140" height="28" rx="4" fill="#0fccb0"/>
+    <text x="340" y="26" text-anchor="middle" fill="#060e1c" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Internet Gateway</text>
+    <line x1="340" y1="36" x2="340" y2="50" stroke="#0fccb0" stroke-width="2" marker-end="url(#vpc-arr)"/>
+
+    <!-- AZ-a column -->
+    <text x="160" y="68" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">AZ — a</text>
+
+    <!-- Public subnet a -->
+    <g class="vpc-box">
+      <rect x="30" y="74" width="260" height="110" rx="6" fill="#0a1e14" stroke="#0fccb0" stroke-width="1.5"/>
+      <text x="160" y="90" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace" letter-spacing=".1em">PUBLIC SUBNET  10.0.1.0/24</text>
+      <!-- EC2 box -->
+      <rect x="46" y="98" width="100" height="50" rx="4" fill="#0a1a14" stroke="#0fccb0" stroke-width="1"/>
+      <text x="96" y="116" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">EC2 · ALB</text>
+      <text x="96" y="130" text-anchor="middle" fill="#4a8a6a" font-size="7" font-family="'DM Mono',monospace">SG: 443 in</text>
+      <text x="96" y="142" text-anchor="middle" fill="#4a8a6a" font-size="7" font-family="'DM Mono',monospace">ephemeral out</text>
+      <!-- NAT GW -->
+      <rect x="166" y="98" width="100" height="50" rx="4" fill="#140a08" stroke="#f59e0b" stroke-width="1"/>
+      <text x="216" y="116" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">NAT Gateway</text>
+      <text x="216" y="130" text-anchor="middle" fill="#7a5a2a" font-size="7" font-family="'DM Mono',monospace">Elastic IP</text>
+      <text x="216" y="142" text-anchor="middle" fill="#7a5a2a" font-size="7" font-family="'DM Mono',monospace">outbound only</text>
+    </g>
+
+    <!-- Private subnet a -->
+    <g class="vpc-box">
+      <rect x="30" y="200" width="260" height="130" rx="6" fill="#100a18" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="160" y="216" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace" letter-spacing=".1em">PRIVATE SUBNET  10.0.2.0/24</text>
+      <!-- RDS box -->
+      <rect x="46" y="224" width="100" height="90" rx="4" fill="#0a0814" stroke="#c084fc" stroke-width="1"/>
+      <text x="96" y="242" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">RDS Primary</text>
+      <text x="96" y="256" text-anchor="middle" fill="#7a5aaa" font-size="7" font-family="'DM Mono',monospace">SG: 5432</text>
+      <text x="96" y="268" text-anchor="middle" fill="#7a5aaa" font-size="7" font-family="'DM Mono',monospace">from app-sg</text>
+      <text x="96" y="280" text-anchor="middle" fill="#7a5aaa" font-size="7" font-family="'DM Mono',monospace">only</text>
+      <!-- App tier -->
+      <rect x="166" y="224" width="100" height="90" rx="4" fill="#0a1814" stroke="#0fccb0" stroke-width="1"/>
+      <text x="216" y="242" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">App tier</text>
+      <text x="216" y="256" text-anchor="middle" fill="#4a8a6a" font-size="7" font-family="'DM Mono',monospace">ECS tasks</text>
+      <text x="216" y="268" text-anchor="middle" fill="#4a8a6a" font-size="7" font-family="'DM Mono',monospace">SG: 8080</text>
+      <text x="216" y="280" text-anchor="middle" fill="#4a8a6a" font-size="7" font-family="'DM Mono',monospace">from alb-sg</text>
+    </g>
+
+    <!-- arrows between pub and priv -->
+    <line x1="160" y1="184" x2="160" y2="200" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#vpc-arr)"/>
+
+    <!-- AZ-b column -->
+    <text x="520" y="68" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">AZ — b</text>
+
+    <!-- Public subnet b -->
+    <g class="vpc-box">
+      <rect x="390" y="74" width="260" height="110" rx="6" fill="#0a1e14" stroke="#0fccb0" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="520" y="90" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace" letter-spacing=".1em">PUBLIC SUBNET  10.0.3.0/24</text>
+      <rect x="406" y="98" width="100" height="50" rx="4" fill="#0a1a14" stroke="#0fccb0" stroke-width="1"/>
+      <text x="456" y="120" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">EC2 · ALB</text>
+      <rect x="526" y="98" width="100" height="50" rx="4" fill="#140a08" stroke="#f59e0b" stroke-width="1"/>
+      <text x="576" y="120" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">NAT Gateway</text>
+    </g>
+
+    <!-- Private subnet b -->
+    <g class="vpc-box">
+      <rect x="390" y="200" width="260" height="130" rx="6" fill="#100a18" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="520" y="216" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace" letter-spacing=".1em">PRIVATE SUBNET  10.0.4.0/24</text>
+      <rect x="406" y="224" width="100" height="90" rx="4" fill="#0a0814" stroke="#c084fc" stroke-width="1"/>
+      <text x="456" y="256" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">RDS Replica</text>
+      <rect x="526" y="224" width="100" height="90" rx="4" fill="#0a1814" stroke="#0fccb0" stroke-width="1"/>
+      <text x="576" y="256" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">App tier</text>
+    </g>
+
+    <!-- Cross-AZ connection -->
+    <line x1="290" y1="155" x2="390" y2="155" stroke="#0fccb0" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#vpc-arr)"/>
+    <text x="340" y="149" text-anchor="middle" fill="#3a6a5a" font-size="7" font-family="'DM Mono',monospace">cross-AZ</text>
+
+    <!-- Legend -->
+    <rect x="22" y="340" width="12" height="8" rx="2" fill="none" stroke="#0fccb0" stroke-width="1.5"/>
+    <text x="38" y="348" fill="#6a8a7a" font-size="8" font-family="'DM Mono',monospace">Public (teal)</text>
+    <rect x="120" y="340" width="12" height="8" rx="2" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="136" y="348" fill="#6a8a7a" font-size="8" font-family="'DM Mono',monospace">Private (amber)</text>
+    <text x="340" y="348" text-anchor="middle" fill="#3a5a6a" font-size="8" font-family="'DM Mono',monospace">Security Groups = stateful · NACLs = stateless · Route Tables control egress</text>
+  </svg>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="database">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 06 — DATABASE</span>Decision tree by data shape</h2>
+  <p class="lede reveal">AWS has 15+ managed database services. Start with the data shape, not the brand name.</p>
+
+  <!-- DB decision tree SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 380" aria-label="AWS database decision tree" style="overflow:hidden">
+    <defs>
+      <style>
+        .db-node { animation: db-drop .4s ease both; }
+        .db-node:nth-child(1){animation-delay:.1s}.db-node:nth-child(2){animation-delay:.2s}
+        .db-node:nth-child(3){animation-delay:.3s}.db-node:nth-child(4){animation-delay:.4s}
+        .db-node:nth-child(5){animation-delay:.5s}.db-node:nth-child(6){animation-delay:.6s}
+        .db-node:nth-child(7){animation-delay:.7s}.db-node:nth-child(8){animation-delay:.8s}
+      </style>
+      <marker id="db-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 z" fill="#6a8a9a"/>
+      </marker>
+    </defs>
+    <rect width="680" height="380" fill="#060e1c" rx="8"/>
+    <text x="340" y="22" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".12em">AWS DATABASE DECISION TREE</text>
+
+    <!-- Root -->
+    <g class="db-node">
+      <rect x="250" y="34" width="180" height="32" rx="6" fill="#1a2a3a" stroke="#0fccb0" stroke-width="2"/>
+      <text x="340" y="55" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600" font-family="'DM Mono',monospace">What's your data?</text>
+    </g>
+
+    <!-- Branch lines from root -->
+    <line x1="250" y1="50" x2="86" y2="110" stroke="#6a8a9a" stroke-width="1.2" marker-end="url(#db-arr)"/>
+    <line x1="280" y1="66" x2="200" y2="110" stroke="#6a8a9a" stroke-width="1.2" marker-end="url(#db-arr)"/>
+    <line x1="340" y1="66" x2="340" y2="110" stroke="#6a8a9a" stroke-width="1.2" marker-end="url(#db-arr)"/>
+    <line x1="400" y1="66" x2="480" y2="110" stroke="#6a8a9a" stroke-width="1.2" marker-end="url(#db-arr)"/>
+    <line x1="430" y1="50" x2="594" y2="110" stroke="#6a8a9a" stroke-width="1.2" marker-end="url(#db-arr)"/>
+
+    <!-- Relational -->
+    <g class="db-node">
+      <rect x="30" y="112" width="112" height="50" rx="5" fill="#0a1e14" stroke="#0fccb0" stroke-width="1.5"/>
+      <text x="86" y="130" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Relational</text>
+      <text x="86" y="144" text-anchor="middle" fill="#4aaa8a" font-size="8" font-family="'DM Mono',monospace">RDS / Aurora</text>
+      <text x="86" y="155" text-anchor="middle" fill="#2a6a5a" font-size="7" font-family="'DM Mono',monospace">MySQL · PG · SQL Svr</text>
+    </g>
+
+    <!-- Key-Value -->
+    <g class="db-node">
+      <rect x="155" y="112" width="112" height="50" rx="5" fill="#14100a" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="211" y="130" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Key-Value</text>
+      <text x="211" y="144" text-anchor="middle" fill="#aa8a4a" font-size="8" font-family="'DM Mono',monospace">DynamoDB</text>
+      <text x="211" y="155" text-anchor="middle" fill="#7a6a2a" font-size="7" font-family="'DM Mono',monospace">single-digit ms · 10T+ items</text>
+    </g>
+
+    <!-- Cache -->
+    <g class="db-node">
+      <rect x="284" y="112" width="112" height="50" rx="5" fill="#0a1818" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="340" y="130" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Cache</text>
+      <text x="340" y="144" text-anchor="middle" fill="#4aaabb" font-size="8" font-family="'DM Mono',monospace">ElastiCache</text>
+      <text x="340" y="155" text-anchor="middle" fill="#2a6a7a" font-size="7" font-family="'DM Mono',monospace">Redis · Memcached</text>
+    </g>
+
+    <!-- Search -->
+    <g class="db-node">
+      <rect x="414" y="112" width="112" height="50" rx="5" fill="#100818" stroke="#c084fc" stroke-width="1.5"/>
+      <text x="470" y="130" text-anchor="middle" fill="#c084fc" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Search</text>
+      <text x="470" y="144" text-anchor="middle" fill="#9a6acc" font-size="8" font-family="'DM Mono',monospace">OpenSearch</text>
+      <text x="470" y="155" text-anchor="middle" fill="#6a4a9a" font-size="7" font-family="'DM Mono',monospace">full-text · log analytics</text>
+    </g>
+
+    <!-- Graph -->
+    <g class="db-node">
+      <rect x="538" y="112" width="112" height="50" rx="5" fill="#100a08" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="594" y="130" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Graph</text>
+      <text x="594" y="144" text-anchor="middle" fill="#aa4a4a" font-size="8" font-family="'DM Mono',monospace">Neptune</text>
+      <text x="594" y="155" text-anchor="middle" fill="#7a3a3a" font-size="7" font-family="'DM Mono',monospace">Gremlin · SPARQL</text>
+    </g>
+
+    <!-- Second level lines -->
+    <line x1="86" y1="162" x2="86" y2="210" stroke="#6a8a9a" stroke-width="1" marker-end="url(#db-arr)"/>
+    <line x1="86" y1="162" x2="200" y2="210" stroke="#6a8a9a" stroke-width="1" marker-end="url(#db-arr)"/>
+    <line x1="340" y1="162" x2="260" y2="210" stroke="#6a8a9a" stroke-width="1" marker-end="url(#db-arr)"/>
+    <line x1="340" y1="162" x2="420" y2="210" stroke="#6a8a9a" stroke-width="1" marker-end="url(#db-arr)"/>
+
+    <!-- Aurora -->
+    <g class="db-node">
+      <rect x="30" y="212" width="112" height="60" rx="5" fill="#0a1e14" stroke="#4ade80" stroke-width="1.5"/>
+      <text x="86" y="232" text-anchor="middle" fill="#4ade80" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Aurora</text>
+      <text x="86" y="246" text-anchor="middle" fill="#2a8a5a" font-size="7" font-family="'DM Mono',monospace">5× faster than RDS</text>
+      <text x="86" y="258" text-anchor="middle" fill="#2a8a5a" font-size="7" font-family="'DM Mono',monospace">Global DB · Serverless v2</text>
+      <text x="86" y="268" text-anchor="middle" fill="#2a8a5a" font-size="7" font-family="'DM Mono',monospace">6-way replication</text>
+    </g>
+
+    <!-- RDS -->
+    <g class="db-node">
+      <rect x="155" y="212" width="112" height="60" rx="5" fill="#0a1e14" stroke="#0fccb0" stroke-width="1.5"/>
+      <text x="211" y="232" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">RDS</text>
+      <text x="211" y="246" text-anchor="middle" fill="#4aaa8a" font-size="7" font-family="'DM Mono',monospace">Multi-AZ standby</text>
+      <text x="211" y="258" text-anchor="middle" fill="#4aaa8a" font-size="7" font-family="'DM Mono',monospace">Read replicas</text>
+      <text x="211" y="268" text-anchor="middle" fill="#4aaa8a" font-size="7" font-family="'DM Mono',monospace">automated backups</text>
+    </g>
+
+    <!-- ElastiCache detail -->
+    <g class="db-node">
+      <rect x="204" y="212" width="112" height="60" rx="5" fill="#0a1818" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="260" y="232" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Redis</text>
+      <text x="260" y="246" text-anchor="middle" fill="#4aaabb" font-size="7" font-family="'DM Mono',monospace">session · pub/sub</text>
+      <text x="260" y="258" text-anchor="middle" fill="#4aaabb" font-size="7" font-family="'DM Mono',monospace">leaderboards</text>
+      <text x="260" y="268" text-anchor="middle" fill="#4aaabb" font-size="7" font-family="'DM Mono',monospace">Cluster mode</text>
+    </g>
+
+    <!-- Timestream / Redshift -->
+    <g class="db-node">
+      <rect x="360" y="212" width="112" height="60" rx="5" fill="#100a18" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="416" y="232" text-anchor="middle" fill="#a78bfa" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Warehouse</text>
+      <text x="416" y="246" text-anchor="middle" fill="#7a5acc" font-size="7" font-family="'DM Mono',monospace">Redshift</text>
+      <text x="416" y="258" text-anchor="middle" fill="#7a5acc" font-size="7" font-family="'DM Mono',monospace">columnar · RA3</text>
+      <text x="416" y="268" text-anchor="middle" fill="#7a5acc" font-size="7" font-family="'DM Mono',monospace">Serverless option</text>
+    </g>
+
+    <!-- Timestream -->
+    <g class="db-node">
+      <rect x="490" y="212" width="112" height="60" rx="5" fill="#0a1008" stroke="#86efac" stroke-width="1.5"/>
+      <text x="546" y="232" text-anchor="middle" fill="#86efac" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Time-series</text>
+      <text x="546" y="246" text-anchor="middle" fill="#4a8a5a" font-size="7" font-family="'DM Mono',monospace">Timestream</text>
+      <text x="546" y="258" text-anchor="middle" fill="#4a8a5a" font-size="7" font-family="'DM Mono',monospace">IoT · metrics</text>
+      <text x="546" y="268" text-anchor="middle" fill="#4a8a5a" font-size="7" font-family="'DM Mono',monospace">auto-tiering</text>
+    </g>
+
+    <!-- Rule of thumb -->
+    <rect x="20" y="292" width="640" height="70" rx="6" fill="#0a1208" stroke="#1a2a1a" stroke-width="1"/>
+    <text x="340" y="312" text-anchor="middle" fill="#5a8a6a" font-size="9" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".1em">AURORA VS RDS — WHEN TO CHOOSE AURORA</text>
+    <text x="340" y="330" text-anchor="middle" fill="#4a7a5a" font-size="8" font-family="'DM Mono',monospace">Aurora: &gt;1K writes/s · Multi-region active-active · Serverless scaling · 6-copy storage across 3 AZs</text>
+    <text x="340" y="346" text-anchor="middle" fill="#4a7a5a" font-size="8" font-family="'DM Mono',monospace">RDS: &lt;1K writes/s · Simpler ops · Familiar engine versions · Budget-sensitive workloads</text>
+    <text x="340" y="362" text-anchor="middle" fill="#3a5a4a" font-size="8" font-family="'DM Mono',monospace">DynamoDB: &gt;10M ops/s · Single-digit ms · Infinite scale · No joins needed · Multi-region active-active</text>
+  </svg>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="serverless">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 07 — SERVERLESS</span>Lambda cold starts &amp; fan-out</h2>
+  <p class="lede reveal">Lambda is billed per 1ms of execution. The cold start penalty (100–500ms) only hits when a new container is bootstrapped — mitigate with Provisioned Concurrency or SnapStart (Java).</p>
+
+  <!-- Cold start anatomy SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 240" aria-label="Lambda cold start anatomy" style="overflow:hidden">
+    <defs>
+      <style>
+        .sl-bar-anim { animation: sl-bar .8s ease both; }
+        .sl-cold:nth-child(1){animation-delay:.1s}.sl-cold:nth-child(2){animation-delay:.4s}
+        .sl-cold:nth-child(3){animation-delay:.7s}.sl-cold:nth-child(4){animation-delay:1s}
+        .sl-warm:nth-child(1){animation-delay:1.5s}
+      </style>
+    </defs>
+    <rect width="680" height="240" fill="#060e1c" rx="8"/>
+    <text x="340" y="22" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".12em">LAMBDA COLD START ANATOMY</text>
+
+    <!-- Cold start label -->
+    <text x="20" y="48" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">COLD START  (first invocation)</text>
+
+    <!-- Phase bars -->
+    <!-- Download code: x=20 w=120 -->
+    <g class="sl-cold">
+      <rect x="20" y="56" width="120" height="32" rx="3" fill="#1a0a0a" stroke="#ef4444" stroke-width="1"/>
+      <text x="80" y="73" text-anchor="middle" fill="#ef4444" font-size="8" font-family="'DM Mono',monospace">Download code</text>
+      <text x="80" y="84" text-anchor="middle" fill="#6a2a2a" font-size="7" font-family="'DM Mono',monospace">~50–200ms</text>
+    </g>
+    <!-- Init runtime -->
+    <g class="sl-cold">
+      <rect x="144" y="56" width="140" height="32" rx="3" fill="#1a1208" stroke="#f59e0b" stroke-width="1"/>
+      <text x="214" y="73" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Init runtime</text>
+      <text x="214" y="84" text-anchor="middle" fill="#7a6a2a" font-size="7" font-family="'DM Mono',monospace">~50–300ms (JVM worst)</text>
+    </g>
+    <!-- Init function -->
+    <g class="sl-cold">
+      <rect x="288" y="56" width="140" height="32" rx="3" fill="#0a1208" stroke="#0fccb0" stroke-width="1"/>
+      <text x="358" y="73" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">Init function</text>
+      <text x="358" y="84" text-anchor="middle" fill="#2a6a5a" font-size="7" font-family="'DM Mono',monospace">your static init code</text>
+    </g>
+    <!-- Execute -->
+    <g class="sl-cold">
+      <rect x="432" y="56" width="228" height="32" rx="3" fill="#0a1814" stroke="#4ade80" stroke-width="1.5"/>
+      <text x="546" y="73" text-anchor="middle" fill="#4ade80" font-size="8" font-family="'DM Mono',monospace">Execute handler</text>
+      <text x="546" y="84" text-anchor="middle" fill="#2a7a4a" font-size="7" font-family="'DM Mono',monospace">your actual business logic</text>
+    </g>
+
+    <!-- Total cold annotation -->
+    <line x1="20" y1="96" x2="660" y2="96" stroke="#ef4444" stroke-width="1" stroke-dasharray="3 2"/>
+    <text x="340" y="110" text-anchor="middle" fill="#ef4444" font-size="8" font-family="'DM Mono',monospace">Total cold start: 100ms – 1000ms+ depending on runtime (Node.js fastest; Java/C# slowest)</text>
+
+    <!-- Warm path -->
+    <text x="20" y="132" fill="#4ade80" font-size="9" font-family="'DM Mono',monospace" letter-spacing=".1em">WARM INVOCATION  (container reused)</text>
+    <g class="sl-warm">
+      <rect x="20" y="140" width="640" height="32" rx="3" fill="#0a1814" stroke="#4ade80" stroke-width="1.5"/>
+      <text x="340" y="160" text-anchor="middle" fill="#4ade80" font-size="9" font-family="'DM Mono',monospace">Execute handler only — no download, no init  (~1–50ms)</text>
+    </g>
+
+    <!-- Mitigations -->
+    <rect x="20" y="186" width="640" height="40" rx="5" fill="#0a1208" stroke="#1a3a2a" stroke-width="1"/>
+    <text x="340" y="202" text-anchor="middle" fill="#5a8a6a" font-size="9" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".1em">COLD START MITIGATIONS</text>
+    <text x="340" y="218" text-anchor="middle" fill="#3a6a4a" font-size="8" font-family="'DM Mono',monospace">Provisioned Concurrency (pre-warmed) · SnapStart (Java, restore from snapshot) · Minimize init code · Use arm64 / Node.js or Python runtimes</text>
+  </svg>
+
+  <!-- Fan-out SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 200" aria-label="EventBridge fan-out pattern" style="overflow:hidden">
+    <defs>
+      <marker id="sl-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 z" fill="#f59e0b"/>
+      </marker>
+    </defs>
+    <rect width="680" height="200" fill="#060e1c" rx="8"/>
+    <text x="340" y="20" text-anchor="middle" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".12em">EVENTBRIDGE / SQS / SNS FAN-OUT PATTERN</text>
+
+    <!-- Producer -->
+    <rect x="20" y="80" width="100" height="40" rx="5" fill="#14100a" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="70" y="104" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">Producer</text>
+
+    <!-- EventBridge -->
+    <rect x="180" y="74" width="120" height="52" rx="5" fill="#0a1818" stroke="#22d3ee" stroke-width="2"/>
+    <text x="240" y="96" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="600" font-family="'DM Mono',monospace">EventBridge</text>
+    <text x="240" y="110" text-anchor="middle" fill="#4aaabb" font-size="8" font-family="'DM Mono',monospace">Rule-based routing</text>
+    <text x="240" y="122" text-anchor="middle" fill="#2a6a7a" font-size="7" font-family="'DM Mono',monospace">schema registry</text>
+
+    <!-- arrows producer → EB -->
+    <line x1="120" y1="100" x2="178" y2="100" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#sl-arr)"/>
+
+    <!-- SQS queue -->
+    <rect x="380" y="40" width="100" height="36" rx="5" fill="#14100a" stroke="#f59e0b" stroke-width="1"/>
+    <text x="430" y="62" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">SQS Queue</text>
+
+    <!-- SNS topic -->
+    <rect x="380" y="92" width="100" height="36" rx="5" fill="#0a0a1a" stroke="#c084fc" stroke-width="1"/>
+    <text x="430" y="114" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">SNS Topic</text>
+
+    <!-- Lambda3 -->
+    <rect x="380" y="144" width="100" height="36" rx="5" fill="#0a1814" stroke="#4ade80" stroke-width="1"/>
+    <text x="430" y="166" text-anchor="middle" fill="#4ade80" font-size="8" font-family="'DM Mono',monospace">λ Direct</text>
+
+    <!-- EB → targets -->
+    <line x1="300" y1="90" x2="378" y2="60" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#sl-arr)"/>
+    <line x1="300" y1="100" x2="378" y2="110" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#sl-arr)"/>
+    <line x1="300" y1="110" x2="378" y2="160" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#sl-arr)"/>
+
+    <!-- Lambda consumers -->
+    <rect x="550" y="26" width="110" height="30" rx="4" fill="#0a1814" stroke="#4ade80" stroke-width="1"/>
+    <text x="605" y="45" text-anchor="middle" fill="#4ade80" font-size="8" font-family="'DM Mono',monospace">λ Email service</text>
+
+    <rect x="550" y="62" width="110" height="30" rx="4" fill="#0a1814" stroke="#4ade80" stroke-width="1"/>
+    <text x="605" y="81" text-anchor="middle" fill="#4ade80" font-size="8" font-family="'DM Mono',monospace">λ Audit logger</text>
+
+    <rect x="550" y="98" width="110" height="30" rx="4" fill="#0a0a1a" stroke="#c084fc" stroke-width="1"/>
+    <text x="605" y="117" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">λ Push notify</text>
+
+    <rect x="550" y="134" width="110" height="30" rx="4" fill="#0a0a1a" stroke="#c084fc" stroke-width="1"/>
+    <text x="605" y="153" text-anchor="middle" fill="#c084fc" font-size="8" font-family="'DM Mono',monospace">λ Analytics</text>
+
+    <!-- SQS → Lambda -->
+    <line x1="480" y1="58" x2="548" y2="41" stroke="#f59e0b" stroke-width="1" marker-end="url(#sl-arr)"/>
+    <line x1="480" y1="58" x2="548" y2="77" stroke="#f59e0b" stroke-width="1" marker-end="url(#sl-arr)"/>
+    <!-- SNS → Lambda -->
+    <line x1="480" y1="110" x2="548" y2="113" stroke="#c084fc" stroke-width="1" marker-end="url(#sl-arr)"/>
+    <line x1="480" y1="110" x2="548" y2="149" stroke="#c084fc" stroke-width="1" marker-end="url(#sl-arr)"/>
+
+    <!-- SQS vs SNS note -->
+    <text x="340" y="188" text-anchor="middle" fill="#3a5a6a" font-size="8" font-family="'DM Mono',monospace">SQS = pull-based queue (at-least-once, ordered with FIFO) · SNS = push fan-out to N subscribers · EventBridge = rule-based routing with schema</text>
+  </svg>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="iam">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 08 — IAM</span>Policy evaluation flow</h2>
+  <p class="lede reveal">IAM evaluates policies in a strict order. An explicit Deny at any layer overrides any Allow. The full chain: Explicit Deny → SCPs → Permission Boundaries → Resource Policies → Identity Policies.</p>
+
+  <!-- IAM policy evaluation flowchart SVG -->
+  <svg class="svg-diagram reveal" viewBox="0 0 680 300" aria-label="IAM policy evaluation flowchart" style="overflow:hidden">
+    <defs>
+      <style>
+        .iam-step { animation: iam-seq .4s ease both; }
+        .iam-step:nth-child(1){animation-delay:.1s}.iam-step:nth-child(2){animation-delay:.3s}
+        .iam-step:nth-child(3){animation-delay:.5s}.iam-step:nth-child(4){animation-delay:.7s}
+        .iam-step:nth-child(5){animation-delay:.9s}.iam-step:nth-child(6){animation-delay:1.1s}
+      </style>
+      <marker id="iam-arrD" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 z" fill="#0fccb0"/>
+      </marker>
+      <marker id="iam-arrR" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 z" fill="#ef4444"/>
+      </marker>
+    </defs>
+    <rect width="680" height="300" fill="#060e1c" rx="8"/>
+    <text x="340" y="20" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600" font-family="'DM Mono',monospace" letter-spacing=".12em">IAM POLICY EVALUATION ORDER</text>
+
+    <!-- Request -->
+    <g class="iam-step">
+      <rect x="260" y="30" width="160" height="28" rx="5" fill="#1a2a3a" stroke="#0fccb0" stroke-width="1.5"/>
+      <text x="340" y="48" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">API Request</text>
+    </g>
+    <line x1="340" y1="58" x2="340" y2="76" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#iam-arrD)"/>
+
+    <!-- Step 1: Explicit Deny -->
+    <g class="iam-step">
+      <rect x="220" y="78" width="240" height="28" rx="5" fill="#1a0808" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="340" y="96" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="'DM Mono',monospace">1. Explicit DENY in any policy?</text>
+    </g>
+    <text x="508" y="94" fill="#ef4444" font-size="8" font-family="'DM Mono',monospace">→ YES</text>
+    <rect x="520" y="78" width="70" height="28" rx="4" fill="#ef4444"/>
+    <text x="555" y="96" text-anchor="middle" fill="#fff" font-size="9" font-weight="700" font-family="'DM Mono',monospace">DENY</text>
+    <line x1="460" y1="92" x2="518" y2="92" stroke="#ef4444" stroke-width="1.5" marker-end="url(#iam-arrR)"/>
+    <text x="310" y="114" fill="#6a8a9a" font-size="8" font-family="'DM Mono',monospace">NO ↓</text>
+    <line x1="340" y1="106" x2="340" y2="124" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#iam-arrD)"/>
+
+    <!-- Step 2: SCPs -->
+    <g class="iam-step">
+      <rect x="200" y="126" width="280" height="28" rx="5" fill="#14100a" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="340" y="144" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">2. AWS Org SCP allows action?</text>
+    </g>
+    <text x="500" y="142" fill="#ef4444" font-size="8" font-family="'DM Mono',monospace">→ NO</text>
+    <rect x="512" y="126" width="70" height="28" rx="4" fill="#ef4444"/>
+    <text x="547" y="144" text-anchor="middle" fill="#fff" font-size="9" font-weight="700" font-family="'DM Mono',monospace">DENY</text>
+    <line x1="480" y1="140" x2="510" y2="140" stroke="#ef4444" stroke-width="1.5" marker-end="url(#iam-arrR)"/>
+    <line x1="340" y1="154" x2="340" y2="172" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#iam-arrD)"/>
+
+    <!-- Step 3: Permission Boundary -->
+    <g class="iam-step">
+      <rect x="185" y="174" width="310" height="28" rx="5" fill="#100a18" stroke="#c084fc" stroke-width="1.5"/>
+      <text x="340" y="192" text-anchor="middle" fill="#c084fc" font-size="9" font-weight="600" font-family="'DM Mono',monospace">3. Permission Boundary allows action?</text>
+    </g>
+    <text x="508" y="190" fill="#ef4444" font-size="8" font-family="'DM Mono',monospace">→ NO</text>
+    <rect x="520" y="174" width="70" height="28" rx="4" fill="#ef4444"/>
+    <text x="555" y="192" text-anchor="middle" fill="#fff" font-size="9" font-weight="700" font-family="'DM Mono',monospace">DENY</text>
+    <line x1="495" y1="188" x2="518" y2="188" stroke="#ef4444" stroke-width="1.5" marker-end="url(#iam-arrR)"/>
+    <line x1="340" y1="202" x2="340" y2="220" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#iam-arrD)"/>
+
+    <!-- Step 4: Resource + Identity -->
+    <g class="iam-step">
+      <rect x="170" y="222" width="340" height="28" rx="5" fill="#0a1e14" stroke="#0fccb0" stroke-width="1.5"/>
+      <text x="340" y="240" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">4. Resource policy OR Identity policy allows?</text>
+    </g>
+    <text x="522" y="238" fill="#ef4444" font-size="8" font-family="'DM Mono',monospace">→ NO</text>
+    <rect x="534" y="222" width="70" height="28" rx="4" fill="#ef4444"/>
+    <text x="569" y="240" text-anchor="middle" fill="#fff" font-size="9" font-weight="700" font-family="'DM Mono',monospace">DENY</text>
+    <line x1="510" y1="236" x2="532" y2="236" stroke="#ef4444" stroke-width="1.5" marker-end="url(#iam-arrR)"/>
+    <line x1="340" y1="250" x2="340" y2="268" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#iam-arrD)"/>
+
+    <!-- Allow -->
+    <g class="iam-step">
+      <rect x="270" y="270" width="140" height="22" rx="5" fill="#0a3a1a" stroke="#4ade80" stroke-width="2"/>
+      <text x="340" y="285" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="700" font-family="'DM Mono',monospace">ALLOW ✓</text>
+    </g>
+  </svg>
+
+  <!-- IAM entity comparison table -->
+  <table class="cmp-table reveal">
+    <thead>
+      <tr><th>Entity</th><th>What it is</th><th>When to use</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>IAM User</td><td>Long-term credentials (access key + secret) for a human or app</td><td>Avoid for apps; use for CI/CD bootstrap only</td></tr>
+      <tr><td>IAM Role</td><td>Temporary credentials assumed by a principal (EC2, Lambda, human)</td><td>Always prefer roles over users for AWS services</td></tr>
+      <tr><td>IAM Group</td><td>Collection of users sharing the same policies</td><td>Organize human users; roles don't join groups</td></tr>
+      <tr><td>IAM Policy</td><td>JSON document specifying Allow/Deny on actions/resources</td><td>Attach to role, user, group, or resource</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="schema">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 09 — SCHEMA</span>Multi-tenant SaaS on AWS</h2>
+  <p class="lede reveal">Five tables that capture the resource tagging and cost allocation design for an AWS-managed multi-tenant SaaS platform.</p>
+
+  <pre class="codeblock reveal"><code>-- Multi-tenant SaaS schema — AWS resource tracking & cost allocation
+
+-- 1. Account: tenant root
+CREATE TABLE account (
+    account_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    aws_account_id      TEXT UNIQUE NOT NULL,   -- 12-digit AWS account
+    name                TEXT NOT NULL,
+    tier                TEXT NOT NULL CHECK (tier IN ('free','pro','enterprise')),
+    primary_region      TEXT NOT NULL DEFAULT 'us-east-1',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status              TEXT NOT NULL DEFAULT 'active'
+);
+
+-- 2. Region deployment: where a tenant is deployed
+CREATE TABLE region_deployment (
+    deployment_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id          UUID NOT NULL REFERENCES account(account_id),
+    region              TEXT NOT NULL,   -- e.g. 'us-east-1', 'eu-west-1'
+    vpc_id              TEXT NOT NULL,   -- AWS VPC ID
+    is_primary          BOOLEAN NOT NULL DEFAULT false,
+    deployed_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (account_id, region)
+);
+
+-- 3. Resource: any AWS resource owned by a tenant
+CREATE TABLE resource (
+    resource_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id          UUID NOT NULL REFERENCES account(account_id),
+    deployment_id       UUID NOT NULL REFERENCES region_deployment(deployment_id),
+    resource_type       TEXT NOT NULL,   -- 'ec2_instance','rds_cluster','s3_bucket',...
+    aws_resource_id     TEXT NOT NULL,   -- actual AWS ARN or ID
+    name                TEXT,
+    tags                JSONB NOT NULL DEFAULT '{}',  -- propagated to AWS tags
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at          TIMESTAMPTZ,
+    UNIQUE (aws_resource_id)
+);
+CREATE INDEX resource_account_idx ON resource(account_id, resource_type);
+CREATE INDEX resource_tags_idx    ON resource USING gin(tags);
+
+-- 4. Cost allocation: daily cost per resource (from AWS Cost Explorer)
+CREATE TABLE cost_allocation (
+    cost_id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    resource_id         UUID NOT NULL REFERENCES resource(resource_id),
+    account_id          UUID NOT NULL REFERENCES account(account_id),
+    usage_date          DATE NOT NULL,
+    service             TEXT NOT NULL,   -- 'AmazonEC2','AmazonS3','AWSLambda'
+    usage_type          TEXT NOT NULL,   -- 'BoxUsage:c6i.xlarge','DataTransfer-Out'
+    cost_usd            NUMERIC(14,6) NOT NULL,
+    blended_rate        NUMERIC(14,8),
+    usage_quantity      NUMERIC(14,4),
+    PRIMARY KEY (resource_id, usage_date, usage_type)  -- override
+);
+CREATE INDEX cost_account_date_idx ON cost_allocation(account_id, usage_date);
+
+-- 5. Quota: per-account service limits
+CREATE TABLE quota (
+    quota_id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id          UUID NOT NULL REFERENCES account(account_id),
+    service             TEXT NOT NULL,   -- 'ec2','rds','lambda'
+    quota_name          TEXT NOT NULL,   -- 'max_instances','storage_gb'
+    limit_value         NUMERIC NOT NULL,
+    current_value       NUMERIC NOT NULL DEFAULT 0,
+    unit                TEXT NOT NULL DEFAULT 'count',
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (account_id, service, quota_name)
+);
+</code></pre>
+
+  <p class="reveal">Cost allocation rows flow from AWS Cost Explorer via an overnight Glue job. The <code>tags</code> JSONB column on <code>resource</code> mirrors the AWS tag set — tag propagation is enforced at deploy time so every dollar is attributable to a tenant.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="qa">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 10 — Q&amp;A</span>Twelve rapid-fire questions</h2>
+
+  <dl class="reveal">
+    <div class="defrow">
+      <dt>1. S3 vs EBS vs EFS — when to use each?</dt>
+      <dd>S3 for object storage (files, backups, data lake) — cheapest, unlimited scale, HTTP access. EBS for block storage attached to a single EC2 (databases, OS volumes) — low-latency IOPS. EFS for a shared POSIX filesystem across multiple EC2 or Lambda — pay for what you use, auto-scales, but costs 5× more than EBS.</dd>
+    </div>
+    <div class="defrow">
+      <dt>2. How does Aurora differ from RDS?</dt>
+      <dd>Aurora uses a custom distributed storage layer that replicates 6 copies across 3 AZs — storage and compute are decoupled. RDS uses traditional single-AZ EBS with an optional synchronous standby; Aurora is 5× faster on MySQL and 3× on PostgreSQL for write-heavy workloads and handles failover in under 30 seconds versus RDS's ~60–120s.</dd>
+    </div>
+    <div class="defrow">
+      <dt>3. What is VPC peering vs Transit Gateway?</dt>
+      <dd>VPC peering is a 1:1 private connection between two VPCs (non-transitive — A↔B and B↔C does not give A↔C). Transit Gateway is a hub-and-spoke that connects thousands of VPCs and on-premises networks transitively — use it when you have more than a handful of VPCs to connect.</dd>
+    </div>
+    <div class="defrow">
+      <dt>4. How does Lambda handle concurrency?</dt>
+      <dd>Each concurrent request needs its own Lambda execution environment — 1000 concurrent invocations = 1000 containers (default account limit). Reserved concurrency sets a ceiling for a function; Provisioned Concurrency pre-warms N containers to eliminate cold starts. Throttling returns HTTP 429; implement exponential backoff + SQS buffer in front.</dd>
+    </div>
+    <div class="defrow">
+      <dt>5. What is the difference between SQS and SNS?</dt>
+      <dd>SQS is a pull-based queue: consumers poll for messages, messages persist until acknowledged (14-day max), each message is processed by one consumer. SNS is a push-based topic: publishes to all subscribers simultaneously (Lambda, SQS, HTTP, email) with no persistence — use SNS→SQS fan-out for durable, parallel processing.</dd>
+    </div>
+    <div class="defrow">
+      <dt>6. How do you secure an S3 bucket?</dt>
+      <dd>Block public access at the account level (the big four checkboxes). Use bucket policies to restrict to specific IAM principals or VPC endpoints. Enable server-side encryption (SSE-S3 or SSE-KMS). Enable versioning + MFA delete for critical data. Use S3 Access Analyzer to detect unintended public access, and CloudTrail S3 data events for audit.</dd>
+    </div>
+    <div class="defrow">
+      <dt>7. What is an IAM role vs IAM user?</dt>
+      <dd>An IAM user has long-term static credentials (access key + secret) tied to a person or app — a credential leak is permanent until rotated. An IAM role has temporary credentials (15min–12hr) issued by STS, assumed by a trusted principal (EC2, Lambda, another account, federated user). Always prefer roles; users are a last resort for bootstrapping.</dd>
+    </div>
+    <div class="defrow">
+      <dt>8. How does Auto Scaling work with ALB?</dt>
+      <dd>An Auto Scaling Group adds/removes EC2 instances or ECS tasks based on CloudWatch metrics (CPU, custom, or ALB request count per target). The ALB's target group registers/deregisters instances as the ASG changes; connection draining (deregistration delay) ensures in-flight requests finish before a removed instance is terminated.</dd>
+    </div>
+    <div class="defrow">
+      <dt>9. What is CloudFront and when do you use it?</dt>
+      <dd>CloudFront is AWS's CDN — it caches responses at 400+ edge locations worldwide, reducing latency and origin load. Use it for static assets (S3), API acceleration (API Gateway), streaming (S3 or MediaPackage), and DDoS mitigation (AWS Shield is automatically included). CloudFront also terminates TLS at the edge, so your origin only handles decrypted traffic.</dd>
+    </div>
+    <div class="defrow">
+      <dt>10. How do you design for multi-region failover?</dt>
+      <dd>Define RPO and RTO first. Pilot light (near-zero cost, cold data only) suits RPO hours; warm standby (scaled-down active in DR region) suits RPO minutes; active-active (Route 53 latency/health routing, Aurora Global, DynamoDB Global Tables) suits RPO seconds. Always test failover — chaos engineering, not just diagrams.</dd>
+    </div>
+    <div class="defrow">
+      <dt>11. What is the difference between NACLs and Security Groups?</dt>
+      <dd>Security Groups are stateful (allow inbound → return traffic automatically allowed), operate at the instance/ENI level, and support Allow rules only. NACLs are stateless (you must explicitly allow both inbound and return traffic), operate at the subnet level, and support both Allow and Deny — useful for blocking specific IP ranges at the perimeter.</dd>
+    </div>
+    <div class="defrow">
+      <dt>12. How does DynamoDB handle hot partitions?</dt>
+      <dd>DynamoDB distributes data by partition key hash — a hot partition occurs when one key receives a disproportionate share of requests, exhausting its 1000 RCU/3000 WCU per partition. Mitigations: add a random suffix (write sharding, then scatter-gather on reads), use DAX for read-heavy hot keys, use SQS buffering to absorb write bursts, or redesign the access pattern to spread load.</dd>
+    </div>
+  </dl>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="summary">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 11 — SUMMARY</span>Weak vs strong answers</h2>
+
+  <table class="cmp-table reveal">
+    <thead>
+      <tr>
+        <th>Topic</th>
+        <th>Weak answer</th>
+        <th>Strong answer</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Compute</td>
+        <td>"Use EC2"</td>
+        <td>Names instance family by workload shape; mentions Graviton for cost; proposes containers (ECS/EKS) for operational leverage</td>
+      </tr>
+      <tr>
+        <td>Storage</td>
+        <td>"S3 for everything"</td>
+        <td>Maps access pattern to storage class; quantifies 23× cost delta Standard→Deep Archive; proposes Lifecycle policies</td>
+      </tr>
+      <tr>
+        <td>Networking</td>
+        <td>"Put it in a VPC"</td>
+        <td>Draws public/private subnet split; explains IGW vs NAT; distinguishes SG (stateful) from NACL (stateless)</td>
+      </tr>
+      <tr>
+        <td>Database</td>
+        <td>"Use RDS"</td>
+        <td>Uses decision tree by data shape; explains Aurora 6-copy storage vs RDS EBS; names DynamoDB for &gt;10M ops/s</td>
+      </tr>
+      <tr>
+        <td>Serverless</td>
+        <td>"Lambda is cheap"</td>
+        <td>Explains cold start anatomy; proposes Provisioned Concurrency for latency-sensitive; SQS buffer for bursty ingress</td>
+      </tr>
+      <tr>
+        <td>IAM</td>
+        <td>"Use IAM policies"</td>
+        <td>Walks the 5-step evaluation order; recommends roles over users; mentions SCPs for account guardrails</td>
+      </tr>
+      <tr>
+        <td>Multi-region DR</td>
+        <td>"We have backups"</td>
+        <td>Defines RPO/RTO → selects pilot light / warm standby / active-active; names Aurora Global + DynamoDB Global Tables; plans chaos testing</td>
+      </tr>
+      <tr>
+        <td>Cost</td>
+        <td>Ignores cost</td>
+        <td>Mentions Savings Plans, Reserved for baseline; Spot for stateless batch; right-sizes with Graviton; Cost Explorer + tag propagation for attribution</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- cross-link footer -->
+<div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:24px auto;max-width:900px;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;">
+  ☁️ <strong>Cloud series:</strong>
+  <a href="the-gcp-problem.html" style="color:#0a8070;font-weight:600;">Nº 28 · The GCP Problem →</a>
+  &nbsp;|&nbsp;
+  <a href="the-azure-problem.html" style="color:#0a8070;font-weight:600;">Nº 29 · The Azure Problem →</a>
+  &nbsp;|&nbsp;
+  <a href="index.html" style="color:#0a8070;font-weight:600;">← Design Index</a>
+</div>
+
+<script>
+// Intersection Observer for .reveal elements
+(function(){
+  if(!('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); } });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+})();
+</script>
+</body>
+</html>

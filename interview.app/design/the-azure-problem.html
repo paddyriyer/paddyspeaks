@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Azure Problem — PaddySpeaks</title>
+<meta name="description" content="Design a hybrid enterprise platform on Microsoft Azure. Active Directory / Entra ID, VNet hub-and-spoke, AKS, Cosmos DB consistency levels, Managed Identity, ExpressRoute, and the enterprise compliance story that makes Azure the enterprise cloud of record.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+<style>
+:root { --teal: #0a8070; --teal-deep: #065a50; --teal-light: rgba(10,128,112,.10); }
+h1 em { color: var(--teal) !important; }
+.svg-diagram { width: 100%; max-width: 700px; margin: 32px auto; display: block; overflow: hidden; }
+.svg-diagram text { font-family: 'DM Mono', monospace; }
+
+/* anchor nav */
+.anchor-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: #faf8f4; border-bottom: 1px solid #e8e0d0;
+  display: flex; gap: 0; overflow-x: auto; padding: 0 24px;
+}
+.anchor-nav a {
+  padding: 10px 16px; font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; color: #8f8672;
+  text-decoration: none; white-space: nowrap;
+}
+.anchor-nav a:hover { color: #0a8070; }
+
+/* comparison table */
+.cmp-table { width: 100%; border-collapse: collapse; font-family: 'DM Mono', monospace; font-size: 12px; margin: 24px 0; }
+.cmp-table th { background: #1a1208; padding: 9px 13px; text-align: left; color: #d98e63; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; border: 1px solid #3a2e1a; }
+.cmp-table td { padding: 8px 13px; border: 1px solid #3a2e1a; color: #8f8672; }
+.cmp-table tr:nth-child(odd) td { background: #120e06; }
+.cmp-table tr:nth-child(even) td { background: #1a1208; }
+.cmp-table td:first-child { color: #e9e2d0; font-weight: 600; }
+
+/* QA section */
+.qa-item { border-bottom: 1px solid var(--line); padding: 18px 0; }
+.qa-item:last-child { border-bottom: none; }
+.qa-q { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--amber-deep); margin-bottom: 6px; }
+.qa-a { font-size: 16px; line-height: 1.6; color: var(--ink-soft); }
+
+/* SVG keyframe animations — prefixed per SVG */
+/* az- Geography hierarchy */
+@keyframes az-drop { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+/* cp- Compute */
+@keyframes cp-fadeIn { from{opacity:0} to{opacity:1} }
+/* st- Storage */
+@keyframes st-slideR { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+/* vn- VNet */
+@keyframes vn-draw { from{stroke-dashoffset:300} to{stroke-dashoffset:0} }
+/* db- Database */
+@keyframes db-fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+/* eid- Entra hierarchy */
+@keyframes eid-drop { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+/* mi- Managed Identity */
+@keyframes mi-flow { from{stroke-dashoffset:200} to{stroke-dashoffset:0} }
+/* fn- Functions */
+@keyframes fn-fadeIn { from{opacity:0} to{opacity:1} }
+/* la- Logic Apps */
+@keyframes la-step { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 29</div>
+    <h1 class="reveal">The <em>Azure</em> Problem</h1>
+    <p class="deck reveal">Design a hybrid enterprise platform on Microsoft Azure. Active Directory / Entra ID, VNet hub-and-spoke, AKS, Cosmos DB multi-region, Managed Identity, ExpressRoute, and the identity-first architecture that makes Azure the enterprise cloud of record.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Cloud Architecture / Enterprise Infrastructure</b></span>
+      <span>READING · <b>~35 min</b></span>
+    </div>
+  </div>
+</header>
+
+<!-- anchor nav -->
+<nav class="anchor-nav">
+  <a href="#infra">Infrastructure</a>
+  <a href="#compute">Compute</a>
+  <a href="#storage">Storage</a>
+  <a href="#networking">Networking</a>
+  <a href="#database">Database</a>
+  <a href="#identity">Identity</a>
+  <a href="#serverless">Serverless</a>
+  <a href="#qa">Q&amp;A</a>
+</nav>
+
+<!-- cross-links -->
+<div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:24px auto;max-width:900px;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;">
+  ☁️ <strong>Cloud series:</strong>
+  <a href="./the-aws-problem.html" style="color:#0a8070;font-weight:600;">The AWS Problem →</a>
+  &nbsp;·&nbsp;
+  <a href="./the-gcp-problem.html" style="color:#0a8070;font-weight:600;">The GCP Problem →</a>
+</div>
+
+<!-- ── §01 THE QUESTION ── -->
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>Design a hybrid enterprise platform on Azure</h2>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design a hybrid enterprise platform on Azure. Walk me through your choices for compute, storage, identity, and networking — and how Azure's unique strengths (Active Directory, hybrid connectivity, enterprise compliance) differentiate it from other clouds."</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <table class="cmp-table reveal">
+      <thead><tr>
+        <th>Dimension</th><th>Weak answer</th><th>Strong answer</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>Identity</td><td>Use IAM roles</td><td>Entra ID with Conditional Access, PIM, Managed Identity — no creds in code</td></tr>
+        <tr><td>Networking</td><td>Put everything in a VNet</td><td>Hub-and-spoke with NSGs at subnet + NIC level, ExpressRoute for on-prem, Private Endpoints</td></tr>
+        <tr><td>Database</td><td>Use SQL Server</td><td>Azure SQL Flexible with geo-redundancy, Cosmos DB for multi-region with tunable consistency</td></tr>
+        <tr><td>Hybrid</td><td>VPN to on-prem</td><td>ExpressRoute with VPN as failover; Azure Arc for on-prem governance; hybrid DNS</td></tr>
+        <tr><td>Differentiation</td><td>"It's like AWS"</td><td>Microsoft 365 integration, Windows AD federation, enterprise compliance (FedRAMP, ISO 27001), Azure Arc</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §02 GLOBAL INFRASTRUCTURE ── -->
+<section id="infra">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — GLOBAL INFRASTRUCTURE</span>Geography → Region → Zone → Datacenter</h2>
+    <p class="lede reveal">Azure groups datacenters into a four-level hierarchy. Region pairs are the Azure-native DR strategy: paired regions share a physical boundary, never update simultaneously, and replicate GRS storage automatically.</p>
+
+    <!-- Geography hierarchy SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 280" aria-label="Azure geography hierarchy">
+      <defs>
+        <style>
+          .az-l1{animation:az-drop .5s .1s both}
+          .az-l2{animation:az-drop .5s .3s both}
+          .az-l3a{animation:az-drop .5s .5s both}
+          .az-l3b{animation:az-drop .5s .6s both}
+          .az-l4{animation:az-drop .5s .8s both}
+          .az-conn{stroke-dasharray:200;animation:az-drop .4s .4s both}
+        </style>
+      </defs>
+      <rect width="680" height="280" fill="#060e1c" rx="8"/>
+
+      <!-- Level labels -->
+      <text x="20" y="32" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">HIERARCHY LEVEL</text>
+
+      <!-- Geography -->
+      <g class="az-l1">
+        <rect x="240" y="16" width="200" height="36" rx="6" fill="#0f2030" stroke="#1e3a50" stroke-width="1.5"/>
+        <text x="340" y="30" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".08em">GEOGRAPHY</text>
+        <text x="340" y="45" text-anchor="middle" fill="#6080a0" font-size="10" font-family="'DM Mono',monospace">e.g. United States</text>
+      </g>
+
+      <!-- arrow down -->
+      <line x1="340" y1="52" x2="340" y2="74" stroke="#1e3a50" stroke-width="1.5"/>
+      <polygon points="340,74 335,66 345,66" fill="#1e3a50"/>
+
+      <!-- Region Pair box -->
+      <g class="az-l2">
+        <rect x="190" y="76" width="300" height="36" rx="6" fill="#0f2030" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="340" y="90" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".08em">REGION PAIR</text>
+        <text x="340" y="104" text-anchor="middle" fill="#6080a0" font-size="10" font-family="'DM Mono',monospace">East US ↔ West US 2 (paired, 300+ mi apart)</text>
+      </g>
+
+      <!-- arrows to two regions -->
+      <line x1="260" y1="112" x2="200" y2="138" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="420" y1="112" x2="480" y2="138" stroke="#1e3a50" stroke-width="1.5"/>
+
+      <!-- Primary Region -->
+      <g class="az-l3a">
+        <rect x="60" y="140" width="280" height="36" rx="6" fill="#0a2018" stroke="#0fccb0" stroke-width="2"/>
+        <text x="200" y="154" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".08em">PRIMARY REGION</text>
+        <text x="200" y="168" text-anchor="middle" fill="#6080a0" font-size="10" font-family="'DM Mono',monospace">East US — active workloads</text>
+      </g>
+
+      <!-- Paired Region -->
+      <g class="az-l3b">
+        <rect x="360" y="140" width="280" height="36" rx="6" fill="#201800" stroke="#f59e0b" stroke-width="2"/>
+        <text x="500" y="154" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".08em">PAIRED REGION</text>
+        <text x="500" y="168" text-anchor="middle" fill="#6080a0" font-size="10" font-family="'DM Mono',monospace">West US 2 — DR replica / GRS target</text>
+      </g>
+
+      <!-- AZ boxes under primary -->
+      <g class="az-l4">
+        <rect x="70" y="196" width="72" height="28" rx="4" fill="#0a2018" stroke="#0fccb0" stroke-width="1"/>
+        <text x="106" y="214" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">Zone 1</text>
+        <rect x="154" y="196" width="72" height="28" rx="4" fill="#0a2018" stroke="#0fccb0" stroke-width="1"/>
+        <text x="190" y="214" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">Zone 2</text>
+        <rect x="238" y="196" width="72" height="28" rx="4" fill="#0a2018" stroke="#0fccb0" stroke-width="1"/>
+        <text x="274" y="214" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">Zone 3</text>
+
+        <!-- DC under zone 1 -->
+        <rect x="78" y="238" width="56" height="22" rx="3" fill="#091a10" stroke="#1e4030" stroke-width="1"/>
+        <text x="106" y="253" text-anchor="middle" fill="#4a8060" font-size="9" font-family="'DM Mono',monospace">DC(s)</text>
+      </g>
+
+      <!-- Paired region note -->
+      <g class="az-l4">
+        <rect x="380" y="196" width="240" height="28" rx="4" fill="#201800" stroke="#f59e0b" stroke-width="1"/>
+        <text x="500" y="214" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace">GRS auto-replication target</text>
+      </g>
+
+      <!-- Legend -->
+      <rect x="20" y="244" width="12" height="12" fill="none" stroke="#0fccb0" stroke-width="2"/>
+      <text x="38" y="255" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">Primary</text>
+      <rect x="110" y="244" width="12" height="12" fill="none" stroke="#f59e0b" stroke-width="2"/>
+      <text x="128" y="255" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">Paired (DR)</text>
+      <text x="250" y="255" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace">Azure operates 60+ regions across 140+ countries</text>
+    </svg>
+
+    <table class="cmp-table reveal">
+      <thead><tr><th>Concept</th><th>Azure</th><th>AWS equiv.</th><th>Key difference</th></tr></thead>
+      <tbody>
+        <tr><td>Region pair</td><td>Built-in, same geo</td><td>Manual cross-region</td><td>Azure pairs regions at infra level; GRS replicates automatically</td></tr>
+        <tr><td>Availability Zones</td><td>3 per region</td><td>3 per region</td><td>Conceptually identical; Azure calls them Zone 1/2/3</td></tr>
+        <tr><td>Edge</td><td>Azure Front Door / CDN</td><td>CloudFront</td><td>Front Door integrates WAF + global LB in one service</td></tr>
+        <tr><td>Gov cloud</td><td>Azure Government</td><td>AWS GovCloud</td><td>Both FedRAMP High; Azure has deeper DoD IL5 coverage</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §03 COMPUTE ── -->
+<section id="compute">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — COMPUTE</span>VMs · AKS · Functions · Arc</h2>
+    <p class="lede reveal">Azure's compute decision tree starts with workload type. Arc extends Azure governance to any Kubernetes cluster anywhere — on-prem, multi-cloud, or edge.</p>
+
+    <!-- Decision tree SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 360" aria-label="Azure compute decision tree">
+      <defs>
+        <style>
+          .cp-n1{animation:cp-fadeIn .4s .1s both}
+          .cp-n2{animation:cp-fadeIn .4s .3s both}
+          .cp-n3{animation:cp-fadeIn .4s .5s both}
+          .cp-n4{animation:cp-fadeIn .4s .6s both}
+          .cp-n5{animation:cp-fadeIn .4s .7s both}
+          .cp-n6{animation:cp-fadeIn .4s .8s both}
+        </style>
+      </defs>
+      <rect width="680" height="360" fill="#060e1c" rx="8"/>
+
+      <!-- Root: What is your workload? -->
+      <g class="cp-n1">
+        <rect x="220" y="14" width="240" height="40" rx="8" fill="#0f2030" stroke="#0fccb0" stroke-width="2"/>
+        <text x="340" y="32" text-anchor="middle" fill="#0fccb0" font-size="11" font-family="'DM Mono',monospace" font-weight="600">What's your workload?</text>
+        <text x="340" y="46" text-anchor="middle" fill="#4a8090" font-size="10" font-family="'DM Mono',monospace">Start here</text>
+      </g>
+
+      <!-- Branch lines from root -->
+      <line x1="230" y1="54" x2="80" y2="100" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="290" y1="54" x2="220" y2="100" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="340" y1="54" x2="340" y2="100" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="400" y1="54" x2="460" y2="100" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="440" y1="54" x2="600" y2="100" stroke="#1e3a50" stroke-width="1.5"/>
+
+      <!-- Branch: VM/IaaS -->
+      <g class="cp-n2">
+        <rect x="20" y="102" width="120" height="32" rx="6" fill="#1a1208" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="80" y="120" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace">VMs / IaaS</text>
+        <text x="80" y="130" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">lift-and-shift</text>
+        <!-- Azure VMs -->
+        <rect x="20" y="154" width="120" height="50" rx="5" fill="#120e06" stroke="#3a2e1a" stroke-width="1"/>
+        <text x="80" y="170" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure VMs</text>
+        <text x="80" y="184" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">B / D / E / F / N / H</text>
+        <text x="80" y="196" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">series (see below)</text>
+        <line x1="80" y1="134" x2="80" y2="154" stroke="#3a2e1a" stroke-width="1"/>
+      </g>
+
+      <!-- Branch: Containers -->
+      <g class="cp-n3">
+        <rect x="160" y="102" width="120" height="32" rx="6" fill="#0a2018" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="220" y="120" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace">Containers</text>
+        <text x="220" y="130" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">orchestrated</text>
+        <rect x="155" y="154" width="130" height="50" rx="5" fill="#091a10" stroke="#0a3020" stroke-width="1"/>
+        <text x="220" y="170" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">AKS</text>
+        <text x="220" y="184" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">managed K8s</text>
+        <text x="220" y="196" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Container Instances (ACI)</text>
+        <line x1="220" y1="134" x2="220" y2="154" stroke="#0a3020" stroke-width="1"/>
+      </g>
+
+      <!-- Branch: Serverless -->
+      <g class="cp-n4">
+        <rect x="300" y="102" width="120" height="32" rx="6" fill="#1a1208" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="360" y="120" text-anchor="middle" fill="#ef4444" font-size="10" font-family="'DM Mono',monospace">Serverless</text>
+        <text x="360" y="130" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">event-driven</text>
+        <rect x="298" y="154" width="124" height="50" rx="5" fill="#120e06" stroke="#3a1a1a" stroke-width="1"/>
+        <text x="360" y="170" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure Functions</text>
+        <text x="360" y="184" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Logic Apps</text>
+        <text x="360" y="196" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Durable Functions</text>
+        <line x1="360" y1="134" x2="360" y2="154" stroke="#3a1a1a" stroke-width="1"/>
+      </g>
+
+      <!-- Branch: Batch -->
+      <g class="cp-n5">
+        <rect x="440" y="102" width="120" height="32" rx="6" fill="#1a1208" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="500" y="120" text-anchor="middle" fill="#a855f7" font-size="10" font-family="'DM Mono',monospace">Batch / HPC</text>
+        <text x="500" y="130" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">parallelizable</text>
+        <rect x="438" y="154" width="124" height="50" rx="5" fill="#120e06" stroke="#2a1a3a" stroke-width="1"/>
+        <text x="500" y="170" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure Batch</text>
+        <text x="500" y="184" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">CycleCloud (HPC)</text>
+        <line x1="500" y1="134" x2="500" y2="154" stroke="#2a1a3a" stroke-width="1"/>
+      </g>
+
+      <!-- Branch: Hybrid -->
+      <g class="cp-n6">
+        <rect x="580" y="102" width="90" height="32" rx="6" fill="#0a1018" stroke="#0fccb0" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <text x="625" y="120" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace">Hybrid</text>
+        <text x="625" y="130" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">on-prem</text>
+        <rect x="578" y="154" width="94" height="50" rx="5" fill="#060e1c" stroke="#0a2030" stroke-width="1"/>
+        <text x="625" y="170" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure Arc</text>
+        <text x="625" y="184" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">any K8s, any</text>
+        <text x="625" y="196" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">cloud / on-prem</text>
+        <line x1="625" y1="134" x2="625" y2="154" stroke="#0a2030" stroke-width="1"/>
+      </g>
+
+      <!-- VM Series Grid -->
+      <text x="20" y="228" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">VM SERIES</text>
+      <!-- B -->
+      <rect x="20" y="236" width="90" height="46" rx="4" fill="#1a1208" stroke="#3a2e1a" stroke-width="1"/>
+      <text x="65" y="254" text-anchor="middle" fill="#f59e0b" font-size="13" font-family="'DM Mono',monospace" font-weight="700">B</text>
+      <text x="65" y="268" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">Burstable</text>
+      <text x="65" y="278" text-anchor="middle" fill="#4a5060" font-size="9" font-family="'DM Mono',monospace">dev/test</text>
+      <!-- D -->
+      <rect x="120" y="236" width="90" height="46" rx="4" fill="#0a2018" stroke="#0a3020" stroke-width="1"/>
+      <text x="165" y="254" text-anchor="middle" fill="#0fccb0" font-size="13" font-family="'DM Mono',monospace" font-weight="700">D</text>
+      <text x="165" y="268" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">General</text>
+      <text x="165" y="278" text-anchor="middle" fill="#4a5060" font-size="9" font-family="'DM Mono',monospace">balanced</text>
+      <!-- E -->
+      <rect x="220" y="236" width="90" height="46" rx="4" fill="#0a2018" stroke="#0a3020" stroke-width="1"/>
+      <text x="265" y="254" text-anchor="middle" fill="#0fccb0" font-size="13" font-family="'DM Mono',monospace" font-weight="700">E</text>
+      <text x="265" y="268" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">Memory</text>
+      <text x="265" y="278" text-anchor="middle" fill="#4a5060" font-size="9" font-family="'DM Mono',monospace">SAP/in-mem DB</text>
+      <!-- F -->
+      <rect x="320" y="236" width="90" height="46" rx="4" fill="#1a1208" stroke="#3a2e1a" stroke-width="1"/>
+      <text x="365" y="254" text-anchor="middle" fill="#ef4444" font-size="13" font-family="'DM Mono',monospace" font-weight="700">F</text>
+      <text x="365" y="268" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">Compute</text>
+      <text x="365" y="278" text-anchor="middle" fill="#4a5060" font-size="9" font-family="'DM Mono',monospace">CPU-intensive</text>
+      <!-- N -->
+      <rect x="420" y="236" width="90" height="46" rx="4" fill="#100a1a" stroke="#2a1a3a" stroke-width="1"/>
+      <text x="465" y="254" text-anchor="middle" fill="#a855f7" font-size="13" font-family="'DM Mono',monospace" font-weight="700">N</text>
+      <text x="465" y="268" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">GPU</text>
+      <text x="465" y="278" text-anchor="middle" fill="#4a5060" font-size="9" font-family="'DM Mono',monospace">ML / rendering</text>
+      <!-- H -->
+      <rect x="520" y="236" width="90" height="46" rx="4" fill="#100a1a" stroke="#2a1a3a" stroke-width="1"/>
+      <text x="565" y="254" text-anchor="middle" fill="#a855f7" font-size="13" font-family="'DM Mono',monospace" font-weight="700">H</text>
+      <text x="565" y="268" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">HPC</text>
+      <text x="565" y="278" text-anchor="middle" fill="#4a5060" font-size="9" font-family="'DM Mono',monospace">RDMA/InfiniBand</text>
+
+      <!-- VMSS auto-scale hint -->
+      <rect x="20" y="298" width="640" height="48" rx="5" fill="#060e1c" stroke="#0a2030" stroke-width="1"/>
+      <text x="340" y="316" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">VMSS (Virtual Machine Scale Sets)</text>
+      <text x="340" y="332" text-anchor="middle" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace">CPU % or custom metric → scale-out trigger → new VM instances provisioned from shared image gallery</text>
+      <text x="340" y="344" text-anchor="middle" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace">Supports rolling upgrade mode — no downtime</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §04 STORAGE ── -->
+<section id="storage">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — STORAGE</span>Blob tiers · Disk · Files · Queue · Table</h2>
+    <p class="lede reveal">Azure Blob Storage has four access tiers. Tiering is a cost optimization: move cold data down automatically with lifecycle policies. Archive tier has hours of rehydration latency.</p>
+
+    <!-- Blob tiers SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 200" aria-label="Azure Blob storage access tiers">
+      <defs>
+        <style>
+          .st-t1{animation:st-slideR .4s .1s both}
+          .st-t2{animation:st-slideR .4s .3s both}
+          .st-t3{animation:st-slideR .4s .5s both}
+          .st-t4{animation:st-slideR .4s .7s both}
+        </style>
+      </defs>
+      <rect width="680" height="200" fill="#060e1c" rx="8"/>
+
+      <text x="20" y="24" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">← LOW ACCESS COST · HIGH STORAGE COST ─────────────────────────── HIGH ACCESS COST · LOW STORAGE COST →</text>
+
+      <!-- Hot -->
+      <g class="st-t1">
+        <rect x="20" y="36" width="140" height="100" rx="6" fill="#0a2018" stroke="#0fccb0" stroke-width="2"/>
+        <text x="90" y="56" text-anchor="middle" fill="#0fccb0" font-size="12" font-family="'DM Mono',monospace" font-weight="700">HOT</text>
+        <text x="90" y="74" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">Frequent access</text>
+        <!-- storage bar (tall) vs access bar (short) -->
+        <rect x="42" y="82" width="20" height="36" rx="2" fill="#0fccb0" opacity=".7"/>
+        <text x="52" y="124" text-anchor="middle" fill="#4a8070" font-size="8" font-family="'DM Mono',monospace">storage</text>
+        <rect x="82" y="104" width="20" height="14" rx="2" fill="#ef4444" opacity=".7"/>
+        <text x="92" y="124" text-anchor="middle" fill="#804040" font-size="8" font-family="'DM Mono',monospace">access</text>
+        <text x="90" y="138" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">immediate</text>
+      </g>
+
+      <!-- Cool -->
+      <g class="st-t2">
+        <rect x="180" y="36" width="140" height="100" rx="6" fill="#0d1e18" stroke="#0fccb0" stroke-width="1.5" stroke-opacity=".5"/>
+        <text x="250" y="56" text-anchor="middle" fill="#0fccb0" font-size="12" font-family="'DM Mono',monospace" font-weight="700" opacity=".7">COOL</text>
+        <text x="250" y="74" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">≥ 30 days stored</text>
+        <rect x="198" y="90" width="20" height="28" rx="2" fill="#0fccb0" opacity=".5"/>
+        <text x="208" y="124" text-anchor="middle" fill="#4a8070" font-size="8" font-family="'DM Mono',monospace">storage</text>
+        <rect x="238" y="99" width="20" height="19" rx="2" fill="#ef4444" opacity=".5"/>
+        <text x="248" y="124" text-anchor="middle" fill="#804040" font-size="8" font-family="'DM Mono',monospace">access</text>
+        <text x="250" y="138" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">ms latency</text>
+      </g>
+
+      <!-- Cold -->
+      <g class="st-t3">
+        <rect x="340" y="36" width="140" height="100" rx="6" fill="#0a1010" stroke="#f59e0b" stroke-width="1.5" stroke-opacity=".5"/>
+        <text x="410" y="56" text-anchor="middle" fill="#f59e0b" font-size="12" font-family="'DM Mono',monospace" font-weight="700" opacity=".7">COLD</text>
+        <text x="410" y="74" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">≥ 90 days stored</text>
+        <rect x="356" y="96" width="20" height="22" rx="2" fill="#0fccb0" opacity=".35"/>
+        <text x="366" y="124" text-anchor="middle" fill="#4a8070" font-size="8" font-family="'DM Mono',monospace">storage</text>
+        <rect x="396" y="90" width="20" height="28" rx="2" fill="#ef4444" opacity=".5"/>
+        <text x="406" y="124" text-anchor="middle" fill="#804040" font-size="8" font-family="'DM Mono',monospace">access</text>
+        <text x="410" y="138" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">ms latency</text>
+      </g>
+
+      <!-- Archive -->
+      <g class="st-t4">
+        <rect x="500" y="36" width="160" height="100" rx="6" fill="#0a0a0a" stroke="#4a6080" stroke-width="1.5"/>
+        <text x="580" y="56" text-anchor="middle" fill="#c8d3e0" font-size="12" font-family="'DM Mono',monospace" font-weight="700">ARCHIVE</text>
+        <text x="580" y="74" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">≥ 180 days stored</text>
+        <rect x="518" y="102" width="20" height="16" rx="2" fill="#0fccb0" opacity=".2"/>
+        <text x="528" y="124" text-anchor="middle" fill="#4a8070" font-size="8" font-family="'DM Mono',monospace">storage</text>
+        <rect x="558" y="76" width="20" height="42" rx="2" fill="#ef4444" opacity=".7"/>
+        <text x="568" y="124" text-anchor="middle" fill="#804040" font-size="8" font-family="'DM Mono',monospace">access</text>
+        <text x="610" y="100" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">rehydrate</text>
+        <text x="610" y="112" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">1–15 hrs</text>
+      </g>
+
+      <!-- lifecycle arrow -->
+      <text x="340" y="188" text-anchor="middle" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace">Lifecycle Management Policy: Hot → Cool → Cold → Archive (automated by last-modified date)</text>
+    </svg>
+
+    <table class="cmp-table reveal">
+      <thead><tr><th>Service</th><th>Type</th><th>Access pattern</th><th>Use case</th></tr></thead>
+      <tbody>
+        <tr><td>Blob Storage</td><td>Object</td><td>REST API</td><td>Images, video, backups, data lake</td></tr>
+        <tr><td>Azure Disk</td><td>Block</td><td>VM-attached (SSD/HDD)</td><td>OS disk, database volumes</td></tr>
+        <tr><td>Azure Files</td><td>File share (SMB/NFS)</td><td>Mount on Windows/Linux</td><td>Lift-and-shift shared drives, app config</td></tr>
+        <tr><td>Queue Storage</td><td>Message queue</td><td>FIFO, 64 KB max</td><td>Decoupling; simple task queues</td></tr>
+        <tr><td>Table Storage</td><td>NoSQL key-value</td><td>PartitionKey + RowKey</td><td>Low-cost structured data; logs</td></tr>
+        <tr><td>Data Lake Gen2</td><td>Hierarchical Blob</td><td>ADLS driver, Spark</td><td>Analytics, Synapse, Databricks</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §05 NETWORKING ── -->
+<section id="networking">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — NETWORKING</span>VNet · NSG · Hub-and-spoke · ExpressRoute</h2>
+    <p class="lede reveal">Azure's key differentiator: NSGs operate at both subnet level AND NIC level — double-perimeter defense within a VNet. Hub-and-spoke is the reference architecture for enterprise multi-workload isolation.</p>
+
+    <!-- VNet hub-and-spoke SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 380" aria-label="Azure VNet hub-and-spoke topology">
+      <defs>
+        <style>
+          .vn-h{animation:vn-draw .6s .2s both;stroke-dasharray:300}
+          .vn-s1{animation:cp-fadeIn .4s .4s both}
+          .vn-s2{animation:cp-fadeIn .4s .5s both}
+          .vn-s3{animation:cp-fadeIn .4s .6s both}
+          .vn-er{animation:cp-fadeIn .4s .8s both}
+        </style>
+      </defs>
+      <rect width="680" height="380" fill="#060e1c" rx="8"/>
+
+      <!-- On-prem -->
+      <g class="vn-er">
+        <rect x="20" y="160" width="110" height="60" rx="5" fill="#1a1208" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="75" y="182" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace" font-weight="600">ON-PREM</text>
+        <text x="75" y="197" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">Corp Network</text>
+        <text x="75" y="210" text-anchor="middle" fill="#6080a0" font-size="9" font-family="'DM Mono',monospace">Active Directory</text>
+        <!-- ExpressRoute line -->
+        <line x1="130" y1="190" x2="180" y2="190" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 3"/>
+        <text x="155" y="184" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">ExpressRoute</text>
+        <text x="155" y="204" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">or VPN GW</text>
+      </g>
+
+      <!-- Hub VNet -->
+      <g class="vn-h">
+        <rect x="180" y="80" width="220" height="220" rx="8" fill="#0a1418" stroke="#0fccb0" stroke-width="2"/>
+        <text x="290" y="102" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">HUB VNET</text>
+
+        <!-- VPN/ExpressRoute GW -->
+        <rect x="196" y="112" width="88" height="30" rx="4" fill="#1a2030" stroke="#f59e0b" stroke-width="1"/>
+        <text x="240" y="130" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">VPN / ER Gateway</text>
+
+        <!-- Azure Firewall -->
+        <rect x="196" y="154" width="88" height="30" rx="4" fill="#1a1a10" stroke="#ef4444" stroke-width="1"/>
+        <text x="240" y="172" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">Azure Firewall</text>
+
+        <!-- Bastion -->
+        <rect x="196" y="196" width="88" height="30" rx="4" fill="#0a1020" stroke="#4a80c0" stroke-width="1"/>
+        <text x="240" y="214" text-anchor="middle" fill="#4a80c0" font-size="9" font-family="'DM Mono',monospace">Azure Bastion</text>
+
+        <!-- Private DNS Zone -->
+        <rect x="196" y="238" width="88" height="30" rx="4" fill="#0a1020" stroke="#4a6080" stroke-width="1"/>
+        <text x="240" y="256" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Private DNS Zone</text>
+
+        <!-- NSG note -->
+        <text x="290" y="284" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">NSG on every subnet</text>
+
+        <!-- VNet peering lines -->
+        <line x1="400" y1="145" x2="430" y2="120" stroke="#0fccb0" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <line x1="400" y1="190" x2="430" y2="190" stroke="#0fccb0" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <line x1="400" y1="235" x2="430" y2="260" stroke="#0fccb0" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <text x="415" y="178" fill="#4a8080" font-size="8" font-family="'DM Mono',monospace">VNet</text>
+        <text x="415" y="188" fill="#4a8080" font-size="8" font-family="'DM Mono',monospace">peering</text>
+      </g>
+
+      <!-- Spoke 1: App -->
+      <g class="vn-s1">
+        <rect x="440" y="60" width="220" height="100" rx="8" fill="#0a1810" stroke="#0fccb0" stroke-width="1.5" stroke-opacity=".6"/>
+        <text x="550" y="80" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace">SPOKE · APP VNET</text>
+        <rect x="456" y="90" width="84" height="24" rx="3" fill="#0a1810" stroke="#0a3020" stroke-width="1"/>
+        <text x="498" y="106" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">App Subnet</text>
+        <rect x="556" y="90" width="84" height="24" rx="3" fill="#0a1810" stroke="#0a3020" stroke-width="1"/>
+        <text x="598" y="106" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">AKS Subnet</text>
+        <text x="550" y="148" text-anchor="middle" fill="#2a5040" font-size="9" font-family="'DM Mono',monospace">NSG @ subnet + NIC level</text>
+      </g>
+
+      <!-- Spoke 2: Data -->
+      <g class="vn-s2">
+        <rect x="440" y="170" width="220" height="80" rx="8" fill="#100a0a" stroke="#ef4444" stroke-width="1.5" stroke-opacity=".6"/>
+        <text x="550" y="190" text-anchor="middle" fill="#ef4444" font-size="10" font-family="'DM Mono',monospace">SPOKE · DATA VNET</text>
+        <rect x="456" y="200" width="90" height="24" rx="3" fill="#1a0808" stroke="#3a1010" stroke-width="1"/>
+        <text x="501" y="216" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">SQL Private EP</text>
+        <rect x="556" y="200" width="90" height="24" rx="3" fill="#1a0808" stroke="#3a1010" stroke-width="1"/>
+        <text x="601" y="216" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Cosmos Private EP</text>
+        <text x="550" y="238" text-anchor="middle" fill="#603030" font-size="9" font-family="'DM Mono',monospace">No public IP on any data resource</text>
+      </g>
+
+      <!-- Spoke 3: DMZ -->
+      <g class="vn-s3">
+        <rect x="440" y="260" width="220" height="80" rx="8" fill="#0a0818" stroke="#a855f7" stroke-width="1.5" stroke-opacity=".6"/>
+        <text x="550" y="280" text-anchor="middle" fill="#a855f7" font-size="10" font-family="'DM Mono',monospace">SPOKE · DMZ VNET</text>
+        <rect x="456" y="290" width="84" height="24" rx="3" fill="#100a18" stroke="#2a1a3a" stroke-width="1"/>
+        <text x="498" y="306" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">App Gateway</text>
+        <rect x="556" y="290" width="84" height="24" rx="3" fill="#100a18" stroke="#2a1a3a" stroke-width="1"/>
+        <text x="598" y="306" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">WAF (L7)</text>
+        <text x="550" y="330" text-anchor="middle" fill="#40306060" font-size="9" font-family="'DM Mono',monospace">Internet-facing; public IPs here only</text>
+      </g>
+
+      <!-- LB comparison -->
+      <rect x="20" y="340" width="640" height="32" rx="5" fill="#060e1c" stroke="#1e2a40" stroke-width="1"/>
+      <text x="340" y="355" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Load Balancing: Azure Load Balancer (L4, internal/external) · Application Gateway (L7, WAF, SSL offload) · Azure Front Door (global, anycast)</text>
+      <text x="340" y="368" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">NSG differentiator: stateful rules applied at BOTH subnet boundary AND NIC — two-layer enforcement inside the VNet</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §06 DATABASE ── -->
+<section id="database">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — DATABASE</span>Azure SQL · Cosmos DB · Synapse · Redis</h2>
+    <p class="lede reveal">Cosmos DB is Azure's crown jewel for globally distributed data — the only database with 5 tunable consistency levels. Choose consistency based on latency vs correctness tolerance.</p>
+
+    <!-- DB decision tree SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 360" aria-label="Azure database decision tree">
+      <defs>
+        <style>
+          .db-n1{animation:db-fadeIn .4s .1s both}
+          .db-n2{animation:db-fadeIn .4s .3s both}
+          .db-n3{animation:db-fadeIn .4s .4s both}
+          .db-n4{animation:db-fadeIn .4s .5s both}
+          .db-n5{animation:db-fadeIn .4s .6s both}
+          .db-n6{animation:db-fadeIn .4s .7s both}
+        </style>
+      </defs>
+      <rect width="680" height="360" fill="#060e1c" rx="8"/>
+
+      <!-- Root -->
+      <g class="db-n1">
+        <rect x="230" y="12" width="220" height="38" rx="8" fill="#0f2030" stroke="#0fccb0" stroke-width="2"/>
+        <text x="340" y="28" text-anchor="middle" fill="#0fccb0" font-size="11" font-family="'DM Mono',monospace" font-weight="600">What's your data type?</text>
+        <text x="340" y="42" text-anchor="middle" fill="#4a8090" font-size="9" font-family="'DM Mono',monospace">choose your engine</text>
+      </g>
+
+      <!-- Branches from root -->
+      <line x1="260" y1="50" x2="80" y2="96" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="300" y1="50" x2="215" y2="96" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="340" y1="50" x2="340" y2="96" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="380" y1="50" x2="465" y2="96" stroke="#1e3a50" stroke-width="1.5"/>
+      <line x1="420" y1="50" x2="595" y2="96" stroke="#1e3a50" stroke-width="1.5"/>
+
+      <!-- Relational -->
+      <g class="db-n2">
+        <rect x="20" y="98" width="120" height="32" rx="5" fill="#0a2018" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="80" y="116" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace">Relational</text>
+        <text x="80" y="126" text-anchor="middle" fill="#4a8090" font-size="9" font-family="'DM Mono',monospace">ACID</text>
+        <rect x="20" y="148" width="120" height="50" rx="4" fill="#091a10" stroke="#0a3020" stroke-width="1"/>
+        <text x="80" y="164" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure SQL</text>
+        <text x="80" y="178" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Flexible Server</text>
+        <text x="80" y="190" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">PostgreSQL / MySQL</text>
+        <line x1="80" y1="130" x2="80" y2="148" stroke="#0a3020" stroke-width="1"/>
+      </g>
+
+      <!-- Document/Multi-model -->
+      <g class="db-n3">
+        <rect x="155" y="98" width="120" height="32" rx="5" fill="#0f2030" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="215" y="116" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace">Document</text>
+        <text x="215" y="126" text-anchor="middle" fill="#4a8090" font-size="9" font-family="'DM Mono',monospace">multi-model</text>
+        <rect x="150" y="148" width="130" height="50" rx="4" fill="#091020" stroke="#0a2030" stroke-width="1"/>
+        <text x="215" y="164" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Cosmos DB</text>
+        <text x="215" y="178" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">SQL / Mongo / Cassandra</text>
+        <text x="215" y="190" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Gremlin / Table APIs</text>
+        <line x1="215" y1="130" x2="215" y2="148" stroke="#0a2030" stroke-width="1"/>
+      </g>
+
+      <!-- Cache -->
+      <g class="db-n4">
+        <rect x="295" y="98" width="120" height="32" rx="5" fill="#1a1208" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="355" y="116" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace">Cache</text>
+        <text x="355" y="126" text-anchor="middle" fill="#4a8090" font-size="9" font-family="'DM Mono',monospace">sub-ms reads</text>
+        <rect x="295" y="148" width="120" height="50" rx="4" fill="#120e06" stroke="#3a2e1a" stroke-width="1"/>
+        <text x="355" y="164" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure Cache</text>
+        <text x="355" y="178" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">for Redis</text>
+        <text x="355" y="190" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Enterprise tier: geo</text>
+        <line x1="355" y1="130" x2="355" y2="148" stroke="#3a2e1a" stroke-width="1"/>
+      </g>
+
+      <!-- Analytics -->
+      <g class="db-n5">
+        <rect x="425" y="98" width="120" height="32" rx="5" fill="#100a1a" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="485" y="116" text-anchor="middle" fill="#a855f7" font-size="10" font-family="'DM Mono',monospace">Analytics</text>
+        <text x="485" y="126" text-anchor="middle" fill="#4a8090" font-size="9" font-family="'DM Mono',monospace">OLAP / DWH</text>
+        <rect x="425" y="148" width="120" height="50" rx="4" fill="#100a18" stroke="#2a1a3a" stroke-width="1"/>
+        <text x="485" y="164" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Synapse</text>
+        <text x="485" y="178" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Analytics</text>
+        <text x="485" y="190" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">+ AI Search</text>
+        <line x1="485" y1="130" x2="485" y2="148" stroke="#2a1a3a" stroke-width="1"/>
+      </g>
+
+      <!-- Search -->
+      <g class="db-n6">
+        <rect x="555" y="98" width="110" height="32" rx="5" fill="#1a1208" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="610" y="116" text-anchor="middle" fill="#ef4444" font-size="10" font-family="'DM Mono',monospace">Search</text>
+        <text x="610" y="126" text-anchor="middle" fill="#4a8090" font-size="9" font-family="'DM Mono',monospace">full-text</text>
+        <rect x="555" y="148" width="110" height="50" rx="4" fill="#120e06" stroke="#3a1010" stroke-width="1"/>
+        <text x="610" y="164" text-anchor="middle" fill="#e9e2d0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure AI Search</text>
+        <text x="610" y="178" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">(Cognitive Search)</text>
+        <text x="610" y="190" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">vector + semantic</text>
+        <line x1="610" y1="130" x2="610" y2="148" stroke="#3a1010" stroke-width="1"/>
+      </g>
+
+      <!-- Cosmos DB Consistency Spectrum -->
+      <text x="20" y="222" fill="#0fccb0" font-size="11" font-family="'DM Mono',monospace" font-weight="600">COSMOS DB: 5 CONSISTENCY LEVELS</text>
+      <text x="340" y="235" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">← STRONGER (lower availability, higher latency) ──────────────── WEAKER (higher availability, lower latency) →</text>
+
+      <!-- Strong -->
+      <rect x="20" y="242" width="100" height="54" rx="4" fill="#0a2018" stroke="#0fccb0" stroke-width="2"/>
+      <text x="70" y="258" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace" font-weight="600">Strong</text>
+      <text x="70" y="272" text-anchor="middle" fill="#4a8070" font-size="8" font-family="'DM Mono',monospace">linearizable</text>
+      <text x="70" y="284" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">reads always</text>
+      <text x="70" y="294" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">latest commit</text>
+
+      <!-- Bounded staleness -->
+      <rect x="130" y="242" width="114" height="54" rx="4" fill="#091a18" stroke="#0fccb0" stroke-width="1.5" stroke-opacity=".6"/>
+      <text x="187" y="258" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace" opacity=".8">Bounded</text>
+      <text x="187" y="270" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace" opacity=".8">Staleness</text>
+      <text x="187" y="284" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">lag ≤ K versions</text>
+      <text x="187" y="294" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">or T seconds</text>
+
+      <!-- Session -->
+      <rect x="254" y="242" width="90" height="54" rx="4" fill="#091018" stroke="#0fccb0" stroke-width="1.5" stroke-opacity=".4"/>
+      <text x="299" y="258" text-anchor="middle" fill="#6aaaa0" font-size="9" font-family="'DM Mono',monospace">Session</text>
+      <text x="299" y="272" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">default</text>
+      <text x="299" y="286" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">consistent for</text>
+      <text x="299" y="296" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">session token</text>
+
+      <!-- Consistent prefix -->
+      <rect x="354" y="242" width="110" height="54" rx="4" fill="#091018" stroke="#f59e0b" stroke-width="1.5" stroke-opacity=".4"/>
+      <text x="409" y="258" text-anchor="middle" fill="#a07a30" font-size="9" font-family="'DM Mono',monospace">Consistent</text>
+      <text x="409" y="270" text-anchor="middle" fill="#a07a30" font-size="9" font-family="'DM Mono',monospace">Prefix</text>
+      <text x="409" y="284" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">never out of</text>
+      <text x="409" y="294" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">order, may lag</text>
+
+      <!-- Eventual -->
+      <rect x="474" y="242" width="90" height="54" rx="4" fill="#0a0808" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="519" y="258" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">Eventual</text>
+      <text x="519" y="272" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">lowest latency</text>
+      <text x="519" y="286" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">highest avail.</text>
+      <text x="519" y="296" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">reads may stale</text>
+
+      <!-- Use case line -->
+      <text x="340" y="320" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Strong → finance / inventory &nbsp; Session (default) → user profiles &nbsp; Eventual → social counters, carts</text>
+      <text x="340" y="336" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Cosmos DB: 99.999% SLA multi-region, &lt;10ms reads, &lt;15ms writes at p99 with any consistency level</text>
+      <text x="340" y="352" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">Use Cosmos DB when: global distribution, multi-model, variable schema, or guaranteed low latency is the requirement</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §07 IDENTITY ── -->
+<section id="identity">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — IDENTITY</span>Microsoft Entra ID — Azure's crown jewel</h2>
+    <p class="lede reveal">Entra ID (formerly Azure AD) is the reason enterprises choose Azure. Every resource in Azure is governed by a single identity plane — the same directory that manages Windows desktops, Microsoft 365, and third-party SaaS.</p>
+
+    <!-- Entra hierarchy SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 260" aria-label="Microsoft Entra ID governance hierarchy">
+      <defs>
+        <style>
+          .eid-l1{animation:eid-drop .4s .1s both}
+          .eid-l2{animation:eid-drop .4s .3s both}
+          .eid-l3{animation:eid-drop .4s .5s both}
+          .eid-l4{animation:eid-drop .4s .6s both}
+          .eid-l5{animation:eid-drop .4s .7s both}
+        </style>
+      </defs>
+      <rect width="680" height="260" fill="#060e1c" rx="8"/>
+      <text x="20" y="24" fill="#4a6080" font-size="10" font-family="'DM Mono',monospace" letter-spacing=".1em">GOVERNANCE SCOPE (RBAC applies at each level)</text>
+
+      <!-- Tenant -->
+      <g class="eid-l1">
+        <rect x="220" y="30" width="240" height="32" rx="6" fill="#0f1820" stroke="#0fccb0" stroke-width="2"/>
+        <text x="340" y="44" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" font-weight="600" letter-spacing=".08em">TENANT</text>
+        <text x="340" y="56" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Entra ID Directory · contoso.com</text>
+      </g>
+      <line x1="340" y1="62" x2="340" y2="76" stroke="#1e3a50" stroke-width="1.5"/>
+
+      <!-- Management Groups -->
+      <g class="eid-l2">
+        <rect x="185" y="78" width="310" height="32" rx="6" fill="#0a1418" stroke="#0fccb0" stroke-width="1.5" stroke-opacity=".7"/>
+        <text x="340" y="92" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" opacity=".8">MANAGEMENT GROUPS</text>
+        <text x="340" y="104" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Corp MG → Prod MG / Dev MG / Sandbox MG</text>
+      </g>
+      <line x1="340" y1="110" x2="340" y2="124" stroke="#1e3a50" stroke-width="1.5"/>
+
+      <!-- Subscriptions -->
+      <g class="eid-l3">
+        <rect x="150" y="126" width="380" height="32" rx="6" fill="#0a1210" stroke="#f59e0b" stroke-width="1.5" stroke-opacity=".7"/>
+        <text x="340" y="140" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace" opacity=".8">SUBSCRIPTIONS</text>
+        <text x="340" y="152" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Production Sub · Dev Sub · Shared Services Sub</text>
+      </g>
+      <line x1="340" y1="158" x2="340" y2="172" stroke="#1e3a50" stroke-width="1.5"/>
+
+      <!-- Resource Groups -->
+      <g class="eid-l4">
+        <rect x="115" y="174" width="450" height="32" rx="6" fill="#0a1010" stroke="#a855f7" stroke-width="1.5" stroke-opacity=".7"/>
+        <text x="340" y="188" text-anchor="middle" fill="#a855f7" font-size="10" font-family="'DM Mono',monospace" opacity=".8">RESOURCE GROUPS</text>
+        <text x="340" y="200" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">rg-network · rg-compute · rg-data · rg-security</text>
+      </g>
+      <line x1="340" y1="206" x2="340" y2="220" stroke="#1e3a50" stroke-width="1.5"/>
+
+      <!-- Resources -->
+      <g class="eid-l5">
+        <rect x="80" y="222" width="520" height="28" rx="6" fill="#060e1c" stroke="#4a6080" stroke-width="1"/>
+        <text x="340" y="236" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">RESOURCES · VMs · Storage · AKS · SQL · Key Vault · …</text>
+        <text x="340" y="246" text-anchor="middle" fill="#4a5060" font-size="9" font-family="'DM Mono',monospace">RBAC role assignments inherited from any parent scope; deny assignments block at resource level</text>
+      </g>
+    </svg>
+
+    <!-- Entra features table -->
+    <table class="cmp-table reveal">
+      <thead><tr><th>Feature</th><th>What it does</th><th>AWS equiv.</th></tr></thead>
+      <tbody>
+        <tr><td>SSO</td><td>One login for Azure, M365, 3000+ SaaS apps via SAML/OIDC</td><td>IAM Identity Center (partial)</td></tr>
+        <tr><td>MFA</td><td>Per-user or Conditional Access-driven; TOTP / FIDO2 / Windows Hello</td><td>IAM MFA</td></tr>
+        <tr><td>Conditional Access</td><td>If-then policies: device compliance + location + risk score → allow/block/MFA</td><td>No direct equiv.</td></tr>
+        <tr><td>PIM</td><td>Privileged Identity Management: just-in-time role elevation, approval flows, audit</td><td>IAM (limited JIT)</td></tr>
+        <tr><td>B2B</td><td>Guest access for external partners — their identity, your resources</td><td>IAM cross-account + Cognito</td></tr>
+        <tr><td>B2C</td><td>Consumer-facing identity for apps — social login, custom UX, millions of users</td><td>Cognito User Pools</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Managed Identity flow SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 160" aria-label="Managed Identity flow diagram">
+      <defs>
+        <style>
+          .mi-a1{stroke-dasharray:200;animation:mi-flow .8s .3s ease both}
+          .mi-a2{stroke-dasharray:200;animation:mi-flow .8s .8s ease both}
+          .mi-b1{animation:fn-fadeIn .4s .2s both}
+          .mi-b2{animation:fn-fadeIn .4s .5s both}
+          .mi-b3{animation:fn-fadeIn .4s .9s both}
+        </style>
+      </defs>
+      <rect width="680" height="160" fill="#060e1c" rx="8"/>
+      <text x="340" y="22" text-anchor="middle" fill="#0fccb0" font-size="11" font-family="'DM Mono',monospace" font-weight="600">MANAGED IDENTITY: No credentials in code</text>
+
+      <!-- App -->
+      <g class="mi-b1">
+        <rect x="30" y="40" width="130" height="80" rx="6" fill="#0a2018" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="95" y="72" text-anchor="middle" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace" font-weight="600">App / AKS Pod</text>
+        <text x="95" y="88" text-anchor="middle" fill="#4a8070" font-size="9" font-family="'DM Mono',monospace">System-assigned or</text>
+        <text x="95" y="100" text-anchor="middle" fill="#4a8070" font-size="9" font-family="'DM Mono',monospace">User-assigned MI</text>
+        <text x="95" y="116" text-anchor="middle" fill="#2a6050" font-size="9" font-family="'DM Mono',monospace">no password stored</text>
+      </g>
+
+      <!-- Arrow to Entra -->
+      <line x1="160" y1="80" x2="270" y2="80" stroke="#0fccb0" stroke-width="2" class="mi-a1"/>
+      <polygon points="270,80 260,75 260,85" fill="#0fccb0"/>
+      <text x="215" y="72" text-anchor="middle" fill="#4a8070" font-size="9" font-family="'DM Mono',monospace">1. get token</text>
+      <text x="215" y="98" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">(IMDS endpoint)</text>
+
+      <!-- Entra ID -->
+      <g class="mi-b2">
+        <rect x="272" y="40" width="136" height="80" rx="6" fill="#0f1828" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="340" y="72" text-anchor="middle" fill="#a855f7" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Entra ID</text>
+        <text x="340" y="88" text-anchor="middle" fill="#6a50a0" font-size="9" font-family="'DM Mono',monospace">validates identity</text>
+        <text x="340" y="102" text-anchor="middle" fill="#6a50a0" font-size="9" font-family="'DM Mono',monospace">issues OAuth2 token</text>
+        <text x="340" y="116" text-anchor="middle" fill="#4a3080" font-size="9" font-family="'DM Mono',monospace">short-lived JWT</text>
+      </g>
+
+      <!-- Token back -->
+      <line x1="272" y1="95" x2="200" y2="95" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="4 2"/>
+      <polygon points="200,95 210,90 210,100" fill="#a855f7"/>
+      <text x="236" y="110" text-anchor="middle" fill="#6a50a0" font-size="8" font-family="'DM Mono',monospace">2. JWT token</text>
+
+      <!-- Arrow to resource -->
+      <line x1="408" y1="80" x2="510" y2="80" stroke="#f59e0b" stroke-width="2" class="mi-a2"/>
+      <polygon points="510,80 500,75 500,85" fill="#f59e0b"/>
+      <text x="459" y="72" text-anchor="middle" fill="#a07a30" font-size="9" font-family="'DM Mono',monospace">3. call resource</text>
+      <text x="459" y="98" text-anchor="middle" fill="#4a6080" font-size="8" font-family="'DM Mono',monospace">with Bearer token</text>
+
+      <!-- Resource -->
+      <g class="mi-b3">
+        <rect x="512" y="40" width="150" height="80" rx="6" fill="#1a1208" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="587" y="68" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="'DM Mono',monospace" font-weight="600">Azure Resource</text>
+        <text x="587" y="84" text-anchor="middle" fill="#6a6030" font-size="9" font-family="'DM Mono',monospace">Key Vault / Blob</text>
+        <text x="587" y="98" text-anchor="middle" fill="#6a6030" font-size="9" font-family="'DM Mono',monospace">SQL / Service Bus</text>
+        <text x="587" y="114" text-anchor="middle" fill="#4a4020" font-size="9" font-family="'DM Mono',monospace">RBAC checked via MI</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §08 SERVERLESS & INTEGRATION ── -->
+<section id="serverless">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — SERVERLESS &amp; INTEGRATION</span>Functions · Service Bus · Event Grid · Logic Apps</h2>
+    <p class="lede reveal">Azure Functions shares the Lambda cold-start problem. The integration layer — Service Bus vs Event Grid vs Event Hubs — is a common interview stumper because each solves a different problem.</p>
+
+    <!-- Cold start SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 180" aria-label="Azure Functions cold start vs warm path">
+      <defs>
+        <style>
+          .fn-w{animation:fn-fadeIn .4s .2s both}
+          .fn-c{animation:fn-fadeIn .4s .5s both}
+          .fn-bar{animation:fn-fadeIn .4s .8s both}
+        </style>
+      </defs>
+      <rect width="680" height="180" fill="#060e1c" rx="8"/>
+      <text x="20" y="24" fill="#ef4444" font-size="11" font-family="'DM Mono',monospace" font-weight="600">AZURE FUNCTIONS: COLD START ANATOMY</text>
+
+      <!-- Warm path -->
+      <g class="fn-w">
+        <text x="20" y="50" fill="#0fccb0" font-size="10" font-family="'DM Mono',monospace">WARM</text>
+        <rect x="80" y="38" width="60" height="22" rx="3" fill="#0a2018" stroke="#0fccb0" stroke-width="1"/>
+        <text x="110" y="53" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Trigger</text>
+        <line x1="140" y1="49" x2="160" y2="49" stroke="#0fccb0" stroke-width="1.5"/>
+        <rect x="160" y="38" width="100" height="22" rx="3" fill="#0a2018" stroke="#0fccb0" stroke-width="1"/>
+        <text x="210" y="53" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Warm instance</text>
+        <line x1="260" y1="49" x2="280" y2="49" stroke="#0fccb0" stroke-width="1.5"/>
+        <rect x="280" y="38" width="80" height="22" rx="3" fill="#0a2018" stroke="#0fccb0" stroke-width="1"/>
+        <text x="320" y="53" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Execute</text>
+        <text x="200" y="74" fill="#4a8070" font-size="9" font-family="'DM Mono',monospace">~5–20 ms total</text>
+      </g>
+
+      <!-- Cold path -->
+      <g class="fn-c">
+        <text x="20" y="104" fill="#ef4444" font-size="10" font-family="'DM Mono',monospace">COLD</text>
+        <rect x="80" y="92" width="60" height="22" rx="3" fill="#1a0a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="110" y="107" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Trigger</text>
+        <line x1="140" y1="103" x2="160" y2="103" stroke="#ef4444" stroke-width="1.5"/>
+        <rect x="160" y="92" width="90" height="22" rx="3" fill="#1a0a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="205" y="107" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">Provision host</text>
+        <line x1="250" y1="103" x2="270" y2="103" stroke="#ef4444" stroke-width="1.5"/>
+        <rect x="270" y="92" width="90" height="22" rx="3" fill="#1a0a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="315" y="107" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">Load runtime</text>
+        <line x1="360" y1="103" x2="380" y2="103" stroke="#ef4444" stroke-width="1.5"/>
+        <rect x="380" y="92" width="90" height="22" rx="3" fill="#1a0a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="425" y="107" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">Load deps</text>
+        <line x1="470" y1="103" x2="490" y2="103" stroke="#ef4444" stroke-width="1.5"/>
+        <rect x="490" y="92" width="80" height="22" rx="3" fill="#1a0808" stroke="#ef4444" stroke-width="1"/>
+        <text x="530" y="107" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Execute</text>
+        <text x="330" y="128" fill="#804040" font-size="9" font-family="'DM Mono',monospace">800ms–3s cold start penalty</text>
+      </g>
+
+      <!-- Mitigations -->
+      <rect x="20" y="144" width="640" height="28" rx="4" fill="#060e1c" stroke="#1e2a40" stroke-width="1"/>
+      <text x="340" y="156" text-anchor="middle" fill="#c8d3e0" font-size="10" font-family="'DM Mono',monospace">Mitigations: Premium plan (pre-warmed instances) · Durable Functions (persistent state) · App Service plan (always-on)</text>
+      <text x="340" y="168" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Python / Java worst; C# / JS best cold start on Consumption plan</text>
+    </svg>
+
+    <!-- Integration comparison table -->
+    <table class="cmp-table reveal">
+      <thead><tr><th>Service</th><th>Model</th><th>Ordering</th><th>At-least-once</th><th>Max message</th><th>Use case</th></tr></thead>
+      <tbody>
+        <tr><td>Service Bus</td><td>Queue / Topic-sub</td><td>FIFO (sessions)</td><td>Yes</td><td>256 KB (Standard), 100 MB (Premium)</td><td>Enterprise messaging, commands, sagas</td></tr>
+        <tr><td>Event Grid</td><td>Push (reactive)</td><td>No</td><td>Yes (retry)</td><td>1 MB</td><td>Reacting to Azure resource events; fan-out</td></tr>
+        <tr><td>Event Hubs</td><td>Streaming (pull)</td><td>Per-partition</td><td>At-least-once</td><td>1 MB (Standard)</td><td>Telemetry, logs, Kafka-compatible ingest</td></tr>
+        <tr><td>Storage Queue</td><td>Queue</td><td>Best-effort</td><td>Yes</td><td>64 KB</td><td>Simple decoupling, cost-sensitive</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Logic Apps flow SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 580 180" aria-label="Logic Apps visual orchestration flow">
+      <defs>
+        <style>
+          .la-s1{animation:la-step .4s .1s both}
+          .la-s2{animation:la-step .4s .4s both}
+          .la-s3{animation:la-step .4s .7s both}
+          .la-s4{animation:la-step .4s .9s both}
+        </style>
+      </defs>
+      <rect width="580" height="180" fill="#060e1c" rx="8"/>
+      <text x="290" y="22" text-anchor="middle" fill="#a855f7" font-size="11" font-family="'DM Mono',monospace" font-weight="600">LOGIC APPS — Visual Workflow Orchestration</text>
+
+      <!-- Trigger -->
+      <g class="la-s1">
+        <rect x="20" y="40" width="100" height="80" rx="6" fill="#100a18" stroke="#a855f7" stroke-width="2"/>
+        <text x="70" y="66" text-anchor="middle" fill="#a855f7" font-size="9" font-family="'DM Mono',monospace" font-weight="600">TRIGGER</text>
+        <text x="70" y="84" text-anchor="middle" fill="#6a50a0" font-size="9" font-family="'DM Mono',monospace">HTTP request</text>
+        <text x="70" y="98" text-anchor="middle" fill="#6a50a0" font-size="9" font-family="'DM Mono',monospace">Service Bus msg</text>
+        <text x="70" y="112" text-anchor="middle" fill="#6a50a0" font-size="9" font-family="'DM Mono',monospace">Schedule / Event</text>
+      </g>
+      <line x1="120" y1="80" x2="155" y2="80" stroke="#a855f7" stroke-width="1.5"/>
+      <polygon points="155,80 147,75 147,85" fill="#a855f7"/>
+
+      <!-- Condition -->
+      <g class="la-s2">
+        <rect x="157" y="40" width="100" height="80" rx="6" fill="#0a1018" stroke="#f59e0b" stroke-width="2"/>
+        <text x="207" y="66" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace" font-weight="600">CONDITION</text>
+        <text x="207" y="84" text-anchor="middle" fill="#6a6030" font-size="9" font-family="'DM Mono',monospace">if status == error</text>
+        <text x="207" y="100" text-anchor="middle" fill="#6a6030" font-size="9" font-family="'DM Mono',monospace">→ true / false</text>
+      </g>
+
+      <!-- True branch -->
+      <line x1="257" y1="60" x2="310" y2="40" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 2"/>
+      <text x="283" y="38" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">TRUE</text>
+      <g class="la-s3">
+        <rect x="312" y="22" width="120" height="60" rx="6" fill="#1a0808" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="372" y="44" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace" font-weight="600">ACTION A</text>
+        <text x="372" y="60" text-anchor="middle" fill="#6a3030" font-size="9" font-family="'DM Mono',monospace">Send Teams alert</text>
+        <text x="372" y="74" text-anchor="middle" fill="#6a3030" font-size="9" font-family="'DM Mono',monospace">+ create Jira ticket</text>
+      </g>
+
+      <!-- False branch -->
+      <line x1="257" y1="100" x2="310" y2="120" stroke="#0fccb0" stroke-width="1.5" stroke-dasharray="4 2"/>
+      <text x="283" y="132" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">FALSE</text>
+      <g class="la-s4">
+        <rect x="312" y="98" width="120" height="60" rx="6" fill="#0a1810" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="372" y="120" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace" font-weight="600">ACTION B</text>
+        <text x="372" y="136" text-anchor="middle" fill="#4a8070" font-size="9" font-family="'DM Mono',monospace">Write to Blob</text>
+        <text x="372" y="150" text-anchor="middle" fill="#4a8070" font-size="9" font-family="'DM Mono',monospace">+ update SQL record</text>
+      </g>
+
+      <text x="290" y="170" text-anchor="middle" fill="#4a6080" font-size="9" font-family="'DM Mono',monospace">Logic Apps: 400+ built-in connectors · no-code / low-code · Consumption or Standard hosting</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §09 Q&A ── -->
+<section id="qa">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — Q&amp;A</span>Twelve questions, max two sentences</h2>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 01 — When would you choose Azure over AWS or GCP?</div>
+      <div class="qa-a">Choose Azure when the org is already on Microsoft 365, Windows Server, SQL Server, or on-prem Active Directory — Entra ID federation, hybrid connectivity, and enterprise compliance (FedRAMP, ISO 27001, HIPAA BAA) make the integration story dramatically simpler. GCP wins on data/ML tooling; AWS wins on breadth of services.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 02 — What makes Azure's identity story unique?</div>
+      <div class="qa-a">Microsoft Entra ID is the only cloud directory that federates seamlessly with on-prem Active Directory, Microsoft 365, and 3,000+ SaaS apps via SAML/OIDC out of the box. Features like Conditional Access, PIM (just-in-time privilege elevation), and Managed Identity (no secrets in code) have no direct AWS equivalent.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 03 — What is Cosmos DB and when do you use it?</div>
+      <div class="qa-a">Cosmos DB is a globally distributed, multi-model database with five tunable consistency levels and guaranteed &lt;10ms reads / &lt;15ms writes at p99. Use it when you need multi-region active-active writes, a variable schema, or multiple API surfaces (SQL, MongoDB, Cassandra, Gremlin, Table) over the same data.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 04 — Azure VNet vs AWS VPC — key differences?</div>
+      <div class="qa-a">Both are isolated L3 networks, but Azure NSGs operate at both the subnet boundary AND the NIC — giving you two enforcement points inside a VNet without needing a separate security group per instance. Azure also lacks the concept of an Internet Gateway construct: routing is implicit once a public IP is attached.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 05 — What is Azure Arc?</div>
+      <div class="qa-a">Azure Arc extends Azure's control plane to any infrastructure — on-prem servers, Kubernetes clusters on other clouds, even edge devices — so you can apply Azure Policy, Defender for Cloud, and RBAC uniformly. It's the answer when a customer asks "how do I govern hybrid infrastructure as if it were all in Azure."</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 06 — Service Bus vs Event Grid vs Event Hubs — how to choose?</div>
+      <div class="qa-a">Service Bus = reliable messaging with ordering (sessions), dead-letter, and transactions — use for commands between microservices. Event Grid = reactive fan-out to subscribers when Azure resources change (blob created, VM deleted) — push model, no ordering guarantee. Event Hubs = high-throughput time-series ingest with pull semantics — use for telemetry, logs, and Kafka-compatible streams.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 07 — What is Managed Identity and why is it better than service principals with passwords?</div>
+      <div class="qa-a">Managed Identity gives an Azure resource (VM, AKS pod, Function) an automatically rotated, Azure-managed identity in Entra ID — no password, no secret stored anywhere in code or config. The application calls the IMDS endpoint to get a short-lived JWT, then presents it to Key Vault or any Azure resource with RBAC; the credential never exists as a human-readable string.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 08 — How does Azure handle multi-region active-active databases?</div>
+      <div class="qa-a">Cosmos DB supports multi-region writes natively — each region accepts writes and conflicts are resolved by last-write-wins (timestamp) or a custom merge procedure. Azure SQL uses active geo-replication (async, readable secondaries) or failover groups for automatic promotion; active-active writes are not native to SQL and require application-level sharding.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 09 — What is ExpressRoute and when do you need it?</div>
+      <div class="qa-a">ExpressRoute is a dedicated private circuit from your on-prem network to Azure — not over the public internet — provisioned through a connectivity provider (Equinix, AT&amp;T, etc.). Use it when you need &lt;10ms latency to Azure, bandwidth above 1 Gbps, or regulatory requirements that prohibit data traversing the public internet (financial, healthcare, government).</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 10 — What is Azure Policy vs RBAC?</div>
+      <div class="qa-a">RBAC controls who can do what (create, read, delete resources); Azure Policy controls what configuration is allowed — e.g., "all storage accounts must enforce HTTPS" or "VMs must be in approved regions." They complement each other: RBAC gives permission, Policy enforces guardrails regardless of who created the resource.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 11 — How does AKS differ from GKE?</div>
+      <div class="qa-a">GKE manages the control plane transparently at no cost and has the deepest Kubernetes integration (it invented much of it); AKS also offers a free control plane but historically had more operational burden for upgrades. The practical difference for enterprises is ecosystem: AKS integrates with Entra ID for RBAC, Azure Monitor, and Azure Policy out of the box — GKE integrates with Google Workspace and IAM.</div>
+    </div>
+
+    <div class="qa-item reveal">
+      <div class="qa-q">Q 12 — What is Conditional Access in Entra ID?</div>
+      <div class="qa-a">Conditional Access is an if-then policy engine that evaluates signals — user identity, device compliance state, location, sign-in risk score — and enforces controls before granting access: allow, block, require MFA, or require managed device. It's the mechanism that implements zero-trust network access in Azure without a VPN.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── §10 SUMMARY ── -->
+<section id="summary">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — SUMMARY</span>Weak vs strong answer</h2>
+
+    <table class="cmp-table reveal">
+      <thead><tr>
+        <th>Topic</th>
+        <th style="color:#ef4444;">Weak answer</th>
+        <th style="color:#0fccb0;">Strong answer</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>Why Azure</td><td>It's like AWS but from Microsoft</td><td>Enterprise AD integration, hybrid connectivity (ExpressRoute + Arc), M365 co-licensing, and the deepest compliance portfolio (HIPAA, FedRAMP High, ISO 27001) in the market</td></tr>
+        <tr><td>Identity</td><td>Create a service principal</td><td>Use Managed Identity (no credentials), assign RBAC at the minimum required scope, layer Conditional Access for human sign-ins</td></tr>
+        <tr><td>Networking</td><td>One big VNet for everything</td><td>Hub-and-spoke: shared services hub (firewall, bastion, ER gateway), isolated spoke per workload, NSG at subnet AND NIC, Private Endpoints for all data services</td></tr>
+        <tr><td>Cosmos DB</td><td>It's a NoSQL database</td><td>Multi-model (SQL/Mongo/Cassandra/Gremlin), 5 consistency levels, multi-region write with conflict resolution, &lt;10ms p99 reads globally — use when distribution or schema flexibility is the requirement</td></tr>
+        <tr><td>Hybrid</td><td>Set up a VPN</td><td>ExpressRoute (private circuit, &lt;10ms, &gt;1Gbps) as primary + VPN as failover; Azure Arc for extending governance to on-prem Kubernetes; hybrid DNS with Private DNS Zones</td></tr>
+        <tr><td>Messaging</td><td>Use a queue</td><td>Service Bus for ordered commands, Event Grid for reactive Azure resource events, Event Hubs for high-throughput telemetry streams — each has a different delivery model</td></tr>
+        <tr><td>Serverless cold start</td><td>That's just how it works</td><td>Premium plan pre-warms instances; Durable Functions for stateful orchestration; Consumption plan only for bursty, latency-tolerant workloads</td></tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top: 48px; padding: 24px; background: #060e1c; border: 1px solid #0fccb0; border-radius: 8px;" class="reveal">
+      <p style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#0fccb0;margin-bottom:12px;">Cloud series</p>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;">
+        <a href="./the-aws-problem.html" style="color:#f59e0b;font-family:'DM Mono',monospace;font-size:13px;text-decoration:none;">← The AWS Problem</a>
+        <a href="./the-gcp-problem.html" style="color:#0fccb0;font-family:'DM Mono',monospace;font-size:13px;text-decoration:none;">The GCP Problem →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver(entries=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  },{threshold:.12});
+  els.forEach(el=>io.observe(el));
+})();
+</script>
+</body>
+</html>
