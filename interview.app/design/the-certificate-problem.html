@@ -630,9 +630,177 @@ spec:
 </section>
 
 <hr class="rule">
+<section id="plain-language">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 12 — PLAIN LANGUAGE</span>Explaining this to a 4th grader (and your CEO)</h2>
+    <p class="lede reveal">Before anyone can understand PKI at scale, they need to understand why it exists in human terms. Here are the plain-language explanations that every engineer should be able to give — to a new hire, a non-technical stakeholder, or a student.</p>
+
+    <h3 class="reveal">HTTP vs HTTPS — the unlocked vs locked door</h3>
+    <p class="reveal">Imagine you're passing notes in class. With <strong>HTTP</strong>, you write your note on a postcard — anyone who sees it (the teacher, other students, the kid walking by) can read exactly what it says. With <strong>HTTPS</strong>, you put the note inside a sealed envelope that only your friend has the key to open. Even if someone intercepts the envelope in the hallway, they just see a sealed envelope — they can't read what's inside.</p>
+    <p class="reveal">That's all HTTPS is: HTTP (the language websites speak) wrapped inside TLS (the sealed envelope). The certificate is the proof that the envelope was sealed by the real sender — not by someone pretending to be your friend.</p>
+
+    <h3 class="reveal">What the padlock means</h3>
+    <p class="reveal">The padlock in your browser's address bar is your computer saying: <em>"I checked — this website really is who it claims to be, and everything we're sending back and forth is scrambled so nobody else can read it."</em> It does NOT mean the website is trustworthy, safe, or honest — it only means the connection is private and the identity was verified. Scam sites can get HTTPS certificates too (and they do).</p>
+
+    <h3 class="reveal">The red X — "This root certificate is not trusted"</h3>
+    <p class="reveal">When macOS shows <strong style="color:#c0392b;">⊗ This root certificate is not trusted</strong> (like the TrustCor ECA-1 example above), it means: your computer doesn't recognise the organisation that signed this certificate as a trustworthy authority. Think of it like a passport stamped by a country that your government doesn't recognise. The passport might be real, but nobody here will accept it.</p>
+
+    <p class="reveal">Three reasons a cert shows "not trusted":</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>1. REMOVED FROM ROOT PROGRAM</dt><dd>The CA was caught misbehaving — issuing certs without proper verification, or worse, issuing certs for domains they don't control. Apple/Mozilla/Google removed it from their trusted root list. TrustCor was removed in 2022 after researchers found links to a surveillance company. The cert is technically valid (it hasn't expired) but no browser or OS will vouch for the organisation that signed it.</dd></div>
+      <div class="defrow"><dt>2. SELF-SIGNED</dt><dd>The cert was signed by itself — there's no third party vouching for it. Common in development environments. Your computer has never heard of "Bob's Test CA" and has no reason to trust it.</dd></div>
+      <div class="defrow"><dt>3. EXPIRED OR REVOKED</dt><dd>The cert passed its <code>notAfter</code> date, or the CA published a revocation notice. Even if the CA is trusted, this specific cert is no longer valid.</dd></div>
+    </dl>
+
+    <div class="pull reveal">The red X doesn't mean "this website is dangerous." It means "we can't verify this website is who it claims to be." The distinction matters — a site with a valid cert from a trusted CA is verified; a site with a red X is unverified. Unverified is not the same as malicious, but it is a reason to be careful.</div>
+
+    <h3 class="reveal">How a certificate gets "locked" (trusted) and "unlocked" (untrusted)</h3>
+    <table class="reveal">
+      <tr><th>State</th><th>What the user sees</th><th>What happened technically</th></tr>
+      <tr><td>✅ Trusted / Padlock</td><td>Green padlock, no warning</td><td>Chain validates to a root in the OS trust store; cert not expired; SAN matches hostname; OCSP status = good; CT SCTs present</td></tr>
+      <tr><td>⚠️ Warning</td><td>Yellow warning triangle</td><td>Mixed content (HTTPS page loading HTTP resources), or non-critical cert issue (e.g., CT policy soft-fail)</td></tr>
+      <tr><td>⊗ Not trusted</td><td>Red X or "Your connection is not private" (Chrome ERR_CERT_AUTHORITY_INVALID)</td><td>Root CA removed from trust store, self-signed cert, or intermediate missing</td></tr>
+      <tr><td>🔴 Expired</td><td>"Your connection is not private" (Chrome ERR_CERT_DATE_INVALID)</td><td>Current time > cert's notAfter field</td></tr>
+      <tr><td>🔴 Revoked</td><td>"Your connection is not private" (Chrome ERR_CERT_REVOKED)</td><td>CRLite or OCSP reports the cert's serial as revoked</td></tr>
+      <tr><td>⚠️ Name mismatch</td><td>"Your connection is not private" (Chrome ERR_CERT_COMMON_NAME_INVALID)</td><td>The cert's SAN list doesn't include the hostname you connected to</td></tr>
+    </table>
+
+    <h3 class="reveal" style="margin-top:40px;">HTTP vs HTTPS — for your CEO</h3>
+    <p class="reveal">HTTP sends data in plain text across the internet — like writing your credit card number on a postcard. Any router, ISP, or coffee shop Wi-Fi between you and the website can see it. HTTPS encrypts everything using TLS, so even if someone intercepts the traffic, they see random bytes. The certificate is the handshake that establishes the encryption keys AND verifies you're talking to the real site, not an impersonator. Companies that still run HTTP for anything involving user data are exposing their customers and violating most data privacy regulations (GDPR, CCPA, PCI-DSS).</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="ecosystem">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 13 — THE ECOSYSTEM</span>CLM, TLM, competitors, Cloudflare, and what startups actually do</h2>
+
+    <h3 class="reveal">CLM vs TLM — what's the difference?</h3>
+    <p class="reveal"><strong>CLM (Certificate Lifecycle Management)</strong> is the generic industry term for the practice of tracking, issuing, renewing, and revoking certificates across an organization — knowing where every cert is, who owns it, and when it expires. Without CLM, enterprises discover expired certs when production goes down at 2 AM.</p>
+    <p class="reveal"><strong>TLM (Trust Lifecycle Manager)</strong> is DigiCert's commercial product name for their CLM platform — it's their branded answer to the question "how does a Fortune 500 manage 50,000 certificates across 200 systems?" TLM adds discovery (scan your network for certs you didn't know existed), policy enforcement (alert if someone installs a self-signed cert), automation hooks (integrate with Venafi, ServiceNow, HashiCorp Vault), and executive dashboards showing cert risk posture.</p>
+
+    <table class="reveal">
+      <tr><th></th><th>CLM (generic practice)</th><th>TLM (DigiCert product)</th></tr>
+      <tr><td>What it is</td><td>The discipline of managing cert inventory and lifecycle</td><td>DigiCert's SaaS platform implementing CLM</td></tr>
+      <tr><td>Key functions</td><td>Issuance, renewal, revocation, expiry alerting</td><td>All of CLM + network discovery, policy engine, ITSM integrations, compliance reporting</td></tr>
+      <tr><td>Who uses it</td><td>Any org with &gt;50 certs should practice CLM</td><td>Enterprises with 1,000s of certs, complex PKI, regulatory requirements</td></tr>
+      <tr><td>Alternatives</td><td>Venafi, AppViewX, Sectigo SCM, HashiCorp Vault + cert-manager</td><td>Competing enterprise CLM platforms (Venafi TLS Protect, AppViewX CERT+)</td></tr>
+    </table>
+
+    <h3 class="reveal" style="margin-top:40px;">The CA competitive landscape</h3>
+    <table class="reveal">
+      <tr><th>CA</th><th>Price</th><th>Best for</th><th>Key facts</th></tr>
+      <tr><td><strong>DigiCert</strong></td><td>$$$</td><td>Enterprise, OV/EV, IoT, code signing, MPKI</td><td>Largest commercial CA by revenue; acquired Symantec's CA business (2017), QuoVadis, Verizon Business; TLM platform for enterprise CLM; global Anycast OCSP</td></tr>
+      <tr><td><strong>Let's Encrypt</strong></td><td>Free</td><td>Web servers, startups, automation, Kubernetes</td><td>Non-profit (ISRG); DV only; 90-day certs; ACME-first; issues ~4M certs/day; backed by EFF, Mozilla, Cisco; no OV/EV; no wildcard until 2018; the default for cert-manager</td></tr>
+      <tr><td><strong>Google Trust Services (GTS)</strong></td><td>Free (via Google products)</td><td>Google Cloud, Firebase, Google Workspace</td><td>Google's own CA; used internally for google.com and all GCP-managed certs; GCP Certificate Manager issues from GTS automatically; not available as a standalone commercial CA for external use</td></tr>
+      <tr><td><strong>Sectigo</strong> (was Comodo CA)</td><td>$–$$</td><td>SMB, cheap DV/OV/EV, resellers</td><td>Largest CA by volume (mostly via resellers); rebranded from Comodo CA in 2018 after security incidents; competitive pricing; large reseller network; SCM for CLM</td></tr>
+      <tr><td><strong>SSL.com</strong></td><td>$–$$</td><td>Budget DV/OV/EV, document signing, S/MIME</td><td>US-based; competitive pricing; strong S/MIME and document signing portfolio; ACME support; good for orgs needing OV/EV at lower cost than DigiCert</td></tr>
+      <tr><td><strong>Entrust</strong></td><td>$$$</td><td>Government, financial services, identity</td><td>Strong in public sector and banking; PKI-as-a-service; nCipher HSM integration; competes directly with DigiCert in enterprise</td></tr>
+      <tr><td><strong>GlobalSign</strong></td><td>$$</td><td>Mid-market, IoT, MPKI</td><td>Subsidiary of GMO Internet; strong in IoT device identity; Atlas managed PKI platform; good ACME support</td></tr>
+    </table>
+
+    <h3 class="reveal" style="margin-top:40px;">How Cloudflare and hosting providers choose a CA</h3>
+    <p class="reveal">When you buy a domain on GoDaddy or Squarespace and HTTPS "just works," someone made a CA partnership decision on your behalf. Here's how it works:</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>CLOUDFLARE</dt><dd>Cloudflare issues its own certs via <strong>Universal SSL</strong> — every site behind Cloudflare gets a free TLS cert automatically. For the Cloudflare-to-origin connection, you can use a DigiCert-issued cert, a Cloudflare-issued cert, or a self-signed cert (Cloudflare verifies it via its own CA). Cloudflare historically used DigiCert for its edge certs; in 2023 it announced a shift toward issuing certs via its own CA (Cloudflare PKI) and Let's Encrypt for DV, reducing DigiCert dependency. For enterprise customers, Cloudflare Advanced Certificate Manager lets you specify DigiCert, Let's Encrypt, or Google as the CA.</dd></div>
+      <div class="defrow"><dt>AWS</dt><dd>AWS Certificate Manager (ACM) issues free TLS certs for use with ALB, CloudFront, and API Gateway. ACM certs are issued from Amazon's own CA (Amazon Trust Services — root: Amazon Root CA 1/2/3/4). You cannot export the private key — it's HSM-backed in AWS. For custom CAs or exportable certs, use ACM Private CA (paid). For non-AWS resources, you must use a commercial CA like DigiCert or Let's Encrypt.</dd></div>
+      <div class="defrow"><dt>GoDaddy / Namecheap / web hosts</dt><dd>These resell DigiCert, Sectigo, or SSL.com certs at markup. "Free SSL" on cheap hosts is typically Let's Encrypt. Premium "business SSL" is typically Sectigo or DigiCert OV. The host automates issuance and renewal via their control panel (cPanel, Plesk) — the customer never sees the ACME protocol.</dd></div>
+      <div class="defrow"><dt>HOW THE CHOICE IS MADE</dt><dd>Factors: (1) price — Let's Encrypt is free, DigiCert is expensive; (2) cert type needed — Let's Encrypt is DV only, so OV/EV requires a commercial CA; (3) automation support — all modern CAs support ACME; (4) SLA and support — enterprise hosting requires guaranteed uptime on OCSP/issuance and 24/7 human support; (5) compliance — PCI-DSS, HIPAA, and government contracts may specify DigiCert, Entrust, or Sectigo by name.</dd></div>
+    </dl>
+
+    <h3 class="reveal" style="margin-top:40px;">What startups do for inexpensive (or free) certificates</h3>
+    <table class="reveal">
+      <tr><th>Option</th><th>Cost</th><th>How</th><th>Limitations</th></tr>
+      <tr><td><strong>Let's Encrypt</strong></td><td>Free</td><td>ACME client (certbot, acme.sh, cert-manager). Runs on any server. Renews automatically every 60–90 days.</td><td>DV only. Rate limits (50 certs/domain/week). No phone support. No EV. No wildcard on http-01 (dns-01 required for wildcard).</td></tr>
+      <tr><td><strong>Cloudflare Free</strong></td><td>Free</td><td>Point your DNS to Cloudflare. Universal SSL is automatic. Zero config.</td><td>Cert is Cloudflare's — your origin can use a self-signed cert for the Cloudflare-to-origin leg. You don't control the leaf cert directly.</td></tr>
+      <tr><td><strong>AWS ACM</strong></td><td>Free</td><td>Provision via console or Terraform. Auto-renews. Attached to ALB/CloudFront.</td><td>Not exportable. Only works with AWS services. Private key never accessible.</td></tr>
+      <tr><td><strong>GCP-managed certs</strong></td><td>Free</td><td>One annotation on a Kubernetes Ingress or GCP Load Balancer resource. Google handles issuance and renewal via GTS.</td><td>GCP-only. DV only. No custom CA.</td></tr>
+      <tr><td><strong>Sectigo / SSL.com DV</strong></td><td>$7–15/yr</td><td>Buy via reseller (Namecheap, SSLs.com). Good if you need a single DV cert with a commercial CA name for client trust.</td><td>Manual renewal unless you use their ACME endpoint. OV costs more.</td></tr>
+      <tr><td><strong>Self-signed (internal only)</strong></td><td>Free</td><td><code>openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes</code></td><td>Red X in browsers. Only usable for internal tools, local dev, or mTLS between services you control with a custom trust root pushed to all clients.</td></tr>
+    </table>
+
+    <div class="pull reveal">Startup default stack: Cloudflare free plan (Universal SSL for the edge) + Let's Encrypt (cert-manager in Kubernetes) for any direct-origin endpoints + AWS ACM for load balancers. Total cert cost: $0. The only cost is the engineering time to set up automation — which pays back instantly when certs auto-renew without 2 AM pages.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="real-world">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 14 — REAL-WORLD SCENARIOS</span>Certificates in the wild</h2>
+
+    <h3 class="reveal">How DigiCert saves the day: the Canvas school hack scenario</h3>
+    <p class="reveal">Canvas (Instructure) is the LMS used by millions of students and teachers. In a real-world breach scenario, here's where certificates are both the attack surface and the defense:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE ATTACK SURFACE</dt><dd>A school district's Canvas instance runs on a subdomain like <code>mydistrict.instructure.com</code>. If an attacker can get a TLS certificate for that subdomain — even fraudulently — they can stand up a convincing phishing site that shows a valid padlock, harvest student login credentials, and access gradebooks, 504 plans, and IEP documents. Before Certificate Transparency, this was possible without detection. A rogue CA could issue a cert for <code>mydistrict.instructure.com</code> and nobody would know.</dd></div>
+      <div class="defrow"><dt>HOW CT STOPS IT</dt><dd>Certificate Transparency means any cert issued for <code>*.instructure.com</code> appears in public logs within minutes. Instructure (and DigiCert's monitoring service) watches CT logs for their domains. An unauthorized cert triggers an immediate alert — revocation request filed within the hour. The attack window shrinks from "months before discovery" (DigiNotar 2011) to "minutes." Google's Safe Browsing also ingests CT alerts and can push warnings to Chrome users visiting a phishing site using a recently-logged suspicious cert.</dd></div>
+      <div class="defrow"><dt>MKCERT FOR DEV SAFETY</dt><dd>Teachers and IT staff sometimes run local Canvas instances for development. <code>mkcert</code> is a tool that creates a locally-trusted CA and issues certs for <code>localhost</code> and <code>*.test</code> domains — the cert is trusted only on the machine where mkcert installed its CA root. This avoids the red X in local dev without adding self-signed exceptions to the system trust store, and the locally-trusted CA is never exposed to the internet.</dd></div>
+      <div class="defrow"><dt>STUDENT DATA &amp; COMPLIANCE</dt><dd>FERPA (US education privacy law) requires that student data be protected in transit — HTTPS is mandatory, not optional. A school district whose Canvas instance serves HTTP is in FERPA violation. DigiCert and Instructure's SLA guarantees that OCSP responders and the certificate chain are available 99.99% of the time — because a cert outage on Canvas during finals week is a compliance event, not just a downtime event.</dd></div>
+    </dl>
+
+    <h3 class="reveal" style="margin-top:40px;">Cloud provider certificate management</h3>
+    <table class="reveal">
+      <tr><th>Provider</th><th>Service</th><th>CA used</th><th>Export key?</th><th>Best for</th></tr>
+      <tr><td><strong>AWS</strong></td><td>ACM (Certificate Manager)</td><td>Amazon Trust Services (own CA)</td><td>No — HSM-backed</td><td>ALB, CloudFront, API Gateway, Elastic Beanstalk; free; auto-renews</td></tr>
+      <tr><td><strong>AWS</strong></td><td>ACM Private CA</td><td>Your own CA hosted in AWS</td><td>Yes (for private certs)</td><td>Internal mTLS, IoT, on-prem hybrid; ~$400/CA/month</td></tr>
+      <tr><td><strong>GCP</strong></td><td>Certificate Manager</td><td>Google Trust Services</td><td>No</td><td>GCP Load Balancers, GKE Ingress; free; annotation-driven</td></tr>
+      <tr><td><strong>GCP</strong></td><td>Certificate Authority Service</td><td>Your own CA on GCP</td><td>Yes</td><td>Enterprise PKI, device identity, mTLS; pay-per-cert</td></tr>
+      <tr><td><strong>Azure</strong></td><td>App Service Managed Cert</td><td>DigiCert (via Microsoft partnership)</td><td>No</td><td>App Service apps; free for apex + subdomains</td></tr>
+      <tr><td><strong>Azure</strong></td><td>Key Vault Certificates</td><td>DigiCert or GlobalSign (configurable)</td><td>Yes (if policy allows)</td><td>Enterprise cert storage, rotation, policy; integrates with AKS</td></tr>
+      <tr><td><strong>Cloudflare</strong></td><td>Universal SSL</td><td>Cloudflare CA / Let's Encrypt / DigiCert</td><td>No (edge cert)</td><td>Any site behind Cloudflare; free; automatic</td></tr>
+    </table>
+
+    <div class="pull reveal">AWS ACM's key insight: the private key never leaves AWS HSMs. You can't export it, which means you can't accidentally leak it — but you also can't use the cert outside AWS. This is the right trade-off for cloud-native apps; it's the wrong trade-off if you need the same cert on-prem and in AWS simultaneously.</div>
+
+    <h3 class="reveal" style="margin-top:40px;">Certificates in SaaS applications — Salesforce as the example</h3>
+    <p class="reveal">SaaS applications like Salesforce use certificates at three distinct layers, each with different ownership and lifecycle:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>LAYER 1 — SALESFORCE'S OWN TLS (you don't control this)</dt><dd><code>login.salesforce.com</code>, <code>yourorg.my.salesforce.com</code> — Salesforce issues and manages these certs (DigiCert or GTS). They renew automatically. If they expire, it's Salesforce's outage, not yours. Zero customer action required.</dd></div>
+      <div class="defrow"><dt>LAYER 2 — CUSTOM DOMAIN TLS (you control this)</dt><dd>If you've set up a custom domain like <code>crm.example.com</code> pointing to Salesforce, you own and upload that cert. Salesforce's My Domain feature accepts a PEM cert + private key from DigiCert, Sectigo, or any CA. You are responsible for renewal. This is the #1 source of Salesforce cert expiry outages in enterprise — a domain team uploads a 1-year cert, the Salesforce admin who set it up leaves, and 12 months later CRM goes dark.</dd></div>
+      <div class="defrow"><dt>LAYER 3 — API INTEGRATION / mTLS (you control this)</dt><dd>Salesforce Connected Apps can require client certificates for API authentication (mutual TLS). The client cert proves to Salesforce that the calling system is who it claims — no password needed. You generate the key pair, upload the public cert to Salesforce's Connected App config, and use the private key in your integration service. These certs also expire and must be rotated without interrupting the integration.</dd></div>
+    </dl>
+
+    <h3 class="reveal" style="margin-top:40px;">Certificates in cloud-native infrastructure</h3>
+    <p class="reveal">A typical modern cloud-native stack uses certificates at every layer simultaneously — and they're all managed differently:</p>
+
+    <pre class="reveal"><code>Internet
+  │
+  ▼  [1] Edge cert — Cloudflare Universal SSL / ACM on ALB
+CDN / Load Balancer
+  │
+  ▼  [2] Origin cert — Let's Encrypt via cert-manager, auto-renewed
+Kubernetes Ingress
+  │
+  ▼  [3] Service-to-service mTLS — Istio sidecar + SPIFFE SVID (1-hour lifetime)
+  │         payments-api ──mTLS──► fraud-scorer
+  │         checkout-api ──mTLS──► inventory-service
+  │
+  ▼  [4] Database TLS — AWS RDS root CA cert (Amazon Trust Services)
+  │       Java app uses custom truststore with RDS CA cert imported via keytool
+  │
+  ▼  [5] Secrets / keys — HashiCorp Vault PKI (issues short-lived certs on demand)
+  │       Kafka brokers: mutual TLS with client certs issued by Vault
+  │
+  ▼  [6] Cloud provider APIs — ACM certs for API Gateway endpoints
+       Lambda → DynamoDB: IAM-based auth (no cert), but TLS to AWS APIs
+                          uses Amazon Trust Services root (in system bundle)
+
+Certificate managers in play simultaneously:
+  cert-manager (K8s)     → manages [2], renews before expiry
+  Istio / SPIRE          → manages [3], rotates every 60 min
+  AWS ACM                → manages [1] on ALB side, [6]
+  Vault PKI              → manages [5], on-demand per-service
+  Manual / CLM tool      → manages [4] RDS CA trust (updated on RDS CA rotation events)</code></pre>
+
+    <p class="reveal">The operational challenge: these six layers each have different renewal schedules, different owners, and different failure modes. A mature org has a <strong>cert inventory</strong> (from CLM/TLM or a Prometheus exporter) that surfaces all of them in one dashboard — so the 2 AM alert is "cert expires in 13 days" not "site is down."</p>
+  </div>
+</section>
+
+<hr class="rule">
 <section id="summary">
   <div class="wrap">
-    <h2 class="reveal"><span class="num">§ 11 — SUMMARY</span>What the strong answer looks like</h2>
+    <h2 class="reveal"><span class="num">§ 15 — SUMMARY</span>What the strong answer looks like</h2>
 
     <table class="reveal">
       <tr><th>Dimension</th><th>Weak answer</th><th>Strong answer</th></tr>
