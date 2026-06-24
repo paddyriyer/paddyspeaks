@@ -373,9 +373,7 @@
     </ol>
 </div>
 
-<p>When your browser shows the padlock on <em>https://paddyspeaks.com</em> a surprisingly deep ceremony happened in under 50 milliseconds. A certificate was presented, a chain of trust was walked, cryptographic signatures were verified, and a symmetric session key was negotiated — all before a single byte of HTTP was exchanged. DigiCert is the company that, in many cases, signed the certificate that made that padlock possible. But DigiCert is also the infrastructure problem of our time: issuing, renewing, revoking, and auditing hundreds of millions of certificates across browsers, operating systems, IoT devices, cloud workloads, and Kubernetes pods — at sub-second latency, with zero tolerance for error.</p>
-
-<p>This article is an interview-ready, practitioner-level breakdown: what a certificate actually is, where it lives on your machine, how TLS handshakes work, and then the design deep-dive — how you build the issuance pipeline, the revocation infrastructure, and the Kubernetes-native PKI that keeps modern microservices mutually authenticated.</p>
+<p>When your browser shows the padlock on <em>https://paddyspeaks.com</em>, a certificate was presented, a chain of trust was walked, and a symmetric session key was negotiated — all before a single byte of HTTP was exchanged. DigiCert is the infrastructure behind that padlock: issuing, renewing, revoking, and auditing hundreds of millions of certificates at sub-second latency, with zero tolerance for error.</p>
 
 <div class="ornament-divider">· · ·</div>
 
@@ -387,28 +385,58 @@
     <h2>What Is a Certificate?</h2>
 </div>
 
-<p>A digital certificate is a <strong>signed data structure that binds a public key to an identity</strong>. Think of it as a passport: the document carries your name (the Subject), a photo (the public key), an expiry date, and — critically — a stamp from a recognized authority (the CA signature). Anyone who trusts the authority can trust the document, without needing to know you personally.</p>
+<p>A digital certificate is a <strong>signed data structure that binds a public key to an identity</strong> — like a passport stamped by a recognized authority. Certificates follow the <strong>X.509 v3</strong> standard (RFC 5280). The diagram below shows every field your browser validates:</p>
 
-<p>Certificates follow the <strong>X.509 v3</strong> standard (RFC 5280). Here is what lives in every cert your browser, OS, or Kubernetes pod processes:</p>
-
-<div class="cert-anatomy">
-    <div class="field"><span class="fname">Version</span><span class="fval">3 (X.509 v3, the current standard)</span><span class="fnote">integer</span></div>
-    <div class="field"><span class="fname">Serial Number</span><span class="fval">A3:0F:81:C2:…  (CA-unique, 20 bytes)</span><span class="fnote">used for revocation</span></div>
-    <div class="field"><span class="fname">Signature Algorithm</span><span class="fval">sha256WithRSAEncryption  /  ecdsa-with-SHA384</span><span class="fnote">OID</span></div>
-    <div class="field"><span class="fname">Issuer</span><span class="fval">CN=DigiCert TLS RSA SHA256 2020 CA1, O=DigiCert Inc, C=US</span><span class="fnote">Intermediate CA</span></div>
-    <div class="field"><span class="fname">Validity: Not Before</span><span class="fval">2026-01-01 00:00:00 UTC</span><span class="fnote"></span></div>
-    <div class="field"><span class="fname">Validity: Not After</span><span class="fval">2026-04-01 23:59:59 UTC  (90-day leaf)</span><span class="fnote">shortening to 47d in 2027</span></div>
-    <div class="field"><span class="fname">Subject</span><span class="fval">CN=paddyspeaks.com</span><span class="fnote">DV cert; no O/OU for DV</span></div>
-    <div class="field"><span class="fname">Subject Public Key Info</span><span class="fval">RSA 2048-bit  /  ECDSA P-256 — the public key bytes</span><span class="fnote">~270 bytes for P-256</span></div>
-    <div class="field"><span class="fname">Extensions: SAN</span><span class="fval">DNS:paddyspeaks.com, DNS:*.paddyspeaks.com</span><span class="fnote">Subject Alternative Names</span></div>
-    <div class="field"><span class="fname">Extensions: Key Usage</span><span class="fval">Digital Signature, Key Encipherment</span><span class="fnote">bitfield</span></div>
-    <div class="field"><span class="fname">Extensions: Extended Key Usage</span><span class="fval">TLS Web Server Authentication (1.3.6.1.5.5.7.3.1)</span><span class="fnote">OID</span></div>
-    <div class="field"><span class="fname">Extensions: Authority Key Id</span><span class="fval">SHA-1 of Issuer Public Key</span><span class="fnote">chain walking</span></div>
-    <div class="field"><span class="fname">Extensions: OCSP URL</span><span class="fval">http://ocsp.digicert.com</span><span class="fnote">revocation check</span></div>
-    <div class="field"><span class="fname">Extensions: CRL Distribution</span><span class="fval">http://crl3.digicert.com/DigiCertTLS2020CA1.crl</span><span class="fnote">revocation list</span></div>
-    <div class="field"><span class="fname">Extensions: CT Poison / SCT List</span><span class="fval">Signed Certificate Timestamps (2+ logs required)</span><span class="fnote">Certificate Transparency</span></div>
-    <div class="field"><span class="fname">Signature</span><span class="fval">Intermediate CA's private key signs all fields above</span><span class="fnote">256 bytes RSA / 72 bytes ECDSA</span></div>
-</div>
+<!-- HTTP vs HTTPS postcard analogy SVG -->
+<svg style="width:100%;max-width:660px;display:block;margin:28px auto;overflow:hidden" viewBox="0 0 660 200" aria-label="HTTP vs HTTPS postcard analogy">
+  <defs>
+    <style>
+      @keyframes hv-fadeIn  { from{opacity:0} to{opacity:1} }
+      @keyframes hv-slideIn { from{opacity:0;transform:translateX(-18px)} to{opacity:1;transform:translateX(0)} }
+      @keyframes hv-lock    { 0%{transform:scale(0);opacity:0} 80%{transform:scale(1.2);opacity:1} 100%{transform:scale(1);opacity:1} }
+      .hv-card  { animation: hv-slideIn .6s .2s both; }
+      .hv-env   { animation: hv-fadeIn  .6s 1.1s both; }
+      .hv-lock  { animation: hv-lock    .5s 1.5s cubic-bezier(.34,1.56,.64,1) both; transform-origin: 497px 100px; }
+      .hv-label { animation: hv-fadeIn  .5s 1.8s both; }
+    </style>
+  </defs>
+  <rect width="660" height="200" fill="#060e1c" rx="8"/>
+  <!-- divider -->
+  <line x1="330" y1="20" x2="330" y2="180" stroke="#1a3050" stroke-width="1" stroke-dasharray="5 3"/>
+  <!-- HTTP side — postcard -->
+  <g class="hv-card">
+    <rect x="40" y="40" width="255" height="130" rx="6" fill="#fdf6ee" stroke="#c8915a" stroke-width="2"/>
+    <line x1="175" y1="40" x2="175" y2="170" stroke="#e8d8c0" stroke-width="1"/>
+    <rect x="185" y="52" width="96" height="64" rx="3" fill="#e8d8c0" stroke="#c8a080" stroke-width="1"/>
+    <text x="233" y="85" text-anchor="middle" fill="#c8a080" font-size="9" font-family="'JetBrains Mono',monospace">POSTAGE</text>
+    <text x="233" y="100" text-anchor="middle" fill="#c8a080" font-size="22">✉</text>
+    <text x="110" y="120" text-anchor="middle" fill="#8a6030" font-size="9" font-family="'JetBrains Mono',monospace">To: your browser</text>
+    <text x="110" y="136" text-anchor="middle" fill="#a06820" font-size="10" font-weight="600" font-family="'JetBrains Mono',monospace">password=hunter2</text>
+    <text x="110" y="155" text-anchor="middle" fill="#6a4810" font-size="8" font-family="'JetBrains Mono',monospace">← anyone can read this</text>
+    <rect x="50" y="50" width="112" height="18" rx="3" fill="#ef4444"/>
+    <text x="106" y="63" text-anchor="middle" fill="#fff" font-size="9" font-weight="700" font-family="'JetBrains Mono',monospace">HTTP — PLAIN TEXT</text>
+  </g>
+  <!-- HTTPS side — locked envelope -->
+  <g class="hv-env">
+    <rect x="365" y="40" width="255" height="130" rx="6" fill="#041412" stroke="#0fccb0" stroke-width="2"/>
+    <path d="M365 60 L492 115 L620 60" fill="none" stroke="#0fccb0" stroke-width="1.5" opacity=".5"/>
+    <path d="M365 170 L430 115 M620 170 L555 115" fill="none" stroke="#0fccb0" stroke-width="1" opacity=".3"/>
+    <text x="492" y="148" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'JetBrains Mono',monospace">★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★</text>
+    <text x="492" y="163" text-anchor="middle" fill="#607080" font-size="8" font-family="'JetBrains Mono',monospace">only sender &amp; receiver can read</text>
+    <rect x="375" y="50" width="234" height="18" rx="3" fill="#0fccb0"/>
+    <text x="492" y="63" text-anchor="middle" fill="#060e1c" font-size="9" font-weight="700" font-family="'JetBrains Mono',monospace">HTTPS — ENCRYPTED</text>
+  </g>
+  <g class="hv-lock">
+    <circle cx="497" cy="100" r="20" fill="#060e1c" stroke="#0fccb0" stroke-width="2"/>
+    <rect x="487" y="101" width="20" height="14" rx="3" fill="#0fccb0"/>
+    <path d="M490 101 v-6 a7 7 0 0 1 14 0 v6" fill="none" stroke="#0fccb0" stroke-width="2.5"/>
+    <rect x="494" y="106" width="6" height="5" rx="1" fill="#060e1c"/>
+  </g>
+  <g class="hv-label">
+    <text x="165" y="22" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600" font-family="'JetBrains Mono',monospace">⚠ No certificate</text>
+    <text x="492" y="22" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="600" font-family="'JetBrains Mono',monospace">✓ TLS certificate + encryption</text>
+  </g>
+</svg>
 
 <svg style="width:100%;max-width:700px;display:block;margin:32px auto;overflow:hidden" viewBox="0 0 700 340" aria-label="X.509 certificate anatomy diagram">
   <defs>
@@ -475,10 +503,63 @@
   <text x="444" y="284" fill="#6a8a9a" font-size="10" font-family="'JetBrains Mono',monospace">tamper-proof</text>
 </svg>
 
+<!-- Certificate Lifecycle SVG -->
+<svg style="width:100%;max-width:680px;display:block;margin:28px auto;overflow:hidden" viewBox="0 0 680 120" aria-label="Certificate lifecycle: issue, active, expiring, expired/renewed">
+  <defs>
+    <style>
+      @keyframes cl-pop  { 0%{transform:scale(0);opacity:0} 80%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
+      @keyframes cl-line { from{stroke-dashoffset:200} to{stroke-dashoffset:0} }
+      @keyframes cl-pulse { 0%,100%{opacity:.6} 50%{opacity:1} }
+      .cl-n1 { animation: cl-pop .4s .1s cubic-bezier(.34,1.56,.64,1) both; transform-origin:80px 60px; }
+      .cl-n2 { animation: cl-pop .4s .6s cubic-bezier(.34,1.56,.64,1) both; transform-origin:255px 60px; }
+      .cl-n3 { animation: cl-pop .4s 1.1s cubic-bezier(.34,1.56,.64,1) both; transform-origin:430px 60px; }
+      .cl-n4 { animation: cl-pop .4s 1.6s cubic-bezier(.34,1.56,.64,1) both; transform-origin:605px 60px; }
+      .cl-l1 { stroke-dasharray:200; animation: cl-line .5s .45s ease both; }
+      .cl-l2 { stroke-dasharray:200; animation: cl-line .5s .95s ease both; }
+      .cl-l3 { stroke-dasharray:200; animation: cl-line .5s 1.45s ease both; }
+      .cl-warn { animation: cl-pulse 1.5s 1.5s ease-in-out infinite; }
+    </style>
+  </defs>
+  <rect width="680" height="120" fill="#060e1c" rx="8"/>
+  <text x="340" y="18" text-anchor="middle" fill="#607080" font-size="10" font-family="'JetBrains Mono',monospace">CERTIFICATE LIFECYCLE</text>
+  <!-- connector lines -->
+  <line x1="115" y1="60" x2="218" y2="60" stroke="#0fccb0" stroke-width="2" class="cl-l1"/>
+  <line x1="292" y1="60" x2="395" y2="60" stroke="#0fccb0" stroke-width="2" class="cl-l2"/>
+  <line x1="467" y1="60" x2="568" y2="60" stroke="#f59e0b" stroke-width="2" class="cl-l3"/>
+  <!-- Node 1: Issued -->
+  <g class="cl-n1">
+    <circle cx="80" cy="60" r="34" fill="#0a1929" stroke="#0fccb0" stroke-width="2.5"/>
+    <text x="80" y="54" text-anchor="middle" fill="#0fccb0" font-size="18">📜</text>
+    <text x="80" y="70" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">ISSUED</text>
+    <text x="80" y="106" text-anchor="middle" fill="#506070" font-size="8" font-family="'JetBrains Mono',monospace">CSR signed by CA</text>
+  </g>
+  <!-- Node 2: Active -->
+  <g class="cl-n2">
+    <circle cx="255" cy="60" r="34" fill="#041412" stroke="#0fccb0" stroke-width="2.5"/>
+    <text x="255" y="54" text-anchor="middle" fill="#0fccb0" font-size="18">✅</text>
+    <text x="255" y="70" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">ACTIVE</text>
+    <text x="255" y="106" text-anchor="middle" fill="#506070" font-size="8" font-family="'JetBrains Mono',monospace">Days 1–60 (90-day cert)</text>
+  </g>
+  <!-- Node 3: Expiring -->
+  <g class="cl-n3">
+    <circle cx="430" cy="60" r="34" fill="#1a1200" stroke="#f59e0b" stroke-width="2.5" class="cl-warn"/>
+    <text x="430" y="54" text-anchor="middle" fill="#f59e0b" font-size="18">⚠️</text>
+    <text x="430" y="70" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">EXPIRING</text>
+    <text x="430" y="106" text-anchor="middle" fill="#506070" font-size="8" font-family="'JetBrains Mono',monospace">Days 61–90 → renew now</text>
+  </g>
+  <!-- Node 4: Expired/Renewed -->
+  <g class="cl-n4">
+    <circle cx="605" cy="60" r="34" fill="#0a1929" stroke="#0fccb0" stroke-width="2.5"/>
+    <text x="605" y="54" text-anchor="middle" fill="#0fccb0" font-size="18">🔄</text>
+    <text x="605" y="70" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">RENEWED</text>
+    <text x="605" y="106" text-anchor="middle" fill="#506070" font-size="8" font-family="'JetBrains Mono',monospace">cert-manager auto-rotates</text>
+  </g>
+</svg>
+
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">What's the difference between a self-signed cert and a CA-signed cert? When would you use each?</p>
-    <p class="iv-a">A self-signed cert is signed by the same key it describes — no third-party trust. Your browser rejects it because no root store vouches for the signer. Use them for local development, internal testing, or mTLS in a controlled private PKI where you control the trust anchor. A CA-signed cert involves a trusted third party (DigiCert, Let's Encrypt) vouching that they verified the domain (DV), organization (OV), or identity (EV) before signing. Use for anything public-facing or where clients have no out-of-band reason to trust you.</p>
+    <p class="iv-a">A self-signed cert is signed by the same key it describes — browsers reject it because no root store vouches for the signer. Use them for local dev, internal testing, or private PKI where you control the trust anchor. A CA-signed cert has a trusted third party (DigiCert, Let's Encrypt) verify the domain (DV), organization (OV), or identity (EV) before signing — required for anything public-facing.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -491,7 +572,7 @@
     <h2>Root CA → Intermediate CA → Leaf</h2>
 </div>
 
-<p>No browser trusts a leaf certificate directly. Trust flows through a <strong>chain</strong>. The chain exists because Root CAs are kept offline (air-gapped, HSM-locked) and never issue directly to websites. Intermediates carry the operational risk.</p>
+<p>No browser trusts a leaf certificate directly. Trust flows through a <strong>chain</strong> because Root CAs stay offline and never issue directly to websites — Intermediates carry the operational risk.</p>
 
 <svg style="width:100%;max-width:580px;display:block;margin:32px auto;overflow:hidden" viewBox="0 0 560 340" aria-label="Certificate chain of trust">
   <defs>
@@ -552,17 +633,17 @@
   <line x1="508" y1="228" x2="508" y2="198" stroke="#0a8070" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#caarr)"/>
 </svg>
 
-<p>When your browser validates a cert it walks this chain upwards: leaf → intermediate → root. At each step it checks: does the <code>Issuer</code> field match the <code>Subject</code> of the next cert? Does the signature verify with the next cert's public key? Is anything expired or revoked? Does the root appear in the OS trust store? Only when all checks pass does the padlock appear.</p>
+<p>The browser walks this chain upwards — leaf → intermediate → root — verifying the signature and expiry at each step and confirming the root is in the OS trust store. All checks must pass for the padlock to appear.</p>
 
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">Why do CAs use intermediate certificates instead of signing everything from the Root?</p>
-    <p class="iv-a">Root private keys are the crown jewels. Compromise of a root means every certificate ever signed by it must be distrusted — browser vendors remove the root and millions of sites go dark. By never using the root online, you limit blast radius to the intermediate if it's compromised. The root can then revoke the intermediate (publish an updated CRL) and issue a replacement intermediate, without touching the trust anchors baked into every OS worldwide. This is defense-in-depth at the PKI layer. DigiCert typically has dozens of active intermediates, each scoped by key type, use case, or geography.</p>
+    <p class="iv-a">Root private keys are the crown jewels — compromise means browser vendors remove the root and millions of sites go dark. By never using the root online, you limit blast radius to an intermediate. The root can then revoke the intermediate and issue a replacement without touching trust anchors baked into every OS worldwide. DigiCert typically has dozens of active intermediates, each scoped by key type, use case, or geography.</p>
 </div>
 
 <div class="int-expects">
     <span class="ie-tag">✅ Interviewer Expects at L5+</span>
-    <p>When asked "why Root → Intermediate → Leaf?", the interviewer wants to hear <em>blast radius management</em>, not just "security." The root never goes online. An intermediate compromise is survivable — revoke it, issue a new one. A root compromise would require browser vendors to push emergency updates to every device on Earth. That's why DigiCert's Root CA keys are in air-gapped HSMs in physical vaults with multi-person ceremony requirements.</p>
+    <p>The interviewer wants <em>blast radius management</em>, not just "security." An intermediate compromise is survivable — revoke it, issue a new one. A root compromise requires browser vendors to push emergency updates to every device on Earth. DigiCert's Root CA keys live in air-gapped HSMs in physical vaults with multi-person ceremony requirements.</p>
 </div>
 
 <div class="cand-mistake">
@@ -580,7 +661,7 @@
     <h2>Where Certificates Are Stored</h2>
 </div>
 
-<p>Your machine maintains multiple layers of certificate storage — OS trust anchors, application-level trust stores, and per-user keystores. Understanding which one an application uses is the difference between "the cert works in Chrome but not in curl" (a classic production mystery).</p>
+<p>Understanding which trust store an application reads is the difference between "cert works in Chrome but not in curl" — each runtime maintains its own anchor list.</p>
 
 <table class="store-table">
     <thead>
@@ -605,7 +686,7 @@
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">A Java microservice throws <code>PKIX path building failed: unable to find valid certification path to requested target</code>. The same endpoint works in curl. Walk me through your diagnosis.</p>
-    <p class="iv-a">The Java process uses its own <code>cacerts</code> keystore (JKS), not the OS store. curl uses the system CA bundle. Likely the server cert's intermediate CA is not in the JVM keystore. Steps: (1) <code>openssl s_client -connect host:443 -showcerts</code> to dump the full chain. (2) <code>keytool -list -cacerts -alias digicert-inter</code> to check if the intermediate is present. (3) If missing: <code>keytool -importcert -alias &lt;alias&gt; -file inter.crt -cacerts -storepass changeit</code>. In Kubernetes: update the trust bundle ConfigMap and restart pods. Prefer using PKCS12 trust stores over JKS (deprecated since Java 9); and prefer injecting the CA bundle as a volume rather than modifying the base image's <code>cacerts</code>.</p>
+    <p class="iv-a">Java uses its own <code>cacerts</code> keystore, not the OS bundle. The intermediate CA is almost certainly missing from the JVM store. Fix: (1) <code>openssl s_client -connect host:443 -showcerts</code> to dump the chain. (2) <code>keytool -importcert -alias digicert-inter -file inter.crt -cacerts -storepass changeit</code> to install it. In Kubernetes, update the trust bundle ConfigMap and restart pods — prefer injecting the CA bundle as a volume over modifying the base image.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -618,7 +699,14 @@
     <h2>The TLS 1.3 Handshake</h2>
 </div>
 
-<p>TLS 1.3 reduced the handshake to <strong>1 round-trip</strong> (down from 2 in TLS 1.2). Here is every message exchanged when you hit <em>https://paddyspeaks.com</em>:</p>
+<div class="dc-stats">
+    <div class="stat"><span class="num">47 ms</span><span class="lbl">Median TLS 1.3 handshake (p50)</span></div>
+    <div class="stat"><span class="num">1 RTT</span><span class="lbl">Round trips in TLS 1.3 (down from 2 in TLS 1.2)</span></div>
+    <div class="stat"><span class="num">0 bytes</span><span class="lbl">HTTP sent until auth + key exchange complete</span></div>
+    <div class="stat"><span class="num">0-RTT</span><span class="lbl">Session resumption with early data (TLS 1.3)</span></div>
+</div>
+
+<p>TLS 1.3 reduced the handshake to <strong>1 round-trip</strong>. Here is every message exchanged when you hit <em>https://paddyspeaks.com</em>:</p>
 
 <svg style="width:100%;max-width:680px;display:block;margin:32px auto;overflow:hidden" viewBox="0 0 660 450" aria-label="TLS 1.3 handshake animation">
   <defs>
@@ -722,7 +810,7 @@ Finished                       ──────────────►  (c
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">What is OCSP stapling and why does it matter at DigiCert scale?</p>
-    <p class="iv-a">Online Certificate Status Protocol (OCSP) lets a client ask "is this cert revoked?" in real time. Without stapling, the client must call DigiCert's OCSP responder for every TLS handshake — at 8 billion handshakes a day that's a privacy leak (DigiCert sees every site you visit) and a latency hit. OCSP Stapling inverts this: the server periodically fetches a signed OCSP response from DigiCert, then attaches ("staples") it to the TLS handshake in the <code>CertificateStatus</code> message. The client gets a CA-signed "this cert is good as of T" response with zero extra RTT, and DigiCert doesn't learn about individual client connections. Stapled responses are typically valid for 24–48 hours, so the server must refresh them on a cron. Nginx: <code>ssl_stapling on; ssl_stapling_verify on;</code>. Failure to staple → browsers either soft-fail or hard-fail depending on the CA/B Forum ballot (OCSP Must-Staple extension enforces hard-fail).</p>
+    <p class="iv-a">Without stapling, the browser calls DigiCert's OCSP responder per handshake — a privacy leak and latency hit at 8B checks/day. Stapling inverts this: the server periodically pre-fetches a CA-signed OCSP response and attaches it to the TLS handshake, so the browser gets revocation status with zero extra RTT and DigiCert never learns about individual client connections. Nginx: <code>ssl_stapling on; ssl_stapling_verify on;</code>. The OCSP Must-Staple extension enforces hard-fail if the staple is missing.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -829,7 +917,7 @@ CREATE INDEX idx_ocsp_next_upd  ON ocsp_response_cache (next_update);</code></pr
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">How would you design the serial number generation to guarantee uniqueness across a distributed CA cluster?</p>
-    <p class="iv-a">The CA/B Forum requires serial numbers to contain at least 64 bits of CSPRNG entropy (Ballot SC63). A simple sequence doesn't satisfy this. Approach: generate 20 random bytes from a CSPRNG (e.g., <code>os.urandom(20)</code> in Python), store it as <code>BYTEA</code>, and use <code>ON CONFLICT DO NOTHING … RETURNING cert_id</code> to detect the rare collision (statistically impossible in 20-byte space but good practice). Never use sequential integers — they leak issuance volume to competitors reading CT logs and provide no entropy guarantee. Alternatively, use a ULID-like scheme (48-bit timestamp prefix + 80 bits of randomness) so the serial is also monotonically sortable without leaking counts.</p>
+    <p class="iv-a">CA/B Forum Ballot SC63 requires at least 64 bits of CSPRNG entropy per serial. Generate 20 random bytes (<code>os.urandom(20)</code>), store as <code>BYTEA</code>, and use <code>ON CONFLICT DO NOTHING</code> to detect the statistically-impossible collision. Never use sequential integers — they leak issuance volume to anyone reading CT logs. A ULID-like scheme (48-bit timestamp + 80 bits randomness) gives monotonic sort order without leaking counts.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -842,7 +930,7 @@ CREATE INDEX idx_ocsp_next_upd  ON ocsp_response_cache (next_update);</code></pr
     <h2>From CSR to Signed Certificate</h2>
 </div>
 
-<p>Every certificate starts as a <strong>Certificate Signing Request (CSR)</strong> — a PKCS#10 document the applicant generates from their private key. The CA validates the request, then uses its own private key (held in an HSM) to sign and return the certificate.</p>
+<p>Every certificate starts as a <strong>CSR</strong> (PKCS#10) generated by the applicant. The CA validates it, then an HSM-held private key signs and returns the certificate.</p>
 
 <div class="flow-box">Applicant (e.g., customer ACME Corp or cert-manager operator)
   │
@@ -944,7 +1032,7 @@ if __name__ == "__main__":
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">What is Certificate Transparency and why can't DigiCert issue a cert without it?</p>
-    <p class="iv-a">Certificate Transparency (CT, RFC 9162) is a public, append-only audit log of every certificate issued. Before a CA can issue a certificate that Chrome will accept, it must submit a "pre-certificate" (the cert with a poison extension) to at least 2 independent CT logs, receive Signed Certificate Timestamps (SCTs) back, and embed those SCTs in the final cert. Chrome hardcoded this requirement in 2018. The logs are Merkle trees: any observer can check whether a cert was logged, and auditors can look for misissued certs. This means if DigiCert (or a rogue CA) issues a cert for google.com without Google's consent, Google's CT monitor will catch it within minutes. Before CT, rogue CA incidents (DigiNotar 2011, Comodo 2011) took months to discover. Now the detection window is under 5 minutes for any actively monitored domain.</p>
+    <p class="iv-a">CT (RFC 9162) is a public, append-only Merkle-tree log of every certificate issued. Before Chrome accepts a cert, the CA must submit a pre-certificate to 2+ independent logs and embed the resulting Signed Certificate Timestamps (SCTs) in the final cert. If DigiCert or a rogue CA issues a cert for google.com without consent, Google's CT monitor catches it within minutes — before CT, incidents like DigiNotar 2011 took months to discover.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -957,7 +1045,7 @@ if __name__ == "__main__":
     <h2>CRL, OCSP, and the Revocation Crisis</h2>
 </div>
 
-<p>When a private key is compromised, the certificate must be revoked — marked invalid before its natural expiry. DigiCert must make this revocation available to <em>every browser in the world</em> within 24 hours (CA/B Forum Baseline Requirements). There are two mechanisms:</p>
+<p>When a private key is compromised, DigiCert must make the revocation available to every browser within 24 hours (CA/B Forum Baseline Requirements). Two mechanisms exist:</p>
 
 <div class="viz-grid">
     <div class="viz-card">
@@ -1269,7 +1357,7 @@ spec:
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">cert-manager is renewing a cert but pods keep serving the old cert. What happened?</p>
-    <p class="iv-a">cert-manager writes the renewed cert into the Kubernetes Secret, but running pods that have already loaded the cert (via volume mount or env var) won't see the update automatically. Three causes: (1) <strong>Volume mount caching</strong> — kubelet updates secret volume mounts eventually (default sync period: 60 s), but the app process must re-read the file. Most TLS libraries (nginx, Envoy) support hot-reload via SIGHUP or <code>ssl_stapling_responder</code> re-read. (2) <strong>Secret mounted as env var</strong> — env vars are never updated in running pods; you must restart the pod. (3) <strong>App holds a cached TLS context</strong> — the Go <code>tls.Config</code> or Java <code>SSLContext</code> was loaded at startup and not refreshed. Fix: use <code>tls.Config.GetCertificate</code> callback in Go that reads from disk on each handshake, or deploy Envoy/Istio as the TLS terminator and hot-reload via xDS. For Nginx on Kubernetes, the ingress controller watches the Secret and runs <code>nginx -s reload</code> automatically.</p>
+    <p class="iv-a">cert-manager writes the new cert into the Kubernetes Secret but running pods don't automatically reload it. Three failure modes: (1) <strong>Volume mount</strong> — kubelet syncs the file eventually (60 s default) but the app must re-read; nginx supports hot-reload via SIGHUP. (2) <strong>Env var mount</strong> — env vars never update in running pods; restart required. (3) <strong>Cached TLS context</strong> — Go's <code>tls.Config.GetCertificate</code> callback reads from disk per handshake; Java's <code>SSLContext</code> does not. Fix: deploy Envoy/Istio as TLS terminator and reload via xDS, or use the ingress controller which runs <code>nginx -s reload</code> automatically on Secret change.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -1424,7 +1512,7 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">The CA/B Forum is shortening max TLS cert lifetimes to 47 days by 2027. How does this change DigiCert's architecture?</p>
-    <p class="iv-a">Shorter lifetimes force <em>automation first</em> — you can't manually renew every 47 days at scale. For DigiCert it means: (1) <strong>Issuance volume spike</strong>: same number of certs but ~6x renewal frequency; issuance pipeline must scale horizontally with no per-order human review for DV. (2) <strong>ACME becomes mandatory in practice</strong>: customers who don't automate will face constant outages; DigiCert must offer first-class ACME, ACME-profiles (RFC draft), and SDK-level client support. (3) <strong>DCV reuse window shrinks</strong>: Domain validation used to be reusable for 825 days, then 398 days; short-lived certs push toward per-issuance DCV or very short reuse windows, requiring faster DNS propagation checks. (4) <strong>Monitoring / alerting</strong>: customers need Prometheus-style cert expiry dashboards (like the snippet above) because the cost of a missed renewal doubles. (5) On the positive side: shorter lifetimes shrink the window of exposure if a key is compromised — reducing the need for OCSP/CRL revocation infrastructure, since an attacker can only exploit a stolen key for 47 days max before the cert naturally expires.</p>
+    <p class="iv-a">Shorter lifetimes force <em>automation first</em> — 47-day manual renewal is impossible at scale. For DigiCert: (1) same cert count but ~6× renewal frequency means the issuance pipeline must scale with zero human review for DV; (2) ACME is now mandatory in practice — customers who don't automate face constant outages; (3) the DCV reuse window shrinks, pushing toward per-issuance domain validation. On the positive side, a stolen key is only exploitable for 47 days max — reducing reliance on OCSP/CRL revocation infrastructure.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
