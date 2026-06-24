@@ -361,6 +361,12 @@
     </div>
 </div>
 
+<div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:24px 0;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#065a50;">
+  🔬 <strong>Preparing for a system design interview?</strong> See the deep-dive →
+  <a href="../interview.app/design/the-certificate-problem.html" style="color:#0a8070;font-weight:600;">The Certificate Problem — whiteboard session</a>
+  <span style="color:#5a8a7a;"> (schema, issuance pipeline, SPIFFE/SPIRE YAML, 22 Q&amp;A)</span>
+</div>
+
 <!-- Executive summary -->
 <div class="five-things">
     <span class="ft-title">⚡ If you only remember 5 things</span>
@@ -385,7 +391,7 @@
     <h2>What Is a Certificate?</h2>
 </div>
 
-<p>A digital certificate is a <strong>signed data structure that binds a public key to an identity</strong> — like a passport stamped by a recognized authority. Certificates follow the <strong>X.509 v3</strong> standard (RFC 5280). The diagram below shows every field your browser validates:</p>
+<p>A digital certificate is a <strong>signed data structure that binds a public key to an identity</strong> — like a passport stamped by a recognized authority. Certificates follow the <strong>X.509 v3</strong> standard (RFC 5280):</p>
 
 <!-- HTTP vs HTTPS postcard analogy SVG -->
 <svg style="width:100%;max-width:660px;display:block;margin:28px auto;overflow:hidden" viewBox="0 0 660 200" aria-label="HTTP vs HTTPS postcard analogy">
@@ -633,22 +639,20 @@
   <line x1="508" y1="228" x2="508" y2="198" stroke="#0a8070" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#caarr)"/>
 </svg>
 
-<p>The browser walks this chain upwards — leaf → intermediate → root — verifying the signature and expiry at each step and confirming the root is in the OS trust store. All checks must pass for the padlock to appear.</p>
-
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">Why do CAs use intermediate certificates instead of signing everything from the Root?</p>
-    <p class="iv-a">Root private keys are the crown jewels — compromise means browser vendors remove the root and millions of sites go dark. By never using the root online, you limit blast radius to an intermediate. The root can then revoke the intermediate and issue a replacement without touching trust anchors baked into every OS worldwide. DigiCert typically has dozens of active intermediates, each scoped by key type, use case, or geography.</p>
+    <p class="iv-a">Root private keys are the crown jewels — compromise means browser vendors remove the root and millions of sites go dark. Keeping the root offline limits blast radius to an intermediate, which can be revoked and replaced without touching OS trust stores.</p>
 </div>
 
 <div class="int-expects">
     <span class="ie-tag">✅ Interviewer Expects at L5+</span>
-    <p>The interviewer wants <em>blast radius management</em>, not just "security." An intermediate compromise is survivable — revoke it, issue a new one. A root compromise requires browser vendors to push emergency updates to every device on Earth. DigiCert's Root CA keys live in air-gapped HSMs in physical vaults with multi-person ceremony requirements.</p>
+    <p>The interviewer wants <em>blast radius management</em>, not just "security." An intermediate compromise is survivable; a root compromise requires browser vendors to push emergency updates to every device on Earth.</p>
 </div>
 
 <div class="cand-mistake">
     <span class="cm-tag">⚠️ Common Candidate Mistake</span>
-    <p>Saying "the certificate encrypts the connection." It does not. The certificate <em>authenticates</em> the server and carries the server's public key. TLS uses that public key only during the handshake to establish a symmetric session key (AES-256). All actual data encryption uses the symmetric session key — not the cert's public key. Confusing authentication with encryption is the single most common PKI mistake in system design interviews.</p>
+    <p>Saying "the certificate encrypts the connection." It does not — it <em>authenticates</em> the server. TLS uses the cert's public key only during the handshake to establish a symmetric session key (AES-256); all actual data travels under that symmetric key.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -706,7 +710,7 @@
     <div class="stat"><span class="num">0-RTT</span><span class="lbl">Session resumption with early data (TLS 1.3)</span></div>
 </div>
 
-<p>TLS 1.3 reduced the handshake to <strong>1 round-trip</strong>. Here is every message exchanged when you hit <em>https://paddyspeaks.com</em>:</p>
+<p>TLS 1.3 reduced the handshake to <strong>1 round-trip</strong>. Every message exchanged:</p>
 
 <svg style="width:100%;max-width:680px;display:block;margin:32px auto;overflow:hidden" viewBox="0 0 660 450" aria-label="TLS 1.3 handshake animation">
   <defs>
@@ -810,7 +814,7 @@ Finished                       ──────────────►  (c
 <div class="iv-block">
     <span class="iv-tag">Interview Q&A</span>
     <p class="iv-q">What is OCSP stapling and why does it matter at DigiCert scale?</p>
-    <p class="iv-a">Without stapling, the browser calls DigiCert's OCSP responder per handshake — a privacy leak and latency hit at 8B checks/day. Stapling inverts this: the server periodically pre-fetches a CA-signed OCSP response and attaches it to the TLS handshake, so the browser gets revocation status with zero extra RTT and DigiCert never learns about individual client connections. Nginx: <code>ssl_stapling on; ssl_stapling_verify on;</code>. The OCSP Must-Staple extension enforces hard-fail if the staple is missing.</p>
+    <p class="iv-a">Without stapling, the browser calls DigiCert's OCSP responder per handshake — a privacy leak and latency hit at 8B checks/day. Stapling inverts this: the server pre-fetches a CA-signed OCSP response and attaches it to the TLS handshake, giving the browser revocation status at zero extra RTT. Nginx: <code>ssl_stapling on; ssl_stapling_verify on;</code>.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
@@ -1518,246 +1522,6 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
 <div class="ornament-divider">· · ·</div>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     PLAIN LANGUAGE
-════════════════════════════════════════════════════════════════ -->
-<div class="domain-header">
-    <div class="domain-eyebrow">Plain Language</div>
-    <h2>Explaining Certificates to Anyone</h2>
-</div>
-
-<h3>HTTP vs HTTPS</h3>
-<p><strong>HTTP</strong> is a postcard — any router or ISP can read your passwords in transit. <strong>HTTPS</strong> wraps the connection in TLS, providing three guarantees: <em>confidentiality</em> (encrypted), <em>integrity</em> (can't be tampered), and <em>authentication</em> (server proved domain ownership). The padlock means the connection is private — not that the site is trustworthy. A phishing site can have a padlock via a free DV cert.</p>
-
-<div class="lesson-card">
-    <h4>Certificate trust states — what each icon means</h4>
-    <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="border-bottom:1px solid #334;"><th style="text-align:left;padding:6px 10px;">Browser signal</th><th style="text-align:left;padding:6px 10px;">Meaning</th><th style="text-align:left;padding:6px 10px;">Root cause</th></tr></thead>
-        <tbody>
-            <tr><td style="padding:6px 10px;">🔒 Padlock</td><td>Valid cert, trusted chain, encryption active</td><td>—</td></tr>
-            <tr><td style="padding:6px 10px;">⚠️ "Not secure"</td><td>Plain HTTP — no cert at all</td><td>Site has no TLS</td></tr>
-            <tr><td style="padding:6px 10px;">🔴 Red X / "Your connection is not private"</td><td>Cert present but browser rejects it</td><td>See below</td></tr>
-            <tr><td style="padding:6px 10px;">⚠️ Mixed content warning</td><td>HTTPS page loads HTTP sub-resources</td><td>Images/scripts from http://</td></tr>
-            <tr><td style="padding:6px 10px;">🔒 + "Certificate (Invalid)"</td><td>Cert valid but issued to wrong domain</td><td>CN/SAN mismatch</td></tr>
-            <tr><td style="padding:6px 10px;">🔒 + EV org name (rare, legacy)</td><td>Extended Validation cert, org verified</td><td>Legacy EV display</td></tr>
-        </tbody>
-    </table>
-    <h5 style="margin-top:1.2rem;">Reasons a browser shows the red X / "not trusted" error:</h5>
-    <ul>
-        <li><strong>Self-signed certificate</strong> — not issued by a public CA; chain ends at an untrusted root</li>
-        <li><strong>Expired certificate</strong> — <code>notAfter</code> date is in the past</li>
-        <li><strong>Hostname mismatch</strong> — cert's SAN doesn't include the domain you're visiting</li>
-        <li><strong>Revoked certificate</strong> — OCSP says the CA revoked it (key compromise, policy violation)</li>
-        <li><strong>Untrusted root CA</strong> — root not in the OS/browser trust store (e.g., macOS removed TrustCor in 2022)</li>
-        <li><strong>Incomplete chain</strong> — server didn't send the intermediate cert; browser can't build the path to a trusted root</li>
-    </ul>
-</div>
-
-<div class="ornament-divider">· · ·</div>
-
-<!-- ═══════════════════════════════════════════════════════════════
-     ECOSYSTEM
-════════════════════════════════════════════════════════════════ -->
-<div class="domain-header">
-    <div class="domain-eyebrow">Ecosystem</div>
-    <h2>CLM, TLM, and the Competitive CA Landscape</h2>
-</div>
-
-<h3>CLM vs TLM</h3>
-<div class="lesson-card">
-    <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="border-bottom:1px solid #334;"><th style="text-align:left;padding:6px 10px;">Term</th><th style="text-align:left;padding:6px 10px;">Stands for</th><th style="text-align:left;padding:6px 10px;">Scope</th><th style="text-align:left;padding:6px 10px;">Who uses it</th></tr></thead>
-        <tbody>
-            <tr><td style="padding:6px 10px;"><strong>CLM</strong></td><td>Certificate Lifecycle Management</td><td>Discovery → issuance → renewal → revocation for TLS/PKI certs</td><td>Generic industry term; Venafi, AppViewX, Sectigo CM use it</td></tr>
-            <tr><td style="padding:6px 10px;"><strong>TLM</strong></td><td>Trust Lifecycle Manager</td><td>CLM + document signing + code signing + IoT/device identity + SSH keys + secrets — <em>all trust anchors</em></td><td>DigiCert's branded product name for their unified platform</td></tr>
-        </tbody>
-    </table>
-    <p style="margin-top:0.8rem;">The distinction: CLM treats certificates as the problem. TLM treats <em>trust</em> as the problem and certificates as one expression of it. DigiCert's positioning is that an enterprise has thousands of trust artifacts beyond TLS certs (SSH keys, code-signing certs, document signatures, device identities) — TLM manages all of them in one audit-ready dashboard.</p>
-</div>
-
-<h3>CA Competitive Landscape</h3>
-<div class="lesson-card">
-    <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="border-bottom:1px solid #334;"><th style="text-align:left;padding:6px 10px;">CA</th><th style="text-align:left;padding:6px 10px;">Cost</th><th style="text-align:left;padding:6px 10px;">Strength</th><th style="text-align:left;padding:6px 10px;">Weakness</th></tr></thead>
-        <tbody>
-            <tr><td style="padding:6px 10px;"><strong>DigiCert</strong></td><td>$$$$</td><td>Enterprise CLM/TLM, OV/EV, IoT, compliance</td><td>Cost; overkill for small sites</td></tr>
-            <tr><td style="padding:6px 10px;"><strong>Let's Encrypt</strong></td><td>Free</td><td>ACME-native, DV only, 90-day auto-renew, huge volume</td><td>No OV/EV; no phone support; 90-day cadence</td></tr>
-            <tr><td style="padding:6px 10px;"><strong>Google Trust Services (GTS)</strong></td><td>Free (via API)</td><td>Used for all Google properties; ACME support</td><td>Requires Google account; mostly for Google ecosystem</td></tr>
-            <tr><td style="padding:6px 10px;"><strong>Sectigo</strong></td><td>$–$$</td><td>Volume DV pricing; S/MIME; code signing</td><td>Mid-tier support; less brand recognition than DigiCert</td></tr>
-            <tr><td style="padding:6px 10px;"><strong>SSL.com</strong></td><td>$–$$</td><td>Competitive pricing; OV/EV available; good ACME support</td><td>Smaller trust ecosystem; less known enterprise-side</td></tr>
-            <tr><td style="padding:6px 10px;"><strong>Entrust</strong></td><td>$$$$</td><td>Government/federal use cases; strong compliance posture</td><td>Browser trust controversy (2024 distrust warning)</td></tr>
-            <tr><td style="padding:6px 10px;"><strong>GlobalSign</strong></td><td>$$–$$$</td><td>Strong EU/GDPR footprint; eIDAS qualified certs</td><td>Less dominant in US market</td></tr>
-        </tbody>
-    </table>
-</div>
-
-<h3>How Cloudflare, AWS, and hosting providers choose CAs</h3>
-<ul>
-    <li><strong>Cloudflare</strong>: Issues free DV certs to all proxied sites. Backend CA is Let's Encrypt (for shared certs) or DigiCert (for dedicated/enterprise). Cloudflare runs its own intermediate under Let's Encrypt's root for some issuances. The choice is opaque to the customer.</li>
-    <li><strong>AWS ACM (Amazon Certificate Manager)</strong>: Uses Amazon Trust Services — Amazon's own CA. Free for use with ALB/CloudFront. You cannot export the private key. For imported certs you can use any CA.</li>
-    <li><strong>GCP Certificate Manager</strong>: Google-managed certs backed by Google Trust Services. Same model — free, auto-renew, no key export.</li>
-    <li><strong>GoDaddy / cPanel hosts</strong>: Historically used Comodo/Sectigo for bundled SSL. Some shifted to Let's Encrypt for free auto-SSL; premium plans still offer DV/OV/EV through reseller arrangements with DigiCert or Sectigo.</li>
-    <li><strong>Vercel / Netlify</strong>: Let's Encrypt for all custom domains. Zero config, auto-renew.</li>
-</ul>
-
-<h3>What startups use for inexpensive certificates</h3>
-<div class="lesson-card">
-    <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="border-bottom:1px solid #334;"><th style="text-align:left;padding:6px 10px;">Option</th><th style="text-align:left;padding:6px 10px;">Cost</th><th style="text-align:left;padding:6px 10px;">Best for</th></tr></thead>
-        <tbody>
-            <tr><td style="padding:6px 10px;">Let's Encrypt + certbot / acme.sh</td><td>Free</td><td>Any VPS/bare-metal — DV, auto-renew via cron</td></tr>
-            <tr><td style="padding:6px 10px;">Cloudflare Free plan</td><td>Free</td><td>Sites behind Cloudflare proxy — zero config cert</td></tr>
-            <tr><td style="padding:6px 10px;">AWS ACM</td><td>Free (with AWS services)</td><td>Apps on ALB or CloudFront</td></tr>
-            <tr><td style="padding:6px 10px;">GCP / Azure managed certs</td><td>Free (with cloud services)</td><td>Apps on GCP Load Balancer / Azure App Gateway</td></tr>
-            <tr><td style="padding:6px 10px;">Vercel / Netlify / Render</td><td>Included in free tier</td><td>Frontend / JAMstack / APIs on these platforms</td></tr>
-            <tr><td style="padding:6px 10px;">SSL.com / Sectigo DV</td><td>~$10–$30/yr</td><td>Single domain, when a paid cert is required by policy</td></tr>
-        </tbody>
-    </table>
-    <p style="margin-top:0.8rem;">The general rule: if you're on a cloud platform or CDN, use the managed cert (it's free and auto-renews). If you're on bare metal or a VPS, Let's Encrypt + certbot is the standard choice. Only pay for OV/EV/code-signing when your compliance or legal requirements demand it.</p>
-</div>
-
-<div class="ornament-divider">· · ·</div>
-
-<!-- ═══════════════════════════════════════════════════════════════
-     REAL-WORLD SCENARIOS
-════════════════════════════════════════════════════════════════ -->
-<div class="domain-header">
-    <div class="domain-eyebrow">Real-World Scenarios</div>
-    <h2>Certificates in the Wild</h2>
-</div>
-
-<h3>The Canvas school hack — how certificates were involved</h3>
-<p>Canvas is the LMS (Learning Management System) used by thousands of school districts and universities. Consider a scenario where an attacker targets a district's Canvas deployment:</p>
-<div class="lesson-card">
-    <h4>Attack vector 1 — Expired cert causes browser warning, students click through</h4>
-    <p>If the district's Canvas instance has an expired TLS cert, browsers show "Your connection is not private." Students and teachers are trained to click "Advanced → Proceed anyway." This click-through habit is exploited: the attacker sets up a phishing page at a lookalike domain (<code>canvas-login-district.com</code>) with a valid DV cert (free from Let's Encrypt) — browsers show a padlock. Students enter credentials on the phishing page trusting the padlock.</p>
-    <p><strong>Cert lesson</strong>: A padlock on a phishing site is real. DV validation only proves domain ownership — not that the organization is trustworthy. This is why OV/EV certificates exist for login pages handling sensitive data.</p>
-
-    <h4>Attack vector 2 — MITM on school WiFi due to weak TLS config</h4>
-    <p>If Canvas is misconfigured to allow TLS 1.0/1.1 or weak cipher suites, an attacker on the same WiFi network can downgrade the connection and intercept session tokens. Modern cert configurations require TLS 1.2+ and AEAD cipher suites — a properly managed cert via DigiCert or ACM with default modern TLS profiles prevents this.</p>
-
-    <h4>Attack vector 3 — Compromised intermediate CA</h4>
-    <p>If a CA that Canvas's district trusts (in a custom enterprise trust store pushed via MDM to school Chromebooks) is compromised, the attacker can issue a forged cert for canvas.district.edu and perform a MITM that browsers accept silently. Certificate Transparency would reveal this forged cert within minutes to DigiCert's CT log monitors — this is why CT is mandatory since 2018.</p>
-
-    <h4>FERPA compliance angle</h4>
-    <p>FERPA (Family Educational Rights and Privacy Act) requires protecting student education records. An expired cert or insecure TLS configuration that leaks student data is a FERPA violation — not just a technical failure. Districts using DigiCert's TLM get automated expiry alerts and policy enforcement so a cert never quietly expires on a FERPA-regulated endpoint.</p>
-</div>
-
-<h3>Cloud provider certificate management</h3>
-<div class="lesson-card">
-    <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="border-bottom:1px solid #334;"><th style="text-align:left;padding:6px 10px;">Provider</th><th style="text-align:left;padding:6px 10px;">Service</th><th style="text-align:left;padding:6px 10px;">CA used</th><th style="text-align:left;padding:6px 10px;">Private key exportable?</th><th style="text-align:left;padding:6px 10px;">Auto-renew?</th><th style="text-align:left;padding:6px 10px;">Notes</th></tr></thead>
-        <tbody>
-            <tr><td style="padding:6px 10px;">AWS</td><td>ACM</td><td>Amazon Trust Services</td><td>No (ACM-issued); Yes (imported)</td><td>Yes</td><td>Free with ALB/CloudFront; must import external certs</td></tr>
-            <tr><td style="padding:6px 10px;">GCP</td><td>Certificate Manager</td><td>Google Trust Services</td><td>No</td><td>Yes</td><td>Global and regional certs; integrates with Load Balancer</td></tr>
-            <tr><td style="padding:6px 10px;">Azure</td><td>Key Vault + App Service certs</td><td>DigiCert / GlobalSign</td><td>Yes (from Key Vault)</td><td>Yes (policy-based)</td><td>Key Vault stores and rotates; integrates with App Gateway</td></tr>
-            <tr><td style="padding:6px 10px;">Cloudflare</td><td>Universal SSL / Advanced Certs</td><td>Let's Encrypt / DigiCert</td><td>No (for proxied sites)</td><td>Yes</td><td>Origin cert (self-signed by CF) for CF→origin leg</td></tr>
-            <tr><td style="padding:6px 10px;">Kubernetes (any)</td><td>cert-manager</td><td>Pluggable (LE, DigiCert, Vault)</td><td>Yes (stored in Secret)</td><td>Yes</td><td>ClusterIssuer + Certificate CRD; renews at 2/3 lifetime</td></tr>
-            <tr><td style="padding:6px 10px;">Heroku</td><td>Automated Certificate Management</td><td>Let's Encrypt</td><td>No</td><td>Yes</td><td>Free on paid dynos</td></tr>
-            <tr><td style="padding:6px 10px;">DigitalOcean</td><td>Managed SSL</td><td>Let's Encrypt</td><td>No</td><td>Yes</td><td>Free with Load Balancers and App Platform</td></tr>
-        </tbody>
-    </table>
-</div>
-
-<h3>Salesforce — how certificates work in a SaaS platform</h3>
-<p>Salesforce is a multi-tenant SaaS. Certificates operate at three distinct layers:</p>
-<div class="lesson-card">
-    <h4>Layer 1 — Platform TLS (Salesforce's responsibility)</h4>
-    <p>Salesforce manages TLS certs for <code>*.salesforce.com</code>, <code>*.force.com</code>, and all platform endpoints. These are DigiCert-issued OV certs, rotated automatically. Customers see the padlock but have no control over this layer.</p>
-
-    <h4>Layer 2 — My Domain / custom domain (shared responsibility)</h4>
-    <p>When you configure a My Domain (<code>company.my.salesforce.com</code> or a fully custom <code>crm.company.com</code>), Salesforce provisions a cert for that subdomain — either automatically (using DigiCert via Salesforce's CA arrangement) or you can upload your own cert from DigiCert/Sectigo for full control. Cert expiry management then becomes the customer's responsibility.</p>
-
-    <h4>Layer 3 — Named Credentials / mutual TLS for integrations</h4>
-    <p>When Salesforce calls an external API (e.g., your on-premise ERP), it can present a client certificate for mTLS. You upload a client cert into Salesforce's Certificate and Key Management page. Salesforce stores the private key in its HSM-backed secrets store. The external server validates that Salesforce's cert is signed by a CA it trusts — this is mutual authentication, not just server authentication.</p>
-</div>
-
-<h3>Cloud-native infrastructure certificate layers</h3>
-<svg style="width:100%;max-width:700px;display:block;margin:24px auto;overflow:hidden" viewBox="0 0 700 480" aria-label="Cloud-native certificate layers stack">
-  <defs>
-    <style>
-      @keyframes cnDrop2 { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
-      .cn2-1 { animation: cnDrop2 .5s .10s both; }
-      .cn2-2 { animation: cnDrop2 .5s .25s both; }
-      .cn2-3 { animation: cnDrop2 .5s .40s both; }
-      .cn2-4 { animation: cnDrop2 .5s .55s both; }
-      .cn2-5 { animation: cnDrop2 .5s .70s both; }
-      .cn2-6 { animation: cnDrop2 .5s .85s both; }
-    </style>
-    <marker id="cnArr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-      <path d="M0,0 L7,3.5 L0,7 z" fill="#0fccb0"/>
-    </marker>
-  </defs>
-  <rect x="0" y="0" width="700" height="36" rx="6" fill="#060e1c"/>
-  <text x="350" y="23" text-anchor="middle" fill="#0fccb0" font-size="12" font-weight="600" font-family="'JetBrains Mono',monospace">CLOUD-NATIVE CERTIFICATE LAYERS — all active simultaneously</text>
-
-  <text x="350" y="58" text-anchor="middle" fill="#607080" font-size="11" font-family="'JetBrains Mono',monospace">🌐 Internet traffic enters</text>
-  <line x1="350" y1="62" x2="350" y2="74" stroke="#0fccb0" stroke-width="2" marker-end="url(#cnArr)"/>
-
-  <g class="cn2-1">
-    <rect x="40" y="76" width="620" height="60" rx="6" fill="#0d2d1a" stroke="#0a8070" stroke-width="2"/>
-    <rect x="40" y="76" width="12" height="60" rx="3" fill="#0a8070"/>
-    <text x="66" y="97" fill="#0fccb0" font-size="11" font-weight="700" font-family="'JetBrains Mono',monospace">[1] INGRESS / EDGE</text>
-    <text x="66" y="114" fill="#7aaaa0" font-size="10" font-family="'JetBrains Mono',monospace">Cloudflare Universal SSL · ACM on ALB · GCP Load Balancer</text>
-    <text x="66" y="129" fill="#4a8a80" font-size="10" font-family="'JetBrains Mono',monospace">Cert: *.company.com · Issuer: DigiCert / LE · Renewal: cert-manager automated</text>
-    <rect x="592" y="88" width="58" height="20" rx="3" fill="#0a8070"/>
-    <text x="621" y="102" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">PUBLIC</text>
-  </g>
-  <line x1="350" y1="138" x2="350" y2="150" stroke="#1a3a2a" stroke-width="1.5" stroke-dasharray="4 2"/>
-
-  <g class="cn2-2">
-    <rect x="40" y="152" width="620" height="68" rx="6" fill="#0d1f2d" stroke="#0a5080" stroke-width="2"/>
-    <rect x="40" y="152" width="12" height="68" rx="3" fill="#0a5080"/>
-    <text x="66" y="173" fill="#60a0d0" font-size="11" font-weight="700" font-family="'JetBrains Mono',monospace">[2] SERVICE MESH — East-West mTLS</text>
-    <text x="66" y="190" fill="#4a7090" font-size="10" font-family="'JetBrains Mono',monospace">Istio sidecar / SPIFFE SPIRE · every pod gets a SVID (24-hr lifetime)</text>
-    <text x="66" y="206" fill="#4a7090" font-size="10" font-family="'JetBrains Mono',monospace">spiffe://company.com/ns/prod/svc/api · hourly rotation via SPIRE DaemonSet</text>
-    <text x="66" y="213" fill="#2a5060" font-size="9" font-family="'JetBrains Mono',monospace">payments-api ──mTLS──► fraud-scorer   checkout-api ──mTLS──► inventory</text>
-    <rect x="592" y="164" width="58" height="20" rx="3" fill="#0a5080"/>
-    <text x="621" y="178" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">INTERNAL</text>
-  </g>
-  <line x1="350" y1="222" x2="350" y2="234" stroke="#1a3a2a" stroke-width="1.5" stroke-dasharray="4 2"/>
-
-  <g class="cn2-3">
-    <rect x="40" y="236" width="620" height="60" rx="6" fill="#1a1a0a" stroke="#c8a000" stroke-width="2"/>
-    <rect x="40" y="236" width="12" height="60" rx="3" fill="#c8a000"/>
-    <text x="66" y="257" fill="#e0c040" font-size="11" font-weight="700" font-family="'JetBrains Mono',monospace">[3] SECRETS / KEY MANAGEMENT</text>
-    <text x="66" y="274" fill="#a09030" font-size="10" font-family="'JetBrains Mono',monospace">HashiCorp Vault PKI · dynamic short-lived certs on demand</text>
-    <text x="66" y="290" fill="#a09030" font-size="10" font-family="'JetBrains Mono',monospace">Vault root backed by HSM (CloudHSM / Vault HSM) · Kafka mTLS clients</text>
-    <rect x="592" y="248" width="58" height="20" rx="3" fill="#c8a000"/>
-    <text x="621" y="262" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">DYNAMIC</text>
-  </g>
-  <line x1="350" y1="298" x2="350" y2="310" stroke="#1a3a2a" stroke-width="1.5" stroke-dasharray="4 2"/>
-
-  <g class="cn2-4">
-    <rect x="40" y="312" width="620" height="60" rx="6" fill="#1a0d1a" stroke="#8040c0" stroke-width="2"/>
-    <rect x="40" y="312" width="12" height="60" rx="3" fill="#8040c0"/>
-    <text x="66" y="333" fill="#b070e0" font-size="11" font-weight="700" font-family="'JetBrains Mono',monospace">[4] CI/CD CODE SIGNING</text>
-    <text x="66" y="350" fill="#7040a0" font-size="10" font-family="'JetBrains Mono',monospace">DigiCert KeyLocker / Sigstore · build artifacts signed before publish</text>
-    <text x="66" y="366" fill="#7040a0" font-size="10" font-family="'JetBrains Mono',monospace">Sigstore: keyless signing via GitHub OIDC token (no long-lived key)</text>
-    <rect x="592" y="324" width="58" height="20" rx="3" fill="#8040c0"/>
-    <text x="621" y="338" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">SIGNING</text>
-  </g>
-  <line x1="350" y1="374" x2="350" y2="386" stroke="#1a3a2a" stroke-width="1.5" stroke-dasharray="4 2"/>
-
-  <g class="cn2-5">
-    <rect x="40" y="388" width="620" height="60" rx="6" fill="#0d1a2d" stroke="#2060c0" stroke-width="2"/>
-    <rect x="40" y="388" width="12" height="60" rx="3" fill="#2060c0"/>
-    <text x="66" y="409" fill="#4080e0" font-size="11" font-weight="700" font-family="'JetBrains Mono',monospace">[5] CLOUD PROVIDER MANAGED CERTS</text>
-    <text x="66" y="426" fill="#305090" font-size="10" font-family="'JetBrains Mono',monospace">AWS ACM · GCP Certificate Manager · Azure Key Vault</text>
-    <text x="66" y="442" fill="#305090" font-size="10" font-family="'JetBrains Mono',monospace">ALB · CloudFront · API Gateway · no key export · Amazon TS / Google TS CA</text>
-    <rect x="592" y="400" width="58" height="20" rx="3" fill="#2060c0"/>
-    <text x="621" y="414" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'JetBrains Mono',monospace">MANAGED</text>
-  </g>
-  <line x1="350" y1="450" x2="350" y2="462" stroke="#1a3a2a" stroke-width="1.5" stroke-dasharray="4 2"/>
-
-  <g class="cn2-6">
-    <rect x="40" y="464" width="620" height="14" rx="4" fill="#1a1a1a" stroke="#4a4a4a" stroke-width="1"/>
-    <text x="66" y="475" fill="#8a8a8a" font-size="9" font-family="'JetBrains Mono',monospace">[6] DEVELOPER MACHINES — corp PKI via MDM · macOS Keychain / Windows Cert Store · Jamf pushes corp root → internal tools trusted</text>
-  </g>
-</svg>
-
-<div class="ornament-divider">· · ·</div>
-
-<!-- ═══════════════════════════════════════════════════════════════
      WHEN PKI GOES WRONG
 ════════════════════════════════════════════════════════════════ -->
 <div class="domain-header">
@@ -1765,7 +1529,7 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
     <h2>Four Times the Certificate System Broke the Internet</h2>
 </div>
 
-<p>Every architectural decision in this article traces back to one of these failures.</p>
+<p>Every architectural decision in this article traces back to one of these four failures.</p>
 
 <div class="failure-card">
     <div class="fc-head">
@@ -1805,7 +1569,7 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
 
 <div class="int-expects">
     <span class="ie-tag">✅ Interviewer Expects</span>
-    <p>At L6+, you should be able to explain at least two CA distrust events, what caused them, and what architectural changes the industry made in response. CT logs, ACME automation, and the CA/B Forum ballot process all exist because of specific, named failures.</p>
+    <p>At L6+, explain at least two CA distrust events, their causes, and the architectural responses. CT logs, ACME, and the CA/B Forum ballot process all exist because of specific, named failures.</p>
 </div>
 
 <div class="ornament-divider">· · ·</div>
