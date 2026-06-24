@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Orchestration Problem — PaddySpeaks</title>
+<meta name="description" content="Design Kubernetes. Walk me through what happens when you run kubectl apply — from API server to pod running on a node. Control plane, scheduler, autoscaler, service discovery, etcd schema, RBAC, and how to handle a 10,000-node cluster.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+<style>
+/* teal accent for orchestration theme */
+:root { --teal: #0a8070; --teal-deep: #065a50; --teal-light: rgba(10,128,112,.10); }
+h1 em { color: var(--teal) !important; }
+/* SVG diagram wrappers */
+.svg-diagram { width: 100%; max-width: 700px; margin: 32px auto; display: block; overflow: hidden; }
+.svg-diagram text { font-family: 'DM Mono', monospace; }
+
+/* ── Consolidated SVG keyframes ───────────────────────────────────
+   cp  = control plane topology
+   ps  = pod state machine
+   nf  = network flow
+   ha  = HPA loop
+   ---------------------------------------------------------------- */
+/* cp- control plane SVG */
+@keyframes cp-fadeIn  { from{opacity:0} to{opacity:1} }
+@keyframes cp-drop    { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes cp-pulse   { 0%,100%{stroke-opacity:.4} 50%{stroke-opacity:1} }
+@keyframes cp-flow    { from{stroke-dashoffset:200} to{stroke-dashoffset:0} }
+@keyframes cp-glow    { 0%,100%{filter:drop-shadow(0 0 0px #0a8070)} 60%{filter:drop-shadow(0 0 8px #0a8070)} }
+
+/* ps- pod state machine SVG */
+@keyframes ps-appear  { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:scale(1)} }
+@keyframes ps-arrow   { from{stroke-dashoffset:120} to{stroke-dashoffset:0} }
+@keyframes ps-blink   { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+/* nf- network flow SVG */
+@keyframes nf-slideR  { from{transform:translateX(-30px);opacity:0} to{transform:translateX(0);opacity:1} }
+@keyframes nf-packet  { 0%{transform:translateX(0)} 100%{transform:translateX(400px)} }
+@keyframes nf-fadeIn  { from{opacity:0} to{opacity:1} }
+@keyframes nf-flow    { from{stroke-dashoffset:500} to{stroke-dashoffset:0} }
+
+/* ha- HPA feedback loop SVG */
+@keyframes ha-rotate  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@keyframes ha-pulse   { 0%,100%{r:6} 50%{r:10} }
+@keyframes ha-appear  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes ha-arrow   { from{stroke-dashoffset:300} to{stroke-dashoffset:0} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 26</div>
+    <h1 class="reveal">The <em>Orchestration</em> Problem</h1>
+    <p class="deck reveal">Design Kubernetes — the container orchestration system that runs most of the world's cloud workloads. What happens when you run <code>kubectl apply -f deployment.yaml</code>? From API server validation through etcd persistence, scheduler placement, kubelet container creation, and health probes — to how the control plane, autoscaler, and service discovery hold together at 10,000 nodes. The schema, the watch API as distributed pub/sub, the scheduling algorithm, and the data architecture behind the pods your code runs inside.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Distributed Systems / Platform Engineering</b></span>
+      <span>READING · <b>~42 min</b></span>
+    </div>
+  </div>
+</header>
+
+<!-- ── CROSS-LINK CALLOUT ── -->
+<div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:24px auto;max-width:900px;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;">
+  📦 <strong>Not familiar with containers yet?</strong> Start with the container primer first →
+  <a href="./the-container-problem.html" style="color:#0a8070;font-weight:600;">The Container Problem</a>
+  <span style="color:#5a8a7a;"> (what Docker is, images, layers, namespaces, cgroups — the foundation Kubernetes builds on)</span>
+</div>
+
+<section id="question">
+  <div class="wrap">
+
+<!-- one-screen summary -->
+<table style="width:100%;border-collapse:collapse;margin:0 0 28px;font-family:'DM Mono',monospace;font-size:12px;" class="reveal">
+  <thead>
+    <tr style="background:#1a1208;">
+      <th style="padding:9px 13px;text-align:left;color:#d98e63;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">Question</th>
+      <th style="padding:9px 13px;text-align:left;color:#d98e63;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">60-second answer</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background:#120e06;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Why Kubernetes exists</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">Bin-packing, self-healing, service discovery — schedule containers across a fleet and keep them running without human intervention.</td>
+    </tr>
+    <tr style="background:#1a1208;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Control plane in one sentence</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">API server is the front door; etcd is the truth store; scheduler assigns pods to nodes; controller manager reconciles desired vs actual state.</td>
+    </tr>
+    <tr style="background:#120e06;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">kubectl apply → pod running</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">API server validates → writes to etcd → Deployment controller creates ReplicaSet → scheduler binds pod to node → kubelet pulls image and starts container.</td>
+    </tr>
+    <tr style="background:#1a1208;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">How service discovery works</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">DNS via CoreDNS; kube-proxy programs iptables/IPVS rules; Services are stable virtual IPs load-balanced across healthy pod endpoints.</td>
+    </tr>
+    <tr style="background:#120e06;">
+      <td style="padding:9px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">10,000-node scheduling</td>
+      <td style="padding:9px 13px;color:#8f8672;border:1px solid #3a2e1a;">Predicates filter ineligible nodes; scoring ranks feasible nodes; scheduler samples a subset (not all 10K) for latency. Binding is atomic via etcd compare-and-swap.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Interview Studio comparison -->
+<table style="width:100%;border-collapse:collapse;margin:0 0 36px;font-family:'DM Mono',monospace;font-size:12px;" class="reveal">
+  <thead>
+    <tr style="background:#1a1208;">
+      <th style="padding:9px 13px;text-align:left;color:#8f8672;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">Typical Interview Site</th>
+      <th style="padding:9px 13px;text-align:left;color:#d8a44a;letter-spacing:.12em;text-transform:uppercase;font-size:10px;border:1px solid #3a2e1a;">Interview Studio</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background:#120e06;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Memorization</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Understanding</td></tr>
+    <tr style="background:#1a1208;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Coding only</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Coding + Architecture + Data Modeling</td></tr>
+    <tr style="background:#120e06;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Short answers</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Deep reasoning with trade-offs</td></tr>
+    <tr style="background:#1a1208;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">LeetCode style</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Real-world engineering at scale</td></tr>
+    <tr style="background:#120e06;"><td style="padding:8px 13px;color:#8f8672;border:1px solid #3a2e1a;">Junior focus</td><td style="padding:8px 13px;color:#e9e2d0;border:1px solid #3a2e1a;font-weight:600;">Senior / Staff / L6–L7</td></tr>
+  </tbody>
+</table>
+
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>The container orchestration problem</h2>
+    <p class="lede reveal">Containers solve the "it works on my machine" problem. Kubernetes solves the "who runs the container on which machine, keeps it alive when the machine dies, and routes traffic to it" problem — at the scale of tens of thousands of machines and hundreds of thousands of containers, with zero human hand-holding.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design Kubernetes. Walk me through what happens when you run <code>kubectl apply -f deployment.yaml</code> — from API server to pod running on a node. Then explain how you'd design the scheduler, autoscaler, and service discovery to handle a 10,000-node cluster."</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The question catches most candidates because Kubernetes looks like a deployment tool but is actually a distributed database with a reconciliation engine built on top. A weak answer names the components. A strong answer names the four forces that make this hard — and shows how every design decision exists to survive one of them.</p>
+
+    <p class="reveal">There are exactly four forces:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE DESIRED-STATE GAP</dt><dd><strong>The cluster is always drifting away from what you declared.</strong> Nodes crash, containers OOM-kill, images fail to pull, network partitions split the cluster. The entire control plane architecture exists to continuously close the gap between "what the user declared" (etcd) and "what is actually running" (node status). This is reconciliation loops all the way down.</dd></div>
+      <div class="defrow"><dt>THE SCHEDULING HARDNESS</dt><dd><strong>Optimal bin-packing is NP-hard.</strong> At 10,000 nodes with 50 constraints per pod, a brute-force scheduler would take minutes. Kubernetes solves this with a two-phase filter-then-score pipeline, plus sampling — the scheduler never evaluates all nodes. But "good enough in 10ms" requires deliberately accepting suboptimal placement.</dd></div>
+      <div class="defrow"><dt>THE ETCD BOTTLENECK</dt><dd><strong>One consistent store for the entire cluster creates a write bottleneck.</strong> Every API object — pod, service, endpoint, configmap — is stored in etcd. Every watch (there are thousands of them) is registered against etcd's gRPC watch stream. The API server fans out watch events; etcd itself is sized to handle ~1,000 writes/sec. At 10,000 nodes sending heartbeats every 5s, that's 2,000 writes/sec — you're at the etcd ceiling from heartbeats alone.</dd></div>
+      <div class="defrow"><dt>THE NETWORK FLATNESS ASSUMPTION</dt><dd><strong>Kubernetes assumes every pod can reach every other pod directly.</strong> The CNI spec delegates actual implementation to plugins (Calico, Cilium, Flannel) — Kubernetes itself has no routing table. This assumption powers flat pod networking but means network policy, encryption, and multi-cluster routing all have to be bolted on by the CNI.</dd></div>
+    </dl>
+
+    <div class="pull reveal">Read those four again: they are all data and distributed systems problems. The interesting engineering is in the watch API as a distributed pub/sub system, the scheduler as an online bin-packing approximation algorithm, and the reconciliation loop as a control theory feedback system. The YAML is nearly boring.</div>
+
+    <p class="reveal">Envelope math, volunteered:</p>
+
+    <table class="reveal">
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Nodes in large cluster</td><td class="mono">10,000</td><td>Node heartbeats every 5s = 2,000 writes/sec to etcd — near the ceiling</td></tr>
+      <tr><td>etcd write throughput</td><td class="mono">~1,000–3,000 req/s</td><td>Heartbeat aggregation in kubelet + lease objects reduce actual etcd load</td></tr>
+      <tr><td>Scheduler decisions/sec</td><td class="mono">~1,000 pods/s peak</td><td>Parallel scheduling goroutines; each decision is microseconds with sampling</td></tr>
+      <tr><td>Watch connections to API server</td><td class="mono">~100K–1M</td><td>Watch multiplexing: API server has one etcd watch stream, fans out to all clients</td></tr>
+      <tr><td>Pod startup latency (P99)</td><td class="mono">&lt;5 seconds</td><td>Image pull is the bottleneck; pre-pull on nodes with DaemonSets</td></tr>
+      <tr><td>Kubernetes objects per cluster</td><td class="mono">~300K–500K</td><td>etcd key count limit; use namespaces + labels for logical separation</td></tr>
+      <tr><td>HPA scrape interval</td><td class="mono">15 seconds</td><td>Scale decision latency ~30–60s; cooldown prevents thrashing</td></tr>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="plain-language">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — PLAIN LANGUAGE</span>The shipping fleet analogy</h2>
+    <p class="lede reveal">Before we dive into etcd and gRPC watches, here is Kubernetes in one analogy that a non-engineer will remember.</p>
+
+    <p class="reveal">Imagine a global shipping fleet. You are the fleet manager. You don't care which specific ship carries which cargo — you care that the cargo arrives, is replaced if the ship sinks, and can be found by other ships that need to connect with it.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE CAPTAIN (Control Plane)</dt><dd>The control plane is the fleet captain — it knows every ship's capacity, what cargo is loaded on each, and what the manifest says should be loaded. It gives orders (schedule this pod here) but never touches the ships directly. The captain doesn't row.</dd></div>
+      <div class="defrow"><dt>THE SHIPS (Nodes)</dt><dd>Nodes are the ships — physical or virtual machines that actually run your containers. Each ship has a first mate (kubelet) who receives orders from the captain and actually loads/unloads cargo. The ship reports its capacity and health back to the captain every 5 seconds.</dd></div>
+      <div class="defrow"><dt>THE CARGO (Pods)</dt><dd>Pods are the shipping containers — the smallest unit of deployment. A pod contains one or more containers that share a network namespace and storage volumes. Just as a shipping container might carry multiple items, a pod might carry an app container plus a sidecar logging agent.</dd></div>
+      <div class="defrow"><dt>THE MANIFEST (Desired State)</dt><dd>When you run <code>kubectl apply</code>, you hand the captain a manifest: "I want 3 copies of this container, each with 1 CPU and 2GB memory, running port 8080." The captain's entire job is to make reality match the manifest — and to keep matching it, forever, even as ships sink and cargo goes overboard.</dd></div>
+    </dl>
+
+    <h3 class="reveal">What Kubernetes solves</h3>
+
+    <table class="reveal">
+      <tr><th>Problem</th><th>Without Kubernetes</th><th>With Kubernetes</th></tr>
+      <tr><td><strong>Bin-packing</strong></td><td>You SSH into servers and start containers by hand. Half your CPU is wasted.</td><td>Scheduler places pods to maximize resource utilization across the fleet automatically.</td></tr>
+      <tr><td><strong>Self-healing</strong></td><td>Container crashes at 3 AM. On-call wakes up to restart it.</td><td>kubelet notices the container died and restarts it. ReplicaSet controller replaces the pod. You sleep.</td></tr>
+      <tr><td><strong>Service discovery</strong></td><td>You hardcode IP addresses. Server gets replaced, IPs change, everything breaks.</td><td>Services provide stable DNS names and virtual IPs. <code>http://payments-api:8080</code> always works.</td></tr>
+      <tr><td><strong>Rolling deployments</strong></td><td>Deploy new version = downtime, or complex blue-green scripting.</td><td><code>kubectl set image</code> does a rolling update: new pods come up, old pods go down, zero downtime.</td></tr>
+      <tr><td><strong>Scaling</strong></td><td>You notice high CPU on the dashboard and manually add instances.</td><td>HPA watches metrics and scales replicas up/down automatically within seconds.</td></tr>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="control-plane">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — CONTROL PLANE</span>The brain of the cluster</h2>
+    <p class="lede reveal">The control plane is a set of processes that together maintain the desired state of the cluster. None of them run user workloads. All of them communicate exclusively through the API server — no component talks to etcd directly except the API server.</p>
+
+    <h3 class="reveal">The five control plane components</h3>
+
+    <table class="reveal">
+      <tr><th>Component</th><th>What it does</th><th>Where it runs</th></tr>
+      <tr><td><strong>kube-apiserver</strong></td><td>REST + gRPC front door. Validates all API objects. The only writer to etcd. Serves the watch stream. Enforces RBAC and admission control.</td><td>Control plane nodes (replicated 3×)</td></tr>
+      <tr><td><strong>etcd</strong></td><td>Distributed key-value store. Single source of truth for all cluster state. Raft consensus. Strong consistency guarantees. Every API object lives here.</td><td>Control plane nodes (replicated 3× or 5×)</td></tr>
+      <tr><td><strong>kube-scheduler</strong></td><td>Watches for unscheduled pods. Runs filter+score pipeline. Writes a Binding object to the API server. Does NOT start containers.</td><td>Control plane nodes (active-standby)</td></tr>
+      <tr><td><strong>kube-controller-manager</strong></td><td>Runs all the reconciliation loops: Deployment controller, ReplicaSet controller, Node controller, Endpoint controller, Job controller, and ~30 more. Each is a goroutine watching the API.</td><td>Control plane nodes (active-standby)</td></tr>
+      <tr><td><strong>cloud-controller-manager</strong></td><td>Talks to cloud provider APIs: provision LoadBalancer Services, attach persistent volumes, update Node objects with cloud metadata (instance type, region, zone).</td><td>Control plane nodes; optional if on-prem</td></tr>
+    </table>
+
+    <h3 class="reveal">How they communicate</h3>
+    <p class="reveal"><strong>The golden rule: every component communicates exclusively through the API server.</strong> The scheduler does not write to etcd. The controller manager does not call the scheduler. Every action is a write to the API server, which persists to etcd, which triggers a watch event, which wakes up the relevant controller or kubelet.</p>
+
+    <!-- ── CONTROL PLANE TOPOLOGY SVG ──────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 420" aria-label="Kubernetes control plane topology" style="overflow:hidden">
+      <defs>
+        <style>
+          .cp-node   { animation: cp-drop .5s ease both; }
+          .cp-node:nth-child(1) { animation-delay:.05s }
+          .cp-node:nth-child(2) { animation-delay:.15s }
+          .cp-node:nth-child(3) { animation-delay:.25s }
+          .cp-node:nth-child(4) { animation-delay:.35s }
+          .cp-node:nth-child(5) { animation-delay:.45s }
+          .cp-node:nth-child(6) { animation-delay:.55s }
+          .cp-edge  { stroke-dasharray:200; animation: cp-flow 1s ease both; }
+          .cp-edge:nth-child(1) { animation-delay:.7s }
+          .cp-edge:nth-child(2) { animation-delay:.9s }
+          .cp-edge:nth-child(3) { animation-delay:1.1s }
+          .cp-edge:nth-child(4) { animation-delay:1.3s }
+          .cp-edge:nth-child(5) { animation-delay:1.5s }
+          .cp-kubectl { animation: cp-drop .5s .1s ease both; }
+          .cp-kubelet { animation: cp-drop .5s .6s ease both; }
+          .cp-glow    { animation: cp-glow 3s 1.8s ease-in-out infinite; color:#0a8070; }
+        </style>
+        <marker id="cp-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#0a8070"/>
+        </marker>
+        <marker id="cp-arr2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#c97b1a"/>
+        </marker>
+      </defs>
+
+      <rect width="700" height="420" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="22" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">Kubernetes Control Plane — Components &amp; Communication Flow</text>
+
+      <!-- kubectl (left) -->
+      <g class="cp-kubectl">
+        <rect x="18" y="180" width="100" height="44" rx="6" fill="#1a1208"/>
+        <text x="68" y="197" text-anchor="middle" fill="#f7f4ee" font-size="9" font-weight="600" font-family="'DM Mono',monospace">kubectl</text>
+        <text x="68" y="212" text-anchor="middle" fill="#8f8672" font-size="9" font-family="'DM Mono',monospace">apply -f</text>
+      </g>
+      <!-- arrow kubectl → apiserver -->
+      <line x1="120" y1="202" x2="192" y2="202" stroke="#0a8070" stroke-width="2" marker-end="url(#cp-arr)" class="cp-edge"/>
+      <text x="156" y="196" text-anchor="middle" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">HTTPS</text>
+
+      <!-- API Server (center) - glowing because it's the hub -->
+      <g class="cp-node cp-glow">
+        <rect x="194" y="160" width="140" height="84" rx="8" fill="#f4fcfb" stroke="#0a8070" stroke-width="2.5"/>
+        <rect x="194" y="160" width="140" height="26" rx="8" fill="#0a8070"/>
+        <rect x="194" y="174" width="140" height="12" fill="#0a8070"/>
+        <text x="264" y="177" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'DM Mono',monospace">kube-apiserver</text>
+        <text x="264" y="199" text-anchor="middle" fill="#1a1208" font-size="9" font-family="'DM Mono',monospace">validate · auth</text>
+        <text x="264" y="213" text-anchor="middle" fill="#065a50" font-size="9" font-family="'DM Mono',monospace">write etcd · serve watch</text>
+        <text x="264" y="234" text-anchor="middle" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">RBAC · admission webhooks</text>
+      </g>
+
+      <!-- etcd (top-center) -->
+      <g class="cp-node">
+        <rect x="204" y="40" width="120" height="74" rx="8" fill="#fdf8ee" stroke="#c97b1a" stroke-width="2"/>
+        <rect x="204" y="40" width="120" height="24" rx="8" fill="#c97b1a"/>
+        <rect x="204" y="54" width="120" height="10" fill="#c97b1a"/>
+        <text x="264" y="57" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="'DM Mono',monospace">etcd</text>
+        <text x="264" y="80" text-anchor="middle" fill="#1a1208" font-size="9" font-family="'DM Mono',monospace">Raft consensus</text>
+        <text x="264" y="94" text-anchor="middle" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">3× or 5× replicated</text>
+        <text x="264" y="107" text-anchor="middle" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">single source of truth</text>
+      </g>
+      <!-- arrow apiserver ↔ etcd -->
+      <line x1="264" y1="160" x2="264" y2="116" stroke="#c97b1a" stroke-width="2" marker-end="url(#cp-arr2)" class="cp-edge"/>
+      <text x="276" y="142" fill="#8a5a1a" font-size="8" font-family="'DM Mono',monospace">read/write</text>
+
+      <!-- kube-scheduler (top-right) -->
+      <g class="cp-node">
+        <rect x="400" y="40" width="138" height="72" rx="8" fill="#f4fcfb" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="469" y="60" text-anchor="middle" fill="#065a50" font-size="9" font-weight="600" font-family="'DM Mono',monospace">kube-scheduler</text>
+        <text x="469" y="78" text-anchor="middle" fill="#3a5a52" font-size="9" font-family="'DM Mono',monospace">watch unscheduled pods</text>
+        <text x="469" y="92" text-anchor="middle" fill="#3a5a52" font-size="9" font-family="'DM Mono',monospace">filter → score → bind</text>
+        <text x="469" y="106" text-anchor="middle" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">active-standby HA</text>
+      </g>
+      <!-- arrow apiserver → scheduler (watch) -->
+      <line x1="334" y1="175" x2="398" y2="90" stroke="#0a8070" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#cp-arr)" class="cp-edge"/>
+      <text x="374" y="130" fill="#0a5a4a" font-size="8" font-family="'DM Mono',monospace">watch</text>
+
+      <!-- controller-manager (bottom-right) -->
+      <g class="cp-node">
+        <rect x="400" y="280" width="138" height="84" rx="8" fill="#fdf5f3" stroke="#b84c36" stroke-width="1.5"/>
+        <text x="469" y="300" text-anchor="middle" fill="#7a2a1a" font-size="9" font-weight="600" font-family="'DM Mono',monospace">controller-manager</text>
+        <text x="469" y="316" text-anchor="middle" fill="#6a3a30" font-size="9" font-family="'DM Mono',monospace">Deployment ctrl</text>
+        <text x="469" y="330" text-anchor="middle" fill="#6a3a30" font-size="9" font-family="'DM Mono',monospace">ReplicaSet ctrl</text>
+        <text x="469" y="344" text-anchor="middle" fill="#6a3a30" font-size="9" font-family="'DM Mono',monospace">Node ctrl · ~30 more</text>
+        <text x="469" y="358" text-anchor="middle" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">reconcile desired vs actual</text>
+      </g>
+      <!-- arrow apiserver → controller-manager (watch) -->
+      <line x1="334" y1="228" x2="398" y2="312" stroke="#b84c36" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#cp-arr2)" class="cp-edge"/>
+      <text x="374" y="268" fill="#7a2a1a" font-size="8" font-family="'DM Mono',monospace">watch</text>
+
+      <!-- cloud-controller-manager (bottom-center) -->
+      <g class="cp-node">
+        <rect x="194" y="296" width="140" height="68" rx="8" fill="#f5f5ff" stroke="#5050c0" stroke-width="1.5"/>
+        <text x="264" y="316" text-anchor="middle" fill="#3030a0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">cloud-controller</text>
+        <text x="264" y="332" text-anchor="middle" fill="#5050a0" font-size="9" font-family="'DM Mono',monospace">LoadBalancer provisioning</text>
+        <text x="264" y="346" text-anchor="middle" fill="#5050a0" font-size="9" font-family="'DM Mono',monospace">PV attachment</text>
+        <text x="264" y="360" text-anchor="middle" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">cloud provider API calls</text>
+      </g>
+      <!-- arrow apiserver → cloud-controller -->
+      <line x1="264" y1="246" x2="264" y2="294" stroke="#5050c0" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#cp-arr)" class="cp-edge"/>
+
+      <!-- kubelet (right - worker node) -->
+      <g class="cp-kubelet">
+        <rect x="570" y="168" width="116" height="84" rx="8" fill="#1a1208" stroke="#4a3a28" stroke-width="1"/>
+        <text x="628" y="188" text-anchor="middle" fill="#f7f4ee" font-size="9" font-weight="600" font-family="'DM Mono',monospace">kubelet</text>
+        <text x="628" y="204" text-anchor="middle" fill="#8f8672" font-size="9" font-family="'DM Mono',monospace">(worker node)</text>
+        <text x="628" y="218" text-anchor="middle" fill="#6a9988" font-size="9" font-family="'DM Mono',monospace">watch pod spec</text>
+        <text x="628" y="232" text-anchor="middle" fill="#6a9988" font-size="9" font-family="'DM Mono',monospace">pull → run → health</text>
+        <text x="628" y="246" text-anchor="middle" fill="#6a9988" font-size="9" font-family="'DM Mono',monospace">report status</text>
+      </g>
+      <!-- arrow apiserver ↔ kubelet -->
+      <line x1="336" y1="202" x2="568" y2="202" stroke="#0a8070" stroke-width="1.5" marker-end="url(#cp-arr)" class="cp-edge"/>
+      <text x="452" y="196" text-anchor="middle" fill="#0a5a4a" font-size="8" font-family="'DM Mono',monospace">watch pod spec / push status</text>
+
+      <!-- legend -->
+      <rect x="18" y="346" width="160" height="66" rx="4" fill="#fff" stroke="#e0d8cc" stroke-width="1"/>
+      <text x="26" y="362" fill="#1a1208" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Legend</text>
+      <line x1="26" y1="374" x2="60" y2="374" stroke="#0a8070" stroke-width="2"/>
+      <text x="66" y="377" fill="#3a3228" font-size="9" font-family="'DM Mono',monospace">direct write / watch</text>
+      <line x1="26" y1="390" x2="60" y2="390" stroke="#0a8070" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="66" y="393" fill="#3a3228" font-size="9" font-family="'DM Mono',monospace">watch (read-only)</text>
+      <line x1="26" y1="406" x2="60" y2="406" stroke="#c97b1a" stroke-width="2"/>
+      <text x="66" y="409" fill="#3a3228" font-size="9" font-family="'DM Mono',monospace">etcd r/w (API server only)</text>
+    </svg>
+
+    <div class="pull reveal">The API server is the only component that reads and writes etcd. Every other component — scheduler, controller manager, kubelet — communicates by watching the API server's gRPC stream and writing new objects back through the API. This indirection is not bureaucracy; it's how Kubernetes achieves exactly-once semantics, RBAC enforcement, and audit logging at every layer.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="the-node">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE NODE</span>What happens on a worker node</h2>
+    <p class="lede reveal">Every worker node runs three processes that together receive a pod spec and turn it into running containers.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>kubelet</dt><dd>The node agent. Watches the API server for pods scheduled to this node. For each pod: calls the container runtime (via CRI) to pull the image and create containers, mounts volumes, configures the network namespace via CNI, runs health probes, and reports status back to the API server every few seconds. <strong>The kubelet is the only process that actually starts containers.</strong></dd></div>
+      <div class="defrow"><dt>kube-proxy</dt><dd>Programs the node's network rules (iptables or IPVS) to implement Service routing. When a Service is created, kube-proxy watches the Endpoints object and writes iptables/IPVS rules so packets destined for the Service's ClusterIP get redirected to one of the healthy backing pods. Modern clusters use eBPF (Cilium) instead, replacing kube-proxy entirely.</dd></div>
+      <div class="defrow"><dt>container runtime (containerd / CRI-O)</dt><dd>The low-level runtime that speaks the Container Runtime Interface (CRI) gRPC protocol to kubelet. kubelet says "create this container with this image, these env vars, this resource limit." containerd pulls the image from the registry (OCI), creates the namespace isolation (using Linux namespaces + cgroups), and returns the container ID. Docker itself was removed as a supported runtime in Kubernetes 1.24.</dd></div>
+    </dl>
+
+    <h3 class="reveal">The kubectl apply → pod running sequence</h3>
+
+    <pre class="codeblock reveal"><code>kubectl apply -f deployment.yaml
+   │
+   ▼
+1. API SERVER receives HTTPS request
+   ├── Authentication: who are you? (x509 cert / bearer token / OIDC)
+   ├── Authorization: are you allowed? (RBAC check)
+   ├── Admission control: is this valid? (ValidatingWebhookConfiguration + MutatingWebhookConfiguration)
+   ├── Schema validation: is this a valid Deployment spec?
+   └── Write to etcd: /registry/deployments/default/my-app  (resource_version increments)
+
+2. DEPLOYMENT CONTROLLER (in controller-manager) notices new Deployment via watch
+   └── Creates a ReplicaSet object:  /registry/replicasets/default/my-app-6d4f9c7b2
+
+3. REPLICASET CONTROLLER notices new ReplicaSet
+   └── Creates 3 Pod objects, each with spec.nodeName = "" (unscheduled)
+       /registry/pods/default/my-app-6d4f9c7b2-xk9p2
+       /registry/pods/default/my-app-6d4f9c7b2-m7q4r
+       /registry/pods/default/my-app-6d4f9c7b2-p3n8s
+
+4. SCHEDULER notices unscheduled pods via watch (spec.nodeName == "")
+   ├── FILTER phase: remove nodes that cannot run this pod
+   │     - PodFitsResources: does node have enough CPU/memory?
+   │     - PodFitsHostPorts: is the host port available?
+   │     - MatchNodeSelector: do labels match nodeSelector/nodeAffinity?
+   │     - NoTaint / Toleration: are taints tolerated?
+   │     - VolumeZoneConformance: is the PV zone compatible?
+   ├── SCORE phase: rank remaining feasible nodes (0–100)
+   │     - LeastRequestedPriority: prefer nodes with most free resources
+   │     - BalancedResourceAllocation: balance CPU and memory usage
+   │     - NodeAffinityPriority: prefer nodes matching preferred affinity
+   └── BIND: writes Binding object → API server sets spec.nodeName = "node-42"
+
+5. KUBELET on node-42 notices a pod bound to it via watch
+   ├── Calls containerd via CRI: "create sandbox" (pause container for network namespace)
+   ├── CNI plugin configures pod network (assigns IP from pod CIDR)
+   ├── Calls containerd: "pull image" → overlay filesystem layers stacked
+   ├── Calls containerd: "create containers" → cgroups + namespaces set up
+   ├── Calls containerd: "start containers"
+   ├── Runs init containers sequentially (if any), then all regular containers in parallel
+   ├── Starts liveness/readiness/startup probes
+   └── Updates pod status in API server: phase=Running, podIP=10.244.42.15
+
+6. ENDPOINT SLICE CONTROLLER notices pod is Running + Ready
+   └── Adds pod IP to EndpointSlice for all matching Services
+
+7. kube-proxy on every node notices updated EndpointSlice
+   └── Reprograms iptables/IPVS rules — traffic can now reach the new pod
+
+Total time from kubectl apply to pod running: ~2–10 seconds (image pre-pulled) or ~30–90s (cold pull)</code></pre>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="pod-lifecycle">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — POD LIFECYCLE</span>States, probes, and init containers</h2>
+    <p class="lede reveal">A pod transitions through a well-defined set of states, and the probes that kubelet runs determine when a pod is considered healthy — and when it is evicted or restarted.</p>
+
+    <!-- ── POD STATE MACHINE SVG ─────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 360" aria-label="Kubernetes pod state machine" style="overflow:hidden">
+      <defs>
+        <style>
+          .ps-state { animation: ps-appear .4s ease both; }
+          .ps-state:nth-child(1) { animation-delay:.05s }
+          .ps-state:nth-child(2) { animation-delay:.20s }
+          .ps-state:nth-child(3) { animation-delay:.35s }
+          .ps-state:nth-child(4) { animation-delay:.50s }
+          .ps-state:nth-child(5) { animation-delay:.65s }
+          .ps-trans { stroke-dasharray:120; animation: ps-arrow .6s ease both; }
+          .ps-trans:nth-child(1) { animation-delay:.80s }
+          .ps-trans:nth-child(2) { animation-delay:.95s }
+          .ps-trans:nth-child(3) { animation-delay:1.10s }
+          .ps-trans:nth-child(4) { animation-delay:1.25s }
+          .ps-trans:nth-child(5) { animation-delay:1.40s }
+          .ps-trans:nth-child(6) { animation-delay:1.55s }
+          .ps-running { animation: ps-blink 2s 1.8s ease-in-out infinite; }
+        </style>
+        <marker id="ps-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#5a4e3a"/>
+        </marker>
+        <marker id="ps-arrG" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#0a8070"/>
+        </marker>
+        <marker id="ps-arrR" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#b84c36"/>
+        </marker>
+      </defs>
+
+      <rect width="700" height="360" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="22" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">Kubernetes Pod State Machine</text>
+
+      <!-- PENDING state -->
+      <g class="ps-state">
+        <rect x="20" y="130" width="110" height="52" rx="8" fill="#fff8e8" stroke="#c97b1a" stroke-width="2"/>
+        <text x="75" y="152" text-anchor="middle" fill="#7a5a1a" font-size="11" font-weight="600" font-family="'DM Mono',monospace">PENDING</text>
+        <text x="75" y="168" text-anchor="middle" fill="#8a7a5a" font-size="8.5" font-family="'DM Mono',monospace">waiting for</text>
+        <text x="75" y="178" text-anchor="middle" fill="#8a7a5a" font-size="8.5" font-family="'DM Mono',monospace">scheduling / image</text>
+      </g>
+
+      <!-- arrow PENDING → RUNNING -->
+      <line x1="132" y1="156" x2="246" y2="156" stroke="#0a8070" stroke-width="2" marker-end="url(#ps-arrG)" class="ps-trans"/>
+      <text x="189" y="148" text-anchor="middle" fill="#065a50" font-size="8" font-family="'DM Mono',monospace">scheduled + started</text>
+
+      <!-- RUNNING state (blinking) -->
+      <g class="ps-state">
+        <rect x="248" y="120" width="120" height="72" rx="8" fill="#e8f7f5" stroke="#0a8070" stroke-width="2.5" class="ps-running"/>
+        <text x="308" y="143" text-anchor="middle" fill="#065a50" font-size="11" font-weight="600" font-family="'DM Mono',monospace">RUNNING</text>
+        <text x="308" y="159" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">at least 1 container</text>
+        <text x="308" y="171" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">running</text>
+        <text x="308" y="184" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">liveness probes run</text>
+      </g>
+
+      <!-- arrow RUNNING → SUCCEEDED -->
+      <line x1="370" y1="140" x2="490" y2="76" stroke="#0a8070" stroke-width="1.5" marker-end="url(#ps-arrG)" class="ps-trans"/>
+      <text x="438" y="102" text-anchor="middle" fill="#065a50" font-size="8" font-family="'DM Mono',monospace">all containers exited 0</text>
+
+      <!-- SUCCEEDED state -->
+      <g class="ps-state">
+        <rect x="492" y="44" width="110" height="52" rx="8" fill="#e8f7f0" stroke="#2a8050" stroke-width="2"/>
+        <text x="547" y="66" text-anchor="middle" fill="#1a6040" font-size="11" font-weight="600" font-family="'DM Mono',monospace">SUCCEEDED</text>
+        <text x="547" y="82" text-anchor="middle" fill="#4a9070" font-size="8.5" font-family="'DM Mono',monospace">all containers</text>
+        <text x="547" y="92" text-anchor="middle" fill="#4a9070" font-size="8.5" font-family="'DM Mono',monospace">completed OK</text>
+      </g>
+
+      <!-- arrow RUNNING → FAILED -->
+      <line x1="370" y1="172" x2="490" y2="236" stroke="#b84c36" stroke-width="1.5" marker-end="url(#ps-arrR)" class="ps-trans"/>
+      <text x="438" y="213" text-anchor="middle" fill="#7a2a1a" font-size="8" font-family="'DM Mono',monospace">container exited non-0</text>
+      <text x="438" y="224" text-anchor="middle" fill="#7a2a1a" font-size="8" font-family="'DM Mono',monospace">liveness probe failed</text>
+
+      <!-- FAILED state -->
+      <g class="ps-state">
+        <rect x="492" y="214" width="110" height="52" rx="8" fill="#fdf0ee" stroke="#b84c36" stroke-width="2"/>
+        <text x="547" y="236" text-anchor="middle" fill="#7a2a1a" font-size="11" font-weight="600" font-family="'DM Mono',monospace">FAILED</text>
+        <text x="547" y="252" text-anchor="middle" fill="#8a5a5a" font-size="8.5" font-family="'DM Mono',monospace">container exited</text>
+        <text x="547" y="262" text-anchor="middle" fill="#8a5a5a" font-size="8.5" font-family="'DM Mono',monospace">non-zero</text>
+      </g>
+
+      <!-- UNKNOWN state -->
+      <g class="ps-state">
+        <rect x="248" y="276" width="120" height="52" rx="8" fill="#f5f4ff" stroke="#8080c0" stroke-width="1.5"/>
+        <text x="308" y="298" text-anchor="middle" fill="#4a4a8a" font-size="11" font-weight="600" font-family="'DM Mono',monospace">UNKNOWN</text>
+        <text x="308" y="314" text-anchor="middle" fill="#6a6aaa" font-size="8.5" font-family="'DM Mono',monospace">lost contact</text>
+        <text x="308" y="324" text-anchor="middle" fill="#6a6aaa" font-size="8.5" font-family="'DM Mono',monospace">with node</text>
+      </g>
+
+      <!-- arrow RUNNING → UNKNOWN -->
+      <line x1="308" y1="194" x2="308" y2="274" stroke="#8080c0" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ps-arr)" class="ps-trans"/>
+      <text x="322" y="240" fill="#5a5aaa" font-size="8" font-family="'DM Mono',monospace">node timeout</text>
+
+      <!-- restart loop arrow (FAILED → RUNNING via restart) -->
+      <path d="M 492 240 Q 440 310 370 180" fill="none" stroke="#c97b1a" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ps-arr)" class="ps-trans"/>
+      <text x="406" y="278" fill="#8a5a1a" font-size="8" font-family="'DM Mono',monospace">restartPolicy=Always</text>
+      <text x="406" y="290" fill="#8a5a1a" font-size="8" font-family="'DM Mono',monospace">(exponential backoff)</text>
+
+      <!-- probes legend -->
+      <rect x="18" y="258" width="210" height="92" rx="4" fill="#fff" stroke="#e0d8cc" stroke-width="1"/>
+      <text x="26" y="275" fill="#0a8070" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Probes (kubelet runs these)</text>
+      <text x="26" y="291" fill="#3a3228" font-size="8.5" font-family="'DM Mono',monospace">liveness  — is container still alive?</text>
+      <text x="26" y="303" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">           FAIL → restart container</text>
+      <text x="26" y="319" fill="#3a3228" font-size="8.5" font-family="'DM Mono',monospace">readiness — ready for traffic?</text>
+      <text x="26" y="331" fill="#5a4e3a" font-size="8" font-family="'DM Mono',monospace">           FAIL → removed from Service endpoints</text>
+      <text x="26" y="347" fill="#3a3228" font-size="8.5" font-family="'DM Mono',monospace">startup   — one-time boot grace period</text>
+    </svg>
+
+    <h3 class="reveal">Init containers and sidecars</h3>
+
+    <table class="reveal">
+      <tr><th>Container type</th><th>Runs when</th><th>Purpose</th><th>Failure behavior</th></tr>
+      <tr><td><strong>Init container</strong></td><td>Before any regular container, sequentially</td><td>Database migration, config pre-fetch, wait-for-dependency. Completes then exits.</td><td>Pod stays Pending; RestartPolicy applies to init containers too</td></tr>
+      <tr><td><strong>Sidecar container</strong></td><td>Alongside main container (K8s 1.29+ native; otherwise just a regular container)</td><td>Log forwarding (Fluentd), proxy (Envoy/Istio), metrics exporter, secret sync</td><td>Independent restart; does not terminate when main container exits (native sidecar does)</td></tr>
+      <tr><td><strong>Ephemeral container</strong></td><td>On-demand, live container debug</td><td><code>kubectl debug</code> injects a debug container into a running pod without restarting it</td><td>Debugging only — not in pod spec, not restarted</td></tr>
+    </table>
+
+    <pre class="codeblock reveal"><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payments-api
+  template:
+    metadata:
+      labels:
+        app: payments-api
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z postgres:5432; do sleep 2; done']
+
+      containers:
+        - name: payments-api
+          image: company/payments-api:v2.1.4
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:               # used for scheduling bin-packing
+              cpu: "500m"
+              memory: "512Mi"
+            limits:                 # enforced by cgroups; OOM-kill at limit
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:            # fail → restart container
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:           # fail → removed from Service endpoints
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          startupProbe:             # one-time: disables liveness until /startup returns 200
+            httpGet:
+              path: /startup
+              port: 8080
+            failureThreshold: 30   # 30 × 10s = 5 minute grace window for slow start
+            periodSeconds: 10</code></pre>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="networking">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — NETWORKING</span>Flat pods, Services, Ingress, DNS</h2>
+    <p class="lede reveal">Kubernetes networking rests on one core assumption: every pod has a unique IP, and every pod can reach every other pod directly, without NAT. Everything else — Services, Ingress, NetworkPolicy — is built on top of that flat network.</p>
+
+    <h3 class="reveal">The four networking layers</h3>
+
+    <table class="reveal">
+      <tr><th>Layer</th><th>What it provides</th><th>How it works</th></tr>
+      <tr><td><strong>Pod networking (CNI)</strong></td><td>Pod-to-pod IP reachability across nodes. Every pod gets a real IP from the cluster's pod CIDR (e.g., 10.244.0.0/16).</td><td>CNI plugin (Calico, Cilium, Flannel) assigns IPs, sets up routes or VXLAN overlays, programs the kernel. kubelet calls the CNI binary at pod creation/deletion.</td></tr>
+      <tr><td><strong>Service (ClusterIP)</strong></td><td>Stable virtual IP + DNS name for a set of pods. <code>http://payments-api:8080</code> always resolves to the same ClusterIP, even as pods cycle.</td><td>kube-proxy watches Endpoints and programs iptables DNAT rules: ClusterIP → one of the healthy pod IPs (round-robin). Or IPVS for high performance. Or eBPF (Cilium).</td></tr>
+      <tr><td><strong>NodePort / LoadBalancer</strong></td><td>Expose a Service outside the cluster. NodePort binds a port on every node. LoadBalancer provisions a cloud LB in front.</td><td>NodePort: kube-proxy opens the port on all nodes. LoadBalancer: cloud-controller-manager calls the cloud API (AWS ELB, GCP LB) to create the load balancer and update its targets.</td></tr>
+      <tr><td><strong>Ingress</strong></td><td>Layer-7 HTTP routing: route <code>/api/*</code> to one Service, <code>/static/*</code> to another, by hostname. TLS termination.</td><td>An Ingress controller (nginx-ingress, Traefik, AWS ALB Ingress) watches Ingress objects and reprograms its own routing config. Kubernetes defines the Ingress API; you install the controller.</td></tr>
+    </table>
+
+    <h3 class="reveal">DNS: CoreDNS</h3>
+    <p class="reveal">Every pod gets <code>/etc/resolv.conf</code> pointing at CoreDNS (a cluster-internal DNS server). CoreDNS resolves:</p>
+    <ul class="reveal" style="font-family:'DM Mono',monospace;font-size:13px;line-height:2;padding-left:24px;">
+      <li><code>payments-api</code> → ClusterIP of the payments-api Service in the same namespace</li>
+      <li><code>payments-api.default.svc.cluster.local</code> → ClusterIP (fully-qualified)</li>
+      <li>Headless Services (<code>clusterIP: None</code>) → A records for each pod IP directly (used for StatefulSets, Kafka brokers, etc.)</li>
+    </ul>
+
+    <!-- ── NETWORKING FLOW SVG ───────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 380" aria-label="Kubernetes networking flow" style="overflow:hidden">
+      <defs>
+        <style>
+          .nf-box { animation: nf-fadeIn .45s ease both; }
+          .nf-box:nth-child(1) { animation-delay:.05s }
+          .nf-box:nth-child(2) { animation-delay:.18s }
+          .nf-box:nth-child(3) { animation-delay:.31s }
+          .nf-box:nth-child(4) { animation-delay:.44s }
+          .nf-box:nth-child(5) { animation-delay:.57s }
+          .nf-box:nth-child(6) { animation-delay:.70s }
+          .nf-flow { stroke-dasharray:500; animation: nf-flow 1.4s ease both; }
+          .nf-flow:nth-child(1) { animation-delay:.90s }
+          .nf-flow:nth-child(2) { animation-delay:1.10s }
+          .nf-flow:nth-child(3) { animation-delay:1.30s }
+          .nf-flow:nth-child(4) { animation-delay:1.50s }
+          .nf-flow:nth-child(5) { animation-delay:1.70s }
+        </style>
+        <marker id="nf-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#0a8070"/>
+        </marker>
+      </defs>
+
+      <rect width="700" height="380" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="22" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">Client → Ingress → Service → Pod: Packet Flow</text>
+
+      <!-- Internet / Client -->
+      <g class="nf-box">
+        <rect x="14" y="140" width="90" height="50" rx="6" fill="#1a1208"/>
+        <text x="59" y="160" text-anchor="middle" fill="#f7f4ee" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Client</text>
+        <text x="59" y="175" text-anchor="middle" fill="#8f8672" font-size="8" font-family="'DM Mono',monospace">api.example.com</text>
+      </g>
+
+      <!-- Ingress / LB -->
+      <g class="nf-box">
+        <rect x="128" y="120" width="110" height="90" rx="6" fill="#f0fcfa" stroke="#0a8070" stroke-width="2"/>
+        <text x="183" y="143" text-anchor="middle" fill="#065a50" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Ingress</text>
+        <text x="183" y="158" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">nginx / ALB</text>
+        <text x="183" y="173" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">TLS termination</text>
+        <text x="183" y="187" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">/api → svc-api</text>
+        <text x="183" y="201" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">/static → svc-cdn</text>
+      </g>
+
+      <!-- Service -->
+      <g class="nf-box">
+        <rect x="268" y="130" width="120" height="72" rx="6" fill="#fff8ee" stroke="#c97b1a" stroke-width="2"/>
+        <text x="328" y="153" text-anchor="middle" fill="#7a5a1a" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Service</text>
+        <text x="328" y="169" text-anchor="middle" fill="#8a6a3a" font-size="8.5" font-family="'DM Mono',monospace">ClusterIP: 10.96.0.10</text>
+        <text x="328" y="183" text-anchor="middle" fill="#8a6a3a" font-size="8.5" font-family="'DM Mono',monospace">kube-proxy iptables</text>
+        <text x="328" y="196" text-anchor="middle" fill="#8a6a3a" font-size="8.5" font-family="'DM Mono',monospace">DNAT → pod IP</text>
+      </g>
+
+      <!-- Pod 1 -->
+      <g class="nf-box">
+        <rect x="428" y="60" width="110" height="54" rx="6" fill="#e8f7f5" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="483" y="82" text-anchor="middle" fill="#065a50" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Pod A</text>
+        <text x="483" y="97" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">10.244.1.4:8080</text>
+        <text x="483" y="108" text-anchor="middle" fill="#6a9a90" font-size="8" font-family="'DM Mono',monospace">Ready ✓</text>
+      </g>
+
+      <!-- Pod 2 -->
+      <g class="nf-box">
+        <rect x="428" y="148" width="110" height="54" rx="6" fill="#e8f7f5" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="483" y="170" text-anchor="middle" fill="#065a50" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Pod B</text>
+        <text x="483" y="185" text-anchor="middle" fill="#3a7a70" font-size="8.5" font-family="'DM Mono',monospace">10.244.2.7:8080</text>
+        <text x="483" y="196" text-anchor="middle" fill="#6a9a90" font-size="8" font-family="'DM Mono',monospace">Ready ✓</text>
+      </g>
+
+      <!-- Pod 3 (not ready) -->
+      <g class="nf-box">
+        <rect x="428" y="236" width="110" height="54" rx="6" fill="#fff5f5" stroke="#b84c36" stroke-width="1.5"/>
+        <text x="483" y="258" text-anchor="middle" fill="#7a2a1a" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Pod C</text>
+        <text x="483" y="273" text-anchor="middle" fill="#8a5a5a" font-size="8.5" font-family="'DM Mono',monospace">10.244.3.2:8080</text>
+        <text x="483" y="284" text-anchor="middle" fill="#aa4444" font-size="8" font-family="'DM Mono',monospace">Not Ready ✗</text>
+      </g>
+
+      <!-- CoreDNS -->
+      <g class="nf-box">
+        <rect x="268" y="270" width="120" height="60" rx="6" fill="#f5f5ff" stroke="#5050c0" stroke-width="1.5"/>
+        <text x="328" y="292" text-anchor="middle" fill="#3030a0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">CoreDNS</text>
+        <text x="328" y="307" text-anchor="middle" fill="#5050a0" font-size="8.5" font-family="'DM Mono',monospace">svc-api.default.svc</text>
+        <text x="328" y="320" text-anchor="middle" fill="#5050a0" font-size="8.5" font-family="'DM Mono',monospace">.cluster.local</text>
+        <text x="328" y="322" text-anchor="middle" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">→ 10.96.0.10</text>
+      </g>
+
+      <!-- Flow arrows -->
+      <!-- Client → Ingress -->
+      <line x1="106" y1="165" x2="126" y2="165" stroke="#0a8070" stroke-width="2" marker-end="url(#nf-arr)" class="nf-flow"/>
+      <!-- Ingress → Service -->
+      <line x1="240" y1="165" x2="266" y2="165" stroke="#0a8070" stroke-width="2" marker-end="url(#nf-arr)" class="nf-flow"/>
+      <!-- Service → Pod A -->
+      <line x1="390" y1="154" x2="426" y2="100" stroke="#0a8070" stroke-width="2" marker-end="url(#nf-arr)" class="nf-flow"/>
+      <!-- Service → Pod B -->
+      <line x1="390" y1="166" x2="426" y2="174" stroke="#0a8070" stroke-width="2" marker-end="url(#nf-arr)" class="nf-flow"/>
+      <!-- Service DOES NOT route to Pod C (not ready) -->
+      <line x1="390" y1="180" x2="426" y2="248" stroke="#b84c36" stroke-width="1.5" stroke-dasharray="5 3" class="nf-flow"/>
+      <text x="408" y="220" text-anchor="middle" fill="#b84c36" font-size="8" font-family="'DM Mono',monospace">excluded</text>
+      <text x="408" y="230" text-anchor="middle" fill="#b84c36" font-size="8" font-family="'DM Mono',monospace">(not ready)</text>
+
+      <!-- DNS annotation -->
+      <text x="130" y="304" fill="#3a3228" font-size="8.5" font-family="'DM Mono',monospace">DNS lookup:</text>
+      <text x="130" y="316" fill="#5050c0" font-size="8.5" font-family="'DM Mono',monospace">svc-api:8080</text>
+      <line x1="246" y1="300" x2="268" y2="300" stroke="#5050c0" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#nf-arr)"/>
+
+      <!-- endpoint controller annotation -->
+      <rect x="548" y="140" width="138" height="52" rx="4" fill="#fff" stroke="#e0d8cc" stroke-width="1"/>
+      <text x="556" y="157" fill="#3a3228" font-size="8.5" font-family="'DM Mono',monospace">EndpointSlice controller</text>
+      <text x="556" y="171" fill="#0a5a4a" font-size="8" font-family="'DM Mono',monospace">adds Pod A, B to slice</text>
+      <text x="556" y="183" fill="#aa4444" font-size="8" font-family="'DM Mono',monospace">excludes Pod C (not ready)</text>
+    </svg>
+
+    <div class="pull reveal">Readiness probe is the key to zero-downtime deployments. When a new pod fails its readiness probe, it is never added to the Service's EndpointSlice — traffic never reaches it. Only once it passes readiness does traffic flow. Combined with rolling update strategy (maxUnavailable=0), every request is served by a healthy pod throughout the deployment.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="schema-design">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — SCHEMA DESIGN</span>etcd as a distributed database</h2>
+    <p class="lede reveal">Kubernetes stores every object in etcd as a key-value pair. Understanding the key schema and the watch mechanism is understanding why Kubernetes is architecturally elegant — and where its scalability limits lie.</p>
+
+    <h3 class="reveal">The etcd key schema</h3>
+
+    <pre class="codeblock reveal"><code># etcd key format: /registry/{resource-type}/{namespace}/{name}
+
+/registry/pods/default/payments-api-6d4f9c7b2-xk9p2
+/registry/pods/kube-system/coredns-74ff55c5b-4rz8k
+/registry/deployments/default/payments-api
+/registry/replicasets/default/payments-api-6d4f9c7b2
+/registry/services/default/payments-api
+/registry/endpoints/default/payments-api          # being replaced by EndpointSlices
+/registry/endpointslices/default/payments-api-xz9k
+/registry/configmaps/default/payments-api-config
+/registry/secrets/default/payments-api-tls
+/registry/nodes/node-42                           # cluster-scoped, no namespace
+/registry/namespaces/production                   # cluster-scoped
+
+# Value: serialized protobuf (not JSON, despite the API accepting JSON)
+# Each write atomically increments the resource_version (cluster-wide monotonic counter)</code></pre>
+
+    <h3 class="reveal">The watch mechanism — Kubernetes as a distributed pub/sub</h3>
+    <p class="reveal">This is the most important architectural insight in Kubernetes. <strong>The entire system is an event-driven, watch-driven pub/sub built on top of a key-value store.</strong></p>
+
+    <pre class="codeblock reveal"><code># etcd watch API (simplified)
+# Every component establishes a long-lived gRPC watch to the API server
+
+# The scheduler watches for unscheduled pods:
+GET /api/v1/pods?fieldSelector=spec.nodeName=&watch=true&resourceVersion=12345
+# → receives a stream of ADDED/MODIFIED/DELETED events
+
+# The Deployment controller watches Deployments:
+GET /apis/apps/v1/deployments?watch=true&resourceVersion=12345
+
+# Each kubelet watches pods assigned to its node:
+GET /api/v1/pods?fieldSelector=spec.nodeName=node-42&watch=true
+
+# The critical insight: API server maintains ONE watch connection to etcd
+# and fans out watch events to the potentially THOUSANDS of watchers.
+# This "reflector + informer + workqueue" pattern appears in every K8s component:
+
+# Informer lifecycle:
+# 1. LIST all objects at startup (paginated, 500 at a time)
+# 2. Sync the local in-memory cache
+# 3. WATCH from the last seen resourceVersion
+# 4. On reconnect, resume from last resourceVersion (no full re-list if etcd has the history)
+# 5. If resourceVersion is too old (etcd compacted), fall back to full re-LIST
+
+# resourceVersion is the etcd revision number — a cluster-wide monotonic integer.
+# It enables optimistic concurrency:
+# GET pod → resource_version=5000
+# PUT pod (modify) with resourceVersion=5000
+# → API server checks: current etcd revision == 5000? If not (someone else wrote), return 409 Conflict
+# This is etcd's compare-and-swap used to prevent lost updates.</code></pre>
+
+    <h3 class="reveal">What if you replaced etcd with PostgreSQL?</h3>
+    <p class="reveal">This is a real interview question. etcd is Kubernetes' weakest scalability point — it tops out around 8GB of data and ~3,000 writes/sec. The question forces you to articulate what etcd actually provides.</p>
+
+    <table class="reveal">
+      <tr><th>Feature</th><th>etcd provides</th><th>PostgreSQL equivalent</th></tr>
+      <tr><td>Consistent reads</td><td>Linearizable reads via Raft — always reads the latest committed value</td><td><code>SET TRANSACTION ISOLATION LEVEL SERIALIZABLE</code> or <code>SELECT FOR UPDATE</code></td></tr>
+      <tr><td>Watch / Change Notification</td><td>gRPC streaming watch: efficient long-lived watch on key prefixes</td><td><code>LISTEN/NOTIFY</code> + logical replication slots; much more complex to fan out</td></tr>
+      <tr><td>Optimistic concurrency</td><td>resourceVersion CAS on write: <code>txn(compare(rev,5000)).put(k,v)</code></td><td><code>WHERE xmin = $1</code> optimistic locking or <code>SELECT FOR UPDATE</code></td></tr>
+      <tr><td>Lease / TTL keys</td><td>etcd leases: key expires if lessor doesn't renew (heartbeat)</td><td>Scheduled job to expire rows; no native push notification on expiry</td></tr>
+      <tr><td>Cluster-wide monotonic revision</td><td>Every write increments a global revision counter</td><td>PostgreSQL <code>txid_current()</code> / sequences; monotonic per-table not cluster-wide</td></tr>
+    </table>
+
+    <p class="reveal">The K8s community built <strong>kine</strong> — a shim that lets Kubernetes use MySQL, PostgreSQL, or SQLite as the backing store instead of etcd. K3s uses SQLite for single-node installs via kine. The watch API is the hardest part to replicate — kine implements it via polling + NOTIFY.</p>
+
+    <div class="pull reveal">etcd's watch API is what makes the reconciliation loop pattern efficient. Without long-lived watches, controllers would have to poll the API server every second — generating 100× the traffic. The watch stream means a controller receives exactly the events it cares about, the instant they happen, with no polling overhead. This is the core reason Kubernetes chose etcd over a relational database.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="scheduling">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — SCHEDULING</span>Placing pods at scale</h2>
+    <p class="lede reveal">The scheduler's job is to assign each pending pod to a node that can run it. At 10,000 nodes, evaluating every node for every pod would be too slow. The solution is a two-phase pipeline with sampling.</p>
+
+    <h3 class="reveal">The filter → score → bind pipeline</h3>
+
+    <pre class="codeblock reveal"><code>For each unscheduled pod:
+
+PHASE 1: FILTER (predicates — binary pass/fail)
+  Remove nodes that CANNOT run this pod:
+  ├── PodFitsResources        cpu+memory requests fit within allocatable capacity
+  ├── PodFitsHostPorts        no port conflict on the node
+  ├── MatchNodeSelector       node labels match pod's nodeSelector / nodeAffinity
+  ├── NoDiskConflict          required volumes can be attached
+  ├── NoVolumeZoneConflict    PV zone matches node zone
+  ├── MaxEBSVolumeCount       AWS: max 39 EBS volumes per node
+  ├── MatchInterPodAffinity   pod can coexist with existing pods on this node
+  ├── PodToleratesNodeTaints  pod tolerates all NoSchedule taints on the node
+  └── (... 20+ predicates total)
+
+  Result: feasibleNodes (could be 0 → Pending, or 1–N)
+
+PHASE 2: SCORE (priorities — 0–100 per node)
+  Rank feasible nodes to pick the best:
+  ├── LeastRequestedPriority      (100 - (cpu% + mem%) / 2) — prefer emptier nodes
+  ├── BalancedResourceAllocation  penalize imbalanced cpu:memory ratio
+  ├── NodeAffinityPriority        weight preferred node affinity rules
+  ├── InterPodAffinityPriority    prefer/avoid nodes with specific pods
+  ├── ImageLocalityPriority       bonus for nodes that already have the image cached
+  └── (custom plugins via Scheduling Framework)
+
+  Result: scored nodes sorted descending
+
+PHASE 3: BIND
+  Selected node → create Binding object via API server
+  API server: SET spec.nodeName = "node-42" in etcd
+  This is a compare-and-swap — if two schedulers race, one wins, one gets 409 Conflict
+
+──────────────────────────────────────────────────────────────────────
+10,000-NODE PERFORMANCE TRICK: SAMPLING
+
+  Instead of scoring ALL 10,000 feasible nodes:
+  percentageOfNodesToScore: 50   (default in large clusters)
+  → after passing filters, randomly sample min(50%, 100 nodes) for scoring
+  → scoring phase runs on ~100 nodes, not 10,000
+  → worst case: slightly suboptimal placement
+  → benefit: scheduling latency stays &lt;5ms per pod
+
+  The scheduler also runs in parallel goroutines — ~16 pods scheduled concurrently.</code></pre>
+
+    <h3 class="reveal">Advanced scheduling constraints</h3>
+
+    <pre class="codeblock reveal"><code># Node affinity — require or prefer nodes by label
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:   # hard requirement
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values: [us-east-1a, us-east-1b]
+    preferredDuringSchedulingIgnoredDuringExecution:  # soft preference
+      - weight: 80
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values: [high-memory]
+
+# Pod anti-affinity — spread pods across zones (prevent all replicas on one node)
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app: payments-api
+        topologyKey: kubernetes.io/hostname   # no two replicas on same node
+
+# Topology spread constraints (K8s 1.19+) — more flexible than anti-affinity
+topologySpreadConstraints:
+  - maxSkew: 1                               # max 1 replica difference between zones
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app: payments-api
+
+# Taints and tolerations — reserve nodes for specific workloads
+# Node: kubectl taint nodes gpu-node-01 dedicated=gpu:NoSchedule
+# Pod tolerates the taint:
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: gpu
+    effect: NoSchedule</code></pre>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="autoscaling">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — AUTOSCALING</span>HPA, VPA, and Cluster Autoscaler</h2>
+    <p class="lede reveal">Kubernetes has three layers of autoscaling, each operating at a different timescale and on different resources.</p>
+
+    <table class="reveal">
+      <tr><th>Scaler</th><th>What it scales</th><th>Trigger</th><th>Latency</th></tr>
+      <tr><td><strong>HPA</strong> (Horizontal Pod Autoscaler)</td><td>Number of replicas in a Deployment/StatefulSet</td><td>CPU utilization, memory, or custom metrics (KEDA for queue depth, RPS, etc.)</td><td>30–60 seconds (scrape interval 15s + decision cooldown)</td></tr>
+      <tr><td><strong>VPA</strong> (Vertical Pod Autoscaler)</td><td>CPU and memory requests/limits of existing pods</td><td>Historical utilization; recommends right-sizing</td><td>Minutes to hours; usually requires pod restart</td></tr>
+      <tr><td><strong>Cluster Autoscaler</strong></td><td>Number of nodes in the cluster</td><td>Pods stuck in Pending (no room) → scale up; underutilized nodes → scale down</td><td>Scale-up: 1–3 minutes (node provisioning). Scale-down: 10+ minutes (safety margin)</td></tr>
+    </table>
+
+    <!-- ── HPA FEEDBACK LOOP SVG ──────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 320" aria-label="HPA feedback loop" style="overflow:hidden;max-width:640px">
+      <defs>
+        <style>
+          .ha-node { animation: ha-appear .45s ease both; }
+          .ha-node:nth-child(1) { animation-delay:.05s }
+          .ha-node:nth-child(2) { animation-delay:.22s }
+          .ha-node:nth-child(3) { animation-delay:.39s }
+          .ha-node:nth-child(4) { animation-delay:.56s }
+          .ha-node:nth-child(5) { animation-delay:.73s }
+          .ha-edge { stroke-dasharray:300; animation: ha-arrow 1s ease both; }
+          .ha-edge:nth-child(1) { animation-delay:.90s }
+          .ha-edge:nth-child(2) { animation-delay:1.10s }
+          .ha-edge:nth-child(3) { animation-delay:1.30s }
+          .ha-edge:nth-child(4) { animation-delay:1.50s }
+          .ha-dot  { animation: ha-pulse 2s 2s ease-in-out infinite; }
+        </style>
+        <marker id="ha-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#0a8070"/>
+        </marker>
+      </defs>
+
+      <rect width="700" height="320" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="22" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">HPA Feedback Loop — Horizontal Pod Autoscaler</text>
+
+      <!-- Pods (left) -->
+      <g class="ha-node">
+        <rect x="20" y="100" width="110" height="100" rx="8" fill="#e8f7f5" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="75" y="123" text-anchor="middle" fill="#065a50" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Deployment</text>
+        <text x="75" y="140" text-anchor="middle" fill="#3a7a70" font-size="9" font-family="'DM Mono',monospace">replicas: 3</text>
+        <rect x="34" y="150" width="82" height="16" rx="3" fill="#0a8070"/>
+        <text x="75" y="162" text-anchor="middle" fill="#fff" font-size="8" font-family="'DM Mono',monospace">🟦 🟦 🟦 Pods</text>
+        <text x="75" y="190" text-anchor="middle" fill="#4a8a80" font-size="8" font-family="'DM Mono',monospace">CPU: 80%/pod avg</text>
+      </g>
+
+      <!-- Metrics server -->
+      <g class="ha-node">
+        <rect x="170" y="120" width="120" height="60" rx="8" fill="#fff8ee" stroke="#c97b1a" stroke-width="1.5"/>
+        <text x="230" y="143" text-anchor="middle" fill="#7a5a1a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">metrics-server</text>
+        <text x="230" y="158" text-anchor="middle" fill="#8a6a3a" font-size="8.5" font-family="'DM Mono',monospace">scrapes kubelet</text>
+        <text x="230" y="170" text-anchor="middle" fill="#8a6a3a" font-size="8.5" font-family="'DM Mono',monospace">every 15 seconds</text>
+      </g>
+      <!-- pod → metrics-server (metrics flow) -->
+      <line x1="132" y1="155" x2="168" y2="155" stroke="#c97b1a" stroke-width="1.5" marker-end="url(#ha-arr)" class="ha-edge"/>
+      <text x="150" y="148" text-anchor="middle" fill="#8a5a1a" font-size="7.5" font-family="'DM Mono',monospace">CPU/mem</text>
+
+      <!-- HPA controller -->
+      <g class="ha-node">
+        <rect x="334" y="100" width="130" height="100" rx="8" fill="#f5f4ff" stroke="#5050c0" stroke-width="2"/>
+        <text x="399" y="123" text-anchor="middle" fill="#3030a0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">HPA Controller</text>
+        <text x="399" y="140" text-anchor="middle" fill="#5050a0" font-size="8.5" font-family="'DM Mono',monospace">desiredReplicas =</text>
+        <text x="399" y="153" text-anchor="middle" fill="#5050a0" font-size="8.5" font-family="'DM Mono',monospace">ceil(current × avg/target)</text>
+        <text x="399" y="168" text-anchor="middle" fill="#5050a0" font-size="8.5" font-family="'DM Mono',monospace">= ceil(3 × 80/50)</text>
+        <text x="399" y="183" text-anchor="middle" fill="#3030a0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">→ scale to 5</text>
+        <circle cx="399" cy="193" r="4" fill="#5050c0" class="ha-dot"/>
+      </g>
+      <!-- metrics-server → HPA -->
+      <line x1="292" y1="150" x2="332" y2="150" stroke="#0a8070" stroke-width="1.5" marker-end="url(#ha-arr)" class="ha-edge"/>
+      <text x="312" y="143" text-anchor="middle" fill="#0a5a4a" font-size="7.5" font-family="'DM Mono',monospace">metrics</text>
+
+      <!-- HPA → Deployment (scale up) -->
+      <line x1="464" y1="150" x2="572" y2="150" stroke="#0a8070" stroke-width="2" marker-end="url(#ha-arr)" class="ha-edge"/>
+      <text x="518" y="143" text-anchor="middle" fill="#0a5a4a" font-size="8" font-family="'DM Mono',monospace">PATCH replicas: 5</text>
+
+      <!-- Deployment after scale -->
+      <g class="ha-node">
+        <rect x="574" y="100" width="110" height="100" rx="8" fill="#e0f4f0" stroke="#0a8070" stroke-width="2"/>
+        <text x="629" y="123" text-anchor="middle" fill="#065a50" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Deployment</text>
+        <text x="629" y="140" text-anchor="middle" fill="#3a7a70" font-size="9" font-family="'DM Mono',monospace">replicas: 5</text>
+        <rect x="588" y="150" width="82" height="16" rx="3" fill="#0a8070"/>
+        <text x="629" y="162" text-anchor="middle" fill="#fff" font-size="8" font-family="'DM Mono',monospace">🟦🟦🟦🟦🟦 Pods</text>
+        <text x="629" y="190" text-anchor="middle" fill="#4a8a80" font-size="8" font-family="'DM Mono',monospace">CPU: 48%/pod avg</text>
+      </g>
+
+      <!-- cooldown annotation -->
+      <rect x="170" y="218" width="320" height="72" rx="4" fill="#fff" stroke="#e0d8cc" stroke-width="1"/>
+      <text x="330" y="236" text-anchor="middle" fill="#0a8070" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Cooldown Periods (prevent thrashing)</text>
+      <text x="182" y="253" fill="#3a3228" font-size="8.5" font-family="'DM Mono',monospace">scaleUp:   stabilizationWindowSeconds: 0    (immediate)</text>
+      <text x="182" y="267" fill="#3a3228" font-size="8.5" font-family="'DM Mono',monospace">scaleDown: stabilizationWindowSeconds: 300  (5 min window)</text>
+      <text x="182" y="281" fill="#8a7c6a" font-size="8" font-family="'DM Mono',monospace">Scale-down uses max of replicas seen in stabilization window</text>
+    </svg>
+
+    <h3 class="reveal">KEDA — extending HPA with external metrics</h3>
+
+    <pre class="codeblock reveal"><code># KEDA (Kubernetes Event-Driven Autoscaling) scales on external signals:
+# queue depth, Kafka lag, HTTP RPS, cron schedule, custom Prometheus metrics
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: payments-worker
+spec:
+  scaleTargetRef:
+    name: payments-worker
+  minReplicaCount: 0             # scale to zero when queue is empty (save $$$)
+  maxReplicaCount: 50
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: https://sqs.us-east-1.amazonaws.com/123456789/payments-queue
+        queueLength: "10"        # target: 10 messages per replica
+        awsRegion: us-east-1
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus:9090
+        metricName: payments_queue_depth
+        threshold: "100"         # scale up if >100 unprocessed payments per replica</code></pre>
+
+    <h3 class="reveal">Cluster Autoscaler — adding nodes</h3>
+    <p class="reveal">When pods are stuck in <code>Pending</code> because no node has enough capacity, the Cluster Autoscaler asks the cloud provider to provision a new node. When nodes have been underutilized for 10+ minutes and all pods could be rescheduled to other nodes, it cordons and drains the node then deletes it.</p>
+
+    <pre class="codeblock reveal"><code># Key Cluster Autoscaler behaviors:
+
+# Scale-up trigger:
+# pod is Pending AND can be scheduled if one more node of type X exists
+# → call cloud provider API: "add 1 node to node group X"
+# → node joins cluster in ~90 seconds
+# → scheduler places the pending pod
+
+# Scale-down trigger:
+# node utilization &lt; 50% of requests for 10 minutes
+# AND all pods can be rescheduled elsewhere
+# → cordon node (no new pods scheduled)
+# → gracefully evict pods (respecting PodDisruptionBudgets)
+# → cloud provider: "delete this node"
+
+# PodDisruptionBudget — protect critical workloads from eviction:
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payments-api-pdb
+spec:
+  minAvailable: 2              # always keep at least 2 pods running during disruptions
+  selector:
+    matchLabels:
+      app: payments-api</code></pre>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="rbac-security">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — RBAC &amp; SECURITY</span>Who can do what to which resources</h2>
+    <p class="lede reveal">Kubernetes RBAC is a four-part system: Subjects (who), Verbs (what action), Resources (on what), and Scope (namespace or cluster). Every API request goes through RBAC before reaching etcd.</p>
+
+    <pre class="codeblock reveal"><code># ServiceAccount — the identity a pod runs as
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payments-api
+  namespace: payments
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/payments-api  # IRSA for AWS
+
+---
+# Role — namespaced permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: payments-api-role
+  namespace: payments
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["db-credentials", "stripe-key"]  # specific secrets only
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding — bind the Role to the ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: payments-api-binding
+  namespace: payments
+subjects:
+  - kind: ServiceAccount
+    name: payments-api
+    namespace: payments
+roleRef:
+  kind: Role
+  name: payments-api-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# NetworkPolicy — allow only specific pod-to-pod traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payments-api-netpol
+  namespace: payments
+spec:
+  podSelector:
+    matchLabels:
+      app: payments-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ingress-nginx       # allow from ingress only
+      ports:
+        - port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres            # allow to postgres only
+      ports:
+        - port: 5432</code></pre>
+
+    <h3 class="reveal">Security layers in depth</h3>
+
+    <table class="reveal">
+      <tr><th>Layer</th><th>Mechanism</th><th>What it prevents</th></tr>
+      <tr><td><strong>Authentication</strong></td><td>x.509 client certs, bearer tokens, OIDC, service account tokens (JWT)</td><td>Unauthenticated API access</td></tr>
+      <tr><td><strong>RBAC authorization</strong></td><td>Roles + RoleBindings; ClusterRoles for cluster-scoped resources</td><td>Privilege escalation; a compromised pod can't read all secrets</td></tr>
+      <tr><td><strong>Admission Control</strong></td><td>ValidatingWebhookConfiguration, MutatingWebhookConfiguration, PodSecurity admission</td><td>Policy violations before they reach etcd; auto-inject sidecars</td></tr>
+      <tr><td><strong>PodSecurity Standards</strong></td><td>Baseline / Restricted / Privileged per namespace label</td><td>Containers running as root; host network access; privilege escalation</td></tr>
+      <tr><td><strong>NetworkPolicy</strong></td><td>L3/L4 allow/deny rules enforced by the CNI plugin</td><td>Lateral movement: compromised pod can't reach all other pods</td></tr>
+      <tr><td><strong>Secrets encryption at rest</strong></td><td>EncryptionConfiguration in kube-apiserver: AES-GCM or KMS provider (AWS KMS, GCP KMS)</td><td>Secrets readable if etcd backup is leaked</td></tr>
+      <tr><td><strong>Audit logging</strong></td><td>Every API request logged to file or webhook sink (SIEM)</td><td>Post-incident forensics; "what was running before the breach?"</td></tr>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="qa">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 11 — Q&amp;A</span>Fifteen tough interview questions</h2>
+    <p class="lede reveal">These questions separate the senior answer from the staff answer — etcd internals, split-brain, rolling strategies, StatefulSet vs Deployment, CRDs, and multi-tenancy.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 01</span>
+      <p class="qtext">etcd loses quorum — one node dies in a 3-node etcd cluster. What happens to the Kubernetes cluster?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">With 2 of 3 nodes remaining, the Raft cluster still has quorum and continues operating normally — etcd requires floor(n/2)+1 nodes. If a <em>second</em> node dies (only 1 of 3 remaining), etcd loses quorum: all writes are rejected with <code>etcdserver: request timed out</code>. The API server can still serve reads from its in-memory cache but cannot persist new state — pods keep running but no new deployments can be created or updated.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 02</span>
+      <p class="qtext">Explain rolling update strategy. What are maxUnavailable and maxSurge?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><code>maxUnavailable</code>: how many pods can be unavailable during the update (defaults to 25%). <code>maxSurge</code>: how many extra pods above the desired count can exist during the update (defaults to 25%). Setting <code>maxUnavailable: 0, maxSurge: 1</code> means: create one new pod, wait for it to be ready, then terminate one old pod — guarantees zero downtime but requires extra capacity. <code>maxUnavailable: 1, maxSurge: 0</code> never exceeds the replica count but temporarily reduces capacity.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 03</span>
+      <p class="qtext"><code>kubectl apply</code> vs <code>kubectl create</code> — what's the difference?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><code>kubectl create</code> is imperative — create the object, fail if it already exists. <code>kubectl apply</code> is declarative — send a server-side merge patch (or client-side three-way merge) comparing your desired state against the last-applied-configuration annotation and the live state; create if missing, update if changed. Always use <code>apply</code> in CI/CD pipelines; <code>create</code> is for one-off resource creation.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 04</span>
+      <p class="qtext">What is a headless Service? When do you use one?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">A headless Service (<code>clusterIP: None</code>) does not get a virtual IP. Instead, DNS returns A records for each pod IP directly. Used for: StatefulSets (each pod needs a stable DNS name: <code>kafka-0.kafka-headless.default.svc.cluster.local</code>), client-side load balancing (gRPC streams, Cassandra), and any case where you need to address individual pods rather than a random healthy pod.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 05</span>
+      <p class="qtext">StatefulSet vs Deployment — when do you use each?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Deployment: stateless pods where any replica can serve any request — web servers, API services, batch workers. StatefulSet: pods with stable identity (persistent hostname, persistent volume, ordered startup/shutdown) — Kafka, ZooKeeper, MySQL replica sets, Elasticsearch. The key difference: StatefulSet pods have predictable names (<code>kafka-0</code>, <code>kafka-1</code>), and each gets its own PersistentVolumeClaim that follows the pod across reschedules.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 06</span>
+      <p class="qtext">Resource requests vs resource limits — what's the difference and why does it matter?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><strong>Requests</strong> are what the scheduler uses for bin-packing — a node is only considered feasible if its allocatable capacity exceeds the pod's requests. <strong>Limits</strong> are enforced at runtime by cgroups — a container exceeding its CPU limit is throttled; exceeding its memory limit is OOM-killed. Setting requests == limits (<code>Guaranteed</code> QoS class) prevents OOM-kill-based evictions and gets highest priority in node pressure. Setting no limits (<code>BestEffort</code> QoS class) means the pod is the first evicted when the node runs low on memory.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 07</span>
+      <p class="qtext">What is node pressure eviction? How does it differ from OOM kill?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Node pressure eviction is kubelet gracefully terminating pods when the node approaches a resource threshold (memory, disk, PID count). kubelet orders eviction by QoS class (BestEffort first, then Burstable, finally Guaranteed) and by how much the pod exceeds its requests. OOM kill is the Linux kernel forcibly killing a process without any graceful shutdown when physical memory is exhausted — the pod gets <code>OOMKilled</code> status. Eviction is gentler; OOM kill is a last resort.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 08</span>
+      <p class="qtext">What is a CRD (Custom Resource Definition) and what is an Operator?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">A CRD extends the Kubernetes API with your own resource types — you can define a <code>KafkaCluster</code> or <code>PostgresDatabase</code> custom resource and manage it via <code>kubectl</code>. An Operator is a controller that watches these custom resources and implements the runbook for managing the underlying software — provisioning, scaling, backup, failover. cert-manager (<code>Certificate</code>, <code>ClusterIssuer</code>), KEDA (<code>ScaledObject</code>), and Istio (<code>VirtualService</code>, <code>AuthorizationPolicy</code>) are all Operators.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 09</span>
+      <p class="qtext">How do you handle multi-tenancy in Kubernetes — giving different teams isolated environments on the same cluster?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Soft multi-tenancy (namespaces + RBAC + NetworkPolicy + ResourceQuota): each team gets a namespace, can only touch their own resources, has a resource budget, and pods cannot reach other namespaces' pods. Hard multi-tenancy (separate clusters): for PCI-DSS, HIPAA, or true blast-radius isolation — use cluster-per-tenant with shared control plane (Cluster API) or completely separate clusters with federated tooling. The Kubernetes docs explicitly say namespaces are not a security boundary for untrusted tenants.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 10</span>
+      <p class="qtext">What is a PodDisruptionBudget and when is it critical?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">A PDB constrains how many pods of a deployment can be simultaneously unavailable during voluntary disruptions (node drain, Cluster Autoscaler scale-down, rolling update). <code>minAvailable: 2</code> means at least 2 pods must be running; the drain/autoscaler will wait if draining a node would violate this. Critical for: stateful services, any service with low replication factor, database connection pools that need warmup time. Without PDBs, a node drain could evict all replicas simultaneously.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 11</span>
+      <p class="qtext">How does the Kubernetes watch API work at the protocol level? What is the informer pattern?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">Watch is a long-lived HTTP/2 (or gRPC) streaming response: <code>GET /api/v1/pods?watch=true</code> returns a chunked stream of JSON events (<code>ADDED</code>, <code>MODIFIED</code>, <code>DELETED</code>) indefinitely. The informer pattern (in client-go) wraps this: on startup, LIST all objects and populate a local in-memory cache; then WATCH from the returned <code>resourceVersion</code> and apply events to the cache. This means controllers work against a local read cache (zero API server calls for reads) and only need to write — dramatically reducing API server load.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 12</span>
+      <p class="qtext">A pod is stuck in <code>Pending</code>. Walk me through your diagnosis.</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;"><code>kubectl describe pod</code> → look at Events section. Common causes: (1) <code>Insufficient cpu/memory</code> — all nodes full; (2) <code>no nodes matched nodeSelector</code> — labels wrong; (3) <code>had taint X which pod did not tolerate</code> — missing toleration; (4) <code>unbound immediate PersistentVolumeClaims</code> — no PV available or StorageClass misconfigured; (5) <code>pod has unbound immediate PersistentVolumeClaims in zone</code> — PV is in wrong zone for multi-AZ clusters. Fix: check <code>kubectl get events --sort-by=.lastTimestamp</code> and <code>kubectl get nodes -o wide</code>.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 13</span>
+      <p class="qtext">What is the scheduler extender / scheduling framework and when would you use a custom scheduler plugin?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">The Kubernetes Scheduling Framework defines extension points (PreFilter, Filter, PostFilter, PreScore, Score, Reserve, Permit, PreBind, Bind, PostBind) where you can inject custom logic as compiled-in plugins. Use cases: GPU topology awareness (place GPU pods on nodes sharing NVLink), gang scheduling (batch ML jobs must all start together), specialized hardware affinity (FPGA, RDMA), or cost-aware scheduling (prefer spot instances). The older scheduler extender (HTTP webhook) is deprecated; prefer the in-process plugin framework.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 14</span>
+      <p class="qtext">How does Kubernetes handle node failure? What is the difference between node NotReady and pod eviction?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">When a node stops heartbeating for 40s (default <code>node-monitor-grace-period</code>), it transitions to <code>NotReady</code>. After a further 5 minutes (default <code>pod-eviction-timeout</code>), the Node controller marks all pods on that node for eviction — adding a <code>NoExecute</code> taint. The Deployment controller sees pods disappear and creates replacements. In EKS/GKE, the cloud provider often terminates the node before this timeout triggers. PDB constraints are respected only for voluntary evictions — a hard node failure bypasses PDB.</p>
+    </div>
+
+    <div class="qcard reveal">
+      <span class="tag">Q 15</span>
+      <p class="qtext">How does a Kubernetes Ingress controller work? What's the difference between an Ingress and a Gateway API?</p>
+      <p style="margin-top:12px;font-size:16px;line-height:1.65;">An Ingress controller is an Operator that watches Ingress objects and configures an actual reverse proxy (nginx, Envoy, HAProxy) to route L7 HTTP traffic. The Ingress API is intentionally limited — one IngressClass, simple path routing, TLS termination. The Gateway API (Kubernetes SIG-Network, v1 since K8s 1.28) is the successor: richer routing (headers, weights, cross-namespace, TCP/UDP), multi-tenancy (separate Roles for infrastructure vs app teams), and expressiveness comparable to Istio VirtualService. Use Gateway API for new deployments; Ingress for mature stacks with existing nginx-ingress configurations.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="summary">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 12 — SUMMARY</span>What the strong answer looks like</h2>
+
+    <table class="reveal">
+      <tr><th>Dimension</th><th>Weak answer</th><th>Strong answer</th></tr>
+      <tr><td>kubectl apply → pod</td><td>"API server deploys it to a node"</td><td>Names all 7 steps: validate → etcd → Deployment ctrl → ReplicaSet ctrl → scheduler filter/score/bind → kubelet CRI → CNI network → readiness gates Service endpoint</td></tr>
+      <tr><td>Control plane</td><td>Lists the 5 components</td><td>Explains that ALL communication goes through API server; etcd watch as pub/sub; resourceVersion as optimistic concurrency</td></tr>
+      <tr><td>Scheduler at 10K nodes</td><td>"It assigns pods to nodes"</td><td>Two-phase filter+score pipeline; sampling (percentageOfNodesToScore); parallel goroutines; Binding as CAS; affinity / anti-affinity trade-offs</td></tr>
+      <tr><td>etcd schema</td><td>Vague key-value store</td><td>Key format /registry/{type}/{ns}/{name}; watch API as long-lived gRPC stream; resourceVersion CAS; informer pattern; why PostgreSQL is harder (LISTEN/NOTIFY vs native watch)</td></tr>
+      <tr><td>Autoscaling</td><td>"HPA scales pods"</td><td>Differentiates HPA/VPA/Cluster Autoscaler; explains cooldown periods; KEDA for external metrics; scale-to-zero; PDB protection during scale-down</td></tr>
+      <tr><td>Networking</td><td>"Services have a virtual IP"</td><td>CNI flat network assumption; kube-proxy iptables DNAT; EndpointSlice controller excludes not-ready pods; headless Services for StatefulSets; Ingress vs Gateway API</td></tr>
+      <tr><td>RBAC</td><td>"Namespace isolation"</td><td>ServiceAccount bound to Role via RoleBinding; least-privilege secrets access; NetworkPolicy as L3/L4 microsegmentation; admission webhooks for policy; encryption at rest via KMS provider</td></tr>
+    </table>
+
+    <div class="pull reveal">Kubernetes is not a deployment tool. It is a distributed database (etcd) with a reconciliation engine (controller manager) built on top of a distributed pub/sub system (the watch API), with a constraint-satisfaction scheduler, a flat IP network, and a distributed process manager (kubelet) on every node. Understanding it at that level — not as a YAML applier but as a distributed system — is what separates the staff-level answer from the senior one.</div>
+
+    <p class="reveal"><a href="/interview.app/design/" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--teal);text-decoration:none;letter-spacing:.06em;">← Back to Design Scenarios</a></p>
+  </div>
+</section>
+
+<script>
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
