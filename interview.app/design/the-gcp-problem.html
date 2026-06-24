@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The GCP Problem — PaddySpeaks</title>
+<meta name="description" content="Design a globally distributed data platform on Google Cloud Platform. BigQuery architecture, GKE, Cloud Spanner, Pub/Sub, global VPC, IAM, Cloud Run, Dataflow — GCP's unique advantages over AWS and Azure.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="whiteboard.css">
+<style>
+:root { --teal: #0a8070; --teal-deep: #065a50; --teal-light: rgba(10,128,112,.10); }
+h1 em { color: #0fccb0 !important; }
+
+/* Anchor nav */
+.anchor-nav {
+  position: sticky; top: 0; z-index: 100; background: #faf8f4;
+  border-bottom: 1px solid #e8e0d0; display: flex; gap: 0;
+  overflow-x: auto; padding: 0 24px;
+}
+.anchor-nav a {
+  padding: 10px 16px; font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; color: #8f8672;
+  text-decoration: none; white-space: nowrap;
+}
+.anchor-nav a:hover { color: #0a8070; }
+
+.svg-diagram { width: 100%; max-width: 700px; margin: 28px auto; display: block; overflow: hidden; }
+.svg-diagram text { font-family: 'DM Mono', monospace; }
+
+/* Comparison tables */
+.cmp-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-family: 'DM Mono', monospace; font-size: 12px; }
+.cmp-table th { padding: 9px 13px; text-align: left; background: #1a1208; color: #d8a44a; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; border: 1px solid #3a2e1a; }
+.cmp-table td { padding: 8px 13px; border: 1px solid #3a2e1a; }
+.cmp-table tr:nth-child(even) td { background: #120e06; color: #8f8672; }
+.cmp-table tr:nth-child(odd) td { background: #1a1208; color: #e9e2d0; }
+.cmp-table td:first-child { color: #d8a44a; font-weight: 600; }
+.cmp-table td.good { color: #0fccb0; }
+.cmp-table td.warn { color: #f59e0b; }
+.cmp-table td.bad  { color: #ef4444; }
+
+/* GCP teal keyframes consolidated */
+@keyframes gi-draw    { from{stroke-dashoffset:600} to{stroke-dashoffset:0} }
+@keyframes gi-fadeIn  { from{opacity:0} to{opacity:1} }
+@keyframes gi-pulse   { 0%,100%{opacity:.5} 50%{opacity:1} }
+@keyframes cp-drop    { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes st-slide   { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+@keyframes bq-rise    { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes bqp-fade   { from{opacity:0} to{opacity:1} }
+@keyframes vpc-draw   { from{stroke-dashoffset:800} to{stroke-dashoffset:0} }
+@keyframes ps-arrow   { from{stroke-dashoffset:300} to{stroke-dashoffset:0} }
+@keyframes df-flow    { from{stroke-dashoffset:400} to{stroke-dashoffset:0} }
+@keyframes iam-drop   { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 28</div>
+    <h1 class="reveal">The <em>GCP</em> Problem</h1>
+    <p class="deck reveal">Design a globally distributed data platform on Google Cloud Platform. Walk me through your choices for compute, storage, analytics, and messaging — and how you'd leverage GCP's unique advantages: the private global backbone, BigQuery's Dremel engine, Cloud Spanner's external consistency, and Pub/Sub's at-least-once delivery at planetary scale.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Cloud Infrastructure / GCP</b></span>
+      <span>READING · <b>~30 min</b></span>
+    </div>
+  </div>
+</header>
+
+<!-- Anchor nav -->
+<nav class="anchor-nav">
+  <a href="#infra">Infrastructure</a>
+  <a href="#compute">Compute</a>
+  <a href="#storage">Storage</a>
+  <a href="#bigquery">BigQuery</a>
+  <a href="#networking">Networking</a>
+  <a href="#serverless">Serverless</a>
+  <a href="#iam">IAM</a>
+  <a href="#qa">Q&amp;A</a>
+</nav>
+
+<!-- Cross-links -->
+<div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:24px auto;max-width:900px;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;">
+  ☁️ Cloud trilogy: this page covers <strong>GCP</strong> ·
+  <a href="./the-aws-problem.html" style="color:#0a8070;font-weight:600;">The AWS Problem →</a>
+  <span style="color:#5a8a7a;"> · </span>
+  <a href="./the-azure-problem.html" style="color:#0a8070;font-weight:600;">The Azure Problem →</a>
+</div>
+
+<!-- §01 THE QUESTION -->
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>Design a globally distributed data platform on GCP</h2>
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design a globally distributed data platform on GCP. Walk me through your choices for compute, storage, analytics, and messaging — and how you'd use GCP's unique advantages (global network backbone, BigQuery, Spanner) over other clouds."</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <table class="cmp-table reveal">
+      <thead><tr><th>Dimension</th><th>Weak Answer</th><th>Strong Answer</th></tr></thead>
+      <tbody>
+        <tr><td>BigQuery</td><td class="warn">Names BigQuery as "a data warehouse"</td><td class="good">Explains Dremel + Colossus + Jupiter — storage/compute separation means infinite scale with zero tuning</td></tr>
+        <tr><td>Network</td><td class="warn">Treats GCP network like AWS (regional VPCs)</td><td class="good">States GCP VPC is global — one VPC spans all regions; no VPC peering needed; premium tier stays on Google's backbone</td></tr>
+        <tr><td>Spanner</td><td class="warn">"It's a distributed SQL database"</td><td class="good">External consistency via TrueTime; horizontally splits across nodes; the only RDBMS with 99.999% SLA globally</td></tr>
+        <tr><td>Compute</td><td class="warn">Defaults to VMs</td><td class="good">Decision tree: containers → GKE/Cloud Run, functions → Cloud Functions, batch → Dataflow/Batch; chooses based on workload</td></tr>
+        <tr><td>IAM</td><td class="warn">Mentions roles</td><td class="good">Org → Folders → Projects hierarchy; policy inheritance; Workload Identity Federation instead of service account keys</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §02 GLOBAL INFRASTRUCTURE -->
+<section id="infra">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — GLOBAL INFRASTRUCTURE</span>The Google backbone advantage</h2>
+    <p class="lede reveal">GCP's defining edge: traffic on the <strong>Premium Tier</strong> never leaves Google's private fiber — it enters at the nearest PoP and rides the backbone all the way to the destination region.</p>
+
+    <!-- Globe / network SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 260" aria-label="GCP global network diagram" style="overflow:hidden">
+      <defs>
+        <style>
+          .gi-globe    { animation: gi-fadeIn .6s .1s both; }
+          .gi-fiber    { stroke-dasharray:600; animation: gi-draw 1.2s .3s ease both; }
+          .gi-std      { stroke-dasharray:300; animation: gi-draw 1.0s .8s ease both; }
+          .gi-pop      { animation: gi-fadeIn .5s .5s both; }
+          .gi-label    { animation: gi-fadeIn .4s .8s both; }
+          .gi-pulse-dot{ animation: gi-pulse 2s 1s ease-in-out infinite; }
+        </style>
+        <radialGradient id="gi-globeGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#0e1f3a"/>
+          <stop offset="100%" stop-color="#060e1c"/>
+        </radialGradient>
+        <marker id="gi-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+        </marker>
+      </defs>
+
+      <!-- Background -->
+      <rect width="680" height="260" fill="#060e1c" rx="8"/>
+
+      <!-- Globe circle -->
+      <g class="gi-globe">
+        <circle cx="340" cy="130" r="100" fill="url(#gi-globeGrad)" stroke="#1a3a5a" stroke-width="1.5"/>
+        <!-- Latitude lines -->
+        <ellipse cx="340" cy="130" rx="100" ry="30" fill="none" stroke="#1a3a5a" stroke-width=".8"/>
+        <ellipse cx="340" cy="130" rx="100" ry="65" fill="none" stroke="#1a3a5a" stroke-width=".6"/>
+        <!-- Longitude lines -->
+        <line x1="340" y1="30" x2="340" y2="230" stroke="#1a3a5a" stroke-width=".8"/>
+        <line x1="255" y1="45" x2="425" y2="215" stroke="#1a3a5a" stroke-width=".6"/>
+        <line x1="425" y1="45" x2="255" y2="215" stroke="#1a3a5a" stroke-width=".6"/>
+      </g>
+
+      <!-- Premium tier fiber (teal) — Google backbone -->
+      <!-- us-central1 → europe-west4 via globe -->
+      <path d="M 130 100 Q 220 30 340 80 Q 460 30 570 100" fill="none" stroke="#0fccb0" stroke-width="2.5" class="gi-fiber"/>
+      <!-- us-central1 → asia-east1 -->
+      <path d="M 130 160 Q 220 200 340 190 Q 460 200 570 160" fill="none" stroke="#0fccb0" stroke-width="2" class="gi-fiber" style="animation-delay:.5s"/>
+      <!-- europe → asia (shorter arc) -->
+      <path d="M 570 100 Q 600 130 570 160" fill="none" stroke="#0fccb0" stroke-width="1.5" class="gi-fiber" style="animation-delay:.9s"/>
+
+      <!-- Standard tier (gray — exits to internet) -->
+      <path d="M 130 135 L 60 135 L 60 200 L 145 200" fill="none" stroke="#4a5568" stroke-width="1.5" stroke-dasharray="6 4" class="gi-std"/>
+      <text x="18" y="178" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace">PUBLIC</text>
+      <text x="18" y="188" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace">INTERNET</text>
+
+      <!-- Region nodes -->
+      <!-- us-central1 -->
+      <g class="gi-pop">
+        <circle cx="130" cy="130" r="14" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <circle cx="130" cy="130" r="5" fill="#0fccb0" class="gi-pulse-dot"/>
+        <text x="130" y="155" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">us-central1</text>
+      </g>
+      <!-- europe-west4 -->
+      <g class="gi-pop">
+        <circle cx="570" cy="100" r="14" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <circle cx="570" cy="100" r="5" fill="#0fccb0" class="gi-pulse-dot" style="animation-delay:.6s"/>
+        <text x="570" y="76" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">europe-west4</text>
+      </g>
+      <!-- asia-east1 -->
+      <g class="gi-pop">
+        <circle cx="570" cy="160" r="14" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <circle cx="570" cy="160" r="5" fill="#0fccb0" class="gi-pulse-dot" style="animation-delay:1.2s"/>
+        <text x="570" y="186" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">asia-east1</text>
+      </g>
+
+      <!-- Edge PoPs -->
+      <g class="gi-pop">
+        <circle cx="200" cy="60" r="7" fill="#0a3a20" stroke="#0fccb0" stroke-width="1.2"/>
+        <text x="200" y="48" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">PoP</text>
+      </g>
+      <g class="gi-pop">
+        <circle cx="480" cy="60" r="7" fill="#0a3a20" stroke="#0fccb0" stroke-width="1.2"/>
+        <text x="480" y="48" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">PoP</text>
+      </g>
+
+      <!-- Legend -->
+      <g class="gi-label">
+        <rect x="20" y="14" width="240" height="36" rx="4" fill="#0a1a2a" stroke="#1a3a5a"/>
+        <line x1="30" y1="27" x2="68" y2="27" stroke="#0fccb0" stroke-width="2.5"/>
+        <text x="74" y="30" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Premium — Google backbone</text>
+        <line x1="30" y1="43" x2="68" y2="43" stroke="#4a5568" stroke-width="1.5" stroke-dasharray="6 4"/>
+        <text x="74" y="46" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Standard — public internet</text>
+      </g>
+
+      <!-- Andromeda badge -->
+      <g class="gi-label" style="animation-delay:.9s">
+        <rect x="270" y="108" width="140" height="44" rx="4" fill="#0a2a40" stroke="#f59e0b" stroke-width="1"/>
+        <text x="340" y="124" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">ANDROMEDA</text>
+        <text x="340" y="137" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Virtual Networking Stack</text>
+        <text x="340" y="148" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">SR-IOV · Maglev · Jupiter fabric</text>
+      </g>
+
+      <!-- Title -->
+      <text x="340" y="248" text-anchor="middle" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">GCP: 40+ regions · 100+ PoPs · 1M+ km private fiber</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §03 COMPUTE -->
+<section id="compute">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — COMPUTE</span>Decision tree: what are you running?</h2>
+    <p class="lede reveal">GCP compute choice flows from workload shape — not vendor defaults. Start with the question, not the service.</p>
+
+    <!-- Decision tree SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 340" aria-label="GCP compute decision tree" style="overflow:hidden">
+      <defs>
+        <style>
+          .cp-node  { animation: cp-drop .5s ease both; }
+          .cp-node:nth-child(1) { animation-delay:.05s }
+          .cp-node:nth-child(2) { animation-delay:.15s }
+          .cp-node:nth-child(3) { animation-delay:.25s }
+          .cp-node:nth-child(4) { animation-delay:.35s }
+          .cp-node:nth-child(5) { animation-delay:.45s }
+          .cp-node:nth-child(6) { animation-delay:.55s }
+          .cp-node:nth-child(7) { animation-delay:.65s }
+          .cp-node:nth-child(8) { animation-delay:.75s }
+          .cp-node:nth-child(9) { animation-delay:.85s }
+          .cp-line { animation: gi-fadeIn .5s .9s both; }
+        </style>
+        <marker id="cp-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+        </marker>
+      </defs>
+
+      <rect width="680" height="340" fill="#060e1c" rx="8"/>
+
+      <!-- Root question -->
+      <g class="cp-node">
+        <rect x="230" y="10" width="220" height="38" rx="6" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <text x="340" y="30" text-anchor="middle" fill="#0fccb0" font-size="11" font-weight="600" font-family="'DM Mono',monospace">What are you running?</text>
+        <text x="340" y="42" text-anchor="middle" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">Choose compute by workload shape</text>
+      </g>
+
+      <!-- Branch lines from root -->
+      <g class="cp-line">
+        <line x1="250" y1="48" x2="90" y2="100" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#cp-arr)"/>
+        <line x1="305" y1="48" x2="240" y2="100" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#cp-arr)"/>
+        <line x1="375" y1="48" x2="450" y2="100" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#cp-arr)"/>
+        <line x1="430" y1="48" x2="590" y2="100" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#cp-arr)"/>
+        <!-- Branch labels -->
+        <text x="148" y="90" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Containers</text>
+        <text x="268" y="90" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">VMs</text>
+        <text x="412" y="90" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Functions</text>
+        <text x="516" y="90" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Batch/Data</text>
+      </g>
+
+      <!-- Branch nodes -->
+      <!-- Containers -->
+      <g class="cp-node">
+        <rect x="20" y="100" width="140" height="52" rx="5" fill="#0a1a2a" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="90" y="118" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">GKE</text>
+        <text x="90" y="131" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Managed Kubernetes</text>
+        <text x="90" y="143" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Autopilot · Standard</text>
+      </g>
+      <g class="cp-node">
+        <rect x="170" y="100" width="140" height="52" rx="5" fill="#0a1a2a" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="240" y="118" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Cloud Run</text>
+        <text x="240" y="131" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Serverless containers</text>
+        <text x="240" y="143" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Scale-to-zero · HTTP</text>
+      </g>
+      <!-- VMs -->
+      <g class="cp-node">
+        <rect x="320" y="100" width="140" height="52" rx="5" fill="#0a1a2a" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="390" y="118" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Compute Engine</text>
+        <text x="390" y="131" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">VM instances</text>
+        <text x="390" y="143" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Preemptible · Spot</text>
+      </g>
+      <!-- Functions -->
+      <g class="cp-node">
+        <rect x="470" y="100" width="120" height="52" rx="5" fill="#0a1a2a" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="530" y="118" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Cloud Functions</text>
+        <text x="530" y="131" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Event-driven</text>
+        <text x="530" y="143" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Gen 1 / Gen 2</text>
+      </g>
+      <!-- Batch -->
+      <g class="cp-node">
+        <rect x="600" y="100" width="72" height="52" rx="5" fill="#0a1a2a" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="636" y="118" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Dataflow</text>
+        <text x="636" y="131" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Apache Beam</text>
+        <text x="636" y="143" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Stream+Batch</text>
+      </g>
+
+      <!-- Machine series separator -->
+      <line x1="20" y1="178" x2="660" y2="178" stroke="#1a3a5a" stroke-width="1" class="cp-line"/>
+      <text x="340" y="193" text-anchor="middle" fill="#4a5568" font-size="9" font-weight="600" font-family="'DM Mono',monospace" class="cp-line">MACHINE SERIES (Compute Engine)</text>
+
+      <!-- Machine series row -->
+      <g class="cp-node">
+        <rect x="20" y="200" width="140" height="60" rx="5" fill="#0a1a30" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="90" y="218" text-anchor="middle" fill="#0fccb0" font-size="11" font-weight="700" font-family="'DM Mono',monospace">N2 / N2D</text>
+        <text x="90" y="231" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">General purpose</text>
+        <text x="90" y="244" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">2–128 vCPU · web, API</text>
+        <text x="90" y="256" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">balanced price/perf</text>
+      </g>
+      <g class="cp-node">
+        <rect x="177" y="200" width="140" height="60" rx="5" fill="#0a1a30" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="247" y="218" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="'DM Mono',monospace">C2 / C3</text>
+        <text x="247" y="231" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Compute-optimized</text>
+        <text x="247" y="244" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">High freq · 3.8 GHz</text>
+        <text x="247" y="256" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">ML inference, gaming</text>
+      </g>
+      <g class="cp-node">
+        <rect x="334" y="200" width="140" height="60" rx="5" fill="#0a1a30" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="404" y="218" text-anchor="middle" fill="#a855f7" font-size="11" font-weight="700" font-family="'DM Mono',monospace">M2 / M3</text>
+        <text x="404" y="231" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">Memory-optimized</text>
+        <text x="404" y="244" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Up to 12 TB RAM</text>
+        <text x="404" y="256" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">SAP HANA, in-mem DB</text>
+      </g>
+      <g class="cp-node">
+        <rect x="491" y="200" width="169" height="60" rx="5" fill="#0a1a30" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="575" y="218" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="'DM Mono',monospace">A2 / A3 + TPU</text>
+        <text x="575" y="231" text-anchor="middle" fill="#c8d3e0" font-size="9" font-family="'DM Mono',monospace">GPU / Accelerator</text>
+        <text x="575" y="244" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">NVIDIA A100/H100</text>
+        <text x="575" y="256" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">TPU v4 for JAX/TF</text>
+      </g>
+
+      <!-- Pricing comparison -->
+      <line x1="20" y1="278" x2="660" y2="278" stroke="#1a3a5a" stroke-width="1" class="cp-line"/>
+      <g class="cp-node">
+        <text x="20" y="295" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">PRICING:</text>
+        <rect x="80" y="284" width="100" height="18" rx="3" fill="#ef4444" opacity=".3"/>
+        <text x="130" y="296" text-anchor="middle" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">On-demand $$$$</text>
+        <rect x="192" y="284" width="100" height="18" rx="3" fill="#f59e0b" opacity=".3"/>
+        <text x="242" y="296" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">Spot / Preempt $</text>
+        <rect x="304" y="284" width="130" height="18" rx="3" fill="#0fccb0" opacity=".3"/>
+        <text x="369" y="296" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">Committed Use (1/3yr) $$</text>
+        <rect x="446" y="284" width="130" height="18" rx="3" fill="#a855f7" opacity=".3"/>
+        <text x="511" y="296" text-anchor="middle" fill="#a855f7" font-size="9" font-family="'DM Mono',monospace">Sustained Use (auto) $$$</text>
+      </g>
+      <text x="340" y="322" text-anchor="middle" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace" class="cp-line">GCP unique: Sustained Use Discounts apply automatically — no reservation required for up to 30% off</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §04 STORAGE -->
+<section id="storage">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — STORAGE</span>GCS tiers and the storage decision matrix</h2>
+    <p class="lede reveal">GCS storage classes are priced on retrieval frequency — not access speed. Archive retrieval takes milliseconds, not hours (unlike AWS Glacier).</p>
+
+    <!-- GCS storage tiers SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 160" aria-label="GCS storage class tiers" style="overflow:hidden">
+      <defs>
+        <style>
+          .st-tier { animation: st-slide .5s ease both; }
+          .st-tier:nth-child(1) { animation-delay:.1s }
+          .st-tier:nth-child(2) { animation-delay:.25s }
+          .st-tier:nth-child(3) { animation-delay:.4s }
+          .st-tier:nth-child(4) { animation-delay:.55s }
+        </style>
+      </defs>
+      <rect width="680" height="160" fill="#060e1c" rx="8"/>
+
+      <!-- Header -->
+      <text x="340" y="20" text-anchor="middle" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">GCS STORAGE CLASSES — by retrieval frequency</text>
+
+      <!-- Tier bars -->
+      <!-- Standard -->
+      <g class="st-tier">
+        <rect x="20" y="34" width="155" height="54" rx="5" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <text x="97" y="52" text-anchor="middle" fill="#0fccb0" font-size="11" font-weight="700" font-family="'DM Mono',monospace">Standard</text>
+        <text x="97" y="65" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Hot data · no min duration</text>
+        <text x="97" y="78" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">$0.020/GB · free retrieval</text>
+        <text x="97" y="104" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Serving, active datasets</text>
+      </g>
+      <!-- Nearline -->
+      <g class="st-tier">
+        <rect x="185" y="34" width="155" height="54" rx="5" fill="#0a1a30" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="262" y="52" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="'DM Mono',monospace">Nearline</text>
+        <text x="262" y="65" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">30-day min storage</text>
+        <text x="262" y="78" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">$0.010/GB · $0.01/GB ret.</text>
+        <text x="262" y="104" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Monthly backups, DR</text>
+      </g>
+      <!-- Coldline -->
+      <g class="st-tier">
+        <rect x="350" y="34" width="155" height="54" rx="5" fill="#0a1020" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="427" y="52" text-anchor="middle" fill="#a855f7" font-size="11" font-weight="700" font-family="'DM Mono',monospace">Coldline</text>
+        <text x="427" y="65" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">90-day min storage</text>
+        <text x="427" y="78" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">$0.004/GB · $0.02/GB ret.</text>
+        <text x="427" y="104" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Quarterly archives</text>
+      </g>
+      <!-- Archive -->
+      <g class="st-tier">
+        <rect x="515" y="34" width="150" height="54" rx="5" fill="#0a0a10" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="590" y="52" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="'DM Mono',monospace">Archive</text>
+        <text x="590" y="65" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">365-day min storage</text>
+        <text x="590" y="78" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">$0.0012/GB · $0.05/GB ret.</text>
+        <text x="590" y="104" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">Compliance, audit logs</text>
+      </g>
+
+      <!-- Cost gradient arrow -->
+      <line x1="20" y1="108" x2="665" y2="108" stroke="#1a3a5a" stroke-width="1"/>
+      <text x="20" y="120" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">← Storage $ ↑ (more expensive)</text>
+      <text x="665" y="120" text-anchor="end" fill="#ef4444" font-size="9" font-family="'DM Mono',monospace">Retrieval $ ↑ (more expensive) →</text>
+      <text x="340" y="145" text-anchor="middle" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace">All classes: millisecond retrieval latency · no Glacier-style restore delay · set via Object Lifecycle Management</text>
+    </svg>
+
+    <!-- Storage comparison table -->
+    <table class="cmp-table reveal">
+      <thead><tr><th>Service</th><th>Type</th><th>Use When</th><th>Key Limit</th></tr></thead>
+      <tbody>
+        <tr><td>Cloud Storage (GCS)</td><td>Object store</td><td>Blobs, data lake, model artifacts, backups</td><td>5TB per object; no practical capacity limit</td></tr>
+        <tr><td>Persistent Disk</td><td>Block storage</td><td>VM OS disk, database volumes, stateful workloads</td><td>64TB per disk; zonal (pd-ssd) or regional (pd-balanced)</td></tr>
+        <tr><td>Filestore</td><td>NFS / file</td><td>Shared file system, GKE ReadWriteMany PVCs</td><td>Basic 1TB min; Enterprise up to 100TB</td></tr>
+        <tr><td>Cloud Spanner</td><td>Globally distributed RDBMS</td><td>Relational + global consistency (fintech, inventory)</td><td>Unlimited nodes; $0.90/node/hr base; TrueTime consistency</td></tr>
+        <tr><td>Cloud Bigtable</td><td>Wide-column NoSQL</td><td>Time-series, IoT, AdTech at petabyte scale</td><td>10ms p99 at millions of rows/sec; HBase-compatible</td></tr>
+        <tr><td>Firestore</td><td>Document NoSQL</td><td>Mobile/web backends, real-time sync</td><td>1MB per document; 1 write/sec per document (hot path)</td></tr>
+        <tr><td>Cloud SQL</td><td>Managed RDBMS</td><td>PostgreSQL / MySQL / SQL Server — regional, simpler apps</td><td>64TB; single-region only; no external consistency</td></tr>
+        <tr><td>Memorystore</td><td>In-memory cache</td><td>Redis / Memcached caching layer</td><td>Redis 300GB per instance; Valkey GA 2024</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §05 BIGQUERY -->
+<section id="bigquery">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — BIGQUERY</span>GCP's crown jewel</h2>
+    <p class="lede reveal">BigQuery's secret: compute and storage are <em>completely separate</em>. A 100TB query doesn't saturate storage nodes — Dremel fan-out across thousands of workers happens in parallel on Jupiter's fabric.</p>
+
+    <!-- BigQuery architecture SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 300" aria-label="BigQuery architecture diagram" style="overflow:hidden">
+      <defs>
+        <style>
+          .bq-comp  { animation: bq-rise .5s ease both; }
+          .bq-comp:nth-child(1) { animation-delay:.1s }
+          .bq-comp:nth-child(2) { animation-delay:.25s }
+          .bq-comp:nth-child(3) { animation-delay:.4s }
+          .bq-comp:nth-child(4) { animation-delay:.55s }
+          .bq-comp:nth-child(5) { animation-delay:.7s }
+          .bq-arrow { animation: gi-fadeIn .5s 1s both; }
+        </style>
+        <marker id="bq-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+        </marker>
+        <marker id="bq-arr-up" markerWidth="6" markerHeight="6" refX="3" refY="1" orient="auto">
+          <path d="M0,6 L3,0 L6,6 z" fill="#f59e0b"/>
+        </marker>
+      </defs>
+
+      <rect width="680" height="300" fill="#060e1c" rx="8"/>
+
+      <!-- Title row -->
+      <text x="340" y="20" text-anchor="middle" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">BigQuery Architecture — Separation of Compute and Storage</text>
+
+      <!-- Layer: Client / SQL -->
+      <g class="bq-comp">
+        <rect x="240" y="30" width="200" height="36" rx="5" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <text x="340" y="48" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">SQL Query / REST API</text>
+        <text x="340" y="59" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Standard SQL · multi-statement · INFORMATION_SCHEMA</text>
+      </g>
+
+      <!-- Arrow down -->
+      <line x1="340" y1="66" x2="340" y2="86" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#bq-arr)" class="bq-arrow"/>
+
+      <!-- Layer: Dremel / Query Engine -->
+      <g class="bq-comp">
+        <rect x="160" y="86" width="360" height="48" rx="5" fill="#0a3a20" stroke="#0fccb0" stroke-width="2"/>
+        <text x="340" y="106" text-anchor="middle" fill="#0fccb0" font-size="11" font-weight="700" font-family="'DM Mono',monospace">Dremel — Query Engine</text>
+        <text x="340" y="120" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Parallel distributed SQL · columnar execution · DAG of workers · fan-out to slots</text>
+        <text x="160" y="126" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace"> Borg (cluster mgmt)</text>
+      </g>
+
+      <!-- Arrows to Colossus and Jupiter -->
+      <line x1="260" y1="134" x2="160" y2="170" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#bq-arr)" class="bq-arrow" style="animation-delay:1.1s"/>
+      <line x1="420" y1="134" x2="520" y2="170" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#bq-arr)" class="bq-arrow" style="animation-delay:1.1s"/>
+      <text x="185" y="156" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace" class="bq-arrow" style="animation-delay:1.2s">reads data</text>
+      <text x="435" y="156" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace" class="bq-arrow" style="animation-delay:1.2s">routes traffic</text>
+
+      <!-- Layer: Colossus -->
+      <g class="bq-comp">
+        <rect x="20" y="170" width="280" height="52" rx="5" fill="#0a1a30" stroke="#f59e0b" stroke-width="2"/>
+        <text x="160" y="190" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="'DM Mono',monospace">Colossus — Distributed Storage</text>
+        <text x="160" y="203" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Columnar (Capacitor format) · compressed · replicated</text>
+        <text x="160" y="215" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Storage billing separate from query compute · $0.02/GB/mo</text>
+      </g>
+
+      <!-- Layer: Jupiter -->
+      <g class="bq-comp">
+        <rect x="380" y="170" width="280" height="52" rx="5" fill="#0a1a20" stroke="#0fccb0" stroke-width="2"/>
+        <text x="520" y="190" text-anchor="middle" fill="#0fccb0" font-size="11" font-weight="700" font-family="'DM Mono',monospace">Jupiter — Network Fabric</text>
+        <text x="520" y="203" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">1 Pbps bisection bandwidth · petabit switch</text>
+        <text x="520" y="215" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Zero bottleneck between compute ↔ storage</text>
+      </g>
+
+      <!-- Key insight box -->
+      <g class="bq-comp">
+        <rect x="20" y="240" width="640" height="48" rx="5" fill="#1a0a08" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="340" y="258" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Why this matters in an interview</text>
+        <text x="340" y="271" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Dremel fans out across 2000+ workers per query — no tuning, no indexes, no vacuuming, no cluster resizing.</text>
+        <text x="340" y="282" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Slots (processing units) scale independently. You pay for bytes scanned, not compute time at rest.</text>
+      </g>
+    </svg>
+
+    <!-- Slot reservation comparison -->
+    <table class="cmp-table reveal">
+      <thead><tr><th>Model</th><th>How It Works</th><th>Best For</th><th>Cost Model</th></tr></thead>
+      <tbody>
+        <tr><td>On-demand</td><td>Pay per byte scanned ($5/TB). No reservation.</td><td>Exploration, ad-hoc, small teams</td><td class="warn">Unbounded — one bad query = big bill</td></tr>
+        <tr><td>Slot Reservations (editions)</td><td>Buy baseline + autoscale slots. Queries share the pool.</td><td>Production pipelines, cost predictability</td><td class="good">Predictable + autoscale for spikes</td></tr>
+        <tr><td>Flat-rate (legacy)</td><td>Buy N slots, unlimited scans within that pool</td><td>Very large orgs with steady query load</td><td class="good">$$ predictable · being replaced by editions</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Partitioning and Clustering SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 580 200" aria-label="BigQuery partitioning vs clustering" style="max-width:580px;overflow:hidden">
+      <defs>
+        <style>
+          .bqp-cell { animation: bqp-fade .4s ease both; }
+        </style>
+      </defs>
+      <rect width="580" height="200" fill="#060e1c" rx="8"/>
+      <text x="145" y="18" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">PARTITIONED BY date</text>
+      <text x="435" y="18" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="600" font-family="'DM Mono',monospace">CLUSTERED BY user_id, country</text>
+
+      <!-- Partition visual: date blocks -->
+      <g class="bqp-cell" style="animation-delay:.1s">
+        <rect x="20" y="28" width="250" height="32" rx="3" fill="#0a3a20" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="145" y="48" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">Partition: 2026-06-24 · ~2GB scanned</text>
+      </g>
+      <g class="bqp-cell" style="animation-delay:.25s">
+        <rect x="20" y="64" width="250" height="28" rx="3" fill="#0a1a30" stroke="#1a3a5a" stroke-width="1"/>
+        <text x="145" y="82" text-anchor="middle" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">Partition: 2026-06-23 · skipped ✓</text>
+      </g>
+      <g class="bqp-cell" style="animation-delay:.4s">
+        <rect x="20" y="96" width="250" height="28" rx="3" fill="#0a1a30" stroke="#1a3a5a" stroke-width="1"/>
+        <text x="145" y="114" text-anchor="middle" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">Partition: 2026-06-22 · skipped ✓</text>
+      </g>
+      <text x="145" y="148" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Partition pruning eliminates whole date shards</text>
+      <text x="145" y="160" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Filter must include partition column</text>
+      <text x="145" y="172" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace">→ WHERE date = '2026-06-24'</text>
+
+      <!-- Divider -->
+      <line x1="285" y1="28" x2="285" y2="180" stroke="#1a3a5a" stroke-width="1"/>
+
+      <!-- Clustering visual: sorted blocks within partition -->
+      <g class="bqp-cell" style="animation-delay:.5s">
+        <rect x="300" y="28" width="260" height="26" rx="3" fill="#1a2a10" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="430" y="45" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="'DM Mono',monospace">Cluster block: user_id AAA–DMZ</text>
+      </g>
+      <g class="bqp-cell" style="animation-delay:.6s">
+        <rect x="300" y="58" width="260" height="26" rx="3" fill="#0a1818" stroke="#f59e0b" stroke-width="1"/>
+        <text x="430" y="75" text-anchor="middle" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">Cluster block: user_id DMZ–MZZ · skipped</text>
+      </g>
+      <g class="bqp-cell" style="animation-delay:.7s">
+        <rect x="300" y="88" width="260" height="26" rx="3" fill="#0a1818" stroke="#f59e0b" stroke-width="1"/>
+        <text x="430" y="105" text-anchor="middle" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">Cluster block: user_id MZZ–ZZZ · skipped</text>
+      </g>
+      <text x="430" y="140" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Clustering sorts within partition · no column constraint</text>
+      <text x="430" y="152" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Automatic reclustering — no manual maintenance</text>
+      <text x="430" y="164" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="'DM Mono',monospace">→ WHERE user_id BETWEEN 'A' AND 'D'</text>
+
+      <text x="290" y="190" text-anchor="middle" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace">Use both: PARTITION BY date CLUSTER BY user_id → 99% scan reduction at scale</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §06 NETWORKING -->
+<section id="networking">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — NETWORKING</span>Global VPC — the biggest differentiator from AWS</h2>
+    <p class="lede reveal">In AWS, a VPC is <em>regional</em> — you need VPC peering or Transit Gateway to connect regions. In GCP, a single VPC <strong>spans all regions globally</strong>. One VPC, one firewall ruleset, subnets in every region.</p>
+
+    <!-- VPC SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 340" aria-label="GCP VPC architecture" style="overflow:hidden">
+      <defs>
+        <style>
+          .vpc-border { stroke-dasharray:800; animation: vpc-draw 1.4s .1s ease both; }
+          .vpc-inner  { animation: gi-fadeIn .5s .8s both; }
+          .vpc-label  { animation: gi-fadeIn .4s 1.0s both; }
+        </style>
+        <marker id="vpc-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+        </marker>
+      </defs>
+
+      <rect width="680" height="340" fill="#060e1c" rx="8"/>
+
+      <!-- Global VPC boundary -->
+      <rect x="20" y="30" width="640" height="240" rx="10" fill="none" stroke="#0fccb0" stroke-width="2" stroke-dasharray="10 4" class="vpc-border"/>
+      <text x="340" y="22" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace" class="vpc-label">my-global-vpc  ·  spans ALL regions  ·  one firewall ruleset</text>
+
+      <!-- Subnet us-central1 -->
+      <g class="vpc-inner">
+        <rect x="40" y="50" width="180" height="90" rx="6" fill="#0a2a40" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="130" y="68" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Subnet: us-central1</text>
+        <text x="130" y="81" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">10.128.0.0/20</text>
+        <rect x="55" y="88" width="70" height="20" rx="3" fill="#0a3a60" stroke="#0fccb0" stroke-width="1"/>
+        <text x="90" y="102" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">GKE cluster</text>
+        <rect x="140" y="88" width="66" height="20" rx="3" fill="#0a3a60" stroke="#0fccb0" stroke-width="1"/>
+        <text x="173" y="102" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Cloud Run</text>
+        <text x="130" y="130" text-anchor="middle" fill="#8a9ab0" font-size="7" font-family="'DM Mono',monospace">Private Google Access ✓</text>
+      </g>
+
+      <!-- Subnet europe-west4 -->
+      <g class="vpc-inner">
+        <rect x="250" y="50" width="180" height="90" rx="6" fill="#0a2a40" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="340" y="68" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Subnet: europe-west4</text>
+        <text x="340" y="81" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">10.132.0.0/20</text>
+        <rect x="265" y="88" width="70" height="20" rx="3" fill="#0a3a60" stroke="#0fccb0" stroke-width="1"/>
+        <text x="300" y="102" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Compute VMs</text>
+        <rect x="352" y="88" width="66" height="20" rx="3" fill="#0a3a60" stroke="#0fccb0" stroke-width="1"/>
+        <text x="385" y="102" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Cloud SQL</text>
+        <text x="340" y="130" text-anchor="middle" fill="#8a9ab0" font-size="7" font-family="'DM Mono',monospace">Same VPC — no peering needed</text>
+      </g>
+
+      <!-- Subnet asia-east1 -->
+      <g class="vpc-inner">
+        <rect x="460" y="50" width="180" height="90" rx="6" fill="#0a2a40" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="550" y="68" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Subnet: asia-east1</text>
+        <text x="550" y="81" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">10.140.0.0/20</text>
+        <rect x="475" y="88" width="70" height="20" rx="3" fill="#0a3a60" stroke="#0fccb0" stroke-width="1"/>
+        <text x="510" y="102" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Spanner node</text>
+        <rect x="562" y="88" width="66" height="20" rx="3" fill="#0a3a60" stroke="#0fccb0" stroke-width="1"/>
+        <text x="595" y="102" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Bigtable</text>
+        <text x="550" y="130" text-anchor="middle" fill="#8a9ab0" font-size="7" font-family="'DM Mono',monospace">Private Google Access ✓</text>
+      </g>
+
+      <!-- Connectivity features row -->
+      <line x1="40" y1="158" x2="640" y2="158" stroke="#1a3a5a" stroke-width="1" class="vpc-inner"/>
+
+      <!-- Shared VPC -->
+      <g class="vpc-inner">
+        <rect x="40" y="166" width="130" height="54" rx="4" fill="#0a1a18" stroke="#0fccb0" stroke-width="1"/>
+        <text x="105" y="182" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Shared VPC</text>
+        <text x="105" y="195" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Host project owns VPC</text>
+        <text x="105" y="208" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Service projects attach</text>
+      </g>
+
+      <!-- VPC Peering -->
+      <g class="vpc-inner">
+        <rect x="184" y="166" width="130" height="54" rx="4" fill="#0a1a18" stroke="#f59e0b" stroke-width="1"/>
+        <text x="249" y="182" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">VPC Peering</text>
+        <text x="249" y="195" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Connect diff VPCs</text>
+        <text x="249" y="208" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Non-transitive · same region</text>
+      </g>
+
+      <!-- Cloud Interconnect -->
+      <g class="vpc-inner">
+        <rect x="328" y="166" width="145" height="54" rx="4" fill="#0a1a18" stroke="#a855f7" stroke-width="1"/>
+        <text x="400" y="182" text-anchor="middle" fill="#a855f7" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Cloud Interconnect</text>
+        <text x="400" y="195" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Dedicated 10/100Gbps</text>
+        <text x="400" y="208" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">On-prem hybrid · SLA</text>
+      </g>
+
+      <!-- Cloud VPN -->
+      <g class="vpc-inner">
+        <rect x="487" y="166" width="153" height="54" rx="4" fill="#0a1a18" stroke="#ef4444" stroke-width="1"/>
+        <text x="563" y="182" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Cloud VPN</text>
+        <text x="563" y="195" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">IPSec tunnel · HA VPN</text>
+        <text x="563" y="208" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">On-prem · lower cost</text>
+      </g>
+
+      <!-- GCP vs AWS callout -->
+      <g class="vpc-label">
+        <rect x="40" y="232" width="600" height="32" rx="4" fill="#1a0a08" stroke="#ef4444" stroke-width="1"/>
+        <text x="340" y="246" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="'DM Mono',monospace">KEY DIFFERENTIATOR vs AWS:</text>
+        <text x="340" y="258" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">GCP VPC is global · AWS VPC is regional (need TGW or peering for cross-region) · GCP firewall is stateful, tag-based, not security-group-per-instance</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §07 SERVERLESS & MESSAGING -->
+<section id="serverless">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — SERVERLESS &amp; MESSAGING</span>Pub/Sub, Cloud Run, Dataflow</h2>
+    <p class="lede reveal">GCP's serverless stack is three distinct layers: <strong>Pub/Sub</strong> for durable messaging, <strong>Cloud Run</strong> for HTTP containers, <strong>Dataflow</strong> for stream/batch pipelines. Each is independently scalable.</p>
+
+    <!-- Pub/Sub flow SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 200" aria-label="Pub/Sub flow diagram" style="overflow:hidden">
+      <defs>
+        <style>
+          .ps-node  { animation: gi-fadeIn .4s ease both; }
+          .ps-arr   { stroke-dasharray:300; animation: ps-arrow .7s ease both; }
+          .ps-node:nth-child(1)  { animation-delay:.1s }
+          .ps-node:nth-child(2)  { animation-delay:.3s }
+          .ps-node:nth-child(3)  { animation-delay:.5s }
+          .ps-node:nth-child(4)  { animation-delay:.7s }
+          .ps-node:nth-child(5)  { animation-delay:.9s }
+          .ps-arr:nth-child(6)   { animation-delay:.2s }
+          .ps-arr:nth-child(7)   { animation-delay:.4s }
+          .ps-arr:nth-child(8)   { animation-delay:.6s }
+          .ps-arr:nth-child(9)   { animation-delay:.8s }
+        </style>
+        <marker id="ps-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+        </marker>
+      </defs>
+
+      <rect width="680" height="200" fill="#060e1c" rx="8"/>
+      <text x="340" y="18" text-anchor="middle" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Cloud Pub/Sub — at-least-once · global · serverless</text>
+
+      <!-- Publisher -->
+      <g class="ps-node">
+        <rect x="20" y="34" width="110" height="52" rx="5" fill="#0a2a40" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="75" y="55" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Publisher</text>
+        <text x="75" y="68" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">App / IoT / GCF</text>
+        <text x="75" y="80" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">gRPC or REST</text>
+      </g>
+
+      <!-- Arrow Publisher → Topic -->
+      <line x1="130" y1="60" x2="178" y2="60" stroke="#0fccb0" stroke-width="2" marker-end="url(#ps-arr)" class="ps-arr"/>
+
+      <!-- Topic -->
+      <g class="ps-node">
+        <rect x="180" y="34" width="120" height="52" rx="5" fill="#0a3a20" stroke="#0fccb0" stroke-width="2"/>
+        <text x="240" y="55" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Topic</text>
+        <text x="240" y="68" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">projects/p/topics/t</text>
+        <text x="240" y="80" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">global · durable</text>
+      </g>
+
+      <!-- Topic → Subscriptions -->
+      <line x1="300" y1="55" x2="368" y2="40" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#ps-arr)" class="ps-arr" style="animation-delay:.5s"/>
+      <line x1="300" y1="60" x2="368" y2="96" stroke="#0fccb0" stroke-width="1.5" marker-end="url(#ps-arr)" class="ps-arr" style="animation-delay:.55s"/>
+
+      <!-- Subscriptions -->
+      <g class="ps-node">
+        <rect x="370" y="24" width="130" height="38" rx="4" fill="#0a1a30" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="435" y="39" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Sub A — PUSH</text>
+        <text x="435" y="52" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">HTTP endpoint · Cloud Run</text>
+      </g>
+      <g class="ps-node">
+        <rect x="370" y="78" width="130" height="38" rx="4" fill="#0a1a30" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="435" y="93" text-anchor="middle" fill="#a855f7" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Sub B — PULL</text>
+        <text x="435" y="106" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Consumer polls · Dataflow</text>
+      </g>
+
+      <!-- Subscriptions → Subscribers -->
+      <line x1="500" y1="43" x2="548" y2="43" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#ps-arr)" class="ps-arr" style="animation-delay:.7s"/>
+      <line x1="500" y1="97" x2="548" y2="97" stroke="#a855f7" stroke-width="1.5" marker-end="url(#ps-arr)" class="ps-arr" style="animation-delay:.75s"/>
+
+      <!-- Subscribers -->
+      <g class="ps-node">
+        <rect x="550" y="28" width="110" height="30" rx="4" fill="#0a1a20" stroke="#f59e0b" stroke-width="1"/>
+        <text x="605" y="47" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Cloud Run service</text>
+      </g>
+      <g class="ps-node">
+        <rect x="550" y="82" width="110" height="30" rx="4" fill="#0a1a20" stroke="#a855f7" stroke-width="1"/>
+        <text x="605" y="101" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Dataflow pipeline</text>
+      </g>
+
+      <!-- Dead letter topic -->
+      <g class="ps-node">
+        <rect x="180" y="128" width="120" height="36" rx="4" fill="#1a0808" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="240" y="143" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Dead Letter Topic</text>
+        <text x="240" y="155" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">maxDeliveryAttempts=5</text>
+      </g>
+      <line x1="435" y1="116" x2="310" y2="132" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ps-arr)" class="ps-arr" style="animation-delay:.9s"/>
+      <text x="370" y="130" fill="#ef4444" font-size="7" font-family="'DM Mono',monospace" class="ps-node" style="animation-delay:.9s">nack loop</text>
+
+      <!-- Key facts -->
+      <text x="20" y="178" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace" class="ps-node" style="animation-delay:1s">Delivery: at-least-once · ordering: enable message ordering key · retention: 7 days · throughput: millions/sec</text>
+      <text x="20" y="190" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace" class="ps-node" style="animation-delay:1s">Exactly-once delivery available (2022) · BigQuery subscription for direct BQ ingest without pipeline</text>
+    </svg>
+
+    <!-- Cloud Run vs Cloud Functions comparison -->
+    <table class="cmp-table reveal">
+      <thead><tr><th>Dimension</th><th>Cloud Run</th><th>Cloud Functions</th></tr></thead>
+      <tbody>
+        <tr><td>Unit</td><td>Container image (any language, any deps)</td><td>Source code function (Node, Python, Go, Java, Ruby, .NET)</td></tr>
+        <tr><td>Cold start</td><td class="warn">~200ms–1s (larger image)</td><td class="good">~50–300ms (Gen 2 much faster)</td></tr>
+        <tr><td>Max runtime</td><td class="good">60 min (streaming) / unlimited (services)</td><td class="warn">60 min (Gen 2) · 9 min (Gen 1)</td></tr>
+        <tr><td>Concurrency</td><td class="good">Up to 1000 req/instance</td><td class="warn">1 req/instance (Gen 1) · 1000 (Gen 2)</td></tr>
+        <tr><td>Container support</td><td class="good">Yes — full OCI container</td><td class="warn">No — managed runtime only</td></tr>
+        <tr><td>VPC connectivity</td><td class="good">VPC connector or direct VPC egress</td><td class="good">VPC connector (Gen 1) · direct (Gen 2)</td></tr>
+        <tr><td>Pricing</td><td>Per request + CPU/memory during request</td><td>Per invocation + CPU/memory (100ms billing)</td></tr>
+        <tr><td>Best for</td><td>APIs, microservices, long-running tasks, ML serving</td><td>Event triggers, lightweight glue, Pub/Sub consumers</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Dataflow pipeline SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 160" aria-label="Dataflow Apache Beam pipeline" style="overflow:hidden">
+      <defs>
+        <style>
+          .df-node { animation: gi-fadeIn .4s ease both; }
+          .df-pipe { stroke-dasharray:400; animation: df-flow .8s ease both; }
+          .df-node:nth-child(1) { animation-delay:.1s }
+          .df-node:nth-child(2) { animation-delay:.3s }
+          .df-node:nth-child(3) { animation-delay:.5s }
+          .df-node:nth-child(4) { animation-delay:.7s }
+          .df-node:nth-child(5) { animation-delay:.9s }
+          .df-pipe:nth-child(6) { animation-delay:.2s }
+          .df-pipe:nth-child(7) { animation-delay:.4s }
+          .df-pipe:nth-child(8) { animation-delay:.6s }
+          .df-pipe:nth-child(9) { animation-delay:.8s }
+        </style>
+        <marker id="df-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+        </marker>
+      </defs>
+
+      <rect width="680" height="160" fill="#060e1c" rx="8"/>
+      <text x="340" y="18" text-anchor="middle" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Dataflow Pipeline — Apache Beam SDK (stream or batch)</text>
+
+      <!-- PCollection Source -->
+      <g class="df-node">
+        <rect x="20" y="38" width="110" height="48" rx="5" fill="#0a2a40" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="75" y="58" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Source</text>
+        <text x="75" y="70" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Pub/Sub · GCS</text>
+        <text x="75" y="80" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">PCollection</text>
+      </g>
+
+      <line x1="130" y1="62" x2="168" y2="62" stroke="#0fccb0" stroke-width="2" marker-end="url(#df-arr)" class="df-pipe"/>
+
+      <!-- ParDo transform -->
+      <g class="df-node">
+        <rect x="170" y="38" width="120" height="48" rx="5" fill="#0a3a20" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="230" y="58" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">ParDo</text>
+        <text x="230" y="70" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Map / Filter</text>
+        <text x="230" y="80" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">element-wise</text>
+      </g>
+
+      <line x1="290" y1="62" x2="328" y2="62" stroke="#0fccb0" stroke-width="2" marker-end="url(#df-arr)" class="df-pipe" style="animation-delay:.4s"/>
+
+      <!-- GroupByKey -->
+      <g class="df-node">
+        <rect x="330" y="38" width="130" height="48" rx="5" fill="#0a1a30" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="395" y="58" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">GroupByKey</text>
+        <text x="395" y="70" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Window + Trigger</text>
+        <text x="395" y="80" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">event-time windowing</text>
+      </g>
+
+      <line x1="460" y1="62" x2="498" y2="62" stroke="#0fccb0" stroke-width="2" marker-end="url(#df-arr)" class="df-pipe" style="animation-delay:.6s"/>
+
+      <!-- Combine/Output -->
+      <g class="df-node">
+        <rect x="500" y="38" width="160" height="48" rx="5" fill="#0a1020" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="580" y="58" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Sink / Output</text>
+        <text x="580" y="70" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">BigQuery · GCS · BT</text>
+        <text x="580" y="80" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">streaming insert / batch</text>
+      </g>
+
+      <!-- Watermark annotation -->
+      <text x="340" y="110" text-anchor="middle" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace" class="df-node" style="animation-delay:1s">Watermarks handle late data · Exactly-once via Dataflow shuffle · Autoscale workers by backlog · Runner-managed parallelism</text>
+      <text x="340" y="124" text-anchor="middle" fill="#4a5568" font-size="8" font-family="'DM Mono',monospace" class="df-node" style="animation-delay:1s">Unified batch + stream: same pipeline runs on GCS (batch) or Pub/Sub (stream) — switch source, not code</text>
+      <text x="340" y="148" text-anchor="middle" fill="#0fccb0" font-size="8" font-family="'DM Mono',monospace" class="df-node" style="animation-delay:1.1s">vs Flink: Dataflow is fully managed · no cluster to operate · runner-as-a-service</text>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §08 IAM -->
+<section id="iam">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — IAM</span>GCP's resource hierarchy and identity model</h2>
+    <p class="lede reveal">GCP IAM is a hierarchy — policies set at a parent propagate down. You cannot remove a permission granted at a higher level from a lower level.</p>
+
+    <!-- IAM hierarchy SVG -->
+    <svg class="svg-diagram reveal" viewBox="0 0 680 280" aria-label="GCP IAM hierarchy" style="overflow:hidden">
+      <defs>
+        <style>
+          .iam-node { animation: iam-drop .5s ease both; }
+          .iam-node:nth-child(1)  { animation-delay:.05s }
+          .iam-node:nth-child(2)  { animation-delay:.15s }
+          .iam-node:nth-child(3)  { animation-delay:.25s }
+          .iam-node:nth-child(4)  { animation-delay:.35s }
+          .iam-node:nth-child(5)  { animation-delay:.45s }
+          .iam-node:nth-child(6)  { animation-delay:.55s }
+          .iam-node:nth-child(7)  { animation-delay:.65s }
+          .iam-node:nth-child(8)  { animation-delay:.75s }
+          .iam-node:nth-child(9)  { animation-delay:.85s }
+          .iam-line { animation: gi-fadeIn .5s .9s both; }
+        </style>
+        <marker id="iam-arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#0fccb0"/>
+        </marker>
+      </defs>
+
+      <rect width="680" height="280" fill="#060e1c" rx="8"/>
+
+      <!-- Organization -->
+      <g class="iam-node">
+        <rect x="230" y="10" width="220" height="40" rx="6" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <text x="340" y="27" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Organization</text>
+        <text x="340" y="40" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">example.com · G Suite / Cloud Identity domain</text>
+      </g>
+
+      <!-- Lines to folders -->
+      <g class="iam-line">
+        <line x1="290" y1="50" x2="130" y2="90" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#iam-arr)"/>
+        <line x1="390" y1="50" x2="550" y2="90" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#iam-arr)"/>
+        <text x="200" y="82" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Folder: Engineering</text>
+        <text x="445" y="82" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Folder: Finance</text>
+        <text x="340" y="75" fill="#4a5568" font-size="7" font-family="'DM Mono',monospace">Policy inherits ↓</text>
+      </g>
+
+      <!-- Folders -->
+      <g class="iam-node">
+        <rect x="40" y="92" width="180" height="34" rx="5" fill="#0a1a30" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="130" y="107" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Folder: Engineering</text>
+        <text x="130" y="118" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">grantee: eng-lead@</text>
+      </g>
+      <g class="iam-node">
+        <rect x="460" y="92" width="180" height="34" rx="5" fill="#0a1a30" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="550" y="107" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Folder: Finance</text>
+        <text x="550" y="118" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">grantee: cfo@</text>
+      </g>
+
+      <!-- Lines to projects -->
+      <g class="iam-line" style="animation-delay:1s">
+        <line x1="100" y1="126" x2="80" y2="166" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#iam-arr)"/>
+        <line x1="160" y1="126" x2="240" y2="166" stroke="#0fccb0" stroke-width="1.2" marker-end="url(#iam-arr)"/>
+        <line x1="340" y1="50" x2="340" y2="166" stroke="#0fccb0" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#iam-arr)"/>
+        <text x="340" y="90" text-anchor="middle" fill="#4a5568" font-size="7" font-family="'DM Mono',monospace">(no folder)</text>
+      </g>
+
+      <!-- Projects -->
+      <g class="iam-node">
+        <rect x="20" y="168" width="140" height="34" rx="4" fill="#0a2218" stroke="#0fccb0" stroke-width="1"/>
+        <text x="90" y="182" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">Project: prod-api</text>
+        <text x="90" y="193" text-anchor="middle" fill="#8a9ab0" font-size="7" font-family="'DM Mono',monospace">project-id: prod-api-12345</text>
+      </g>
+      <g class="iam-node">
+        <rect x="175" y="168" width="140" height="34" rx="4" fill="#0a2218" stroke="#0fccb0" stroke-width="1"/>
+        <text x="245" y="182" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">Project: data-infra</text>
+        <text x="245" y="193" text-anchor="middle" fill="#8a9ab0" font-size="7" font-family="'DM Mono',monospace">BigQuery · Dataflow</text>
+      </g>
+      <g class="iam-node">
+        <rect x="270" y="168" width="140" height="34" rx="4" fill="#0a2218" stroke="#0fccb0" stroke-width="1"/>
+        <text x="340" y="182" text-anchor="middle" fill="#0fccb0" font-size="9" font-family="'DM Mono',monospace">Project: ml-research</text>
+        <text x="340" y="193" text-anchor="middle" fill="#8a9ab0" font-size="7" font-family="'DM Mono',monospace">TPU · Vertex AI</text>
+      </g>
+
+      <!-- Role types -->
+      <line x1="20" y1="218" x2="660" y2="218" stroke="#1a3a5a" stroke-width="1" class="iam-line" style="animation-delay:1.1s"/>
+
+      <g class="iam-node" style="animation-delay:.9s">
+        <rect x="20" y="226" width="190" height="44" rx="4" fill="#0a1a30" stroke="#ef4444" stroke-width="1"/>
+        <text x="115" y="241" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Basic Roles</text>
+        <text x="115" y="253" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Owner · Editor · Viewer</text>
+        <text x="115" y="264" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Coarse-grained · avoid in prod</text>
+      </g>
+      <g class="iam-node" style="animation-delay:1.0s">
+        <rect x="224" y="226" width="220" height="44" rx="4" fill="#0a1a30" stroke="#0fccb0" stroke-width="1"/>
+        <text x="334" y="241" text-anchor="middle" fill="#0fccb0" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Predefined Roles</text>
+        <text x="334" y="253" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">roles/bigquery.dataViewer</text>
+        <text x="334" y="264" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Fine-grained · managed by Google</text>
+      </g>
+      <g class="iam-node" style="animation-delay:1.1s">
+        <rect x="458" y="226" width="202" height="44" rx="4" fill="#0a1a30" stroke="#a855f7" stroke-width="1"/>
+        <text x="559" y="241" text-anchor="middle" fill="#a855f7" font-size="9" font-weight="600" font-family="'DM Mono',monospace">Custom Roles</text>
+        <text x="559" y="253" text-anchor="middle" fill="#c8d3e0" font-size="8" font-family="'DM Mono',monospace">Curated permission sets</text>
+        <text x="559" y="264" text-anchor="middle" fill="#8a9ab0" font-size="8" font-family="'DM Mono',monospace">Least privilege · audit required</text>
+      </g>
+    </svg>
+
+    <!-- IAM concepts table -->
+    <table class="cmp-table reveal">
+      <thead><tr><th>Concept</th><th>What It Is</th><th>Interview Signal</th></tr></thead>
+      <tbody>
+        <tr><td>Workload Identity</td><td>Kubernetes service accounts → GCP IAM roles. No JSON key files.</td><td class="good">Eliminates long-lived credentials; K8s pod gets a short-lived token</td></tr>
+        <tr><td>Workload Identity Federation</td><td>External identities (AWS, Azure, GitHub OIDC) → GCP roles. No service account key.</td><td class="good">Cross-cloud auth without secret management</td></tr>
+        <tr><td>Service Account Impersonation</td><td>A principal act-as a service account for bounded scope</td><td class="good">Auditable, revocable; beats key distribution</td></tr>
+        <tr><td>IAM Conditions</td><td>Bind roles with attribute-based conditions (time, resource name, IP)</td><td class="good">Just-in-time access, time-boxed prod access</td></tr>
+        <tr><td>VPC Service Controls</td><td>Perimeter around GCP APIs — even authorized users can't exfiltrate data outside perimeter</td><td class="good">DLP for GCP; required for regulated data (PCI, HIPAA)</td></tr>
+        <tr><td>Organization Policy</td><td>Org-wide constraints (e.g., restrict resource locations, disable service account key creation)</td><td class="good">Guardrails enforced at org level — survives project deletion</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §09 Q&A -->
+<section id="qa">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — Q&amp;A</span>12 interview questions</h2>
+
+    <dl class="reveal">
+      <div class="defrow">
+        <dt>1. When would you choose GCP over AWS?</dt>
+        <dd>Choose GCP when BigQuery analytics is central (no AWS equivalent at the same scale-to-zero price model), when global network latency matters (premium tier keeps traffic on Google's backbone), or when your ML workload benefits from TPUs and Vertex AI. Also when your org is Google Workspace-native — IAM integration is seamless.</dd>
+      </div>
+      <div class="defrow">
+        <dt>2. What makes BigQuery's architecture unique?</dt>
+        <dd>Dremel separates compute (workers) from storage (Colossus) completely — Jupiter's petabit network fabric means no I/O bottleneck. You can query 100TB without provisioning anything: Dremel fans out to thousands of slots on demand, and you pay only for bytes scanned. No indexes, no vacuuming, no cluster sizing.</dd>
+      </div>
+      <div class="defrow">
+        <dt>3. GCP VPC vs AWS VPC — key difference?</dt>
+        <dd>GCP VPC is <em>global</em>: one VPC spans all regions; subnets are regional but belong to the same global network. AWS VPC is regional — cross-region requires Transit Gateway or VPC peering. GCP firewall is tag-based (not per-instance security groups), stateful, and applied globally to the VPC.</dd>
+      </div>
+      <div class="defrow">
+        <dt>4. What is Cloud Spanner and when do you use it?</dt>
+        <dd>Cloud Spanner is a globally distributed, externally consistent RDBMS — the only one with a 99.999% SLA across regions. Use it when you need relational semantics (SQL, foreign keys, transactions) AND horizontal scale AND global consistency. Example: global financial ledger, inventory system that must never show negative stock globally.</dd>
+      </div>
+      <div class="defrow">
+        <dt>5. Pub/Sub vs Kafka — when to choose each?</dt>
+        <dd>Choose Pub/Sub when you want zero infrastructure management, global delivery, and auto-scaling at any throughput — it's the right default on GCP. Choose Kafka (via Confluent or self-managed) when you need ordering guarantees per partition with consumer group offsets, log compaction, or Kafka Streams — or when migrating an existing Kafka architecture.</dd>
+      </div>
+      <div class="defrow">
+        <dt>6. What is Anthos?</dt>
+        <dd>Anthos is GCP's multi-cloud/on-prem management platform. It runs GKE clusters on AWS, Azure, or bare metal, using Config Sync (GitOps), Policy Controller (OPA), and Service Mesh (Istio) to provide consistent operations across environments. Use it when you need a single control plane for workloads that span clouds.</dd>
+      </div>
+      <div class="defrow">
+        <dt>7. How does Cloud Run differ from Cloud Functions?</dt>
+        <dd>Cloud Run deploys any OCI container — you control the runtime, dependencies, and can handle multiple concurrent requests per instance (up to 1000). Cloud Functions deploys source code into a managed runtime — simpler, but less control. Cloud Run Gen 2 and Cloud Functions Gen 2 share the same underlying infrastructure (Cloud Run); Functions is now a packaging layer on top.</dd>
+      </div>
+      <div class="defrow">
+        <dt>8. What is a TPU and when would you use one?</dt>
+        <dd>A Tensor Processing Unit is Google's custom ASIC designed specifically for matrix multiply at neural-network scales. Use TPUs when training or fine-tuning large models in JAX or TensorFlow — they offer 10–100× better throughput/$ vs GPUs for large batch matrix ops. Not useful for inference at small batch size or for non-TF/JAX frameworks.</dd>
+      </div>
+      <div class="defrow">
+        <dt>9. How do you design a BigQuery schema for cost optimization?</dt>
+        <dd>Partition by event date (eliminates full-table scans), cluster by the highest-cardinality filter column (usually user_id or entity_id), select only needed columns (BQ is columnar — never SELECT *), and use materialized views for repeated aggregations. Reserve slots for production workloads to cap costs; use on-demand for exploration.</dd>
+      </div>
+      <div class="defrow">
+        <dt>10. What is VPC Service Controls?</dt>
+        <dd>VPC Service Controls creates a security perimeter around GCP API access — even a user with IAM permissions cannot exfiltrate data if their request originates outside the perimeter (wrong VPC, wrong IP range, wrong device). Essential for PCI, HIPAA, and FedRAMP workloads where data residency and exfiltration prevention are hard requirements.</dd>
+      </div>
+      <div class="defrow">
+        <dt>11. How does GCP's premium network tier work?</dt>
+        <dd>When a packet enters GCP's network, it's routed onto Google's private fiber at the nearest PoP and carried entirely on Google's backbone to the destination region — never touching the public internet. Standard tier exits to the public internet immediately. Premium tier reduces latency (especially cross-continental) and avoids internet routing instabilities, but costs ~25% more per egress GB.</dd>
+      </div>
+      <div class="defrow">
+        <dt>12. What is Workload Identity Federation?</dt>
+        <dd>Workload Identity Federation lets external identities — AWS IAM roles, Azure managed identities, GitHub Actions OIDC tokens — exchange their native credential for a short-lived GCP access token via an OIDC/SAML trust. Zero service account keys needed. This is the right pattern for CI/CD pipelines, cross-cloud integrations, and any workload that can't use Workload Identity (the K8s-specific variant).</dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §10 SUMMARY -->
+<section id="summary">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — SUMMARY</span>Weak vs Strong answer</h2>
+    <table class="cmp-table reveal">
+      <thead><tr><th>Topic</th><th>Weak Answer</th><th>Strong Answer</th></tr></thead>
+      <tbody>
+        <tr><td>Opening frame</td><td class="warn">Lists GCP services by memory</td><td class="good">Names GCP's 3 differentiators: BigQuery (serverless OLAP), global VPC (vs regional), private backbone (premium tier)</td></tr>
+        <tr><td>BigQuery</td><td class="warn">"It's a managed data warehouse"</td><td class="good">Dremel + Colossus + Jupiter: compute/storage separation, fan-out to slots, partitioning + clustering for cost control, slot reservations for predictability</td></tr>
+        <tr><td>Networking</td><td class="warn">Designs regional VPCs like AWS</td><td class="good">One global VPC, subnets per region, premium tier traffic never leaves Google's backbone, Shared VPC for multi-project</td></tr>
+        <tr><td>Spanner</td><td class="warn">Mentions it without knowing why</td><td class="good">TrueTime external consistency, horizontal split, the only global SQL DB with 99.999% SLA — use when global RDBMS semantics are required</td></tr>
+        <tr><td>Messaging</td><td class="warn">"Use Pub/Sub for messaging"</td><td class="good">Pub/Sub for fanout + durability, BigQuery subscription for direct ingest, ordering key for sequential events, dead letter topic for poison messages</td></tr>
+        <tr><td>IAM</td><td class="warn">Mentions roles and service accounts</td><td class="good">Org → Folder → Project hierarchy, policy inheritance, Workload Identity (no keys), Workload Identity Federation (cross-cloud), VPC Service Controls (exfiltration prevention)</td></tr>
+        <tr><td>Compute</td><td class="warn">Defaults to GKE for everything</td><td class="good">Decision tree: containers (GKE vs Cloud Run), VMs (machine series by workload type), functions (Cloud Functions Gen 2), TPUs for large-model training</td></tr>
+        <tr><td>Cost</td><td class="bad">Doesn't mention cost</td><td class="good">BigQuery: bytes scanned + slot reservations. GCS: storage class by access frequency. Compute: Sustained Use Discounts auto-apply; Spot for batch. Preemptible 60–91% off on-demand.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Cross-links -->
+    <div style="background:#e8f7f5;border:1px solid #0a8070;border-left:4px solid #0a8070;padding:14px 20px;margin:32px 0;border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:#065a50;" class="reveal">
+      ☁️ Continue the cloud trilogy:
+      <a href="./the-aws-problem.html" style="color:#0a8070;font-weight:600;">The AWS Problem →</a>
+      <span style="margin:0 8px;color:#5a8a7a;">·</span>
+      <a href="./the-azure-problem.html" style="color:#0a8070;font-weight:600;">The Azure Problem →</a>
+      <span style="margin:0 8px;color:#5a8a7a;">·</span>
+      <a href="../design/" style="color:#0a8070;">← Back to Design Index</a>
+    </div>
+  </div>
+</section>
+
+<script>
+// Intersection Observer for .reveal animations
+(function(){
+  if (!('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('visible'); });
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>
