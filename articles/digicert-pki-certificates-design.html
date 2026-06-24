@@ -823,7 +823,7 @@ Finished                       ──────────────►  (c
     <h2>The Certificate Issuance Database</h2>
 </div>
 
-<p>DigiCert needs to track every certificate it has issued — for billing, for revocation, for audit, and for CA/Browser Forum compliance. Here is the core schema:</p>
+<p>The core schema tracks every issued cert — for billing, revocation, audit, and CA/B Forum compliance:</p>
 
 <div class="code-block">
     <div class="code-label"><span class="dot sql"></span>SQL — Core PKI Schema (PostgreSQL)</div>
@@ -1149,7 +1149,7 @@ def inspect_cert(cert_pem: bytes) -> dict:
     <h2>PKI at Kubernetes Scale</h2>
 </div>
 
-<p>Modern cloud-native infrastructure doesn't manually issue certificates. Instead, Kubernetes has a rich ecosystem for certificate lifecycle management, from <strong>cert-manager</strong> (the de facto operator) to <strong>SPIFFE/SPIRE</strong> (workload identity) and service meshes like <strong>Istio</strong> and <strong>Linkerd</strong> that provide transparent mTLS between every pod.</p>
+<p>Modern Kubernetes PKI runs through <strong>cert-manager</strong> (cert lifecycle), <strong>SPIFFE/SPIRE</strong> (workload identity), and service meshes like <strong>Istio</strong> / <strong>Linkerd</strong> that provide transparent mTLS between every pod — no manual cert management.</p>
 
 <div class="k8s-grid">
     <div class="k8s-pod">
@@ -1525,14 +1525,8 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
     <h2>Explaining Certificates to Anyone</h2>
 </div>
 
-<h3>HTTP vs HTTPS — for a 4th grader</h3>
-<p>Imagine you are passing notes in class. With <strong>HTTP</strong>, the note is written on plain paper — anyone who intercepts it can read it. With <strong>HTTPS</strong>, you fold the note into a special locked envelope that only your friend has the key to open. The lock is the TLS certificate. Before you send the first note, you and your friend agree on a secret code in about one second — that is the TLS handshake. After that, every note is scrambled so only the right person can read it.</p>
-
-<h3>HTTP vs HTTPS — for a CEO</h3>
-<p>HTTP sends data in plaintext over the network. Any router, ISP, or attacker with a packet sniffer can read passwords, form submissions, and API tokens in transit. HTTPS wraps the connection in TLS, which provides three guarantees: <strong>confidentiality</strong> (data is encrypted), <strong>integrity</strong> (data cannot be tampered without detection), and <strong>authentication</strong> (the server proved it owns the domain via a signed certificate). Without HTTPS, your customer data, login sessions, and payment tokens are exposed to any party on the network path.</p>
-
-<h3>The padlock icon</h3>
-<p>When a browser shows a padlock in the address bar it means: <em>"I verified the server's identity against a trusted Certificate Authority, and everything since then has been encrypted."</em> The padlock is not a guarantee the website is safe or honest — it only means the connection is private. A phishing site can also have a padlock if it obtained a DV certificate.</p>
+<h3>HTTP vs HTTPS</h3>
+<p><strong>HTTP</strong> is a postcard — any router or ISP can read your passwords in transit. <strong>HTTPS</strong> wraps the connection in TLS, providing three guarantees: <em>confidentiality</em> (encrypted), <em>integrity</em> (can't be tampered), and <em>authentication</em> (server proved domain ownership). The padlock means the connection is private — not that the site is trustworthy. A phishing site can have a padlock via a free DV cert.</p>
 
 <div class="lesson-card">
     <h4>Certificate trust states — what each icon means</h4>
@@ -1771,14 +1765,14 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
     <h2>Four Times the Certificate System Broke the Internet</h2>
 </div>
 
-<p>The architecture decisions in this article exist because of these failures. Understanding them is the difference between a candidate who can recite PKI concepts and one who <em>understands why the system is designed the way it is</em>.</p>
+<p>Every architectural decision in this article traces back to one of these failures.</p>
 
 <div class="failure-card">
     <div class="fc-head">
         <span class="fc-year">2011</span>
         <h4 class="fc-title">DigiNotar — The CA That Destroyed Itself</h4>
     </div>
-    <p class="fc-what">Iranian hackers compromised DigiNotar's CA infrastructure and issued over 500 fraudulent certificates — including one for <code>*.google.com</code>. This allowed a man-in-the-middle attack on millions of Iranian Gmail users. Mozilla, Google, and Microsoft removed DigiNotar from all root programs within days. The company filed for bankruptcy two months later.</p>
+    <p class="fc-what">Iranian hackers issued 500+ fraudulent certs including <code>*.google.com</code>, enabling MITM attacks on millions of Gmail users. Mozilla, Google, and Microsoft removed DigiNotar from all root programs within days. The company filed for bankruptcy two months later.</p>
     <div class="fc-lesson">💡 Lesson encoded in modern PKI: Certificate Transparency (CT) logs make every issued cert publicly auditable within minutes. A fraudulent cert for google.com would be caught by Google's CT monitoring in seconds today.</div>
 </div>
 
@@ -1787,7 +1781,7 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
         <span class="fc-year">2017</span>
         <h4 class="fc-title">Symantec Distrust — A Two-Year Slow-Motion Removal</h4>
     </div>
-    <p class="fc-what">Google discovered that Symantec (then the world's largest CA) had misissued thousands of certificates — including test certs for domains they didn't own, and certs issued without proper domain validation. Google Chrome announced a phased distrust that spanned 2017–2018, culminating in Chrome 70 (October 2018) removing all Symantec roots. At peak, Symantec had issued certs for roughly 30% of the web. DigiCert acquired Symantec's PKI business in 2017 and had to re-issue all affected certificates.</p>
+    <p class="fc-what">Symantec (then world's largest CA, ~30% of web certs) had misissued thousands of certificates — test certs for domains they didn't own, certs without proper DV. Chrome 70 (Oct 2018) removed all Symantec roots after a phased distrust. DigiCert acquired Symantec's PKI business and had to re-issue all affected certs.</p>
     <div class="fc-lesson">💡 Lesson encoded in modern PKI: CA/B Forum audits (WebTrust) now require annual third-party audits. The ballot process governs exactly what CAs can and cannot issue — and violations result in distrust, not warnings.</div>
 </div>
 
@@ -1796,7 +1790,7 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
         <span class="fc-year">2021</span>
         <h4 class="fc-title">Let's Encrypt Root Expiry — 1.5 Million Sites Briefly Broken</h4>
     </div>
-    <p class="fc-what">Let's Encrypt's IdenTrust DST Root CA X3 cross-signature expired on September 30, 2021. Older Android devices (pre-7.1.1) and some IoT devices without the newer ISRG Root X1 in their trust stores stopped trusting Let's Encrypt certs. Old OpenSSL versions also failed. An estimated 1.5M+ sites showed cert errors on affected clients.</p>
+    <p class="fc-what">The IdenTrust DST Root CA X3 cross-signature expired Sep 30, 2021. Android &lt;7.1.1 and IoT devices without the newer ISRG Root X1 stopped trusting Let's Encrypt certs. Estimated 1.5M+ sites showed cert errors.</p>
     <div class="fc-lesson">💡 Lesson encoded in modern PKI: Short-lived certs (90 days) + automated renewal (ACME) mean the blast radius of any single cert failure is bounded. Devices with frozen OS trust stores are the long tail of PKI risk.</div>
 </div>
 
@@ -1805,7 +1799,7 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
         <span class="fc-year">2022</span>
         <h4 class="fc-title">TrustCor Removal — A National Security Distrust</h4>
     </div>
-    <p class="fc-what">Mozilla, Apple, Google, and Microsoft removed TrustCor from their root programs after investigations revealed apparent links between TrustCor's parent companies and a US defense contractor involved in spyware. Unlike DigiNotar (a hack) or Symantec (misissuance), this was a policy distrust — not triggered by a technical failure but by who owned the CA.</p>
+    <p class="fc-what">All major root programs removed TrustCor after investigations revealed links between its parent companies and a US defense contractor involved in spyware. Unlike DigiNotar (hack) or Symantec (misissuance), this was a pure policy distrust — triggered by ownership, not technical failure.</p>
     <div class="fc-lesson">💡 Lesson encoded in modern PKI: Root store membership is a privilege, not a right. The five root programs (Mozilla, Apple, Google/Chrome, Microsoft, Oracle Java) each independently gate who gets trusted. A CA can be technically perfect and still get removed.</div>
 </div>
 
@@ -1824,7 +1818,7 @@ tls_cert_days_remaining{hostname="internal-legacy-api.corp",issuer="Self-signed"
     <h2>The DigiCert Design Summary</h2>
 </div>
 
-<p>PKI looks like bureaucracy — certificates, CRLs, HSMs, audit logs — until you realize it is the cryptographic backbone of all trust on the internet. Every lock icon, every API token, every mTLS microservice handshake traces back to a signed X.509 structure and a chain of organizations that agreed to trust each other.</p>
+<p>PKI is the cryptographic backbone of all trust on the internet. Every lock icon, API token, and mTLS handshake traces back to a signed X.509 structure and a chain of organizations that agreed to trust each other.</p>
 
 <div class="viz-grid">
     <div class="viz-card">
