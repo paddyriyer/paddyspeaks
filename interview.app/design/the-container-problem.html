@@ -1235,6 +1235,294 @@ ctr-remote image optimize --oci \
   </div>
 </section>
 
+<hr class="rule">
+<section id="mistakes">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 12 — COMMON MISTAKES</span>What candidates get wrong</h2>
+    <p class="lede reveal">Three misconceptions that show up repeatedly in interviews — and how to correct them on the spot.</p>
+
+    <style>
+      .mistake-card {
+        border-left: 4px solid #c0392b;
+        background: #120e06;
+        padding: 16px 20px;
+        margin: 8px 0;
+        border-radius: 0 4px 4px 0;
+        font-family: 'DM Mono', monospace;
+      }
+      .mistake-card .mistake-wrong {
+        color: #e74c3c;
+        font-size: 13px;
+        font-weight: 700;
+        margin: 0 0 8px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .mistake-card .mistake-right {
+        color: #8f8672;
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 0;
+        border-top: 1px solid #2a2010;
+        padding-top: 10px;
+      }
+      .mistake-card .mistake-right strong { color: #0fccb0; }
+    </style>
+
+    <div class="mistake-card reveal">
+      <p class="mistake-wrong">❌ "Containers replace VMs"</p>
+      <p class="mistake-right">Wrong: they solve <strong>different problems</strong>. Containers share the host OS kernel — isolation is at the process level via namespaces. VMs have a full separate kernel — isolation is at the hypervisor level, enforced in hardware. Use VMs when you need <strong>security boundaries between tenants</strong> (multi-tenant SaaS, compliance workloads, untrusted code). Containers are faster and lighter but a kernel vulnerability can cross the container boundary. VMs cannot escape the hypervisor without a hypervisor CVE. They coexist: in production you run containers <em>inside</em> VMs.</p>
+    </div>
+
+    <div class="mistake-card reveal">
+      <p class="mistake-wrong">❌ "One container = one service" is always the right rule</p>
+      <p class="mistake-right">True at the <strong>logical level</strong> — and it is the right default. But teams routinely ship containers with <code>supervisord</code> running multiple processes (e.g., nginx + app server + cron), causing ops nightmares: a crashed child process is invisible to the container runtime; logs are tangled; health checks can't distinguish which process failed; you can't scale processes independently; init signal handling breaks. The rule is <strong>one concern per container</strong>, not a literal process limit — but in practice one PID 1 is the correct implementation.</p>
+    </div>
+
+    <div class="mistake-card reveal">
+      <p class="mistake-wrong">❌ "Docker is Kubernetes" / "Docker and Kubernetes are the same thing"</p>
+      <p class="mistake-right"><strong>Docker</strong> builds images (Dockerfile → <code>docker build</code>) and runs individual containers locally (<code>docker run</code>). It is a developer tool and a local runtime. <strong>Kubernetes</strong> orchestrates containers at scale — scheduling pods onto nodes, managing replicas, rolling deployments, service discovery, autoscaling, self-healing. You can run Docker without Kubernetes (local dev, CI). In production at any meaningful scale you almost certainly need Kubernetes (or a managed equivalent: ECS, Cloud Run, Fargate) — not because Docker is inadequate but because Kubernetes solves a different problem: <em>fleet management</em>, not <em>container execution</em>.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="whynot">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 13 — WHY NOT?</span>Containers are not always the answer</h2>
+    <p class="lede reveal">The senior answer includes knowing when NOT to use containers. Trade-offs matter more than defaults.</p>
+
+    <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:24px 0;">
+      <div style="background:#0a2010;border:1px solid #0a8070;border-radius:6px;padding:20px;">
+        <div style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#0fccb0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;">Use Containers When</div>
+        <ul style="list-style:none;padding:0;margin:0;font-family:'DM Mono',monospace;font-size:13px;line-height:2;">
+          <li style="color:#6dd6c0;">✓ <span style="color:#a8d8d0;">Microservices architecture — each service independently deployable</span></li>
+          <li style="color:#6dd6c0;">✓ <span style="color:#a8d8d0;">Multiple languages / runtimes in the same system</span></li>
+          <li style="color:#6dd6c0;">✓ <span style="color:#a8d8d0;">CI/CD pipeline consistency — eliminate "works on my machine"</span></li>
+          <li style="color:#6dd6c0;">✓ <span style="color:#a8d8d0;">Cloud-native deployment targeting Kubernetes / ECS</span></li>
+          <li style="color:#6dd6c0;">✓ <span style="color:#a8d8d0;">Rapid horizontal scaling of stateless services</span></li>
+          <li style="color:#6dd6c0;">✓ <span style="color:#a8d8d0;">Ephemeral workloads: CI jobs, batch processing, serverless</span></li>
+        </ul>
+      </div>
+      <div style="background:#200a0a;border:1px solid #8b2020;border-radius:6px;padding:20px;">
+        <div style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#e74c3c;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;">Skip Containers When</div>
+        <ul style="list-style:none;padding:0;margin:0;font-family:'DM Mono',monospace;font-size:13px;line-height:2;">
+          <li style="color:#e07070;">✗ <span style="color:#c09090;">Legacy monolith tightly coupled to a specific OS configuration</span></li>
+          <li style="color:#e07070;">✗ <span style="color:#c09090;">Strict compliance requiring full VM isolation (PCI-DSS, HIPAA)</span></li>
+          <li style="color:#e07070;">✗ <span style="color:#c09090;">GPU-intensive ML training — container overhead adds latency at the driver boundary</span></li>
+          <li style="color:#e07070;">✗ <span style="color:#c09090;">Small team, simple deployment, single monolith — ops overhead exceeds benefit</span></li>
+          <li style="color:#e07070;">✗ <span style="color:#c09090;">Applications needing kernel module access or custom kernel builds</span></li>
+          <li style="color:#e07070;">✗ <span style="color:#c09090;">Hard real-time workloads where namespace overhead is unacceptable</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="pull reveal">The most common mistake: defaulting to containers because they are modern, not because they solve a real problem in the current context. A two-person startup deploying a Rails monolith to a single server should ship a VM image and a deploy script — not a Kubernetes cluster. Complexity must earn its keep.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="oneminute">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 14 — ONE-MINUTE ANSWER</span>The answer that ends the follow-up</h2>
+    <p class="lede reveal">Every interviewer will ask a variant of this. Have the answer internalized, not memorized.</p>
+
+    <div class="reveal" style="background:#120e06;border-left:4px solid #d8a44a;border-radius:0 6px 6px 0;padding:24px 28px;margin:24px 0;font-family:'DM Mono',monospace;">
+      <div style="font-size:11px;font-weight:700;color:#d8a44a;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px;">QUESTION</div>
+      <p style="font-size:15px;color:#e9e2d0;font-style:italic;margin:0 0 20px;line-height:1.6;">"Why did containers become popular?"</p>
+      <div style="font-size:11px;font-weight:700;color:#d8a44a;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px;">ANSWER</div>
+      <p style="font-size:15px;color:#c8bfa8;font-style:italic;line-height:1.8;margin:0;">Containers solved the <strong style="color:#e9e2d0;">'works on my machine'</strong> problem by packaging an application with all its dependencies into a single portable unit. Unlike VMs, they share the host OS kernel, making them lightweight (<strong style="color:#0fccb0;">MBs vs GBs</strong>) and fast to start (<strong style="color:#0fccb0;">seconds vs minutes</strong>). This enables consistent behavior across dev, test, and prod environments. The tradeoff: at scale, managing hundreds of containers manually becomes chaos — which is exactly the problem <strong style="color:#d8a44a;">Kubernetes</strong> was built to solve.</p>
+    </div>
+
+    <p class="reveal" style="font-family:'DM Mono',monospace;font-size:12px;color:#5a4e3a;">FOLLOW-UP READY: If they ask "what problem does Kubernetes solve?" — scheduling, self-healing, rolling deployments, service discovery, autoscaling. See <a href="./the-orchestration-problem.html" style="color:#0a8070;">The Orchestration Problem</a>.</p>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="interviewer">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 15 — INTERVIEWER'S MIND</span>What they are actually testing</h2>
+    <p class="lede reveal">The question is about containers. The test is about depth of systems thinking. Four axes that separate junior from staff.</p>
+
+    <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0;">
+      <div style="background:#120e06;border:1px solid #3a2e1a;border-top:3px solid #0a8070;border-radius:4px;padding:20px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#0fccb0;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">01 · ISOLATION UNDERSTANDING</div>
+        <p style="font-family:'DM Mono',monospace;font-size:13px;color:#8f8672;line-height:1.65;margin:0;">Do you know the difference between <strong style="color:#e9e2d0;">process isolation</strong> (containers — Linux namespaces, shared kernel) and <strong style="color:#e9e2d0;">kernel isolation</strong> (VMs — hypervisor, separate kernel)? Can you explain when each is appropriate? Candidates who say "containers are more secure than VMs" fail this test.</p>
+      </div>
+      <div style="background:#120e06;border:1px solid #3a2e1a;border-top:3px solid #d8a44a;border-radius:4px;padding:20px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#d8a44a;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">02 · IMAGE HYGIENE</div>
+        <p style="font-family:'DM Mono',monospace;font-size:13px;color:#8f8672;line-height:1.65;margin:0;">Can you explain <strong style="color:#e9e2d0;">layered image builds</strong>, <strong style="color:#e9e2d0;">multi-stage builds</strong>, and why image size matters? Do you know the Dockerfile instruction order rules (COPY before RUN breaks layer cache)? Staff engineers think about build cache as CI performance infrastructure.</p>
+      </div>
+      <div style="background:#120e06;border:1px solid #3a2e1a;border-top:3px solid #3060c0;border-radius:4px;padding:20px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#60a0e0;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">03 · NETWORKING BASICS</div>
+        <p style="font-family:'DM Mono',monospace;font-size:13px;color:#8f8672;line-height:1.65;margin:0;"><strong style="color:#e9e2d0;">Bridge networks</strong> (single-host, docker0), <strong style="color:#e9e2d0;">overlay networks</strong> (multi-host, VXLAN), <strong style="color:#e9e2d0;">port mapping</strong> (iptables DNAT) — do you know when each applies? Can you explain why <code style="color:#0fccb0;">-p 8080:80</code> works? Networking questions distinguish people who've debugged real container issues from those who only used them.</p>
+      </div>
+      <div style="background:#120e06;border:1px solid #3a2e1a;border-top:3px solid #c0392b;border-radius:4px;padding:20px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">04 · SECURITY POSTURE</div>
+        <p style="font-family:'DM Mono',monospace;font-size:13px;color:#8f8672;line-height:1.65;margin:0;"><strong style="color:#e9e2d0;">Root vs non-root containers</strong> (running as root in a container is nearly root on the host without user namespaces), <strong style="color:#e9e2d0;">read-only filesystems</strong>, <strong style="color:#e9e2d0;">capability dropping</strong> (<code style="color:#0fccb0;">--cap-drop=ALL</code>), <strong style="color:#e9e2d0;">seccomp profiles</strong>. Staff-level: rootless containers via user namespaces, and why distroless eliminates most of the attack surface.</p>
+      </div>
+    </div>
+
+    <div class="pull reveal">The interviewer's unstated question is always: "Has this person operated containers in production and hit the edges, or did they just follow tutorials?" The way to demonstrate the former: <em>volunteer the failure modes before being asked</em>. Name the container escape vectors. Mention that <code>--privileged</code> is essentially no isolation. Ask about their registry rate-limiting situation unprompted.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="evolution">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 16 — THE EVOLUTION</span>Container infrastructure in context</h2>
+    <p class="lede reveal">Containers are one milestone in a longer arc. Knowing where they sit — and what came before and after — is the context that makes all other answers land.</p>
+
+    <svg class="svg-diagram reveal" viewBox="0 0 680 400" aria-label="Container infrastructure evolution vertical timeline" style="overflow:hidden">
+      <defs>
+        <style>
+          .ev-n1 { animation: ev-pop .35s .05s both; }
+          .ev-n2 { animation: ev-pop .35s .20s both; }
+          .ev-n3 { animation: ev-pop .35s .35s both; }
+          .ev-n4 { animation: ev-pop .35s .50s both; }
+          .ev-n5 { animation: ev-pop .35s .65s both; }
+          .ev-n6 { animation: ev-pop .35s .80s both; }
+          .ev-n7 { animation: ev-pop .35s .95s both; }
+          .ev-n8 { animation: ev-pop .35s 1.10s both; }
+          .ev-line { animation: ev-grow 1.2s .05s ease both; }
+        </style>
+        @keyframes ev-pop  { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:scale(1)} }
+        @keyframes ev-grow { from{stroke-dashoffset:400} to{stroke-dashoffset:0} }
+      </defs>
+      <rect width="680" height="400" fill="#f7f4ee" rx="8"/>
+      <text x="340" y="22" text-anchor="middle" fill="#1a1208" font-size="11" font-weight="600" font-family="'DM Mono',monospace">Infrastructure Evolution Timeline</text>
+
+      <!-- Center spine -->
+      <line x1="340" y1="32" x2="340" y2="390" stroke="#c8bfa8" stroke-width="2" stroke-dasharray="400" class="ev-line"/>
+
+      <!-- Node 1: Physical Servers (left) -->
+      <g class="ev-n1">
+        <rect x="30" y="36" width="280" height="34" rx="4" fill="#2a2420" stroke="#6a5a4a" stroke-width="1.5"/>
+        <text x="170" y="52" text-anchor="middle" fill="#a09080" font-size="9" font-weight="700" font-family="'DM Mono',monospace">Physical Servers</text>
+        <text x="170" y="64" text-anchor="middle" fill="#6a5a4a" font-size="8" font-family="'DM Mono',monospace">Bare metal · one app per server</text>
+        <line x1="312" y1="53" x2="338" y2="53" stroke="#6a5a4a" stroke-width="1" stroke-dasharray="4 2"/>
+        <text x="355" y="50" fill="#6a5a4a" font-size="8" font-family="'DM Mono',monospace">1990s</text>
+      </g>
+
+      <!-- Node 2: Virtual Machines (right) -->
+      <g class="ev-n2">
+        <rect x="370" y="82" width="280" height="34" rx="4" fill="#222a30" stroke="#6080a0" stroke-width="1.5"/>
+        <text x="510" y="98" text-anchor="middle" fill="#8090b0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">Virtual Machines</text>
+        <text x="510" y="110" text-anchor="middle" fill="#506080" font-size="8" font-family="'DM Mono',monospace">VMware ESX · better utilization</text>
+        <line x1="368" y1="99" x2="342" y2="99" stroke="#6080a0" stroke-width="1" stroke-dasharray="4 2"/>
+        <text x="300" y="96" text-anchor="end" fill="#506080" font-size="8" font-family="'DM Mono',monospace">2000s</text>
+      </g>
+
+      <!-- Node 3: Cloud IaaS (left) -->
+      <g class="ev-n3">
+        <rect x="30" y="128" width="280" height="34" rx="4" fill="#1a2020" stroke="#208080" stroke-width="1.5"/>
+        <text x="170" y="144" text-anchor="middle" fill="#40b0b0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">Cloud IaaS (AWS EC2)</text>
+        <text x="170" y="156" text-anchor="middle" fill="#208080" font-size="8" font-family="'DM Mono',monospace">VMs on demand · elastic scaling</text>
+        <line x1="312" y1="145" x2="338" y2="145" stroke="#208080" stroke-width="1" stroke-dasharray="4 2"/>
+        <text x="355" y="142" fill="#208080" font-size="8" font-family="'DM Mono',monospace">2006</text>
+      </g>
+
+      <!-- Node 4: Containers / Docker (right) — TEAL highlight -->
+      <g class="ev-n4">
+        <rect x="370" y="174" width="280" height="38" rx="4" fill="#0a2820" stroke="#0a8070" stroke-width="2.5"/>
+        <text x="510" y="191" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Containers / Docker</text>
+        <text x="510" y="204" text-anchor="middle" fill="#0a8070" font-size="8" font-family="'DM Mono',monospace">Portable units · OCI spec · lightweight</text>
+        <line x1="368" y1="193" x2="342" y2="193" stroke="#0a8070" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <text x="300" y="190" text-anchor="end" fill="#0a8070" font-size="8" font-family="'DM Mono',monospace">2013</text>
+      </g>
+
+      <!-- Node 5: Kubernetes (left) — TEAL highlight -->
+      <g class="ev-n5">
+        <rect x="30" y="224" width="280" height="38" rx="4" fill="#0a2820" stroke="#0a8070" stroke-width="2.5"/>
+        <text x="170" y="241" text-anchor="middle" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Kubernetes</text>
+        <text x="170" y="254" text-anchor="middle" fill="#0a8070" font-size="8" font-family="'DM Mono',monospace">Orchestration · scheduling · self-healing</text>
+        <line x1="312" y1="243" x2="338" y2="243" stroke="#0a8070" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <text x="355" y="240" fill="#0a8070" font-size="8" font-family="'DM Mono',monospace">2014</text>
+      </g>
+
+      <!-- Node 6: Serverless (right) -->
+      <g class="ev-n6">
+        <rect x="370" y="274" width="280" height="34" rx="4" fill="#1a1a28" stroke="#6060c0" stroke-width="1.5"/>
+        <text x="510" y="290" text-anchor="middle" fill="#9090e0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">Serverless (Lambda / Cloud Run)</text>
+        <text x="510" y="302" text-anchor="middle" fill="#6060a0" font-size="8" font-family="'DM Mono',monospace">Containers under the hood · event-driven</text>
+        <line x1="368" y1="291" x2="342" y2="291" stroke="#6060c0" stroke-width="1" stroke-dasharray="4 2"/>
+        <text x="300" y="288" text-anchor="end" fill="#6060a0" font-size="8" font-family="'DM Mono',monospace">2016</text>
+      </g>
+
+      <!-- Node 7: Platform Engineering (left) -->
+      <g class="ev-n7">
+        <rect x="30" y="320" width="280" height="34" rx="4" fill="#201810" stroke="#c08030" stroke-width="1.5"/>
+        <text x="170" y="336" text-anchor="middle" fill="#d8a44a" font-size="9" font-weight="700" font-family="'DM Mono',monospace">Platform Engineering</text>
+        <text x="170" y="348" text-anchor="middle" fill="#906020" font-size="8" font-family="'DM Mono',monospace">Internal dev platforms · golden paths</text>
+        <line x1="312" y1="337" x2="338" y2="337" stroke="#c08030" stroke-width="1" stroke-dasharray="4 2"/>
+        <text x="355" y="334" fill="#906020" font-size="8" font-family="'DM Mono',monospace">2020</text>
+      </g>
+
+      <!-- Node 8: AI Infrastructure (right) -->
+      <g class="ev-n8">
+        <rect x="370" y="360" width="280" height="30" rx="4" fill="#1a0820" stroke="#8030c0" stroke-width="1.5"/>
+        <text x="510" y="376" text-anchor="middle" fill="#c080e0" font-size="9" font-weight="700" font-family="'DM Mono',monospace">AI Infrastructure</text>
+        <text x="510" y="386" text-anchor="middle" fill="#804090" font-size="8" font-family="'DM Mono',monospace">GPU clusters · model serving · agents</text>
+        <line x1="368" y1="375" x2="342" y2="375" stroke="#8030c0" stroke-width="1" stroke-dasharray="4 2"/>
+        <text x="300" y="372" text-anchor="end" fill="#804090" font-size="8" font-family="'DM Mono',monospace">2024</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="whatsnext">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 17 — WHAT'S NEXT?</span>The problems containers created — and what solves them</h2>
+    <p class="lede reveal">Each generation of infrastructure solves one problem and creates the next. Understanding this chain is what makes a strong candidate's answer feel historically grounded rather than tool-focused.</p>
+
+    <div class="reveal" style="margin:28px 0;">
+      <div style="display:flex;align-items:flex-start;gap:0;margin-bottom:0;">
+
+        <div style="flex:1;background:#0a2010;border:1px solid #0a8070;border-radius:6px 0 0 0;padding:20px 24px;border-right:none;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#0fccb0;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">STEP 01</div>
+          <p style="font-family:'DM Mono',monospace;font-size:14px;color:#e9e2d0;margin:0 0 8px;line-height:1.5;">Containers solved <strong style="color:#0fccb0;">packaging</strong></p>
+          <p style="font-family:'DM Mono',monospace;font-size:12px;color:#5a8a7a;margin:0;line-height:1.6;">One portable unit with all dependencies. Works everywhere. "Works on my machine" is solved. But now you have 500 containers — who starts them, restarts them when they die, and balances load?</p>
+        </div>
+        <div style="width:40px;display:flex;align-items:center;justify-content:center;background:#0a2010;border-top:1px solid #0a8070;border-bottom:1px solid #0a8070;padding:20px 0;align-self:stretch;">
+          <span style="font-family:'DM Mono',monospace;font-size:18px;color:#0fccb0;">→</span>
+        </div>
+        <div style="flex:1;background:#120e06;border:1px solid #d8a44a;border-radius:0 6px 0 0;padding:20px 24px;border-left:none;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#d8a44a;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">NEXT PROBLEM → ORCHESTRATION</div>
+          <p style="font-family:'DM Mono',monospace;font-size:13px;color:#8f8672;margin:0;line-height:1.6;"><strong style="color:#d8a44a;">Kubernetes</strong> — scheduling pods onto nodes, self-healing via ReplicaSets, rolling deployments, service discovery via CoreDNS, autoscaling via HPA. The container is the atom; Kubernetes manages the molecule.</p>
+        </div>
+
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:0;margin-top:-1px;">
+
+        <div style="flex:1;background:#0a2010;border:1px solid #0a8070;border-radius:0 0 0 6px;padding:20px 24px;border-right:none;border-top:none;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#0fccb0;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">STEP 02</div>
+          <p style="font-family:'DM Mono',monospace;font-size:14px;color:#e9e2d0;margin:0 0 8px;line-height:1.5;">Kubernetes solved <strong style="color:#0fccb0;">scheduling</strong></p>
+          <p style="font-family:'DM Mono',monospace;font-size:12px;color:#5a8a7a;margin:0;line-height:1.6;">Fleet management at scale — reliable, declarative. But developers still need to understand YAML, Helm charts, network policies, ingress controllers, CRDs. The cognitive overhead is enormous. Who builds the abstractions?</p>
+        </div>
+        <div style="width:40px;display:flex;align-items:center;justify-content:center;background:#0a2010;border-top:none;border-bottom:1px solid #0a8070;padding:20px 0;align-self:stretch;">
+          <span style="font-family:'DM Mono',monospace;font-size:18px;color:#0fccb0;">→</span>
+        </div>
+        <div style="flex:1;background:#120e06;border:1px solid #d8a44a;border-radius:0 0 6px 0;padding:20px 24px;border-left:none;border-top:none;">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#d8a44a;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">NEXT PROBLEM → DEVELOPER EXPERIENCE</div>
+          <p style="font-family:'DM Mono',monospace;font-size:13px;color:#8f8672;margin:0;line-height:1.6;"><strong style="color:#d8a44a;">Platform Engineering</strong> — internal developer platforms (IDPs) that hide Kubernetes complexity. Tools like Backstage, Crossplane, Humanitec. The platform team owns the infrastructure; app teams get golden paths: <code style="color:#0fccb0;">backstage new-service</code> → CI/CD + Kubernetes + observability, zero YAML.</p>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="reveal" style="background:#0a0810;border:2px solid #8030c0;border-radius:6px;padding:24px 28px;margin:24px 0;font-family:'DM Mono',monospace;">
+      <div style="font-size:10px;font-weight:700;color:#c080e0;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;">STEP 03 → WHAT COMES AFTER PLATFORM ENGINEERING</div>
+      <p style="font-size:14px;color:#e9e2d0;line-height:1.7;margin:0 0 12px;">Platform engineering solves <strong style="color:#c080e0;">developer experience</strong> — abstracting infrastructure into self-service workflows. The next frontier: <strong style="color:#c080e0;">AI agents that provision, scale, and heal infrastructure without human operators.</strong></p>
+      <p style="font-size:13px;color:#804090;line-height:1.65;margin:0;">Instead of a developer triggering a deploy pipeline, an AI agent reads the service's SLO, observes current traffic patterns, provisions the right size of infrastructure, deploys the container, and adjusts replicas in real time — without a human writing a Helm chart or tuning an HPA. The container is still the execution unit. The agent is the new operator.</p>
+    </div>
+
+    <p class="reveal" style="font-family:'DM Mono',monospace;font-size:13px;color:#5a4e3a;line-height:1.7;">The through-line: every generation of infrastructure abstracts away the complexity of the previous one. Physical servers → VMs → cloud → containers → Kubernetes → platforms → agents. Understanding this arc — not just the current tool — is what a staff engineer brings to the interview.</p>
+  </div>
+</section>
+
 <script>
 const io = new IntersectionObserver(entries => {
   entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });

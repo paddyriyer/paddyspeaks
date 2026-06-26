@@ -1542,6 +1542,268 @@ spec:
   </div>
 </section>
 
+<hr class="rule">
+<section id="mistakes">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — COMMON MISTAKES</span>What trips up experienced engineers</h2>
+    <p class="lede reveal">Even engineers who understand Kubernetes conceptually make these operational mistakes. Recognise them before your interviewer does.</p>
+
+    <div class="mistake-card reveal">
+      <div class="mk-title">❌ "Kubernetes for every project"</div>
+      <div class="mk-body">K8s has significant operational overhead: control plane costs, upgrade cadence, CNI complexity, RBAC management. A startup with 3 services doesn't need K8s. A managed PaaS — Railway, Render, Fly.io — is faster to ship on, cheaper to run, and operationally simpler until you have real scaling needs. The right tool is the simplest one that meets your requirements.</div>
+    </div>
+
+    <div class="mistake-card reveal">
+      <div class="mk-title">❌ "Pods are permanent"</div>
+      <div class="mk-body">Pods are ephemeral. They can be evicted, rescheduled, OOM-killed, or replaced at any time. Never store state in a pod directly — a filesystem write inside a container disappears when the pod dies. Use PersistentVolumes for filesystem state, StatefulSets for stable pod identity, or external managed databases (RDS, DynamoDB) for the simplest path.</div>
+    </div>
+
+    <div class="mistake-card reveal">
+      <div class="mk-title">❌ "Setting no resource limits"</div>
+      <div class="mk-body">Without CPU and memory limits, a single noisy pod can consume all resources on a node and starve every other workload — OOM-killing them in a cascade. Always set both <code>requests</code> (for scheduler bin-packing) and <code>limits</code> (for cgroup enforcement). For production workloads, set <code>requests == limits</code> (Guaranteed QoS class) to prevent throttling surprises.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="whynot">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — WHY NOT?</span>Kubernetes isn't always the answer</h2>
+    <p class="lede reveal">Every system design interview expects trade-offs. Know when Kubernetes is the wrong choice — and be able to say so clearly.</p>
+
+    <div class="whynot-grid reveal">
+      <div class="whynot-col yes">
+        <h4>✓ Use K8s When</h4>
+        <div class="item-yes">✓ 10+ microservices needing independent deploys</div>
+        <div class="item-yes">✓ Traffic varies significantly (autoscaling needed)</div>
+        <div class="item-yes">✓ Multi-team platform with shared infrastructure</div>
+        <div class="item-yes">✓ Need sophisticated rolling deployments</div>
+        <div class="item-yes">✓ Team already has K8s expertise</div>
+        <div class="item-yes">✓ Multi-region, multi-cluster federation</div>
+      </div>
+      <div class="whynot-col no">
+        <h4>✗ Skip K8s When</h4>
+        <div class="item-no">✗ Small team (&lt; 5 engineers)</div>
+        <div class="item-no">✗ Simple monolith or 2–3 services</div>
+        <div class="item-no">✗ Tight budget (K8s control plane adds cost)</div>
+        <div class="item-no">✗ Team lacks K8s expertise</div>
+        <div class="item-no">✗ Speed-to-market is the primary constraint</div>
+        <div class="item-no">✗ No scaling requirements yet</div>
+      </div>
+    </div>
+
+    <div class="pull reveal">The strong answer in an interview names the alternatives: Railway, Render, Fly.io for small teams; ECS on Fargate for AWS-native simple services; managed Heroku-style platforms for early startups. Defaulting to K8s without acknowledging its complexity cost is a junior signal.</div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="oneminute">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 11 — ONE-MINUTE ANSWER</span>If you only remember one thing</h2>
+    <p class="lede reveal">When an interviewer asks "Why does Kubernetes exist?" you need to be able to answer in 60 seconds — clearly, with the insight, not just the features.</p>
+
+    <div class="oneminute-card reveal">
+      <div class="om-q">Question: "Why does Kubernetes exist?"</div>
+      <div class="om-a">As teams adopted containers, they faced a new problem: container sprawl. Running hundreds of containers manually — deciding which server hosts which container, restarting crashed containers, routing traffic to healthy instances — became operationally unsustainable. Kubernetes solves this with a declarative model: you describe desired state (3 replicas of the API service), and Kubernetes continuously reconciles actual state toward it. The control loop — observe, diff, act — is the core insight. Kubernetes doesn't just run containers; it makes distributed systems self-healing.</div>
+    </div>
+
+    <table class="reveal">
+      <tr><th>The One-Sentence Version</th></tr>
+      <tr><td style="font-family:'DM Mono',monospace;font-size:14px;color:#0a8070;padding:16px 18px;"><strong>Kubernetes is a reconciliation engine: you declare desired state, and it continuously closes the gap between what you want and what is running — even as machines fail, containers crash, and traffic spikes.</strong></td></tr>
+    </table>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="interviewer">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 12 — INTERVIEWER'S MIND</span>What they're really testing</h2>
+    <p class="lede reveal">When an interviewer asks about Kubernetes, they're probing four levels of understanding. Here's what they want to hear at each level.</p>
+
+    <div class="interviewer-grid reveal">
+      <div class="int-card">
+        <div class="int-title">Declarative vs Imperative</div>
+        <div class="int-body">Can you explain why desired-state beats imperative commands at scale? The key insight: at thousands of containers, reconciliation loops are more reliable than runbooks. Imperative commands fail silently; declarative state is continuously verified.</div>
+      </div>
+      <div class="int-card">
+        <div class="int-title">Control Loop Pattern</div>
+        <div class="int-body">Can you describe the reconciliation loop? Watch → compare → act. The controller observes current state from the API server, diffs it against desired state in etcd, and takes the minimal action to close the gap. This pattern appears in every K8s component.</div>
+      </div>
+      <div class="int-card">
+        <div class="int-title">Scheduler Understanding</div>
+        <div class="int-body">What factors does the scheduler consider? Resources (CPU/memory requests), node affinity, pod anti-affinity, taints and tolerations, topology spread constraints, volume zone compatibility. At 10K nodes, it samples rather than evaluating all nodes for latency.</div>
+      </div>
+      <div class="int-card">
+        <div class="int-title">Production Readiness</div>
+        <div class="int-body">Do you know about PodDisruptionBudgets (protect replicas during node drain), resource limits (prevent noisy-neighbor OOM cascades), liveness vs readiness probes (restart vs traffic exclusion), and HPA cooldown periods (prevent scale thrashing)?</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="evolution">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 13 — THE EVOLUTION</span>How we got here</h2>
+    <p class="lede reveal">Kubernetes didn't appear in a vacuum. It is the product of a decade of industry convergence around the right abstraction for running software at scale.</p>
+
+    <!-- ── EVOLUTION TIMELINE SVG ────────────────────────────── -->
+    <svg class="svg-diagram reveal" viewBox="0 0 700 420" aria-label="Container orchestration evolution timeline" style="overflow:hidden">
+      <defs>
+        <style>
+          .ev-node { animation: ev-appear .45s ease both; }
+          .ev-node:nth-child(1)  { animation-delay:.05s }
+          .ev-node:nth-child(2)  { animation-delay:.15s }
+          .ev-node:nth-child(3)  { animation-delay:.25s }
+          .ev-node:nth-child(4)  { animation-delay:.35s }
+          .ev-node:nth-child(5)  { animation-delay:.45s }
+          .ev-node:nth-child(6)  { animation-delay:.55s }
+          .ev-node:nth-child(7)  { animation-delay:.65s }
+          .ev-node:nth-child(8)  { animation-delay:.75s }
+          .ev-node:nth-child(9)  { animation-delay:.85s }
+          .ev-node:nth-child(10) { animation-delay:.95s }
+          .ev-line { stroke-dasharray:600; animation: ev-flow 2s .5s ease both; }
+          .ev-k8s  { animation: ev-glow 3s 2s ease-in-out infinite; }
+        </style>
+        <marker id="ev-arr" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#0a8070"/>
+        </marker>
+      </defs>
+      <rect width="700" height="420" fill="#f7f4ee" rx="8"/>
+      <text x="350" y="22" text-anchor="middle" fill="#1a1208" font-size="12" font-weight="600" font-family="'DM Mono',monospace">The Evolution of Infrastructure — Bare Metal to AI-Native</text>
+
+      <!-- Vertical timeline spine -->
+      <line x1="80" y1="40" x2="80" y2="400" stroke="#d0c8b8" stroke-width="2" stroke-dasharray="600" class="ev-line"/>
+
+      <!-- Era 1: Bare Metal -->
+      <g class="ev-node">
+        <circle cx="80" cy="56" r="8" fill="#8a7c6a"/>
+        <rect x="100" y="42" width="560" height="28" rx="4" fill="#ede8df"/>
+        <text x="112" y="56" dominant-baseline="middle" fill="#5a4e3a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Bare Metal</text>
+        <text x="220" y="56" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Apps run directly on servers. One app per machine. Terrible utilization.</text>
+      </g>
+
+      <!-- Era 2: VMs -->
+      <g class="ev-node">
+        <circle cx="80" cy="96" r="8" fill="#8a7c6a"/>
+        <rect x="100" y="82" width="560" height="28" rx="4" fill="#ede8df"/>
+        <text x="112" y="96" dominant-baseline="middle" fill="#5a4e3a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">VMs (VMware, 2001)</text>
+        <text x="260" y="96" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Multiple VMs per server. Better utilization. Still slow to boot, heavy images.</text>
+      </g>
+
+      <!-- Era 3: Cloud VMs -->
+      <g class="ev-node">
+        <circle cx="80" cy="136" r="8" fill="#c97b1a"/>
+        <rect x="100" y="122" width="560" height="28" rx="4" fill="#fdf8ee"/>
+        <text x="112" y="136" dominant-baseline="middle" fill="#7a5a1a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Cloud VMs (AWS EC2, 2006)</text>
+        <text x="270" y="136" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">On-demand VMs. IaaS born. Still manual provisioning headaches.</text>
+      </g>
+
+      <!-- Era 4: Docker -->
+      <g class="ev-node">
+        <circle cx="80" cy="176" r="8" fill="#c97b1a"/>
+        <rect x="100" y="162" width="560" height="28" rx="4" fill="#fdf8ee"/>
+        <text x="112" y="176" dominant-baseline="middle" fill="#7a5a1a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Containers (Docker, 2013)</text>
+        <text x="270" y="176" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Lightweight isolated processes. "Works on my machine" solved. Container sprawl begins.</text>
+      </g>
+
+      <!-- Era 5: Orchestration war -->
+      <g class="ev-node">
+        <circle cx="80" cy="216" r="8" fill="#b84c36"/>
+        <rect x="100" y="202" width="560" height="28" rx="4" fill="#fdf0ee"/>
+        <text x="112" y="216" dominant-baseline="middle" fill="#7a2a1a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Orchestration Wars (2014–2017)</text>
+        <text x="305" y="216" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Apache Mesos, Docker Swarm, Kubernetes all compete.</text>
+      </g>
+
+      <!-- Era 6: K8s wins -->
+      <g class="ev-node ev-k8s">
+        <circle cx="80" cy="256" r="10" fill="#0a8070"/>
+        <rect x="100" y="240" width="560" height="32" rx="4" fill="#e8f7f5" stroke="#0a8070" stroke-width="1.5"/>
+        <text x="112" y="256" dominant-baseline="middle" fill="#065a50" font-size="10" font-weight="700" font-family="'DM Mono',monospace">K8s Wins — CNCF Graduation (2018)</text>
+        <text x="330" y="256" dominant-baseline="middle" fill="#0a8070" font-size="9" font-family="'DM Mono',monospace">GKE, EKS, AKS adopt K8s. Industry convergence complete.</text>
+      </g>
+
+      <!-- Era 7: Managed K8s -->
+      <g class="ev-node">
+        <circle cx="80" cy="298" r="8" fill="#0a8070"/>
+        <rect x="100" y="284" width="560" height="28" rx="4" fill="#e8f7f5"/>
+        <text x="112" y="298" dominant-baseline="middle" fill="#065a50" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Managed K8s (EKS / GKE / AKS)</text>
+        <text x="305" y="298" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Cloud providers operate the control plane. Teams own workloads.</text>
+      </g>
+
+      <!-- Era 8: Platform Engineering -->
+      <g class="ev-node">
+        <circle cx="80" cy="334" r="8" fill="#5050c0"/>
+        <rect x="100" y="320" width="560" height="28" rx="4" fill="#f5f4ff"/>
+        <text x="112" y="334" dominant-baseline="middle" fill="#3030a0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Platform Engineering (Backstage, 2021+)</text>
+        <text x="325" y="334" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Internal developer platforms abstract K8s complexity.</text>
+      </g>
+
+      <!-- Era 9: GitOps -->
+      <g class="ev-node">
+        <circle cx="80" cy="370" r="8" fill="#5050c0"/>
+        <rect x="100" y="356" width="560" height="28" rx="4" fill="#f5f4ff"/>
+        <text x="112" y="370" dominant-baseline="middle" fill="#3030a0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">GitOps / ArgoCD / Flux</text>
+        <text x="235" y="370" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Git as single source of truth. Cluster state reconciled from repo continuously.</text>
+      </g>
+
+      <!-- Era 10: AI-native -->
+      <g class="ev-node">
+        <circle cx="80" cy="406" r="8" fill="#8060d0" stroke="#a080f0" stroke-width="1.5"/>
+        <rect x="100" y="392" width="560" height="22" rx="4" fill="#f0eeff" stroke="#9070e0" stroke-width="1"/>
+        <text x="112" y="403" dominant-baseline="middle" fill="#6040b0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">AI-Native Infra (emerging)</text>
+        <text x="255" y="403" dominant-baseline="middle" fill="#8a7c6a" font-size="9" font-family="'DM Mono',monospace">Autonomous cluster management, AI-driven scaling, self-healing policies.</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+<section id="whatsnext">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 14 — WHAT'S NEXT?</span>The frontier beyond orchestration</h2>
+    <p class="lede reveal">Kubernetes solved the orchestration problem. Each solution created the next problem. Here is the chain of constraints as the industry has moved up the abstraction ladder.</p>
+
+    <div class="next-grid reveal">
+      <div class="next-row">
+        <strong>Kubernetes</strong> solved <strong>orchestration</strong>
+        <span class="next-arrow"> → </span>
+        Next problem: <strong>developer experience</strong>. K8s is powerful but hard. Platform Engineering (Backstage, Port) builds internal developer portals so teams can deploy without writing YAML.
+      </div>
+      <div class="next-row">
+        <strong>Platform Engineering</strong> solved <strong>self-service</strong>
+        <span class="next-arrow"> → </span>
+        Next problem: <strong>deployment consistency</strong>. Manual <code>kubectl apply</code> drifts. GitOps (ArgoCD, Flux) continuously reconciles cluster state from a Git repository — no manual ops.
+      </div>
+      <div class="next-row">
+        <strong>GitOps</strong> solved <strong>deployment</strong>
+        <span class="next-arrow"> → </span>
+        Next problem: <strong>policy and governance</strong>. At scale, who can deploy what? Policy-as-code (OPA Gatekeeper, Kyverno) enforces rules at admission time — before anything reaches etcd.
+      </div>
+      <div class="next-row">
+        <strong>AI agents</strong> will solve <strong>toil</strong>
+        <span class="next-arrow"> → </span>
+        Next problem: <strong>autonomous operations</strong>. AI-driven cluster management (k8sgpt, Robusta) diagnoses incidents, suggests fixes, and eventually applies remediations autonomously. The control loop becomes AI-assisted.
+      </div>
+    </div>
+
+    <table class="reveal">
+      <tr><th>Layer</th><th>Problem Solved</th><th>Key Technologies</th><th>Status</th></tr>
+      <tr><td><strong>Containers</strong></td><td>Environment consistency</td><td>Docker, OCI, containerd</td><td>Mature</td></tr>
+      <tr><td><strong>Orchestration</strong></td><td>Running containers at scale</td><td>Kubernetes, EKS/GKE/AKS</td><td>Industry standard</td></tr>
+      <tr><td><strong>Service Mesh</strong></td><td>Observability, mTLS, traffic control</td><td>Istio, Linkerd, Cilium</td><td>Maturing</td></tr>
+      <tr><td><strong>GitOps</strong></td><td>Deployment consistency</td><td>ArgoCD, Flux, Crossplane</td><td>Maturing</td></tr>
+      <tr><td><strong>Platform Engineering</strong></td><td>Developer self-service</td><td>Backstage, Port, Cortex</td><td>Early mainstream</td></tr>
+      <tr><td><strong>Policy-as-Code</strong></td><td>Governance at scale</td><td>OPA, Kyverno, Styra</td><td>Growing</td></tr>
+      <tr><td><strong>AI-Native Infra</strong></td><td>Autonomous toil elimination</td><td>k8sgpt, Robusta, AI agents</td><td>Emerging</td></tr>
+    </table>
+
+    <div class="pull reveal">The trajectory is clear: each layer abstracts the complexity of the layer below. Kubernetes abstracts nodes. Platform Engineering abstracts Kubernetes. GitOps abstracts deployment operations. AI will abstract the rest. The engineer who understands why each layer exists — and what problem it actually solves — will thrive at every level of this stack.</div>
+  </div>
+</section>
+
+<hr class="rule">
+
 <script>
 const io = new IntersectionObserver(entries => {
   entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
