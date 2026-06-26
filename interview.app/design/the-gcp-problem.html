@@ -1247,10 +1247,528 @@ h1 em { color: #0fccb0 !important; }
 
 <hr class="rule">
 
-<!-- §10 SUMMARY -->
+<!-- §10 COMMON MISTAKES -->
+<section id="mistakes">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — COMMON MISTAKES</span>What interviewers actually hear</h2>
+    <p class="lede reveal">These are the three misconceptions that immediately signal a candidate hasn't worked deeply with GCP — each one has a specific correction that demonstrates real understanding.</p>
+
+    <style>
+    .mistake-card {
+      border-left: 3px solid #dc2626;
+      background: #120e06;
+      padding: 16px 20px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: #e9e2d0;
+    }
+    .mistake-card .mistake-title {
+      color: #ef4444;
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .mistake-card .mistake-fix {
+      color: #0fccb0;
+      font-size: 12px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #2a1a0a;
+      display: block;
+    }
+    </style>
+
+    <div class="reveal">
+      <div class="mistake-card">
+        <span class="mistake-title">❌ "BigQuery is just a database"</span>
+        BigQuery is a serverless data warehouse built on Dremel — Google's internal distributed query engine. It separates compute (Dremel workers, called slots) from storage (Colossus, in columnar Capacitor format) completely. This means it auto-scales to thousands of parallel workers per query with zero provisioning. It bills per bytes scanned, not per storage size or compute time at rest. Running <code>SELECT *</code> on a 1TB table costs approximately $5 per query — no index, no tuning, just raw scan cost. Understanding this billing model is what separates a BigQuery user from a BigQuery architect.
+        <span class="mistake-fix">✓ Correct framing: "BigQuery is serverless OLAP built on Dremel. Compute and storage are separated — you pay for bytes scanned, not cluster size. The right optimization is partitioning + clustering to reduce scan volume, not provisioning bigger instances."</span>
+      </div>
+
+      <div class="mistake-card">
+        <span class="mistake-title">❌ "GCP networking = AWS networking"</span>
+        GCP's VPC is fundamentally different from AWS. In AWS, a VPC is regional — you need VPC Peering, Transit Gateway, or PrivateLink to connect resources across regions, each with cost and routing complexity. In GCP, a VPC is truly global: one VPC spans all regions simultaneously. Subnets are regional, but they belong to the same network namespace. A VM in us-central1 and a VM in asia-east1 can talk on private RFC-1918 IPs through the same VPC with no peering setup. GCP firewalls are tag-based and applied globally to the VPC rather than being instance-attached security groups.
+        <span class="mistake-fix">✓ Correct framing: "GCP VPC is global, not regional. One VPC, multiple regional subnets, one firewall ruleset. This changes multi-region architecture fundamentally — no Transit Gateway, no peering mesh, no route table per region."</span>
+      </div>
+
+      <div class="mistake-card">
+        <span class="mistake-title">❌ "Cloud Run is just Lambda"</span>
+        Cloud Run and AWS Lambda differ at the fundamental unit of deployment. Lambda deploys source code functions within language-specific managed runtimes (Node.js, Python, Java, etc.) — you don't control the OS, dependencies, or runtime beyond what Lambda exposes. Cloud Run deploys full OCI containers — any language, any framework, any binary dependency. Cloud Run also supports up to 1000 concurrent requests per container instance (vs Lambda's one-request-per-instance model in Gen 1). On cold starts: Cloud Run does have startup latency for new container instances, but Google maintains a pool of pre-warmed instances for scale-to-zero services, making the practical cold start experience significantly better than raw numbers suggest. Cloud Run is also not function-scoped — it supports long-running HTTP services, WebSockets, and gRPC streaming.
+        <span class="mistake-fix">✓ Correct framing: "Cloud Run runs containers (any language, any dependency, full HTTP service). Lambda runs functions inside a managed runtime. Cloud Run concurrency model (1000 req/instance) means far fewer cold starts than Lambda's 1:1 model."</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §11 WHY NOT GCP? -->
+<section id="whynot">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 11 — WHY NOT?</span>Honest trade-offs — when to choose GCP and when not to</h2>
+    <p class="lede reveal">A strong candidate knows when GCP wins and when it doesn't. Defaulting to GCP for everything signals lack of real-world experience as much as defaulting to AWS does.</p>
+
+    <style>
+    .whynot-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 24px 0;
+    }
+    .whynot-col {
+      font-family: 'DM Mono', monospace;
+      font-size: 12.5px;
+      padding: 20px 22px;
+      border-radius: 6px;
+    }
+    .whynot-col.choose {
+      background: #060e08;
+      border: 1px solid #0a8070;
+      border-top: 3px solid #0fccb0;
+    }
+    .whynot-col.avoid {
+      background: #0e0808;
+      border: 1px solid #4a2020;
+      border-top: 3px solid #dc2626;
+    }
+    .whynot-col h3 {
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin: 0 0 14px 0;
+    }
+    .whynot-col.choose h3 { color: #0fccb0; }
+    .whynot-col.avoid h3  { color: #ef4444; }
+    .whynot-item {
+      color: #c8d3e0;
+      margin: 9px 0;
+      padding-left: 4px;
+      line-height: 1.55;
+    }
+    .whynot-item span { color: #8a9ab0; font-size: 11px; display: block; margin-top: 2px; padding-left: 18px; }
+    </style>
+
+    <div class="whynot-grid reveal">
+      <div class="whynot-col choose">
+        <h3>Choose GCP When</h3>
+        <div class="whynot-item">✓ BigQuery for analytics at petabyte scale
+          <span>No provisioning, pay-per-scan, auto-scales to thousands of slots. Nothing in AWS or Azure matches this at zero operational cost.</span>
+        </div>
+        <div class="whynot-item">✓ Vertex AI / AI Platform for ML workloads
+          <span>TPUs for JAX/TensorFlow training, integrated Gemini APIs, and managed Feature Store. Google's AI infrastructure is its strongest differentiator.</span>
+        </div>
+        <div class="whynot-item">✓ Global low-latency network (Premium Tier)
+          <span>Traffic stays on Google's private fiber from ingress PoP to destination. Essential for real-time global products.</span>
+        </div>
+        <div class="whynot-item">✓ Open-source alignment
+          <span>K8s, Istio, Knative, Apache Beam — GCP invented or leads these projects. Deep integration without lock-in concern.</span>
+        </div>
+      </div>
+
+      <div class="whynot-col avoid">
+        <h3>Consider Alternatives When</h3>
+        <div class="whynot-item">✗ AWS for broadest service catalog and enterprise market share
+          <span>AWS has 200+ services vs GCP's ~100. For enterprise SaaS integrations (SAP, Oracle, Salesforce), AWS marketplace and ISV ecosystem is larger.</span>
+        </div>
+        <div class="whynot-item">✗ Azure for Microsoft / Active Directory heavy enterprises
+          <span>If the org runs Office 365, Teams, and Active Directory, Azure AD integration is seamless in ways GCP cannot match out of the box.</span>
+        </div>
+        <div class="whynot-item">✗ Smaller community means fewer answers
+          <span>GCP has a smaller Stack Overflow presence, fewer regional user groups, and less third-party tutorial coverage than AWS. This slows onboarding teams.</span>
+        </div>
+        <div class="whynot-item">✗ Google's product discontinuation history
+          <span>Stadia, Google+, Hangouts, Inbox, Cloud IoT Core — enterprises noticed. Risk appetite for GCP services that aren't core compute/storage/BQ is real.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §12 ONE-MINUTE ANSWER -->
+<section id="oneminute">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 12 — ONE-MINUTE ANSWER</span>When the interviewer says "just quickly — what makes GCP different?"</h2>
+    <p class="lede reveal">This is the answer you should be able to give in under 90 seconds — specific, technical, and honest about trade-offs.</p>
+
+    <style>
+    .oneminute-card {
+      background: #120e06;
+      border-left: 3px solid #f59e0b;
+      border-radius: 6px;
+      padding: 20px 24px;
+      margin: 24px 0;
+      font-family: 'DM Mono', monospace;
+    }
+    .oneminute-q {
+      color: #f59e0b;
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .oneminute-q-text {
+      color: #e9e2d0;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #2a1a0a;
+    }
+    .oneminute-a {
+      color: #f59e0b;
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .oneminute-a-text {
+      color: #c8d3e0;
+      font-size: 13.5px;
+      line-height: 1.7;
+    }
+    .oneminute-a-text strong { color: #0fccb0; }
+    </style>
+
+    <blockquote class="oneminute-card reveal">
+      <div class="oneminute-q">Question</div>
+      <div class="oneminute-q-text">"What makes GCP different from AWS?"</div>
+      <div class="oneminute-a">Answer</div>
+      <div class="oneminute-a-text">
+        "GCP's differentiation comes from two sources: <strong>Google's internal infrastructure made public</strong>, and <strong>ML/AI leadership</strong>. BigQuery came from Google's internal Dremel query engine. Kubernetes came from Google's internal Borg scheduler. The global VPC architecture reflects how Google itself operates — a single network spanning all regions rather than isolated regional silos. For data and AI workloads, GCP frequently wins on price-performance because you're using the same infrastructure Google uses for Search, YouTube, and Maps. The tradeoff: smaller ecosystem than AWS, fewer enterprise integrations, and Google's history of sunsetting products creates enterprise hesitancy."
+      </div>
+    </blockquote>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §13 INTERVIEWER'S MIND -->
+<section id="interviewer">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 13 — INTERVIEWER'S MIND</span>What they're actually probing with each question</h2>
+    <p class="lede reveal">GCP interviewers are not testing service name recall. They are testing whether you understand the <em>why</em> behind each architectural choice. Here are the four most common probes and what depth looks like.</p>
+
+    <style>
+    .interviewer-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .int-card {
+      background: #0a0c10;
+      border: 1px solid #1a2a3a;
+      border-top: 3px solid #0a8070;
+      border-radius: 6px;
+      padding: 18px 20px;
+      font-family: 'DM Mono', monospace;
+    }
+    .int-card-title {
+      color: #0fccb0;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .int-card-probe {
+      color: #f59e0b;
+      font-size: 11px;
+      margin-bottom: 8px;
+      font-style: italic;
+    }
+    .int-card-body {
+      color: #c8d3e0;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .int-card-body strong { color: #e9e2d0; }
+    .int-card-signal {
+      color: #0fccb0;
+      font-size: 11px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #1a2a3a;
+    }
+    </style>
+
+    <div class="interviewer-grid reveal">
+      <div class="int-card">
+        <div class="int-card-title">1. BigQuery Architecture</div>
+        <div class="int-card-probe">"Can you explain why BigQuery separates compute and storage? What is Dremel? Why does columnar format matter?"</div>
+        <div class="int-card-body">
+          Interviewers want to hear: <strong>Dremel</strong> is the distributed SQL execution engine that fans out to thousands of parallel workers (slots). <strong>Colossus</strong> is the distributed file system storing data in columnar Capacitor format. <strong>Jupiter</strong> is the petabit network fabric connecting them with essentially unlimited bisection bandwidth. Columnar format means a query on <code>SELECT revenue</code> reads only one column out of 200 — 99.5% of data never touched. You pay for bytes scanned, not compute time.
+        </div>
+        <div class="int-card-signal">✓ Signal: anyone who mentions Dremel, Colossus, and slot reservations in the same answer has worked with BQ in production.</div>
+      </div>
+
+      <div class="int-card">
+        <div class="int-card-title">2. Global vs Regional</div>
+        <div class="int-card-probe">"When does GCP's global VPC help? When does it create compliance problems around data residency?"</div>
+        <div class="int-card-body">
+          Global VPC helps for: multi-region active-active services that need private routing without peering overhead, global Spanner deployments, and consistent firewall policy across regions. It creates compliance friction when regulations (GDPR, data sovereignty) require data to stay in a specific geography — because the VPC itself spans everywhere, you must enforce data residency at the <strong>subnet and service level</strong>, not the network level. VPC Service Controls adds an API-level perimeter, but the burden shifts to service-level config.
+        </div>
+        <div class="int-card-signal">✓ Signal: knowing the data residency complication shows the candidate has dealt with regulated workloads.</div>
+      </div>
+
+      <div class="int-card">
+        <div class="int-card-title">3. IAM Hierarchy</div>
+        <div class="int-card-probe">"Organization → Folder → Project → Resource. Why is project-level isolation GCP's unit of billing and IAM?"</div>
+        <div class="int-card-body">
+          The project is GCP's fundamental isolation boundary: all resources belong to a project, all billing is per project, IAM policies set at the project level scope all resources within it. Folders group projects (e.g., by team or environment) and allow inherited IAM. Organization is the root — policies set here propagate everywhere. The key interview point: <strong>you cannot grant less permission than the parent grants</strong>. If a user has <code>roles/editor</code> at the folder level, you cannot revoke it at the project level — you must revoke at the folder or use a more restrictive folder structure.
+        </div>
+        <div class="int-card-signal">✓ Signal: understanding policy inheritance (additive, not subtractive) is the key IAM trap question.</div>
+      </div>
+
+      <div class="int-card">
+        <div class="int-card-title">4. Pub/Sub vs Kafka</div>
+        <div class="int-card-probe">"When would you use managed Pub/Sub vs self-managed Kafka on GCP?"</div>
+        <div class="int-card-body">
+          Choose <strong>Pub/Sub</strong> when: you want zero infrastructure management, global delivery, at-least-once semantics are sufficient, and you're building GCP-native (Dataflow, Cloud Run, BigQuery subscription all integrate natively). Choose <strong>Kafka</strong> (via Confluent or GKE self-managed) when: you need strict per-partition ordering with consumer group offsets, log compaction for state materialization, Kafka Streams for stream processing close to the broker, or you're migrating a Kafka-based architecture and need exact compatibility. Pub/Sub now supports ordered delivery via ordering keys — but Kafka's offset-based consumer model gives more control for complex consumer group topologies.
+        </div>
+        <div class="int-card-signal">✓ Signal: naming ordering keys and the BigQuery subscription shows hands-on Pub/Sub depth.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §14 EVOLUTION TIMELINE -->
+<section id="evolution">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 14 — THE EVOLUTION</span>GCP's architectural arc: 2003 → 2023</h2>
+    <p class="lede reveal">Understanding GCP's evolution explains why its services are designed the way they are. Each milestone is Google solving a real problem at scale — and then opening that solution to the world.</p>
+
+    <svg class="svg-diagram reveal" viewBox="0 0 680 380" aria-label="GCP evolution timeline" style="overflow:hidden">
+      <defs>
+        <style>
+          @keyframes evo-draw { from{stroke-dashoffset:400} to{stroke-dashoffset:0} }
+          @keyframes evo-fade { from{opacity:0} to{opacity:1} }
+          .evo-spine { stroke-dasharray:400; animation: evo-draw 1.5s .1s ease both; }
+          .evo-item  { animation: evo-fade .4s ease both; }
+          .evo-item:nth-child(1)  { animation-delay:.2s }
+          .evo-item:nth-child(2)  { animation-delay:.35s }
+          .evo-item:nth-child(3)  { animation-delay:.5s }
+          .evo-item:nth-child(4)  { animation-delay:.65s }
+          .evo-item:nth-child(5)  { animation-delay:.8s }
+          .evo-item:nth-child(6)  { animation-delay:.95s }
+          .evo-item:nth-child(7)  { animation-delay:1.1s }
+          .evo-item:nth-child(8)  { animation-delay:1.25s }
+          .evo-item:nth-child(9)  { animation-delay:1.4s }
+          .evo-item:nth-child(10) { animation-delay:1.55s }
+          .evo-item:nth-child(11) { animation-delay:1.7s }
+        </style>
+      </defs>
+
+      <rect width="680" height="380" fill="#060e1c" rx="8"/>
+
+      <!-- Vertical spine -->
+      <line x1="100" y1="18" x2="100" y2="365" stroke="#1a2a3a" stroke-width="2" class="evo-spine"/>
+
+      <!-- Timeline items: year | dot | label | description -->
+      <!-- 2003 -->
+      <g class="evo-item">
+        <text x="88" y="38" text-anchor="end" fill="#6a7a8a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">2003</text>
+        <circle cx="100" cy="34" r="5" fill="#1a2a3a" stroke="#6a7a8a" stroke-width="2"/>
+        <line x1="105" y1="34" x2="120" y2="34" stroke="#6a7a8a" stroke-width="1"/>
+        <text x="126" y="30" fill="#8a9ab0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Google Borg</text>
+        <text x="126" y="41" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">Internal container scheduler — the direct ancestor of Kubernetes</text>
+      </g>
+
+      <!-- 2004 -->
+      <g class="evo-item">
+        <text x="88" y="72" text-anchor="end" fill="#6a7a8a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">2004</text>
+        <circle cx="100" cy="68" r="5" fill="#1a2a3a" stroke="#6a7a8a" stroke-width="2"/>
+        <line x1="105" y1="68" x2="120" y2="68" stroke="#6a7a8a" stroke-width="1"/>
+        <text x="126" y="64" fill="#8a9ab0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">MapReduce Paper</text>
+        <text x="126" y="75" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">Google publishes the paradigm — Hadoop, Spark, and Beam follow</text>
+      </g>
+
+      <!-- 2006 -->
+      <g class="evo-item">
+        <text x="88" y="106" text-anchor="end" fill="#6a7a8a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">2006</text>
+        <circle cx="100" cy="102" r="5" fill="#1a2a3a" stroke="#6a7a8a" stroke-width="2"/>
+        <line x1="105" y1="102" x2="120" y2="102" stroke="#6a7a8a" stroke-width="1"/>
+        <text x="126" y="98" fill="#8a9ab0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">BigTable Paper</text>
+        <text x="126" y="109" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">Distributed wide-column NoSQL — HBase and Cassandra are its descendants</text>
+      </g>
+
+      <!-- 2008 -->
+      <g class="evo-item">
+        <text x="88" y="140" text-anchor="end" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">2008</text>
+        <circle cx="100" cy="136" r="7" fill="#0a2a40" stroke="#0fccb0" stroke-width="2.5"/>
+        <circle cx="100" cy="136" r="3" fill="#0fccb0"/>
+        <line x1="107" y1="136" x2="120" y2="136" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="126" y="132" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">GCP Launches — App Engine</text>
+        <text x="126" y="143" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">Google opens its infrastructure. Platform-as-a-Service first.</text>
+      </g>
+
+      <!-- 2010 -->
+      <g class="evo-item">
+        <text x="88" y="174" text-anchor="end" fill="#6a7a8a" font-size="10" font-weight="600" font-family="'DM Mono',monospace">2010</text>
+        <circle cx="100" cy="170" r="5" fill="#1a2a3a" stroke="#6a7a8a" stroke-width="2"/>
+        <line x1="105" y1="170" x2="120" y2="170" stroke="#6a7a8a" stroke-width="1"/>
+        <text x="126" y="166" fill="#8a9ab0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Google Spanner (internal)</text>
+        <text x="126" y="177" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">Globally consistent RDBMS using TrueTime atomic clocks</text>
+      </g>
+
+      <!-- 2012 -->
+      <g class="evo-item">
+        <text x="88" y="208" text-anchor="end" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">2012</text>
+        <circle cx="100" cy="204" r="7" fill="#0a2a40" stroke="#0fccb0" stroke-width="2.5"/>
+        <circle cx="100" cy="204" r="3" fill="#0fccb0"/>
+        <line x1="107" y1="204" x2="120" y2="204" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="126" y="200" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">BigQuery + Compute Engine GA</text>
+        <text x="126" y="211" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">Dremel becomes BigQuery. IaaS VMs arrive. GCP becomes a full cloud.</text>
+      </g>
+
+      <!-- 2014 -->
+      <g class="evo-item">
+        <text x="88" y="242" text-anchor="end" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">2014</text>
+        <circle cx="100" cy="238" r="7" fill="#0a2a40" stroke="#0fccb0" stroke-width="2.5"/>
+        <circle cx="100" cy="238" r="3" fill="#0fccb0"/>
+        <line x1="107" y1="238" x2="120" y2="238" stroke="#0fccb0" stroke-width="1.5"/>
+        <text x="126" y="234" fill="#0fccb0" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Kubernetes Open-Sourced</text>
+        <text x="126" y="245" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">Borg's public descendant. GKE is the managed offering from day one.</text>
+      </g>
+
+      <!-- 2016 -->
+      <g class="evo-item">
+        <text x="88" y="276" text-anchor="end" fill="#f59e0b" font-size="10" font-weight="700" font-family="'DM Mono',monospace">2016</text>
+        <circle cx="100" cy="272" r="7" fill="#1a1208" stroke="#f59e0b" stroke-width="2.5"/>
+        <circle cx="100" cy="272" r="3" fill="#f59e0b"/>
+        <line x1="107" y1="272" x2="120" y2="272" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="126" y="268" fill="#f59e0b" font-size="10" font-weight="700" font-family="'DM Mono',monospace">TPUs for ML</text>
+        <text x="126" y="279" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">Custom ASICs for TensorFlow — AlphaGo trained on TPU v1</text>
+      </g>
+
+      <!-- 2017 -->
+      <g class="evo-item">
+        <text x="88" y="306" text-anchor="end" fill="#0fccb0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">2017</text>
+        <circle cx="100" cy="302" r="5" fill="#0a2a40" stroke="#0fccb0" stroke-width="2"/>
+        <line x1="105" y1="302" x2="120" y2="302" stroke="#0fccb0" stroke-width="1"/>
+        <text x="126" y="298" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Cloud Spanner GA</text>
+        <text x="126" y="309" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">World's first externally consistent globally distributed RDBMS goes public</text>
+      </g>
+
+      <!-- 2019 -->
+      <g class="evo-item">
+        <text x="88" y="336" text-anchor="end" fill="#f59e0b" font-size="10" font-weight="600" font-family="'DM Mono',monospace">2019</text>
+        <circle cx="100" cy="332" r="5" fill="#1a1208" stroke="#f59e0b" stroke-width="2"/>
+        <line x1="105" y1="332" x2="120" y2="332" stroke="#f59e0b" stroke-width="1"/>
+        <text x="126" y="328" fill="#c8d3e0" font-size="10" font-weight="600" font-family="'DM Mono',monospace">Anthos — Hybrid Cloud</text>
+        <text x="126" y="339" fill="#4a5568" font-size="9" font-family="'DM Mono',monospace">Manage GKE clusters on AWS, Azure, and bare metal from one control plane</text>
+      </g>
+
+      <!-- 2023 -->
+      <g class="evo-item">
+        <text x="88" y="366" text-anchor="end" fill="#f59e0b" font-size="10" font-weight="700" font-family="'DM Mono',monospace">2023</text>
+        <circle cx="100" cy="362" r="7" fill="#1a1208" stroke="#f59e0b" stroke-width="2.5"/>
+        <circle cx="100" cy="362" r="3" fill="#f59e0b"/>
+        <line x1="107" y1="362" x2="120" y2="362" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="126" y="358" fill="#f59e0b" font-size="10" font-weight="700" font-family="'DM Mono',monospace">Vertex AI / Gemini</text>
+        <text x="126" y="369" fill="#8a9ab0" font-size="9" font-family="'DM Mono',monospace">AI becomes GCP's primary differentiator — Gemini embedded across all services</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §15 WHAT'S NEXT? -->
+<section id="whatsnext">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 15 — WHAT'S NEXT?</span>The frontier GCP is pushing into</h2>
+    <p class="lede reveal">GCP's next act isn't just more services — it's collapsing the boundary between the data layer and the AI layer. Every major service is being retrofitted to become AI-native infrastructure.</p>
+
+    <style>
+    .whatsnext-item {
+      font-family: 'DM Mono', monospace;
+      padding: 18px 22px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border-left: 3px solid #0a8070;
+      background: #060e0c;
+    }
+    .whatsnext-item .wn-solved {
+      color: #6a7a8a;
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .whatsnext-item .wn-next {
+      color: #0fccb0;
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }
+    .whatsnext-item .wn-solved-text { color: #8a9ab0; font-size: 13px; }
+    .whatsnext-item .wn-next-text   { color: #c8d3e0; font-size: 13px; line-height: 1.6; }
+    .whatsnext-frontier {
+      font-family: 'DM Mono', monospace;
+      background: #120a06;
+      border: 1px solid #f59e0b;
+      border-left: 3px solid #f59e0b;
+      border-radius: 6px;
+      padding: 20px 22px;
+      margin: 16px 0;
+      color: #c8d3e0;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .whatsnext-frontier .wn-frontier-label {
+      color: #f59e0b;
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .whatsnext-frontier strong { color: #f59e0b; }
+    </style>
+
+    <div class="reveal">
+      <div class="whatsnext-item">
+        <div class="wn-solved">Solved Problem</div>
+        <div class="wn-solved-text">BigQuery solved <strong style="color:#c8d3e0">analytics at scale</strong> — serverless OLAP, petabytes, zero provisioning</div>
+        <div class="wn-next">Next Frontier</div>
+        <div class="wn-next-text">Real-time streaming analytics without a separate pipeline layer. <strong style="color:#0fccb0">BigQuery + Pub/Sub</strong> with BigQuery subscriptions ingests streaming data directly into tables — no Dataflow job, no custom consumer. The gap between "event happened" and "queryable in BigQuery" is collapsing to seconds.</div>
+      </div>
+
+      <div class="whatsnext-item">
+        <div class="wn-solved">Solved Problem</div>
+        <div class="wn-solved-text">Vertex AI solved <strong style="color:#c8d3e0">ML platform</strong> — managed training, feature store, model registry, serving</div>
+        <div class="wn-next">Next Frontier</div>
+        <div class="wn-next-text"><strong style="color:#0fccb0">Gemini integration across all GCP services</strong> — BigQuery ML now calls Gemini models directly from SQL. Cloud Run can call Vertex AI APIs with native auth. The pattern: AI is not a separate tier; it is a function you call from your existing infrastructure.</div>
+      </div>
+
+      <div class="whatsnext-item">
+        <div class="wn-solved">Current Frontier</div>
+        <div class="wn-solved-text">The <strong style="color:#c8d3e0">AI-native data stack</strong></div>
+        <div class="wn-next">What This Looks Like</div>
+        <div class="wn-next-text">Vector search natively in <strong style="color:#0fccb0">Cloud Spanner</strong> (ANN index alongside relational rows). Embedding generation inside <strong style="color:#0fccb0">BigQuery</strong> via <code>ML.GENERATE_EMBEDDING</code>. Agent orchestration via Cloud Run calling Vertex AI APIs. Data pipelines are being replaced by AI agents that retrieve, transform, and reason over data in a single loop — the distinction between "data pipeline" and "AI model" is blurring.</div>
+      </div>
+
+      <div class="whatsnext-frontier">
+        <div class="wn-frontier-label">The Question That's Coming</div>
+        "How do you build products where AI is the data pipeline, not just the model?" The interviewer who asks this in 2026 is not asking about RAG or embeddings in isolation — they are asking whether you understand that <strong>retrieval, transformation, and generation</strong> are converging into a single runtime, and GCP's bet is that Vertex AI + BigQuery + Spanner is that runtime.
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- §16 SUMMARY -->
 <section id="summary">
   <div class="wrap">
-    <h2 class="reveal"><span class="num">§ 10 — SUMMARY</span>Weak vs Strong answer</h2>
+    <h2 class="reveal"><span class="num">§ 16 — SUMMARY</span>Weak vs Strong answer</h2>
     <table class="cmp-table reveal">
       <thead><tr><th>Topic</th><th>Weak Answer</th><th>Strong Answer</th></tr></thead>
       <tbody>
