@@ -1219,122 +1219,6 @@ CREATE TABLE quota (
 </div>
 </section>
 
-<!-- QA_PLACEHOLDER -->
-
-  <dl class="reveal">
-    <div class="defrow">
-      <dt>1. S3 vs EBS vs EFS — when to use each?</dt>
-      <dd>S3 for object storage (files, backups, data lake) — cheapest, unlimited scale, HTTP access. EBS for block storage attached to a single EC2 (databases, OS volumes) — low-latency IOPS. EFS for a shared POSIX filesystem across multiple EC2 or Lambda — pay for what you use, auto-scales, but costs 5× more than EBS.</dd>
-    </div>
-    <div class="defrow">
-      <dt>2. How does Aurora differ from RDS?</dt>
-      <dd>Aurora uses a custom distributed storage layer that replicates 6 copies across 3 AZs — storage and compute are decoupled. RDS uses traditional single-AZ EBS with an optional synchronous standby; Aurora is 5× faster on MySQL and 3× on PostgreSQL for write-heavy workloads and handles failover in under 30 seconds versus RDS's ~60–120s.</dd>
-    </div>
-    <div class="defrow">
-      <dt>3. What is VPC peering vs Transit Gateway?</dt>
-      <dd>VPC peering is a 1:1 private connection between two VPCs (non-transitive — A↔B and B↔C does not give A↔C). Transit Gateway is a hub-and-spoke that connects thousands of VPCs and on-premises networks transitively — use it when you have more than a handful of VPCs to connect.</dd>
-    </div>
-    <div class="defrow">
-      <dt>4. How does Lambda handle concurrency?</dt>
-      <dd>Each concurrent request needs its own Lambda execution environment — 1000 concurrent invocations = 1000 containers (default account limit). Reserved concurrency sets a ceiling for a function; Provisioned Concurrency pre-warms N containers to eliminate cold starts. Throttling returns HTTP 429; implement exponential backoff + SQS buffer in front.</dd>
-    </div>
-    <div class="defrow">
-      <dt>5. What is the difference between SQS and SNS?</dt>
-      <dd>SQS is a pull-based queue: consumers poll for messages, messages persist until acknowledged (14-day max), each message is processed by one consumer. SNS is a push-based topic: publishes to all subscribers simultaneously (Lambda, SQS, HTTP, email) with no persistence — use SNS→SQS fan-out for durable, parallel processing.</dd>
-    </div>
-    <div class="defrow">
-      <dt>6. How do you secure an S3 bucket?</dt>
-      <dd>Block public access at the account level (the big four checkboxes). Use bucket policies to restrict to specific IAM principals or VPC endpoints. Enable server-side encryption (SSE-S3 or SSE-KMS). Enable versioning + MFA delete for critical data. Use S3 Access Analyzer to detect unintended public access, and CloudTrail S3 data events for audit.</dd>
-    </div>
-    <div class="defrow">
-      <dt>7. What is an IAM role vs IAM user?</dt>
-      <dd>An IAM user has long-term static credentials (access key + secret) tied to a person or app — a credential leak is permanent until rotated. An IAM role has temporary credentials (15min–12hr) issued by STS, assumed by a trusted principal (EC2, Lambda, another account, federated user). Always prefer roles; users are a last resort for bootstrapping.</dd>
-    </div>
-    <div class="defrow">
-      <dt>8. How does Auto Scaling work with ALB?</dt>
-      <dd>An Auto Scaling Group adds/removes EC2 instances or ECS tasks based on CloudWatch metrics (CPU, custom, or ALB request count per target). The ALB's target group registers/deregisters instances as the ASG changes; connection draining (deregistration delay) ensures in-flight requests finish before a removed instance is terminated.</dd>
-    </div>
-    <div class="defrow">
-      <dt>9. What is CloudFront and when do you use it?</dt>
-      <dd>CloudFront is AWS's CDN — it caches responses at 400+ edge locations worldwide, reducing latency and origin load. Use it for static assets (S3), API acceleration (API Gateway), streaming (S3 or MediaPackage), and DDoS mitigation (AWS Shield is automatically included). CloudFront also terminates TLS at the edge, so your origin only handles decrypted traffic.</dd>
-    </div>
-    <div class="defrow">
-      <dt>10. How do you design for multi-region failover?</dt>
-      <dd>Define RPO and RTO first. Pilot light (near-zero cost, cold data only) suits RPO hours; warm standby (scaled-down active in DR region) suits RPO minutes; active-active (Route 53 latency/health routing, Aurora Global, DynamoDB Global Tables) suits RPO seconds. Always test failover — chaos engineering, not just diagrams.</dd>
-    </div>
-    <div class="defrow">
-      <dt>11. What is the difference between NACLs and Security Groups?</dt>
-      <dd>Security Groups are stateful (allow inbound → return traffic automatically allowed), operate at the instance/ENI level, and support Allow rules only. NACLs are stateless (you must explicitly allow both inbound and return traffic), operate at the subnet level, and support both Allow and Deny — useful for blocking specific IP ranges at the perimeter.</dd>
-    </div>
-    <div class="defrow">
-      <dt>12. How does DynamoDB handle hot partitions?</dt>
-      <dd>DynamoDB distributes data by partition key hash — a hot partition occurs when one key receives a disproportionate share of requests, exhausting its 1000 RCU/3000 WCU per partition. Mitigations: add a random suffix (write sharding, then scatter-gather on reads), use DAX for read-heavy hot keys, use SQS buffering to absorb write bursts, or redesign the access pattern to spread load.</dd>
-    </div>
-  </dl>
-</div>
-</section>
-
-<!-- SUMMARY_PLACEHOLDER -->
-<section id="summary">
-<div class="wrap">
-  <h2 class="reveal"><span class="num">§ 17 — SUMMARY</span>Weak vs strong answers</h2>
-
-  <table class="cmp-table reveal">
-    <thead>
-      <tr>
-        <th>Topic</th>
-        <th>Weak answer</th>
-        <th>Strong answer</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Compute</td>
-        <td>"Use EC2"</td>
-        <td>Names instance family by workload shape; mentions Graviton for cost; proposes containers (ECS/EKS) for operational leverage</td>
-      </tr>
-      <tr>
-        <td>Storage</td>
-        <td>"S3 for everything"</td>
-        <td>Maps access pattern to storage class; quantifies 23× cost delta Standard→Deep Archive; proposes Lifecycle policies</td>
-      </tr>
-      <tr>
-        <td>Networking</td>
-        <td>"Put it in a VPC"</td>
-        <td>Draws public/private subnet split; explains IGW vs NAT; distinguishes SG (stateful) from NACL (stateless)</td>
-      </tr>
-      <tr>
-        <td>Database</td>
-        <td>"Use RDS"</td>
-        <td>Uses decision tree by data shape; explains Aurora 6-copy storage vs RDS EBS; names DynamoDB for &gt;10M ops/s</td>
-      </tr>
-      <tr>
-        <td>Serverless</td>
-        <td>"Lambda is cheap"</td>
-        <td>Explains cold start anatomy; proposes Provisioned Concurrency for latency-sensitive; SQS buffer for bursty ingress</td>
-      </tr>
-      <tr>
-        <td>IAM</td>
-        <td>"Use IAM policies"</td>
-        <td>Walks the 5-step evaluation order; recommends roles over users; mentions SCPs for account guardrails</td>
-      </tr>
-      <tr>
-        <td>Multi-region DR</td>
-        <td>"We have backups"</td>
-        <td>Defines RPO/RTO → selects pilot light / warm standby / active-active; names Aurora Global + DynamoDB Global Tables; plans chaos testing</td>
-      </tr>
-      <tr>
-        <td>Cost</td>
-        <td>Ignores cost</td>
-        <td>Mentions Savings Plans, Reserved for baseline; Spot for stateless batch; right-sizes with Graviton; Cost Explorer + tag propagation for attribution</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-</section>
-
-<hr class="rule">
-
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <section id="mistakes">
 <div class="wrap">
@@ -1594,6 +1478,129 @@ CREATE TABLE quota (
       <span style="color:#8a5a5a;"> "How do you build and operate AI workloads at the cost of traditional software?" GPU hours cost 10–100× more than CPU hours. Inference latency is non-deterministic. Output quality degrades in ways that are hard to monitor. This is the unsolved infrastructure problem of 2024–2026.</span>
     </div>
   </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="qa">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 16 — Q&amp;A</span>Twelve rapid-fire questions</h2>
+
+  <dl class="reveal">
+    <div class="defrow">
+      <dt>1. S3 vs EBS vs EFS — when to use each?</dt>
+      <dd>S3 for object storage (files, backups, data lake) — cheapest, unlimited scale, HTTP access. EBS for block storage attached to a single EC2 (databases, OS volumes) — low-latency IOPS. EFS for a shared POSIX filesystem across multiple EC2 or Lambda — pay for what you use, auto-scales, but costs 5× more than EBS.</dd>
+    </div>
+    <div class="defrow">
+      <dt>2. How does Aurora differ from RDS?</dt>
+      <dd>Aurora uses a custom distributed storage layer that replicates 6 copies across 3 AZs — storage and compute are decoupled. RDS uses traditional single-AZ EBS with an optional synchronous standby; Aurora is 5× faster on MySQL and 3× on PostgreSQL for write-heavy workloads and handles failover in under 30 seconds versus RDS's ~60–120s.</dd>
+    </div>
+    <div class="defrow">
+      <dt>3. What is VPC peering vs Transit Gateway?</dt>
+      <dd>VPC peering is a 1:1 private connection between two VPCs (non-transitive — A↔B and B↔C does not give A↔C). Transit Gateway is a hub-and-spoke that connects thousands of VPCs and on-premises networks transitively — use it when you have more than a handful of VPCs to connect.</dd>
+    </div>
+    <div class="defrow">
+      <dt>4. How does Lambda handle concurrency?</dt>
+      <dd>Each concurrent request needs its own Lambda execution environment — 1000 concurrent invocations = 1000 containers (default account limit). Reserved concurrency sets a ceiling for a function; Provisioned Concurrency pre-warms N containers to eliminate cold starts. Throttling returns HTTP 429; implement exponential backoff + SQS buffer in front.</dd>
+    </div>
+    <div class="defrow">
+      <dt>5. What is the difference between SQS and SNS?</dt>
+      <dd>SQS is a pull-based queue: consumers poll for messages, messages persist until acknowledged (14-day max), each message is processed by one consumer. SNS is a push-based topic: publishes to all subscribers simultaneously (Lambda, SQS, HTTP, email) with no persistence — use SNS→SQS fan-out for durable, parallel processing.</dd>
+    </div>
+    <div class="defrow">
+      <dt>6. How do you secure an S3 bucket?</dt>
+      <dd>Block public access at the account level (the big four checkboxes). Use bucket policies to restrict to specific IAM principals or VPC endpoints. Enable server-side encryption (SSE-S3 or SSE-KMS). Enable versioning + MFA delete for critical data. Use S3 Access Analyzer to detect unintended public access, and CloudTrail S3 data events for audit.</dd>
+    </div>
+    <div class="defrow">
+      <dt>7. What is an IAM role vs IAM user?</dt>
+      <dd>An IAM user has long-term static credentials (access key + secret) tied to a person or app — a credential leak is permanent until rotated. An IAM role has temporary credentials (15min–12hr) issued by STS, assumed by a trusted principal (EC2, Lambda, another account, federated user). Always prefer roles; users are a last resort for bootstrapping.</dd>
+    </div>
+    <div class="defrow">
+      <dt>8. How does Auto Scaling work with ALB?</dt>
+      <dd>An Auto Scaling Group adds/removes EC2 instances or ECS tasks based on CloudWatch metrics (CPU, custom, or ALB request count per target). The ALB's target group registers/deregisters instances as the ASG changes; connection draining (deregistration delay) ensures in-flight requests finish before a removed instance is terminated.</dd>
+    </div>
+    <div class="defrow">
+      <dt>9. What is CloudFront and when do you use it?</dt>
+      <dd>CloudFront is AWS's CDN — it caches responses at 400+ edge locations worldwide, reducing latency and origin load. Use it for static assets (S3), API acceleration (API Gateway), streaming (S3 or MediaPackage), and DDoS mitigation (AWS Shield is automatically included). CloudFront also terminates TLS at the edge, so your origin only handles decrypted traffic.</dd>
+    </div>
+    <div class="defrow">
+      <dt>10. How do you design for multi-region failover?</dt>
+      <dd>Define RPO and RTO first. Pilot light (near-zero cost, cold data only) suits RPO hours; warm standby (scaled-down active in DR region) suits RPO minutes; active-active (Route 53 latency/health routing, Aurora Global, DynamoDB Global Tables) suits RPO seconds. Always test failover — chaos engineering, not just diagrams.</dd>
+    </div>
+    <div class="defrow">
+      <dt>11. What is the difference between NACLs and Security Groups?</dt>
+      <dd>Security Groups are stateful (allow inbound → return traffic automatically allowed), operate at the instance/ENI level, and support Allow rules only. NACLs are stateless (you must explicitly allow both inbound and return traffic), operate at the subnet level, and support both Allow and Deny — useful for blocking specific IP ranges at the perimeter.</dd>
+    </div>
+    <div class="defrow">
+      <dt>12. How does DynamoDB handle hot partitions?</dt>
+      <dd>DynamoDB distributes data by partition key hash — a hot partition occurs when one key receives a disproportionate share of requests, exhausting its 1000 RCU/3000 WCU per partition. Mitigations: add a random suffix (write sharding, then scatter-gather on reads), use DAX for read-heavy hot keys, use SQS buffering to absorb write bursts, or redesign the access pattern to spread load.</dd>
+    </div>
+  </dl>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="summary">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 17 — SUMMARY</span>Weak vs strong answers</h2>
+
+  <table class="cmp-table reveal">
+    <thead>
+      <tr>
+        <th>Topic</th>
+        <th>Weak answer</th>
+        <th>Strong answer</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Compute</td>
+        <td>"Use EC2"</td>
+        <td>Names instance family by workload shape; mentions Graviton for cost; proposes containers (ECS/EKS) for operational leverage</td>
+      </tr>
+      <tr>
+        <td>Storage</td>
+        <td>"S3 for everything"</td>
+        <td>Maps access pattern to storage class; quantifies 23× cost delta Standard→Deep Archive; proposes Lifecycle policies</td>
+      </tr>
+      <tr>
+        <td>Networking</td>
+        <td>"Put it in a VPC"</td>
+        <td>Draws public/private subnet split; explains IGW vs NAT; distinguishes SG (stateful) from NACL (stateless)</td>
+      </tr>
+      <tr>
+        <td>Database</td>
+        <td>"Use RDS"</td>
+        <td>Uses decision tree by data shape; explains Aurora 6-copy storage vs RDS EBS; names DynamoDB for &gt;10M ops/s</td>
+      </tr>
+      <tr>
+        <td>Serverless</td>
+        <td>"Lambda is cheap"</td>
+        <td>Explains cold start anatomy; proposes Provisioned Concurrency for latency-sensitive; SQS buffer for bursty ingress</td>
+      </tr>
+      <tr>
+        <td>IAM</td>
+        <td>"Use IAM policies"</td>
+        <td>Walks the 5-step evaluation order; recommends roles over users; mentions SCPs for account guardrails</td>
+      </tr>
+      <tr>
+        <td>Multi-region DR</td>
+        <td>"We have backups"</td>
+        <td>Defines RPO/RTO → selects pilot light / warm standby / active-active; names Aurora Global + DynamoDB Global Tables; plans chaos testing</td>
+      </tr>
+      <tr>
+        <td>Cost</td>
+        <td>Ignores cost</td>
+        <td>Mentions Savings Plans, Reserved for baseline; Spot for stateless batch; right-sizes with Graviton; Cost Explorer + tag propagation for attribution</td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 </section>
 
