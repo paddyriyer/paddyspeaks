@@ -332,86 +332,176 @@ var RUDRAM_DATA = {
       title: "Anuvaka 2",
       titleSanskrit: "द्वितीयोऽनुवाकः",
       subtitle: "Salutations to Rudra in Nature — Forests, Waters, and Paths",
-      description: "The second anuvaka addresses Rudra in his manifestation as the lord of forests, paths, armies, travelers, and wild animals. Each 'namaḥ' salutation honors a different aspect of Rudra's presence in the natural and human world.",
+      description: "The second anuvaka addresses Rudra in his manifestation as lord of forests, paths, armies, travelers, and wild animals. Each individual namaḥ salutation honors a distinct aspect of Rudra's presence in the natural and human world.",
       mantras: [
         {
-          devanagari: "नमो हिरण्यबाहवे सेनान्ये दिशां च पतये नमो नमो वृक्षेभ्यो हरिकेशेभ्यः पशूनां पतये नमो नमः सस्पिञ्जराय त्विषीमते पथीनां पतये नमः",
-          text: "namo hiraṇyabāhave senānye diśāṁ ca pataye namo namo vṛkṣebhyo harikeśebhyaḥ paśūnāṁ pataye namo namaḥ saspiñjarāya tviṣīmate pathīnāṁ pataye namaḥ",
-          meaning: "Salutations to the golden-armed one, the commander of armies, and the lord of the directions. Salutations to the yellow-haired trees, the lord of animals. Salutations to the tawny-colored shining one, the lord of paths.",
+          devanagari: "नमो हिरण्यबाहवे सेनान्ये दिशां च पतये नमः",
+          text: "namo hiraṇyabāhave senānye diśāṁ ca pataye namaḥ",
+          meaning: "Salutations to the golden-armed one, the commander of armies, and the lord of the directions.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "हिरण्यबाहवे", transliteration: "hiraṇyabāhave", meaning: "to the golden-armed" },
-            { word: "सेनान्ये", transliteration: "senānye", meaning: "to the commander" },
-            { word: "दिशाम्", transliteration: "diśām", meaning: "of directions" },
+            { word: "सेनान्ये", transliteration: "senānye", meaning: "to the army commander" },
+            { word: "दिशाम्", transliteration: "diśām", meaning: "of the directions" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Hiraṇyabāhu (golden-armed) is Rudra as the sun-force animating all action in every direction. The commander (senānye) reminds us that cosmic forces are not random — they have a sovereign intelligence directing them."
+        },
+        {
+          devanagari: "नमो वृक्षेभ्यो हरिकेशेभ्यः पशूनां पतये नमः",
+          text: "namo vṛkṣebhyo harikeśebhyaḥ paśūnāṁ pataye namaḥ",
+          meaning: "Salutations to the yellow-haired trees and to the lord of all animals.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "वृक्षेभ्यः", transliteration: "vṛkṣebhyaḥ", meaning: "to the trees" },
             { word: "हरिकेशेभ्यः", transliteration: "harikeśebhyaḥ", meaning: "to the yellow-haired" },
             { word: "पशूनाम्", transliteration: "paśūnām", meaning: "of animals/souls" },
-            { word: "ससपिञ्जराय", transliteration: "saspiñjarāya", meaning: "to the tawny-colored" },
-            { word: "त्विषीमते", transliteration: "tviṣīmate", meaning: "to the shining one" },
-            { word: "पथीनाम्", transliteration: "pathīnām", meaning: "of paths" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
           ],
-          esotericMeaning: "Hiraṇyabāhu (golden-armed) is Rudra as the sun-force animating all action. The forest (vṛkṣebhyaḥ, harikeśebhyaḥ — yellow-haired trees) is the living lungs of Brahman. Paśupati (lord of animals/souls) oversees all bound souls on their paths of evolution."
+          esotericMeaning: "The forest (vṛkṣebhyaḥ, harikeśebhyaḥ — yellow-haired like a lion's mane) is the living lungs of Brahman. Paśupati (lord of paśus — bound souls) oversees every soul still tied to the wheel of saṁsāra."
         },
         {
-          devanagari: "नमो बभ्लुशाय विव्याधिनेऽन्नानां पतये नमो नमो हरिकेशायोपवीतिने पुष्टानां पतये नमो नमो भवस्य हेत्यै जगतां पतये नमो नमो रुद्रायातताविने क्षेत्राणां पतये नमः",
-          text: "namo babhluśāya vivyādhinne'nnānāṁ pataye namo namo harikeśāyopavītine puṣṭānāṁ pataye namo namo bhavasya hetyai jagatāṁ pataye namo namo rudrāyātatāvine kṣetrāṇāṁ pataye namaḥ",
-          meaning: "Salutations to the tawny one who pierces, the lord of food. Salutations to the yellow-haired one with the sacred thread, the lord of the prosperous. Salutations to the missile of Bhava, lord of the worlds. Salutations to Rudra who draws his bow, the lord of the fields.",
+          devanagari: "नमः सस्पिञ्जराय त्विषीमते पथीनां पतये नमः",
+          text: "namaḥ saspiñjarāya tviṣīmate pathīnāṁ pataye namaḥ",
+          meaning: "Salutations to the tawny-colored, shining one, the lord of paths.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "सस्पिञ्जराय", transliteration: "saspiñjarāya", meaning: "to the tawny-colored" },
+            { word: "त्विषीमते", transliteration: "tviṣīmate", meaning: "to the shining one" },
+            { word: "पथीनाम्", transliteration: "pathīnām", meaning: "of paths" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Tviṣīmat (the radiant) is Rudra as the inner luminosity that illuminates every path of life. He is the light on the road — the intuition that guides the traveler through the dark passages of existence."
+        },
+        {
+          devanagari: "नमो बभ्लुशाय विव्याधिनेऽन्नानां पतये नमः",
+          text: "namo babhluśāya vivyādhine'nnānāṁ pataye namaḥ",
+          meaning: "Salutations to the tawny one who pierces, the lord of food.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "बभ्लुशाय", transliteration: "babhluśāya", meaning: "to the tawny one" },
             { word: "विव्याधिने", transliteration: "vivyādhine", meaning: "who pierces" },
             { word: "अन्नानाम्", transliteration: "annānām", meaning: "of food" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Food (anna) is the first manifestation of divine abundance. Rudra as lord of food (annapati) ensures every being receives its sustenance — the cosmic nourisher beneath every act of eating and giving."
+        },
+        {
+          devanagari: "नमो हरिकेशायोपवीतिने पुष्टानां पतये नमः",
+          text: "namo harikeśāyopavītine puṣṭānāṁ pataye namaḥ",
+          meaning: "Salutations to the yellow-haired one wearing the sacred thread, the lord of the prosperous.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "हरिकेशाय", transliteration: "harikeśāya", meaning: "to the yellow-haired" },
-            { word: "उपवीतिने", transliteration: "upavītine", meaning: "with sacred thread" },
+            { word: "उपवीतिने", transliteration: "upavītine", meaning: "wearing the sacred thread" },
             { word: "पुष्टानाम्", transliteration: "puṣṭānām", meaning: "of the prosperous" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "The sacred thread (upavīta) on a wild forest deity unites the ascetic and the householder path. Prosperity (puṣṭi) is not opposed to renunciation — Rudra as lord of the prosperous shows that abundance and austerity flow from the same source."
+        },
+        {
+          devanagari: "नमो भवस्य हेत्यै जगतां पतये नमः",
+          text: "namo bhavasya hetyai jagatāṁ pataye namaḥ",
+          meaning: "Salutations to the missile of Bhava, lord of the worlds.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "भवस्य", transliteration: "bhavasya", meaning: "of Bhava" },
-            { word: "हेत्यै", transliteration: "hetyai", meaning: "to the missile" },
+            { word: "हेत्यै", transliteration: "hetyai", meaning: "to the missile/weapon" },
             { word: "जगताम्", transliteration: "jagatām", meaning: "of the worlds" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Bhava's missile is karma — the force of becoming that propels every soul through existence. As lord of the worlds (jagatāṁ pati), Rudra holds the entire cosmic machinery of cause and effect."
+        },
+        {
+          devanagari: "नमो रुद्रायातताविने क्षेत्राणां पतये नमः",
+          text: "namo rudrāyātatāvine kṣetrāṇāṁ pataye namaḥ",
+          meaning: "Salutations to Rudra who draws his bow, the lord of the fields.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "रुद्राय", transliteration: "rudrāya", meaning: "to Rudra" },
             { word: "आतताविने", transliteration: "ātatāvine", meaning: "who draws the bow" },
             { word: "क्षेत्राणाम्", transliteration: "kṣetrāṇām", meaning: "of the fields" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
           ],
-          esotericMeaning: "Food (anna) is the first manifestation of divine abundance; Rudra as lord of food ensures that every being receives its sustenance. The sacred thread (upavīta) on a wild, forest deity points to the integration of the ascetic and the householder path."
+          esotericMeaning: "The drawn bow is the state of maximum potential before release — Rudra in this form holds cosmic energy at full tension. As kṣetrapati (lord of fields), this same energy fertilizes and governs the fields that sustain all life."
         },
         {
-          devanagari: "नमः सूतायाहन्त्याय वनानां पतये नमो नमो रोहिताय स्थपतये वृक्षाणां पतये नमो नमो मन्त्रिणे वाणिजायकक्षाणां पतये नमः",
-          text: "namaḥ sūtāyāhantyāya vanānāṁ pataye namo namo rohitāya sthapate vṛkṣāṇāṁ pataye namo namo mantriṇe vāṇijāya kakṣāṇāṁ pataye namaḥ",
-          meaning: "Salutations to the charioteer who does not kill, lord of the forests. Salutations to the red one who is the master builder, lord of the trees. Salutations to the advisor and merchant, lord of the underbrush.",
+          devanagari: "नमः सूतायाहन्त्याय वनानां पतये नमः",
+          text: "namaḥ sūtāyāhantyāya vanānāṁ pataye namaḥ",
+          meaning: "Salutations to the charioteer who does not kill, lord of the forests.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "सूताय", transliteration: "sūtāya", meaning: "to the charioteer" },
             { word: "आहन्त्याय", transliteration: "āhantyāya", meaning: "who does not kill" },
             { word: "वनानाम्", transliteration: "vanānām", meaning: "of the forests" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "The charioteer (sūta) who does not kill shows Rudra's restraint — the same energy that could destroy instead guides. In the Gītā, this is the role of Kṛṣṇa: the divine charioteer who navigates without violence."
+        },
+        {
+          devanagari: "नमो रोहिताय स्थपतये वृक्षाणां पतये नमः",
+          text: "namo rohitāya sthapate vṛkṣāṇāṁ pataye namaḥ",
+          meaning: "Salutations to the red one, the master builder, lord of the trees.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "रोहिताय", transliteration: "rohitāya", meaning: "to the red one" },
             { word: "स्थपतये", transliteration: "sthapate", meaning: "to the master builder" },
             { word: "वृक्षाणाम्", transliteration: "vṛkṣāṇām", meaning: "of the trees" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Rohita (the red one) is Rudra as the rising sun, the divine architect of each new day. Sthapati (master builder) is Rudra as Viśvakarman — the cosmic engineer whose blueprint is the universe itself."
+        },
+        {
+          devanagari: "नमो मन्त्रिणे वाणिजायकक्षाणां पतये नमः",
+          text: "namo mantriṇe vāṇijāya kakṣāṇāṁ pataye namaḥ",
+          meaning: "Salutations to the advisor and the merchant, lord of the underbrush.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "मन्त्रिणे", transliteration: "mantriṇe", meaning: "to the advisor" },
             { word: "वाणिजाय", transliteration: "vāṇijāya", meaning: "to the merchant" },
             { word: "कक्षाणाम्", transliteration: "kakṣāṇām", meaning: "of the underbrush" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
           ],
-          esotericMeaning: "The charioteer (sūta) who does not kill shows Rudra's restraint — the same energy that could destroy instead guides and navigates. Rohita (the red one) is Rudra as the rising sun, the divine architect of each new day."
+          esotericMeaning: "Rudra as mantrin (counselor) and vāṇija (merchant) shows his presence in the marketplace and the council chamber. The divine pervades commerce and counsel — no human activity falls outside the scope of sacred witness."
         },
         {
-          devanagari: "नमो भुवन्त्यै वारिवस्कृतायोषधीनां पतये नमो नम उच्चैर्घोषायाक्रन्दयते पत्तीनां पतये नमो नमः कृत्स्नवीताय धावते सत्त्वनां पतये नमः",
-          text: "namo bhuvantyai vārivaskṛtāya oṣadhīnāṁ pataye namo nama uccaighoṣāyākrandayate pattīnāṁ pataye namo namaḥ kṛtsnavītāya dhāvate sattvānāṁ pataye namaḥ",
-          meaning: "Salutations to the one dwelling in existence, the bestower of water, lord of the herbs. Salutations to the loud-sounding one who makes others cry out, lord of the foot soldiers. Salutations to the one who moves quickly in all ways, lord of the creatures.",
+          devanagari: "नमो भुवन्त्यै वारिवस्कृतायोषधीनां पतये नमः",
+          text: "namo bhuvantyai vārivaskṛtāya oṣadhīnāṁ pataye namaḥ",
+          meaning: "Salutations to the one dwelling in existence, the bestower of water, lord of the herbs.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "भुवन्त्यै", transliteration: "bhuvantyai", meaning: "to the one in existence" },
             { word: "वारिवस्कृताय", transliteration: "vārivaskṛtāya", meaning: "bestower of water" },
             { word: "ओषधीनाम्", transliteration: "oṣadhīnām", meaning: "of the herbs" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Water (vāri) is the medium of life — Rudra as vārivaskṛta nourishes all through prāṇa's subtle rivers. The lord of herbs (oṣadhipati) holds the secrets of healing, reminding us that every plant is a form of divine medicine."
+        },
+        {
+          devanagari: "नम उच्चैर्घोषायाक्रन्दयते पत्तीनां पतये नमः",
+          text: "nama uccaighoṣāyākrandayate pattīnāṁ pataye namaḥ",
+          meaning: "Salutations to the loud-sounding one who makes others cry out, lord of the foot soldiers.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "उच्चैर्घोषाय", transliteration: "uccaighoṣāya", meaning: "to the loud-sounding" },
-            { word: "आक्रन्दयते", transliteration: "ākrandayate", meaning: "who makes others cry" },
+            { word: "आक्रन्दयते", transliteration: "ākrandayate", meaning: "who makes others cry out" },
             { word: "पत्तीनाम्", transliteration: "pattīnām", meaning: "of foot soldiers" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Uccaighoṣa (great voice) is Rudra as thunder, as mantra, as the AUM that resonates through all space. The sound that makes others cry out is the awakening call — the mantra that shatters the silence of unconsciousness."
+        },
+        {
+          devanagari: "नमः कृत्स्नवीताय धावते सत्त्वनां पतये नमः",
+          text: "namaḥ kṛtsnavītāya dhāvate sattvānāṁ pataye namaḥ",
+          meaning: "Salutations to the one who moves quickly in all ways, lord of the creatures.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "कृत्स्नवीताय", transliteration: "kṛtsnavītāya", meaning: "who moves in all ways" },
             { word: "धावते", transliteration: "dhāvate", meaning: "the swift" },
-            { word: "सत्त्वनाम्", transliteration: "sattvānām", meaning: "of creatures" },
+            { word: "सत्त्वनाम्", transliteration: "sattvānām", meaning: "of creatures/beings" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
           ],
-          esotericMeaning: "Water (vāri) is the medium of life — Rudra as vārivaskṛta nourishes all through the subtle rivers of prāṇa. Uccaighoṣa (loud-sounding) is Rudra as thunder and mantra — the sound that shatters illusion and calls the soul to awareness."
+          esotericMeaning: "Kṛtsnavīta (all-pervading swift one) is Rudra as the velocity of consciousness — which can traverse the entire universe in an instant. As lord of all beings (sattvānāṁ pati), he holds the entirety of sentient life."
         },
       ]
     },
@@ -420,87 +510,220 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 3",
       titleSanskrit: "तृतीयोऽनुवाकः",
-      subtitle: "Salutations to Rudra's Thousand Forms",
-      description: "The third anuvaka salutes Rudra in his countless manifestations: as the lord of armies, the great archer, the thousand-eyed one. The mantra Namaḥ sahasrācāryāya is one of the most important in this section.",
+      subtitle: "Salutations to Rudra's Warriors, Outlaws, and All States of Being",
+      description: "The third anuvaka salutes Rudra in his fierce forms — as lord of thieves, forest-wanderers, and sword-bearers — and then sweeps through all states of consciousness: sitting, sleeping, standing, running. Every posture and every state is sacred.",
       mantras: [
         {
-          devanagari: "नमः सहमानाय निव्याधिन आव्याधिनीनां पतये नमो नमः ककुभाय निषङ्गिणे स्तेनानां पतये नमो नमो निषङ्गिण इषुधिमते तस्कराणां पतये नमः",
-          text: "namaḥ sahamānāya nivyādhina āvyādhinīnāṁ pataye namo namaḥ kakubhāya niṣaṅgiṇe stenānāṁ pataye namo namo niṣaṅgiṇa iṣudhimate taskarāṇāṁ pataye namaḥ",
-          meaning: "Salutations to the overpowering one who pierces through, lord of the piercers. Salutations to the prominent one with the quiver, lord of thieves. Salutations to the quiver-bearing, arrow-holding one, lord of robbers.",
+          devanagari: "नमः सहमानाय निव्याधिन आव्याधिनीनां पतये नमः",
+          text: "namaḥ sahamānāya nivyādhina āvyādhinīnāṁ pataye namaḥ",
+          meaning: "Salutations to the overpowering one who pierces through, lord of the piercers.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "सहमानाय", transliteration: "sahamānāya", meaning: "to the overpowering" },
             { word: "निव्याधिने", transliteration: "nivyādhine", meaning: "who pierces through" },
+            { word: "आव्याधिनीनाम्", transliteration: "āvyādhinīnām", meaning: "of the piercers" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
-            { word: "ककुभाय", transliteration: "kakubhāya", meaning: "to the prominent one" },
-            { word: "निषङ्गिणे", transliteration: "niṣaṅgiṇe", meaning: "with the quiver" },
-            { word: "स्तेनानाम्", transliteration: "stenānām", meaning: "of thieves" },
-            { word: "इषुधिमते", transliteration: "iṣudhimate", meaning: "arrow-holding" },
-            { word: "तस्कराणाम्", transliteration: "taskarāṇām", meaning: "of robbers" },
           ],
-          esotericMeaning: "Rudra is even lord of thieves and robbers — there is no being outside his dominion. This radical inclusivity reflects the Vedic understanding that even destructive impulses are divine energies awaiting transformation."
+          esotericMeaning: "Sahamāna (the overpowering) is Rudra's irresistible aspect — the cosmic force that breaks through every barrier. He is lord of all piercing forces, both the arrows of war and the insights of wisdom."
         },
         {
-          devanagari: "नमो वञ्चते परिवञ्चते स्तायूनां पतये नमो नमो निचेरवे परिचरायारण्यानां पतये नमो नमः सृकाविभ्यो जिघांसद्भ्यो मुष्णतां पतये नमो नमोऽसिमद्भ्यो नक्तंचरद्भ्यः प्रकृन्तानां पतये नमः",
-          text: "namo vañcate parivañcate stāyūnāṁ pataye namo namo nicerave paricarāyāraṇyānāṁ pataye namo namaḥ sṛkāvibhyo jighāṁsadbhyo muṣṇatāṁ pataye namo namo'simabdhyo naktaṁcaradbhyaḥ prakṛntānāṁ pataye namaḥ",
-          meaning: "Salutations to the deceiver and the all-deceiver, lord of sneaks. Salutations to the one who moves quietly and wanders in the forest, lord of the forest. Salutations to those who carry arrows and wish to kill, lord of those who steal. Salutations to sword-bearers who move at night, lord of those who cut.",
+          devanagari: "नमः ककुभाय निषङ्गिणे स्तेनानां पतये नमः",
+          text: "namaḥ kakubhāya niṣaṅgiṇe stenānāṁ pataye namaḥ",
+          meaning: "Salutations to the prominent one with the quiver, lord of thieves.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "ककुभाय", transliteration: "kakubhāya", meaning: "to the prominent one" },
+            { word: "निषङ्गिणे", transliteration: "niṣaṅgiṇe", meaning: "to the quiver-bearing" },
+            { word: "स्तेनानाम्", transliteration: "stenānām", meaning: "of thieves" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Kakubha (the prominent, the peak) is Rudra as the highest point — the apex of consciousness that transcends all categories. Even thieves are under his sovereignty — no being, however marginal, falls outside the circle of divine care."
+        },
+        {
+          devanagari: "नमो निषङ्गिण इषुधिमते तस्कराणां पतये नमः",
+          text: "namo niṣaṅgiṇa iṣudhimate taskarāṇāṁ pataye namaḥ",
+          meaning: "Salutations to the quiver-bearing arrow-holder, lord of robbers.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "निषङ्गिणे", transliteration: "niṣaṅgiṇe", meaning: "to the quiver-bearer" },
+            { word: "इषुधिमते", transliteration: "iṣudhimate", meaning: "the arrow-holder" },
+            { word: "तस्कराणाम्", transliteration: "taskarāṇām", meaning: "of robbers" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Rudra is even lord of robbers and outlaws — this radical inclusivity reflects the Vedic understanding that even destructive impulses are divine energies awaiting transformation. The arrow that robs can also pierce the veil of illusion."
+        },
+        {
+          devanagari: "नमो वञ्चते परिवञ्चते स्तायूनां पतये नमः",
+          text: "namo vañcate parivañcate stāyūnāṁ pataye namaḥ",
+          meaning: "Salutations to the deceiver and the all-deceiver, lord of sneaks.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "वञ्चते", transliteration: "vañcate", meaning: "to the deceiver" },
             { word: "परिवञ्चते", transliteration: "parivañcate", meaning: "to the all-deceiver" },
             { word: "स्तायूनाम्", transliteration: "stāyūnām", meaning: "of sneaks" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Māyā — the cosmic illusion — is Rudra's own power of concealment. He is the great deceiver who hides the Absolute behind appearances, and also the revealer who lifts the veil for those who seek."
+        },
+        {
+          devanagari: "नमो निचेरवे परिचरायारण्यानां पतये नमः",
+          text: "namo nicerave paricarāyāraṇyānāṁ pataye namaḥ",
+          meaning: "Salutations to the one who moves quietly and wanders in the forest, lord of the forest.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "निचेरवे", transliteration: "nicerave", meaning: "who moves quietly" },
             { word: "परिचराय", transliteration: "paricarāya", meaning: "who wanders" },
             { word: "अरण्यानाम्", transliteration: "araṇyānām", meaning: "of the forest" },
-            { word: "सृकाविभ्यः", transliteration: "sṛkāvibhyaḥ", meaning: "to arrow-carriers" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "Rudra is the spirit of the forest — the silent presence in the wilderness. The quiet mover (nicerā) represents the subtle divine activity that operates beneath perception, the invisible hand that maintains the ecosystem."
+        },
+        {
+          devanagari: "नमः सृकाविभ्यो जिघांसद्भ्यो मुष्णतां पतये नमः",
+          text: "namaḥ sṛkāvibhyo jighāṁsadbhyo muṣṇatāṁ pataye namaḥ",
+          meaning: "Salutations to those who carry weapons and wish to kill, lord of those who steal.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "सृकाविभ्यः", transliteration: "sṛkāvibhyaḥ", meaning: "to weapon-carriers" },
             { word: "जिघांसद्भ्यः", transliteration: "jighāṁsadbhyaḥ", meaning: "who wish to kill" },
             { word: "मुष्णताम्", transliteration: "muṣṇatām", meaning: "of those who steal" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
+          ],
+          esotericMeaning: "The Vedic tradition does not flinch from the full spectrum of existence. By naming Rudra as lord of violent impulses, the chant brings even these into the sacred, preventing them from operating unconsciously and transforming them through recognition."
+        },
+        {
+          devanagari: "नमोऽसिमद्भ्यो नक्तंचरद्भ्यः प्रकृन्तानां पतये नमः",
+          text: "namo'simdbhyo naktaṁcaradbhyaḥ prakṛntānāṁ pataye namaḥ",
+          meaning: "Salutations to sword-bearers who move at night, lord of those who cut.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "असिमद्भ्यः", transliteration: "asimdbhyaḥ", meaning: "to sword-bearers" },
             { word: "नक्तंचरद्भ्यः", transliteration: "naktaṁcaradbhyaḥ", meaning: "who move at night" },
             { word: "प्रकृन्तानाम्", transliteration: "prakṛntānām", meaning: "of those who cut" },
+            { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
           ],
-          esotericMeaning: "The Vedic tradition does not shy from the full spectrum of existence. Rudra as lord of night-wanderers and sword-bearers is the cosmic witness of every shadow act — and by naming him in every darkness, the chant brings even darkness into the light of awareness."
+          esotericMeaning: "Night-wanderers who carry swords represent the shadow forces in existence. By naming Rudra as their lord, the chant brings even darkness into the light of awareness — the cosmic witness observes all, even what moves in secret."
         },
         {
-          devanagari: "नम उष्णीषिणे गिरिचराय कुलुञ्चानां पतये नमो नमः इषुमद्भ्यो धन्वाविभ्यश्च वो नमो नमो आतन्वानेभ्यः प्रतिदधानेभ्यश्च वो नमो नमो आयच्छद्भ्यो विसृजद्भ्यश्च वो नमो नमो ऽस्यद्भ्यो विध्यद्भ्यश्च वो नमः",
-          text: "nama uṣṇīṣiṇe giricaryāya kuluñcānāṁ pataye namo nama iṣumadbhyo dhanvāvibhyaśca vo namo namo ātanvānebhyaḥ pratidadhānebhyaśca vo namo namo āyacchadbhyo visṛjadbhyaśca vo namo namo'syadbhyo vidhyadbhyaśca vo namaḥ",
-          meaning: "Salutations to the turban-wearing one who moves in the mountains, lord of the kuluñca birds. Salutations to those with arrows and bows. Salutations to those who draw and string the bow. Salutations to those who pull and release. Salutations to those who aim and pierce.",
+          devanagari: "नम उष्णीषिणे गिरिचराय कुलुञ्चानां पतये नमः",
+          text: "nama uṣṇīṣiṇe giricaryāya kuluñcānāṁ pataye namaḥ",
+          meaning: "Salutations to the turban-wearing one who moves in the mountains, lord of the kuluñca birds.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "उष्णीषिणे", transliteration: "uṣṇīṣiṇe", meaning: "to the turban-wearer" },
             { word: "गिरिचराय", transliteration: "giricaryāya", meaning: "who moves in mountains" },
             { word: "कुलुञ्चानाम्", transliteration: "kuluñcānām", meaning: "of the kuluñca birds" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
-            { word: "इषुमद्भ्यः", transliteration: "iṣumadbhyaḥ", meaning: "to those with arrows" },
-            { word: "धन्वाविभ्यः", transliteration: "dhanvāvibhyaḥ", meaning: "to those with bows" },
-            { word: "आतन्वानेभ्यः", transliteration: "ātanvānebhyaḥ", meaning: "to those who string" },
-            { word: "प्रतिदधानेभ्यः", transliteration: "pratidadhānebhyaḥ", meaning: "to those who notch" },
-            { word: "आयच्छद्भ्यः", transliteration: "āyacchadbhyaḥ", meaning: "to those who pull" },
-            { word: "विसृजद्भ्यः", transliteration: "visṛjadbhyaḥ", meaning: "to those who release" },
-            { word: "अस्यद्भ्यः", transliteration: "asyadbhyaḥ", meaning: "to those who aim" },
-            { word: "विध्यद्भ्यः", transliteration: "vidhyadbhyaḥ", meaning: "to those who pierce" },
           ],
-          esotericMeaning: "The detailed salutation to every stage of archery — stringing, drawing, releasing, aiming, piercing — reflects the Vedic understanding that every act is sacred. Even the act of killing, when performed with awareness of the divine, becomes an offering."
+          esotericMeaning: "The mountain-wanderer with turban is Rudra as the divine ascetic who traverses the highest peaks of consciousness. The kuluñca birds — mountain sparrows — represent the souls who find their highest freedom in the rarefied air of spiritual practice."
         },
         {
-          devanagari: "नम आसीनेभ्यः शयानेभ्यश्च वो नमो नमः स्वपद्भ्यो जाग्रद्भ्यश्च वो नमो नमस्तिष्ठद्भ्यो धावद्भ्यश्च वो नमो नमः सभाभ्यः सभापतिभ्यश्च वो नमो नमो अश्वेभ्योऽश्वपतिभ्यश्च वो नमः",
-          text: "nama āsīnebhyaḥ śayanebhyaśca vo namo namaḥ svapadbhyo jāgradbhyaśca vo namo namasttiṣṭhadbhyo dhāvadbhyaśca vo namo namaḥ sabhābhyaḥ sabhāpatibhyaśca vo namo namo aśvebhyo'śvapatibhyaśca vo namaḥ",
-          meaning: "Salutations to those sitting and those lying down. Salutations to those sleeping and those awake. Salutations to those standing and those running. Salutations to assemblies and their lords. Salutations to horses and their lords.",
+          devanagari: "नम इषुमद्भ्यो धन्वाविभ्यश्च वो नमः",
+          text: "nama iṣumadbhyo dhanvāvibhyaśca vo namaḥ",
+          meaning: "Salutations to those with arrows and those with bows — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "इषुमद्भ्यः", transliteration: "iṣumadbhyaḥ", meaning: "to those with arrows" },
+            { word: "धन्वाविभ्यः", transliteration: "dhanvāvibhyaḥ", meaning: "to those with bows" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The salutation to the entire armed host — arrows and bows together — is the Vedic recognition that cosmic force in all its forms deserves reverence, not resistance. To bow to power is to transform it."
+        },
+        {
+          devanagari: "नम आतन्वानेभ्यः प्रतिदधानेभ्यश्च वो नमः",
+          text: "namo ātanvānebhyaḥ pratidadhānebhyaśca vo namaḥ",
+          meaning: "Salutations to those who string the bow and those who notch the arrow — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "आतन्वानेभ्यः", transliteration: "ātanvānebhyaḥ", meaning: "to those who string the bow" },
+            { word: "प्रतिदधानेभ्यः", transliteration: "pratidadhānebhyaḥ", meaning: "to those who notch" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The act of stringing (ātanvāna) is the state of maximum preparation — Rudra as pure readiness. Every moment of preparation, every act of getting ready, is a form of cosmic action deserving salutation."
+        },
+        {
+          devanagari: "नम आयच्छद्भ्यो विसृजद्भ्यश्च वो नमः",
+          text: "namo āyacchadbhyo visṛjadbhyaśca vo namaḥ",
+          meaning: "Salutations to those who pull back the bow and those who release — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "आयच्छद्भ्यः", transliteration: "āyacchadbhyaḥ", meaning: "to those who pull back" },
+            { word: "विसृजद्भ्यः", transliteration: "visṛjadbhyaḥ", meaning: "to those who release" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The pull (āyaccha) and release (visṛja) together constitute cosmic creation: the drawing of breath and its release, the contraction and expansion of the universe. Rudra holds both poles — he is the archer and the arrow."
+        },
+        {
+          devanagari: "नमोऽस्यद्भ्यो विध्यद्भ्यश्च वो नमः",
+          text: "namo'syadbhyo vidhyadbhyaśca vo namaḥ",
+          meaning: "Salutations to those who aim and those who pierce — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "अस्यद्भ्यः", transliteration: "asyadbhyaḥ", meaning: "to those who aim" },
+            { word: "विध्यद्भ्यः", transliteration: "vidhyadbhyaḥ", meaning: "to those who pierce" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Vidhya (piercing) is the pinnacle of the archer's art — the insight that penetrates to the heart of truth. Every act of focused understanding, every moment of clarity, is Rudra's arrow finding its mark."
+        },
+        {
+          devanagari: "नम आसीनेभ्यः शयानेभ्यश्च वो नमः",
+          text: "nama āsīnebhyaḥ śayanebhyaśca vo namaḥ",
+          meaning: "Salutations to those sitting and those lying down — salutations to you all.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "आसीनेभ्यः", transliteration: "āsīnebhyaḥ", meaning: "to those sitting" },
-            { word: "शयानेभ्यः", transliteration: "śayanebhyaḥ", meaning: "to those lying" },
+            { word: "शयानेभ्यः", transliteration: "śayanebhyaḥ", meaning: "to those lying down" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The seated and the reclining — wakefulness and rest — are both sacred states. Rudra pervades every posture, ensuring no moment of existence is without divine presence. Sitting in meditation and lying in sleep are equally holy."
+        },
+        {
+          devanagari: "नमः स्वपद्भ्यो जाग्रद्भ्यश्च वो नमः",
+          text: "namaḥ svapadbhyo jāgradbhyaśca vo namaḥ",
+          meaning: "Salutations to those sleeping and those awake — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "स्वपद्भ्यः", transliteration: "svapadbhyaḥ", meaning: "to those sleeping" },
             { word: "जाग्रद्भ्यः", transliteration: "jāgradbhyaḥ", meaning: "to those awake" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Svapna (dream) and jāgrat (waking) are two of the four states of consciousness in Vedānta. Rudra is the witness-consciousness that remains unchanged across all states — the silent observer of both sleep and wakefulness."
+        },
+        {
+          devanagari: "नमस्तिष्ठद्भ्यो धावद्भ्यश्च वो नमः",
+          text: "namasttiṣṭhadbhyo dhāvadbhyaśca vo namaḥ",
+          meaning: "Salutations to those standing still and those running — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "तिष्ठद्भ्यः", transliteration: "tiṣṭhadbhyaḥ", meaning: "to those standing" },
             { word: "धावद्भ्यः", transliteration: "dhāvadbhyaḥ", meaning: "to those running" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Stillness and movement — Śiva and Śakti — are both divine. The one who stands in perfect stillness (tiṣṭhat) and the one who runs with full velocity (dhāvat) are equally expressions of the one consciousness."
+        },
+        {
+          devanagari: "नमः सभाभ्यः सभापतिभ्यश्च वो नमः",
+          text: "namaḥ sabhābhyaḥ sabhāpatibhyaśca vo namaḥ",
+          meaning: "Salutations to assemblies and their lords — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "सभाभ्यः", transliteration: "sabhābhyaḥ", meaning: "to assemblies" },
             { word: "सभापतिभ्यः", transliteration: "sabhāpatibhyaḥ", meaning: "to lords of assemblies" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Sabhā (assembly) is the space of collective wisdom — the council, the congregation, the gathering. Rudra as sabhāpati presides over all collective deliberation, ensuring that communal decisions carry the energy of divine witness."
+        },
+        {
+          devanagari: "नमो अश्वेभ्योऽश्वपतिभ्यश्च वो नमः",
+          text: "namo aśvebhyo'śvapatibhyaśca vo namaḥ",
+          meaning: "Salutations to horses and their lords — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "अश्वेभ्यः", transliteration: "aśvebhyaḥ", meaning: "to horses" },
             { word: "अश्वपतिभ्यः", transliteration: "aśvapatibhyaḥ", meaning: "to lords of horses" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
           ],
-          esotericMeaning: "Rudra pervades all states: sitting, sleeping, awake, running — every posture and every state of consciousness is his domain. The Vedic seer sees no division between the sacred and the mundane; all activity is worship."
+          esotericMeaning: "The horse (aśva) is the Vedic symbol of prāṇa — the vital force that drives life forward. Rudra as aśvapati is lord of life-force itself, the sovereign of all vital energy in the cosmos."
         },
       ]
     },
@@ -509,46 +732,212 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 4",
       titleSanskrit: "चतुर्थोऽनुवाकः",
-      subtitle: "Salutations to Rudra in Armies, Crafts, and Society",
-      description: "The fourth anuvaka continues saluting Rudra in his many social manifestations — as lord of armies, craftsmen, traders, and all categories of society. This section shows Rudra's all-pervasiveness through human civilization.",
+      subtitle: "Salutations to Rudra in Armies, Crafts, and All of Society",
+      description: "The fourth anuvaka continues saluting Rudra in his social manifestations — as lord of armies, craftsmen, traders, hunters, and all categories of society. This section reveals Rudra's all-pervasiveness through human civilization from the chariot-rider to the dog.",
       mantras: [
         {
-          devanagari: "नम आव्याधिनीभ्यो विविध्यन्तीभ्यश्च वो नमो नमो उगणाभ्यस्तृंहतीभ्यश्च वो नमो नमः कृत्स्नैताभ्यः संहतेभ्यश्च वो नमः",
-          text: "nama āvyādhinībhyo vividhyantībhyaśca vo namo namo ugaṇābhyastṛṁhatībhyaśca vo namo namaḥ kṛtsnaihābhyaḥ saṁhateibhyaśca vo namaḥ",
-          meaning: "Salutations to those who pierce variously. Salutations to the fierce ones who smash. Salutations to all of them together in full.",
+          devanagari: "नम आव्याधिनीभ्यो विविध्यन्तीभ्यश्च वो नमः",
+          text: "nama āvyādhinībhyo vividhyantībhyaśca vo namaḥ",
+          meaning: "Salutations to those who pierce through and those who pierce in various ways — salutations to you all.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "आव्याधिनीभ्यः", transliteration: "āvyādhinībhyaḥ", meaning: "to those who pierce" },
-            { word: "विविध्यन्तीभ्यः", transliteration: "vividhyantībhyaḥ", meaning: "who pierce variously" },
-            { word: "उगणाभ्यः", transliteration: "ugaṇābhyaḥ", meaning: "to the fierce ones" },
-            { word: "तृंहतीभ्यः", transliteration: "tṛṁhatībhyaḥ", meaning: "who smash" },
-            { word: "कृत्स्नैताभ्यः", transliteration: "kṛtsnaihābhyaḥ", meaning: "to all of them" },
-            { word: "संहतेभ्यः", transliteration: "saṁhateibhyaḥ", meaning: "together" },
+            { word: "आव्याधिनीभ्यः", transliteration: "āvyādhinībhyaḥ", meaning: "to those who pierce through" },
+            { word: "विविध्यन्तीभ्यः", transliteration: "vividhyantībhyaḥ", meaning: "who pierce in various ways" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
           ],
-          esotericMeaning: "The collective salutation to all destructive forces reaches its climax here. By honoring all aspects of cosmic dissolution together, the chant integrates the entire spectrum of reality into a unified field of devotion."
+          esotericMeaning: "The feminine forms (āvyādhinī, vividhyantī) refer to the śaktis — divine powers that penetrate every layer of reality. These forces pierce through all resistance, all obstruction, to reach the core of truth."
         },
         {
-          devanagari: "नमो रथेभ्यो रथपतिभ्यश्च वो नमो नमः सेनाभ्यः सेनानिभ्यश्च वो नमो नमः क्षत्तृभ्यः संग्रहीतृभ्यश्च वो नमो नमस्तक्षभ्यो रथकारेभ्यश्च वो नमो नमः कुलालेभ्यः कर्मारेभ्यश्च वो नमो नमः पुञ्जिष्टेभ्यो निषादेभ्यश्च वो नमो नमः इषुकृद्भ्यो धनुष्कृद्भ्यश्च वो नमो नमो मृगयुभ्यः श्वनिभ्यश्च वो नमो नमः श्वभ्यः श्वपतिभ्यश्च वो नमः",
-          text: "namo rathebhyo rathipatibhyaśca vo namo namaḥ senābhyaḥ senānibhyaśca vo namo namaḥ kṣattṛbhyaḥ saṁgrahītṛbhyaśca vo namo namastakṣabhyo rathakārebhyaśca vo namo namaḥ kulālabhaḥ karmārebhyaśca vo namo namaḥ puñjiṣṭebhyo niṣādebhyaśca vo namo nama iṣukṛdbhyo dhanuṣkṛdbhyaśca vo namo namo mṛgayubhyaḥ śvanibhyaśca vo namo namaḥ śvabhyaḥ śvapatibhyaśca vo namaḥ",
-          meaning: "Salutations to chariots and chariot-lords. Salutations to armies and army chiefs. Salutations to charioteers and rein-holders. Salutations to carpenters and chariot-makers. Salutations to potters and smiths. Salutations to the destitute and forest-dwellers. Salutations to arrow-makers and bow-makers. Salutations to hunters and dog-handlers. Salutations to dogs and their masters.",
+          devanagari: "नमो उगणाभ्यस्तृंहतीभ्यश्च वो नमः",
+          text: "namo ugaṇābhyas tṛṁhatībhyaśca vo namaḥ",
+          meaning: "Salutations to the fierce ones and those who smash — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "उगणाभ्यः", transliteration: "ugaṇābhyaḥ", meaning: "to the fierce ones" },
+            { word: "तृंहतीभ्यः", transliteration: "tṛṁhatībhyaḥ", meaning: "to those who smash" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The smashing forces (tṛṁhatī) are Rudra's demolition crew — the energies that break down old structures to make way for new life. What appears as destruction from below is renewal seen from above."
+        },
+        {
+          devanagari: "नमो गृत्सेभ्यो गृत्सपतिभ्यश्च वो नमः",
+          text: "namo gṛtsebhyo gṛtsapatibhyaśca vo namaḥ",
+          meaning: "Salutations to the bold ones and their lords — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "गृत्सेभ्यः", transliteration: "gṛtsebhyaḥ", meaning: "to the bold ones" },
+            { word: "गृत्सपतिभ्यः", transliteration: "gṛtsapatibhyaḥ", meaning: "to their lords" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The gṛtsa — bold, intelligent, dexterous — represent the creative intelligence that acts with both courage and skill. Rudra as gṛtsapati is the lord of all inspired, dynamic action in the world."
+        },
+        {
+          devanagari: "नमो व्रातेभ्यो व्रातपतिभ्यश्च वो नमः",
+          text: "namo vrātebhyo vrātapatibhyaśca vo namaḥ",
+          meaning: "Salutations to the wandering groups and their lords — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "व्रातेभ्यः", transliteration: "vrātebhyaḥ", meaning: "to the wandering groups" },
+            { word: "व्रातपतिभ्यः", transliteration: "vrātapatibhyaḥ", meaning: "to their lords" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Vrāta — the wandering group, the tribal band — represents all communities that move through life together. Rudra as vrātapati is the leader of all such communities, ensuring that collective journeys have divine guidance."
+        },
+        {
+          devanagari: "नमो गणेभ्यो गणपतिभ्यश्च वो नमः",
+          text: "namo gaṇebhyo gaṇapatibhyaśca vo namaḥ",
+          meaning: "Salutations to the gaṇas (attendants) and Gaṇapati — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "गणेभ्यः", transliteration: "gaṇebhyaḥ", meaning: "to the gaṇas" },
+            { word: "गणपतिभ्यः", transliteration: "gaṇapatibhyaḥ", meaning: "to Gaṇapati" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The gaṇas are Rudra's divine attendants — hosts of semi-divine beings who carry out cosmic functions. Gaṇapati here is not merely Gaṇeśa but any lord of a host — Rudra as the supreme commander of all divine forces."
+        },
+        {
+          devanagari: "नमो विरूपेभ्यो विश्वरूपेभ्यश्च वो नमः",
+          text: "namo virūpebhyo viśvarūpebhyaśca vo namaḥ",
+          meaning: "Salutations to the differently-formed and the all-formed — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "विरूपेभ्यः", transliteration: "virūpebhyaḥ", meaning: "to the differently-formed" },
+            { word: "विश्वरूपेभ्यः", transliteration: "viśvarūpebhyaḥ", meaning: "to the all-formed" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Virūpa (differently formed — even deformed) and viśvarūpa (all-formed) together complete the circle of form. Rudra is present in every body, however different from the norm, and simultaneously pervades all forms as the universal cosmic body."
+        },
+        {
+          devanagari: "नमो महद्भ्यः क्षुल्लकेभ्यश्च वो नमः",
+          text: "namo mahadbhyaḥ kṣullakebhyaśca vo namaḥ",
+          meaning: "Salutations to the great ones and the small ones — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "महद्भ्यः", transliteration: "mahadbhyaḥ", meaning: "to the great ones" },
+            { word: "क्षुल्लकेभ्यः", transliteration: "kṣullakebhyaḥ", meaning: "to the small ones" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Great and small are equally Rudra's domain — the cosmic and the atomic, the mountain and the mote of dust. In quantum and cosmic scale, Vedānta sees the same consciousness expressing itself."
+        },
+        {
+          devanagari: "नमो रथिभ्योऽरथिभ्यश्च वो नमः",
+          text: "namo rathibhyo'rathibhyaśca vo namaḥ",
+          meaning: "Salutations to the chariot-riders and those without chariots — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "रथिभ्यः", transliteration: "rathibhyaḥ", meaning: "to chariot-riders" },
+            { word: "अरथिभ्यः", transliteration: "arathibhyaḥ", meaning: "to those without chariots" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "Chariot-riders and foot-soldiers, the privileged and the plain — Rudra does not distinguish by status. The divine witness sees through all social hierarchies to the common consciousness within."
+        },
+        {
+          devanagari: "नमो रथेभ्यो रथपतिभ्यश्च वो नमः",
+          text: "namo rathebhyo rathipatibhyaśca vo namaḥ",
+          meaning: "Salutations to chariots and their lords — salutations to you all.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "रथेभ्यः", transliteration: "rathebhyaḥ", meaning: "to chariots" },
-            { word: "रथपतिभ्यः", transliteration: "rathipatibhyaḥ", meaning: "to chariot-lords" },
+            { word: "रथपतिभ्यः", transliteration: "rathipatibhyaḥ", meaning: "to lords of chariots" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The chariot (ratha) in Vedic symbology represents the body-mind complex, and the chariot-lord is the higher self who rides within. Rudra as ratharāja is the ultimate inner driver of every soul's vehicle."
+        },
+        {
+          devanagari: "नमः सेनाभ्यः सेनानिभ्यश्च वो नमः",
+          text: "namaḥ senābhyaḥ senānibhyaśca vo namaḥ",
+          meaning: "Salutations to armies and their commanders — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "सेनाभ्यः", transliteration: "senābhyaḥ", meaning: "to armies" },
-            { word: "सेनानिभ्यः", transliteration: "senānibhyaḥ", meaning: "to army chiefs" },
+            { word: "सेनानिभ्यः", transliteration: "senānibhyaḥ", meaning: "to army commanders" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The army and its general are saluted — the organized force of collective action. In the spiritual context, the army is the array of sādhanas (practices), and the senānī is the guru who leads souls through the battle with ignorance."
+        },
+        {
+          devanagari: "नमः क्षत्तृभ्यः संग्रहीतृभ्यश्च वो नमः",
+          text: "namaḥ kṣattṛbhyaḥ saṁgrahītṛbhyaśca vo namaḥ",
+          meaning: "Salutations to charioteers and rein-holders — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "क्षत्तृभ्यः", transliteration: "kṣattṛbhyaḥ", meaning: "to charioteers" },
+            { word: "संग्रहीतृभ्यः", transliteration: "saṁgrahītṛbhyaḥ", meaning: "to rein-holders" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The charioteer who holds the reins is the master of direction. In the Kaṭha Upaniṣad, the intellect (buddhi) is the charioteer and the reins are the mind. Rudra as saṁgrahītṛ is the wisdom that keeps the senses under control."
+        },
+        {
+          devanagari: "नमस्तक्षभ्यो रथकारेभ्यश्च वो नमः",
+          text: "namastakṣabhyo rathakārebhyaśca vo namaḥ",
+          meaning: "Salutations to carpenters and chariot-makers — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "तक्षभ्यः", transliteration: "takṣabhyaḥ", meaning: "to carpenters" },
             { word: "रथकारेभ्यः", transliteration: "rathakārebhyaḥ", meaning: "to chariot-makers" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The craftsman who builds the chariot is as sacred as the warrior who rides it. Rudra honors the maker — the artisan whose skilled hands shape the tools of civilization. Every craft is a form of worship."
+        },
+        {
+          devanagari: "नमः कुलालेभ्यः कर्मारेभ्यश्च वो नमः",
+          text: "namaḥ kulālabhaḥ karmārebhyaśca vo namaḥ",
+          meaning: "Salutations to potters and blacksmiths — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "कुलालेभ्यः", transliteration: "kulālabhaḥ", meaning: "to potters" },
-            { word: "कर्मारेभ्यः", transliteration: "karmārebhyaḥ", meaning: "to smiths" },
+            { word: "कर्मारेभ्यः", transliteration: "karmārebhyaḥ", meaning: "to blacksmiths" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The potter shapes clay (like Brahman shaping the cosmos), and the blacksmith transforms raw metal through fire — both are images of the divine creative process. Karmāra (one who works with karma — metals) evokes the transformation of base matter into refined form."
+        },
+        {
+          devanagari: "नमः पुञ्जिष्टेभ्यो निषादेभ्यश्च वो नमः",
+          text: "namaḥ puñjiṣṭebhyo niṣādebhyaśca vo namaḥ",
+          meaning: "Salutations to those who heap up and to forest-dwellers (niṣādas) — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "पुञ्जिष्टेभ्यः", transliteration: "puñjiṣṭebhyaḥ", meaning: "to those who heap up" },
             { word: "निषादेभ्यः", transliteration: "niṣādebhyaḥ", meaning: "to forest-dwellers" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The niṣādas — tribal forest-dwellers often marginalized by mainstream society — are saluted directly. The Vedic seer's vision is radical in its inclusivity: the tribal who lives in the forest is no less divine than the brāhmaṇa in the temple."
+        },
+        {
+          devanagari: "नम इषुकृद्भ्यो धनुष्कृद्भ्यश्च वो नमः",
+          text: "nama iṣukṛdbhyo dhanuṣkṛdbhyaśca vo namaḥ",
+          meaning: "Salutations to arrow-makers and bow-makers — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "इषुकृद्भ्यः", transliteration: "iṣukṛdbhyaḥ", meaning: "to arrow-makers" },
             { word: "धनुष्कृद्भ्यः", transliteration: "dhanuṣkṛdbhyaḥ", meaning: "to bow-makers" },
-            { word: "मृगयुभ्यः", transliteration: "mṛgayubhyaḥ", meaning: "to hunters" },
-            { word: "श्वभ्यः", transliteration: "śvabhyaḥ", meaning: "to dogs" },
-            { word: "श्वपतिभ्यः", transliteration: "śvapatibhyaḥ", meaning: "to dog-masters" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
           ],
-          esotericMeaning: "This comprehensive salutation to every social category — from general to craftsman to hunter to dog — encodes a profound democratic spirituality. Rudra's divine presence saturates every stratum of society, every occupation, every being."
+          esotericMeaning: "The makers of weapons receive reverence equal to the wielders — the one who creates the tool shares in its cosmic function. Every craftsperson who shapes an instrument of Rudra's will is an expression of the divine creative impulse."
+        },
+        {
+          devanagari: "नमो मृगयुभ्यः श्वनिभ्यश्च वो नमः",
+          text: "namo mṛgayubhyaḥ śvanibhyaśca vo namaḥ",
+          meaning: "Salutations to hunters and dog-handlers — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "मृगयुभ्यः", transliteration: "mṛgayubhyaḥ", meaning: "to hunters" },
+            { word: "श्वनिभ्यः", transliteration: "śvanibhyaḥ", meaning: "to dog-handlers" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "The hunter who tracks the deer and the hound who leads the trail are both sacred. Rudra himself is Mṛgavyādha — the deer-hunter — and his divine hound (śvan) is the companion of both hunter and ascetic."
+        },
+        {
+          devanagari: "नमः श्वभ्यः श्वपतिभ्यश्च वो नमः",
+          text: "namaḥ śvabhyaḥ śvapatibhyaśca vo namaḥ",
+          meaning: "Salutations to dogs and their masters — salutations to you all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "श्वभ्यः", transliteration: "śvabhyaḥ", meaning: "to dogs" },
+            { word: "श्वपतिभ्यः", transliteration: "śvapatibhyaḥ", meaning: "to masters of dogs" },
+            { word: "वः", transliteration: "vaḥ", meaning: "to you all" },
+          ],
+          esotericMeaning: "This comprehensive salutation concludes by bowing to the dog itself — the most humble creature in the ancient hierarchy. Rudra as śvapati (lord of dogs) is the lord of the most overlooked and despised. No being falls outside the circle of divine sovereignty."
         },
       ]
     },
@@ -557,53 +946,188 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 5",
       titleSanskrit: "पञ्चमोऽनुवाकः",
-      subtitle: "Salutations to Rudra in Nature's Forces",
-      description: "The fifth anuvaka salutes Rudra in rivers, rains, lightning, and the forces of nature. This section is particularly beloved for its ecological spirituality — recognizing the divine in every natural phenomenon.",
+      subtitle: "Salutations in Contrasting Pairs — Rudra's Opposite Aspects",
+      description: "The fifth anuvaka presents Rudra's nature through 15 pairs of contrasting epithets — each 'namo X ca Y ca' salutes two complementary aspects simultaneously. From Bhava and Rudra to the wave-borne and island-dwelling, Rudra transcends all polarities.",
       mantras: [
         {
-          devanagari: "नमो भवाय च रुद्राय च नमः शर्वाय च पशुपतये च नमो नीलग्रीवाय च शितिकण्ठाय च नमः कपर्दिने च व्युप्तकेशाय च नमः सहस्राक्षाय च शतधन्वने च नमो गिरिशाय च शिपिविष्टाय च नमो मीढुष्टमाय चेषुमते च नमो ह्रस्वाय च वामनाय च नमो बृहते च वर्षीयसे च नमो वृद्धाय च संवृद्धवाय च",
-          text: "namo bhavāya ca rudrāya ca namaḥ śarvāya ca paśupataye ca namo nīlagrīvāya ca śitikaṇṭhāya ca namaḥ kapardine ca vyuptakeśāya ca namaḥ sahasrākṣāya ca śatadhanvane ca namo giriśāya ca śipiviṣṭāya ca namo mīḍhuṣṭamāya ceṣumate ca namo hrasvāya ca vāmanāya ca namo bṛhate ca varṣīyase ca namo vṛddhāya ca saṁvṛddhavāya ca",
-          meaning: "Salutations to Bhava and Rudra; to Śarva and Paśupati; to the blue-necked and white-throated; to the matted-haired and the smooth-haired; to the thousand-eyed and the hundred-bowed; to the mountain-dweller and the all-pervading; to the most bountiful and the arrow-bearing; to the short and the dwarf; to the large and the most powerful; to the aged and the most mature.",
+          devanagari: "नमो भवाय च रुद्राय च",
+          text: "namo bhavāya ca rudrāya ca",
+          meaning: "Salutations to Bhava and to Rudra.",
           words: [
-            { word: "भवाय", transliteration: "bhavāya", meaning: "to Bhava" },
-            { word: "रुद्राय", transliteration: "rudrāya", meaning: "to Rudra" },
-            { word: "शर्वाय", transliteration: "śarvāya", meaning: "to Śarva" },
-            { word: "पशुपतये", transliteration: "paśupataye", meaning: "to Paśupati" },
-            { word: "नीलग्रीवाय", transliteration: "nīlagrīvāya", meaning: "to the blue-necked" },
-            { word: "शितिकण्ठाय", transliteration: "śitikaṇṭhāya", meaning: "white-throated" },
-            { word: "कपर्दिने", transliteration: "kapardine", meaning: "to the matted-haired" },
-            { word: "व्युप्तकेशाय", transliteration: "vyuptakeśāya", meaning: "to the smooth-haired" },
-            { word: "सहस्राक्षाय", transliteration: "sahasrākṣāya", meaning: "to the thousand-eyed" },
-            { word: "शतधन्वने", transliteration: "śatadhanvane", meaning: "to the hundred-bowed" },
-            { word: "गिरिशाय", transliteration: "giriśāya", meaning: "to the mountain-dweller" },
-            { word: "शिपिविष्टाय", transliteration: "śipiviṣṭāya", meaning: "the all-pervading" },
-            { word: "मीढुष्टमाय", transliteration: "mīḍhuṣṭamāya", meaning: "to the most bountiful" },
-            { word: "हृस्वाय", transliteration: "hṛsvāya", meaning: "to the short" },
-            { word: "वामनाय", transliteration: "vāmanāya", meaning: "to the dwarf" },
-            { word: "बृहते", transliteration: "bṛhate", meaning: "to the large" },
-            { word: "वर्षीयसे", transliteration: "varṣīyase", meaning: "to the most powerful" },
-            { word: "वृद्धाय", transliteration: "vṛddhāya", meaning: "to the aged" },
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "भवाय", transliteration: "bhavāya", meaning: "to Bhava (the one who is)" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "रुद्राय", transliteration: "rudrāya", meaning: "to Rudra (the remover of sorrow)" },
           ],
-          esotericMeaning: "The pairs of opposites — matted/smooth, short/tall, small/large — reveal Rudra's transcendence of all categories. The divine inhabits every polarity simultaneously. This teaching is core to Kashmir Śaivism: Śiva pervades and transcends all dualities."
+          esotericMeaning: "Bhava (the one who is, pure existence) and Rudra (the remover of suffering) are two faces of the same reality. Existence itself, when fully recognized, removes all suffering — this is the non-dual teaching hidden in this opening pair."
         },
         {
-          devanagari: "नमो अग्रियाय च प्रथमाय च नम आशवे चाजिराय च नमः शीघ्रियाय च शीभ्याय च नम ऊर्म्याय चावस्वन्याय च नमः स्रोत्स्याय च द्वीप्याय च",
-          text: "namo agriyāya ca prathamāya ca nama āśave cājirāya ca namaḥ śīghriyāya ca śībhyāya ca nama ūrmyāya cāvasvanyāya ca namaḥ srotsyāya ca dvīpyāya ca",
-          meaning: "Salutations to the foremost and the first; to the swift and the agile; to the speedy and the rapid; to the wave-bearer and the water-dweller; to those dwelling in currents and islands.",
+          devanagari: "नमः शर्वाय च पशुपतये च",
+          text: "namaḥ śarvāya ca paśupataye ca",
+          meaning: "Salutations to Śarva (the archer) and to Paśupati (the lord of souls).",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शर्वाय", transliteration: "śarvāya", meaning: "to Śarva (the archer)" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "पशुपतये", transliteration: "paśupataye", meaning: "to Paśupati (lord of souls)" },
+          ],
+          esotericMeaning: "Śarva shoots the arrows of dissolution — every entity must eventually return to source. Paśupati (lord of paśus — all bound souls) holds every soul in his care. The archer and the shepherd are one: dissolution is the path home."
+        },
+        {
+          devanagari: "नमो नीलग्रीवाय च शितिकण्ठाय च",
+          text: "namo nīlagrīvāya ca śitikaṇṭhāya ca",
+          meaning: "Salutations to the blue-necked one and to the white-throated one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "नीलग्रीवाय", transliteration: "nīlagrīvāya", meaning: "to the blue-necked" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "शितिकण्ठाय", transliteration: "śitikaṇṭhāya", meaning: "to the white-throated" },
+          ],
+          esotericMeaning: "The blue neck (nīlagrīva) is the cosmic poison (halāhala) of the ocean of existence held in the throat — never swallowed, never released. To hold the world's suffering at the throat without being destroyed by it is the ultimate spiritual attainment."
+        },
+        {
+          devanagari: "नमः कपर्दिने च व्युप्तकेशाय च",
+          text: "namaḥ kapardine ca vyuptakeśāya ca",
+          meaning: "Salutations to the matted-haired one and to the shaven-headed one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "कपर्दिने", transliteration: "kapardine", meaning: "to the matted-haired" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "व्युप्तकेशाय", transliteration: "vyuptakeśāya", meaning: "to the shaven-headed" },
+          ],
+          esotericMeaning: "Matted hair (jaṭā) and shaven head (muṇḍa) are both valid paths of renunciation. The Śaiva ascetic and the Buddhist monk, the flowing-locked yogi and the tonsured sannyāsi — all forms of authentic renunciation are Rudra's own."
+        },
+        {
+          devanagari: "नमः सहस्राक्षाय च शतधन्वने च",
+          text: "namaḥ sahasrākṣāya ca śatadhanvane ca",
+          meaning: "Salutations to the thousand-eyed one and to the one with a hundred bows.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "सहस्राक्षाय", transliteration: "sahasrākṣāya", meaning: "to the thousand-eyed" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "शतधन्वने", transliteration: "śatadhanvane", meaning: "to the hundred-bowed" },
+          ],
+          esotericMeaning: "Sahasrākṣa (thousand-eyed) is omniscience — Rudra perceives all simultaneously. Śatadhanvan (hundred-bowed) is omnipotence — infinite arrows aimed in every direction. These are the key divine attributes: all-knowing and all-powerful."
+        },
+        {
+          devanagari: "नमो गिरिशाय च शिपिविष्टाय च",
+          text: "namo giriśāya ca śipiviṣṭāya ca",
+          meaning: "Salutations to the lord of the mountain and to the all-pervading one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "गिरिशाय", transliteration: "giriśāya", meaning: "to the lord of the mountain" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "शिपिविष्टाय", transliteration: "śipiviṣṭāya", meaning: "to the all-pervading" },
+          ],
+          esotericMeaning: "Giriśa (mountain-dweller, lord of Kailāsa) represents Rudra at the apex of creation, where heaven and earth meet. Śipiviṣṭa (who enters all creation through the rays of light) is the subtle omnipresent aspect — the divine that pervades every atom."
+        },
+        {
+          devanagari: "नमो मीढुष्टमाय चेषुमते च",
+          text: "namo mīḍhuṣṭamāya ceṣumate ca",
+          meaning: "Salutations to the most bountiful one and to the arrow-bearing one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "मीढुष्टमाय", transliteration: "mīḍhuṣṭamāya", meaning: "to the most bountiful" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "इषुमते", transliteration: "iṣumate", meaning: "to the arrow-bearing" },
+          ],
+          esotericMeaning: "Mīḍhuṣṭama (most rain-giving, most bountiful) is the grace aspect of Rudra — the infinite giver. That the same deity holds arrows shows that the power to give and the power to pierce are united: grace can pierce the heart of even the most stubborn ego."
+        },
+        {
+          devanagari: "नमो ह्रस्वाय च वामनाय च",
+          text: "namo hrasvāya ca vāmanāya ca",
+          meaning: "Salutations to the short one and to the dwarf.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "ह्रस्वाय", transliteration: "hrasvāya", meaning: "to the short one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "वामनाय", transliteration: "vāmanāya", meaning: "to the dwarf" },
+          ],
+          esotericMeaning: "The short and the dwarf — Rudra takes the smallest of forms. This parallels the Upaniṣadic teaching that the Ātman is aṇoraṇīyān (smaller than the smallest). The infinite divine compresses itself into the tiniest point of manifestation."
+        },
+        {
+          devanagari: "नमो बृहते च वर्षीयसे च",
+          text: "namo bṛhate ca varṣīyase ca",
+          meaning: "Salutations to the great one and to the most powerful one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "बृहते", transliteration: "bṛhate", meaning: "to the great one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "वर्षीयसे", transliteration: "varṣīyase", meaning: "to the most powerful" },
+          ],
+          esotericMeaning: "Bṛhat (the vast, the great) is the Brahman aspect of Rudra — mahato mahīyān (greater than the greatest). The same Ātman that is smaller than the smallest is also greater than the greatest — this paradox is the heart of Vedāntic non-duality."
+        },
+        {
+          devanagari: "नमो वृद्धाय च संवृद्धवाय च",
+          text: "namo vṛddhāya ca saṁvṛddhvāya ca",
+          meaning: "Salutations to the ancient one and to the most fully grown.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "वृद्धाय", transliteration: "vṛddhāya", meaning: "to the ancient one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "संवृद्धवाय", transliteration: "saṁvṛddhvāya", meaning: "to the most fully grown" },
+          ],
+          esotericMeaning: "Vṛddha (the aged, the ancient) is Rudra as the oldest of the old — the primordial awareness that predates all creation. Saṁvṛddha (fully mature, completely grown) is the same awareness at its fullest expression — the eternal ripeness of consciousness."
+        },
+        {
+          devanagari: "नमो अग्रियाय च प्रथमाय च",
+          text: "namo agriyāya ca prathamāya ca",
+          meaning: "Salutations to the foremost one and to the first.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "अग्रियाय", transliteration: "agriyāya", meaning: "to the foremost" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "प्रथमाय", transliteration: "prathamāya", meaning: "to the first" },
-            { word: "आशवे", transliteration: "āśave", meaning: "to the swift" },
-            { word: "अजिराय", transliteration: "ajirāya", meaning: "to the agile" },
-            { word: "शीघ्रियाय", transliteration: "śīghriyāya", meaning: "to the speedy" },
-            { word: "शीभ्याय", transliteration: "śībhyāya", meaning: "to the rapid" },
-            { word: "ऊर्म्याय", transliteration: "ūrmyāya", meaning: "to the wave-bearer" },
-            { word: "अवस्वन्याय", transliteration: "āvasvanyāya", meaning: "to the water-dweller" },
-            { word: "स्रोत्स्याय", transliteration: "srotsyāya", meaning: "to the current-dweller" },
-            { word: "द्वीप्याय", transliteration: "dvīpyāya", meaning: "to the island-dweller" },
           ],
-          esotericMeaning: "Rudra's speed — śīghria, śībhya, āśave, ajira — maps the velocity of consciousness which can pervade all space in no time. The water-dwelling forms connect to the cosmic ocean of consciousness (cin-maya) from which all creation arises."
+          esotericMeaning: "Agria (foremost) and prathama (first) both point to Rudra as the primordial cause — the ādikāraṇa that precedes all others. In every sequence, in every generation, in every moment, Rudra is first."
+        },
+        {
+          devanagari: "नम आशवे चाजिराय च",
+          text: "nama āśave cājirāya ca",
+          meaning: "Salutations to the swift one and to the agile one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "आशवे", transliteration: "āśave", meaning: "to the swift" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अजिराय", transliteration: "ajirāya", meaning: "to the agile" },
+          ],
+          esotericMeaning: "Āśu (swift as a horse) and ajira (quick, nimble) describe consciousness that moves faster than thought, faster than light. The speed of Rudra's awareness exceeds all physical velocities — it is the instantaneous self-recognition of Ātman."
+        },
+        {
+          devanagari: "नमः शीघ्रियाय च शीभ्याय च",
+          text: "namaḥ śīghriyāya ca śībhyāya ca",
+          meaning: "Salutations to the very speedy one and to the extremely rapid one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शीघ्रियाय", transliteration: "śīghriyāya", meaning: "to the very speedy" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "शीभ्याय", transliteration: "śībhyāya", meaning: "to the extremely rapid" },
+          ],
+          esotericMeaning: "The twin epithets of speed intensify each other — śīghria and śībhya both speak to the velocity of the divine wind (vāyu aspect of Rudra). Prāṇa moves at the speed of awareness, which has no delay between intention and action."
+        },
+        {
+          devanagari: "नम ऊर्म्याय चावस्वन्याय च",
+          text: "nama ūrmyāya cāvasvanyāya ca",
+          meaning: "Salutations to the wave-borne one and to the one in flowing water.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "ऊर्म्याय", transliteration: "ūrmyāya", meaning: "to the wave-borne" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अवस्वन्याय", transliteration: "āvasvanyāya", meaning: "to the one in flowing water" },
+          ],
+          esotericMeaning: "Ūrmi (wave) is one of the great images of saṁsāra — the endless waves of experience on the ocean of consciousness. Rudra as ūrmya is the wave itself; as āvasvanī he is the subterranean flow — consciousness visible and hidden."
+        },
+        {
+          devanagari: "नमः स्रोत्स्याय च द्वीप्याय च",
+          text: "namaḥ srotsyāya ca dvīpyāya ca",
+          meaning: "Salutations to the one in river currents and to the one dwelling on islands.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "स्रोत्स्याय", transliteration: "srotsyāya", meaning: "to the one in currents" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "द्वीप्याय", transliteration: "dvīpyāya", meaning: "to the one on islands" },
+          ],
+          esotericMeaning: "Srotsya (the river current) is Rudra as the moving force of time and change. Dvīpya (the island-dweller) is Rudra as the still point in the midst of flux — the eternal witness in the middle of the stream of experience."
         },
       ]
     },
@@ -612,52 +1136,188 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 6",
       titleSanskrit: "षष्ठोऽनुवाकः",
-      subtitle: "Salutations to Rudra in Earth, Plants, and Sacrificial Fire",
-      description: "The sixth anuvaka salutes Rudra in his manifestations as lord of fields, plants, sacrifices, and fire. This section reflects the agricultural and sacrificial dimensions of Rudic worship.",
+      subtitle: "Salutations to Rudra Across All Social Orders and the Natural World",
+      description: "The sixth anuvaka spans from family hierarchy (eldest to youngest) through the social order (farmers, warriors, craftsmen) to nature's realms (forest, thicket, field). Each pair reveals Rudra's presence spanning every opposite in society and nature.",
       mantras: [
         {
-          devanagari: "नमो ज्येष्ठाय च कनिष्ठाय च नमः पूर्वजाय चापरजाय च नमो मध्यमाय चापगल्भाय च नमो जघन्याय च बुध्नियाय च नमः सोभ्याय च प्रतिसर्याय च नमो याम्याय च क्षेम्याय च नम उर्वर्याय च खल्याय च नमः श्लोक्याय चावसान्याय च नमो वन्याय च कक्ष्याय च",
-          text: "namo jyeṣṭhāya ca kaniṣṭhāya ca namaḥ pūrvajāya cāparajāya ca namo madhyamāya cāpagalbhāya ca namo jaghanyāya ca budhnyāya ca namaḥ sobhyāya ca pratisaryāya ca namo yāmyāya ca kṣemyāya ca nama urvaryāya ca khalyāya ca namaḥ ślokyāya cāvasānyāya ca namo vanyāya ca kakṣyāya ca",
-          meaning: "Salutations to the eldest and the youngest; to the firstborn and the later-born; to the middle one and the presumptuous; to the last and the one in the depths; to the beautiful and the widespread; to the southern and the peaceful; to the field-dweller and the threshing-floor-dweller; to the renowned and the final; to the forest-dweller and the forest-thicket-dweller.",
+          devanagari: "नमो ज्येष्ठाय च कनिष्ठाय च",
+          text: "namo jyeṣṭhāya ca kaniṣṭhāya ca",
+          meaning: "Salutations to the eldest and to the youngest.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "ज्येष्ठाय", transliteration: "jyeṣṭhāya", meaning: "to the eldest" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "कनिष्ठाय", transliteration: "kaniṣṭhāya", meaning: "to the youngest" },
-            { word: "पूर्वजाय", transliteration: "pūrvajāya", meaning: "to the firstborn" },
-            { word: "अपरजाय", transliteration: "aparajāya", meaning: "to the later-born" },
-            { word: "मध्यमाय", transliteration: "madhyamāya", meaning: "to the middle one" },
-            { word: "जघन्याय", transliteration: "jaghanyāya", meaning: "to the last" },
-            { word: "बुध्नियाय", transliteration: "budhnyāya", meaning: "to the one in the depths" },
-            { word: "सोभ्याय", transliteration: "sobhyāya", meaning: "to the beautiful" },
-            { word: "प्रतिसर्याय", transliteration: "pratisaryāya", meaning: "to the widespread" },
-            { word: "याम्याय", transliteration: "yāmyāya", meaning: "to the southern" },
-            { word: "क्षेम्याय", transliteration: "kṣemyāya", meaning: "to the peaceful" },
-            { word: "उर्वर्याय", transliteration: "urvaryāya", meaning: "to the field-dweller" },
-            { word: "खल्याय", transliteration: "khalyāya", meaning: "to the threshing-floor-dweller" },
-            { word: "वन्याय", transliteration: "vanyāya", meaning: "to the forest-dweller" },
-            { word: "कक्ष्याय", transliteration: "kakṣyāya", meaning: "to the thicket-dweller" },
           ],
-          esotericMeaning: "These pairs span the complete hierarchy of beings — from eldest to youngest, first to last — showing that Rudra's presence is not partial but total. The inclusion of jyeṣṭha (eldest) and kaniṣṭha (youngest) also alludes to cosmic time — the first and last moments of each cycle of creation."
+          esotericMeaning: "The eldest (jyeṣṭha) and the youngest (kaniṣṭha) together span all of temporal existence. Rudra is both the ancient primordial awareness and the newest spark of consciousness. He is simultaneously the oldest and the newest aspect of being."
         },
         {
-          devanagari: "नमः श्रवाय च प्रतिश्रवाय च नम आशुषेणाय चाशुरथाय च नमः शूराय चावभिन्दते च नमो वर्मिणे च वरूथिने च नमो बिल्मिने च कवचिने च नमः श्रुताय च श्रुतसेनाय च",
-          text: "namaḥ śravāya ca pratiśravāya ca nama āśuṣeṇāya cāśurathāya ca namaḥ śūrāya cāvabhindnte ca namo varmiṇe ca varūthine ca namo bilmine ca kavacine ca namaḥ śrutāya ca śrutasenāya ca",
-          meaning: "Salutations to the glorious and the celebrated; to the one with a swift army and a swift chariot; to the hero and the one who cuts through; to the armored and the shielded; to the helmet-wearer and the coat-wearer; to the renowned and the one with a renowned army.",
+          devanagari: "नमः पूर्वजाय चापरजाय च",
+          text: "namaḥ pūrvajāya cāparajāya ca",
+          meaning: "Salutations to the firstborn and to the later-born.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "पूर्वजाय", transliteration: "pūrvajāya", meaning: "to the firstborn" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अपरजाय", transliteration: "aparajāya", meaning: "to the later-born" },
+          ],
+          esotericMeaning: "First and last in the order of creation — pūrvaja is Hiraṇyagarbha, the cosmic first-born; aparaja is the most recent spark of consciousness entering form. Rudra presides over every birth across all of cosmic time."
+        },
+        {
+          devanagari: "नमो मध्यमाय चापगल्भाय च",
+          text: "namo madhyamāya cāpagalbhāya ca",
+          meaning: "Salutations to the middle one and to the bold one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "मध्यमाय", transliteration: "madhyamāya", meaning: "to the middle one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अपगल्भाय", transliteration: "āpagalbhāya", meaning: "to the bold/presumptuous" },
+          ],
+          esotericMeaning: "The middle (madhyama) is the balancing principle — Rudra as the cosmic equilibrator between extremes. Apagalbha (the bold, the forthright) is the creative energy that dares to act, to create, to assert — a necessary quality in any evolutionary force."
+        },
+        {
+          devanagari: "नमो जघन्याय च बुध्नियाय च",
+          text: "namo jaghanyāya ca budhnyāya ca",
+          meaning: "Salutations to the last and to the one in the depths.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "जघन्याय", transliteration: "jaghanyāya", meaning: "to the last" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "बुध्नियाय", transliteration: "budhnyāya", meaning: "to the one in the depths" },
+          ],
+          esotericMeaning: "Jaghanya (the last, the final, even the lowest) and budhnya (at the very bottom, in the depths) remind us that Rudra's presence extends to the absolute nadir of existence. No depth, no lowliness, no finality falls outside divine consciousness."
+        },
+        {
+          devanagari: "नमः सोभ्याय च प्रतिसर्याय च",
+          text: "namaḥ sobhyāya ca pratisaryāya ca",
+          meaning: "Salutations to the beautiful one and to the widespread one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "सोभ्याय", transliteration: "sobhyāya", meaning: "to the beautiful one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "प्रतिसर्याय", transliteration: "pratisaryāya", meaning: "to the widespread" },
+          ],
+          esotericMeaning: "Sobhya (the beautiful, the splendid) is Rudra's aesthetic dimension — the divine as the source of all beauty in creation. Pratisarya (the widespread) is Rudra's omnipresence — a beauty so vast it covers the entire field of existence."
+        },
+        {
+          devanagari: "नमो याम्याय च क्षेम्याय च",
+          text: "namo yāmyāya ca kṣemyāya ca",
+          meaning: "Salutations to the southern one and to the auspicious, peaceful one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "याम्याय", transliteration: "yāmyāya", meaning: "to the southern one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "क्षेम्याय", transliteration: "kṣemyāya", meaning: "to the peaceful/auspicious" },
+          ],
+          esotericMeaning: "Yāmya (of the south, of Yama's realm) links Rudra to the region of death and transformation. Kṣemya (peaceful, auspicious) is Rudra's gift after transformation — the peace that comes after all fear of death is dissolved."
+        },
+        {
+          devanagari: "नम उर्वर्याय च खल्याय च",
+          text: "nama urvaryāya ca khalyāya ca",
+          meaning: "Salutations to the one in the cultivated field and to the one in the threshing floor.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "उर्वर्याय", transliteration: "urvaryāya", meaning: "to the field-dweller" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "खल्याय", transliteration: "khalyāya", meaning: "to the threshing-floor-dweller" },
+          ],
+          esotericMeaning: "The field (urvara) where grain grows and the threshing floor (khala) where grain is separated are the complete agricultural cycle — seed to harvest. Rudra is present in both: the patient growing and the decisive separation of grain from chaff."
+        },
+        {
+          devanagari: "नमः श्लोक्याय चावसान्याय च",
+          text: "namaḥ ślokyāya cāvasānyāya ca",
+          meaning: "Salutations to the renowned one and to the one who brings things to completion.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "श्लोक्याय", transliteration: "ślokyāya", meaning: "to the renowned" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अवसान्याय", transliteration: "āvasānyāya", meaning: "to the one at the end/finale" },
+          ],
+          esotericMeaning: "Ślokya (praised in verse, renowned) is Rudra as the ever-celebrated divine — the supreme subject of all sacred poetry. Avasānya (the one at the final resting point) is Rudra as the ultimate ground to which all things return."
+        },
+        {
+          devanagari: "नमो वन्याय च कक्ष्याय च",
+          text: "namo vanyāya ca kakṣyāya ca",
+          meaning: "Salutations to the forest-dweller and to the thicket-dweller.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "वन्याय", transliteration: "vanyāya", meaning: "to the forest-dweller" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "कक्ष्याय", transliteration: "kakṣyāya", meaning: "to the thicket-dweller" },
+          ],
+          esotericMeaning: "Vanya (of the open forest) and kakṣya (of the dense thicket) together cover the entire spectrum of wild nature. Rudra is both the visible and the hidden aspect of the forest — the path you can see and the mystery you cannot penetrate."
+        },
+        {
+          devanagari: "नमः श्रवाय च प्रतिश्रवाय च",
+          text: "namaḥ śravāya ca pratiśravāya ca",
+          meaning: "Salutations to the glorious one and to the celebrated one.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "श्रवाय", transliteration: "śravāya", meaning: "to the glorious" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "प्रतिश्रवाय", transliteration: "pratiśravāya", meaning: "to the celebrated" },
-            { word: "आशुषेणाय", transliteration: "āśuṣeṇāya", meaning: "to the swift-armied" },
-            { word: "आशुरथाय", transliteration: "āśurathāya", meaning: "to the swift-charioted" },
-            { word: "शूराय", transliteration: "śūrāya", meaning: "to the hero" },
-            { word: "वर्मिणे", transliteration: "varmiṇe", meaning: "to the armored" },
-            { word: "वरूथिने", transliteration: "varūthine", meaning: "to the shielded" },
-            { word: "बिल्मिने", transliteration: "bilmine", meaning: "to the helmet-wearer" },
-            { word: "कवचिने", transliteration: "kavacine", meaning: "to the coat-wearer" },
-            { word: "श्रुताय", transliteration: "śrutāya", meaning: "to the renowned" },
-            { word: "श्रुतसेनाय", transliteration: "śrutasenāya", meaning: "to the renowned-armied" },
           ],
-          esotericMeaning: "Rudra as the divine warrior wears armor (varman), shield (varūtha), helmet (bilman) — each representing a cosmic protective function. The shield is the grace that deflects harm; the armor is the spiritual sovereignty that makes the soul invincible."
+          esotericMeaning: "Śrava (fame, glory) and pratiśrava (renown that echoes back — the fame that is heard everywhere) speak to Rudra's divine celebrity. His glory is not self-proclaimed but resonates through all of creation as the natural recognition of the supreme."
+        },
+        {
+          devanagari: "नम आशुषेणाय चाशुरथाय च",
+          text: "nama āśuṣeṇāya cāśurathāya ca",
+          meaning: "Salutations to the one with a swift army and to the swift-charioted one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "आशुषेणाय", transliteration: "āśuṣeṇāya", meaning: "to the swift-armied" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "आशुरथाय", transliteration: "āśurathāya", meaning: "to the swift-charioted" },
+          ],
+          esotericMeaning: "Āśuṣeṇa (swift army) and āśuratha (swift chariot) are images of divine will in rapid manifestation. When Rudra acts, his armies — the forces of cosmic transformation — move with the speed of lightning."
+        },
+        {
+          devanagari: "नमः शूराय चावभिन्दते च",
+          text: "namaḥ śūrāya cāvabhindnte ca",
+          meaning: "Salutations to the hero and to the one who cuts through.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शूराय", transliteration: "śūrāya", meaning: "to the hero" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अवभिन्दते", transliteration: "āvabhindnte", meaning: "to the one who cuts through" },
+          ],
+          esotericMeaning: "Śūra (hero) is Rudra as the supreme warrior whose courage never wavers. Avabhindant (the cutter-through) is the same energy applied to spiritual liberation — cutting through the knot of ignorance (avidyā-granthi) at the heart."
+        },
+        {
+          devanagari: "नमो वर्मिणे च वरूथिने च",
+          text: "namo varmiṇe ca varūthine ca",
+          meaning: "Salutations to the one wearing armor and to the shield-bearer.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "वर्मिणे", transliteration: "varmiṇe", meaning: "to the armor-wearer" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "वरूथिने", transliteration: "varūthine", meaning: "to the shield-bearer" },
+          ],
+          esotericMeaning: "Rudra's armor (varman) is his own divine nature — nothing can penetrate the self-luminous awareness. The shield (varūtha) is his grace (anugraha) that deflects the arrows of suffering before they reach the devoted soul."
+        },
+        {
+          devanagari: "नमो बिल्मिने च कवचिने च",
+          text: "namo bilmine ca kavacine ca",
+          meaning: "Salutations to the helmet-wearer and to the coat-of-mail wearer.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "बिल्मिने", transliteration: "bilmine", meaning: "to the helmet-wearer" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "कवचिने", transliteration: "kavacine", meaning: "to the coat-of-mail wearer" },
+          ],
+          esotericMeaning: "The helmet (bilman) protects the head — the seat of intelligence — and the kavaca (body armor) protects the vital center. Spiritual armor in Vedānta is the kavaca of mantra and the helmet of viveka (discrimination) — Rudra wears and bestows both."
+        },
+        {
+          devanagari: "नमः श्रुताय च श्रुतसेनाय च",
+          text: "namaḥ śrutāya ca śrutasenāya ca",
+          meaning: "Salutations to the renowned one and to the one whose army is renowned.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "श्रुताय", transliteration: "śrutāya", meaning: "to the renowned" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "श्रुतसेनाय", transliteration: "śrutasenāya", meaning: "to the one with renowned army" },
+          ],
+          esotericMeaning: "Śruta (heard, renowned) evokes the śruti — the revealed scripture that is 'heard' (śru). Rudra as śruta is the divinity behind the Vedas, the source of all revealed knowledge. His army (senā) of mantras is śrutasenā — heard across all time."
         },
       ]
     },
@@ -666,97 +1326,200 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 7",
       titleSanskrit: "सप्तमोऽनुवाकः",
-      subtitle: "Salutations to Rudra in All Realms of Space",
-      description: "The seventh anuvaka includes the Namaḥ śivāya ca śivatarāya ca mantra — the famous pañcākṣarī — and salutes Rudra across all realms: earth, sky, heaven, and the intermediate directions.",
+      subtitle: "Salutations to Rudra in All Waters, Weathers, and the Home",
+      description: "The seventh anuvaka begins with Rudra's weapons (drum, arrow, bow) then embarks on an extraordinary ecological litany — saluting Rudra in every form of water, every weather condition, from the stream to the storm, concluding with Rudra as the protector of the household.",
       mantras: [
         {
-          devanagari: "नमो दुन्दुभ्याय चाहनन्याय च नमो धृष्णवे च प्रमृशाय च नमो दूताय च प्रहिताय च नमो निषङ्गिणे चेषुधिमते च नमस्तीक्ष्णेषवे चायुधिने च नमः स्वायुधाय च सुधन्वने च",
-          text: "namo dundubhyāya cāhananyāya ca namo dhṛṣṇave ca pramṛśāya ca namo dūtāya ca prahitāya ca namo niṣaṅgiṇe ceṣudhimate ca namastīkṣṇeṣave cāyudhine ca namaḥ svāyudhāya ca sudhanvane ca",
-          meaning: "Salutations to the drum-player and the one who beats; to the bold and the one who touches; to the messenger and the one who is sent; to the quiver-wearer and the arrow-holder; to the sharp-arrowed and the weapon-bearer; to the self-armed and the good-bowed.",
+          devanagari: "नमो दुन्दुभ्याय चाहनन्याय च",
+          text: "namo dundubhyāya cāhananyāya ca",
+          meaning: "Salutations to the drum-player and to the one who beats.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "दुन्दुभ्याय", transliteration: "dundubhyāya", meaning: "to the drum-player" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "आहनन्याय", transliteration: "āhananyāya", meaning: "to the one who beats" },
-            { word: "धृष्णवे", transliteration: "dhṛṣṇave", meaning: "to the bold" },
+          ],
+          esotericMeaning: "The dundubhi drum is the pulse of the cosmos — the cosmic heartbeat that Rudra beats. In the Nāṭarāja image, the damaru (small drum) in Śiva's right hand is this primordial sound of creation from which all manifestation arises."
+        },
+        {
+          devanagari: "नमो धृष्णवे च प्रमृशाय च",
+          text: "namo dhṛṣṇave ca pramṛśāya ca",
+          meaning: "Salutations to the bold one and to the one who touches all.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "धृष्णवे", transliteration: "dhṛṣṇave", meaning: "to the bold one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "प्रमृशाय", transliteration: "pramṛśāya", meaning: "to the one who touches" },
+          ],
+          esotericMeaning: "Dhṛṣṇu (bold, daring) is Rudra's creative courage — the force that dares to manifest the infinite into finite form. Pramṛśa (the toucher, the one who contacts all) is omnipresence experienced as divine touch — the hand of grace."
+        },
+        {
+          devanagari: "नमो दूताय च प्रहिताय च",
+          text: "namo dūtāya ca prahitāya ca",
+          meaning: "Salutations to the divine messenger and to the one who is sent.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "दूताय", transliteration: "dūtāya", meaning: "to the messenger" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "प्रहिताय", transliteration: "prahitāya", meaning: "to the one who is sent" },
+          ],
+          esotericMeaning: "The dūta (messenger) is the divine word — the OM or mantra that carries divine intelligence across the gap between absolute and relative. Prahita (the sent one) is the guru or the sacred scripture sent as Rudra's emissary into the world."
+        },
+        {
+          devanagari: "नमो निषङ्गिणे चेषुधिमते च",
+          text: "namo niṣaṅgiṇe ceṣudhimate ca",
+          meaning: "Salutations to the quiver-wearer and to the arrow-holder.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "निषङ्गिणे", transliteration: "niṣaṅgiṇe", meaning: "to the quiver-wearer" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "इषुधिमते", transliteration: "iṣudhimate", meaning: "to the arrow-holder" },
+          ],
+          esotericMeaning: "The quiver (niṣaṅga) holds countless arrows — Rudra's arsenal of divine interventions is inexhaustible. The iṣudhi (arrow-case) is the reservoir of grace, always full, always ready to send the precise arrow of transformation to any soul that needs it."
+        },
+        {
+          devanagari: "नमस्तीक्ष्णेषवे चायुधिने च",
+          text: "namastīkṣṇeṣave cāyudhine ca",
+          meaning: "Salutations to the sharp-arrowed one and to the weapon-bearer.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "तीक्ष्णेषवे", transliteration: "tīkṣṇeṣave", meaning: "to the sharp-arrowed" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "आयुधिने", transliteration: "āyudhine", meaning: "to the weapon-bearer" },
+          ],
+          esotericMeaning: "Tīkṣṇa (sharp, penetrating) is the quality of spiritual insight — the arrow of knowledge (jñāna-śara) that cuts through the veils of illusion instantly, without delay, without error."
+        },
+        {
+          devanagari: "नमः स्वायुधाय च सुधन्वने च",
+          text: "namaḥ svāyudhāya ca sudhanvane ca",
+          meaning: "Salutations to the self-armed one and to the one with a good bow.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "स्वायुधाय", transliteration: "svāyudhāya", meaning: "to the self-armed" },
+            { word: "च", transliteration: "ca", meaning: "and" },
             { word: "सुधन्वने", transliteration: "sudhanvane", meaning: "to the good-bowed" },
           ],
-          esotericMeaning: "The drum (dundubhi) is Rudra's cosmic sound — the OM that reverberates through all creation. Every vibration, every messenger, every weapon is ultimately his expression. The 'self-armed' (svāyudha) is Rudra who needs no external weapon — his very being is the ultimate power."
+          esotericMeaning: "Svāyudha (self-armed — whose very being is the weapon) is the ultimate form: Rudra needs no external instrument. His awareness itself is both bow and arrow. Sudhanvan (excellent bow) echoes Gandiva — the perfect bow that never fails."
         },
         {
-          devanagari: "नमः स्रुत्याय च पथ्याय च नमः काट्याय च नीप्याय च नमः सूद्याय च सरस्याय च नमो नाद्याय च वैशन्ताय च नमः कूप्याय चावट्याय च नमो वर्ष्याय चावर्ष्याय च नमो मेघ्याय च विद्युत्याय च नम ईध्रियाय चातप्याय च नमो वात्याय च रेष्मियाय च नमो वास्तव्याय च वास्तुपाय च",
-          text: "namaḥ srutyāya ca pathyāya ca namaḥ kāṭyāya ca nīpyāya ca namaḥ sūdyāya ca sarasyāya ca namo nādyāya ca vaiśantāya ca namaḥ kūpyāya cāvaṭyāya ca namo varṣyāya cāvarṣyāya ca namo meghyāya ca vidyutyāya ca nama īdhriyāya cātapyāya ca namo vātyāya ca reṣmiyāya ca namo vāstavyāya ca vāstupāya ca",
-          meaning: "Salutations to those in streams and paths; in undergrowth and river-banks; in flowing waters and lakes; in rivers and ponds; in wells and pools; in rain and drought; in clouds and lightning; in clear sky and sunshine; in wind and storm; to the lord of the dwelling and the protector of the house.",
+          devanagari: "नमः स्रुत्याय च पथ्याय च",
+          text: "namaḥ srutyāya ca pathyāya ca",
+          meaning: "Salutations to the one in streams and to the one in paths.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "स्रुत्याय", transliteration: "srutyāya", meaning: "in streams" },
-            { word: "पथ्याय", transliteration: "pathyāya", meaning: "in paths" },
-            { word: "काट्याय", transliteration: "kāṭyāya", meaning: "in undergrowth" },
-            { word: "नीप्याय", transliteration: "nīpyāya", meaning: "in river-banks" },
-            { word: "सूद्याय", transliteration: "sūdyāya", meaning: "in flowing waters" },
-            { word: "सरस्याय", transliteration: "sarasyāya", meaning: "in lakes" },
-            { word: "नाद्याय", transliteration: "nādyāya", meaning: "in rivers" },
-            { word: "वैशन्ताय", transliteration: "vaiśantāya", meaning: "in ponds" },
-            { word: "कूप्याय", transliteration: "kūpyāya", meaning: "in wells" },
-            { word: "अवट्याय", transliteration: "āvaṭyāya", meaning: "in pools" },
-            { word: "वर्ष्याय", transliteration: "varṣyāya", meaning: "in rain" },
-            { word: "अवर्ष्याय", transliteration: "āvarṣyāya", meaning: "in drought" },
-            { word: "मेघ्याय", transliteration: "meghyāya", meaning: "in clouds" },
-            { word: "विद्युत्याय", transliteration: "vidyutyāya", meaning: "in lightning" },
-            { word: "ईध्रियाय", transliteration: "īdhriyāya", meaning: "in clear sky" },
-            { word: "आतप्याय", transliteration: "ātapyāya", meaning: "in sunshine" },
-            { word: "वात्याय", transliteration: "vātyāya", meaning: "in wind" },
-            { word: "रेष्मियाय", transliteration: "reṣmiyāya", meaning: "in storm" },
-            { word: "वास्तव्याय", transliteration: "vāstavyāya", meaning: "lord of the dwelling" },
-            { word: "वास्तुपाय", transliteration: "vāstupāya", meaning: "protector of the house" },
+            { word: "स्रुत्याय", transliteration: "srutyāya", meaning: "to the one in streams" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "पथ्याय", transliteration: "pathyāya", meaning: "to the one in paths" },
           ],
-          esotericMeaning: "This extraordinary litany of water bodies — stream, lake, river, well, pond, rain, cloud — maps Rudra's omnipresence through every form water takes. Water is consciousness; its many forms are the many moods of the divine. The house-protector (vāstupā) at the end grounds this cosmic survey in the intimate and domestic."
+          esotericMeaning: "The stream (sruti) and the path (patha) are the flow and direction of consciousness. Rudra inhabits both the natural current and the deliberate road — the unconscious and the intentional dimensions of every journey."
         },
         {
-          devanagari: "नमः सोमाय च रुद्राय च नमस्ताम्राय चारुणाय च नमः शङ्गाय च पशुपतये च नम उग्राय च भीमाय च नमो अग्रेवधाय च दूरेवधाय च नमो हन्त्रे च हनीयसे च नमो वृक्षेभ्यो हरिकेशेभ्यो नमस्ताराय",
-          text: "namaḥ somāya ca rudrāya ca namastāmrāya cāruṇāya ca namaḥ śaṅgāya ca paśupataye ca nama ugrāya ca bhīmāya ca namo agrevadhāya ca dūrevadhāya ca namo hantre ca hanīyase ca namo vṛkṣebhyo harikeśebhyo namastārāya",
-          meaning: "Salutations to Soma and Rudra; to the copper-red and the dawn-red; to the auspicious one and Paśupati; to the fierce and the terrible; to the one who kills nearby and afar; to the slayer and the best slayer; to the trees with yellow foliage; and salutations to the liberator.",
+          devanagari: "नमः काट्याय च नीप्याय च",
+          text: "namaḥ kāṭyāya ca nīpyāya ca",
+          meaning: "Salutations to the one in the undergrowth and to the one on river banks.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "सोमाय", transliteration: "somāya", meaning: "to Soma" },
-            { word: "रुद्राय", transliteration: "rudrāya", meaning: "to Rudra" },
-            { word: "ताम्राय", transliteration: "tāmrāya", meaning: "to the copper-red" },
-            { word: "अरुणाय", transliteration: "aruṇāya", meaning: "to the dawn-red" },
-            { word: "शङ्गाय", transliteration: "śaṅgāya", meaning: "to the auspicious" },
-            { word: "पशुपतये", transliteration: "paśupataye", meaning: "to Paśupati" },
-            { word: "उग्राय", transliteration: "ugrāya", meaning: "to the fierce" },
-            { word: "भीमाय", transliteration: "bhīmāya", meaning: "to the terrible" },
-            { word: "अग्रेवधाय", transliteration: "agrevadhāya", meaning: "who kills nearby" },
-            { word: "दूरेवधाय", transliteration: "dūrevadhāya", meaning: "who kills afar" },
-            { word: "हन्त्रे", transliteration: "hantre", meaning: "to the slayer" },
-            { word: "हनीयसे", transliteration: "hanīyase", meaning: "to the best slayer" },
-            { word: "वृक्षेभ्यः", transliteration: "vṛkṣebhyaḥ", meaning: "to the trees" },
-            { word: "हरिकेशेभ्यः", transliteration: "harikeśebhyaḥ", meaning: "with yellow foliage" },
-            { word: "ताराय", transliteration: "tārāya", meaning: "to the liberator" },
+            { word: "काट्याय", transliteration: "kāṭyāya", meaning: "to the one in undergrowth" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "नीप्याय", transliteration: "nīpyāya", meaning: "to the one on river banks" },
           ],
-          esotericMeaning: "Soma-Rudra is the paired deity of the Vedas — the nourishing moon (Soma) and the fierce sun-wind (Rudra). Their pairing reveals that nourishment and destruction are two faces of one cosmic process. Tārāya (the liberator) at the end turns the entire fearful litany into a prayer for liberation."
+          esotericMeaning: "The undergrowth (kāṭa) hides what is beneath the surface — Rudra as the hidden divine presence in the dark, tangled places of life. The river bank (nīpa) is the liminal edge between water and land — Rudra as the being who inhabits all boundaries."
         },
         {
-          devanagari: "नमः शम्भवाय च मयोभवाय च नमः शङ्कराय च मयस्कराय च नमः शिवाय च शिवतराय च",
-          text: "namaḥ śambhavāya ca mayobhavāya ca namaḥ śaṅkarāya ca mayaskarāya ca namaḥ śivāya ca śivatarāya ca",
-          meaning: "Salutations to the one who brings peace and the one who brings happiness; to the one who brings joy and the one who produces joy; to the auspicious and the most auspicious.",
+          devanagari: "नमः सूद्याय च सरस्याय च",
+          text: "namaḥ sūdyāya ca sarasyāya ca",
+          meaning: "Salutations to the one in flowing waters and to the one in lakes.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "शम्भवाय", transliteration: "śambhavāya", meaning: "to the peace-bringer" },
-            { word: "मयोभवाय", transliteration: "mayobhavāya", meaning: "to the joy-bringer" },
-            { word: "शङ्कराय", transliteration: "śaṅkarāya", meaning: "to the joy-maker" },
-            { word: "मयस्कराय", transliteration: "mayaskarāya", meaning: "to the happiness-producer" },
-            { word: "शिवाय", transliteration: "śivāya", meaning: "to the auspicious" },
-            { word: "शिवतराय", transliteration: "śivatarāya", meaning: "to the most auspicious" },
+            { word: "सूद्याय", transliteration: "sūdyāya", meaning: "to the one in flowing water" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "सरस्याय", transliteration: "sarasyāya", meaning: "to the one in lakes" },
           ],
-          esotericMeaning: "This is the pañcākṣarī mantra's context: namaḥ śivāya — salutation to Śiva — is the essence of the entire Namakam. 'Śivatarāya' (more auspicious than the most auspicious) points to the inexhaustible grace of consciousness that always exceeds our capacity to describe it."
+          esotericMeaning: "The flowing stream (sūda) and the still lake (saras) represent the active and contemplative aspects of consciousness. Sarasvatī, the goddess of knowledge, is born from saras — Rudra is present even in the source of wisdom."
+        },
+        {
+          devanagari: "नमो नाद्याय च वैशन्ताय च",
+          text: "namo nādyāya ca vaiśantāya ca",
+          meaning: "Salutations to the one in rivers and to the one in ponds.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "नाद्याय", transliteration: "nādyāya", meaning: "to the one in rivers" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "वैशन्ताय", transliteration: "vaiśantāya", meaning: "to the one in ponds" },
+          ],
+          esotericMeaning: "The river (nadī) moves constantly — consciousness as dynamic flow. The pond (vaiśanta) is still and contained — consciousness as bounded depth. Rudra inhabits both the eternal movement and the peaceful containment."
+        },
+        {
+          devanagari: "नमः कूप्याय चावट्याय च",
+          text: "namaḥ kūpyāya cāvaṭyāya ca",
+          meaning: "Salutations to the one in wells and to the one in pools.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "कूप्याय", transliteration: "kūpyāya", meaning: "to the one in wells" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अवट्याय", transliteration: "āvaṭyāya", meaning: "to the one in pools" },
+          ],
+          esotericMeaning: "The well (kūpa) goes deep into the earth — Rudra as the hidden ground water, the deep subterranean consciousness. The pool (avaṭa) is the quiet surface reflecting the sky — consciousness as mirror of the infinite."
+        },
+        {
+          devanagari: "नमो वर्ष्याय चावर्ष्याय च",
+          text: "namo varṣyāya cāvarṣyāya ca",
+          meaning: "Salutations to the one in rain and to the one in drought.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "वर्ष्याय", transliteration: "varṣyāya", meaning: "to the one in rain" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अवर्ष्याय", transliteration: "āvarṣyāya", meaning: "to the one in drought" },
+          ],
+          esotericMeaning: "Rain (varṣa) and drought (avarṣa) together represent the complete cycle of abundance and scarcity that all life navigates. Rudra is present in times of plenty and times of want — the divine does not abandon us when grace seems withheld."
+        },
+        {
+          devanagari: "नमो मेघ्याय च विद्युत्याय च",
+          text: "namo meghyāya ca vidyutyāya ca",
+          meaning: "Salutations to the one in clouds and to the one in lightning.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "मेघ्याय", transliteration: "meghyāya", meaning: "to the one in clouds" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "विद्युत्याय", transliteration: "vidyutyāya", meaning: "to the one in lightning" },
+          ],
+          esotericMeaning: "The cloud (megha) is the gathered potential of wisdom; the lightning (vidyut) is its sudden illuminating discharge. The guru is the cloud that builds silently for years; the moment of enlightenment is the lightning strike of vidyā (true knowledge)."
+        },
+        {
+          devanagari: "नम ईध्रियाय चातप्याय च",
+          text: "nama īdhriyāya cātapyāya ca",
+          meaning: "Salutations to the one in the clear sky and to the one in sunshine.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "ईध्रियाय", transliteration: "īdhriyāya", meaning: "to the one in clear sky" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "आतप्याय", transliteration: "ātapyāya", meaning: "to the one in sunshine" },
+          ],
+          esotericMeaning: "Ī dhria (the cloudless sky) is the ākāśa of pure consciousness — the infinite empty awareness in which all experiences arise. Ātapya (sunshine, solar heat) is the warmth of divine grace that nourishes all life below."
+        },
+        {
+          devanagari: "नमो वात्याय च रेष्मियाय च",
+          text: "namo vātyāya ca reṣmiyāya ca",
+          meaning: "Salutations to the one in the wind and to the one in the storm.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "वात्याय", transliteration: "vātyāya", meaning: "to the one in wind" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "रेष्मियाय", transliteration: "reṣmiyāya", meaning: "to the one in the storm" },
+          ],
+          esotericMeaning: "Vāta (wind) is Rudra's primary elemental form — prāṇa moving through the universe. Reṣmiya (the stormy, the tempest) is the full force of that prāṇa unleashed — the divine wind that can both destroy and renew the entire landscape of existence."
+        },
+        {
+          devanagari: "नमो वास्तव्याय च वास्तुपाय च",
+          text: "namo vāstavyāya ca vāstupāya ca",
+          meaning: "Salutations to the lord of the dwelling and to the protector of the house.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "वास्तव्याय", transliteration: "vāstavyāya", meaning: "to the lord of the dwelling" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "वास्तुपाय", transliteration: "vāstupāya", meaning: "to the protector of the house" },
+          ],
+          esotericMeaning: "After surveying every form of water and weather, the anuvaka grounds in the home. Vāstupā (house-protector) is Rudra as the domestic divine — the sacred presence within every household. The cosmic tour from river to storm ends at your own front door."
         },
       ]
     },
@@ -765,41 +1528,141 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 8",
       titleSanskrit: "अष्टमोऽनुवाकः",
-      subtitle: "Salutations to Rudra of the Forests and Mountains",
-      description: "The eighth anuvaka salutes Rudra in forests, mountains, and wild places. This section has a deeply ecological and shamanic character, honoring Rudra as the spirit of wild, untamed nature.",
+      subtitle: "Soma-Rudra Pairs, the Liberator, and the Pañcākṣarī",
+      description: "The eighth anuvaka begins with a transitional invocation of the golden-armed Rudra, then presents the sacred Soma-Rudra pairs, culminating in the triple peak of śambhavāya, śaṅkarāya, and the supreme pañcākṣarī mantra: namaḥ śivāya ca śivatarāya ca.",
       mantras: [
-        {
-          devanagari: "नमस्त्र्यम्बकाय च त्रिपुरान्तकाय च नमः शूलिने च गिरिशाय च नमो मीढुष्टमाय च पर्णिने च नमः खड्गिने च शतश्लोकाय च नमो गृत्समदाय च विश्वरूपाय च नमो नीलकण्ठाय च पिनाकिने च नमः सहस्रपादाय च विश्वशम्भवे च",
-          text: "namastryambakāya ca tripurāntakāya ca namaḥ śūline ca giriśāya ca namo mīḍhuṣṭamāya ca parṇine ca namaḥ khaḍgine ca śataślokāya ca namo gṛtsamadāya ca viśvarūpāya ca namo nīlakaṇṭhāya ca pinākinena ca namaḥ sahasrapādāya ca viśvaśambhave ca",
-          meaning: "Salutations to the three-eyed and the destroyer of Tripura; to the trident-bearer and the mountain-dweller; to the most bountiful and the leaf-wearer; to the sword-bearer and the hundred-praisers; to the one who has Gṛtsamada and to the all-formed; to the blue-throated and the bow-bearer; to the thousand-footed and the one who brings joy to all.",
-          words: [
-            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "त्र्यम्बकाय", transliteration: "tryambakāya", meaning: "to the three-eyed" },
-            { word: "त्रिपुरान्तकाय", transliteration: "tripurāntakāya", meaning: "to the destroyer of Tripura" },
-            { word: "शूलिने", transliteration: "śūline", meaning: "to the trident-bearer" },
-            { word: "गिरिशाय", transliteration: "giriśāya", meaning: "to the mountain-dweller" },
-            { word: "मीढुष्टमाय", transliteration: "mīḍhuṣṭamāya", meaning: "to the most bountiful" },
-            { word: "पर्णिने", transliteration: "parṇine", meaning: "to the leaf-wearer" },
-            { word: "खड्गिने", transliteration: "khaḍgine", meaning: "to the sword-bearer" },
-            { word: "नीलकण्ठाय", transliteration: "nīlakaṇṭhāya", meaning: "to the blue-throated" },
-            { word: "पिनाकिने", transliteration: "pinākinena", meaning: "to the bow-bearer" },
-            { word: "सहस्रपादाय", transliteration: "sahasrapādāya", meaning: "to the thousand-footed" },
-            { word: "विश्वशम्भवे", transliteration: "viśvaśambhave", meaning: "who brings joy to all" },
-          ],
-          esotericMeaning: "Parṇin (leaf-wearer) is Rudra in his forest-ascetic form, clothed in the natural world itself. The forest is his temple, leaves his garment — nature is not separate from divinity but is its direct expression. Tripurāntaka (destroyer of Tripura) reveals Rudra as the consciousness that dissolves the three states of waking, dreaming, and deep sleep into its own light."
-        },
         {
           devanagari: "नमो हिरण्यबाहवे सेनान्ये दिशां च पतये नमः",
           text: "namo hiraṇyabāhave senānye diśāṁ ca pataye namaḥ",
-          meaning: "Salutations to the golden-armed one, the commander, and lord of the directions.",
+          meaning: "Salutations to the golden-armed one, the commander of armies, the lord of the directions.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
             { word: "हिरण्यबाहवे", transliteration: "hiraṇyabāhave", meaning: "to the golden-armed" },
-            { word: "सेनान्ये", transliteration: "senānye", meaning: "to the commander" },
+            { word: "सेनान्ये", transliteration: "senānye", meaning: "to the army commander" },
             { word: "दिशाम्", transliteration: "diśām", meaning: "of the directions" },
             { word: "पतये", transliteration: "pataye", meaning: "to the lord" },
           ],
-          esotericMeaning: "The repetition of Hiraṇyabāhu (golden-armed) reinforces Rudra's role as the supreme commander of cosmic forces. Gold symbolizes the incorruptible luminosity of consciousness itself; the arms that wield this energy are the channels of divine action in the world."
+          esotericMeaning: "This opening mantra of Anuvaka 8 is the transitional verse that bridges the ecological salutations (water, weather, home) to the cosmic identity salutations. Hiraṇyabāhu (golden-armed) repeats as a refrain — the golden-armed solar force commands all the directions of space."
+        },
+        {
+          devanagari: "नमः सोमाय च रुद्राय च",
+          text: "namaḥ somāya ca rudrāya ca",
+          meaning: "Salutations to Soma and to Rudra.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "सोमाय", transliteration: "somāya", meaning: "to Soma (the moon)" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "रुद्राय", transliteration: "rudrāya", meaning: "to Rudra" },
+          ],
+          esotericMeaning: "Soma-Rudra is the paired deity of the Vedas — the nourishing moon (Soma, cooling nectar) and the fierce sun-wind (Rudra, burning transformation). Their pairing reveals that nourishment and destruction are two faces of one cosmic process. The healer and the destroyer are one."
+        },
+        {
+          devanagari: "नमस्ताम्राय चारुणाय च",
+          text: "namastāmrāya cāruṇāya ca",
+          meaning: "Salutations to the copper-red one and to the dawn-red one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "ताम्राय", transliteration: "tāmrāya", meaning: "to the copper-red" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अरुणाय", transliteration: "aruṇāya", meaning: "to the dawn-red" },
+          ],
+          esotericMeaning: "Tāmra (copper-red) and aruṇa (the red of dawn) describe Rudra as the color of fire and the color of the horizon at sunrise — the point where night ends and day begins. Rudra governs every threshold, every transition, every liminal moment between states."
+        },
+        {
+          devanagari: "नमः शङ्गाय च पशुपतये च",
+          text: "namaḥ śaṅgāya ca paśupataye ca",
+          meaning: "Salutations to the auspicious one and to Paśupati.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शङ्गाय", transliteration: "śaṅgāya", meaning: "to the auspicious" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "पशुपतये", transliteration: "paśupataye", meaning: "to Paśupati" },
+          ],
+          esotericMeaning: "Śaṅga (the auspicious, derived from śam — peace, bliss) and Paśupati (lord of all bound souls) reveal the two poles of Rudra's relationship with beings: he is both the peaceful goal and the sovereign guide of every soul's journey toward liberation."
+        },
+        {
+          devanagari: "नम उग्राय च भीमाय च",
+          text: "nama ugrāya ca bhīmāya ca",
+          meaning: "Salutations to the fierce one and to the terrible one.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "उग्राय", transliteration: "ugrāya", meaning: "to the fierce one" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "भीमाय", transliteration: "bhīmāya", meaning: "to the terrible one" },
+          ],
+          esotericMeaning: "Ugra (fierce, intense) and bhīma (terrible, awe-inspiring) are not contradictions of Rudra's grace but its precondition. Only the power that can be terrible has the strength to actually protect. The fierce grace is more reliable than soft approval."
+        },
+        {
+          devanagari: "नमो अग्रेवधाय च दूरेवधाय च",
+          text: "namo agrevadhāya ca dūrevadhāya ca",
+          meaning: "Salutations to the one who strikes near and to the one who strikes far.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "अग्रेवधाय", transliteration: "agrevadhāya", meaning: "who strikes near" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "दूरेवधाय", transliteration: "dūrevadhāya", meaning: "who strikes far" },
+          ],
+          esotericMeaning: "Near and far — Rudra's reach is unlimited in both directions. No distance is too close to escape the divine arrow of karma, and no distance is too far to receive the arrow of grace. The same omnipresence that threatens also protects."
+        },
+        {
+          devanagari: "नमो हन्त्रे च हनीयसे च",
+          text: "namo hantre ca hanīyase ca",
+          meaning: "Salutations to the slayer and to the best slayer.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "हन्त्रे", transliteration: "hantre", meaning: "to the slayer" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "हनीयसे", transliteration: "hanīyase", meaning: "to the best slayer" },
+          ],
+          esotericMeaning: "What does Rudra slay? The Vedāntic answer: he slays ego, he slays ignorance, he slays the illusion of separateness. The 'best slayer' (hanīyasa) is the one who slays most completely — dissolving the root of suffering, not merely its symptoms."
+        },
+        {
+          devanagari: "नमो वृक्षेभ्यो हरिकेशेभ्यो नमस्ताराय",
+          text: "namo vṛkṣebhyo harikeśebhyo namastārāya",
+          meaning: "Salutations to the yellow-haired trees — and salutations to the liberator.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "वृक्षेभ्यः", transliteration: "vṛkṣebhyaḥ", meaning: "to the trees" },
+            { word: "हरिकेशेभ्यः", transliteration: "harikeśebhyaḥ", meaning: "to the yellow-haired" },
+            { word: "ताराय", transliteration: "tārāya", meaning: "to the liberator" },
+          ],
+          esotericMeaning: "Tārāya (the liberator, the one who causes crossing over) is the pivot of the Namakam. The entire fearful litany — armies, thieves, slayers, fierce forms — turns here into a prayer for liberation. Rudra, the cosmic ferryman, carries souls across the ocean of saṁsāra."
+        },
+        {
+          devanagari: "नमः शम्भवाय च मयोभवाय च",
+          text: "namaḥ śambhavāya ca mayobhavāya ca",
+          meaning: "Salutations to the one who brings peace and to the one who brings happiness.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शम्भवाय", transliteration: "śambhavāya", meaning: "to the peace-bringer" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "मयोभवाय", transliteration: "mayobhavāya", meaning: "to the happiness-bringer" },
+          ],
+          esotericMeaning: "Śambhava (śam + bhava = born of peace, the peace-bringer) and Mayobhava (mayo + bhava = born of joy, the joy-bringer) reveal Rudra's deepest nature. After all the fierce epithets, we arrive here: the source of all peace and all joy. This is the Śiva beneath the Rudra."
+        },
+        {
+          devanagari: "नमः शङ्कराय च मयस्कराय च",
+          text: "namaḥ śaṅkarāya ca mayaskarāya ca",
+          meaning: "Salutations to the maker of peace and to the maker of happiness.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शङ्कराय", transliteration: "śaṅkarāya", meaning: "to the maker of peace" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "मयस्कराय", transliteration: "mayaskarāya", meaning: "to the maker of happiness" },
+          ],
+          esotericMeaning: "Śaṅkara (śam + kara = peace-maker, also the name Śaṅkarācārya — Adi Śankara chose this name) and Mayaskara (joy-maker) show Rudra as the active bestower of peace and happiness — not just their source but their active distributor throughout creation."
+        },
+        {
+          devanagari: "नमः शिवाय च शिवतराय च",
+          text: "namaḥ śivāya ca śivatarāya ca",
+          meaning: "Salutations to the auspicious one and to the most auspicious.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शिवाय", transliteration: "śivāya", meaning: "to the auspicious (Śiva)" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "शिवतराय", transliteration: "śivatarāya", meaning: "to the most auspicious" },
+          ],
+          esotericMeaning: "Namaḥ śivāya — the pañcākṣarī, the five-syllabled mantra, the heart of the Namakam. After saluting Rudra through hundreds of forms — fierce, gentle, ecological, social, cosmic — we arrive at the simple and total: Śiva, the auspicious. Śivatara (more auspicious than the most auspicious) points to grace beyond all measure."
         },
       ]
     },
@@ -808,54 +1671,202 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 9",
       titleSanskrit: "नवमोऽनुवाकः",
-      subtitle: "Salutations to Rudra in His Thousand Manifestations",
-      description: "The ninth anuvaka is dedicated to saluting the thousand Rudras — the countless manifestations of Rudra across the universe. This is the famous 'Śatarudrīya' portion emphasizing Rudra's infinite presence.",
+      subtitle: "Salutations to Rudra in All Landscapes and in the Heart",
+      description: "The ninth anuvaka continues saluting Rudra across every terrain — desert, highway, cave, dust, grass, dry land, green land, fallen leaves — and culminates in the astonishing revelation: Rudra dwells in the cave of the heart (hṛdayya). Every landscape is also a landscape of consciousness.",
       mantras: [
         {
-          devanagari: "नमस्ते अस्तु भगवन् विश्वेश्वराय महादेवाय त्र्यम्बकाय त्रिपुरान्तकाय त्रिकाग्निकालाय कालाग्निरुद्राय नीलकण्ठाय मृत्युञ्जयाय सर्वेश्वराय सदाशिवाय श्रीमन्महादेवाय नमः",
-          text: "namastestu bhagavan viśveśvarāya mahādevāya tryambakāya tripurāntakāya trikāgnikālāya kālāgnirudrāya nīlakaṇṭhāya mṛtyuñjayāya sarveśvarāya sadāśivāya śrīmanmahādevāya namaḥ",
-          meaning: "Salutations to you, O Lord, the Lord of the universe, the great God, the three-eyed one, the destroyer of Tripura, the lord of the three sacred fires, Kalagni Rudra, the blue-throated one, the conqueror of death, Lord of all, the ever-auspicious one, the glorious Mahadeva — salutations.",
+          devanagari: "नम ईरिण्याय च प्रपथ्याय च",
+          text: "nama iriṇyāya ca prapathyāya ca",
+          meaning: "Salutations to the one of the desert and to the one of the highway.",
           words: [
-            { word: "नमस्ते", transliteration: "namas te", meaning: "salutations to you" },
-            { word: "भगवन्", transliteration: "bhagavan", meaning: "O Glorious One" },
-            { word: "विश्वेश्वराय", transliteration: "viśveśvarāya", meaning: "Lord of the universe" },
-            { word: "महादेवाय", transliteration: "mahādevāya", meaning: "great God" },
-            { word: "त्र्यम्बकाय", transliteration: "tryambakāya", meaning: "three-eyed one" },
-            { word: "त्रिपुरान्तकाय", transliteration: "tripurāntakāya", meaning: "destroyer of Tripura" },
-            { word: "नीलकण्ठाय", transliteration: "nīlakaṇṭhāya", meaning: "blue-throated one" },
-            { word: "मृत्युञ्जयाय", transliteration: "mṛtyuñjayāya", meaning: "conqueror of death" },
-            { word: "सदाशिवाय", transliteration: "sadāśivāya", meaning: "ever-auspicious" },
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "ईरिण्याय", transliteration: "iriṇyāya", meaning: "to the desert-dweller" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "प्रपथ्याय", transliteration: "prapathyāya", meaning: "to the highway-dweller" },
           ],
-          esotericMeaning: "This comprehensive name-salutation assembles Rudra's entire cosmic portfolio. Sadāśiva (ever-auspicious) reveals that beneath all the fierce epithets is the eternally benevolent ground of being. The triple fire (trikāgni) is the three sacrificial fires that maintain cosmic order."
+          esotericMeaning: "The desert (iriṇa — barren wasteland) and the great highway (prapatha) represent the extremes of the devotee's journey: the arid stretches of spiritual dryness and the well-traveled roads of established practice. Rudra dwells in both — he does not abandon us in the wasteland."
         },
         {
-          devanagari: "नमो हिरण्यबाहवे हिरण्यवर्णाय हिरण्यरूपाय हिरण्यपतये अम्बिकापतये उमापतये पशुपतये नमो नमः",
-          text: "namo hiraṇyabāhave hiraṇyavarṇāya hiraṇyarūpāya hiraṇyapataye ambikāpataye umāpataye paśupataye namo namaḥ",
-          meaning: "Salutations to the golden-armed, the golden-colored, the golden-formed, the lord of gold, the lord of Ambikā, the lord of Umā, the lord of souls — salutations, salutations.",
+          devanagari: "नमः किंशिलाय च क्षयणाय च",
+          text: "namaḥ kiṁśilāya ca kṣayaṇāya ca",
+          meaning: "Salutations to the one on rocky ground and to the one in the house.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "हिरण्यबाहवे", transliteration: "hiraṇyabāhave", meaning: "to the golden-armed" },
-            { word: "हिरण्यवर्णाय", transliteration: "hiraṇyavarṇāya", meaning: "to the golden-colored" },
-            { word: "हिरण्यरूपाय", transliteration: "hiraṇyarūpāya", meaning: "to the golden-formed" },
-            { word: "हिरण्यपतये", transliteration: "hiraṇyapataye", meaning: "lord of gold" },
-            { word: "अम्बिकापतये", transliteration: "ambikāpataye", meaning: "lord of Ambikā" },
-            { word: "उमापतये", transliteration: "umāpataye", meaning: "lord of Umā" },
-            { word: "पशुपतये", transliteration: "paśupataye", meaning: "lord of souls" },
+            { word: "किंशिलाय", transliteration: "kiṁśilāya", meaning: "to the one on rocky ground" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "क्षयणाय", transliteration: "kṣayaṇāya", meaning: "to the one in the dwelling" },
           ],
-          esotericMeaning: "The five golden epithets — golden arm, color, form, lord of gold — describe the luminous nature of pure consciousness (hiraṇya = golden = self-luminous). Ambikāpati and Umāpati reveal Rudra in his Ardhanārīśvara aspect — consciousness in union with Śakti, the dynamic feminine principle."
+          esotericMeaning: "Rocky ground (kiṁśila) and the home (kṣayaṇa) — the rough terrain and the sanctuary. Rudra is present both on the hard road and in the comfortable dwelling. The spiritual journey alternates between difficulty and rest; the divine accompanies both."
         },
         {
-          devanagari: "नमस्ते अस्तु भगवन्नमस्ते नमस्ते। नमस्ते भगवन्नमस्ते नमस्ते। नमस्ते भगवन्नमस्ते भगवन्नमस्ते। नमो नमस्ते नमो नमस्ते नमो नमस्ते",
-          text: "namaste astu bhagavannamaste namaste | namaste bhagavannamaste namaste | namaste bhagavannamaste bhagavannamaste | namo namaste namo namaste namo namaste",
-          meaning: "Salutations to you, O Lord, salutations, salutations. Salutations, O Lord, salutations, salutations. Salutations, O Lord, salutations, O Lord, salutations. Salutations, salutations to you; salutations, salutations; salutations, salutations to you.",
+          devanagari: "नमः कपर्दिने च पुलस्तये च",
+          text: "namaḥ kapardine ca pulastaye ca",
+          meaning: "Salutations to the matted-haired one and to the one with smooth hair.",
           words: [
-            { word: "नमस्ते", transliteration: "namas te", meaning: "salutations to you" },
-            { word: "अस्तु", transliteration: "astu", meaning: "let there be" },
-            { word: "भगवन्", transliteration: "bhagavan", meaning: "O Lord" },
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "कपर्दिने", transliteration: "kapardine", meaning: "to the matted-haired" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "पुलस्तये", transliteration: "pulastaye", meaning: "to the smooth-haired" },
           ],
-          esotericMeaning: "The mantra of pure devotion — no attributes, no requests, just repeated salutation. This is the state of surrender (praṇipāta) where the devotee's entire being becomes one sustained bow. The repetition of namas dissolves the ego that salutes into the one being saluted."
+          esotericMeaning: "Again the polarity of the ascetic's matted locks and the householder's smooth hair — Rudra encompasses all modes of spiritual life. This repetition in Anuvaka 9 deepens the teaching: no single lifestyle or appearance captures the whole of Rudra."
+        },
+        {
+          devanagari: "नमो गोष्ठ्याय च गृह्याय च",
+          text: "namo goṣṭhyāya ca gṛhyāya ca",
+          meaning: "Salutations to the one of the cow-pen and to the one of the household.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "गोष्ठ्याय", transliteration: "goṣṭhyāya", meaning: "to the one of the cow-pen" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "गृह्याय", transliteration: "gṛhyāya", meaning: "to the one of the household" },
+          ],
+          esotericMeaning: "The goṣṭha (cow-pen) is the center of Vedic agricultural life — the place of greatest abundance and care. Gṛhya (the household-Rudra) is the domestic aspect of Śiva honored in every home fire. Sacred life begins in the tending of animals and family."
+        },
+        {
+          devanagari: "नमस्तल्प्याय च गेह्याय च",
+          text: "namastalpyāya ca gehyāya ca",
+          meaning: "Salutations to the one of the bed and to the one in the home.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "तल्प्याय", transliteration: "talpyāya", meaning: "to the one of the bed" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "गेह्याय", transliteration: "gehyāya", meaning: "to the one in the home" },
+          ],
+          esotericMeaning: "The bed (talpa) and the home interior (geha) — even sleep and domestic rest are Rudra's domain. The sacred does not end when ritual ends; it continues through every moment of daily life, including the most private and ordinary."
+        },
+        {
+          devanagari: "नमः काट्याय च गह्वरेष्ठाय च",
+          text: "namaḥ kāṭyāya ca gahvareṣṭhāya ca",
+          meaning: "Salutations to the one in the thicket and to the one who stands in the cave.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "काट्याय", transliteration: "kāṭyāya", meaning: "to the one in the thicket" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "गह्वरेष्ठाय", transliteration: "gahvareṣṭhāya", meaning: "to the cave-dweller" },
+          ],
+          esotericMeaning: "The cave (gahvara) is the ancient dwelling of the seer and the place of Rudra's fierce austerities. Gahvara also means 'depth, abyss, mystery' — Rudra in the cave is the divine consciousness dwelling in the deep mysterious interior of the heart."
+        },
+        {
+          devanagari: "नमो हृदय्याय च निवेष्प्याय च",
+          text: "namo hṛdayyāya ca niveṣpyāya ca",
+          meaning: "Salutations to the one in the heart and to the one who enters.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "हृदय्याय", transliteration: "hṛdayyāya", meaning: "to the one in the heart" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "निवेष्प्याय", transliteration: "niveṣpyāya", meaning: "to the one who enters" },
+          ],
+          esotericMeaning: "Hṛdayya (the one in the heart — hṛdaya) is perhaps the most intimate of all Rudra's forms. The Upaniṣads place the Ātman in the cave of the heart, the size of a thumb. Rudra dwells exactly there — not in temples alone but in the cave of your own heart."
+        },
+        {
+          devanagari: "नमः पाँसव्याय च रजस्याय च",
+          text: "namaḥ pāṁsavyāya ca rajasyāya ca",
+          meaning: "Salutations to the one of the dust and to the one of the atmosphere.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "पाँसव्याय", transliteration: "pāṁsavyāya", meaning: "to the one in the dust" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "रजस्याय", transliteration: "rajasyāya", meaning: "to the one of the atmosphere" },
+          ],
+          esotericMeaning: "Dust (pāṁsu) and atmosphere (rajas) complete the elemental survey — earth-particles and atmospheric space. Rudra is present at both extremes of density: in the finest mote of dust and in the vast atmospheric realm of breath and wind."
+        },
+        {
+          devanagari: "नमः शुष्क्याय च हरित्याय च",
+          text: "namaḥ śuṣkyāya ca harityāya ca",
+          meaning: "Salutations to the one of the dry land and to the one of the green.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "शुष्क्याय", transliteration: "śuṣkyāya", meaning: "to the one of the dry" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "हरित्याय", transliteration: "harityāya", meaning: "to the one of the green" },
+          ],
+          esotericMeaning: "Śuṣkya (the dry, the parched) and haritya (the green, the verdant) pair the desert and the garden, the season of drought and the season of growth. Rudra governs both — the withdrawal of rain is as much his function as the giving of green life."
+        },
+        {
+          devanagari: "नमो लोप्याय चोलप्याय च",
+          text: "namo lopyāya colopyāya ca",
+          meaning: "Salutations to the one in the grass and to the one in the scrub.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "लोप्याय", transliteration: "lopyāya", meaning: "to the one in the grass" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "उलप्याय", transliteration: "ulopyāya", meaning: "to the one in the scrub" },
+          ],
+          esotericMeaning: "Lopya (grass-blade) and ulopya (scrub bush) — the humblest vegetation. Rudra inhabits even the lowliest blade of grass. This continues the profound Vedic teaching: there is no place, no plant, no being too small or too common to contain the divine."
+        },
+        {
+          devanagari: "नम उर्व्याय च सूर्म्याय च",
+          text: "nama urvyāya ca sūrmyāya ca",
+          meaning: "Salutations to the one of the vast earth and to the one in the channel.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "उर्व्याय", transliteration: "urvyāya", meaning: "to the one of the vast earth" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "सूर्म्याय", transliteration: "sūrmyāya", meaning: "to the one in the channel" },
+          ],
+          esotericMeaning: "Urvya (the vast earth, the wide ground) and sūrmya (the channel, the narrow irrigation tunnel) show Rudra across the full spectrum of scale — from the vast open earth to the precise engineered channel that brings water to a single field."
+        },
+        {
+          devanagari: "नमः पर्ण्याय च पर्णशदाय च",
+          text: "namaḥ parṇyāya ca parṇaśadāya ca",
+          meaning: "Salutations to the one of the leaves and to the one of the fallen leaves.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "पर्ण्याय", transliteration: "parṇyāya", meaning: "to the one of the leaves" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "पर्णशदाय", transliteration: "parṇaśadāya", meaning: "to the one of the fallen leaves" },
+          ],
+          esotericMeaning: "The living leaf (parṇya) and the fallen leaf (parṇaśada) — the living and the dead, the attached and the released. The falling leaf is the classic image of graceful, natural death. Rudra as lord of fallen leaves is the deity of the complete and perfect release."
+        },
+        {
+          devanagari: "नमोऽपगुरमाणाय चाभिघ्नते च",
+          text: "namo'paguramāṇāya cābhighnte ca",
+          meaning: "Salutations to the one who frightens away and to the one who strikes.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "अपगुरमाणाय", transliteration: "apaguramāṇāya", meaning: "who frightens away" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अभिघ्नते", transliteration: "abhighnte", meaning: "to the one who strikes" },
+          ],
+          esotericMeaning: "Apaguramāṇa (the one who frightens away evil) is Rudra as the cosmic guardian — his very presence disperses all negative forces. Abhighna (the striker) is the same force applied directly. The frightener and the striker are one: grace that frightens is gentler than grace that strikes."
+        },
+        {
+          devanagari: "नम आख्खिदते च प्रख्खिदते च",
+          text: "nama ākhkhidate ca prakhkhidate ca",
+          meaning: "Salutations to the one who snatches and to the one who seizes completely.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "आख्खिदते", transliteration: "ākhkhidate", meaning: "to the one who snatches" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "प्रख्खिदते", transliteration: "prakhkhidate", meaning: "to the one who seizes fully" },
+          ],
+          esotericMeaning: "These powerful verbs — snatching and seizing — describe Rudra's role in death and transformation. When Rudra 'snatches' the soul, he is like the falcon taking the dove — swift, precise, and in service of a higher economy of consciousness."
+        },
+        {
+          devanagari: "नमो वः किरिकेभ्यो देवानां हृदयेभ्यो नमो विक्षीणकेभ्यो नमो विचिन्वत्केभ्यः",
+          text: "namo vaḥ kirikebhyo devānāṁ hṛdayebhyo namo vikṣīṇakebhyo namo vicinvatkebhyaḥ",
+          meaning: "Salutations to you the piercers, to the hearts of the gods. Salutations to those who scatter and to those who search out.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "किरिकेभ्यः", transliteration: "kirikebhyaḥ", meaning: "to the piercers" },
+            { word: "देवानाम्", transliteration: "devānām", meaning: "of the gods" },
+            { word: "हृदयेभ्यः", transliteration: "hṛdayebhyaḥ", meaning: "to the hearts" },
+            { word: "विक्षीणकेभ्यः", transliteration: "vikṣīṇakebhyaḥ", meaning: "to those who scatter" },
+            { word: "विचिन्वत्केभ्यः", transliteration: "vicinvatkebhyaḥ", meaning: "to those who search" },
+          ],
+          esotericMeaning: "The 'hearts of the gods' (devānāṁ hṛdayebhyaḥ) is a unique designation — the Rudra-forces that pierce even the divine realms. Those who scatter (vikṣīṇaka) and those who search (vicinvatka) together represent the cosmic functions of dissolution and inquiry."
+        },
+        {
+          devanagari: "नम आनिहताय चाक्षितये च नमः",
+          text: "nama ānihataāya cākṣitaye ca namaḥ",
+          meaning: "Salutations to the invincible one and to the indestructible one — salutations.",
+          words: [
+            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
+            { word: "आनिहताय", transliteration: "ānihataāya", meaning: "to the invincible" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अक्षितये", transliteration: "akṣitaye", meaning: "to the indestructible" },
+          ],
+          esotericMeaning: "Ānihata (unslain, invincible) and akṣita (inexhaustible, indestructible) are the culminating attributes of this anuvaka. After honoring Rudra in dust, grass, fallen leaves, and hearts — the final recognition is that this omnipresent being cannot be diminished, destroyed, or exhausted."
         },
       ]
     },
@@ -864,55 +1875,141 @@ var RUDRAM_DATA = {
       part: "namakam",
       title: "Anuvaka 10",
       titleSanskrit: "दशमोऽनुवाकः",
-      subtitle: "The Thousand Names — Addressing Rudra's Retinue",
-      description: "The tenth anuvaka salutes the countless retinue of Rudra — the Rudragaṇas — who manifest across all layers of existence from the ground to the highest heavens.",
+      subtitle: "The Auspicious Form — Prayer for Grace and Healing",
+      description: "The tenth anuvaka contains the most beloved mantras of the Namakam: the prayer for Rudra's śivā tanū (auspicious form), the arrow-of-grace prayer, the vision of Rudra seen by cowherds, and the divine physician. These are the mantras of total surrender and transformation.",
       mantras: [
         {
-          devanagari: "नमो भगवते रुद्राय। नमस्ते रुद्र मन्यव उतोत इषवे नमः। नमस्ते अस्तु धन्वने बाहुभ्यामुत ते नमः",
-          text: "namo bhagavate rudrāya | namas te rudra manyave utota iṣave namaḥ | namas te astu dhanvane bāhubhyāmuta te namaḥ",
-          meaning: "Salutations to the glorious Rudra. Salutations to your wrath, O Rudra, and also salutations to your arrow. Salutations to your bow and to your two arms.",
+          devanagari: "द्रापे अन्धसस्पते दरिद्रन्नीललोहित। एषां पुरुषाणामेषां पशूनां मा भेर्मा रो मो एषां किञ्चनाममत्",
+          text: "drāpe andhasaspate daridranīlalohita | eṣāṁ puruṣāṇāmeṣāṁ paśūnāṁ mā bhermā ro mo eṣāṁ kiñcanāmamat",
+          meaning: "O Drāpa (the leader), lord of the plants (andhasaspate), you who are dark-red yet blue-throated — may we not fear the men and animals here; may none among them be harmed.",
+          words: [
+            { word: "द्रापे", transliteration: "drāpe", meaning: "O leader/chief" },
+            { word: "अन्धसस्पते", transliteration: "andhasaspate", meaning: "lord of plants" },
+            { word: "दरिद्रन्", transliteration: "daridran", meaning: "destitute/dark" },
+            { word: "नीललोहित", transliteration: "nīlalohita", meaning: "blue-red one" },
+            { word: "एषाम्", transliteration: "eṣām", meaning: "of these" },
+            { word: "पुरुषाणाम्", transliteration: "puruṣāṇām", meaning: "of these persons" },
+            { word: "पशूनाम्", transliteration: "paśūnām", meaning: "of these animals" },
+            { word: "मा भेः", transliteration: "mā bheḥ", meaning: "let there be no fear" },
+          ],
+          esotericMeaning: "Drāpa is a rare epithet — the Rudra who wanders and leads. Andhasaspati (lord of plants and soma) reveals Rudra as the lord of the plant kingdom from which all nourishment and all medicine come. The prayer for safety of all beings (men and animals) shows Rudra's role as the compassionate protector."
+        },
+        {
+          devanagari: "या ते रुद्र शिवा तनूरघोराऽपापकाशिनी। तया नस्तनुवा शन्तमया गिरिशन्ताभिचाकशीहि",
+          text: "yā te rudra śivā tanūraghorā'pāpakāśinī | tayā nastanuvā śantamayā giriśantābhicākaśīhi",
+          meaning: "That form of yours, O Rudra, which is auspicious, not terrible, not evil-looking — with that most benevolent form, O mountain-dweller, look upon us with grace.",
+          words: [
+            { word: "या", transliteration: "yā", meaning: "that which" },
+            { word: "ते", transliteration: "te", meaning: "your" },
+            { word: "रुद्र", transliteration: "rudra", meaning: "O Rudra" },
+            { word: "शिवा", transliteration: "śivā", meaning: "auspicious" },
+            { word: "तनूः", transliteration: "tanūḥ", meaning: "form/body" },
+            { word: "अघोरा", transliteration: "aghorā", meaning: "not terrible" },
+            { word: "अपापकाशिनी", transliteration: "apāpakāśinī", meaning: "not showing sin" },
+            { word: "शन्तमया", transliteration: "śantamayā", meaning: "most benevolent" },
+            { word: "गिरिशन्त", transliteration: "giriśanta", meaning: "O mountain-dweller" },
+            { word: "अभिचाकशीहि", transliteration: "abhicākaśīhi", meaning: "look upon with grace" },
+          ],
+          esotericMeaning: "This is the most beloved mantra of the Namakam — the prayer for Rudra's grace-form. After the entire litany of Rudra's fierce aspects, the devotee turns and asks for the śivā tanū — the gentle, peaceful, auspicious body of consciousness. This is the key teaching: the fierce is real, but the auspicious is the final truth."
+        },
+        {
+          devanagari: "यामिषुं गिरिशन्त हस्ते बिभर्ष्यस्तवे। शिवां गिरित्र तां कुरु मा हिँसीः पुरुषं जगत्",
+          text: "yāmiṣuṁ giriśanta haste bibharṣyastave | śivāṁ giritrā taṁ kuru mā hiṁsīḥ puruṣaṁ jagat",
+          meaning: "O mountain-dweller, the arrow you hold in your hand to shoot — make it auspicious, O mountain-protector. Do not harm the people of the world.",
+          words: [
+            { word: "याम्", transliteration: "yām", meaning: "which" },
+            { word: "इषुम्", transliteration: "iṣum", meaning: "arrow" },
+            { word: "गिरिशन्त", transliteration: "giriśanta", meaning: "O mountain-dweller" },
+            { word: "हस्ते", transliteration: "haste", meaning: "in the hand" },
+            { word: "बिभर्षि", transliteration: "bibharṣi", meaning: "you hold" },
+            { word: "शिवाम्", transliteration: "śivām", meaning: "auspicious" },
+            { word: "गिरित्र", transliteration: "giritrā", meaning: "O mountain-protector" },
+            { word: "कुरु", transliteration: "kuru", meaning: "make" },
+            { word: "मा हिँसीः", transliteration: "mā hiṁsīḥ", meaning: "do not harm" },
+            { word: "पुरुषम्", transliteration: "puruṣam", meaning: "persons" },
+            { word: "जगत्", transliteration: "jagat", meaning: "the world" },
+          ],
+          esotericMeaning: "The devotee sees the arrow already nocked in Rudra's hand — aimed at the world. The prayer is not to put the arrow away but to transform it: 'make it auspicious.' This is the alchemical teaching of the Namakam — no force of Rudra is purely destructive; with the right prayer and right relationship, every arrow becomes grace."
+        },
+        {
+          devanagari: "शिवेन वचसा त्वा गिरिशाच्छा वदामसि। यथा नः सर्वमिज्जगदयक्ष्मँ सुमना असत्",
+          text: "śivena vacasā tvā giriśācchā vadāmasi | yathā naḥ sarvamijjagadayakṣmaṁ sumanā asat",
+          meaning: "With auspicious words, O mountain-dweller, we address you, so that all our world may be free from disease and of good mind.",
+          words: [
+            { word: "शिवेन", transliteration: "śivena", meaning: "with auspicious" },
+            { word: "वचसा", transliteration: "vacasā", meaning: "words" },
+            { word: "त्वा", transliteration: "tvā", meaning: "you" },
+            { word: "गिरिशाच्छा", transliteration: "giriśācchā", meaning: "O mountain-dweller" },
+            { word: "वदामसि", transliteration: "vadāmasi", meaning: "we speak" },
+            { word: "यथा", transliteration: "yathā", meaning: "so that" },
+            { word: "नः", transliteration: "naḥ", meaning: "our" },
+            { word: "सर्वम्", transliteration: "sarvam", meaning: "all" },
+            { word: "जगत्", transliteration: "jagat", meaning: "the world" },
+            { word: "अयक्ष्मम्", transliteration: "ayakṣmam", meaning: "free from disease" },
+            { word: "सुमनाः", transliteration: "sumanāḥ", meaning: "of good mind" },
+          ],
+          esotericMeaning: "The means and the goal are both named here: auspicious words (śivena vacasā) are the means, and freedom from disease with a good mind (ayakṣmam sumanāḥ) is the goal. The chanting of Sri Rudram with understanding is itself the auspicious speech that transforms the world."
+        },
+        {
+          devanagari: "अध्यवोचदधिवक्ता प्रथमो दैव्यो भिषक्। अहींश्च सर्वाञ्जम्भयन्त्सर्वाश्च यातुधान्यः",
+          text: "adhyavocadadhivaktā prathamo daivyo bhiṣak | ahīṁśca sarvāñjambhayant sarvāśca yātudhānyaḥ",
+          meaning: "The divine physician, the first and foremost speaker, has declared: may all snakes and all demon-sorceresses be crushed.",
+          words: [
+            { word: "अध्यवोचत्", transliteration: "adhyavocat", meaning: "has declared" },
+            { word: "अधिवक्ता", transliteration: "adhivaktā", meaning: "the supreme speaker" },
+            { word: "प्रथमः", transliteration: "prathamaḥ", meaning: "the first" },
+            { word: "दैव्यः", transliteration: "daivyaḥ", meaning: "divine" },
+            { word: "भिषक्", transliteration: "bhiṣak", meaning: "physician" },
+            { word: "अहींश्च", transliteration: "ahīṁśca", meaning: "and snakes" },
+            { word: "जम्भयन्", transliteration: "jambhayant", meaning: "may crush" },
+            { word: "यातुधान्यः", transliteration: "yātudhānyaḥ", meaning: "demon-sorceresses" },
+          ],
+          esotericMeaning: "The 'divine physician' (daivyo bhiṣak) is Rudra himself — the original healer, the lord of medicinal herbs. The destruction of snakes and demons is not literal but metaphorical: Rudra as the divine doctor diagnoses and destroys the root causes of all spiritual and physical disease."
+        },
+        {
+          devanagari: "असौ यस्ताम्रो अरुण उत बभ्रुः सुमङ्गलः। ये चेमाँ रुद्रा अभितो दिक्षु श्रिताः सहस्रशोऽवैषाँ हेड ईमहे",
+          text: "asau yastāmro aruṇa uta babhruḥ sumaṅgalaḥ | ye cemāṁ rudrā abhito dikṣu śritāḥ sahasraśo'vaiṣāṁ heḍa īmahe",
+          meaning: "That one who is copper-red, tawny, and supremely auspicious — and all those Rudras who surround us in the directions in their thousands — we beg their grace, not their wrath.",
+          words: [
+            { word: "असौ", transliteration: "asau", meaning: "that one" },
+            { word: "ताम्रः", transliteration: "tāmraḥ", meaning: "copper-red" },
+            { word: "अरुणः", transliteration: "aruṇaḥ", meaning: "tawny/dawn-red" },
+            { word: "बभ्रुः", transliteration: "babhruḥ", meaning: "brown/tawny" },
+            { word: "सुमङ्गलः", transliteration: "sumaṅgalaḥ", meaning: "supremely auspicious" },
+            { word: "रुद्राः", transliteration: "rudrāḥ", meaning: "the Rudras" },
+            { word: "दिक्षु", transliteration: "dikṣu", meaning: "in the directions" },
+            { word: "सहस्रशः", transliteration: "sahasraśaḥ", meaning: "in thousands" },
+            { word: "हेडः", transliteration: "heḍaḥ", meaning: "wrath" },
+            { word: "ईमहे", transliteration: "īmahe", meaning: "we beg" },
+          ],
+          esotericMeaning: "The prayer turns from description to supplication: we acknowledge the thousands of Rudras surrounding us in all directions and explicitly ask not for their wrath (heḍa) but for their grace. This is the practical application of the Namakam — proper relationship with the fierce divine energies that pervade all space."
+        },
+        {
+          devanagari: "असौ योऽवसर्पति नीलग्रीवो विलोहितः। उतैनं गोपा अदृशन्नदृशन्नुदहार्यः। उतैनं विश्वा भूतानि स दृष्टो मृडयाति नः",
+          text: "asau yo'vasarpati nīlagrīvo vilohitaḥ | utainaṁ gopā adṛśannadṛśannudahāryaḥ | utainaṁ viśvā bhūtāni sa dṛṣṭo mṛḍayāti naḥ",
+          meaning: "That blue-necked, reddish one who glides down — him the cowherds saw, the water-carriers saw. Seen by all beings, may he be gracious to us.",
+          words: [
+            { word: "असौ", transliteration: "asau", meaning: "that one" },
+            { word: "अवसर्पति", transliteration: "avasarpati", meaning: "who glides down" },
+            { word: "नीलग्रीवः", transliteration: "nīlagrīvaḥ", meaning: "blue-necked" },
+            { word: "विलोहितः", transliteration: "vilohitaḥ", meaning: "reddish" },
+            { word: "गोपाः", transliteration: "gopāḥ", meaning: "cowherds" },
+            { word: "अदृशन्", transliteration: "adṛśan", meaning: "saw" },
+            { word: "विश्वा", transliteration: "viśvā", meaning: "all" },
+            { word: "भूतानि", transliteration: "bhūtāni", meaning: "beings" },
+            { word: "मृडयाति", transliteration: "mṛḍayāti", meaning: "be gracious" },
+          ],
+          esotericMeaning: "This extraordinary mantra describes a moment of direct vision — the cowherds and water-carriers (ordinary people in their ordinary tasks) saw Rudra. The divine vision is not reserved for initiates alone. The blue-necked one glides through the field of ordinary life, and the prayer is: 'now that all have seen him, may he be gracious to us.'"
+        },
+        {
+          devanagari: "नमो रुद्राय नमो रुद्राय नमो रुद्राय",
+          text: "namo rudrāya namo rudrāya namo rudrāya",
+          meaning: "Salutations to Rudra. Salutations to Rudra. Salutations to Rudra.",
           words: [
             { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "भगवते", transliteration: "bhagavate", meaning: "to the glorious" },
             { word: "रुद्राय", transliteration: "rudrāya", meaning: "to Rudra" },
-            { word: "मन्यवे", transliteration: "manyave", meaning: "to your wrath" },
-            { word: "इषवे", transliteration: "iṣave", meaning: "to your arrow" },
-            { word: "धन्वने", transliteration: "dhanvane", meaning: "to your bow" },
-            { word: "बाहुभ्याम्", transliteration: "bāhubhyām", meaning: "to your two arms" },
           ],
-          esotericMeaning: "This anuvaka opens with a return to the original salutation, creating a structural echo of Anuvaka 1. The circle of the Namakam is closing — what began with bowing to Rudra's wrath is now completed by integrating that wrath into the fullness of devotion."
-        },
-        {
-          devanagari: "नमस्ते अस्तु भगवन् विश्वेश्वराय महादेवाय। त्र्यम्बकाय त्रिपुरान्तकाय त्रिकाग्निकालाय। कालाग्निरुद्राय नीलकण्ठाय मृत्युञ्जयाय। सर्वेश्वराय सदाशिवाय श्रीमन्महादेवाय नमः",
-          text: "namastestu bhagavan viśveśvarāya mahādevāya | tryambakāya tripurāntakāya trikāgnikālāya | kālāgnirudrāya nīlakaṇṭhāya mṛtyuñjayāya | sarveśvarāya sadāśivāya śrīmanmahādevāya namaḥ",
-          meaning: "Salutations to you, O Lord, the Lord of the universe, the great God; to the three-eyed one, the destroyer of Tripura, the lord of the three sacred fires; to Kalagni Rudra, the blue-throated one, the conqueror of death; to the Lord of all, the ever-auspicious one, the glorious Mahadeva — salutations.",
-          words: [
-            { word: "नमस्ते", transliteration: "namas te", meaning: "salutations to you" },
-            { word: "भगवन्", transliteration: "bhagavan", meaning: "O Lord" },
-            { word: "विश्वेश्वराय", transliteration: "viśveśvarāya", meaning: "Lord of the universe" },
-            { word: "महादेवाय", transliteration: "mahādevāya", meaning: "great God" },
-            { word: "त्र्यम्बकाय", transliteration: "tryambakāya", meaning: "three-eyed one" },
-            { word: "नीलकण्ठाय", transliteration: "nīlakaṇṭhāya", meaning: "blue-throated" },
-            { word: "मृत्युञ्जयाय", transliteration: "mṛtyuñjayāya", meaning: "conqueror of death" },
-            { word: "सदाशिवाय", transliteration: "sadāśivāya", meaning: "ever-auspicious" },
-            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-          ],
-          esotericMeaning: "The recapitulation of Rudra's great names at the Namakam's close is a seal — an invocation that binds all the salutations made throughout the chant into a single unified offering. The sequence from viśveśvara (cosmic) to mahādeva (personal) mirrors the soul's journey from cosmic awe to intimate devotion."
-        },
-        {
-          devanagari: "नमः सहस्राचार्याय नमः सहस्रमूर्धने नमः सहस्रनेत्राय नमः सहस्रबाहवे। नमः सहस्रपादाय नमः सहस्रवर्चसे। नमो नमो नमः",
-          text: "namaḥ sahasrācāryāya namaḥ sahasramūrdhane namaḥ sahasranetrāya namaḥ sahasrabāhave | namaḥ sahasrapādāya namaḥ sahasravarcse | namo namo namaḥ",
-          meaning: "Salutations to the thousand-taught; salutations to the thousand-headed; salutations to the thousand-eyed; salutations to the thousand-armed. Salutations to the thousand-footed; salutations to the thousand-splendored. Salutations, salutations, salutations.",
-          words: [
-            { word: "नमः", transliteration: "namaḥ", meaning: "salutation" },
-            { word: "सहस्राचार्याय", transliteration: "sahasrācāryāya", meaning: "to the thousand-taught" },
-            { word: "सहस्रमूर्धने", transliteration: "sahasramūrdhane", meaning: "to the thousand-headed" },
-            { word: "सहस्रनेत्राय", transliteration: "sahasranetrāya", meaning: "to the thousand-eyed" },
-            { word: "सहस्रबाहवे", transliteration: "sahasrabāhave", meaning: "to the thousand-armed" },
-            { word: "सहस्रपादाय", transliteration: "sahasrapādāya", meaning: "to the thousand-footed" },
-            { word: "सहस्रवर्चसे", transliteration: "sahasrarcse", meaning: "to the thousand-splendored" },
-          ],
-          esotericMeaning: "The thousand-headed, thousand-eyed, thousand-armed being is the Cosmic Puruṣa of the Ṛgveda (10.90) — the primordial being whose body is the universe. Rudra is identified with this all-encompassing reality. 'Thousand' (sahasra) is the Vedic symbol of infinity."
+          esotericMeaning: "The triple salutation is the concentrated essence of the entire Namakam. After 136 mantras spanning 9 anuvakas of elaborate salutation, the tenth anuvaka closes with this: namo rudrāya, three times. The elaborate dissolves into the simple. The journey has come full circle."
         },
       ]
     },
