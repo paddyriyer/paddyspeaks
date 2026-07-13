@@ -296,13 +296,23 @@ function renderQuiz() {
   if (topNew) topNew.addEventListener("click", confirmReset);
 }
 
+function isNew(q) {
+  if (!q.added_date) return false;
+  const added = new Date(q.added_date);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 14);
+  return added >= cutoff;
+}
+
 function renderQuestion(q) {
   const root = document.getElementById("q-card");
+  const newBadge = isNew(q) ? `<span class="q-pill q-new">✦ New</span>` : "";
   const tags = `
     <div class="q-tag-row">
       <span class="q-pill q-type-${q.type}">${q.type === "single" ? "Single choice" : q.type === "multi" ? "Multi-select" : q.type === "code" ? "Code" : "Open answer"}</span>
       <span class="q-pill q-diff-${q.difficulty}">${q.difficulty}</span>
       <span class="q-pill">${escapeHTML(q.topic)}</span>
+      ${newBadge}
     </div>
   `;
 
@@ -317,13 +327,50 @@ function renderQuestion(q) {
     body = renderOpen(q);
   }
 
+  const vote = getVote(q.id);
+  const feedbackBar = `
+    <div class="q-feedback-bar">
+      <button class="q-vote-btn ${vote === 'up' ? 'q-vote-active-up' : ''}" onclick="castVote('${q.id}','up',this)" title="Good question">👍</button>
+      <button class="q-vote-btn ${vote === 'down' ? 'q-vote-active-down' : ''}" onclick="castVote('${q.id}','down',this)" title="Poor question">👎</button>
+      <button class="q-vote-btn ${isFav(q.id) ? 'q-vote-fav-on' : ''}" onclick="toggleFav('${q.id}',this)" title="Favourite">⭐</button>
+    </div>
+  `;
+
   root.innerHTML = `
     ${tags}
     <div class="q-prompt">${formatPrompt(q.prompt)}</div>
     ${body}
+    ${feedbackBar}
   `;
 
   attachQuestionHandlers(q);
+}
+
+/* ── Voting & favourites (localStorage) ── */
+function getVote(id) {
+  try { return JSON.parse(localStorage.getItem("ps-votes") || "{}")[id] || null; } catch { return null; }
+}
+function castVote(id, dir, btn) {
+  try {
+    const votes = JSON.parse(localStorage.getItem("ps-votes") || "{}");
+    votes[id] = (votes[id] === dir) ? null : dir;
+    localStorage.setItem("ps-votes", JSON.stringify(votes));
+    const bar = btn.closest(".q-feedback-bar");
+    bar.querySelector(".q-vote-btn:nth-child(1)").classList.toggle("q-vote-active-up", votes[id] === "up");
+    bar.querySelector(".q-vote-btn:nth-child(2)").classList.toggle("q-vote-active-down", votes[id] === "down");
+  } catch {}
+}
+function isFav(id) {
+  try { return (JSON.parse(localStorage.getItem("ps-favs") || "[]")).includes(id); } catch { return false; }
+}
+function toggleFav(id, btn) {
+  try {
+    const favs = JSON.parse(localStorage.getItem("ps-favs") || "[]");
+    const idx = favs.indexOf(id);
+    if (idx === -1) favs.push(id); else favs.splice(idx, 1);
+    localStorage.setItem("ps-favs", JSON.stringify(favs));
+    btn.classList.toggle("q-vote-fav-on", favs.includes(id));
+  } catch {}
 }
 
 function renderSingleChoice(q) {
@@ -903,6 +950,7 @@ function renderReviewItem(q, idx) {
       <span class="q-pill q-type-${q.type}">${q.type}</span>
       <span class="q-pill q-diff-${q.difficulty}">${q.difficulty}</span>
       <span class="q-pill">${escapeHTML(q.topic)}</span>
+      ${isNew(q) ? `<span class="q-pill q-new">✦ New</span>` : ""}
     </div>
     <div class="review-q">${formatPrompt(q.prompt)}</div>
   `;

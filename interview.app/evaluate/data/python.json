@@ -6223,7 +6223,7 @@
       "type": "code",
       "topic": "Cost & Guardrails",
       "difficulty": "easy",
-      "prompt": "Overage File 01 — the loop with no backoff. Write `backoff_delays(max_retries, base=1.0, cap=30.0)` returning the list of wait times for an exponential-backoff retry policy: base * 2**attempt for attempt 0..max_retries-1, with every delay capped at `cap`. (The fixed every-30-seconds retry that burned $450K overnight is exactly what this replaces.)",
+      "prompt": "Overage File 01 \u2014 the loop with no backoff. Write `backoff_delays(max_retries, base=1.0, cap=30.0)` returning the list of wait times for an exponential-backoff retry policy: base * 2**attempt for attempt 0..max_retries-1, with every delay capped at `cap`. (The fixed every-30-seconds retry that burned $450K overnight is exactly what this replaces.)",
       "language": "python",
       "starter": "def backoff_delays(max_retries, base=1.0, cap=30.0):\n    # your code here\n    pass\n",
       "model_answer": "def backoff_delays(max_retries, base=1.0, cap=30.0):\n    return [min(base * (2 ** attempt), cap) for attempt in range(max_retries)]\n",
@@ -6231,7 +6231,7 @@
       "key_points": [
         "Delay doubles each attempt: base * 2**attempt",
         "min(delay, cap) bounds the worst case",
-        "max_retries bounds total attempts — the loop can't run forever",
+        "max_retries bounds total attempts \u2014 the loop can't run forever",
         "Real systems add jitter on top to avoid thundering herds"
       ]
     },
@@ -6240,13 +6240,13 @@
       "type": "code",
       "topic": "Cost & Guardrails",
       "difficulty": "medium",
-      "prompt": "Overage File 02 — enforce the token budget in code. Write `trim_history(messages, budget)` where `messages` is a list of dicts like `{'role': 'system'|'user'|'assistant', 'tokens': int}` in chronological order, with the system message first. Keep (1) the system message and (2) as many of the MOST RECENT messages as fit so the total tokens stay <= budget. Return the kept messages in their original order.",
+      "prompt": "Overage File 02 \u2014 enforce the token budget in code. Write `trim_history(messages, budget)` where `messages` is a list of dicts like `{'role': 'system'|'user'|'assistant', 'tokens': int}` in chronological order, with the system message first. Keep (1) the system message and (2) as many of the MOST RECENT messages as fit so the total tokens stay <= budget. Return the kept messages in their original order.",
       "language": "python",
       "starter": "def trim_history(messages, budget):\n    # your code here\n    pass\n",
       "model_answer": "def trim_history(messages, budget):\n    system = [m for m in messages if m['role'] == 'system'][:1]\n    rest = [m for m in messages if m not in system]\n    remaining = budget - sum(m['tokens'] for m in system)\n    kept = []\n    for m in reversed(rest):\n        if m['tokens'] <= remaining:\n            kept.append(m)\n            remaining -= m['tokens']\n        else:\n            break\n    return system + list(reversed(kept))\n",
       "tests": "msgs = [\n    {'role': 'system', 'tokens': 500},\n    {'role': 'user', 'tokens': 400},\n    {'role': 'assistant', 'tokens': 600},\n    {'role': 'user', 'tokens': 300},\n    {'role': 'assistant', 'tokens': 200},\n]\nout = trim_history(msgs, 1200)\nassert out[0]['role'] == 'system', 'system message must survive trimming'\nassert sum(m['tokens'] for m in out) <= 1200, f'over budget: {sum(m[\"tokens\"] for m in out)}'\nassert out[1:] == [{'role': 'user', 'tokens': 300}, {'role': 'assistant', 'tokens': 200}], f'should keep the most recent fitting messages in order, got {out[1:]!r}'\nout2 = trim_history(msgs, 5000)\nassert out2 == msgs, 'under budget: keep everything'\n",
       "key_points": [
-        "The system prompt is pinned — never trimmed away",
+        "The system prompt is pinned \u2014 never trimmed away",
         "Walk from the newest message backwards, keeping what fits",
         "Re-reverse so the result stays chronological",
         "This is the guard that stops 6K-token requests becoming 60K"
@@ -6264,7 +6264,7 @@
       "tests": "events = [(0, 10), (10, 10), (20, 10), (25, 40), (30, 45)]\nassert first_breach(events, 60, 100) == 30, f'got {first_breach(events, 60, 100)!r}'\nassert first_breach(events, 60, 200) is None, 'never breaches a 200 limit'\nassert first_breach([(0, 50), (100, 60)], 30, 100) is None, 'old spend must age out of the window'\nassert first_breach([(0, 101)], 60, 100) == 0, 'a single event can breach'\n",
       "key_points": [
         "Sliding window with a deque: append new, evict events older than ts - window_s",
-        "Maintain the running sum incrementally — O(n) total, not O(n^2)",
+        "Maintain the running sum incrementally \u2014 O(n) total, not O(n^2)",
         "Strictly greater than limit triggers the alarm",
         "This alarm firing in minutes is what keeps File 01 at $450 instead of $450K"
       ]
@@ -6274,7 +6274,7 @@
       "type": "code",
       "topic": "Cost & Guardrails",
       "difficulty": "medium",
-      "prompt": "Overage File 03 — the model router. Write `route_costs(requests, prices)` where `requests` is a list of dicts `{'task': str, 'tokens': int}` and `prices` maps model name to USD per million tokens. Routing rule: tasks in {'status', 'extract', 'classify'} go to 'small' UNLESS the request has more than 4,000,000 tokens; everything else (and the oversized ones) goes to 'flagship'. Return `(routes, total_usd)` — the per-request model list and the total cost (tokens / 1_000_000 * price).",
+      "prompt": "Overage File 03 \u2014 the model router. Write `route_costs(requests, prices)` where `requests` is a list of dicts `{'task': str, 'tokens': int}` and `prices` maps model name to USD per million tokens. Routing rule: tasks in {'status', 'extract', 'classify'} go to 'small' UNLESS the request has more than 4,000,000 tokens; everything else (and the oversized ones) goes to 'flagship'. Return `(routes, total_usd)` \u2014 the per-request model list and the total cost (tokens / 1_000_000 * price).",
       "language": "python",
       "starter": "def route_costs(requests, prices):\n    # your code here\n    pass\n",
       "model_answer": "def route_costs(requests, prices):\n    SMALL_TASKS = {'status', 'extract', 'classify'}\n    routes, total = [], 0.0\n    for r in requests:\n        model = 'small' if r['task'] in SMALL_TASKS and r['tokens'] <= 4_000_000 else 'flagship'\n        routes.append(model)\n        total += r['tokens'] / 1_000_000 * prices[model]\n    return routes, total\n",
@@ -6283,7 +6283,7 @@
         "Small-task set routes to the cheap model; everything else escalates",
         "The token threshold escalates oversized 'easy' tasks (> 4M, strictly)",
         "Cost = tokens / 1M x per-million price, summed per chosen model",
-        "This rule is the -87% in Overage File 03 — written as ten lines of code"
+        "This rule is the -87% in Overage File 03 \u2014 written as ten lines of code"
       ]
     },
     {
@@ -6291,7 +6291,7 @@
       "type": "code",
       "topic": "Cost & Guardrails",
       "difficulty": "medium",
-      "prompt": "Overage File 04 — the retry storm that billed twice. Write `apply_events(events)` where `events` is a list of dicts `{'key': str, 'amount': int}` (an idempotency key per logical charge; retries and queue redeliveries duplicate keys). Apply each key ONCE, in first-seen order. Return a dict: `{'total': int, 'applied': int, 'skipped': int}`.",
+      "prompt": "Overage File 04 \u2014 the retry storm that billed twice. Write `apply_events(events)` where `events` is a list of dicts `{'key': str, 'amount': int}` (an idempotency key per logical charge; retries and queue redeliveries duplicate keys). Apply each key ONCE, in first-seen order. Return a dict: `{'total': int, 'applied': int, 'skipped': int}`.",
       "language": "python",
       "starter": "def apply_events(events):\n    # your code here\n    pass\n",
       "model_answer": "def apply_events(events):\n    seen = set()\n    total = applied = skipped = 0\n    for e in events:\n        if e['key'] in seen:\n            skipped += 1\n            continue\n        seen.add(e['key'])\n        total += e['amount']\n        applied += 1\n    return {'total': total, 'applied': applied, 'skipped': skipped}\n",
@@ -6300,8 +6300,88 @@
         "A seen-set keyed on the idempotency key makes replays harmless",
         "Retries x redelivery can't double-charge if apply is idempotent",
         "Same invariant as the payments ledger: UNIQUE(source_event_id)",
-        "Without this, the 30x storm in File 04 also corrupts state — with it, it only costs money"
+        "Without this, the 30x storm in File 04 also corrupts state \u2014 with it, it only costs money"
       ]
+    },
+    {
+      "id": "py-new-001",
+      "type": "single",
+      "topic": "Generators",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "prompt": "What is the output of the following?\n\n```python\ndef gen():\n    yield 1\n    yield 2\n    yield 3\n\ng = gen()\nnext(g)\nprint(list(g))\n```",
+      "options": [
+        "[1, 2, 3]",
+        "[2, 3]",
+        "[1, 2]",
+        "StopIteration"
+      ],
+      "answer": 1,
+      "explanation": "`next(g)` consumes the first yield (1). `list(g)` then exhausts the rest: [2, 3]."
+    },
+    {
+      "id": "py-new-002",
+      "type": "single",
+      "topic": "Walrus Operator",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "prompt": "What does the walrus operator `:=` allow you to do that regular `=` does not?",
+      "options": [
+        "Assign a value and use it in the same expression",
+        "Assign multiple values at once",
+        "Create immutable bindings",
+        "Assign inside a lambda"
+      ],
+      "answer": 0,
+      "explanation": "The walrus operator (PEP 572) assigns a value as part of an expression, e.g. `while chunk := f.read(8192):` \u2014 you assign and test in one line."
+    },
+    {
+      "id": "py-new-003",
+      "type": "single",
+      "topic": "Dataclasses",
+      "difficulty": "easy",
+      "added_date": "2026-07-13",
+      "prompt": "Which decorator creates a class with auto-generated `__init__`, `__repr__`, and `__eq__` based on annotated fields?",
+      "options": [
+        "@property",
+        "@dataclass",
+        "@staticmethod",
+        "@functools.cache"
+      ],
+      "answer": 1,
+      "explanation": "`@dataclass` (from `dataclasses`) generates boilerplate dunder methods. Add `frozen=True` for immutability and automatic `__hash__`."
+    },
+    {
+      "id": "py-new-004",
+      "type": "single",
+      "topic": "Context Managers",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "prompt": "What must a class implement to work as a context manager with `with`?",
+      "options": [
+        "__enter__ and __exit__",
+        "__start__ and __stop__",
+        "__open__ and __close__",
+        "__init__ and __del__"
+      ],
+      "answer": 0,
+      "explanation": "`__enter__` runs on entry and returns the bound name; `__exit__(exc_type, exc_val, exc_tb)` runs on exit and can suppress exceptions by returning True."
+    },
+    {
+      "id": "py-new-005",
+      "type": "single",
+      "topic": "Type Hints",
+      "difficulty": "easy",
+      "added_date": "2026-07-13",
+      "prompt": "What does `list[int] | None` mean as a type hint in Python 3.10+?",
+      "options": [
+        "A list of integers or a list of None values",
+        "Either a list of integers or None",
+        "A list containing integers and None values mixed",
+        "An optional integer"
+      ],
+      "answer": 1,
+      "explanation": "The `|` union syntax (PEP 604) means the value is either a `list[int]` or `None`. Equivalent to `Optional[List[int]]` from `typing`."
     }
   ]
 }
