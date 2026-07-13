@@ -1,17 +1,17 @@
 """
 PaddySpeaks community submission ingester.
-Fetches new submissions from Formspree, uses Claude Haiku to format them
-into the question schema, and appends them to the appropriate JSON file.
-Tracks processed submissions via a state file to avoid duplicates.
+Reads new rows from a public Google Sheet (CSV export — no API key needed),
+uses Claude Haiku to format them into the question schema, and appends them
+to the appropriate JSON file.
+State is tracked in processed_submissions.json to avoid duplicates.
 """
 
-import anthropic, json, os, re, sys
+import anthropic, csv, io, json, os, re, sys
 from datetime import date
-from urllib.request import urlopen, Request
+from urllib.request import urlopen
 from urllib.error import HTTPError
 
-FORMSPREE_API_KEY = os.environ["FORMSPREE_API_KEY"]
-FORMSPREE_FORM_ID = os.environ.get("FORMSPREE_FORM_ID", "mzdnboae")
+SHEET_ID = os.environ.get("GSHEET_ID", "1BYny8ItNMfwtFViQCuHxCNEksw8_lJ3u4xPxPn64C_o")
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
 DATA_DIR = "interview.app/evaluate/data"
@@ -20,7 +20,15 @@ TODAY = str(date.today())
 
 ID_PREFIXES = {"python": "py", "sql": "sql", "design": "ds"}
 
-VALID_TOPICS = {"python", "sql", "design"}
+# Map Google Form topic values → internal topic keys
+TOPIC_MAP = {
+    "python": "python",
+    "sql": "sql",
+    "design": "design",
+    "system design": "design",
+    "system design / architecture": "design",
+    "data engineering / system design": "design",
+}
 
 SYSTEM = """You are an expert data engineering interviewer.
 A community member submitted a raw interview question they encountered.
@@ -32,19 +40,21 @@ def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE) as f:
             return json.load(f)
-    return {"processed_ids": []}
+    return {"processed_rows": []}
 
 
 def save_state(state):
+    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
 
-def fetch_submissions():
-    url = f"https://formspree.io/api/0/forms/{FORMSPREE_FORM_ID}/submissions?page_size=100"
-    req = Request(url, headers={"Authorization": f"Bearer {FORMSPREE_API_KEY}"})
-    with urlopen(req) as resp:
-        return json.loads(resp.read())["submissions"]
+def fetch_sheet_rows():
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+    with urlopen(url) as resp:
+        content = resp.read().decode("utf-8")
+    reader = csv.DictReader(io.StringIO(content))
+    return list(reader)
 
 
 def load_json(topic):
@@ -63,20 +73,18 @@ def next_id(questions, prefix):
         m = re.search(rf"{prefix}-new-(\d+)", q["id"])
         if m:
             nums.append(int(m.group(1)))
-    start = max(nums, default=0) + 1
-    return f"{prefix}-new-{start:03d}"
+    return max(nums, default=0) + 1
 
 
-def format_question(client, raw_question, topic, level, company):
+def format_question(client, raw_question, topic, difficulty, company):
     prefix = ID_PREFIXES[topic]
-
     data = load_json(topic)
-    placeholder_id = next_id(data["questions"], prefix)
+    placeholder_id = f"{prefix}-new-{next_id(data['questions'], prefix):03d}"
 
     company_ctx = f" (asked at {company})" if company and company.strip() else ""
-    level_ctx = f" Target difficulty: {level}." if level else ""
+    diff_ctx = f" Target difficulty: {difficulty}." if difficulty and difficulty.strip() else ""
 
-    prompt = f"""A community member submitted this raw interview question{company_ctx}:{level_ctx}
+    prompt = f"""A community member submitted this raw interview question{company_ctx}:{diff_ctx}
 
 ---
 {raw_question}
@@ -115,66 +123,72 @@ If the submission is too vague, off-topic, or not a real interview question, ret
     return json.loads(raw)
 
 
+def row_key(row):
+    """Stable dedup key: timestamp + first 80 chars of question."""
+    ts = row.get("Timestamp", "")
+    q = list(row.values())[1] if len(row) > 1 else ""
+    return f"{ts}::{q[:80]}"
+
+
 def main():
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     state = load_state()
-    processed = set(state["processed_ids"])
+    processed = set(state.get("processed_rows", []))
 
-    print("Fetching Formspree submissions…")
+    print("Fetching Google Sheet rows…")
     try:
-        submissions = fetch_submissions()
-    except HTTPError as e:
-        print(f"ERROR fetching submissions: {e}", file=sys.stderr)
+        rows = fetch_sheet_rows()
+    except Exception as e:
+        print(f"ERROR fetching sheet: {e}", file=sys.stderr)
         sys.exit(1)
 
-    new_submissions = [s for s in submissions if s["_id"] not in processed]
-    print(f"  {len(submissions)} total, {len(new_submissions)} new")
+    new_rows = [r for r in rows if row_key(r) not in processed]
+    print(f"  {len(rows)} total rows, {len(new_rows)} new")
 
-    if not new_submissions:
+    if not new_rows:
         print("Nothing to process.")
         return
 
-    added_by_topic = {t: 0 for t in VALID_TOPICS}
+    added_by_topic = {t: 0 for t in ID_PREFIXES}
 
-    for sub in new_submissions:
-        sub_id = sub["_id"]
-        body = sub.get("data", sub)
+    for row in new_rows:
+        key = row_key(row)
+        values = list(row.values())
 
-        raw_question = body.get("question", "").strip()
-        topic = body.get("topic", "").strip().lower()
-        level = body.get("level", "").strip()
-        company = body.get("company", "").strip()
-        submitter = body.get("name", "anonymous").strip()
+        # Column order from Google Form: Timestamp, Question, Topic, Difficulty, Company, Name
+        raw_question = (row.get("Question") or (values[1] if len(values) > 1 else "")).strip()
+        topic_raw = (row.get("Topic") or (values[2] if len(values) > 2 else "")).strip().lower()
+        difficulty = (row.get("Difficulty") or (values[3] if len(values) > 3 else "")).strip().lower()
+        company = (row.get("Company") or (values[4] if len(values) > 4 else "")).strip()
 
         if not raw_question:
-            print(f"  [{sub_id}] SKIP — empty question")
-            processed.add(sub_id)
+            print(f"  SKIP — empty question")
+            processed.add(key)
             continue
 
-        if topic not in VALID_TOPICS:
-            print(f"  [{sub_id}] SKIP — unknown topic '{topic}'")
-            processed.add(sub_id)
+        topic = TOPIC_MAP.get(topic_raw)
+        if not topic:
+            print(f"  SKIP — unknown topic '{topic_raw}'")
+            processed.add(key)
             continue
 
-        print(f"  [{sub_id}] Processing {topic} question from {submitter or 'anon'}…")
+        print(f"  Processing {topic} question: {raw_question[:60]}…")
 
         try:
-            result = format_question(client, raw_question, topic, level, company)
+            result = format_question(client, raw_question, topic, difficulty, company)
         except Exception as e:
-            print(f"  [{sub_id}] ERROR: {e}", file=sys.stderr)
+            print(f"  ERROR: {e}", file=sys.stderr)
             continue
 
         if result.get("skip"):
-            print(f"  [{sub_id}] SKIPPED by Claude: {result.get('reason')}")
-            processed.add(sub_id)
+            print(f"  SKIPPED by Claude: {result.get('reason')}")
+            processed.add(key)
             continue
 
         data = load_json(topic)
         questions = data["questions"]
-
-        # Ensure unique ID
         prefix = ID_PREFIXES[topic]
-        result["id"] = next_id(questions, prefix)
+        result["id"] = f"{prefix}-new-{next_id(questions, prefix):03d}"
         result["added_date"] = TODAY
         result["source"] = "community"
 
@@ -183,10 +197,10 @@ def main():
         save_json(topic, data)
 
         added_by_topic[topic] += 1
-        processed.add(sub_id)
-        print(f"  [{sub_id}] ADDED [{result['difficulty']}] {result['topic']}: {result['prompt'][:60]}…")
+        processed.add(key)
+        print(f"  ADDED [{result['difficulty']}] {result['topic']}: {result['prompt'][:60]}…")
 
-    state["processed_ids"] = list(processed)
+    state["processed_rows"] = list(processed)
     save_state(state)
 
     total = sum(added_by_topic.values())
