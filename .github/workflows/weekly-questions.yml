@@ -1,0 +1,63 @@
+name: Add New Interview Questions
+
+on:
+  schedule:
+    # Daily: 2 questions (6:23am UTC Monday-Friday)
+    - cron: '23 6 * * 1-5'
+    # Weekly: 10 questions (6:47am UTC every Monday)
+    - cron: '47 6 * * 1'
+    # Monthly: full review (7:11am UTC on the 1st)
+    - cron: '11 7 1 * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        default: 'daily'
+        type: choice
+        options: [daily, weekly, monthly]
+
+jobs:
+  add-questions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install anthropic
+
+      - name: Determine run mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> $GITHUB_OUTPUT
+          elif [ "$(date +%d)" = "01" ]; then
+            echo "mode=monthly" >> $GITHUB_OUTPUT
+          elif [ "$(date +%u)" = "1" ]; then
+            echo "mode=weekly" >> $GITHUB_OUTPUT
+          else
+            echo "mode=daily" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate questions
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RUN_MODE: ${{ steps.mode.outputs.mode }}
+        run: python .github/scripts/generate_questions.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "PaddySpeaks Bot"
+          git config user.email "bot@paddyspeaks.com"
+          git add interview.app/evaluate/data/
+          git diff --cached --quiet && echo "No changes" && exit 0
+          COUNT=$(git diff --cached --stat | grep -oP '\d+ insertion' | grep -oP '\d+' || echo "?")
+          git commit -m "🤖 [${{ steps.mode.outputs.mode }}] Add new interview questions — $(date +%Y-%m-%d)"
+          git push

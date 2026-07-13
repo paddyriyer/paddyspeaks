@@ -4697,6 +4697,86 @@
       ],
       "answer": 2,
       "explanation": "**Spark Batch** is the canonical choice for this profile. Three reasons:\n\n1. **Workload shape**: bounded input, stateless transformation per partition, idempotent (rerun a failed partition without side effects), restartable. That's textbook Spark batch.\n2. **Spot/preemptible economics**: Spark-on-Kubernetes with spot nodes has mature operator support (Apache YuniKorn, Volcano, the Kubeflow Spark operator). Backfills are interruption-tolerant, so spot can cut compute cost 60\u201380%. Flink Batch on spot works but the ecosystem is streaming-first.\n3. **AQE handles Glacier-restored unevenness**: Adaptive Query Execution coalesces small partitions at runtime, swaps in broadcast join when one side is small, re-plans skewed joins. Glacier-restored Parquet often has wildly uneven file sizes (some months were heavier than others); AQE eats this without manual tuning.\n\n**Option 1 (Flink Batch)**: improved dramatically \u2014 the unified BATCH execution mode is real and used in production at Alibaba, Stripe, others. But the deployment / cluster-manager / monitoring story is still streaming-first. For a one-time petabyte backfill on spot, Spark wins on operator maturity.\n\n**Option 2 (replay through live Flink)**: the anti-pattern from ds-237. Saturates the live system.\n\n**Option 4 (Trino)**: excellent for interactive SQL over Iceberg but not designed for batch-WRITE throughput at petabyte scale. Trino's write path is the weakest of the major OLAP engines; it would buckle on the 1.2PB write side of the backfill.\n\nPinterest's actual public talks on this topic confirm: live = Flink streaming, big backfills = Spark batch on Kubernetes."
+    },
+    {
+      "id": "ds-new-001",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "prompt": "In a star schema, what is the primary advantage of denormalizing dimension tables?",
+      "options": [
+        "Reduces storage cost significantly",
+        "Simplifies queries and improves read performance",
+        "Enforces referential integrity",
+        "Enables faster writes"
+      ],
+      "answer": 1,
+      "explanation": "Denormalized (flat) dimension tables reduce the number of joins needed for analytical queries, making them simpler to write and faster to execute \u2014 the core tradeoff in Kimball's star schema approach."
+    },
+    {
+      "id": "ds-new-002",
+      "type": "single",
+      "topic": "SCD",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "prompt": "You need to track a customer's address history AND query their current address efficiently. Which SCD type is best?",
+      "options": [
+        "SCD Type 1 (overwrite)",
+        "SCD Type 2 (add row)",
+        "SCD Type 3 (add column)",
+        "SCD Type 0 (retain original)"
+      ],
+      "answer": 1,
+      "explanation": "SCD Type 2 adds a new row with effective/expiry dates on each change. A `WHERE is_current = TRUE` filter retrieves the current address. Type 1 loses history; Type 3 only tracks one prior value."
+    },
+    {
+      "id": "ds-new-003",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "prompt": "In Kafka, what happens when a consumer's `auto.offset.reset` is set to `earliest` and the consumer group has no committed offset?",
+      "options": [
+        "Consumer reads from the latest message only",
+        "Consumer reads from the beginning of the partition",
+        "Consumer throws an exception",
+        "Consumer waits for a new message to arrive"
+      ],
+      "answer": 1,
+      "explanation": "`earliest` tells Kafka to start from offset 0 (the beginning) when no committed offset exists for the group. `latest` would skip all existing messages and only read new ones."
+    },
+    {
+      "id": "ds-new-004",
+      "type": "single",
+      "topic": "Partitioning",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "prompt": "You partition an events table by `event_date`. A query filters on `user_id` only. What is the likely performance impact?",
+      "options": [
+        "Fast \u2014 partition pruning kicks in",
+        "Fast \u2014 Bloom filters handle user_id",
+        "Slow \u2014 full table scan across all partitions",
+        "Error \u2014 cross-partition queries are not allowed"
+      ],
+      "answer": 2,
+      "explanation": "Partitioning only prunes partitions when the filter matches the partition key. Filtering by `user_id` on a date-partitioned table scans all partitions \u2014 a classic partition design mismatch."
+    },
+    {
+      "id": "ds-new-005",
+      "type": "single",
+      "topic": "Data Contracts",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "prompt": "What is a data contract in the context of a data platform?",
+      "options": [
+        "A legal agreement between data vendor and buyer",
+        "A schema-level SLA between a producer and all downstream consumers",
+        "A row-level encryption standard",
+        "A replication agreement between two databases"
+      ],
+      "answer": 1,
+      "explanation": "A data contract is a formal agreement (schema, semantics, SLA, ownership) between a data producer and its consumers. It makes breaking changes explicit and shifts responsibility to the producing team."
     }
   ]
 }
