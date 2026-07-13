@@ -4777,6 +4777,227 @@
       ],
       "answer": 1,
       "explanation": "A data contract is a formal agreement (schema, semantics, SLA, ownership) between a data producer and its consumers. It makes breaking changes explicit and shifts responsibility to the producing team."
+    },
+    {
+      "type": "single",
+      "topic": "real-time ETL architecture",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Designing an ETL pipeline for 10 million rides/hour with real-time dashboards, late-arriving data, deduplication, schema evolution, and failure recovery \u2014 which stack is the modern production standard?",
+      "options": [
+        "Kafka \u2192 Spark Structured Streaming \u2192 Delta Lake with watermarks for late data, MERGE for deduplication, mergeSchema for evolution",
+        "RabbitMQ \u2192 AWS Lambda \u2192 PostgreSQL with triggers for deduplication",
+        "Batch SFTP every hour \u2192 Hadoop MapReduce \u2192 Hive with daily partitions",
+        "Kafka \u2192 Flink \u2192 Cassandra for real-time, plus nightly Spark batch for historical analysis"
+      ],
+      "answer": 0,
+      "explanation": "Kafka absorbs burst ingestion, Spark Structured Streaming with watermarks handles late-arriving events within a configurable window, Delta Lake's MERGE deduplicates by ride_id atomically, and Delta's mergeSchema handles column additions without pipeline restarts. This stack is production-proven at Uber, Databricks, and Lyft scale. Flink+Cassandra (D) is valid but lacks native ACID deduplication and schema evolution.",
+      "id": "ds-new-006"
+    },
+    {
+      "type": "single",
+      "topic": "data lake file format / table format",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "For an 8PB data lake growing 15TB/day, which file format and table format combination best balances query performance, cost, and operational manageability?",
+      "options": [
+        "CSV in S3 with daily folder partitions \u2014 simple but no predicate pushdown or compaction",
+        "Parquet + Apache Iceberg \u2014 columnar compression, hidden partitioning, partition evolution, time travel, and automated compaction via rewrite_data_files",
+        "ORC + Hive-style partitions \u2014 good compression but no partition evolution or ACID support",
+        "Avro + schema registry \u2014 optimal for streaming ingestion but poor for analytical queries"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg on Parquet provides columnar compression (reducing 15TB/day to ~3-5TB), hidden partitioning prevents partition skew from poor key choices, partition evolution allows changing strategies without full rewrites, and time travel supports debugging and rollback. The rewrite_data_files + expire_snapshots procedures handle ongoing compaction. Iceberg is production-standard at Netflix, Apple, and LinkedIn for petabyte-scale lakes.",
+      "id": "ds-new-007"
+    },
+    {
+      "type": "single",
+      "topic": "CDC pipeline design",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Designing a CDC pipeline from Oracle to Snowflake requiring exactly-once semantics, schema evolution support, and handling of deletes and updates \u2014 which architecture is correct?",
+      "options": [
+        "Full table dumps hourly via JDBC, load into Snowflake staging, MERGE into target table",
+        "Debezium reading Oracle redo logs \u2192 Kafka \u2192 Kafka Connect Snowflake Sink with idempotent writes and offset commits for exactly-once; schema history topic for DDL changes",
+        "Oracle GoldenGate direct replication to Snowflake \u2014 proprietary but zero-latency",
+        "Application-level dual-writes to both Oracle and Snowflake simultaneously"
+      ],
+      "answer": 1,
+      "explanation": "Debezium reads Oracle's redo logs at source (zero application changes), publishing INSERT/UPDATE/DELETE events with before/after images to Kafka. Kafka Connect's Snowflake sink uses idempotent writes + offset commits for exactly-once delivery. The schema history topic tracks DDL changes automatically. Full dumps miss deletes and create O(table_size) load every hour. Dual-writes couple the application to the pipeline and break on partial failures.",
+      "id": "ds-new-008"
+    },
+    {
+      "type": "single",
+      "topic": "data quality platform design",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Designing a data quality platform to auto-detect null explosions, duplicate spikes, and distribution drift across thousands of tables \u2014 which detection approach scales operationally?",
+      "options": [
+        "Write custom SQL checks per table \u2014 precise but O(tables) manual maintenance",
+        "Compute statistical profiles (row count, null rates, distinct counts, quantiles) per table per run, store as time series, apply z-score or ML anomaly detection to surface deviations automatically",
+        "Sample 1% of each table daily and run Great Expectations suites with explicit expectations",
+        "Monitor downstream dashboard KPIs and alert when business metrics change"
+      ],
+      "answer": 1,
+      "explanation": "Automated profiling computes metrics per table as a time series. Z-score or ML-based anomaly detection then flags statistically unusual changes without per-table threshold configuration \u2014 onboarding a new table requires only adding it to the profile job. This is the architecture behind Monte Carlo, Bigeye, and Soda Cloud. Great Expectations suites (C) require explicit expectations per column, which doesn't scale to thousands of tables without templating.",
+      "id": "ds-new-009"
+    },
+    {
+      "type": "single",
+      "topic": "Spark optimization",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A Spark job joining 40TB of data runs for 9 hours. Which combination of optimizations most commonly achieves a 6\u00d7 speedup?",
+      "options": [
+        "Increase executor memory and add more nodes to the cluster",
+        "Enable AQE (adaptive query execution), pre-bucket both sides of the join on the join key to eliminate shuffle, enable dynamic partition pruning, and apply salting on skewed keys",
+        "Cache the smaller side of the join with df.cache() to avoid re-reading from storage",
+        "Rewrite Spark SQL as DataFrame API calls for the optimizer to handle better"
+      ],
+      "answer": 1,
+      "explanation": "AQE dynamically coalesces shuffle partitions and can switch to broadcast joins at runtime. Pre-bucketing both sides of a join on the join key eliminates the most expensive shuffle entirely. Dynamic partition pruning skips irrelevant partitions at executor level. Salting distributes hot keys across partitions to eliminate task skew. Together these address the three root causes of slow large-scale joins: unnecessary shuffles, data skew, and partition over-scanning.",
+      "id": "ds-new-010"
+    },
+    {
+      "type": "single",
+      "topic": "metadata platform / data lineage",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A metadata platform needs lineage traversal, impact analysis, and ownership tracking across thousands of datasets. Which storage backend is best suited specifically for multi-hop lineage queries?",
+      "options": [
+        "PostgreSQL \u2014 recursive CTEs can traverse lineage graphs",
+        "Elasticsearch \u2014 fast full-text search but graph traversal requires application-side BFS",
+        "A property graph database (Neo4j or Amazon Neptune) \u2014 native Cypher/Gremlin graph traversal, index-free adjacency for multi-hop queries",
+        "A columnar data warehouse \u2014 optimized for aggregations, not graph traversal"
+      ],
+      "answer": 2,
+      "explanation": "Lineage is a directed acyclic graph (DAG) problem. Property graph databases traverse k-hop neighbor relationships in O(k \u00d7 avg_degree) via index-free adjacency, versus O(n) recursive SQL joins that must re-scan foreign keys at each level. DataHub and OpenMetadata use graph backends for exactly this reason. Elasticsearch handles full-text search for discovery (used alongside the graph) but is not efficient for path-finding queries.",
+      "id": "ds-new-011"
+    },
+    {
+      "type": "single",
+      "topic": "GDPR / global data architecture",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Processing data from 20 countries with GDPR compliance requires data residency, regional processing, and global reporting. Which architectural pattern is correct?",
+      "options": [
+        "Replicate all data to a single US-based warehouse for centralized processing",
+        "Process and store PII within each country/region boundary; produce anonymized aggregates that are legally transferable; federate into a global reporting layer",
+        "Encrypt all PII with a global key and store everywhere \u2014 encryption satisfies GDPR residency",
+        "Obtain explicit consent for cross-border transfer from all EU users, then consolidate globally"
+      ],
+      "answer": 1,
+      "explanation": "GDPR Articles 44-49 restrict transferring personal data outside the EU without adequate protections. The compliant architecture processes raw PII within regional compute boundaries, applies anonymization or aggregation to produce non-personal output, and allows only that output to cross regions for global reporting. Encryption alone does not satisfy data residency requirements. Consent (D) is a valid lawful basis but operationally fragile at scale and revocable.",
+      "id": "ds-new-012"
+    },
+    {
+      "type": "single",
+      "topic": "custom table format / ACID design",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Designing ACID transactions for a custom table format without Delta/Iceberg/Hudi \u2014 which mechanism is the foundation for atomicity and isolation?",
+      "options": [
+        "File locking at the OS level \u2014 lock the table directory before every write",
+        "A transaction log of immutable append-only commit files in object storage; writers append atomically, readers use the latest consistent log snapshot, concurrent write conflicts resolved via optimistic concurrency control",
+        "Two-phase commit across all Parquet file writes coordinated by a central service",
+        "Eventual consistency \u2014 allow concurrent writes and resolve conflicts at read time"
+      ],
+      "answer": 1,
+      "explanation": "Delta Lake, Iceberg, and Hudi all use this pattern: immutable commit files appended to a transaction log in object storage provide atomicity (a commit either appears or doesn't via atomic PUT), isolation (readers see a consistent snapshot), and time travel (historical log entries). Optimistic concurrency control detects write-write conflicts by checking whether the log advanced since the transaction began. Object storage's atomic PUT operation is the primitive enabling this.",
+      "id": "ds-new-013"
+    },
+    {
+      "type": "single",
+      "topic": "Spark troubleshooting",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Your Spark job runs 10\u00d7 slower with no code changes. Which investigation sequence correctly isolates the root cause?",
+      "options": [
+        "Immediately scale up the cluster and rerun to rule out resource contention",
+        "Check Spark UI stage timelines for skewed tasks (one task 10\u00d7 longer than peers), GC pause metrics, shuffle read/write volume, and upstream source table growth or partition explosion",
+        "Revert the Spark version, assuming a runtime regression",
+        "Grep application logs for OOM errors as the only diagnostic step"
+      ],
+      "answer": 1,
+      "explanation": "Spark UI stage timelines reveal the most common causes systematically: a single skewed task (one key exploded in the source data), GC pressure from increased data volume, and shuffle explosion from new upstream partitions. Checking source table statistics (row count delta, new partition count, backfill presence) almost always reveals the upstream change \u2014 a new data backfill, a missing partition filter, or a schema change adding high-cardinality columns.",
+      "id": "ds-new-014"
+    },
+    {
+      "type": "single",
+      "topic": "Kafka backlog recovery",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A Kafka topic has accumulated a 48-hour consumer lag. What is the correct first diagnostic step before taking recovery action?",
+      "options": [
+        "Immediately increase the number of consumer group partitions to boost throughput",
+        "Check consumer group lag metrics per partition to distinguish uniform vs skewed lag, verify consumer CPU/memory, and confirm the topic's retention period won't expire messages before the consumer catches up",
+        "Delete and recreate the consumer group with reset offsets to start fresh",
+        "Increase Kafka broker disk capacity while the investigation continues"
+      ],
+      "answer": 1,
+      "explanation": "Uniform lag across all partitions suggests consumer throughput is insufficient (scale consumers or optimize processing). Lag concentrated in specific partitions suggests producer skew or a failed consumer for that partition. Critically: if the topic's retention period (default 7 days) is shorter than the recovery timeline, messages will be lost before the consumer catches up \u2014 checking and extending retention (kafka-configs.sh --alter) before recovery is essential to avoid data loss.",
+      "id": "ds-new-015"
+    },
+    {
+      "type": "single",
+      "topic": "Iceberg small files problem",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "An Iceberg table has 50 million small files (~1KB each). What is the primary query performance impact and the correct remediation?",
+      "options": [
+        "Queries slow down due to too much data \u2014 compact by dropping old partitions",
+        "The query planner must open 50M file footers to read column statistics, causing planning time to dominate execution; remediate with rewrite_data_files() to bin-pack small files into 128-512MB files, then expire_snapshots to shrink metadata",
+        "Small files make Parquet column statistics inaccurate \u2014 regenerate statistics with ANALYZE",
+        "Query engines have a hard limit of ~1M files per table \u2014 the table must be recreated"
+      ],
+      "answer": 1,
+      "explanation": "The small file problem has two costs: (1) planning \u2014 the query engine opens each file's footer to read column min/max statistics for predicate pushdown; 50M footer reads can take minutes before a single row is processed; (2) execution \u2014 thousands of tiny Spark tasks with high scheduling overhead. Iceberg's rewrite_data_files() bin-packs files to target sizes entirely online (no table recreation). expire_snapshots() then removes orphaned metadata files.",
+      "id": "ds-new-016"
+    },
+    {
+      "type": "single",
+      "topic": "revenue discrepancy investigation",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A dashboard shows $12M in revenue; Finance reports $11.2M. What is the most systematic investigation approach?",
+      "options": [
+        "Assume the dashboard is correct and ask Finance to recheck their figures",
+        "Align on the exact definition of 'revenue' in each system, check for differences in timezone handling, refund inclusion, currency conversion rates, event timestamps (order_created vs payment_settled), and join fanout \u2014 trace both numbers to their source SQL and find the first divergence point",
+        "Rerun the dashboard pipeline to see if the number is stable",
+        "Average the two figures and report $11.6M as the reconciled number"
+      ],
+      "answer": 1,
+      "explanation": "Revenue discrepancies almost always stem from definitional differences: gross vs net (refund treatment), accrual vs cash timing, currency conversion rates applied at different snapshots, or duplicate counting from fanout joins. The correct approach traces both figures to their source SQL/pipeline definitions, aligns on a single definition, then validates data quality (duplicates, missing rows, timezone offsets). This is a data contract problem as much as a pipeline bug.",
+      "id": "ds-new-017"
+    },
+    {
+      "type": "single",
+      "topic": "cost optimization at petabyte scale",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Designing a platform to process 1 petabyte of data per day cost-effectively \u2014 which architectural trade-off has the highest cost impact?",
+      "options": [
+        "Choose the fastest instance type to minimize wall-clock processing time",
+        "Separate storage from compute (S3 + Spark/Trino on spot instances), use columnar Parquet with aggressive partitioning to minimize data scanned per query, and right-size clusters by workload type",
+        "Use a single always-on cluster to avoid cold-start latency on every job",
+        "Compress all data with gzip to reduce storage \u2014 accept slower decompression"
+      ],
+      "answer": 1,
+      "explanation": "At petabyte scale, storage cost (~$23/TB/month on S3) and data scan costs (Athena: $5/TB scanned) dominate. Columnar Parquet with partition pruning can reduce scanned data by 95-99% for selective queries. Spot instances cut compute cost 60-90%. Decoupled storage/compute scales each independently and eliminates always-on cluster waste during off-peak hours. Parquet's native Snappy/Zstd compression is preferred over gzip (gzip is non-splittable, preventing parallel reads in Hadoop/Spark).",
+      "id": "ds-new-018"
     }
   ]
 }

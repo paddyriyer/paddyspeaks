@@ -6382,6 +6382,142 @@
       ],
       "answer": 1,
       "explanation": "The `|` union syntax (PEP 604) means the value is either a `list[int]` or `None`. Equivalent to `Optional[List[int]]` from `typing`."
+    },
+    {
+      "type": "single",
+      "topic": "streaming top-K / data structures",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "You receive 10 million events/hour and must track the top 100 users in real time with memory \u2264 100MB. Which data structure gives the best time/space trade-off?",
+      "options": [
+        "A sorted list of all users updated on every event \u2014 O(n) insert, exact results",
+        "A min-heap of size K: push each event, pop the minimum when heap exceeds K \u2014 O(log K) per event, bounded memory",
+        "A Python dict counting all users, sorted periodically \u2014 exact but unbounded memory",
+        "A full database table with indexed counts, queried every minute"
+      ],
+      "answer": 1,
+      "explanation": "A min-heap of exactly K=100 elements gives O(log K) \u2248 O(1) insert and evicts the smallest element when size exceeds K, keeping memory bounded to 100 elements regardless of stream volume. For distributed scenarios, each shard maintains its own heap and a final reduce step merges them. A Count-Min Sketch approximates top-K with sub-linear memory when even a heap is too large.",
+      "id": "py-new-006"
+    },
+    {
+      "type": "single",
+      "topic": "large file processing / memory efficiency",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "You must process a 2TB log file without loading it into memory, counting errors by service and computing P95 latency. Which Python approach is correct?",
+      "options": [
+        "pandas.read_csv() with chunksize=100000, iterate over chunks",
+        "Open the file as a generator yielding lines, use Counter for error tallies, and a t-digest or reservoir sample for P95 estimation",
+        "Load the file in 10GB chunks using mmap, process each chunk sequentially",
+        "Distribute across a Spark cluster \u2014 single-machine Python cannot handle 2TB files"
+      ],
+      "answer": 1,
+      "explanation": "A line-by-line generator (for line in open(file)) uses O(1) memory \u2014 Python buffers one line at a time. Counter accumulates error counts in O(unique_services) space. For P95 latency, storing all values requires O(n) memory (too large), so a t-digest or fixed-size reservoir sample (e.g., 10K values) gives accurate percentile estimates with bounded memory. pandas chunks also work but have higher per-chunk overhead.",
+      "id": "py-new-007"
+    },
+    {
+      "type": "single",
+      "topic": "LRU cache / data structures",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Implement an LRU cache with O(1) get(), put(), and eviction. Which Python approach is most idiomatic while achieving all O(1) operations?",
+      "options": [
+        "dict + heapq: use timestamps as heap keys for O(log n) eviction",
+        "dict + list: append on access, pop(0) for LRU eviction \u2014 O(n) pop",
+        "collections.OrderedDict: move_to_end() on access, popitem(last=False) for eviction \u2014 both O(1)",
+        "dict + sorted container with binary search \u2014 O(log n) access"
+      ],
+      "answer": 2,
+      "explanation": "collections.OrderedDict maintains insertion order and exposes move_to_end() (O(1), marks entry as most-recently-used) and popitem(last=False) (O(1), evicts the least-recently-used entry). Under the hood it is a dict backed by a doubly-linked list \u2014 the same structure needed for a textbook LRU. This achieves all three operations in O(1) with no external dependencies.",
+      "id": "py-new-008"
+    },
+    {
+      "type": "single",
+      "topic": "external merge sort / heapq",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "You need to merge 1,000 sorted files each containing 100 million rows, with only 512MB of RAM. What is the correct algorithm?",
+      "options": [
+        "Load all files into memory, concatenate, sort, and write output",
+        "heapq.merge() with file iterators \u2014 maintains a min-heap of 1,000 current values, streaming output without loading files into memory",
+        "Load 1,000 rows from each file into a matrix, find the minimum, advance that file's pointer",
+        "Multiprocessing: merge pairs of files in parallel until one file remains (tournament merge)"
+      ],
+      "answer": 1,
+      "explanation": "heapq.merge() accepts iterables and lazily yields the globally smallest element via a K-way min-heap, keeping only one element per file in memory at any time. With 1,000 files the heap holds 1,000 elements \u2014 negligible. File iterators stream rows line-by-line, so total memory is O(K) regardless of file size. The tournament merge (option D) is also correct but requires O(log\u20821000 \u2248 10) passes over all data on disk.",
+      "id": "py-new-009"
+    },
+    {
+      "type": "single",
+      "topic": "concurrency / asyncio vs threading",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "You have 1,000 API calls each taking ~300ms and need all to complete within 10 seconds. Which Python concurrency model is most appropriate?",
+      "options": [
+        "multiprocessing.Pool with 1,000 workers \u2014 true CPU parallelism",
+        "threading.ThreadPoolExecutor with 1,000 threads \u2014 threads share the GIL but release it during I/O",
+        "asyncio with aiohttp \u2014 single-threaded cooperative concurrency, 1,000 coroutines interleave during I/O wait",
+        "Sequential loop \u2014 optimize the per-call latency instead"
+      ],
+      "answer": 2,
+      "explanation": "API calls are I/O-bound. asyncio with aiohttp is ideal: a single event loop schedules 1,000 coroutines that all await simultaneously, completing in ~300ms + overhead \u2014 well within 10 seconds. Threading works too (GIL releases on I/O) but 1,000 threads carry ~8MB overhead each (~8GB total) and context-switching cost. multiprocessing spawns 1,000 OS processes \u2014 extreme overhead for I/O work. asyncio is the modern standard for high-concurrency HTTP.",
+      "id": "py-new-010"
+    },
+    {
+      "type": "single",
+      "topic": "data skew detection",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "You have billions of records and need to find the most skewed keys without sorting the entire dataset. Which approach is most efficient?",
+      "options": [
+        "SELECT key, COUNT(*) GROUP BY key ORDER BY COUNT(*) DESC LIMIT 100 \u2014 exact but requires full sort",
+        "Count-Min Sketch or Misra-Gries Heavy Hitters algorithm \u2014 O(n) single pass, sub-linear memory, identifies keys exceeding n/k frequency",
+        "Sample 1% of the data, find top keys, project to full dataset",
+        "Hash keys into 1,000 buckets, count per bucket, inspect overflowing buckets"
+      ],
+      "answer": 1,
+      "explanation": "Count-Min Sketch and the Misra-Gries algorithm identify keys appearing more than n/k times in a single O(n) pass with O(k) memory \u2014 no sorting required. Full GROUP BY + ORDER BY requires O(distinct_keys) memory and a global sort. Sampling (option C) is practical but can miss skewed keys if they appear in isolated partitions not hit by the sample. Bucket hashing (D) identifies skewed buckets, not keys.",
+      "id": "py-new-011"
+    },
+    {
+      "type": "single",
+      "topic": "memory leak investigation",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A Python service's memory grows indefinitely over hours. What is the most systematic investigation sequence?",
+      "options": [
+        "Restart the service with more RAM and monitor if growth rate changes",
+        "Add gc.collect() calls after every request to force garbage collection",
+        "Use tracemalloc to take snapshots at intervals, diff them to find growing object types, then use objgraph to trace reference chains to the root cause",
+        "Profile CPU usage \u2014 memory leaks are usually caused by hot loops"
+      ],
+      "answer": 2,
+      "explanation": "tracemalloc.take_snapshot() followed by snapshot.compare_to(prev, 'lineno') shows exactly which source lines are accumulating memory across intervals. objgraph.show_backrefs() then reveals what holds references to the leaking objects. Common root causes: unbounded dicts/lists used as caches, reference cycles involving __del__, and global state accumulating request data. gc.collect() (option B) helps with cyclic garbage but won't fix reference leaks.",
+      "id": "py-new-012"
+    },
+    {
+      "type": "single",
+      "topic": "groupby implementation",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Implementing groupby() + sum()/avg()/count() without pandas, what is the most Pythonic core data structure for the grouping step?",
+      "options": [
+        "Sort all rows by group key, then iterate with a pointer tracking key changes \u2014 O(n log n)",
+        "collections.defaultdict(list) to bucket rows by key in O(n), then iterate each bucket for aggregation",
+        "Build a 2D numpy array, argsort by group column, slice for aggregation \u2014 requires numpy",
+        "itertools.groupby() after sorting \u2014 O(n log n) sort required, non-contiguous groups break"
+      ],
+      "answer": 1,
+      "explanation": "defaultdict(list) accumulates all rows per key in a single O(n) pass (hash-based bucketing), then each bucket yields its rows for sum/avg/count in O(bucket_size) time. Total complexity: O(n). This mirrors pandas GroupBy's internal hash-aggregation approach. itertools.groupby() requires pre-sorting (O(n log n)) and silently misses non-contiguous groups with the same key value.",
+      "id": "py-new-013"
     }
   ]
 }
