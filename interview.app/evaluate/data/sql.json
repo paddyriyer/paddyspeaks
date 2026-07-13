@@ -12944,6 +12944,142 @@
       ],
       "answer": 1,
       "explanation": "READ COMMITTED prevents dirty reads (you only see committed data) but allows non-repeatable reads \u2014 another transaction can modify a row between your two reads in the same transaction."
+    },
+    {
+      "type": "single",
+      "topic": "window functions / sessionization",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A clickstream table has columns (user_id, event_time, page). A new session starts when the gap between consecutive events for the same user exceeds 30 minutes. Which SQL approach correctly assigns session IDs?",
+      "options": [
+        "Use ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_time) as the session ID",
+        "Use LAG() to get the prior event_time per user, flag gaps > 30 min as 1, then use a running SUM() of those flags as session_id",
+        "Use DENSE_RANK() OVER (PARTITION BY user_id, DATE_TRUNC('hour', event_time) ORDER BY event_time)",
+        "Use LEAD() to look ahead and mark session boundaries, then backfill with LAST_VALUE()"
+      ],
+      "answer": 1,
+      "explanation": "LAG() retrieves the previous event_time per user, enabling a CASE WHEN gap > 30 min THEN 1 ELSE 0 flag. A running SUM() of that flag (OVER PARTITION BY user_id ORDER BY event_time) increments only at session boundaries, producing a monotonically increasing session counter \u2014 the classic sessionization pattern.",
+      "id": "sql-new-006"
+    },
+    {
+      "type": "single",
+      "topic": "islands and gaps",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A daily inventory_snapshot table has (snapshot_date, product_id, inventory). You need to find continuous date ranges where inventory stayed unchanged. Which technique correctly identifies these 'islands'?",
+      "options": [
+        "GROUP BY product_id, inventory with MIN/MAX of snapshot_date",
+        "Cast snapshot_date to integer and subtract ROW_NUMBER() OVER (PARTITION BY product_id, inventory ORDER BY snapshot_date) to create a grouping key, then aggregate",
+        "Use LAG() to detect changes, then LEAD() to find the next change date",
+        "Use a recursive CTE that walks day by day checking inventory equality"
+      ],
+      "answer": 1,
+      "explanation": "The islands-and-gaps technique: casting date to integer and subtracting ROW_NUMBER() (partitioned by product_id and inventory, ordered by date) produces the same constant value for consecutive dates with unchanged inventory. Grouping by (product_id, inventory, that constant) then yields MIN/MAX date ranges. Simple GROUP BY (option A) merges non-contiguous ranges with the same inventory level.",
+      "id": "sql-new-007"
+    },
+    {
+      "type": "single",
+      "topic": "large-scale deduplication / Spark SQL",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "A transaction table has 5 billion rows. Duplicates share (customer_id, order_date, amount, merchant). What is the most shuffle-efficient deduplication strategy in Spark SQL?",
+      "options": [
+        "SELECT DISTINCT on all four dedup columns \u2014 simple and correct",
+        "Pre-bucket the table on customer_id so duplicates co-locate, then use ROW_NUMBER() OVER (PARTITION BY customer_id, order_date, amount, merchant ORDER BY 1) and keep rn=1",
+        "Self-join on all four keys to find duplicates, then delete matched rows",
+        "Sort the entire dataset by all four columns and use LAG() to filter consecutive duplicates"
+      ],
+      "answer": 1,
+      "explanation": "Pre-bucketing (or co-partitioning) on customer_id ensures duplicate rows land in the same partition, so ROW_NUMBER() operates locally without cross-node shuffle. DISTINCT forces a full global shuffle of all 5B rows. Self-joins double data movement. Sorting 5B rows globally is O(n log n) with maximum shuffle \u2014 the worst option at this scale.",
+      "id": "sql-new-008"
+    },
+    {
+      "type": "single",
+      "topic": "percentile ranking",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "You need to classify employees into top 10%, middle 40%, bottom 50% by salary within each department \u2014 with no temp tables. Which window function is most appropriate?",
+      "options": [
+        "NTILE(10) OVER (PARTITION BY department ORDER BY salary), then map tile numbers to bands",
+        "PERCENT_RANK() OVER (PARTITION BY department ORDER BY salary) with CASE WHEN thresholds",
+        "CUME_DIST() OVER (PARTITION BY department ORDER BY salary) with CASE WHEN thresholds",
+        "RANK() divided by COUNT(*) OVER (PARTITION BY department)"
+      ],
+      "answer": 1,
+      "explanation": "PERCENT_RANK() returns (rank-1)/(total_rows-1), giving a [0,1] score per employee. A CASE WHEN PERCENT_RANK() > 0.9 THEN 'top 10%' WHEN PERCENT_RANK() > 0.5 THEN 'middle 40%' ELSE 'bottom 50%' END cleanly segments without temp tables. NTILE(10) distributes ties arbitrarily and can misclassify boundary employees. CUME_DIST() also works but includes the current row's fraction, shifting boundaries slightly.",
+      "id": "sql-new-009"
+    },
+    {
+      "type": "single",
+      "topic": "running median",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "You need the running median of daily sales after each day in SQL. Which approach is both correct and supported in modern analytical databases?",
+      "options": [
+        "AVG(sales) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) \u2014 this computes the running median",
+        "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sales) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+        "MEDIAN() OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+        "Self-join each day to all prior days, sort the combined values, and select the middle row"
+      ],
+      "answer": 1,
+      "explanation": "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sales) is the standard SQL ordered-set aggregate for median (linear interpolation between middle values). As a window function with an expanding ROWS frame it computes the exact running median. AVG() computes the mean, not the median. MEDIAN() is non-standard (supported in some dialects). Self-joins are O(n\u00b2) and impractical at scale.",
+      "id": "sql-new-010"
+    },
+    {
+      "type": "single",
+      "topic": "missing event sequence detection",
+      "difficulty": "hard",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "An order_events table records (order_id, event_name, event_time). The expected sequence is Created\u2192Validated\u2192Packed\u2192Shipped\u2192Delivered. How do you find orders with any missing step?",
+      "options": [
+        "COUNT(*) GROUP BY order_id, filter where count < 5",
+        "CROSS JOIN all orders with the 5 expected events (as a VALUES list), LEFT JOIN actual events, filter for NULLs to find missing steps",
+        "STRING_AGG event names per order, use LIKE to detect out-of-order patterns",
+        "LAG() to check each event against its expected predecessor"
+      ],
+      "answer": 1,
+      "explanation": "Crossing all orders with the complete expected event list, then LEFT JOINing actual events, surfaces any (order_id, event_name) pair that never occurred \u2014 even when multiple steps are missing. COUNT(*) < 5 only detects orders with fewer than 5 events but cannot identify which specific steps are absent. LAG() breaks when any step is skipped since the sequence is no longer contiguous.",
+      "id": "sql-new-011"
+    },
+    {
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "Using a recursive CTE to traverse an employee\u2192manager hierarchy, which technique prevents infinite recursion when cycles exist in the data?",
+      "options": [
+        "Add LIMIT to the anchor member of the CTE",
+        "Include a depth counter in the recursive member and add WHERE depth < N as a termination guard",
+        "Use DISTINCT in the recursive member to eliminate repeated rows",
+        "Add ORDER BY to the final SELECT"
+      ],
+      "answer": 1,
+      "explanation": "A depth counter incremented in each recursive step (e.g., depth + 1 AS depth), combined with WHERE depth < max_depth, terminates the recursion after a bounded number of hops. DISTINCT reduces duplicate rows but doesn't stop recursion if cycles generate new combinations. LIMIT and ORDER BY apply only to the final result set and have no effect on recursion depth.",
+      "id": "sql-new-012"
+    },
+    {
+      "type": "single",
+      "topic": "multi-touch attribution",
+      "difficulty": "medium",
+      "added_date": "2026-07-13",
+      "source": "community",
+      "prompt": "For linear marketing attribution, what does 'linear' mean and how is it implemented in SQL across touches before a purchase?",
+      "options": [
+        "Credit the most recent touch 100% using LAST_VALUE() over the touch window",
+        "Divide the purchase value equally among all qualifying touches: 1.0 / COUNT(*) OVER (PARTITION BY customer_id) applied to touches where touch_time < purchase_time",
+        "Weight touches by recency \u2014 more recent touches receive exponentially higher credit",
+        "Credit the first touch 100% using FIRST_VALUE()"
+      ],
+      "answer": 1,
+      "explanation": "Linear attribution distributes purchase credit equally across all touches that preceded the purchase. In SQL, 1.0/COUNT(*) OVER (PARTITION BY customer_id) on the filtered touch set (touch_time < purchase_time) gives each touch its equal fractional credit. First-touch uses FIRST_VALUE() or ROW_NUMBER()=1 filtering; last-touch uses LAST_VALUE() or ROW_NUMBER() DESC=1; time-decay applies exponential weights by recency.",
+      "id": "sql-new-013"
     }
   ]
 }
