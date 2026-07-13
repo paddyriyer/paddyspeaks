@@ -1,0 +1,38 @@
+name: Ingest Community Submissions
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install anthropic
+
+      - name: Ingest community submissions
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FORMSPREE_API_KEY: ${{ secrets.FORMSPREE_API_KEY }}
+          FORMSPREE_FORM_ID: mzdnboae
+        run: python .github/scripts/ingest_submissions.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "PaddySpeaks Bot"
+          git config user.email "bot@paddyspeaks.com"
+          git add interview.app/evaluate/data/ .github/scripts/processed_submissions.json
+          git diff --cached --quiet && echo "No new questions" && exit 0
+          git commit -m "🌍 Add community-submitted questions — $(date +%Y-%m-%d)"
+          git push
