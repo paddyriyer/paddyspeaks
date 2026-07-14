@@ -13080,6 +13080,22 @@
       "answer": 1,
       "explanation": "Linear attribution distributes purchase credit equally across all touches that preceded the purchase. In SQL, 1.0/COUNT(*) OVER (PARTITION BY customer_id) on the filtered touch set (touch_time < purchase_time) gives each touch its equal fractional credit. First-touch uses FIRST_VALUE() or ROW_NUMBER()=1 filtering; last-touch uses LAST_VALUE() or ROW_NUMBER() DESC=1; time-decay applies exponential weights by recency.",
       "id": "sql-new-013"
+    },
+    {
+      "id": "sql-new-014",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-07-14",
+      "prompt": "You have a `staging_inventory(sku TEXT, warehouse_id INT, quantity INT)` table with fresh stock counts from an external system. You need to sync this to your `inventory(sku TEXT, warehouse_id INT, quantity INT, last_updated TIMESTAMP)` table. If a row exists, update quantity and last_updated; if it doesn't exist, insert it. However, if the staging quantity is 0, DELETE the row from inventory instead. Which approach is most efficient?\n\nAssume: Snowflake dialect, staging table has ~500K rows, inventory has ~2M rows, and you run this hourly.",
+      "options": [
+        "Use a single MERGE statement with WHEN MATCHED THEN UPDATE, WHEN NOT MATCHED THEN INSERT, and a DELETE WHERE clause in the USING subquery to filter out zero quantities before the merge.",
+        "Use MERGE with WHEN MATCHED THEN UPDATE, WHEN MATCHED AND staging.quantity = 0 THEN DELETE, and WHEN NOT MATCHED THEN INSERT, matching on (sku, warehouse_id).",
+        "Perform three separate operations: INSERT, UPDATE (using COALESCE to preserve old quantity if staging is NULL), then DELETE rows where quantity is 0.",
+        "Use MERGE only for inserts/updates, then run a separate DELETE statement joined to staging where staging.quantity = 0 after the merge completes."
+      ],
+      "answer": 1,
+      "explanation": "Snowflake's MERGE statement supports conditional DELETE within the WHEN MATCHED clause, allowing deletion when a condition is met (here, staging.quantity = 0) without a separate DELETE step. This is single-pass efficient and atomic. Option 0 is incorrect because WHERE clauses filter the source, not the matched rows. Options 2 and 3 require multiple statements, which is less efficient for hourly syncs and risks race conditions."
     }
   ]
 }
