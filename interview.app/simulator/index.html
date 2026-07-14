@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interview Simulator — Timed Data Engineering Loop | PaddySpeaks Interview Studio</title>
+<meta name="description" content="A timed, realistic data engineering interview simulation: mixed SQL, Python and design questions against the clock, no feedback until the end, then a full debrief with a readiness verdict.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Timed Data Engineering Interview Simulator">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/simulator/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+.sim-page { max-width: 820px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.65; color: #1a2332; }
+.sim-page h1 { font-family: 'Playfair Display', serif; font-size: clamp(32px,5vw,46px); font-weight: 900; line-height: 1.05; margin: 32px 0 12px; color: #0b0f17; }
+.sim-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #b45309; margin-bottom: 6px; }
+.sim-sub { font-size: 17px; color: #4a5568; margin: 0 0 28px; }
+
+.sim-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+@media (max-width: 640px) { .sim-modes { grid-template-columns: 1fr; } }
+.sim-mode { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #fff; cursor: pointer; text-align: left; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+.sim-mode:hover { border-color: #b45309; box-shadow: 0 0 0 3px #fef3c7; }
+.sim-mode .t { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #0b0f17; margin-bottom: 6px; }
+.sim-mode .d { font-size: 14.5px; color: #64748b; margin-bottom: 12px; }
+.sim-mode .m { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #b45309; letter-spacing: 1px; text-transform: uppercase; }
+
+.sim-rules { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 10px; padding: 18px 22px; font-size: 14.5px; color: #475569; }
+.sim-rules h3 { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #475569; margin: 0 0 8px; }
+.sim-rules ul { margin: 0; padding-left: 20px; }
+.sim-rules li { margin: 4px 0; }
+
+/* live sim */
+.sim-topbar { position: sticky; top: 52px; z-index: 60; background: #0b0f17; color: #f5f0e8; border-radius: 0 0 12px 12px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; }
+.sim-clock { font-size: 22px; font-weight: 600; letter-spacing: 2px; }
+.sim-clock.warn { color: #fbbf24; }
+.sim-clock.danger { color: #f87171; animation: simPulse 1s infinite; }
+@keyframes simPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.sim-meta { font-size: 11px; color: #94a3b8; }
+
+.sim-q { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 26px 28px; margin: 20px 0; background: #fff; }
+.sim-pill { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; background: #f1f5f9; color: #64748b; margin-right: 6px; }
+.sim-prompt { font-size: 17px; line-height: 1.65; margin: 14px 0 18px; color: #0b0f17; }
+.sim-prompt code { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
+.sim-opt { display: flex; gap: 12px; align-items: flex-start; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin: 8px 0; cursor: pointer; transition: border-color .12s, background .12s; font-size: 15px; }
+.sim-opt:hover { border-color: #94a3b8; }
+.sim-opt.sel { border-color: #0b0f17; background: #f8fafc; }
+.sim-opt input { margin-top: 4px; accent-color: #0b0f17; }
+
+.sim-navbtns { display: flex; gap: 10px; justify-content: space-between; margin-top: 20px; }
+.sim-btn { border: 1.5px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 11px 20px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; color: #334155; }
+.sim-btn:hover { border-color: #64748b; }
+.sim-btn.primary { background: #0b0f17; color: #f5f0e8; border-color: #0b0f17; }
+.sim-btn.primary:hover { background: #1e293b; }
+.sim-dots { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
+.sim-dot { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #cbd5e1; background: #fff; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; cursor: pointer; color: #64748b; }
+.sim-dot.answered { background: #0b0f17; color: #f5f0e8; border-color: #0b0f17; }
+.sim-dot.current { border-color: #b45309; box-shadow: 0 0 0 2px #fef3c7; }
+
+/* debrief */
+.sim-verdict { border-radius: 14px; padding: 32px; margin: 24px 0; text-align: center; }
+.sim-verdict.strong { background: #f0fdf4; border: 1.5px solid #86efac; }
+.sim-verdict.lean { background: #fefce8; border: 1.5px solid #fde047; }
+.sim-verdict.border { background: #fff7ed; border: 1.5px solid #fdba74; }
+.sim-verdict.weak { background: #fef2f2; border: 1.5px solid #fecaca; }
+.sim-verdict .pct { font-family: 'Playfair Display', serif; font-size: 54px; font-weight: 900; line-height: 1; color: #0b0f17; }
+.sim-verdict .v { font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin: 10px 0 6px; color: #0b0f17; font-weight: 600; }
+.sim-verdict .note { font-size: 15px; color: #4a5568; max-width: 520px; margin: 0 auto; }
+.sim-secline { display: grid; grid-template-columns: 120px 1fr 80px; gap: 12px; align-items: center; margin: 10px 0; }
+.sim-secline .n { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #334155; }
+.sim-track { height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; }
+.sim-fill { height: 100%; border-radius: 5px; }
+.sim-secline .p { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #64748b; text-align: right; }
+.sim-review { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 18px 22px; margin: 12px 0; background: #fff; }
+.sim-review.wrong { border-color: #fecaca; background: #fffafa; }
+.sim-review .rq { font-size: 15px; color: #0b0f17; margin-bottom: 10px; }
+.sim-review .ra { font-size: 14px; margin: 4px 0; }
+.sim-review .ok { color: #15803d; }
+.sim-review .bad { color: #b91c1c; }
+.sim-review .ex { font-size: 14px; color: #64748b; margin-top: 8px; border-top: 1px dashed #e2e8f0; padding-top: 8px; }
+.sim-h2 { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase; color: #475569; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+.sim-loading { color: #94a3b8; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+</style>
+</head>
+<body id="top">
+<main>
+<nav class="ip-topnav" aria-label="Primary" style="background:#fff;border-bottom:1px solid #e2e8f0;padding:0;position:sticky;top:0;z-index:100;backdrop-filter:saturate(180%) blur(10px);background:rgba(255,255,255,0.94);">
+<style>
+.ip-nav-inner{max-width:1400px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:14px;}
+.ip-nav-logo{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#0b0f17;text-decoration:none;white-space:nowrap;}
+.ip-nav-links{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:0.01em;line-height:1.5;}
+.ip-nav-links a{text-decoration:none;white-space:nowrap;padding:3px 2px;color:#475569;}
+.ip-nav-links a:hover{color:#0b0f17!important;}
+.ip-nav-right{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.ip-nav-home{font-family:'JetBrains Mono',monospace;font-size:10px;color:#94a3b8;text-decoration:none;white-space:nowrap;}
+.ip-ham{display:none;background:none;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:18px;line-height:1;cursor:pointer;color:#475569;}
+.ip-ham:hover{border-color:#94a3b8;color:#0b0f17;}
+.ip-mob{display:none;border-top:1px solid #e2e8f0;padding:18px 20px 20px;background:rgba(255,255,255,0.98);}
+.ip-mob.ip-open{display:block;}
+.ip-mob-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;}
+.ip-mob-grid a{text-decoration:none;color:#475569;padding:8px 12px;border-radius:6px;display:block;}
+.ip-mob-grid a:hover,.ip-mob-grid a:active{background:#f1f5f9;color:#0b0f17;}
+.ip-mob-home{font-family:'JetBrains Mono',monospace;font-size:10px;color:#94a3b8;text-decoration:none;display:inline-block;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;width:100%;}
+@media(max-width:820px){.ip-nav-links{display:none!important;}.ip-nav-home{display:none!important;}.ip-ham{display:block!important;}}
+</style>
+<div class="ip-nav-inner">
+  <a href="/interview.app/" class="ip-nav-logo">Interview Studio</a>
+  <div class="ip-nav-links">
+      <a href="/interview.app/" style="color:#475569;">Practice</a>
+      <a href="/interview.app/ai-engineering/" style="color:#475569;">AI</a>
+      <a href="/interview.app/behavioral/" style="color:#475569;">Behavioral</a>
+      <a href="/interview.app/companies/" style="color:#475569;">Companies</a>
+      <a href="/interview.app/stories/" style="color:#475569;">Stories</a>
+      <a href="/interview.app/career/" style="color:#475569;">Career</a>
+      <a href="/interview.app/mock/" style="color:#475569;">Mock</a>
+      <a href="/interview.app/design/" style="color:#475569;">Design</a>
+      <a href="/interview.app/performance/" style="color:#475569;">Performance</a>
+      <a href="/interview.app/analytics/" style="color:#475569;">Analytics</a>
+      <a href="/interview.app/cloud-ai-age/" style="color:#475569;">Cloud · AI</a>
+      <a href="/interview.app/hot-topics-2026/" style="color:#475569;">★ Hot 2026</a>
+      <a href="/interview.app/evaluate/" style="color:#475569;">Skill Check</a>
+      <a href="/interview.app/simulator/" style="color:#0b0f17;font-weight:700;border-bottom:2px solid #b45309;">Simulator</a>
+      <a href="/interview.app/flashcards/" style="color:#475569;">Flashcards</a>
+      <a href="/interview.app/study-plan/" style="color:#475569;">30-Day Plan</a>
+      <a href="/interview.app/my-prep/" style="color:#475569;">My Prep</a>
+      <a href="/interview.app/elevator-pitch/" style="color:#475569;">Pitch</a>
+      <a href="/interview.app/company-research/" style="color:#475569;">Research</a>
+      <a href="/interview.app/incidents/" style="color:#475569;">Incidents</a>
+      <a href="/interview.app/interviewer/" style="color:#475569;">Interviewer</a>
+      <a href="/interview.app/red-flags/" style="color:#475569;">Red Flags</a>
+      <a href="/interview.app/resume/" style="color:#475569;">Resume</a>
+      <a href="/interview.app/mistakes/" style="color:#475569;">Mistakes</a>
+      <a href="/interview.app/submit/" style="color:#b45309;font-weight:700;">✦ Share a Question</a>
+  </div>
+  <div class="ip-nav-right">
+    <a href="/" class="ip-nav-home">← PaddySpeaks</a>
+    <button class="ip-ham" onclick="var m=document.getElementById('ip-mob');m.classList.toggle('ip-open');this.textContent=m.classList.contains('ip-open')?'✕':'☰';" aria-label="Toggle menu">☰</button>
+  </div>
+</div>
+<div class="ip-mob" id="ip-mob">
+  <div class="ip-mob-grid">
+    <a href="/interview.app/">Practice</a>
+    <a href="/interview.app/ai-engineering/">AI</a>
+    <a href="/interview.app/behavioral/">Behavioral</a>
+    <a href="/interview.app/companies/">Companies</a>
+    <a href="/interview.app/stories/">Stories</a>
+    <a href="/interview.app/career/">Career</a>
+    <a href="/interview.app/mock/">Mock</a>
+    <a href="/interview.app/design/">Design</a>
+    <a href="/interview.app/performance/">Performance</a>
+    <a href="/interview.app/analytics/">Analytics</a>
+    <a href="/interview.app/cloud-ai-age/">Cloud · AI</a>
+    <a href="/interview.app/hot-topics-2026/">★ Hot 2026</a>
+    <a href="/interview.app/evaluate/">Skill Check</a>
+    <a href="/interview.app/simulator/" style="color:#0b0f17;font-weight:700;background:#f8fafc;">Simulator</a>
+    <a href="/interview.app/flashcards/">Flashcards</a>
+    <a href="/interview.app/study-plan/">30-Day Plan</a>
+    <a href="/interview.app/my-prep/">My Prep</a>
+    <a href="/interview.app/elevator-pitch/">Pitch</a>
+    <a href="/interview.app/company-research/">Research</a>
+    <a href="/interview.app/incidents/">Incidents</a>
+    <a href="/interview.app/interviewer/">Interviewer</a>
+    <a href="/interview.app/red-flags/">Red Flags</a>
+    <a href="/interview.app/resume/">Resume</a>
+    <a href="/interview.app/mistakes/">Mistakes</a>
+    <a href="/interview.app/submit/" style="color:#b45309;font-weight:700;">✦ Share a Question</a>
+  </div>
+  <a href="/" class="ip-mob-home">← PaddySpeaks</a>
+</div>
+</nav>
+
+<article class="sim-page">
+  <div id="sim-root">
+    <div class="sim-eyebrow">▸ SIMULATOR · interview under pressure</div>
+    <h1>The clock changes everything.</h1>
+    <p class="sim-sub">A realistic, timed interview loop drawn from the full question bank. No hints, no explanations until it's over — then a complete debrief with a readiness verdict.</p>
+    <p class="sim-loading" id="sim-status">Loading question bank…</p>
+    <div class="sim-modes" id="sim-modes" style="display:none;">
+      <button class="sim-mode" onclick="startSim('screen')">
+        <div class="t">📞 Phone Screen</div>
+        <div class="d">8 questions in 20 minutes — 3 SQL, 3 Python, 2 design. The pace of a first-round technical screen.</div>
+        <div class="m">20:00 · 8 questions</div>
+      </button>
+      <button class="sim-mode" onclick="startSim('loop')">
+        <div class="t">🏢 Full Loop</div>
+        <div class="d">15 questions in 45 minutes — 5 SQL, 5 Python, 5 design. Sustained pressure, like the real on-site.</div>
+        <div class="m">45:00 · 15 questions</div>
+      </button>
+    </div>
+    <div class="sim-rules">
+      <h3>Rules of engagement</h3>
+      <ul>
+        <li>The timer starts the moment you begin — and it does not pause.</li>
+        <li>No feedback, no explanations, no score until you submit or time runs out.</li>
+        <li>When the clock hits zero, your answers are submitted automatically.</li>
+        <li>Skipping is allowed — real interviews reward knowing when to move on.</li>
+        <li>Results are recorded to <a href="/interview.app/my-prep/" style="color:#b45309;">My Prep</a> so you can track readiness over time.</li>
+      </ul>
+    </div>
+  </div>
+</article>
+</main>
+
+<script>
+function lsGet(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+function dayKey(ts) { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function esc(s) { return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function fmtInline(s) { return esc(s).replace(/`([^`]+)`/g, "<code>$1</code>"); }
+function shuffle(arr) { const a = [...arr]; for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+
+/* Record activity day for shared streak */
+(function() {
+  const days = lsGet("ps-activity-days", []);
+  const today = dayKey(Date.now());
+  if (!days.includes(today)) { days.push(today); lsSet("ps-activity-days", days); }
+})();
+
+const MODES = {
+  screen: { label: "Phone Screen", secs: 20*60, draw: { sql: 3, python: 3, design: 2 } },
+  loop:   { label: "Full Loop",    secs: 45*60, draw: { sql: 5, python: 5, design: 5 } },
+};
+const SEC_LABEL = { sql: "SQL", python: "Python", design: "Design" };
+const banks = {};
+let sim = null;   // { mode, questions, answers, current, deadline, timerId }
+
+async function loadBanks() {
+  const files = { sql: "sql", python: "python", design: "design" };
+  await Promise.all(Object.entries(files).map(async ([slug, f]) => {
+    try {
+      const r = await fetch(`/interview.app/evaluate/data/${f}.json`);
+      const data = await r.json();
+      // MCQ single-choice only — auto-gradable under time pressure
+      banks[slug] = (data.questions || []).filter(q => q.type === "single" && Array.isArray(q.options) && q.options.length >= 2);
+    } catch { banks[slug] = []; }
+  }));
+  document.getElementById("sim-status").style.display = "none";
+  document.getElementById("sim-modes").style.display = "";
+}
+
+function startSim(modeKey) {
+  const mode = MODES[modeKey];
+  const qs = [];
+  Object.entries(mode.draw).forEach(([sec, n]) => {
+    shuffle(banks[sec] || []).slice(0, n).forEach(q => qs.push({ ...q, _sec: sec }));
+  });
+  sim = {
+    modeKey, mode,
+    questions: shuffle(qs),
+    answers: {},
+    current: 0,
+    deadline: Date.now() + mode.secs * 1000,
+    timerId: null,
+  };
+  sim.timerId = setInterval(tick, 500);
+  renderQ();
+  window.scrollTo({ top: 0 });
+}
+
+function tick() {
+  const left = Math.max(0, Math.round((sim.deadline - Date.now()) / 1000));
+  const el = document.getElementById("sim-clock");
+  if (el) {
+    el.textContent = String(Math.floor(left/60)).padStart(2,"0") + ":" + String(left%60).padStart(2,"0");
+    el.className = "sim-clock" + (left <= 60 ? " danger" : left <= 300 ? " warn" : "");
+  }
+  if (left <= 0) submitSim(true);
+}
+
+function renderQ() {
+  const q = sim.questions[sim.current];
+  const total = sim.questions.length;
+  const answered = Object.keys(sim.answers).length;
+
+  const opts = q.options.map((o, i) => `
+    <label class="sim-opt ${sim.answers[q.id] === i ? "sel" : ""}">
+      <input type="radio" name="opt" ${sim.answers[q.id] === i ? "checked" : ""} onchange="pick(${i})">
+      <span>${fmtInline(o)}</span>
+    </label>`).join("");
+
+  const dots = sim.questions.map((_, i) => `
+    <button class="sim-dot ${sim.answers[sim.questions[i].id] !== undefined ? "answered" : ""} ${i === sim.current ? "current" : ""}" onclick="go(${i})">${i+1}</button>`).join("");
+
+  document.getElementById("sim-root").innerHTML = `
+    <div class="sim-topbar">
+      <span class="sim-clock" id="sim-clock">--:--</span>
+      <span class="sim-meta">${sim.mode.label} · Q${sim.current+1}/${total} · ${answered} answered</span>
+    </div>
+    <div class="sim-q">
+      <div><span class="sim-pill">${SEC_LABEL[q._sec]}</span><span class="sim-pill">${esc(q.difficulty || "")}</span></div>
+      <div class="sim-prompt">${fmtInline(q.prompt)}</div>
+      ${opts}
+      <div class="sim-navbtns">
+        <button class="sim-btn" onclick="go(${sim.current-1})" ${sim.current === 0 ? "disabled" : ""}>← Prev</button>
+        ${sim.current < total-1
+          ? `<button class="sim-btn primary" onclick="go(${sim.current+1})">Next →</button>`
+          : `<button class="sim-btn primary" onclick="submitSim(false)">Submit loop ✓</button>`}
+      </div>
+      <div class="sim-dots">${dots}</div>
+    </div>`;
+  tick();
+}
+
+function pick(i) {
+  const q = sim.questions[sim.current];
+  sim.answers[q.id] = i;
+  renderQ();
+}
+
+function go(i) {
+  if (i < 0 || i >= sim.questions.length) return;
+  sim.current = i;
+  renderQ();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function submitSim(timedOut) {
+  if (!sim) return;
+  clearInterval(sim.timerId);
+  const ts = Date.now();
+
+  let correct = 0;
+  const bySec = {};
+  sim.questions.forEach(q => {
+    (bySec[q._sec] ||= { n: 0, ok: 0 });
+    bySec[q._sec].n++;
+    const ok = sim.answers[q.id] === q.answer;
+    if (ok) { correct++; bySec[q._sec].ok++; }
+  });
+  const pct = Math.round((correct / sim.questions.length) * 100);
+
+  /* Log to shared history so My Prep sees it */
+  try {
+    const hist = lsGet("ps-history", []);
+    sim.questions.forEach(q => {
+      hist.push({ id: q.id, sec: q._sec, topic: q.topic || "", diff: q.difficulty || "", ok: sim.answers[q.id] === q.answer, ts });
+    });
+    while (hist.length > 4000) hist.shift();
+    lsSet("ps-history", hist);
+    const attempts = lsGet("ps-attempts", []);
+    attempts.push({ sec: "simulator", score: correct, max: sim.questions.length, ts });
+    while (attempts.length > 500) attempts.shift();
+    lsSet("ps-attempts", attempts);
+  } catch {}
+
+  /* Verdict */
+  let cls, verdict, note;
+  if (pct >= 80) { cls = "strong"; verdict = "Strong performance";
+    note = "At this accuracy under time pressure you'd clear most senior (L5) technical screens. Keep sharpening the hard questions and design depth."; }
+  else if (pct >= 65) { cls = "lean"; verdict = "Lean hire";
+    note = "Solid mid-to-senior (L4/L5) showing. You'd likely pass a screen but the on-site would probe your weaker section — see the breakdown below."; }
+  else if (pct >= 50) { cls = "border"; verdict = "Borderline";
+    note = "You know the material but the clock is beating you. Focus on your weakest section, then re-run this simulation — speed comes from pattern repetition."; }
+  else { cls = "weak"; verdict = "Not yet — and that's fine";
+    note = "This is exactly what the 30-Day Plan is for. Start with Week 1, build the fundamentals, and come back — this score will move fast."; }
+
+  const secLines = Object.entries(bySec).map(([s, v]) => {
+    const p = Math.round((v.ok / v.n) * 100);
+    const color = p >= 75 ? "#15803d" : p >= 50 ? "#b45309" : "#b91c1c";
+    return `<div class="sim-secline">
+      <span class="n">${SEC_LABEL[s]}</span>
+      <div class="sim-track"><div class="sim-fill" style="width:${p}%;background:${color}"></div></div>
+      <span class="p">${v.ok}/${v.n}</span>
+    </div>`;
+  }).join("");
+
+  const review = sim.questions.map((q, i) => {
+    const user = sim.answers[q.id];
+    const ok = user === q.answer;
+    return `<div class="sim-review ${ok ? "" : "wrong"}">
+      <div class="rq"><strong>Q${i+1}.</strong> ${fmtInline(q.prompt)}</div>
+      ${user !== undefined ? `<div class="ra ${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} Your answer: ${fmtInline(q.options[user])}</div>` : `<div class="ra bad">✗ Skipped</div>`}
+      ${!ok ? `<div class="ra ok">✓ Correct: ${fmtInline(q.options[q.answer])}</div>` : ""}
+      <div class="ex">${fmtInline(q.explanation || "")}</div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("sim-root").innerHTML = `
+    <div class="sim-eyebrow">▸ SIMULATOR · debrief${timedOut ? " · TIME EXPIRED" : ""}</div>
+    <h1>The debrief.</h1>
+    <div class="sim-verdict ${cls}">
+      <div class="pct">${pct}%</div>
+      <div class="v">${verdict}</div>
+      <div class="note">${note}</div>
+    </div>
+    <div class="sim-h2">Section breakdown</div>
+    ${secLines}
+    <div class="sim-navbtns" style="margin:26px 0;">
+      <button class="sim-btn" onclick="location.reload()">← Run another simulation</button>
+      <a class="sim-btn primary" href="/interview.app/my-prep/" style="text-decoration:none;display:inline-block;">View My Prep →</a>
+    </div>
+    <div class="sim-h2">Question review</div>
+    ${review}`;
+  sim = null;
+  window.scrollTo({ top: 0 });
+}
+
+/* Warn before leaving mid-simulation */
+window.addEventListener("beforeunload", (e) => {
+  if (sim) { e.preventDefault(); e.returnValue = ""; }
+});
+
+loadBanks();
+</script>
+</body>
+</html>
