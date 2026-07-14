@@ -541,8 +541,38 @@ function confirmSubmit() {
   if (!confirm(msg)) return;
   state.submitted = true;
   persist();
+  logHistory();
   renderResults();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Append per-question outcomes + attempt summary to permanent history
+// (read by /interview.app/my-prep/). Separate from per-attempt persistence.
+function logHistory() {
+  const ts = Date.now();
+  try {
+    const hist = JSON.parse(localStorage.getItem("ps-history") || "[]");
+    state.questions.forEach(q => {
+      let correct = null; // null = self-rated / ungraded
+      if (q.type === "single" || q.type === "multi") {
+        correct = gradeObjective(q, state.answers[q.id]);
+      } else {
+        const r = state.selfRatings[q.id];
+        if (r === 2) correct = true;
+        else if (r === 0) correct = false;
+      }
+      hist.push({ id: q.id, sec: sectionSlug, topic: q.topic || "", diff: q.difficulty || "", ok: correct, ts });
+    });
+    // Cap history so localStorage never fills up
+    while (hist.length > 4000) hist.shift();
+    localStorage.setItem("ps-history", JSON.stringify(hist));
+
+    const attempts = JSON.parse(localStorage.getItem("ps-attempts") || "[]");
+    const s = computeScore();
+    attempts.push({ sec: sectionSlug, score: s.score, max: s.max, ts });
+    while (attempts.length > 500) attempts.shift();
+    localStorage.setItem("ps-attempts", JSON.stringify(attempts));
+  } catch (e) { /* quota / corrupt — non-fatal */ }
 }
 
 function confirmReset() {
