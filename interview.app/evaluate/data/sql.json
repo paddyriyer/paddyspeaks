@@ -13096,6 +13096,22 @@
       ],
       "answer": 1,
       "explanation": "Snowflake's MERGE statement supports conditional DELETE within the WHEN MATCHED clause, allowing deletion when a condition is met (here, staging.quantity = 0) without a separate DELETE step. This is single-pass efficient and atomic. Option 0 is incorrect because WHERE clauses filter the source, not the matched rows. Options 2 and 3 require multiple statements, which is less efficient for hourly syncs and risks race conditions."
+    },
+    {
+      "id": "sql-new-015",
+      "type": "single",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-07-15",
+      "prompt": "You have a schema `bill(bill_id INT, parent_bill_id INT, amount NUMERIC)` representing consolidated billing hierarchies (a parent bill can roll up multiple child bills). Write a query to find the TOTAL amount for each root bill (where parent_bill_id IS NULL), including all descendants. Which approach is correct?\n\nTable sample:\nbill_id | parent_bill_id | amount\n1       | NULL           | 0\n2       | 1              | 100\n3       | 1              | 150\n4       | 2              | 50\n5       | NULL           | 0\n6       | 5              | 200",
+      "options": [
+        "WITH RECURSIVE bill_tree AS (\n  SELECT bill_id, parent_bill_id, amount, bill_id AS root_id\n  FROM bill\n  WHERE parent_bill_id IS NULL\n  UNION ALL\n  SELECT b.bill_id, b.parent_bill_id, b.amount, bt.root_id\n  FROM bill b\n  INNER JOIN bill_tree bt ON b.parent_bill_id = bt.bill_id\n)\nSELECT root_id, SUM(amount) AS total_amount\nFROM bill_tree\nGROUP BY root_id;",
+        "WITH RECURSIVE bill_tree AS (\n  SELECT bill_id, parent_bill_id, amount\n  FROM bill\n  UNION ALL\n  SELECT b.bill_id, b.parent_bill_id, b.amount\n  FROM bill b\n  INNER JOIN bill_tree bt ON b.bill_id = bt.parent_bill_id\n)\nSELECT bill_id, SUM(amount) AS total_amount\nFROM bill_tree\nWHERE parent_bill_id IS NULL\nGROUP BY bill_id;",
+        "SELECT b1.bill_id, SUM(b2.amount) AS total_amount\nFROM bill b1\nLEFT JOIN bill b2 ON b1.bill_id = b2.parent_bill_id OR b1.bill_id = b2.bill_id\nWHERE b1.parent_bill_id IS NULL\nGROUP BY b1.bill_id;",
+        "WITH bill_tree AS (\n  SELECT bill_id, parent_bill_id, amount, 1 AS depth\n  FROM bill\n  WHERE parent_bill_id IS NULL\n)\nSELECT bill_id, SUM(amount) AS total_amount\nFROM bill_tree\nGROUP BY bill_id;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses a recursive CTE to traverse the bill hierarchy from roots downward, tracking the root_id in each row so descendants are associated with their root. The anchor selects root bills (parent_bill_id IS NULL), and the recursive part joins child bills until the tree is exhausted. Then SUM(amount) groups by root_id to total all descendants. Options 1\u20133 fail: Option 1 reverses the join direction, Option 2 uses a non-recursive CTE that doesn't aggregate descendants, and Option 3 doesn't recurse at all."
     }
   ]
 }
