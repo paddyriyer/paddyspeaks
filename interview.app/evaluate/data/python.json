@@ -6550,6 +6550,22 @@
       ],
       "answer": 0,
       "explanation": "`itertools.groupby()` is specifically designed for grouping consecutive elements with the same key in an iterable. Since events are pre-sorted by timestamp and you want to group by user_id, it returns an iterator of groups without materializing the entire dataset in memory, making it ideal for stream processing. Option B loads everything into memory, defeating the purpose of streaming efficiency."
+    },
+    {
+      "id": "py-new-016",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "medium",
+      "added_date": "2026-07-16",
+      "prompt": "You have a Polars DataFrame with columns 'user_id', 'event_type', and 'timestamp'. You need to find the time (in seconds) between each user's first and last event, handling ties efficiently. Which approach is most performant for large datasets (millions of rows)?\n\ndf = pl.DataFrame({\n    'user_id': [1, 1, 2, 2, 2],\n    'timestamp': [100, 200, 150, 300, 250]\n})",
+      "options": [
+        "df.group_by('user_id').agg(pl.col('timestamp').max() - pl.col('timestamp').min())",
+        "df.group_by('user_id').agg([pl.col('timestamp').first().alias('first'), pl.col('timestamp').last().alias('last')]).with_columns((pl.col('last') - pl.col('first')).alias('duration'))",
+        "df.sort_by(['user_id', 'timestamp']).group_by('user_id').agg((pl.col('timestamp').max() - pl.col('timestamp').min()).alias('duration'))",
+        "df.with_row_index().group_by('user_id').agg(pl.col('timestamp').max() - pl.col('timestamp').min())"
+      ],
+      "answer": 0,
+      "explanation": "Option A is most performant because it uses a single aggregate operation (max - min) which Polars optimizes into a single pass, avoiding unnecessary sorting or intermediate column creation. Options B and C create extra columns or rely on sort order, while option D adds unnecessary row indexing overhead."
     }
   ]
 }

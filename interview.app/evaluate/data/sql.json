@@ -13112,6 +13112,22 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly uses a recursive CTE to traverse the bill hierarchy from roots downward, tracking the root_id in each row so descendants are associated with their root. The anchor selects root bills (parent_bill_id IS NULL), and the recursive part joins child bills until the tree is exhausted. Then SUM(amount) groups by root_id to total all descendants. Options 1\u20133 fail: Option 1 reverses the join direction, Option 2 uses a non-recursive CTE that doesn't aggregate descendants, and Option 3 doesn't recurse at all."
+    },
+    {
+      "id": "sql-new-016",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-07-16",
+      "prompt": "You have a table `org_structure(emp_id INT, manager_id INT, salary INT)` where the CEO has manager_id = NULL. You need to compute the total compensation cost for each manager's entire subtree (including themselves). You want to materialize this result in a view that refreshes daily. Which approach best balances correctness, performance, and maintenance?\n\nAssume:\n- ~50,000 employees, tree depth \u2264 15\n- The view is queried 100+ times daily\n- org_structure changes daily (hires/promotions)\n- You cannot use window functions or subqueries with aggregation over recursive results",
+      "options": [
+        "Use a recursive CTE to compute subtree sums, then CREATE MATERIALIZED VIEW from it. Refresh it nightly with a scheduled job.",
+        "Create a trigger on org_structure that updates a denormalized `mgr_subtree_cost` table whenever emp_id, manager_id, or salary changes.",
+        "Use a recursive CTE only in ad-hoc queries; avoid materializing because the tree depth is \u226415 and recursion is fast enough.",
+        "Create a recursive CTE that self-joins with a GROUP BY at the leaf level only, storing results in a temporary table for nightly promotion to a permanent view."
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is correct: materialized views with nightly refresh are the standard pattern for expensive recursive aggregations in production data warehouses. Recursive CTEs are ideal for tree traversal, and materializing prevents the 100+ daily queries from each re-computing the entire tree. Option 1 (triggers) adds operational complexity and risk of inconsistency; Option 2 ignores the query volume (50k employees \u00d7 15 depth = expensive per query); Option 3 is impractical and doesn't address the aggregation bottleneck."
     }
   ]
 }
