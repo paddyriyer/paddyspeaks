@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Multi-Tenant IVR Problem — Systems at the Whiteboard Nº 38 | PaddySpeaks Interview Studio</title>
+<meta name="description" content="Design a multi-tenant IVR analytics platform for 40+ contact-center tenants: ingesting nested, drifting JSON across ~10 record types, transformation engine choice, hot/cold storage, 5-minute freshness, structural tenant isolation, per-tenant time zones, sizing, and an AWS vs Microsoft Fabric recommendation." />
+<meta name="keywords" content="multi-tenant analytics, IVR analytics, contact center data platform, tenant isolation, schema drift, medallion architecture, lambda architecture, Iceberg, AWS vs Microsoft Fabric, data architect interview" />
+<meta name="author" content="Padmanabhan Iyer" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+
+<link rel="canonical" href="https://paddyspeaks.com/interview.app/design/the-multitenant-ivr-problem.html" />
+
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/the-multitenant-ivr-problem.html" />
+<meta property="og:title" content="The Multi-Tenant IVR Problem — Systems at the Whiteboard Nº 38 | PaddySpeaks Interview Studio" />
+<meta property="og:description" content="A complete worked answer to a Data Architect interview question: design a multi-tenant IVR analytics platform. Ingestion of drifting JSON, transformation engine, storage/serving, 5-minute freshness, structural tenant isolation, sizing, and AWS vs Microsoft Fabric." />
+<meta property="og:image" content="https://paddyspeaks.com/images/og-default.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:site_name" content="PaddySpeaks" />
+<meta property="og:locale" content="en_US" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@paddyspeaks" />
+<meta name="twitter:title" content="The Multi-Tenant IVR Problem — Systems at the Whiteboard Nº 38" />
+<meta name="twitter:description" content="Design a multi-tenant IVR analytics platform: drifting JSON, transformation engine, hot/cold storage, 5-minute freshness, structural tenant isolation, and AWS vs Microsoft Fabric." />
+<meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "@id": "https://paddyspeaks.com/interview.app/design/the-multitenant-ivr-problem.html#article",
+      "headline": "The Multi-Tenant IVR Problem — Systems at the Whiteboard Nº 38",
+      "description": "A complete worked answer to a Data Architect interview: design a multi-tenant IVR analytics platform across 40+ tenants with drifting JSON, 5-minute freshness, and structural tenant isolation.",
+      "url": "https://paddyspeaks.com/interview.app/design/the-multitenant-ivr-problem.html",
+      "datePublished": "2026-07-16",
+      "dateModified": "2026-07-16",
+      "author": { "@type": "Person", "name": "Padmanabhan Iyer", "url": "https://paddyspeaks.com/about.html" },
+      "publisher": {
+        "@type": "Organization", "name": "PaddySpeaks", "url": "https://paddyspeaks.com",
+        "logo": { "@type": "ImageObject", "url": "https://paddyspeaks.com/favicon.svg" }
+      },
+      "about": "Multi-tenant analytics architecture: schema drift handling, medallion + lambda architecture, tenant isolation, hot/cold tiering, and cloud platform selection.",
+      "isPartOf": { "@id": "https://paddyspeaks.com/interview.app/design/#collection" }
+    }
+  ]
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap"></noscript>
+<link rel="stylesheet" href="whiteboard.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+h1 em { color: var(--teal, #0a8070) !important; }
+
+.anchor-nav { position: sticky; top: 0; z-index: 100; background: #faf8f4; border-bottom: 1px solid #e8e0d0; display: flex; gap: 0; overflow-x: auto; padding: 0 24px; }
+.anchor-nav a { padding: 10px 16px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #8f8672; text-decoration: none; white-space: nowrap; }
+.anchor-nav a:hover { color: #0a8070; }
+
+.community-ribbon { background:#ecfeff; border:1px solid #67e8f9; border-left:4px solid #0891b2; padding:14px 20px; margin:24px auto; max-width:900px; border-radius:4px; font-family:'DM Mono',monospace; font-size:13px; color:#155e75; }
+.community-ribbon strong { color:#0e7490; }
+
+.svg-diagram { width:100%; max-width:820px; margin:28px auto; display:block; overflow:hidden; background:#fffdf8; border:1px solid #e3dccb; border-radius:6px; }
+.svg-diagram text { font-family:'DM Mono', monospace; }
+.figcap { text-align:center; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.06em; color:#8f8672; margin:-14px 0 30px; text-transform:uppercase; }
+
+.cmp-table { width:100%; border-collapse:collapse; margin:24px 0; font-family:'DM Mono',monospace; font-size:12px; }
+.cmp-table th { background:#1a1208; color:#d8a44a; padding:9px 13px; text-align:left; font-size:10px; letter-spacing:.12em; text-transform:uppercase; border:1px solid #3a2e1a; }
+.cmp-table td { padding:9px 13px; border:1px solid #3a2e1a; color:#8f8672; vertical-align:top; }
+.cmp-table tr:nth-child(odd) td { background:#120e06; }
+.cmp-table tr:nth-child(even) td { background:#1a1208; }
+.cmp-table td:first-child { color:#e9e2d0; font-weight:600; }
+
+.keypoint { border-left:3px solid #0a8070; background:#f0fdfa; padding:14px 20px; margin:16px 0; border-radius:4px; font-size:17px; }
+.keypoint strong { color:#065a50; }
+.mistake-card { border-left:3px solid #dc2626; background:#120e06; padding:16px 20px; margin:8px 0; border-radius:4px; font-family:'DM Mono',monospace; font-size:13px; color:#e9e2d0; }
+.mistake-card strong { color:#f87171; }
+.verdict { border:2px solid #0a8070; background:#f0fdfa; padding:22px 26px; margin:26px 0; border-radius:6px; }
+.verdict h3 { font-family:'DM Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#065a50; margin-bottom:10px; }
+
+.scroll-btns { position:fixed; bottom:28px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:999; }
+.scroll-btns a { display:flex; align-items:center; justify-content:center; width:40px; height:40px; background:#0a8070; color:#fff; border-radius:50%; text-decoration:none; font-size:18px; box-shadow:0 2px 8px rgba(0,0,0,.25); transition:background .2s; }
+.scroll-btns a:hover { background:#065a50; }
+.back-home { position:fixed; bottom:28px; left:24px; z-index:999; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+.back-home a { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; background:#1a1208; color:#d8a44a; border-radius:20px; text-decoration:none; box-shadow:0 2px 8px rgba(0,0,0,.3); transition:background .2s; }
+.back-home a:hover { background:#2a2010; }
+</style>
+</head>
+<body id="top">
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 38</div>
+    <h1 class="reveal">The <em>Multi-Tenant IVR</em> Problem</h1>
+    <p class="deck reveal">Design an analytics platform for a contact-center serving 40+ enterprise tenants. Streaming IVR event logs arrive as nested, schema-drifting JSON with ten record types. Dashboards span 16 months, some must be five minutes fresh, and under no circumstances may one tenant ever see another's data. A complete worked answer: ingestion, transformation, storage and serving, the speed layer, structural tenant isolation, hot/cold tiering, scale-out, sizing — and a reasoned AWS vs Microsoft Fabric recommendation.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Data Platform / Multi-Tenant Analytics</b></span>
+      <span>READING · <b>~22 min</b></span>
+    </div>
+  </div>
+</header>
+
+<nav class="anchor-nav">
+  <a href="#question">The Question</a>
+  <a href="#shape">Data Shape</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#ingestion">Ingestion</a>
+  <a href="#transform">Transform</a>
+  <a href="#storage">Storage &amp; Serving</a>
+  <a href="#freshness">5-Min Freshness</a>
+  <a href="#isolation">Tenant Isolation</a>
+  <a href="#hotcold">Hot vs Cold</a>
+  <a href="#scale">Scale-Out</a>
+  <a href="#sizing">Sizing</a>
+  <a href="#platform">AWS vs Fabric</a>
+  <a href="#oneminute">1-Min Answer</a>
+  <a href="#mistakes">Mistakes</a>
+</nav>
+
+<div class="community-ribbon">
+  ◆ <strong>Community question.</strong> Shared by a reader after a Data Architect interview at a global contact-center solutions provider. Want to contribute one? <a href="/interview.app/submit/" style="color:#0e7490;font-weight:600;">Share a question →</a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="question">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>Multi-tenant IVR analytics platform</h2>
+  <div class="qcard reveal">
+    <span class="tag">Interview Prompt</span>
+    <p class="qtext">"You are designing an analytics platform for a contact-center serving 40+ enterprise tenants, with more onboarding over time. Source data is streaming IVR event logs delivered as JSON files. A single file contains multiple record types — call, transfer, prompt, intent, checkpoint, system, interaction, and others. The JSON has nested arrays, and the schema is not stable: fields appear, disappear, and change shape over time. A mid-size tenant produces 30,000–45,000 calls per day. Design the end-to-end architecture, and tell me whether you'd build it on AWS or Microsoft Fabric — and why."</p>
+    <div class="qmeta"><span>LEVEL · DATA ARCHITECT</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+  </div>
+
+  <p class="lede reveal">Every requirement in this prompt is a trap that separates a memorized answer from an architect's. The interviewer isn't testing whether you know Spark — they're testing whether you can hold seven competing constraints in your head at once and make defensible trade-offs. Here are the seven that matter.</p>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>The requirement</th><th>What it's really testing</th></tr></thead>
+    <tbody>
+      <tr><td>Drifting, nested JSON · 10 record types</td><td>Do you fight schema drift or absorb it? Schema-on-read vs brittle ETL.</td></tr>
+      <tr><td>16-month window, rarely-queried tail</td><td>Hot/cold tiering and retention — not "keep everything in the warehouse."</td></tr>
+      <tr><td>Trends + drill-down to individual calls</td><td>Pre-aggregation AND raw retrieval — two serving shapes, not one.</td></tr>
+      <tr><td>≤5-minute freshness on a subset</td><td>A speed layer beside the batch layer — lambda architecture, scoped.</td></tr>
+      <tr><td>Strict tenant isolation, no single misconfig</td><td>Structural (not policy-only) isolation. Defense in depth.</td></tr>
+      <tr><td>Per-tenant time zones</td><td>Store UTC, present local. Never bake local time into storage.</td></tr>
+      <tr><td>40+ tenants, growing</td><td>Onboarding must be config-driven, not a code change per tenant.</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="shape">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 02 — DATA SHAPE</span>Do the volume math first</h2>
+  <p class="lede reveal">Before drawing boxes, size the problem — it decides whether this is a "big data" build or not. A mid-size tenant does ~40K calls/day. Each call fans out into many events (prompts, transfers, intents, checkpoints) — call it 15–30 events per call.</p>
+
+  <div class="keypoint reveal">
+    <strong>Back-of-envelope:</strong> 40K calls × ~20 events ≈ 800K events/tenant/day. Across 40 tenants ≈ 32M events/day ≈ ~370 events/sec average, bursting to a few thousand/sec at peak. At ~1&nbsp;KB/event that's ~30&nbsp;GB/day raw, ~10&nbsp;TB over 16 months before compression. <strong>This is comfortably mid-scale</strong> — it does not need exotic infrastructure. The hard parts are schema drift and isolation, not volume.
+  </div>
+
+  <p class="reveal">Stating this out loud is the single highest-signal move in the interview. It tells the interviewer you right-size infrastructure instead of reaching for a 200-node cluster because the word "streaming" appeared. The largest tenants may be 5–10× a mid-size one — hold that thought for the storage-skew discussion in §06.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="architecture">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 03 — THE ARCHITECTURE</span>Medallion + a scoped speed layer</h2>
+  <p class="lede reveal">The backbone is a medallion (bronze → silver → gold) lake with a parallel speed layer for the five-minute dashboards. One diagram carries the whole answer.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 820 470" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8a5d12"/></marker>
+    </defs>
+    <rect x="0" y="0" width="820" height="470" fill="#fffdf8"/>
+    <!-- source -->
+    <rect x="24" y="180" width="120" height="70" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+    <text x="84" y="208" fill="#d8a44a" font-size="11" text-anchor="middle">IVR events</text>
+    <text x="84" y="224" fill="#8f8672" font-size="9" text-anchor="middle">JSON files</text>
+    <text x="84" y="238" fill="#8f8672" font-size="9" text-anchor="middle">per tenant</text>
+    <!-- ingest -->
+    <rect x="184" y="180" width="120" height="70" rx="6" fill="#f0fdfa" stroke="#0a8070"/>
+    <text x="244" y="205" fill="#065a50" font-size="11" text-anchor="middle">Landing +</text>
+    <text x="244" y="221" fill="#065a50" font-size="11" text-anchor="middle">Ingest</text>
+    <text x="244" y="238" fill="#0a8070" font-size="8.5" text-anchor="middle">autoloader / stream</text>
+    <!-- bronze -->
+    <rect x="344" y="70" width="120" height="60" rx="6" fill="#fbe8c8" stroke="#b07a1e"/>
+    <text x="404" y="95" fill="#8a5d12" font-size="11" text-anchor="middle">BRONZE</text>
+    <text x="404" y="112" fill="#8a5d12" font-size="8.5" text-anchor="middle">raw JSON, as-is</text>
+    <!-- silver -->
+    <rect x="344" y="185" width="120" height="60" rx="6" fill="#e6ded0" stroke="#7d7567"/>
+    <text x="404" y="210" fill="#4a443a" font-size="11" text-anchor="middle">SILVER</text>
+    <text x="404" y="227" fill="#4a443a" font-size="8.5" text-anchor="middle">typed, per record type</text>
+    <!-- gold -->
+    <rect x="344" y="300" width="120" height="60" rx="6" fill="#f5e9c9" stroke="#b07a1e"/>
+    <text x="404" y="325" fill="#8a5d12" font-size="11" text-anchor="middle">GOLD</text>
+    <text x="404" y="342" fill="#8a5d12" font-size="8.5" text-anchor="middle">hourly/daily rollups</text>
+    <!-- serving -->
+    <rect x="516" y="185" width="120" height="60" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+    <text x="576" y="210" fill="#d8a44a" font-size="11" text-anchor="middle">Warehouse /</text>
+    <text x="576" y="226" fill="#d8a44a" font-size="11" text-anchor="middle">SQL serving</text>
+    <!-- dashboards -->
+    <rect x="676" y="120" width="120" height="60" rx="6" fill="#f0fdfa" stroke="#0a8070"/>
+    <text x="736" y="145" fill="#065a50" font-size="11" text-anchor="middle">Trend + drill</text>
+    <text x="736" y="162" fill="#0a8070" font-size="8.5" text-anchor="middle">dashboards</text>
+    <rect x="676" y="255" width="120" height="60" rx="6" fill="#e8f7f5" stroke="#0a8070"/>
+    <text x="736" y="280" fill="#065a50" font-size="11" text-anchor="middle">Near-real-time</text>
+    <text x="736" y="297" fill="#0a8070" font-size="8.5" text-anchor="middle">≤5-min dashboards</text>
+    <!-- speed layer -->
+    <rect x="184" y="330" width="120" height="70" rx="6" fill="#e8f7f5" stroke="#0891b2" stroke-dasharray="4 3"/>
+    <text x="244" y="358" fill="#0e7490" font-size="11" text-anchor="middle">SPEED LAYER</text>
+    <text x="244" y="374" fill="#0891b2" font-size="8.5" text-anchor="middle">stream aggregate</text>
+    <text x="244" y="388" fill="#0891b2" font-size="8.5" text-anchor="middle">(scoped tenants)</text>
+    <!-- arrows -->
+    <line x1="144" y1="215" x2="180" y2="215" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arw)"/>
+    <line x1="304" y1="205" x2="340" y2="120" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arw)"/>
+    <line x1="404" y1="130" x2="404" y2="183" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arw)"/>
+    <line x1="404" y1="245" x2="404" y2="298" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arw)"/>
+    <line x1="464" y1="215" x2="512" y2="215" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arw)"/>
+    <line x1="464" y1="325" x2="540" y2="245" stroke="#8a5d12" stroke-width="1.2" marker-end="url(#arw)"/>
+    <line x1="636" y1="205" x2="672" y2="160" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arw)"/>
+    <line x1="304" y1="360" x2="672" y2="295" stroke="#0891b2" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arw)"/>
+    <line x1="244" y1="250" x2="244" y2="328" stroke="#0891b2" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arw)"/>
+  </svg>
+  <div class="figcap">Fig 1 · Batch backbone (bronze→silver→gold→warehouse) with a parallel, scoped speed layer for ≤5-minute dashboards</div>
+
+  <p class="reveal">The gold rollups answer trend questions cheaply; the warehouse (or a lake-query engine over silver) answers drill-down and export; the speed layer answers only the freshness-critical dashboards. Three serving needs, three purpose-built paths — instead of forcing one engine to do all three badly.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="ingestion">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 04 — INGESTION</span>Absorb schema drift, don't fight it</h2>
+  <p class="lede reveal">The killer detail is that fields appear, disappear, and change shape, and one file mixes ten record types. If you design a rigid typed schema up front, you will be paged every time a tenant's vendor ships a new IVR build. The answer is schema-on-read at the boundary.</p>
+
+  <div class="keypoint reveal"><strong>Bronze = land the raw JSON exactly as received</strong>, one immutable copy, partitioned by <code>tenant_id / record_type / ingest_date</code>. Never parse-and-reject at the door. If a record can't be interpreted, it still lands — you can reprocess history later because the raw truth is preserved.</div>
+
+  <p class="reveal"><strong>Split by record type early.</strong> A router (the stream consumer, or the first bronze job) reads the <code>type</code> discriminator on each record and fans the ten types into ten separate bronze tables/paths. Each type then evolves independently — a new field on <code>intent</code> events never destabilizes <code>call</code> events.</p>
+
+  <p class="reveal"><strong>Handle drift with additive schema evolution.</strong> Use a table format that supports it — Delta Lake or Apache Iceberg — with <code>mergeSchema</code>-style behavior: new fields are added as nullable columns, old rows keep NULL. Nested arrays are either kept as a <code>variant</code>/JSON column and exploded on read, or flattened into child tables keyed by <code>call_id</code>. Keep a raw <code>_payload</code> column on silver so a field that "disappears" from the typed schema is still recoverable.</p>
+
+  <p class="reveal"><strong>Contract tests, not contract enforcement.</strong> Run lightweight expectations (row counts, null-rate spikes, new-field detection) and route violations to a quarantine path with an alert — the pipeline keeps running. A schema change becomes a notification, not an outage.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="transform">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 05 — TRANSFORMATION ENGINE</span>The choice, and what it costs you</h2>
+  <p class="lede reveal">The interviewer explicitly asks for the engine "and what it costs you." Name a default, justify it, and be honest about the tax.</p>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>Engine</th><th>Why choose it</th><th>What it costs you</th></tr></thead>
+    <tbody>
+      <tr><td>Spark (Databricks / EMR / Fabric)</td><td>Handles nested JSON, schema evolution, huge back-fills; one engine for batch + structured streaming</td><td>Cluster cost + tuning; overkill for the smallest tenants; cold-start latency</td></tr>
+      <tr><td>SQL-in-warehouse (dbt on Snowflake/BigQuery)</td><td>Simple, cheap for modest volume, analysts can own it</td><td>Weak at deeply nested/variant JSON and true streaming; drift handling is clumsier</td></tr>
+      <tr><td>Flink</td><td>Best-in-class low-latency streaming for the speed layer</td><td>Operationally heavy; a second paradigm to run alongside batch</td></tr>
+    </tbody>
+  </table>
+
+  <div class="keypoint reveal"><strong>Recommendation:</strong> Spark Structured Streaming for bronze→silver→gold because it absorbs nested/drifting JSON natively and unifies batch and streaming in one codebase. <strong>The cost you name out loud:</strong> you pay for compute and for the expertise to tune it, and you resist the temptation to run it for the speed layer's sub-second needs — for that, a lighter stream aggregator (or Flink) is cheaper and faster.</div>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="storage">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 06 — STORAGE &amp; SERVING</span>Two shapes, and the largest tenants</h2>
+  <p class="lede reveal">Users need summary trends (hourly/daily), drill from day → hour → individual call, and export raw records. That's pre-aggregation for trends and raw retrieval for drill-down — a single table can't serve both well.</p>
+
+  <p class="reveal"><strong>Gold, pre-aggregated:</strong> hourly and daily rollups per tenant (calls, transfers, intents, handle-time percentiles). Small, fast, cheap — this powers 95% of dashboard loads. <strong>Silver, raw-but-typed:</strong> partitioned by <code>tenant_id / event_date / hour</code> so a drill-down to a specific hour prunes to a handful of files, and export is a bounded scan.</p>
+
+  <div class="keypoint reveal"><strong>The largest-tenant trap:</strong> if you partition only by date, a 10× tenant produces 10× bigger partitions and its queries drag on shared compute. Fix it structurally: <strong>partition (or cluster) by tenant first</strong>, then by date/hour. Compact small files (streaming produces many) on a schedule with Iceberg/Delta <code>OPTIMIZE</code>. For the very largest tenants, the tenant-first layout means their heavy scans touch only their own files, and you can give them dedicated compute without moving data.</div>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="freshness">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 07 — 5-MINUTE FRESHNESS</span>A speed layer beside batch</h2>
+  <p class="lede reveal">Only a small subset of dashboards needs ≤5-minute data. Don't make the whole pipeline real-time to satisfy a corner of it — that's the classic over-engineering tell. Run a scoped speed layer.</p>
+
+  <p class="reveal">The same ingest stream forks: one branch feeds the batch medallion, the other feeds a streaming aggregator (Spark Structured Streaming with a 1–2 minute trigger, or Flink) that maintains rolling per-tenant counters and writes them to a low-latency store — the warehouse's streaming-ingest table, or a serving KV/OLAP store. The near-real-time dashboards read <em>only</em> these live aggregates. Batch remains the system of record; the speed layer is disposable and rebuildable.</p>
+
+  <div class="keypoint reveal"><strong>Reconciliation:</strong> the speed layer is approximate and gets overwritten by the authoritative batch rollup once it lands. State the tolerance explicitly — "the live tile may be a few percent off for a few minutes, then batch corrects it" — so freshness never silently becomes a correctness claim you can't keep.</div>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="isolation">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 08 — TENANT ISOLATION</span>Structural, not policy-only</h2>
+  <p class="lede reveal">The hardest requirement: "no single misconfiguration could cause a leak." That word <em>single</em> rules out relying on one row-level-security predicate. You need defense in depth — several independent layers, each of which alone would prevent a leak.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 820 300" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="820" height="300" fill="#fffdf8"/>
+    <text x="410" y="34" fill="#065a50" font-size="12" text-anchor="middle">FOUR INDEPENDENT LAYERS — ANY ONE STOPS A LEAK</text>
+    <rect x="40" y="60" width="170" height="180" rx="8" fill="#f0fdfa" stroke="#0a8070"/>
+    <text x="125" y="90" fill="#065a50" font-size="11" text-anchor="middle">1 · STORAGE</text>
+    <text x="125" y="120" fill="#4a443a" font-size="9" text-anchor="middle">tenant_id is the</text>
+    <text x="125" y="134" fill="#4a443a" font-size="9" text-anchor="middle">top partition /</text>
+    <text x="125" y="148" fill="#4a443a" font-size="9" text-anchor="middle">separate prefix</text>
+    <text x="125" y="172" fill="#4a443a" font-size="9" text-anchor="middle">or bucket per</text>
+    <text x="125" y="186" fill="#4a443a" font-size="9" text-anchor="middle">tenant</text>
+    <rect x="230" y="60" width="170" height="180" rx="8" fill="#f0fdfa" stroke="#0a8070"/>
+    <text x="315" y="90" fill="#065a50" font-size="11" text-anchor="middle">2 · IDENTITY</text>
+    <text x="315" y="120" fill="#4a443a" font-size="9" text-anchor="middle">per-tenant IAM</text>
+    <text x="315" y="134" fill="#4a443a" font-size="9" text-anchor="middle">role scoped to</text>
+    <text x="315" y="148" fill="#4a443a" font-size="9" text-anchor="middle">only that</text>
+    <text x="315" y="162" fill="#4a443a" font-size="9" text-anchor="middle">tenant's path —</text>
+    <text x="315" y="176" fill="#4a443a" font-size="9" text-anchor="middle">no shared</text>
+    <text x="315" y="190" fill="#4a443a" font-size="9" text-anchor="middle">read-all role</text>
+    <rect x="420" y="60" width="170" height="180" rx="8" fill="#f0fdfa" stroke="#0a8070"/>
+    <text x="505" y="90" fill="#065a50" font-size="11" text-anchor="middle">3 · QUERY</text>
+    <text x="505" y="120" fill="#4a443a" font-size="9" text-anchor="middle">row-level</text>
+    <text x="505" y="134" fill="#4a443a" font-size="9" text-anchor="middle">security +</text>
+    <text x="505" y="148" fill="#4a443a" font-size="9" text-anchor="middle">tenant_id from</text>
+    <text x="505" y="162" fill="#4a443a" font-size="9" text-anchor="middle">the auth token,</text>
+    <text x="505" y="176" fill="#4a443a" font-size="9" text-anchor="middle">never from the</text>
+    <text x="505" y="190" fill="#4a443a" font-size="9" text-anchor="middle">request body</text>
+    <rect x="610" y="60" width="170" height="180" rx="8" fill="#f0fdfa" stroke="#0a8070"/>
+    <text x="695" y="90" fill="#065a50" font-size="11" text-anchor="middle">4 · TESTS</text>
+    <text x="695" y="120" fill="#4a443a" font-size="9" text-anchor="middle">automated</text>
+    <text x="695" y="134" fill="#4a443a" font-size="9" text-anchor="middle">cross-tenant</text>
+    <text x="695" y="148" fill="#4a443a" font-size="9" text-anchor="middle">access tests in</text>
+    <text x="695" y="162" fill="#4a443a" font-size="9" text-anchor="middle">CI — try to read</text>
+    <text x="695" y="176" fill="#4a443a" font-size="9" text-anchor="middle">B as A, assert</text>
+    <text x="695" y="190" fill="#4a443a" font-size="9" text-anchor="middle">it fails</text>
+    <text x="410" y="272" fill="#8f8672" font-size="9.5" text-anchor="middle">A leak requires ALL FOUR to be misconfigured at once — no single mistake is sufficient.</text>
+  </svg>
+  <div class="figcap">Fig 2 · Defense in depth — isolation at storage, identity, query, and test layers</div>
+
+  <div class="keypoint reveal"><strong>The one rule that prevents most leaks:</strong> the <code>tenant_id</code> used to filter every query comes from the authenticated session/token — never from a URL parameter or request body a client could tamper with. Combine that with per-tenant storage prefixes and per-tenant credentials, and a leak needs multiple independent failures.</div>
+
+  <p class="reveal"><strong>Time zones fit here too:</strong> store every timestamp in UTC, tag each tenant with its zone in config, and convert to local time only at query/presentation time. Never write local time into storage — it makes the 16-month history un-reinterpretable and breaks cross-tenant rollups.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="hotcold">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 09 — HOT vs COLD</span>16 months, mostly cold</h2>
+  <p class="lede reveal">Dashboards cover 16 months but the tail is rarely queried. Keep recent data hot and cheap-to-query; age the rest into cold object storage that stays retrievable but costs a fraction.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 820 210" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="820" height="210" fill="#fffdf8"/>
+    <rect x="40" y="70" width="200" height="80" rx="6" fill="#f0fdfa" stroke="#0a8070"/>
+    <text x="140" y="100" fill="#065a50" font-size="12" text-anchor="middle">HOT · 0–3 months</text>
+    <text x="140" y="122" fill="#4a443a" font-size="9" text-anchor="middle">warehouse / cached gold</text>
+    <text x="140" y="136" fill="#4a443a" font-size="9" text-anchor="middle">fast dashboards + drill</text>
+    <rect x="270" y="70" width="220" height="80" rx="6" fill="#f5e9c9" stroke="#b07a1e"/>
+    <text x="380" y="100" fill="#8a5d12" font-size="12" text-anchor="middle">WARM · 3–16 months</text>
+    <text x="380" y="122" fill="#4a443a" font-size="9" text-anchor="middle">Iceberg/Delta on object store</text>
+    <text x="380" y="136" fill="#4a443a" font-size="9" text-anchor="middle">queried on demand, slower</text>
+    <rect x="520" y="70" width="260" height="80" rx="6" fill="#e6ded0" stroke="#7d7567"/>
+    <text x="650" y="100" fill="#4a443a" font-size="12" text-anchor="middle">COLD · &gt;16 months</text>
+    <text x="650" y="122" fill="#4a443a" font-size="9" text-anchor="middle">archive tier (S3 Glacier / cool)</text>
+    <text x="650" y="136" fill="#4a443a" font-size="9" text-anchor="middle">retrievable, rarely touched</text>
+    <line x1="240" y1="110" x2="268" y2="110" stroke="#8a5d12" stroke-width="1.5"/>
+    <line x1="490" y1="110" x2="518" y2="110" stroke="#8a5d12" stroke-width="1.5"/>
+    <text x="410" y="185" fill="#8f8672" font-size="9.5" text-anchor="middle">Lifecycle policies move data down the tiers automatically; raw bronze always retained for reprocessing.</text>
+  </svg>
+  <div class="figcap">Fig 3 · Age data down the tiers by access pattern, not by deleting it</div>
+
+  <p class="reveal">The gold rollups are tiny and can stay hot for the full 16 months — trend queries over the whole window read pre-aggregated numbers, not raw events. Only raw drill-down/export against old months pays the warm/cold latency, which matches "rarely queried."</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="scale">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 10 — SCALE-OUT</span>Onboarding must be config, not code</h2>
+  <p class="lede reveal">40+ tenants today, more tomorrow. If adding a tenant means editing pipeline code, you've built a liability. Make onboarding a metadata operation.</p>
+  <p class="reveal">A <strong>tenant registry</strong> (a config table) holds each tenant's id, source location, time zone, SLA tier (does it need the speed layer?), and retention. The pipelines are tenant-agnostic and driven by this registry: a new tenant is a new row plus provisioned storage prefix and scoped credentials — no deploy. This is also the natural place to encode the <strong>pooled vs siloed</strong> decision: most tenants share pooled compute with tenant-first partitioning; the largest or most sensitive get a dedicated (siloed) path from the same codebase.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="sizing">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 11 — SIZING &amp; VALIDATION</span>Prove it before you commit</h2>
+  <p class="lede reveal">The prompt asks how you'd size infrastructure and validate the design before committing. Anchor to the §02 numbers and de-risk with a proof of concept.</p>
+  <ul class="reveal" style="font-size:17px; line-height:1.7; padding-left:22px;">
+    <li><strong>Size from the math:</strong> ~32M events/day, ~30 GB/day raw, ~10 TB over 16 months. That's a small streaming cluster (a handful of workers) plus modest warehouse compute — not a fleet.</li>
+    <li><strong>Load-test the largest tenant, not the average:</strong> synthesize a 10× tenant and confirm partition pruning keeps its drill-downs fast and its scans off everyone else's compute.</li>
+    <li><strong>Replay drift:</strong> feed historical files where fields appear/disappear/change shape and confirm nothing breaks and nothing is silently dropped.</li>
+    <li><strong>Prove isolation in CI:</strong> automated test that authenticates as tenant A and tries to read tenant B — assert it fails at every layer.</li>
+    <li><strong>Validate freshness:</strong> measure end-to-end lag on the speed layer under peak load; confirm p95 &lt; 5 minutes.</li>
+  </ul>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="platform">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 12 — AWS vs MICROSOFT FABRIC</span>The recommendation</h2>
+  <p class="lede reveal">Both can build this. The honest answer names the deciding factor — team and ecosystem — rather than declaring one universally "better."</p>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>Dimension</th><th>AWS</th><th>Microsoft Fabric</th></tr></thead>
+    <tbody>
+      <tr><td>Ingestion</td><td>Kinesis / MSK → S3; Glue or EMR/Databricks</td><td>Event Streams → OneLake; Spark notebooks built in</td></tr>
+      <tr><td>Lake + table format</td><td>S3 + Iceberg/Delta, engine-agnostic</td><td>OneLake + Delta, unified by default</td></tr>
+      <tr><td>Transform</td><td>EMR/Glue Spark, or Databricks</td><td>Fabric Spark (managed, less tuning)</td></tr>
+      <tr><td>Serving + BI</td><td>Redshift/Athena + QuickSight or 3rd-party</td><td>Warehouse + Power BI, tightly integrated</td></tr>
+      <tr><td>Tenant isolation</td><td>Mature, granular IAM + S3 prefixes/buckets</td><td>Workspaces + OneLake security, newer</td></tr>
+      <tr><td>Freshness</td><td>Kinesis + Flink/Spark, proven at scale</td><td>Real-Time Intelligence (KQL), very strong for this</td></tr>
+    </tbody>
+  </table>
+
+  <div class="verdict reveal">
+    <h3>Recommendation</h3>
+    <p style="font-size:17px; margin-bottom:12px;"><strong>Default to AWS</strong> for this system. The two hardest requirements — <em>structural tenant isolation with no single point of failure</em>, and <em>proven multi-tenant scale</em> — are exactly where AWS's mature, granular IAM and battle-tested S3/streaming primitives shine. You get engine-agnostic storage (Iceberg/Delta on S3), independent scaling of ingest, transform and serving, and the finest-grained isolation controls available.</p>
+    <p style="font-size:17px;"><strong>Choose Microsoft Fabric if</strong> the organization is already Microsoft/Power BI-centric and the team is small. Fabric collapses ingest → OneLake → transform → Power BI into one governed SaaS surface with far less glue code, and its Real-Time Intelligence tier handles the 5-minute requirement elegantly. The trade-off you name: less granular control and a younger multi-tenant isolation story — acceptable when time-to-value and a unified BI experience outweigh maximum control.</p>
+  </div>
+  <p class="reveal"><strong>The senior move</strong> is to make the recommendation conditional on the team and existing stack, not to memorize "AWS wins." Say which factor would flip your answer — that's what a Data Architect is paid for.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="oneminute">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 13 — THE ONE-MINUTE ANSWER</span>If they cut you off</h2>
+  <div class="qcard reveal">
+    <p class="qtext">"I'd land the raw JSON immutably in a bronze lake partitioned by tenant, record type and date — schema-on-read so drift never breaks ingestion. Spark structured streaming promotes it to typed silver (one path per record type, additive schema evolution on Iceberg or Delta) and pre-aggregated gold rollups for trends, while raw silver stays partitioned tenant-first for fast drill-down and export. A scoped speed layer feeds only the ≤5-minute dashboards and is reconciled by batch. Isolation is structural and layered: per-tenant storage prefixes, per-tenant scoped credentials, row-level security keyed off the auth token — never the request — and CI tests that try to cross tenants and must fail. Timestamps stored in UTC, presented per-tenant local. Hot data in the warehouse, warm on object storage, cold in an archive tier, all still retrievable. Onboarding is a config row, not a deploy. I'd build it on AWS for the granular IAM and proven multi-tenant scale — unless the shop is Microsoft-and-Power-BI-first with a small team, where Fabric's unified surface and Real-Time Intelligence win."</p>
+    <div class="qmeta"><span>~60 SECONDS</span><span>HITS ALL 8 SUB-QUESTIONS</span><span>ENDS ON A DECISION</span></div>
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section id="mistakes">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 14 — COMMON MISTAKES</span>What tanks this answer</h2>
+  <div class="mistake-card reveal"><strong>Rigid schema at ingestion.</strong> Designing typed tables the JSON must conform to — then getting paged on every vendor build. Land raw first.</div>
+  <div class="mistake-card reveal"><strong>Making everything real-time.</strong> Turning the whole pipeline streaming to satisfy a small ≤5-min subset. Scope the speed layer.</div>
+  <div class="mistake-card reveal"><strong>Policy-only isolation.</strong> Relying on one RLS predicate — a single misconfig leaks. The prompt explicitly forbids this; use defense in depth.</div>
+  <div class="mistake-card reveal"><strong>tenant_id from the request.</strong> Trusting a client-supplied tenant id instead of the auth token — the most common real-world multi-tenant breach.</div>
+  <div class="mistake-card reveal"><strong>Date-only partitioning.</strong> Ignoring tenant skew so the biggest tenant degrades everyone. Partition tenant-first.</div>
+  <div class="mistake-card reveal"><strong>Local time in storage.</strong> Baking per-tenant zones into stored timestamps, making 16 months of history un-reinterpretable.</div>
+  <div class="mistake-card reveal"><strong>"AWS is better."</strong> Declaring a winner without naming the deciding factor. The recommendation must be conditional and justified.</div>
+</div>
+</section>
+
+<hr class="rule">
+
+<div class="community-ribbon">
+  ◆ <strong>This was a community submission.</strong> Just finished an interview? Share the question that stumped you — anonymous or credited. <a href="/interview.app/submit/" style="color:#0e7490;font-weight:600;">Share a question →</a> &nbsp;|&nbsp; <a href="index.html" style="color:#0e7490;font-weight:600;">← Design Index</a>
+</div>
+
+<script>
+(function(){
+  if(!('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+})();
+</script>
+
+<div class="back-home"><a href="https://paddyspeaks.com" target="_blank">← paddyspeaks.com</a></div>
+<div class="scroll-btns"><a href="#top" title="Back to top">↑</a><a href="#bottom" title="Go to bottom">↓</a></div>
+<div id="bottom"></div>
+</body>
+</html>
