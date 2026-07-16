@@ -11,7 +11,13 @@ from datetime import date
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
-SHEET_ID = os.environ.get("GSHEET_ID", "1BYny8ItNMfwtFViQCuHxCNEksw8_lJ3u4xPxPn64C_o")
+# Full "Publish to web" CSV URL for the Form Responses sheet. Published URLs
+# (/pub?...output=csv) are anonymously readable; the older /export endpoint is
+# not, even with "anyone with link" sharing — hence this indirection.
+GSHEET_CSV_URL = os.environ.get(
+    "GSHEET_CSV_URL",
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQR6l6cmujYC5HRzDwQAoz2OYhjhBber7xVmR5_J6ZMhW14nUpV126DM4Vu2-MEgNZdmgX7aI6iEaAC/pub?gid=399863191&single=true&output=csv",
+)
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
 DATA_DIR = "interview.app/evaluate/data"
@@ -50,8 +56,7 @@ def save_state(state):
 
 
 def fetch_sheet_rows():
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    with urlopen(url) as resp:
+    with urlopen(GSHEET_CSV_URL) as resp:
         content = resp.read().decode("utf-8")
     reader = csv.DictReader(io.StringIO(content))
     return list(reader)
