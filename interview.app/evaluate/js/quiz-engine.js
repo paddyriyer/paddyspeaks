@@ -304,6 +304,14 @@ function isNew(q) {
   return added >= cutoff;
 }
 
+function isCommunity(q) {
+  return q.source === "community";
+}
+
+function communityBadge(q) {
+  return isCommunity(q) ? `<span class="q-pill q-community" title="Shared by a member of the community">◆ Community</span>` : "";
+}
+
 function renderQuestion(q) {
   const root = document.getElementById("q-card");
   const newBadge = isNew(q) ? `<span class="q-pill q-new">✦ New</span>` : "";
@@ -312,6 +320,7 @@ function renderQuestion(q) {
       <span class="q-pill q-type-${q.type}">${q.type === "single" ? "Single choice" : q.type === "multi" ? "Multi-select" : q.type === "code" ? "Code" : "Open answer"}</span>
       <span class="q-pill q-diff-${q.difficulty}">${q.difficulty}</span>
       <span class="q-pill">${escapeHTML(q.topic)}</span>
+      ${communityBadge(q)}
       ${newBadge}
     </div>
   `;
@@ -980,6 +989,7 @@ function renderReviewItem(q, idx) {
       <span class="q-pill q-type-${q.type}">${q.type}</span>
       <span class="q-pill q-diff-${q.difficulty}">${q.difficulty}</span>
       <span class="q-pill">${escapeHTML(q.topic)}</span>
+      ${communityBadge(q)}
       ${isNew(q) ? `<span class="q-pill q-new">✦ New</span>` : ""}
     </div>
     <div class="review-q">${formatPrompt(q.prompt)}</div>

@@ -38,7 +38,8 @@ TOPIC_MAP = {
 
 SYSTEM = """You are an expert data engineering interviewer.
 A community member submitted a raw interview question they encountered.
-Your job is to turn it into a clean, well-structured multiple-choice quiz question.
+Turn it into either a clean multiple-choice question or, for open-ended design
+questions, an open question with a strong model answer.
 Return ONLY valid JSON — no prose, no markdown fences."""
 
 
@@ -87,7 +88,7 @@ def format_question(client, raw_question, topic, difficulty, company):
     placeholder_id = f"{prefix}-new-{next_id(data['questions'], prefix):03d}"
 
     company_ctx = f" (asked at {company})" if company and company.strip() else ""
-    diff_ctx = f" Target difficulty: {difficulty}." if difficulty and difficulty.strip() else ""
+    diff_ctx = f" Suggested difficulty: {difficulty}." if difficulty and difficulty.strip() else ""
 
     prompt = f"""A community member submitted this raw interview question{company_ctx}:{diff_ctx}
 
@@ -95,9 +96,11 @@ def format_question(client, raw_question, topic, difficulty, company):
 {raw_question}
 ---
 
-Convert it into a clean multiple-choice quiz question with exactly 4 options, one correct answer, and a clear explanation.
+Decide the best format for this question, then return a single JSON object.
 
-Return a single JSON object with exactly these fields:
+CHOOSE ONE:
+
+(A) If it can fairly be answered with a single best choice, make a MULTIPLE-CHOICE question with exactly 4 options:
 {{
   "id": "{placeholder_id}",
   "type": "single",
@@ -111,13 +114,27 @@ Return a single JSON object with exactly these fields:
   "source": "community"
 }}
 
-If the submission is too vague, off-topic, or not a real interview question, return:
+(B) If it is an open-ended design / architecture / "how would you approach" question that cannot honestly be reduced to one correct choice, make an OPEN question with a strong model answer:
+{{
+  "id": "{placeholder_id}",
+  "type": "open",
+  "topic": "<specific sub-topic within {topic}>",
+  "difficulty": "easy" | "medium" | "hard",
+  "added_date": "{TODAY}",
+  "prompt": "<the question text, cleaned up, preserving the scenario and all sub-questions>",
+  "model_answer": "<a thorough model answer a strong senior candidate would give: the approach, key trade-offs, and what a great answer covers. Use short paragraphs and bullet-style lines separated by \\n. 150-400 words.>",
+  "source": "community"
+}}
+
+Prefer (B) for system-design, data-modeling, architecture, and multi-part scenario questions — do NOT force those into multiple choice.
+
+Only if the submission is spam, empty, or clearly not an interview question, return:
 {{"skip": true, "reason": "<why>"}}
 """
 
     resp = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
+        max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
         system=SYSTEM,
     )
@@ -187,6 +204,20 @@ def main():
 
         if result.get("skip"):
             print(f"  SKIPPED by Claude: {result.get('reason')}")
+            processed.add(key)
+            continue
+
+        # Validate shape per type before trusting it
+        qtype = result.get("type")
+        valid = (
+            qtype == "single" and isinstance(result.get("options"), list)
+            and len(result["options"]) == 4 and isinstance(result.get("answer"), int)
+        ) or (
+            qtype == "open" and isinstance(result.get("model_answer"), str)
+            and result["model_answer"].strip()
+        )
+        if not valid or not result.get("prompt"):
+            print(f"  SKIP — malformed {qtype} result")
             processed.add(key)
             continue
 
