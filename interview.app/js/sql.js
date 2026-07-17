@@ -220,7 +220,7 @@ function detectSqliteOnly(sql) {
 async function ensureEngine(kind) {
   if (state.enginesByKind[kind]) return state.enginesByKind[kind];
   if (kind === "postgres") {
-    setStatus("Loading PostgreSQL engine (PGlite, ~3 MB)…");
+    setStatus("Loading PostgreSQL engine (PGlite, ~14 MB — first load only)…");
     const eng = new PgliteEngine();
     await eng.init();
     state.enginesByKind[kind] = eng;

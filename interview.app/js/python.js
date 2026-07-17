@@ -69,7 +69,7 @@ function clearOutput() {
 
 // ─── Pyodide bootstrap ───
 async function initPyodide() {
-  setStatus("Loading Pyodide (~6 MB WASM)…");
+  setStatus("Loading Pyodide (~10 MB — first load only, then cached)…");
   if (typeof window.loadPyodide !== "function") {
     throw new Error("Pyodide failed to load — check your network or ad blocker.");
   }
