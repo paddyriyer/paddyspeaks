@@ -52,6 +52,43 @@
   </div>
 </header>
 
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move"><h4>The senior move</h4><p>Store the recurrence as an <code>rrule</code> in local wall-clock time and derive the UTC instant per occurrence — never freeze each occurrence to UTC, or the next clock change slides the whole series an hour.</p></div>
+        <div class="tldr-cell"><h4>Core tables</h4><ul><li><code>events</code> — one overloaded table: single, recurring master (<code>rrule</code>), and per-instance override.</li><li><code>event_attendees</code> — per-person RSVP; an override carries its own attendee set.</li><li><code>users</code> / <code>calendars</code> — identity and unit of sharing; <code>version</code> is the cache key.</li><li><code>calendar_changelog</code> — the ordered change stream; <code>seq</code> is the sync token.</li></ul></div>
+        <div class="tldr-cell"><h4>Key SQL</h4><ul><li>Two-SELECT window scan → masters/singles, overrides overlaid</li><li>Gaps-and-islands over slot bitmap → find-a-time</li><li>Conditional aggregation over the exception ledger → recurrence health</li><li>Optimistic CAS on <code>version</code> → concurrent edits</li></ul></div>
+        <div class="tldr-cell tldr-trap"><h4>The trap</h4><p>Freezing an occurrence to a UTC instant lets DST move a million stand-ups; and a crafted <code>FREQ=MINUTELY</code> rule expands to millions of rows without a window cap.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="question">
   <div class="wrap">
     <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One row, infinite meetings</h2>
@@ -63,7 +100,7 @@
       <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
     </div>
 
-    <p class="dropcap reveal">Two facts make this hard, and both are facts about <em>data</em>, not about the web tier. First, a recurring event is one row that denotes an unbounded number of occurrences — "every weekday, forever" is a single record and an infinite series. Second, the correct time of an event is a moving target: a 9:00&nbsp;AM stand-up has to stay 9:00&nbsp;AM <em>after</em> the clocks change, which means you cannot freeze it to a UTC instant and walk away. Layer invitations and "find a time across ten people" on top, and you have a read-heavy, latency-bound system where the bugs are measured in missed meetings. The weak answer draws a load balancer and three app servers. The strong answer names the forces that will deform the design first, because every later decision exists to survive one of them.</p>
+    <p class="dropcap reveal">Two facts make this hard, and both are about <em>data</em>, not the web tier. First, a recurring event is one row denoting an unbounded number of occurrences — "every weekday, forever" is a single record and an infinite series. Second, the correct time is a moving target: a 9:00&nbsp;AM stand-up must stay 9:00&nbsp;AM <em>after</em> the clocks change, so you cannot freeze it to a UTC instant and walk away. Add invitations and "find a time across ten people" and you have a read-heavy, latency-bound system where the bugs are missed meetings. The strong answer names the forces that will deform the design first, because every later decision exists to survive one of them.</p>
 
     <p class="reveal">There are exactly four forces, and they are not the usual suspects. So before any boxes and arrows, the working frame for the whole session:</p>
 
@@ -337,7 +374,7 @@
     <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>The rule lives in local time; UTC is derived</h2>
     <p class="lede reveal">Every correctness guarantee in this system collapses to one ordering: a recurrence is iterated in <em>local wall-clock</em> time, and the UTC instant is computed per occurrence afterward. Get that ordering backward — freeze each occurrence to UTC up front — and the next daylight-saving transition silently slides the whole series by an hour.</p>
 
-    <p class="reveal">Consider the canonical case. A 9:00&nbsp;AM Pacific stand-up is 17:00&nbsp;UTC in winter and 16:00&nbsp;UTC in summer, because <span class="m">America/Los_Angeles</span> is UTC−8 under standard time and UTC−7 under daylight time. If the system had stored each occurrence as a UTC instant, the spring-forward boundary would leave half the series at 17:00Z and half at 16:00Z — and on the morning the clocks changed, everyone would show up an hour wrong. Storing local time and deriving UTC makes the right answer automatic: the wall-clock never moves, and the offset is recomputed from the zone database, which is the only thing that knows the transition dates.</p>
+    <p class="reveal">Consider the canonical case. A 9:00&nbsp;AM Pacific stand-up is 17:00&nbsp;UTC in winter and 16:00&nbsp;UTC in summer, because <span class="m">America/Los_Angeles</span> is UTC−8 under standard time and UTC−7 under daylight time. Store each occurrence as a UTC instant and the spring-forward boundary leaves half the series at 17:00Z and half at 16:00Z — on the morning the clocks change, everyone shows up an hour wrong. Storing local time and deriving UTC makes the right answer automatic: the wall-clock never moves, and the offset is recomputed from the zone database, the only thing that knows the transition dates.</p>
 
     <h3 class="reveal">The three edits, one primitive</h3>
     <p class="reveal">A recurring event is one logical record but unbounded physical occurrences, and the model has to survive three kinds of edit. All three reduce to the same primitive — an <strong>exception row</strong>, a child pointing at the master via <span class="m">parent_event_id</span>, tagged with the <span class="m">recurrence_id</span> of the occurrence it is about.</p>

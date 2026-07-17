@@ -52,6 +52,42 @@
   </div>
 </header>
 
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move"><h4>The senior move</h4><p>Keep the four stages as four facts threaded by one <code>auction_decision_id</code> minted at clearing — and make attribution a <strong>derived, append-only</strong> fact tagged with <code>attribution_run_id</code>, so re-deciding the past is a new run, not a rebuild.</p></div>
+        <div class="tldr-cell"><h4>Core tables</h4><ul><li><code>fct_auctions</code> → <code>fct_impressions</code> → <code>fct_clicks</code> → <code>fct_conversions</code> — the chain.</li><li><code>fct_attributions</code> — conv × touchpoint × model × run.</li><li><code>fct_auction_losers</code> — 1% sample, <code>sample_weight</code>.</li></ul></div>
+        <div class="tldr-cell"><h4>Key SQL</h4><ul><li>Join on <code>auction_decision_id</code> → no timestamp séance</li><li><code>PARTITION BY conversion_id</code> → credit sums to 1</li><li>New <code>run_id</code> over same events → re-attribution</li><li><code>sample_weight</code> reweight → honest ranker training</li></ul></div>
+        <div class="tldr-cell tldr-trap"><h4>The trap</h4><p>Collapsing the four stages into one event and fuzzy-joining clicks to conversions on user + time — then overwriting clicks/attribution so yesterday's billing can never be reproduced.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="question">
   <div class="wrap">
     <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One key, four facts, a causal chain</h2>
@@ -63,7 +99,7 @@
       <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
     </div>
 
-    <p class="dropcap reveal">The trap is to model the four stages as one event. They are not: they are four facts at violently different cardinalities and tempos. Two billion auctions a day clear in under a hundred milliseconds each; roughly a hundred ads compete in every one of them and exactly one wins, so the losing candidates outnumber the winners twentyfold. Impressions follow auctions, clicks follow impressions at a few percent, conversions follow clicks hours or days later — and the click can be invalidated by bot-detection that runs long after billing thought it was done. Collapse this into one table and the join becomes a timestamp-matching séance; keep it as four and you need one thing above all: a key that is born once and travels the whole way down.</p>
+    <p class="dropcap reveal">The trap is to model the four stages as one event. They are not: they are four facts at violently different cardinalities and tempos. Two billion auctions a day clear in under a hundred milliseconds each; roughly a hundred ads compete and exactly one wins, so losers outnumber winners twentyfold. Impressions follow auctions, clicks follow impressions at a few percent, conversions follow clicks hours or days later — and the click can be invalidated by bot-detection that runs long after billing thought it was done. Collapse this into one table and the join becomes a timestamp-matching séance; keep it as four and you need one thing above all: a key that is born once and travels the whole way down.</p>
 
     <p class="reveal">A weak answer fuzzy-joins clicks to conversions on user and time and calls attribution a pipeline. A strong answer notices that attribution is not <em>collected</em>, it is <em>computed</em> — and that the moment a model changes, you must be able to recompute it over the same raw events without losing the old answer. So before any tables, the frame for the session:</p>
 
@@ -245,7 +281,7 @@
 <span class="ck">CREATE INDEX</span> idx_imp_decision <span class="ck">ON</span> fct_impressions (auction_decision_id);</div>
 
     <h3 class="reveal">The click and the conversion</h3>
-    <p class="reveal">The click is the chain's one mutable-by-append fact. It is born clean, and bot-detection may later mark it invalid — but the model never overwrites it. <span class="m">is_invalid</span> flips to TRUE with an <span class="m">invalidation_ts</span>, so the billing history that charged the advertiser yesterday remains reproducible while today's credit is corrected. The conversion is the tail: an advertiser-reported event with a value, arriving hours or days after the click, owning no knowledge of which touchpoint earned it — that is attribution's job.</p>
+    <p class="reveal">The click is the chain's one mutable-by-append fact. Born clean, it may later be marked invalid by bot-detection — but the model never overwrites it. <span class="m">is_invalid</span> flips to TRUE with an <span class="m">invalidation_ts</span>, so yesterday's billing stays reproducible while today's credit is corrected. The conversion is the tail: an advertiser-reported event with a value, arriving hours or days later, knowing nothing of which touchpoint earned it — that is attribution's job.</p>
 
     <div class="codelabel">DDL · CLICK (SLOWLY-CHANGING) + CONVERSION</div>
     <div class="codeblock"><span class="cl">-- The click. Validation is asynchronous: bot-detection runs for hours
@@ -270,7 +306,7 @@
 );</div>
 
     <h3 class="reveal">Attribution as an append-only fact</h3>
-    <p class="reveal">This is the table that makes the system senior. It is not collected — it is the materialized output of running a model over the chain. One row per <span class="m">(conversion × eligible-touchpoint × model × run)</span>, partitioned by <span class="m">attribution_run_id</span>. The same conversion appears under <span class="m">MODEL_LAST_CLICK</span> with credit 1.0 and under <span class="m">MODEL_DDA_v3</span> with a fractional credit, in the same run, never destroying the other. Re-attributing a quarter when the model upgrades is a new run id over the same immutable events — the old run is preserved, and an advertiser can compare the two side by side.</p>
+    <p class="reveal">This is the table that makes the system senior. Not collected — the materialized output of running a model over the chain. One row per <span class="m">(conversion × eligible-touchpoint × model × run)</span>, partitioned by <span class="m">attribution_run_id</span>. The same conversion appears under <span class="m">MODEL_LAST_CLICK</span> at credit 1.0 and under <span class="m">MODEL_DDA_v3</span> at a fractional credit, in the same run, neither destroying the other. Re-attributing a quarter when the model upgrades is a new run id over the same immutable events — the old run survives, and an advertiser can compare the two side by side.</p>
 
     <div class="codelabel">DDL · ATTRIBUTION (DERIVED · APPEND-ONLY) + LOSERS</div>
     <div class="codeblock"><span class="cl">-- The crux. NOT ingested -- computed. One row per (conversion x
@@ -298,7 +334,7 @@
     sample_weight        INT          <span class="ck">NOT NULL DEFAULT</span> 100   <span class="cl">-- 1 / 0.01</span>
 );</div>
 
-    <p class="reveal">The dimensions are conformed and mostly SCD2, because the chain spans days and budgets drift hourly. <span class="m">dim_advertisers</span>, <span class="m">dim_campaigns</span>, <span class="m">dim_ad_groups</span>, and <span class="m">dim_creatives</span> all version their attributes so a quality-score regression can be debugged against the creative that was live <em>at impression time</em>, not the one live today. <span class="m">dim_keywords</span> is SCD1 and high-cardinality — its history is not worth the storage. <span class="m">dim_attribution_models</span> is SCD2 and is the keystone of re-attribution: the model is a versioned row, so "last-click vs data-driven" is a join, not an ETL fork. And <span class="m">dim_users</span> is privacy-tokenized — never a raw user id, only a token and a privacy path.</p>
+    <p class="reveal">The dimensions are conformed and mostly SCD2, because the chain spans days and budgets drift hourly. <span class="m">dim_advertisers</span>, <span class="m">dim_campaigns</span>, <span class="m">dim_ad_groups</span>, and <span class="m">dim_creatives</span> version their attributes, so a quality-score regression can be debugged against the creative live <em>at impression time</em>, not today's. <span class="m">dim_keywords</span> is SCD1 and high-cardinality — its history isn't worth the storage. <span class="m">dim_attribution_models</span> is SCD2 and the keystone of re-attribution: the model is a versioned row, so "last-click vs data-driven" is a join, not an ETL fork. And <span class="m">dim_users</span> is privacy-tokenized — never a raw user id, only a token and a privacy path.</p>
   </div>
 </section>
 

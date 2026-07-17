@@ -52,6 +52,43 @@
   </div>
 </header>
 
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move"><h4>The senior move</h4><p>Model the tree hybrid — <code>parent_account_id</code> for cheap writes, <code>materialized_path</code> for fast reads — and make <code>org_id</code> the partition key, index-leader, and RLS subject so isolation survives a forgotten <code>WHERE</code>.</p></div>
+        <div class="tldr-cell"><h4>Core tables</h4><ul><li><code>dim_account</code> — recursive dimension, parent_id + path, SCD2.</li><li><code>fct_opportunity_stage_change</code> — append-only pipeline spine, no current_stage.</li><li><code>fct_account_arr_snapshot</code> — daily ARR, the rollup substrate.</li><li><code>bridge_account_user_access</code> — sharing cascade.</li></ul></div>
+        <div class="tldr-cell"><h4>Key SQL</h4><ul><li>Recursive CTE + depth fuse → correct rollup, <code>DISTINCT</code> no double-count</li><li><code>path LIKE '/JPM/%'</code> → instant subtree scan</li><li><code>ROW_NUMBER</code> latest event → current stage</li><li><code>LEAD</code> over transitions → time-in-stage</li></ul></div>
+        <div class="tldr-cell tldr-trap"><h4>The trap</h4><p>Trusting the app to add <code>WHERE org_id</code> — one forgotten filter leaks another tenant's pipeline. Put the wall in the database, not code.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="question">
   <div class="wrap">
     <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One table, every customer, a tree inside</h2>
@@ -63,7 +100,7 @@
       <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
     </div>
 
-    <p class="dropcap reveal">The two halves of this question pull in opposite directions, and a senior answer names that tension first. The <strong>hierarchy</strong> wants flexibility: enterprises re-org constantly, a subsidiary gets sold, a division is folded in, and the tree must bend without a migration. A revenue rollup that does not aggregate up the tree is simply wrong — JP Morgan's number is the sum of its hundred children — but one that aggregates carelessly double-counts a subsidiary that appears under two parents. The <strong>multi-tenancy</strong> wants rigidity: every Salesforce customer's rows live in the same physical tables, separated only by an <span class="m">org_id</span>, and one query that forgets the filter reads someone else's book of business. That is not a bug you log and fix next sprint — it is an existential, contract-ending breach. Flexibility and rigidity, in the same schema, is the whole assignment.</p>
+    <p class="dropcap reveal">The two halves pull in opposite directions, and a senior answer names that tension first. The <strong>hierarchy</strong> wants flexibility: enterprises re-org constantly — a subsidiary sold, a division folded in — and the tree must bend without a migration. A rollup that does not aggregate up the tree is simply wrong (JP Morgan's number is the sum of its hundred children), but one that aggregates carelessly double-counts a subsidiary under two parents. The <strong>multi-tenancy</strong> wants rigidity: every Salesforce customer's rows share the same physical tables, separated only by an <span class="m">org_id</span>, and one query that forgets the filter reads someone else's book of business. That is not a next-sprint bug — it is an existential, contract-ending breach. Flexibility and rigidity, in one schema, is the whole assignment.</p>
 
     <p class="reveal">A weak answer stores <span class="m">current_stage</span> as a column on the opportunity and trusts the application to add the tenant filter. A strong answer notices that current state is a lossy projection of an event stream, and that tenant isolation cannot live in application code where a single forgotten <span class="m">WHERE</span> clause defeats it. So before any boxes and arrows, the working frame for the whole session:</p>
 
