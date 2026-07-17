@@ -52,6 +52,42 @@
   </div>
 </header>
 
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move"><h4>The senior move</h4><p>The calendar is not a state you mutate, it is a fact you snapshot: put <code>snapshot_date</code> in the primary key of <code>fct_calendar_nights</code> and time-travel becomes a <code>WHERE</code> clause instead of an archaeology project.</p></div>
+        <div class="tldr-cell"><h4>Core tables</h4><ul><li><code>fct_calendar_nights</code> — one row per (listing × night × snapshot); the time machine, ~2.5B rows/day.</li><li><code>fct_bookings</code> — append-only lifecycle; a modification forks via <code>parent_booking_id</code>, never an UPDATE.</li><li><code>fct_reviews</code> + <code>fct_host_payouts</code> — settlement; bilateral reviews, payout only after a stay.</li><li><code>dim_cancellation_policies</code> — the refund curve stored as data.</li></ul></div>
+        <div class="tldr-cell"><h4>Key SQL</h4><ul><li><code>snapshot_date</code> in the PK → price on any night, as seen on any day.</li><li>Refund locked once at cancel time into <code>refund_amount_usd</code>.</li><li>SCD2 as-of join → the listing as it was, not as it is.</li><li>Idempotent payout close (<code>NOT EXISTS</code>) → pay the host once.</li></ul></div>
+        <div class="tldr-cell tldr-trap"><h4>The trap</h4><p>A mutable calendar you <code>UPDATE</code> in place forgets the past — overwrite yesterday's price and the pricing team's core question is unanswerable forever.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="question">
   <div class="wrap">
     <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>A booking app that is secretly a time machine</h2>

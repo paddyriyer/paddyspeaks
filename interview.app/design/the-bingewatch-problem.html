@@ -52,6 +52,42 @@
   </div>
 </header>
 
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move"><h4>The senior move</h4><p>Never let a play wait on its metadata. Store the bare <code>episode_id</code> on <code>fct_play_event</code> and resolve the title at read time — the fact lands unconditionally, the dimension catches up.</p></div>
+        <div class="tldr-cell"><h4>Core tables</h4><ul><li><code>fct_play_event</code> — the firehose, ~15B/day, one row per play start; carries both <code>account_id</code> and <code>profile_id</code>.</li><li><code>dim_episode</code>→season→series→franchise — SCD2 content tree.</li><li><code>fct_binge_session</code> / <code>fct_series_streak</code> — derived nightly, materialized.</li><li><code>fct_play_heartbeat</code> — QoE, ~8× volume, downsampled.</li></ul></div>
+        <div class="tldr-cell"><h4>Key SQL</h4><ul><li><code>LEFT JOIN</code> + <code>rn=1</code> + <code>COALESCE</code> → LAD-defensive read (orphan → "Pending Sync")</li><li>Temporal <code>BETWEEN</code> effective dates → as-of attribution</li><li><code>LAG</code> sessionization → per-session binge</li><li>date − <code>row_number()</code> → consecutive-day streaks</li></ul></div>
+        <div class="tldr-cell tldr-trap"><h4>The trap</h4><p>An <code>INNER JOIN</code> silently drops launch-night orphans — plays whose title hasn't propagated yet — and Content Strategy sees "zero views" on the biggest launch of the quarter.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="question">
   <div class="wrap">
     <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One sentence, four time horizons</h2>
@@ -63,7 +99,7 @@
       <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
     </div>
 
-    <p class="dropcap reveal">The trap is that all three sub-problems hide inside the word "play." A play event is dense, immutable, and arrives in a torrent. But the moment you ask anything interesting of it — <em>what</em> was watched, by <em>whom</em>, as part of <em>what behavior</em> — you discover three separate clocks. Content metadata propagates on its own schedule, regionally, over minutes to hours. The content hierarchy must roll up without double-counting, so that a subscriber who watches eight episodes is one series-bingewatcher and not eight series-views. And bingewatching itself is not a column you can write; it is a shape in the play stream that only exists once you have stitched a night's worth of sessions together. A junior answer reaches for a star schema and a <span class="m">risk_score</span>-shaped <span class="m">is_binge</span> flag. A senior answer notices that the fact arrives before its dimension, that the dimension changes underneath the fact, and that the behavior is downstream of both.</p>
+    <p class="dropcap reveal">The trap is that all three sub-problems hide inside the word "play." A play event is dense, immutable, and arrives in a torrent — but the moment you ask anything interesting of it (<em>what</em> was watched, by <em>whom</em>, as part of <em>what behavior</em>) you discover three separate clocks. Content metadata propagates regionally on its own schedule, over minutes to hours. The content hierarchy must roll up without double-counting, so a subscriber who watches eight episodes is one series-bingewatcher, not eight series-views. And bingewatching itself is not a column you can write; it is a shape in the play stream that exists only once you stitch a night's sessions together. A junior answer reaches for a star schema and an <span class="m">is_binge</span> flag. A senior answer notices that the fact arrives before its dimension, that the dimension changes underneath the fact, and that the behavior is downstream of both.</p>
 
     <p class="reveal">So before any boxes and arrows, the working frame for the session — three structural challenges that the schema has to hold simultaneously:</p>
 
@@ -76,7 +112,7 @@
     <div class="pull reveal">Keep every play, even the orphans. A view you dropped on launch night is a number that never comes back — and launch night is the only night that matters.</div>
 
     <h3 class="reveal">Scoping out loud</h3>
-    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you are building and what you are deliberately ignoring. Out of scope, said explicitly: the recommendation model itself (a consumer of these facts, not part of this design), the CDN and adaptive-bitrate delivery path, billing and payments, and the encode pipeline. In scope: the play fact and its companions, the content and subscriber dimensions, the late-arriving-dimension defense, the bingewatch and streak derivations, and the analytics surface those feed. One caveat, volunteered: the design should not preclude the password-sharing analysis that Trust &amp; Safety will ask for later — which means the account and the profile must both live on every play row from day one.</p>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you build and what you deliberately ignore. Out of scope: the recommendation model itself (a consumer of these facts, not part of this design), the CDN and adaptive-bitrate path, billing and payments, and the encode pipeline. In scope: the play fact and its companions, the content and subscriber dimensions, the late-arriving-dimension defense, the bingewatch and streak derivations, and the analytics surface they feed. One caveat, volunteered: the design must not preclude the password-sharing analysis Trust &amp; Safety will ask for later — so the account and the profile both live on every play row from day one.</p>
 
     <p class="reveal">Then the envelope math, offered rather than extracted. Netflix-shaped numbers:</p>
 
@@ -199,7 +235,7 @@
     </div>
   </div>
   <div class="wrap">
-    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the collector validates <em>shape</em> and nothing else — it never calls the content service to confirm the episode exists, because a regional metadata miss at 175 K events per second would either block the firehose or drop the launch. <strong>Second,</strong> the fact stores <span class="m">episode_id</span> and only <span class="m">episode_id</span> — the immutable identity — never the title, never the series name; every human-readable attribute is resolved by joining the dimension at query time. <strong>Third,</strong> the dashed line is dashed on purpose: the marriage of fact and dimension is deferred to the read path, where a missing or stale title degrades into a labeled placeholder rather than a dropped row.</p>
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the collector validates <em>shape</em> and nothing else — it never calls the content service to confirm the episode exists, because a regional metadata miss at 175 K events per second would block the firehose or drop the launch. <strong>Second,</strong> the fact stores <span class="m">episode_id</span> and only <span class="m">episode_id</span> — the immutable identity — never the title or series name; every human-readable attribute is resolved by joining the dimension at query time. <strong>Third,</strong> the dashed line is deliberate: the marriage of fact and dimension is deferred to the read path, where a missing or stale title degrades into a labeled placeholder rather than a dropped row.</p>
 
     <div class="note reveal">
       <div class="nh">The Failure Philosophy, In One Rule</div>
@@ -261,7 +297,7 @@
 <span class="ck">CREATE INDEX</span> idx_episode_id <span class="ck">ON</span> dim_episode (episode_id, effective_from <span class="ck">DESC</span>);</div>
 
     <h3 class="reveal">The subscriber: account above, profile below</h3>
-    <p class="reveal">Netflix's identity model is unusual and load-bearing: one billing account, up to five profiles. Billing, plan tier, and payment events are account-grain — they cross profile boundaries. Every play, search, browse, and rating is profile-grain. The rule that makes everything downstream tractable is that <strong>both keys live on every play row</strong> — never just one. Roll up "minutes per account" and you simply sum without re-joining; ask "which profiles on this account watched from incompatible geographies" and the password-sharing analysis is a <span class="m">GROUP BY</span>, not a join puzzle.</p>
+    <p class="reveal">Netflix's identity model is unusual and load-bearing: one billing account, up to five profiles. Billing, plan tier, and payments are account-grain — they cross profile boundaries. Every play, search, browse, and rating is profile-grain. The rule that makes everything downstream tractable is that <strong>both keys live on every play row</strong>, never just one. "Minutes per account" is then a sum with no re-join; "which profiles on this account watched from incompatible geographies" makes the password-sharing analysis a <span class="m">GROUP BY</span>, not a join puzzle.</p>
 
     <div class="codelabel">DDL · ACCOUNT / PROFILE DUAL KEY (SCD2)</div>
     <div class="codeblock"><span class="ck">CREATE TABLE</span> dim_account (
@@ -283,7 +319,7 @@
 );                                                <span class="cl">-- &le; 5 profiles per account</span></div>
 
     <h3 class="reveal">The facts: one raw firehose, one companion, two derivations</h3>
-    <p class="reveal">The grain of <span class="m">fct_play_event</span> is one row per playback session start. It is append-only and partitioned by <span class="m">play_date</span> so that launch night is one hot partition and last year is cold Parquet. Critically it carries <span class="m">account_id</span> <em>and</em> <span class="m">profile_id</span>, the bare <span class="m">episode_id</span> (no resolved title), and the wall-clock <span class="m">played_at</span> — which is the timestamp every temporal join will pivot on. Quality-of-experience telemetry — rebuffering, bitrate, startup latency — is an order of magnitude heavier, so it splits into <span class="m">fct_play_heartbeat</span> and is downsampled in the warehouse. The two derived facts, <span class="m">fct_binge_session</span> and <span class="m">fct_series_streak</span>, are computed nightly and materialized so that analyst queries read them rather than re-deriving them from fifteen billion rows.</p>
+    <p class="reveal">The grain of <span class="m">fct_play_event</span> is one row per playback session start. It is append-only and partitioned by <span class="m">play_date</span> so launch night is one hot partition and last year is cold Parquet. Critically it carries <span class="m">account_id</span> <em>and</em> <span class="m">profile_id</span>, the bare <span class="m">episode_id</span> (no resolved title), and the wall-clock <span class="m">played_at</span> — the timestamp every temporal join pivots on. Quality-of-experience telemetry — rebuffering, bitrate, startup latency — is an order of magnitude heavier, so it splits into <span class="m">fct_play_heartbeat</span> and is downsampled in the warehouse. The two derived facts, <span class="m">fct_binge_session</span> and <span class="m">fct_series_streak</span>, are computed nightly and materialized so analyst queries read them rather than re-derive from fifteen billion rows.</p>
 
     <div class="codelabel">DDL · FACT TABLES &amp; DERIVED FACTS</div>
     <div class="codeblock"><span class="cl">-- Grain: one row per playback session start. Append-only. 15B/day.
@@ -488,7 +524,7 @@ REQUIRED = (<span class="cs">"account_id"</span>, <span class="cs">"profile_id"<
     <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Bingewatching, derived two ways</h2>
     <p class="lede reveal">Bingewatching is not an event; it is a pattern in the play stream. There are two definitions, they answer different questions, and the schema must carry both without one re-writing the other. The craft is in the sessionization — and in the discipline of materializing nightly.</p>
 
-    <p class="reveal">The two definitions are not interchangeable. <strong>Per-session binge</strong> — three or more episodes of the same series within twenty-four hours, with gaps under thirty minutes — is the signal the auto-play algorithm tunes against: it captures a continuous sitting. <strong>Per-day binge</strong> — any three-plus episodes of the same series in a calendar day — is the marketing rollup: "what percentage of subscribers binged this month." Force them into one definition and you mislead one stakeholder to please the other. So both are derived facts, computed nightly, materialized so analysts never re-derive from the raw firehose.</p>
+    <p class="reveal">The two definitions are not interchangeable. <strong>Per-session binge</strong> — three or more episodes of the same series within twenty-four hours, gaps under thirty minutes — is what the auto-play algorithm tunes against: a continuous sitting. <strong>Per-day binge</strong> — any three-plus episodes of the same series in a calendar day — is the marketing rollup: "what percentage of subscribers binged this month." Force them into one definition and you mislead one stakeholder to please the other. So both are derived facts, computed nightly, materialized so analysts never re-derive from the raw firehose.</p>
 
     <p class="reveal">The per-session derivation is a sessionization — the canonical gaps-and-islands move applied to time. Partition the same-series plays by <span class="m">(account_id, profile_id, series_id)</span>, look back one row with <span class="m">LAG</span>, and start a new session every time the gap exceeds thirty minutes. A running sum of those session-start flags becomes the session id; group, count, and keep only the sittings of three or more.</p>
 

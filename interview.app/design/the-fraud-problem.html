@@ -52,6 +52,42 @@
   </div>
 </header>
 
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move"><h4>The senior move</h4><p>Fraud isn't a <code>risk_score</code> column — it's a graph resolved into components, with <code>ruleset_id</code>, <code>model_id</code>, and <code>feature_snapshot_id</code> frozen on every fact so a block replays six months later.</p></div>
+        <div class="tldr-cell"><h4>Core tables</h4><ul><li>Typed-strength identity <strong>edges</strong> → nightly <code>identity_cluster</code> rollup.</li><li><code>fact_transaction</code> — score, decision, three frozen IDs.</li><li>SCD2 frozen context: <code>dim_ruleset</code>, <code>dim_risk_model</code>, <code>dim_feature_snapshot</code>.</li><li>Union feedback fact reconciling analyst + chargeback labels.</li></ul></div>
+        <div class="tldr-cell"><h4>Key SQL</h4><ul><li>Connected-components → <code>cluster_id</code></li><li><code>LEAD</code> over sessions → impossible-travel velocity</li><li>Idempotent merge → late chargeback labels land</li><li>SCD2 effective-window lookup → decision replay</li></ul></div>
+        <div class="tldr-cell tldr-trap"><h4>The trap</h4><p>Let a weak edge (shared IP) leak into the ≥ 0.5 action set and hundreds of unrelated users chain into one false cluster; and labels arriving 30–180 days late must land somewhere, or the model rots silently.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="question">
   <div class="wrap">
     <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One model, five problems</h2>
@@ -63,7 +99,7 @@
       <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
     </div>
 
-    <p class="dropcap reveal">The junior answer stops at "a transaction table with a <span class="m">risk_score</span> column," and the interviewer knows it within thirty seconds, because that schema cannot answer any of the questions that actually matter. It cannot tell you that the account you just blocked shares a payment instrument with forty-seven others. It cannot reproduce <em>why</em> you blocked the September 14 transaction when the regulator asks in March. And it cannot learn, because the chargeback that proves you were right arrives ninety days after the decision and has nowhere to land. The senior signal is naming the five orthogonal sub-problems first, and noticing that three of them — the graph, the frozen decision context, and the feedback loop — are the parts the naive schema has no room for.</p>
+    <p class="dropcap reveal">The junior answer stops at "a transaction table with a <span class="m">risk_score</span> column," and the interviewer knows it within thirty seconds — that schema answers none of the questions that matter. It cannot tell you the account you just blocked shares a payment instrument with forty-seven others. It cannot reproduce <em>why</em> you blocked the September 14 transaction when the regulator asks in March. And it cannot learn: the chargeback that proves you right arrives ninety days later with nowhere to land. The senior signal is naming the five orthogonal sub-problems first, and seeing that three — the graph, the frozen decision context, and the feedback loop — are what the naive schema has no room for.</p>
 
     <p class="reveal">So before any boxes and arrows, the working frame for the session — five problems pretending to be one model:</p>
 
@@ -78,7 +114,7 @@
     <div class="pull reveal">The feedback loop matters more than the model. A model with no labels coming back is a model quietly rotting — and you will not see it in any dashboard until the fraud is already paid out.</div>
 
     <h3 class="reveal">Scoping out loud</h3>
-    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State the disambiguation up front, because conflating the three "identity ≠ account" patterns is the classic pitfall. In scope: the typed identity graph and its connected-component rollup, the frozen decision context for replay, the velocity and sharing detectors, and the label-reconciliation feedback fact. Out of scope, said explicitly: the model training code itself (a consumer of these tables), the real-time feature store internals, the case-management UI, and the choice of graph backend — Neo4j versus JanusGraph versus a Postgres recursive CTE — which is an implementation detail the schema is deliberately agnostic to. The thread tying scope together is defensibility: every decision the system makes must be reproducible and every outcome must flow back as a label.</p>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State the disambiguation up front, because conflating the three "identity ≠ account" patterns is the classic pitfall. In scope: the typed identity graph and its connected-component rollup, the frozen decision context for replay, the velocity and sharing detectors, and the label-reconciliation feedback fact. Out of scope, explicitly: the model training code (a consumer of these tables), the feature store internals, the case-management UI, and the graph backend — Neo4j versus JanusGraph versus a Postgres recursive CTE, which the schema is deliberately agnostic to. The thread is defensibility: every decision must be reproducible and every outcome must flow back as a label.</p>
 
     <p class="reveal">Then the envelope math, offered rather than extracted. Fintech-shaped numbers:</p>
 
@@ -206,7 +242,7 @@
     </div>
   </div>
   <div class="wrap">
-    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the cluster lookup on the decision path is a <em>read</em> of a precomputed component, never a live graph walk — at a sub-100ms budget you cannot traverse edges synchronously, so the connected-component job runs nightly and incrementally and the decision path simply reads a cluster id. <strong>Second,</strong> the decision freezes its own context as it writes: <span class="m">ruleset_id</span>, <span class="m">model_id</span>, and <span class="m">feature_snapshot_id</span> land on the fact row in the same transaction as the score, because a context reconstructed later is a context you cannot trust. <strong>Third,</strong> the feedback arrows are slow and they close the loop: analyst labels in hours, chargebacks in months, both flowing into a union fact that the retrain reads — the loop, not the model, is what keeps the system from rotting.</p>
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the cluster lookup on the decision path is a <em>read</em> of a precomputed component, never a live graph walk — at a sub-100ms budget you cannot traverse edges synchronously, so the connected-component job runs nightly and incrementally while the decision path just reads a cluster id. <strong>Second,</strong> the decision freezes its own context as it writes: <span class="m">ruleset_id</span>, <span class="m">model_id</span>, and <span class="m">feature_snapshot_id</span> land on the fact row in the same transaction as the score, because a context reconstructed later is one you cannot trust. <strong>Third,</strong> the feedback arrows are slow and close the loop: analyst labels in hours, chargebacks in months, both flowing into a union fact the retrain reads — the loop, not the model, keeps the system from rotting.</p>
 
     <div class="note reveal">
       <div class="nh">The Failure Philosophy, In One Rule</div>
@@ -253,7 +289,7 @@
 );</div>
 
     <h3 class="reveal">The identity graph — typed-strength edges, append-only</h3>
-    <p class="reveal">This is the part the naive schema has no room for, and the part the interviewer is really probing. Identity is not a row; it is a graph. Edges connect users to the things they share — devices, IPs, payment instruments — and each edge carries a <span class="m">edge_strength</span> that encodes how much that sharing means. Strong (1.0): the same payment instrument, the same KYC document hash, the same SIM. Medium (0.5): the same device fingerprint within twenty-four hours. Weak (0.2): the same IP within an hour, the same residential ASN within a week. The edges are append-only — you never un-observe a coincidence — and the strengths are what let the connected-component job draw the line between an action cluster and an advisory one.</p>
+    <p class="reveal">This is the part the naive schema has no room for, and what the interviewer is really probing. Identity is not a row; it is a graph. Edges connect users to the things they share — devices, IPs, payment instruments — and each carries an <span class="m">edge_strength</span> encoding how much that sharing means. Strong (1.0): the same payment instrument, KYC document hash, or SIM. Medium (0.5): the same device fingerprint within twenty-four hours. Weak (0.2): the same IP within an hour, the same residential ASN within a week. The edges are append-only — you never un-observe a coincidence — and the strengths are what let the connected-component job draw the line between an action cluster and an advisory one.</p>
 
     <div class="codelabel">DDL · IDENTITY-GRAPH EDGES + CLUSTER ROLLUP</div>
     <div class="codeblock"><span class="cl">-- Append-only typed edges. edge_strength is the whole game: it decides which
@@ -665,7 +701,7 @@ STRENGTH = {<span class="cs">"payment"</span>: 1.0, <span class="cs">"kyc_doc"</
     </div>
     <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story a working loop tells: replay coverage pinned at 100% so every decision is defensible, expansion hauls spiking on mule rings, outcome agreement healthy at 91% — but a false-positive rate drifting amber and a largest-component creeping up, two signals that want investigating before the next model ships.</div>
 
-    <p class="reveal" style="margin-top:36px">Read the amber and red tiles together and the dashboard narrates the two failure modes from §06 and §04. The largest component climbing toward 412 is the tell that a weak edge has leaked into the ≥ 0.5 action set — a single mislabeled <span class="m">device_fp</span> strength can chain hundreds of unrelated users into one false cluster, so it is investigated before the cluster job runs again. The chargeback-leakage tile glowing red is the truest alarm in the room: it is fraud the model <em>allowed</em>, surfacing 30–180 days later, and it is the number that justifies the whole feedback apparatus. Replay coverage at 100% is the quiet hero — it means every one of these decisions can be defended to a regulator. That is what a designed, auditable fraud system looks like from the operator's chair at three in the morning.</p>
+    <p class="reveal" style="margin-top:36px">Read the amber and red tiles together and the dashboard narrates the two failure modes from §06 and §04. The largest component climbing toward 412 is the tell that a weak edge has leaked into the ≥ 0.5 action set — a single mislabeled <span class="m">device_fp</span> strength can chain hundreds of unrelated users into one false cluster, so it is caught before the cluster job runs again. The chargeback-leakage tile glowing red is the truest alarm in the room: fraud the model <em>allowed</em>, surfacing 30–180 days later, the number that justifies the whole feedback apparatus. Replay coverage at 100% is the quiet hero — every one of these decisions can be defended to a regulator. That is what a designed, auditable fraud system looks like from the operator's chair at three in the morning.</p>
   </div>
 </section>
 

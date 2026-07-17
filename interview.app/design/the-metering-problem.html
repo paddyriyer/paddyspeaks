@@ -52,6 +52,43 @@
   </div>
 </header>
 
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move"><h4>The senior move</h4><p>Split the slow subscription stream from the fast usage meter at the fact layer; truth lives in an append-only <code>fct_billing_events</code> ledger, and the invoice is a <code>SUM</code> over it, never a stored balance.</p></div>
+        <div class="tldr-cell"><h4>Core tables</h4><ul><li><code>fct_usage_meter</code> — hourly grain, sub × meter × hour.</li><li><code>fct_subscription_state</code> — daily snapshot, MRR.</li><li><code>fct_billing_events</code> — append-only money.</li><li><code>fct_invoices</code> — derived roll-up.</li></ul></div>
+        <div class="tldr-cell"><h4>Key SQL</h4><ul><li>Conditional aggregation (<code>FILTER</code>) → invoice</li><li>Filtered <code>SUM</code> over snapshot → MRR/ARR</li><li>Rolling window vs plan cap → upsell</li><li><code>FIRST_VALUE</code> cohort join → NRR</li></ul></div>
+        <div class="tldr-cell tldr-trap"><h4>The trap</h4><p>Never edit money. A plan change appends two proration rows with a stable <code>source_event_id</code> — an edited charge is a number you can't defend with an auditor.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="question">
   <div class="wrap">
     <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>One invoice, two clocks</h2>
@@ -63,7 +100,7 @@
       <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45 MIN</span><span>FORMAT · WHITEBOARD</span></div>
     </div>
 
-    <p class="dropcap reveal">The trap is to reach for one fact table and a column called <span class="m">amount</span>. The two revenue streams the prompt names have opposite shapes and opposite failure modes. <strong>Subscription</strong> is predictable, low-volume, and changes a handful of times per customer per year — a Pro seat is a flat number until someone clicks upgrade. <strong>Usage</strong> is volatile, arrives by the billion, and is worthless to restate after the fact — a per-query meter ticks tens of thousands of times a second across the fleet. A model that stores them at the same grain either crushes the subscription logic under usage volume or smears usage into a coarse monthly figure that finance can never audit. Keep them apart at the fact layer; join them only at invoice time.</p>
+    <p class="dropcap reveal">The trap is to reach for one fact table and a column called <span class="m">amount</span>. The two revenue streams have opposite shapes and opposite failure modes. <strong>Subscription</strong> is predictable and low-volume — a Pro seat is a flat number until someone clicks upgrade, changing a handful of times per customer per year. <strong>Usage</strong> is volatile, arrives by the billion, and is worthless to restate after the fact — a per-query meter ticks tens of thousands of times a second across the fleet. Store them at the same grain and you either crush the subscription logic under usage volume or smear usage into a coarse monthly figure finance can never audit. Keep them apart at the fact layer; join them only at invoice time.</p>
 
     <p class="reveal">A weak answer treats the invoice as a mutable running total it edits as charges land. A strong answer notices that the invoice is the wrong place to hold truth at all — truth lives in an append-only log of charges, and the invoice is a <em>SUM</em> over a window. So before any boxes and arrows, the working frame for the whole session:</p>
 
@@ -76,7 +113,7 @@
     <div class="pull reveal">The invoice is a SUM, never a recompute. Money that has happened is appended, never edited — because an edited charge is an argument you will lose with an auditor.</div>
 
     <h3 class="reveal">Scoping out loud</h3>
-    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you build, what you ignore, and the numbers that shape every later choice. Out of scope here, said explicitly: the payment gateway itself (treated as a callable service that returns success/failure with its own idempotency key), tax engines and tax jurisdiction logic (a separate line-item service), revenue recognition under ASC 606 (downstream of this ledger), and fraud. In scope: how a charge becomes a row, how a row becomes an invoice, how a mid-cycle change stays correct to the penny, and how MRR is read in one query.</p>
+    <p class="reveal">Scope is the first scored dimension, and most candidates skip it. State what you build, what you ignore, and the numbers that shape every later choice. Out of scope, said explicitly: the payment gateway (a callable service returning success/failure with its own idempotency key), tax engines and jurisdiction logic (a separate line-item service), revenue recognition under ASC 606 (downstream of this ledger), and fraud. In scope: how a charge becomes a row, a row becomes an invoice, a mid-cycle change stays correct to the penny, and MRR is read in one query.</p>
 
     <p class="reveal">Then the envelope math, volunteered rather than extracted. Snowflake-shaped numbers — a usage warehouse where compute is metered by the credit:</p>
 
@@ -204,7 +241,7 @@
     </div>
   </div>
   <div class="wrap">
-    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the firehose never reaches the ledger at raw grain — five billion daily ticks collapse to the hour at the aggregator, and only one <span class="m">usage_charge</span> per subscription per period ever becomes a billing event. <strong>Second,</strong> authority is deliberately one-directional: every dollar that will appear on an invoice is first an append-only row in <span class="m">fct_billing_events</span>, written exactly once, and the invoice roll-up holds no balance it could disagree with. <strong>Third,</strong> the two streams are joined only at the rightmost box — usage and subscription stay separate facts, at separate grains, until the moment finance asks "what does this customer owe," and the answer is a SUM with a <span class="m">GROUP BY</span>.</p>
+    <p class="reveal">Three properties of this picture do most of the interview's work. <strong>First,</strong> the firehose never reaches the ledger at raw grain — five billion daily ticks collapse to the hour at the aggregator, and only one <span class="m">usage_charge</span> per subscription per period becomes a billing event. <strong>Second,</strong> authority is one-directional: every dollar that will appear on an invoice is first an append-only row in <span class="m">fct_billing_events</span>, written exactly once, so the invoice roll-up holds no balance it could disagree with. <strong>Third,</strong> the two streams join only at the rightmost box — usage and subscription stay separate facts, at separate grains, until finance asks "what does this customer owe," and the answer is a SUM with a <span class="m">GROUP BY</span>.</p>
 
     <div class="note reveal">
       <div class="nh">The Failure Philosophy, In One Rule</div>
@@ -265,7 +302,7 @@
 <span class="ck">CREATE INDEX</span> idx_substate_day <span class="ck">ON</span> fct_subscription_state (day, status);  <span class="cl">-- MRR is one scan</span></div>
 
     <h3 class="reveal">The ledger — append-only money</h3>
-    <p class="reveal">This is the table everything else exists to feed. Every movement of money is a row, never an update: a <span class="m">subscription_charge</span> at the cycle boundary, a <span class="m">usage_charge</span> at period close, a <span class="m">proration</span> credit and a <span class="m">proration</span> charge on a plan change, a <span class="m">refund</span>, a <span class="m">credit</span>, a <span class="m">dunning</span> step. The <span class="m">source_event_id</span> is the idempotency key — the producer's stable identifier for the thing that happened — and <span class="m">UNIQUE</span> on it is what makes the whole pipeline replay-safe. A retried plan-change webhook cannot double-charge, because the second insert is a no-op.</p>
+    <p class="reveal">This is the table everything else exists to feed. Every movement of money is a row, never an update: a <span class="m">subscription_charge</span> at the cycle boundary, a <span class="m">usage_charge</span> at period close, a <span class="m">proration</span> credit and charge on a plan change, a <span class="m">refund</span>, a <span class="m">credit</span>, a <span class="m">dunning</span> step. The <span class="m">source_event_id</span> is the idempotency key — the producer's stable identifier for what happened — and <span class="m">UNIQUE</span> on it makes the whole pipeline replay-safe: a retried plan-change webhook cannot double-charge, because the second insert is a no-op.</p>
 
     <div class="codelabel">DDL · THE LEDGER — APPEND-ONLY BILLING EVENTS</div>
     <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_billing_events (
