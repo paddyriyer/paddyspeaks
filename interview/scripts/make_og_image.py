@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Render the OG/Twitter share image for the Interview Question Bank.
+Render the OG/Twitter share image for Interview Studio.
 Output: images/og-interview-bank.png  (1200×630, the spec for OG)
 
 Run from repo root:
@@ -75,9 +75,9 @@ def main():
         img.paste(glow, (cx - rad * 2, cy - rad * 2), glow)
         d = ImageDraw.Draw(img)
 
-    # Left big number "710"
-    f_huge = font("mono", 200, bold=True)
-    d.text((100, 110), "710", fill=LIGHT_BLUE, font=f_huge)
+    # Left big number
+    f_huge = font("mono", 150, bold=True)
+    d.text((100, 150), "1527", fill=LIGHT_BLUE, font=f_huge)
 
     f_label = font("mono", 22, bold=True)
     d.text((100, 350), "QUESTIONS", fill=MUTED, font=f_label)
@@ -101,17 +101,17 @@ def main():
 
     # Right column: headline, paragraph, CTA
     f_eyebrow = font("mono", 20, bold=True)
-    d.text((540, 100), "▸ FEATURED APP", fill=LIGHT_BLUE, font=f_eyebrow)
+    d.text((540, 100), "▸ FOR DATA & AI ENGINEERS", fill=LIGHT_BLUE, font=f_eyebrow)
 
     f_h1 = font("serif", 60, bold=True)
     d.text((540, 140), "Interview", fill=CREAM, font=f_h1)
-    d.text((540, 210), "Question Bank", fill=CREAM, font=f_h1)
+    d.text((540, 210), "Studio", fill=CREAM, font=f_h1)
 
     f_body = font("serif", 24)
     body = [
-        "Browse 710 real interview questions across SQL,",
-        "Python, Snowflake and Git from 107 companies.",
-        "Practise them in an in-browser playground.",
+        "1527 real interview questions across SQL, Python,",
+        "Snowflake & system design from 107 companies —",
+        "run every one in an in-browser playground.",
     ]
     for i, line in enumerate(body):
         d.text((540, 310 + i * 36), line, fill=(216, 228, 239), font=f_body)
