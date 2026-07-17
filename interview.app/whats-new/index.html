@@ -39,6 +39,11 @@
 .wn-link { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; color: #b45309; text-decoration: none; border-bottom: 1px solid #fde68a; }
 .wn-link:hover { border-bottom-color: #b45309; }
 
+.wn-sol-toggle { background: none; border: none; cursor: pointer; padding: 0; }
+.wn-sol { margin-top: 14px; padding: 16px 18px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 14.5px; line-height: 1.6; color: #14532d; white-space: pre-wrap; }
+.wn-sol strong { color: #065f46; }
+.wn-sol code { font-family: 'JetBrains Mono', monospace; font-size: 0.86em; background: #dcfce7; padding: 1px 5px; border-radius: 4px; white-space: normal; }
+.wn-sol pre { background: #0b0f17; color: #e9e2d0; padding: 12px 14px; border-radius: 6px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.5; margin: 8px 0; white-space: pre; }
 .wn-empty { text-align: center; color: #94a3b8; font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 40px 0; }
 .wn-count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; margin: 0 0 18px; letter-spacing: 1px; text-transform: uppercase; }
 </style>
@@ -154,6 +159,30 @@ function extractUrl(s){
   return m ? m[0] : null;
 }
 
+// Build a readable solution string for any question type
+function buildSolution(q){
+  if(q.type === "open"){
+    return (q.model_answer || "").trim();
+  }
+  if((q.type === "single" || q.type === "multi") && Array.isArray(q.options)){
+    const idxs = Array.isArray(q.answer) ? q.answer : [q.answer];
+    const correct = idxs.map(i => q.options[i]).filter(Boolean);
+    let out = "Correct answer: " + correct.join("; ");
+    if(q.explanation) out += "\n\n" + q.explanation;
+    return out.trim();
+  }
+  return (q.explanation || "").trim();
+}
+
+// Light markdown → HTML for solution text: code fences, inline code, bold, lists, paragraphs
+function fmtSolution(s){
+  let t = esc(s);
+  t = t.replace(/```(?:\w+)?\n?([\s\S]*?)```/g, (_,c) => `<pre>${c.replace(/\n$/,"")}</pre>`);
+  t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+  t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  return t;
+}
+
 async function load(){
   await Promise.all(SECTIONS.map(async sec => {
     try {
@@ -163,12 +192,15 @@ async function load(){
         const community = q.source === "community";
         const recent = isRecent(q.added_date);
         if(community || recent){
+          const deepLink = (q.type === "open") ? extractUrl(q.model_answer) : null;
           ALL.push({
             section: sec.slug, sectionLabel: sec.label,
             topic: q.topic || "", difficulty: q.difficulty || "",
             prompt: q.prompt || "", added: q.added_date || "",
-            community, recent,
-            deepLink: (q.type === "open") ? extractUrl(q.model_answer) : null,
+            community, recent, deepLink,
+            // Inline solution (hidden behind a toggle). For deep-dive-linked
+            // questions we point to the page instead of dumping the text.
+            solution: deepLink ? "" : buildSolution(q),
           });
         }
       });
@@ -204,10 +236,20 @@ function render(){
       <div class="wn-prompt">${fmtInline(q.prompt.length > 320 ? q.prompt.slice(0,320) + "…" : q.prompt)}</div>
       <div class="wn-actions">
         ${q.deepLink ? `<a class="wn-link" href="${esc(q.deepLink)}">Read the full answer →</a>` : ""}
+        ${q.solution ? `<button class="wn-link wn-sol-toggle" type="button" onclick="toggleSol(this)">Show solution ▾</button>` : ""}
         <a class="wn-link" href="${practice}">Practice ${esc(q.sectionLabel)} →</a>
       </div>
+      ${q.solution ? `<div class="wn-sol" hidden>${fmtSolution(q.solution)}</div>` : ""}
     </div>`;
   }).join("");
+}
+
+function toggleSol(btn){
+  const sol = btn.closest(".wn-card").querySelector(".wn-sol");
+  if(!sol) return;
+  const show = sol.hasAttribute("hidden");
+  if(show){ sol.removeAttribute("hidden"); btn.textContent = "Hide solution ▴"; }
+  else { sol.setAttribute("hidden",""); btn.textContent = "Show solution ▾"; }
 }
 
 document.getElementById("wn-filters").addEventListener("click", e => {
