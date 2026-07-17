@@ -13128,6 +13128,22 @@
       ],
       "answer": 0,
       "explanation": "Option 0 is correct: materialized views with nightly refresh are the standard pattern for expensive recursive aggregations in production data warehouses. Recursive CTEs are ideal for tree traversal, and materializing prevents the 100+ daily queries from each re-computing the entire tree. Option 1 (triggers) adds operational complexity and risk of inconsistency; Option 2 ignores the query volume (50k employees \u00d7 15 depth = expensive per query); Option 3 is impractical and doesn't address the aggregation bottleneck."
+    },
+    {
+      "id": "sql-new-017",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-07-17",
+      "prompt": "You have a `customer_snapshot` table (customer_id, name, email, updated_at) that receives daily batch updates from your source system. Some customers are new, some have changed email/name, and some are deleted in the source. You need to maintain an accurate `customer_master` table using a MERGE statement. Which approach correctly handles the DELETE case (when a customer exists in master but not in snapshot)?",
+      "options": [
+        "MERGE INTO customer_master m USING customer_snapshot s ON m.customer_id = s.customer_id WHEN MATCHED THEN UPDATE SET m.name = s.name WHEN NOT MATCHED BY SOURCE THEN DELETE;",
+        "MERGE INTO customer_master m USING customer_snapshot s ON m.customer_id = s.customer_id WHEN MATCHED THEN UPDATE SET m.name = s.name WHEN NOT MATCHED THEN INSERT (customer_id, name, email, updated_at) VALUES (s.customer_id, s.name, s.email, s.updated_at);",
+        "MERGE INTO customer_master m USING customer_snapshot s ON m.customer_id = s.customer_id AND s.updated_at > m.updated_at WHEN MATCHED THEN UPDATE SET m.name = s.name WHEN NOT MATCHED THEN INSERT VALUES (s.*);",
+        "DELETE FROM customer_master WHERE customer_id NOT IN (SELECT customer_id FROM customer_snapshot); MERGE INTO customer_master m USING customer_snapshot s ON m.customer_id = s.customer_id WHEN NOT MATCHED THEN INSERT VALUES (s.*) WHEN MATCHED THEN UPDATE SET m.name = s.name;"
+      ],
+      "answer": 0,
+      "explanation": "The `WHEN NOT MATCHED BY SOURCE` clause is the correct syntax for handling deletions in a MERGE statement\u2014it identifies rows in the target table (master) that have no match in the source (snapshot) and deletes them. Option 0 uses this standard SQL pattern. Option 1 lacks the deletion logic entirely. Option 2 adds a date condition that conflicts with daily snapshots. Option 3 performs separate DELETE and MERGE operations, which is inefficient and not idiomatic."
     }
   ]
 }
