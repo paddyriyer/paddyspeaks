@@ -6640,6 +6640,54 @@
       ],
       "answer": 1,
       "explanation": "Option 1 is correct: `over()` computes rolling operations per partition (customer) while preserving all rows, then filters on the computed column. Option 0 applies rolling_mean at the aggregation level incorrectly. Option 2 uses non-existent `rolling_mean()` on groupby. Option 3 uses `.last()` which only captures the final rolling value, losing intermediate rows needed for proper filtering context."
+    },
+    {
+      "id": "py-new-022",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "You are processing API response objects with match/case. Given a response dict like `{\"status\": 200, \"data\": {...}}` or `{\"status\": 404, \"error\": \"Not found\"}`, which pattern matching structure correctly handles both success and error cases with guard clauses?\n\n```python\nmatch response:\n    case {\"status\": 200, \"data\": payload}:\n        process(payload)\n    case {\"status\": code, \"error\": msg} if 400 <= code < 500:\n        handle_client_error(msg)\n    case {\"status\": code} if code >= 500:\n        handle_server_error(code)\n    case _:\n        log_unknown(response)\n```\n\nWhat is returned if `response = {\"status\": 500, \"error\": \"Internal Server Error\"}`?",
+      "options": [
+        "First case matches and process() is called",
+        "Second case matches because error key exists and code >= 400",
+        "Third case matches because status >= 500, and second case is skipped due to guard failure",
+        "MatchError is raised because status is not in the range 400-499"
+      ],
+      "answer": 2,
+      "explanation": "Pattern matching evaluates cases sequentially. The second case requires `400 <= code < 500`, so its guard fails for status=500. The third case's guard `code >= 500` succeeds, matching the pattern and executing handle_server_error(). Cases are tried in order and only the first successful match executes."
+    },
+    {
+      "id": "py-new-023",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-07-20",
+      "prompt": "You are building a data validation framework using metaclasses. The following metaclass enforces that all methods returning a value must have type hints:\n\n```python\nclass ValidatedMeta(type):\n    def __new__(mcs, name, bases, namespace):\n        for attr_name, attr in namespace.items():\n            if callable(attr) and not attr_name.startswith('_'):\n                if attr.__annotations__.get('return') is None:\n                    raise TypeError(f\"Method {attr_name} missing return type\")\n        return super().__new__(mcs, name, bases, namespace)\n\nclass Model(metaclass=ValidatedMeta):\n    def valid_method(self) -> int:\n        return 42\n    \n    def invalid_method(self):\n        return \"test\"\n```\n\nWhat happens when this code is executed?",
+      "options": [
+        "Both methods are accepted; the metaclass only validates at runtime",
+        "TypeError is raised during class definition because invalid_method lacks a return type hint",
+        "A warning is logged but the class is created successfully",
+        "invalid_method is automatically wrapped with type checking"
+      ],
+      "answer": 1,
+      "explanation": "Metaclass __new__ runs during class creation (not instantiation). It iterates through namespace items and raises TypeError immediately if a non-private callable lacks a return annotation. The error occurs at class definition time, preventing the Model class from being created."
+    },
+    {
+      "id": "py-new-024",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "A data pipeline applies transformations using functools.reduce. Given:\n\n```python\nfrom functools import reduce\n\ndef normalize(x):\n    return x.strip().lower()\n\ndef deduplicate(acc, x):\n    if x not in acc:\n        acc.append(x)\n    return acc\n\ndata = [\"  HELLO  \", \"world\", \"  HELLO  \", \"WORLD\"]\nresult = reduce(deduplicate, map(normalize, data), [])\n```\n\nWhat is the value of `result`?",
+      "options": [
+        "[\"hello\", \"world\", \"hello\", \"world\"]",
+        "[\"hello\", \"world\"]",
+        "[\"  hello  \", \"world\", \"  hello  \", \"world\"]",
+        "An error is raised because deduplicate expects two arguments"
+      ],
+      "answer": 1,
+      "explanation": "map(normalize, data) applies normalize to each element, producing [\"hello\", \"world\", \"hello\", \"world\"]. reduce applies deduplicate with initial value [], checking if each item exists in the accumulator before appending. The result is [\"hello\", \"world\"] with duplicates removed while preserving order of first occurrence."
     }
   ]
 }

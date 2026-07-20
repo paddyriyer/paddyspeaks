@@ -13154,6 +13154,70 @@
       "prompt": "You are given an employee_salary_history table with columns: employee_id, effective_date, salary, and department.\n\nWrite a SQL query that returns, for every employee:\n- Continuous salary periods (where salary AND department remain the same)\n- start_date\n- end_date (NULL for the most recent period)\n- salary\n- department\n- duration_in_days\n\nNote: If only the department changes but salary remains the same, it should still split into a new period.\n\nThen address the follow-ups:\n1. How would this scale for 500 million rows?\n2. What indexes would you recommend?\n3. How would you partition the table?\n4. How would you optimize this for Snowflake?\n5. How would your solution differ in Spark SQL?",
       "model_answer": "**Core SQL Approach (Gaps & Islands):**\n\nUse window functions to detect when salary OR department changes, creating a group identifier:\n\n```sql\nWITH salary_changes AS (\n  SELECT \n    employee_id,\n    effective_date,\n    salary,\n    department,\n    ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY effective_date) as rn,\n    SUM(CASE WHEN LAG(salary) OVER (PARTITION BY employee_id ORDER BY effective_date) != salary \n             OR LAG(department) OVER (PARTITION BY employee_id ORDER BY effective_date) != department \n             OR LAG(salary) OVER (PARTITION BY employee_id ORDER BY effective_date) IS NULL \n             THEN 1 ELSE 0 END) \n        OVER (PARTITION BY employee_id ORDER BY effective_date) as period_id\n  FROM employee_salary_history\n),\nperiods AS (\n  SELECT \n    employee_id,\n    salary,\n    department,\n    MIN(effective_date) as start_date,\n    LEAD(MIN(effective_date)) OVER (PARTITION BY employee_id ORDER BY MIN(effective_date)) as end_date,\n    DATEDIFF(day, MIN(effective_date), LEAD(MIN(effective_date)) OVER (PARTITION BY employee_id ORDER BY MIN(effective_date))) as duration_days\n  FROM salary_changes\n  GROUP BY employee_id, period_id, salary, department\n)\nSELECT * FROM periods;\n```\n\n**Scaling to 500M rows:**\n\n\u2022 Partition table by employee_id range or date range (e.g., by hire_date quarter) to parallelize processing\n\u2022 Use incremental processing: only process new/changed records since last run\n\u2022 Materialize intermediate results (salary_changes CTE) as a temp table to avoid recomputation\n\u2022 Push filtering down early (WHERE effective_date >= last_processed_date)\n\n**Indexing Strategy:**\n\n\u2022 Composite index on (employee_id, effective_date) for efficient window frame scans\n\u2022 Single index on effective_date for time-range queries\n\u2022 Consider covering index with (employee_id, effective_date, salary, department) to enable index-only scans\n\n**Partitioning Recommendations:**\n\n\u2022 Partition by employee_id (hash) for parallel processing and locality\n\u2022 Secondary time-based partition (monthly/quarterly) for retention policies and historical queries\n\u2022 For very large tables, consider two-level partitioning: department + employee_id\n\n**Snowflake Optimization:**\n\n\u2022 Leverage QUALIFY clause instead of CTE for cleaner syntax: `QUALIFY ROW_NUMBER() OVER (...) = 1`\n\u2022 Use Snowflake's native DATE functions (DATEDIFF is optimized)\n\u2022 Consider clustering on (employee_id, effective_date) for better pruning\n\u2022 Materialized views for the periods table if queried frequently\n\u2022 Leverage Snowflake's result caching and query result reuse\n\n**Spark SQL Differences:**\n\n\u2022 Window functions work similarly but use slightly different syntax (ROW_NUMBER, LAG work the same)\n\u2022 For 500M rows, use repartition(employee_id) or partitionBy before window operations\n\u2022 Avoid nested window functions; extract to separate stages for better optimization\n\u2022 Use DataFrame API with groupBy + agg for better Catalyst optimizer pushdown\n\u2022 Consider bucketing the table on employee_id for downstream joins\n\u2022 Persists intermediate DataFrames strategically to avoid recomputation in DAG",
       "source": "community"
+    },
+    {
+      "id": "sql-new-019",
+      "type": "single",
+      "topic": "COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "Schema: `user_profile(user_id INT, email TEXT, phone TEXT, backup_email TEXT)`. You need to return a single contact method for each user, prioritizing in this order: email \u2192 phone \u2192 backup_email \u2192 'NO_CONTACT'. Which query is correct?",
+      "options": [
+        "SELECT user_id, COALESCE(email, phone, backup_email, 'NO_CONTACT') AS contact FROM user_profile;",
+        "SELECT user_id, COALESCE(NULLIF(email, ''), NULLIF(phone, ''), NULLIF(backup_email, ''), 'NO_CONTACT') AS contact FROM user_profile;",
+        "SELECT user_id, CASE WHEN email IS NOT NULL THEN email WHEN phone IS NOT NULL THEN phone WHEN backup_email IS NOT NULL THEN backup_email ELSE 'NO_CONTACT' END AS contact FROM user_profile;",
+        "Both A and C are correct."
+      ],
+      "answer": 3,
+      "explanation": "Both options A and C produce identical results\u2014COALESCE returns the first non-NULL value, which is exactly what the CASE statement does. Option B incorrectly uses NULLIF to treat empty strings as NULL, which adds unnecessary complexity. For this use case, COALESCE is more concise than the CASE statement, but both are functionally equivalent."
+    },
+    {
+      "id": "sql-new-020",
+      "type": "single",
+      "topic": "NULLIF",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "Schema: `transaction(txn_id INT, amount NUMERIC, refund_amount NUMERIC)`. You want to calculate net amount (amount - refund_amount), but treat a net of $0 as NULL to exclude zero-value transactions from aggregations. What is the best approach?",
+      "options": [
+        "SELECT txn_id, NULLIF(amount - refund_amount, 0) AS net_amount FROM transaction;",
+        "SELECT txn_id, CASE WHEN amount - refund_amount = 0 THEN NULL ELSE amount - refund_amount END AS net_amount FROM transaction;",
+        "SELECT txn_id, amount - refund_amount AS net_amount FROM transaction WHERE amount != refund_amount;",
+        "SELECT txn_id, COALESCE(amount - refund_amount, 0) AS net_amount FROM transaction;"
+      ],
+      "answer": 0,
+      "explanation": "NULLIF(amount - refund_amount, 0) is the idiomatic SQL way to convert a zero result to NULL. It's cleaner and more efficient than option B's CASE statement, and better than option C because it keeps all rows visible (not filtered out). Option D using COALESCE does the opposite\u2014it converts NULL to 0."
+    },
+    {
+      "id": "sql-new-021",
+      "type": "single",
+      "topic": "Lateral Joins",
+      "difficulty": "hard",
+      "added_date": "2026-07-20",
+      "prompt": "Schema: `customer(cust_id INT, created_at DATE)` and `order(order_id INT, cust_id INT, order_date DATE, amount NUMERIC)`. You need the top 3 most recent orders for each customer, along with customer info. Which query correctly uses a LATERAL join?",
+      "options": [
+        "SELECT c.cust_id, c.created_at, o.order_id, o.order_date, o.amount FROM customer c INNER JOIN LATERAL (SELECT * FROM order WHERE cust_id = c.cust_id ORDER BY order_date DESC LIMIT 3) o ON true;",
+        "SELECT c.cust_id, c.created_at, o.order_id, o.order_date, o.amount FROM customer c LEFT JOIN order o ON c.cust_id = o.cust_id ORDER BY c.cust_id, o.order_date DESC LIMIT 3;",
+        "SELECT c.cust_id, c.created_at, o.order_id, o.order_date, o.amount FROM customer c, LATERAL (SELECT * FROM order WHERE cust_id = c.cust_id ORDER BY order_date DESC LIMIT 3) o;",
+        "SELECT c.cust_id, c.created_at, o.order_id, o.order_date, o.amount FROM customer c WINDOW (PARTITION BY c.cust_id ORDER BY o.order_date DESC ROWS BETWEEN 1 AND 3);"
+      ],
+      "answer": 2,
+      "explanation": "Option C uses the correct LATERAL syntax with implicit cross join. Option A explicitly uses INNER JOIN LATERAL which also works, but option C is the standard idiomatic form. Option B lacks the LIMIT per customer (it applies globally), and option D is invalid syntax. LATERAL allows the subquery to reference columns from the outer query (c.cust_id), enabling dynamic filtering per row."
+    },
+    {
+      "id": "sql-new-022",
+      "type": "single",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-07-20",
+      "prompt": "Schema: `org(emp_id INT, name TEXT, manager_id INT, salary NUMERIC)`. You need to find the total compensation cost for a manager's entire reporting chain (all direct and indirect reports). Which recursive CTE approach is correct?",
+      "options": [
+        "WITH RECURSIVE mgr_tree AS (SELECT emp_id, manager_id, salary, salary AS total_cost FROM org WHERE manager_id IS NULL UNION ALL SELECT o.emp_id, o.manager_id, o.salary, m.total_cost + o.salary FROM org o JOIN mgr_tree m ON o.manager_id = m.emp_id) SELECT emp_id, total_cost FROM mgr_tree WHERE manager_id IS NULL;",
+        "WITH RECURSIVE mgr_tree AS (SELECT emp_id, manager_id, salary, 0 AS total_cost FROM org WHERE manager_id IS NULL UNION ALL SELECT o.emp_id, o.manager_id, o.salary, m.total_cost + o.salary FROM org o JOIN mgr_tree m ON o.manager_id = m.emp_id) SELECT manager_id, SUM(total_cost) FROM mgr_tree GROUP BY manager_id;",
+        "WITH RECURSIVE mgr_tree(emp_id, manager_id, salary, total_cost) AS (SELECT emp_id, manager_id, salary, salary FROM org UNION ALL SELECT o.emp_id, o.manager_id, o.salary, m.total_cost + o.salary FROM org o JOIN mgr_tree m ON o.manager_id = m.emp_id WHERE o.manager_id IS NOT NULL) SELECT DISTINCT manager_id, SUM(total_cost) OVER (PARTITION BY manager_id) FROM mgr_tree WHERE manager_id IS NOT NULL;",
+        "WITH RECURSIVE mgr_tree AS (SELECT emp_id, manager_id, salary FROM org UNION ALL SELECT o.emp_id, o.manager_id, SUM(o.salary) FROM org o JOIN mgr_tree m ON o.manager_id = m.emp_id GROUP BY o.emp_id, o.manager_id) SELECT manager_id, SUM(salary) FROM mgr_tree WHERE manager_id IS NOT NULL GROUP BY manager_id;"
+      ],
+      "answer": 2,
+      "explanation": "Option C correctly constructs a recursive CTE that accumulates salary costs up the tree, filtering to non-NULL managers in the recursive part and using a window function to aggregate per manager. Option A produces wrong results by summing at the end. Option B starts with 0 cost for roots, which is incorrect. Option D's GROUP BY in the recursive member violates standard CTE behavior. Option C properly maintains the running total and produces per-manager compensation costs."
     }
   ]
 }

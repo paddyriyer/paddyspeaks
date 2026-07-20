@@ -5066,6 +5066,54 @@
       ],
       "answer": 0,
       "explanation": "The core issue is that alerts are happening in-band with the DAG execution, causing side effects (Slack rate limits) to interfere with task retries. The correct pattern is to decouple alerting into a separate monitoring DAG that checks task health asynchronously via XCom or logs. This prevents alert failures from affecting your core ETL DAG's retry logic and allows rate-limiting to be handled independently. Option 1 implements this separation of concerns. Option 2's SLA timeout doesn't address alert rate-limiting, Option 3's trigger_rule still keeps alerting in-band, and Option 4's async callback still ties alert behavior to task execution."
+    },
+    {
+      "id": "ds-new-024",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "Your team migrates a 2TB Parquet table in S3 to Apache Iceberg. During the migration, concurrent analytics queries must continue reading the old Parquet table while writes go to the new Iceberg table. After cutover, you discover 50K rows exist only in Parquet and 30K rows exist only in Iceberg\u2014a data quality incident. Which Iceberg feature would have prevented this if configured before migration?",
+      "options": [
+        "Iceberg's Schema Evolution to auto-map Parquet column types",
+        "Iceberg's Snapshot Isolation and time-travel to validate row counts at each commit",
+        "Iceberg's Hidden Partitioning to automatically deduplicate rows across formats",
+        "Iceberg's Branching and Tagging to maintain a dual-write validation branch"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg's snapshot isolation ensures each write creates an immutable snapshot with a manifest listing all data files. By querying snapshots before and after migration, you could have detected the row count mismatch between formats. Branches/tagging help organize versions but don't validate row counts; hidden partitioning doesn't deduplicate; schema evolution doesn't prevent data loss."
+    },
+    {
+      "id": "ds-new-025",
+      "type": "single",
+      "topic": "Data contracts",
+      "difficulty": "hard",
+      "added_date": "2026-07-20",
+      "prompt": "A downstream ML team's feature pipeline consumes a `user_transactions` stream contract that promises: `amount DECIMAL(10,2)`, `timestamp TIMESTAMP_NTZ`, and `status IN ('pending','completed','failed')`. A source system upgrade accidentally sends `amount` as a string ('$1,234.56') for 2% of rows. Your contract enforcement layer must decide: allow the breach and alert, or block and pause ingestion. What is the BEST approach to balance availability and data quality?",
+      "options": [
+        "Block all ingestion immediately and require source team to fix; restore from backup after validation",
+        "Allow ingestion with automatic casting to DECIMAL; log breaches to a quarantine table for async reconciliation",
+        "Silently drop rows that violate the contract; track counts in monitoring to alert if breach rate exceeds 1%",
+        "Create a schema evolution rule that extends amount to UNION(DECIMAL, STRING) and let ML team handle both types"
+      ],
+      "answer": 1,
+      "explanation": "The best practice is to ingest with automatic casting (or coercion) while quarantining violations separately for investigation. This preserves availability (no blocking), maintains data quality (bad rows isolated), and enables async reconciliation by the source team. Blocking causes outages; silent dropping hides data loss; and schema union pushes validation burden to consumers."
+    },
+    {
+      "id": "ds-new-026",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "Your Airflow DAG orchestrates 200 downstream tasks that each depend on a single `load_raw_data` task. The `load_raw_data` task runs for 12 hours and occasionally fails midway. When it fails, all 200 tasks remain queued indefinitely, causing backlog. You want to minimize re-run time while ensuring failed downstream tasks don't block future DAG runs. Which Airflow pattern best solves this?",
+      "options": [
+        "Use BranchOperator to route all 200 tasks to a skip task if load_raw_data fails; schedule backfill manually",
+        "Set load_raw_data to trigger_rule='all_done' so downstream tasks always execute regardless of failure status",
+        "Use a SubDagOperator to wrap load_raw_data with max_tries=3 and backoff, allowing downstream tasks to only trigger after success",
+        "Implement a pool with pool_slots=1 for load_raw_data and pool_slots=200 for downstream tasks, with load_raw_data set to pool_slots=1"
+      ],
+      "answer": 2,
+      "explanation": "SubDagOperator with retry logic and backoff ensures load_raw_data re-attempts automatically before passing control to downstream tasks. This prevents cascading queuing and failures. BranchOperator creates skip complexity; trigger_rule='all_done' allows failures through (defeating validation); pools don't prevent queue buildup. SubDag with retries provides fault tolerance and deterministic downstream triggering."
     }
   ]
 }
