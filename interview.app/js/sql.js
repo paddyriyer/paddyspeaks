@@ -6,6 +6,26 @@ import { SqliteEngine } from "./engines/sqlite-engine.js";
 import { PgliteEngine } from "./engines/pglite-engine.js";
 
 const DATA_BASE = "../interview/data";
+
+// Robust JSON fetch — guards status + empty bodies (avoids the cryptic
+// "Unexpected end of JSON input" on flaky connections) and retries once.
+async function fetchJSON(url, retries = 1) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} loading ${url.split("/").pop()}`);
+      const text = await res.text();
+      if (!text.trim()) throw new Error(`Empty response for ${url.split("/").pop()}`);
+      return JSON.parse(text);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 const CSV_BASE = "../interview/sample%20dataset";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const SCHEMAS_URL = `${DATA_BASE}/question_schemas.json`;
@@ -1140,8 +1160,8 @@ async function init() {
 
   // Load questions + per-question schemas
   const [all, schemas] = await Promise.all([
-    fetch(QUESTIONS_URL).then((r) => r.json()),
-    fetch(SCHEMAS_URL).then((r) => r.json()).catch(() => ({})),
+    fetchJSON(QUESTIONS_URL),
+    fetchJSON(SCHEMAS_URL).catch(() => ({})),
   ]);
   state.questions = all;
   state.sqlQuestions = all.filter((q) => q.language === "sql");
