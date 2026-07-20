@@ -175,6 +175,45 @@ function setRuntimeBanner(kind) {
 }
 
 // ─── Run user code ───
+// ─── Heuristic code hints (no AI, no network) ───
+// Conservative pattern-matches on common Python performance/quality
+// anti-patterns. Rules of thumb, not analysis of your specific code.
+function stripPyNoise(src) {
+  return src
+    .replace(/#[^\n]*/g, " ")
+    .replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/"""[\s\S]*?"""/g, "''")
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.)*"/g, "''");
+}
+function detectPyHints(rawSrc) {
+  const s = stripPyNoise(rawSrc);
+  const h = [];
+  const add = (t, tip) => h.push({ t, tip });
+  if (/\bfor\b[\s\S]*\bfor\b/.test(s) && /\bif\b[\s\S]*\bin\b/.test(s))
+    add("Nested loops", "Nested loops with a membership check are O(n²). If the inner test is <code>x in seq</code>, build a <code>set</code>/<code>dict</code> once for O(1) lookups.");
+  if (/\b(\w+)\s*\+=\s*(?:''|str\()/.test(s) && /\bfor\b/.test(s))
+    add("String += in loop", "Concatenating a string with <code>+=</code> in a loop is O(n²). Collect parts in a list and <code>''.join(parts)</code> at the end.");
+  if (/\brange\s*\(\s*len\s*\(/.test(s))
+    add("range(len(x))", "<code>for i in range(len(x))</code> — prefer <code>enumerate(x)</code> to get the index and value together.");
+  if (/\bsorted\s*\([^)]*\)\s*\[\s*(?:0|-\s*1|:)/.test(s))
+    add("sorted()[…] for one item", "<code>sorted(x)[0]</code> sorts the whole list (O(n log n)) for one element. Use <code>min()</code>/<code>max()</code>, or <code>heapq.nsmallest(k, x)</code> for the top-k.");
+  if (/\bexcept\s*:/.test(s))
+    add("Bare except", "A bare <code>except:</code> swallows every error (even <code>KeyboardInterrupt</code>). Catch the specific exception you expect.");
+  if (/\bfor\s+\w+\s+in\s+\w+\.keys\s*\(\s*\)/.test(s))
+    add("dict.keys() in loop", "Iterate the dict directly — <code>for k in d</code>. The <code>.keys()</code> call is redundant.");
+  return h;
+}
+function renderHints(hints) {
+  const box = $("#pg-hints");
+  if (!box) return;
+  if (!hints || !hints.length) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML =
+    '<div class="pg-hints-head">💡 Hints <span>· rules of thumb, not errors — your code still ran</span></div>' +
+    hints.map((x) => `<div class="pg-hint"><span class="pg-hint-t">${x.t}</span><span class="pg-hint-tip">${x.tip}</span></div>`).join("");
+}
+
 async function runCode() {
   if (!state.ready) {
     setStatus("Engine not ready yet", "error");
@@ -185,6 +224,7 @@ async function runCode() {
     setStatus("Editor is empty", "error");
     return;
   }
+  renderHints(detectPyHints(src));
   if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), src);
 
   // Auto-flip pandas toggle if the code imports it; warn for unsupported deps.

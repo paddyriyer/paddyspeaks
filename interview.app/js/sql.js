@@ -691,6 +691,52 @@ function detectNonSqlite(sql) {
   return null;
 }
 
+// ─── Heuristic query hints (no AI, no network) ───
+// Pattern-matches a handful of high-signal SQL anti-patterns and shows a short
+// coaching tip. These are rules of thumb — deliberately conservative to avoid
+// false positives — not an analysis of your specific query/data.
+function stripSqlNoise(sql) {
+  return sql
+    .replace(/--[^\n]*/g, " ")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/'(?:[^']|'')*'/g, "''");
+}
+function detectSqlHints(rawSql) {
+  const U = stripSqlNoise(rawSql).toUpperCase();
+  const h = [];
+  const add = (t, tip) => h.push({ t, tip });
+  if (/\bSELECT\s+\*/.test(U))
+    add("SELECT *", "Name the columns you need. <code>SELECT *</code> reads and returns unused columns, breaks silently when the schema changes, and hides intent in review.");
+  if (/\bFROM\s+\w+(?:\s+\w+)?\s*,\s*\w+/.test(U) && !/\bCROSS\s+JOIN\b/.test(U))
+    add("Comma join", "Old-style comma join. Prefer an explicit <code>JOIN … ON …</code> — it makes the condition obvious and prevents an accidental cross join.");
+  if (/\bLIKE\s+N?'%/i.test(rawSql))
+    add("Leading wildcard", "<code>LIKE '%x'</code> can't use a normal index — it forces a full scan. Anchor it (<code>'x%'</code>) or use full-text search.");
+  if (/\bORDER\s+BY\b/.test(U) && !/\bLIMIT\b/.test(U))
+    add("ORDER BY, no LIMIT", "Ordering the whole result sorts every row. If you only need the top N, add <code>LIMIT</code> so the engine can stop early.");
+  if (/\bCOUNT\s*\(\s*DISTINCT/.test(U))
+    add("COUNT(DISTINCT)", "Exact <code>COUNT(DISTINCT)</code> is memory-heavy at scale. In production (and interviews) an approximate sketch — HyperLogLog / <code>APPROX_COUNT_DISTINCT</code> — is the standard trade-off.");
+  if (/\bWHERE\b[\s\S]*?\b(?:UPPER|LOWER|DATE|CAST|SUBSTR|SUBSTRING|YEAR|MONTH|TRIM|COALESCE)\s*\(\s*\w+\s*[),]/.test(U))
+    add("Non-sargable filter", "Wrapping the filtered column in a function (e.g. <code>DATE(col) = …</code>) defeats its index. Filter the raw column, or add a generated / functional index.");
+  if (/\bSELECT\s+DISTINCT\b/.test(U) && /\bGROUP\s+BY\b/.test(U))
+    add("DISTINCT + GROUP BY", "<code>DISTINCT</code> on top of <code>GROUP BY</code> is usually redundant — the <code>GROUP BY</code> already collapses duplicates.");
+  if (/\(\s*SELECT\s+COUNT\s*\(\s*\*\s*\)/.test(U))
+    add("Correlated count", "Counting rows in a correlated subquery to rank is O(n²). A window function — <code>ROW_NUMBER()</code> / <code>RANK() OVER (…)</code> — does it in one pass.");
+  if (/\bNOT\s+IN\s*\(\s*SELECT/.test(U))
+    add("NOT IN (subquery)", "<code>NOT IN</code> returns <em>no rows</em> if the subquery yields a single NULL. Prefer <code>NOT EXISTS</code> or a <code>LEFT JOIN … IS NULL</code> anti-join.");
+  if (/\bUNION\b/.test(U) && !/\bUNION\s+ALL\b/.test(U))
+    add("UNION vs UNION ALL", "<code>UNION</code> removes duplicates (an extra sort/hash). If the inputs are already disjoint, <code>UNION ALL</code> is cheaper.");
+  return h;
+}
+function renderHints(hints) {
+  const box = $("#pg-hints");
+  if (!box) return;
+  if (!hints || !hints.length) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML =
+    '<div class="pg-hints-head">💡 Hints <span>· rules of thumb, not errors — your query still ran</span></div>' +
+    hints.map((x) => `<div class="pg-hint"><span class="pg-hint-t">${x.t}</span><span class="pg-hint-tip">${x.tip}</span></div>`).join("");
+}
+
 async function runQuery() {
   if (!state.engineReady) {
     setStatus("Still loading the SQL engine — try again in a moment.", "error");
@@ -701,6 +747,7 @@ async function runQuery() {
     setStatus("Editor is empty", "error");
     return;
   }
+  renderHints(detectSqlHints(sql));
   // Pre-flight: bail with a helpful message before we hit a cryptic
   // SQLite parse error from a MySQL/Postgres/Snowflake-only feature. We
   // re-render the canonical reference (banner + code) for the active
