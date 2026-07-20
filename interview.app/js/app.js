@@ -42,6 +42,28 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+// ─── Robust JSON fetch ───
+// Plain `fetch().then(r => r.json())` throws a cryptic "Unexpected end of JSON
+// input" whenever the body is empty or the request 404s/times out — common on
+// flaky mobile connections fetching the ~2 MB questions.json. This guards the
+// status code and empty bodies, and retries once on a transient failure.
+async function fetchJSON(url, retries = 1) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} loading ${url.split("/").pop()}`);
+      const text = await res.text();
+      if (!text.trim()) throw new Error(`Empty response for ${url.split("/").pop()}`);
+      return JSON.parse(text);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // ─── Persistence ───
 function loadSet() {
   try {
@@ -79,8 +101,8 @@ function saveFilters() {
 // ─── Data load ───
 async function loadData() {
   const [questions, manifest] = await Promise.all([
-    fetch(`${DATA_BASE}/questions.json`).then((r) => r.json()),
-    fetch(`${DATA_BASE}/manifest.json`).then((r) => r.json()),
+    fetchJSON(`${DATA_BASE}/questions.json`),
+    fetchJSON(`${DATA_BASE}/manifest.json`),
   ]);
   state.questions = questions;
   state.manifest = manifest;
@@ -363,10 +385,10 @@ function renderBatchFacet(items) {
 
 async function renderFacets() {
   const [companies, topics, difficulties, languages] = await Promise.all([
-    fetch(`${DATA_BASE}/companies.json`).then((r) => r.json()),
-    fetch(`${DATA_BASE}/topics.json`).then((r) => r.json()),
-    fetch(`${DATA_BASE}/difficulties.json`).then((r) => r.json()),
-    fetch(`${DATA_BASE}/languages.json`).then((r) => r.json()),
+    fetchJSON(`${DATA_BASE}/companies.json`),
+    fetchJSON(`${DATA_BASE}/topics.json`),
+    fetchJSON(`${DATA_BASE}/difficulties.json`),
+    fetchJSON(`${DATA_BASE}/languages.json`),
   ]);
 
   // Companies sort alphabetically (easier to find a specific one); types
@@ -701,8 +723,18 @@ init().then(() => {
   document.documentElement.classList.add("js-ready");
 }).catch((err) => {
   console.error(err);
-  $("#qb-list").appendChild(
-    el("div", { class: "qb-set-empty" },
-      `Failed to load data: ${err.message}. Run interview/scripts/xlsx_to_json.py first.`)
-  );
+  // Graceful, user-facing failure with a one-tap retry — instead of a cryptic
+  // console error and an empty page. js-ready is intentionally NOT set, so the
+  // static preview below stays visible as a fallback.
+  const list = $("#qb-list");
+  if (list) {
+    list.innerHTML = "";
+    list.appendChild(
+      el("div", { class: "qb-load-error", role: "alert" },
+        el("p", { class: "qb-load-error-msg" }, "We couldn’t load the question bank — this is almost always a flaky connection."),
+        el("button", { type: "button", class: "qb-load-error-btn", onclick: () => location.reload() }, "↻ Retry"),
+        el("p", { class: "qb-load-error-sub" }, "You can still browse the popular questions below.")
+      )
+    );
+  }
 });

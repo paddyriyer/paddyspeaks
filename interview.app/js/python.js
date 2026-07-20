@@ -4,6 +4,26 @@
 import { generateDemo } from "./demo-gen.js";
 
 const DATA_BASE = "../interview/data";
+
+// Robust JSON fetch — guards status + empty bodies (avoids the cryptic
+// "Unexpected end of JSON input" on flaky connections) and retries once.
+async function fetchJSON(url, retries = 1) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} loading ${url.split("/").pop()}`);
+      const text = await res.text();
+      if (!text.trim()) throw new Error(`Empty response for ${url.split("/").pop()}`);
+      return JSON.parse(text);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const LS_LAST_Q = "pg.py.lastQ";
 // Per-question editor key — switching questions no longer leaks the previous
@@ -484,7 +504,7 @@ async function init() {
   renderSnippets();
   setStatus("Loading question data…");
 
-  const all = await fetch(QUESTIONS_URL).then((r) => r.json());
+  const all = await fetchJSON(QUESTIONS_URL);
   state.questions = all;
   state.pyQuestions = all.filter((q) => q.language === "python");
   populatePicker();
