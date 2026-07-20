@@ -5018,6 +5018,54 @@
       "prompt": "Design a real-time data quality monitoring platform similar to Monte Carlo or Great Expectations Cloud that monitors 100,000 ETL pipelines, ingests 15 million metric updates/hour, and operates with <30 second latency across multiple regions and clouds.\n\nFunctional requirements: Each pipeline reports row count, null percentage, duplicates, freshness, schema changes, latency, and SLA status. The platform must detect anomalies, send alerts, store history, support dashboards and APIs, and enable custom quality rules.\n\nAddress the following in your design:\n1. High-level architecture: APIs, data model, and event flow\n2. Storage strategy and metadata catalog design\n3. Anomaly detection approach: compare Z-score, moving average, EWMA, Prophet, and Isolation Forest\n4. Alerting and notification system\n5. Authentication, authorization, and multi-tenancy\n6. High availability and disaster recovery\n\nDebugging scenario: A customer reports never receiving an alert even though 40% of rows were NULL. Walk through your debugging approach covering logging, distributed tracing, replay capability, dead letter queues, and idempotency guarantees.",
       "model_answer": "**Architecture Overview**\nDesign a lambda architecture: real-time path for alerting (<30s) and batch path for deep analysis.\n\n**Data Model & Storage**\n\u2022 Time-series database (InfluxDB, TimescaleDB, or cloud equivalent) for metrics with tags: pipeline_id, metric_type, region, tenant_id\n\u2022 Metadata store (PostgreSQL) for pipeline definitions, rules, alert configs with versioning\n\u2022 Hot storage (in-memory cache, Redis) for recent baselines and anomaly thresholds\n\u2022 Cold storage (S3/GCS) for historical audit trail and long-term analytics\n\n**Event Flow**\n1. Pipelines emit metrics via gRPC/Kafka to ingestion service\n2. Stream processor (Kafka Streams, Flink, or Spark Structured Streaming) deduplicates and validates\n3. Real-time anomaly detection evaluates against baseline\n4. Alert service (if anomaly detected) queries rules engine and sends via multi-channel (Slack, email, PagerDuty)\n5. Metrics persisted asynchronously to time-series DB\n\n**Anomaly Detection Trade-offs**\n\u2022 Z-score: Simple, fast, but assumes normal distribution\u2014use for bursty metrics (duplicates)\n\u2022 Moving average: Good baseline for trending data (latency)\n\u2022 EWMA: Weights recent observations, adapts to drift\u2014strong general choice\n\u2022 Prophet: Excellent for seasonality (daily/weekly patterns in pipelines) but higher compute cost\n\u2022 Isolation Forest: Detects multivariate anomalies, requires feature engineering\n\u2022 Recommendation: Hybrid approach\u2014EWMA for baseline with threshold, Prophet for Friday morning spikes, Isolation Forest for correlated metric anomalies\n\n**Alerting & Multi-tenancy**\n\u2022 Store rule definitions per tenant with evaluation context\n\u2022 Alert deduplication: group same alert within 5-minute window\n\u2022 Configurable silence windows and escalation policies\n\u2022 Ensure alert delivery idempotency via unique alert_id + dedup keys\n\n**Auth**\n\u2022 OAuth 2.0 for API access with tenant isolation via JWT claims\n\u2022 RBAC: Admin (rule + alert mgmt), DataOwner (view own pipeline), Viewer\n\u2022 API keys for pipeline metric emission with rate limiting per tenant\n\n**Debugging the 40% NULL Case**\n1. **Logging**: Check if metric was emitted and reached ingestion service; log rule evaluation results with input values\n2. **Distributed tracing**: Trace metric through stream processor \u2192 anomaly detector \u2192 alert service with span tags (rule_id, threshold, detected)\n3. **Replay**: Enable replay of metric stream to re-evaluate rules; check if rule was active at time of anomaly\n4. **Dead letter queue**: Verify metric wasn't dropped in validation; inspect DLQ for schema mismatches or tenant routing errors\n5. **Idempotency**: Confirm alert deduplication logic didn't suppress first occurrence; check dedup_key calculation\n6. **Root cause analysis**: Verify rule threshold was configured correctly for that pipeline; check if alert notification failed after detection\n\n**HA & DR**\n\u2022 Multi-region active-active setup with event log replication for consistency\n\u2022 Time-series DB with replication; metadata store with cross-region failover\n\u2022 Circuit breaker for external alerting services; fallback to webhook queue\n\u2022 Backup rule engine state; test DR quarterly with alert re-evaluation",
       "source": "community"
+    },
+    {
+      "id": "ds-new-021",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "hard",
+      "added_date": "2026-07-20",
+      "prompt": "Your analytics team migrated a 50TB fact table from Delta Lake to Apache Iceberg on Snowflake. After migration, partition-pruning queries on date ranges are now 3x slower despite identical filter predicates. The table has 10 years of daily partitions and uses Parquet files. What is the most likely root cause?",
+      "options": [
+        "Iceberg's manifest files are being fully scanned instead of using partition statistics; the table needs to be optimized with 'REWRITE MANIFESTS'",
+        "Snowflake's query planner doesn't support Iceberg partition elimination; you must use explicit WHERE clauses on partition columns",
+        "Parquet footer metadata is being ignored; you must convert to ORC format for Iceberg partition pruning to work",
+        "The Iceberg schema evolved during migration and partition columns are now marked as optional, disabling partition statistics"
+      ],
+      "answer": 0,
+      "explanation": "Iceberg relies on manifest files that contain partition statistics (min/max values) to prune files. If manifests are not compacted or optimized after bulk migration, the query engine may scan all manifest entries instead of using metadata. Running 'REWRITE MANIFESTS' consolidates partition information and dramatically improves pruning performance. Snowflake does support Iceberg partition elimination natively, ORC vs Parquet doesn't affect pruning in Iceberg, and schema evolution to optional doesn't disable statistics\u2014only corrupt or unoptimized manifests do."
+    },
+    {
+      "id": "ds-new-022",
+      "type": "single",
+      "topic": "Streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "A fintech company ingests trading events (buy/sell orders) from 50 brokers into Kafka. They need to update a real-time leaderboard (top 100 traders by daily profit) every 30 seconds, but also run a 6-hour SLA reconciliation batch job. They currently use Kafka \u2192 Flink (streaming) for the leaderboard and Spark (batch) for reconciliation, with separate codebases. What hybrid approach minimizes operational overhead while meeting both requirements?",
+      "options": [
+        "Use Kafka \u2192 Spark Structured Streaming with 30-second micro-batches for leaderboard and trigger the same job in batch mode for reconciliation; share business logic via Spark SQL views",
+        "Keep Flink and Spark separate but deploy them to Kubernetes; use a single Kafka cluster with topic retention of 7 days to support both",
+        "Migrate entirely to Spark Structured Streaming with 30-second triggers for leaderboard; use Iceberg snapshots to enable time-travel for 6-hour reconciliation",
+        "Use Kafka Streams for low-latency leaderboard updates; persist state to an external store (Redis) that Spark batch jobs read from for reconciliation"
+      ],
+      "answer": 0,
+      "explanation": "Spark Structured Streaming with micro-batches (30-second intervals) provides sub-minute latency comparable to pure streaming while allowing the exact same code to run in batch mode with 'write_mode=complete'. This eliminates dual codebases and reduces operational complexity. Sharing business logic via Spark SQL views ensures consistency between streaming and batch. Option 2 introduces operational complexity with dual frameworks, Option 3's Iceberg time-travel works but adds unnecessary state management, and Option 4 (Kafka Streams + Redis) requires managing external state durability and complicates reconciliation auditing."
+    },
+    {
+      "id": "ds-new-023",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "hard",
+      "added_date": "2026-07-20",
+      "prompt": "Your Airflow DAG ingests data from 200 third-party APIs daily. Each API call can fail with a transient network error (50% of the time when overloaded) or a permanent auth error (5% of the time). You're using a BranchPythonOperator to route failures to a Slack alert task, but after 3 days of 80% failure rates, Slack rate limits you and alerts stop firing. The DAG still completes successfully because task retries eventually succeed. How should you redesign this to prevent alerting side effects from blocking the DAG?",
+      "options": [
+        "Use an exponential backoff retry strategy with max_retries=5 on the API task, and move Slack alerts to a separate 'housekeeping' DAG that runs hourly and checks XCom for failed tasks from the previous 60 minutes",
+        "Add a task-level SLA timeout of 5 minutes on API tasks; if exceeded, skip the alert task using depends_on_past=True to avoid cascading failures",
+        "Replace BranchPythonOperator with trigger_rule='all_done' on the Slack task and set alert_every_retry=False to send only one alert per unique API endpoint per day",
+        "Use Airflow's built-in ErrorCallback with an async Slack notifier; set max_retries=3 and configure the executor to queue alerts asynchronously via a separate thread pool"
+      ],
+      "answer": 0,
+      "explanation": "The core issue is that alerts are happening in-band with the DAG execution, causing side effects (Slack rate limits) to interfere with task retries. The correct pattern is to decouple alerting into a separate monitoring DAG that checks task health asynchronously via XCom or logs. This prevents alert failures from affecting your core ETL DAG's retry logic and allows rate-limiting to be handled independently. Option 1 implements this separation of concerns. Option 2's SLA timeout doesn't address alert rate-limiting, Option 3's trigger_rule still keeps alerting in-band, and Option 4's async callback still ties alert behavior to task execution."
     }
   ]
 }

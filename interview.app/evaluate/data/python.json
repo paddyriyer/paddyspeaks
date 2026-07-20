@@ -6592,6 +6592,54 @@
       "prompt": "You are building a real-time web event analytics system that ingests millions of events per hour from Kafka. Each event contains user, timestamp, page, and session duration.\n\nDesign and implement a Python class that supports:\n- tracker.add(event) \u2014 ingest new events\n- tracker.top_pages(10) \u2014 return top 10 pages by frequency\n- tracker.active_users(last_minutes=30) \u2014 count unique users in the last N minutes\n- tracker.average_session_duration() \u2014 compute average duration across all active events\n- tracker.unique_users() \u2014 total unique users seen\n\nConstraints:\n- Cannot store all events forever; memory must be bounded\n- Must be thread-safe for concurrent writers\n- Operations should be O(log n) or better where possible\n- Old events must expire automatically\n\nThen discuss the trade-offs between your in-memory approach and scaling to 10 billion events/day using Kafka + Spark Structured Streaming, Flink, or Redis.",
       "model_answer": "A strong answer should cover:\n\n**In-Memory Solution:**\n- Use a bounded deque or time-windowed dictionary to store recent events; discard events older than the retention window (e.g., last 2\u20134 hours)\n- Counter (from collections) for page frequencies and user counts \u2014 O(1) insertion, O(n) for top_k\n- Use heapq.nlargest() for top_pages() to efficiently extract top 10 in O(n log k) where k=10\n- defaultdict(list) or SortedDict to track timestamps per user for active_user queries\n- threading.Lock or RLock around all shared state to ensure thread safety\n- Consider OrderedDict or collections.deque for FIFO expiration of old events\n- For unique_users at scale, mention HyperLogLog as a space-efficient probabilistic alternative\n\n**Scaling to Billions/Day:**\n- Kafka partitioning by user or page ensures parallel consumption and load balancing\n- Spark Structured Streaming or Flink: maintain windowed aggregations (tumbling or sliding windows); push results to external store (e.g., Redis, ClickHouse)\n- Flink advantages: sub-second latency, rich windowing API, stateful processing\n- Redis: use sorted sets for top pages (with scores as counts), hyperloglog for unique users, time-series data for durations\n- ClickHouse: optimized OLAP columnar store for post-aggregation queries; not ideal for sub-second updates but excellent for analytics\n- Avoid storing raw events; pre-aggregate at the stream processor layer\n\n**Key Trade-offs:**\n- Memory vs. latency: bounded in-memory is fastest but limited by node capacity; external store trades latency for scalability\n- Exactly-once semantics: Flink/Spark can guarantee; Kafka offset management is critical\n- Operational complexity: simple threading solution vs. distributed orchestration (Kubernetes, YARN)\n- Cost: single-node vs. cluster infrastructure",
       "source": "community"
+    },
+    {
+      "id": "py-new-019",
+      "type": "single",
+      "topic": "memory management",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "You're debugging a data processing pipeline that loads large CSV files into memory. After processing ~50 files, the application crashes with a MemoryError. Which of the following best explains the likely cause and most memory-efficient solution?",
+      "options": [
+        "Use `gc.collect()` after each iteration to force garbage collection; Python's reference counting isn't sufficient for large objects",
+        "Switch from lists to tuples since tuples are immutable and require less memory than lists",
+        "Generators or iterators that process data in chunks, combined with explicit `del` statements to release references when done, rather than loading entire files at once",
+        "Increase the Python heap size using sys.setrecursionlimit() to allocate more stack memory for large datasets"
+      ],
+      "answer": 2,
+      "explanation": "Generators and chunked processing are the standard solution for memory efficiency with large datasets\u2014they avoid materializing the entire dataset in memory. While `gc.collect()` can help, relying on it is reactive rather than proactive. Tuples don't save meaningful memory vs. lists, and `setrecursionlimit()` affects stack depth, not heap memory available for data structures."
+    },
+    {
+      "id": "py-new-020",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "hard",
+      "added_date": "2026-07-20",
+      "prompt": "Given Python 3.10+ structural pattern matching, which code correctly extracts and validates API response metadata, handling nested optional fields?",
+      "options": [
+        "match response: case {'status': 200, 'data': {'user_id': uid, 'email': email}}: process(uid, email) case _: log_error()",
+        "match response: case {'status': int(s), 'data': {'user_id': uid} if s == 200} | {'status': 200, 'data': {'email': email}}: process(uid or email) case _: log_error()",
+        "match response: case {'status': 200, 'data': data} if (uid := data.get('user_id')) and (email := data.get('email')): process(uid, email) case _: log_error()",
+        "match response: case status == 200 and data['user_id'] as uid: process(uid) case _: log_error()"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 correctly uses guard clauses (`if`) with walrus operators (`:=`) to handle optional fields safely within the match pattern. Option 0 fails if 'user_id' or 'email' are missing (no default). Option 1 uses invalid `int(s)` capture syntax and OR patterns incorrectly for this use case. Option 3 uses invalid syntax\u2014`==` is comparison, not pattern syntax."
+    },
+    {
+      "id": "py-new-021",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "medium",
+      "added_date": "2026-07-20",
+      "prompt": "You need to compute a rolling 7-day average of daily transaction amounts per customer, then filter for customers whose recent average exceeds $1000. Which Polars approach is most efficient and correct?",
+      "options": [
+        "df.groupby('customer_id').agg(pl.col('amount').rolling_mean(7)).filter(pl.col('amount') > 1000)",
+        "df.sort(['customer_id', 'date']).with_column(pl.col('amount').rolling_mean(7).over('customer_id').alias('avg_7d')).filter(pl.col('avg_7d') > 1000)",
+        "df.groupby('customer_id').rolling_mean(window_size=7).select('amount').filter(pl.col('amount') > 1000)",
+        "df.sort('customer_id').groupby('customer_id').agg(pl.col('amount').rolling_mean(7).last().alias('avg_7d')).filter(pl.col('avg_7d') > 1000)"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 is correct: `over()` computes rolling operations per partition (customer) while preserving all rows, then filters on the computed column. Option 0 applies rolling_mean at the aggregation level incorrectly. Option 2 uses non-existent `rolling_mean()` on groupby. Option 3 uses `.last()` which only captures the final rolling value, losing intermediate rows needed for proper filtering context."
     }
   ]
 }
