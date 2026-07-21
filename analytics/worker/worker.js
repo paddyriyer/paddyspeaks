@@ -10,6 +10,8 @@
  *               UTM campaigns, dark mode, timezone, visitor ID
  */
 
+import { routeLeaderboard } from './leaderboard.js';
+
 function cors(request) {
   const origin = request.headers.get('Origin') || 'https://paddyspeaks.com';
   return {
@@ -56,6 +58,10 @@ export default {
     if (url.pathname === '/api/exclude' && request.method === 'GET') {
       return handleExcludeList(request, env, ch);
     }
+
+    // Anonymous leaderboard (separate D1 `LB` + HMAC secret; see leaderboard.js)
+    const lb = await routeLeaderboard(request, env, url, ch);
+    if (lb) return lb;
 
     return new Response('Not found', { status: 404, headers: ch });
   },
