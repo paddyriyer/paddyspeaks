@@ -13218,6 +13218,22 @@
       ],
       "answer": 2,
       "explanation": "Option C correctly constructs a recursive CTE that accumulates salary costs up the tree, filtering to non-NULL managers in the recursive part and using a window function to aggregate per manager. Option A produces wrong results by summing at the end. Option B starts with 0 cost for roots, which is incorrect. Option D's GROUP BY in the recursive member violates standard CTE behavior. Option C properly maintains the running total and produces per-manager compensation costs."
+    },
+    {
+      "id": "sql-new-023",
+      "type": "single",
+      "topic": "BigQuery-specific date arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-07-21",
+      "prompt": "In BigQuery, you have a table `events(user_id STRING, event_ts TIMESTAMP)`. You need to find the count of unique users per calendar week, where each week starts on Monday. The query must handle timezone-aware timestamps and you want results partitioned by week. Which approach correctly computes the week-start date for Monday-based weeks in BigQuery?\n\nSchema: `events(user_id STRING, event_ts TIMESTAMP)`\n\nAssume event_ts is in UTC. You want to:\n1. Group events by calendar week (Monday\u2013Sunday)\n2. Count distinct users per week\n3. Return week_start_date and user_count\n\nWhich query is correct?",
+      "options": [
+        "SELECT DATE_TRUNC(CAST(event_ts AS DATE), WEEK) AS week_start, COUNT(DISTINCT user_id) AS user_count FROM events GROUP BY week_start ORDER BY week_start;",
+        "SELECT DATE_SUB(CAST(event_ts AS DATE), INTERVAL CAST(FORMAT_DATE('%w', CAST(event_ts AS DATE)) AS INT64) DAY) AS week_start, COUNT(DISTINCT user_id) AS user_count FROM events GROUP BY week_start ORDER BY week_start;",
+        "SELECT DATE_TRUNC(CAST(event_ts AS DATE), WEEK(MONDAY)) AS week_start, COUNT(DISTINCT user_id) AS user_count FROM events GROUP BY week_start ORDER BY week_start;",
+        "SELECT DATE_ADD(CAST(event_ts AS DATE), INTERVAL -EXTRACT(DAYOFWEEK FROM event_ts) DAY) AS week_start, COUNT(DISTINCT user_id) AS user_count FROM events GROUP BY week_start ORDER BY week_start;"
+      ],
+      "answer": 1,
+      "explanation": "BigQuery's DATE_TRUNC with WEEK parameter defaults to Sunday-based weeks (ISO standard). To get Monday-based weeks, you must manually subtract days: FORMAT_DATE('%w', date) returns 0 (Sunday) through 6 (Saturday), so subtracting this interval from the date gives you the preceding Monday. Option 1 uses Sunday-based weeks. Option 3 uses incorrect syntax (WEEK doesn't accept MONDAY parameter in BigQuery). Option 4 uses DAYOFWEEK which also defaults to Sunday=1, causing incorrect alignment."
     }
   ]
 }
