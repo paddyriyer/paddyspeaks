@@ -9,6 +9,7 @@ const state = { cat: "", period: "week" };
 
 const el = {
   status: document.getElementById("lb-status"),
+  demo: document.getElementById("lb-demo"),
   table: document.getElementById("lb-table"),
   body: document.getElementById("lb-body"),
   mysec: document.getElementById("lb-mysec"),
@@ -16,6 +17,25 @@ const el = {
   catGroup: document.getElementById("lb-cat"),
   periodGroup: document.getElementById("lb-period"),
 };
+
+// Illustrative "sample preview" rows. Shown ONLY when the live board has nothing
+// to display (backend not yet provisioned, or fewer than the k-anon minimum of
+// real entries). A visible banner marks them as samples — they are never passed
+// off as real participants, and any genuine entry immediately replaces them.
+const SAMPLE = [
+  { alias: "Recursive Monk #300",   category: "python", difficulty: "expert", percentage: 98 },
+  { alias: "Query Falcon #238",     category: "sql",    difficulty: "hard",   percentage: 97 },
+  { alias: "Cobalt Sage #071",      category: "sql",    difficulty: "expert", percentage: 95 },
+  { alias: "Indexed Kestrel #512",  category: "python", difficulty: "hard",   percentage: 94 },
+  { alias: "Nimble Otter #442",     category: "sql",    difficulty: "medium", percentage: 92 },
+  { alias: "Streaming Heron #188",  category: "python", difficulty: "medium", percentage: 91 },
+  { alias: "Amber Analyst #925",    category: "sql",    difficulty: "hard",   percentage: 90 },
+  { alias: "Lambda Warden #337",    category: "python", difficulty: "expert", percentage: 89 },
+  { alias: "Verdant Lynx #613",     category: "sql",    difficulty: "medium", percentage: 88 },
+  { alias: "Windowed Scout #204",   category: "python", difficulty: "hard",   percentage: 87 },
+  { alias: "Sharded Badger #756",   category: "sql",    difficulty: "easy",   percentage: 85 },
+  { alias: "Atomic Navigator #049", category: "python", difficulty: "medium", percentage: 84 },
+];
 
 const CAT_LABEL = { sql: "SQL", python: "Python" };
 const esc = (s) =>
@@ -39,14 +59,15 @@ function myAliasKeys() {
   return keys;
 }
 
-function renderRows(entries) {
-  const mine = myAliasKeys();
+function renderRows(entries, sample = false) {
+  const mine = sample ? new Set() : myAliasKeys();
   el.body.innerHTML = entries
     .map((r) => {
       const isMine = mine.has(`${r.category || ""}|${r.alias}`);
       const catLabel = CAT_LABEL[r.category] || "—";
       const diff = r.difficulty ? esc(r.difficulty) : "—";
-      return `<tr class="${isMine ? "lb-mine" : ""}">
+      const cls = [isMine ? "lb-mine" : "", sample ? "lb-sample" : ""].filter(Boolean).join(" ");
+      return `<tr class="${cls}">
         <td class="num lb-rank">${r.rank}</td>
         <td class="lb-alias">${esc(r.alias)}${isMine ? '<span class="lb-mine-tag">YOU</span>' : ""}</td>
         <td class="hide-sm"><span class="lb-pill">${esc(catLabel)}</span></td>
@@ -57,28 +78,37 @@ function renderRows(entries) {
     .join("");
 }
 
+// Fill the board with clearly-labelled sample rows for the current tab.
+function renderSample() {
+  const rows = SAMPLE
+    .filter((r) => !state.cat || r.category === state.cat)
+    .sort((a, b) => b.percentage - a.percentage)
+    .map((r, i) => ({ ...r, rank: i + 1 }));
+  renderRows(rows, true);
+  setStatus("");
+  el.demo.hidden = false;
+  showTable(true);
+}
+
 async function load() {
   setStatus("Loading…");
   showTable(false);
+  el.demo.hidden = true;
   try {
     const data = await lbList({ category: state.cat, period: state.period, limit: 25 });
-    if (data.suppressed) {
-      const min = data.min || 5;
-      setStatus(
-        `The leaderboard for this view will appear once at least ${min} candidates have taken part. Be one of the first — take a Skill Check and add your score.`
-      );
-      return;
-    }
     const entries = data.entries || [];
-    if (!entries.length) {
-      setStatus("No scores here yet. Take a Skill Check and be the first to appear.");
+    // Real entries take precedence. Otherwise (suppressed / empty / dormant
+    // backend) fall back to the labelled sample preview so the board is never bare.
+    if (!data.suppressed && entries.length) {
+      renderRows(entries);
+      setStatus("");
+      showTable(true);
       return;
     }
-    renderRows(entries);
-    setStatus("");
-    showTable(true);
+    renderSample();
   } catch (err) {
-    setStatus("Couldn’t load the leaderboard right now. Please try again in a moment.");
+    // backend unreachable / not provisioned → sample preview
+    renderSample();
   }
 }
 
