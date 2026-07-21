@@ -32,6 +32,43 @@ const filterTopics = csvParam("topics");
 // single + multi MCQs collapse to one "mc" format group.
 const fmtGroupOf = (t) => (t === "code" ? "code" : t === "open" ? "open" : "mc");
 
+// ──────────────────────────────────────────
+// Anonymous leaderboard (OPTIONAL) — everything below is a strict no-op unless
+// the backend is provisioned. If lbStart() fails (503 "not configured", offline,
+// module missing) lbToken stays null and NO opt-in card ever appears. The quiz
+// works identically with or without it. Only SQL/Python map to a board category.
+// ──────────────────────────────────────────
+const LB_CATEGORY = (sectionSlug === "sql" || sectionSlug === "python") ? sectionSlug : null;
+const LB_DIFFS = new Set(["easy", "medium", "hard", "expert"]);
+let lbToken = null;   // signed attempt token from lbStart(), or null when disabled
+let lbModule = null;  // lazily-imported ../js/lb-client.js
+
+async function lbLoad() {
+  if (lbModule) return lbModule;
+  try { lbModule = await import("/interview.app/js/lb-client.js"); }
+  catch { lbModule = null; }
+  return lbModule;
+}
+function dominantDifficulty() {
+  const counts = {};
+  for (const q of state.questions) {
+    if (LB_DIFFS.has(q.difficulty)) counts[q.difficulty] = (counts[q.difficulty] || 0) + 1;
+  }
+  let best = "medium", n = -1;
+  for (const k in counts) if (counts[k] > n) { n = counts[k]; best = k; }
+  return best;
+}
+async function lbBegin() {
+  if (!LB_CATEGORY || lbToken) return;
+  const m = await lbLoad();
+  if (!m) return;
+  try {
+    lbToken = await m.lbStart({
+      category: LB_CATEGORY, difficulty: dominantDifficulty(), test_id: sectionSlug,
+    });
+  } catch { lbToken = null; } // dormant backend / offline → leaderboard silently disabled
+}
+
 const state = {
   section: null,
   bank: [],           // full question pool from JSON
@@ -176,6 +213,7 @@ function newAttempt() {
   state.selfRatings = {};
   state.submitted = false;
   state.runOutputs = {};
+  lbToken = null; // a fresh draw needs a fresh attempt token (new duration + nonce)
   persist();
 }
 
@@ -243,6 +281,9 @@ function clearProgress() {
 // Rendering — Quiz screen
 // ──────────────────────────────────────────
 function renderQuiz() {
+  // Issue the anonymous-leaderboard attempt token once, when practice begins.
+  // Fire-and-forget: never blocks or breaks rendering (no-op if backend dormant).
+  if (LB_CATEGORY && !state.submitted && !lbToken) { lbBegin(); }
   const root = document.getElementById("eval-root");
   const total = state.questions.length;
   const q = state.questions[state.current];
@@ -960,6 +1001,9 @@ function renderResults() {
     list.appendChild(renderReviewItem(q, idx));
   });
 
+  // Optional anonymous-leaderboard opt-in (no-op unless a token was issued).
+  maybeRenderLeaderboardOptIn(pct);
+
   const retake = () => {
     if (!confirm("Start a fresh attempt with a new random set of questions?")) return;
     clearProgress();
@@ -975,6 +1019,73 @@ function renderResults() {
   });
   document.getElementById("scroll-to-bottom").addEventListener("click", () => {
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  });
+}
+
+// ──────────────────────────────────────────
+// Anonymous-leaderboard opt-in card (results screen)
+// Renders ONLY when a valid attempt token exists (backend provisioned). Consent
+// is unchecked by default; nothing is sent until the user ticks it and submits.
+// No name / email / code is ever transmitted — just the score + signed token.
+// ──────────────────────────────────────────
+function maybeRenderLeaderboardOptIn(pct) {
+  if (!LB_CATEGORY || !lbToken) return; // dormant/disabled → no card at all
+  const hero = document.querySelector(".results-hero");
+  if (!hero) return;
+
+  const card = document.createElement("section");
+  card.className = "lb-optin";
+  card.innerHTML = `
+    <h2 class="lb-optin-h">Add your score to the community leaderboard?</h2>
+    <p class="lb-optin-p">
+      Optional and anonymous. You'll be shown as a randomly generated alias
+      (e.g. “Query Falcon #238”) — no name, email, account, or your code is ever
+      sent. You can remove your entry later from this browser.
+    </p>
+    <label class="lb-optin-consent">
+      <input type="checkbox" id="lb-consent" />
+      <span>Publish my ${escapeHTML(LB_CATEGORY.toUpperCase())} score of ${pct}% anonymously.</span>
+    </label>
+    <div class="lb-optin-actions">
+      <button class="q-btn q-btn-primary" id="lb-submit" disabled>Add to leaderboard</button>
+      <a class="q-btn" href="/interview.app/leaderboard/">View leaderboard</a>
+    </div>
+    <div class="lb-optin-result" id="lb-optin-result" aria-live="polite"></div>
+  `;
+  hero.insertAdjacentElement("afterend", card);
+
+  const consent = card.querySelector("#lb-consent");
+  const submit = card.querySelector("#lb-submit");
+  const result = card.querySelector("#lb-optin-result");
+  consent.addEventListener("change", () => { submit.disabled = !consent.checked; });
+
+  submit.addEventListener("click", async () => {
+    if (!consent.checked) return;
+    submit.disabled = true;
+    submit.textContent = "Submitting…";
+    try {
+      const m = await lbLoad();
+      if (!m) throw new Error("unavailable");
+      // First attempt in this category on THIS device earns a small bonus multiplier.
+      const firstAttempt = m.myEntries().every((e) => e.category !== LB_CATEGORY);
+      const data = await m.lbSubmit({ token: lbToken, raw_percentage: pct, first_attempt: firstAttempt });
+      lbToken = null; // single-use — prevent any resubmit
+      consent.disabled = true;
+      const rankLine = data.rank
+        ? `You're currently <strong>#${data.rank}</strong> this week`
+        : `Your entry is saved`;
+      result.innerHTML =
+        `<div class="lb-optin-ok">✓ Added as <strong>${escapeHTML(data.alias || "—")}</strong>. ${rankLine}. ` +
+        `<a href="/interview.app/leaderboard/">See the board →</a></div>`;
+      submit.remove();
+    } catch (err) {
+      submit.disabled = false;
+      submit.textContent = "Add to leaderboard";
+      const msg = err && err.status === 409
+        ? "This attempt was already submitted."
+        : "Couldn’t add your score right now. Please try again.";
+      result.innerHTML = `<div class="lb-optin-err">${msg}</div>`;
+    }
   });
 }
 
