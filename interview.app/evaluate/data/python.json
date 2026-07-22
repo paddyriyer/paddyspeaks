@@ -6704,6 +6704,22 @@
       ],
       "answer": 1,
       "explanation": "Setting the categorical column to categorical dtype and using observed=True avoids materializing all 50K groups in memory\u2014it only processes groups that exist in the data. This is significantly faster and more memory-efficient than the default approach, which preallocates space for all possible category values. Manual NumPy/dict approaches lose pandas' optimized Cython implementations."
+    },
+    {
+      "id": "py-new-026",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "hard",
+      "added_date": "2026-07-22",
+      "prompt": "You have a Polars DataFrame with 10 million rows and 50 columns. You need to compute a rolling 7-day average on a numeric column, then filter for rows where the rolling average exceeds a threshold, and finally group by a categorical column to get mean values. Which approach minimizes memory usage and execution time?\n\nAssuming `df` is already in Polars and `date_col` is sorted:",
+      "options": [
+        "df.with_columns(pl.col('value').rolling_mean(7).alias('ma7')).filter(pl.col('ma7') > threshold).groupby('category').agg(pl.col('value').mean())",
+        "df.lazy().with_columns(pl.col('value').rolling_mean(7).alias('ma7')).filter(pl.col('ma7') > threshold).groupby('category').agg(pl.col('value').mean()).collect()",
+        "df.select(['date_col', 'category', 'value']).with_columns(pl.col('value').rolling_mean(7).alias('ma7')).filter(pl.col('ma7') > threshold).groupby('category').agg(pl.col('value').mean())",
+        "df.with_columns(pl.col('value').rolling_mean(7).over('category').alias('ma7')).filter(pl.col('ma7') > threshold).groupby('category').agg(pl.col('value').mean())"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 (lazy evaluation with `.lazy()` and `.collect()`) is optimal because Polars' lazy API applies query optimization (predicate pushdown and projection pushdown), reducing memory usage by filtering and selecting only necessary columns before execution. Option 0 uses eager evaluation which materializes intermediate results in memory. Option 2 unnecessarily pre-selects columns. Option 3 incorrectly applies `rolling_mean` over groups rather than the full window, producing wrong results."
     }
   ]
 }
