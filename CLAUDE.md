@@ -1,5 +1,14 @@
 # PaddySpeaks — Claude Code Instructions
 
+## Session continuity — read first
+
+Running state and "where we left off" between sessions lives in
+**`docs/SESSION-HANDOFF.md`** — read it at the start of a session to resume.
+Current headline: the **anonymous Community Leaderboard is LIVE** (Cloudflare
+Worker + separate D1 `paddyspeaks-leaderboard`); the public board reveals at 5
+real scores and shows a sample preview until then; the LinkedIn launch blurb is
+parked until real scores flow. Update that file when meaningful state changes.
+
 ## CRITICAL: Do NOT regenerate index.html
 
 The homepage (`index.html`) is **hand-crafted** with custom sections that no script can reproduce:
