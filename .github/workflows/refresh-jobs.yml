@@ -1,0 +1,42 @@
+name: Refresh Jobs Board
+
+# Regenerates interview.app/jobs/data/jobs.json.
+#
+# Currently manual-only: the board runs in "sample" mode until a live jobs feed
+# is wired (e.g. an Indeed export). A scheduled run in sample mode would only
+# churn the generated_at timestamp, so the weekly `schedule:` below is left
+# commented until `build_jobs.py --source <feed>` is fed real data. Once the
+# feed step is added, uncomment the schedule to keep the board fresh weekly.
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '30 6 * * 1'   # Mondays 06:30 UTC — enable once a live feed is wired
+
+jobs:
+  refresh-jobs:
+    # Never run in mirror/fork repos.
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # When a live feed is available, fetch it into feed.json first, then pass
+      # `--source feed.json` below. Until then this generates the sample board.
+      - name: Regenerate jobs board
+        run: python interview/scripts/build_jobs.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "PaddySpeaks Bot"
+          git config user.email "bot@paddyspeaks.com"
+          git add interview.app/jobs/data/jobs.json
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "🤖 Refresh jobs board — $(date +%Y-%m-%d)"
+          git push

@@ -11,6 +11,7 @@
  */
 
 import { routeLeaderboard } from './leaderboard.js';
+import { routeMock } from './mock.js';
 
 function cors(request) {
   const origin = request.headers.get('Origin') || 'https://paddyspeaks.com';
@@ -62,6 +63,10 @@ export default {
     // Anonymous leaderboard (separate D1 `LB` + HMAC secret; see leaderboard.js)
     const lb = await routeLeaderboard(request, env, url, ch);
     if (lb) return lb;
+
+    // AI Mock Interview (safe-degrades to 503 until ANTHROPIC_API_KEY is set)
+    const mk = await routeMock(request, env, url, ch);
+    if (mk) return mk;
 
     return new Response('Not found', { status: 404, headers: ch });
   },
