@@ -47,6 +47,38 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## Open / deferred items (nothing blocking)
 
+- **▶ SCHEDULED NEXT WEEK — Interview Studio "Polish Sprint" (execute, do not re-plan).**
+  User approved the plan; wants it built next week on branch
+  `claude/interview-studio-polish-zhfaet`. Polish only, **no feature creep**.
+  Full ranked plan + before/after mockups (artifact):
+  https://claude.ai/code/artifact/0a2933e5-e69a-4dfb-a3be-7c1efef534af
+  Audit was grounded in real renders (Playwright screenshots) + code. Headline
+  findings: (1) **theme fracture** — ~20 nav pages (leaderboard, simulator,
+  stories, flashcards, mock, behavioral, career, companies, elevator-pitch,
+  incidents, interviewer, mistakes, red-flags, resume, study-plan, submit,
+  whats-new, ai-engineering, my-prep …) DON'T load `studio.css`, so they render
+  on the legacy cool-blue palette; flagship pages (home, evaluate, sql/python)
+  do. (2) playground editors are bare `<textarea>` (no syntax/line numbers).
+  (3) loading = text-only `setStatus()`; empty states = one italic line;
+  toolbars = 8–11 equal-weight buttons; Skill Check buries Start below config.
+  Execution order (Mon→Fri): 
+    - Mon: PS-01 unify theme (add studio.css + `body.studio-skin` + Inter to the
+      ~20 pages), PS-09 single focus ring (app.css teal `#0e7490` vs studio gold),
+      PS-11 purge blue leftovers (`rgba(26,79,138,.08)` card shadow, `#93c5fd`/
+      `#1e40af` tag hovers).
+    - Tue: PS-04 value-first Skill Check (start-first, collapse company/pool config),
+      PS-06 toolbar hierarchy (one primary Run + overflow for Clear/Reset).
+    - Wed: PS-05 skeleton/progress loading, PS-08 intentful empty states,
+      PS-07 shortcuts + `?` cheatsheet.
+    - Thu: PS-02 CodeMirror 6 (vendor locally under `vendor/`, NO runtime CDN;
+      keep textarea as no-JS fallback; sql+python+quiz).
+    - Fri: PS-03 first-run onboarding, PS-13 mobile pass, PS-12 motion tokens,
+      PS-14 prefetch, PS-10 home hero single-CTA. QA + draft PR.
+  Guardrails: never regenerate index.html (hand-edit PS-10); nav stays templated;
+  quiz/playground stay `data-theme="light"`; ship as draft PR, one commit per ticket.
+  Screenshot script used: `interview.app` via `python3 -m http.server` +
+  Playwright at `/opt/node22/lib/node_modules/playwright` (chromium at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`).
 - **LinkedIn blurb** — write once real scores are coming in (drafts existed in
   chat; drop the "coming soon" framing).
 - Optional product tweaks the user declined for now (leaving organic):
