@@ -104,9 +104,18 @@ async function loadData() {
     fetchJSON(`${DATA_BASE}/questions.json`),
     fetchJSON(`${DATA_BASE}/manifest.json`),
   ]);
-  state.questions = questions;
+  // AI Engineering is a first-class category: its conceptual questions live in
+  // a separate, hand-curated file so the generated questions.json stays intact.
+  // Loaded tolerantly — the bank still works if the file is absent.
+  let aiQuestions = [];
+  try {
+    const ai = await fetchJSON(`${DATA_BASE}/questions-ai.json`);
+    if (Array.isArray(ai)) aiQuestions = ai;
+  } catch (_) { /* AI subset optional */ }
+
+  state.questions = questions.concat(aiQuestions);
   state.manifest = manifest;
-  $("#qb-total").textContent = manifest.total;
+  $("#qb-total").textContent = state.questions.length;
   $("#qb-companies").textContent = manifest.companies;
 }
 
@@ -531,6 +540,12 @@ function buildCard(q, tpl) {
     link.removeAttribute("href");
     link.style.opacity = "0.55";
     link.style.cursor = "default";
+  }
+  // AI Engineering questions are conceptual — no runnable playground. Point to
+  // the AI Engineering track / Skill Check instead of a code runtime.
+  if (q.language === "ai") {
+    link.textContent = "Practice in AI Skill Check →";
+    link.href = "./evaluate/quiz.html?section=ai";
   }
 
   return node;

@@ -5,6 +5,26 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEW (2026-07-23): Two learning tracks shipped — Communication and AI
+  Engineering.** Both are branch `claude/interview-studio-learning-tracks-w17fey`.
+  - Content is authored in re-runnable builders: `scripts/build_communication.py`
+    (101 exercises, 12 modules) and `scripts/build_ai.py` (152 questions, 20
+    modules). They emit `interview.app/evaluate/data/{communication,ai}.json`
+    (same schema as the Skill Check) and `interview/data/questions-ai.json` (the
+    Question Bank subset). `build_ai.py` also keeps `interview/data/languages.json`
+    + `topics.json` in sync so **AI is a first-class Question Bank category**
+    (language chip `ai`, 20 AI type facets).
+  - Both tracks appear in **Skill Check** (`evaluate/` — new sections `ai`,
+    `communication`), **Flashcards** (same data files), and the **Learn nav hub**
+    (`partials/nav.html` → run `build_nav.py`).
+  - New interactive **track pages**: `interview.app/communication/` and an added
+    "Practise" section on `interview.app/ai-engineering/`, both powered by the
+    shared **`js/track.js` + `css/track.css`** engine (module progress, filters
+    by topic/level/role/type, bookmarks, mixed/daily practice, continue-where-
+    left-off, interview-readiness score — all localStorage, `ps-track-<section>`).
+  - Tests: `node interview.app/tests/track-tests.mjs` (dependency-free, 2000+
+    checks). To edit content, change the builder and re-run it — never hand-edit
+    the generated JSON.
 - **Anonymous Community Leaderboard is LIVE** end-to-end (submit, alias, rank,
   delete all working). Backend = Cloudflare Worker + a **separate D1 database**.
 - Public board is **hidden by k-anonymity until 5 real scores** exist

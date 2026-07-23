@@ -15,6 +15,8 @@ const SECTIONS = {
   python: { slug: "python", label: "Python",         file: "./data/python.json", companyFile: "./data/python-companies.json" },
   design: { slug: "design", label: "Data & System Design", file: "./data/design.json" },
   topics2026: { slug: "topics2026", label: "2026 Hot Topics", file: "./data/hot-topics-2026.json" },
+  ai:     { slug: "ai",     label: "AI Engineering", file: "./data/ai.json" },
+  communication: { slug: "communication", label: "Communication", file: "./data/communication.json" },
 };
 
 const params = new URLSearchParams(window.location.search);
@@ -1124,6 +1126,7 @@ function renderReviewItem(q, idx) {
       <div class="review-answer-label">Correct answer</div>
       <div class="review-your-answer">${correctArr.map(i => formatInline(q.options[i])).join("<br>")}</div>
       ${q.explanation ? `<div class="review-explanation">${formatPrompt(q.explanation)}</div>` : ""}
+      ${reviewExtras(q)}
     `;
   } else if (q.type === "code" || q.type === "open") {
     cls += " self-rated";
@@ -1137,6 +1140,8 @@ function renderReviewItem(q, idx) {
         <div class="review-answer-label">Key points to look for</div>
         <ul class="review-keypoints">${q.key_points.map(kp => `<li>${formatInline(kp)}</li>`).join("")}</ul>
       ` : ""}
+      ${q.explanation ? `<div class="review-explanation">${formatPrompt(q.explanation)}</div>` : ""}
+      ${reviewExtras(q)}
       <div class="review-self-rate" data-qid="${q.id}">
         <span class="review-self-rate-label">Self-rate</span>
         ${[
@@ -1227,6 +1232,29 @@ function escapeHTML(str) {
 function formatInline(str) {
   const esc = escapeHTML(str);
   return esc.replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+// Render the optional rich content fields carried by the Communication and AI
+// tracks (and ignored by other sections that don't set them). Backward
+// compatible: emits nothing when a question has none of these fields.
+function reviewExtras(q) {
+  const rows = [];
+  const add = (label, val) => {
+    if (!val) return;
+    rows.push(`<div class="review-extra"><span class="review-extra-label">${label}</span> ${formatInline(val)}</div>`);
+  };
+  add("Why the original confuses", q.why_confusing);
+  add("Stronger alternative", q.stronger_alternative);
+  add("Say it naturally", q.say_it_naturally);
+  add("Common mistake", q.common_mistake);
+  add("Production example", q.production_example);
+  if (Array.isArray(q.followups) && q.followups.length) {
+    rows.push(`<div class="review-extra"><span class="review-extra-label">Interviewer follow-ups</span><ul class="review-extra-list">${q.followups.map(f => `<li>${formatInline(f)}</li>`).join("")}</ul></div>`);
+  }
+  if (Array.isArray(q.tags) && q.tags.length) {
+    rows.push(`<div class="review-extra review-extra-tags">${q.tags.map(t => `<span class="review-tag">${escapeHTML(t)}</span>`).join("")}</div>`);
+  }
+  return rows.length ? `<div class="review-extras">${rows.join("")}</div>` : "";
 }
 
 function formatPrompt(str) {
