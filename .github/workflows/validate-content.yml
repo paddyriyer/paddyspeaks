@@ -1,0 +1,46 @@
+name: Validate Content
+
+# Read-only guardrail that runs on every PR into main. It never edits or
+# regenerates anything (per CLAUDE.md) — it only checks:
+#   • article_metadata.json is valid, deduped, and every slug has a real file
+#   • all tracked JSON parses
+#   • articles CHANGED in this PR have well-formed inline SVGs, a <title>,
+#     and a <!doctype> (legacy articles are checked as warnings only)
+# Make this a required status check in branch protection to gate merges.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # Skip on mirror/fork repos, matching the other workflows here.
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so we can diff against the base branch
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Determine article files changed in this PR
+        id: changed
+        run: |
+          if [ -n "${{ github.base_ref }}" ]; then
+            git fetch --no-tags origin "${{ github.base_ref }}"
+            files=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'articles/*.html' | tr '\n' ' ')
+          else
+            files=""
+          fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "Strict (changed) article files: ${files:-<none>}"
+
+      - name: Validate content
+        run: python .github/scripts/validate_content.py --changed ${{ steps.changed.outputs.files }}
