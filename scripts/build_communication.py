@@ -41,6 +41,7 @@ MODULES = [
     "Cross-Cultural Communication",
     "Executive Communication",
     "Listening, Clarifying, and Confirming Understanding",
+    "Global Workplace Language",
 ]
 
 LEVEL_TO_DIFF = {"Beginner": "easy", "Intermediate": "medium", "Advanced": "hard"}
@@ -1423,6 +1424,253 @@ q(topic="Listening, Clarifying, and Confirming Understanding", type="single", le
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Module 13 · Global Workplace Language — decoding corporate jargon, sports
+# metaphors and regional English so non-native and cross-cultural teams follow
+# what's actually being said (instead of smiling politely and understanding
+# nothing). Teach decoding + plain-English translation, NOT blind copying.
+# ═════════════════════════════════════════════════════════════════════════════
+
+q(topic="Global Workplace Language", type="open", level="Intermediate", role="Individual Contributor",
+  format="rewrite",
+  prompt="Translate this jargon-and-sports-heavy sentence into plain English a global team will follow:\n\n“Let's punt the moonshot, focus on the low-hanging fruit, circle back by close of play, and we'll quarterback the rest next sprint.”",
+  model_answer="Let's postpone the ambitious, risky project, finish the easy high-value tasks first, and discuss the rest again by the end of the working day. I'll coordinate the remaining work next sprint.",
+  key_points=[
+      "“punt the moonshot” → postpone the ambitious/risky project",
+      "“low-hanging fruit” → the easiest valuable tasks (note: singular “fruit”, not “fruits”)",
+      "“circle back” → discuss again later",
+      "“close of play” → by the end of the working day (UK)",
+      "“quarterback” → lead/coordinate",
+  ],
+  explanation="This is the missing layer — not grammar, but decoding global workplace language. Four different metaphor systems (American football, orchards, meetings, cricket/UK timing) are stacked in one sentence; a fluent non-native speaker can know every word and still miss the meaning. Say what you mean plainly, especially with international teams.",
+  why_confusing="Each idiom assumes cultural context the listener may not share; together they turn a simple ask into a puzzle.",
+  say_it_naturally="“Let's hold the big bet, do the quick wins first, and regroup end of day. I'll run the rest next sprint.”")
+
+q(topic="Global Workplace Language", type="single", level="Beginner", role="Individual Contributor",
+  format="mc",
+  prompt="Which is the correct, standard business idiom?",
+  options=[
+      "Let's start with the long-hanging fruits.",
+      "Let's start with the low-hanging fruit.",
+      "Let's start with the low-hanging fruits.",
+      "Let's start with the down-hanging fruit.",
+  ], answer=1,
+  explanation="The expression is “low-hanging fruit” — the easiest useful task or quickest opportunity, from fruit you can pick without a ladder. It's used as an uncountable noun, so it stays “fruit” (singular form), not “fruits”, and it's “low-”, not “long-”.",
+  why_confusing="“Long-hanging fruits” is a common mishearing that immediately signals the speaker is repeating a phrase they haven't fully decoded.",
+  stronger_alternative="If in doubt, just say it plainly: “Let's start with the quick, easy wins.”")
+
+q(topic="Global Workplace Language", type="single", level="Advanced", role="Manager",
+  format="scenario",
+  prompt="On a US–UK call, an American says “Let's table the pricing discussion.” The UK attendees start preparing to debate pricing; the American moves on. What happened?",
+  options=[
+      "Everyone understood perfectly.",
+      "“Table it” means opposite things regionally: in US English it means postpone/set aside; in UK English it means put it forward for discussion now. The phrase caused a real misunderstanding.",
+      "The American changed their mind.",
+      "It's a grammar error.",
+  ], answer=1,
+  explanation="“Table it” is the classic trap: US = postpone/shelve; UK = bring up for discussion. Same words, opposite action. On mixed teams, avoid it entirely and say the actual action — “let's postpone the pricing discussion” or “let's discuss pricing now”.",
+  why_confusing="The phrase is confidently used by both sides, each assuming their meaning — so neither realizes they've diverged until people act differently.",
+  stronger_alternative="Say the action, not the idiom: “Let's park pricing for now” or “Let's discuss pricing next.”")
+
+q(topic="Global Workplace Language", type="single", level="Beginner", role="Individual Contributor",
+  format="mc",
+  prompt="A US colleague says, “Let's touch base tomorrow.” What are they asking for?",
+  options=[
+      "A formal contract review.",
+      "A quick check-in or brief conversation to sync up.",
+      "To physically meet at a specific location.",
+      "To restart the project from scratch.",
+  ], answer=1,
+  explanation="“Touch base” (from baseball) means have a short conversation to align or check progress — not a formal meeting. A safe reply: “Sure — shall we do 15 minutes at 10am?”",
+  why_confusing="The baseball origin is invisible to many speakers; taken literally it sounds like it involves a place or a base.",
+  stronger_alternative="“Let's have a quick catch-up tomorrow” is clearer for a global audience.")
+
+q(topic="Global Workplace Language", type="single", level="Beginner", role="Individual Contributor",
+  format="mc",
+  prompt="Your manager asks for a “ballpark estimate.” What should you give?",
+  options=[
+      "An exact, committed figure with no margin of error.",
+      "A rough, approximate figure — good enough for planning, not a precise commitment.",
+      "A sports statistic.",
+      "A written legal quote.",
+  ], answer=1,
+  explanation="“Ballpark” (baseball again) means approximate. A ballpark estimate is a rough order-of-magnitude number, explicitly not a promise. It's fine — and wise — to label it: “Ballpark, 3–4 weeks; I'll confirm once I've scoped it.”",
+  why_confusing="If you treat a “ballpark” request as a firm commitment, you can over-promise; if you refuse to give one, you seem unhelpful.",
+  stronger_alternative="“Roughly / approximately, it's about X — I'll firm it up after scoping.”")
+
+q(topic="Global Workplace Language", type="single", level="Intermediate", role="Manager",
+  format="mc",
+  prompt="A US teammate says another team “dropped the ball” on the integration. What does this mean?",
+  options=[
+      "They finished the work early.",
+      "They failed to do something they were responsible for — a preventable miss.",
+      "They started a new project.",
+      "They passed the work to someone else correctly.",
+  ], answer=1,
+  explanation="“Dropped the ball” means someone failed to handle a responsibility they'd taken on — a preventable lapse. It's mildly critical, so in cross-cultural settings prefer the plain, less loaded version to avoid unintended blame.",
+  why_confusing="Sports-metaphor blame can land harder (or softer) than intended across cultures; the literal image gives no clue to the meaning.",
+  stronger_alternative="“The integration wasn't handed over as expected — let's find out what got missed.”")
+
+q(topic="Global Workplace Language", type="single", level="Intermediate", role="Technical Leader",
+  format="mc",
+  prompt="You're asked to “quarterback” the migration. What's your role?",
+  options=[
+      "To do all the work personally.",
+      "To lead and coordinate it — directing the effort and the people, like a quarterback calling plays.",
+      "To postpone it.",
+      "To review it only after it's done.",
+  ], answer=1,
+  explanation="From American football, “quarterback the project” means own the coordination — set direction, sequence the work, and keep everyone aligned. For a global team, “lead” or “coordinate” conveys it without needing the sport.",
+  why_confusing="American-football terms are opaque to anyone who didn't grow up with the sport; the meaning isn't derivable from the word.",
+  stronger_alternative="“Can you lead and coordinate the migration?”")
+
+q(topic="Global Workplace Language", type="multi", level="Advanced", role="Manager",
+  format="mc",
+  prompt="Select every expression below that a US colleague might use to mean “let's postpone / defer this.” (Choose all that apply.)",
+  options=[
+      "Let's table it. (US)",
+      "Let's punt on it.",
+      "Let's parking-lot this.",
+      "Let's double-click on that.",
+      "Let's take a rain check.",
+      "Let's boil the ocean.",
+  ], answer=[0, 1, 2, 4],
+  explanation="“Table it” (US), “punt”, “parking-lot this”, and “take a rain check” all mean postpone/defer. “Double-click on that” means explore a point in more detail (the opposite of deferring), and “boil the ocean” means attempt far too much at once. Note “table it” means the OPPOSITE in the UK.",
+  why_confusing="English has a surprising number of idioms for “postpone”, several from sports or meetings, and one (“table it”) reverses meaning between the US and UK.",
+  stronger_alternative="Across regions, just say “let's postpone this” or “let's come back to this later.”")
+
+q(topic="Global Workplace Language", type="single", level="Intermediate", role="Individual Contributor",
+  format="mc",
+  prompt="Someone says, “Let's not boil the ocean here.” What are they advising?",
+  options=[
+      "Let's work much harder.",
+      "Let's not attempt far too much at once — narrow the scope.",
+      "Let's heat up the discussion.",
+      "Let's take a break.",
+  ], answer=1,
+  explanation="“Boil the ocean” means take on an impossibly large scope. The advice is to narrow down and focus. A clear paraphrase: “Let's not try to solve everything at once — let's scope this down.”",
+  why_confusing="The vivid image doesn't obviously map to “over-scoping” unless you already know the idiom.",
+  stronger_alternative="“Let's keep the scope tight and not try to do everything at once.”")
+
+q(topic="Global Workplace Language", type="single", level="Intermediate", role="Technical Leader",
+  format="scenario",
+  prompt="In a planning meeting a UK colleague says a tricky rollout is “a bit of a sticky wicket.” What do they mean?",
+  options=[
+      "It's an easy win.",
+      "It's a difficult, awkward situation to handle.",
+      "It's already finished.",
+      "It's a type of test.",
+  ], answer=1,
+  explanation="“Sticky wicket” (from cricket) means a tricky, difficult situation. Cricket idioms (“on the back foot”, “that was a googly”, “play a straight bat”) are common in the UK, India and Australia but opaque to many US colleagues — so on mixed teams, translate them.",
+  why_confusing="Cricket metaphors are second nature in some regions and completely unknown in others; the words give no hint of “difficult”.",
+  stronger_alternative="“This rollout is going to be tricky — here's the awkward part.”")
+
+q(topic="Global Workplace Language", type="single", level="Beginner", role="Individual Contributor",
+  format="mc",
+  prompt="A soccer/football metaphor: someone complains that the client keeps “moving the goalposts.” What's happening?",
+  options=[
+      "The client is being generous with deadlines.",
+      "The client keeps changing the success criteria/requirements after work has started.",
+      "The client cancelled the project.",
+      "The client approved everything.",
+  ], answer=1,
+  explanation="“Moving the goalposts” means changing the definition of success or the requirements partway through, making the target hard to hit. Plainly: “the client keeps changing the requirements.”",
+  why_confusing="It's a widely-understood idiom, but the plain version is more precise and lets you name the specific change.",
+  stronger_alternative="“The requirements keep changing after we agreed them — let's re-baseline scope.”")
+
+q(topic="Global Workplace Language", type="single", level="Intermediate", role="Manager",
+  format="mc",
+  prompt="Which is the clearest way to describe an easy, near-certain success to a global team?",
+  options=[
+      "It's a slam dunk.",
+      "It's a straightforward, low-risk win — very likely to succeed.",
+      "It's a Hail Mary.",
+      "It's a googly.",
+  ], answer=1,
+  explanation="“Slam dunk” (basketball) means an easy, near-certain success; “Hail Mary” (American football) is the opposite — a desperate long shot; “googly” (cricket) is a surprising/tricky delivery. Rather than risk the wrong sport landing with the wrong person, say the plain meaning.",
+  why_confusing="Three sports metaphors here mean three very different things (certain win vs. desperate gamble vs. tricky surprise) — easy to mix up if the sport isn't yours.",
+  stronger_alternative="Name the risk level directly: “low-risk and very likely to work.”")
+
+q(topic="Global Workplace Language", type="single", level="Beginner", role="Individual Contributor",
+  format="mc",
+  prompt="A UK colleague replies, “Sure, I'll send it by close of play.” When should you expect it?",
+  options=[
+      "After a sports match.",
+      "By the end of the working day.",
+      "Within the hour.",
+      "By the end of the week.",
+  ], answer=1,
+  explanation="“Close of play” (COP, a cricket term) means by the end of the working day — the UK equivalent of “EOD”. To be unambiguous across time zones, it's still best to state a time: “by 5pm UK time.”",
+  why_confusing="“Close of play” is standard in the UK but unfamiliar elsewhere, and even when understood it doesn't specify a time zone.",
+  stronger_alternative="“I'll send it by end of day — 5pm London time.”")
+
+q(topic="Global Workplace Language", type="single", level="Beginner", role="Individual Contributor",
+  format="mc",
+  prompt="Choose the globally clearest alternative for the regional phrase “I passed out in 2025.”",
+  options=[
+      "I fainted in 2025.",
+      "I graduated in 2025.",
+      "I retired in 2025.",
+      "I failed in 2025.",
+  ], answer=1,
+  explanation="In Indian English “passed out” often means graduated, but in most global English it means fainted — a confusing and unintended image on a resume or interview. Say “I graduated in 2025.”",
+  why_confusing="To a global listener “passed out” means losing consciousness, so the sentence reads very differently from what's intended.",
+  stronger_alternative="“I graduated in 2025 with a degree in …”")
+
+q(topic="Global Workplace Language", type="single", level="Intermediate", role="Individual Contributor",
+  format="scenario",
+  prompt="A senior colleague uses several idioms you don't recognise in a meeting (“let's not get into the weeds, just move the needle”). What's the most professional response?",
+  options=[
+      "Nod along and hope you understood.",
+      "Ask plainly: “Just to make sure I'm with you — by ‘move the needle' you mean focus on what makes a measurable difference, and skip the fine detail for now?”",
+      "Point out that their language is unclear and unprofessional.",
+      "Stay silent and look it up afterward, risking acting on a guess.",
+  ], answer=1,
+  explanation="Asking to confirm the meaning — by playing back your understanding — is professional, not embarrassing. “Get into the weeds” = excessive detail; “move the needle” = produce a meaningful, measurable result. A quick check prevents acting on a wrong guess and often helps others in the room too.",
+  why_confusing="Idioms stack quickly in fluent speech; nodding along to save face is exactly how people end up ‘smiling politely while understanding nothing'.",
+  stronger_alternative="“Can I just check what you mean by ‘move the needle' here?” — a normal, confident question.")
+
+q(topic="Global Workplace Language", type="single", level="Advanced", role="Technical Leader",
+  format="mc",
+  prompt="You're briefing a multinational team with many non-native English speakers. What's the best practice on idioms and sports metaphors?",
+  options=[
+      "Use lots of them to sound natural and senior.",
+      "Prefer plain, literal language; if you use an idiom, immediately gloss it (“low-hanging fruit — the quick, easy wins”), and avoid region-specific sports metaphors.",
+      "Assume everyone knows American sports references.",
+      "Speak faster to fit more in.",
+  ], answer=1,
+  explanation="Idioms and region-specific sports metaphors are a top hidden cause of cross-cultural miscommunication. Lead with plain language; when an idiom slips in, translate it in the same breath. This isn't dumbing down — it's making sure the whole room can act on what you said.",
+  why_confusing="Baseball, American-football, cricket and soccer metaphors each assume a different cultural background; using them freely guarantees part of the room is lost.",
+  stronger_alternative="Say the meaning first, add the colour second: “the quick wins — the low-hanging fruit.”")
+
+q(topic="Global Workplace Language", type="single", level="Intermediate", role="Individual Contributor",
+  format="mc",
+  prompt="A colleague says, “Let's take that offline.” In a meeting, what are they suggesting?",
+  options=[
+      "Turn off the internet.",
+      "Discuss that topic separately, outside this meeting, rather than here.",
+      "Cancel the discussion entirely.",
+      "Put it in writing only.",
+  ], answer=1,
+  explanation="“Take it offline” means move a side-topic to a separate conversation so the meeting can proceed — it has nothing to do with the internet. Plainly: “let's discuss that separately after this.”",
+  why_confusing="Taken literally, “offline” sounds technical (network-related), when it just means “not in this meeting”.",
+  stronger_alternative="“Let's discuss that one separately so we can keep this meeting on track.”")
+
+q(topic="Global Workplace Language", type="open", level="Advanced", role="Manager",
+  format="rewrite",
+  prompt="Rewrite this jargon-dense update as plain English for a global audience, then note the two phrases most likely to cause a regional misunderstanding:\n\n“Team, we'll table the vendor decision, ping me if you have bandwidth to deep-dive the numbers, and let's revert by EOD IST. Out of station Friday.”",
+  model_answer="Plain English: “Team, we'll postpone the vendor decision for now. If you have time to review the numbers in detail, let me know. Please reply by end of day, 6pm India time. I'll be out of the office on Friday.”\n\nMost likely to be misunderstood: (1) “table the vendor decision” — in the UK “table” means bring it up for discussion now, the opposite of the intended “postpone”. (2) “revert by EOD” and “out of station” — “revert” for “reply” and “out of station” for “out of the office” are regional (Indian English) and read as errors or ambiguity elsewhere; “EOD” also needs a time zone.",
+  key_points=[
+      "“table” → postpone (US) but discuss-now (UK): a true reversal — replace it",
+      "“revert” → reply; “out of station” → out of the office (regional)",
+      "“ping / bandwidth / deep-dive” → contact me / time / review in detail",
+      "“EOD IST” → state the actual time and zone (6pm India time)",
+      "Names the two highest-risk phrases (“table”, “revert/out of station”)",
+  ],
+  explanation="Global workplace decoding in one message: it mixes US meeting-jargon, tech-slang, and Indian-English regionalisms — plus the “table” reversal that can make readers do the exact opposite of what you meant. Translate to plain English and pin down the time zone.",
+  why_confusing="“Table” flips meaning between US and UK, and “revert/out of station” read as mistakes to a global audience — together they can produce wrong actions, not just confusion.",
+  say_it_naturally="“We'll hold the vendor decision. If you can review the numbers, ping me. Reply by 6pm IST. I'm off Friday.”")
 
 # ─────────────────────────────────────────────────────────────────────────────
 def main():

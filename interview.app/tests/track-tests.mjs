@@ -34,7 +34,8 @@ ok(ai.questions.length >= 150, `ai has 150+ questions (got ${ai.questions.length
 ok(bank.length === ai.questions.length, "bank record count matches ai question count");
 
 // Every module represented
-ok(comm.modules.length === 12, "communication has 12 modules");
+ok(comm.modules.length === 13, "communication has 13 modules");
+ok(comm.modules.includes("Global Workplace Language"), "communication has Global Workplace Language module");
 ok(ai.modules.length === 20, "ai has 20 modules");
 for (const m of comm.modules) ok(comm.questions.some(q => q.topic === m), `comm module covered: ${m}`);
 for (const m of ai.modules) ok(ai.questions.some(q => q.topic === m), `ai module covered: ${m}`);
