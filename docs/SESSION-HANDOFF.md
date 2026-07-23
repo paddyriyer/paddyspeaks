@@ -8,7 +8,9 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 - **NEW (2026-07-23): Two learning tracks shipped — Communication and AI
   Engineering.** Both are branch `claude/interview-studio-learning-tracks-w17fey`.
   - Content is authored in re-runnable builders: `scripts/build_communication.py`
-    (101 exercises, 12 modules) and `scripts/build_ai.py` (152 questions, 20
+    (119 exercises, 13 modules — incl. a "Global Workplace Language" module
+    decoding corporate jargon, sports metaphors and regional English) and
+    `scripts/build_ai.py` (152 questions, 20
     modules). They emit `interview.app/evaluate/data/{communication,ai}.json`
     (same schema as the Skill Check) and `interview/data/questions-ai.json` (the
     Question Bank subset). `build_ai.py` also keeps `interview/data/languages.json`
