@@ -1,16 +1,12 @@
 name: Refresh Jobs Board
 
-# Regenerates interview.app/jobs/data/jobs.json.
-#
-# Currently manual-only: the board runs in "sample" mode until a live jobs feed
-# is wired (e.g. an Indeed export). A scheduled run in sample mode would only
-# churn the generated_at timestamp, so the weekly `schedule:` below is left
-# commented until `build_jobs.py --source <feed>` is fed real data. Once the
-# feed step is added, uncomment the schedule to keep the board fresh weekly.
+# Pulls real Data/AI-Engineer roles from companies' public ATS boards
+# (Greenhouse / Lever / Ashby — keyless) into interview.app/jobs/data/jobs.json.
+# Board map: interview/scripts/ats_boards.json (edit to add companies).
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: '30 6 * * 1'   # Mondays 06:30 UTC — enable once a live feed is wired
+  schedule:
+    - cron: '30 6 * * 1'   # Mondays 06:30 UTC
 
 jobs:
   refresh-jobs:
@@ -27,10 +23,21 @@ jobs:
         with:
           python-version: '3.12'
 
-      # When a live feed is available, fetch it into feed.json first, then pass
-      # `--source feed.json` below. Until then this generates the sample board.
-      - name: Regenerate jobs board
-        run: python interview/scripts/build_jobs.py
+      # Fetch live roles from the ATS boards. Exits non-zero if it found nothing
+      # (network blip / all slugs stale) — we then keep the last good jobs.json
+      # rather than wiping the board.
+      - name: Fetch live jobs feed
+        id: fetch
+        continue-on-error: true
+        run: python interview/scripts/fetch_jobs_feed.py --out feed.json
+
+      - name: Rebuild board from live feed
+        if: steps.fetch.outcome == 'success'
+        run: python interview/scripts/build_jobs.py --source feed.json
+
+      - name: Keep last-good board (feed came up empty)
+        if: steps.fetch.outcome != 'success'
+        run: echo "Live feed was empty or unreachable — leaving the existing jobs.json in place."
 
       - name: Commit if changed
         run: |
