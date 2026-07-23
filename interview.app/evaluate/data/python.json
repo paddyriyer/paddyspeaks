@@ -6720,6 +6720,22 @@
       ],
       "answer": 1,
       "explanation": "Option 1 (lazy evaluation with `.lazy()` and `.collect()`) is optimal because Polars' lazy API applies query optimization (predicate pushdown and projection pushdown), reducing memory usage by filtering and selecting only necessary columns before execution. Option 0 uses eager evaluation which materializes intermediate results in memory. Option 2 unnecessarily pre-selects columns. Option 3 incorrectly applies `rolling_mean` over groups rather than the full window, producing wrong results."
+    },
+    {
+      "id": "py-new-027",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-07-23",
+      "prompt": "You have a pandas DataFrame with 10M rows and need to apply a custom transformation to a column. You benchmark three approaches:\n\n(A) `df['result'] = df['value'].apply(lambda x: custom_func(x))`\n(B) `df['result'] = df['value'].map(custom_func)` where custom_func is a compiled Numba function\n(C) `df['result'] = pd.Series([custom_func(x) for x in df['value']], index=df.index)`\n(D) `df['result'] = np.vectorize(custom_func)(df['value'].values)`\n\nWhich approach will likely be SLOWEST for a complex transformation involving branching logic and string operations?",
+      "options": [
+        "Using .apply() with a lambda function",
+        "Using .map() with a Numba-compiled function",
+        "Using list comprehension with pd.Series constructor",
+        "Using np.vectorize() on numpy array values"
+      ],
+      "answer": 3,
+      "explanation": "np.vectorize() is essentially a Python loop wrapper that provides no performance benefit over pure Python and adds overhead. It's the slowest approach here. While .apply() is also slow due to Python overhead, np.vectorize() is explicitly documented as having performance similar to a Python loop with added call overhead. The Numba-compiled function would be fastest, and list comprehension with pd.Series is typically faster than .apply() because it avoids pandas' method call overhead."
     }
   ]
 }
