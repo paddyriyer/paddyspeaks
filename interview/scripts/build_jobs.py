@@ -120,8 +120,7 @@ def build_sample(counts: dict[str, dict], companies: list[dict]) -> list[dict]:
     return jobs
 
 
-def build_live(source: Path, counts: dict[str, dict], names: set[str]) -> list[dict]:
-    feed = load_json(source)
+def build_live(feed: list[dict], counts: dict[str, dict], names: set[str]) -> list[dict]:
     jobs = []
     dropped = 0
     for rec in feed:
@@ -150,7 +149,12 @@ def build_live(source: Path, counts: dict[str, dict], names: set[str]) -> list[d
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate interview.app/jobs data.")
-    ap.add_argument("--source", type=Path, help="JSON feed of live roles (Indeed export).")
+    ap.add_argument(
+        "--source",
+        type=Path,
+        nargs="+",
+        help="One or more JSON feeds of live roles (ATS, Adzuna, …). Missing files are skipped.",
+    )
     args = ap.parse_args()
 
     companies = load_json(DATA / "companies.json")
@@ -159,9 +163,21 @@ def main() -> None:
     names = {c["name"] for c in companies}
 
     if args.source:
-        if not args.source.exists():
-            sys.exit(f"source feed not found: {args.source}")
-        jobs = build_live(args.source, counts, names)
+        # Merge every provided feed that exists, de-duping by company + role + url.
+        merged, seen = [], set()
+        for src in args.source:
+            if not src.exists():
+                print(f"  (skipping absent feed: {src})")
+                continue
+            for rec in load_json(src):
+                key = (rec.get("company"), (rec.get("role") or "").lower(), rec.get("apply_url"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(rec)
+        if not merged:
+            sys.exit("no roles found in any provided feed")
+        jobs = build_live(merged, counts, names)
         mode = "live"
     else:
         jobs = build_sample(counts, companies)
