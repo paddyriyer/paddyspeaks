@@ -1,8 +1,10 @@
 name: Refresh Jobs Board
 
-# Pulls real Data/AI-Engineer roles from companies' public ATS boards
-# (Greenhouse / Lever / Ashby — keyless) into interview.app/jobs/data/jobs.json.
-# Board map: interview/scripts/ats_boards.json (edit to add companies).
+# Pulls real Data/AI-Engineer roles into interview.app/jobs/data/jobs.json from:
+#   1. companies' public ATS boards (Greenhouse/Lever/Ashby — keyless), and
+#   2. the Adzuna jobs API (broader coverage) IF the ADZUNA_APP_ID/ADZUNA_APP_KEY
+#      repo secrets are set (otherwise that step no-ops).
+# Board map for ATS: interview/scripts/ats_boards.json.
 on:
   workflow_dispatch:
   schedule:
@@ -23,21 +25,24 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Fetch live roles from the ATS boards. Exits non-zero if it found nothing
-      # (network blip / all slugs stale) — we then keep the last good jobs.json
-      # rather than wiping the board.
-      - name: Fetch live jobs feed
-        id: fetch
+      # Keyless ATS boards. Exits non-zero if it found nothing.
+      - name: Fetch ATS boards
         continue-on-error: true
-        run: python interview/scripts/fetch_jobs_feed.py --out feed.json
+        run: python interview/scripts/fetch_jobs_feed.py --out feed_ats.json
 
-      - name: Rebuild board from live feed
-        if: steps.fetch.outcome == 'success'
-        run: python interview/scripts/build_jobs.py --source feed.json
+      # Adzuna aggregator. No-ops (writes nothing) unless both secrets are set.
+      - name: Fetch Adzuna
+        continue-on-error: true
+        env:
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+        run: python interview/scripts/fetch_jobs_adzuna.py --out feed_adzuna.json
 
-      - name: Keep last-good board (feed came up empty)
-        if: steps.fetch.outcome != 'success'
-        run: echo "Live feed was empty or unreachable — leaving the existing jobs.json in place."
+      # Rebuild from whichever feeds exist. Exits non-zero (leaving jobs.json
+      # untouched) if both feeds are empty/absent, so we keep the last good board.
+      - name: Rebuild board
+        continue-on-error: true
+        run: python interview/scripts/build_jobs.py --source feed_ats.json feed_adzuna.json
 
       - name: Commit if changed
         run: |
