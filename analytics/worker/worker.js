@@ -11,6 +11,7 @@
  */
 
 import { routeLeaderboard } from './leaderboard.js';
+import { normalizeReferrer, sourceOf, botScore, contentGroup } from '../lib/classify.js';
 
 function cors(request) {
   const origin = request.headers.get('Origin') || 'https://paddyspeaks.com';
@@ -33,6 +34,10 @@ export default {
 
     if ((url.pathname === '/collect' || url.pathname === '/api/v') && request.method === 'POST') {
       return handleCollect(request, env, ctx, ch);
+    }
+
+    if (url.pathname === '/api/e' && request.method === 'POST') {
+      return handleEvent(request, env, ctx, ch);
     }
 
     if (url.pathname === '/api/stats' && request.method === 'GET') {
@@ -80,13 +85,19 @@ async function handleCollect(request, env, ctx, ch) {
       return new Response('ok', { headers: ch });
     }
 
-    // Exit event — update duration and scroll depth on existing row
+    // Exit event — update duration and scroll depth on the latest matching row.
+    // Fix (audit B): SQLite/D1 does NOT support ORDER BY/LIMIT on UPDATE, so the
+    // old statement threw and silently lost time+scroll. Target the row by its
+    // primary key via a subselect instead — standard SQL, works on D1.
     if (data.t === 'exit') {
       ctx.waitUntil(
         env.DB.prepare(`
           UPDATE page_views SET duration = ?, scroll_depth = ?
-          WHERE session_id = ? AND page = ?
-          ORDER BY id DESC LIMIT 1
+          WHERE id = (
+            SELECT id FROM page_views
+            WHERE session_id = ? AND page = ?
+            ORDER BY id DESC LIMIT 1
+          )
         `).bind(
           Math.min(data.dur || 0, 3600),
           Math.min(data.scroll || 0, 100),
@@ -130,6 +141,70 @@ async function handleCollect(request, env, ctx, ch) {
         data.lt || 0
       ).run().catch(e => console.error('DB write error:', e.message))
     );
+
+    return new Response('ok', { headers: ch });
+  } catch (e) {
+    return new Response('ok', { headers: ch });
+  }
+}
+
+/* ───────── Versioned event ingest (schema v1) ─────────
+ * Writes to the `events` table (migrate-v6-events.sql). Fully decoupled from the
+ * page_views path above: if the migration has not been applied yet, the insert
+ * fails inside its own catch and page-view collection is completely unaffected.
+ * Dedupes on event_id (INSERT OR IGNORE). Classifies bots/internal/referrer
+ * server-side and keeps suspected bots VISIBLE (bot_class), never dropped.
+ */
+async function handleEvent(request, env, ctx, ch) {
+  try {
+    const d = await request.json();
+    const cf = request.cf || {};
+    const ua = request.headers.get('User-Agent') || '';
+    if (!d || !d.event_name || !d.event_id) return new Response('ok', { headers: ch });
+
+    const ref = normalizeReferrer(d.r || '');
+    const props = d.props && typeof d.props === 'object' ? d.props : {};
+    const bc = botScore({
+      ua,
+      asOrg: cf.asOrganization || '',
+      interactions: props.interactions || 0,
+      pageViews: props.page_num || 1,
+      sessionSeconds: props.active_ms ? props.active_ms / 1000 : 0,
+    });
+    const internal = ref.domain && /paddyspeaks\.com$|(^|\.)interview\.app$/.test(ref.domain) ? 1 : 0;
+
+    ctx.waitUntil((async () => {
+      try {
+        await env.DB.prepare(`
+          INSERT OR IGNORE INTO events (
+            event_id, event_name, schema_version, anonymous_visitor_id, session_id,
+            client_ts, page_path, page_title, content_group, referrer_domain, referrer_path,
+            utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+            device_category, browser, operating_system, locale, timezone, country, city,
+            viewport, properties, collection_status, bot_class, internal
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          sanitize(d.event_id), sanitize(d.event_name), d.schema_version || 1,
+          sanitize(d.vid || ''), sanitize(d.sid || ''), sanitize(d.ts || ''),
+          sanitize(d.p || '/'), sanitize(d.title || ''), contentGroup(d.p || '/'),
+          ref.domain, ref.path,
+          sanitize(d.ut_s || ''), sanitize(d.ut_m || ''), sanitize(d.ut_c || ''),
+          sanitize(d.ut_t || ''), sanitize(d.ut_ct || ''),
+          parseDevice(ua), parseBrowser(ua), parseOS(ua),
+          sanitize(d.l || ''), cf.timezone || '', cf.country || 'Unknown', cf.city || 'Unknown',
+          sanitize(d.v || ''), JSON.stringify(props).slice(0, 4000), 'full', bc.class, internal
+        ).run();
+
+        // Visitor roll-up for correct new/returning + cohorts (best-effort).
+        if (d.vid) {
+          await env.DB.prepare(`
+            INSERT INTO visitors (anonymous_visitor_id, first_seen, last_seen, sessions)
+            VALUES (?, datetime('now'), datetime('now'), 1)
+            ON CONFLICT(anonymous_visitor_id) DO UPDATE SET last_seen = datetime('now')
+          `).bind(sanitize(d.vid)).run();
+        }
+      } catch (e) { /* migration not yet applied, or transient — never blocks collection */ }
+    })());
 
     return new Response('ok', { headers: ch });
   } catch (e) {
