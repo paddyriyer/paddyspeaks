@@ -114,6 +114,7 @@ async function init() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.section = data;
+    if (window.psTrack) window.psTrack("track_selected", { track: sectionSlug });
     let bank = data.questions;
     if (!Array.isArray(bank) || bank.length === 0) {
       throw new Error("Question bank is empty.");
@@ -217,6 +218,7 @@ function newAttempt() {
   state.runOutputs = {};
   lbToken = null; // a fresh draw needs a fresh attempt token (new duration + nonce)
   persist();
+  if (window.psTrack) window.psTrack("quiz_started", { track: sectionSlug, count: length });
 }
 
 function shuffleArray(arr) {
@@ -595,6 +597,12 @@ function confirmSubmit() {
   persist();
   logHistory();
   renderResults();
+  if (window.psTrack) {
+    const sc = computeScore();
+    const pctScore = sc.max > 0 ? Math.round((sc.score / sc.max) * 100) : 0;
+    const passing = state.section.passing_score || 70;
+    window.psTrack("quiz_completed", { track: sectionSlug, score: pctScore, passed: pctScore >= passing });
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -614,6 +622,11 @@ function logHistory() {
         else if (r === 0) correct = false;
       }
       hist.push({ id: q.id, sec: sectionSlug, topic: q.topic || "", diff: q.difficulty || "", ok: correct, ts });
+      if (window.psTrack) {
+        window.psTrack("answer_submitted", { track: sectionSlug, topic: q.topic || "", difficulty: q.difficulty || "", question_id: q.id, correct: correct });
+        if (correct === true) window.psTrack("answer_correct", { track: sectionSlug, question_id: q.id });
+        else if (correct === false) window.psTrack("answer_incorrect", { track: sectionSlug, question_id: q.id });
+      }
     });
     // Cap history so localStorage never fills up
     while (hist.length > 4000) hist.shift();
@@ -647,6 +660,7 @@ async function runCode(q) {
   const src = ta ? ta.value : (state.answers[q.id] || "");
   state.answers[q.id] = src; // ensure persisted before run
   persist();
+  if (window.psTrack) window.psTrack("code_run", { track: sectionSlug, question_id: q.id });
 
   const statusEl = document.getElementById(`q-run-status-${q.id}`);
   const outputEl = document.getElementById(`q-run-output-${q.id}`);

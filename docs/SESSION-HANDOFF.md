@@ -5,7 +5,23 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEW (2026-07-24): Analytics redesign — Phase 1 (Trust & foundations) on
+- **NEW (2026-07-24, later): Analytics redesign — Phase 2 (decision dashboard)
+  + Phase 3 start (Studio events)** on the same branch, restarted from main
+  after #733 merged. Added the **6-tab dashboard** (Overview/Acquisition/Content/
+  Interview Studio/Journeys/Data Quality) in `analytics/index.html` — existing
+  panels preserved and tab-assigned in JS, new decision panels on top;
+  **`analytics/lib/insights.js`** deterministic insight engine (pure, tested,
+  never fires below sample floor); Worker **`GET /api/insights`** computing
+  engaged sessions/medians/correct new-returning/source+content classes/Studio
+  funnels/data-quality via the pure libs. Wired **`psTrack()`** into the quiz
+  engine (`interview.app/evaluate/js/quiz-engine.js`) and track engine
+  (`interview.app/js/track.js`). Tests now **55 pass** (`node
+  analytics/tests/run.mjs`); dashboard verified via headless-Chromium smoke test.
+  **Still TODO (Phase 3 rest + Phase 4):** wire simulator/flashcards/study-plan/
+  study-day events; `question_started`/`hint_requested`/`explanation_viewed`;
+  cohort tables + journey/path analysis + Day1/7/30 retention UI; anomaly
+  detection. See `docs/analytics/PLAN.md`.
+- **Analytics redesign — Phase 1 (Trust & foundations) on
   branch `claude/paddyspeaks-analytics-audit-refpf4`.** Additive + backward-
   compatible; historical `page_views` preserved. Full write-up in
   `docs/analytics/` (AUDIT, PLAN, EVENT-TAXONOMY, METRIC-DICTIONARY,

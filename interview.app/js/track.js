@@ -153,6 +153,7 @@
       facets.formats = dedupe(QUESTIONS.map(exType));
       restoreFilters(savedView && savedView.filters);
       render();
+      if (window.psTrack) window.psTrack("track_selected", { track: CFG.section });
     }).catch(function (e) {
       root.innerHTML = '<div class="tk-empty">Could not load track content (' + esc(e.message) + '). Please refresh.</div>';
     });
@@ -316,7 +317,20 @@
       };
     });
     var search = byId("tk-search");
-    search.oninput = function () { filters.search = search.value.trim(); updateSummary(); };
+    search.oninput = function () {
+      filters.search = search.value.trim();
+      updateSummary();
+      if (window.psTrack) {
+        clearTimeout(window._psSearchT);
+        window._psSearchT = setTimeout(function () {
+          var q = filters.search;
+          if (q.length >= 3) {
+            window.psTrack("search_performed", { track: CFG.section, query_len: q.length });
+            if (filtered().length === 0) window.psTrack("no_search_results", { track: CFG.section, query_len: q.length });
+          }
+        }, 700);
+      }
+    };
     byId("tk-bm-toggle").onclick = function () {
       filters.bookmarked = !filters.bookmarked;
       byId("tk-bm-toggle").setAttribute("aria-pressed", filters.bookmarked ? "true" : "false");
@@ -485,6 +499,12 @@
   function recordResult(qid, result) {
     progress[qid] = { result: result, ts: Date.now() };
     persistProgress();
+    if (window.psTrack) {
+      var q = QUESTIONS.filter(function (x) { return x.id === qid; })[0] || {};
+      window.psTrack("question_completed", { track: CFG.section, topic: q.topic || "", difficulty: q.difficulty || q.level || "", question_id: qid, result: result });
+      if (result === "correct") window.psTrack("answer_correct", { track: CFG.section, question_id: qid });
+      else if (result === "incorrect") window.psTrack("answer_incorrect", { track: CFG.section, question_id: qid });
+    }
     // Live-refresh the readiness header without losing practice position.
     refreshOverview();
   }

@@ -5,6 +5,7 @@
  */
 import { median, percentile, sessionize, isEngaged, newVsReturning, engagementSummary, retention } from '../lib/metrics.js';
 import { canonicalPath, normalizeReferrer, sourceOf, botScore, contentGroup, domainOf } from '../lib/classify.js';
+import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -102,6 +103,48 @@ eq(contentGroup('/'), 'homepage_navigation', 'root → homepage');
 eq(contentGroup('/bhagavad-gita/chapter-1'), 'spirituality_sacred_texts', 'gita → sacred');
 eq(contentGroup('/interview.app/evaluate/'), 'interview_prep', 'studio → interview_prep');
 eq(contentGroup('/articles/the-new-language-of-data.html'), 'data_engineering', 'data article → data_engineering');
+
+/* ── insight engine: fires above floor, silent below (no fabricated insights) ── */
+const bigStudio = generateInsights({
+  current: { sessions: 400, engagementRate: 0.5 },
+  previous: { sessions: 300, engagementRate: 0.5, studioVisitors: 100 },
+  studio: { visitors: 140, completionRate: 0.19, prevCompletionRate: 0.34, abandonStep: 'before the first answer on mobile' },
+});
+ok(bigStudio.some(i => i.id === 'studio_completion_drop' && i.priority === 'high'), 'studio completion-drop insight fires (high)');
+ok(bigStudio.every(i => i.confidence), 'every emitted insight has a confidence');
+ok(bigStudio.length <= 5, 'at most 5 insights');
+
+const tiny = generateInsights({
+  current: { sessions: 12, engagementRate: 0.2 },
+  previous: { sessions: 4, engagementRate: 0.6 },
+  studio: { visitors: 5, completionRate: 0.1, prevCompletionRate: 0.5 },
+});
+eq(tiny.length, 0, 'below small-sample floor → NO insights (never fabricate)');
+
+const dqInsight = generateInsights({ current: {}, previous: {}, dataQuality: { durationCoverage: 0.3 } });
+ok(dqInsight.some(i => i.id === 'dq_duration_coverage'), 'low duration coverage raises a trust flag');
+
+/* ── content 2×2 ── */
+const cc = classifyContent([
+  { path: '/a', readers: 100, engagementRate: 0.8 }, // winner
+  { path: '/b', readers: 5, engagementRate: 0.9 },   // hidden gem
+  { path: '/c', readers: 120, engagementRate: 0.1 }, // click magnet
+  { path: '/d', readers: 4, engagementRate: 0.1 },   // needs attention
+]);
+eq(cc.find(c => c.path === '/a').class, 'winner', 'winner classified');
+eq(cc.find(c => c.path === '/b').class, 'hidden_gem', 'hidden gem classified');
+eq(cc.find(c => c.path === '/c').class, 'click_magnet', 'click magnet classified');
+eq(cc.find(c => c.path === '/d').class, 'needs_attention', 'needs attention classified');
+
+/* ── source value classes ── */
+const sc = classifySources([
+  { source: 'linkedin', visitors: 500, engagementRate: 0.2 },
+  { source: 'ai_assistant', visitors: 40, engagementRate: 0.9 },
+  { source: 'direct', visitors: 100, engagementRate: 0.5 },
+  { source: 'social', visitors: 60, engagementRate: 0.4 },
+]);
+eq(sc.find(s => s.source === 'linkedin').class, 'high_volume_low_value', 'high-volume/low-value source');
+eq(sc.find(s => s.source === 'ai_assistant').class, 'low_volume_high_value', 'low-volume/high-value source');
 
 /* ── report ── */
 console.log(fails.join('\n'));
