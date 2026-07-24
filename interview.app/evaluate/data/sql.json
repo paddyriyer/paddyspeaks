@@ -13266,6 +13266,22 @@
       ],
       "answer": 0,
       "explanation": "MERGE with a conditional WHEN MATCHED clause allows you to apply business logic (only update if quantity changed) before executing the action, and you can conditionally set last_updated using CASE. Option B always updates the timestamp even if quantity is unchanged, defeating the requirement. Options C and D are less efficient (multiple passes or destructive) and harder to reason about at scale."
+    },
+    {
+      "id": "sql-new-026",
+      "type": "single",
+      "topic": "lateral joins",
+      "difficulty": "hard",
+      "added_date": "2026-07-24",
+      "prompt": "Schema: `transactions(user_id INT, tx_id INT, amount NUMERIC, ts TIMESTAMP)` with millions of rows. You need to find, for each user, their 3 largest transactions by amount along with the rank of each transaction within that user's history. Which approach is most efficient?\n\nA) Use a self-join with ROW_NUMBER() and filter on rank \u2264 3\nB) Use a LATERAL subquery to fetch the top 3 per user, then apply ROW_NUMBER() in the outer query\nC) Create a materialized view of all transactions ranked per user, then filter\nD) Use CROSS JOIN LATERAL with LIMIT 3 in the subquery, joined back to the main table with row numbers",
+      "options": [
+        "Use a self-join with ROW_NUMBER() and filter on rank \u2264 3",
+        "Use a LATERAL subquery to fetch the top 3 per user, then apply ROW_NUMBER() in the outer query",
+        "Create a materialized view of all transactions ranked per user, then filter",
+        "Use CROSS JOIN LATERAL with LIMIT 3 in the subquery, joined back to the main table with row numbers"
+      ],
+      "answer": 1,
+      "explanation": "LATERAL joins enable correlated subqueries that can reference the outer table, making them ideal for per-group top-N problems. Option B is most efficient because the LATERAL subquery filters to 3 rows per user before applying additional window functions, reducing computation vs. ranking all rows then filtering (Option A). Option D uses CROSS JOIN LATERAL unnecessarily and re-joins, adding overhead. Option C over-materializes when the query can be streamed."
     }
   ]
 }
