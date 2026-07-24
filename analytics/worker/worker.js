@@ -12,7 +12,7 @@
 
 import { routeLeaderboard } from './leaderboard.js';
 import { normalizeReferrer, sourceOf, botScore, contentGroup } from '../lib/classify.js';
-import { median, percentile } from '../lib/metrics.js';
+import { median, percentile, retention } from '../lib/metrics.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
 import { THRESHOLDS } from '../lib/config.js';
 
@@ -53,6 +53,10 @@ export default {
 
     if (url.pathname === '/api/insights' && request.method === 'GET') {
       return handleInsights(request, env, url, ch);
+    }
+
+    if (url.pathname === '/api/journeys' && request.method === 'GET') {
+      return handleJourneys(request, env, url, ch);
     }
 
     if (url.pathname === '/api/export' && request.method === 'GET') {
@@ -413,12 +417,14 @@ async function handleInsights(request, env, url, ch) {
         ROUND(AVG(CASE WHEN duration>0 THEN duration END)) AS avg_time
       FROM page_views WHERE created_at >= ?${excl} AND page LIKE '/articles/%'
       GROUP BY page HAVING readers >= 3 ORDER BY readers DESC LIMIT 100`).bind(T.engagedScrollPct, T.engagedActiveSeconds, since),
+    env.DB.prepare(`SELECT DATE(created_at) AS d, COUNT(DISTINCT session_id) AS sessions FROM page_views WHERE created_at >= ?${excl} GROUP BY d ORDER BY d`).bind(since),
   ]);
 
   const sessions = batchA[0].results || [];
   const prevSessions = batchA[1].results || [];
   const firstSeen = new Map((batchA[2].results || []).map(r => [r.visitor_id, Date.parse(r.fs)]));
   const pageRows = batchA[3].results || [];
+  const dailySeries = (batchA[4].results || []).map(r => ({ date: r.d, sessions: r.sessions }));
 
   const engaged = s => (s.dur >= T.engagedActiveSeconds) || (s.scr >= T.engagedScrollPct) || (s.pc >= T.engagedMinPageViews);
   const meaningfulRow = s => (s.scr >= T.engagedScrollPct) || (s.dur >= T.engagedActiveSeconds);
@@ -560,7 +566,7 @@ async function handleInsights(request, env, url, ch) {
       goals: goalsCount, conversionRate: overview.conversionRate, medianActiveS: overview.medianActiveS,
     },
     previous: { sessions: prevSessions.length, engagementRate: prevEngagementRate, studioVisitors: (studio && studio.prevVisitors) || null },
-    sources, content, searchGaps,
+    sources, content, searchGaps, dailySeries,
     byDevice: {
       mobile: { engagementRate: dev.mobile.n ? dev.mobile.e / dev.mobile.n : 0, sessions: dev.mobile.n },
       desktop: { engagementRate: dev.desktop.n ? dev.desktop.e / dev.desktop.n : 0, sessions: dev.desktop.n },
@@ -574,6 +580,95 @@ async function handleInsights(request, env, url, ch) {
     period, thresholds: T, overview,
     previous: { sessions: prevSessions.length, engagementRate: prevEngagementRate },
     sources, content, studio, dataQuality, searchGaps, insights,
+  });
+  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' } });
+}
+
+/* ───────── Journeys & Retention (Phase 4) ─────────
+ * Weekly retention cohorts (Day 1/7/30, incomplete windows rendered null — never
+ * 0) + anonymous path analysis (landings, transitions, exits, cross-domain).
+ * All from page_views (history); no raw IP or PII exposed.
+ */
+function weekKey(ms) {
+  const d = new Date(ms);
+  const dow = (d.getUTCDay() + 6) % 7; // Monday=0
+  const mon = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow));
+  return mon.toISOString().slice(0, 10);
+}
+
+async function handleJourneys(request, env, url, ch) {
+  const authError = authenticate(request, env, ch);
+  if (authError) return authError;
+  const period = url.searchParams.get('period') || '30d';
+  const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 30;
+  const nowMs = Date.now();
+  const since = new Date(nowMs - days * 86400000).toISOString();
+  const cohortSince = new Date(nowMs - 63 * 86400000).toISOString(); // 9 weeks of cohorts
+  const excludeMe = url.searchParams.get('exclude_me') !== '0';
+  const excl = excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '';
+
+  const batch = await env.DB.batch([
+    // Cohort visitors: first-seen (all-time) within the last 9 weeks
+    env.DB.prepare(`SELECT visitor_id, MIN(created_at) AS fs FROM page_views GROUP BY visitor_id HAVING fs >= ?`).bind(cohortSince),
+    // Activity days for the cohort window (bounded)
+    env.DB.prepare(`SELECT DISTINCT visitor_id, DATE(created_at) AS d FROM page_views WHERE created_at >= ? LIMIT 100000`).bind(cohortSince),
+    // Session page sequences for the selected period
+    env.DB.prepare(`SELECT session_id, page, id FROM page_views WHERE created_at >= ?${excl} ORDER BY session_id, id LIMIT 50000`).bind(since),
+  ]);
+
+  const cohortRows = batch[0].results || [];
+  const activityRows = batch[1].results || [];
+  const seqRows = batch[2].results || [];
+  const DAY = 86400000;
+
+  // ── Retention cohorts by ISO week ──
+  const activeByVisitorDay = new Set();
+  for (const r of activityRows) activeByVisitorDay.add(`${r.visitor_id}:${Math.floor(Date.parse(r.d + 'T00:00:00Z') / DAY)}`);
+  const weeks = new Map();
+  for (const r of cohortRows) {
+    const fs = Date.parse(r.fs);
+    const wk = weekKey(fs);
+    if (!weeks.has(wk)) weeks.set(wk, new Map());
+    weeks.get(wk).set(r.visitor_id, fs);
+  }
+  const retentionDays = [1, 7, 30];
+  const cohorts = [...weeks.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([wk, cohortMap]) => {
+    const r = retention(cohortMap, activeByVisitorDay, nowMs, retentionDays);
+    return { week: wk, size: r.size, d1: r.windows[1], d7: r.windows[7], d30: r.windows[30] };
+  });
+
+  // ── Path analysis ──
+  const bySession = new Map();
+  for (const r of seqRows) {
+    if (!bySession.has(r.session_id)) bySession.set(r.session_id, []);
+    bySession.get(r.session_id).push(r.page);
+  }
+  const landings = new Map(), exits = new Map(), transitions = new Map(), paths = new Map();
+  let crossDomain = 0;
+  const isStudio = p => /^\/interview/.test(p || '');
+  for (const seq of bySession.values()) {
+    if (!seq.length) continue;
+    landings.set(seq[0], (landings.get(seq[0]) || 0) + 1);
+    exits.set(seq[seq.length - 1], (exits.get(seq[seq.length - 1]) || 0) + 1);
+    for (let i = 0; i < seq.length - 1; i++) {
+      const key = seq[i] + ' → ' + seq[i + 1];
+      transitions.set(key, (transitions.get(key) || 0) + 1);
+      if (isStudio(seq[i]) !== isStudio(seq[i + 1])) crossDomain++;
+    }
+    const pk = seq.slice(0, 3).join(' → ');
+    paths.set(pk, (paths.get(pk) || 0) + 1);
+  }
+  const top = (m, n) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => ({ key: k, count: v }));
+
+  const body = JSON.stringify({
+    period,
+    retention: { days: retentionDays, cohorts },
+    landings: top(landings, 15),
+    transitions: top(transitions, 20),
+    exits: top(exits, 15),
+    paths: top(paths, 15),
+    crossDomainTransitions: crossDomain,
+    sessions: bySession.size,
   });
   return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' } });
 }

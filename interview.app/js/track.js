@@ -53,6 +53,7 @@
   var filters = { topics: new Set(), levels: new Set(), roles: new Set(), formats: new Set(), search: "", bookmarked: false };
   var facets = { levels: [], roles: [], formats: [] };
   var practice = { queue: [], idx: 0, revealed: false, picks: [] };
+  var lastStartedQ = null; // de-dupes question_started across re-renders
 
   // ---- utils ---------------------------------------------------------------
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -377,6 +378,11 @@
     }
     var q = practice.queue[practice.idx];
     if (!q) { el.innerHTML = renderDone(); wireDone(); return; }
+    // Emit question_started once per distinct question view (not on re-renders)
+    if (window.psTrack && !practice.revealed && lastStartedQ !== q.id) {
+      lastStartedQ = q.id;
+      window.psTrack("question_started", { track: CFG.section, topic: q.topic || "", difficulty: q.difficulty || q.level || "", question_id: q.id });
+    }
     var isMC = q.type === "single" || q.type === "multi";
     var marked = progress[q.id];
     el.innerHTML =
@@ -481,7 +487,11 @@
       };
     }
     if (!isMC && !practice.revealed) {
-      byId("tk-reveal").onclick = function () { practice.revealed = true; renderPractice(); };
+      byId("tk-reveal").onclick = function () {
+        practice.revealed = true;
+        if (window.psTrack) window.psTrack("explanation_viewed", { track: CFG.section, topic: q.topic || "", question_id: q.id });
+        renderPractice();
+      };
     }
     if (practice.revealed && !isMC) {
       Array.prototype.forEach.call(root.querySelectorAll(".tk-selfrate [data-rate]"), function (btn) {
@@ -501,9 +511,10 @@
     persistProgress();
     if (window.psTrack) {
       var q = QUESTIONS.filter(function (x) { return x.id === qid; })[0] || {};
+      window.psTrack("answer_submitted", { track: CFG.section, topic: q.topic || "", difficulty: q.difficulty || q.level || "", question_id: qid, correct: result === "correct" });
       window.psTrack("question_completed", { track: CFG.section, topic: q.topic || "", difficulty: q.difficulty || q.level || "", question_id: qid, result: result });
       if (result === "correct") window.psTrack("answer_correct", { track: CFG.section, question_id: qid });
-      else if (result === "incorrect") window.psTrack("answer_incorrect", { track: CFG.section, question_id: qid });
+      else if (result === "wrong") window.psTrack("answer_incorrect", { track: CFG.section, question_id: qid });
     }
     // Live-refresh the readiness header without losing practice position.
     refreshOverview();

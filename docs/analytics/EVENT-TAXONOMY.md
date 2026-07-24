@@ -59,6 +59,12 @@ Learning: `question_viewed` · `question_started` · `answer_submitted`
 `hint_requested` · `explanation_viewed` · `question_completed` ·
 `question_skipped`. Shared props: `{track, topic, difficulty, question_id}`.
 
+> **Wiring status (2026-07-24):** all of the above are emitted except
+> `question_viewed`, `hint_requested`, and `question_skipped` — there is no
+> hint or skip affordance in the current Studio UI, and `question_started`
+> already marks the view. When those affordances ship, emit the events per this
+> registry (no schema change needed).
+
 Assessment: `quiz_started` · `quiz_completed` (`{score, passed}`) ·
 `simulator_started` · `simulator_completed` · `flashcard_reviewed`
 (`{rating}`).
