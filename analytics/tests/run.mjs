@@ -124,6 +124,14 @@ eq(tiny.length, 0, 'below small-sample floor → NO insights (never fabricate)')
 const dqInsight = generateInsights({ current: {}, previous: {}, dataQuality: { durationCoverage: 0.3 } });
 ok(dqInsight.some(i => i.id === 'dq_duration_coverage'), 'low duration coverage raises a trust flag');
 
+// anomaly detection: a spike day well outside the norm
+const anom = generateInsights({ current: {}, previous: {},
+  dailySeries: [10,12,11,9,13,10,12,11,10,12,11,13,10,55].map(s => ({ sessions: s })) });
+ok(anom.some(i => i.id === 'anomaly_daily' && i.priority === 'high'), 'daily spike flagged as anomaly');
+const noAnom = generateInsights({ current: {}, previous: {},
+  dailySeries: [10,12,11,9,13,10,12,11].map(s => ({ sessions: s })) });
+eq(noAnom.filter(i => i.id === 'anomaly_daily').length, 0, 'steady series → no anomaly');
+
 /* ── content 2×2 ── */
 const cc = classifyContent([
   { path: '/a', readers: 100, engagementRate: 0.8 }, // winner

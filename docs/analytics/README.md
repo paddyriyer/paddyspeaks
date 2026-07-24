@@ -51,6 +51,27 @@ Trust & foundations — **additive, backward-compatible, historical data preserv
   (`track_selected`, `question_completed`, `answer_*`, `search_performed`,
   `no_search_results`). Simulator/flashcards/study-plan surfaces remain to wire.
 
+## What shipped in Phase 3 (rest) + Phase 4
+- **Phase 3 complete** — `psTrack()` now wired across every Studio surface:
+  simulator (`simulator_started`/`completed`), flashcards (`flashcard_reviewed`),
+  study plan (`study_plan_started`, `study_day_completed`), and the track engine
+  now also emits `question_started`, `answer_submitted`, `explanation_viewed`.
+  Also fixed a latent bug from the Phase-3 start: track questions record
+  `"wrong"`, but the code checked `"incorrect"`, so `answer_incorrect` never
+  fired — corrected. (`hint_requested` has no surface in the current UI, so it is
+  intentionally not emitted; documented in the taxonomy.)
+- **Phase 4 — Journeys & Retention:**
+  - `GET /api/journeys`: **weekly retention cohorts** (Day 1/7/30, incomplete
+    windows returned as `null` and rendered "—", never 0) using the tested
+    `retention()`; plus anonymous **path analysis** — top landings, exit points,
+    most-common transitions, common 3-step paths, and cross-domain (site ↔
+    Studio) move count. All from `page_views`; no IP/PII exposed.
+  - **Anomaly detection** in the insight engine: flags the latest day when it is
+    ≥ 2σ off the trailing norm (fed by a daily-sessions series). Tested.
+  - New **Journeys & Retention** tab panels (cohort table + landings/exits/
+    transitions), verified in the headless smoke test.
+- Tests now **57 pass**.
+
 ## Deploy order (important)
 1. Merge the PR — this deploys the Worker (git-integrated) **and** ships tracker v4.
 2. Apply the migration in the D1 Console:

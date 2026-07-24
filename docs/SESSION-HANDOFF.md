@@ -5,7 +5,20 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEW (2026-07-24, later): Analytics redesign — Phase 2 (decision dashboard)
+- **NEW (2026-07-24, latest): Analytics redesign — Phase 3 (complete) + Phase 4
+  (Journeys & Retention)** on the same branch, restarted from main after #734
+  merged. Wired `psTrack()` into simulator/flashcards/study-plan and added
+  `question_started`/`answer_submitted`/`explanation_viewed` to the track engine;
+  fixed a latent bug (track results are `"wrong"`, code checked `"incorrect"`).
+  Added Worker **`GET /api/journeys`** (weekly retention cohorts with null
+  incomplete windows + path analysis: landings/exits/transitions/cross-domain)
+  and an **anomaly-detection** insight rule (≥2σ daily move). New Journeys tab
+  panels in `analytics/index.html`. Tests **57 pass**; dashboard re-verified via
+  headless smoke test (all 6 tabs). **All four phases of the redesign are now
+  implemented.** Remaining backlog is optional: A/B bucket field, configurable
+  alerts UI, deeper per-question skip/abandon analytics once those UI
+  affordances exist.
+- **NEW (2026-07-24, earlier): Analytics redesign — Phase 2 (decision dashboard)
   + Phase 3 start (Studio events)** on the same branch, restarted from main
   after #733 merged. Added the **6-tab dashboard** (Overview/Acquisition/Content/
   Interview Studio/Journeys/Data Quality) in `analytics/index.html` — existing

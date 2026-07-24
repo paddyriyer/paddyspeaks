@@ -405,6 +405,26 @@
             <div id="learningOpps"><div class="empty-state">Populated from track performance + no-result searches.</div></div>
         </div>
 
+        <!-- Journeys & Retention (Phase 4) -->
+        <div class="panel" data-tab="journeys">
+            <div class="panel-title">Retention Cohorts <span style="font-weight:400;color:var(--color-muted);font-size:0.8rem">by first-visit week · Day 1 / 7 / 30 · "—" = window not yet elapsed</span></div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableRetention"><tbody></tbody></table></div>
+        </div>
+        <div class="grid-2" data-tab="journeys">
+            <div class="panel">
+                <div class="panel-title">Top Landing Pages</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableLandings"><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Exit Points</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableExits"><tbody></tbody></table></div>
+            </div>
+        </div>
+        <div class="panel" data-tab="journeys">
+            <div class="panel-title">Most Common Transitions <span style="font-weight:400;color:var(--color-muted);font-size:0.8rem" id="crossDomainNote"></span></div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableTransitions"><tbody></tbody></table></div>
+        </div>
+
         <!-- Data Quality -->
         <div class="panel" data-tab="dataquality">
             <div class="panel-title">Data Quality &amp; Trust</div>
@@ -743,6 +763,10 @@
         apiFetch('/api/insights?period=' + currentPeriod + (currentFilters.exclude_me ? '' : '')).then(function(d) {
             renderInsightsData(d);
         }).catch(function(err) { console.error('Insights load error:', err); });
+        // Phase 4: journeys + retention cohorts
+        apiFetch('/api/journeys?period=' + currentPeriod).then(function(d) {
+            renderJourneys(d);
+        }).catch(function(err) { console.error('Journeys load error:', err); });
     }
     window.loadDashboard = loadDashboard;
 
@@ -932,6 +956,43 @@
         document.getElementById('learningOpps').innerHTML = opps.length
             ? '<ul style="margin:0;padding-left:18px;line-height:1.7">' + opps.map(function(x) { return '<li>' + x + '</li>'; }).join('') + '</ul>'
             : '<div class="empty-state">No friction flags yet — needs more track events.</div>';
+    }
+
+    function retCell(v) {
+        if (v === null || v === undefined) return '<td class="num" style="color:var(--color-muted)" title="Window not yet elapsed for this cohort">—</td>';
+        var c = v >= 0.4 ? 'var(--color-sage)' : v >= 0.2 ? 'var(--color-gold-dark)' : 'var(--color-rust)';
+        return '<td class="num" style="color:' + c + '">' + Math.round(v * 100) + '%</td>';
+    }
+    function renderJourneys(d) {
+        if (!d) return;
+        // Retention cohorts
+        var rt = document.getElementById('tableRetention');
+        var cohorts = (d.retention && d.retention.cohorts) || [];
+        if (!cohorts.length) {
+            rt.innerHTML = '<tbody><tr><td class="empty-state">Not enough visitor history yet for weekly cohorts.</td></tr></tbody>';
+        } else {
+            var h = '<thead><tr><th>First-visit week</th><th class="num">Visitors</th><th class="num">Day 1</th><th class="num">Day 7</th><th class="num">Day 30</th></tr></thead><tbody>';
+            cohorts.forEach(function(c) {
+                h += '<tr><td style="font-family:var(--font-mono);font-size:0.82rem">' + escHtml(c.week) + '</td><td class="num">' + fmt(c.size) + '</td>' + retCell(c.d1) + retCell(c.d7) + retCell(c.d30) + '</tr>';
+            });
+            rt.innerHTML = h + '</tbody>';
+        }
+        // Landings / exits / transitions
+        renderKeyCount('tableLandings', d.landings, 'Landing page', 'Sessions');
+        renderKeyCount('tableExits', d.exits, 'Exit page', 'Sessions');
+        renderKeyCount('tableTransitions', d.transitions, 'Transition (from → to)', 'Count');
+        var note = document.getElementById('crossDomainNote');
+        if (note) note.textContent = d.crossDomainTransitions ? ('· ' + fmt(d.crossDomainTransitions) + ' cross-domain (site ↔ Studio) moves') : '';
+    }
+    function renderKeyCount(tableId, rows, label, valLabel) {
+        var t = document.getElementById(tableId);
+        if (!rows || !rows.length) { t.innerHTML = '<tbody><tr><td class="empty-state">No data in range.</td></tr></tbody>'; return; }
+        var h = '<thead><tr><th>' + label + '</th><th class="num">' + valLabel + '</th></tr></thead><tbody>';
+        rows.forEach(function(r) {
+            var k = r.key.length > 60 ? r.key.slice(0, 60) + '…' : r.key;
+            h += '<tr><td style="font-family:var(--font-mono);font-size:0.78rem">' + escHtml(k) + '</td><td class="num">' + fmt(r.count) + '</td></tr>';
+        });
+        t.innerHTML = h + '</tbody>';
     }
 
     function renderDQ(dq, searchGaps) {

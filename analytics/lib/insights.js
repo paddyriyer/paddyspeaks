@@ -154,6 +154,27 @@ export function generateInsights(a, t = THRESHOLDS) {
     });
   }
 
+  // 7b) Anomaly detection — is the latest day outside normal variation?
+  const series = (a.dailySeries || []).map(d => d.sessions).filter(v => v != null);
+  if (series.length >= 8) {
+    const last = series[series.length - 1];
+    const base = series.slice(0, -1);
+    const mean = base.reduce((s, v) => s + v, 0) / base.length;
+    const sd = Math.sqrt(base.reduce((s, v) => s + (v - mean) * (v - mean), 0) / base.length) || 0;
+    const z = sd > 0 ? (last - mean) / sd : 0;
+    if (Math.abs(z) >= 2 && mean >= 3) {
+      out.push({
+        id: 'anomaly_daily',
+        observation: `The most recent day (${last} sessions) is ${z > 0 ? 'well above' : 'well below'} the ${base.length}-day norm (~${Math.round(mean)}).`,
+        explanation: `A ${Math.abs(z).toFixed(1)}σ move is unlikely to be routine variation — a promotion, mention, or outage probably drove it (inference).`,
+        metric: `latest ${last} vs mean ${Math.round(mean)} (z=${z.toFixed(1)})`,
+        action: z > 0 ? 'Find the referral spike in Acquisition and capitalize while it lasts.' : 'Check for an outage, a broken link, or a lost referral.',
+        priority: Math.abs(z) >= 3 ? 'high' : 'medium',
+        confidence: base.length >= 14 ? 'high' : 'medium',
+      });
+    }
+  }
+
   // 8) Data-quality warning (never a "growth" insight — a trust flag)
   const dq = a.dataQuality || {};
   if (dq.durationCoverage != null && dq.durationCoverage < 0.6) {
