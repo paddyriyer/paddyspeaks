@@ -5,6 +5,22 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEW (2026-07-24): Analytics redesign — Phase 1 (Trust & foundations) on
+  branch `claude/paddyspeaks-analytics-audit-refpf4`.** Additive + backward-
+  compatible; historical `page_views` preserved. Full write-up in
+  `docs/analytics/` (AUDIT, PLAN, EVENT-TAXONOMY, METRIC-DICTIONARY,
+  DATA-QUALITY-QUERIES, DECISION-GUIDE). Key changes: tracker upgraded to v4
+  (`lib/ps.js` — DNT/GPC respect, active engagement time, reliable pagehide
+  beacon, scroll milestones, `window.psTrack()` event API); new versioned
+  `events`/`visitors` tables + DQ columns (`analytics/worker/migrate-v6-events.sql`);
+  Worker gains `POST /api/e` ingest + fixes the exit-UPDATE bug that was silently
+  losing time/scroll on D1 (audit finding B). Pure logic in `analytics/lib/*`
+  with 44 tests (`node analytics/tests/run.mjs`). **Deploy order:** merge PR
+  (auto-deploys Worker + ships tracker), THEN paste migrate-v6 into the D1
+  Console. `/api/e` no-ops safely until the migration is applied. Dead
+  `analytics/tracker.js` removed. Phases 2–4 (6-tab dashboard, Studio event
+  instrumentation, cohorts/journeys) are specified in `docs/analytics/PLAN.md`,
+  NOT yet built — do them next, in order.
 - **NEW (2026-07-23): Two learning tracks shipped — Communication and AI
   Engineering.** Both are branch `claude/interview-studio-learning-tracks-w17fey`.
   - Content is authored in re-runnable builders: `scripts/build_communication.py`
