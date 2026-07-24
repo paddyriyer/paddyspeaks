@@ -12,6 +12,9 @@
 
 import { routeLeaderboard } from './leaderboard.js';
 import { normalizeReferrer, sourceOf, botScore, contentGroup } from '../lib/classify.js';
+import { median, percentile } from '../lib/metrics.js';
+import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
+import { THRESHOLDS } from '../lib/config.js';
 
 function cors(request) {
   const origin = request.headers.get('Origin') || 'https://paddyspeaks.com';
@@ -46,6 +49,10 @@ export default {
 
     if (url.pathname === '/api/realtime' && request.method === 'GET') {
       return handleRealtime(request, env, ch);
+    }
+
+    if (url.pathname === '/api/insights' && request.method === 'GET') {
+      return handleInsights(request, env, url, ch);
     }
 
     if (url.pathname === '/api/export' && request.method === 'GET') {
@@ -362,6 +369,213 @@ async function handleStats(request, env, url, ch) {
   cache.put(cacheKey, cacheResponse).catch(() => {});
 
   return response;
+}
+
+/* ───────── Decision metrics + insights (Phase 2) ─────────
+ * Corrected, decision-oriented aggregates. Engaged sessions, medians, correct
+ * session-grain new/returning, source value classes, content 2×2, Studio
+ * funnels, data quality — computed with the tested pure libs. Reads page_views
+ * (has history) for engagement and `events` (best-effort) for goals/Studio.
+ */
+async function handleInsights(request, env, url, ch) {
+  const authError = authenticate(request, env, ch);
+  if (authError) return authError;
+
+  const period = url.searchParams.get('period') || '7d';
+  const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 7;
+  const nowMs = Date.now();
+  const since = new Date(nowMs - days * 86400000).toISOString();
+  const prevSince = new Date(nowMs - days * 2 * 86400000).toISOString();
+  const T = THRESHOLDS;
+
+  const excludeMe = url.searchParams.get('exclude_me') !== '0';
+  const excl = excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '';
+
+  // ── Per-session rollup from page_views (works on existing data) ──
+  const sessRoll = `
+    SELECT session_id, MIN(created_at) AS start_at,
+      MAX(duration) AS dur, MAX(scroll_depth) AS scr, COUNT(*) AS pc,
+      MAX(device_type) AS device,
+      MAX(CASE WHEN page_num=1 THEN referrer END) AS referrer,
+      MAX(CASE WHEN page_num=1 THEN utm_source END) AS utm_source,
+      MAX(CASE WHEN page_num=1 THEN utm_medium END) AS utm_medium,
+      MAX(visitor_id) AS visitor_id
+    FROM page_views WHERE created_at >= ?${excl} GROUP BY session_id LIMIT 20000`;
+
+  const batchA = await env.DB.batch([
+    env.DB.prepare(sessRoll).bind(since),
+    env.DB.prepare(`SELECT session_id, MAX(duration) AS dur, MAX(scroll_depth) AS scr, COUNT(*) AS pc FROM page_views WHERE created_at >= ? AND created_at < ?${excl} GROUP BY session_id LIMIT 20000`).bind(prevSince, since),
+    env.DB.prepare(`SELECT visitor_id, MIN(created_at) AS fs FROM page_views WHERE visitor_id IN (SELECT DISTINCT visitor_id FROM page_views WHERE created_at >= ?) GROUP BY visitor_id`).bind(since),
+    env.DB.prepare(`SELECT page,
+        COUNT(DISTINCT session_id) AS readers,
+        SUM(CASE WHEN page_num=1 THEN 1 ELSE 0 END) AS entrances,
+        COUNT(DISTINCT CASE WHEN scroll_depth>=? OR duration>=? THEN session_id END) AS engaged_readers,
+        ROUND(AVG(CASE WHEN duration>0 THEN duration END)) AS avg_time
+      FROM page_views WHERE created_at >= ?${excl} AND page LIKE '/articles/%'
+      GROUP BY page HAVING readers >= 3 ORDER BY readers DESC LIMIT 100`).bind(T.engagedScrollPct, T.engagedActiveSeconds, since),
+  ]);
+
+  const sessions = batchA[0].results || [];
+  const prevSessions = batchA[1].results || [];
+  const firstSeen = new Map((batchA[2].results || []).map(r => [r.visitor_id, Date.parse(r.fs)]));
+  const pageRows = batchA[3].results || [];
+
+  const engaged = s => (s.dur >= T.engagedActiveSeconds) || (s.scr >= T.engagedScrollPct) || (s.pc >= T.engagedMinPageViews);
+  const meaningfulRow = s => (s.scr >= T.engagedScrollPct) || (s.dur >= T.engagedActiveSeconds);
+
+  // Overview
+  const totalSessions = sessions.length;
+  const engagedSessions = sessions.filter(engaged).length;
+  const engagementRate = totalSessions ? engagedSessions / totalSessions : null;
+  const durations = sessions.filter(s => s.dur > 0).map(s => s.dur);
+  const scrolls = sessions.filter(s => s.scr > 0).map(s => s.scr);
+  const visitorsSet = new Set(sessions.map(s => s.visitor_id));
+  const totalVisitors = visitorsSet.size;
+
+  // Correct new/returning (session grain, first-seen based) — fixes audit A
+  const returningVisitors = new Set();
+  for (const s of sessions) {
+    const fs = firstSeen.get(s.visitor_id);
+    if (fs != null && Math.floor(Date.parse(s.start_at) / 86400000) > Math.floor(fs / 86400000)) returningVisitors.add(s.visitor_id);
+  }
+  const meaningfulVisitors = new Set(sessions.filter(meaningfulRow).map(s => s.visitor_id));
+
+  // Previous period (engagement only, for comparison)
+  const prevEngaged = prevSessions.filter(engaged).length;
+  const prevEngagementRate = prevSessions.length ? prevEngaged / prevSessions.length : null;
+
+  // Sources (classified)
+  const sessionSource = new Map();
+  const srcAgg = new Map();
+  for (const s of sessions) {
+    const src = sourceOf({ referrer: s.referrer || '', utm_source: s.utm_source || '', utm_medium: s.utm_medium || '' });
+    sessionSource.set(s.session_id, src);
+    if (!srcAgg.has(src)) srcAgg.set(src, { source: src, visitorsSet: new Set(), sessions: 0, engaged: 0, durs: [], pages: 0, returning: new Set() });
+    const g = srcAgg.get(src);
+    g.visitorsSet.add(s.visitor_id); g.sessions++; g.pages += s.pc;
+    if (engaged(s)) g.engaged++;
+    if (s.dur > 0) g.durs.push(s.dur);
+    if (returningVisitors.has(s.visitor_id)) g.returning.add(s.visitor_id);
+  }
+  let sources = [...srcAgg.values()].map(g => ({
+    source: g.source, visitors: g.visitorsSet.size, sessions: g.sessions,
+    engagedSessions: g.engaged, engagementRate: g.sessions ? g.engaged / g.sessions : 0,
+    medianActiveS: median(g.durs), pagesPerSession: g.sessions ? +(g.pages / g.sessions).toFixed(1) : 0,
+    returningRate: g.visitorsSet.size ? g.returning.size / g.visitorsSet.size : 0,
+  }));
+  sources = classifySources(sources).sort((a, b) => b.visitors - a.visitors);
+
+  // Content (2×2)
+  let content = pageRows.map(r => ({
+    path: r.page, readers: r.readers, entrances: r.entrances,
+    engagedReaders: r.engaged_readers, engagementRate: r.readers ? r.engaged_readers / r.readers : 0,
+    avgTime: r.avg_time || 0,
+  }));
+  content = classifyContent(content);
+
+  // Data quality (page_views side)
+  const durationCoverage = totalSessions ? durations.length / totalSessions : null;
+  const scrollCoverage = totalSessions ? scrolls.length / totalSessions : null;
+
+  // Device split for mobile-friction insight
+  const dev = { mobile: { e: 0, n: 0 }, desktop: { e: 0, n: 0 } };
+  for (const s of sessions) {
+    const k = s.device === 'Mobile' ? 'mobile' : (s.device === 'Desktop' ? 'desktop' : null);
+    if (k) { dev[k].n++; if (engaged(s)) dev[k].e++; }
+  }
+
+  // ── Events side (goals + Studio + bot rate) — best-effort ──
+  let goalsCount = 0, conversionVisitors = new Set(), interviewCompletions = 0;
+  let studio = { visitors: 0, starts: 0, completions: 0, completionRate: null, prevCompletionRate: null, funnel: {}, tracks: [], abandonStep: '' };
+  let dqEvents = { botRate: null, internalRate: null, lastEventAt: null, freshnessMin: null };
+  let searchGaps = 0;
+  try {
+    const batchB = await env.DB.batch([
+      env.DB.prepare(`SELECT session_id, anonymous_visitor_id AS vid, event_name, properties FROM events WHERE occurred_at >= ? AND event_name IN ('question_completed','quiz_completed','simulator_completed','related_click','cta_click') LIMIT 20000`).bind(since),
+      env.DB.prepare(`SELECT event_name, COUNT(DISTINCT anonymous_visitor_id) AS v FROM events WHERE occurred_at >= ? AND event_name IN ('interview_studio_opened','track_viewed','track_selected','question_viewed','question_started','answer_submitted','question_completed','quiz_started','quiz_completed') GROUP BY event_name`).bind(since),
+      env.DB.prepare(`SELECT json_extract(properties,'$.track') AS track,
+          COUNT(DISTINCT anonymous_visitor_id) AS visitors,
+          SUM(CASE WHEN event_name='question_started' THEN 1 ELSE 0 END) AS starts,
+          SUM(CASE WHEN event_name='question_completed' THEN 1 ELSE 0 END) AS completions,
+          SUM(CASE WHEN event_name='answer_submitted' THEN 1 ELSE 0 END) AS answers,
+          SUM(CASE WHEN event_name='answer_correct' THEN 1 ELSE 0 END) AS correct,
+          SUM(CASE WHEN event_name='hint_requested' THEN 1 ELSE 0 END) AS hints
+        FROM events WHERE occurred_at >= ? AND json_extract(properties,'$.track') IS NOT NULL GROUP BY track ORDER BY visitors DESC`).bind(since),
+      env.DB.prepare(`SELECT bot_class, SUM(internal) AS internal, COUNT(*) AS c FROM events WHERE occurred_at >= ? GROUP BY bot_class`).bind(since),
+      env.DB.prepare(`SELECT MAX(occurred_at) AS last FROM events`),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM events WHERE occurred_at >= ? AND event_name='no_search_results'`).bind(since),
+      env.DB.prepare(`SELECT SUM(CASE WHEN event_name='question_started' THEN 1 ELSE 0 END) AS starts, SUM(CASE WHEN event_name='question_completed' THEN 1 ELSE 0 END) AS completions, COUNT(DISTINCT anonymous_visitor_id) AS visitors FROM events WHERE occurred_at >= ? AND occurred_at < ?`).bind(prevSince, since),
+    ]);
+
+    for (const g of (batchB[0].results || [])) {
+      goalsCount++;
+      if (g.vid) conversionVisitors.add(g.vid);
+      if (['question_completed', 'quiz_completed', 'simulator_completed'].includes(g.event_name)) interviewCompletions++;
+    }
+    const funnel = {}; for (const r of (batchB[1].results || [])) funnel[r.event_name] = r.v;
+    studio.funnel = funnel;
+    studio.visitors = funnel.interview_studio_opened || funnel.question_viewed || 0;
+    studio.starts = (funnel.question_started || 0) + (funnel.quiz_started || 0);
+    studio.completions = (funnel.question_completed || 0) + (funnel.quiz_completed || 0);
+    studio.completionRate = studio.starts ? studio.completions / studio.starts : null;
+    studio.tracks = (batchB[2].results || []).map(t => ({
+      track: t.track, visitors: t.visitors, starts: t.starts, completions: t.completions,
+      completionRate: t.starts ? t.completions / t.starts : null,
+      correctRate: t.answers ? t.correct / t.answers : null,
+      hintRate: t.starts ? t.hints / t.starts : null,
+    }));
+    let totalEv = 0, botEv = 0, internalEv = 0;
+    for (const r of (batchB[3].results || [])) { totalEv += r.c; if (r.bot_class !== 'human') botEv += r.c; internalEv += (r.internal || 0); }
+    if (totalEv) { dqEvents.botRate = botEv / totalEv; dqEvents.internalRate = internalEv / totalEv; }
+    dqEvents.lastEventAt = (batchB[4].results && batchB[4].results[0] && batchB[4].results[0].last) || null;
+    if (dqEvents.lastEventAt) dqEvents.freshnessMin = Math.round((nowMs - Date.parse(dqEvents.lastEventAt)) / 60000);
+    searchGaps = (batchB[5].results && batchB[5].results[0] && batchB[5].results[0].c) || 0;
+    const pv = batchB[6].results && batchB[6].results[0];
+    if (pv && pv.starts) studio.prevCompletionRate = pv.completions / pv.starts;
+  } catch (e) { /* events table not migrated yet — Studio/goal sections stay empty */ }
+
+  // Meaningful visitors also counts anyone who completed a goal
+  for (const v of conversionVisitors) meaningfulVisitors.add(v);
+
+  const overview = {
+    sessions: totalSessions, engagedSessions, engagementRate,
+    bounceRate: engagementRate == null ? null : 1 - engagementRate,
+    visitors: totalVisitors, returningVisitors: returningVisitors.size,
+    returningRate: totalVisitors ? returningVisitors.size / totalVisitors : null,
+    newVisitors: totalVisitors - returningVisitors.size,
+    meaningfulVisitors: meaningfulVisitors.size,
+    medianActiveS: median(durations), p75ActiveS: percentile(durations, 75),
+    medianScroll: median(scrolls),
+    goals: goalsCount, conversionRate: totalVisitors ? conversionVisitors.size / totalVisitors : null,
+    interviewCompletions,
+    smallSample: totalSessions < T.smallSampleFloor,
+  };
+
+  const dataQuality = { durationCoverage, scrollCoverage, ...dqEvents };
+
+  // Build the aggregate the insight engine consumes
+  const agg = {
+    current: {
+      sessions: totalSessions, engagementRate, visitors: totalVisitors,
+      goals: goalsCount, conversionRate: overview.conversionRate, medianActiveS: overview.medianActiveS,
+    },
+    previous: { sessions: prevSessions.length, engagementRate: prevEngagementRate, studioVisitors: (studio && studio.prevVisitors) || null },
+    sources, content, searchGaps,
+    byDevice: {
+      mobile: { engagementRate: dev.mobile.n ? dev.mobile.e / dev.mobile.n : 0, sessions: dev.mobile.n },
+      desktop: { engagementRate: dev.desktop.n ? dev.desktop.e / dev.desktop.n : 0, sessions: dev.desktop.n },
+    },
+    dataQuality,
+    studio: { visitors: studio.visitors, completionRate: studio.completionRate, prevCompletionRate: studio.prevCompletionRate, abandonStep: studio.abandonStep },
+  };
+  const insights = generateInsights(agg);
+
+  const body = JSON.stringify({
+    period, thresholds: T, overview,
+    previous: { sessions: prevSessions.length, engagementRate: prevEngagementRate },
+    sources, content, studio, dataQuality, searchGaps, insights,
+  });
+  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' } });
 }
 
 /* ───────── Realtime ───────── */
