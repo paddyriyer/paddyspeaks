@@ -99,12 +99,23 @@ export async function sendEmail(env, { to, subject, html, text, replyTo }) {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
+      // Log the provider's own diagnostic so a failure is debuggable from
+      // `wrangler tail` / the Observability tab. Email addresses are redacted
+      // first: Resend echoes them in some errors, and the house rule is that no
+      // address ever reaches a log. Nothing here comes from the message body.
+      console.error('[email] send rejected:', res.status, redactEmails(detail).slice(0, 300));
       return { ok: false, error: 'resend-' + res.status, detail: detail.slice(0, 200) };
     }
     return { ok: true };
   } catch (e) {
+    console.error('[email] transport exception:', e && e.message ? e.message : 'unknown');
     return { ok: false, error: 'resend-exception' };
   }
+}
+
+/** Replace anything address-shaped with a placeholder before logging. */
+export function redactEmails(s) {
+  return String(s == null ? '' : s).replace(/[^\s"'<>@]+@[^\s"'<>@]+\.[^\s"'<>@]+/g, '[redacted-email]');
 }
 
 /** Minimal, on-brand HTML email shell (inline styles — email clients need them). */
