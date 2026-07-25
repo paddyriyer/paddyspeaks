@@ -69,14 +69,14 @@ Plus one binding in `analytics/worker/wrangler.toml`:
 
 | Binding | Database |
 |---|---|
-| `FORMS` | `paddyspeaks-forms` — **currently commented out.** Uncomment it and paste the real `database_id` once the database exists. |
+| `FORMS` | `paddyspeaks-forms`, id `d43111c5-5834-4791-b18d-b892643787c6` — **live** |
 
-The binding ships commented out on purpose. A placeholder `database_id` fails
-`wrangler deploy`, and this Worker also serves analytics and the leaderboard — a
-bad binding would block deploying all of it. Both endpoints return
-`503 {"error":"not_configured"}` while `env.FORMS` is absent, so shipping before
-provisioning changes nothing that is live. (The `LB` binding went through the same
-commented-out-until-provisioned flow.)
+Note for future changes: a `database_id` that is not a real UUID fails
+`wrangler deploy`, and this Worker also serves analytics and the leaderboard — so
+a bad binding blocks deploying all of it. That is why the binding was first shipped
+commented out and only enabled once the database existed. Both endpoints return
+`503 {"error":"not_configured"}` whenever `env.FORMS` is absent, so the routes
+always degrade safely.
 
 ---
 
@@ -291,16 +291,26 @@ invitation, mobile/tablet overflow, keyboard navigation, and console cleanliness
 
 ---
 
-## 9. Manual steps still required
+## 9. Provisioning status
 
-The code is complete; these need Cloudflare/Resend access:
+Done:
 
-1. `wrangler d1 create paddyspeaks-forms`, then uncomment the `FORMS` block in
-   `wrangler.toml` and paste in the real `database_id`.
-2. Apply `forms-schema.sql` (or the `.console.sql` copy).
-3. Verify `paddyspeaks.com` in Resend (DKIM/SPF DNS records).
-4. Set `RESEND_API_KEY`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL`, `FORMS_SALT`.
-5. Send one real message through `/contact/` and confirm both emails arrive.
+1. ~~D1 database `paddyspeaks-forms` created~~ — id `d43111c5-5834-4791-b18d-b892643787c6`
+2. ~~Schema applied~~ — `testimonials`, `contact_log`, `rate_limits` all present
+3. ~~`FORMS` binding enabled in `wrangler.toml`~~
 
-Until step 1–2 are done, both pages load and validate normally and the endpoints
-return `503 not_configured` — the forms degrade safely rather than appearing broken.
+Remaining (Cloudflare/Resend dashboard only — no code changes):
+
+4. Resend: `paddyspeaks.com` verified (DKIM + SPF records auto-added to Cloudflare DNS).
+   Sending enabled; **Receiving deliberately left off** — enabling it would add MX
+   records on the root domain and could hijack existing mail to `@paddyspeaks.com`.
+5. Worker Secrets/Vars set: `RESEND_API_KEY`, `CONTACT_TO_EMAIL`,
+   `CONTACT_FROM_EMAIL`, `FORMS_SALT`.
+6. Smoke test: send one message through `/contact/` and confirm BOTH emails arrive
+   (owner copy + visitor acknowledgment), then submit a testimonial and approve it
+   at `/testimonials/admin.html`.
+
+Env-var changes take effect on the next deploy, not immediately.
+
+**Rotate the Resend API key** once the smoke test passes if the key was ever pasted
+into a chat, ticket, or terminal history.
