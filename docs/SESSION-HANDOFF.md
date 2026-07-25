@@ -23,8 +23,10 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
     index/about/resume gained Contact + Testimonials; Interview Studio home has a
     contextual invite at the very end (never inside a practice flow).
   - **NOT LIVE YET — needs Cloudflare/Resend access.** Both endpoints return
-    `503 not_configured` until: (1) `wrangler d1 create paddyspeaks-forms` + real
-    `database_id` in `wrangler.toml` (currently a placeholder), (2) apply
+    `503 not_configured` until: (1) `wrangler d1 create paddyspeaks-forms` then
+    UNCOMMENT the `FORMS` block in `wrangler.toml` + paste the real `database_id`
+    (it ships commented out — a placeholder id fails the deploy for the whole
+    Worker, which also serves analytics + the leaderboard), (2) apply
     `forms-schema.sql`, (3) verify the domain in Resend, (4) set
     `RESEND_API_KEY` / `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` / `FORMS_SALT`.
     Pages degrade safely until then.

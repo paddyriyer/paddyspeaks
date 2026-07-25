@@ -69,10 +69,14 @@ Plus one binding in `analytics/worker/wrangler.toml`:
 
 | Binding | Database |
 |---|---|
-| `FORMS` | `paddyspeaks-forms` — **replace the placeholder `database_id`** after creating it. |
+| `FORMS` | `paddyspeaks-forms` — **currently commented out.** Uncomment it and paste the real `database_id` once the database exists. |
 
-Both endpoints return `503 {"error":"not_configured"}` until the `FORMS` binding is
-real, so deploying before provisioning changes nothing and breaks nothing.
+The binding ships commented out on purpose. A placeholder `database_id` fails
+`wrangler deploy`, and this Worker also serves analytics and the leaderboard — a
+bad binding would block deploying all of it. Both endpoints return
+`503 {"error":"not_configured"}` while `env.FORMS` is absent, so shipping before
+provisioning changes nothing that is live. (The `LB` binding went through the same
+commented-out-until-provisioned flow.)
 
 ---
 
@@ -87,8 +91,8 @@ The steps below are the parts that cannot be done from the repository.
 wrangler d1 create paddyspeaks-forms
 ```
 
-Copy the returned `database_id` into `analytics/worker/wrangler.toml`, replacing
-`REPLACE_WITH_paddyspeaks_forms_DATABASE_ID`.
+Then in `analytics/worker/wrangler.toml`, **uncomment** the `FORMS` block and paste
+the returned `database_id` in place of `PASTE_THE_paddyspeaks_forms_DATABASE_ID_HERE`.
 
 ### Step 2 — Apply the schema
 
@@ -291,7 +295,8 @@ invitation, mobile/tablet overflow, keyboard navigation, and console cleanliness
 
 The code is complete; these need Cloudflare/Resend access:
 
-1. `wrangler d1 create paddyspeaks-forms` and put the real `database_id` in `wrangler.toml`.
+1. `wrangler d1 create paddyspeaks-forms`, then uncomment the `FORMS` block in
+   `wrangler.toml` and paste in the real `database_id`.
 2. Apply `forms-schema.sql` (or the `.console.sql` copy).
 3. Verify `paddyspeaks.com` in Resend (DKIM/SPF DNS records).
 4. Set `RESEND_API_KEY`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL`, `FORMS_SALT`.
