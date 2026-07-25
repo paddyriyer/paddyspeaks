@@ -11,6 +11,8 @@
  */
 
 import { routeLeaderboard } from './leaderboard.js';
+import { routeContact } from './contact.js';
+import { routeTestimonials } from './testimonials.js';
 import { normalizeReferrer, sourceOf, botScore, contentGroup } from '../lib/classify.js';
 import { median, percentile, retention } from '../lib/metrics.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
@@ -74,6 +76,14 @@ export default {
     if (url.pathname === '/api/exclude' && request.method === 'GET') {
       return handleExcludeList(request, env, ch);
     }
+
+    // Contact form (separate D1 `FORMS` + Resend; see contact.js)
+    const contact = await routeContact(request, env, url, ch);
+    if (contact) return contact;
+
+    // Testimonials — submit/list/moderation (separate D1 `FORMS`; see testimonials.js)
+    const testimonials = await routeTestimonials(request, env, url, ch);
+    if (testimonials) return testimonials;
 
     // Anonymous leaderboard (separate D1 `LB` + HMAC secret; see leaderboard.js)
     const lb = await routeLeaderboard(request, env, url, ch);

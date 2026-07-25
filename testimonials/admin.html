@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testimonial Moderation — PaddySpeaks</title>
+    <!-- Owner-only tool: never indexed, never linked from public navigation. -->
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <style>
+        .mod-login { max-width: 420px; margin: 70px auto; text-align: center; }
+        .mod-login h1 { font-family: var(--font-display); font-size: 26px; margin-bottom: 10px; }
+        .mod-login p { color: var(--color-muted); margin-bottom: 22px; font-size: 15px; }
+        .mod-hidden { display: none; }
+        .mod-empty { text-align: center; color: var(--color-light-muted); padding: 40px 20px; font-style: italic; }
+        .mod-toast {
+            position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+            background: var(--color-ink); color: #fff; padding: 12px 22px; border-radius: 4px;
+            font-family: var(--font-mono); font-size: 12px; display: none; z-index: 50;
+        }
+        .mod-toast.show { display: block; }
+    </style>
+</head>
+<body>
+
+<div class="mod-shell">
+
+    <!-- Login -->
+    <div class="mod-login" id="modLogin">
+        <h1>Testimonial Moderation</h1>
+        <p>Enter your analytics dashboard password. Nothing is published until you approve it.</p>
+        <form onsubmit="return modLogin(event)">
+            <div class="ps-field">
+                <label for="modPassword">Password</label>
+                <input class="ps-input" type="password" id="modPassword" autocomplete="current-password" autofocus>
+            </div>
+            <p class="ps-error" id="modLoginError" aria-live="polite"></p>
+            <button type="submit" class="ps-submit"><span class="ps-submit-label">Sign in</span></button>
+        </form>
+    </div>
+
+    <!-- Console -->
+    <div class="mod-hidden" id="modConsole">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <h1 style="font-family:var(--font-display);font-size:28px;">Testimonial Moderation</h1>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <a href="/testimonials/" class="ps-btn-ghost" style="padding:9px 16px;">View public page</a>
+                <button class="mod-tab" onclick="modLogout()">Sign out</button>
+            </div>
+        </div>
+
+        <div class="mod-tabs" role="tablist">
+            <button class="mod-tab active" data-status="pending" role="tab">Pending</button>
+            <button class="mod-tab" data-status="approved" role="tab">Approved</button>
+            <button class="mod-tab" data-status="rejected" role="tab">Rejected</button>
+            <button class="mod-tab" data-status="all" role="tab">All</button>
+        </div>
+
+        <div id="modList" aria-live="polite"></div>
+    </div>
+
+    <div class="mod-toast" id="modToast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var API_BASE = 'https://ps.paddyspeaks.com';
+    var token = sessionStorage.getItem('_ps_auth') || null;
+    var currentStatus = 'pending';
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function toast(msg) {
+        var t = document.getElementById('modToast');
+        t.textContent = msg; t.classList.add('show');
+        setTimeout(function () { t.classList.remove('show'); }, 2600);
+    }
+
+    window.modLogin = function (e) {
+        e.preventDefault();
+        var pw = document.getElementById('modPassword').value;
+        if (!pw) return false;
+        var enc = new TextEncoder().encode(pw);
+        crypto.subtle.digest('SHA-256', enc).then(function (buf) {
+            token = Array.from(new Uint8Array(buf)).map(function (b) {
+                return b.toString(16).padStart(2, '0');
+            }).join('');
+            return fetch(API_BASE + '/api/testimonials/admin?status=pending', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+        }).then(function (res) {
+            if (res.status === 401) {
+                document.getElementById('modLoginError').textContent = 'Incorrect password.';
+                document.getElementById('modLoginError').classList.add('show');
+                token = null;
+                return;
+            }
+            if (res.status === 503) {
+                document.getElementById('modLoginError').textContent = 'The FORMS database is not provisioned yet.';
+                document.getElementById('modLoginError').classList.add('show');
+                token = null;
+                return;
+            }
+            sessionStorage.setItem('_ps_auth', token);
+            document.getElementById('modLogin').classList.add('mod-hidden');
+            document.getElementById('modConsole').classList.remove('mod-hidden');
+            load('pending');
+        }).catch(function () {
+            document.getElementById('modLoginError').textContent = 'Connection error. Is the Worker deployed?';
+            document.getElementById('modLoginError').classList.add('show');
+        });
+        return false;
+    };
+
+    window.modLogout = function () {
+        token = null;
+        sessionStorage.removeItem('_ps_auth');
+        document.getElementById('modConsole').classList.add('mod-hidden');
+        document.getElementById('modLogin').classList.remove('mod-hidden');
+        document.getElementById('modPassword').value = '';
+    };
+
+    function cardHtml(t) {
+        var meta = [t.role, t.organization].filter(Boolean).join(' · ');
+        var published = t.edited_body && t.edited_body.trim() ? t.edited_body : t.body;
+        return '<article class="mod-card" data-id="' + esc(t.id) + '">' +
+            '<div class="mod-meta">' +
+                '<span class="mod-status-pill ' + esc(t.status) + '">' + esc(t.status) + '</span>' +
+                (t.featured ? ' <span class="mod-status-pill approved">featured</span>' : '') +
+                ' · ' + esc((t.created_at || '').slice(0, 16).replace('T', ' ')) +
+                ' · ' + esc(t.relationship_label || t.relationship) +
+            '</div>' +
+            '<div style="font-family:var(--font-display);font-size:17px;font-weight:600;margin-bottom:2px;">' +
+                esc(t.full_name) + ' <span style="font-family:var(--font-mono);font-size:11px;color:var(--color-light-muted);font-weight:400;">→ displays as “' + esc(t.preview_name) + '” (' + esc(t.display_pref) + ')</span>' +
+            '</div>' +
+            (meta ? '<div style="font-size:13.5px;color:var(--color-light-muted);margin-bottom:4px;">' + esc(meta) + '</div>' : '') +
+            '<div class="mod-meta" style="margin:6px 0 12px;">' +
+                'private: ' + esc(t.email) +
+                (t.verify_url ? ' · <a href="' + esc(t.verify_url) + '" target="_blank" rel="noopener nofollow">verify ↗</a>' : '') +
+            '</div>' +
+            '<div class="mod-body">' + esc(published) + '</div>' +
+            '<details style="margin-bottom:10px;">' +
+                '<summary style="cursor:pointer;font-family:var(--font-mono);font-size:11px;color:var(--color-gold-dark);">Light edit / display name override</summary>' +
+                '<div style="margin-top:10px;">' +
+                    '<label style="font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-light-muted);">Edited text (blank = publish original)</label>' +
+                    '<textarea class="mod-edit-body" maxlength="800">' + esc(t.edited_body || '') + '</textarea>' +
+                    '<label style="font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-light-muted);">Display-name override (blank = derive from preference)</label>' +
+                    '<input class="ps-input mod-edit-name" type="text" maxlength="160" value="' + esc(t.display_name || '') + '">' +
+                    '<div class="mod-actions"><button data-act="edit">Save edit</button></div>' +
+                '</div>' +
+            '</details>' +
+            '<div class="mod-actions">' +
+                (t.status !== 'approved' ? '<button class="primary" data-act="approve">Approve</button>' : '') +
+                (t.status === 'approved' ? '<button data-act="unpublish">Unpublish</button>' : '') +
+                (t.status !== 'rejected' ? '<button data-act="reject">Reject</button>' : '') +
+                (t.status === 'approved' ? '<button data-act="feature">' + (t.featured ? 'Unfeature' : 'Feature on homepage') + '</button>' : '') +
+                '<button class="danger" data-act="delete">Delete permanently</button>' +
+            '</div>' +
+        '</article>';
+    }
+
+    function load(status) {
+        currentStatus = status;
+        var list = document.getElementById('modList');
+        list.innerHTML = '<div class="mod-empty">Loading…</div>';
+        fetch(API_BASE + '/api/testimonials/admin?status=' + encodeURIComponent(status), {
+            headers: { 'Authorization': 'Bearer ' + token }
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            var items = (data && data.items) || [];
+            if (!items.length) {
+                list.innerHTML = '<div class="mod-empty">Nothing here yet.</div>';
+                return;
+            }
+            list.innerHTML = items.map(cardHtml).join('');
+        }).catch(function () {
+            list.innerHTML = '<div class="mod-empty">Could not load testimonials.</div>';
+        });
+    }
+
+    function act(id, action, extra) {
+        var payload = Object.assign({ id: id, action: action }, extra || {});
+        return fetch(API_BASE + '/api/testimonials/admin', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function (r) { return r.json(); });
+    }
+
+    // Tabs
+    document.querySelectorAll('.mod-tab[data-status]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.mod-tab[data-status]').forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            load(btn.getAttribute('data-status'));
+        });
+    });
+
+    // Card actions (event delegation)
+    document.getElementById('modList').addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-act]');
+        if (!btn) return;
+        var card = btn.closest('.mod-card');
+        var id = card.getAttribute('data-id');
+        var action = btn.getAttribute('data-act');
+
+        if (action === 'delete' && !confirm('Permanently delete this testimonial? This cannot be undone.')) return;
+
+        var extra = null;
+        if (action === 'edit') {
+            extra = {
+                edited_body: card.querySelector('.mod-edit-body').value,
+                display_name: card.querySelector('.mod-edit-name').value
+            };
+        }
+        if (action === 'feature') {
+            extra = { featured: btn.textContent.indexOf('Unfeature') === -1 };
+        }
+
+        btn.disabled = true;
+        act(id, action, extra).then(function (res) {
+            if (res && res.ok) {
+                toast(action === 'edit' ? 'Edit saved.' : ('Done: ' + action + '.'));
+                load(currentStatus);
+            } else {
+                toast('Action failed.');
+                btn.disabled = false;
+            }
+        }).catch(function () { toast('Action failed.'); btn.disabled = false; });
+    });
+
+    // Resume an existing dashboard session if one is present
+    if (token) {
+        fetch(API_BASE + '/api/testimonials/admin?status=pending', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        }).then(function (r) {
+            if (r.ok) {
+                document.getElementById('modLogin').classList.add('mod-hidden');
+                document.getElementById('modConsole').classList.remove('mod-hidden');
+                load('pending');
+            } else {
+                token = null;
+                sessionStorage.removeItem('_ps_auth');
+            }
+        }).catch(function () { token = null; });
+    }
+})();
+</script>
+</body>
+</html>
