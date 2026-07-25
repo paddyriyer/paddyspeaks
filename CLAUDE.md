@@ -9,6 +9,20 @@ Worker + separate D1 `paddyspeaks-leaderboard`); the public board reveals at 5
 real scores and shows a sample preview until then; the LinkedIn launch blurb is
 parked until real scores flow. Update that file when meaningful state changes.
 
+## Contact & Testimonials
+
+Both features are documented in **`docs/CONTACT-AND-TESTIMONIALS.md`** — read it
+before touching `/contact/`, `/testimonials/`, or the `FORMS` D1 database.
+
+- Validation lives ONCE, in `analytics/lib/forms.js` (pure, unit-tested). The
+  Worker imports it; `lib/ps-forms.js` mirrors it in the browser. Change both
+  together or they drift.
+- **Never publish a testimonial automatically.** Everything enters `pending`;
+  only `approved` rows are public. Moderate at `/testimonials/admin.html`.
+- **Never seed or invent testimonials.** Empty state shows an honest invitation.
+- Recipient addresses and API keys are environment variables only — never in the
+  repo, never in frontend code.
+
 ## CRITICAL: Do NOT regenerate index.html
 
 The homepage (`index.html`) is **hand-crafted** with custom sections that no script can reproduce:

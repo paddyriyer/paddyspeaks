@@ -4333,3 +4333,477 @@ mark {
         grid-template-columns: 1fr;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════ */
+/* CONTACT + TESTIMONIALS (forms, cards, moderation)           */
+/* Reuses the site tokens; light editorial palette; no new deps.*/
+/* ═══════════════════════════════════════════════════════════ */
+
+/* ── Shared page shell (mirrors .about-page rhythm) ── */
+.ps-form-page {
+    max-width: var(--content-width);
+    margin: 0 auto;
+    padding: 40px 40px 80px;
+    animation: fadeInUp 0.8s ease-out;
+}
+.ps-page-hero {
+    text-align: center;
+    padding: 50px 20px 24px;
+}
+.ps-page-hero .about-label { display: block; }
+.ps-page-hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 4.4vw, 52px);
+    font-weight: 700;
+    line-height: 1.12;
+    margin: 6px 0 0;
+}
+.ps-page-hero h1 em { font-weight: 400; color: var(--color-gold-dark); font-style: italic; }
+.ps-lede {
+    max-width: 620px;
+    margin: 22px auto 0;
+    font-size: 18px;
+    line-height: 1.75;
+    color: var(--color-muted);
+    text-align: center;
+}
+
+/* ── Form primitives ── */
+.ps-form { margin-top: 8px; }
+.ps-field { margin-bottom: 24px; }
+.ps-field > label,
+.ps-fieldset > legend {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-light-muted);
+    margin-bottom: 9px;
+}
+.ps-field .ps-req { color: var(--color-rust); margin-left: 3px; }
+.ps-field .ps-opt {
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-light-muted);
+    margin-left: 6px;
+}
+.ps-input,
+.ps-textarea,
+.ps-select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--color-border);
+    background: #fff;
+    font-family: var(--font-body);
+    font-size: 16px;               /* 16px prevents iOS zoom-on-focus */
+    color: var(--color-ink);
+    outline: none;
+    border-radius: 3px;
+    transition: border-color 0.25s, box-shadow 0.25s;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.ps-textarea { min-height: 168px; resize: vertical; line-height: 1.6; }
+.ps-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%233a4556' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 42px;
+    cursor: pointer;
+}
+.ps-input:focus,
+.ps-textarea:focus,
+.ps-select:focus {
+    border-color: var(--color-gold);
+    box-shadow: 0 0 0 3px rgba(37, 99, 168, 0.16);
+}
+.ps-input::placeholder,
+.ps-textarea::placeholder { color: #9aabbd; }
+
+/* Invalid state (set by JS via aria-invalid) */
+.ps-input[aria-invalid="true"],
+.ps-textarea[aria-invalid="true"],
+.ps-select[aria-invalid="true"] {
+    border-color: var(--color-rust);
+    box-shadow: 0 0 0 3px rgba(196, 75, 43, 0.14);
+}
+.ps-error {
+    display: none;
+    color: var(--color-rust);
+    font-size: 13.5px;
+    line-height: 1.5;
+    margin-top: 7px;
+}
+.ps-error.show { display: block; }
+
+.ps-help {
+    font-size: 13px;
+    color: var(--color-light-muted);
+    margin-top: 7px;
+    line-height: 1.5;
+}
+.ps-count { font-variant-numeric: tabular-nums; }
+.ps-count.over { color: var(--color-rust); }
+
+/* Checkbox / radio rows */
+.ps-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+.ps-check input[type="checkbox"],
+.ps-check input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--color-gold);
+    cursor: pointer;
+}
+.ps-fieldset {
+    border: 1px solid var(--color-border-light);
+    border-radius: 4px;
+    padding: 18px 20px 8px;
+    margin: 0;
+}
+.ps-fieldset .ps-check { margin-bottom: 12px; }
+
+/* Honeypot — visually + AT hidden, still submitted by bots */
+.ps-hp {
+    position: absolute !important;
+    left: -9999px !important;
+    width: 1px; height: 1px;
+    overflow: hidden;
+}
+
+/* Submit button (matches subscribe-form button language) */
+.ps-submit {
+    padding: 15px 34px;
+    background: var(--color-gold-dark);
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.25s, opacity 0.25s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.ps-submit:hover { background: var(--color-gold); }
+.ps-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+.ps-submit .ps-spinner {
+    width: 15px; height: 15px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: psSpin 0.7s linear infinite;
+    display: none;
+}
+.ps-submit.loading .ps-spinner { display: inline-block; }
+@keyframes psSpin { to { transform: rotate(360deg); } }
+
+/* Focus-visible ring for keyboard users on all interactive controls */
+.ps-input:focus-visible,
+.ps-textarea:focus-visible,
+.ps-select:focus-visible,
+.ps-submit:focus-visible,
+.ps-check input:focus-visible {
+    outline: 2px solid var(--color-gold-dark);
+    outline-offset: 2px;
+}
+
+/* Form-level status banners */
+.ps-banner {
+    display: none;
+    padding: 18px 20px;
+    border-radius: 4px;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 26px;
+}
+.ps-banner.show { display: block; }
+.ps-banner.success {
+    background: #eaf5ee;
+    border: 1px solid #b9ddc6;
+    color: #1f5b39;
+}
+.ps-banner.error {
+    background: #fbecea;
+    border: 1px solid #efc4bb;
+    color: #9a3115;
+}
+.ps-form-success {
+    display: none;
+    text-align: center;
+    padding: 30px 24px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    background: #f6faff;
+}
+.ps-form-success.show { display: block; }
+.ps-form-success .ps-tick {
+    font-size: 30px;
+    color: var(--color-sage);
+    display: block;
+    margin-bottom: 12px;
+}
+.ps-form-success h2 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+.ps-form-success p { color: var(--color-muted); line-height: 1.7; max-width: 460px; margin: 0 auto; }
+
+/* ── Testimonial cards ── */
+.testimonials-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 26px;
+    margin: 10px 0 20px;
+}
+.testimonial-card {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 28px 28px 24px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+.testimonial-card::before {
+    content: "\201C";
+    font-family: var(--font-display);
+    font-size: 54px;
+    line-height: 1;
+    color: var(--color-gold-light);
+    position: absolute;
+    top: 14px;
+    right: 22px;
+}
+.testimonial-card .t-body {
+    font-size: 16.5px;
+    line-height: 1.72;
+    color: var(--color-ink);
+    margin: 0 0 20px;
+    position: relative;
+    z-index: 1;
+}
+.testimonial-card .t-attr {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border-light);
+}
+.testimonial-card .t-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--color-ink);
+}
+.testimonial-card .t-role {
+    font-size: 13.5px;
+    color: var(--color-light-muted);
+    margin-top: 3px;
+}
+.testimonial-card .t-rel {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-gold-dark);
+    background: var(--color-cream);
+    padding: 4px 9px;
+    border-radius: 3px;
+}
+
+/* Empty / invitation state (honest, no fake praise) */
+.testimonials-invite {
+    text-align: center;
+    max-width: 620px;
+    margin: 10px auto 0;
+    padding: 40px 30px;
+    border: 1px dashed var(--color-border);
+    border-radius: 8px;
+    background: #f7fbff;
+}
+.testimonials-invite h3 {
+    font-family: var(--font-display);
+    font-size: 23px;
+    margin-bottom: 12px;
+}
+.testimonials-invite p {
+    color: var(--color-muted);
+    line-height: 1.75;
+    margin-bottom: 20px;
+}
+
+/* ── Homepage testimonial strip ── */
+.home-testimonials {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 60px 40px 30px;
+    text-align: center;
+}
+.home-testimonials .section-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-gold-dark);
+    margin-bottom: 14px;
+}
+.home-testimonials h2 {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3.4vw, 38px);
+    font-weight: 700;
+    margin-bottom: 14px;
+}
+.home-testimonials > p.section-lede {
+    max-width: 620px;
+    margin: 0 auto 40px;
+    color: var(--color-muted);
+    font-size: 17px;
+    line-height: 1.7;
+}
+.home-testimonials .testimonials-grid { text-align: left; }
+.home-testimonials-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 36px;
+}
+.ps-btn-primary,
+.ps-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 14px 28px;
+    border-radius: 3px;
+    text-decoration: none;
+    transition: background 0.25s, color 0.25s, border-color 0.25s;
+}
+.ps-btn-primary { background: var(--color-gold-dark); color: #fff; border: 1px solid var(--color-gold-dark); }
+.ps-btn-primary:hover { background: var(--color-gold); border-color: var(--color-gold); }
+.ps-btn-ghost { background: transparent; color: var(--color-gold-dark); border: 1px solid var(--color-border); }
+.ps-btn-ghost:hover { border-color: var(--color-gold); color: var(--color-gold); }
+
+/* ── Interview Studio contextual invitation ── */
+.studio-testimonial-invite {
+    max-width: 900px;
+    margin: 34px auto;
+    padding: 18px 22px;
+    border: 1px solid #e2e8f0;
+    border-left: 3px solid #0e7490;
+    border-radius: 8px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-family: 'Source Serif 4', Georgia, serif;
+}
+.studio-testimonial-invite p { margin: 0; color: #334155; font-size: 15px; line-height: 1.55; }
+.studio-testimonial-invite a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #0e7490;
+    text-decoration: none;
+    white-space: nowrap;
+    border: 1px solid #cbd5e1;
+    padding: 9px 16px;
+    border-radius: 6px;
+    transition: background 0.2s, border-color 0.2s;
+}
+.studio-testimonial-invite a:hover { background: #ecfeff; border-color: #0e7490; }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+    .ps-form-page { padding: 30px 22px 60px; }
+    .home-testimonials { padding: 44px 22px 24px; }
+    .testimonials-grid { grid-template-columns: 1fr; gap: 20px; }
+    .ps-submit { width: 100%; justify-content: center; }
+}
+
+/* ── Moderation console (owner-only page) ── */
+.mod-shell { max-width: 960px; margin: 0 auto; padding: 30px 22px 80px; }
+.mod-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0 24px; }
+.mod-tab {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 9px 16px;
+    border: 1px solid var(--color-border);
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--color-muted);
+}
+.mod-tab.active { background: var(--color-gold-dark); color: #fff; border-color: var(--color-gold-dark); }
+.mod-card {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 20px 22px;
+    margin-bottom: 18px;
+}
+.mod-card .mod-meta { font-size: 13px; color: var(--color-light-muted); margin-bottom: 10px; font-family: var(--font-mono); }
+.mod-card .mod-body { font-size: 16px; line-height: 1.7; margin-bottom: 14px; white-space: pre-wrap; }
+.mod-card textarea { width: 100%; min-height: 90px; font-family: var(--font-body); font-size: 15px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 4px; }
+.mod-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.mod-actions button {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 9px 15px;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+    background: #fff;
+    cursor: pointer;
+    color: var(--color-muted);
+}
+.mod-actions button.primary { background: var(--color-sage); color: #fff; border-color: var(--color-sage); }
+.mod-actions button.danger { color: var(--color-rust); border-color: #efc4bb; }
+.mod-status-pill {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 3px;
+}
+.mod-status-pill.pending { background: #fff4e0; color: #9a6212; }
+.mod-status-pill.approved { background: #eaf5ee; color: #1f5b39; }
+.mod-status-pill.rejected { background: #fbecea; color: #9a3115; }
+
+/* Screen-reader-only text (visually hidden, still announced) */
+.ps-visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

@@ -28,7 +28,36 @@ binding = "LB"
 database_name = "paddyspeaks-leaderboard"
 database_id = "d49bd1fd-0460-4339-b46d-94f00981a4ad"
 
+# ── Contact + Testimonials — SEPARATE D1 db (holds PII: names/emails, so it is
+#    isolated from the PII-free analytics DB, mirroring the leaderboard split) ──
+# COMMENTED OUT until the database exists: a placeholder database_id would fail
+# the deploy, and this Worker also serves analytics + the leaderboard. The
+# contact/testimonial routes return 503 "not_configured" while env.FORMS is
+# absent, so shipping this now is safe and changes nothing that is live.
+#
+# To enable (same flow the LB binding below went through):
+#   1. wrangler d1 create paddyspeaks-forms
+#   2. wrangler d1 execute paddyspeaks-forms --file=forms-schema.sql
+#      (or paste forms-schema.console.sql into the D1 Console in the dashboard)
+#   3. uncomment the three lines below and paste in the real database_id
+#   4. set RESEND_API_KEY / CONTACT_TO_EMAIL / CONTACT_FROM_EMAIL / FORMS_SALT
+#
+# [[d1_databases]]
+# binding = "FORMS"
+# database_name = "paddyspeaks-forms"
+# database_id = "PASTE_THE_paddyspeaks_forms_DATABASE_ID_HERE"
+
 # ADMIN_PASSWORD_HASH is set as a Secret in the Cloudflare dashboard.
+# It also authorizes the testimonial moderation console (/testimonials/admin.html).
+#
+# Contact + Testimonials email (Resend — https://resend.com) uses these Secrets/Vars
+# in the Cloudflare dashboard (Worker → Settings → Variables and Secrets):
+#   RESEND_API_KEY      (Secret)  — Resend API key
+#   CONTACT_FROM_EMAIL  (Var)     — verified sender, e.g. "PaddySpeaks <hello@paddyspeaks.com>"
+#   CONTACT_TO_EMAIL    (Secret)  — the owner's private inbox (NEVER shipped to the browser)
+#   FORMS_SALT          (Secret)  — optional; salt for one-way IP/content hashes
+# Routes return 503 "not_configured" until the FORMS binding above is real — safe
+# to deploy before provisioning.
 # LB_SIGNING_KEY (HMAC for attempt tokens) is also a Secret:
 #   wrangler secret put LB_SIGNING_KEY     # 32+ random bytes
 # Do NOT define secrets here — wrangler vars override dashboard secrets.

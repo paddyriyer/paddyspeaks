@@ -5,7 +5,35 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEW (2026-07-24, latest): Analytics redesign — Phase 3 (complete) + Phase 4
+- **NEW (2026-07-25, latest): Contact + Testimonials shipped** on branch
+  `claude/paddyspeaks-contact-testimonials-4zne28`. Full write-up:
+  **`docs/CONTACT-AND-TESTIMONIALS.md`** (read that first for anything here).
+  - New pages: `/contact/`, `/testimonials/` (public list + share form), and
+    `/testimonials/admin.html` (owner moderation console — noindex, robots-blocked,
+    reuses the analytics `ADMIN_PASSWORD_HASH`).
+  - Backend follows the leaderboard pattern: new route modules
+    `analytics/worker/{contact,testimonials}.js` + `forms-util.js`, mounted in
+    `worker.js`, on a **third D1 db `paddyspeaks-forms`** (binding `FORMS`).
+    Separate because it HOLDS PII (the leaderboard db is separate because it
+    must hold none).
+  - Validation is a single pure module `analytics/lib/forms.js`, imported by the
+    Worker and mirrored in `lib/ps-forms.js`. Tests: **138 pass** (was 57).
+  - Email = **Resend** (one `fetch()`, no SDK — nothing was configured before).
+  - Homepage gained a testimonial strip before the subscribe CTA; footers on
+    index/about/resume gained Contact + Testimonials; Interview Studio home has a
+    contextual invite at the very end (never inside a practice flow).
+  - **NOT LIVE YET — needs Cloudflare/Resend access.** Both endpoints return
+    `503 not_configured` until: (1) `wrangler d1 create paddyspeaks-forms` then
+    UNCOMMENT the `FORMS` block in `wrangler.toml` + paste the real `database_id`
+    (it ships commented out — a placeholder id fails the deploy for the whole
+    Worker, which also serves analytics + the leaderboard), (2) apply
+    `forms-schema.sql`, (3) verify the domain in Resend, (4) set
+    `RESEND_API_KEY` / `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` / `FORMS_SALT`.
+    Pages degrade safely until then.
+  - **No testimonials are seeded.** Both the homepage and `/testimonials/` show an
+    honest "be one of the first" invitation until real ones are approved — same
+    principle as the leaderboard's no-seeding rule.
+- **NEW (2026-07-24): Analytics redesign — Phase 3 (complete) + Phase 4
   (Journeys & Retention)** on the same branch, restarted from main after #734
   merged. Wired `psTrack()` into simulator/flashcards/study-plan and added
   `question_started`/`answer_submitted`/`explanation_viewed` to the track engine;

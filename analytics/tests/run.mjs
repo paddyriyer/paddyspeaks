@@ -6,6 +6,11 @@
 import { median, percentile, sessionize, isEngaged, newVsReturning, engagementSummary, retention } from '../lib/metrics.js';
 import { canonicalPath, normalizeReferrer, sourceOf, botScore, contentGroup, domainOf } from '../lib/classify.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
+import {
+  cleanText, escapeHtml, isEmail, isOptionalUrl, textLen, validateContact,
+  validateTestimonial, deriveDisplayName, toPublicTestimonial,
+  CONTACT_REASONS, RELATIONSHIPS, DISPLAY_PREFS, LIMITS,
+} from '../lib/forms.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -153,6 +158,135 @@ const sc = classifySources([
 ]);
 eq(sc.find(s => s.source === 'linkedin').class, 'high_volume_low_value', 'high-volume/low-value source');
 eq(sc.find(s => s.source === 'ai_assistant').class, 'low_volume_high_value', 'low-volume/high-value source');
+
+/* ═══════════════════════════════════════════════════════════════════
+   Contact + Testimonials — validation, sanitization, display preference
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── email shape ── */
+ok(isEmail('paddy@paddyspeaks.com'), 'valid email accepted');
+ok(isEmail('a.b+tag@sub.domain.co.uk'), 'valid email with tag/subdomain accepted');
+ok(!isEmail('bad@'), 'email missing domain rejected');
+ok(!isEmail('no-at-sign.com'), 'email missing @ rejected');
+ok(!isEmail('two@@at.com'), 'double @ rejected');
+ok(!isEmail('a@b..com'), 'consecutive dots rejected');
+ok(!isEmail('has space@x.com'), 'space in email rejected');
+ok(!isEmail(''), 'empty email rejected');
+ok(!isEmail('a@' + 'x'.repeat(250) + '.com'), 'oversized email rejected');
+
+/* ── optional URL ── */
+ok(isOptionalUrl(''), 'blank optional URL allowed');
+ok(isOptionalUrl('https://linkedin.com/in/paddyiyer'), 'https URL allowed');
+ok(isOptionalUrl('http://example.org/x'), 'http URL allowed');
+ok(!isOptionalUrl('javascript:alert(1)'), 'javascript: URL rejected');
+ok(!isOptionalUrl('ftp://x.com'), 'ftp URL rejected');
+ok(!isOptionalUrl('notaurl'), 'bare string rejected as URL');
+
+/* ── sanitization ── */
+eq(cleanText('  hello  '), 'hello', 'cleanText trims');
+eq(cleanText('a\x01b'), 'ab', 'cleanText strips control chars');
+eq(cleanText('a\r\nb'), 'a\nb', 'cleanText normalizes CRLF');
+eq(cleanText(null), '', 'cleanText handles null');
+eq(cleanText(undefined), '', 'cleanText handles undefined');
+eq(escapeHtml('<script>alert("x")</script>'),
+  '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;', 'escapeHtml neutralizes script tags');
+eq(escapeHtml("O'Brien & Co <b>"), 'O&#39;Brien &amp; Co &lt;b&gt;', 'escapeHtml escapes quotes/amp/lt');
+eq(textLen('  abc  '), 3, 'textLen counts trimmed code points');
+eq(textLen('😀😀'), 2, 'textLen counts astral chars as 1 each');
+
+/* ── contact validation ── */
+const goodContact = {
+  name: 'Priya Nair', email: 'priya@example.com', reason: 'article_feedback',
+  subject: 'Loved the Gita piece', message: 'This changed how I think about dharma at work. Thank you for writing it.',
+};
+ok(validateContact(goodContact).valid, 'valid contact passes');
+ok(!validateContact({ ...goodContact, name: '' }).valid, 'contact requires name');
+ok(!validateContact({ ...goodContact, email: 'nope' }).valid, 'contact requires valid email');
+ok(!validateContact({ ...goodContact, reason: '' }).valid, 'contact requires reason');
+ok(!validateContact({ ...goodContact, reason: 'not_a_real_reason' }).valid, 'contact rejects unknown reason (enum enforced)');
+ok(!validateContact({ ...goodContact, subject: 'ab' }).valid, 'contact rejects too-short subject');
+ok(!validateContact({ ...goodContact, subject: 'x'.repeat(161) }).valid, 'contact rejects oversized subject');
+ok(!validateContact({ ...goodContact, message: 'too short' }).valid, 'contact rejects too-short message');
+ok(!validateContact({ ...goodContact, message: 'x'.repeat(4001) }).valid, 'contact rejects oversized message');
+eq(Object.keys(validateContact({}).errors).sort(),
+  ['email', 'message', 'name', 'reason', 'subject'], 'empty contact reports every required field');
+ok(validateContact({ ...goodContact, sendCopy: 'on' }).data.sendCopy === true, 'sendCopy checkbox "on" coerces to true');
+ok(validateContact({ ...goodContact }).data.sendCopy === false, 'sendCopy absent coerces to false');
+// injection attempt survives as inert text, never as markup
+const injected = validateContact({ ...goodContact, name: '<img src=x onerror=alert(1)>' });
+ok(injected.valid, 'HTML-looking name still validates (escaped at render time)');
+ok(escapeHtml(injected.data.name).indexOf('<img') === -1, 'HTML in name is escaped, not executable');
+
+/* ── testimonial validation ── */
+const body70 = 'Interview Studio helped me land my first data engineering role after weeks of practice.';
+const goodT = {
+  name: 'Arjun Rao', email: 'arjun@example.com', relationship: 'studio_user',
+  body: body70, displayPref: 'first_initial', consent: true,
+};
+ok(validateTestimonial(goodT).valid, 'valid testimonial passes');
+ok(!validateTestimonial({ ...goodT, consent: false }).valid, 'testimonial requires consent');
+ok(!validateTestimonial({ ...goodT, consent: undefined }).valid, 'missing consent rejected');
+ok(!validateTestimonial({ ...goodT, body: 'way too short' }).valid, 'testimonial rejects body under 60 chars');
+ok(validateTestimonial({ ...goodT, body: 'x'.repeat(60) }).valid, 'testimonial accepts exactly 60 chars');
+ok(validateTestimonial({ ...goodT, body: 'x'.repeat(700) }).valid, 'testimonial accepts exactly 700 chars');
+ok(!validateTestimonial({ ...goodT, body: 'x'.repeat(701) }).valid, 'testimonial rejects 701 chars');
+ok(!validateTestimonial({ ...goodT, relationship: 'bogus' }).valid, 'testimonial rejects unknown relationship');
+ok(!validateTestimonial({ ...goodT, displayPref: 'bogus' }).valid, 'testimonial rejects unknown display preference');
+ok(!validateTestimonial({ ...goodT, displayPref: '' }).valid, 'testimonial requires display preference');
+ok(!validateTestimonial({ ...goodT, verifyUrl: 'javascript:alert(1)' }).valid, 'testimonial rejects javascript: verify URL');
+ok(validateTestimonial({ ...goodT, verifyUrl: '' }).valid, 'blank verify URL allowed');
+ok(validateTestimonial({ ...goodT, role: '', organization: '' }).valid, 'role/organization are optional');
+ok(!validateTestimonial({ ...goodT, role: 'x'.repeat(121) }).valid, 'oversized role rejected');
+
+/* ── display preference (privacy contract) ── */
+eq(deriveDisplayName('Priya Nair', 'full'), 'Priya Nair', 'full pref shows full name');
+eq(deriveDisplayName('Priya Nair', 'first_initial'), 'Priya N.', 'first_initial pref abbreviates surname');
+eq(deriveDisplayName('Priya Devi Nair', 'first_initial'), 'Priya N.', 'first_initial uses LAST surname');
+eq(deriveDisplayName('Priya', 'first_initial'), 'Priya', 'single-word name has no initial to add');
+eq(deriveDisplayName('Priya Nair', 'anonymous'), 'Anonymous', 'anonymous pref hides the name entirely');
+eq(deriveDisplayName('', 'full'), 'Anonymous', 'empty name falls back to Anonymous');
+eq(deriveDisplayName('Priya Nair', 'anonymous', 'Owner Override'), 'Owner Override', 'owner override wins');
+eq(deriveDisplayName('Priya Nair', 'full', '   '), 'Priya Nair', 'blank override is ignored');
+
+/* ── public shaping: email must NEVER leak, prefs respected ── */
+const row = {
+  id: 't1', full_name: 'Priya Nair', email: 'priya@example.com', role: 'Staff Engineer',
+  organization: 'Acme', relationship: 'reader', body: 'Original text.', edited_body: null,
+  verify_url: 'https://linkedin.com/in/x', display_pref: 'full', display_name: null,
+  status: 'approved', featured: 1, created_at: '2026-07-20T10:00:00Z', ip_hash: 'abc',
+};
+const pubFull = toPublicTestimonial(row);
+ok(!('email' in pubFull), 'public testimonial omits email');
+ok(!('verify_url' in pubFull), 'public testimonial omits verify URL');
+ok(!('ip_hash' in pubFull), 'public testimonial omits ip_hash');
+ok(!('status' in pubFull), 'public testimonial omits status');
+ok(JSON.stringify(pubFull).indexOf('priya@example.com') === -1, 'email absent from serialized public payload');
+eq(pubFull.name, 'Priya Nair', 'full pref keeps name');
+eq(pubFull.role, 'Staff Engineer', 'full pref keeps role');
+eq(pubFull.organization, 'Acme', 'full pref keeps organization');
+eq(pubFull.date, '2026-07-20', 'public date is day-precision only');
+
+const pubAnon = toPublicTestimonial({ ...row, display_pref: 'anonymous' });
+eq(pubAnon.name, 'Anonymous', 'anonymous pref hides name publicly');
+eq(pubAnon.role, '', 'anonymous pref suppresses role');
+eq(pubAnon.organization, '', 'anonymous pref suppresses organization');
+
+const pubInitial = toPublicTestimonial({ ...row, display_pref: 'first_initial' });
+eq(pubInitial.name, 'Priya N.', 'first_initial pref abbreviates publicly');
+eq(pubInitial.role, '', 'first_initial pref suppresses role');
+eq(pubInitial.organization, '', 'first_initial pref suppresses organization');
+
+// light edit is published in preference to the original
+eq(toPublicTestimonial({ ...row, edited_body: 'Lightly edited text.' }).body,
+  'Lightly edited text.', 'edited_body wins over body when present');
+eq(toPublicTestimonial({ ...row, edited_body: '   ' }).body,
+  'Original text.', 'whitespace-only edited_body falls back to original');
+
+/* ── enum surfaces are closed sets ── */
+eq(CONTACT_REASONS.length, 7, 'seven contact reasons exactly as specified');
+eq(RELATIONSHIPS.length, 6, 'six relationship options exactly as specified');
+eq(DISPLAY_PREFS, ['full', 'first_initial', 'anonymous'], 'three display preferences');
+eq(LIMITS.testimonial, { min: 60, max: 700 }, 'testimonial bounds are 60–700 as specified');
 
 /* ── report ── */
 console.log(fails.join('\n'));
