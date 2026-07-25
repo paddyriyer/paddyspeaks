@@ -11,6 +11,7 @@ import {
   validateTestimonial, deriveDisplayName, toPublicTestimonial,
   CONTACT_REASONS, RELATIONSHIPS, DISPLAY_PREFS, LIMITS,
 } from '../lib/forms.js';
+import { redactEmails } from '../worker/forms-util.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -287,6 +288,17 @@ eq(CONTACT_REASONS.length, 7, 'seven contact reasons exactly as specified');
 eq(RELATIONSHIPS.length, 6, 'six relationship options exactly as specified');
 eq(DISPLAY_PREFS, ['full', 'first_initial', 'anonymous'], 'three display preferences');
 eq(LIMITS.testimonial, { min: 60, max: 700 }, 'testimonial bounds are 60–700 as specified');
+
+/* ── email-error redaction (no address may ever reach a log) ── */
+ok(!/@/.test(redactEmails('You can only send to your own address (paddy@example.com)')),
+  'redactEmails strips an address from a provider error');
+eq(redactEmails('{"statusCode":401,"message":"API key is invalid"}'),
+  '{"statusCode":401,"message":"API key is invalid"}', 'redactEmails leaves address-free text intact');
+ok(!/@/.test(redactEmails('to: a@b.com, cc: c.d+tag@sub.example.co.uk')),
+  'redactEmails strips multiple addresses including tagged/subdomain forms');
+eq(redactEmails('Invalid `from` field'), 'Invalid `from` field', 'redactEmails preserves the diagnostic wording');
+eq(redactEmails(null), '', 'redactEmails handles null');
+ok(redactEmails('x@y.com').includes('[redacted-email]'), 'redactEmails substitutes a visible placeholder');
 
 /* ── report ── */
 console.log(fails.join('\n'));

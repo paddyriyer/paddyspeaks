@@ -77,8 +77,14 @@ async function handleSubmit(request, env, ch) {
     replyTo: data.email,
   });
   if (!owner.ok) {
-    // Do not log message content. Surface a clean, recoverable error.
-    return json({ error: 'delivery_failed', message: 'We could not send your message right now. Please try again shortly.' }, 502, ch);
+    // Do not log or return message content. `reason` is the provider's status
+    // code only (e.g. "resend-401") — enough to tell a bad key from a rejected
+    // sender without leaking anything about the visitor or their message.
+    return json({
+      error: 'delivery_failed',
+      message: 'We could not send your message right now. Please try again shortly.',
+      reason: owner.error,
+    }, 502, ch);
   }
 
   // 6) Acknowledge the visitor (best-effort; owner already has the message)
