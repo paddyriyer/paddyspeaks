@@ -60,10 +60,27 @@ to the browser.
 | Name | Type | Required | Purpose |
 |---|---|---|---|
 | `CONTACT_TO_EMAIL` | **Secret** | Yes | Paddy's private inbox. Receives contact messages and testimonial notifications. Never exposed to the frontend. |
-| `CONTACT_FROM_EMAIL` | Variable | Yes | Verified Resend sender, e.g. `PaddySpeaks <hello@paddyspeaks.com>`. |
+| `CONTACT_FROM_EMAIL` | **Secret** | Yes | Verified Resend sender, e.g. `paddy@paddyspeaks.com`. Not sensitive, but see the warning below — it must still be a Secret. |
 | `RESEND_API_KEY` | **Secret** | Yes | Resend API key (`re_…`). |
 | `FORMS_SALT` | **Secret** | Recommended | Salt for one-way IP/content hashes. Falls back to a constant if unset; set it so hashes are not guessable. |
 | `ADMIN_PASSWORD_HASH` | **Secret** | Already set | Reused as-is — authorizes the moderation console. Same password as the analytics dashboard. |
+
+> ### ⚠ Every one of these must be a Secret, never a plaintext Variable
+>
+> A Git-integrated deploy **replaces** the Worker's dashboard plaintext variables
+> with the `[vars]` block from `wrangler.toml`. That block does not exist here, so
+> any plaintext variable is silently **deleted on the next push**. Secrets live in
+> separate storage and survive deploys untouched.
+>
+> This bit us during setup: `CONTACT_FROM_EMAIL` was created as a Variable, worked
+> fine, then vanished on the next deploy — and every send began failing with
+> `502 {"reason":"email-not-configured"}` with nothing in the dashboard looking
+> wrong, because the row was simply gone.
+>
+> `CONTACT_FROM_EMAIL` is not secret (it appears in every email header). It has to
+> be a Secret purely so that it *persists*.
+>
+> **If email breaks right after a deploy, check this first.**
 
 Plus one binding in `analytics/worker/wrangler.toml`:
 
@@ -114,8 +131,8 @@ leaderboard schema.)
 3. Create an API key with **Sending access**.
 4. In the Worker's settings, add:
    - `RESEND_API_KEY` = the key, as a **Secret**
-   - `CONTACT_FROM_EMAIL` = `PaddySpeaks <hello@paddyspeaks.com>` (must be on the
-     verified domain)
+   - `CONTACT_FROM_EMAIL` = `paddy@paddyspeaks.com`, as a **Secret** (must be on
+     the verified domain)
    - `CONTACT_TO_EMAIL` = the destination inbox, as a **Secret**
    - `FORMS_SALT` = 32+ random characters, as a **Secret**
 
