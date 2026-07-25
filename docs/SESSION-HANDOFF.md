@@ -22,14 +22,17 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
   - Homepage gained a testimonial strip before the subscribe CTA; footers on
     index/about/resume gained Contact + Testimonials; Interview Studio home has a
     contextual invite at the very end (never inside a practice flow).
-  - **NOT LIVE YET — needs Cloudflare/Resend access.** Both endpoints return
-    `503 not_configured` until: (1) `wrangler d1 create paddyspeaks-forms` then
-    UNCOMMENT the `FORMS` block in `wrangler.toml` + paste the real `database_id`
-    (it ships commented out — a placeholder id fails the deploy for the whole
-    Worker, which also serves analytics + the leaderboard), (2) apply
-    `forms-schema.sql`, (3) verify the domain in Resend, (4) set
-    `RESEND_API_KEY` / `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` / `FORMS_SALT`.
-    Pages degrade safely until then.
+  - **Provisioned (2026-07-25).** D1 `paddyspeaks-forms` created
+    (`d43111c5-5834-4791-b18d-b892643787c6`), schema applied, `FORMS` binding
+    enabled in `wrangler.toml`, Resend domain verified (Sending on, **Receiving
+    deliberately off** — it would add root MX records and could hijack existing
+    mail to `@paddyspeaks.com`). Remaining: the four Worker Secrets/Vars
+    (`RESEND_API_KEY` / `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` / `FORMS_SALT`)
+    and an end-to-end smoke test. Routes return `503 not_configured` whenever
+    `env.FORMS` is missing, so they always degrade safely.
+  - Gotcha for future edits: a non-UUID `database_id` fails `wrangler deploy` for
+    the WHOLE Worker (analytics + leaderboard too) — that is what broke CI on PR
+    #736 and why the binding shipped commented out first.
   - **No testimonials are seeded.** Both the homepage and `/testimonials/` show an
     honest "be one of the first" invitation until real ones are approved — same
     principle as the leaderboard's no-seeding rule.
