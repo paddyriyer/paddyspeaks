@@ -5114,6 +5114,54 @@
       ],
       "answer": 2,
       "explanation": "SubDagOperator with retry logic and backoff ensures load_raw_data re-attempts automatically before passing control to downstream tasks. This prevents cascading queuing and failures. BranchOperator creates skip complexity; trigger_rule='all_done' allows failures through (defeating validation); pools don't prevent queue buildup. SubDag with retries provides fault tolerance and deterministic downstream triggering."
+    },
+    {
+      "id": "ds-new-027",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "Your reverse ETL pipeline syncs customer segments from Snowflake to Salesforce every 4 hours. A segment definition changed: customers with LTV > $5K are now 'Premium' instead of 'Gold'. During the sync window, 50K segment members are reassigned. Salesforce has 200K users; sync latency is 45 minutes. A sales rep sees a customer toggle from 'Gold' to 'Premium' mid-call but their local CRM cache hasn't updated. What is the primary architectural issue and best mitigation?",
+      "options": [
+        "The reverse ETL tool lacks idempotency; implement deduplication keys and retry logic to prevent double-writes",
+        "Segment membership changes propagate asynchronously while Salesforce serves stale cache; use webhook notifications and cache invalidation on segment changes before sync",
+        "Snowflake's `STREAM` objects don't capture soft deletes; switch to timestamp-based change detection",
+        "The 4-hour sync cadence is too slow; reduce to 15-minute intervals with exponential backoff"
+      ],
+      "answer": 1,
+      "explanation": "The core issue is eventual consistency between Snowflake (source of truth) and Salesforce (cache with stale data). While reducing sync frequency helps, the primary mitigation is webhook-driven invalidation: notify Salesforce or downstream apps when segment definitions change, triggering cache refreshes before the 45-minute sync completes. Idempotency prevents duplicate syncs but doesn't solve stale cache visibility. STREAM objects are helpful but don't address the cache lag."
+    },
+    {
+      "id": "ds-new-028",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "Your dbt project uses incremental models with unique keys to handle late-arriving data. Last week, you added a new non-nullable column `risk_score` to the `transactions` table, but 2M historical rows lack this value. Your incremental merge-on-id strategy depends on looking up old rows. What is the safest approach to backfill `risk_score` while maintaining incremental model correctness?",
+      "options": [
+        "Add a DEFAULT value in the dbt model YAML, run full-refresh on the incremental table, and backfill using a post-hook SQL script",
+        "Make the column nullable in Snowflake schema, run a backfill job to populate historical rows, then convert to non-nullable; use dbt seed for the mapping if needed",
+        "Deploy the new column as nullable in production, add a dbt test to enforce non-nullability on new rows only (using dbt-expectations), then backfill asynchronously",
+        "Create a separate staging table for historical backfill, then union it with the incremental model in downstream consumption"
+      ],
+      "answer": 1,
+      "explanation": "The safest approach is to keep the column nullable during deployment (avoiding breaking the incremental merge logic), run a backfill job to populate historical rows, then enforce non-nullability afterward. This avoids re-processing millions of rows unnecessarily during a full refresh and maintains merge-on-id correctness. A DEFAULT value in dbt YAML doesn't populate existing rows in the warehouse. Testing non-nullability only on new rows is fragile and defers the consistency problem."
+    },
+    {
+      "id": "ds-new-029",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "Your dbt project has 200+ models. The `fct_orders` table is used by 40+ downstream models and dashboards. A junior analyst changed the grain of `fct_orders` from one row per order to one row per order-line-item without updating documentation. Downstream join logic breaks silently, causing duplicate metrics in 12 dashboards. How should the dbt project be restructured to prevent this architectural change from breaking downstream consumers?",
+      "options": [
+        "Add a dbt meta field documenting table grain, implement a dbt test using dbt-utils to validate grain hasn't changed, and add a unique key constraint in the model config",
+        "Enforce role-based access controls (RBAC) in Snowflake to restrict model modifications to senior analysts only",
+        "Create an immutable 'contract' for the model using dbt v1.5+ contracts feature, define expected columns and grain, and tests will fail if grain changes",
+        "Split `fct_orders` into two separate models: `fct_orders_grain_order` and `fct_orders_grain_line`, then update all 40 downstream models"
+      ],
+      "answer": 2,
+      "explanation": "dbt v1.5+ contracts feature enforces an explicit interface contract: defining expected column names, types, and semantics prevents silent breaking changes. A grain change would violate the contract (e.g., if a unique key assertion exists on order_id), and dbt will fail at parse time. Meta fields and tests are helpful for documentation but won't prevent the change from deploying. RBAC is a governance tool, not a schema safeguard. Splitting models is reactive; contracts are proactive."
     }
   ]
 }

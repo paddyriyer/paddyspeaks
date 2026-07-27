@@ -13282,6 +13282,70 @@
       ],
       "answer": 1,
       "explanation": "LATERAL joins enable correlated subqueries that can reference the outer table, making them ideal for per-group top-N problems. Option B is most efficient because the LATERAL subquery filters to 3 rows per user before applying additional window functions, reducing computation vs. ranking all rows then filtering (Option A). Option D uses CROSS JOIN LATERAL unnecessarily and re-joins, adding overhead. Option C over-materializes when the query can be streamed."
+    },
+    {
+      "id": "sql-new-027",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "You have a `transactions` table with columns `transaction_id INT, category TEXT, amount NUMERIC, status TEXT`. You need to calculate total revenue and count of successful transactions by category in a single query. Which approach using FILTER is most efficient?\n\nSchema: `transactions(transaction_id INT, category TEXT, amount NUMERIC, status TEXT)`",
+      "options": [
+        "SELECT category, SUM(amount) FILTER (WHERE status = 'success'), COUNT(*) FILTER (WHERE status = 'success') FROM transactions GROUP BY category",
+        "SELECT category, SUM(CASE WHEN status = 'success' THEN amount ELSE 0 END), COUNT(CASE WHEN status = 'success' THEN 1 END) FROM transactions GROUP BY category",
+        "SELECT category, (SELECT SUM(amount) FROM transactions t2 WHERE t2.category = t1.category AND status = 'success'), COUNT(*) FROM transactions t1 WHERE status = 'success' GROUP BY category",
+        "SELECT category, SUM(amount), COUNT(*) FROM transactions WHERE status = 'success' GROUP BY category"
+      ],
+      "answer": 0,
+      "explanation": "The FILTER clause is specifically designed for conditional aggregation and is more readable and performant than CASE WHEN expressions. Option 0 applies the filter directly to aggregate functions, avoiding full table scans for each conditional aggregation. Option 3 loses data for non-successful transactions by filtering in WHERE, and option 1 uses less efficient CASE WHEN syntax."
+    },
+    {
+      "id": "sql-new-028",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "You have a `bill_of_materials` table representing product hierarchies: `parent_product_id INT, child_product_id INT, quantity INT`. You need to find all leaf components (products with no children) required to build product_id = 100, including quantities multiplied down the hierarchy. Which recursive CTE structure is correct?\n\nSchema: `bill_of_materials(parent_product_id INT, child_product_id INT, quantity INT)`",
+      "options": [
+        "WITH RECURSIVE bom AS (SELECT child_product_id, quantity FROM bill_of_materials WHERE parent_product_id = 100 UNION ALL SELECT b.child_product_id, bom.quantity * b.quantity FROM bom JOIN bill_of_materials b ON bom.child_product_id = b.parent_product_id) SELECT child_product_id, SUM(quantity) FROM bom WHERE child_product_id NOT IN (SELECT parent_product_id FROM bill_of_materials) GROUP BY child_product_id",
+        "WITH RECURSIVE bom AS (SELECT parent_product_id = 100, child_product_id, quantity FROM bill_of_materials UNION ALL SELECT bom.parent_product_id, b.child_product_id, bom.quantity * b.quantity FROM bom JOIN bill_of_materials b ON bom.child_product_id = b.parent_product_id WHERE bom.parent_product_id = 100) SELECT * FROM bom",
+        "WITH RECURSIVE bom(product_id, qty) AS (SELECT child_product_id, quantity FROM bill_of_materials WHERE parent_product_id = 100 UNION ALL SELECT child_product_id, quantity FROM bill_of_materials) SELECT * FROM bom",
+        "WITH RECURSIVE bom AS (SELECT 100 as product_id, 1 as qty UNION ALL SELECT b.child_product_id, bom.qty * b.quantity FROM bom JOIN bill_of_materials b ON bom.product_id = b.parent_product_id) SELECT product_id, SUM(qty) FROM bom WHERE product_id NOT IN (SELECT parent_product_id FROM bill_of_materials) GROUP BY product_id"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 correctly starts with the anchor query (product 100 with quantity 1), then recursively joins to find children while multiplying quantities through the hierarchy. It filters for leaf nodes and aggregates total quantities needed. Option 0 uses incorrect logic mixing parent/child columns, option 1 has invalid syntax, and option 2 doesn't recursively traverse or multiply quantities correctly."
+    },
+    {
+      "id": "sql-new-029",
+      "type": "single",
+      "topic": "transaction isolation",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "In a data warehouse pipeline, Transaction A reads a row from `inventory(product_id INT, stock INT)` at 10:00:00, finds stock=100. Transaction B updates that same row to stock=50 at 10:00:05 and commits. Transaction A then reads the same row again at 10:00:10 and gets stock=50. Which isolation level is this database using?\n\nSchema: `inventory(product_id INT, stock INT)`",
+      "options": [
+        "SERIALIZABLE \u2014 the strictest level prevents all anomalies",
+        "REPEATABLE READ \u2014 allows phantom reads but prevents dirty and non-repeatable reads",
+        "READ COMMITTED \u2014 allows non-repeatable reads (dirty data is not visible)",
+        "READ UNCOMMITTED \u2014 allows both dirty and non-repeatable reads"
+      ],
+      "answer": 2,
+      "explanation": "The scenario describes a non-repeatable read: the same row returns different values within the same transaction after another transaction commits. READ COMMITTED prevents dirty reads (uncommitted data) but allows non-repeatable reads. REPEATABLE READ would prevent this by ensuring consistent reads within a transaction. READ UNCOMMITTED and SERIALIZABLE don't match the behavior described."
+    },
+    {
+      "id": "sql-new-030",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "You need to generate a date series from 2026-01-01 to 2026-01-10 using a recursive CTE. Which query is correct?\n\nTable: (no input table needed, purely generative)",
+      "options": [
+        "WITH RECURSIVE date_series(date) AS (SELECT '2026-01-01'::DATE UNION ALL SELECT date + INTERVAL '1 day' FROM date_series WHERE date < '2026-01-10'::DATE) SELECT * FROM date_series",
+        "WITH RECURSIVE date_series AS (SELECT '2026-01-01'::DATE as date UNION ALL SELECT date_series.date + 1 FROM date_series WHERE date < '2026-01-10') SELECT date FROM date_series",
+        "WITH RECURSIVE date_series(date) AS (SELECT '2026-01-01'::DATE UNION SELECT date + 1 FROM date_series WHERE date < '2026-01-10'::DATE) SELECT * FROM date_series",
+        "WITH date_series(date) AS (SELECT '2026-01-01'::DATE UNION ALL SELECT date + INTERVAL '1 day' FROM date_series WHERE date < '2026-01-10'::DATE) SELECT * FROM date_series"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses RECURSIVE keyword, properly casts dates, uses INTERVAL '1 day' for date arithmetic, and defines the column explicitly in the CTE signature. Option 2 uses UNION instead of UNION ALL, causing duplicate elimination and infinite loops. Option 3 omits RECURSIVE keyword, preventing recursion. Option 1 uses incorrect syntax (date + 1 doesn't work for date arithmetic in standard SQL)."
     }
   ]
 }

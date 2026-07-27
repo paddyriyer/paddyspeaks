@@ -6752,6 +6752,54 @@
       ],
       "answer": 0,
       "explanation": "`functools.lru_cache(maxsize=N)` is Python's built-in tool specifically designed for this use case\u2014it automatically maintains an LRU (Least Recently Used) cache with a bounded size and evicts the least recently accessed entry when the limit is exceeded. The other options either lack LRU semantics (@functools.cache has unbounded size), require manual implementation of eviction logic (@functools.wraps), or serve different purposes (@functools.partial)."
+    },
+    {
+      "id": "py-new-029",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "You have a pandas DataFrame with 10 million rows and need to apply a custom function to each row. Which approach will be fastest for CPU-bound operations?\n\ndf = pd.DataFrame({'a': range(10_000_000), 'b': range(10_000_000)})\n\nYou need to compute a custom transformation on each row. What should you choose?",
+      "options": [
+        "df.apply(custom_func, axis=1) \u2014 directly apply the function row-wise",
+        "Use df.iterrows() in a for loop to process each row individually",
+        "Convert to NumPy with df.values and use vectorized operations or numba.jit",
+        "Use df.applymap() to apply the function element-wise across the entire DataFrame"
+      ],
+      "answer": 2,
+      "explanation": "Pandas apply() and iterrows() are slow because they involve Python interpreter overhead. Converting to NumPy arrays or using Numba's JIT compilation avoids the pandas/Python overhead and leverages vectorization and C-level execution, delivering 10-100x speedup for CPU-bound operations."
+    },
+    {
+      "id": "py-new-030",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "You're building an async web crawler that must handle 1000 concurrent requests with a limit of 50 simultaneous connections. You use asyncio.Semaphore(50) to limit concurrency. However, you notice that tasks are blocking the event loop when they hit the semaphore limit. What is the root cause and best fix?\n\nasync def fetch(url, semaphore):\n    async with semaphore:\n        # actual fetch\n        pass",
+      "options": [
+        "Semaphores inherently block the event loop; use threading.Lock instead for async code",
+        "The semaphore is correctly implemented; the blocking is expected and unavoidable with 1000 tasks",
+        "The code is correct \u2014 asyncio.Semaphore does NOT block the event loop; it suspends tasks cooperatively via await, allowing other tasks to run",
+        "Switch to asyncio.Queue with max size 50 to prevent event loop blocking"
+      ],
+      "answer": 2,
+      "explanation": "asyncio.Semaphore is an async primitive that uses await, which suspends the current task without blocking the event loop. Other tasks can still run. The 'blocking' perceived is actually suspension\u2014the event loop continues executing other waiting tasks. This is by design and is the efficient, correct behavior."
+    },
+    {
+      "id": "py-new-031",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "You need to create a registry of all subclasses of a base class automatically at class definition time. Which metaclass approach is most efficient and Pythonic?\n\nclass BaseModel(metaclass=???):\n    _registry = {}\n    \nclass User(BaseModel):\n    pass\n\nclass Product(BaseModel):\n    pass\n\n# BaseModel._registry should auto-populate with {'User': User, 'Product': Product}",
+      "options": [
+        "Override __init_subclass__() in the base class to register subclasses in __init_subclass__ \u2014 no metaclass needed",
+        "Use a custom metaclass that overrides __new__() to register each subclass in a class-level _registry dict",
+        "Use a custom metaclass that overrides __call__() to intercept instance creation and register classes",
+        "Override __getattribute__() in the base class to dynamically discover subclasses at access time"
+      ],
+      "answer": 0,
+      "explanation": "__init_subclass__() is the modern, cleaner Pythonic approach (PEP 487) for registering subclasses automatically. It's simpler than metaclasses, avoids metaclass conflicts, and is the recommended pattern since Python 3.6. A metaclass works but adds unnecessary complexity for this use case."
     }
   ]
 }
