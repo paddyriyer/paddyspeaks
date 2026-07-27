@@ -6800,6 +6800,54 @@
       ],
       "answer": 0,
       "explanation": "__init_subclass__() is the modern, cleaner Pythonic approach (PEP 487) for registering subclasses automatically. It's simpler than metaclasses, avoids metaclass conflicts, and is the recommended pattern since Python 3.6. A metaclass works but adds unnecessary complexity for this use case."
+    },
+    {
+      "id": "py-new-032",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "You have a CPU-bound task that processes a large dataset. You create a ThreadPoolExecutor with 8 threads to parallelize the work across 8 CPU cores. However, profiling shows almost no speedup compared to single-threaded execution. Which explanation best describes why, and what is the most practical solution for this scenario?",
+      "options": [
+        "The Global Interpreter Lock (GIL) prevents true parallelism for CPU-bound work in threads. Use multiprocessing.Pool or ProcessPoolExecutor instead.",
+        "ThreadPoolExecutor is inefficient with CPU-bound tasks; you should use asyncio.gather() with async/await syntax.",
+        "The OS scheduler is not assigning threads to different cores; add thread affinity with os.sched_setaffinity() to fix it.",
+        "ThreadPoolExecutor requires explicit lock management; add threading.Lock() around the computational work to prevent race conditions."
+      ],
+      "answer": 0,
+      "explanation": "Python's GIL serializes CPU-bound work in threads, making true parallelism impossible regardless of core count. ProcessPoolExecutor or multiprocessing.Pool uses separate Python processes, each with its own GIL, enabling true multi-core parallelism. The other options either address wrong problems (async is for I/O, not CPU) or misunderstand the GIL's scope."
+    },
+    {
+      "id": "py-new-033",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "You need to create a metaclass that automatically registers all subclasses of a base class into a registry dictionary keyed by the subclass name. Additionally, any instance attribute assignment to a subclass instance must be validated against a schema defined in a '_schema' class variable. Which approach correctly implements both requirements?",
+      "options": [
+        "Use __init_subclass__() in the base class to register subclasses, and override __setattr__() in the metaclass to validate attributes against _schema.",
+        "Use __new__() in the metaclass to register subclasses and __setattr__() in the metaclass to validate attributes against _schema.",
+        "Use __init_subclass__() in the metaclass and __setattr__() in the base class for validation, which is inherited by all subclasses.",
+        "Create a descriptor for each attribute in _schema and use __init_subclass__() to register; descriptors will handle validation automatically."
+      ],
+      "answer": 0,
+      "explanation": "__init_subclass__() (introduced in Python 3.6) is the modern, cleaner approach for subclass registration and avoids metaclass complexity. Overriding __setattr__() in the metaclass won't affect instance attribute assignment; __setattr__() should be in the base class or use a descriptor. Option 0 correctly splits concerns: registration via __init_subclass__() and validation via __setattr__() in the class hierarchy."
+    },
+    {
+      "id": "py-new-034",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "You have a Polars DataFrame with 10 million rows and want to compute a rolling 7-day average of a numeric column, partitioned by a 'category' column. You also need to handle missing values by forward-filling before aggregation. Which approach is most efficient and correct?",
+      "options": [
+        "Use df.with_columns(pl.col('value').fill_null(strategy='forward').over('category').rolling_mean(window_size=7).alias('rolling_avg'))",
+        "Group by 'category', apply fill_null() and rolling_mean() sequentially within each group using .map_groups(), then join back.",
+        "Use df.partition_by('category') to create separate DataFrames, fill_null() on each, compute rolling_mean() on each, then concatenate.",
+        "Sort by 'category' and 'date', then use df.with_columns(pl.col('value').forward_fill().over('category').alias('filled')).with_columns(pl.col('filled').rolling_mean(7).over('category').alias('rolling_avg'))"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 correctly chains operations using with_columns() with window functions (.over()), which is Polars' lazy evaluation strength and runs in a single optimized pass. Option 0 incorrectly applies rolling_mean() before partitioning by category, breaking the window semantics. Options 1-2 use slower eager operations (.map_groups(), .partition_by()) that bypass Polars' query optimizer. The sort ensures rolling window context is correct within each category group."
     }
   ]
 }

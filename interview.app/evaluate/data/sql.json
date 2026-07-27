@@ -13346,6 +13346,70 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly uses RECURSIVE keyword, properly casts dates, uses INTERVAL '1 day' for date arithmetic, and defines the column explicitly in the CTE signature. Option 2 uses UNION instead of UNION ALL, causing duplicate elimination and infinite loops. Option 3 omits RECURSIVE keyword, preventing recursion. Option 1 uses incorrect syntax (date + 1 doesn't work for date arithmetic in standard SQL)."
+    },
+    {
+      "id": "sql-new-031",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "In Snowflake, you have a table `orders(order_id INT, customer_id INT, amount NUMERIC, created_at TIMESTAMP_NTZ)`. You need to identify customers whose total spend in the last 30 days exceeds their median spend across all historical orders. Which approach leverages Snowflake's native capabilities most efficiently?",
+      "options": [
+        "Use QUALIFY with a window function to filter: SELECT * FROM orders QUALIFY SUM(amount) OVER (PARTITION BY customer_id, DATE_TRUNC('day', created_at) ORDER BY created_at) > MEDIAN(amount) OVER (PARTITION BY customer_id)",
+        "Use QUALIFY with conditional aggregation: SELECT * FROM orders QUALIFY SUM(CASE WHEN created_at >= DATEADD(day, -30, CURRENT_DATE()) THEN amount END) OVER (PARTITION BY customer_id) > MEDIAN(amount) OVER (PARTITION BY customer_id)",
+        "Create a temporary table of medians, then join and filter using a subquery",
+        "Use a recursive CTE to calculate running medians and filter results"
+      ],
+      "answer": 1,
+      "explanation": "Option B correctly uses QUALIFY (Snowflake's native row filtering post-window functions) combined with conditional aggregation to compare 30-day spend against historical median within a single pass. This avoids expensive joins or CTEs and leverages Snowflake's optimizations for window functions over large partitions."
+    },
+    {
+      "id": "sql-new-032",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "In BigQuery, you're analyzing `events(user_id STRING, event_timestamp TIMESTAMP, event_type STRING)` where timestamps may contain duplicates within milliseconds. You need to assign each event a unique session ID, where a new session starts if more than 30 minutes pass between consecutive events for a user. Which solution is most BigQuery-idiomatic and cost-efficient?",
+      "options": [
+        "Use LAG() with TIMESTAMP_DIFF, then SUM(CASE WHEN gap > 30) OVER (...) to create session groups, avoiding GENERATE_DATE_ARRAY",
+        "Use ROW_NUMBER() to create a sequence per user, then use GENERATE_TIMESTAMP_ARRAY to backfill missing timestamps and recalculate gaps",
+        "Use a self-join on events within 30-minute windows, then GROUP BY to deduplicate",
+        "Use RANK() with a subquery to filter distinct timestamps, then apply session logic"
+      ],
+      "answer": 0,
+      "explanation": "Option A is most efficient in BigQuery: LAG() detects time gaps between consecutive events, CASE identifies session boundaries, and SUM(...) OVER (...) creates cumulative session groups\u2014all in one logical pass without generating unnecessary rows or cross-joins. This minimizes bytes scanned and compute."
+    },
+    {
+      "id": "sql-new-033",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "Schema: `transactions(transaction_id INT, amount NUMERIC, discount NUMERIC, status VARCHAR)`. You need to calculate net revenue, where `amount - discount` should be treated as NULL if the result is negative (invalid transaction), and overall totals should skip NULLs. Which query correctly handles this?",
+      "options": [
+        "SELECT SUM(COALESCE(NULLIF(amount - discount, amount - discount < 0), 0)) AS total FROM transactions WHERE status = 'completed'",
+        "SELECT SUM(NULLIF(CASE WHEN amount - discount < 0 THEN NULL ELSE amount - discount END, 0)) AS total FROM transactions WHERE status = 'completed'",
+        "SELECT COALESCE(SUM(NULLIF(amount - discount, 0)), 0) AS total FROM transactions WHERE status = 'completed' AND amount >= discount",
+        "SELECT SUM(CASE WHEN amount - discount < 0 THEN NULL ELSE amount - discount END) AS total FROM transactions WHERE status = 'completed'"
+      ],
+      "answer": 3,
+      "explanation": "Option D is correct: CASE explicitly returns NULL for negative net revenues, and SUM() automatically skips NULL values, producing the correct total. NULLIF(x, y) returns NULL only when x equals y (not suitable here), and COALESCE should not be used in SUM() as it converts NULLs to 0, inflating the result."
+    },
+    {
+      "id": "sql-new-034",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "In Snowflake, you have `logs(log_id INT, user_id INT, action VARCHAR, ts TIMESTAMP_NTZ, metadata VARIANT)`. You need to detect fraud: flag users whose metadata['ip'] changes more than twice within a 1-hour window. The metadata column is JSON. What is the most performant approach?",
+      "options": [
+        "Use LATERAL FLATTEN to explode metadata, then window functions with frame clauses to count distinct IPs per hour",
+        "Extract metadata['ip'] as a column, use APPROX_COUNT_DISTINCT with a 1-hour window and QUALIFY to filter users",
+        "Use ROW_NUMBER() PARTITION BY user_id ORDER BY ts, then calculate IP change counts using a correlated subquery",
+        "Parse metadata with OBJECT_KEYS, aggregate by ts and user_id, then use a UNION to join results"
+      ],
+      "answer": 1,
+      "explanation": "Option B is most efficient: extracting the IP directly avoids expensive FLATTEN operations, APPROX_COUNT_DISTINCT is optimized for cardinality estimation within windows, and QUALIFY filters at the window function level without needing subqueries. This minimizes memory and compute overhead on large log volumes."
     }
   ]
 }

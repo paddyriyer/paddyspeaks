@@ -5162,6 +5162,54 @@
       ],
       "answer": 2,
       "explanation": "dbt v1.5+ contracts feature enforces an explicit interface contract: defining expected column names, types, and semantics prevents silent breaking changes. A grain change would violate the contract (e.g., if a unique key assertion exists on order_id), and dbt will fail at parse time. Meta fields and tests are helpful for documentation but won't prevent the change from deploying. RBAC is a governance tool, not a schema safeguard. Splitting models is reactive; contracts are proactive."
+    },
+    {
+      "id": "ds-new-030",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "Your team captures CDC events from a PostgreSQL OLTP database into Kafka using Debezium. Customer records are updated frequently, and you notice that downstream consumers are occasionally processing stale snapshots\u2014a customer's `email` field is reverted to an old value even though the database shows the current value. Analysis shows the issue occurs when the same row is updated twice within 50ms. Which root cause and mitigation strategy is most likely correct?",
+      "options": [
+        "Debezium is batching updates; enable snapshot.isolation.mode=read_committed to force row-level consistency",
+        "The Kafka partition leader is experiencing replication lag; increase min.insync.replicas to 3 and add consumer lag monitoring",
+        "Debezium snapshot and incremental phases can overlap; the snapshot captured an intermediate state before the second update was written to the WAL. Implement idempotent consumer logic keyed on (primary_key, lsn) to deduplicate out-of-order events",
+        "The PostgreSQL WAL is being pruned too aggressively; increase wal_keep_size to retain more transaction history"
+      ],
+      "answer": 2,
+      "explanation": "When Debezium's initial snapshot overlaps with ongoing incremental CDC capture, it can snapshot intermediate states before all writes are flushed to the WAL. The correct mitigation is idempotent deduplication using both primary key and LSN (log sequence number) to detect and discard stale versions. Options 1, 3, and 4 address wrong root causes\u2014isolation mode doesn't prevent this, replication lag is secondary, and WAL pruning isn't the issue."
+    },
+    {
+      "id": "ds-new-031",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-07-27",
+      "prompt": "Your dbt project has a `dim_customers` model that joins raw staging tables with a slowly changing dimension (SCD Type 2) logic. The model currently uses `dbt_valid_from` and `dbt_valid_to` columns to track history. You want to add a new attribute `customer_lifetime_value` that must be recalculated whenever any customer dimension changes. What is the best practice to handle this?",
+      "options": [
+        "Add CLV as a SQL subquery inside dim_customers; dbt's incremental models will automatically handle recalculation on SCD Type 2 changes",
+        "Create a separate `fct_customer_metrics` model that uses a cross join with dim_customers to compute CLV for all valid time periods; this maintains separation of concerns and avoids recalculating CLV unless source data changes",
+        "Use dbt hooks to trigger a full refresh of dim_customers whenever any source table updates, ensuring CLV is always fresh",
+        "Compute CLV in a downstream reporting layer (BI tool) rather than in dbt, since CLV is a business metric, not a dimensional attribute"
+      ],
+      "answer": 1,
+      "explanation": "Computing CLV alongside SCD Type 2 logic in a separate `fct_customer_metrics` model preserves dbt's modular design: it keeps dimensional data separate from derived metrics, ensures CLV is recalculated only when upstream data changes (not on every run), and allows flexibility in how CLV is aggregated across valid time periods. Option 0 conflates dimension and metrics; option 2 causes unnecessary full refreshes; option 3 moves business logic outside the data warehouse."
+    },
+    {
+      "id": "ds-new-032",
+      "type": "single",
+      "topic": "data contracts",
+      "difficulty": "hard",
+      "added_date": "2026-07-27",
+      "prompt": "Your company is implementing data contracts between the payments platform team (data producer) and the fraud analytics team (data consumer). The payments team recently added a new field `fraud_score_v2` to the `payment_events` topic, but the fraud team's consumer depends on the exact schema they originally contracted for. Your data contract specifies `compatibility: backward`. When the consumer upgrades its contract definition to include `fraud_score_v2` as optional, what is the correct validation result and recommended deployment strategy?",
+      "options": [
+        "The new schema is invalid under backward compatibility; fraud_score_v2 cannot be added without breaking the contract. The payments team must use a separate topic.",
+        "The new schema is valid; backward compatibility is satisfied because old consumers can ignore fraud_score_v2. Deploy the schema change using a blue-green rollout: run both old and new schemas in parallel for 24 hours.",
+        "The new schema is valid under backward compatibility; the consumer can opt-in to fraud_score_v2 independently. Deploy immediately, as the contract guarantees the fraud team's existing consumer will function without modification.",
+        "The new schema violates backward compatibility because it changes the payload size; use schema versioning (fraud_score_v2_v1) instead."
+      ],
+      "answer": 2,
+      "explanation": "Under backward compatibility, adding an optional field to the producer schema is valid\u2014old consumers that don't know about `fraud_score_v2` will simply skip it and continue working. The consumer can independently upgrade its contract to consume the field at its own pace without deployment coordination. Options 0 and 3 misunderstand backward compatibility; option 1 over-engineers with unnecessary parallel rollouts when the contract guarantees safe evolution."
     }
   ]
 }
