@@ -181,7 +181,29 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
     - The 29 `design/the-*-problem.html` deep-dives are **not** part of the
       theme fracture — they are a deliberate separate system (`whiteboard.css`,
       Cormorant Garamond / Newsreader / DM Mono). Leave them alone.
-  - Remaining: Tue PS-04/PS-06, Wed PS-05/PS-08/PS-07, Thu PS-02, Fri
+  - **Tue 2026-07-28 — PS-04, PS-06 DONE and committed.**
+    - PS-04: the six section cards now sit directly under the hero; both config
+      panels live in one `<details class="eval-config">` closed by default. Its
+      summary shows a live state line (`#ecfg-state`, updated inside the
+      existing `refresh()`), which matters because filters persist in
+      localStorage — a returning visitor sees a saved refinement without
+      opening the panel. Hero lede cut to two sentences; everything it shed was
+      already in the "How it works" list.
+    - **Gotcha:** `evaluate/index.html` has a bare `<body>` (no `studio-skin`),
+      so it gets **no global link colour** — a plain `<a>` renders browser-blue.
+      Style any new link explicitly. Same trap on the other bespoke pages.
+    - PS-06: both playground toolbars lead with the primary Run; secondary and
+      destructive actions moved behind a "⋯ More" menu driven by the new shared
+      **`interview.app/js/pg-overflow.js`** (nav dropdown pattern: aria-expanded,
+      click-outside, Escape restores focus). Buttons kept their ids, so the
+      bindings in `sql.js`/`python.js` were untouched — do the same if you move
+      any more.
+    - PS-11 finished off in `playground.css` (navy `#243042` schema block → the
+      warm `--code-bg`/`--code-fg`, plus two slate values). That file was
+      outside Monday's "shared chrome" scope.
+    - Pre-existing, NOT ours: `interview/data/enrichments/co_sql_305-0108.html`
+      404s on the SQL playground. Reproduces on a clean tree.
+  - Remaining: Wed PS-05/PS-08/PS-07, Thu PS-02, Fri
     PS-03/PS-13/PS-12/PS-14/PS-10 + QA.
   Full ranked plan + before/after mockups (artifact):
   https://claude.ai/code/artifact/0a2933e5-e69a-4dfb-a3be-7c1efef534af
