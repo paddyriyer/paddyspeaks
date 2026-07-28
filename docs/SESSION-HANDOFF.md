@@ -145,9 +145,44 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## Open / deferred items (nothing blocking)
 
-- **▶ SCHEDULED NEXT WEEK — Interview Studio "Polish Sprint" (execute, do not re-plan).**
-  User approved the plan; wants it built next week on branch
-  `claude/interview-studio-polish-zhfaet`. Polish only, **no feature creep**.
+- **▶ IN PROGRESS — Interview Studio "Polish Sprint" (execute, do not re-plan).**
+  Running on branch **`claude/weekly-action-plan-kjgt5b`** (the session was
+  pinned to that branch, not the `claude/interview-studio-polish-zhfaet` the
+  plan named; same work, different branch name). Polish only, **no feature
+  creep**.
+  - **Mon 2026-07-27 — PS-01, PS-09, PS-11 all DONE and committed.** Notes that
+    matter for the rest of the week:
+    - PS-01 was bigger than "add a stylesheet": the 21 pages consumed **zero**
+      `--color-*` tokens, so loading `studio.css` alone would have changed
+      nothing in light mode and put a dark background under light-mode tints in
+      dark mode. The real fix was **505 hex→token substitutions** (slate ramp →
+      ink/muted/light-muted/border/cream/paper, blue accents → gold family).
+    - All 21 pages are pinned **`<html data-theme="light">`**. They carry ~100
+      bespoke status tints (green "done" cards, red warnings, amber highlights)
+      with no dark variant. `style.css` ships no dark rules, so they were
+      already light-only in practice — the pin just stops `studio.css`'s
+      `prefers-color-scheme` rules from half-applying. **Follow-up (not
+      scheduled):** convert those tints to the dark-aware `note/trap/warn`
+      tokens, then drop the pin.
+    - White card backgrounds were left as `#fff` on purpose — white-on-warm-
+      paper is the Studio convention (`studio.css --surface #fff` on
+      `--bg #faf8f4`).
+    - PS-09 canonical ring, **match this exactly** if you add a focus rule:
+      `outline: 3px solid var(--color-gold-dark); outline-offset: 2px;`.
+      Greppable invariant — nothing else should match `outline:.*px solid`.
+    - PS-11 found two sources of blue beyond the two the ticket named: the
+      **nav template's whole light-mode block** (its dark block was already
+      warm) and **`css/track.css`'s `--tk-*` palette** (raw slate + teal, which
+      is why the Communication / AI Engineering track pages read blue inside an
+      otherwise warm page). Both now derive from `--color-*`.
+    - Left blue on purpose (categorical colour-coding, not chrome):
+      `.chip-vedic/devotional/hymn/ritual`, `.rmc-1..6`, and the SVG diagrams in
+      `design/data-modeling.html`.
+    - The 29 `design/the-*-problem.html` deep-dives are **not** part of the
+      theme fracture — they are a deliberate separate system (`whiteboard.css`,
+      Cormorant Garamond / Newsreader / DM Mono). Leave them alone.
+  - Remaining: Tue PS-04/PS-06, Wed PS-05/PS-08/PS-07, Thu PS-02, Fri
+    PS-03/PS-13/PS-12/PS-14/PS-10 + QA.
   Full ranked plan + before/after mockups (artifact):
   https://claude.ai/code/artifact/0a2933e5-e69a-4dfb-a3be-7c1efef534af
   Audit was grounded in real renders (Playwright screenshots) + code. Headline
