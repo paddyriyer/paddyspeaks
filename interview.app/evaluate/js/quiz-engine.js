@@ -123,7 +123,9 @@ async function init() {
       const want = new Set(selectedCompanies.map(c => c.toLowerCase()));
       bank = bank.filter(q => q.company && want.has(q.company.toLowerCase()));
       if (bank.length === 0) {
-        renderError(`No ${sec.label} questions for the selected ${selectedCompanies.length > 1 ? "companies" : "company"}. Go back and pick another.`);
+        renderDeadEnd(
+          `No ${sec.label} questions for the selected ${selectedCompanies.length > 1 ? "companies" : "company"}.`,
+          "companies", `Clear the companies & start ${sec.label}`);
         return;
       }
       state.section.title = `${sec.label} · ${selectedCompanies.join(", ")}`;
@@ -143,7 +145,13 @@ async function init() {
       bank = bank.filter(q => want.has(q.topic));
     }
     if (bank.length === 0) {
-      renderError(`No ${sec.label} questions match the selected difficulty / format / topic filter. Go back and widen it.`);
+      const bits = [];
+      if (filterDiff.length)   bits.push(filterDiff.join(" / "));
+      if (filterFormat.length) bits.push(filterFormat.map(f => f === "mc" ? "multiple-choice" : f).join(" / "));
+      if (filterTopics.length) bits.push(filterTopics.length + (filterTopics.length > 1 ? " topics" : " topic"));
+      renderDeadEnd(
+        `No ${sec.label} questions are ${bits.join(" + ")}.`,
+        "filters", `Clear the filter & start ${sec.label}`);
       return;
     }
     if (filterDiff.length || filterFormat.length || filterTopics.length) {
@@ -1291,6 +1299,28 @@ function formatPrompt(str) {
       return formatInline(p.val).replace(/\n/g, "<br>");
     }
   }).join("");
+}
+
+// A refinement that rules out every question in a section is a dead end, and
+// "← Back to start" alone does not get you out of it: the refinement lives in
+// localStorage, so the landing page restores it and the section is still
+// empty. Offer to drop the offending key right here.
+function renderDeadEnd(msg, storeKey, actionLabel) {
+  const root = document.getElementById("eval-root");
+  root.innerHTML = `
+    <div class="q-card" style="text-align:center;padding:48px;">
+      <p style="font-family:var(--font-display);font-size:24px;color:var(--color-rust);margin-bottom:8px;">⚠ ${escapeHTML(msg)}</p>
+      <p style="color:var(--color-muted);margin-bottom:20px;">Your saved refinement rules out the whole section.</p>
+      <p style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <button type="button" id="eval-dead-end-clear" class="q-btn q-btn-primary">${escapeHTML(actionLabel)}</button>
+        <a href="./" class="q-btn">← Back to start</a>
+      </p>
+    </div>
+  `;
+  document.getElementById("eval-dead-end-clear").addEventListener("click", () => {
+    try { localStorage.removeItem(STORAGE_PREFIX + storeKey); } catch (e) {}
+    window.location.href = `./quiz.html?section=${encodeURIComponent(sectionSlug)}`;
+  });
 }
 
 function renderError(msg) {
