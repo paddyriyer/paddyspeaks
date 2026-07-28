@@ -569,17 +569,30 @@
           url += diffParam + fmtParam +
             (relTopics.length ? "&topics=" + relTopics.map(encodeURIComponent).join(",") : "");
         }
-        card.href = url;
+        // A section the filter empties out has nothing to start. Drop the href
+        // so the card stops being a link — clicking through only reaches a
+        // dead-end quiz that can do no better than send you back here.
+        const empty = dataReady && bank.length === 0;
+        if (empty) {
+          card.removeAttribute("href");
+          card.setAttribute("aria-disabled", "true");
+        } else {
+          card.href = url;
+          card.removeAttribute("aria-disabled");
+        }
+        card.classList.toggle("is-empty", empty);
         card.classList.toggle("is-company", companyMode);
         const ps = card.querySelector("[data-pool-size]");
         if (ps) {
           if (!dataReady) {
             ps.innerHTML = `pool: <strong>—</strong>`;
+          } else if (empty) {
+            ps.innerHTML = `pool: <strong>0</strong> — widen the filter`;
           } else {
             ps.innerHTML = `${companyMode ? "company pool" : "pool"}: <strong>${bank.length}</strong>`;
-            ps.classList.toggle("is-low",  bank.length > 0 && bank.length < 20);
-            ps.classList.toggle("is-zero", bank.length === 0);
           }
+          ps.classList.toggle("is-low",  bank.length > 0 && bank.length < 20);
+          ps.classList.toggle("is-zero", dataReady && bank.length === 0);
         }
       });
 
