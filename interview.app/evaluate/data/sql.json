@@ -13420,6 +13420,22 @@
       "prompt": "You have a BigQuery table `transaction(user_id INT64, txn_date DATE, amount NUMERIC, refund_amount NUMERIC)` where refund_amount is NULL for non-refunded transactions. You need to compute for each user the running sum of net transaction amounts (amount - refund_amount), excluding any rows where the net amount is zero or negative. Which query correctly handles this in BigQuery?\n\nA) `SELECT user_id, txn_date, SUM(NULLIF(amount - COALESCE(refund_amount, 0), CASE WHEN amount - COALESCE(refund_amount, 0) <= 0 THEN NULL END)) OVER (PARTITION BY user_id ORDER BY txn_date) as running_net FROM transaction`\n\nB) `SELECT user_id, txn_date, SUM(CASE WHEN (amount - COALESCE(refund_amount, 0)) > 0 THEN (amount - COALESCE(refund_amount, 0)) ELSE NULL END) OVER (PARTITION BY user_id ORDER BY txn_date) as running_net FROM transaction`\n\nC) `SELECT user_id, txn_date, amount - refund_amount as net, SUM(amount - refund_amount) OVER (PARTITION BY user_id ORDER BY txn_date) as running_net FROM transaction WHERE (amount - refund_amount) > 0`\n\nD) `SELECT user_id, txn_date, SUM(amount - NULLIF(refund_amount, 0)) OVER (PARTITION BY user_id ORDER BY txn_date) as running_net FROM transaction WHERE amount > refund_amount`",
       "answer": 1,
       "explanation": "Option B correctly uses CASE WHEN to filter net amounts (amount - COALESCE(refund_amount, 0)) > 0, converting non-positive values to NULL which the SUM window function automatically ignores. COALESCE handles NULL refund_amount as 0, and the window function computes the running sum per user ordered by date. Option A has convoluted NULLIF logic that doesn't properly handle the exclusion condition; Option C filters at the WHERE clause which prevents computing true running totals; Option D uses NULLIF incorrectly (setting refund_amount to NULL if it's already 0) and WHERE filters would exclude rows from the window frame."
+    },
+    {
+      "id": "sql-new-036",
+      "type": "single",
+      "topic": "Query planning & COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-07-29",
+      "prompt": "You have a BigQuery table `transactions(user_id INT64, txn_date DATE, amount NUMERIC, refund_amount NUMERIC)`. Some rows have NULL refund_amount (never refunded), others have 0 (refunded in full), and others have positive values (partial refunds). You need to compute net revenue per user, treating NULL refunds as 0. Which query is most efficient and correct?\n\nA) SELECT user_id, SUM(amount - COALESCE(refund_amount, 0)) as net_revenue FROM transactions GROUP BY user_id\n\nB) SELECT user_id, SUM(amount) - SUM(COALESCE(refund_amount, 0)) as net_revenue FROM transactions GROUP BY user_id\n\nC) SELECT user_id, SUM(amount - NULLIF(refund_amount, 0)) as net_revenue FROM transactions GROUP BY user_id\n\nD) SELECT user_id, SUM(amount) - COALESCE(SUM(refund_amount), 0) as net_revenue FROM transactions GROUP BY user_id",
+      "options": [
+        "SELECT user_id, SUM(amount - COALESCE(refund_amount, 0)) as net_revenue FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount) - SUM(COALESCE(refund_amount, 0)) as net_revenue FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount - NULLIF(refund_amount, 0)) as net_revenue FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount) - COALESCE(SUM(refund_amount), 0) as net_revenue FROM transactions GROUP BY user_id"
+      ],
+      "answer": 1,
+      "explanation": "Option B is correct because it explicitly applies COALESCE to refund_amount before aggregation, ensuring NULL values are treated as 0 while preserving existing 0 values (full refunds). Option A computes per-row differences before summing, which is semantically equivalent but less efficient in BigQuery's columnar execution. Option C uses NULLIF incorrectly\u2014it converts 0 to NULL, contradicting the requirement. Option D applies COALESCE after SUM, which fails because SUM(refund_amount) with NULLs skips them entirely, not treating them as 0 in the subtraction."
     }
   ]
 }
