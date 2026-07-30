@@ -13,8 +13,9 @@ import { user, intentById } from '../data/user.js';
 import { jobs } from '../data/jobs.js';
 import { people, candidates, recruiters, pipeline, hiringBottlenecks } from '../data/people.js';
 import { events, nextActions } from '../data/signals.js';
+import { personaFor } from '../data/personas.js';
 import { icon } from '../components/icons.js';
-import { profileSummary, careerGoal } from '../components/profile-summary.js';
+import { profileSummary, careerGoal, personaOverview, teamActivity } from '../components/profile-summary.js';
 import { reputationPanel } from '../components/reputation-panel.js';
 import { careerAgentPanel } from '../components/career-agent-panel.js';
 import { signalSummaryCards } from '../components/signal-summary-cards.js';
@@ -34,8 +35,13 @@ export function homeView() {
       <div class="rail rail-left">
         <div class="rail-stack">
           ${profileSummary()}
-          ${reputationPanel({ compact: true })}
-          ${careerGoal()}
+          ${personaFor(state.intent, state.hiringView).railMode === 'career' ? html`
+            ${reputationPanel({ compact: true })}
+            ${careerGoal()}
+          ` : html`
+            ${personaOverview()}
+            ${teamActivity()}
+          `}
           ${agentRailTeaser()}
         </div>
       </div>
@@ -69,7 +75,7 @@ function briefing(intent) {
     <header class="briefing">
       <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · ${intent.label}</p>
       <h1 class="display" style="margin-top:8px">Good ${partOfDay}, ${user.firstName}.</h1>
-      <p class="lede">${intent.briefing}</p>
+      <p class="lede">${personaFor(state.intent, state.hiringView).greeting}</p>
     </header>
   `;
 }
@@ -246,17 +252,20 @@ function recruiterWorkspace() {
 /* ---------- Rails ---------- */
 
 function agentRailTeaser() {
+  const p = personaFor(state.intent, state.hiringView);
+  const hiring = p.railMode !== 'career';
   return html`
     <section class="card" aria-labelledby="agent-rail">
-      <div class="card-head"><h3 id="agent-rail">Career AI insights</h3></div>
+      <div class="card-head"><h3 id="agent-rail">${hiring ? 'Hiring insights' : 'Career AI insights'}</h3></div>
       <div class="card-body">
         <p class="small secondary">
-          The agent watched 90 days of your professional activity and found five things worth acting on.
-          Two are quick, one is a several-month arc.
+          ${hiring
+            ? 'The agent read your own process data and found three places the loop is stalling. Two of them are on your side of the table.'
+            : 'The agent watched 90 days of your professional activity and found five things worth acting on. Two are quick, one is a several-month arc.'}
         </p>
         <button type="button" class="btn btn-primary btn-sm btn-block" style="margin-top:11px"
           ${action('navigate', { route: 'career-agent' })}>
-          ${icon('compass', 13)}<span>Open your Career Agent</span>
+          ${icon('compass', 13)}<span>${hiring ? 'Open hiring intelligence' : 'Open your Career Agent'}</span>
         </button>
       </div>
     </section>

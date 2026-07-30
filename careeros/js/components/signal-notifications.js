@@ -9,11 +9,29 @@
 import { html, action } from '../dom.js';
 import { state } from '../store.js';
 import { visibleSignals, sensitivityLevels, notShown } from '../data/signals.js';
+import { hiringSignals } from '../data/personas.js';
+import { personaFor } from '../data/personas.js';
 import { icon } from './icons.js';
 import { tag } from './primitives.js';
 
 export function signalNotifications({ limit = 5 } = {}) {
-  const all = visibleSignals(state.signalSensitivity);
+  const persona = personaFor(state.intent, state.hiringView);
+  const RANK = { critical: 0, opportunities: 1, conversations: 2, everything: 3 };
+  // The user's sensitivity preference, raised to whatever floor this persona
+  // needs to be useful at all. visibleSignals() filters internally, so it must
+  // be given the effective level rather than the raw stored preference.
+  const max = Math.max(RANK[state.signalSensitivity] ?? 1, RANK[persona.sensitivityFloor] ?? 0);
+  const effective = Object.keys(RANK).find((k) => RANK[k] === max) || state.signalSensitivity;
+  // A hiring manager and a candidate do not want the same alerts.
+  // A professional who is not looking must not receive job-search signals at
+  // all — the persona promises they are not collected, so showing them would
+  // make the product a liar.
+  const JOB_SEARCH_KINDS = ['Hiring interest', 'New role', 'Trusted recruiter', 'Skill impact'];
+  const all = persona.railMode !== 'career'
+    ? hiringSignals.filter((s) => RANK[s.tier] <= max)
+    : persona.id === 'professional'
+      ? visibleSignals(effective).filter((s) => !JOB_SEARCH_KINDS.includes(s.kind))
+      : visibleSignals(effective);
   const shown = all.slice(0, limit);
   const unread = all.filter((s) => !state.readSignals.includes(s.id)).length;
   const level = sensitivityLevels.find((l) => l.id === state.signalSensitivity);
