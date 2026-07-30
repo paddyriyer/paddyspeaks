@@ -26,7 +26,10 @@ export const panels = {
     label: 'Career goal',
     description: 'Target titles, industries, work model and geography.',
     regions: ['left', 'right'],
-    personas: ['candidate', 'professional', 'explorer'],
+    // Only the people who actually have a goal on record. Wei Lin is not
+    // looking and Nadia Rhee is not moving; an empty goal card under their
+    // name would be a fabrication.
+    personas: ['candidate', 'explorer'],
   },
   overview: {
     label: 'Role overview',

@@ -8,8 +8,9 @@
  */
 
 import { html, action } from '../dom.js';
-import { isConnected } from '../store.js';
+import { state, isConnected } from '../store.js';
 import { notUsed } from '../data/people.js';
+import { personaFor } from '../data/personas.js';
 import { icon } from './icons.js';
 import {
   matchScore, tag, evidenceList, saveButton, dismissButton,
@@ -18,6 +19,9 @@ import {
 
 export function personRecommendationCard(person) {
   const connected = isConnected(person.id);
+  // An introduction cannot be routed through the person asking for it.
+  const self = personaFor(state.intent, state.hiringView).selfId;
+  const intro = person.intro && person.intro.viaId === self ? null : person.intro;
   return html`
     <article class="card person" aria-labelledby="person-${person.id}">
       <div class="person-top">
@@ -42,12 +46,12 @@ export function personRecommendationCard(person) {
         ${evidenceList(person.evidence)}
       </div>
 
-      ${person.intro ? html`
+      ${intro ? html`
         <div class="intro-path">
           ${icon('link', 13)}
           <span style="margin-left:4px">
-            Introduction path: <b>${person.intro.via}</b>, ${person.intro.viaRole}.
-            ${person.intro.note}
+            Introduction path: <b>${intro.via}</b>, ${intro.viaRole}.
+            ${intro.note}
           </span>
         </div>
       ` : ''}
@@ -62,9 +66,9 @@ export function personRecommendationCard(person) {
           ${icon('send', 13)}<span>Draft a message</span>
         </button>
         ${saveButton('people', person.id)}
-        ${person.intro ? html`
+        ${intro ? html`
           <button type="button" class="btn btn-sm btn-quiet" ${action('request-intro', { id: person.id })}>
-            Ask ${person.intro.via.split(' ')[0]} for an introduction
+            Ask ${intro.via.split(' ')[0]} for an introduction
           </button>
         ` : ''}
         ${dismissButton(person.id, 'Not relevant')}

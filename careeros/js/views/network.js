@@ -5,9 +5,11 @@
 
 import { html, action } from '../dom.js';
 import { state } from '../store.js';
-import { intentById, communities } from '../data/user.js';
-import { events } from '../data/signals.js';
+import { intentById } from '../data/user.js';
+import { activeProfile } from '../data/profiles.js';
+import { visibleEvents } from '../data/signals.js';
 import { people, matchBasis, notUsed } from '../data/people.js';
+import { personaFor } from '../data/personas.js';
 import { icon } from '../components/icons.js';
 import { networkingPanel } from '../components/networking-panel.js';
 import { eventRecommendation } from '../components/event-recommendation.js';
@@ -39,7 +41,7 @@ export function networkView() {
             'Three of forty-seven events in your area qualified. The other forty-four were larger.',
           )}
           <div class="stack-md">
-            ${events.map((e) => eventRecommendation(e))}
+            ${visibleEvents(personaFor(state.intent, state.hiringView).selfId).map((e) => eventRecommendation(e))}
           </div>
         </section>
 
@@ -49,7 +51,7 @@ export function networkView() {
             'Membership costs something — a contribution, a verified role history, or a paper read in advance. That is what keeps them useful.',
           )}
           <div class="stack-md">
-            ${communities.map((c) => communityCard(c))}
+            ${activeProfile().communities.map((c) => communityCard(c))}
           </div>
         </section>
       </div>

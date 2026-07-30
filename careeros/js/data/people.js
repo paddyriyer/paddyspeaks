@@ -43,6 +43,7 @@ export const people = [
     ],
     intro: {
       via: 'Nadia Rhee',
+      viaId: 'nadia-rhee',
       viaRole: 'Principal Engineer, Ridgeline Health',
       note: 'Nadia was placed by Renata in 2024 and has offered introductions before.',
     },
@@ -76,6 +77,7 @@ export const people = [
     ],
     intro: {
       via: 'Priya Ramaswami',
+      viaId: 'priya-ramaswami',
       viaRole: 'Senior Data Engineer, Northwind',
       note: 'Priya and Theo co-presented at DataEng Summit last year.',
     },
@@ -167,6 +169,7 @@ export const people = [
     ],
     intro: {
       via: 'Wei Lin',
+      viaId: 'wei-lin',
       viaRole: 'Staff Engineer, Meridian',
       note: 'Wei and Amara ran a shared reading group for a year.',
     },
@@ -367,10 +370,10 @@ export const candidates = [
     role: 'Data Platform Lead',
     company: 'Cobalt Health',
     match: 87,
-    availability: 'Exploring',
-    availabilityBasis: 'Saved two roles in your category this month',
+    availability: 'Open to contact',
+    availabilityBasis: 'Listed herself as open to conversations about platform leadership. What she has read or saved is not shown to you, and never will be.',
     surfaced:
-      'Responded well to two roles with a similar scope and compensation band, and her healthcare data background matches your compliance constraints.',
+      'Her published clinical-data talk and a HIPAA-scoped platform in production match your compliance constraints exactly. Surfaced on demonstrated work, not on anything she browsed.',
     strengths: [
       { label: 'Leadership evidence', detail: 'Grew a platform team from 3 to 9' },
       { label: 'Demonstrated work', detail: 'HIPAA-scoped lakehouse in production for three years' },

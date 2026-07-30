@@ -6,7 +6,7 @@
 
 import { html, action } from '../dom.js';
 import { state, isExpanded } from '../store.js';
-import { reputation } from '../data/user.js';
+import { activeProfile } from '../data/profiles.js';
 import { meter, evidenceList } from './primitives.js';
 import { icon } from './icons.js';
 
@@ -24,6 +24,7 @@ export function reputationPanel({ compact = true } = {}) {
     `;
   }
 
+  const reputation = activeProfile().reputation;
   const dims = compact ? reputation.dimensions.slice(0, 6) : reputation.dimensions;
 
   return html`
@@ -61,15 +62,17 @@ export function reputationPanel({ compact = true } = {}) {
 function dimensionRow(dim) {
   const open = isExpanded(`rep-${dim.id}`);
   const variant = dim.score >= 80 ? '' : dim.score >= 65 ? 'accent' : 'warning';
+  // A dimension that does not apply to this person's work is shown as such
+  // rather than scored zero, which would read as a failing grade.
   return html`
     <div>
       <button type="button" class="dim" aria-expanded="${open}"
         aria-controls="rep-panel-${dim.id}" ${action('toggle-expand', { id: `rep-${dim.id}` })}>
         <span class="dim-top">
           <span class="dim-label">${dim.label}</span>
-          <span class="dim-value">${dim.score}</span>
+          <span class="dim-value">${dim.notApplicable ? 'n/a' : dim.score}</span>
         </span>
-        <span class="dim-meter">${meter(dim.score, variant)}</span>
+        <span class="dim-meter">${dim.notApplicable ? '' : meter(dim.score, variant)}</span>
         <span class="dim-trend">${dim.trend} · ${open ? 'hide' : 'how this is calculated'}</span>
       </button>
       <div class="dim-inputs" id="rep-panel-${dim.id}" ${open ? '' : 'hidden'}>

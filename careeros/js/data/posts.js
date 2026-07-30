@@ -287,6 +287,7 @@ export const posts = [
       'A migration post-mortem with the benchmark harness attached, covering the duplicate-delivery path we '
       + 'did not find for six weeks.',
     reason: 'Cited by two people you follow',
+    reasonAbout: { 'Wei Lin and Priya Ramaswami both referenced this piece': ['wei-lin', 'priya-ramaswami'] },
     reasonDetail: [
       'Wei Lin and Priya Ramaswami both referenced this piece',
       'Covers the failure mode your own team encountered in April',
@@ -348,3 +349,20 @@ export const noiseFilter = {
     { count: 6, label: 'recycled viral anecdotes', example: 'Previously published under two other names' },
   ],
 };
+
+/**
+ * The feed, minus anything this person wrote, and with any reason line that
+ * names them dropped. "Wei Lin referenced this piece" is not a reason to show
+ * it to Wei Lin.
+ */
+export function visiblePosts(selfId) {
+  if (!selfId) return posts;
+  return posts
+    .filter((p) => p.authorId !== selfId)
+    .map((p) => {
+      const about = p.reasonAbout;
+      if (!about) return p;
+      const detail = p.reasonDetail.filter((line) => !(about[line] || []).includes(selfId));
+      return detail.length === p.reasonDetail.length ? p : { ...p, reasonDetail: detail };
+    });
+}

@@ -1,12 +1,16 @@
 /** Events — "Worth Your Time". Recommended on professional value, not attendance numbers. */
 
 import { html, action } from '../dom.js';
-import { isExpanded } from '../store.js';
+import { state, isExpanded } from '../store.js';
+import { personaFor } from '../data/personas.js';
 import { icon } from './icons.js';
 import { evidenceList, saveButton, tag, avatar } from './primitives.js';
 
 export function eventRecommendation(event, { compact = false } = {}) {
   const open = isExpanded(`evt-att-${event.id}`);
+  // You are not an attendee worth your own time.
+  const self = personaFor(state.intent, state.hiringView).selfId;
+  const attendees = self ? event.attendees.filter((a) => a.id !== self) : event.attendees;
   return html`
     <article class="card event" aria-labelledby="evt-${event.id}">
       <div class="row-between" style="align-items:flex-start">
@@ -41,7 +45,7 @@ export function eventRecommendation(event, { compact = false } = {}) {
       <div class="disclosure-panel" id="evt-panel-${event.id}" ${open ? '' : 'hidden'}>
         <h4>Attendees worth your time</h4>
         <div>
-          ${event.attendees.map((a) => html`
+          ${attendees.map((a) => html`
             <div class="attendee">
               ${avatar(initialsOf(a.name), 'sm')}
               <span class="grow"><b>${a.name}</b> <span class="attendee-role">— ${a.role}</span></span>

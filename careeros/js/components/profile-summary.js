@@ -9,8 +9,9 @@
 
 import { html, action } from '../dom.js';
 import { state } from '../store.js';
-import { user, intentById } from '../data/user.js';
+import { intentById } from '../data/user.js';
 import { personaFor } from '../data/personas.js';
+import { profileFor } from '../data/profiles.js';
 import { avatar, tag } from './primitives.js';
 import { icon } from './icons.js';
 import { intentRail } from './intent-selector.js';
@@ -128,12 +129,14 @@ export function teamActivity() {
   `;
 }
 
-/** Career goal — a job-seeker and learner panel only. */
+/** Career goal — only for the people who actually have one on record. */
 export function careerGoal() {
   const p = personaFor(state.intent, state.hiringView);
-  if (p.railMode !== 'career') return html``;
-
-  const g = user.goal;
+  const g = profileFor(p.id).goal;
+  // Wei Lin is not looking and Nadia Rhee is not moving. Rendering an empty
+  // goal card under their name would be the same fabrication the rest of this
+  // prototype argues against.
+  if (!g) return html``;
   return html`
     <section class="card" aria-labelledby="goal-head">
       <div class="card-head"><h3 id="goal-head">Career goal</h3><span class="tiny muted">${g.horizon}</span></div>
