@@ -14,6 +14,7 @@ import { jobs } from '../data/jobs.js';
 import { people, candidates, recruiters, pipeline, hiringBottlenecks } from '../data/people.js';
 import { events, nextActions } from '../data/signals.js';
 import { personaFor } from '../data/personas.js';
+import { activeLayout, customiseBar } from '../components/dashboard-customizer.js';
 import { icon } from '../components/icons.js';
 import { profileSummary, careerGoal, personaOverview, teamActivity } from '../components/profile-summary.js';
 import { reputationPanel } from '../components/reputation-panel.js';
@@ -30,136 +31,114 @@ import { sectionHead, evidenceList, meter } from '../components/primitives.js';
 
 export function homeView() {
   const intent = intentById(state.intent);
+  const persona = personaFor(state.intent, state.hiringView);
+  const layout = activeLayout();
+  const threeCol = layout.left.length > 0 && layout.right.length > 0;
+
   return html`
-    <div class="layout-3col">
-      <div class="rail rail-left">
-        <div class="rail-stack">
-          ${profileSummary()}
-          ${personaFor(state.intent, state.hiringView).railMode === 'career' ? html`
-            ${reputationPanel({ compact: true })}
-            ${careerGoal()}
-          ` : html`
-            ${personaOverview()}
-            ${teamActivity()}
-          `}
-          ${agentRailTeaser()}
+    ${state.customising ? html`<div class="customiser-wrap">${customiseBar()}</div>` : ''}
+    <div class="${threeCol ? 'layout-3col' : layout.right.length ? 'layout-2col' : 'layout-1col-wide'}">
+      ${layout.left.length ? html`
+        <div class="rail rail-left">
+          <div class="rail-stack">${layout.left.map((id) => renderPanel(id, intent, persona))}</div>
         </div>
-      </div>
+      ` : ''}
 
       <div class="center-stack">
         ${briefing(intent)}
-        ${signalSummaryCards(state.intent)}
-        ${state.intent === 'hiring' ? hiringCentre() : jobSeekerCentre(intent)}
+        ${state.customising ? '' : customiseBar()}
+        ${layout.center.map((id) => renderPanel(id, intent, persona))}
       </div>
 
-      <div class="rail rail-right">
-        <div class="rail-stack">
-          ${signalNotifications({ limit: 4 })}
-          ${state.intent === 'hiring' ? candidateRail() : peopleRail()}
-          ${eventsRail()}
-          ${state.intent === 'hiring' ? pipelineRail() : recruiterRail()}
-          ${nextActionsRail()}
-          ${feedPriorityControl()}
+      ${layout.right.length ? html`
+        <div class="rail rail-right">
+          <div class="rail-stack">${layout.right.map((id) => renderPanel(id, intent, persona))}</div>
         </div>
-      </div>
+      ` : ''}
     </div>
   `;
 }
 
-/* ---------- Briefing ---------- */
+/**
+ * One panel id to one rendered block. Keeping this map exhaustive is what lets
+ * the layout be data — a panel the registry offers must render here.
+ */
+function renderPanel(id, intent, persona) {
+  switch (id) {
+    case 'identity':       return profileSummary();
+    case 'reputation':     return reputationPanel({ compact: true });
+    case 'career-goal':    return careerGoal();
+    case 'overview':       return personaOverview();
+    case 'team-activity':  return teamActivity();
+    case 'agent-teaser':   return agentRailTeaser();
 
-function briefing(intent) {
-  const hour = new Date().getHours();
-  const partOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
-  return html`
-    <header class="briefing">
-      <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · ${intent.label}</p>
-      <h1 class="display" style="margin-top:8px">Good ${partOfDay}, ${user.firstName}.</h1>
-      <p class="lede">${personaFor(state.intent, state.hiringView).greeting}</p>
-    </header>
-  `;
-}
+    case 'summary':        return signalSummaryCards(state.intent);
+    case 'agent':          return careerAgentPanel({ limit: 2 });
+    case 'jobs':           return jobsSection(persona);
+    case 'skill-gaps':     return skillGapSection();
+    case 'feed':           return knowledgeFeed({ heading: true, limit: feedLimit(persona) });
+    case 'mode-switch':    return modeSwitch();
+    case 'candidates':     return candidateSection();
+    case 'bottlenecks':    return bottleneckSection();
 
-/* ---------- Job-seeker centre column ---------- */
-
-function jobSeekerCentre(intent) {
-  const strong = jobs.filter((j) => j.section === 'strong');
-  const emphasis = centreEmphasis(state.intent);
-
-  return html`
-    ${careerAgentPanel({ limit: 2 })}
-
-    ${emphasis.showJobs ? html`
-      <section aria-labelledby="home-jobs">
-        ${sectionHead(
-          emphasis.jobsTitle,
-          emphasis.jobsBlurb,
-          html`<button type="button" class="btn btn-sm" ${action('navigate', { route: 'jobs' })}>All ${jobs.length} roles</button>`,
-        )}
-        <div class="stack-md">
-          ${strong.slice(0, emphasis.jobCount).map((j) => jobMatchCard(j))}
-        </div>
-      </section>
-    ` : ''}
-
-    ${emphasis.showSkillPanel ? html`
-      <section aria-labelledby="home-skills">
-        ${sectionHead(
-          'The two gaps holding your matches back',
-          'Both are documentation problems rather than capability problems. That is the good news and the annoying news.',
-        )}
-        ${skillEvidencePanel({ compact: true })}
-      </section>
-    ` : ''}
-
-    ${knowledgeFeed({ heading: true, limit: emphasis.postCount })}
-  `;
-}
-
-/** How the centre column is weighted, per intent. */
-function centreEmphasis(intentId) {
-  switch (intentId) {
-    case 'learning':
-      return { showJobs: false, showSkillPanel: true, postCount: 5 };
-    case 'networking':
-      return { showJobs: false, showSkillPanel: false, postCount: 4 };
-    case 'mentoring':
-      return { showJobs: false, showSkillPanel: false, postCount: 4 };
-    case 'building':
-      return {
-        showJobs: true, jobCount: 1, showSkillPanel: false, postCount: 3,
-        jobsTitle: 'Roles where you would set the architecture',
-        jobsBlurb: 'Founding and platform-ownership roles, ranked on scope rather than salary band.',
-      };
-    case 'exploring':
-      return {
-        showJobs: true, jobCount: 1, showSkillPanel: true, postCount: 3,
-        jobsTitle: 'One step outside your current field',
-        jobsBlurb: 'Adjacent roles where your existing evidence still counts for something.',
-      };
-    default:
-      return {
-        showJobs: true, jobCount: 2, showSkillPanel: true, postCount: 3,
-        jobsTitle: 'Roles worth your evening',
-        jobsBlurb: 'Verified active, above 85% on demonstrated skills, with the reasoning shown.',
-      };
+    case 'signals':        return signalNotifications({ limit: 4 });
+    case 'people':         return peopleRail();
+    case 'candidate-rail': return candidateRail();
+    case 'events':         return eventsRail();
+    case 'recruiters':     return recruiterRail();
+    case 'pipeline':       return pipelineRail();
+    case 'next-actions':   return nextActionsRail();
+    case 'feed-priority':  return feedPriorityControl();
+    default:               return html``;
   }
 }
 
-/* ---------- Hiring centre column ---------- */
+function feedLimit(persona) {
+  return persona.id === 'professional' || persona.id === 'connector' ? 4 : 3;
+}
 
-function hiringCentre() {
+function jobsSection(persona) {
+  const strong = jobs.filter((j) => j.section === 'strong');
+  const copy = {
+    candidate: ['Roles worth your evening', 'Verified active, above 85% on demonstrated skills, with the reasoning shown.'],
+    builder: ['Roles where you would set the architecture', 'Founding and platform-ownership roles, ranked on scope rather than salary band.'],
+    explorer: ['One step outside your current field', 'Adjacent roles where your existing evidence still counts for something.'],
+  }[persona.id] || ['Roles worth your evening', 'Verified active, with the reasoning shown.'];
+  const count = persona.id === 'candidate' ? 2 : 1;
+
+  return html`
+    <section aria-labelledby="home-jobs">
+      ${sectionHead(copy[0], copy[1],
+        html`<button type="button" class="btn btn-sm" ${action('navigate', { route: 'jobs' })}>All ${jobs.length} roles</button>`)}
+      <div class="stack-md">${strong.slice(0, count).map((j) => jobMatchCard(j))}</div>
+    </section>
+  `;
+}
+
+function skillGapSection() {
+  return html`
+    <section aria-labelledby="home-skills">
+      ${sectionHead(
+        'The two gaps holding your matches back',
+        'Both are documentation problems rather than capability problems. That is the good news and the annoying news.',
+      )}
+      ${skillEvidencePanel({ compact: true })}
+    </section>
+  `;
+}
+
+function modeSwitch() {
   const isRecruiter = state.hiringView === 'recruiter';
   return html`
     <div class="card card-pad">
       <div class="row-between wrap">
         <div>
-          <p class="eyebrow">Dashboard mode</p>
+          <p class="eyebrow">Workspace mode</p>
           <p class="small secondary" style="margin-top:3px">
             The same data serves two jobs. Choose the one you are doing today.
           </p>
         </div>
-        <div class="filter-row" role="group" aria-label="Hiring dashboard mode">
+        <div class="filter-row" role="group" aria-label="Workspace mode">
           <button type="button" class="filter-chip" aria-pressed="${!isRecruiter}"
             ${action('set-hiring-view', { view: 'manager' })}>Hiring manager</button>
           <button type="button" class="filter-chip" aria-pressed="${isRecruiter}"
@@ -167,24 +146,25 @@ function hiringCentre() {
         </div>
       </div>
     </div>
-
-    ${isRecruiter ? recruiterWorkspace() : hiringManagerDashboard()}
   `;
 }
 
-function hiringManagerDashboard() {
+function candidateSection() {
+  const isRecruiter = state.hiringView === 'recruiter';
   return html`
     <section aria-labelledby="hm-cands">
       ${sectionHead(
-        'High-potential candidates',
+        isRecruiter ? 'High-signal candidates' : 'High-potential candidates',
         'Ranked on demonstrated work — published writing, verified outcomes and peer validation. Never on résumé keyword density.',
         html`<button type="button" class="btn btn-sm" ${action('navigate', { route: 'network' })}>All candidates</button>`,
       )}
-      <div class="stack-md">
-        ${candidates.slice(0, 2).map((c) => candidateCard(c))}
-      </div>
+      <div class="stack-md">${candidates.slice(0, 2).map((c) => candidateCard(c))}</div>
     </section>
+  `;
+}
 
+function bottleneckSection() {
+  return html`
     <section class="card" aria-labelledby="hm-bottle">
       <div class="card-head">
         <h2 id="hm-bottle" class="section-title" style="font-size:16px">Where your hiring is actually stuck</h2>
@@ -205,49 +185,32 @@ function hiringManagerDashboard() {
         which is usually where the delay is.
       </div>
     </section>
-
-    <section aria-labelledby="hm-posts">
-      ${sectionHead(
-        'Recent technical writing by possible candidates',
-        'What someone chose to write about tells you more than what they listed under Skills.',
-      )}
-      ${knowledgeFeed({ heading: false, limit: 2 })}
-    </section>
   `;
 }
 
-function recruiterWorkspace() {
-  const sections = [
-    { title: 'High-signal candidates', items: candidates.slice(0, 2) },
-    { title: 'Recently active candidates', items: candidates.filter((c) => c.availability === 'Exploring' || c.availability === 'Available now') },
-    { title: 'Candidate rediscovery', items: candidates.filter((c) => c.availability === 'Rediscovered') },
-  ];
+/* ---------- Briefing ---------- */
+
+function briefing(intent) {
+  const hour = new Date().getHours();
+  const partOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
   return html`
-    <section class="card" aria-labelledby="rw-head">
-      <div class="card-head">
-        <h2 id="rw-head" class="section-title" style="font-size:16px">Recruiter workspace</h2>
-        <span class="tiny muted">Pipeline health: one bottleneck</span>
-      </div>
-      <div class="card-body">
-        <p class="reason reason-plain">
-          ${icon('shield', 13)}
-          <span>
-            Candidate insights are limited to what a candidate published or did in public. You will never
-            see whose profile a candidate viewed, what they searched for, or which roles they opened.
-            "Exploring" means they saved a role in your category — nothing more precise than that.
-          </span>
-        </p>
-      </div>
-    </section>
-
-    ${sections.filter((s) => s.items.length).map((s) => html`
-      <section>
-        ${sectionHead(s.title, null)}
-        <div class="stack-md">${s.items.map((c) => candidateCard(c))}</div>
-      </section>
-    `)}
+    <header class="briefing">
+      <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · ${intent.label}</p>
+      <h1 class="display" style="margin-top:8px">Good ${partOfDay}, ${user.firstName}.</h1>
+      <p class="lede">${personaFor(state.intent, state.hiringView).greeting}</p>
+    </header>
   `;
 }
+
+/* ---------- Job-seeker centre column ---------- */
+
+
+/** How the centre column is weighted, per intent. */
+
+/* ---------- Hiring centre column ---------- */
+
+
+
 
 /* ---------- Rails ---------- */
 

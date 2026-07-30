@@ -29,6 +29,11 @@ export const personas = {
       'Search roles, hiring managers, recruiters, skills…',
     railMode: 'career',
     sensitivityFloor: 'opportunities',
+    layout: {
+      left: ['identity', 'reputation', 'career-goal', 'agent-teaser'],
+      center: ['summary', 'agent', 'jobs', 'skill-gaps', 'feed'],
+      right: ['signals', 'people', 'events', 'recruiters', 'next-actions', 'feed-priority'],
+    },
     // What this person is measured on.
     focus: {
       label: 'Career goal',
@@ -69,6 +74,11 @@ export const personas = {
     railMode: 'career',
     // Conversations are the point of this mode, so they are the floor.
     sensitivityFloor: 'conversations',
+    layout: {
+      left: ['identity', 'overview', 'reputation', 'agent-teaser'],
+      center: ['summary', 'skill-gaps', 'feed'],
+      right: ['signals', 'events', 'people', 'next-actions', 'feed-priority'],
+    },
     focus: {
       label: 'Current focus',
       headline: 'Feature infrastructure and compliance boundaries',
@@ -92,6 +102,178 @@ export const personas = {
     note: 'No job-search signals are collected in this mode, and none are shown to recruiters.',
   },
 
+
+  /* ---------------------------------------------------------------- */
+  networking: {
+    id: 'connector',
+    label: 'Connector',
+    badge: 'Open to conversations',
+    badgeVariant: '',
+    name: 'Alex Chen',
+    initials: 'AC',
+    title: 'Staff Data Engineer',
+    org: 'Ridgeline Health',
+    location: 'San Francisco Bay Area',
+    greeting: 'Here are the conversations most likely to be useful to both sides.',
+    searchPlaceholder: 'Search peers, communities, events, people who write about…',
+    railMode: 'career',
+    sensitivityFloor: 'conversations',
+    layout: {
+      left: ['identity', 'overview', 'agent-teaser'],
+      center: ['summary', 'feed'],
+      right: ['events', 'people', 'signals', 'next-actions'],
+    },
+    focus: {
+      label: 'What you want from a conversation',
+      headline: 'Practitioners solving the problem you are solving',
+      meta: [
+        { icon: 'users', text: '5 conversations with a real opening' },
+        { icon: 'calendar', text: '3 events worth the time' },
+      ],
+      cta: 'Change what you are looking for',
+      ctaAction: 'adjust-goal',
+    },
+    overview: {
+      title: 'Connection quality',
+      period: 'This quarter',
+      rows: [
+        { label: 'First messages that got a reply', value: '9 of 11' },
+        { label: 'Conversations still going', value: '6' },
+        { label: 'Introductions you made for others', value: '4' },
+        { label: 'Introductions made for you', value: '2' },
+      ],
+      note: 'Connection count is not tracked. A contact you never speak to is not a connection.',
+    },
+  },
+
+  /* ---------------------------------------------------------------- */
+  mentoring: {
+    id: 'mentor',
+    label: 'Mentor',
+    badge: 'Mentoring',
+    badgeVariant: 'accent',
+    name: 'Alex Chen',
+    initials: 'AC',
+    title: 'Staff Data Engineer',
+    org: 'Ridgeline Health',
+    location: 'San Francisco Bay Area',
+    greeting: 'Here is where your experience would save someone months.',
+    searchPlaceholder: 'Search questions, mentees, topics you have solved…',
+    railMode: 'career',
+    sensitivityFloor: 'conversations',
+    layout: {
+      left: ['identity', 'overview', 'reputation', 'agent-teaser'],
+      center: ['summary', 'feed'],
+      right: ['signals', 'people', 'next-actions', 'events'],
+    },
+    focus: {
+      label: 'Where you can help',
+      headline: 'Batch-to-streaming transitions, and staff-scope cases',
+      meta: [
+        { icon: 'message', text: '3 questions you were named in' },
+        { icon: 'users', text: '6 engineers mentored, 4 confirmed' },
+      ],
+      cta: 'Change what you mentor on',
+      ctaAction: 'adjust-goal',
+    },
+    overview: {
+      title: 'Mentorship record',
+      period: 'All time',
+      rows: [
+        { label: 'Engineers mentored', value: '6' },
+        { label: 'Confirmed by the mentee', value: '4' },
+        { label: 'Promoted while mentored', value: '2' },
+        { label: 'Questions answered in full', value: '14' },
+      ],
+      note: 'Only mentees who confirmed the relationship are counted. Claims do not count themselves.',
+    },
+  },
+
+  /* ---------------------------------------------------------------- */
+  building: {
+    id: 'builder',
+    label: 'Builder',
+    badge: 'Building',
+    badgeVariant: 'primary',
+    name: 'Alex Chen',
+    initials: 'AC',
+    title: 'Staff Data Engineer',
+    org: 'Ridgeline Health',
+    location: 'San Francisco Bay Area',
+    greeting: 'Here is who is building near the problems you are working on.',
+    searchPlaceholder: 'Search collaborators, open source, founders, problems…',
+    railMode: 'career',
+    sensitivityFloor: 'conversations',
+    layout: {
+      left: ['identity', 'overview', 'agent-teaser'],
+      center: ['summary', 'jobs', 'feed'],
+      right: ['people', 'signals', 'next-actions', 'events'],
+    },
+    focus: {
+      label: 'What you are building',
+      headline: 'Event-driven lakehouse tooling, in the open',
+      meta: [
+        { icon: 'layers', text: '4 potential collaborators' },
+        { icon: 'link', text: '1 PR open since March' },
+      ],
+      cta: 'Change what you are building',
+      ctaAction: 'adjust-goal',
+    },
+    overview: {
+      title: 'Build activity',
+      period: 'This year',
+      rows: [
+        { label: 'Merged contributions', value: '2' },
+        { label: 'Dependents on your library', value: '40' },
+        { label: 'Problems you have solved publicly', value: '3' },
+        { label: 'Maintainer roles', value: 'None yet' },
+      ],
+    },
+  },
+
+  /* ---------------------------------------------------------------- */
+  exploring: {
+    id: 'explorer',
+    label: 'Explorer',
+    badge: 'Exploring',
+    badgeVariant: '',
+    name: 'Alex Chen',
+    initials: 'AC',
+    title: 'Staff Data Engineer',
+    org: 'Ridgeline Health',
+    location: 'San Francisco Bay Area',
+    greeting: 'Here is what sits one step outside your current field.',
+    searchPlaceholder: 'Search adjacent fields, transitions, unfamiliar work…',
+    railMode: 'career',
+    sensitivityFloor: 'opportunities',
+    layout: {
+      left: ['identity', 'career-goal', 'overview', 'agent-teaser'],
+      center: ['summary', 'jobs', 'skill-gaps', 'feed'],
+      right: ['people', 'signals', 'next-actions', 'events'],
+    },
+    focus: {
+      label: 'What you are exploring',
+      headline: 'ML platform, not data platform',
+      meta: [
+        { icon: 'compass', text: '9 roles in adjacent fields' },
+        { icon: 'trend', text: '2 skills that transfer further than you think' },
+      ],
+      cta: 'Change what you are exploring',
+      ctaAction: 'adjust-goal',
+    },
+    overview: {
+      title: 'Exploration',
+      period: 'This month',
+      rows: [
+        { label: 'Adjacent roles read', value: '9' },
+        { label: 'Transition stories read', value: '3' },
+        { label: 'Fields sampled', value: '2' },
+        { label: 'Nothing signalled to recruiters', value: 'Confirmed' },
+      ],
+      note: 'Exploring is private. No employer or recruiter is told you are looking around.',
+    },
+  },
+
   /* ---------------------------------------------------------------- */
   hiring: {
     id: 'hiring-manager',
@@ -107,6 +289,11 @@ export const personas = {
     searchPlaceholder:
       'Search candidates, roles, skills, companies…',
     railMode: 'hiring',
+    layout: {
+      left: ['identity', 'overview', 'team-activity', 'agent-teaser'],
+      center: ['summary', 'mode-switch', 'candidates', 'bottlenecks', 'feed'],
+      right: ['signals', 'candidate-rail', 'events', 'pipeline', 'next-actions'],
+    },
     focus: {
       label: 'Active hiring focus',
       headline: 'Staff Data Engineer',
@@ -151,6 +338,11 @@ export const personas = {
     searchPlaceholder:
       'Search candidates by demonstrated work, not keywords…',
     railMode: 'recruiter',
+    layout: {
+      left: ['identity', 'overview', 'team-activity'],
+      center: ['summary', 'mode-switch', 'candidates', 'feed'],
+      right: ['signals', 'candidate-rail', 'pipeline', 'next-actions'],
+    },
     focus: {
       label: 'Active requisitions',
       headline: '5 roles across 3 companies',
@@ -180,19 +372,11 @@ export const personas = {
   },
 };
 
-/** Intents that do not define their own persona fall back to the professional. */
-const FALLBACK = {
-  networking: 'learning',
-  mentoring: 'learning',
-  building: 'learning',
-  exploring: 'job-hunting',
-};
-
 export function personaFor(intentId, hiringView) {
   // Inside the Hiring intent, the recruiter workspace is a genuinely different
   // job with a different identity — not a filter on the same one.
   if (intentId === 'hiring' && hiringView === 'recruiter') return personas.recruiter;
-  return personas[intentId] || personas[FALLBACK[intentId]] || personas['job-hunting'];
+  return personas[intentId] || personas['job-hunting'];
 }
 
 /** Hiring-side signals. The candidate signal set is in data/signals.js. */
