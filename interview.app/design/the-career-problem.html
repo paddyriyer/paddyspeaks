@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>Professional Network Data Model (Outcomes, Not Engagement) — Data Engineering Interview | Interview Studio</title>
+<meta name="description" content="Design the data backend for a professional network that optimizes for hires, replies and mentorships instead of clicks — where the label arrives ninety days late, sixty percent of it is never observed at all, and consent has to gate the write rather than the read. Data flow, schema, consent-gated Python ingestion, long-horizon attribution SQL, reputation reproducibility, and the dashboard that proves it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap"></noscript>
+<link rel="stylesheet" href="whiteboard.css">
+<style>
+/* ── Floating scroll + home buttons ──────────────────────────── */
+.scroll-btns {
+  position: fixed; bottom: 28px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 9999;
+}
+.scroll-btns a {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; background: #0a8070; color: #fff;
+  border-radius: 50%; text-decoration: none; font-size: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25); transition: background .2s;
+}
+.scroll-btns a:hover { background: #065a50; }
+.back-home {
+  position: fixed; bottom: 28px; left: 24px; z-index: 9999;
+  font-family: monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+}
+.back-home a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; background: #1a1208; color: #d8a44a;
+  border-radius: 20px; text-decoration: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3); transition: background .2s;
+}
+.back-home a:hover { background: #2a2010; }
+/* Companion links back to the design essay + prototype */
+.companion{background:#fbf8f1;border:1px solid #e9e2d0;border-left:3px solid #0a8070;border-radius:6px;padding:16px 20px;margin:26px 0}
+.companion h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#0a8070;margin:0 0 8px}
+.companion p{font-family:'Newsreader',Georgia,serif;font-size:15px;line-height:1.55;color:#3a352b;margin:0 0 8px}
+.companion a{color:#a4502e}
+/* The back-of-envelope table is wider than a phone. Let it scroll inside its
+   own box rather than pushing the whole page sideways. Scoped to this page on
+   purpose: whiteboard.css is shared by the rest of the series. */
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tscroll table{margin:34px 0;min-width:560px}
+</style>
+</head>
+<body>
+<div id="top"></div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 39</div>
+    <h1 class="reveal">The <em>Career</em> Problem</h1>
+    <p class="deck reveal">Model the data behind a professional network that is graded on hires, replies and confirmed mentorships instead of sessions and impressions. The engagement label arrives in milliseconds; the professional label arrives in ninety days, is never observed at all in sixty percent of cases, and half the time happens in a building you have no telemetry inside. One prompt, a fact table whose truth is not knowable for a quarter, a consent flag that must gate the write rather than the read, and a reputation score that has to be reproducible on demand or it is a rumour. A complete working-through of data flow, schema, consent-gated Python ingestion, long-horizon attribution SQL, the reproducibility check, and the dashboard that proves it.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Professional Network</b></span>
+      <span>READING · <b>~27 min</b></span>
+    </div>
+  </div>
+</header>
+
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move">
+          <h4>The senior move</h4>
+          <p>Split the spine in two. <code>fct_surfaced</code> is written now and is <em>immutable</em>; <code>fct_outcome</code> arrives up to 120 days later and is joined through a <strong>re-runnable</strong> <code>brg_outcome_attribution</code>. Attribution is an opinion with a version, never a column on the fact.</p>
+        </div>
+        <div class="tldr-cell">
+          <h4>Four grains</h4>
+          <ul>
+            <li><strong>Surfaced</strong> — every ranked item shown, ~10 B/day, carrying its reason codes.</li>
+            <li><strong>Interaction</strong> — the same-session reaction; cheap, fast, and <em>not</em> the objective.</li>
+            <li><strong>Outcome</strong> — reply, interview, placement, confirmed mentorship. Sparse, late, often external.</li>
+            <li><strong>Evidence</strong> — claims and the confirmations that make them count.</li>
+          </ul>
+        </div>
+        <div class="tldr-cell">
+          <h4>Key SQL</h4>
+          <ul>
+            <li>Interval join + <code>attribution_run_id</code> → 120-day outcome credit</li>
+            <li><code>NOT EXISTS</code> on absence → recruiter ghosting rate</li>
+            <li>As-of SCD2 replay → reputation reproducibility diff</li>
+            <li>Anti-join as assertion → the consent-leak audit that must return zero rows</li>
+          </ul>
+        </div>
+        <div class="tldr-cell tldr-trap">
+          <h4>The trap</h4>
+          <p>Filtering job-search signals at read time. <em>Not looking</em> has to gate the <strong>write</strong> — nothing is collected — or the toggle is a lie the schema can prove. And you cannot A/B a career: measure the challenger by <strong>shadow ranking</strong>, never by withholding a match.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>The label arrives ninety days late</h2>
+    <p class="lede reveal">Every recommendation system you have modelled before had a label you could read in seconds. A click, a like, a watch. This one does not. The thing this product exists to cause — someone gets a job — happens weeks after the row was written, in a building you have no telemetry inside, and more often than not you never find out it happened at all.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"Design the data platform for a professional network whose stated objective is professional outcomes rather than engagement — placements, replies that go somewhere, mentorships both sides confirm. A billion members, ten billion ranked items surfaced a day. Every surfaced item must be able to explain itself. A member can switch to 'not looking' and we promise we stop collecting job-search signal entirely. And the reputation score we show people has to be defensible line by line. How do you model it?"</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">Most candidates hear "professional network" and reach for the feed model they already know: impressions, engagements, a ranker, a rollup. That model is not wrong so much as it is answering a different question, and the interviewer is waiting to see how long it takes you to notice. A feed's objective function is available almost immediately — the like lands two seconds after the impression, in enormous volume, on the same platform, attributable to the row that caused it. Everything about the feed architecture follows from that gift. Take the gift away and the architecture inverts. Here the objective is a hire, and a hire is <strong>sparse</strong> (roughly one confirmed placement per four hundred million surfaced items), <strong>late</strong> (median forty-seven days from the surfaced row that started it, ninety-five percent inside a hundred and twenty-eight), and <strong>largely unobservable</strong> (about sixty percent of hires are never reported on the platform at all). You are being asked to build a measurement system for an event you mostly cannot see.</p>
+
+    <p class="reveal">That single fact reorganizes everything. It means the fact table cannot carry its own outcome, because the outcome does not exist when the row is written and may never exist. It means attribution across a four-month window is a <em>rebuildable opinion</em> rather than a fact, so it needs a version and a re-run, exactly like ad attribution but with a hundred times the latency. It means engagement metrics are still collected but are explicitly <em>not</em> the objective, and the schema should make that demotion structural rather than cultural. And it means the counterfactual question — what would have happened if we had surfaced something else — cannot be answered the way a feed answers it, because you may not ethically withhold a good job match from a person to measure lift. So before any boxes and arrows, the working frame:</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>THE SURFACED GRAIN</dt><dd><strong>Surfaced items.</strong> One row per (persona × item × surface × slot) every time the product ranks something and shows it — a role, a person, an event, a piece of writing. Ten billion a day. Each row freezes the <span class="m">ranking_model_id</span>, the <span class="m">predicted_outcome_score</span>, and — the requirement that makes this product different — the <span class="m">reason_codes</span> that would be shown if the member clicked "Why this?". The explanation is data, written at serve time, not prose generated later.</dd></div>
+      <div class="defrow"><dt>THE INTERACTION GRAIN</dt><dd><strong>Interactions.</strong> Opened, saved, dismissed, messaged, applied. Append-only, same-session, cheap, plentiful — and deliberately modelled as a <em>leading indicator</em> rather than the objective. This is the grain a feed would have called success. Here it is instrumentation.</dd></div>
+      <div class="defrow"><dt>THE OUTCOME GRAIN</dt><dd><strong>Outcomes.</strong> A reply that got a real answer, a screen, an interview, an offer, a placement, a mentorship both parties confirmed, an introduction that led somewhere. One row per outcome, carrying <span class="m">observed_via</span> — platform-observed, self-reported, or employer-verified — because the provenance of a label is part of the label. Sparse, late, and joined to the surfaced spine only through a versioned attribution bridge.</dd></div>
+      <div class="defrow"><dt>THE EVIDENCE GRAIN</dt><dd><strong>Claims and confirmations.</strong> "Mentored six engineers" is a claim; four confirmations from named mentees are what let it count. The reputation score is computed from this ledger, never entered, and every dimension has to be able to name the rows it came from.</dd></div>
+    </dl>
+
+    <div class="pull reveal">A feed can measure itself before the user has finished scrolling. This product cannot know whether it worked until a quarter has passed — and in most cases never finds out. Every structural decision below is a consequence of that one asymmetry.</div>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Scope first, because it is scored and most candidates skip it. Out of scope, stated explicitly: the ranking models themselves (treated as services that return scored items with reason codes attached), the messaging transport, the identity and authentication layer, the résumé parser, and the content moderation pipeline. In scope: how a surfaced item becomes an auditable row at ten billion a day, how an outcome that lands four months later is credited back without corrupting the immutable spine, how a member's declared intent gates <em>collection</em> rather than display, how a reputation score stays reproducible under scrutiny, and how a challenger ranker is evaluated without running an experiment on somebody's livelihood.</p>
+
+    <p class="reveal">Then the envelope math, volunteered rather than extracted. LinkedIn-shaped numbers:</p>
+
+    <div class="tscroll reveal">
+    <table>
+      <tr><th>Quantity</th><th>Estimate</th><th>Consequence</th></tr>
+      <tr><td>Members / monthly active</td><td class="mono">≈ 1 B / 310 M</td><td>Persona dimension is large but slow-moving; the facts are what scale</td></tr>
+      <tr><td>Surfaced items / day</td><td class="mono">≈ 10 B</td><td>≈ 116 K/s average — the spine, and every row carries its reason codes</td></tr>
+      <tr><td>Interactions / day</td><td class="mono">≈ 900 M</td><td>~9% of surfaced items get a reaction; cheap, fast, explicitly not the objective</td></tr>
+      <tr><td>Job applications / day</td><td class="mono">≈ 10 M</td><td>The last event before the platform loses sight of the process</td></tr>
+      <tr><td>Confirmed placements / month</td><td class="mono">≈ 200 K</td><td>The actual objective — and the denominator problem below</td></tr>
+      <tr><td><strong>Label density</strong></td><td class="mono"><strong>≈ 7 × 10⁻⁷</strong></td><td><strong>One confirmed placement per ~1.4 M surfaced items. The row that shapes the architecture</strong></td></tr>
+      <tr><td>Surfaced → placement lag</td><td class="mono">47 d median</td><td>p95 is 128 days — hence a 120-day window, and an interval join rather than an equality</td></tr>
+      <tr><td>Outcomes never observed</td><td class="mono">≈ 60%</td><td>Most hires happen off-platform; the label is missing-not-at-random</td></tr>
+      <tr><td>Intent-mode changes / day</td><td class="mono">≈ 4 M</td><td>SCD2 on the persona, and it gates ingestion at event time</td></tr>
+      <tr><td><strong>Hottest requisition</strong></td><td class="mono"><strong>≈ 40 K / 48 h</strong></td><td><strong>A viral posting takes 40 K applications in two days; partition by applicant, never by requisition</strong></td></tr>
+    </table>
+    </div>
+
+    <p class="reveal">Notice which row does the architectural work. The ten-billion firehose sets the bill and the partitioning, and the viral requisition sets the write key — both are familiar problems and neither is what this question is about. The row that dictates the <em>shape</em> of the design is the label density: seven in ten million. At that sparsity, a model trained on the objective directly would see almost no positive examples, and a dashboard reporting the objective daily would be reporting noise. Everything that follows — the interaction grain kept as a leading indicator, the attribution bridge that can be rebuilt when the definition improves, the shadow-ranking table, the honest observability tile that reports how much of the label you are missing — exists because the thing you are optimizing for is nearly invisible.</p>
+
+    <div class="companion reveal">
+      <h4>◆ Companion pieces</h4>
+      <p>This scenario is the data-platform working-through of a product argument made at length in <a href="https://paddyspeaks.com/articles/careeros-professional-intelligence-network.html" target="_blank">“The Feed Is Winning. Your Career Isn’t.”</a> — which asks what a professional network optimized for outcomes rather than attention would actually look like on screen.</p>
+      <p>There is a working desktop prototype of that product at <a href="https://paddyspeaks.com/careeros/" target="_blank">paddyspeaks.com/careeros</a>. The reason codes, the eight-dimension reputation panel and the “not looking means not collected” rail in this schema are all visible there as interface.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — DATA FLOW</span>Two clocks in one building</h2>
+    <p class="lede reveal">The serving path writes a surfaced row in milliseconds with its explanation already attached. The outcome path collects sparse, late, half-external truth for the next four months and stitches it back through a bridge that can be rebuilt from scratch. Between them sits the consent gate, which is the only component in the picture that is allowed to <em>refuse</em> to write.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 600" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/>
+          </marker>
+          <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/>
+          </marker>
+          <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#6f7d5c"/>
+          </marker>
+        </defs>
+
+        <text x="20" y="28" font-size="11" letter-spacing="3" fill="#a4502e">SERVING CLOCK · ~116K SURFACED/S · MILLISECONDS · IMMUTABLE</text>
+        <line x1="20" y1="286" x2="960" y2="286" stroke="#e3dccb" stroke-dasharray="4 6"/>
+        <text x="20" y="320" font-size="11" letter-spacing="3" fill="#6f7d5c">OUTCOME CLOCK · SPARSE · UP TO 120 DAYS · RE-RUNNABLE</text>
+
+        <!-- serving -->
+        <rect x="20" y="56" width="140" height="70" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="90" y="82" font-size="12.5" text-anchor="middle" fill="#23201a">MEMBER</text>
+        <text x="90" y="100" font-size="10.5" text-anchor="middle" fill="#7d7567">persona = person</text>
+        <text x="90" y="115" font-size="10.5" text-anchor="middle" fill="#7d7567">× intent mode</text>
+
+        <rect x="196" y="48" width="164" height="86" fill="#fbf8f1" stroke="#0a8070" stroke-width="2"/>
+        <text x="278" y="72" font-size="12.5" text-anchor="middle" fill="#0a8070">CONSENT GATE</text>
+        <text x="278" y="90" font-size="10.5" text-anchor="middle" fill="#7d7567">reads intent SCD2</text>
+        <text x="278" y="105" font-size="10.5" text-anchor="middle" fill="#7d7567">DROPS job-search signal</text>
+        <text x="278" y="120" font-size="10.5" text-anchor="middle" fill="#7d7567">when "not looking"</text>
+
+        <rect x="398" y="48" width="164" height="86" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="480" y="72" font-size="12.5" text-anchor="middle" fill="#23201a">RANK + EXPLAIN</text>
+        <text x="480" y="90" font-size="10.5" text-anchor="middle" fill="#7d7567">model_id · score</text>
+        <text x="480" y="105" font-size="10.5" text-anchor="middle" fill="#7d7567">reason_codes[]</text>
+        <text x="480" y="120" font-size="10.5" text-anchor="middle" fill="#7d7567">not_used[]</text>
+
+        <rect x="600" y="42" width="180" height="96" fill="#27241d"/>
+        <text x="690" y="70" font-size="12.5" text-anchor="middle" fill="#e9e2d0">EVENT LOG</text>
+        <text x="690" y="88" font-size="10.5" text-anchor="middle" fill="#b8ad93">key: hash(persona_id)</text>
+        <text x="690" y="104" font-size="10.5" text-anchor="middle" fill="#b8ad93">never hash(requisition)</text>
+        <text x="690" y="122" font-size="10.5" text-anchor="middle" fill="#b8ad93">a viral requisition spreads</text>
+
+        <rect x="818" y="40" width="142" height="60" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="889" y="63" font-size="11.5" text-anchor="middle" fill="#a4502e">fct_surfaced</text>
+        <text x="889" y="80" font-size="10" text-anchor="middle" fill="#7d7567">the spine · immutable</text>
+
+        <rect x="818" y="114" width="142" height="52" fill="#fbf8f1" stroke="#8a5d12" stroke-width="1.5"/>
+        <text x="889" y="135" font-size="11.5" text-anchor="middle" fill="#8a5d12">fct_interaction</text>
+        <text x="889" y="152" font-size="10" text-anchor="middle" fill="#7d7567">leading indicator</text>
+
+        <rect x="818" y="180" width="142" height="52" fill="#fbf8f1" stroke="#cfc5ac" stroke-width="1.5"/>
+        <text x="889" y="201" font-size="11.5" text-anchor="middle" fill="#7d7567">fct_shadow</text>
+        <text x="889" y="218" font-size="10" text-anchor="middle" fill="#7d7567">challenger · suppresses none</text>
+
+        <line x1="160" y1="91" x2="192" y2="91" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="360" y1="91" x2="394" y2="91" stroke="#0a8070" stroke-width="1.8" marker-end="url(#arr)"/>
+        <line x1="562" y1="91" x2="596" y2="91" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="780" y1="72" x2="814" y2="70" stroke="#a4502e" stroke-width="1.8" marker-end="url(#arrR)"/>
+        <line x1="780" y1="104" x2="814" y2="140" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="780" y1="126" x2="814" y2="206" stroke="#cfc5ac" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <text x="200" y="164" font-size="10" fill="#0a8070">◆ the gate refuses to write — it does not filter later</text>
+
+        <!-- outcome clock -->
+        <rect x="20" y="352" width="150" height="62" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="376" font-size="11.5" text-anchor="middle" fill="#23201a">PLATFORM EVENTS</text>
+        <text x="95" y="394" font-size="10" text-anchor="middle" fill="#7d7567">reply · screen · offer</text>
+
+        <rect x="20" y="430" width="150" height="62" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="454" font-size="11.5" text-anchor="middle" fill="#23201a">SELF-REPORTED</text>
+        <text x="95" y="472" font-size="10" text-anchor="middle" fill="#7d7567">"I started a new role"</text>
+
+        <rect x="20" y="508" width="150" height="62" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="532" font-size="11.5" text-anchor="middle" fill="#23201a">EMPLOYER-VERIFIED</text>
+        <text x="95" y="550" font-size="10" text-anchor="middle" fill="#7d7567">ATS callback · rare</text>
+
+        <rect x="212" y="418" width="176" height="86" fill="#fbf8f1" stroke="#6f7d5c" stroke-width="2"/>
+        <text x="300" y="444" font-size="12" text-anchor="middle" fill="#6f7d5c">OUTCOME STITCHER</text>
+        <text x="300" y="462" font-size="10" text-anchor="middle" fill="#7d7567">observed_via stamped</text>
+        <text x="300" y="478" font-size="10" text-anchor="middle" fill="#7d7567">dedupe across 3 sources</text>
+        <text x="300" y="494" font-size="10" text-anchor="middle" fill="#7d7567">no source overwrites another</text>
+
+        <rect x="424" y="424" width="176" height="74" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="512" y="448" font-size="11.5" text-anchor="middle" fill="#a4502e">fct_outcome</text>
+        <text x="512" y="465" font-size="10" text-anchor="middle" fill="#7d7567">sparse · late · append-only</text>
+        <text x="512" y="481" font-size="10" text-anchor="middle" fill="#7d7567">never edits the spine</text>
+
+        <rect x="636" y="410" width="180" height="100" fill="#fbf8f1" stroke="#8a5d12" stroke-width="2"/>
+        <text x="726" y="436" font-size="11.5" text-anchor="middle" fill="#8a5d12">brg_outcome_attribution</text>
+        <text x="726" y="454" font-size="10" text-anchor="middle" fill="#7d7567">120-day interval join</text>
+        <text x="726" y="470" font-size="10" text-anchor="middle" fill="#7d7567">attribution_run_id</text>
+        <text x="726" y="488" font-size="10" text-anchor="middle" fill="#a4502e">rebuildable opinion</text>
+
+        <rect x="852" y="356" width="108" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="906" y="380" font-size="11" text-anchor="middle" fill="#23201a">RANKER</text>
+        <text x="906" y="396" font-size="10" text-anchor="middle" fill="#7d7567">training labels</text>
+
+        <rect x="852" y="440" width="108" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="906" y="464" font-size="11" text-anchor="middle" fill="#23201a">TRUST MART</text>
+        <text x="906" y="480" font-size="10" text-anchor="middle" fill="#7d7567">recruiter records</text>
+
+        <rect x="852" y="524" width="108" height="60" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="906" y="548" font-size="11" text-anchor="middle" fill="#23201a">REPUTATION</text>
+        <text x="906" y="564" font-size="10" text-anchor="middle" fill="#7d7567">recomputed daily</text>
+
+        <line x1="170" y1="383" x2="208" y2="440" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="170" y1="461" x2="208" y2="461" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="170" y1="539" x2="208" y2="484" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="388" y1="461" x2="420" y2="461" stroke="#6f7d5c" stroke-width="1.8" marker-end="url(#arrG)"/>
+        <line x1="600" y1="461" x2="632" y2="461" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="816" y1="440" x2="848" y2="392" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="816" y1="470" x2="848" y2="470" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- evidence ledger feeding reputation -->
+        <rect x="424" y="522" width="176" height="58" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="512" y="544" font-size="11.5" text-anchor="middle" fill="#23201a">EVIDENCE LEDGER</text>
+        <text x="512" y="561" font-size="10" text-anchor="middle" fill="#7d7567">claims + confirmations</text>
+        <line x1="600" y1="551" x2="848" y2="551" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- the long dashed link back to the spine -->
+        <path d="M 889 232 C 889 300, 760 340, 726 406" fill="none" stroke="#a4502e" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+        <text x="742" y="330" font-size="10" fill="#a4502e">surfaced rows, 120 days back</text>
+
+        <text x="20" y="592" font-size="10.5" fill="#7d7567">SOLID — event flow · DASHED — the late join · The spine is written once and never edited; only the bridge is allowed to change its mind.</text>
+      </svg>
+      <div class="caption">FIG. 1 — Two clocks. The serving path writes an explanation-bearing row in milliseconds and never touches it again. The outcome path spends four months assembling a sparse, three-source truth and connects it back through a bridge carrying a run id, so improving the definition of “this caused that” is a re-run rather than a migration.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Four properties of this picture do most of the interview's work. <strong>First,</strong> the consent gate sits <em>before</em> the log, not after it. When a member's intent mode is “not looking”, job-search signal is never written — not written-then-hidden, not written-then-filtered. That placement is the difference between a promise and a checkbox, and it is checkable: an anti-join over the spine should return zero rows for those persona-days, and that query belongs in the test suite. <strong>Second,</strong> the reason codes are produced by the ranker and written onto the surfaced row at serve time. An explanation reconstructed later from a re-scored model is not an explanation of what happened; it is a plausible story about a different ranking. <strong>Third,</strong> the outcome never edits the spine. A placement discovered in November does not go back and update an August row — it lands in its own fact and is connected through a bridge, so the August row still says exactly what the system believed in August. <strong>Fourth,</strong> the shadow table records what the challenger model <em>would</em> have surfaced, alongside what the champion actually did, suppressing nothing.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Failure Philosophy, In One Rule</div>
+      <p><strong>Write what you knew, when you knew it; discover the consequence later; never let the discovery rewrite the knowledge.</strong> The spine is immutable because it is a record of a decision, and decisions do not improve retroactively. The outcome is append-only because a hire that falls through in week two is a second event, not a correction of the first. And the attribution between them is versioned because the definition of “this recommendation led to that job” is genuinely contested — marketing will want first-touch, the ranking team will want last-touch, and the honest answer is that you store the surfaced rows and the outcomes and let the run id decide, so the argument is settled by re-running a job rather than by rebuilding a warehouse.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA MODEL</span>The spine, the late fact, and the bridge that can change its mind</h2>
+    <p class="lede reveal">Four facts and three dimensions. The surfaced row carries its own explanation. The outcome row carries its own provenance. The bridge between them carries a run id. And the persona dimension is SCD2 not because titles change — though they do — but because the consent scope changes, and every row in the system has to be answerable against the scope that was in force when it was written.</p>
+
+    <h3 class="reveal">The spine — one row per thing shown, with its reason</h3>
+    <p class="reveal">This is the most-written table in the design and the one that makes the product's central promise keepable. Alongside the usual serving context — model id, predicted score, slot — it carries two arrays that most recommendation schemas do not have: <span class="m">reason_codes</span>, the ranked inputs that would be shown under “Why this?”, and <span class="m">not_used_codes</span>, the inputs the product publicly commits to <em>not</em> ranking on. Storing the negative space sounds like decoration until an auditor asks you to prove that a role recommendation did not use an inferred demographic, and you can answer with a column instead of a deposition.</p>
+
+    <div class="codelabel">DDL · THE SPINE — SURFACED FACT</div>
+    <div class="codeblock"><span class="cl">-- The "surfaced" grain. ~10B rows/day. Partitioned by surfaced_ts (hour),
+-- clustered on persona_id. Immutable: no UPDATE path exists in any writer.
+-- consent_scope_id is frozen here so every row can be audited against the
+-- consent that was actually in force when it was written.</span>
+<span class="ck">CREATE TABLE</span> fct_surfaced (
+    surfaced_id      BIGINT       <span class="ck">PRIMARY KEY</span>,       <span class="cl">-- snowflake: time-ordered</span>
+    persona_id       BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_persona_intent,
+    member_id        BIGINT       <span class="ck">NOT NULL</span>,           <span class="cl">-- the human behind the persona</span>
+    item_type        TEXT         <span class="ck">NOT NULL</span>
+                     <span class="ck">CHECK</span> (item_type <span class="ck">IN</span> (<span class="cs">'role'</span>,<span class="cs">'person'</span>,<span class="cs">'event'</span>,<span class="cs">'post'</span>,<span class="cs">'community'</span>)),
+    item_id          BIGINT       <span class="ck">NOT NULL</span>,
+    surface          TEXT         <span class="ck">NOT NULL</span>
+                     <span class="ck">CHECK</span> (surface <span class="ck">IN</span> (<span class="cs">'briefing'</span>,<span class="cs">'jobs'</span>,<span class="cs">'network'</span>,<span class="cs">'feed'</span>,<span class="cs">'search'</span>)),
+    slot             SMALLINT     <span class="ck">NOT NULL</span>,           <span class="cl">-- position bias lives here</span>
+    ranking_model_id BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_ranking_models,
+    predicted_outcome_score NUMERIC(8,6) <span class="ck">NOT NULL</span>,  <span class="cl">-- P(professional outcome), frozen</span>
+    reason_codes     TEXT[]       <span class="ck">NOT NULL</span>,           <span class="cl">-- ★ the "Why this?" payload, at serve time</span>
+    reason_weights   NUMERIC(5,4)[] <span class="ck">NOT NULL</span>,         <span class="cl">-- parallel array; primary vs supporting</span>
+    not_used_codes   TEXT[]       <span class="ck">NOT NULL</span>,           <span class="cl">-- ★ the negative space, provable in a query</span>
+    confidence       TEXT         <span class="ck">NOT NULL CHECK</span> (confidence <span class="ck">IN</span> (<span class="cs">'high'</span>,<span class="cs">'medium'</span>,<span class="cs">'low'</span>)),
+    consent_scope_id BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_consent_scope,
+    surfaced_ts      TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    <span class="ck">CONSTRAINT</span> reason_arity <span class="ck">CHECK</span> (cardinality(reason_codes) = cardinality(reason_weights)),
+    <span class="ck">CONSTRAINT</span> reason_present <span class="ck">CHECK</span> (cardinality(reason_codes) &gt; 0)  <span class="cl">-- ★ nothing unexplained ships</span>
+);
+<span class="ck">CREATE INDEX</span> idx_surf_persona <span class="ck">ON</span> fct_surfaced (persona_id, surfaced_ts <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_surf_item    <span class="ck">ON</span> fct_surfaced (item_type, item_id, surfaced_ts <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_surf_model   <span class="ck">ON</span> fct_surfaced (ranking_model_id, surfaced_ts <span class="ck">DESC</span>);</div>
+
+    <p class="reveal">The <span class="m">reason_present</span> constraint is worth defending out loud, because it is the schema enforcing a product promise. If the ranker cannot say why it surfaced something, the row does not get written and the item does not get shown. That is a strong commitment and an interviewer will push on it — what about a cold-start recommendation with no meaningful signal? The answer is that “insufficient evidence to explain” is itself a reason code with a low confidence, and an item carrying it is shown in a labelled exploration slot rather than smuggled into the main ranking pretending to be a match.</p>
+
+    <h3 class="reveal">The late fact — an outcome, and where it came from</h3>
+    <p class="reveal">The outcome table is small, slow, and disproportionately important. Its distinguishing column is <span class="m">observed_via</span>: platform-observed events are cheap and trustworthy but cover only the early funnel; self-reported outcomes cover the part that matters most and are unverifiable; employer-verified outcomes are rare and authoritative. Collapsing those three into one boolean would be the single most damaging simplification available here, because every downstream metric needs to state which kind of evidence it rests on.</p>
+
+    <div class="codelabel">DDL · THE LATE FACT — OUTCOME</div>
+    <div class="codeblock"><span class="cl">-- Sparse (~200K placements/month against 300B surfaced rows), late (median
+-- 47 days), and often external. Append-only: an offer that later falls through
+-- is a NEW row with outcome_type='withdrawn', never an UPDATE of the offer.</span>
+<span class="ck">CREATE TABLE</span> fct_outcome (
+    outcome_id     BIGINT      <span class="ck">PRIMARY KEY</span>,
+    member_id      BIGINT      <span class="ck">NOT NULL</span>,          <span class="cl">-- the person it happened to</span>
+    counterparty_id BIGINT,                          <span class="cl">-- recruiter, hiring manager, mentor</span>
+    outcome_type   TEXT        <span class="ck">NOT NULL CHECK</span> (outcome_type <span class="ck">IN</span> (
+                       <span class="cs">'reply_substantive'</span>,<span class="cs">'screen'</span>,<span class="cs">'interview'</span>,<span class="cs">'offer'</span>,
+                       <span class="cs">'placement'</span>,<span class="cs">'withdrawn'</span>,<span class="cs">'mentorship_confirmed'</span>,
+                       <span class="cs">'introduction_made'</span>,<span class="cs">'collaboration_started'</span>)),
+    item_type      TEXT,                             <span class="cl">-- what it was about, when known</span>
+    item_id        BIGINT,
+    observed_via   TEXT        <span class="ck">NOT NULL CHECK</span> (observed_via <span class="ck">IN</span> (
+                       <span class="cs">'platform'</span>,<span class="cs">'self_reported'</span>,<span class="cs">'employer_verified'</span>)),  <span class="cl">-- ★</span>
+    both_sides_confirmed BOOLEAN <span class="ck">NOT NULL DEFAULT</span> <span class="ck">FALSE</span>,  <span class="cl">-- mentorship needs two</span>
+    outcome_ts     TIMESTAMPTZ <span class="ck">NOT NULL</span>,          <span class="cl">-- when it happened</span>
+    recorded_ts    TIMESTAMPTZ <span class="ck">NOT NULL</span>           <span class="cl">-- when we found out — often much later</span>
+);
+<span class="ck">CREATE INDEX</span> idx_out_member <span class="ck">ON</span> fct_outcome (member_id, outcome_ts <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_out_type   <span class="ck">ON</span> fct_outcome (outcome_type, outcome_ts <span class="ck">DESC</span>);</div>
+
+    <p class="reveal">Two timestamps, and candidates who only write one lose a point. <span class="m">outcome_ts</span> is when the thing happened; <span class="m">recorded_ts</span> is when the platform learned of it. The gap between them is often weeks, and it is the reason every outcome-based metric must be reported as a cohort that is still filling in. A placement rate for last month is not a number, it is a number and a maturity — and a dashboard that shows the first without the second will show a cliff every time it refreshes.</p>
+
+    <h3 class="reveal">The bridge — attribution as a versioned opinion</h3>
+    <p class="reveal">This is the table that makes the design senior. A hire is caused by a chain of surfaced items over four months: the role that appeared in a briefing in June, the hiring manager who surfaced in July, the article that got read before the interview. Which of those gets the credit is a modelling choice, and modelling choices change. So credit does not live on either fact. It lives in a bridge keyed by an <span class="m">attribution_run_id</span>, where a re-run under a new definition produces new rows and leaves the old ones intact — and the two can be compared.</p>
+
+    <div class="codelabel">DDL · THE BRIDGE — RE-RUNNABLE ATTRIBUTION</div>
+    <div class="codeblock"><span class="cl">-- Many surfaced rows may share credit for one outcome. Weights sum to 1.0 per
+-- (outcome_id, attribution_run_id) — enforced by the job and asserted in tests.
+-- Changing the credit model = a new run_id, not a rewrite. Old runs survive so
+-- last quarter's reported numbers stay reproducible after the model improves.</span>
+<span class="ck">CREATE TABLE</span> brg_outcome_attribution (
+    attribution_run_id BIGINT     <span class="ck">NOT NULL REFERENCES</span> dim_attribution_runs,
+    outcome_id         BIGINT     <span class="ck">NOT NULL REFERENCES</span> fct_outcome,
+    surfaced_id        BIGINT     <span class="ck">NOT NULL REFERENCES</span> fct_surfaced,
+    credit_weight      NUMERIC(6,5) <span class="ck">NOT NULL CHECK</span> (credit_weight &gt; 0),
+    lag_days           SMALLINT   <span class="ck">NOT NULL</span>,      <span class="cl">-- outcome_ts - surfaced_ts</span>
+    touch_role         TEXT       <span class="ck">NOT NULL CHECK</span> (touch_role <span class="ck">IN</span> (
+                           <span class="cs">'first'</span>,<span class="cs">'assist'</span>,<span class="cs">'last'</span>)),
+    <span class="ck">PRIMARY KEY</span> (attribution_run_id, outcome_id, surfaced_id)
+);
+
+<span class="ck">CREATE TABLE</span> dim_attribution_runs (
+    attribution_run_id BIGINT      <span class="ck">PRIMARY KEY</span>,
+    model_name         TEXT        <span class="ck">NOT NULL</span>,    <span class="cl">-- 'position_decay_v2'</span>
+    window_days        SMALLINT    <span class="ck">NOT NULL</span>,    <span class="cl">-- 120</span>
+    definition_notes   TEXT        <span class="ck">NOT NULL</span>,    <span class="cl">-- what changed and why</span>
+    is_current         BOOLEAN     <span class="ck">NOT NULL DEFAULT</span> <span class="ck">FALSE</span>,
+    run_ts             TIMESTAMPTZ <span class="ck">NOT NULL</span>
+);</div>
+
+    <h3 class="reveal">The persona dimension — where consent actually lives</h3>
+    <p class="reveal">A persona is (member × intent mode), and it is SCD2. Alex Chen job-hunting in March and Alex Chen not-looking in September are two persona rows for one member, with different consent scopes, different collected signals, and metrics that must never be summed across the boundary. This is the dimension that gates ingestion, so its <span class="m">valid_from</span> / <span class="m">valid_to</span> are not a reporting convenience — they are the authority a writer consults before it is allowed to persist anything.</p>
+
+    <div class="codelabel">DDL · PERSONA (SCD2) + CONSENT SCOPE + RANKING MODELS</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> dim_persona_intent (
+    persona_id       BIGINT      <span class="ck">PRIMARY KEY</span>,
+    member_id        BIGINT      <span class="ck">NOT NULL</span>,
+    intent_mode      TEXT        <span class="ck">NOT NULL CHECK</span> (intent_mode <span class="ck">IN</span> (
+                         <span class="cs">'job_hunting'</span>,<span class="cs">'learning'</span>,<span class="cs">'networking'</span>,<span class="cs">'mentoring'</span>,
+                         <span class="cs">'building'</span>,<span class="cs">'exploring'</span>,<span class="cs">'hiring'</span>,<span class="cs">'recruiting'</span>)),
+    consent_scope_id BIGINT      <span class="ck">NOT NULL REFERENCES</span> dim_consent_scope,
+    headline         TEXT        <span class="ck">NOT NULL</span>,
+    employer_id      BIGINT,
+    valid_from       TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    valid_to         TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>,
+    is_current       BOOLEAN     <span class="ck">NOT NULL</span>
+);
+<span class="ck">CREATE INDEX</span> idx_persona_asof <span class="ck">ON</span> dim_persona_intent (member_id, valid_from, valid_to);
+
+<span class="cl">-- The scope is a set of signal families the member has agreed may be COLLECTED.
+-- 'not looking' is not a display preference; it removes job_search from this set,
+-- and the ingest gate reads it before every write.</span>
+<span class="ck">CREATE TABLE</span> dim_consent_scope (
+    consent_scope_id BIGINT   <span class="ck">PRIMARY KEY</span>,
+    label            TEXT     <span class="ck">NOT NULL</span>,        <span class="cl">-- 'open_to_roles' | 'not_looking' | ...</span>
+    collects         TEXT[]   <span class="ck">NOT NULL</span>,        <span class="cl">-- {job_search, learning, mentoring, ...}</span>
+    visible_to       TEXT[]   <span class="ck">NOT NULL</span>,        <span class="cl">-- {verified_recruiters, target_employers}</span>
+    excludes_employer BOOLEAN <span class="ck">NOT NULL DEFAULT</span> <span class="ck">TRUE</span>  <span class="cl">-- never your own employer</span>
+);
+
+<span class="ck">CREATE TABLE</span> dim_ranking_models (
+    ranking_model_id BIGINT      <span class="ck">PRIMARY KEY</span>,
+    model_semver     TEXT        <span class="ck">NOT NULL</span>,
+    objective        TEXT        <span class="ck">NOT NULL CHECK</span> (objective <span class="ck">IN</span> (
+                         <span class="cs">'outcome'</span>,<span class="cs">'engagement'</span>)),   <span class="cl">-- ★ the audit column</span>
+    role             TEXT        <span class="ck">NOT NULL CHECK</span> (role <span class="ck">IN</span> (<span class="cs">'champion'</span>,<span class="cs">'shadow'</span>)),
+    deployed_pct     NUMERIC(5,2) <span class="ck">NOT NULL</span>,
+    valid_from       TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    valid_to         TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'9999-12-31'</span>
+);</div>
+
+    <p class="reveal">The <span class="m">objective</span> column on the model dimension is a one-word governance mechanism, and it is worth pointing at explicitly in an interview. The product's whole claim is that it ranks on professional outcomes rather than attention. A model registry that records which objective each deployed ranker was trained against turns that claim into something you can query: <em>show me the share of surfaced rows in the last quarter served by a model whose objective was engagement.</em> If that number drifts upward over eighteen months, the thesis is eroding, and the schema noticed before the strategy deck did.</p>
+
+    <h3 class="reveal">The evidence ledger, and the rollups</h3>
+    <p class="reveal">Reputation is computed, never stored as an input. The ledger holds claims and the confirmations attached to them; the daily mart holds the computed dimension scores together with the <span class="m">scoring_model_id</span> and a hash of the evidence set they were computed from, so any score can be recomputed and diffed against what was displayed. A number a member cannot interrogate is a rumour with a font.</p>
+
+    <div class="codelabel">DDL · EVIDENCE LEDGER + REPUTATION MART</div>
+    <div class="codeblock"><span class="ck">CREATE TABLE</span> fct_evidence_claim (
+    claim_id      BIGINT      <span class="ck">PRIMARY KEY</span>,
+    member_id     BIGINT      <span class="ck">NOT NULL</span>,
+    dimension     TEXT        <span class="ck">NOT NULL</span>,       <span class="cl">-- 'mentorship' | 'technical_credibility' | ...</span>
+    claim_text    TEXT        <span class="ck">NOT NULL</span>,
+    artefact_url  TEXT,                          <span class="cl">-- the thing someone else can read</span>
+    claimed_ts    TIMESTAMPTZ <span class="ck">NOT NULL</span>
+);
+
+<span class="cl">-- A claim with no confirmation is visible to its owner and to nobody else,
+-- and contributes ZERO to the score. Self-assertion does not count itself.</span>
+<span class="ck">CREATE TABLE</span> fct_evidence_confirmation (
+    confirmation_id BIGINT      <span class="ck">PRIMARY KEY</span>,
+    claim_id        BIGINT      <span class="ck">NOT NULL REFERENCES</span> fct_evidence_claim,
+    confirmed_by    BIGINT      <span class="ck">NOT NULL</span>,     <span class="cl">-- a named human, not a reaction</span>
+    relationship    TEXT        <span class="ck">NOT NULL</span>,     <span class="cl">-- 'mentee' | 'reviewer' | 'employer'</span>
+    confirmed_ts    TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    <span class="ck">CONSTRAINT</span> no_self_confirm <span class="ck">CHECK</span> (<span class="ck">TRUE</span>)   <span class="cl">-- enforced in the job: confirmed_by != owner</span>
+);
+
+<span class="ck">CREATE TABLE</span> mart_reputation_daily (
+    member_id        BIGINT      <span class="ck">NOT NULL</span>,
+    as_of_date       DATE        <span class="ck">NOT NULL</span>,
+    dimension        TEXT        <span class="ck">NOT NULL</span>,
+    score            SMALLINT    <span class="ck">NOT NULL CHECK</span> (score <span class="ck">BETWEEN</span> 0 <span class="ck">AND</span> 100),
+    is_provisional   BOOLEAN     <span class="ck">NOT NULL</span>,   <span class="cl">-- low sample → labelled, not scored confidently</span>
+    is_applicable    BOOLEAN     <span class="ck">NOT NULL</span>,   <span class="cl">-- n/a beats a zero that reads as failure</span>
+    scoring_model_id BIGINT      <span class="ck">NOT NULL</span>,
+    evidence_set_hash TEXT       <span class="ck">NOT NULL</span>,   <span class="cl">-- ★ recompute + diff = reproducibility test</span>
+    <span class="ck">PRIMARY KEY</span> (member_id, as_of_date, dimension)
+);</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="invariant">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — THE CORE INVARIANT</span>Consent gates the write; attribution moves at read</h2>
+    <p class="lede reveal">One spine, two opposite disciplines. Everything about what was collected is decided once, at write time, and frozen forever. Everything about what it meant is decided at read time, versioned, and allowed to change. Candidates who put both at the same end of the pipeline get a system that either lies about privacy or cannot improve its own definitions.</p>
+
+    <p class="reveal">Take the privacy half first, because it is the one the product markets. A member switches to <em>not looking</em>. The tempting implementation — the one nearly every real platform ships — writes the same events it always did and adds a flag to the read path so job-search signal is hidden from recruiters. It is cheaper, it is reversible, and it means the toggle is a lie: the profile-view scoring, the role-affinity model and the availability inference all keep running, and the member's own employer is one internal query away from what they were promised nobody could see. The honest implementation refuses at the gate. If <span class="m">job_search</span> is not in the persona's <span class="m">collects</span> array at event time, the writer drops the event and increments a counter. Nothing is stored; there is nothing to leak, nothing to subpoena, and nothing to quietly re-enable.</p>
+
+    <p class="reveal">The consequence is one that a good interviewer will immediately probe, so volunteer it: <strong>the data is gone, and it does not come back.</strong> When the member switches back to job hunting in September, there is no six-month history to warm-start their recommendations, because the six months were never recorded. You take a genuine cold-start penalty in exchange for the promise being true. That trade is the answer — and being able to name its cost is what distinguishes someone who has thought about it from someone reciting a privacy slogan.</p>
+
+    <div class="pull reveal">A privacy control implemented at read time is a display preference wearing a promise's clothes. If the toggle does not change what gets written, the schema can prove you lied — and one day someone will run that query.<span>CAREER RULE Nº 1 — REFUSE AT THE GATE</span></div>
+
+    <p class="reveal">Now the attribution half, which pulls in the opposite direction. What caused a hire is not knowable at write time and is not stable afterwards. First-touch flatters discovery surfaces; last-touch flatters the jobs page; a position-decay model over a hundred and twenty days is defensible and will still be argued about. Because the argument never ends, the design refuses to commit: the spine records what was surfaced and the outcome fact records what happened, and the credit connecting them lives in a bridge stamped with a run id. Improving the model is a job that writes new rows. Last quarter's board numbers remain reproducible because the run that produced them still exists.</p>
+
+    <p class="reveal">The two disciplines are complementary, and stating the pairing out loud is the strongest single sentence available in this interview: <strong>collection is decided once and never revisited; interpretation is revisited forever and never destructive.</strong> A system that gets these the wrong way round — flexible collection, frozen interpretation — is precisely the system that quietly harvests everything and can never explain any of it.</p>
+
+    <div class="note reveal">
+      <div class="nh">The Counterfactual You Are Not Allowed To Run</div>
+      <p>A feed measures a challenger ranker by withholding the champion's output from a holdout slice. You cannot do that here. Suppressing a strong job match from a real person for four months to measure lift is an experiment on someone's livelihood, and “we had a holdout” is not a defence anybody wants to read in a deposition. The design answer is <strong>shadow ranking</strong>: run the challenger over the same request, log what it would have surfaced into <span class="m">fct_shadow_surfaced</span>, and show the member the champion's output anyway. You lose clean randomization and you gain the ability to sleep — and you recover most of the statistical power through the overlap set, comparing outcomes on items both models chose against the ones only one of them did. Say the limitation out loud: shadow evaluation is biased by the champion's own exposure, and the honest correction is a small labelled exploration slot, disclosed to the member as exploration, rather than a silent suppression.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="python">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGESTION &amp; STREAMS</span>Python at the gate and on the long tail</h2>
+    <p class="lede reveal">Three programs carry the system. The consent-gated writer that refuses to persist what it was not permitted to collect, the outcome stitcher that reconciles three disagreeing sources without letting any of them overwrite another, and the attribution runner that spreads credit backwards across a hundred and twenty days and stamps a version on its own opinion.</p>
+
+    <h3 class="reveal">1 · The ingest gate — refuse, then count the refusal</h3>
+    <p class="reveal">This sits on the serving hot path, ahead of the log. It resolves the persona's consent scope from a cache of the SCD2 dimension, drops any event whose signal family is not in <span class="m">collects</span>, and — the part that turns a policy into an operable system — records that it dropped one. A suppression counter is what lets the dashboard show that the gate is alive; a gate nobody measures is indistinguishable from a gate that was quietly removed in a refactor eighteen months ago.</p>
+
+    <div class="codelabel">PYTHON · INGEST GATE — DROP AT THE WRITE, NEVER FILTER AT THE READ</div>
+    <div class="codeblock"><span class="ck">import</span> hashlib, time
+
+N_PARTITIONS = 4096
+
+SIGNAL_FAMILY = {                                  <span class="cl"># event kind → consent family</span>
+    <span class="cs">"role_surfaced"</span>:      <span class="cs">"job_search"</span>,
+    <span class="cs">"role_saved"</span>:         <span class="cs">"job_search"</span>,
+    <span class="cs">"recruiter_viewed"</span>:   <span class="cs">"job_search"</span>,
+    <span class="cs">"article_surfaced"</span>:   <span class="cs">"learning"</span>,
+    <span class="cs">"question_answered"</span>:  <span class="cs">"mentoring"</span>,
+}
+
+<span class="ck">class</span> <span class="cf">ConsentGatedWriter</span>:
+    <span class="cs">"""The only component permitted to refuse. If the persona's consent scope
+    does not include this event's signal family, the event is DROPPED — not
+    written-and-hidden, not written-and-filtered-later. The member was told
+    nothing is collected, so nothing is collected. The cost is real: when they
+    switch back to job hunting there is no history to warm-start from."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, log, personas, metrics):
+        self.log, self.personas, self.metrics = log, personas, metrics
+
+    <span class="ck">def</span> <span class="cf">write</span>(self, member_id, event) -&gt; bool:
+        <span class="cl"># Resolve the persona in force AT EVENT TIME, not the current one — a</span>
+        <span class="cl"># late-arriving event must be judged by the consent that was live then.</span>
+        persona = self.personas.as_of(member_id, event.ts)
+        family  = SIGNAL_FAMILY.get(event.kind)
+
+        <span class="ck">if</span> family <span class="ck">and</span> family <span class="ck">not in</span> persona.consent.collects:
+            <span class="cl"># ★ The refusal. Counted so the gate is observable in production.</span>
+            self.metrics.incr(<span class="cs">"ingest.suppressed"</span>, tags={<span class="cs">"family"</span>: family})
+            <span class="ck">return</span> <span class="ck">False</span>
+
+        record = {
+            <span class="cs">"persona_id"</span>:       persona.id,
+            <span class="cs">"member_id"</span>:        member_id,
+            <span class="cs">"consent_scope_id"</span>: persona.consent.id,   <span class="cl"># frozen for the audit</span>
+            **event.payload,
+        }
+        self.log.emit(self._partition(member_id), record)
+        <span class="ck">return</span> <span class="ck">True</span>
+
+    <span class="ck">def</span> <span class="cf">_partition</span>(self, member_id: int) -&gt; int:
+        <span class="cl"># Key on the MEMBER, never the requisition: a viral posting takes 40K</span>
+        <span class="cl"># applications in 48h from 40K different people, so a member key spreads</span>
+        <span class="cl"># that spike while a requisition key would stack it into one partition.</span>
+        h = hashlib.blake2b(<span class="cs">f"m:{member_id}"</span>.encode(), digest_size=8)
+        <span class="ck">return</span> int.from_bytes(h.digest()) % N_PARTITIONS</div>
+
+    <p class="reveal">One carve-out, always stated: <strong>the gate resolves consent as of the event timestamp, not as of now.</strong> Events arrive out of order and sometimes hours late, and a member who switched to <em>not looking</em> at noon must have their 11:55 events written and their 12:05 events dropped. Using the current persona would either retroactively suppress data that was legitimately collected or, far worse, admit data collected after the promise took effect.</p>
+
+    <h3 class="reveal">2 · The outcome stitcher — three sources, none of which wins</h3>
+    <p class="reveal">Platform events, self-reports and employer verifications all describe the same hire and none of them agrees on the date. The naive implementation picks a precedence order and overwrites; the correct one keeps all three as separate rows carrying their provenance and marks a canonical view, so a metric can always state which evidence it is standing on and an analyst can always ask how the answer changes if self-reports are excluded.</p>
+
+    <div class="codelabel">PYTHON · OUTCOME STITCHER — PROVENANCE PRESERVED, NOTHING OVERWRITTEN</div>
+    <div class="codeblock"><span class="ck">from</span> datetime <span class="ck">import</span> timedelta
+
+TRUST = {<span class="cs">"employer_verified"</span>: 3, <span class="cs">"platform"</span>: 2, <span class="cs">"self_reported"</span>: 1}
+
+<span class="ck">async def</span> <span class="cf">stitch_outcome</span>(store, ev) -&gt; <span class="ck">None</span>:
+    <span class="cs">"""Every source appends its own row. We never let a higher-trust source
+    delete a lower-trust one — the disagreement is itself a finding, and the
+    self-report may well be the only record that exists for the 60% of hires
+    the platform never sees. We only mark which row is canonical."""</span>
+    <span class="ck">await</span> store.insert_outcome(
+        outcome_id   = ev.id,
+        member_id    = ev.member_id,
+        outcome_type = ev.type,
+        observed_via = ev.source,                <span class="cl"># platform | self_reported | employer_verified</span>
+        outcome_ts   = ev.happened_at,           <span class="cl"># when it happened</span>
+        recorded_ts  = ev.received_at)           <span class="cl"># when we found out — often weeks later</span>
+
+    <span class="cl"># Cluster rows describing the same real-world event: same member, same type,</span>
+    <span class="cl"># within a 14-day window. Wider than you would like, because self-reports</span>
+    <span class="cl"># are rounded to the month and ATS callbacks lag payroll.</span>
+    siblings = <span class="ck">await</span> store.find_outcomes(
+        member_id = ev.member_id,
+        type      = ev.type,
+        between   = (ev.happened_at - timedelta(days=14),
+                     ev.happened_at + timedelta(days=14)))
+
+    canonical = max(siblings, key=<span class="ck">lambda</span> o: (TRUST[o.observed_via], -o.recorded_ts))
+    <span class="ck">await</span> store.mark_canonical(canonical.outcome_id, siblings)
+    <span class="cl"># Note: the non-canonical rows STAY. "Employer says March, member says</span>
+    <span class="cl"># February" is a data-quality signal, not a conflict to be resolved away.</span></div>
+
+    <h3 class="reveal">3 · The attribution runner — credit, backwards, with a version on it</h3>
+    <p class="reveal">This is the batch job that connects the two clocks. For each outcome it looks back across the attribution window at everything the product surfaced to that member about that item, and spreads credit with a decay that respects both recency and position. It writes into the bridge under a fresh run id and never touches an existing one. The interesting detail is what it does when it finds <em>nothing</em>: an unattributed outcome is recorded as such rather than silently dropped, because the share of outcomes the product cannot claim credit for is one of the most honest numbers in the entire system.</p>
+
+    <div class="codelabel">PYTHON · ATTRIBUTION RUNNER — 120-DAY LOOKBACK, POSITION-DECAYED, VERSIONED</div>
+    <div class="codeblock"><span class="ck">def</span> <span class="cf">attribute</span>(outcome, surfaced_rows, run) -&gt; list[dict]:
+    <span class="cs">"""Spread credit for ONE outcome across the surfaced rows that plausibly
+    led to it. Called per outcome; `surfaced_rows` is everything shown to this
+    member about this item inside run.window_days before outcome_ts.
+
+    Writes under run.id and never mutates a previous run — so the number the
+    board saw last quarter is still exactly reproducible after we improve the
+    credit model this quarter."""</span>
+    <span class="ck">if not</span> surfaced_rows:
+        <span class="cl"># ★ The honest branch. ~60% of placements land here because the hire</span>
+        <span class="cl"># happened off-platform. Recorded, never discarded: "outcomes we</span>
+        <span class="cl"># cannot claim" is a headline metric, not an error condition.</span>
+        <span class="ck">return</span> [{<span class="cs">"attribution_run_id"</span>: run.id, <span class="cs">"outcome_id"</span>: outcome.id,
+                 <span class="cs">"surfaced_id"</span>: <span class="ck">None</span>, <span class="cs">"credit_weight"</span>: 1.0,
+                 <span class="cs">"touch_role"</span>: <span class="cs">"unattributed"</span>, <span class="cs">"lag_days"</span>: <span class="ck">None</span>}]
+
+    rows = sorted(surfaced_rows, key=<span class="ck">lambda</span> s: s.surfaced_ts)
+    raw  = []
+    <span class="ck">for</span> i, s <span class="ck">in</span> enumerate(rows):
+        lag = (outcome.outcome_ts - s.surfaced_ts).days
+        <span class="cl"># Recency decay over the window, damped by position: something shown</span>
+        <span class="cl"># at slot 1 of a briefing did more work than slot 40 of a scroll.</span>
+        recency  = 0.5 ** (lag / run.half_life_days)
+        position = 1.0 / (1.0 + 0.06 * s.slot)
+        raw.append((s, recency * position))
+
+    total = sum(w <span class="ck">for</span> _, w <span class="ck">in</span> raw) <span class="ck">or</span> 1.0
+    <span class="ck">return</span> [{
+        <span class="cs">"attribution_run_id"</span>: run.id,
+        <span class="cs">"outcome_id"</span>:         outcome.id,
+        <span class="cs">"surfaced_id"</span>:        s.surfaced_id,
+        <span class="cs">"credit_weight"</span>:      w / total,          <span class="cl"># sums to 1.0 per outcome</span>
+        <span class="cs">"lag_days"</span>:           (outcome.outcome_ts - s.surfaced_ts).days,
+        <span class="cs">"touch_role"</span>:         <span class="cs">"first"</span> <span class="ck">if</span> s <span class="ck">is</span> rows[0]
+                               <span class="ck">else</span> <span class="cs">"last"</span> <span class="ck">if</span> s <span class="ck">is</span> rows[-1]
+                               <span class="ck">else</span> <span class="cs">"assist"</span>,
+    } <span class="ck">for</span> s, w <span class="ck">in</span> raw]</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregation">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Cohorts that are still filling in</h2>
+    <p class="lede reveal">Every aggregate in this system has a problem no feed metric has: it is incomplete in a way that changes for months after the period closes. The aggregation layer's real job is not speed, it is honesty — reporting outcome rates as maturing cohorts, recomputing reputation from the evidence ledger rather than incrementing it, and refusing to publish a rate whose denominator can be gamed.</p>
+
+    <p class="reveal">Start with the maturity problem, because it is the one that embarrasses teams in public. Placement rate for June, computed on the first of July, will be roughly a third of placement rate for June computed on the first of November — not because anything improved, but because the outcomes had not arrived yet. A dashboard that reports the first number will show a catastrophic drop every month and a miraculous recovery every quarter, and the ranking team will chase both. The fix is structural: every outcome-based aggregate is stored per cohort <em>and</em> per observation age, so the number June had at thirty days can be compared against the number May had at thirty days. You never compare a fresh cohort to a mature one, and the mart makes that comparison the easy one to write.</p>
+
+    <div class="codelabel">PYTHON · MATURING-COHORT ROLLUP — RATE BY OBSERVATION AGE</div>
+    <div class="codeblock"><span class="cl"># mart_outcome_cohort_daily: for each (surfaced cohort week × observation age
+# in days), the attributed outcome rate seen SO FAR. Never a single "rate".
+# Comparing two cohorts is only legitimate at equal observation age.</span>
+
+surfaced = (fct_surfaced
+    .filter(<span class="ck">lambda</span> s: s.item_type == <span class="cs">"role"</span>)
+    .key_by(<span class="ck">lambda</span> s: (week_of(s.surfaced_ts), s.ranking_model_id))
+    .aggregate(surfaced_n=count(),
+               members=hll_sketch(<span class="cs">"member_id"</span>)))       <span class="cl"># distinct people, not rows</span>
+
+attributed = (brg_outcome_attribution
+    .filter(<span class="ck">lambda</span> b: b.attribution_run_id == CURRENT_RUN)
+    .join(fct_outcome, on=<span class="cs">"outcome_id"</span>)
+    .join(fct_surfaced, on=<span class="cs">"surfaced_id"</span>)
+    .key_by(<span class="ck">lambda</span> r: (week_of(r.surfaced_ts), r.ranking_model_id,
+                       observation_age_days(r)))            <span class="cl"># ★ the second axis</span>
+    .aggregate(credited=sum(<span class="cs">"credit_weight"</span>),            <span class="cl"># fractional, sums to 1/outcome</span>
+               placements=count_where(<span class="cs">"outcome_type == 'placement'"</span>)))
+
+<span class="ck">def</span> <span class="cf">to_cohort_row</span>(key, s, a):
+    week, model, age = key
+    <span class="ck">return</span> {
+        <span class="cs">"cohort_week"</span>:      week,
+        <span class="cs">"ranking_model_id"</span>: model,
+        <span class="cs">"observation_age"</span>:  age,                     <span class="cl"># 7, 14, 30, 60, 90, 120</span>
+        <span class="cs">"surfaced_n"</span>:       s.surfaced_n,
+        <span class="cs">"credited_outcomes"</span>: a.credited,
+        <span class="cs">"rate_per_100k"</span>:    1e5 * a.credited / s.surfaced_n,
+        <span class="cs">"is_mature"</span>:        age &gt;= 120,               <span class="cl"># ★ never report as final before this</span>
+    }</div>
+
+    <p class="reveal">Then the denominator problem, which is where the trust metrics live and where an interviewer can profitably push. The product promises to show candidates a recruiter's response rate before they reply — the recruiter's own scorecard, visible to the person deciding whether to invest hope in a conversation. That number is only meaningful if the denominator cannot be curated. If “messages received” is what the recruiter's tooling chooses to mark as received, the rate is theatre. So the denominator is defined on the platform side of the boundary — first contacts that were <em>delivered</em> — and the numerator counts any terminal state including rejection, because a fast no is a good outcome and a system that penalizes it teaches recruiters to ghost.</p>
+
+    <p class="reveal">Reputation follows the same discipline in a different key. The score is recomputed from the evidence ledger every day rather than incremented, because an incremented score drifts away from its evidence and can never be reconciled back. Recomputation is affordable precisely because the evidence grain is small — claims and confirmations number in the millions per day, not billions — and it buys the property the product is selling: any member can ask which rows produced their number, and the answer is a join rather than an apology. Low-sample dimensions are marked <span class="m">is_provisional</span> rather than scored confidently, and dimensions that do not apply to someone's work are marked <span class="m">is_applicable = false</span> rather than scored zero, because a zero reads as a failing grade and a blank reads as the truth.</p>
+
+    <div class="pull reveal">Report a rate with its maturity or do not report it. Define a denominator on the side of the boundary the measured party does not control. Recompute a score from its evidence rather than incrementing it away from the evidence. Three rules, one principle: the number must survive being asked where it came from.<span>CAREER RULE Nº 2 — EVERY NUMBER NAMES ITS SOURCE</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="sql">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — ANALYTICS SQL</span>Interrogating a system that mostly cannot see its own results</h2>
+    <p class="lede reveal">Four queries, each carrying a pattern worth having. The interval join that credits a hire back across four months, the anti-join on an absent event that measures ghosting, the as-of replay that proves a reputation score reproducible, and the assertion query whose entire purpose is to return nothing.</p>
+
+    <h3 class="reveal">Outcome lift per ranking model — the interval join</h3>
+    <p class="reveal">The query the whole schema exists to make possible. Because <span class="m">ranking_model_id</span> rides every surfaced row and credit lives in a versioned bridge, comparing an outcome-trained ranker against an engagement-trained one is a <span class="m">GROUP BY</span> — not a bespoke experiment pipeline. The senior framing is to report both the outcome rate <em>and</em> the interaction rate, because the interesting and uncomfortable result is a model that wins on clicks and loses on hires, which is exactly the thesis under test.</p>
+
+    <div class="codelabel">SQL · OUTCOME RATE BY MODEL — 120-DAY WINDOW, COHORT-MATURE ONLY</div>
+    <div class="codeblock"><span class="ck">WITH</span> cohort <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> s.surfaced_id, s.member_id, s.slot, s.surfaced_ts,
+           m.model_semver, m.objective
+    <span class="ck">FROM</span>   fct_surfaced s
+    <span class="ck">JOIN</span>   dim_ranking_models m <span class="ck">ON</span> m.ranking_model_id = s.ranking_model_id
+    <span class="ck">WHERE</span>  s.item_type = <span class="cs">'role'</span>
+      <span class="ck">AND</span>  m.role = <span class="cs">'champion'</span>
+      <span class="cl">-- Only cohorts old enough to have stopped filling in. Comparing a</span>
+      <span class="cl">-- 3-week-old cohort to a 6-month-old one is the classic own goal.</span>
+      <span class="ck">AND</span>  s.surfaced_ts &lt;  <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'120 days'</span>
+      <span class="ck">AND</span>  s.surfaced_ts &gt;= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'300 days'</span>
+),
+credited <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> b.surfaced_id,
+           sum(b.credit_weight) <span class="ck">FILTER</span> (
+               <span class="ck">WHERE</span> o.outcome_type = <span class="cs">'placement'</span>)              <span class="ck">AS</span> placement_credit,
+           sum(b.credit_weight) <span class="ck">FILTER</span> (
+               <span class="ck">WHERE</span> o.outcome_type <span class="ck">IN</span> (<span class="cs">'interview'</span>,<span class="cs">'offer'</span>))   <span class="ck">AS</span> late_funnel_credit
+    <span class="ck">FROM</span>   brg_outcome_attribution b
+    <span class="ck">JOIN</span>   fct_outcome o <span class="ck">ON</span> o.outcome_id = b.outcome_id
+    <span class="ck">JOIN</span>   dim_attribution_runs r <span class="ck">ON</span> r.attribution_run_id = b.attribution_run_id
+    <span class="ck">WHERE</span>  r.is_current                        <span class="cl">-- pin the opinion being reported</span>
+      <span class="ck">AND</span>  b.lag_days &lt;= r.window_days
+    <span class="ck">GROUP BY</span> b.surfaced_id
+)
+<span class="ck">SELECT</span>
+    c.model_semver,
+    c.objective,
+    count(*)                                                     <span class="ck">AS</span> surfaced_rows,
+    <span class="cf">approx_count_distinct</span>(c.member_id)                           <span class="ck">AS</span> members,
+    round(1e5 * <span class="cf">coalesce</span>(sum(k.placement_credit), 0)
+              / <span class="cf">nullif</span>(count(*), 0), 3)                          <span class="ck">AS</span> placements_per_100k,
+    round(1e5 * <span class="cf">coalesce</span>(sum(k.late_funnel_credit), 0)
+              / <span class="cf">nullif</span>(count(*), 0), 3)                          <span class="ck">AS</span> late_funnel_per_100k,
+    round(100.0 * count(i.interaction_id)
+              / <span class="cf">nullif</span>(count(*), 0), 3)                          <span class="ck">AS</span> interaction_rate_pct
+<span class="ck">FROM</span>      cohort c
+<span class="ck">LEFT JOIN</span> credited        k <span class="ck">ON</span> k.surfaced_id = c.surfaced_id
+<span class="ck">LEFT JOIN</span> fct_interaction i <span class="ck">ON</span> i.surfaced_id = c.surfaced_id
+<span class="ck">GROUP BY</span>  c.model_semver, c.objective
+<span class="ck">ORDER BY</span>  placements_per_100k <span class="ck">DESC</span>;
+<span class="cl">-- The result that matters: an 'engagement' model can top interaction_rate_pct
+-- and sit at the bottom on placements_per_100k. That gap is the whole argument.</span></div>
+
+    <h3 class="reveal">Recruiter ghosting — the anti-join on an event that never happened</h3>
+    <p class="reveal">The trust metric candidates can see before they reply. Its craft is entirely in the definition: the denominator is <em>delivered</em> first contacts, which the recruiter does not control, and a rejection counts as a response, because a system that treats a fast no as a failure will manufacture silence. Ghosting is the absence of any terminal state within fourteen days — an absence, which means the pattern is a <span class="m">NOT EXISTS</span>. Nothing happened, and the nothing is the measurement.</p>
+
+    <div class="codelabel">SQL · RECRUITER TRUST — RESPONSE, GHOSTING, ROLE ACCURACY</div>
+    <div class="codeblock"><span class="ck">WITH</span> first_contact <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> m.message_id, m.recruiter_id, m.member_id, m.sent_ts, m.role_id
+    <span class="ck">FROM</span>   fct_message m
+    <span class="ck">WHERE</span>  m.is_first_contact
+      <span class="ck">AND</span>  m.delivery_state = <span class="cs">'delivered'</span>      <span class="cl">-- ★ platform-side denominator</span>
+      <span class="ck">AND</span>  m.sent_ts &gt;= <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'90 days'</span>
+      <span class="ck">AND</span>  m.sent_ts &lt;  <span class="ck">CURRENT_DATE</span> - <span class="ck">INTERVAL</span> <span class="cs">'14 days'</span>   <span class="cl">-- room to resolve</span>
+),
+resolved <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> f.*,
+           <span class="cf">min</span>(r.replied_ts) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> r.direction = <span class="cs">'member_to_recruiter'</span>)
+               <span class="ck">AS</span> member_replied_ts,
+           <span class="cf">min</span>(t.terminal_ts)                        <span class="ck">AS</span> recruiter_closed_ts
+    <span class="ck">FROM</span>      first_contact f
+    <span class="ck">LEFT JOIN</span> fct_message  r <span class="ck">ON</span> r.thread_id = f.message_id
+    <span class="cl">-- A terminal state is ANY of: advanced, rejected, or withdrawn. A prompt</span>
+    <span class="cl">-- rejection is a good outcome; counting it against the recruiter would</span>
+    <span class="cl">-- teach exactly the silence this metric exists to punish.</span>
+    <span class="ck">LEFT JOIN</span> fct_thread_terminal t <span class="ck">ON</span> t.thread_id = f.message_id
+    <span class="ck">GROUP BY</span>  f.message_id, f.recruiter_id, f.member_id, f.sent_ts, f.role_id
+)
+<span class="ck">SELECT</span>
+    recruiter_id,
+    count(*)                                                      <span class="ck">AS</span> first_contacts,
+    round(100.0 * count(member_replied_ts)
+              / <span class="cf">nullif</span>(count(*), 0), 1)                           <span class="ck">AS</span> member_reply_rate_pct,
+    <span class="cl">-- ★ Ghosting: the member engaged and NOTHING came back within 14 days.</span>
+    round(100.0 * count(*) <span class="ck">FILTER</span> (
+              <span class="ck">WHERE</span> member_replied_ts <span class="ck">IS NOT NULL</span>
+                <span class="ck">AND</span> (recruiter_closed_ts <span class="ck">IS NULL</span>
+                     <span class="ck">OR</span>  recruiter_closed_ts &gt; member_replied_ts + <span class="ck">INTERVAL</span> <span class="cs">'14 days'</span>))
+              / <span class="cf">nullif</span>(count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> member_replied_ts <span class="ck">IS NOT NULL</span>), 0), 1)
+                                                                  <span class="ck">AS</span> ghosting_rate_pct,
+    round(<span class="cf">percentile_cont</span>(0.5) <span class="ck">WITHIN GROUP</span> (
+              <span class="ck">ORDER BY</span> extract(epoch <span class="ck">FROM</span> recruiter_closed_ts - member_replied_ts)/3600)
+          , 1)                                                    <span class="ck">AS</span> median_response_hours,
+    <span class="cl">-- Role accuracy: placements whose role matches the role that was pitched.</span>
+    round(100.0 * count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> <span class="ck">EXISTS</span> (
+              <span class="ck">SELECT</span> 1 <span class="ck">FROM</span> fct_outcome o
+              <span class="ck">WHERE</span>  o.member_id = resolved.member_id
+                <span class="ck">AND</span>  o.outcome_type = <span class="cs">'placement'</span>
+                <span class="ck">AND</span>  o.item_id = resolved.role_id))
+              / <span class="cf">nullif</span>(count(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> member_replied_ts <span class="ck">IS NOT NULL</span>), 0), 1)
+                                                                  <span class="ck">AS</span> role_accuracy_pct
+<span class="ck">FROM</span>     resolved
+<span class="ck">GROUP BY</span> recruiter_id
+<span class="ck">HAVING</span>   count(*) &gt;= 20            <span class="cl">-- below this, publish nothing: small samples defame</span>
+<span class="ck">ORDER BY</span> ghosting_rate_pct <span class="ck">ASC</span>;</div>
+
+    <h3 class="reveal">Reputation reproducibility — as-of replay and diff</h3>
+    <p class="reveal">The query that turns “every score is traceable” from a slogan into a test. Recompute a dimension from the evidence ledger as it stood on a past date — using only confirmations that existed then, under the scoring model that was live then — and diff it against what was actually displayed. Any row that comes back is either a bug in the scoring job or a silent backfill someone did not disclose, and both are things you want to find before a member does.</p>
+
+    <div class="codelabel">SQL · SCORE REPLAY — RECOMPUTE AS-OF, THEN DIFF THE DISPLAYED VALUE</div>
+    <div class="codeblock"><span class="ck">WITH</span> params <span class="ck">AS</span> (<span class="ck">SELECT</span> <span class="ck">DATE</span> <span class="cs">'2026-06-30'</span> <span class="ck">AS</span> as_of, <span class="cs">'mentorship'</span> <span class="ck">AS</span> dim),
+<span class="cl">-- The evidence that existed on that date — no later confirmations allowed in.</span>
+evidence_asof <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> c.member_id,
+           count(<span class="ck">DISTINCT</span> c.claim_id)                       <span class="ck">AS</span> claims,
+           count(<span class="ck">DISTINCT</span> f.claim_id)                       <span class="ck">AS</span> confirmed_claims,
+           count(<span class="ck">DISTINCT</span> f.confirmed_by)                   <span class="ck">AS</span> distinct_confirmers
+    <span class="ck">FROM</span>      fct_evidence_claim c
+    <span class="ck">CROSS JOIN</span> params p
+    <span class="ck">LEFT JOIN</span> fct_evidence_confirmation f
+           <span class="ck">ON</span> f.claim_id = c.claim_id
+          <span class="ck">AND</span> f.confirmed_ts &lt;= p.as_of + <span class="ck">INTERVAL</span> <span class="cs">'1 day'</span>
+          <span class="ck">AND</span> f.confirmed_by &lt;&gt; c.member_id          <span class="cl">-- no self-confirmation, ever</span>
+    <span class="ck">WHERE</span>     c.dimension = p.dim
+      <span class="ck">AND</span>     c.claimed_ts &lt;= p.as_of + <span class="ck">INTERVAL</span> <span class="cs">'1 day'</span>
+    <span class="ck">GROUP BY</span>  c.member_id
+),
+<span class="cl">-- Replay the scoring function that was LIVE on that date, not today's.</span>
+replayed <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> e.member_id,
+           <span class="cf">score_dimension</span>(p.dim, e.confirmed_claims, e.distinct_confirmers,
+                           sm.scoring_model_id)                 <span class="ck">AS</span> replayed_score,
+           e.confirmed_claims &lt; 3                               <span class="ck">AS</span> should_be_provisional
+    <span class="ck">FROM</span>       evidence_asof e
+    <span class="ck">CROSS JOIN</span> params p
+    <span class="ck">JOIN</span>       dim_scoring_models sm
+           <span class="ck">ON</span> p.as_of &gt;= sm.valid_from <span class="ck">AND</span> p.as_of &lt; sm.valid_to
+)
+<span class="ck">SELECT</span> r.member_id,
+       m.score                       <span class="ck">AS</span> displayed_score,
+       r.replayed_score,
+       m.score - r.replayed_score    <span class="ck">AS</span> drift,
+       m.is_provisional,
+       r.should_be_provisional
+<span class="ck">FROM</span>       replayed r
+<span class="ck">CROSS JOIN</span> params p
+<span class="ck">JOIN</span>       mart_reputation_daily m
+       <span class="ck">ON</span> m.member_id = r.member_id
+      <span class="ck">AND</span> m.as_of_date = p.as_of
+      <span class="ck">AND</span> m.dimension  = p.dim
+<span class="ck">WHERE</span>  m.score <span class="ck">IS DISTINCT FROM</span> r.replayed_score
+   <span class="ck">OR</span>  m.is_provisional <span class="ck">IS DISTINCT FROM</span> r.should_be_provisional
+<span class="ck">ORDER BY</span> abs(m.score - r.replayed_score) <span class="ck">DESC</span>;
+<span class="cl">-- A healthy system returns zero rows. Anything here is a scoring bug or an
+-- undisclosed backfill — and a member is entitled to an answer about both.</span></div>
+
+    <h3 class="reveal">The consent-leak audit — an assertion written as a query</h3>
+    <p class="reveal">The shortest query on the page and the one that decides whether the product's central promise is real. For every persona-day where the consent scope excluded job-search collection, there must be no job-search row on the spine. It is an anti-join, it belongs in the nightly test suite as an assertion rather than a report, and its correct output is nothing at all.</p>
+
+    <div class="codelabel">SQL · LEAK AUDIT — MUST RETURN ZERO ROWS</div>
+    <div class="codeblock"><span class="ck">SELECT</span> s.persona_id,
+       p.intent_mode,
+       cs.label                                   <span class="ck">AS</span> consent_label,
+       count(*)                                   <span class="ck">AS</span> leaked_rows,
+       <span class="cf">min</span>(s.surfaced_ts)                         <span class="ck">AS</span> first_leak,
+       <span class="cf">max</span>(s.surfaced_ts)                         <span class="ck">AS</span> last_leak
+<span class="ck">FROM</span>   fct_surfaced      s
+<span class="ck">JOIN</span>   dim_persona_intent p  <span class="ck">ON</span> p.persona_id = s.persona_id
+<span class="ck">JOIN</span>   dim_consent_scope  cs <span class="ck">ON</span> cs.consent_scope_id = s.consent_scope_id
+<span class="ck">WHERE</span>  s.item_type = <span class="cs">'role'</span>                    <span class="cl">-- a job-search signal by definition</span>
+  <span class="ck">AND</span>  <span class="ck">NOT</span> (<span class="cs">'job_search'</span> = <span class="ck">ANY</span>(cs.collects))    <span class="cl">-- ...under a scope that forbids it</span>
+  <span class="ck">AND</span>  s.surfaced_ts &gt;= p.valid_from
+  <span class="ck">AND</span>  s.surfaced_ts &lt;  p.valid_to             <span class="cl">-- judged by the consent in force THEN</span>
+<span class="ck">GROUP BY</span> s.persona_id, p.intent_mode, cs.label;
+<span class="cl">-- Expected result: 0 rows. Wire this as a hard assertion, not a dashboard tile.
+-- If it ever returns a row, the gate was bypassed and the promise was broken —
+-- and because consent_scope_id is frozen on the fact, the blast radius is exact.</span></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — THE DASHBOARD</span>Proving a product that mostly cannot see its own results</h2>
+    <p class="lede reveal">A senior design ends with observability, and here observability has an unusual job: it has to report how much of the truth is missing. Four panels — are outcomes actually happening, is the ranker earning them rather than earning clicks, is the trust layer holding, and is the consent gate still alive.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>OUTCOME HEALTH</dt><dd><span class="m">placements per 100k surfaced</span> at a fixed 120-day maturity, <span class="m">median days to outcome</span>, <span class="m">label observability</span> (the share of known outcomes the platform actually saw), and <span class="m">unattributed share</span> — the outcomes the product cannot claim credit for. A rising unattributed share is not a bug; it is the honest measure of how much of a member's career happens elsewhere.</dd></div>
+      <div class="defrow"><dt>RANKER HEALTH</dt><dd><span class="m">champion vs shadow outcome lift</span> on the overlap set, <span class="m">reason-code coverage</span> (must be 100% — the schema enforces it, so any dip means a writer is bypassing the constraint), <span class="m">engagement-objective share</span> of surfaced rows, and <span class="m">interaction-outcome divergence</span> — the tile that catches a model winning clicks while losing hires.</dd></div>
+      <div class="defrow"><dt>TRUST HEALTH</dt><dd><span class="m">market-wide ghosting rate</span>, <span class="m">median recruiter response</span>, <span class="m">role accuracy</span>, and <span class="m">recruiters below the publication threshold</span> — the ones with too little history to score, who should be shown as unrated rather than flattered by a small sample.</dd></div>
+      <div class="defrow"><dt>CONSENT HEALTH</dt><dd><span class="m">leak-audit rows</span> (hard zero, alarmed at one), <span class="m">suppressed events</span> (should be large and stable — a sudden drop means the gate stopped firing), <span class="m">intent-change propagation lag</span>, and <span class="m">reputation replay drift</span>. Three of these four should be boring forever, and the day one stops being boring is the day the promise broke.</dd></div>
+    </dl>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Professional Outcomes Ops — Global</span>
+        <span class="dash-sub">TUE 09:40 UTC · CHAMPION v4.2 (OUTCOME) · SHADOW v4.3 · ATTRIBUTION RUN 118 · 120-DAY MATURITY</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Placements / 100k Surfaced</div><div class="tv ok">7.4</div><svg viewBox="0 0 120 30"><polyline points="0,21 15,20 30,19 45,17 60,16 75,15 90,13 105,12 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Median Days to Outcome</div><div class="tv ok">47<small>d</small></div><svg viewBox="0 0 120 30"><polyline points="0,14 20,15 40,14 60,15 80,14 100,15 120,14" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Label Observability</div><div class="tv warn">39<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,13 20,14 40,14 60,15 80,15 100,16 120,17" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Unattributed Share</div><div class="tv warn">61<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,17 20,16 40,16 60,15 80,15 100,14 120,14" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+
+        <div class="tile span2">
+          <div class="tl">Interaction rate vs placement rate, by ranking model — the divergence that is the entire thesis</div>
+          <svg viewBox="0 0 240 84">
+            <g stroke="#211e18" stroke-width="0.5">
+              <rect x="14"  y="20" width="16" height="56" fill="#6e5a23"/>
+              <rect x="32"  y="60" width="16" height="16" fill="#a8b58a"/>
+              <rect x="70"  y="30" width="16" height="46" fill="#6e5a23"/>
+              <rect x="88"  y="52" width="16" height="24" fill="#a8b58a"/>
+              <rect x="126" y="44" width="16" height="32" fill="#6e5a23"/>
+              <rect x="144" y="34" width="16" height="42" fill="#a8b58a"/>
+              <rect x="182" y="48" width="16" height="28" fill="#6e5a23"/>
+              <rect x="200" y="26" width="16" height="50" fill="#a8b58a"/>
+            </g>
+            <text x="14"  y="14" font-size="7.5" fill="#7d7567" font-family="DM Mono,monospace">eng v2.9</text>
+            <text x="70"  y="14" font-size="7.5" fill="#7d7567" font-family="DM Mono,monospace">eng v3.4</text>
+            <text x="126" y="14" font-size="7.5" fill="#7d7567" font-family="DM Mono,monospace">out v4.1</text>
+            <text x="182" y="14" font-size="7.5" fill="#7d7567" font-family="DM Mono,monospace">out v4.2</text>
+            <text x="14"  y="82" font-size="7" fill="#6e5a23" font-family="DM Mono,monospace">■ interaction rate</text>
+            <text x="120" y="82" font-size="7" fill="#7a8a5f" font-family="DM Mono,monospace">■ placements / 100k</text>
+          </svg>
+        </div>
+        <div class="tile"><div class="tl">Shadow Lift (overlap)</div><div class="tv ok">+9.1<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,19 20,18 40,17 60,15 80,14 100,13 120,11" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Reason-Code Coverage</div><div class="tv ok">100<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,12 40,12 60,12 80,12 100,12 120,12" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+
+        <div class="tile"><div class="tl">Engagement-Objective Share</div><div class="tv warn">18<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,20 20,19 40,18 60,17 80,15 100,14 120,12" fill="none" stroke="#d8a44a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Market Ghosting Rate</div><div class="tv ok">11<small>%</small></div><svg viewBox="0 0 120 30"><polyline points="0,12 20,13 40,14 60,14 80,15 100,16 120,17" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Leak-Audit Rows</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,22 20,22 40,22 60,22 80,22 100,22 120,22" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Suppressed Events / min</div><div class="tv ok">41<small>K</small></div><svg viewBox="0 0 120 30"><polyline points="0,15 20,14 40,15 60,15 80,14 100,15 120,15" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+        <div class="tile"><div class="tl">Reputation Replay Drift</div><div class="tv ok">0</div><svg viewBox="0 0 120 30"><polyline points="0,22 20,22 40,22 60,22 80,22 100,22 120,22" fill="none" stroke="#a8b58a" stroke-width="2"/></svg></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — The story an honest outcome product tells about itself: placements per hundred thousand climbing and the shadow challenger ahead on the overlap set, while two amber tiles admit what the system cannot see — only thirty-nine percent of known outcomes were observed on-platform, and sixty-one percent of them cannot be credited to anything the product did.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the panels against each other and the dashboard argues the whole thesis on its own. The divergence chart is the centrepiece: the two engagement-trained models on the left top the interaction rate and sit near the bottom on placements, while the outcome-trained models invert exactly that ordering. That is the finding the entire schema was built to be able to produce, and it is only producible because <span class="m">objective</span> is a column on the model dimension and credit is a versioned bridge rather than a hardcoded join. Meanwhile the engagement-objective share sits at eighteen percent and trending up — some surfaces have quietly reverted to a click-trained ranker, which is exactly the eighteen-month erosion the product's own strategy document warns about, caught by a tile rather than a retrospective.</p>
+
+    <p class="reveal">And the two flat zeros at the bottom right are the most important numbers on the board precisely because they are boring. Zero leak-audit rows means the consent gate held every day this quarter. Zero replay drift means every reputation score displayed today can be recomputed from its evidence and lands on the same number. Neither tile will ever be interesting, and both should page someone the instant they stop being zero. Next to them sits the suppressed-events counter at forty-one thousand a minute — the gate visibly doing its job. A team that only alarms on the leak count would not notice the far more likely failure: a refactor that removes the gate entirely, at which point the leak count stays at zero because nothing is being refused, and the suppression counter silently falls off a cliff.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — THE RUBRIC</span>What was actually being tested</h2>
+    <p class="reveal">Strip the professional-network details away and the question was testing six judgments, every one of which generalizes to any system whose objective function is slow, sparse and partly unobservable — clinical outcomes, education, credit, insurance, anything where the thing you care about arrives long after the thing you did.</p>
+    <dl class="reveal">
+      <div class="defrow"><dt>LABEL LATENCY</dt><dd>Recognizing that the objective is not available at write time, and refusing to design as if it were. The spine records the decision; the outcome is a separate fact arriving up to four months later; the connection between them is a versioned bridge. A candidate who puts an <span class="m">outcome</span> column on the surfaced row has not understood the question.</dd></div>
+      <div class="defrow"><dt>ATTRIBUTION AS OPINION</dt><dd>Treating "this recommendation caused that hire" as a rebuildable model with a run id rather than a fact with a foreign key — so improving the definition is a job that writes new rows, and last quarter's reported numbers stay reproducible after the definition improves.</dd></div>
+      <div class="defrow"><dt>CONSENT AT THE WRITE</dt><dd>Placing the privacy control ahead of the log rather than in front of the reader, accepting the cold-start cost that follows, and being able to name that cost. Then wiring the anti-join that proves it, as an assertion rather than a report.</dd></div>
+      <div class="defrow"><dt>REPRODUCIBILITY</dt><dd>Computing a member-visible score from an evidence ledger rather than incrementing it, stamping the scoring model and the evidence set, and running a replay-and-diff so any number can be asked where it came from. Unconfirmed claims count for nothing; a dimension that does not apply reads <span class="m">n/a</span>, never zero.</dd></div>
+      <div class="defrow"><dt>COUNTERFACTUAL ETHICS</dt><dd>Knowing that the standard holdout is unavailable when the treatment is someone's livelihood, choosing shadow ranking instead, and volunteering its bias rather than being caught by it. This is the judgment that most cleanly separates a staff answer from a strong senior one.</dd></div>
+      <div class="defrow"><dt>MEASUREMENT HONESTY</dt><dd>Reporting rates with their maturity, defining denominators on the side of the boundary the measured party does not control, and putting the share of outcomes the product cannot claim credit for on the dashboard as a headline rather than hiding it in a footnote.</dd></div>
+    </dl>
+    <div class="pull reveal">A feed knows within seconds whether it worked. This system waits a quarter, and most of the time never finds out at all. Everything above is the discipline of building something you can still trust under that ignorance — writing down exactly what you knew and when, admitting how much you cannot see, and never letting a later discovery quietly edit an earlier decision.<span>— CLOSING ARGUMENT</span></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 39 — THE CAREER PROBLEM<br>DATA ARCHITECTURE · THE LATE LABEL · CONSENT AT THE WRITE</div>
+  </div>
+</footer>
+
+<script>
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:0.08, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+
+<!-- back to paddyspeaks.com -->
+<div class="back-home">
+  <a href="https://paddyspeaks.com" target="_blank">← paddyspeaks.com</a>
+</div>
+
+<!-- top / bottom scroll buttons -->
+<div class="scroll-btns">
+  <a href="#top" title="Back to top">↑</a>
+  <a href="#bottom" title="Go to bottom">↓</a>
+</div>
+<div id="bottom"></div>
+</body>
+</html>
