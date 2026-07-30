@@ -30,6 +30,10 @@ const DEFAULT_STATE = {
   searchOpen: false,
   searchQuery: '',
   onboardingSeen: false,
+  // Dashboard layouts, keyed by persona id. A hiring manager's arrangement is
+  // not a job seeker's, so they are stored separately rather than globally.
+  layouts: {},
+  customising: false,
 };
 
 function clone(value) {
@@ -49,6 +53,8 @@ function load() {
     merged.composer = null;
     merged.searchOpen = false;
     merged.intentMenuOpen = false;
+    merged.customising = false;
+    merged.layouts = { ...(stored.layouts || {}) };
     merged.expanded = [];
     return merged;
   } catch {
@@ -60,6 +66,7 @@ const PERSIST_KEYS = [
   'intent', 'hiringView', 'saved', 'connected', 'dismissed', 'readSignals',
   'signalSensitivity', 'feedTab', 'feedPriority', 'qualityFilters',
   'reducedTopics', 'networkFilter', 'reputationHidden', 'onboardingSeen',
+  'layouts',
 ];
 
 export const state = load();
@@ -155,6 +162,25 @@ export function toggleQualityFilter(id) {
 
 export function reduceTopic(topic) {
   update((s) => { if (!s.reducedTopics.includes(topic)) s.reducedTopics.push(topic); });
+}
+
+/* ---------- Dashboard layout ---------- */
+
+/** The stored layout for a persona, or null if they have not customised it. */
+export function storedLayout(personaId) {
+  return state.layouts[personaId] || null;
+}
+
+export function setLayout(personaId, layout) {
+  update((s) => { s.layouts[personaId] = layout; });
+}
+
+export function resetLayout(personaId) {
+  update((s) => { delete s.layouts[personaId]; });
+}
+
+export function hasCustomLayout(personaId) {
+  return Boolean(state.layouts[personaId]);
 }
 
 /** Reset everything — used by the "start over" control on the philosophy view. */

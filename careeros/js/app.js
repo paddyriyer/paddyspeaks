@@ -10,7 +10,11 @@ import { html } from './dom.js';
 import {
   state, update, subscribe, toggleSaved, toggleConnected, dismiss,
   toggleExpanded, markSignalRead, toggleQualityFilter, reduceTopic, resetAll,
+  storedLayout, setLayout, resetLayout as resetPersonaLayout,
 } from './store.js';
+import { personaFor } from './data/personas.js';
+import { sanitiseLayout } from './data/panels.js';
+import { panels as panelRegistry } from './data/panels.js';
 
 import { topNavigation } from './components/top-navigation.js';
 import { intentMenu } from './components/intent-selector.js';
@@ -143,6 +147,17 @@ function navigate(route, anchor) {
   }
 }
 
+/**
+ * Apply an edit to one region of the active persona's layout, writing it back
+ * as that persona's stored layout. A persona editing for the first time starts
+ * from the default it ships with rather than from an empty dashboard.
+ */
+function editLayout(region, fn) {
+  const p = personaFor(state.intent, state.hiringView);
+  const current = sanitiseLayout(storedLayout(p.id) || p.layout, p.id);
+  setLayout(p.id, { ...current, [region]: fn(current[region] || []) });
+}
+
 /* ---------- Action dispatch ---------- */
 
 const handlers = {
@@ -156,6 +171,44 @@ const handlers = {
   },
 
   'set-hiring-view': (d) => update((s) => { s.hiringView = d.view; }),
+
+  /* ---------- Dashboard customisation ---------- */
+
+  'toggle-customise': () => {
+    update((s) => { s.customising = !s.customising; });
+    announce(state.customising
+      ? 'Customising your dashboard. Panels can be moved, added or removed, and changes save as you go.'
+      : 'Dashboard saved.');
+  },
+
+  'move-panel': (d) => {
+    editLayout(d.region, (list) => {
+      const i = list.indexOf(d.id);
+      const j = d.dir === 'up' ? i - 1 : i + 1;
+      if (i === -1 || j < 0 || j >= list.length) return list;
+      const next = list.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+    announce(`${panelRegistry[d.id].label} moved ${d.dir}.`);
+  },
+
+  'remove-panel': (d) => {
+    if (panelRegistry[d.id] && panelRegistry[d.id].required) return;
+    editLayout(d.region, (list) => list.filter((x) => x !== d.id));
+    announce(`${panelRegistry[d.id].label} removed. You can add it back below.`);
+  },
+
+  'add-panel': (d) => {
+    editLayout(d.region, (list) => (list.includes(d.id) ? list : list.concat(d.id)));
+    announce(`${panelRegistry[d.id].label} added.`);
+  },
+
+  'reset-layout': () => {
+    const p = personaFor(state.intent, state.hiringView);
+    resetPersonaLayout(p.id);
+    announce(`Dashboard reset to the default arrangement for ${p.label} mode.`);
+  },
 
   'open-search': () => update((s) => { s.searchOpen = true; }),
   'close-search-scrim': (d, ev) => {
