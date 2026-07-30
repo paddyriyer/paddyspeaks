@@ -5,6 +5,7 @@ import { icon } from './icons.js';
 import { state } from '../store.js';
 import { user, intentById } from '../data/user.js';
 import { visibleSignals } from '../data/signals.js';
+import { personaFor } from '../data/personas.js';
 
 export const sections = [
   { id: 'home', label: 'Home', icon: 'home' },
@@ -18,6 +19,7 @@ export const sections = [
 
 export function topNavigation() {
   const intent = intentById(state.intent);
+  const persona = personaFor(state.intent, state.hiringView);
   const unread = visibleSignals(state.signalSensitivity)
     .filter((s) => !state.readSignals.includes(s.id)).length;
 
@@ -39,7 +41,7 @@ export function topNavigation() {
         <button type="button" class="nav-search" ${action('open-search')}
           aria-label="Search CareerOS. Ask in plain language.">
           ${icon('search', 15)}
-          <span class="nav-search-text">Find Staff Data Engineering roles in AI infrastructure, healthcare, California, remote or hybrid</span>
+          <span class="nav-search-text">${persona.searchPlaceholder}</span>
           <kbd>/</kbd>
         </button>
 
