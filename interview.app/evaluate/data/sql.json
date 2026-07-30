@@ -13436,6 +13436,22 @@
       ],
       "answer": 1,
       "explanation": "Option B is correct because it explicitly applies COALESCE to refund_amount before aggregation, ensuring NULL values are treated as 0 while preserving existing 0 values (full refunds). Option A computes per-row differences before summing, which is semantically equivalent but less efficient in BigQuery's columnar execution. Option C uses NULLIF incorrectly\u2014it converts 0 to NULL, contradicting the requirement. Option D applies COALESCE after SUM, which fails because SUM(refund_amount) with NULLs skips them entirely, not treating them as 0 in the subtraction."
+    },
+    {
+      "id": "sql-new-037",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-07-30",
+      "prompt": "You have a `customer_snapshot` table that is updated daily with the latest customer status. The table has columns: `customer_id INT, status TEXT, last_updated TIMESTAMP, balance NUMERIC`. New customers appear in the source daily feed, existing customers may have status or balance changes, and some customers become inactive. You need to merge the daily feed into the snapshot table such that: (1) new customers are inserted, (2) existing customers' status and balance are updated only if the feed timestamp is newer than last_updated, (3) customers absent from today's feed are not deleted. Which MERGE statement correctly implements this logic?",
+      "options": [
+        "MERGE INTO customer_snapshot t USING daily_feed s ON t.customer_id = s.customer_id WHEN MATCHED AND s.feed_ts > t.last_updated THEN UPDATE SET status = s.status, balance = s.balance, last_updated = s.feed_ts WHEN NOT MATCHED THEN INSERT (customer_id, status, balance, last_updated) VALUES (s.customer_id, s.status, s.balance, s.feed_ts);",
+        "MERGE INTO customer_snapshot t USING daily_feed s ON t.customer_id = s.customer_id WHEN MATCHED THEN UPDATE SET status = s.status, balance = s.balance, last_updated = s.feed_ts WHEN NOT MATCHED THEN INSERT (customer_id, status, balance, last_updated) VALUES (s.customer_id, s.status, s.balance, s.feed_ts);",
+        "MERGE INTO customer_snapshot t USING daily_feed s ON t.customer_id = s.customer_id WHEN MATCHED AND s.feed_ts > t.last_updated THEN UPDATE SET status = s.status, balance = s.balance, last_updated = s.feed_ts WHEN NOT MATCHED THEN INSERT (customer_id, status, balance, last_updated) VALUES (s.customer_id, s.status, s.balance, s.feed_ts) WHEN NOT MATCHED BY SOURCE THEN DELETE;",
+        "MERGE INTO customer_snapshot t USING daily_feed s ON t.customer_id = s.customer_id AND s.feed_ts > t.last_updated WHEN MATCHED THEN UPDATE SET status = s.status, balance = s.balance, last_updated = s.feed_ts WHEN NOT MATCHED THEN INSERT (customer_id, status, balance, last_updated) VALUES (s.customer_id, s.status, s.balance, s.feed_ts);"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses the AND condition in the WHEN MATCHED clause to update only when the feed timestamp is newer, preventing stale data from overwriting recent updates. It inserts new customers without the WHEN NOT MATCHED BY SOURCE clause, so inactive customers are preserved. Option 1 lacks the timestamp check, risking stale overwrites. Option 2 incorrectly deletes absent customers. Option 3 places the timestamp check in the ON clause, which breaks the join logic and prevents updates entirely for older records."
     }
   ]
 }
