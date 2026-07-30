@@ -9,11 +9,12 @@
 
 import { html, action } from '../dom.js';
 import { state } from '../store.js';
-import { user, intentById } from '../data/user.js';
+import { intentById } from '../data/user.js';
 import { jobs } from '../data/jobs.js';
-import { people, candidates, recruiters, pipeline, hiringBottlenecks } from '../data/people.js';
-import { events, nextActions } from '../data/signals.js';
+import { candidates, recruiters, pipeline, hiringBottlenecks } from '../data/people.js';
+import { visibleEvents, visibleNextActions } from '../data/signals.js';
 import { personaFor } from '../data/personas.js';
+import { otherPeople } from '../components/networking-panel.js';
 import { activeLayout, customiseBar } from '../components/dashboard-customizer.js';
 import { icon } from '../components/icons.js';
 import { profileSummary, careerGoal, personaOverview, teamActivity } from '../components/profile-summary.js';
@@ -75,7 +76,7 @@ function renderPanel(id, intent, persona) {
     case 'summary':        return signalSummaryCards(state.intent);
     case 'agent':          return careerAgentPanel({ limit: 2 });
     case 'jobs':           return jobsSection(persona);
-    case 'skill-gaps':     return skillGapSection();
+    case 'skill-gaps':     return skillGapSection(persona);
     case 'feed':           return knowledgeFeed({ heading: true, limit: feedLimit(persona) });
     case 'mode-switch':    return modeSwitch();
     case 'candidates':     return candidateSection();
@@ -115,13 +116,29 @@ function jobsSection(persona) {
   `;
 }
 
-function skillGapSection() {
+/** What a thin skill signal means depends on what this person is trying to do. */
+function skillGapSection(persona) {
+  const copy = {
+    candidate: [
+      'The two gaps holding your matches back',
+      'Both are documentation problems rather than capability problems. That is the good news and the annoying news.',
+    ],
+    professional: [
+      'Where your own record would not back you up',
+      'Not job matches — these are the places you would struggle to point at evidence in a design review.',
+    ],
+    explorer: [
+      'What transfers, and what does not',
+      'Two of these carry further into ML platform work than you think. One does not, and it is the one every posting asks for.',
+    ],
+  }[persona.id] || [
+    'Where your evidence is thinnest',
+    'Ranked by what the gap is costing you, not by how recently you thought about it.',
+  ];
+
   return html`
     <section aria-labelledby="home-skills">
-      ${sectionHead(
-        'The two gaps holding your matches back',
-        'Both are documentation problems rather than capability problems. That is the good news and the annoying news.',
-      )}
+      ${sectionHead(copy[0], copy[1])}
       ${skillEvidencePanel({ compact: true })}
     </section>
   `;
@@ -193,13 +210,18 @@ function bottleneckSection() {
 function briefing(intent) {
   const hour = new Date().getHours();
   const partOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+  const persona = personaFor(state.intent, state.hiringView);
   return html`
     <header class="briefing">
       <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · ${intent.label}</p>
-      <h1 class="display" style="margin-top:8px">Good ${partOfDay}, ${user.firstName}.</h1>
-      <p class="lede">${personaFor(state.intent, state.hiringView).greeting}</p>
+      <h1 class="display" style="margin-top:8px">Good ${partOfDay}, ${firstName(persona)}.</h1>
+      <p class="lede">${persona.greeting}</p>
     </header>
   `;
+}
+
+function firstName(persona) {
+  return persona.name.split(' ')[0];
 }
 
 /* ---------- Job-seeker centre column ---------- */
@@ -236,8 +258,9 @@ function agentRailTeaser() {
 }
 
 function peopleRail() {
-  const top = people.filter((p) => p.intents.includes(state.intent)).slice(0, 3);
-  const list = top.length ? top : people.slice(0, 3);
+  const pool = otherPeople();
+  const top = pool.filter((p) => p.intents.includes(state.intent)).slice(0, 3);
+  const list = top.length ? top : pool.slice(0, 3);
   return html`
     <section class="card" aria-labelledby="rail-people">
       <div class="card-head">
@@ -272,7 +295,7 @@ function eventsRail() {
         </div>
       </div>
       <div class="stack-sm">
-        ${events.slice(0, 2).map((e) => eventRecommendation(e, { compact: true }))}
+        ${visibleEvents(personaFor(state.intent, state.hiringView).selfId).slice(0, 2).map((e) => eventRecommendation(e, { compact: true }))}
       </div>
     </section>
   `;
@@ -334,7 +357,7 @@ function pipelineRail() {
 }
 
 function nextActionsRail() {
-  const list = nextActions[state.intent] || nextActions['job-hunting'];
+  const list = visibleNextActions(state.intent, personaFor(state.intent, state.hiringView).selfId);
   return html`
     <section class="card" aria-labelledby="rail-actions">
       <div class="card-head">

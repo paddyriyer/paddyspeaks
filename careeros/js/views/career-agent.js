@@ -5,8 +5,10 @@
 
 import { html, action } from '../dom.js';
 import { state } from '../store.js';
-import { skills, intentById } from '../data/user.js';
-import { insights, nextActions } from '../data/signals.js';
+import { intentById } from '../data/user.js';
+import { activeProfile } from '../data/profiles.js';
+import { insights, visibleNextActions } from '../data/signals.js';
+import { personaFor } from '../data/personas.js';
 import { hiringBottlenecks, pipeline } from '../data/people.js';
 import { icon } from '../components/icons.js';
 import { careerAgentPanel } from '../components/career-agent-panel.js';
@@ -53,7 +55,7 @@ export function careerAgentView() {
 }
 
 function gapSection() {
-  const gapped = skills.filter((s) => s.blocking);
+  const gapped = activeProfile().skills.filter((s) => s.blocking);
   return html`
     <section aria-labelledby="gap-head">
       ${sectionHead(
@@ -116,7 +118,7 @@ function hiringIntelligence() {
 }
 
 function actionsCard() {
-  const list = nextActions[state.intent] || nextActions['job-hunting'];
+  const list = visibleNextActions(state.intent, personaFor(state.intent, state.hiringView).selfId);
   return html`
     <section class="card" aria-labelledby="act-head">
       <div class="card-head">

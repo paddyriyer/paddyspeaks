@@ -5,10 +5,11 @@
 
 import { html, action } from '../dom.js';
 import { isExpanded } from '../store.js';
-import { skills } from '../data/user.js';
+import { activeProfile } from '../data/profiles.js';
 import { meter, evidenceList, tag } from './primitives.js';
 
 export function skillEvidencePanel({ compact = false } = {}) {
+  const skills = activeProfile().skills;
   const list = compact
     ? skills.filter((s) => s.strength !== 'Strong').concat(skills.filter((s) => s.strength === 'Strong').slice(0, 2))
     : skills;

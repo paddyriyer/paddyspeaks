@@ -9,8 +9,7 @@
 import { html, action } from '../dom.js';
 import { state } from '../store.js';
 import { visibleSignals, sensitivityLevels, notShown } from '../data/signals.js';
-import { hiringSignals } from '../data/personas.js';
-import { personaFor } from '../data/personas.js';
+import { hiringSignals, personaFor } from '../data/personas.js';
 import { icon } from './icons.js';
 import { tag } from './primitives.js';
 
@@ -30,8 +29,8 @@ export function signalNotifications({ limit = 5 } = {}) {
   const all = persona.railMode !== 'career'
     ? hiringSignals.filter((s) => RANK[s.tier] <= max)
     : persona.id === 'professional'
-      ? visibleSignals(effective).filter((s) => !JOB_SEARCH_KINDS.includes(s.kind))
-      : visibleSignals(effective);
+      ? visibleSignals(effective, persona.selfId).filter((s) => !JOB_SEARCH_KINDS.includes(s.kind))
+      : visibleSignals(effective, persona.selfId);
   const shown = all.slice(0, limit);
   const unread = all.filter((s) => !state.readSignals.includes(s.id)).length;
   const level = sensitivityLevels.find((l) => l.id === state.signalSensitivity);

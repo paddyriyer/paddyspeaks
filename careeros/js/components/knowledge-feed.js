@@ -7,7 +7,8 @@
 
 import { html, action } from '../dom.js';
 import { state, isSaved, isDismissed } from '../store.js';
-import { posts, feedTabs, qualityFilters, feedPriorities, noiseFilter } from '../data/posts.js';
+import { visiblePosts, feedTabs, qualityFilters, feedPriorities, noiseFilter } from '../data/posts.js';
+import { personaFor } from '../data/personas.js';
 import { icon } from './icons.js';
 import { feedPost } from './feed-post.js';
 import { emptyState } from './primitives.js';
@@ -15,7 +16,8 @@ import { emptyState } from './primitives.js';
 /** Feed ordering: intent and priority shape it, recency only breaks ties. */
 export function rankedPosts() {
   const tab = state.feedTab;
-  let list = posts.filter((p) => !isDismissed(p.id));
+  let list = visiblePosts(personaFor(state.intent, state.hiringView).selfId)
+    .filter((p) => !isDismissed(p.id));
 
   if (tab === 'saved') {
     list = list.filter((p) => isSaved('posts', p.id));

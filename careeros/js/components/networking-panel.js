@@ -8,6 +8,7 @@
 import { html, action } from '../dom.js';
 import { state, isDismissed } from '../store.js';
 import { people, matchBasis, candidates } from '../data/people.js';
+import { personaFor } from '../data/personas.js';
 import { icon } from './icons.js';
 import { personRecommendationCard } from './person-recommendation-card.js';
 import { candidateCard } from './candidate-card.js';
@@ -22,10 +23,19 @@ const filters = [
   { id: 'mentoring', label: 'Mentoring' },
 ];
 
+/**
+ * Everyone except the person who is signed in. Wei Lin should not be told that
+ * Wei Lin is worth meeting, and under the old single-identity build he was.
+ */
+export function otherPeople() {
+  const self = personaFor(state.intent, state.hiringView).selfId;
+  return self ? people.filter((p) => p.id !== self) : people;
+}
+
 /** People sorted for the active intent: relevance to intent first, then match. */
 export function rankedPeople(intentId, filterId) {
   const wanted = filterId === 'everything' ? null : filterId;
-  return people
+  return otherPeople()
     .filter((p) => !isDismissed(p.id))
     .filter((p) => !wanted || p.intents.includes(wanted))
     .map((p) => ({ ...p, boost: p.intents.includes(intentId) ? 1 : 0 }))
@@ -39,7 +49,7 @@ export function networkingPanel({ intentId, heading = true, limit = null } = {})
   const filter = state.networkFilter;
   const list = rankedPeople(intentId, filter);
   const shown = limit ? list.slice(0, limit) : list;
-  const dismissedCount = people.filter((p) => isDismissed(p.id)).length;
+  const dismissedCount = otherPeople().filter((p) => isDismissed(p.id)).length;
 
   return html`
     <section aria-labelledby="net-head">
@@ -54,8 +64,8 @@ export function networkingPanel({ intentId, heading = true, limit = null } = {})
             ${action('set-network-filter', { filter: f.id })}>
             ${f.label}
             <span class="count">${f.id === 'everything'
-              ? people.filter((p) => !isDismissed(p.id)).length
-              : people.filter((p) => !isDismissed(p.id) && p.intents.includes(f.id)).length}</span>
+              ? otherPeople().filter((p) => !isDismissed(p.id)).length
+              : otherPeople().filter((p) => !isDismissed(p.id) && p.intents.includes(f.id)).length}</span>
           </button>
         `)}
       </div>

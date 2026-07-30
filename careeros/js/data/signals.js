@@ -63,6 +63,7 @@ export const signals = [
   },
   {
     id: 'sig-speaking',
+    about: ['wei-lin', 'priya-ramaswami'],
     tier: 'conversations',
     kind: 'Event',
     when: '2 days ago',
@@ -73,6 +74,7 @@ export const signals = [
   },
   {
     id: 'sig-recruiter',
+    about: ['renata-okafor'],
     tier: 'opportunities',
     kind: 'Trusted recruiter',
     when: '2 days ago',
@@ -97,6 +99,7 @@ export const signals = [
   },
   {
     id: 'sig-response',
+    about: ['theo-marsh'],
     tier: 'conversations',
     kind: 'Discussion',
     when: '4 days ago',
@@ -119,9 +122,16 @@ export const signals = [
   },
 ];
 
-export function visibleSignals(sensitivity) {
+/**
+ * Signals at or below the chosen sensitivity — minus anything that is about the
+ * person reading it. Telling Wei Lin that Wei Lin is speaking at a conference is
+ * the same defect as recommending him to himself.
+ */
+export function visibleSignals(sensitivity, selfId) {
   const max = RANK[sensitivity] ?? 1;
-  return signals.filter((s) => RANK[s.tier] <= max);
+  return signals
+    .filter((s) => RANK[s.tier] <= max)
+    .filter((s) => !selfId || !(s.about || []).includes(selfId));
 }
 
 export const notShown = [
@@ -238,6 +248,7 @@ export function insightById(id) {
 export const events = [
   {
     id: 'evt-dataeng',
+    about: ['wei-lin', 'priya-ramaswami'],
     name: 'DataEng Summit — Infrastructure Track',
     date: '14 September',
     location: 'San Francisco',
@@ -264,6 +275,7 @@ export const events = [
   },
   {
     id: 'evt-reading',
+    about: ['wei-lin'],
     name: 'Systems Reading Group — Consensus papers',
     date: 'Every second Thursday',
     location: 'Remote',
@@ -283,6 +295,7 @@ export const events = [
   },
   {
     id: 'evt-platform',
+    about: ['nadia-rhee'],
     name: 'AI Platform Engineering — Working session',
     date: '3 August',
     location: 'Remote',
@@ -301,6 +314,11 @@ export const events = [
   },
 ];
 
+/** Events, minus the ones this person is running or speaking at. */
+export function visibleEvents(selfId) {
+  return events.filter((e) => !selfId || !(e.about || []).includes(selfId));
+}
+
 export function eventById(id) {
   return events.find((e) => e.id === id);
 }
@@ -310,7 +328,7 @@ export const nextActions = {
   'job-hunting': [
     { id: 'na-k8s', label: 'Publish the Kubernetes operator work', effort: '40 min', payoff: 'Unlocks 12 roles' },
     { id: 'na-halcyon', label: 'Apply to Halcyon before the shortlist closes', effort: '1 hr', payoff: '87% match, favourable odds' },
-    { id: 'na-theo', label: 'Reply to Theo Marsh\'s thread', effort: '15 min', payoff: 'Warm path to 3 open roles' },
+    { id: 'na-theo', about: ['theo-marsh'], label: 'Reply to Theo Marsh\'s thread', effort: '15 min', payoff: 'Warm path to 3 open roles' },
     { id: 'na-feature', label: 'Feature your lakehouse article on your profile', effort: '2 min', payoff: 'Best evidence, front page' },
   ],
   hiring: [
@@ -320,12 +338,12 @@ export const nextActions = {
     { id: 'na-panel', label: 'Rebalance the interviewer pool', effort: '15 min', payoff: 'Cuts 9-day scheduling delay' },
   ],
   learning: [
-    { id: 'na-paper', label: 'Read the Raft membership paper before Thursday', effort: '1 hr', payoff: 'Entry to Wei Lin\'s group' },
+    { id: 'na-paper', about: ['wei-lin'], label: 'Read the Raft membership paper before Thursday', effort: '1 hr', payoff: 'Entry to Wei Lin\'s group' },
     { id: 'na-imanipost', label: 'Read Imani\'s exactly-once post-mortem', effort: '14 min', payoff: 'Covers your April failure mode' },
     { id: 'na-mlgap', label: 'Work through the feature-store compliance piece', effort: '11 min', payoff: 'Your weakest skill signal' },
   ],
   networking: [
-    { id: 'na-priya', label: 'Message Priya about the partition disagreement', effort: '15 min', payoff: 'Substantive opening, not a pitch' },
+    { id: 'na-priya', about: ['priya-ramaswami'], label: 'Message Priya about the partition disagreement', effort: '15 min', payoff: 'Substantive opening, not a pitch' },
     { id: 'na-summit', label: 'Decide on DataEng Summit', effort: '5 min', payoff: '4 useful contacts in one day' },
     { id: 'na-dal', label: 'Request Data Architecture Leadership membership', effort: '10 min', payoff: 'Staff+ only, verified' },
   ],
@@ -337,16 +355,22 @@ export const nextActions = {
   building: [
     { id: 'na-jonas', label: 'Read Tessellate\'s product thesis', effort: '20 min', payoff: 'Overlaps your published research' },
     { id: 'na-oss', label: 'Finish the connector PR you left open in March', effort: '2 hrs', payoff: 'Open-source signal is 64' },
-    { id: 'na-wei', label: 'Ask Wei Lin about the dbt package roadmap', effort: '10 min', payoff: 'You already depend on it' },
+    { id: 'na-wei', about: ['wei-lin'], label: 'Ask Wei Lin about the dbt package roadmap', effort: '10 min', payoff: 'You already depend on it' },
   ],
   exploring: [
     { id: 'na-transition', label: 'Read the three engineer-to-architect transitions', effort: '25 min', payoff: 'People who did what you want' },
     { id: 'na-adjacent', label: 'Look at ML platform roles, not data platform roles', effort: '15 min', payoff: 'Adjacent field, 9 roles' },
-    { id: 'na-nadia', label: 'Ask Nadia Rhee how she made the move', effort: '15 min', payoff: 'Same company, two years ahead' },
+    { id: 'na-nadia', about: ['nadia-rhee'], label: 'Ask Nadia Rhee how she made the move', effort: '15 min', payoff: 'Same company, two years ahead' },
   ],
 };
 
 /** Summary cards, per intent. */
+/** Next actions for an intent, minus anything that suggests contacting yourself. */
+export function visibleNextActions(intentId, selfId) {
+  const list = nextActions[intentId] || nextActions['job-hunting'];
+  return selfId ? list.filter((a) => !(a.about || []).includes(selfId)) : list;
+}
+
 export const summaryCards = {
   'job-hunting': [
     { id: 'sc-matches', value: '12', label: 'Strong role matches', note: '4 added this week', route: 'jobs' },

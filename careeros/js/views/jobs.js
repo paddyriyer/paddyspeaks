@@ -8,6 +8,8 @@
 import { html, action } from '../dom.js';
 import { state, isDismissed, isSaved } from '../store.js';
 import { jobs, jobSections } from '../data/jobs.js';
+import { personaFor } from '../data/personas.js';
+import { profileFor } from '../data/profiles.js';
 import { recruiters } from '../data/people.js';
 import { icon } from '../components/icons.js';
 import { jobMatchCard } from '../components/job-match-card.js';
@@ -16,6 +18,12 @@ import { skillEvidencePanel } from '../components/skill-evidence-panel.js';
 import { sectionHead, evidenceList, emptyState } from '../components/primitives.js';
 
 export function jobsView() {
+  const persona = personaFor(state.intent, state.hiringView);
+  // A roles surface is only assembled for people who are actually looking at
+  // roles. Renata is filling them and Wei is not looking, and handing either of
+  // them a job seeker's dashboard would contradict the mode they chose.
+  if (!JOB_SEEKING.includes(persona.id)) return notAssembled(persona);
+
   const live = jobs.filter((j) => !isDismissed(j.id));
   const savedCount = jobs.filter((j) => isSaved('jobs', j.id)).length;
 
@@ -36,9 +44,7 @@ export function jobsView() {
           <div class="row-between wrap">
             <div>
               <p class="eyebrow">Your filters</p>
-              <p class="small secondary" style="margin-top:3px">
-                Staff / Principal · California · Remote or hybrid · Healthcare tech, fintech, enterprise AI
-              </p>
+              <p class="small secondary" style="margin-top:3px">${filterLine(persona)}</p>
             </div>
             <div class="btn-row">
               <button type="button" class="btn btn-sm" ${action('open-search')}>
@@ -145,5 +151,53 @@ function honestyCard() {
         Ranking on this surface is not for sale. If that ever changes, it will be labelled on every card.
       </div>
     </section>
+  `;
+}
+
+/* ---------- Who gets a roles surface at all ---------- */
+
+const JOB_SEEKING = ['candidate', 'builder', 'explorer'];
+
+/** The filter line is the person's own goal, not a hardcoded one. */
+function filterLine(persona) {
+  const g = profileFor(persona.id).goal;
+  if (!g) return 'Ranked on scope and problem overlap rather than title and band.';
+  return `${g.level} · ${g.geography} · ${g.workModel} · ${g.industries.join(', ')}`;
+}
+
+/**
+ * The honest empty state. Padding this page with roles nobody asked for is the
+ * behaviour the whole prototype argues against, so it is not done here either.
+ */
+function notAssembled(persona) {
+  return html`
+    <div class="layout-1col-wide">
+      <div class="center-stack">
+        <header>
+          <p class="eyebrow">Jobs · ${persona.label} mode</p>
+          <h1 class="display" style="margin-top:8px">No roles surface is assembled for this mode</h1>
+          <p class="lede">
+            You are signed in as ${persona.name}, ${persona.title} at ${persona.org}, in
+            <b>${persona.label.toLowerCase()}</b> mode. Nothing here is looking for a job on your behalf.
+          </p>
+        </header>
+
+        <section class="card card-pad">
+          <p class="small secondary">
+            No job-search ranking runs in this mode, no availability signal is generated, and no recruiter
+            is told anything about you. This page is empty on purpose rather than padded with roles that
+            would only exist to fill it.
+          </p>
+          <div class="btn-row" style="margin-top:14px">
+            <button type="button" class="btn btn-primary btn-sm" ${action('navigate', { route: 'home' })}>
+              Back to your dashboard
+            </button>
+            <button type="button" class="btn btn-sm" ${action('toggle-intent-menu')}>
+              Change what you are here for
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
   `;
 }

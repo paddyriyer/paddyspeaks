@@ -3,7 +3,7 @@
 import { html, action, cx } from '../dom.js';
 import { icon } from './icons.js';
 import { state } from '../store.js';
-import { user, intentById } from '../data/user.js';
+import { intentById } from '../data/user.js';
 import { visibleSignals } from '../data/signals.js';
 import { personaFor } from '../data/personas.js';
 
@@ -20,7 +20,7 @@ export const sections = [
 export function topNavigation() {
   const intent = intentById(state.intent);
   const persona = personaFor(state.intent, state.hiringView);
-  const unread = visibleSignals(state.signalSensitivity)
+  const unread = visibleSignals(state.signalSensitivity, persona.selfId)
     .filter((s) => !state.readSignals.includes(s.id)).length;
 
   return html`
@@ -69,7 +69,7 @@ export function topNavigation() {
           </button>
 
           <button type="button" class="avatar" ${action('navigate', { route: 'profile' })}
-            aria-label="Your profile, ${user.name}">${user.initials}</button>
+            aria-label="Your profile, ${persona.name}">${persona.initials}</button>
         </div>
       </div>
     </header>

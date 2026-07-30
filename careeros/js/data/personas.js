@@ -10,6 +10,21 @@
  * The fix is that intent selects a whole persona — identity, badge, greeting,
  * search scope, rail composition and signal set — not just a content list.
  * Every intent below maps to exactly one coherent professional situation.
+ *
+ * Each persona is also a different person. Sharing one name across eight roles
+ * was the second version of the same defect: a hiring manager and the candidate
+ * he was assessing cannot be the same human, and a reader who sees one name
+ * above two contradictory dashboards learns nothing from either. The eight
+ * people below all already exist in this prototype's world — Wei Lin, Priya
+ * Ramaswami, Nadia Rhee, Jonas Ferreira, Lena Vogt, Amara Osei and Renata
+ * Okafor all appear in Alex Chen's network — so switching mode switches to
+ * someone you can already see from here.
+ *
+ * `selfId` is the id this persona has in data/people.js, so the product never
+ * recommends someone to themselves.
+ *
+ * Each persona's record — reputation, skills, evidence, communities — lives in
+ * data/profiles.js, keyed by the persona id.
  */
 
 export const personas = {
@@ -24,6 +39,7 @@ export const personas = {
     title: 'Staff Data Engineer',
     org: 'Ridgeline Health',
     location: 'San Francisco Bay Area',
+    selfId: null,
     greeting: 'Here are the professional signals worth your attention today.',
     searchPlaceholder:
       'Search roles, hiring managers, recruiters, skills…',
@@ -63,11 +79,12 @@ export const personas = {
     label: 'Professional',
     badge: 'Not looking',
     badgeVariant: '',
-    name: 'Alex Chen',
-    initials: 'AC',
-    title: 'Staff Data Engineer',
-    org: 'Ridgeline Health',
-    location: 'San Francisco Bay Area',
+    name: 'Wei Lin',
+    initials: 'WL',
+    title: 'Staff Engineer, Distributed Systems',
+    org: 'Meridian',
+    location: 'San Jose, CA',
+    selfId: 'wei-lin',
     greeting: 'Here is what would move your understanding forward this week.',
     searchPlaceholder:
       'Search practitioners, writing, working groups, papers…',
@@ -81,7 +98,7 @@ export const personas = {
     },
     focus: {
       label: 'Current focus',
-      headline: 'Feature infrastructure and compliance boundaries',
+      headline: 'Compliance boundaries, and what they do to platform design',
       meta: [
         { icon: 'book', text: '6 pieces worth your evening' },
         { icon: 'users', text: '3 working groups accepting members' },
@@ -109,11 +126,12 @@ export const personas = {
     label: 'Connector',
     badge: 'Open to conversations',
     badgeVariant: '',
-    name: 'Alex Chen',
-    initials: 'AC',
-    title: 'Staff Data Engineer',
-    org: 'Ridgeline Health',
-    location: 'San Francisco Bay Area',
+    name: 'Priya Ramaswami',
+    initials: 'PR',
+    title: 'Senior Data Engineer',
+    org: 'Northwind',
+    location: 'Berkeley, CA',
+    selfId: 'priya-ramaswami',
     greeting: 'Here are the conversations most likely to be useful to both sides.',
     searchPlaceholder: 'Search peers, communities, events, people who write about…',
     railMode: 'career',
@@ -152,11 +170,12 @@ export const personas = {
     label: 'Mentor',
     badge: 'Mentoring',
     badgeVariant: 'accent',
-    name: 'Alex Chen',
-    initials: 'AC',
-    title: 'Staff Data Engineer',
+    name: 'Nadia Rhee',
+    initials: 'NR',
+    title: 'Principal Engineer',
     org: 'Ridgeline Health',
-    location: 'San Francisco Bay Area',
+    location: 'San Francisco, CA',
+    selfId: 'nadia-rhee',
     greeting: 'Here is where your experience would save someone months.',
     searchPlaceholder: 'Search questions, mentees, topics you have solved…',
     railMode: 'career',
@@ -168,10 +187,10 @@ export const personas = {
     },
     focus: {
       label: 'Where you can help',
-      headline: 'Batch-to-streaming transitions, and staff-scope cases',
+      headline: 'Staff-scope cases, and the platform move you made first',
       meta: [
         { icon: 'message', text: '3 questions you were named in' },
-        { icon: 'users', text: '6 engineers mentored, 4 confirmed' },
+        { icon: 'users', text: '19 engineers mentored, 15 confirmed' },
       ],
       cta: 'Change what you mentor on',
       ctaAction: 'adjust-goal',
@@ -180,10 +199,10 @@ export const personas = {
       title: 'Mentorship record',
       period: 'All time',
       rows: [
-        { label: 'Engineers mentored', value: '6' },
-        { label: 'Confirmed by the mentee', value: '4' },
-        { label: 'Promoted while mentored', value: '2' },
-        { label: 'Questions answered in full', value: '14' },
+        { label: 'Engineers mentored', value: '19' },
+        { label: 'Confirmed by the mentee', value: '15' },
+        { label: 'Reached Staff or Principal', value: '11' },
+        { label: 'Questions answered in full', value: '22' },
       ],
       note: 'Only mentees who confirmed the relationship are counted. Claims do not count themselves.',
     },
@@ -195,11 +214,12 @@ export const personas = {
     label: 'Builder',
     badge: 'Building',
     badgeVariant: 'primary',
-    name: 'Alex Chen',
-    initials: 'AC',
-    title: 'Staff Data Engineer',
-    org: 'Ridgeline Health',
-    location: 'San Francisco Bay Area',
+    name: 'Jonas Ferreira',
+    initials: 'JF',
+    title: 'Founder',
+    org: 'Tessellate',
+    location: 'Remote (Lisbon / SF)',
+    selfId: 'jonas-ferreira',
     greeting: 'Here is who is building near the problems you are working on.',
     searchPlaceholder: 'Search collaborators, open source, founders, problems…',
     railMode: 'career',
@@ -214,7 +234,7 @@ export const personas = {
       headline: 'Event-driven lakehouse tooling, in the open',
       meta: [
         { icon: 'layers', text: '4 potential collaborators' },
-        { icon: 'link', text: '1 PR open since March' },
+        { icon: 'link', text: '9 first-time contributors this year' },
       ],
       cta: 'Change what you are building',
       ctaAction: 'adjust-goal',
@@ -223,10 +243,10 @@ export const personas = {
       title: 'Build activity',
       period: 'This year',
       rows: [
-        { label: 'Merged contributions', value: '2' },
-        { label: 'Dependents on your library', value: '40' },
-        { label: 'Problems you have solved publicly', value: '3' },
-        { label: 'Maintainer roles', value: 'None yet' },
+        { label: 'Dependent projects', value: '63' },
+        { label: 'First-time contributors merged', value: '9' },
+        { label: 'Who came back and did it again', value: '6' },
+        { label: 'Median issue response', value: 'Under 24h' },
       ],
     },
   },
@@ -237,11 +257,12 @@ export const personas = {
     label: 'Explorer',
     badge: 'Exploring',
     badgeVariant: '',
-    name: 'Alex Chen',
-    initials: 'AC',
-    title: 'Staff Data Engineer',
-    org: 'Ridgeline Health',
-    location: 'San Francisco Bay Area',
+    name: 'Lena Vogt',
+    initials: 'LV',
+    title: 'Data Platform Lead',
+    org: 'Cobalt Health',
+    location: 'Seattle, WA',
+    selfId: 'cand-lena',
     greeting: 'Here is what sits one step outside your current field.',
     searchPlaceholder: 'Search adjacent fields, transitions, unfamiliar work…',
     railMode: 'career',
@@ -280,11 +301,12 @@ export const personas = {
     label: 'Hiring manager',
     badge: 'Hiring manager',
     badgeVariant: 'primary',
-    name: 'Alex Chen',
-    initials: 'AC',
-    title: 'Engineering Manager',
-    org: 'Ridgeline Health',
-    location: 'San Francisco Bay Area',
+    name: 'Amara Osei',
+    initials: 'AO',
+    title: 'VP Engineering',
+    org: 'Fathom Health AI',
+    location: 'San Francisco, CA',
+    selfId: 'amara-osei',
     greeting: 'Here is your hiring command centre.',
     searchPlaceholder:
       'Search candidates, roles, skills, companies…',
@@ -296,7 +318,7 @@ export const personas = {
     },
     focus: {
       label: 'Active hiring focus',
-      headline: 'Staff Data Engineer',
+      headline: 'Principal Data Platform Engineer',
       meta: [
         { icon: 'briefcase', text: '3 open roles' },
         { icon: 'users', text: '12 active candidates' },
@@ -317,9 +339,9 @@ export const personas = {
       ],
     },
     teamActivity: [
-      { who: 'Priya N.', initials: 'PN', what: 'moved a candidate to On-site round', when: '2h ago' },
+      { who: 'Kofi A.', initials: 'KA', what: 'moved a candidate to On-site round', when: '2h ago' },
       { who: 'Jordan M.', initials: 'JM', what: 'added feedback on Imani Brooks', when: '5h ago' },
-      { who: 'You', initials: 'AC', what: 'moved 2 candidates to Interview', when: '1d ago' },
+      { who: 'You', initials: 'AO', what: 'moved 2 candidates to Interview', when: '1d ago' },
     ],
   },
 
@@ -334,6 +356,7 @@ export const personas = {
     title: 'Technical Recruiter',
     org: 'Cedarpoint Data',
     location: 'San Francisco Bay Area',
+    selfId: 'renata-okafor',
     greeting: 'Here is your pipeline, and where it is leaking.',
     searchPlaceholder:
       'Search candidates by demonstrated work, not keywords…',
@@ -397,7 +420,7 @@ export const hiringSignals = [
     kind: 'New match',
     when: 'Yesterday',
     title: 'A strong candidate matches your open role',
-    detail: 'Rohan Mehta is an 89% evidence match for Staff Data Engineer, based on published work.',
+    detail: 'Rohan Mehta is an 89% evidence match for Principal Data Platform Engineer, based on published work.',
     why: 'Surfaced on demonstrated stack overlap, not on keywords in a résumé.',
     action: { label: 'View candidate', route: 'network' },
   },
@@ -416,7 +439,7 @@ export const hiringSignals = [
     tier: 'opportunities',
     kind: 'Market insight',
     when: '2 days ago',
-    title: 'Staff Data Engineer compensation is up 6% in 60 days',
+    title: 'Principal platform compensation is up 6% in 60 days',
     detail: 'Your posted band now sits below three of your five strongest candidates.',
     why: 'This is the most likely reason your last two finalists declined.',
     action: { label: 'View benchmark', route: 'career-agent' },
