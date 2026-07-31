@@ -6896,6 +6896,22 @@
       ],
       "answer": 3,
       "explanation": "`functools.cache` does NOT handle unhashable types, and modifying `__hash__` for external libraries is unsafe. `functools.lru_cache` requires hashable arguments. Using `json.dumps()` as a cache key is production-standard: it's deterministic, handles nested structures, and allows bounded caches via a wrapper dict with size limits, making it the most robust choice for unhashable types at scale."
+    },
+    {
+      "id": "py-new-038",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-07-31",
+      "prompt": "You are processing a 100GB CSV file in Python and need to parallelize CPU-intensive transformations across 8 CPU cores. You write a solution using `multiprocessing.Pool` with 8 worker processes, each calling a pure Python function that does regex matching and numeric aggregation. However, you observe that runtime is only 1.3x faster than single-threaded execution. Which of the following best explains this behavior and provides the most effective fix?",
+      "options": [
+        "The GIL is preventing true parallelism; switch to `concurrent.futures.ThreadPoolExecutor` with more threads to increase concurrency.",
+        "multiprocessing has high inter-process communication overhead; use Polars with `execution_engine='streaming'` and native Rust parallelism to avoid Python entirely.",
+        "The worker processes are blocking on I/O; add `asyncio` to yield control between reads and process more data concurrently.",
+        "The regex and numeric operations are in C/Cython and should be parallelizable; the overhead is likely from pickling data between processes\u2014use shared memory with `multiprocessing.shared_memory` or switch to a memory-mapped format."
+      ],
+      "answer": 1,
+      "explanation": "While multiprocessing does bypass the GIL, the 100GB dataset must be pickled and sent to each worker, creating severe serialization overhead that dominates runtime. Polars uses native Rust for columnar operations without GIL constraints, allowing true parallelism on large data with minimal serialization. ThreadPoolExecutor would remain GIL-bound for CPU work, and asyncio doesn't help CPU-bound tasks. Shared memory helps but doesn't match Polars' native performance advantage for this data-processing workload."
     }
   ]
 }

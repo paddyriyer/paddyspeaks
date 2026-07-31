@@ -13452,6 +13452,22 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly uses the AND condition in the WHEN MATCHED clause to update only when the feed timestamp is newer, preventing stale data from overwriting recent updates. It inserts new customers without the WHEN NOT MATCHED BY SOURCE clause, so inactive customers are preserved. Option 1 lacks the timestamp check, risking stale overwrites. Option 2 incorrectly deletes absent customers. Option 3 places the timestamp check in the ON clause, which breaks the join logic and prevents updates entirely for older records."
+    },
+    {
+      "id": "sql-new-038",
+      "type": "single",
+      "topic": "BigQuery-specific lateral joins",
+      "difficulty": "hard",
+      "added_date": "2026-07-31",
+      "prompt": "In BigQuery, you have a table `events(user_id STRING, event_timestamp TIMESTAMP, event_data JSON)` with millions of rows. You need to find, for each user, the top 3 events by timestamp and then extract a specific field from the event_data JSON for each of those top 3 events. You want to avoid a self-join and achieve this efficiently. Which approach is most appropriate?\n\nA) Use `CROSS JOIN UNNEST()` with `ARRAY_AGG()` and `LIMIT 3` in a subquery\nB) Use a `LATERAL` join (via implicit lateral join in BigQuery's FROM clause with `SELECT AS STRUCT`) combined with `LIMIT 3` in the correlated subquery\nC) Use `ROW_NUMBER()` window function partitioned by user_id, filter WHERE row_num <= 3, then join back to the original table\nD) Use `UNION ALL` of three separate queries, each filtering for event rank 1, 2, and 3 respectively",
+      "options": [
+        "Use `CROSS JOIN UNNEST()` with `ARRAY_AGG()` and `LIMIT 3` in a subquery",
+        "Use a `LATERAL` join (via implicit lateral join in BigQuery's FROM clause with `SELECT AS STRUCT`) combined with `LIMIT 3` in the correlated subquery",
+        "Use `ROW_NUMBER()` window function partitioned by user_id, filter WHERE row_num <= 3, then join back to the original table",
+        "Use `UNION ALL` of three separate queries, each filtering for event rank 1, 2, and 3 respectively"
+      ],
+      "answer": 1,
+      "explanation": "BigQuery supports lateral joins through correlated subqueries with `SELECT AS STRUCT` in the FROM clause, which allows you to apply `LIMIT 3` per user without materializing all rows. This is more efficient than option C (which requires a second join) and cleaner than option A (which would require aggregation first). Option D is inefficient and unmaintainable. The lateral join approach is the idiomatic BigQuery pattern for this use case."
     }
   ]
 }
