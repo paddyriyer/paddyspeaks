@@ -5210,6 +5210,86 @@
       ],
       "answer": 2,
       "explanation": "Under backward compatibility, adding an optional field to the producer schema is valid\u2014old consumers that don't know about `fraud_score_v2` will simply skip it and continue working. The consumer can independently upgrade its contract to consume the field at its own pace without deployment coordination. Options 0 and 3 misunderstand backward compatibility; option 1 over-engineers with unnecessary parallel rollouts when the contract guarantees safe evolution."
+    },
+    {
+      "id": "ds-new-033",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-08-01",
+      "prompt": "Your organization is implementing a data mesh with 12 domain teams. Each domain owns its data product and publishes to a central data catalog. Team A (payments) and Team B (orders) both need real-time access to each other's events for fraud detection. How should you structure this to avoid tight coupling while ensuring <100ms freshness?",
+      "options": [
+        "Team A directly polls Team B's database tables via CDC on a 10-second interval",
+        "Team A and B both publish domain events to a shared Kafka cluster with a well-defined schema registry, consuming each other's topics independently",
+        "Create a central ETL pipeline orchestrated by a separate platform team that syncs all domain data into a data warehouse",
+        "Use synchronous REST APIs between Team A and Team B microservices for real-time queries"
+      ],
+      "answer": 1,
+      "explanation": "In a data mesh, domains should publish their events asynchronously via shared infrastructure (Kafka + schema registry) rather than direct database access or synchronous APIs. This maintains domain autonomy, scales independently, and achieves sub-100ms freshness via event streaming without the platform team becoming a bottleneck."
+    },
+    {
+      "id": "ds-new-034",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "hard",
+      "added_date": "2026-08-01",
+      "prompt": "Your ML team trains a churn-prediction model daily using 30 days of historical features. Inference must happen in real-time when a customer visits your app (SLA: <50ms). Currently, batch features are computed nightly in Spark, stored in a feature store. Feature freshness degrades throughout the day as new events arrive. What is the best architectural change?",
+      "options": [
+        "Switch all batch jobs to run hourly instead of daily to reduce staleness",
+        "Implement a dual-write pattern: stream real-time feature updates to the feature store via Kafka while maintaining batch jobs as a fallback for consistency",
+        "Replace batch entirely with a real-time stream processor (Flink/Spark Streaming) that updates features incrementally and serves from an in-memory cache",
+        "Accept higher latency; compute features synchronously at inference time by querying the data warehouse"
+      ],
+      "answer": 2,
+      "explanation": "Streaming with incremental updates in a low-latency processor (Flink) and in-memory serving is the correct solution for <50ms SLA with fresh features. Option 1 reduces staleness but still has gaps; Option 2 (dual-write) adds operational complexity; Option 4 violates the latency SLA. Real-time streaming gives the freshest, lowest-latency features for inference."
+    },
+    {
+      "id": "ds-new-035",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "Your dbt project has a staging layer with 150+ models that transform raw events, a marts layer with 40 business-logic models, and a downstream layer of 8 dashboards. Recently, a single change to a staging transformation in `stg_events.sql` caused a cascade of failures across 12 downstream models. How should you redesign to prevent this?",
+      "options": [
+        "Add more granular dbt tests and contracts to staging models, marking critical outputs as `protected` and requiring explicit versioning",
+        "Split staging into immutable versions (stg_events_v1, stg_events_v2) so downstream models explicitly reference a version",
+        "Introduce a `dbt contracts` layer between staging and marts that defines explicit column names, types, and semantics; have marts depend on contracts rather than staging",
+        "Implement a dbt meta tag on staging models documenting which downstream models depend on them, then manually verify before deploying changes"
+      ],
+      "answer": 2,
+      "explanation": "Using dbt contracts (or a formal interface layer) decouples staging from marts by making column schemas and semantics explicit. Downstream models depend on the contract, not the implementation, so staging changes within the contract don't break dependents. This is more maintainable than versioning or manual tracking."
+    },
+    {
+      "id": "ds-new-036",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "Your company is adopting a data mesh. The analytics team historically built all metrics in a centralized warehouse, but now each domain (payments, marketing, product) wants to own their own metric definitions. How should you handle cross-domain metrics like 'revenue per marketing channel'?",
+      "options": [
+        "Each domain builds its own version independently; inconsistencies are acceptable as long as each domain owns its data",
+        "Establish a central metrics layer where the analytics team still owns all cross-domain calculations, but domains provide atomic data products",
+        "Define a shared metric specification in a git repo (metric contracts); each domain publishes their contribution (e.g., payments domain publishes revenue), and any team can compose metrics",
+        "Require a cross-functional metrics committee to meet monthly and approve all new metrics before any domain can publish them"
+      ],
+      "answer": 2,
+      "explanation": "Metric contracts allow domains to independently publish their data products while enabling composition for cross-domain metrics. This scales better than a central team and avoids duplicated definitions (Option A), doesn't create a bottleneck (Options C and D), and maintains autonomy while achieving consistency through contracts."
+    },
+    {
+      "id": "ds-new-037",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "easy",
+      "added_date": "2026-08-01",
+      "prompt": "Your analytics team needs to generate a daily report of top 100 products by revenue for the past 30 days, published every morning at 6 AM. The report has no real-time dependencies and is read by 2\u20133 analysts. Which approach is most appropriate?",
+      "options": [
+        "Stream all product events through Kafka and Spark Streaming, maintaining a 30-day rolling window in-memory",
+        "Batch job (Spark or dbt) that runs nightly, aggregates the previous day's data plus rolling 29 days from the warehouse",
+        "Real-time dashboard powered by a streaming aggregator (Flink) updating every minute",
+        "Ad-hoc SQL queries run by analysts every morning on the raw events table"
+      ],
+      "answer": 1,
+      "explanation": "A batch approach is the clear winner here: the report is scheduled, not real-time, doesn't require minute-level freshness, and has low query volume. Batch jobs are simpler to operate, cheaper, and easier to debug than streaming; streaming would add unnecessary complexity for a non-real-time use case."
     }
   ]
 }

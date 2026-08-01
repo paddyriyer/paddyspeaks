@@ -13468,6 +13468,86 @@
       ],
       "answer": 1,
       "explanation": "BigQuery supports lateral joins through correlated subqueries with `SELECT AS STRUCT` in the FROM clause, which allows you to apply `LIMIT 3` per user without materializing all rows. This is more efficient than option C (which requires a second join) and cleaner than option A (which would require aggregation first). Option D is inefficient and unmaintainable. The lateral join approach is the idiomatic BigQuery pattern for this use case."
+    },
+    {
+      "id": "sql-new-039",
+      "type": "single",
+      "topic": "window functions",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "Schema: `transaction(txn_id INT, user_id INT, amount DECIMAL, txn_date DATE)`. You need to find the largest transaction amount for each user within a rolling 30-day window ending on each transaction date. Which window frame specification is correct?",
+      "options": [
+        "ROWS BETWEEN 30 PRECEDING AND CURRENT ROW",
+        "ROWS BETWEEN INTERVAL '30 days' PRECEDING AND CURRENT ROW",
+        "RANGE BETWEEN INTERVAL '30 days' PRECEDING AND CURRENT ROW",
+        "RANGE BETWEEN 30 PRECEDING AND CURRENT ROW"
+      ],
+      "answer": 2,
+      "explanation": "RANGE with INTERVAL is the correct syntax for date-based rolling windows. ROWS operates on physical row counts; RANGE operates on logical values (like dates). INTERVAL '30 days' PRECEDING specifies a date offset, making this the proper way to define a 30-day lookback."
+    },
+    {
+      "id": "sql-new-040",
+      "type": "single",
+      "topic": "partitioning",
+      "difficulty": "hard",
+      "added_date": "2026-08-01",
+      "prompt": "Schema: `events(user_id INT, event_type TEXT, event_time TIMESTAMP)`. You partition a table by `DATE(event_time)` and want to query the last 7 days of events efficiently. A reviewer suggests using partition pruning. Which WHERE clause allows the query engine to skip partitions?",
+      "options": [
+        "WHERE event_time >= NOW() - INTERVAL '7 days'",
+        "WHERE DATE(event_time) >= CURRENT_DATE - 7",
+        "WHERE event_time::DATE >= CURRENT_DATE - 7",
+        "WHERE CAST(event_time AS DATE) >= CURRENT_DATE - 7"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 avoids partition pruning because the function DATE() is applied to the partition column on the left side. Option 1 (DATE(event_time) >= CURRENT_DATE - 7) directly compares the partition key without transformation, allowing the engine to prune partitions. Options 2\u20133 involve CAST/type conversion, which can also prevent pruning depending on the engine."
+    },
+    {
+      "id": "sql-new-041",
+      "type": "single",
+      "topic": "materialized views",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "You have a materialized view `mv_daily_cohort_stats` that aggregates user signup cohorts and their retention metrics, refreshed nightly. At 3 PM, a user queries this MV and gets unexpected stale results from yesterday. What is the most likely root cause?",
+      "options": [
+        "The MV was never initially populated; it requires manual REFRESH.",
+        "The refresh scheduled for last night failed silently, and no error alerting was configured.",
+        "Materialized views always lag by one full day in Snowflake and BigQuery.",
+        "The query optimizer chose to ignore the MV and read from the base tables instead."
+      ],
+      "answer": 1,
+      "explanation": "Materialized views can fail refresh jobs silently if proper monitoring and alerting are not in place. The stale data indicates a recent refresh did not occur. Option 0 is incorrect because the user successfully retrieved data (not an error). Option 2 is false; refresh frequency is configurable. Option 3 is unlikely; query planning typically respects MVs when they match the query."
+    },
+    {
+      "id": "sql-new-042",
+      "type": "single",
+      "topic": "window functions",
+      "difficulty": "hard",
+      "added_date": "2026-08-01",
+      "prompt": "Schema: `orders(order_id INT, user_id INT, order_date DATE, total DECIMAL)`. You want to compute the cumulative sum of order totals per user, ordered by date, and reset the sum whenever a gap of more than 60 days occurs between consecutive orders. Which technique should you use?",
+      "options": [
+        "SUM(total) OVER (PARTITION BY user_id ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+        "SUM(total) OVER (PARTITION BY user_id, SUM(CASE WHEN order_date - LAG(order_date) OVER (...) > 60 THEN 1 ELSE 0 END) OVER (...) ORDER BY order_date)",
+        "Compute a group identifier using LAG and a running count, then SUM over (PARTITION BY user_id, group_id ORDER BY order_date)",
+        "Use a WINDOW CLAUSE with a custom frame that resets based on date differences."
+      ],
+      "answer": 2,
+      "explanation": "The correct approach is to create a group/bucket identifier using LAG() to detect gaps, then aggregate within those groups. This is a classic 'islands and gaps' problem. Option 0 ignores gaps. Option 1 has invalid syntax (cannot nest window functions in PARTITION BY). Option 3 (WINDOW CLAUSE) does not support dynamic reset logic based on row comparisons."
+    },
+    {
+      "id": "sql-new-043",
+      "type": "single",
+      "topic": "partitioning",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "You have a fact table partitioned by `YEAR` and `MONTH` (two-level partition) with billions of rows. A common query filters by a single MONTH across all years. How should you restructure partitioning to optimize this query pattern?",
+      "options": [
+        "Repartition by MONTH only, eliminating YEAR, since MONTH uniquely identifies a partition.",
+        "Keep two-level partitioning but invert the order: MONTH, then YEAR, so pruning starts with MONTH.",
+        "Create a covering index instead of changing partitioning; partitioning order does not affect pruning.",
+        "Introduce a column `is_recent` and partition by that first, then MONTH, to cluster hot data."
+      ],
+      "answer": 1,
+      "explanation": "When partition pruning filters on MONTH, the engine must evaluate the first partition level (YEAR) for all partitions unless you reorder. By placing MONTH first in the partition hierarchy, pruning can immediately skip year partitions before evaluating them. Option 0 loses temporal organization. Option 2 is false; partition order matters for pruning efficiency. Option 3 adds unnecessary complexity and does not address the query pattern."
     }
   ]
 }

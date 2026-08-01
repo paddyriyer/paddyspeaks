@@ -6912,6 +6912,86 @@
       ],
       "answer": 1,
       "explanation": "While multiprocessing does bypass the GIL, the 100GB dataset must be pickled and sent to each worker, creating severe serialization overhead that dominates runtime. Polars uses native Rust for columnar operations without GIL constraints, allowing true parallelism on large data with minimal serialization. ThreadPoolExecutor would remain GIL-bound for CPU work, and asyncio doesn't help CPU-bound tasks. Shared memory helps but doesn't match Polars' native performance advantage for this data-processing workload."
+    },
+    {
+      "id": "py-new-039",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "You need to recursively find all `.parquet` files in a directory tree and return their absolute paths as strings. Which approach using `pathlib` is most efficient and idiomatic?\n\nA) Use `Path.glob('**/*.parquet')` and convert each result to string\nB) Use `os.walk()` with manual string concatenation\nC) Use `Path.rglob('*.parquet')` and convert each result to string\nD) Use `pathlib.Path.iterdir()` with manual recursion",
+      "options": [
+        "Use `Path.glob('**/*.parquet')` and convert each result to string",
+        "Use `os.walk()` with manual string concatenation",
+        "Use `Path.rglob('*.parquet')` and convert each result to string",
+        "Use `pathlib.Path.iterdir()` with manual recursion"
+      ],
+      "answer": 2,
+      "explanation": "`Path.rglob()` is the most idiomatic pathlib method for recursive globbing\u2014it's equivalent to `glob('**/<pattern>')` but clearer. Both return `Path` objects, so you'd convert to strings as needed. `rglob()` is preferred as it explicitly conveys the intent of recursive matching."
+    },
+    {
+      "id": "py-new-040",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "When processing data pipelines, you need to ensure output directories exist before writing files. Which code snippet correctly creates parent directories and handles the case where they already exist?\n\nA) `Path(output_file).parent.mkdir()`\nB) `Path(output_file).parent.mkdir(parents=True, exist_ok=True)`\nC) `os.makedirs(Path(output_file).parent)`\nD) `Path(output_file).mkdir(parents=True)`",
+      "options": [
+        "`Path(output_file).parent.mkdir()`",
+        "`Path(output_file).parent.mkdir(parents=True, exist_ok=True)`",
+        "`os.makedirs(Path(output_file).parent)`",
+        "`Path(output_file).mkdir(parents=True)`"
+      ],
+      "answer": 1,
+      "explanation": "The `mkdir()` method requires both `parents=True` to create intermediate directories and `exist_ok=True` to avoid raising `FileExistsError` if the directory already exists. Option A fails on missing parents, option C mixes pathlib with os, and option D would try to create the file as a directory."
+    },
+    {
+      "id": "py-new-041",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-08-01",
+      "prompt": "You're implementing a data processing pipeline using `multiprocessing.Pool` where each worker reads configuration from a shared JSON file and processes batches of records. Workers report metrics via a `multiprocessing.Queue`. What is the primary issue with this design and how should it be fixed?\n\nA) The Queue will deadlock; use `multiprocessing.Manager()` instead\nB) File I/O from multiple processes is unsafe; use a Manager to share config state\nC) JSON parsing in each worker is inefficient; serialize config to shared memory\nD) Workers will have separate file handles; pass config as an argument to each worker or use a Manager",
+      "options": [
+        "The Queue will deadlock; use `multiprocessing.Manager()` instead",
+        "File I/O from multiple processes is unsafe; use a Manager to share config state",
+        "JSON parsing in each worker is inefficient; serialize config to shared memory",
+        "Workers will have separate file handles; pass config as an argument to each worker or use a Manager"
+      ],
+      "answer": 3,
+      "explanation": "Each worker process has its own memory space, so opening the same file independently is safe for reading. However, the config should be passed as an argument (via the Pool's worker initializer or task arguments) or cached via a Manager's shared dict. Option D correctly identifies that separate file handles aren't a correctness problem but offers the right solutions for efficient config sharing."
+    },
+    {
+      "id": "py-new-042",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-08-01",
+      "prompt": "In a data pipeline using `multiprocessing.Pool.map()`, you process 10 million records in chunks. A few workers occasionally hang indefinitely on I/O. What is the best way to prevent these hangs from blocking the entire job?\n\nA) Use `Pool.map_async()` with a custom timeout handler\nB) Use `Pool.imap_unordered()` with `timeout` parameter on `get()`\nC) Wrap worker tasks with `signal.alarm()` to force timeouts\nD) Use `threading` instead of multiprocessing to avoid deadlocks",
+      "options": [
+        "Use `Pool.map_async()` with a custom timeout handler",
+        "Use `Pool.imap_unordered()` with `timeout` parameter on `get()`",
+        "Wrap worker tasks with `signal.alarm()` to force timeouts",
+        "Use `threading` instead of multiprocessing to avoid deadlocks"
+      ],
+      "answer": 1,
+      "explanation": "`Pool.imap_unordered()` returns an iterator on which you can call `next(iterator, timeout=seconds)`, allowing you to handle timeouts gracefully without blocking. `map_async()` doesn't support per-item timeouts, `signal.alarm()` is Unix-only and unreliable, and threading would serialize I/O-bound tasks. `imap_unordered()` also processes results as they complete, improving overall throughput."
+    },
+    {
+      "id": "py-new-043",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "medium",
+      "added_date": "2026-08-01",
+      "prompt": "You're parsing Avro schema definitions (nested dicts) using Python 3.10+ structural pattern matching. You need to handle unions (a list of types) specially. Which pattern correctly matches and extracts a union type?\n\nA) `case {'type': list() as union_types}: ...`\nB) `case {'type': [*union_types]}: ...`\nC) `case {'type': union_types} if isinstance(union_types, list): ...`\nD) `case {'type': union_types}: ... if isinstance(union_types, list)`",
+      "options": [
+        "`case {'type': list() as union_types}: ...`",
+        "`case {'type': [*union_types]}: ...`",
+        "`case {'type': union_types} if isinstance(union_types, list): ...`",
+        "`case {'type': union_types}: ... if isinstance(union_types, list)`"
+      ],
+      "answer": 1,
+      "explanation": "The pattern `[*union_types]` uses sequence unpacking to match a list and bind its elements to `union_types`. Option A uses `list()` which matches an empty list, option C and D use `if` guards which are valid but less elegant. Option B is the most idiomatic pattern match for this use case in structural matching."
     }
   ]
 }
