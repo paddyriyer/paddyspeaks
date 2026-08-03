@@ -5290,6 +5290,54 @@
       ],
       "answer": 1,
       "explanation": "A batch approach is the clear winner here: the report is scheduled, not real-time, doesn't require minute-level freshness, and has low query volume. Batch jobs are simpler to operate, cheaper, and easier to debug than streaming; streaming would add unnecessary complexity for a non-real-time use case."
+    },
+    {
+      "id": "ds-new-038",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-08-03",
+      "prompt": "Your payment processing pipeline reads from Kafka, enriches transactions with fraud scores from a DynamoDB lookup, and writes results to Redshift. Kafka consumer offsets are committed only after Redshift INSERT succeeds. During a deployment, a pod crashes after committing offsets but before flushing the batch to Redshift. On restart, 147 transactions are skipped. How should you redesign to guarantee exactly-once semantics end-to-end?",
+      "options": [
+        "Commit offsets before writing to Redshift; implement deduplication in Redshift using transaction ID and timestamp as unique key",
+        "Use Kafka transactions with Redshift's transactional writes; commit offsets inside the same transaction as the data write",
+        "Implement idempotent writes with a distributed lock on DynamoDB to prevent concurrent processing of the same offset range",
+        "Switch to Kafka's `isolation.level=read_committed` and buffer all writes in-memory until manual offset commit"
+      ],
+      "answer": 1,
+      "explanation": "Exactly-once semantics requires that offset commits and data writes are atomic. Using Kafka transactions paired with transactional writes to Redshift (or a compatible idempotent sink) ensures that either both succeed or both roll back, preventing skipped or duplicate records. Option 0 has the crash window between Redshift write and offset commit. Options 2 and 3 do not provide true end-to-end atomicity."
+    },
+    {
+      "id": "ds-new-039",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "medium",
+      "added_date": "2026-08-03",
+      "prompt": "Your team manages a Delta Lake table on S3 with 2.1 billion records representing daily user events. After running VACUUM with 168-hour retention, you notice query latency on simple SELECT count(*) increased from 150ms to 8 seconds. You check _delta_log and see 47,000 JSON files instead of the previous 312. What is the root cause and the best remediation?",
+      "options": [
+        "S3 request throttling due to high manifest file count; increase S3 partition limits and use DynamoDB for metadata caching",
+        "VACUUM removed too many files; restore from S3 backup and disable VACUUM on high-velocity tables",
+        "Delta Lake is rescanning all Parquet files to rebuild the manifest because file listing is now slower with more S3 LIST calls; run OPTIMIZE to rewrite files and consolidate the transaction log",
+        "The _delta_log itself has become fragmented; restore the last checkpoint before VACUUM and use Z-order clustering instead"
+      ],
+      "answer": 2,
+      "explanation": "A large number of small JSON files in _delta_log indicates many uncommitted transactions or uncompacted logs. VACUUM removes data files but does not compact the log. Delta Lake must scan all 47K log files on each metadata operation, causing severe slowdown. Running OPTIMIZE rewrites data files and triggers log checkpointing, consolidating fragmentation. Option 0 is incorrect because DynamoDB caching doesn't address the root issue. Options 1 and 3 are unnecessary and miss the real cause."
+    },
+    {
+      "id": "ds-new-040",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "hard",
+      "added_date": "2026-08-03",
+      "prompt": "Your Airflow DAG has 200 downstream tasks that depend on a single 'fetch_data' task. The fetch succeeds, but 31 random tasks fail with 'connection reset' during their API calls to an external service. You set `retries=3` globally, and 28 of the 31 recover on retry. On the next DAG run, different tasks fail. You suspect the external service has a bug that causes occasional connection drops under load. What is the most resilient Airflow pattern to handle this?",
+      "options": [
+        "Increase retries to 7 and add exponential backoff with jitter using the Airflow retry decorator; set pool=1 on the API task to serialize requests",
+        "Use a BranchPythonOperator after fetch_data that checks service health; if unhealthy, skip all downstream tasks and trigger a full retry with trigger_rule=all_done",
+        "Implement a custom XCom-based circuit breaker: fetch_data checks service health and pushes a flag; each downstream task reads the flag and uses it in trigger_rule to either proceed or skip gracefully",
+        "Deploy a local queue/bulkhead using a task pool with pool_slots=1 for the external API calls, combined with retry logic and a monitoring task that alerts on repeated failures"
+      ],
+      "answer": 2,
+      "explanation": "A circuit-breaker pattern using XCom allows fetch_data to asynchronously check service health and signal downstream tasks to skip or proceed conditionally. This avoids resource waste from retrying 200 tasks when the issue is systemic, enables graceful degradation, and makes failure transparent. Option 0 doesn't address the root cause (load-induced service bugs). Option 1 is inefficient because skipping all tasks wastes the partial success already achieved. Option 3 (pool_slots) only serializes one task at a time, not a protective pattern for transient failures."
     }
   ]
 }

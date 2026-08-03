@@ -13548,6 +13548,70 @@
       ],
       "answer": 1,
       "explanation": "When partition pruning filters on MONTH, the engine must evaluate the first partition level (YEAR) for all partitions unless you reorder. By placing MONTH first in the partition hierarchy, pruning can immediately skip year partitions before evaluating them. Option 0 loses temporal organization. Option 2 is false; partition order matters for pruning efficiency. Option 3 adds unnecessary complexity and does not address the query pattern."
+    },
+    {
+      "id": "sql-new-044",
+      "type": "single",
+      "topic": "FILTER clause with aggregates",
+      "difficulty": "medium",
+      "added_date": "2026-08-03",
+      "prompt": "Schema: `transactions(txn_id INT, user_id INT, amount DECIMAL, status TEXT, txn_date DATE)`. You need to report, for each user, the total amount of completed transactions and the count of failed transactions in a single query. Which approach is most efficient in databases supporting the FILTER clause (Postgres 9.4+, Snowflake, BigQuery)?",
+      "options": [
+        "SELECT user_id, SUM(amount) FILTER (WHERE status = 'completed') as completed_total, COUNT(*) FILTER (WHERE status = 'failed') as failed_count FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as completed_total, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count FROM transactions GROUP BY user_id",
+        "SELECT user_id, (SELECT SUM(amount) FROM transactions t2 WHERE t2.user_id = t1.user_id AND status = 'completed') as completed_total, COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count FROM transactions t1 GROUP BY user_id",
+        "SELECT user_id, SUM(amount * (status = 'completed')::INT) as completed_total, COUNT(status = 'failed') as failed_count FROM transactions GROUP BY user_id"
+      ],
+      "answer": 0,
+      "explanation": "The FILTER clause is syntactically cleaner and more efficient than CASE expressions for conditional aggregation, as it filters rows before aggregation rather than evaluating conditions within the aggregate. Option 0 uses FILTER which is the modern, preferred approach in modern SQL dialects. Option 1 works but is less efficient; Option 2 uses a correlated subquery (very slow); Option 4 has invalid syntax."
+    },
+    {
+      "id": "sql-new-045",
+      "type": "single",
+      "topic": "NULLIF with aggregation",
+      "difficulty": "medium",
+      "added_date": "2026-08-03",
+      "prompt": "Schema: `metrics(metric_name TEXT, value INT, recorded_at TIMESTAMP)`. You want to compute the average value per metric, but exclude any rows where value equals a baseline of 0 (which indicates a missing sensor reading). You also want to avoid division-by-zero errors in downstream calculations. Which query correctly handles this?",
+      "options": [
+        "SELECT metric_name, AVG(NULLIF(value, 0)) FROM metrics GROUP BY metric_name",
+        "SELECT metric_name, AVG(value) FROM metrics WHERE value != 0 GROUP BY metric_name",
+        "SELECT metric_name, COALESCE(AVG(value), 0) FROM metrics WHERE value IS NOT NULL GROUP BY metric_name",
+        "SELECT metric_name, AVG(CASE WHEN value = 0 THEN NULL ELSE value END) FROM metrics GROUP BY metric_name HAVING COUNT(value) > 0"
+      ],
+      "answer": 0,
+      "explanation": "NULLIF(value, 0) converts zeros to NULL, and AVG() naturally ignores NULL values, making this the most concise and idiomatic approach. Options 1 and 3 are functionally equivalent but more verbose than Option 0. Option 2 uses COALESCE unnecessarily and the WHERE clause is redundant since AVG ignores NULLs. Option 0 is preferred for code clarity and standard SQL idiom."
+    },
+    {
+      "id": "sql-new-046",
+      "type": "single",
+      "topic": "COALESCE with JOINs and NULLs",
+      "difficulty": "hard",
+      "added_date": "2026-08-03",
+      "prompt": "Schema: `orders(order_id INT, customer_id INT, amount DECIMAL)`, `returns(order_id INT, return_amount DECIMAL)`. A LEFT JOIN returns NULL for orders with no return. You want a net-revenue column (amount minus return_amount, or just amount if no return). A colleague wrote: `SELECT o.order_id, o.amount - COALESCE(r.return_amount, 0) as net_revenue FROM orders o LEFT JOIN returns r ON o.order_id = r.order_id`. What's a potential issue with this approach at scale?",
+      "options": [
+        "COALESCE will fail if return_amount is negative, creating incorrect net revenue calculations",
+        "The LEFT JOIN may produce duplicate rows if the returns table has multiple rows per order_id, distorting net_revenue; a one-to-one join guarantee or subquery is safer",
+        "The query will not compile because COALESCE requires at least 3 arguments",
+        "The subtraction operation will implicitly cast DECIMAL to INT, losing precision"
+      ],
+      "answer": 1,
+      "explanation": "If a single order has multiple return records, the LEFT JOIN will create duplicate rows per order, and each row will compute net_revenue independently, leading to over-counting or confusion. Using GROUP BY with SUM(COALESCE(r.return_amount, 0)) or a subquery for the return sum would prevent this. Options 0, 2, and 3 are incorrect: negatives are valid, COALESCE accepts 2+ args, and DECIMAL arithmetic is preserved."
+    },
+    {
+      "id": "sql-new-047",
+      "type": "single",
+      "topic": "Materialized views for query optimization",
+      "difficulty": "hard",
+      "added_date": "2026-08-03",
+      "prompt": "At your company, you have a daily ETL that ingests 500GB of raw event logs. Analysts query a complex aggregation joining 4 tables with window functions to compute user engagement metrics. The query takes 45 seconds and runs 50+ times daily. Your team considers creating a materialized view. What is the MAIN trade-off to evaluate?",
+      "options": [
+        "Materialized views always reduce query time but consume more storage; the storage cost always outweighs the benefit",
+        "The materialized view must be refreshed; if refresh is incremental and fast (e.g., 2 min daily), it saves compute for 50 queries; if refresh is full and slow (e.g., 30 min), the ROI depends on freshness tolerance and query frequency",
+        "Materialized views are only useful for read-heavy workloads with stable schemas, and your large event logs violate both conditions",
+        "Creating a materialized view will require rewriting all downstream queries and is not backward compatible"
+      ],
+      "answer": 1,
+      "explanation": "The key trade-off is refresh cost vs. query-time savings. If the MV can be incrementally refreshed in 2 minutes but saves 45 seconds per query \u00d7 50 queries (37.5 min saved), the ROI is positive. If full refresh takes 30 minutes and only 10 queries run daily, the ROI is negative. Option 0 overstates storage cost; Option 2 incorrectly dismisses large datasets; Option 3 is false\u2014most DBs support querying MVs with same syntax as views. Answering correctly requires understanding the refresh strategy and workload."
     }
   ]
 }

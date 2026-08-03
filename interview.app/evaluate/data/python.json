@@ -6992,6 +6992,54 @@
       ],
       "answer": 1,
       "explanation": "The pattern `[*union_types]` uses sequence unpacking to match a list and bind its elements to `union_types`. Option A uses `list()` which matches an empty list, option C and D use `if` guards which are valid but less elegant. Option B is the most idiomatic pattern match for this use case in structural matching."
+    },
+    {
+      "id": "py-new-044",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-08-03",
+      "prompt": "You have a Python program that processes 10 million records in parallel using 8 threads. Each thread performs CPU-intensive numeric computations (matrix operations, sorting). When you profile the code, you notice it runs slower than the single-threaded version. Which statement best explains this behavior and provides the correct fix?",
+      "options": [
+        "The GIL prevents true parallelism for CPU-bound work; use multiprocessing.Pool instead to spawn separate processes with independent GILs.",
+        "Thread overhead is too high; reduce to 4 threads and use asyncio with await keywords to yield control between tasks.",
+        "The GIL is not the issue\u2014use threading.Lock to synchronize access and reduce contention on shared data structures.",
+        "Switch to Cython and compile the CPU-intensive functions to C, keeping the threaded architecture unchanged."
+      ],
+      "answer": 0,
+      "explanation": "The Global Interpreter Lock (GIL) serializes bytecode execution in CPython, making threads ineffective for CPU-bound work. Only multiprocessing creates separate Python processes, each with its own GIL, enabling true parallelism. asyncio (option 2) is for I/O-bound concurrency, not CPU-bound. Locks (option 3) worsen contention. Cython (option 4) helps individual functions but doesn't bypass GIL for threaded code."
+    },
+    {
+      "id": "py-new-045",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-08-03",
+      "prompt": "You use multiprocessing.Pool to distribute 1000 tasks across 4 worker processes. Each task takes 1\u20135 seconds. You call `pool.map(fn, tasks)` and observe that one worker consistently finishes all its assigned tasks much faster than the others, then sits idle. What is the root cause and the best mitigation?",
+      "options": [
+        "The Pool uses static round-robin assignment; switch to pool.imap_unordered() and adjust chunksize=1 to distribute work dynamically as workers become free.",
+        "Worker processes have different CPU affinities; use os.sched_setaffinity() to pin workers to the same cores.",
+        "The GIL is blocking workers; use process-level locks (multiprocessing.Lock) to reduce contention.",
+        "Python's memory allocator is fragmented; call gc.collect() in the worker to free unused memory between tasks."
+      ],
+      "answer": 0,
+      "explanation": "Pool.map() chunks tasks statically upfront (default chunksize based on number of workers), so if tasks have variable execution time, some workers finish early and remain idle. imap_unordered() with chunksize=1 fetches one task per worker dynamically, keeping all workers busy. Option 2 (CPU affinity) doesn't help load balancing. Option 3 (GIL/locks) is irrelevant since each process has its own GIL. Option 4 (garbage collection) won't fix task distribution."
+    },
+    {
+      "id": "py-new-046",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "medium",
+      "added_date": "2026-08-03",
+      "prompt": "You have a data validation function that receives JSON events with variant structures. Using Python 3.10+ match/case, you want to extract and process user login events (with 'user_id', 'timestamp', 'ip_addr') separately from error events (with 'error_code', 'message'). Which pattern correctly matches and binds the fields?",
+      "options": [
+        "case {'user_id': uid, 'timestamp': ts, 'ip_addr': ip}: ... to capture login events, and case {'error_code': code, 'message': msg}: ... for errors.",
+        "case (uid, ts, ip) if 'user_id' in event: ... to unpack tuple values, with a separate case for errors.",
+        "case {'type': 'login', **rest}: ... to match on a type field, requiring the event to explicitly include 'type'.",
+        "case [uid, ts, ip]: ... to match list-based events, assuming a fixed order of fields."
+      ],
+      "answer": 0,
+      "explanation": "Structural pattern matching in Python 3.10+ uses case {key: var, ...} syntax to match dictionary keys and bind values to variables. This is the cleanest way to destructure variant JSON structures. Option 2 (tuple unpacking with if guard) is awkward for dict matching. Option 3 requires a 'type' field that may not exist. Option 4 (list matching) assumes events are lists, not dicts, which is not typical for JSON."
     }
   ]
 }
