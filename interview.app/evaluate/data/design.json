@@ -5338,6 +5338,54 @@
       ],
       "answer": 2,
       "explanation": "A circuit-breaker pattern using XCom allows fetch_data to asynchronously check service health and signal downstream tasks to skip or proceed conditionally. This avoids resource waste from retrying 200 tasks when the issue is systemic, enables graceful degradation, and makes failure transparent. Option 0 doesn't address the root cause (load-induced service bugs). Option 1 is inefficient because skipping all tasks wastes the partial success already achieved. Option 3 (pool_slots) only serializes one task at a time, not a protective pattern for transient failures."
+    },
+    {
+      "id": "ds-new-041",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "medium",
+      "added_date": "2026-08-03",
+      "prompt": "You're designing a data warehouse for a payments platform. The `transactions` table currently has columns: `id, amount, currency, created_at, status`. A new requirement asks to track `fee_amount` and `fee_currency` separately starting next month. You have 4 years of historical data. Which approach minimizes query complexity and supports seamless backfill?",
+      "options": [
+        "Add `fee_amount` and `fee_currency` as nullable columns now; backfill historical records with 0 and original currency respectively using a one-time migration job.",
+        "Create a new `transaction_fees` table with foreign key to transactions; use a view that left-joins them for backward compatibility; backfill incrementally.",
+        "Keep the original table unchanged; create a new versioned table `transactions_v2` with fees; route new writes there and gradually migrate readers.",
+        "Add the columns as nullable; defer backfill indefinitely; handle NULL fees in application logic with a default calculation rule."
+      ],
+      "answer": 1,
+      "explanation": "Option B minimizes schema bloat on the hot transactions table, maintains backward compatibility via views, and allows independent backfill scheduling without blocking the main table. Option A couples historical logic into the schema; Option C fragments data; Option D defers correctness."
+    },
+    {
+      "id": "ds-new-042",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "hard",
+      "added_date": "2026-08-03",
+      "prompt": "A real-time data pipeline processes order events from Kafka into Snowflake via Spark Structured Streaming. Messages have idempotency keys. You observe that 0.3% of orders are duplicated in the target table despite deduplication logic in Spark. The Spark job uses `foreachBatch` to write micro-batches with MERGE statements. What is the most likely root cause?",
+      "options": [
+        "Kafka message retention is too short; consumers are retrying and re-reading expired offsets, causing duplicates upstream.",
+        "The MERGE statement's join condition uses a non-unique index on the idempotency key, causing Snowflake to match multiple rows.",
+        "Spark checkpointing failed intermittently; the job restarted and replayed a batch before the previous MERGE fully committed, creating a race condition.",
+        "The idempotency key is hashed inconsistently across partitions; some duplicates pass the deduplication filter by accident."
+      ],
+      "answer": 2,
+      "explanation": "Option C correctly identifies the root cause: Spark's exactly-once semantics rely on checkpoint atomicity; if a batch restarts before its Snowflake MERGE commit is visible, the batch replays and creates duplicates. Option A doesn't explain in-pipeline duplication; Option B would cause data corruption, not duplicates; Option D contradicts deterministic hashing."
+    },
+    {
+      "id": "ds-new-043",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-08-03",
+      "prompt": "You're redesigning an ad-tech platform's attribution pipeline. Currently, a daily batch job (runs at 2 AM UTC) joins ad impressions, clicks, and conversions within a 7-day window to compute per-campaign ROI. Stakeholders want near-real-time dashboards. You have ~500M events/day across 3 event types with high skew. What trade-off should guide your architecture choice?",
+      "options": [
+        "Replace batch entirely with Kafka Streams + ksqlDB for sub-second latency; accept eventual consistency on the 7-day window and slightly higher infrastructure cost.",
+        "Run streaming aggregations up to a 12-hour window; batch-join the tail (hours 12\u2013168) nightly to avoid state explosion; blend real-time and batch results in the mart.",
+        "Keep batch as the source of truth; add a thin caching layer (Redis) that serves yesterday's ROI with sub-100ms latency for the dashboard.",
+        "Deploy a hybrid using Flink for streaming with RocksDB state; checkpoint every 15 minutes to a data lake; no batch job needed."
+      ],
+      "answer": 1,
+      "explanation": "Option B balances latency (hours 0\u201312 via streaming) with accuracy (full 7-day window via batch), avoiding state management explosion and cost of full streaming. Option A sacrifices correctness on late arrivals; Option C doesn't improve freshness; Option D introduces operational complexity without proportional benefit for a 7-day window."
     }
   ]
 }
