@@ -7088,6 +7088,22 @@
       ],
       "answer": 2,
       "explanation": "If you create a task but never store a reference to it and the event loop closes before it completes, the task is garbage collected and will not run. While create_task() does register the task with the event loop, if all external references are lost and the loop stops, the task is killed. This is a common pitfall; storing the task reference (e.g., `task = asyncio.create_task(coro)`) prevents garbage collection and ensures it runs."
+    },
+    {
+      "id": "py-new-050",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-08-04",
+      "prompt": "You are building a data pipeline that fetches records from multiple APIs concurrently. Each API call is I/O-bound and takes 2 seconds. You have 100 APIs to call. Which approach is most efficient and why?\n\nConsider:\n```python\n# Option A: Sequential\nresults = []\nfor api in apis:\n    results.append(await fetch(api))\n\n# Option B: Gather all\nresults = await asyncio.gather(*[fetch(api) for api in apis])\n\n# Option C: Semaphore-limited gather\nsemaphore = asyncio.Semaphore(10)\nasync def limited_fetch(api):\n    async with semaphore:\n        return await fetch(api)\nresults = await asyncio.gather(*[limited_fetch(api) for api in apis])\n\n# Option D: Task queue with worker pool\nqueue = asyncio.Queue()\nworkers = [asyncio.create_task(worker(queue)) for _ in range(10)]\n```",
+      "options": [
+        "Option A is best because sequential execution guarantees order preservation.",
+        "Option B is best because it launches all tasks immediately, achieving maximum concurrency and minimizing total time to ~2 seconds.",
+        "Option C is best because it balances concurrency (10 tasks in parallel) while avoiding resource exhaustion, completing in ~20 seconds with bounded resource usage.",
+        "Option D is best because task queues are always faster than gather() in asyncio."
+      ],
+      "answer": 2,
+      "explanation": "Option C is correct. Option A takes 200 seconds (sequential). Option B launches 100 concurrent tasks, which can exhaust file descriptors, memory, or connection pools\u2014a common production issue. Option C uses a Semaphore to limit concurrency to 10 tasks, balancing throughput (~20 seconds total) with resource safety. Option D is unnecessarily complex for this use case and not inherently faster than a semaphore-bounded gather()."
     }
   ]
 }

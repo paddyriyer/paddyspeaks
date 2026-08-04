@@ -13612,6 +13612,22 @@
       ],
       "answer": 1,
       "explanation": "The key trade-off is refresh cost vs. query-time savings. If the MV can be incrementally refreshed in 2 minutes but saves 45 seconds per query \u00d7 50 queries (37.5 min saved), the ROI is positive. If full refresh takes 30 minutes and only 10 queries run daily, the ROI is negative. Option 0 overstates storage cost; Option 2 incorrectly dismisses large datasets; Option 3 is false\u2014most DBs support querying MVs with same syntax as views. Answering correctly requires understanding the refresh strategy and workload."
+    },
+    {
+      "id": "sql-new-048",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-08-04",
+      "prompt": "You are implementing a daily ETL in BigQuery that must update a `customer_metrics` table with the latest purchase counts and average order value. The source data comes from `daily_activity`, and you need to insert new customers or update existing ones based on `customer_id`. Some customers have NULL values for `avg_order_value` in the source, which should be preserved only if the target already has a NULL; otherwise, use COALESCE to keep the last known non-NULL value. Which MERGE statement correctly handles this logic?\n\n```sql\nMERGE INTO customer_metrics t\nUSING daily_activity s\nON t.customer_id = s.customer_id\nWHEN MATCHED THEN\n  UPDATE SET \n    purchase_count = s.purchase_count,\n    avg_order_value = ?\nWHEN NOT MATCHED THEN\n  INSERT (customer_id, purchase_count, avg_order_value)\n  VALUES (s.customer_id, s.purchase_count, s.avg_order_value);\n```\n\nWhat should replace the `?` to implement the COALESCE logic described?",
+      "options": [
+        "COALESCE(s.avg_order_value, t.avg_order_value)",
+        "NULLIF(s.avg_order_value, t.avg_order_value)",
+        "IF(s.avg_order_value IS NULL, t.avg_order_value, s.avg_order_value)",
+        "CASE WHEN s.avg_order_value IS NOT NULL THEN s.avg_order_value ELSE t.avg_order_value END"
+      ],
+      "answer": 0,
+      "explanation": "COALESCE returns the first non-NULL argument, so it prefers the source value if present, otherwise falls back to the existing target value\u2014exactly matching the requirement. While option 2 is logically equivalent using a CASE, option 0 is the idiomatic and most concise choice. Options 1 and 3 are incorrect: NULLIF returns NULL if both values match (wrong semantics), and the explicit IF statement in option 2 is verbose and less standard in BigQuery contexts."
     }
   ]
 }
