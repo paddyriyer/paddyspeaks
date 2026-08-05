@@ -13628,6 +13628,22 @@
       ],
       "answer": 0,
       "explanation": "COALESCE returns the first non-NULL argument, so it prefers the source value if present, otherwise falls back to the existing target value\u2014exactly matching the requirement. While option 2 is logically equivalent using a CASE, option 0 is the idiomatic and most concise choice. Options 1 and 3 are incorrect: NULLIF returns NULL if both values match (wrong semantics), and the explicit IF statement in option 2 is verbose and less standard in BigQuery contexts."
+    },
+    {
+      "id": "sql-new-049",
+      "type": "single",
+      "topic": "Snowflake-specific query planning with LATERAL joins",
+      "difficulty": "hard",
+      "added_date": "2026-08-05",
+      "prompt": "You have a Snowflake table `orders(order_id INT, customer_id INT, order_date DATE, total DECIMAL)` with 10M rows, and a table `order_details(order_id INT, line_item_id INT, product_id INT, qty INT)` with 50M rows. Your query uses a LATERAL join to fetch the top 3 most expensive line items per order:\n\n```sql\nSELECT o.order_id, o.customer_id, od.product_id, od.qty\nFROM orders o\nLATERAL (\n  SELECT product_id, qty\n  FROM order_details\n  WHERE order_id = o.order_id\n  ORDER BY qty DESC\n  LIMIT 3\n) od\nWHERE o.order_date >= '2025-01-01'\n```\n\nYou notice this query runs in 45 seconds. A colleague suggests rewriting it with a window function and a WHERE clause instead. Which statement best explains the performance tradeoff?\n\nA) The LATERAL join is always faster because Snowflake's optimizer pushes the filter into the subquery; the window function approach will scan all 50M rows.\nB) The window function approach may be faster because it allows Snowflake to materialize and sort order_details once, whereas LATERAL executes the ORDER BY LIMIT per order row, causing redundant sorts.\nC) Both approaches have identical performance; the 45-second runtime is due to the `order_date >= '2025-01-01'` filter being applied late in execution.\nD) The LATERAL join is superior because it avoids the memory overhead of window function partition buffers; the colleague's suggestion will cause out-of-memory errors on large datasets.",
+      "options": [
+        "The LATERAL join is always faster because Snowflake's optimizer pushes the filter into the subquery; the window function approach will scan all 50M rows.",
+        "The window function approach may be faster because it allows Snowflake to materialize and sort order_details once, whereas LATERAL executes the ORDER BY LIMIT per order row, causing redundant sorts.",
+        "Both approaches have identical performance; the 45-second runtime is due to the `order_date >= '2025-01-01'` filter being applied late in execution.",
+        "The LATERAL join is superior because it avoids the memory overhead of window function partition buffers; the colleague's suggestion will cause out-of-memory errors on large datasets."
+      ],
+      "answer": 1,
+      "explanation": "LATERAL joins in Snowflake execute the subquery for each row from the outer table, meaning the ORDER BY and LIMIT are computed repeatedly (10M times in this case), creating significant overhead. A window function with ROW_NUMBER() and filtering allows Snowflake to sort and process order_details more efficiently as a single operation, reducing redundant computation. The LATERAL approach is useful for truly correlated subqueries, but when the goal is simply 'top-N per group,' window functions typically outperform."
     }
   ]
 }

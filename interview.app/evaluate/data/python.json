@@ -7104,6 +7104,22 @@
       ],
       "answer": 2,
       "explanation": "Option C is correct. Option A takes 200 seconds (sequential). Option B launches 100 concurrent tasks, which can exhaust file descriptors, memory, or connection pools\u2014a common production issue. Option C uses a Semaphore to limit concurrency to 10 tasks, balancing throughput (~20 seconds total) with resource safety. Option D is unnecessarily complex for this use case and not inherently faster than a semaphore-bounded gather()."
+    },
+    {
+      "id": "py-new-051",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-08-05",
+      "prompt": "You are building a data pipeline that needs to safely manage database connections across multiple worker threads. You implement a context manager using `__enter__` and `__exit__`. A worker thread acquires a connection, processes a batch, then exits the context. However, you notice that if an exception occurs during batch processing, the connection is not being returned to the pool. Which of the following best explains the issue and how to fix it?\n\nCurrent code:\n```python\nclass DBConnection:\n    def __enter__(self):\n        self.conn = pool.acquire()\n        return self.conn\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        if exc_type is None:\n            pool.release(self.conn)\n        return False\n```",
+      "options": [
+        "The `__exit__` method should always release the connection regardless of exceptions. Change the condition to `pool.release(self.conn)` without the `if exc_type is None` check, and return `False` to propagate exceptions.",
+        "The context manager is working correctly; the issue is that `pool.release()` is asynchronous and hasn't completed yet. Add `time.sleep(0.1)` before the return statement.",
+        "The `__exit__` method needs to catch and log the exception before releasing. Change `return False` to `return True` to suppress the exception and ensure cleanup happens.",
+        "The issue is that `__enter__` is not thread-safe. Use `threading.Lock()` to synchronize access to the pool inside both `__enter__` and `__exit__`."
+      ],
+      "answer": 0,
+      "explanation": "Context managers should release resources in `__exit__` regardless of whether an exception occurred (that's the whole point\u2014guaranteed cleanup). The current code only releases on success, causing a resource leak on exceptions. Returning `False` ensures exceptions propagate while cleanup still happens. Options 1-3 misunderstand context manager semantics; option 4 confuses thread-safety of the pool itself with proper cleanup."
     }
   ]
 }
