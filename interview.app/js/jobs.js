@@ -23,6 +23,30 @@
     });
   }
 
+  /* "Added" = when the listing first reached this board, which is not the
+     employer's posted date — a role can be weeks old before a weekly refresh
+     picks it up. Shown relative, with the exact date in the tooltip. */
+  var DAY = 86400000;
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  function addedLabel(iso) {
+    var d = new Date(iso + "T00:00:00Z");
+    if (isNaN(d)) return null;
+    var days = Math.floor((Date.now() - d.getTime()) / DAY);
+    var rel =
+      days <= 0 ? "today"
+      : days === 1 ? "yesterday"
+      : days < 7 ? days + " days ago"
+      : days < 14 ? "last week"
+      : days < 60 ? Math.floor(days / 7) + " weeks ago"
+      : d.getUTCDate() + " " + MONTHS[d.getUTCMonth()];
+    return {
+      rel: rel,
+      exact: d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear(),
+      isNew: days <= 7
+    };
+  }
+
   function countLabel(counts) {
     var n = (counts && counts.total) || 0;
     var bits = [];
@@ -55,6 +79,15 @@
     var loc = job.location ? '<span class="job-loc">' + esc(job.location) + "</span>" : "";
     var tag = job.sample ? '<span class="job-tag">sample</span>' : "";
 
+    var a = job.first_seen ? addedLabel(job.first_seen) : null;
+    var added = a
+      ? '<span class="job-added' + (a.isNew ? " is-new" : "") +
+        '" title="First appeared on this board on ' + esc(a.exact) +
+        '. The employer may have posted it earlier.">' +
+        (a.isNew ? "New · added " : "Added ") + esc(a.rel) +
+        "</span>"
+      : "";
+
     return (
       '<div class="job-card">' +
       "<div>" +
@@ -63,6 +96,7 @@
       '<span class="job-co">' + esc(job.company) + "</span>" +
       loc +
       (c.breakdown ? '<span>' + esc(c.breakdown.trim()) + "</span>" : "") +
+      added +
       tag +
       "</div>" +
       "</div>" +
