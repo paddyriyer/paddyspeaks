@@ -74,6 +74,34 @@ def load_json(path: Path):
         return json.load(fh)
 
 
+def job_key(rec: dict) -> tuple:
+    """Identity of a listing across rebuilds — same key as the feed de-dupe."""
+    return (rec.get("company"), (rec.get("role") or "").lower(), rec.get("apply_url"))
+
+
+def existing_first_seen() -> dict[tuple, str]:
+    """
+    When each listing was first published to this board, from the board we
+    already shipped.
+
+    This carry-forward is the whole feature: the field is generated weekly, so
+    without reading the previous file every rebuild would stamp today on every
+    role and "added" would silently mean "last refreshed". A listing keeps the
+    date it first appeared until it drops off the board entirely.
+    """
+    if not OUT.exists():
+        return {}
+    try:
+        prev = load_json(OUT)
+    except (json.JSONDecodeError, OSError):
+        return {}          # unreadable previous board: degrade to all-new, never crash
+    return {
+        job_key(j): j["first_seen"]
+        for j in prev.get("jobs", [])
+        if j.get("first_seen")
+    }
+
+
 def company_counts(questions: list[dict]) -> dict[str, dict]:
     """Per-company {total, sql, python} from the live question set."""
     counts: dict[str, dict] = defaultdict(lambda: {"total": 0, "sql": 0, "python": 0})
@@ -102,46 +130,59 @@ def careers_search(company: str) -> str:
     return "https://www.google.com/search?q=" + quote(f"{company} data engineer jobs")
 
 
-def build_sample(counts: dict[str, dict], companies: list[dict]) -> list[dict]:
+def build_sample(counts: dict[str, dict], companies: list[dict], today: str) -> list[dict]:
     ranked = [c["name"] for c in companies if counts.get(c["name"], {}).get("total")]
+    known = existing_first_seen()
     jobs = []
     for i, name in enumerate(ranked[:SAMPLE_COMPANY_LIMIT]):
-        jobs.append(
-            {
-                "company": name,
-                "role": SAMPLE_ROLES[i % len(SAMPLE_ROLES)],
-                "location": SAMPLE_LOCATIONS[i % len(SAMPLE_LOCATIONS)],
-                "apply_url": careers_search(name),
-                "practice_url": practice_url(name),
-                "counts": counts[name],
-                "sample": True,
-            }
-        )
+        rec = {
+            "company": name,
+            "role": SAMPLE_ROLES[i % len(SAMPLE_ROLES)],
+            "location": SAMPLE_LOCATIONS[i % len(SAMPLE_LOCATIONS)],
+            "apply_url": careers_search(name),
+            "practice_url": practice_url(name),
+            "counts": counts[name],
+            "first_seen": known.get(job_key({"company": name,
+                                             "role": SAMPLE_ROLES[i % len(SAMPLE_ROLES)],
+                                             "apply_url": careers_search(name)}), today),
+            "sample": True,
+        }
+        jobs.append(rec)
     return jobs
 
 
-def build_live(feed: list[dict], counts: dict[str, dict], names: set[str]) -> list[dict]:
+def build_live(feed: list[dict], counts: dict[str, dict], names: set[str], today: str) -> list[dict]:
+    known = existing_first_seen()
     jobs = []
     dropped = 0
+    added = 0
     for rec in feed:
         co = (rec.get("company") or "").strip()
         if co not in names or not counts.get(co, {}).get("total"):
             dropped += 1
             continue
-        jobs.append(
-            {
-                "company": co,
-                "role": (rec.get("role") or "Data Engineer").strip(),
-                "location": (rec.get("location") or "").strip(),
-                "apply_url": rec.get("apply_url") or careers_search(co),
-                "practice_url": practice_url(co),
-                "counts": counts[co],
-                "posted": rec.get("posted"),
-                "sample": False,
-            }
-        )
+        out = {
+            "company": co,
+            "role": (rec.get("role") or "Data Engineer").strip(),
+            "location": (rec.get("location") or "").strip(),
+            "apply_url": rec.get("apply_url") or careers_search(co),
+            "practice_url": practice_url(co),
+            "counts": counts[co],
+            "posted": rec.get("posted"),
+            "sample": False,
+        }
+        # When this listing first reached the board — carried forward if we have
+        # seen it before, stamped today if it is genuinely new. Distinct from
+        # "posted", which is the employer's date and can be months earlier.
+        seen = known.get(job_key(out))
+        if seen is None:
+            seen = today
+            added += 1
+        out["first_seen"] = seen
+        jobs.append(out)
     if dropped:
         print(f"  dropped {dropped} role(s) with no tagged questions / unknown company")
+    print(f"  {added} new to the board, {len(jobs) - added} carried over")
     # Newest first when a posted date is present.
     jobs.sort(key=lambda j: j.get("posted") or "", reverse=True)
     return jobs
@@ -156,6 +197,9 @@ def main() -> None:
         help="One or more JSON feeds of live roles (ATS, Adzuna, …). Missing files are skipped.",
     )
     args = ap.parse_args()
+
+    now = _dt.datetime.now(_dt.timezone.utc)
+    today = now.strftime("%Y-%m-%d")
 
     companies = load_json(DATA / "companies.json")
     questions = load_json(DATA / "questions.json")
@@ -177,14 +221,14 @@ def main() -> None:
                 merged.append(rec)
         if not merged:
             sys.exit("no roles found in any provided feed")
-        jobs = build_live(merged, counts, names)
+        jobs = build_live(merged, counts, names, today)
         mode = "live"
     else:
-        jobs = build_sample(counts, companies)
+        jobs = build_sample(counts, companies, today)
         mode = "sample"
 
     payload = {
-        "generated_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "mode": mode,
         "job_count": len(jobs),
         "company_count": len({j["company"] for j in jobs}),
