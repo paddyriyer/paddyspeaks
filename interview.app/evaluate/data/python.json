@@ -7120,6 +7120,22 @@
       ],
       "answer": 0,
       "explanation": "Context managers should release resources in `__exit__` regardless of whether an exception occurred (that's the whole point\u2014guaranteed cleanup). The current code only releases on success, causing a resource leak on exceptions. Returning `False` ensures exceptions propagate while cleanup still happens. Options 1-3 misunderstand context manager semantics; option 4 confuses thread-safety of the pool itself with proper cleanup."
+    },
+    {
+      "id": "py-new-052",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-08-06",
+      "prompt": "You have a pandas DataFrame with 10M rows and need to compute a rolling 7-day sum for each group independently. Your current code uses `df.groupby('group_id').apply(lambda g: g.set_index('date').rolling('7D').sum())`, but it's taking >30 seconds. Which optimization would provide the most significant speedup?\n\nAssume:\n- The DataFrame has columns: 'group_id', 'date', 'value'\n- 'date' is already a datetime64[ns] column\n- Memory is not severely constrained\n- You have 8 CPU cores available",
+      "options": [
+        "Use `numba` to JIT-compile the rolling sum logic and call it within groupby",
+        "Convert to a numpy array, sort by group_id and date, then use a Cython-compiled rolling window function; alternatively, use `pandas.core.window.rolling.Rolling._create_data()` with pre-allocated arrays",
+        "Switch to polars with `df.groupby('group_id').rolling(window_size=7, on='date').agg(pl.col('value').sum())` which uses a more efficient rolling implementation",
+        "Use `pd.pivot_table()` to reshape, compute rolling sums column-wise, then unpivot\u2014this leverages vectorized operations"
+      ],
+      "answer": 2,
+      "explanation": "Polars' rolling window implementation is substantially faster than pandas for grouped rolling operations due to better memory layout and parallelization. While numba (option A) can help, it requires careful optimization and doesn't benefit from polars' underlying performance improvements. Option B over-complicates the problem. Option D (pivoting) would actually be slower due to reshape overhead and doesn't parallelize rolling computations. Polars is the pragmatic choice at this scale."
     }
   ]
 }

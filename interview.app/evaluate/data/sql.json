@@ -13644,6 +13644,22 @@
       ],
       "answer": 1,
       "explanation": "LATERAL joins in Snowflake execute the subquery for each row from the outer table, meaning the ORDER BY and LIMIT are computed repeatedly (10M times in this case), creating significant overhead. A window function with ROW_NUMBER() and filtering allows Snowflake to sort and process order_details more efficiently as a single operation, reducing redundant computation. The LATERAL approach is useful for truly correlated subqueries, but when the goal is simply 'top-N per group,' window functions typically outperform."
+    },
+    {
+      "id": "sql-new-050",
+      "type": "single",
+      "topic": "window functions",
+      "difficulty": "hard",
+      "added_date": "2026-08-06",
+      "prompt": "Schema: `events(user_id INT, event_date DATE, revenue DECIMAL)`. You need to identify for each user their first event where revenue exceeded their user's median revenue up to that point (inclusive). Which query correctly uses a window function to compute running median and filter?\n\n```sql\nWITH ranked AS (\n  SELECT\n    user_id,\n    event_date,\n    revenue,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY revenue)\n      OVER (PARTITION BY user_id ORDER BY event_date\n            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as running_median\n  FROM events\n)\nSELECT user_id, event_date, revenue\nFROM ranked\nWHERE revenue > running_median\n  AND ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_date) = 1;\n```\n\nWhat is the logical bug in this query?",
+      "options": [
+        "PERCENTILE_CONT with ROWS frame is not supported in most databases; use a self-join instead.",
+        "The WHERE clause filters for the first row overall before evaluating the median condition, so it will never find a row where revenue exceeds median.",
+        "ROW_NUMBER() should be RANK() to handle ties in event_date.",
+        "The running median is computed inclusively but should exclude the current row for a fair comparison."
+      ],
+      "answer": 1,
+      "explanation": "The query applies ROW_NUMBER() = 1 after computing running_median, so it returns only the very first event per user regardless of the revenue > running_median condition. To find the *first* event where revenue exceeds running median, you must filter on the median condition first, then apply ROW_NUMBER() = 1 in a subquery or use QUALIFY (Snowflake/BigQuery/DuckDB)."
     }
   ]
 }
