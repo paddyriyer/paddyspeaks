@@ -2,6 +2,7 @@
 // Python Playground — Pyodide (Python-WASM) in-browser
 // ════════════════════════════════════════════════════════════
 import { generateDemo } from "./demo-gen.js";
+import { renderBoot, bootStep, renderBootError, renderEmpty } from "./pg-states.js";
 
 const DATA_BASE = "../interview/data";
 
@@ -74,7 +75,9 @@ function setStatus(msg, kind = "") {
 
 function appendOutput(text, cls = "") {
   const body = $("#pg-results-body");
-  if (body.querySelector(".pg-empty")) body.innerHTML = "";
+  // Any placeholder — legacy empty, new empty state, or the boot skeleton —
+  // gets out of the way the moment real output arrives.
+  if (body.querySelector(".pg-empty, .pg-state, .pg-boot")) body.innerHTML = "";
   const span = document.createElement("span");
   if (cls) span.className = cls;
   span.textContent = text;
@@ -83,24 +86,42 @@ function appendOutput(text, cls = "") {
 }
 
 function clearOutput() {
-  $("#pg-results-body").innerHTML = `<div class="pg-empty">Run code to see output.</div>`;
+  renderEmpty($("#pg-results-body"), {
+    title: "No output yet",
+    body: "Python prints here as it runs. Nothing is running right now.",
+    hint: 'Press <code>Ctrl</code>+<code>Enter</code> to run, or <code>?</code> for every shortcut.',
+    action: { label: "▶ Run the code", target: "pg-run" },
+  });
   $("#pg-results-stats").textContent = "";
 }
 
 // ─── Pyodide bootstrap ───
+const PY_BOOT_STEPS = [
+  "Downloading the Python runtime",
+  "Starting the interpreter",
+  "Loading the helper prelude",
+];
+
 async function initPyodide() {
+  const pane = $("#pg-results-body");
+  renderBoot(pane, { engine: "Python", size: "About 10 MB", steps: PY_BOOT_STEPS });
   setStatus("Loading Pyodide (~10 MB — first load only, then cached)…");
   if (typeof window.loadPyodide !== "function") {
     throw new Error("Pyodide failed to load — check your network or ad blocker.");
   }
+  bootStep(pane, 1);
   state.pyodide = await window.loadPyodide({
     indexURL: "./vendor/pyodide/",
     stdout: (s) => appendOutput(s + "\n"),
     stderr: (s) => appendOutput(s + "\n", "pg-stderr"),
   });
+  bootStep(pane, 2);
   await state.pyodide.runPythonAsync(PRELUDE);
+  bootStep(pane, 3);
   setEngineReady(true);
   setStatus("Ready · Python " + state.pyodide.runPython("import sys; sys.version.split()[0]"), "ok");
+  // Only replace the skeleton if nothing has been written to the pane since.
+  if (pane && pane.querySelector(".pg-boot")) clearOutput();
 }
 
 async function ensurePandas(autoFromCode = false) {
@@ -276,7 +297,12 @@ __last_value
     // If the body is still empty, show a friendly hint instead of a black void.
     const body = $("#pg-results-body");
     if (!body.textContent.trim()) {
-      body.innerHTML = `<span class="pg-empty">No output. Call your function or use print() to see results — e.g. <code>print(subarraySum([1,1,1], 2))</code></span>`;
+      renderEmpty(body, {
+        title: "It ran, but printed nothing",
+        body: "Defining a function does not call it. Python only writes to this pane when something asks it to.",
+        hint: 'Add a call at the end, e.g. <code>print(subarraySum([1,1,1], 2))</code>',
+        action: { label: "+ Demo — append a sample call", target: "pg-add-demo" },
+      });
     }
     setStatus(`OK · ${ms} ms`, "ok");
   } catch (err) {
@@ -561,4 +587,9 @@ async function init() {
 init().catch((err) => {
   console.error(err);
   setStatus("Init failed: " + err.message, "error");
+  renderBootError($("#pg-results-body"), err.message, [
+    "Reload the page — the download resumes from the browser cache.",
+    "Check whether an ad blocker or extension is blocking WebAssembly.",
+    "The runtime is about 10 MB; a very slow connection can time out.",
+  ]);
 });

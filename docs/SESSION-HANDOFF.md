@@ -1,9 +1,60 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-07-22. This file is the running memory between Claude Code
+_Last updated: 2026-08-08. This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-08-08, latest): Polish Sprint Wednesday — PS-05, PS-07, PS-08**
+  on branch `claude/weekly-action-plan-kjgt5b`. Two new shared modules under
+  `interview.app/js/`:
+  - **`pg-states.js`** — the engine boot skeleton (PS-05) and the empty-state
+    renderer (PS-08) for both playgrounds. Boot progress is **by completed
+    milestone, not a percentage**: neither sql.js/PGlite nor Pyodide reports
+    byte progress, so a percentage would be invented. Three steps —
+    download, open, seed. The skeleton never paints over results already on
+    screen, and SQL retires it inside `activateEngine()` (after CSV seeding),
+    which is the first moment the pane can actually take a query.
+  - **`pg-shortcuts.js`** — PS-07. A page declares `window.PG_SHORTCUTS`; each
+    entry names a **button id**, and the shortcut clicks that real button, so
+    the keyboard and the toolbar can never disagree. `?` opens the cheatsheet,
+    and a `? shortcuts` affordance is injected into `.pg-editor-toolbar`.
+    Bare-letter shortcuts are suppressed while typing (`isTyping()` checks for
+    INPUT/TEXTAREA/SELECT/contentEditable); modifier combos still fire inside
+    the editor. **Note the toolbar class is `.pg-editor-toolbar`, not
+    `.pg-toolbar`** — that cost a round.
+  - PS-08 also fixed a genuinely blank state: filtering the company or topic
+    picker in `evaluate/index.html` to zero matches rendered **nothing at
+    all** (`.cp-empty` was styled but never used). It now names the term and
+    notes that existing selections stay active while hidden by the filter.
+  - Remaining sprint: **Thu PS-02** (CodeMirror 6, vendored locally under
+    `vendor/`, NO runtime CDN, keep textarea as the no-JS fallback), **Fri
+    PS-03/PS-13/PS-12/PS-14/PS-10 + QA**.
+- **2026-08-06: CareerOS shipped** — `/careeros/`, an independent design
+  prototype of an "AI-native professional network" (PR #756, branch
+  `claude/careeros-prototype-design-eti35a`). 46 files, ~11.3k lines, vanilla
+  ES modules with no build step: `js/store.js` + `js/dom.js` + per-view and
+  per-component modules, persona-driven dashboards with user-rearrangeable
+  panels, explainability drawer, recruiter trust metrics, philosophy page.
+  **It already exists — check before building anything CareerOS-shaped.**
+- **2026-07-28: Polish Sprint Mon + Tue merged** — PR #743 (PS-01 theme
+  unification, PS-09 single focus ring, PS-11 blue purge) and PR #744 (PS-04
+  value-first Skill Check, PS-06 toolbar hierarchy).
+- **2026-07-28: Skill Check empty-pool dead end fixed** (PR #745). A saved
+  refinement of Hard + Code empties three of the six sections outright —
+  **2026 Hot Topics, AI Engineering and Communication have no code-format
+  questions at all** (52 / 152 / 119 questions, every one `single` or
+  `multi`). Section cards with a filtered pool of 0 now drop their `href`
+  entirely, and the quiz dead end offers "Clear the filter & start
+  <section>", which removes the offending localStorage key. **The content gap
+  itself is still open** — authoring code questions for those three sections
+  is a content decision nobody has taken.
+- **2026-07-28: Testimonials + Contact moved into the Studio nav** (PR #746).
+  They now live in a fifth `Connect` hub in `interview.app/partials/nav.html`
+  (run `python3 interview.app/build_nav.py` after editing it — 33 pages), and
+  were removed from the main-site top nav on `index.html`, `about.html` and
+  `resume.html`. **Footers on all three still carry both links**, as does
+  About's "Send a message" CTA — nothing became unreachable.
 
 - **NEW (2026-07-25, latest): Contact + Testimonials shipped** on branch
   `claude/paddyspeaks-contact-testimonials-4zne28`. Full write-up:
@@ -203,8 +254,9 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
       outside Monday's "shared chrome" scope.
     - Pre-existing, NOT ours: `interview/data/enrichments/co_sql_305-0108.html`
       404s on the SQL playground. Reproduces on a clean tree.
-  - Remaining: Wed PS-05/PS-08/PS-07, Thu PS-02, Fri
-    PS-03/PS-13/PS-12/PS-14/PS-10 + QA.
+  - **Wed 2026-08-08 — PS-05, PS-07, PS-08 DONE.** See the top of this file
+    for the detail. Remaining: Thu PS-02, Fri PS-03/PS-13/PS-12/PS-14/PS-10
+    + QA.
   Full ranked plan + before/after mockups (artifact):
   https://claude.ai/code/artifact/0a2933e5-e69a-4dfb-a3be-7c1efef534af
   Audit was grounded in real renders (Playwright screenshots) + code. Headline

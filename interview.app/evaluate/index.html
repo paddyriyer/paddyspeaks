@@ -678,9 +678,27 @@
       });
       if (searchEl) searchEl.addEventListener("input", () => {
         const q = searchEl.value.trim().toLowerCase();
+        let shown = 0;
         listEl.querySelectorAll(".cp-item").forEach(it => {
-          it.style.display = it.dataset.name.toLowerCase().includes(q) ? "" : "none";
+          const hit = it.dataset.name.toLowerCase().includes(q);
+          it.style.display = hit ? "" : "none";
+          if (hit) shown++;
         });
+        // Filtering to nothing used to leave an entirely blank box, which reads
+        // as a broken list rather than an empty one. Say what happened.
+        let note = listEl.querySelector(".cp-empty");
+        if (shown === 0) {
+          if (!note) {
+            note = document.createElement("p");
+            note.className = "cp-empty";
+            listEl.appendChild(note);
+          }
+          note.innerHTML = `Nothing matches “${esc(searchEl.value.trim())}”. `
+            + `Any selections you already made are still active.`;
+          note.hidden = false;
+        } else if (note) {
+          note.hidden = true;
+        }
       });
       if (clearBt) clearBt.addEventListener("click", () => {
         sel.clear();

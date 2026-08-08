@@ -4,6 +4,7 @@
 import { seedFromQid } from "./sample-gen.js";
 import { SqliteEngine } from "./engines/sqlite-engine.js";
 import { PgliteEngine } from "./engines/pglite-engine.js";
+import { renderBoot, bootStep, renderBootError, renderEmpty } from "./pg-states.js";
 
 const DATA_BASE = "../interview/data";
 
@@ -237,18 +238,44 @@ function detectSqliteOnly(sql) {
   return null;
 }
 
+// Three real milestones per engine — download, open, seed. The third is
+// reported by activateEngine once the CSVs are in, because that is when the
+// pane is genuinely usable.
+const BOOT_PROFILE = {
+  sqlite: {
+    engine: "SQLite",
+    size: "About 1 MB",
+    steps: ["Downloading the SQLite engine", "Opening the database", "Loading the sample tables"],
+  },
+  postgres: {
+    engine: "PostgreSQL",
+    size: "About 14 MB",
+    steps: ["Downloading PostgreSQL (PGlite)", "Starting the server", "Loading the sample tables"],
+  },
+};
+
+/** True while the results pane is showing our boot skeleton. */
+function bootPane() {
+  const pane = $("#pg-results-body");
+  return pane && pane.querySelector(".pg-boot") ? pane : null;
+}
+
 async function ensureEngine(kind) {
   if (state.enginesByKind[kind]) return state.enginesByKind[kind];
-  if (kind === "postgres") {
-    setStatus("Loading PostgreSQL engine (PGlite, ~14 MB — first load only)…");
-    const eng = new PgliteEngine();
-    await eng.init();
-    state.enginesByKind[kind] = eng;
-    return eng;
-  }
-  setStatus("Loading SQLite engine (~1 MB WASM)…");
-  const eng = new SqliteEngine();
+  const profile = BOOT_PROFILE[kind] || BOOT_PROFILE.sqlite;
+  const pane = $("#pg-results-body");
+  // Never paint over real results the reader is looking at.
+  const showBoot = pane && !pane.querySelector(".pg-result-table, .pg-error");
+  if (showBoot) renderBoot(pane, profile);
+
+  setStatus(kind === "postgres"
+    ? "Loading PostgreSQL engine (PGlite, ~14 MB — first load only)…"
+    : "Loading SQLite engine (~1 MB WASM)…");
+
+  const eng = kind === "postgres" ? new PgliteEngine() : new SqliteEngine();
+  if (showBoot) bootStep(pane, 1);
   await eng.init();
+  if (showBoot) bootStep(pane, 2);
   state.enginesByKind[kind] = eng;
   return eng;
 }
@@ -264,6 +291,13 @@ async function activateEngine(kind, { reseed = true } = {}) {
     state.questionCreatedTables.clear();
     await loadAllCSVs();
     await refreshTableList();
+  }
+  // Seeding done — the last milestone. Then hand the pane back, unless a
+  // question has already put its own content there.
+  const pane = bootPane();
+  if (pane) {
+    bootStep(pane, 3);
+    resultsEmpty(pane);
   }
   return eng;
 }
@@ -454,8 +488,19 @@ function loadQuestion(qid /* , opts unused */) {
   if (q.runtime === "non-sqlite") {
     body.innerHTML = renderDialectReference(q);
   } else {
-    body.innerHTML = '<div class="pg-empty">Run a query to see results.</div>';
+    resultsEmpty(body);
   }
+}
+
+// The results pane before anything has run. Says what belongs here and how to
+// put something in it, rather than one italic line stating the obvious.
+function resultsEmpty(body) {
+  renderEmpty(body, {
+    title: "No results yet",
+    body: "Rows returned by your query appear here, with the column types the engine inferred.",
+    hint: 'Press <code>Ctrl</code>+<code>Enter</code> to run, or <code>?</code> for every shortcut.',
+    action: { label: "▶ Run the query", target: "pg-run" },
+  });
 }
 
 // Build the dialect-notice block shown in the results pane for questions
@@ -1117,7 +1162,7 @@ function wire() {
 
   $("#pg-clear-output")?.addEventListener("click", () => {
     const body = $("#pg-results-body");
-    if (body) body.innerHTML = '<div class="pg-empty">Run a query to see results.</div>';
+    if (body) resultsEmpty(body);
     const stats = $("#pg-results-stats");
     if (stats) stats.textContent = "";
     const csvBtn = $("#pg-export-csv");
@@ -1233,4 +1278,9 @@ async function init() {
 init().catch((err) => {
   console.error(err);
   setStatus("Init failed: " + err.message, "error");
+  renderBootError($("#pg-results-body"), err.message, [
+    "Reload the page — the engine resumes from the browser cache.",
+    "Check whether an ad blocker or extension is blocking WebAssembly.",
+    "PostgreSQL mode downloads about 14 MB; a slow connection can time out.",
+  ]);
 });
