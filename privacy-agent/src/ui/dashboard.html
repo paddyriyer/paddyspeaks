@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Privacy Agent</title>
+<style>
+  :root {
+    --bg: #faf8f4; --surface: #fff; --ink: #1c1a17; --muted: #6b6459;
+    --border: #e3ddd2; --gold: #b8873b; --gold-dark: #8f6725;
+    --ok: #2f7d4f; --warn: #b06a1f; --bad: #a8342a; --info: #2c5f7a;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16150f; --surface: #201e18; --ink: #f0ebe1; --muted: #a49b8c;
+      --border: #35312a; --ok: #6fbf8c; --warn: #d99a4e; --bad: #e0796d; --info: #7fb3cc;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+  }
+  header {
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  }
+  h1 { font-size: 19px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; }
+  main { padding: 24px; max-width: 1180px; margin: 0 auto; }
+  section { margin-bottom: 32px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.07em;
+       color: var(--muted); margin: 0 0 12px; font-weight: 650; }
+
+  .counters { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .tile { background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius); padding: 14px 16px; }
+  .tile .n { font-size: 28px; font-weight: 640; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile .l { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .tile.attn { border-color: var(--warn); }
+  .tile.attn .n { color: var(--warn); }
+
+  .score { background: var(--surface); border: 1px solid var(--border);
+           border-radius: var(--radius); padding: 18px 20px; display: flex;
+           gap: 20px; align-items: center; flex-wrap: wrap; }
+  .score .big { font-size: 44px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+  .score .txt { flex: 1 1 320px; color: var(--muted); font-size: 14px; }
+  .band-critical { color: var(--bad); } .band-high { color: var(--bad); }
+  .band-moderate { color: var(--warn); } .band-low { color: var(--ok); }
+  .band-none { color: var(--ok); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface);
+          border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border);
+           font-size: 14px; vertical-align: top; }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase;
+       letter-spacing: 0.05em; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: rgba(184,135,59,.07); }
+  .wrap { overflow-x: auto; }
+
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px;
+          font-size: 11.5px; font-weight: 600; border: 1px solid var(--border);
+          white-space: nowrap; }
+  .pill.ok { color: var(--ok); border-color: var(--ok); }
+  .pill.warn { color: var(--warn); border-color: var(--warn); }
+  .pill.bad { color: var(--bad); border-color: var(--bad); }
+  .pill.info { color: var(--info); border-color: var(--info); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+
+  .q { background: var(--surface); border: 2px solid var(--gold);
+       border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; }
+  .q h3 { margin: 0 0 8px; font-size: 16px; }
+  .q .ev { font-size: 13.5px; color: var(--muted); margin: 8px 0; }
+  .q ul { margin: 6px 0; padding-left: 20px; font-size: 13.5px; }
+  .btns { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px;
+           border-radius: 7px; border: 1px solid var(--border);
+           background: var(--surface); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--gold-dark); border-color: var(--gold-dark); color: #fff; }
+  button:focus-visible { outline: 3px solid var(--gold-dark); outline-offset: 2px; }
+
+  dialog { border: 1px solid var(--border); border-radius: var(--radius);
+           background: var(--surface); color: var(--ink); max-width: 720px;
+           width: calc(100% - 40px); padding: 0; }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  .dlg-body { padding: 22px 24px; }
+  .dlg-body h3 { margin: 0 0 4px; font-size: 18px; }
+  .dlg-body h4 { margin: 20px 0 6px; font-size: 12px; text-transform: uppercase;
+                 letter-spacing: 0.06em; color: var(--muted); }
+  .kv { font-size: 14px; margin: 3px 0; }
+  .kv b { font-weight: 600; }
+  .empty { color: var(--muted); font-style: italic; padding: 20px; text-align: center; }
+  a { color: var(--gold-dark); }
+  .note { font-size: 13px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Privacy Agent</h1>
+  <span class="sub" id="status">connecting…</span>
+</header>
+
+<main>
+  <section id="questions-wrap" hidden>
+    <h2>Needs your answer</h2>
+    <div id="questions"></div>
+  </section>
+
+  <section>
+    <h2>Overall exposure</h2>
+    <div class="score">
+      <div class="big" id="score-n">—</div>
+      <div class="txt" id="score-txt">Waiting for the first results…</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Progress</h2>
+    <div class="counters" id="counters"></div>
+  </section>
+
+  <section id="dupes-wrap" hidden>
+    <h2>Duplicate records</h2>
+    <div id="dupes"></div>
+  </section>
+
+  <section>
+    <h2>Exposures</h2>
+    <div class="wrap">
+      <table>
+        <thead><tr>
+          <th>Site</th><th>Risk</th><th>What's visible</th><th>Match</th><th>Status</th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="5" class="empty">Nothing found yet.</td></tr></tbody>
+      </table>
+    </div>
+    <p class="note">Click any row to see exactly what is exposed, why we think it is you, and what is being done.</p>
+  </section>
+</main>
+
+<dialog id="detail"><div class="dlg-body" id="detail-body"></div></dialog>
+
+<script>
+const TOKEN = '__TOKEN__';
+const api = (path, params = '') => fetch(`${path}?t=${TOKEN}${params}`).then(r => r.json());
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+const COUNTER_LABELS = [
+  ['exposuresDiscovered', 'Exposures found'],
+  ['confirmedMatches', 'Confirmed as you'],
+  ['removalsSubmitted', 'Removals submitted'],
+  ['removalsCompleted', 'Removals completed'],
+  ['verificationsPending', 'Awaiting verification'],
+  ['manualActionsRequired', 'Need you', true],
+  ['stillInvestigating', 'Still investigating'],
+];
+
+function riskPill(risk) {
+  const band = risk?.band || 'none';
+  const cls = band === 'critical' || band === 'high' ? 'bad'
+            : band === 'moderate' ? 'warn' : 'ok';
+  return `<span class="pill ${cls}">${risk?.score ?? 0} ${esc(band)}</span>`;
+}
+
+function statusPill(e) {
+  const cls = e.status === 'successfully_removed' ? 'ok'
+            : e.status === 'manual_action_required' || e.status === 'payment_demanded' ? 'warn'
+            : e.status === 'failed' || e.status === 'not_removable' ? 'bad' : 'info';
+  return `<span class="pill ${cls}" title="${esc(e.statusHelp)}">${esc(e.statusLabel)}</span>`;
+}
+
+function render(state) {
+  document.getElementById('status').textContent =
+    `${state.running ? 'running' : 'idle'} · ${state.searchesRun} searches · ${state.identifiersKnown} identifiers known`;
+
+  const s = state.exposureScore || {};
+  document.getElementById('score-n').textContent = s.score ?? '—';
+  document.getElementById('score-n').className = `big band-${s.band || 'none'}`;
+  document.getElementById('score-txt').textContent = s.explanation || '';
+
+  document.getElementById('counters').innerHTML = COUNTER_LABELS.map(([k, label, attn]) => {
+    const n = state.counters?.[k] ?? 0;
+    return `<div class="tile ${attn && n > 0 ? 'attn' : ''}">
+      <div class="n">${n}</div><div class="l">${esc(label)}</div></div>`;
+  }).join('');
+
+  const dupes = state.duplicateGroups || [];
+  document.getElementById('dupes-wrap').hidden = dupes.length === 0;
+  document.getElementById('dupes').innerHTML = dupes.map(g =>
+    `<div class="tile" style="margin-bottom:10px">
+       <b>${esc(g.label)}</b> — ${g.count} listings across ${g.domains.length} site(s)
+       <div class="l">${esc(g.summary)}</div></div>`).join('');
+
+  const rows = state.exposures || [];
+  document.getElementById('rows').innerHTML = rows.length ? rows.map(e => `
+    <tr class="row" data-id="${esc(e.id)}">
+      <td><b>${esc(e.domain)}</b>${e.category ? `<div class="l" style="font-size:12px;color:var(--muted)">${esc(e.category.replace(/_/g,' '))}</div>` : ''}</td>
+      <td>${riskPill(e.risk)}</td>
+      <td class="mono">${esc((e.fields || []).slice(0, 5).join(', '))}${(e.fields||[]).length > 5 ? '…' : ''}</td>
+      <td>${Math.round((e.matchScore || 0) * 100)}%</td>
+      <td>${statusPill(e)}</td>
+    </tr>`).join('')
+    : '<tr><td colspan="5" class="empty">Nothing found yet.</td></tr>';
+
+  for (const tr of document.querySelectorAll('tr.row')) {
+    tr.onclick = () => showDetail(tr.dataset.id);
+  }
+}
+
+async function showDetail(id) {
+  const d = await api('/api/exposure', `&id=${encodeURIComponent(id)}`);
+  const v = d.whatIsVisible || {}, w = d.whyWeThinkItsYou || {}, a = d.whatWeAreDoing || {};
+  const list = (items) => (items && items.length)
+    ? `<ul>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '<p class="kv">None.</p>';
+
+  document.getElementById('detail-body').innerHTML = `
+    <h3>${esc(d.domain)}</h3>
+    <p class="kv mono"><a href="${esc(d.url)}" target="_blank" rel="noreferrer noopener">${esc(d.url)}</a></p>
+
+    <h4>What is visible there</h4>
+    ${Object.entries(v.record || {}).filter(([, val]) => val && val.length)
+      .map(([k, val]) => `<p class="kv"><b>${esc(k)}:</b> ${esc(val.join(', '))}</p>`).join('') || '<p class="kv">Nothing extracted.</p>'}
+
+    <h4>Why we think this is you (${Math.round((w.score || 0) * 100)}%)</h4>
+    <p class="kv">${esc(w.explanation)}</p>
+    ${w.matches?.length ? `<p class="kv"><b>Matches:</b></p>${list(w.matches)}` : ''}
+    ${w.mismatches?.length ? `<p class="kv"><b>Doesn't match:</b></p>${list(w.mismatches)}` : ''}
+
+    <h4>What we are doing</h4>
+    <p class="kv"><b>${esc(a.label)}</b> — ${esc(a.help)}</p>
+    ${a.removability ? `<p class="kv">${esc(a.removability.userMessage)}</p>` : ''}
+    ${a.removalMethod ? `<p class="kv mono">${esc(a.removalMethod.type)} → ${esc(a.removalMethod.url)}</p>` : ''}
+    ${a.submission?.caseNumber ? `<p class="kv"><b>Case number:</b> ${esc(a.submission.caseNumber)}</p>` : ''}
+    ${a.submission?.expectedTimeframe ? `<p class="kv"><b>Site says:</b> ${esc(a.submission.expectedTimeframe)}</p>` : ''}
+    ${a.recheckAfter ? `<p class="kv"><b>We re-check on:</b> ${esc(new Date(a.recheckAfter).toLocaleDateString())}</p>` : ''}
+    ${a.manualAction ? `<p class="kv">${esc(a.manualAction.note)}</p>` : ''}
+    ${a.paymentDemand ? `<p class="kv"><b>Charges for removal.</b> We never pay.</p>` : ''}
+    ${a.reappearance ? `<p class="kv">${esc(a.reappearance.note)}</p>` : ''}
+    ${a.privacyChoices ? `<p class="kv">${esc(a.privacyChoices.rationale)}</p>` : ''}
+    ${(a.jurisdiction || []).map(j => `<p class="kv">• ${esc(j.action)} <span style="color:var(--muted)">${esc(j.why)}</span></p>`).join('')}
+
+    <h4>Risk</h4>
+    <p class="kv">${esc(d.risk?.explanation)}</p>
+
+    <h4>History</h4>
+    ${(d.history || []).map(h =>
+      `<p class="kv mono">${esc(new Date(h.at).toLocaleString())} — ${esc(h.to)}${h.note ? ` (${esc(h.note)})` : ''}</p>`).join('') || '<p class="kv">No activity yet.</p>'}
+
+    <div class="btns"><button onclick="document.getElementById('detail').close()">Close</button></div>`;
+  document.getElementById('detail').showModal();
+}
+
+/* ------- questions: the only things the agent interrupts for ------- */
+
+const asked = new Map();
+
+function renderQuestions() {
+  const wrap = document.getElementById('questions-wrap');
+  const box = document.getElementById('questions');
+  wrap.hidden = asked.size === 0;
+  box.innerHTML = [...asked.values()].map(q => {
+    if (q.kind === 'is_this_you' || !q.kind) {
+      return `<div class="q" data-id="${esc(q.id)}">
+        <h3>Is this you?</h3>
+        <p class="kv mono">${esc(q.domain || q.url)}</p>
+        <p class="ev">${esc(q.explanation || '')}</p>
+        ${q.evidence?.length ? `<p class="kv"><b>Matches:</b></p><ul>${q.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
+        ${q.conflicts?.length ? `<p class="kv"><b>Doesn't match:</b></p><ul>${q.conflicts.map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
+        <div class="btns">
+          <button class="primary" data-a="yes">Yes, that's me</button>
+          <button data-a="no">No, someone else</button>
+          <button data-a="skip">Not sure — skip</button>
+        </div></div>`;
+    }
+    return `<div class="q" data-id="${esc(q.id)}">
+      <h3>${esc(q.title || 'Needs your approval')}</h3>
+      <p class="ev">${esc(q.message || q.explanation || '')}</p>
+      <div class="btns">
+        <button class="primary" data-a="yes">Approve</button>
+        <button data-a="no">Decline</button>
+      </div></div>`;
+  }).join('');
+
+  for (const btn of box.querySelectorAll('button[data-a]')) {
+    btn.onclick = () => {
+      const id = btn.closest('.q').dataset.id;
+      const map = { yes: true, no: false, skip: null };
+      fetch(`/api/answer?t=${TOKEN}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, answer: map[btn.dataset.a] }),
+      });
+      asked.delete(id);
+      renderQuestions();
+    };
+  }
+}
+
+/* ------------------------------ wiring ------------------------------ */
+
+async function refresh() {
+  try { render(await api('/api/state')); }
+  catch { document.getElementById('status').textContent = 'agent not responding'; }
+}
+
+const events = new EventSource(`/api/events?t=${TOKEN}`);
+events.addEventListener('question', (e) => {
+  const q = JSON.parse(e.data);
+  asked.set(q.id, q);
+  renderQuestions();
+});
+events.addEventListener('question:answered', (e) => {
+  asked.delete(JSON.parse(e.data).id);
+  renderQuestions();
+});
+for (const evt of ['exposure:found', 'exposure:submitted', 'exposure:removed',
+                   'exposure:failed', 'exposure:needs-human', 'round:end', 'run:complete']) {
+  events.addEventListener(evt, refresh);
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

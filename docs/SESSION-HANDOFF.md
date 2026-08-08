@@ -5,7 +5,34 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEW (2026-08-08, latest): Polish Sprint Wednesday — PS-05, PS-07, PS-08**
+- **NEW (2026-08-08, latest): `privacy-agent/` shipped** on branch
+  `claude/ai-privacy-removal-tool-arzmhz`. A **local-first Node CLI** — an
+  autonomous privacy operations centre that discovers where your personal data
+  is published, verifies which records are really yours, files removals via
+  Chromium/Playwright, follows confirmation emails, and re-checks that removed
+  records stay removed. Design notes: **`docs/PRIVACY-AGENT.md`**; user docs:
+  **`privacy-agent/README.md`**. Read those before touching it.
+  - **It is standalone and must stay that way.** Do NOT wire it into
+    `index.html`, the Worker, or any D1 database. GitHub Pages cannot run
+    Chrome, and hosting it would mean centralising thousands of identity
+    dossiers — the exact asset data brokers monetise. The vault is AES-256-GCM
+    under a scrypt key, on the user's own machine, and there is no server.
+  - Pure logic lives in `privacy-agent/src/core/` (identity normalization,
+    identity graph, match confidence, risk, dedupe, state machine, redaction,
+    jurisdiction, removability, query generation). Tests:
+    **`node privacy-agent/tests/run.mjs` — 146 pass**, dependency-free.
+  - **Invariants with tests named for them — do not "fix" these:** a name match
+    alone can never confirm; absence is not evidence; `submitted` ≠ `removed`
+    (the state machine forbids the shortcut); no hardcoded broker list; sensitive
+    fields (SSN/ID/licence/passport) never auto-fill; payment is never made;
+    workflow templates carry no PII.
+  - Verified end-to-end against a local fixture broker with a real opt-out form:
+    real Chromium, real submission, case number + processing window parsed,
+    evidence screenshots, and the SSN field correctly blocking submission.
+  - `npm install` needed in `privacy-agent/` (only dep is `playwright`).
+    Discovery needs a search API key (`BRAVE_SEARCH_API_KEY` etc.) or it falls
+    back to manual paste — it deliberately will not scrape result pages.
+- **2026-08-08: Polish Sprint Wednesday — PS-05, PS-07, PS-08**
   on branch `claude/weekly-action-plan-kjgt5b`. Two new shared modules under
   `interview.app/js/`:
   - **`pg-states.js`** — the engine boot skeleton (PS-05) and the empty-state
