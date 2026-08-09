@@ -59,7 +59,7 @@ src/onboarding/  the interview script
 ```
 
 Keeping `src/core/` pure is what lets `node privacy-agent/tests/run.mjs` cover
-the decisions that matter (146 assertions) without mocking a browser. Follow
+the decisions that matter (147 assertions) without mocking a browser. Follow
 that split: new judgement goes in `core/`, new I/O wraps it.
 
 ### Things that cost a round to discover
@@ -76,6 +76,15 @@ that split: new judgement goes in `core/`, new I/O wraps it.
 - **The graph's corroboration bonus applies to `baseConfidence`, not the running
   value.** Compounding it let a node climb to 1.0 through repetition alone; a
   hundred sites copying one wrong record is still one wrong record.
+- **Evidence screenshots must be written by the vault, never by Playwright.**
+  `page.screenshot({ path })` writes through the process umask — on a default
+  022 system that produces mode-644 PNGs of the user's home address, i.e. the
+  one artefact showing everything is the one artefact unprotected. Fixed by
+  having `screenshotBuffer()` return bytes and `vault.saveEvidence()` own the
+  write (AES-256-GCM, 0600). Test: "EVIDENCE SCREENSHOTS ARE ENCRYPTED AND 0600".
+- **`browser-profile/` cannot be encrypted** — Chromium needs it readable. It
+  holds cookies/history for visited brokers. Mitigated by 0700, `destroy`, and
+  the `forget-browser` command. Do not try to "fix" this by encrypting it.
 - **`extract.js` filters emails on the site's own registrable domain.** Correct
   behaviour, but it means test fixtures must not put the subject's email on the
   broker's domain.
@@ -113,3 +122,20 @@ field correctly blocking auto-submission and escalating to the user.
   fallback; result-page scraping is refused on purpose.
 - **`prune()` runs on every run** with a 365-day default retention. There is no
   UI for changing it yet; edit `retentionDays` in `vault.meta.json`.
+
+## Intake: why there is no form
+
+Onboarding is a terminal interview writing straight into the encrypted vault.
+There is deliberately **no Google Form, no hosted intake, no web form**. Any of
+those would create a second copy of the user's dossier on infrastructure they do
+not control — the exact asset the tool exists to delete. There is no server in
+this project to submit anything to, and adding one would be a regression, not a
+convenience.
+
+**The data cannot be anonymized**, and the docs say so plainly rather than
+implying otherwise. Deciding whether a listing describes *this* person is
+identity matching; hashed values cannot match, and a removal form needs the real
+name and address or it cannot locate the record. The design minimises instead:
+everything skippable, birth *year* not full date, relatives used only for
+recognition and never acted on, masked in the dashboard, `blindIndex` where a
+presence check is all that is needed.

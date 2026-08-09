@@ -7,15 +7,133 @@ published, verifies which of those records are actually yours, files the removal
 requests, follows the confirmation emails, and keeps checking that what it
 removed stays removed.
 
+## Getting it running
+
+There is **no URL and no hosted app**. It is a program you run on your own
+computer, from a terminal, and it never leaves that machine. Requires Node 20+.
+
 ```bash
-cd privacy-agent
+git clone https://github.com/paddyriyer/paddyspeaks.git
+cd paddyspeaks/privacy-agent
+
 npm install
-node bin/privacy-agent.mjs init
-node bin/privacy-agent.mjs onboard
+npx playwright install chromium     # the browser it drives
+
+node bin/privacy-agent.mjs init     # create the encrypted vault, choose a passphrase
+node bin/privacy-agent.mjs onboard  # the identity interview
 node bin/privacy-agent.mjs run --review
 ```
 
+`npm install` may already fetch the browser, depending on your npm settings —
+`npx playwright install chromium` is idempotent, so run it either way rather
+than finding out mid-run.
+
+That last command prints a dashboard link:
+
+```
+Dashboard: http://127.0.0.1:52341/?t=9f3a…
+```
+
+A random port on **loopback with a per-session token** — the only URL this
+project has. It is not reachable from another machine and there is deliberately
+no flag to make it so, because the page renders a home address.
+
+**Run it on a machine you control.** Not a shared server, not a cloud container.
+The vault is only as private as the disk under it, and an ephemeral container
+would destroy it when reclaimed.
+
 ---
+
+## How you give it your information
+
+**A terminal interview — `privacy-agent onboard`.** Not a web form, and
+emphatically **not a Google Form**. Nothing you type is submitted anywhere; the
+answers go straight into the encrypted vault on your own disk.
+
+A Google Form would put your legal name, home address, address history and
+relatives' names into a Google Sheet owned by whoever made the form — creating a
+second copy of exactly the dossier you are trying to delete, on infrastructure
+you do not control, indexed and backed up beyond your reach. The same objection
+applies to any hosted intake: Typeform, a web app, a database. There is no
+server in this project to submit anything *to*.
+
+The interview asks in six small groups, explains why each item helps, and every
+question is skippable. `assessCoverage` then tells you honestly what skipping
+cost you before the run starts.
+
+## Can the information be anonymized?
+
+**No — and it is worth being straight about why, because this is the one privacy
+property the tool genuinely cannot offer.**
+
+The job is to decide whether a specific listing describes *you* and not one of
+the thousands of other people with your name. That is an identity-matching
+problem, and identity matching on anonymized data is a contradiction: hashing
+your address makes it useless for recognising your address on a broker page.
+Filling in a removal form is worse — the site needs your real name and address
+or it cannot find the record to delete.
+
+So the design does not pretend to anonymize. It minimises instead:
+
+- **Skip anything.** Every field is optional. Give a city instead of a street
+  address and you will get more "is this you?" questions and fewer confirmed
+  matches — a real trade, stated up front rather than discovered later.
+- **Year of birth, never the full date.** A year discriminates between people
+  almost as well and is far less useful to anyone who misuses it.
+- **Relatives' names are used only to recognise your record.** They are never
+  searched on their relatives' own behalf and nothing is ever filed about them.
+- **Masked everywhere it is displayed.** The dashboard shows `•••-•••-0142` and
+  `••• Main Street`. You already know your own phone number; rendering it in
+  full into a browser tab only puts it in a page cache.
+- **`blindIndex`** gives "have we seen this before" checks without storing the
+  value, salted per-vault so two vaults produce incomparable hashes.
+
+## What is kept locally, exactly
+
+Everything, under `~/.privacy-agent/` (override with `PRIVACY_AGENT_HOME`). Every
+file is mode `0600` in a `0700` directory:
+
+| File | Contents | Protection |
+|---|---|---|
+| `vault.json` | Identity profile + identity graph | **AES-256-GCM** |
+| `run.json` | Exposures, match evidence, statuses, case numbers | **AES-256-GCM** |
+| `evidence/*.png.enc` | Before/after screenshots of listings | **AES-256-GCM** |
+| `vault.meta.json` | scrypt salt + passphrase verifier | No secrets in it |
+| `workflows.json` | How each site's opt-out form works | **Plaintext, deliberately** — no PII by construction |
+| `browser-profile/` | Chromium cookies, history, site data | `0700` only — **see below** |
+
+The passphrase is never stored. Retention defaults to 365 days and `prune()`
+runs every session, deleting closed exposures and their evidence. `destroy`
+removes the lot.
+
+### The one thing that is not encrypted
+
+**`browser-profile/`.** Chromium needs its profile readable to run, so it cannot
+be encrypted at rest. It accumulates cookies and history for the sites the agent
+visited — which is a record of *which brokers listed you*, though not your
+identity data itself. It is `0700`, wiped by `destroy`, and can be cleared any
+time with `privacy-agent forget-browser`. If that residue matters to you, run
+that command after each session.
+
+Evidence screenshots **were** a second gap — Playwright's `path:` option writes
+through the process umask, producing world-readable PNGs of your address. They
+now go through the vault's encryption instead, at `0600`, with a test asserting
+it.
+
+## What leaves your machine
+
+Only three things, and nothing else:
+
+1. **Search queries** to whichever search API you configured — these contain
+   your name, phone, address etc., because that is what searching for them
+   means. Choose the provider accordingly.
+2. **Page visits** to the sites being checked, from your own IP.
+3. **The removal requests themselves** — your name and address typed into a
+   broker's opt-out form, which is the entire point.
+
+There is no telemetry, no analytics, no account, no sync, and no outbound call
+to anything belonging to this project. `workflows.json` is shareable but is
+never transmitted automatically — moving it is a manual act.
 
 ## Why it runs locally
 
@@ -168,7 +286,7 @@ matter without mocking a browser.
 ## Tests
 
 ```bash
-node tests/run.mjs     # 146 assertions, no dependencies
+node tests/run.mjs     # 147 assertions, no dependencies
 ```
 
 ## Honest limits

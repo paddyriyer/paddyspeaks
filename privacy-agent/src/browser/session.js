@@ -41,16 +41,21 @@ export class BrowserSession {
     if (this.context) return this.context;
     mkdirSync(this.profileDir, { recursive: true, mode: 0o700 });
 
-    this.context = await chromium.launchPersistentContext(this.profileDir, {
-      headless: this.headless,
-      slowMo: this.slowMo,
-      viewport: { width: 1280, height: 900 },
-      // A plain, current UA. Not a spoof — just avoiding the default
-      // "HeadlessChrome" string, which some sites reject outright even when
-      // the request is a legitimate one a human is watching.
-      args: ['--disable-blink-features=AutomationControlled'],
-      acceptDownloads: false,
-    });
+    try {
+      this.context = await this.#launch();
+    } catch (err) {
+      // A missing browser binary is the single most likely first-run failure,
+      // and Playwright's own error is a wall of stack trace. Say the one thing
+      // that fixes it instead.
+      if (/Executable doesn't exist|please run the following command|browserType\.launch/i.test(err.message)) {
+        throw new Error(
+          'Chromium is not installed for Playwright, so the agent cannot open a browser.\n'
+          + '  Fix it with:  npx playwright install chromium\n'
+          + '  Then re-run the same command.',
+        );
+      }
+      throw err;
+    }
     this.context.setDefaultTimeout(this.defaultTimeout);
 
     // Block media and fonts: the agent reads text and fills forms, and skipping
@@ -63,6 +68,19 @@ export class BrowserSession {
     });
 
     return this.context;
+  }
+
+  #launch() {
+    return chromium.launchPersistentContext(this.profileDir, {
+      headless: this.headless,
+      slowMo: this.slowMo,
+      viewport: { width: 1280, height: 900 },
+      // A plain, current UA. Not a spoof — just avoiding the default
+      // "HeadlessChrome" string, which some sites reject outright even when
+      // the request is a legitimate one a human is watching.
+      args: ['--disable-blink-features=AutomationControlled'],
+      acceptDownloads: false,
+    });
   }
 
   async newPage() {
@@ -121,10 +139,18 @@ export class BrowserSession {
     }
   }
 
-  async screenshot(page, path, options = {}) {
+  /**
+   * Capture a screenshot as bytes.
+   *
+   * Deliberately returns a Buffer rather than taking a `path`. Playwright's
+   * `path:` option writes the file itself, through the process umask — which
+   * on a default 022 system produces a world-readable PNG of the user's home
+   * address. Handing the bytes back means the vault owns the write, and
+   * evidence gets the same encryption and 0600 mode as everything else.
+   */
+  async screenshotBuffer(page, options = {}) {
     try {
-      await page.screenshot({ path, fullPage: options.fullPage ?? true });
-      return path;
+      return await page.screenshot({ fullPage: options.fullPage ?? true });
     } catch (err) {
       this.log('screenshot failed', { error: err.message });
       return null;
