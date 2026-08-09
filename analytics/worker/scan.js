@@ -47,13 +47,25 @@ export async function routeScan(request, env, url, ch) {
     return handleRead(request, env, ch);
   }
   if (url.pathname === '/api/scan/status' && request.method === 'GET') {
-    return json({ configured: isConfigured(env), provider: isConfigured(env) ? 'google_cse' : null }, 200, ch);
+    return json({ configured: isConfigured(env), provider: providerFor(env) }, 200, ch);
   }
   return null;
 }
 
+/**
+ * Whichever search backend is provisioned. Brave is preferred when both are
+ * present: Google's free Custom Search tier caps at 100 queries *per day*
+ * across the whole site, which a single thorough scan can exhaust, whereas
+ * Brave's monthly credit has no daily wall and a far higher rate limit.
+ */
+function providerFor(env) {
+  if (env.BRAVE_SEARCH_API_KEY) return 'brave';
+  if (env.GOOGLE_CSE_KEY && env.GOOGLE_CSE_ID) return 'google_cse';
+  return null;
+}
+
 function isConfigured(env) {
-  return Boolean(env.GOOGLE_CSE_KEY && env.GOOGLE_CSE_ID);
+  return Boolean(providerFor(env));
 }
 
 /* ------------------------------------------------------------------ search */
@@ -80,23 +92,67 @@ async function handleScan(request, env, ch) {
 
   if (!queries.length) return json({ error: 'no_queries' }, 400, ch);
 
+  const provider = providerFor(env);
   const out = [];
   for (const q of queries) {
     // Sequential on purpose. The free CSE tier is 100 queries/day and rate
     // limits per second; firing a dozen in parallel is the reliable way to
     // spend the whole allowance on 429s.
-    out.push(await searchOne(q, env));
+    out.push(await searchOne(q, env, provider));
   }
 
   return json({
-    provider: 'google_cse',
+    provider,
     results: out,
     // So the UI can warn before the user hits a wall rather than after.
-    quotaNote: 'Google\'s free tier allows 100 searches per day across the whole site.',
+    quotaNote: provider === 'brave'
+      ? 'Brave\'s monthly credit covers roughly 1,000 searches.'
+      : 'Google\'s free tier allows 100 searches per day across the whole site.',
   }, 200, ch);
 }
 
-async function searchOne(query, env) {
+function searchOne(query, env, provider) {
+  return provider === 'brave' ? braveSearch(query, env) : googleSearch(query, env);
+}
+
+async function braveSearch(query, env) {
+  const endpoint = new URL('https://api.search.brave.com/res/v1/web/search');
+  endpoint.searchParams.set('q', query);
+  endpoint.searchParams.set('count', String(MAX_RESULTS));
+  endpoint.searchParams.set('safesearch', 'off');
+
+  try {
+    const res = await withTimeout(fetch(endpoint.toString(), {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Encoding': 'gzip',
+        'X-Subscription-Token': env.BRAVE_SEARCH_API_KEY,
+      },
+    }));
+
+    if (res.status === 429) return { query, items: [], error: 'quota_exceeded' };
+    if (!res.ok) return { query, items: [], error: `search_failed_${res.status}` };
+
+    const data = await res.json();
+    return {
+      query,
+      items: (data?.web?.results || []).map((i) => ({
+        url: String(i.url || ''),
+        title: stripTags(i.title).slice(0, 300),
+        // Brave marks matched terms with <strong>; the extractor wants plain text.
+        snippet: stripTags(i.description).slice(0, 800),
+      })).filter((i) => i.url),
+    };
+  } catch (err) {
+    return { query, items: [], error: err.name === 'TimeoutError' ? 'timeout' : 'network_error' };
+  }
+}
+
+function stripTags(s) {
+  return decode(String(s || '').replace(/<[^>]+>/g, ''));
+}
+
+async function googleSearch(query, env) {
   const endpoint = new URL('https://www.googleapis.com/customsearch/v1');
   endpoint.searchParams.set('key', env.GOOGLE_CSE_KEY);
   endpoint.searchParams.set('cx', env.GOOGLE_CSE_ID);
