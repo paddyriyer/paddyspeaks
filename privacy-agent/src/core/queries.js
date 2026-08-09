@@ -86,12 +86,21 @@ export function buildQueries(graph, profile, options = {}) {
   /* --- identifier-only searches. These are the ones people forget to run, and
      they are the highest-yield queries in the whole set (spec item 5). --- */
 
-  for (const e of emails) add(`"${e.value}"`, 'email_exact', e);
+  // Gmail's alt domain is a deliverable alias, not a published one — nobody
+  // lists a googlemail.com address, so searching it burns a slot for nothing.
+  // It stays in the profile (it still matches if we ever see it) but earns no
+  // query of its own.
+  for (const e of emails) {
+    if ((e.labels || []).includes('email.gmail_alt_domain')) continue;
+    add(`"${e.value}"`, 'email_exact', e);
+  }
 
   for (const p of phones) {
-    // Search several formats: engines index the punctuation as written, so a
-    // digits-only query genuinely misses pages that print "(555) 123-4567".
-    for (const form of phoneSearchForms(p.value)) {
+    // Two formats, not four. Engines index punctuation as written, so a
+    // digits-only query does miss pages printing "(555) 123-4567" — but the
+    // dashed and dotted forms add almost nothing over the parenthesised one
+    // and crowd out genuinely different searches.
+    for (const form of compactPhoneForms(p.value)) {
       add(`"${form}"`, 'phone_exact', p);
     }
   }
@@ -287,6 +296,12 @@ export function phoneSearchForms(value) {
 
 export function formatPhoneForSearch(value) {
   return phoneSearchForms(value)[0];
+}
+
+/** The two most distinct written forms: parenthesised, and bare digits. */
+export function compactPhoneForms(value) {
+  const forms = phoneSearchForms(value);
+  return uniq([forms[0], forms[forms.length - 1]]);
 }
 
 /**

@@ -204,6 +204,39 @@ test('parseAddress splits a full US address', () => {
   assert.match(a.line1, /123 North Main Street/);
 });
 
+test('parseAddress splits city from street WITHOUT commas', () => {
+  // How people actually type an address. Getting this wrong glues the city
+  // onto line1, so the exact-phrase search becomes "738 Bantry Ct Sunnyvale" —
+  // a string no listing writes — and the highest-value searches silently
+  // match nothing.
+  const a = parseAddress('738 Example Ct Sunnyvale CA 94087');
+  assert.equal(a.line1, '738 Example Ct');
+  assert.equal(a.city, 'Sunnyvale');
+  assert.equal(a.state, 'CA');
+  assert.equal(a.zip, '94087');
+});
+
+test('comma-less parse handles multi-word cities and mid-string units', () => {
+  assert.equal(parseAddress('1 Elm Rd San Jose CA').city, 'San Jose');
+  const u = parseAddress('123 N Main St Apt 4B Springfield IL 62704');
+  assert.equal(u.line1, '123 N Main St');
+  assert.equal(u.unit, 'Apt 4B', 'the unit must not be swallowed into the city');
+  assert.equal(u.city, 'Springfield');
+});
+
+test('a street suffix that is also a state code is not eaten', () => {
+  // "Ct" is Connecticut. Reading it as a state leaves "738 Example", which
+  // goes out as a search phrase matching nothing.
+  const a = parseAddress('738 Example Ct');
+  assert.equal(a.line1, '738 Example Ct');
+  assert.equal(a.state, '', 'Ct here is Court, not Connecticut');
+
+  // …but a genuine trailing state still parses, because a suffix remains.
+  const b = parseAddress('1 Main St Hartford CT');
+  assert.equal(b.state, 'CT');
+  assert.equal(b.city, 'Hartford');
+});
+
 test('parseAddress accepts a spelled-out state', () => {
   const a = parseAddress('1 Elm Rd, Austin, Texas 78701');
   assert.equal(a.state, 'TX');
@@ -794,6 +827,25 @@ test('NO HARDCODED BROKER LIST anywhere in the query builder', () => {
   const banned = /whitepages|spokeo|beenverified|intelius|truepeoplesearch|radaris|mylife|peoplefinder/i;
   assert.ok(!qs.some((q) => banned.test(q.text)),
     'discovery must find sites dynamically, never from a baked-in list');
+});
+
+test('phone searches are compact, not four near-identical variants', () => {
+  const g2 = new IdentityGraph().seed(PROFILE);
+  const qs = buildQueries(g2, PROFILE, { budget: 300 });
+  const phoneQs = qs.filter((q) => q.kind === 'phone_exact');
+  // One number should not burn four of the user's search slots on formats
+  // engines already normalise.
+  assert.ok(phoneQs.length <= 4, `expected at most 2 per number, got ${phoneQs.length}`);
+});
+
+test('gmail alt-domain aliases do not earn their own search', () => {
+  const p = buildProfile({ fullName: 'Jane Doe', primaryEmail: 'jane.doe@gmail.com' });
+  const g2 = new IdentityGraph().seed(p);
+  const qs = buildQueries(g2, p, { budget: 300 });
+  assert.ok(
+    !qs.some((q) => q.text.includes('googlemail.com')),
+    'nobody publishes a googlemail.com address — searching it wastes a slot',
+  );
 });
 
 test('phoneSearchForms covers the written formats indexes carry', () => {
