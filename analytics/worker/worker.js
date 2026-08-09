@@ -13,6 +13,7 @@
 import { routeLeaderboard } from './leaderboard.js';
 import { routeContact } from './contact.js';
 import { routeTestimonials } from './testimonials.js';
+import { routeScan } from './scan.js';
 import { normalizeReferrer, sourceOf, botScore, contentGroup } from '../lib/classify.js';
 import { median, percentile, retention } from '../lib/metrics.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
@@ -35,6 +36,12 @@ export default {
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: ch });
+    }
+
+    // Privacy Console scan proxy. Stateless: no logging, no D1, no cache.
+    if (url.pathname.startsWith('/api/scan')) {
+      const scanned = await routeScan(request, env, url, ch);
+      if (scanned) return scanned;
     }
 
     if ((url.pathname === '/collect' || url.pathname === '/api/v') && request.method === 'POST') {
