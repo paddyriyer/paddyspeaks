@@ -629,8 +629,14 @@ export function addressVariants(input, baseConfidence = 1, source = 'seed') {
     }
     if (a.unit) push(`${l1} ${a.unit}`, DECAY.exact, 'address.street_unit');
   }
-  if (cityState) push(cityState, DECAY.mechanical, 'address.city_state');
-  if (a.city) push(a.city, DECAY.mechanical, 'address.city');
+  // Only emit the locality forms when there is an actual city. Without that
+  // guard, an input like "Sunnyvale CA" that parses to state-only produces a
+  // bare "CA" variant — an entire state masquerading as an address, which is
+  // noise in the profile and worthless as a search.
+  if (a.city) {
+    if (cityState) push(cityState, DECAY.mechanical, 'address.city_state');
+    push(a.city, DECAY.mechanical, 'address.city');
+  }
   if (a.zip) push(a.zip, DECAY.mechanical, 'address.zip');
 
   return dedupeVariants(out);
