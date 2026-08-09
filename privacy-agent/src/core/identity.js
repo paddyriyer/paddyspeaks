@@ -466,7 +466,11 @@ export function parseAddress(input) {
   let state = '';
   const stateAbbrMatch = rest.match(/,?\s*\b([A-Za-z]{2})\b\s*$/);
   const stateNameMatch = rest.match(/,\s*([A-Za-z][A-Za-z\s]+)\s*$/);
-  if (stateAbbrMatch && Object.values(US_STATES).includes(stateAbbrMatch[1].toUpperCase())) {
+  const abbrIsState = stateAbbrMatch
+    && Object.values(US_STATES).includes(stateAbbrMatch[1].toUpperCase())
+    && !trailingTokenIsStreetSuffix(rest, stateAbbrMatch);
+
+  if (abbrIsState) {
     state = stateAbbrMatch[1].toUpperCase();
     rest = rest.slice(0, stateAbbrMatch.index).trim().replace(/,\s*$/, '');
   } else if (stateNameMatch && US_STATES[norm(stateNameMatch[1])]) {
@@ -480,6 +484,21 @@ export function parseAddress(input) {
   if (parts.length >= 2) {
     city = parts[parts.length - 1];
     streetPart = parts.slice(0, -1).join(', ');
+  } else {
+    // No commas — "738 Bantry Ct Sunnyvale CA 94087", which is how people
+    // actually type an address. Split on the street suffix: everything after
+    // it is the city.
+    //
+    // Getting this wrong is not cosmetic. The city ends up glued onto line1,
+    // so the exact-phrase search becomes "738 Bantry Ct Sunnyvale" — a string
+    // no listing on earth writes, because real pages write "738 Bantry Ct,
+    // Sunnyvale, CA". The highest-value searches then match nothing and the
+    // failure is completely silent.
+    const split = splitCityBySuffix(rest);
+    if (split) {
+      streetPart = split.street;
+      city = split.city;
+    }
   }
 
   let unit = '';
@@ -492,6 +511,74 @@ export function parseAddress(input) {
   }
 
   return { raw, line1: streetPart, unit, city, state, zip };
+}
+
+/**
+ * Guard against street suffixes that are also state codes.
+ *
+ * "738 Bantry Ct" ends in CT — Connecticut — so the naive read strips the
+ * suffix as a state and leaves "738 Bantry", which then goes out as an exact
+ * search phrase that matches nothing. "La" (Lane / Louisiana) has the same
+ * problem.
+ *
+ * The test: drop the two-letter token and see whether a street suffix remains.
+ * "738 Bantry Ct" → "738 Bantry" has none, so Ct was the suffix. "1 Main St
+ * Hartford CT" → "1 Main St Hartford" still has "St", so CT really is the
+ * state.
+ */
+function trailingTokenIsStreetSuffix(rest, match) {
+  const token = norm(match[1]);
+  const suffixAbbrevs = new Set(Object.values(STREET_SUFFIXES));
+  if (!suffixAbbrevs.has(token)) return false;
+
+  const remainder = rest.slice(0, match.index);
+  const allSuffixes = new Set([
+    ...Object.keys(STREET_SUFFIXES), ...Object.values(STREET_SUFFIXES),
+  ]);
+  return !norm(remainder).split(' ').some((w) => allSuffixes.has(w));
+}
+
+/**
+ * Find the street/city boundary in a comma-less address by locating the street
+ * suffix ("Ct", "Street", "Avenue"…). Everything after it is the city.
+ *
+ * Uses the *last* suffix, so "738 Court St Sunnyvale" splits after "St" rather
+ * than after the street name "Court". Returns null when there is no suffix to
+ * anchor on ("738 Broadway Sunnyvale"), because a wrong guess there is worse
+ * than leaving the address unsplit.
+ */
+function splitCityBySuffix(line) {
+  const tokens = String(line || '').trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 3) return null;
+
+  const suffixes = new Set([
+    ...Object.keys(STREET_SUFFIXES), ...Object.values(STREET_SUFFIXES),
+  ]);
+
+  let cut = -1;
+  for (let i = 1; i < tokens.length - 1; i++) {
+    if (suffixes.has(norm(tokens[i]).replace(/\./g, ''))) cut = i;
+  }
+  if (cut < 0) return null;
+
+  let after = tokens.slice(cut + 1);
+
+  // A unit sits between the street and the city ("… Main St Apt 4B Springfield"),
+  // so consume it into the street rather than letting it become part of the
+  // city name.
+  const unitWords = new Set([
+    ...Object.keys(UNIT_DESIGNATORS), ...Object.values(UNIT_DESIGNATORS), '#',
+  ]);
+  if (after.length > 1 && unitWords.has(norm(after[0]).replace(/\./g, ''))) {
+    after = after.slice(2); // the designator and the number that follows it
+    cut += 2;
+  }
+
+  const city = after.join(' ').trim();
+  // A trailing directional belongs to the street, not the city ("Main St N").
+  if (!city || Object.values(DIRECTIONALS).includes(norm(city))) return null;
+
+  return { street: tokens.slice(0, cut + 1).join(' '), city };
 }
 
 /** Swap street suffixes / directionals / unit words between long and short. */
