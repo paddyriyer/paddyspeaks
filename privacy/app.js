@@ -16,8 +16,9 @@
  * reads back whatever you paste. The judgement — is this me, how bad is it,
  * can it be removed, what do I say — is all here.
  *
- * Storage is `localStorage` on this origin. No network call is made by this
- * file at all; there is deliberately no `fetch` in it.
+ * Storage is `localStorage` on this origin. The only network calls this file
+ * makes are to the site's own Worker for "Scan for me" — everything else,
+ * including every judgement, happens locally. The paste flow makes none at all.
  */
 
 import { buildProfile, parseAddress } from '../privacy-agent/src/core/identity.js';
@@ -34,6 +35,13 @@ import { extractFromPage, extractSearchResults } from '../privacy-agent/src/disc
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
+
+// The Worker lives on its own subdomain, not under paddyspeaks.com/api/*.
+// paddyspeaks.com is GitHub Pages, so a relative /api/scan resolves to a static
+// 404 — which is exactly how the first live scan came back "0 found" with a row
+// of green ticks. Same constant as lib/ps-forms.js and analytics/index.html;
+// they are the reason this convention exists.
+const API_BASE = 'https://ps.paddyspeaks.com';
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -268,22 +276,56 @@ $('#scan-go')?.addEventListener('click', async () => {
   $('#scan-go').disabled = true;
   $('#scan-stop').hidden = false;
   out.innerHTML = '';
+  $('#scan-progress').innerHTML = '<p class="note" style="margin-top:14px">Checking the scan service…</p>';
+
+  // Preflight. Diagnosing "is it deployed / is the key set" before burning 24
+  // searches is the difference between a useful error and a blank result.
+  try {
+    const st = await fetch(`${API_BASE}/api/scan/status`);
+    if (!st.ok) throw new Error(`HTTP ${st.status}`);
+    const info = await st.json();
+    if (!info.configured) {
+      $('#scan-progress').innerHTML = '';
+      out.innerHTML = `<div class="warnbox"><b>Scanning is not switched on.</b>
+        The scan service is reachable but has no search key configured. Use
+        <i>Paste your search results</i> below — it needs no server.</div>`;
+      return endScan();
+    }
+  } catch (err) {
+    $('#scan-progress').innerHTML = '';
+    out.innerHTML = `<div class="warnbox"><b>The scan service is not reachable
+      (${esc(err.message)}).</b>
+      <p style="margin:8px 0 0">On this site <code>/api/*</code> is served by a Cloudflare
+      Worker, so <code>/api/scan</code> only answers if the Worker's route covers it. If
+      <code>/api/stats</code> works but this does not, the route pattern is probably matching
+      specific paths rather than <code>/api/*</code>.</p>
+      <p style="margin:8px 0 0">Your data is fine — use <i>Paste your search results</i>
+      below meanwhile.</p></div>`;
+    return endScan();
+  }
 
   const g = graph();
-  const queries = buildQueries(g, state.profile, { budget: 24 })
-    .filter((q) => !state.searched.includes(q.id));
+  // Do NOT skip queries already opened manually in step 2 — clicking a link
+  // there means "I looked", not "the scan has this covered", and filtering
+  // them out silently shrinks the scan for anyone who browsed the plan first.
+  const queries = buildQueries(g, state.profile, { budget: 24 });
+  let queriesRun = 0;
 
   const steps = [];
   const draw = () => {
     prog.innerHTML = `<div style="margin-top:16px">
       ${steps.map((s) => `<div class="note" style="margin:3px 0">
-        ${s.done ? '<span style="color:var(--ok)">✓</span>' : '<span class="spin">•</span>'}
-        ${esc(s.label)}${s.found != null ? ` — <b>${s.found}</b> found` : ''}
+        ${s.error ? '<span style="color:var(--bad)">✕</span>'
+          : s.done ? '<span style="color:var(--ok)">✓</span>'
+          : '<span class="spin">•</span>'}
+        ${esc(s.label)}${s.error ? ` — <span style="color:var(--bad)">${esc(s.error)}</span>`
+          : s.found != null ? ` — <b>${s.found}</b> found` : ''}
       </div>`).join('')}
     </div>`;
   };
 
   const found = [];
+  const failures = [];
   let quotaHit = false;
 
   // Batched so one stall cannot hold the whole run, and so progress is visible.
@@ -295,12 +337,25 @@ $('#scan-go')?.addEventListener('click', async () => {
 
     let data;
     try {
-      const res = await fetch('/api/scan', {
+      const res = await fetch(`${API_BASE}/api/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ queries: batch.map((q) => q.text) }),
       });
-      data = await res.json();
+      const raw = await res.text();
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        // An HTML error page rather than JSON — almost always the route not
+        // being served. Reporting that as "0 found" would be a lie.
+        step.done = true;
+        step.error = res.status === 404
+          ? 'The scan route returned 404 — the Worker is not serving /api/scan.'
+          : `The server returned ${res.status} instead of results.`;
+        failures.push(step.error);
+        draw();
+        continue;
+      }
 
       if (res.status === 503 || data.error === 'not_configured') {
         prog.innerHTML = '';
@@ -309,18 +364,23 @@ $('#scan-go')?.addEventListener('click', async () => {
           job and sends nothing anywhere.</div>`;
         return endScan();
       }
-    } catch {
+    } catch (err) {
       step.done = true;
-      step.found = 0;
+      step.error = `Could not reach the scan service (${err.message || 'network error'}).`;
+      failures.push(step.error);
       draw();
       continue;
     }
 
+    // Surface per-query failures. Silently counting a 401 as "no results" is
+    // how a rejected API key looks exactly like a clean footprint.
     for (const r of data.results || []) {
       if (r.error === 'quota_exceeded') quotaHit = true;
+      else if (r.error) failures.push(searchErrorText(r.error, data.provider));
       for (const item of r.items || []) found.push(item);
     }
     for (const q of batch) state.searched.push(q.id);
+    queriesRun += batch.length;
 
     step.done = true;
     step.found = (data.results || []).reduce((n, r) => n + (r.items || []).length, 0);
@@ -364,11 +424,22 @@ $('#scan-go')?.addEventListener('click', async () => {
 
   const unsure = scored.filter((s) => s.match.classification !== CLASSIFICATION.CONFIRMED);
 
+  const uniqueFailures = [...new Set(failures)];
+  const everythingFailed = uniqueFailures.length > 0 && found.length === 0;
+
   out.innerHTML = `
-    <div class="${auto ? 'okbox' : 'warnbox'}" style="margin-top:16px">
-      <b>Scan complete.</b> Searched ${state.searched.length} ways of finding you and read
-      ${found.length} results. ${auto} confirmed as you and added to your exposures${unsure.length
-        ? `, ${unsure.length} need your eye` : ''}.
+    <div class="${everythingFailed || !auto ? 'warnbox' : 'okbox'}" style="margin-top:16px">
+      ${everythingFailed
+        ? `<b>The scan could not run.</b> No searches completed, so this is not a result —
+           it says nothing about your footprint.
+           <ul style="margin:8px 0 0;padding-left:20px">${
+             uniqueFailures.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>`
+        : `<b>Scan complete.</b> Ran ${queriesRun} searches and read ${found.length} results.
+           ${auto} confirmed as you and added to your exposures${unsure.length
+             ? `, ${unsure.length} need your eye` : ''}.
+           ${uniqueFailures.length ? `<br><br><b>Some searches failed:</b> ${esc(uniqueFailures[0])}` : ''}
+           ${!found.length && !uniqueFailures.length
+             ? '<br><br>Nothing came back at all, which is unusual — try the paste flow below to sanity-check it.' : ''}`}
       ${quotaHit ? '<br><br><b>Daily search limit reached.</b> Google\'s free tier allows 100 searches a day. Come back tomorrow to continue, or paste results below in the meantime.' : ''}
     </div>
     ${unsure.length ? `<p class="note"><b>Not sure about these — is this you?</b></p>
@@ -412,6 +483,16 @@ function endScan() {
   scanning = false;
   $('#scan-go').disabled = false;
   $('#scan-stop').hidden = true;
+}
+
+/** Turn a backend error code into something a person can act on. */
+function searchErrorText(code, provider) {
+  const name = provider === 'brave' ? 'Brave Search' : 'the search provider';
+  if (/401|403/.test(code)) return `${name} rejected the API key (${code}) — check the key and that the subscription is active.`;
+  if (/422/.test(code)) return `${name} rejected the query format (${code}).`;
+  if (/timeout/.test(code)) return `${name} timed out.`;
+  if (/network/.test(code)) return `Could not reach ${name}.`;
+  return `${name} returned an error (${code}).`;
 }
 
 /** Plain-language progress. Never "priority 0.94". */
