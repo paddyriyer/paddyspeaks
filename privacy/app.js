@@ -239,6 +239,236 @@ function kindLabel(kind) {
 
 /* ------------------------------------------------ 3. check a result */
 
+/* ------------------------------------------------- autonomous scan mode */
+
+/**
+ * Run the search plan server-side.
+ *
+ * This is the only place the console talks to a network, and it exists because
+ * a browser page cannot fetch other sites. The Worker runs the searches and
+ * returns text; every judgement — whether a record is the user, how risky it
+ * is, whether it can be removed — still happens here, locally.
+ *
+ * The identity data leaves the browser in the queries themselves. That is
+ * unavoidable and it is disclosed on the page rather than buried; the paste
+ * flow remains for anyone who would rather it did not happen at all.
+ */
+let scanning = false;
+
+$('#scan-go')?.addEventListener('click', async () => {
+  const out = $('#scan-out');
+  const prog = $('#scan-progress');
+
+  if (!state.profile) {
+    out.innerHTML = '<div class="warnbox">Build your identity profile in step 1 first.</div>';
+    return;
+  }
+
+  scanning = true;
+  $('#scan-go').disabled = true;
+  $('#scan-stop').hidden = false;
+  out.innerHTML = '';
+
+  const g = graph();
+  const queries = buildQueries(g, state.profile, { budget: 24 })
+    .filter((q) => !state.searched.includes(q.id));
+
+  const steps = [];
+  const draw = () => {
+    prog.innerHTML = `<div style="margin-top:16px">
+      ${steps.map((s) => `<div class="note" style="margin:3px 0">
+        ${s.done ? '<span style="color:var(--ok)">✓</span>' : '<span class="spin">•</span>'}
+        ${esc(s.label)}${s.found != null ? ` — <b>${s.found}</b> found` : ''}
+      </div>`).join('')}
+    </div>`;
+  };
+
+  const found = [];
+  let quotaHit = false;
+
+  // Batched so one stall cannot hold the whole run, and so progress is visible.
+  for (let i = 0; i < queries.length && scanning; i += 6) {
+    const batch = queries.slice(i, i + 6);
+    const step = { label: describeBatch(batch), done: false };
+    steps.push(step);
+    draw();
+
+    let data;
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queries: batch.map((q) => q.text) }),
+      });
+      data = await res.json();
+
+      if (res.status === 503 || data.error === 'not_configured') {
+        prog.innerHTML = '';
+        out.innerHTML = `<div class="warnbox"><b>Scanning is not switched on for this site.</b>
+          Nothing is broken — use <i>Paste your search results</i> below, which does the same
+          job and sends nothing anywhere.</div>`;
+        return endScan();
+      }
+    } catch {
+      step.done = true;
+      step.found = 0;
+      draw();
+      continue;
+    }
+
+    for (const r of data.results || []) {
+      if (r.error === 'quota_exceeded') quotaHit = true;
+      for (const item of r.items || []) found.push(item);
+    }
+    for (const q of batch) state.searched.push(q.id);
+
+    step.done = true;
+    step.found = (data.results || []).reduce((n, r) => n + (r.items || []).length, 0);
+    draw();
+    save();
+  }
+
+  // Score every result. Snippets alone are often decisive, because a broker
+  // snippet *is* the record.
+  const scored = dedupeByDomain(found).map((r) => {
+    const extracted = extractFromPage({ url: r.url, title: r.title, text: `${r.title}\n${r.snippet}` });
+    const match = scoreMatch(extracted.record, state.profile);
+    const removability = classifyRemovability(
+      { url: r.url, title: r.title, text: `${r.title} ${r.snippet}`, fields: extracted.fields },
+      state.profile,
+    );
+    return {
+      ...r,
+      extracted,
+      match,
+      removability,
+      risk: riskOf({
+        fields: extracted.fields,
+        siteKind: siteKindFor(removability.category),
+        matchScore: match.score,
+      }),
+    };
+  }).filter((s) => s.match.classification !== CLASSIFICATION.FALSE)
+    .sort((a, b) => b.match.score - a.match.score);
+
+  // Everything confident goes straight onto the board; the rest is offered.
+  let auto = 0;
+  for (const s of scored) {
+    if (s.match.classification === CLASSIFICATION.CONFIRMED) {
+      trackScanned(s, STATE.CONFIRMED_EXPOSURE);
+      auto += 1;
+    }
+  }
+  save();
+  markDone();
+
+  const unsure = scored.filter((s) => s.match.classification !== CLASSIFICATION.CONFIRMED);
+
+  out.innerHTML = `
+    <div class="${auto ? 'okbox' : 'warnbox'}" style="margin-top:16px">
+      <b>Scan complete.</b> Searched ${state.searched.length} ways of finding you and read
+      ${found.length} results. ${auto} confirmed as you and added to your exposures${unsure.length
+        ? `, ${unsure.length} need your eye` : ''}.
+      ${quotaHit ? '<br><br><b>Daily search limit reached.</b> Google\'s free tier allows 100 searches a day. Come back tomorrow to continue, or paste results below in the meantime.' : ''}
+    </div>
+    ${unsure.length ? `<p class="note"><b>Not sure about these — is this you?</b></p>
+      ${unsure.map((s, i) => `
+        <div class="exp" data-u="${i}">
+          <div class="exp-h"><b>${esc(s.domain || registrableDomain(s.url))}</b>
+            <span class="pill ${riskPill(s.risk.band)}">risk ${s.risk.score}</span>
+            <span class="pill g">${Math.round(s.match.score * 100)}% match</span></div>
+          <div class="meta">${esc(s.title)}</div>
+          <p class="note" style="margin:6px 0 0">${esc(s.match.explanation)}</p>
+          <div class="btns" style="margin-top:10px">
+            <button class="btn sm primary" data-uadd="${i}">Yes, that's me</button>
+            <button class="btn sm" data-uskip="${i}">Not me</button>
+            <a class="btn sm" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open →</a>
+          </div>
+        </div>`).join('')}` : ''}
+    ${auto ? '<div class="btns" style="margin-top:14px"><button class="btn primary" id="scan-board">See my exposures →</button></div>' : ''}`;
+
+  for (const btn of out.querySelectorAll('[data-uadd]')) {
+    btn.addEventListener('click', () => {
+      trackScanned(unsure[Number(btn.dataset.uadd)], STATE.CONFIRMED_EXPOSURE);
+      save(); markDone();
+      btn.closest('.btns').innerHTML = '<span class="pill ok">Added</span>';
+    });
+  }
+  for (const btn of out.querySelectorAll('[data-uskip]')) {
+    btn.addEventListener('click', () => {
+      trackScanned(unsure[Number(btn.dataset.uskip)], STATE.FALSE_MATCH);
+      save();
+      btn.closest('.btns').innerHTML = '<span class="pill">Recorded as somebody else</span>';
+    });
+  }
+  $('#scan-board')?.addEventListener('click', () => showStep('board'));
+
+  endScan();
+});
+
+$('#scan-stop')?.addEventListener('click', () => { scanning = false; });
+
+function endScan() {
+  scanning = false;
+  $('#scan-go').disabled = false;
+  $('#scan-stop').hidden = true;
+}
+
+/** Plain-language progress. Never "priority 0.94". */
+function describeBatch(batch) {
+  const kinds = new Set(batch.map((q) => q.kind));
+  const named = [];
+  if (kinds.has('email_exact')) named.push('email address');
+  if (kinds.has('phone_exact')) named.push('phone number');
+  if (kinds.has('address_exact') || kinds.has('name_address')) named.push('home address');
+  if (kinds.has('broker_shape')) named.push('people-search sites');
+  if (kinds.has('name_relative')) named.push('family names');
+  if (kinds.has('username_exact')) named.push('usernames');
+  if (kinds.has('name_document')) named.push('documents and rosters');
+  if (!named.length) named.push('name and location');
+  return `Searching ${named.slice(0, 3).join(', ')}…`;
+}
+
+function dedupeByDomain(items) {
+  const seen = new Set();
+  return items.filter((i) => {
+    const d = registrableDomain(i.url || '');
+    if (!d || seen.has(d)) return false;
+    seen.add(d);
+    return true;
+  });
+}
+
+function trackScanned(s, status) {
+  const domain = s.domain || registrableDomain(s.url);
+  const id = `exp_${fnv1a(s.url)}`;
+  const exposure = {
+    id,
+    url: s.url,
+    domain,
+    title: s.title,
+    discoveredAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    record: s.extracted.record,
+    fields: s.extracted.fields,
+    matchScore: s.match.score,
+    classification: s.match.classification,
+    evidenceOfMatch: s.match.signals,
+    conflicts: s.match.conflicts,
+    explanation: s.match.explanation,
+    removability: s.removability,
+    risk: s.risk,
+    paywalled: s.extracted.paywalled,
+    jurisdiction: detectJurisdiction(state.profile.residence, s.snippet || ''),
+    fromSnippet: true,
+    status: STATE.DISCOVERED,
+    history: [],
+  };
+  transition(exposure, status, status === STATE.FALSE_MATCH ? 'rejected by you' : 'found by the scan');
+  const at = state.exposures.findIndex((x) => x.id === id);
+  if (at >= 0) state.exposures[at] = exposure; else state.exposures.push(exposure);
+}
+
 /**
  * Bulk mode: read a whole search-results page.
  *
