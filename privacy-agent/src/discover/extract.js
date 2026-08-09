@@ -33,7 +33,12 @@ const RE = {
   address: /\b(\d{1,6})\s+((?:[A-Z0-9][\w'.-]*\s+){0,4}?)(street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|court|ct|circle|cir|place|pl|terrace|ter|parkway|pkwy|highway|hwy|way|trail|trl|square|sq|loop|run|path|plaza|plz)\b\.?/gi,
   cityStateZip: /\b([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3}),\s*([A-Z]{2})\b(?:\s+(\d{5})(?:-\d{4})?)?/g,
   ssnFragment: /\b(?:xxx|\*{3}|•{3})[- ]?(?:xx|\*{2}|•{2})[- ]?(\d{4})\b|\bssn\b.{0,20}\b\d{4}\b/gi,
-  age: /\bage[d]?\s*[:\-]?\s*(\d{1,3})\b|\b(\d{1,3})\s*years?\s*old\b/gi,
+  // Four phrasings, because age is the sharpest discriminator brokers publish
+  // and missing it is expensive: a same-named stranger 25 years older sails
+  // through as "might be you" when the one field that would have rejected him
+  // was sitting right there in the snippet.
+  //   "Age: 34"  ·  "34 years old"  ·  "is 34 and lives in"  ·  "Jain, 34, Austin"
+  age: /\bage[d]?\s*[:\-]?\s*(\d{1,3})\b|\b(\d{1,3})\s*years?\s*old\b|\b(?:is|was)\s+(\d{1,3})\s+(?:and\b|years?\b|yrs?\b|of\b)|,\s*(\d{1,3})\s*,\s*(?:of\s+)?[A-Z]/gi,
   birthYear: /\b(?:born|d\.?o\.?b\.?|date of birth|birth\s*year)\b[^\d]{0,20}((?:19|20)\d{2})\b/gi,
   fullDob: /\b(?:born|d\.?o\.?b\.?|date of birth)\b[^\d]{0,20}(\d{1,2}[\/-]\d{1,2}[\/-](?:19|20)\d{2}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+(?:19|20)\d{2})/gi,
   money: /\$\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/g,
@@ -138,7 +143,7 @@ export function extractFromPage(page = {}) {
 
   const ages = uniq(
     matchAll(haystack, RE.age)
-      .map((m) => m[1] || m[2])
+      .map((m) => m[1] || m[2] || m[3] || m[4])
       .filter((a) => Number(a) >= 16 && Number(a) <= 110),
   );
   if (ages.length) { record.ages.push(...ages); fields.add('age'); }
@@ -279,6 +284,119 @@ export function usernameFromProfileUrl(url) {
   } catch {
     return [];
   }
+}
+
+/**
+ * Pull candidate exposures out of a pasted *search results* page.
+ *
+ * This exists because of a workflow failure worth naming: the console asked
+ * users to open a search, then copy each result page individually. In practice
+ * people run the search, see eight obvious broker listings, and stop — so the
+ * board stays empty and the tool looks broken while the user is staring at
+ * their own exposure.
+ *
+ * Pasting the results page turns that into one action. It is also better
+ * evidence than it sounds: broker snippets are unusually informative, because
+ * the snippet *is* the record ("Anjan Jain, 59, lives in Sunnyvale CA, related
+ * to…"). That is frequently enough to score a match without opening the page
+ * at all.
+ *
+ * Deliberately format-agnostic. Google, Bing and DuckDuckGo all paste
+ * differently and all change their markup regularly, so rather than parse any
+ * one of them we look for the shape every result has: a line carrying a
+ * domain, with text around it.
+ */
+export function extractSearchResults(text, options = {}) {
+  const lines = String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((l) => l.trim());
+
+  const results = [];
+  let current = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) continue;
+
+    const domain = domainInLine(line);
+    if (domain && !isSearchEngineChrome(domain)) {
+      // A new result starts here. The title is usually the line above.
+      if (current) results.push(current);
+      const title = findTitle(lines, i);
+      current = {
+        domain,
+        url: urlInLine(line) || `https://${domain}`,
+        title,
+        snippetLines: [],
+      };
+      continue;
+    }
+
+    if (current && !isChrome(line)) current.snippetLines.push(line);
+  }
+  if (current) results.push(current);
+
+  const seen = new Set();
+  return results
+    .map((r) => ({
+      domain: r.domain,
+      url: r.url,
+      title: r.title,
+      snippet: r.snippetLines.join(' ').replace(/\s+/g, ' ').trim().slice(0, 1200),
+    }))
+    // One entry per domain: a results page lists several pages from the same
+    // broker, and they are the same underlying record.
+    .filter((r) => {
+      if (seen.has(r.domain)) return false;
+      seen.add(r.domain);
+      return true;
+    })
+    .filter((r) => (r.snippet + r.title).length > 20)
+    .slice(0, options.limit ?? 30);
+}
+
+const DOMAIN_RE = /\b((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|io|co|us|info|biz|me|app|xyz|site|online|directory|search|records|report|uk|ca|au|in))\b/i;
+
+function domainInLine(line) {
+  // A full URL wins; otherwise a breadcrumb like "www.site.com › name › CA".
+  const url = urlInLine(line);
+  if (url) return registrableDomain(url);
+  // Avoid matching prose that happens to contain a word with a dot.
+  if (line.length > 160) return null;
+  const m = line.match(DOMAIN_RE);
+  if (!m) return null;
+  // Breadcrumbs and bare domains sit near the start of their line.
+  return m.index <= 60 ? registrableDomain(m[1]) : null;
+}
+
+function urlInLine(line) {
+  const m = line.match(/https?:\/\/[^\s)>"']+/i);
+  return m ? m[0] : null;
+}
+
+/** The search engine's own furniture, not a result. */
+function isSearchEngineChrome(domain) {
+  return /^(google|bing|duckduckgo|yahoo|ecosia|startpage|brave|youtube|gstatic|googleusercontent)\./i.test(`${domain}.`)
+    || /^(google|bing|duckduckgo|yahoo)\b/i.test(domain);
+}
+
+function isChrome(line) {
+  return /^(about \d|images|videos|news|maps|shopping|all|settings|tools|next|previous|page \d|people also ask|related searches|feedback|sign in|filters)$/i.test(line)
+    || /^\d+ results?/i.test(line);
+}
+
+function findTitle(lines, domainIndex) {
+  for (let i = domainIndex - 1; i >= Math.max(0, domainIndex - 3); i--) {
+    const l = lines[i];
+    if (l && l.length > 8 && l.length < 160 && !domainInLine(l) && !isChrome(l)) return l;
+  }
+  // Some engines put the title *below* the URL line.
+  for (let i = domainIndex + 1; i < Math.min(lines.length, domainIndex + 3); i++) {
+    const l = lines[i];
+    if (l && l.length > 8 && l.length < 160 && !domainInLine(l) && !isChrome(l)) return l;
+  }
+  return '';
 }
 
 /** Spec item 22 — a page that wants money is flagged, never paid. */
