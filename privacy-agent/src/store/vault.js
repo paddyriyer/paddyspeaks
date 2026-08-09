@@ -133,9 +133,35 @@ export class Vault {
 
   /* -------------------------------------------------------- evidence */
 
-  evidencePath(exposureId, label, ext = 'png') {
+  /**
+   * Store a screenshot, encrypted.
+   *
+   * Evidence is the most revealing thing the agent produces: a full-page
+   * capture of a broker listing *is* the user's address, phone and relatives,
+   * rendered. Writing those as plain PNGs would mean the one artefact that
+   * shows everything is the one artefact not protected — and Playwright's
+   * `path:` option writes through the process umask, which on a default 022
+   * system leaves them world-readable. So the bytes go through the same
+   * AES-256-GCM envelope as the rest of the vault, at 0600.
+   *
+   * Base64 inside the existing JSON envelope costs ~33% on a ~20KB image,
+   * which is a good trade for reusing the encryption path that is already
+   * tested rather than inventing a second binary format.
+   */
+  saveEvidence(buffer, exposureId, label) {
+    this.#assertUnlocked();
+    if (!buffer || !buffer.length) return null;
     const safe = String(label).replace(/[^a-z0-9_-]+/gi, '-').slice(0, 40);
-    return join(this.evidenceDir, `${exposureId}__${Date.now()}__${safe}.${ext}`);
+    const path = join(this.evidenceDir, `${exposureId}__${Date.now()}__${safe}.png.enc`);
+    this.#writeJson(path, encrypt(Buffer.from(buffer).toString('base64'), this.key));
+    return path;
+  }
+
+  /** Decrypt a stored screenshot back to PNG bytes, for export or viewing. */
+  readEvidence(path) {
+    this.#assertUnlocked();
+    if (!existsSync(path)) return null;
+    return Buffer.from(decrypt(JSON.parse(readFileSync(path, 'utf8')), this.key), 'base64');
   }
 
   /**

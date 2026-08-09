@@ -565,15 +565,17 @@ function extractNearbyReason(context, blocked) {
     || 'The site does not explain why it needs this.';
 }
 
-/** Screenshot + metadata, stored in the vault's evidence directory (spec 26). */
+/** Screenshot + metadata, encrypted into the vault's evidence store (spec 26). */
 async function captureEvidence(session, page, context, label) {
   if (!context.vault || !context.exposure) return null;
-  const path = context.vault.evidencePath(context.exposure.id, label);
-  const saved = await session.screenshot(page, path);
+  const bytes = await session.screenshotBuffer(page);
+  if (!bytes) return null;
+  const saved = context.vault.saveEvidence(bytes, context.exposure.id, label);
   if (!saved) return null;
   return {
     label,
     path: saved,
+    encrypted: true,
     url: page.url(),
     capturedAt: new Date().toISOString(),
   };

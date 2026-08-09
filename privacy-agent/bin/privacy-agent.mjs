@@ -46,6 +46,8 @@ async function main() {
     case 'verify': return cmdVerify();
     case 'report': return cmdReport();
     case 'workflows': return cmdWorkflows();
+    case 'evidence': return cmdEvidence(flags);
+    case 'forget-browser': return cmdForgetBrowser();
     case 'destroy': return cmdDestroy();
     default: return cmdHelp();
   }
@@ -273,6 +275,71 @@ async function cmdWorkflows() {
   }
 }
 
+/**
+ * Evidence is encrypted at rest, so it needs an explicit decrypt step to view.
+ * `--export=DIR` writes the PNGs out — with a warning, because the moment they
+ * leave the vault they are ordinary readable images of the user's address.
+ */
+async function cmdEvidence(flags) {
+  const vault = await unlock();
+  if (!vault) return;
+  const agent = new PrivacyAgent({ vault });
+  agent.load();
+
+  const items = (agent.run?.exposures || []).flatMap(
+    (e) => (e.evidence || []).map((ev) => ({ ...ev, domain: e.domain })),
+  );
+  if (!items.length) return console.log('\nNo evidence captured yet.');
+
+  console.log(c.bold(`\n${items.length} captures (encrypted at rest)\n`));
+  for (const item of items) {
+    console.log(`  ${item.domain.padEnd(28)} ${item.label.padEnd(22)} ${c.dim(new Date(item.capturedAt).toLocaleString())}`);
+  }
+
+  if (!flags.export) {
+    return console.log(c.dim('\nUse --export=DIR to decrypt these to PNG files.'));
+  }
+
+  console.log(c.red('\nExporting decrypts these to ordinary PNG files.'));
+  console.log(c.red('They are screenshots of pages showing your address and phone number.'));
+  const ok = await rl.question('Continue? [y/N] ');
+  if (ok.trim().toLowerCase() !== 'y') return console.log('Nothing exported.');
+
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const { join: joinPath, basename } = await import('node:path');
+  mkdirSync(flags.export, { recursive: true, mode: 0o700 });
+
+  let n = 0;
+  for (const item of items) {
+    const bytes = vault.readEvidence(item.path);
+    if (!bytes) continue;
+    writeFileSync(joinPath(flags.export, basename(item.path).replace(/\.enc$/, '')), bytes, { mode: 0o600 });
+    n += 1;
+  }
+  console.log(c.green(`\nExported ${n} file(s) to ${flags.export}`));
+}
+
+/**
+ * The browser profile is the one thing that cannot be encrypted — Chromium
+ * needs it readable. This wipes it.
+ */
+async function cmdForgetBrowser() {
+  const vault = await unlock();
+  if (!vault) return;
+  const { rmSync, existsSync } = await import('node:fs');
+  const { join: joinPath } = await import('node:path');
+  const dir = joinPath(vaultHome(), 'browser-profile');
+
+  if (!existsSync(dir)) return console.log('\nNo browser profile stored.');
+  console.log('\nThis clears cookies, history and site data the agent\'s browser accumulated.');
+  console.log(c.dim('You may have to redo any site logins or CAPTCHAs on the next run.'));
+  const ok = await rl.question('Continue? [y/N] ');
+  if (ok.trim().toLowerCase() !== 'y') return console.log('Kept.');
+
+  rmSync(dir, { recursive: true, force: true });
+  console.log(c.green('Browser profile cleared.'));
+}
+
 async function cmdDestroy() {
   const vault = new Vault();
   if (!vault.exists()) return console.log('\nThere is no vault to destroy.');
@@ -302,6 +369,8 @@ ${c.bold('privacy-agent')} — an autonomous privacy operations centre
   ${c.gold('verify')}      re-check pending removals and hunt for reappearances
   ${c.gold('report')}      the full summary
   ${c.gold('workflows')}   inspect the learned (PII-free) site templates
+  ${c.gold('evidence')}    list captured screenshots ${c.dim('(--export=DIR to decrypt them)')}
+  ${c.gold('forget-browser')} wipe the browser profile (cookies, history, site data)
   ${c.gold('destroy')}     delete the vault and everything in it
 
 Everything runs locally. Your identity data never leaves this machine —

@@ -12,6 +12,9 @@
  */
 
 import { strict as assert } from 'node:assert';
+import { mkdtempSync, rmSync, statSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   buildProfile, parseName, nameVariants, phoneVariants, emailVariants,
@@ -33,7 +36,7 @@ import { extractFromPage, extractNames, isPlausibleName, splitPeopleList, detect
 import { parseConfirmation, parseVerificationNeed } from '../src/removal/parse.js';
 import { scoreConfirmationEmail, extractVerification, buildMailQueries } from '../src/removal/email.js';
 import { sanitizeTemplate, templateStillFits, recordOutcome } from '../src/removal/workflows.js';
-import { assertNoPii } from '../src/store/vault.js';
+import { assertNoPii, Vault } from '../src/store/vault.js';
 import { encrypt, decrypt, deriveKey, newSalt, verifyPassphrase, passphraseCheck } from '../src/store/crypto.js';
 import { normalizeAnswers, assessCoverage, GROUPS } from '../src/onboarding/interview.js';
 import { recheckDate } from '../src/agent.js';
@@ -1176,6 +1179,32 @@ test('passphrase verification works without decrypting', () => {
 
 test('short passphrases are rejected', () => {
   assert.throws(() => deriveKey('short', newSalt()), /at least 8/);
+});
+
+test('EVIDENCE SCREENSHOTS ARE ENCRYPTED AND 0600, not world-readable PNGs', () => {
+  // A full-page capture of a broker listing *is* the user's address, phone and
+  // relatives, rendered. Playwright's `path:` option writes through the umask,
+  // which on a default 022 system leaves them mode 644 — the one artefact that
+  // shows everything, unprotected. The vault must own the write.
+  const home = mkdtempSync(join(tmpdir(), 'pa-evidence-'));
+  try {
+    const vault = new Vault(home);
+    vault.create('a-good-test-passphrase');
+
+    const png = Buffer.from('89504e470d0a1a0a-pretend-image-bytes', 'utf8');
+    const path = vault.saveEvidence(png, 'exp_test', 'before-removal');
+
+    assert.ok(path, 'evidence should be stored');
+    assert.equal(statSync(path).mode & 0o777, 0o600, 'evidence must not be world-readable');
+
+    const onDisk = readFileSync(path, 'utf8');
+    assert.ok(!onDisk.includes('pretend-image-bytes'), 'raw image bytes must not sit in the clear');
+    assert.match(onDisk, /aes-256-gcm/);
+
+    assert.deepEqual(vault.readEvidence(path), png, 'and it must decrypt back byte-for-byte');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 /* ============================================================ onboarding */

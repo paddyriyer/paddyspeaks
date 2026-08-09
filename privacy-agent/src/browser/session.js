@@ -121,10 +121,18 @@ export class BrowserSession {
     }
   }
 
-  async screenshot(page, path, options = {}) {
+  /**
+   * Capture a screenshot as bytes.
+   *
+   * Deliberately returns a Buffer rather than taking a `path`. Playwright's
+   * `path:` option writes the file itself, through the process umask — which
+   * on a default 022 system produces a world-readable PNG of the user's home
+   * address. Handing the bytes back means the vault owns the write, and
+   * evidence gets the same encryption and 0600 mode as everything else.
+   */
+  async screenshotBuffer(page, options = {}) {
     try {
-      await page.screenshot({ path, fullPage: options.fullPage ?? true });
-      return path;
+      return await page.screenshot({ fullPage: options.fullPage ?? true });
     } catch (err) {
       this.log('screenshot failed', { error: err.message });
       return null;

@@ -275,8 +275,8 @@ export async function followVerificationLink(session, link, options = {}) {
 
     let screenshot = null;
     if (options.vault && options.exposureId) {
-      const path = options.vault.evidencePath(options.exposureId, 'email-verified');
-      screenshot = await session.screenshot(page, path);
+      const bytes = await session.screenshotBuffer(page);
+      if (bytes) screenshot = options.vault.saveEvidence(bytes, options.exposureId, 'email-verified');
     }
 
     return {
