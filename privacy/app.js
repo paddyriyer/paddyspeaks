@@ -30,7 +30,7 @@ import { classifyRemovability, siteKindFor } from '../privacy-agent/src/core/rem
 import { detectJurisdiction, preferredChoices } from '../privacy-agent/src/core/jurisdiction.js';
 import { STATE, STATE_LABELS, transition, summarize } from '../privacy-agent/src/core/states.js';
 import { fnv1a, registrableDomain } from '../privacy-agent/src/core/text.js';
-import { extractFromPage } from '../privacy-agent/src/discover/extract.js';
+import { extractFromPage, extractSearchResults } from '../privacy-agent/src/discover/extract.js';
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
@@ -238,6 +238,138 @@ function kindLabel(kind) {
 }
 
 /* ------------------------------------------------ 3. check a result */
+
+/**
+ * Bulk mode: read a whole search-results page.
+ *
+ * This is the path that matters. Asking someone to open and copy each listing
+ * individually means they run the search, see their own exposure sitting there,
+ * and stop — leaving the board at zero while they are looking straight at the
+ * problem.
+ */
+$('#analyse-bulk').addEventListener('click', () => {
+  const text = $('#bulk-text').value;
+  const out = $('#bulk-verdict');
+
+  if (!state.profile) {
+    out.innerHTML = '<div class="warnbox">Build your identity profile in step 1 first — there is nothing to compare against.</div>';
+    return;
+  }
+  if (!text.trim()) {
+    out.innerHTML = '<div class="warnbox">Paste the search results page so there is something to read.</div>';
+    return;
+  }
+
+  const found = extractSearchResults(text);
+  if (!found.length) {
+    out.innerHTML = `<div class="warnbox"><b>No results recognised in that paste.</b>
+      Make sure you copied the whole results page rather than just the search box.
+      If the engine you used copies oddly, open one listing and use the detailed
+      check below instead.</div>`;
+    return;
+  }
+
+  const scored = found.map((r) => {
+    const extracted = extractFromPage({ url: r.url, title: r.title, text: `${r.title}\n${r.snippet}` });
+    const match = scoreMatch(extracted.record, state.profile);
+    const removability = classifyRemovability(
+      { url: r.url, title: r.title, text: `${r.title} ${r.snippet}`, fields: extracted.fields },
+      state.profile,
+    );
+    const risk = riskOf({
+      fields: extracted.fields,
+      siteKind: siteKindFor(removability.category),
+      matchScore: match.score,
+    });
+    return { ...r, extracted, match, removability, risk };
+  }).sort((a, b) => b.match.score - a.match.score);
+
+  const likely = scored.filter((s) => s.match.classification !== CLASSIFICATION.FALSE);
+  const rejected = scored.length - likely.length;
+
+  out.innerHTML = `
+    <div class="okbox" style="margin-top:18px">
+      <b>Read ${scored.length} result${scored.length === 1 ? '' : 's'}.</b>
+      ${likely.length} look${likely.length === 1 ? 's' : ''} like you${rejected ? `, ${rejected} rejected as somebody else` : ''}.
+      Confirm the ones that are yours — anything you add is tracked through to removal.
+    </div>
+    ${likely.map((s, i) => `
+      <div class="exp" data-i="${i}">
+        <div class="exp-h">
+          <b>${esc(s.domain)}</b>
+          <span class="pill ${riskPill(s.risk.band)}">risk ${s.risk.score}</span>
+          <span class="pill g">${Math.round(s.match.score * 100)}% match</span>
+          ${s.match.classification === CLASSIFICATION.CONFIRMED
+            ? '<span class="pill ok">confident</span>'
+            : '<span class="pill warn">needs your eye</span>'}
+        </div>
+        <div class="meta">${esc(s.title || s.url)}</div>
+        <p class="note" style="margin:6px 0 0">${esc(s.match.explanation)}</p>
+        ${s.extracted.fields.length ? `<p class="note" style="margin:4px 0 0"><b>Exposed:</b> ${esc(s.extracted.fields.join(', '))}</p>` : ''}
+        <div class="btns" style="margin-top:10px">
+          <button class="btn sm primary" data-add="${i}">Yes, that's me</button>
+          <button class="btn sm" data-skip="${i}">Not me</button>
+          <a class="btn sm" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open listing →</a>
+        </div>
+      </div>`).join('')}
+    ${likely.length > 1 ? `<div class="btns" style="margin-top:14px">
+      <button class="btn primary" id="add-all">Add all ${likely.length} to my exposures</button>
+    </div>` : ''}`;
+
+  const track = (s, status) => {
+    const id = `exp_${fnv1a(s.url)}`;
+    const exposure = {
+      id,
+      url: s.url,
+      domain: s.domain,
+      title: s.title,
+      discoveredAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      record: s.extracted.record,
+      fields: s.extracted.fields,
+      matchScore: s.match.score,
+      classification: s.match.classification,
+      evidenceOfMatch: s.match.signals,
+      conflicts: s.match.conflicts,
+      explanation: s.match.explanation,
+      removability: s.removability,
+      risk: s.risk,
+      paywalled: s.extracted.paywalled,
+      jurisdiction: detectJurisdiction(state.profile.residence, s.snippet),
+      // Snippet-derived, so flagged: the record came from a search summary
+      // rather than the page itself, which is thinner evidence.
+      fromSnippet: true,
+      status: STATE.DISCOVERED,
+      history: [],
+    };
+    transition(exposure, status, status === STATE.FALSE_MATCH ? 'rejected by you' : 'confirmed by you');
+    const at = state.exposures.findIndex((x) => x.id === id);
+    if (at >= 0) state.exposures[at] = exposure; else state.exposures.push(exposure);
+  };
+
+  for (const btn of out.querySelectorAll('[data-add]')) {
+    btn.addEventListener('click', () => {
+      track(likely[Number(btn.dataset.add)], STATE.CONFIRMED_EXPOSURE);
+      save(); markDone();
+      btn.closest('.exp').style.opacity = '.45';
+      btn.closest('.btns').innerHTML = '<span class="pill ok">Added to your exposures</span>';
+    });
+  }
+  for (const btn of out.querySelectorAll('[data-skip]')) {
+    btn.addEventListener('click', () => {
+      track(likely[Number(btn.dataset.skip)], STATE.FALSE_MATCH);
+      save();
+      btn.closest('.exp').style.opacity = '.45';
+      btn.closest('.btns').innerHTML = '<span class="pill">Recorded as somebody else</span>';
+    });
+  }
+  $('#add-all')?.addEventListener('click', () => {
+    for (const s of likely) track(s, STATE.CONFIRMED_EXPOSURE);
+    save(); markDone();
+    $('#bulk-text').value = '';
+    showStep('board');
+  });
+});
 
 $('#analyse').addEventListener('click', () => analyse($('#chk-url').value.trim(), $('#chk-text').value));
 
