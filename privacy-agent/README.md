@@ -7,13 +7,40 @@ published, verifies which of those records are actually yours, files the removal
 requests, follows the confirmation emails, and keeps checking that what it
 removed stays removed.
 
+## Getting it running
+
+There is **no URL and no hosted app**. It is a program you run on your own
+computer, from a terminal, and it never leaves that machine. Requires Node 20+.
+
 ```bash
-cd privacy-agent
+git clone https://github.com/paddyriyer/paddyspeaks.git
+cd paddyspeaks/privacy-agent
+
 npm install
-node bin/privacy-agent.mjs init
-node bin/privacy-agent.mjs onboard
+npx playwright install chromium     # the browser it drives
+
+node bin/privacy-agent.mjs init     # create the encrypted vault, choose a passphrase
+node bin/privacy-agent.mjs onboard  # the identity interview
 node bin/privacy-agent.mjs run --review
 ```
+
+`npm install` may already fetch the browser, depending on your npm settings —
+`npx playwright install chromium` is idempotent, so run it either way rather
+than finding out mid-run.
+
+That last command prints a dashboard link:
+
+```
+Dashboard: http://127.0.0.1:52341/?t=9f3a…
+```
+
+A random port on **loopback with a per-session token** — the only URL this
+project has. It is not reachable from another machine and there is deliberately
+no flag to make it so, because the page renders a home address.
+
+**Run it on a machine you control.** Not a shared server, not a cloud container.
+The vault is only as private as the disk under it, and an ephemeral container
+would destroy it when reclaimed.
 
 ---
 
