@@ -16,8 +16,9 @@
  * reads back whatever you paste. The judgement — is this me, how bad is it,
  * can it be removed, what do I say — is all here.
  *
- * Storage is `localStorage` on this origin. No network call is made by this
- * file at all; there is deliberately no `fetch` in it.
+ * Storage is `localStorage` on this origin. The only network calls this file
+ * makes are to the site's own Worker for "Scan for me" — everything else,
+ * including every judgement, happens locally. The paste flow makes none at all.
  */
 
 import { buildProfile, parseAddress } from '../privacy-agent/src/core/identity.js';
@@ -34,6 +35,13 @@ import { extractFromPage, extractSearchResults } from '../privacy-agent/src/disc
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
+
+// The Worker lives on its own subdomain, not under paddyspeaks.com/api/*.
+// paddyspeaks.com is GitHub Pages, so a relative /api/scan resolves to a static
+// 404 — which is exactly how the first live scan came back "0 found" with a row
+// of green ticks. Same constant as lib/ps-forms.js and analytics/index.html;
+// they are the reason this convention exists.
+const API_BASE = 'https://ps.paddyspeaks.com';
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -273,7 +281,7 @@ $('#scan-go')?.addEventListener('click', async () => {
   // Preflight. Diagnosing "is it deployed / is the key set" before burning 24
   // searches is the difference between a useful error and a blank result.
   try {
-    const st = await fetch('/api/scan/status');
+    const st = await fetch(`${API_BASE}/api/scan/status`);
     if (!st.ok) throw new Error(`HTTP ${st.status}`);
     const info = await st.json();
     if (!info.configured) {
@@ -329,7 +337,7 @@ $('#scan-go')?.addEventListener('click', async () => {
 
     let data;
     try {
-      const res = await fetch('/api/scan', {
+      const res = await fetch(`${API_BASE}/api/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ queries: batch.map((q) => q.text) }),
