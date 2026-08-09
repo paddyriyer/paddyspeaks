@@ -31,6 +31,9 @@ import { parseAddress } from './identity.js';
 export const KIND_PRIORITY = {
   email_exact: 1.0,
   phone_exact: 0.98,
+  // Finds broker pages by the language they are built from, without naming a
+  // single broker. See BROKER_SHAPES below.
+  broker_shape: 0.96,
   name_address: 0.95,
   name_phone: 0.93,
   address_exact: 0.88,
@@ -44,6 +47,32 @@ export const KIND_PRIORITY = {
   domain_reverse: 0.55,
   name_bare: 0.4,
 };
+
+/**
+ * Broker-shaped searches (the answer to "just tell me which brokers have me").
+ *
+ * A people-search page is not identifiable by its domain — there are thousands
+ * of them and the interesting ones are never the famous ones. But they are all
+ * built from the same handful of phrases, because they are all rendering the
+ * same purchased record: an age, a list of relatives, a string of previous
+ * addresses, and a "view full report" upsell.
+ *
+ * So we search for *that shape* alongside the identity. This surfaces broker
+ * listings as a class while still naming no broker, which is what keeps the
+ * long tail reachable — the regional directory and the scraped church roster
+ * use the same vocabulary as the big sites.
+ */
+const BROKER_SHAPES = [
+  { terms: '"background check" OR "public records" OR "people search"', why: 'the phrases people-search sites are built from' },
+  { terms: '"relatives" OR "possible relatives" OR "associated with"', why: 'the relatives block brokers print' },
+  { terms: '"current address" OR "previous addresses" OR "address history"', why: 'the address-history block' },
+  { terms: '"view full report" OR "unlock" OR "see full background"', why: 'the upsell brokers gate the record behind' },
+];
+
+/** Reverse-lookup phrasing, for the phone-indexed directories. */
+const PHONE_SHAPES = [
+  { terms: '"reverse phone" OR "phone lookup" OR "who called" OR "owner name"', why: 'reverse phone directories' },
+];
 
 /** Sites whose results are pure noise for this purpose. */
 const EXCLUDE_HOSTS = [
@@ -118,6 +147,21 @@ export function buildQueries(graph, profile, options = {}) {
   }
 
   for (const p of profiles) add(`"${p.value}"`, 'profile_url', p);
+
+  /* --- broker-shaped searches: find the listings as a class (spec item 4) --- */
+
+  const topName = names[0];
+  if (topName) {
+    for (const shape of BROKER_SHAPES) {
+      add(`"${topName.value}" ${cityState} ${shape.terms}`.replace(/\s+/g, ' ').trim(),
+        'broker_shape', topName, { why: shape.why });
+    }
+  }
+  for (const p of phones.slice(0, 2)) {
+    for (const shape of PHONE_SHAPES) {
+      add(`"${formatPhoneForSearch(p.value)}" ${shape.terms}`, 'broker_shape', p, { why: shape.why });
+    }
+  }
 
   /* --- contextual combinations --- */
 

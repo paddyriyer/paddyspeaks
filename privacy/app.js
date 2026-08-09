@@ -196,7 +196,7 @@ function renderPlan() {
       <li class="qrow${state.searched.includes(q.id) ? ' searched' : ''}" data-q="${q.id}">
         <div class="qt">
           <code>${esc(q.text)}</code>
-          <div class="qk">${esc(kindLabel(q.kind))} · priority ${q.priority}</div>
+          <div class="qk">${esc(q.why || kindLabel(q.kind))} · priority ${q.priority}</div>
         </div>
         <a class="btn sm" target="_blank" rel="noopener noreferrer"
            href="${engine}${encodeURIComponent(q.text)}" data-run="${q.id}">Search →</a>
@@ -219,6 +219,7 @@ $('#engine').addEventListener('change', renderPlan);
 
 function kindLabel(kind) {
   return {
+    broker_shape: 'Finds data-broker listings as a class — start here',
     email_exact: 'Email only — very few people match this',
     phone_exact: 'Phone only — finds listings indexed by number, not name',
     address_exact: 'Address only',
@@ -413,7 +414,38 @@ function renderBoard() {
     `<div class="tile${attn && n ? ' attn' : ''}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
 
   if (!live.length) {
-    $('#board-out').innerHTML = '<div class="empty">Nothing tracked yet. Run a search in step 2, then check a result in step 3.</div>';
+    // An empty board is the expected first state, not an error — but saying
+    // only "nothing here" reads as a broken page. Name the next action, and
+    // point at the searches most likely to actually surface a broker listing.
+    const g = graph();
+    const brokerQs = g ? buildQueries(g, state.profile, { budget: 60 })
+      .filter((q) => q.kind === 'broker_shape').slice(0, 4) : [];
+    const engine = $('#engine')?.value || 'https://duckduckgo.com/?q=';
+
+    $('#board-out').innerHTML = `
+      <div class="empty" style="text-align:left;padding:18px">
+        <p style="margin-top:0"><b>Nothing tracked yet — that is the normal starting point.</b></p>
+        <p>This board fills up as you check results. Nothing appears here automatically,
+        because a web page cannot open other people's sites on your behalf — your browser
+        blocks that, which is the same rule that stops any site reading your other tabs.</p>
+        ${brokerQs.length ? `
+          <p style="margin-bottom:6px"><b>Start with these.</b> They look for the phrases
+          every people-search listing is built from, so they surface broker pages as a
+          group rather than one site at a time:</p>
+          <ul class="qlist" style="font-style:normal">
+            ${brokerQs.map((q) => `
+              <li class="qrow">
+                <div class="qt"><code>${esc(q.text)}</code>
+                  <div class="qk">${esc(q.why || 'broker-shaped search')}</div></div>
+                <a class="btn sm" target="_blank" rel="noopener noreferrer"
+                   href="${engine}${encodeURIComponent(q.text)}">Search →</a>
+              </li>`).join('')}
+          </ul>
+          <p style="margin-bottom:0">Open one, copy a listing that looks like you, and paste
+          it into <b>step 3</b>. The console decides whether it is really you and what can be
+          done about it.</p>`
+        : '<p style="margin-bottom:0">Build your identity profile in step 1 first.</p>'}
+      </div>`;
     return;
   }
 
