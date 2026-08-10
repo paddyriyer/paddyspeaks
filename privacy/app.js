@@ -32,6 +32,7 @@ import { detectJurisdiction, preferredChoices } from '../privacy-agent/src/core/
 import { STATE, STATE_LABELS, transition, summarize } from '../privacy-agent/src/core/states.js';
 import { fnv1a, registrableDomain } from '../privacy-agent/src/core/text.js';
 import { extractFromPage, extractSearchResults } from '../privacy-agent/src/discover/extract.js';
+import { attackSurface } from '../privacy-agent/src/core/attack-surface.js';
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
@@ -143,9 +144,13 @@ $('#build').addEventListener('click', () => {
     </div>`;
 
   renderProfile();
+  renderAttackSurface();
+  renderGraph();
   markDone();
   $('#profile-card').hidden = false;
-  $('#profile-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('#surface-card').hidden = false;
+  $('#graph-card').hidden = false;
+  $('#surface-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 function renderProfile() {
@@ -174,6 +179,121 @@ function renderProfile() {
     + `<p class="note"><b>${g.size()} identifiers</b> now in your identity graph. Every one becomes a search input.</p>`;
 }
 
+/**
+ * The attack surface — the answer to "so what?".
+ *
+ * A meter, not a dial. "A single ratio against a limit" is a meter; angle is
+ * harder to read than length, and a gauge buys decoration at the cost of
+ * accuracy. Status colours are always paired with a text band, because two of
+ * the four are deliberately sub-3:1 on a light surface — colour never carries
+ * the meaning alone.
+ */
+function renderAttackSurface() {
+  if (!state.profile) return;
+  const s = attackSurface(state.profile, state.exposures);
+
+  $('#as-score').textContent = s.overall;
+  $('#as-score').className = `score-n b-${s.band}`;
+  $('#as-band').className = `score-band b-${s.band}`;
+  $('#as-band').innerHTML = `<span class="dot"></span>${esc(s.band)} exposure`;
+  $('#as-meter').className = `meter b-${s.band}`;
+  requestAnimationFrame(() => { $('#as-meter').querySelector('i').style.width = `${s.overall}%`; });
+
+  $('#as-summary').innerHTML = s.impersonation.feasible
+    ? `<b>Here is how someone would impersonate you.</b>
+       <ol style="margin:10px 0 0;padding-left:20px">${
+         s.impersonation.steps.map((x) => `<li style="margin:4px 0">${esc(x)}</li>`).join('')}</ol>
+       <p style="margin:12px 0 0"><b>${esc(s.impersonation.payoff)}</b></p>`
+    : `<p style="margin:0">${esc(s.impersonation.summary)}</p>`;
+
+  $('#as-dims').innerHTML = s.dimensions.map((d) => `
+    <div class="dim b-${d.band}">
+      <div class="dim-label">${esc(d.label)}<span class="dim-attack">${esc(d.attack)}</span></div>
+      <div class="dim-track"><i data-w="${d.score}" style="width:0"></i></div>
+      <div class="dim-val">${d.score}<span class="tag">${esc(d.band)}</span></div>
+      <p class="dim-why">${esc(d.explanation)}</p>
+    </div>`).join('');
+  requestAnimationFrame(() => {
+    for (const el of document.querySelectorAll('#as-dims .dim-track > i')) {
+      el.style.width = `${el.dataset.w}%`;
+    }
+  });
+
+  $('#as-caveat').textContent = s.caveat || '';
+}
+
+/**
+ * The identity graph, drawn.
+ *
+ * A radial layout rather than a force simulation: deterministic, so the picture
+ * does not rearrange itself between renders, and legible at a glance. "You" sits
+ * at the centre; each identifier type gets its own arc.
+ */
+function renderGraph() {
+  const g = graph();
+  if (!g) return;
+
+  const TYPES = [
+    { type: 'address',  color: 'var(--critical)', label: 'Addresses' },
+    { type: 'phone',    color: 'var(--serious)',  label: 'Phones' },
+    { type: 'email',    color: 'var(--warning)',  label: 'Emails' },
+    { type: 'relative', color: '#9085e9',         label: 'Relatives' },
+    { type: 'name',     color: 'var(--gold)',     label: 'Name forms' },
+    { type: 'username', color: '#3987e5',         label: 'Usernames' },
+    { type: 'employer', color: '#1baf7a',         label: 'Employers' },
+  ];
+
+  const groups = TYPES.map((t) => ({ ...t, nodes: g.byType(t.type).slice(0, 9) }))
+    .filter((t) => t.nodes.length);
+  if (!groups.length) return;
+
+  const W = 900; const H = 470; const CX = W / 2; const CY = H / 2;
+  const total = groups.reduce((n, t) => n + t.nodes.length, 0);
+
+  let i = 0;
+  const edges = []; const dots = [];
+  for (const grp of groups) {
+    for (const node of grp.nodes) {
+      // Golden-angle-ish distribution keeps labels from colliding, and two
+      // radii stop the ring reading as a single dense circle.
+      const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
+      const radius = 118 + (i % 2 ? 74 : 22);
+      const x = CX + Math.cos(angle) * radius * 1.55;
+      const y = CY + Math.sin(angle) * radius;
+      const r = 4 + Math.round((node.confidence || 0.5) * 3.5);
+      const flip = x < CX;
+
+      edges.push(`<path class="g-edge" d="M${CX} ${CY} Q ${(CX + x) / 2} ${(CY + y) / 2 + 18} ${x} ${y}"/>`);
+      dots.push(`<g class="g-node">
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${grp.color}"/>
+        <text x="${(x + (flip ? -(r + 6) : r + 6)).toFixed(1)}" y="${(y + 3.5).toFixed(1)}"
+              text-anchor="${flip ? 'end' : 'start'}">${esc(short(node.value))}</text>
+      </g>`);
+      i += 1;
+    }
+  }
+
+  $('#graph-svg').innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" role="img"
+         aria-label="Identity graph: ${total} identifiers connected to you">
+      ${edges.join('')}
+      ${dots.join('')}
+      <g class="g-node g-you">
+        <circle cx="${CX}" cy="${CY}" r="26"/>
+        <text x="${CX}" y="${CY + 4}" text-anchor="middle">YOU</text>
+      </g>
+    </svg>`;
+
+  $('#graph-legend').innerHTML = groups.map((t) =>
+    `<span><i style="background:${t.color}"></i>${esc(t.label)} · ${t.nodes.length}</span>`).join('')
+    + `<span style="margin-left:auto;color:var(--ink-3)">${total} identifiers · dot size = confidence</span>`;
+}
+
+function short(v) {
+  const s = String(v);
+  return s.length > 22 ? `${s.slice(0, 21)}…` : s;
+}
+
 $('#clear-id').addEventListener('click', () => {
   if (!confirm('Clear the identity details you have typed?')) return;
   state.answers = {};
@@ -182,6 +302,8 @@ $('#clear-id').addEventListener('click', () => {
   renderGroups();
   $('#coverage').innerHTML = '';
   $('#profile-card').hidden = true;
+  $('#surface-card').hidden = true;
+  $('#graph-card').hidden = true;
   markDone();
 });
 
@@ -1038,6 +1160,10 @@ $('#wipe').addEventListener('click', () => {
 renderGroups();
 if (state.profile) {
   renderProfile();
+  renderAttackSurface();
+  renderGraph();
   $('#profile-card').hidden = false;
+  $('#surface-card').hidden = false;
+  $('#graph-card').hidden = false;
 }
 markDone();
