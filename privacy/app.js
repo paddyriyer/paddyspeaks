@@ -1431,14 +1431,20 @@ function advance(id, to) {
 
 /* ------------------------------------------------------ data controls */
 
-$('#export').addEventListener('click', () => {
+function exportState() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'privacy-console-export.json';
   a.click();
   URL.revokeObjectURL(a.href);
-});
+}
+
+// Two buttons, one behaviour: the handoff card needs it inline at the point of
+// use, and the data card is where anyone looks for an export.
+for (const id of ['#export', '#export-2']) {
+  $(id)?.addEventListener('click', exportState);
+}
 
 $('#wipe').addEventListener('click', () => {
   if (!confirm('Erase your identity details and every tracked exposure from this browser?')) return;

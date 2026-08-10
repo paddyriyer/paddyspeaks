@@ -15,6 +15,7 @@
  */
 
 import { createInterface } from 'node:readline/promises';
+import { readFileSync } from 'node:fs';
 import { stdin, stdout, argv, exit, env } from 'node:process';
 import { Vault, vaultHome } from '../src/store/vault.js';
 import { PrivacyAgent, MODE } from '../src/agent.js';
@@ -22,6 +23,7 @@ import { GROUPS, normalizeAnswers, assessCoverage } from '../src/onboarding/inte
 import { providerGuidance } from '../src/discover/providers.js';
 import { Dashboard } from '../src/ui/server.js';
 import { STATE, STATE_LABELS } from '../src/core/states.js';
+import { readConsoleExport, mergeExposures } from '../src/core/handoff.js';
 
 const rl = createInterface({ input: stdin, output: stdout });
 
@@ -40,6 +42,7 @@ async function main() {
   switch (command) {
     case 'init': return cmdInit();
     case 'onboard': return cmdOnboard();
+    case 'import': return cmdImport(argv[3]);
     case 'run': return cmdRun(flags);
     case 'discover': return cmdRun({ ...flags, mode: MODE.DISCOVER_ONLY });
     case 'status': return cmdStatus();
@@ -126,6 +129,77 @@ async function cmdOnboard() {
   console.log(c.green('\nIdentity profile saved and encrypted.'));
   console.log(`Known identifiers to search on: ${agent.graph.size()}`);
   console.log('\nNext: `privacy-agent run --review` (or `--mission` to let it work unattended)');
+}
+
+/**
+ * Pick up where the website left off.
+ *
+ * The console at paddyspeaks.com/privacy/ can do everything except press
+ * submit — a page cannot fill in a form on another origin, and that rule is
+ * why a random tab cannot post from your bank. Without this command, anyone
+ * who did that work in the browser had to start again from an empty vault to
+ * get a single thing actually removed.
+ */
+async function cmdImport(file) {
+  if (!file) {
+    console.log(c.red('\nUsage: privacy-agent import <file.json>'));
+    console.log('\nExport the file from paddyspeaks.com/privacy/ — step 4, "Your data",');
+    console.log('the "Export as JSON" button.\n');
+    return;
+  }
+
+  let data;
+  try {
+    data = JSON.parse(readFileSync(file, 'utf8'));
+  } catch (err) {
+    return console.log(c.red(`\nCould not read ${file}: ${err.message}\n`));
+  }
+
+  const read = readConsoleExport(data);
+  if (!read.ok) {
+    return console.log(c.red(`\n${read.warnings.join('\n')}\n`));
+  }
+
+  const vault = await unlock();
+  if (!vault) return;
+
+  const agent = new PrivacyAgent({ vault });
+  agent.load();
+
+  // The profile is rebuilt from the raw answers rather than copied out of the
+  // file, so it is always produced by this version of the parser.
+  if (read.answers) {
+    const normalized = normalizeAnswers(read.answers);
+    const coverage = assessCoverage(normalized);
+    if (!coverage.ok) {
+      console.log(c.red(`\n${coverage.gaps.join('\n')}`));
+      return;
+    }
+    await agent.initIdentity(normalized);
+    console.log(c.green(`\nIdentity profile rebuilt — ${agent.graph.size()} identifiers to search on.`));
+  } else if (!agent.profile) {
+    return console.log(c.red('\nNo identity in the export and none in the vault. Run `privacy-agent onboard` first.\n'));
+  }
+
+  agent.run = agent.run || { exposures: [] };
+  agent.run.exposures = agent.run.exposures || [];
+  const merged = mergeExposures(agent.run.exposures, read.exposures);
+  agent.run.exposures = merged.exposures;
+  agent.save();
+
+  console.log(`\n${c.bold('Imported.')} ${read.summary}`);
+  if (merged.added) console.log(c.green(`  ${merged.added} new`));
+  if (merged.kept) console.log(c.dim(`  ${merged.kept} already in the vault, left as they were`));
+
+  for (const w of read.warnings) console.log(c.dim(`  · ${wrap(w, 74, '    ')}`));
+  for (const s of read.skipped.slice(0, 8)) {
+    console.log(c.dim(`  · skipped ${s.url} — ${s.why}`));
+  }
+  if (read.skipped.length > 8) console.log(c.dim(`  · and ${read.skipped.length - 8} more skipped`));
+
+  console.log(`\nNothing has been submitted yet. To let the agent file the removals:`);
+  console.log(`  ${c.gold('privacy-agent run --mission')}`);
+  console.log(c.dim('  (or --review to approve each one yourself)\n'));
 }
 
 async function cmdRun(flags) {
@@ -359,6 +433,8 @@ ${c.bold('privacy-agent')} — an autonomous privacy operations centre
 
   ${c.gold('init')}        create the encrypted vault on this machine
   ${c.gold('onboard')}     the guided identity interview
+  ${c.gold('import')}      pick up work started at paddyspeaks.com/privacy/
+                ${c.dim('privacy-agent import ~/Downloads/privacy-console-export.json')}
   ${c.gold('run')}         discover exposures and remove them
                 ${c.dim('--review   (default) approve each removal yourself')}
                 ${c.dim('--mission  approve once, let the agent work')}
