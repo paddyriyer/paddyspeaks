@@ -42,6 +42,7 @@ import { normalizeAnswers, assessCoverage, GROUPS } from '../src/onboarding/inte
 import { recheckDate } from '../src/agent.js';
 import { explainExposure } from '../src/core/explain.js';
 import { findOptOutLinks, optOutSearches, ROUTE } from '../src/core/optout.js';
+import { bulkRemovalFor, coveredByBulk, PROGRAM } from '../src/core/bulk-removal.js';
 
 let passed = 0;
 let failed = 0;
@@ -1536,6 +1537,108 @@ test('fallback searches are separately answerable, never one OR-soup', () => {
 
 test('no fallback searches without a domain', () => {
   assert.deepEqual(optOutSearches(''), []);
+});
+
+/* =========================================================== bulk removal */
+
+const inCA = buildProfile({
+  fullName: 'Padmanabhan Iyer',
+  address: '738 Bantry Ct Sunnyvale CA 94087',
+  primaryEmail: 'paddy@example.com',
+  phone: '(415) 555-0142',
+  birthYear: '1984',
+});
+const inTX = buildProfile({ fullName: 'Padmanabhan Iyer', address: '1 Congress Ave Austin TX 78701' });
+const inOH = buildProfile({ fullName: 'Padmanabhan Iyer', address: '1 Main St Columbus OH 43215' });
+
+test('a Californian is offered the one-request platform', () => {
+  const b = bulkRemovalFor(inCA);
+  assert.equal(b.program, PROGRAM.CA_DROP);
+  assert.equal(b.available, true);
+  assert.match(b.url, /^https:\/\/consumer\.drop\.privacy\.ca\.gov/);
+  assert.match(b.cost, /free/i);
+});
+
+test('the bulk route always states what it does not cover', () => {
+  const b = bulkRemovalFor(inCA);
+  assert.ok(b.doesNotCover.length >= 3);
+  assert.ok(b.doesNotCover.some((x) => /public record|court|deed|voter/i.test(x)));
+  assert.ok(b.doesNotCover.some((x) => /not registered|failed to register/i.test(x)));
+  assert.match(b.timing, /not instant/i);
+});
+
+test('a state with a privacy law but no platform is told so plainly', () => {
+  const b = bulkRemovalFor(inTX);
+  assert.equal(b.available, false);
+  assert.equal(b.program, PROGRAM.STATE_INDIVIDUAL);
+  assert.match(b.headline, /no single form|one site at a time|only state/i);
+});
+
+test('a state with no deletion law still gets an honest answer, not silence', () => {
+  const b = bulkRemovalFor(inOH);
+  assert.equal(b.available, false);
+  assert.equal(b.program, PROGRAM.NONE);
+  assert.ok(b.how.length, 'the fallback still has to tell them what to do');
+});
+
+test('the EU and UK get erasure, and are not told a platform exists', () => {
+  for (const [country, program] of [['DE', PROGRAM.GDPR_ERASURE], ['GB', PROGRAM.UK_ERASURE]]) {
+    const b = bulkRemovalFor({ residence: { country } });
+    assert.equal(b.program, program);
+    assert.equal(b.available, false, 'there is no central erasure platform anywhere in Europe');
+  }
+});
+
+test('no profile does not crash and claims nothing', () => {
+  const b = bulkRemovalFor(null);
+  assert.equal(b.available, false);
+  assert.ok(b.note);
+});
+
+test('date of birth is never treated as something the console holds', () => {
+  const r = bulkRemovalFor(inCA).readiness;
+  assert.ok(r.supply.some((s) => s.key === 'birthDate'), 'birth date must always be user-supplied');
+  const dob = r.supply.find((s) => s.key === 'birthDate');
+  assert.match(dob.note, /1984/, 'it should acknowledge the year it does hold');
+  assert.match(dob.note, /year only|full date/i);
+  assert.equal(r.ready, false, 'a profile without a full DOB is not "ready"');
+});
+
+test('readiness reports what the user already has', () => {
+  const r = bulkRemovalFor(inCA).readiness;
+  const keys = r.have.map((h) => h.key);
+  assert.ok(keys.includes('name'));
+  assert.ok(keys.includes('zip'));
+  assert.ok(keys.includes('email'));
+});
+
+test('the platform is never offered as something to automate', () => {
+  const b = bulkRemovalFor(inCA);
+  assert.match(b.identityNote, /never fill that in for you|never asks for the document/i);
+});
+
+test('broker listings are expected to be covered; public records are not', () => {
+  const b = bulkRemovalFor(inCA);
+  const broker = coveredByBulk({ removability: { category: CATEGORY.BROKER } }, b);
+  assert.equal(broker.covered, true);
+
+  for (const category of [CATEGORY.COURT, CATEGORY.GOVERNMENT, CATEGORY.JOURNALISM, CATEGORY.EMPLOYER]) {
+    const c = coveredByBulk({ removability: { category } }, b);
+    assert.equal(c.covered, false, `${category} must not be claimed as covered`);
+    assert.ok(c.why, 'and it must say why, not just refuse');
+  }
+});
+
+test('nothing is claimed as covered when no bulk route exists', () => {
+  const b = bulkRemovalFor(inOH);
+  const c = coveredByBulk({ removability: { category: CATEGORY.BROKER } }, b);
+  assert.equal(c.covered, false, 'a Texan or Ohioan must never be told a platform handled it');
+});
+
+test('coverage is worded as an expectation, never a guarantee', () => {
+  const c = coveredByBulk({ removability: { category: CATEGORY.BROKER } }, bulkRemovalFor(inCA));
+  assert.ok(!/\bis covered\b|\bwill be deleted\b|\bguarantee/i.test(c.why),
+    'only the register says who is registered — an unregistered broker is exactly the one still publishing you');
 });
 
 /* ================================================================ report */

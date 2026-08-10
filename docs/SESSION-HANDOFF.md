@@ -1,37 +1,71 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-08-08. This file is the running memory between Claude Code
+_Last updated: 2026-08-10. This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEW (2026-08-08, latest): `privacy-agent/` shipped** on branch
-  `claude/ai-privacy-removal-tool-arzmhz`. A **local-first Node CLI** — an
-  autonomous privacy operations centre that discovers where your personal data
-  is published, verifies which records are really yours, files removals via
-  Chromium/Playwright, follows confirmation emails, and re-checks that removed
-  records stay removed. Design notes: **`docs/PRIVACY-AGENT.md`**; user docs:
+- **NEW (2026-08-10, latest): the Privacy Console is LIVE at
+  `paddyspeaks.com/privacy/`**, alongside the `privacy-agent/` CLI. Design
+  notes: **`docs/PRIVACY-AGENT.md`**; user docs:
   **`privacy-agent/README.md`**. Read those before touching it.
-  - **It is standalone and must stay that way.** Do NOT wire it into
-    `index.html`, the Worker, or any D1 database. GitHub Pages cannot run
-    Chrome, and hosting it would mean centralising thousands of identity
-    dossiers — the exact asset data brokers monetise. The vault is AES-256-GCM
-    under a scrypt key, on the user's own machine, and there is no server.
-  - Pure logic lives in `privacy-agent/src/core/` (identity normalization,
-    identity graph, match confidence, risk, dedupe, state machine, redaction,
-    jurisdiction, removability, query generation). Tests:
-    **`node privacy-agent/tests/run.mjs` — 146 pass**, dependency-free.
+  - **One engine, two front ends.** `privacy-agent/src/core/` is pure ES
+    modules with zero Node dependencies, so `privacy/app.js` imports the *same*
+    files the CLI does, straight from `../privacy-agent/src/core/`. That is the
+    whole reason the browser scoring cannot drift from the CLI scoring — do not
+    add a Node import (`fs`, `path`, `crypto`) to anything under `core/`, or
+    the web app breaks instantly and silently.
+  - Pure logic in `core/`: identity normalization, identity graph, match
+    confidence, risk, dedupe, state machine, redaction, jurisdiction,
+    removability, query generation, attack surface, `explain.js` (the four
+    questions on every exposure card) and `optout.js` (ranks a page's own links
+    to find the removal route). Tests:
+    **`node privacy-agent/tests/run.mjs` — 175 pass**, dependency-free.
+    The Worker side is covered by **`node analytics/tests/run.mjs` — 172 pass**.
   - **Invariants with tests named for them — do not "fix" these:** a name match
     alone can never confirm; absence is not evidence; `submitted` ≠ `removed`
-    (the state machine forbids the shortcut); no hardcoded broker list; sensitive
-    fields (SSN/ID/licence/passport) never auto-fill; payment is never made;
-    workflow templates carry no PII.
-  - Verified end-to-end against a local fixture broker with a real opt-out form:
-    real Chromium, real submission, case number + processing window parsed,
-    evidence screenshots, and the SSN field correctly blocking submission.
-  - `npm install` needed in `privacy-agent/` (only dep is `playwright`).
-    Discovery needs a search API key (`BRAVE_SEARCH_API_KEY` etc.) or it falls
-    back to manual paste — it deliberately will not scrape result pages.
+    (the state machine forbids the shortcut); no hardcoded broker list; no
+    guessed opt-out URLs (an invented `/opt-out` is a confident 404, which is
+    worse than "not found"); sensitive fields (SSN/ID/licence/passport) never
+    auto-fill; payment is never made; workflow templates carry no PII.
+  - **The Worker DOES serve the console now** — this reverses an earlier note
+    in this file that said never to wire it up. `analytics/worker/scan.js`
+    provides `/api/scan` (search proxy), `/api/scan/read` (fetch one page,
+    return text + links) and `/api/scan/status`. It exists because a browser
+    page cannot fetch third-party sites: CORS forbids it.
+    - **The identity-dossier rule is unchanged and still absolute.** The Worker
+      logs nothing, stores nothing (it touches no D1 binding), and caches
+      nothing (`no-store` on every response). Queries and URLs pass through and
+      are discarded. No identity data is persisted server-side, ever.
+    - Both transmissions are disclosed on the page itself, in the assurance
+      box, in plain words — the search terms for *Scan for me*, and the listing
+      URL for *Find the opt-out*. If you change what leaves the browser, change
+      that copy in the same commit. A tool that quietly starts sending a home
+      address while still promising "nothing leaves your browser" is doing
+      exactly what the brokers do.
+    - `/api/scan/read` is a fetch proxy, so `isFetchable()` is a security
+      control, not a convenience check: allowlisted schemes plus a denylist of
+      loopback/private/link-local/cloud-metadata hosts. Tested in
+      `analytics/tests/run.mjs`. Do not relax it.
+  - **`API_BASE` is `https://ps.paddyspeaks.com`, not `paddyspeaks.com/api/*`.**
+    paddyspeaks.com is GitHub Pages, so a relative `/api/scan` resolves to a
+    static 404 — which is exactly how the first live scan came back "0 found"
+    with a row of green ticks. Same convention as `lib/ps-forms.js`.
+  - Search keys are **Worker Secrets**: `BRAVE_SEARCH_API_KEY` (preferred — no
+    daily cap) or `GOOGLE_CSE_KEY` + `GOOGLE_CSE_ID` (100/day). With no key the
+    console says so and falls back to the paste flow; it never scrapes result
+    pages. See the warning in `wrangler.toml` — a plaintext var is wiped on the
+    next Git-integrated deploy.
+  - The CLI additionally drives real Chromium and submits forms, which a static
+    page cannot. Verified end-to-end against a local fixture broker with a real
+    opt-out form: real submission, case number + processing window parsed,
+    encrypted evidence screenshots, and the SSN field correctly blocking
+    submission. `npm install` needed in `privacy-agent/` (only dep is
+    `playwright`).
+  - Still open, raised with the user and unanswered: hero dashboard preview
+    populated from the real profile, an exposure-over-time chart (needs
+    per-scan history nothing records yet), an aggregate stats bar (**must use
+    the user's real numbers — never seed figures**), and a possible rename.
 - **2026-08-08: Polish Sprint Wednesday — PS-05, PS-07, PS-08**
   on branch `claude/weekly-action-plan-kjgt5b`. Two new shared modules under
   `interview.app/js/`:
