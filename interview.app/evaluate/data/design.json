@@ -5464,6 +5464,54 @@
       ],
       "answer": 2,
       "explanation": "Data Vault 2.0's strength is append-only Satellites with load_date and effective_date. A single append-only satellite with these temporal columns naturally supports both current-state queries (filter to latest load_date) and audit trails (query full history). Option A violates DV principles by using a separate archive. Option B creates two satellites (unnecessary complexity) and modifies in-place (violates immutability). Option D creates unscalable hub proliferation. The DV pattern in option C elegantly handles both use cases without denormalization."
+    },
+    {
+      "id": "ds-new-050",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "You're building a payment processing pipeline that consumes from Kafka, calls an external payment API, and writes settlement records to Snowflake. The payment API is idempotent (idempotency_key deduplicates within 24h), but your Snowflake loader crashes after inserting 50 records but before committing the Kafka offset. On restart, you reprocess those 50 records. How do you guarantee exactly-once semantics end-to-end without duplicating settlements?",
+      "options": [
+        "Use Kafka transactions + Snowflake UNIQUE constraint on idempotency_key; rely on the constraint to reject duplicates",
+        "Commit Kafka offset only after Snowflake insert succeeds; generate a deterministic settlement_id based on payment_id + timestamp hash, use Snowflake UNIQUE constraint, and implement Kafka consumer group rebalancing with store offsets in state",
+        "Use Kafka exactly-once producer config + Snowflake autocommit; the combination guarantees no duplicates",
+        "Store Kafka offset in Redis with TTL equal to Snowflake insert latency; check Redis before reprocessing"
+      ],
+      "answer": 1,
+      "explanation": "True exactly-once requires atomicity between source (Kafka offset commit) and sink (Snowflake write). Option 1 fails because the constraint catches duplicates but still violates semantics by writing twice. Option 2 works by: (1) deterministic IDs prevent duplicate logic in Snowflake, (2) offset committed only after successful Snowflake write ensures no lost/duplicate message processing, and (3) the external API's 24h idempotency handles transient retries. Options 3 and 4 don't coordinate the offset commit with the sink."
+    },
+    {
+      "id": "ds-new-051",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "Your data mesh domain owns a customer-360 aggregate service that merges data from identity, billing, and support systems via REST APIs. The aggregation is triggered by Kafka events (customer.updated, customer.deleted). A customer update event arrives twice due to Kafka retries, and both invocations call the three upstream APIs. The services are NOT idempotent. What's the best way to make your aggregator idempotent without modifying upstream services?",
+      "options": [
+        "Hash the full customer payload and store in a deduplication table; skip processing if hash exists within a 1-hour sliding window",
+        "Use the event's Kafka offset + partition as a deterministic request ID; pass it to each upstream API call; store the composite result keyed by (customer_id, event_offset) in a cache with TTL equal to SLA window; on duplicate detection, return cached result without calling APIs",
+        "Implement a saga pattern with compensating transactions; if duplicate detected, roll back the previous aggregation",
+        "Add a version field to the customer record; increment on each update and skip processing if version hasn't changed since last aggregation"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 (hash-based dedup) doesn't prevent duplicate API calls, only duplicate downstream writes. Option 2 is correct: the (customer_id, event_offset) key is deterministic and unique per Kafka message, allowing cache hits on retries without calling upstream services again; the TTL bounds storage. Option 3 (saga) is overkill for a read-mostly aggregator. Option 4 fails because version doesn't exist independently of the event; you still process it twice before comparing versions."
+    },
+    {
+      "id": "ds-new-052",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "Your organization adopts a data mesh with 12 autonomous domain teams. The 'payments' domain publishes a port (Kafka topic) for transaction events; the 'analytics' domain consumes it. The payments team needs to add a new field (fraud_risk_score) to the schema, which 50 downstream consumers depend on. Payments team can't coordinate a synchronized rollout. How do you manage this schema evolution to avoid breaking analytics and other consumers?",
+      "options": [
+        "Use Confluent Schema Registry with BACKWARD compatibility mode; require the payments team to always add new fields with default values",
+        "Create a schema versioning proxy at the Kafka broker level; consumers explicitly request schema version; payments team publishes v1 and v2 in parallel topics for 30 days",
+        "Adopt AVRO with BACKWARD_TRANSITIVE compatibility; fraud_risk_score added as optional with default null; consumers declare minimum schema version in their subscriptions; Schema Registry enforces compatibility",
+        "Have payments team publish a second 'transactions-enhanced' topic alongside the original; analytics migrates on their own timeline; deprecate original topic after 6 months"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (dual topics) is simple but creates operational sprawl and coordination overhead. Option 1 (BACKWARD mode) allows new fields but doesn't enforce minimum schema versions for consumers, risking old code reading new fields incorrectly. Option 3 is correct: BACKWARD_TRANSITIVE ensures that new schemas can be read by old consumers (new fields default to null, old fields always present); explicit minimum version declarations in consumer configs let teams opt into new fields asynchronously; Schema Registry enforces this automatically. This matches data mesh's autonomy principle\u2014payments can evolve independently, consumers upgrade at their own pace."
     }
   ]
 }

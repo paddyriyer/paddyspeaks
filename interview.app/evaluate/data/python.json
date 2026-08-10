@@ -7200,6 +7200,54 @@
       ],
       "answer": 1,
       "explanation": "The core issue is that iter(queue.get, None) blocks waiting for a sentinel None, but if workers die or never send it, the main process hangs. Additionally, with a bounded queue, if the main process can't keep up with workers, the Queue fills up causing workers to block (deadlock). The solution is to use timeout, catch Empty exceptions, track active workers, and ensure a proper shutdown protocol with sentinel values. Option 0 misses the deadlock issue; option 2 doesn't solve the memory bloat; option 3 is incorrect\u2014the standard Queue is sufficient."
+    },
+    {
+      "id": "py-new-057",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "You're optimizing a data pipeline that repeatedly calls a CPU-intensive function `process_batch(data, threshold=0.5)` with the same arguments. You decide to use `functools.lru_cache`, but notice it's not working \u2014 the cache keeps missing. What's the most likely cause?\n\nConsider:\n```python\nfrom functools import lru_cache\n\n@lru_cache(maxsize=128)\ndef process_batch(data, threshold=0.5):\n    # expensive computation\n    return sum(x for x in data if x > threshold)\n\ndata_list = [[1, 2, 3], [1, 2, 3]]\nfor d in data_list:\n    result = process_batch(d, threshold=0.5)\n```\nWhat prevents caching from working?",
+      "options": [
+        "Lists are unhashable; use tuples instead",
+        "The `maxsize=128` is too small for this workload",
+        "The `@lru_cache` decorator doesn't support default arguments",
+        "The function is being called with keyword arguments on the second call"
+      ],
+      "answer": 0,
+      "explanation": "`lru_cache` requires all arguments to be hashable for use as dictionary keys. Lists are mutable and unhashable, causing a `TypeError` or cache miss. Converting the list to a tuple would allow caching to work correctly."
+    },
+    {
+      "id": "py-new-058",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "You're implementing a resource-pooling context manager for database connections. The manager must support nested contexts and ensure connections are returned to the pool only when the outermost context exits. Which approach is most correct?\n\n```python\nclass ConnectionPool:\n    def __init__(self, max_connections=5):\n        self.available = [Connection() for _ in range(max_connections)]\n        self.in_use = set()\n        self.depth = 0\n    \n    def __enter__(self):\n        self.depth += 1\n        conn = self.available.pop()\n        self.in_use.add(conn)\n        return conn\n    \n    def __exit__(self, *args):\n        self.depth -= 1\n        conn = ??? # retrieve the connection\n        if self.depth == 0:\n            self.in_use.remove(conn)\n            self.available.append(conn)\n```\n\nWhat's the problem with this design?",
+      "options": [
+        "There's no way to retrieve the specific connection object in `__exit__` since it's not passed as a parameter",
+        "The `in_use` set tracking is redundant; just check `len(self.available)`",
+        "Context managers don't support reentry; use `contextlib.contextmanager` instead",
+        "The `depth` counter should be a thread-local variable for thread safety"
+      ],
+      "answer": 0,
+      "explanation": "`__exit__` receives exception info but not the value returned by `__enter__`. To fix this, store the connection in an instance variable or use a stack to track nested contexts and pop the most recent connection in `__exit__`."
+    },
+    {
+      "id": "py-new-059",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "You're implementing a validated schema for a data class using descriptors. The descriptor should enforce type checking and log all access attempts to an audit trail. Which descriptor protocol method is called during `obj.field = value` assignment, and how does it interact with `__get__`?\n\n```python\nclass ValidatedField:\n    def __init__(self, type_check, audit_log):\n        self.type_check = type_check\n        self.audit_log = audit_log\n        self.name = None\n    \n    def __set_name__(self, owner, name):\n        self.name = name\n    \n    def __set__(self, obj, value):\n        if not isinstance(value, self.type_check):\n            raise TypeError(f\"Expected {self.type_check}, got {type(value)}\")\n        self.audit_log.append((self.name, 'write', value))\n        obj.__dict__[self.name] = value\n    \n    def __get__(self, obj, objtype=None):\n        if obj is None:\n            return self\n        value = obj.__dict__.get(self.name)\n        self.audit_log.append((self.name, 'read', value))\n        return value\n```\n\nWhat's a critical issue with this implementation?",
+      "options": [
+        "The audit log is shared across all instances of the class, causing audit entries from different objects to be mixed",
+        "`__set_name__` is called before `__init__`, so `self.audit_log` will be None",
+        "Using `obj.__dict__` directly bypasses the descriptor protocol on subsequent accesses",
+        "Descriptors don't support logging; use a metaclass instead"
+      ],
+      "answer": 0,
+      "explanation": "The `audit_log` is a mutable object stored in the descriptor instance, which is shared by all instances of the class. All audit entries go to the same list regardless of which object is being accessed. To fix this, store the audit log in the instance itself (e.g., `obj.__dict__['_audit_log']`) or use a WeakKeyDictionary keyed by instance."
     }
   ]
 }

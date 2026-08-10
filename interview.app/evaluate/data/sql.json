@@ -13740,6 +13740,70 @@
       ],
       "answer": 0,
       "explanation": "NULLIF(previous_value, 0) converts 0 to NULL, and dividing by NULL returns NULL instead of an error, which is semantically correct for undefined percent changes. Option 1 is the most concise and idiomatic. Option 2 works but is verbose, option 3 silently substitutes 1 (masking the division-by-zero logic), and option 4 excludes rows rather than handling them gracefully."
+    },
+    {
+      "id": "sql-new-056",
+      "type": "single",
+      "topic": "DISTINCT ON",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "You have a `user_events(user_id INT, event_type TEXT, created_at TIMESTAMP)` table with millions of rows. You need the most recent event *per user* while preserving the event_type. In PostgreSQL, you write:\n\n```sql\nSELECT DISTINCT ON (user_id) user_id, event_type, created_at\nFROM user_events\nORDER BY user_id, created_at DESC;\n```\n\nWhat is the primary advantage of DISTINCT ON over GROUP BY + window functions for this query?",
+      "options": [
+        "DISTINCT ON always executes faster because it stops scanning after finding the first match per group",
+        "DISTINCT ON requires fewer columns in the ORDER BY clause, making the query more concise and readable",
+        "DISTINCT ON automatically handles NULL values in the grouping column, whereas GROUP BY requires special handling",
+        "DISTINCT ON guarantees deterministic ordering across all database versions, while window functions may vary"
+      ],
+      "answer": 1,
+      "explanation": "DISTINCT ON is syntactically cleaner for this use case\u2014you only ORDER BY the grouping column and the ordering criteria, and PostgreSQL guarantees the first row per group (based on ORDER BY) is returned. While window functions work, they require additional syntax (RANK() OVER + WHERE rank=1) and can be less efficient in query planning."
+    },
+    {
+      "id": "sql-new-057",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "In BigQuery, you have `transactions(user_id INT64, amount NUMERIC, status STRING)`. You want a single query that reports per user: total amount, count of all transactions, and count of approved-only transactions. Which query is most efficient?",
+      "options": [
+        "SELECT user_id, SUM(amount), COUNT(*), COUNT(CASE WHEN status='approved' THEN 1 END) FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount), COUNT(*), COUNT(*) FILTER (WHERE status='approved') FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount), COUNT(DISTINCT transaction_id), COUNT(DISTINCT CASE WHEN status='approved' THEN transaction_id END) FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount) FILTER (WHERE status IS NOT NULL), COUNT(*), COUNT(*) FILTER (WHERE status='approved') FROM transactions GROUP BY user_id"
+      ],
+      "answer": 1,
+      "explanation": "The FILTER clause (standard SQL, supported in BigQuery, Postgres 9.4+) is cleaner and more efficient than CASE WHEN for conditional aggregation. Option 1 uses CASE which is verbose; option 3 over-uses DISTINCT; option 4 incorrectly filters the SUM. Option 2 is both readable and performant, allowing the aggregator to skip rows not matching the filter condition."
+    },
+    {
+      "id": "sql-new-058",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "In BigQuery, you query a large nested/repeated field table `events(user_id STRING, event_list ARRAY<STRUCT<event_name STRING, timestamp INT64>>)`. You want to flatten and count unique event names per user. Which approach minimizes BigQuery bytes scanned and slots used?",
+      "options": [
+        "SELECT user_id, COUNT(DISTINCT event_name) FROM events, UNNEST(event_list) AS event WHERE event.event_name IS NOT NULL GROUP BY user_id",
+        "SELECT user_id, ARRAY_LENGTH(ARRAY(SELECT DISTINCT e.event_name FROM UNNEST(events.event_list) AS e)) FROM events",
+        "SELECT user_id, COUNT(DISTINCT event.event_name) FROM events, UNNEST(events.event_list) AS event GROUP BY user_id",
+        "WITH flattened AS (SELECT user_id, event.event_name FROM events, UNNEST(event_list) AS event) SELECT user_id, COUNT(DISTINCT event_name) FROM flattened GROUP BY user_id"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 is the most efficient because it uses a single UNNEST in the FROM clause with proper alias and directly aggregates\u2014BigQuery's optimizer recognizes this pattern and performs the distinct aggregation on the flattened data in a single pass. Option 1 adds an unnecessary NULL filter. Option 3 is also correct but uses 'event' as the struct alias which shadows the original, while option 2 is the canonical form. Option 4 creates an unnecessary CTE. The key difference: option 2 avoids redundant subqueries and optimizes the flattening cost."
+    },
+    {
+      "id": "sql-new-059",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "In BigQuery, you have a table `web_logs(request_path STRING, status_code INT64, response_time_ms INT64, _PARTITIONTIME TIMESTAMP)` with 10 years of daily partitions. A colleague writes:\n\n```sql\nSELECT request_path, AVG(response_time_ms) AS avg_latency\nFROM web_logs\nWHERE _PARTITIONTIME >= '2025-01-01' \n  AND response_time_ms > 0\nGROUP BY request_path\nORDER BY avg_latency DESC\nLIMIT 10;\n```\n\nWhat is the most critical performance issue?",
+      "options": [
+        "The WHERE clause on _PARTITIONTIME uses string comparison instead of TIMESTAMP, causing a full table scan",
+        "The ORDER BY without LIMIT in the subquery forces BigQuery to sort all results before limiting, wasting slots",
+        "The query omits an explicit date range and relies on partition pruning, which may be disabled in the session",
+        "The condition response_time_ms > 0 filters at the row level after partition pruning, making the WHERE clause non-selective enough"
+      ],
+      "answer": 0,
+      "explanation": "In BigQuery, partition pruning requires _PARTITIONTIME to be compared with TIMESTAMP literals, not strings. Comparing '2025-01-01' (string) to a TIMESTAMP column prevents partition elimination, causing BigQuery to scan all 10 years of partitions rather than just 2025 onwards. The correct syntax is `_PARTITIONTIME >= TIMESTAMP('2025-01-01')` or `CAST('2025-01-01' AS TIMESTAMP)`. Options 1 and 2 are not issues (LIMIT 10 is in the outer query, and the ORDER BY works correctly with it)."
     }
   ]
 }
