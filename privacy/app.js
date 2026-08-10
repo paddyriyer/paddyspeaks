@@ -35,6 +35,7 @@ import { extractFromPage, extractSearchResults } from '../privacy-agent/src/disc
 import { attackSurface } from '../privacy-agent/src/core/attack-surface.js';
 import { explainExposure } from '../privacy-agent/src/core/explain.js';
 import { findOptOutLinks, optOutSearches } from '../privacy-agent/src/core/optout.js';
+import { bulkRemovalFor, coveredByBulk } from '../privacy-agent/src/core/bulk-removal.js';
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
@@ -966,7 +967,66 @@ function verdictHeadline(cls) {
 
 /* ---------------------------------------------------- 4. the board */
 
+/**
+ * The one thing worth doing before anything else, when the law provides it.
+ *
+ * Working several hundred brokers one form at a time is not a task a person
+ * finishes; a tool that offers only that loop is asking for something
+ * impossible and calling it control. Where a single request covers everyone —
+ * today, only California's DROP — it belongs above the queue, not inside it.
+ *
+ * The unavailable case is rendered just as fully. Someone in Ohio needs to know
+ * that no such platform exists for them, and why, far more than they need an
+ * empty space where the good news would have been.
+ */
+function renderBulk() {
+  const card = $('#bulk-card');
+  if (!state.profile) { card.hidden = true; return; }
+
+  const b = bulkRemovalFor(state.profile);
+  card.hidden = false;
+  card.classList.toggle('is-open', Boolean(b.available));
+  $('#bulk-title').textContent = b.available ? b.name : 'One request for all of them?';
+  $('#bulk-headline').textContent = b.headline;
+
+  const list = (title, items, cls = '') => (items?.length ? `
+    <p class="bulk-h">${esc(title)}</p>
+    <ul class="bulk-l ${cls}">${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '');
+
+  const r = b.readiness;
+  const readiness = r ? `
+    <div class="bulk-ready">
+      <p class="bulk-h" style="margin-top:0">What the form asks for</p>
+      <ul class="bulk-l ok">${r.have.map((h) =>
+        `<li><b>${esc(h.label)}</b> — you have this: <code>${esc(h.sample)}</code>${
+          h.count > 1 ? ` and ${h.count - 1} more` : ''}</li>`).join('')}</ul>
+      <ul class="bulk-l todo">${r.supply.map((s) =>
+        `<li><b>${esc(s.label)}</b>${s.required ? '' : ' <span class="opt">· optional</span>'} — ${esc(s.note || s.why || '')}</li>`).join('')}</ul>
+      <p class="note" style="margin-bottom:0">${esc(r.summary)}</p>
+    </div>` : '';
+
+  $('#bulk-body').innerHTML = `
+    ${b.available ? `<div class="bulk-badges">
+      <span class="pill ok">${esc(b.cost)}</span>
+      <span class="pill g">${esc(b.authority)}</span>
+      <span class="pill">${esc(b.law)}</span>
+    </div>` : ''}
+    ${list('How it works', b.how)}
+    ${readiness}
+    ${list('What it does not cover — read this part', b.doesNotCover, 'todo')}
+    ${b.timing ? `<p class="note"><b>Timing.</b> ${esc(b.timing)}</p>` : ''}
+    ${b.identityNote ? `<div class="warnbox"><b>It will check who you are.</b> ${esc(b.identityNote)}</div>` : ''}
+    ${b.note ? `<p class="note">${esc(b.note)}</p>` : ''}
+    ${b.available ? `<div class="btns" style="margin-top:16px">
+      <a class="btn primary lg" href="${esc(b.url)}" target="_blank" rel="noopener noreferrer">Open the platform →</a>
+      ${b.helpUrl ? `<a class="btn" href="${esc(b.helpUrl)}" target="_blank" rel="noopener noreferrer">How it works</a>` : ''}
+    </div>
+    <p class="note">You file it there yourself, on the state's own site. Then come back — the
+    listings below that this does <i>not</i> reach are the ones still worth your time.</p>` : ''}`;
+}
+
 function renderBoard() {
+  renderBulk();
   const live = state.exposures.filter((e) => e.status !== STATE.FALSE_MATCH);
   const score = exposureScore(state.exposures);
   const counts = summarize(state.exposures);
@@ -1032,12 +1092,19 @@ function renderBoard() {
   const dupes = groups.filter((g) => g.count > 1);
 
   const ordered = prioritize(live);
+  const bulk = bulkRemovalFor(state.profile);
+  const outside = ordered.filter((e) => !coveredByBulk(e, bulk).covered).length;
+
   $('#board-out').innerHTML =
-    (dupes.length ? `<div class="okbox"><b>Duplicate records spotted.</b> ${
+    (bulk.available && ordered.length ? `<div class="okbox"><b>${
+      ordered.length - outside} of these should be handled by your single request.</b> ${
+      outside ? `The other ${outside} ${outside === 1 ? 'is' : 'are'} not something it reaches — those are the ones worth your own time.`
+        : 'Nothing here falls outside it, so file that and re-check rather than working this list.'}</div>` : '')
+    + (dupes.length ? `<div class="okbox"><b>Duplicate records spotted.</b> ${
       dupes.map((g) => esc(g.summary)).join(' ')}</div>` : '')
     // Only the top card opens its explanation by default. Expanding all of them
     // buries the priority order under a wall of prose.
-    + ordered.map((e, i) => renderExposure(e, groupFor.get(e.id), i === 0)).join('');
+    + ordered.map((e, i) => renderExposure(e, groupFor.get(e.id), i === 0, bulk)).join('');
 
   for (const btn of document.querySelectorAll('[data-adv]')) {
     btn.addEventListener('click', () => advance(btn.dataset.adv, btn.dataset.to));
@@ -1073,7 +1140,8 @@ function renderBoard() {
  * Nothing here is generated speculatively, and where the engine does not know
  * the answer it says so rather than inventing a plausible one.
  */
-function renderExposure(e, group, open) {
+function renderExposure(e, group, open, bulk) {
+  const cover = coveredByBulk(e, bulk);
   const [label, help] = STATE_LABELS[e.status] || [e.status, ''];
   const pill = e.status === STATE.SUCCESSFULLY_REMOVED ? 'ok'
     : e.status === STATE.NOT_REMOVABLE ? 'bad'
@@ -1099,6 +1167,7 @@ function renderExposure(e, group, open) {
       <span class="pill ${pill}" title="${esc(help)}">${esc(label)}</span>
       ${group && group.acrossSites > 1
         ? `<span class="pill warn" title="${esc(group.summary)}">1 of ${group.acrossSites} copies</span>` : ''}
+      ${cover.covered ? '<span class="pill ok" title="Expected to be covered by your single request">bulk request</span>' : ''}
     </div>
     <div class="meta mono">${esc(e.url)}</div>
     ${e.fields.length ? `<div class="chips">${e.fields.map((f) =>
@@ -1120,7 +1189,13 @@ function renderExposure(e, group, open) {
         <span class="sev s-${esc(why.whatSomeoneCouldDo.severity)}">${esc(why.whatSomeoneCouldDo.severity)}</span>
         ${why.whatSomeoneCouldDo.combinations.length > 1 ? `<ul class="ev">${
           why.whatSomeoneCouldDo.combinations.slice(1).map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}`)}
-      ${q(4, 'What is the fastest way to eliminate it?', why.fastestRemoval.text, `
+      ${q(4, 'What is the fastest way to eliminate it?',
+        // The bulk route, where one exists, is strictly faster than anything
+        // per-site — so it leads, and the individual instructions follow as the
+        // fallback rather than the plan.
+        cover.covered ? cover.why : why.fastestRemoval.text, `
+        ${cover.covered ? `<p class="do"><b>Then, only if it survives:</b> ${esc(why.fastestRemoval.text)}</p>`
+          : cover.why ? `<p class="note" style="margin:8px 0 0">${esc(cover.why)}</p>` : ''}
         ${why.fastestRemoval.action ? `<p class="do"><b>Do this:</b> ${esc(why.fastestRemoval.action)}</p>` : ''}
         ${choices.choices?.length ? `<p class="do">${esc(choices.rationale)}</p>` : ''}`)}
     </details>
