@@ -7152,6 +7152,54 @@
       ],
       "answer": 1,
       "explanation": "When __exit__ returns False (or a falsy value), any exception that occurred in the with block will propagate after cleanup code runs. Returning True would suppress the exception. This implementation correctly closes the connection regardless of whether an exception occurred, then allows the exception to propagate, which is the desired behavior for resource management."
+    },
+    {
+      "id": "py-new-054",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "You are implementing a lazy-loaded attribute using a descriptor. The descriptor should compute a value only on first access, then cache it. Which implementation correctly handles both instance-level and class-level access?\n\nclass LazyProperty:\n    def __init__(self, func):\n        self.func = func\n        self.attr_name = func.__name__\n    \n    def __get__(self, obj, objtype=None):\n        if obj is None:\n            return self\n        # Fill in the blank\n        value = self.func(obj)\n        setattr(obj, self.attr_name, value)\n        return value",
+      "options": [
+        "No additional check needed; just compute and cache via setattr.",
+        "Check if self.attr_name exists in obj.__dict__ before computing.",
+        "Use a WeakKeyDictionary to store cached values to avoid memory leaks.",
+        "Call __set__ with the computed value instead of setattr."
+      ],
+      "answer": 1,
+      "explanation": "The descriptor should check if the attribute already exists in obj.__dict__ before recomputing. Once setattr stores it, the instance dictionary takes precedence and __get__ won't be invoked again, but the check ensures we don't recompute on every access before caching. Option 0 would recompute every time; option 2 adds unnecessary complexity; option 3 requires a __set__ method."
+    },
+    {
+      "id": "py-new-055",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "You have a generic data processing pipeline where a processor function transforms data through multiple stages. You want to enforce type safety such that each stage's output matches the next stage's input. Which type hint approach is most precise?\n\ndef pipeline(data: T, *processors: Callable[[T], T]) -> T:\n    for proc in processors:\n        data = proc(data)\n    return data\n\nWhat should replace T to allow different types at each stage while maintaining safety?",
+      "options": [
+        "Use TypeVar('T') unconstrained; Python's duck typing handles stage mismatches.",
+        "Use ParamSpec to capture the full signature of each processor function.",
+        "Use Concatenate with a ParamSpec to enforce input/output compatibility across stages.",
+        "Use overload decorators to define each (stage1, stage2, ...) combination explicitly."
+      ],
+      "answer": 2,
+      "explanation": "Concatenate with ParamSpec allows encoding the constraint that processor[i]'s output type must match processor[i+1]'s input type. This is more sophisticated than a single TypeVar (option 0), doesn't require defining all combinations (option 3), and ParamSpec alone (option 1) doesn't enforce the chaining constraint. This pattern is used in real pipelines like hydra and ray."
+    },
+    {
+      "id": "py-new-056",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "You are processing 10 GB of data across 8 worker processes. Workers communicate results via a Queue, but you observe memory bloat and occasional deadlocks. The main process iterates over the Queue indefinitely. What is the most likely root cause and solution?\n\nimport multiprocessing as mp\nqueue = mp.Queue(maxsize=100)\nfor result in iter(queue.get, None):\n    process(result)",
+      "options": [
+        "The Queue is full; increase maxsize and use queue.qsize() to monitor.",
+        "Workers send large serialized objects faster than the main process drains them; use a bounded queue with timeout and sentinel values to signal completion.",
+        "The iter(queue.get, None) pattern blocks indefinitely if workers never send None; use queue.get_nowait() in a polling loop instead.",
+        "Multiprocessing Queues are not thread-safe; switch to multiprocessing.Manager().Queue() for shared state."
+      ],
+      "answer": 1,
+      "explanation": "The core issue is that iter(queue.get, None) blocks waiting for a sentinel None, but if workers die or never send it, the main process hangs. Additionally, with a bounded queue, if the main process can't keep up with workers, the Queue fills up causing workers to block (deadlock). The solution is to use timeout, catch Empty exceptions, track active workers, and ensure a proper shutdown protocol with sentinel values. Option 0 misses the deadlock issue; option 2 doesn't solve the memory bloat; option 3 is incorrect\u2014the standard Queue is sufficient."
     }
   ]
 }

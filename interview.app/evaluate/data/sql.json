@@ -13676,6 +13676,70 @@
       ],
       "answer": 0,
       "explanation": "Recursive CTEs in BigQuery use `UNION ALL` to anchor (base case) and recurse (recursive case). The correct pattern multiplies quantities as you traverse down the tree within the recursive branch itself, because each level's cumulative quantity depends on all parent quantities above it. Options B, C, and D either misuse window functions, create inefficient Cartesian products, or misrepresent BigQuery's capabilities\u2014BigQuery fully supports true recursion and does not require `GENERATE_ARRAY` workarounds."
+    },
+    {
+      "id": "sql-new-052",
+      "type": "single",
+      "topic": "COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "You have a `customer_profile` table with columns `email_primary TEXT`, `email_secondary TEXT`, and `email_tertiary TEXT`. A customer may have NULL values in any of these columns. You need to return a single email address per customer, preferring primary, then secondary, then tertiary. Which query is correct?\n\nSchema: `customer_profile(id INT, email_primary TEXT, email_secondary TEXT, email_tertiary TEXT)`",
+      "options": [
+        "SELECT id, COALESCE(email_primary, email_secondary, email_tertiary) AS email FROM customer_profile;",
+        "SELECT id, NULLIF(email_primary, email_secondary) AS email FROM customer_profile;",
+        "SELECT id, CASE WHEN email_primary IS NOT NULL THEN email_primary ELSE COALESCE(email_secondary, email_tertiary) END AS email FROM customer_profile;",
+        "SELECT id, GREATEST(email_primary, email_secondary, email_tertiary) AS email FROM customer_profile;"
+      ],
+      "answer": 0,
+      "explanation": "COALESCE returns the first non-NULL argument in order, making it the idiomatic choice for this fallback pattern. Option 1 is correct and most concise. NULLIF is for replacing a value with NULL, CASE works but is verbose, and GREATEST performs lexicographic ordering, not NULL-fallback logic."
+    },
+    {
+      "id": "sql-new-053",
+      "type": "single",
+      "topic": "Transaction Isolation",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "In PostgreSQL, you run two concurrent transactions: TX1 reads a row at 10:00:00 under SERIALIZABLE isolation, TX2 modifies and commits that row at 10:00:05, then TX1 tries to modify the same row at 10:00:10. What happens?\n\nAssuming no explicit locks, which statement is most accurate?",
+      "options": [
+        "TX1's modification succeeds because it has an earlier read timestamp.",
+        "TX1's modification is rejected with a serialization failure, and must be retried.",
+        "TX1 blocks until TX2 commits, then applies its modification on top of TX2's changes.",
+        "TX1 and TX2 both succeed, with TX1's write overwriting TX2's changes."
+      ],
+      "answer": 1,
+      "explanation": "Under SERIALIZABLE isolation in PostgreSQL, a transaction that reads a row and later tries to modify it after another transaction has modified it in between will fail with a serialization conflict. This enforces serializability by detecting conflicts and rolling back the offending transaction, requiring explicit retry logic from the application."
+    },
+    {
+      "id": "sql-new-054",
+      "type": "single",
+      "topic": "Materialized Views",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "You maintain a materialized view `mv_daily_revenue` in Snowflake that aggregates sales by day. The underlying `sales` table is updated hourly. Your reporting dashboard queries `mv_daily_revenue` and users complain about stale data\u2014they see yesterday's totals, not today's. What is the best solution?\n\nSchema: `sales(id INT, sold_at TIMESTAMP, amount DECIMAL)`, `mv_daily_revenue(date DATE, total_revenue DECIMAL)`",
+      "options": [
+        "Add a WHERE clause to the materialized view to filter out stale records.",
+        "Schedule automatic REFRESH MATERIALIZED VIEW daily after data loads, or use REFRESH MATERIALIZED VIEW... CONCURRENT for more frequent updates.",
+        "Replace the materialized view with a regular view\u2014performance will be unchanged for read-heavy workloads.",
+        "Query the underlying sales table directly with GROUP BY instead of using the materialized view."
+      ],
+      "answer": 1,
+      "explanation": "Materialized views in Snowflake store precomputed results but do not auto-refresh. To keep data fresh, you must explicitly schedule REFRESH MATERIALIZED VIEW on a schedule aligned with your data updates. CONCURRENT allows reads during refresh. Option 2 is the best practice; regular views (option 3) lose the performance benefit, and filtering (option 1) doesn't refresh stale data."
+    },
+    {
+      "id": "sql-new-055",
+      "type": "single",
+      "topic": "NULLIF",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "You have a `metrics` table with columns `metric_name TEXT`, `value INT`, and `previous_value INT`. You want to compute percent change, but divide-by-zero errors occur when `previous_value` is 0. Which query safely handles this?\n\nSchema: `metrics(metric_name TEXT, value INT, previous_value INT)`",
+      "options": [
+        "SELECT metric_name, ROUND(100.0 * (value - previous_value) / NULLIF(previous_value, 0), 2) AS pct_change FROM metrics;",
+        "SELECT metric_name, CASE WHEN previous_value = 0 THEN NULL ELSE ROUND(100.0 * (value - previous_value) / previous_value, 2) END AS pct_change FROM metrics;",
+        "SELECT metric_name, ROUND(100.0 * (value - previous_value) / COALESCE(previous_value, 1), 2) AS pct_change FROM metrics;",
+        "SELECT metric_name, ROUND(100.0 * (value - previous_value) / previous_value, 2) AS pct_change FROM metrics WHERE previous_value <> 0;"
+      ],
+      "answer": 0,
+      "explanation": "NULLIF(previous_value, 0) converts 0 to NULL, and dividing by NULL returns NULL instead of an error, which is semantically correct for undefined percent changes. Option 1 is the most concise and idiomatic. Option 2 works but is verbose, option 3 silently substitutes 1 (masking the division-by-zero logic), and option 4 excludes rows rather than handling them gracefully."
     }
   ]
 }

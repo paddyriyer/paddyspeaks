@@ -5416,6 +5416,54 @@
       "prompt": "What modeling decisions are hard to undo later in a data engineering project? Which ones do you need to get right early, or pay for it for the rest of the project?",
       "model_answer": "This question targets understanding of technical debt and irreversible design choices in data systems. A strong answer covers:\n\nHard-to-Undo Decisions:\n\u2022 Schema/table structure and naming conventions\u2014changing primary keys, partitioning strategies, or normalization levels after data is loaded requires expensive backfills and migration pipelines\n\u2022 Data type choices (e.g., string vs. int, precision of decimals)\u2014downstream consumers and analytics depend on these; changing them breaks contracts\n\u2022 Partitioning scheme (by date, geography, tenant)\u2014affects query performance and storage layout; repartitioning is extremely costly at scale\n\u2022 Serialization format (JSON, Avro, Protobuf)\u2014baked into pipelines and consumer expectations; changing breaks compatibility\n\u2022 Slowly-changing dimension (SCD) approach\u2014Type 1, 2, or 3 decisions affect historical accuracy and query logic throughout the system\n\u2022 Deduplication and grain decisions\u2014if you pick the wrong unique key early, fixing it later means reprocessing all historical data\n\nGetting Right Early:\n\u2022 Understanding the business domain and fact/dimension tables before modeling\u2014prevents misaligned grains\n\u2022 Choosing appropriate granularity (event-level vs. aggregated)\u2014affects downstream analytics and storage cost\n\u2022 Planning for scale and cardinality\u2014schema that works for millions may collapse at billions of records\n\u2022 Data ownership and SLAs\u2014who is responsible for quality and latency sets the tone for the entire architecture\n\nWhy It Matters:\n Reversing these decisions requires data migration, consumer coordination, and potential data loss or reconciliation. Strong candidates acknowledge that some decisions can be evolved (like adding columns) but structural ones are essentially permanent once data accumulates and dependencies form.",
       "source": "community"
+    },
+    {
+      "id": "ds-new-047",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "You're building a financial transaction ledger using Kafka + Flink. Transactions must be processed exactly-once despite broker failures and consumer crashes. Your team proposes storing the last processed offset + transaction ID in the same atomic write as the ledger entry. Which statement best describes why this approach works?",
+      "options": [
+        "It eliminates network partitions by using local consensus, preventing duplicate offsets across brokers.",
+        "It creates an idempotent operation: if the process crashes after writing but before committing the offset, replay will re-write the same transaction ID and overwrite the duplicate ledger entry, making the operation safe.",
+        "It guarantees exactly-once by forcing Flink to wait for all replicas to acknowledge before proceeding, eliminating any possibility of message loss.",
+        "It implements a two-phase commit protocol that prevents Kafka from delivering messages to multiple consumer groups simultaneously."
+      ],
+      "answer": 1,
+      "explanation": "Exactly-once semantics with Kafka + Flink requires idempotent writes: storing both the offset and a transaction ID enables deduplication on replay. If a crash occurs after the ledger write but before offset commit, replaying will write the same transaction ID again; the downstream system can deduplicate using that ID. The other options misunderstand how exactly-once is achieved\u2014it's not about eliminating failures, but making operations idempotent."
+    },
+    {
+      "id": "ds-new-048",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "medium",
+      "added_date": "2026-08-10",
+      "prompt": "Your data pipeline ingests ad-spend events from multiple sources and writes to Snowflake via Airflow tasks. A task can retry up to 3 times on failure. Which design pattern ensures idempotency even if Airflow retries and duplicate events arrive in the same micro-batch?",
+      "options": [
+        "Use a UNIQUE constraint on (source_id, event_timestamp, event_hash) and rely on Snowflake's constraint violation to reject duplicates silently with an ON CONFLICT clause.",
+        "Generate a deterministic deduplication key (e.g., MD5 hash of all event fields) and perform an INSERT OVERWRITE into a temp table, then merge only new keys into the fact table using a surrogate key check.",
+        "Use Snowflake's MERGE statement with a deterministic business key (e.g., source_id + event_timestamp + campaign_id) as the WHEN MATCHED condition; insert new rows and ignore matches, ensuring multiple runs produce identical results.",
+        "Implement a Bloom filter in Airflow to detect probable duplicates before writing, combined with a database trigger that logs all writes for manual reconciliation."
+      ],
+      "answer": 2,
+      "explanation": "A MERGE statement with a deterministic business key is the idempotent pattern: running it multiple times on the same input data produces the same final state (duplicates are matched and ignored). This avoids constraint violations (option A) and doesn't require surrogate keys or complex temp-table logic (option B). Bloom filters in memory (option D) are unreliable for deterministic deduplication at scale."
+    },
+    {
+      "id": "ds-new-049",
+      "type": "single",
+      "topic": "data vault",
+      "difficulty": "hard",
+      "added_date": "2026-08-10",
+      "prompt": "You're designing a Data Vault 2.0 for a SaaS company tracking customer contracts. A contract can be amended multiple times, each amendment creates a new legal version, but the business wants to query the current state and the full audit trail. How should you structure hubs, links, and satellites to support both use cases efficiently?",
+      "options": [
+        "Create a single Hub (CUSTOMER_CONTRACT) with a Satellite (CONTRACT_DETAILS) that stores only the latest amendment. Maintain a separate Archive table for historical amendments, queried separately when audit trails are needed.",
+        "Create Hub (CUSTOMER_CONTRACT) with two Satellites: CONTRACT_LATEST (stores current version, updated in-place) and CONTRACT_HISTORY (append-only, stores all versions). Query LATEST for current state, HISTORY for audit trail.",
+        "Create Hub (CUSTOMER_CONTRACT) and Link (CUSTOMER_to_CONTRACT) with a single Satellite (CONTRACT_VERSIONS) that is append-only with load_date and effective_date columns. Query the latest load_date for current state, filter by date range for audit trails.",
+        "Create separate Hubs for each amendment version (CONTRACT_V1, CONTRACT_V2, etc.) and a master Hub (CONTRACT_MASTER) that links to the latest version, allowing direct queries on CONTRACT_MASTER for current state."
+      ],
+      "answer": 2,
+      "explanation": "Data Vault 2.0's strength is append-only Satellites with load_date and effective_date. A single append-only satellite with these temporal columns naturally supports both current-state queries (filter to latest load_date) and audit trails (query full history). Option A violates DV principles by using a separate archive. Option B creates two satellites (unnecessary complexity) and modifies in-place (violates immutability). Option D creates unscalable hub proliferation. The DV pattern in option C elegantly handles both use cases without denormalization."
     }
   ]
 }
