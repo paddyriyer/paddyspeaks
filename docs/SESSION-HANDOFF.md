@@ -43,10 +43,29 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
   - Pure logic in `core/`: identity normalization, identity graph, match
     confidence, risk, dedupe, state machine, redaction, jurisdiction,
     removability, query generation, attack surface, `explain.js` (the four
-    questions on every exposure card) and `optout.js` (ranks a page's own links
-    to find the removal route). Tests:
-    **`node privacy-agent/tests/run.mjs` — 175 pass**, dependency-free.
+    questions on every exposure card), `optout.js` (ranks a page's own links
+    to find the removal route) and `resume.js` (below). Tests:
+    **`node privacy-agent/tests/run.mjs` — 219 pass**, dependency-free.
     The Worker side is covered by **`node analytics/tests/run.mjs` — 172 pass**.
+  - **`core/resume.js` — the handback is the main path, not the failure path.**
+    Every removal route eventually stops and asks the user for something, and
+    the strongest verification sits on exactly the sites worth removing from
+    (see `docs/HOSTED-REMOVAL.md`). The console renders a "waiting on you"
+    panel above the board from `resumeQueue`, ordered by risk.
+    - **The instruction is rebuilt against the current clock, never stored.**
+      This is the whole point of the module. The agent's blocked notes were
+      written at the moment of blocking and several describe a live browser
+      ("the form is open, we will enter the code"); that is true for minutes.
+      `resumeFor(exposure, now)` returns "enter the code in the open window"
+      while the window plausibly exists and "request a fresh code, that one has
+      expired" once it does not. Freshness per block kind is in `FRESHNESS_MS`.
+    - Staleness reads the blocking transition out of `history`, not
+      `updatedAt` — otherwise an unrelated re-score makes an hour-old code look
+      fresh. Unknown age is treated as stale on purpose: sending someone to a
+      window we cannot see is the worse bet.
+    - `now` is a parameter, never `Date.now()` inside the logic. That is what
+      makes staleness testable; keep it that way.
+
   - **Invariants with tests named for them — do not "fix" these:** a name match
     alone can never confirm; absence is not evidence; `submitted` ≠ `removed`
     (the state machine forbids the shortcut); no hardcoded broker list; no
