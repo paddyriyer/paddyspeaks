@@ -13,19 +13,47 @@ discovers where a person's data is published, verifies which records are really
 theirs, files removals, follows confirmation emails, and re-checks that removed
 records stay removed.
 
-It is a **standalone tool in this repo, not a feature of the website**, and that
-is deliberate on two grounds:
+There is also a **browser front end at `paddyspeaks.com/privacy/`** (`privacy/`).
+It is not a demo: `core/` is pure ES modules with no Node dependencies, so the
+page imports the *same* files the CLI does. One engine, two front ends, and
+therefore no drift between what the CLI scores and what the site scores. **Never
+add a Node import (`fs`, `path`, `crypto`) to anything under `core/`** — it
+breaks the web app instantly and silently. What the browser cannot do is drive
+Chrome or submit forms; that stays in the CLI.
 
-1. **GitHub Pages cannot run Chrome.** The whole product is browser automation.
-2. **A hosted version would mean centralising identity dossiers.** Thousands of
-   people's legal names, home addresses, address histories and relatives in one
-   database is precisely the asset data brokers already monetise — building it in
-   order to fight them would be self-defeating. So the vault stays on the user's
-   own machine, encrypted, and there is no server component at all.
+### What must never be centralised
 
-**Do not wire this into `index.html`, the Cloudflare Worker, or any D1 database.**
-It shares no infrastructure with the site's analytics / leaderboard / forms
-stack, by design. The existing house rule that `FORMS` is a separate D1 because
+**No identity dossier is ever stored off the user's machine.** Thousands of
+people's legal names, home addresses, address histories and relatives in one
+database is precisely the asset data brokers already monetise — building it in
+order to fight them would be self-defeating. The CLI vault is AES-256-GCM under
+a scrypt key on the user's own disk; the browser console keeps everything in
+`localStorage` on the origin. There is no account, and no server holds any of it.
+
+**That is a rule about storage, and it is absolute. It is not a rule about
+packets.** A browser page cannot fetch third-party sites — CORS forbids it — so
+the console does talk to `analytics/worker/scan.js` for two things, and only
+these two:
+
+| Route | Sends | Why it cannot be done client-side |
+|---|---|---|
+| `POST /api/scan` | the search queries (so: the name, and any address/phone entered) | the browser cannot query a search API with a secret key |
+| `POST /api/scan/read` | one listing URL (which usually contains the name) | the browser cannot fetch another origin |
+
+The Worker **logs nothing, stores nothing** (it touches no D1 binding and holds
+no state) and **caches nothing** (`no-store` on every response). Both routes are
+opt-in per action, and both are disclosed on the page in plain words. **If you
+change what leaves the browser, change that copy in the same commit.** A tool
+that quietly starts transmitting a home address while still promising "nothing
+leaves your browser" is doing exactly what the brokers do.
+
+`/api/scan/read` is a fetch proxy on paddyspeaks.com, which makes `isFetchable()`
+a security control rather than a convenience check — allowlisted schemes plus a
+denylist of loopback, private, link-local and cloud-metadata hosts. Tested in
+`analytics/tests/run.mjs`. Do not relax it.
+
+**Still do not give this a database.** No D1 binding, no KV, no R2, no
+`index.html` integration. The house rule that `FORMS` is a separate D1 because
 it *holds* PII, and the leaderboard DB is separate because it must hold *none*,
 extends here: this holds the most PII of anything in the repo, so it holds it
 nowhere the repo can reach.
@@ -125,12 +153,13 @@ field correctly blocking auto-submission and escalating to the user.
 
 ## Intake: why there is no form
 
-Onboarding is a terminal interview writing straight into the encrypted vault.
-There is deliberately **no Google Form, no hosted intake, no web form**. Any of
-those would create a second copy of the user's dossier on infrastructure they do
-not control — the exact asset the tool exists to delete. There is no server in
-this project to submit anything to, and adding one would be a regression, not a
-convenience.
+Onboarding is a terminal interview writing straight into the encrypted vault, or
+— in the browser console — a set of grouped questions written straight to
+`localStorage`. There is deliberately **no Google Form, no hosted intake, no
+submitted web form**. Any of those would create a second copy of the user's
+dossier on infrastructure they do not control — the exact asset the tool exists
+to delete. The console's fields post nowhere; adding a server-side intake would
+be a regression, not a convenience.
 
 **The data cannot be anonymized**, and the docs say so plainly rather than
 implying otherwise. Deciding whether a listing describes *this* person is
