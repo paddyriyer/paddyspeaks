@@ -44,6 +44,9 @@ import { explainExposure } from '../src/core/explain.js';
 import { findOptOutLinks, optOutSearches, ROUTE } from '../src/core/optout.js';
 import { bulkRemovalFor, coveredByBulk, PROGRAM } from '../src/core/bulk-removal.js';
 import { readConsoleExport, mergeExposures, looksLikeConsoleExport } from '../src/core/handoff.js';
+import {
+  resumeFor, resumeQueue, resumeSummary, isBlocked, blockedAt, FRESHNESS_MS,
+} from '../src/core/resume.js';
 
 let passed = 0;
 let failed = 0;
@@ -1754,6 +1757,162 @@ test('a risk score already computed in the browser is kept', () => {
 test('the summary counts what the agent can actually act on', () => {
   const r = readConsoleExport(consoleExport);
   assert.match(r.summary, /3 exposures imported, 2 ready/);
+});
+
+/* ============================================== resuming a blocked step */
+
+section('resume — handing the step back to the user');
+
+const T0 = Date.parse('2026-08-10T12:00:00.000Z');
+
+/** A blocked exposure, `agoMs` milliseconds ago. */
+function blocked(needs, agoMs, extra = {}) {
+  const at = new Date(T0 - agoMs).toISOString();
+  return {
+    id: 'e1',
+    domain: 'example-broker.com',
+    url: 'https://example-broker.com/p/someone',
+    status: STATE.MANUAL_ACTION_REQUIRED,
+    manualAction: { needs, note: 'blocked at the time', url: 'https://example-broker.com/opt-out' },
+    history: [
+      { from: STATE.FORM_IN_PROGRESS, to: STATE.MANUAL_ACTION_REQUIRED, at },
+    ],
+    updatedAt: at,
+    ...extra,
+  };
+}
+
+test('an unblocked exposure asks nothing of the user', () => {
+  assert.equal(resumeFor({ status: STATE.PENDING_REMOVAL }), null);
+  assert.equal(isBlocked({ status: STATE.PENDING_REMOVAL }), false);
+});
+
+test('payment demanded counts as waiting on the user', () => {
+  assert.equal(isBlocked({ status: STATE.PAYMENT_DEMANDED }), true);
+});
+
+test('a fresh CAPTCHA block points at the open window', () => {
+  const r = resumeFor(blocked('captcha', 60_000), T0);
+  assert.equal(r.stale, false);
+  assert.match(r.steps.join(' '), /window the agent opened/i);
+});
+
+test('the same CAPTCHA block tomorrow does not point at a window that closed', () => {
+  const r = resumeFor(blocked('captcha', 26 * 60 * 60 * 1000), T0);
+  assert.equal(r.stale, true);
+  assert.doesNotMatch(r.steps.join(' '), /waiting/i);
+  assert.match(r.steps.join(' '), /closed|again/i);
+});
+
+test('a one-time code goes stale far sooner than a browser session', () => {
+  assert.ok(FRESHNESS_MS.code < FRESHNESS_MS.live_session);
+  const fresh = resumeFor(blocked('verification_code', 2 * 60 * 1000), T0);
+  const old = resumeFor(blocked('verification_code', 30 * 60 * 1000), T0);
+  assert.equal(fresh.stale, false);
+  assert.equal(old.stale, true);
+  assert.match(old.steps.join(' '), /expired/i);
+});
+
+test('an emailed link survives overnight where a code does not', () => {
+  const twelveHours = 12 * 60 * 60 * 1000;
+  assert.equal(resumeFor(blocked('email_confirmation', twelveHours), T0).stale, false);
+  assert.equal(resumeFor(blocked('verification_code', twelveHours), T0).stale, true);
+});
+
+test('a postal request never goes stale — the letter is still the letter', () => {
+  const r = resumeFor(blocked('postal_request', 40 * 24 * 60 * 60 * 1000), T0);
+  assert.equal(r.stale, false);
+  assert.match(r.steps.join(' '), /print/i);
+});
+
+test('unknown age is treated as stale rather than assumed live', () => {
+  const e = blocked('captcha', 0);
+  e.history = [];
+  delete e.updatedAt;
+  const r = resumeFor(e, T0);
+  assert.equal(r.ageMs, null);
+  assert.equal(r.stale, true);
+});
+
+test('staleness reads the blocking transition, not a later unrelated edit', () => {
+  const e = blocked('verification_code', 60 * 60 * 1000);
+  // Something touched the record a moment ago without unblocking it.
+  e.updatedAt = new Date(T0 - 1000).toISOString();
+  const r = resumeFor(e, T0);
+  assert.equal(r.stale, true, 'a re-score should not make an hour-old code look fresh');
+});
+
+test('blockedAt finds the most recent block when there were several', () => {
+  const e = blocked('captcha', 60_000);
+  e.history = [
+    { from: STATE.FORM_IN_PROGRESS, to: STATE.MANUAL_ACTION_REQUIRED, at: new Date(T0 - 90_000_000).toISOString() },
+    { from: STATE.MANUAL_ACTION_REQUIRED, to: STATE.FORM_IN_PROGRESS, at: new Date(T0 - 80_000_000).toISOString() },
+    { from: STATE.FORM_IN_PROGRESS, to: STATE.MANUAL_ACTION_REQUIRED, at: new Date(T0 - 60_000).toISOString() },
+  ];
+  assert.equal(blockedAt(e), T0 - 60_000);
+});
+
+test('the agent’s original note is kept as context but never as the instruction', () => {
+  const r = resumeFor(blocked('captcha', 26 * 60 * 60 * 1000), T0);
+  assert.equal(r.agentNote, 'blocked at the time');
+  assert.ok(!r.steps.includes('blocked at the time'));
+});
+
+test('a payment demand never tells the user to pay', () => {
+  const e = blocked(null, 60_000, { status: STATE.PAYMENT_DEMANDED, manualAction: null });
+  e.history = [{ from: STATE.REMOVAL_METHOD_FOUND, to: STATE.PAYMENT_DEMANDED, at: e.updatedAt }];
+  const r = resumeFor(e, T0);
+  const text = `${r.why} ${r.steps.join(' ')} ${r.thenWhat}`;
+  assert.match(text, /never pays/i);
+  assert.doesNotMatch(text, /pay the (site|fee)|enter your card/i);
+});
+
+test('sensitive-data blocks leave the decision with the user', () => {
+  const r = resumeFor(blocked('sensitive_data', 60_000), T0);
+  assert.match(r.thenWhat, /reasonable to stop/i);
+});
+
+test('record selection refuses to choose on the user’s behalf', () => {
+  const r = resumeFor(blocked('record_selection', 60_000), T0);
+  assert.match(r.why, /will not choose/i);
+});
+
+test('an unrecognised need still produces a usable instruction', () => {
+  const r = resumeFor(blocked('something_new', 60_000), T0);
+  assert.equal(r.needs, 'something_new');
+  assert.ok(r.steps.length > 0);
+  assert.equal(r.stale, false, 'the generic playbook has no stale variant to fall into');
+});
+
+test('a case number is surfaced separately, not buried in prose', () => {
+  const e = blocked('email_confirmation', 60_000, {
+    submission: { caseNumber: 'REQ-4471', submittedAt: '2026-08-09T10:00:00.000Z' },
+  });
+  assert.equal(resumeFor(e, T0).reference.caseNumber, 'REQ-4471');
+  assert.equal(resumeFor(blocked('captcha', 60_000), T0).reference, null);
+});
+
+test('the queue is ordered by risk, not by which blocked first', () => {
+  const low = blocked('captcha', 90_000, { id: 'low', risk: { score: 10 } });
+  const high = blocked('captcha', 30_000, { id: 'high', risk: { score: 90 } });
+  const order = resumeQueue([low, high], T0).map((r) => r.exposureId);
+  assert.deepEqual(order, ['high', 'low']);
+});
+
+test('the queue leaves out everything that is not waiting on the user', () => {
+  const q = resumeQueue([
+    blocked('captcha', 60_000),
+    { status: STATE.PENDING_REMOVAL },
+    { status: STATE.SUCCESSFULLY_REMOVED },
+  ], T0);
+  assert.equal(q.length, 1);
+});
+
+test('the summary is honest about a backlog and silent when there is none', () => {
+  assert.match(resumeSummary([], T0), /Nothing is waiting/);
+  assert.match(resumeSummary([blocked('captcha', 60_000)], T0), /1 exposure needs/);
+  const stale = resumeSummary([blocked('verification_code', 60 * 60 * 1000)], T0);
+  assert.match(stale, /start that step again/);
 });
 
 /* ================================================================ report */

@@ -36,6 +36,7 @@ import { attackSurface } from '../privacy-agent/src/core/attack-surface.js';
 import { explainExposure } from '../privacy-agent/src/core/explain.js';
 import { findOptOutLinks, optOutSearches } from '../privacy-agent/src/core/optout.js';
 import { bulkRemovalFor, coveredByBulk } from '../privacy-agent/src/core/bulk-removal.js';
+import { resumeQueue, resumeSummary } from '../privacy-agent/src/core/resume.js';
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
@@ -1102,6 +1103,7 @@ function renderBoard() {
         : 'Nothing here falls outside it, so file that and re-check rather than working this list.'}</div>` : '')
     + (dupes.length ? `<div class="okbox"><b>Duplicate records spotted.</b> ${
       dupes.map((g) => esc(g.summary)).join(' ')}</div>` : '')
+    + renderWaiting(live)
     // Only the top card opens its explanation by default. Expanding all of them
     // buries the priority order under a wall of prose.
     + ordered.map((e, i) => renderExposure(e, groupFor.get(e.id), i === 0, bulk)).join('');
@@ -1125,6 +1127,49 @@ function renderBoard() {
   for (const btn of document.querySelectorAll('[data-optout]')) {
     btn.addEventListener('click', () => findOptOut(btn.dataset.optout));
   }
+}
+
+/**
+ * "Waiting on you" — the handback queue.
+ *
+ * This sits above the exposure list rather than inside the cards because it
+ * answers a different question. The cards answer "what do I have?"; this
+ * answers "what is stalled until I do something?", and those are the items that
+ * otherwise sit at zero progress indefinitely while the board still looks busy.
+ *
+ * The instructions are rebuilt from `resume.js` on every render, against the
+ * current clock. That is the point of it: the same blocked exposure says
+ * "enter the code in the open window" while the window is plausibly still
+ * there, and "request a fresh code, that one has expired" once it is not.
+ * Rendering a stored note instead would show people a step they can no longer
+ * take, which reads as the tool being broken rather than as a step they own.
+ */
+function renderWaiting(live) {
+  const queue = resumeQueue(live);
+  if (!queue.length) return '';
+
+  return `
+    <div class="okbox" style="border-left-color:var(--warn,#c47f17)">
+      <b>${esc(resumeSummary(live))}</b>
+      <div style="margin-top:10px;display:grid;gap:12px">
+        ${queue.map((r) => `
+          <div>
+            <div><b>${esc(r.title)}</b>${r.domain ? ` — ${esc(r.domain)}` : ''}${
+              r.stale ? ' <span class="qk">(you have been away a while — this step restarts)</span>' : ''}</div>
+            <div class="qk" style="margin:2px 0 6px">${esc(r.why)}</div>
+            ${r.haveReady.length ? `<div class="qk">Have ready: ${
+              r.haveReady.map((h) => esc(h)).join(', ')}</div>` : ''}
+            <ol style="margin:6px 0 0;padding-left:18px">
+              ${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}
+            </ol>
+            ${r.reference?.caseNumber ? `<div class="qk" style="margin-top:6px">Quote reference <b>${
+              esc(r.reference.caseNumber)}</b>.</div>` : ''}
+            ${r.thenWhat ? `<div class="qk" style="margin-top:6px">${esc(r.thenWhat)}</div>` : ''}
+            ${r.url ? `<a class="btn sm" target="_blank" rel="noopener noreferrer"
+               href="${esc(r.url)}" style="margin-top:8px">Open the page →</a>` : ''}
+          </div>`).join('')}
+      </div>
+    </div>`;
 }
 
 /**
