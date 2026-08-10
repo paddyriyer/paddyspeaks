@@ -5,6 +5,31 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEW (2026-08-10, latest): hosted removal is PLANNED BUT GATED — read
+  `docs/HOSTED-REMOVAL.md` before writing a line of it.** The natural next ask
+  is "let users press go and we do the removals for them". Do not start that.
+  **The blocker is legal, not technical.** Submitting a privacy request on
+  someone else's behalf makes us an *authorized agent*, which the CCPA defines
+  as a natural person or **a business entity registered with the California
+  Secretary of State** — a personal blog cannot do it. Three consequences:
+  a registered entity is required first; each user must give **signed
+  permission** a broker may demand to see; and the broker may **bypass us and
+  verify the consumer directly**, so any design must pull the user back into
+  the loop rather than promise press-go-and-forget.
+  - Infrastructure is the cheap part (~$150–300/month at low volume). The
+    expensive parts are legal setup, insurance, and the permanent maintenance
+    load of broker forms changing underneath us.
+  - Two facts that should inform the decision before any code: California's
+    **DROP does broker deletion free and with legal force**, so a paid
+    submission service competes with the state; and form-submission is a
+    commodity several companies already sell. The differentiator is the
+    explanation layer already built here, not the submitting.
+  - Recommended path if it goes ahead: **email-first** (a written request is
+    legally valid, fully automatable, no browser, no CAPTCHA, leaves a paper
+    trail), browser automation added later only for form-only sites.
+  - **No decision has been made.** Awaiting a human call on the path and on
+    the legal step. Nothing in the build order is safe to start before that.
+
 - **NEW (2026-08-10, latest): the Privacy Console is LIVE at
   `paddyspeaks.com/privacy/`**, alongside the `privacy-agent/` CLI. Design
   notes: **`docs/PRIVACY-AGENT.md`**; user docs:
