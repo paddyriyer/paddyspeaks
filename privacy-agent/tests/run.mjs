@@ -40,6 +40,7 @@ import { assertNoPii, Vault } from '../src/store/vault.js';
 import { encrypt, decrypt, deriveKey, newSalt, verifyPassphrase, passphraseCheck } from '../src/store/crypto.js';
 import { normalizeAnswers, assessCoverage, GROUPS } from '../src/onboarding/interview.js';
 import { recheckDate } from '../src/agent.js';
+import { explainExposure } from '../src/core/explain.js';
 
 let passed = 0;
 let failed = 0;
@@ -1321,6 +1322,120 @@ test('recheck is never sooner than 2 days', () => {
   const base = Date.parse('2026-01-01T00:00:00Z');
   const d = (Date.parse(recheckDate('1 hour', base)) - base) / 86400_000;
   assert.ok(d >= 2, 'checking the next morning just produces a false "still listed"');
+});
+
+/* ============================================================== explain */
+
+const brokerExposure = {
+  url: 'https://records-finder.test/p/paddy-iyer',
+  matchScore: 0.91,
+  fields: ['address', 'phone', 'relatives', 'age'],
+  evidenceOfMatch: ['exact phone match', 'address matches', 'age within 1 year'],
+  conflicts: [],
+  removability: {
+    category: CATEGORY.BROKER,
+    removable: true,
+    recommendedAction: 'Opt out / delete the record.',
+  },
+};
+
+test('explain answers all four questions', () => {
+  const x = explainExposure(brokerExposure, null);
+  for (const key of ['howTheyGotIt', 'whyItsYou', 'whatSomeoneCouldDo', 'fastestRemoval']) {
+    assert.ok(x[key], `missing ${key}`);
+    assert.ok(x[key].text.length > 20, `${key} answered with nothing useful`);
+  }
+  assert.equal(x.domain, 'records-finder.test');
+});
+
+test('explain never invents a provenance story it does not have', () => {
+  const x = explainExposure(
+    { url: 'https://mystery.test/x', removability: { category: 'unknown' } }, null,
+  );
+  assert.match(x.howTheyGotIt.text, /not yet classified|cannot say/i);
+  assert.equal(x.howTheyGotIt.hasUpstream, false);
+});
+
+test('explain says a name alone is weak evidence', () => {
+  const x = explainExposure(
+    { ...brokerExposure, matchScore: 0.42, evidenceOfMatch: ['name matches exactly'] }, null,
+  );
+  assert.match(x.whyItsYou.text, /name on its own is weak/i);
+  assert.equal(x.whyItsYou.confidence, 42);
+});
+
+test('explain reports conflicts alongside the evidence', () => {
+  const x = explainExposure(
+    { ...brokerExposure, conflicts: ['age differs by 25 years'] }, null,
+  );
+  assert.match(x.whyItsYou.text, /Against that/);
+  assert.match(x.whyItsYou.text, /25 years/);
+});
+
+test('explain names the strongest attack, not every overlapping one', () => {
+  const x = explainExposure(brokerExposure, null);
+  // address+phone (1.45) outranks relatives+age (1.3), and only it is headlined.
+  assert.equal(x.whatSomeoneCouldDo.severity, 'serious');
+  assert.ok(x.whatSomeoneCouldDo.combinations.length > 1, 'several combinations apply here');
+  assert.match(x.whatSomeoneCouldDo.text, /locate and contact you directly/);
+  assert.ok(x.whatSomeoneCouldDo.combinations.includes(x.whatSomeoneCouldDo.text));
+
+  // Date of birth with an address is the identity-verification pair — severe.
+  const worse = explainExposure(
+    { ...brokerExposure, fields: ['birth_date', 'address'] }, null,
+  );
+  assert.equal(worse.whatSomeoneCouldDo.severity, 'severe');
+});
+
+test('explain does not overstate a lone low-risk field', () => {
+  const x = explainExposure({ ...brokerExposure, fields: ['neighbors'] }, null);
+  assert.equal(x.whatSomeoneCouldDo.severity, 'low');
+});
+
+test('a resold record is explained as one record, not many leaks', () => {
+  const x = explainExposure(brokerExposure, null, { duplicateGroup: { acrossSites: 9 } });
+  assert.match(x.howTheyGotIt.text, /one underlying record being resold/i);
+  assert.equal(x.howTheyGotIt.resoldAcross, 9);
+  // And the advice changes: do not start with this copy.
+  assert.match(x.fastestRemoval.text, /Do not start here/i);
+  assert.match(x.fastestRemoval.text, /prioritise/i);
+});
+
+test('a single listing is pointed at the site\'s own opt-out', () => {
+  const x = explainExposure(brokerExposure, null);
+  assert.match(x.fastestRemoval.text, /records-finder\.test's own opt-out/);
+  assert.equal(x.fastestRemoval.realistic, true);
+});
+
+test('explain never tells anyone to pay a broker', () => {
+  const x = explainExposure({ ...brokerExposure, paywalled: { price: '$27' } }, null);
+  assert.match(x.fastestRemoval.text, /Do not pay/i);
+});
+
+test('explain does not promise removal where none exists', () => {
+  const x = explainExposure({
+    ...brokerExposure,
+    removability: { category: CATEGORY.COURT, removable: false, note: 'Court records are public by default.' },
+  }, null);
+  assert.equal(x.fastestRemoval.realistic, false);
+  assert.match(x.fastestRemoval.text, /public by default/i);
+});
+
+test('a page you control is not treated as a removal request', () => {
+  const x = explainExposure({
+    ...brokerExposure,
+    removability: { category: CATEGORY.SOCIAL, removable: true, recommendedAction: 'Change the visibility setting.' },
+  }, null);
+  assert.match(x.fastestRemoval.text, /visibility setting/i);
+  assert.match(x.fastestRemoval.text, /no service should be asking you for the password/i);
+});
+
+test('deletion is paired with do-not-sell so the record cannot be re-listed', () => {
+  const x = explainExposure({
+    ...brokerExposure,
+    privacyChoices: { choices: ['delete', 'opt_out_sale'] },
+  }, null);
+  assert.match(x.fastestRemoval.text, /re-acquire and re-list/i);
 });
 
 /* ================================================================ report */
