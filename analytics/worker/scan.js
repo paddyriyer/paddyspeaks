@@ -38,6 +38,7 @@ const MAX_QUERIES = 12;      // per request; the client paces itself across call
 const MAX_RESULTS = 10;      // CSE's per-page maximum
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_PAGE_BYTES = 900_000;
+const MAX_LINKS = 300;       // enough for a footer-heavy broker page, small on the wire
 
 export async function routeScan(request, env, url, ch) {
   if (url.pathname === '/api/scan' && request.method === 'POST') {
@@ -218,11 +219,16 @@ async function handleRead(request, env, ch) {
     }
 
     const html = (await res.text()).slice(0, MAX_PAGE_BYTES);
+    const base = res.url || target;
     return json({
-      url: res.url || target,
+      url: base,
       status: res.status,
       title: titleOf(html),
       text: toText(html),
+      // The page's own links, so the client can find the opt-out route the site
+      // actually publishes instead of guessing at a URL shape. toText() throws
+      // markup away, so hrefs have to be collected before it runs.
+      links: linksOf(html, base),
     }, 200, ch);
   } catch (err) {
     return json({ error: err.name === 'TimeoutError' ? 'timeout' : 'fetch_failed' }, 200, ch);
@@ -278,6 +284,47 @@ export function isFetchable(raw) {
 function titleOf(html) {
   const m = String(html).match(/<title[^>]*>([\s\S]{0,300}?)<\/title>/i);
   return m ? decode(m[1]).replace(/\s+/g, ' ').trim() : '';
+}
+
+/**
+ * Every link on the page, resolved to absolute, deduped and capped.
+ *
+ * Deliberately unfiltered: deciding which of these is an opt-out route is a
+ * judgement, and judgements belong in the browser with the rest of them. The
+ * Worker's job is to hand over what the page says.
+ *
+ * `mailto:` survives because a privacy contact address is frequently the only
+ * removal route a smaller site offers.
+ */
+export function linksOf(html, base) {
+  const out = [];
+  const seen = new Set();
+  const re = /<a\b[^>]*?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>([\s\S]{0,300}?)<\/a>/gi;
+
+  let m;
+  while ((m = re.exec(html)) !== null && out.length < MAX_LINKS) {
+    const raw = decode(m[1] ?? m[2] ?? m[3] ?? '').trim();
+    if (!raw || raw.startsWith('#') || /^(javascript|data|tel):/i.test(raw)) continue;
+
+    let href;
+    if (/^mailto:/i.test(raw)) {
+      href = raw;
+    } else {
+      try {
+        const u = new URL(raw, base);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+        u.hash = '';
+        href = u.href;
+      } catch { continue; }
+    }
+
+    if (seen.has(href)) continue;
+    seen.add(href);
+
+    const text = decode(m[4].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 120);
+    out.push({ href, text });
+  }
+  return out;
 }
 
 /** Strip to visible text. Not a parser — enough for the extractor to read. */

@@ -40,6 +40,8 @@ import { assertNoPii, Vault } from '../src/store/vault.js';
 import { encrypt, decrypt, deriveKey, newSalt, verifyPassphrase, passphraseCheck } from '../src/store/crypto.js';
 import { normalizeAnswers, assessCoverage, GROUPS } from '../src/onboarding/interview.js';
 import { recheckDate } from '../src/agent.js';
+import { explainExposure } from '../src/core/explain.js';
+import { findOptOutLinks, optOutSearches, ROUTE } from '../src/core/optout.js';
 
 let passed = 0;
 let failed = 0;
@@ -1321,6 +1323,219 @@ test('recheck is never sooner than 2 days', () => {
   const base = Date.parse('2026-01-01T00:00:00Z');
   const d = (Date.parse(recheckDate('1 hour', base)) - base) / 86400_000;
   assert.ok(d >= 2, 'checking the next morning just produces a false "still listed"');
+});
+
+/* ============================================================== explain */
+
+const brokerExposure = {
+  url: 'https://records-finder.test/p/paddy-iyer',
+  matchScore: 0.91,
+  fields: ['address', 'phone', 'relatives', 'age'],
+  evidenceOfMatch: ['exact phone match', 'address matches', 'age within 1 year'],
+  conflicts: [],
+  removability: {
+    category: CATEGORY.BROKER,
+    removable: true,
+    recommendedAction: 'Opt out / delete the record.',
+  },
+};
+
+test('explain answers all four questions', () => {
+  const x = explainExposure(brokerExposure, null);
+  for (const key of ['howTheyGotIt', 'whyItsYou', 'whatSomeoneCouldDo', 'fastestRemoval']) {
+    assert.ok(x[key], `missing ${key}`);
+    assert.ok(x[key].text.length > 20, `${key} answered with nothing useful`);
+  }
+  assert.equal(x.domain, 'records-finder.test');
+});
+
+test('explain never invents a provenance story it does not have', () => {
+  const x = explainExposure(
+    { url: 'https://mystery.test/x', removability: { category: 'unknown' } }, null,
+  );
+  assert.match(x.howTheyGotIt.text, /not yet classified|cannot say/i);
+  assert.equal(x.howTheyGotIt.hasUpstream, false);
+});
+
+test('explain says a name alone is weak evidence', () => {
+  const x = explainExposure(
+    { ...brokerExposure, matchScore: 0.42, evidenceOfMatch: ['name matches exactly'] }, null,
+  );
+  assert.match(x.whyItsYou.text, /name on its own is weak/i);
+  assert.equal(x.whyItsYou.confidence, 42);
+});
+
+test('explain reports conflicts alongside the evidence', () => {
+  const x = explainExposure(
+    { ...brokerExposure, conflicts: ['age differs by 25 years'] }, null,
+  );
+  assert.match(x.whyItsYou.text, /Against that/);
+  assert.match(x.whyItsYou.text, /25 years/);
+});
+
+test('explain names the strongest attack, not every overlapping one', () => {
+  const x = explainExposure(brokerExposure, null);
+  // address+phone (1.45) outranks relatives+age (1.3), and only it is headlined.
+  assert.equal(x.whatSomeoneCouldDo.severity, 'serious');
+  assert.ok(x.whatSomeoneCouldDo.combinations.length > 1, 'several combinations apply here');
+  assert.match(x.whatSomeoneCouldDo.text, /locate and contact you directly/);
+  assert.ok(x.whatSomeoneCouldDo.combinations.includes(x.whatSomeoneCouldDo.text));
+
+  // Date of birth with an address is the identity-verification pair — severe.
+  const worse = explainExposure(
+    { ...brokerExposure, fields: ['birth_date', 'address'] }, null,
+  );
+  assert.equal(worse.whatSomeoneCouldDo.severity, 'severe');
+});
+
+test('explain does not overstate a lone low-risk field', () => {
+  const x = explainExposure({ ...brokerExposure, fields: ['neighbors'] }, null);
+  assert.equal(x.whatSomeoneCouldDo.severity, 'low');
+});
+
+test('a resold record is explained as one record, not many leaks', () => {
+  const x = explainExposure(brokerExposure, null, { duplicateGroup: { acrossSites: 9 } });
+  assert.match(x.howTheyGotIt.text, /one underlying record being resold/i);
+  assert.equal(x.howTheyGotIt.resoldAcross, 9);
+  // And the advice changes: do not start with this copy.
+  assert.match(x.fastestRemoval.text, /Do not start here/i);
+  assert.match(x.fastestRemoval.text, /prioritise/i);
+});
+
+test('a single listing is pointed at the site\'s own opt-out', () => {
+  const x = explainExposure(brokerExposure, null);
+  assert.match(x.fastestRemoval.text, /records-finder\.test's own opt-out/);
+  assert.equal(x.fastestRemoval.realistic, true);
+});
+
+test('explain never tells anyone to pay a broker', () => {
+  const x = explainExposure({ ...brokerExposure, paywalled: { price: '$27' } }, null);
+  assert.match(x.fastestRemoval.text, /Do not pay/i);
+});
+
+test('explain does not promise removal where none exists', () => {
+  const x = explainExposure({
+    ...brokerExposure,
+    removability: { category: CATEGORY.COURT, removable: false, note: 'Court records are public by default.' },
+  }, null);
+  assert.equal(x.fastestRemoval.realistic, false);
+  assert.match(x.fastestRemoval.text, /public by default/i);
+});
+
+test('a page you control is not treated as a removal request', () => {
+  const x = explainExposure({
+    ...brokerExposure,
+    removability: { category: CATEGORY.SOCIAL, removable: true, recommendedAction: 'Change the visibility setting.' },
+  }, null);
+  assert.match(x.fastestRemoval.text, /visibility setting/i);
+  assert.match(x.fastestRemoval.text, /no service should be asking you for the password/i);
+});
+
+test('deletion is paired with do-not-sell so the record cannot be re-listed', () => {
+  const x = explainExposure({
+    ...brokerExposure,
+    privacyChoices: { choices: ['delete', 'opt_out_sale'] },
+  }, null);
+  assert.match(x.fastestRemoval.text, /re-acquire and re-list/i);
+});
+
+/* ========================================================= opt-out routes */
+
+const PAGE = 'https://records-finder.test/p/padmanabhan-iyer';
+const footer = [
+  { href: 'https://records-finder.test/', text: 'Home' },
+  { href: 'https://records-finder.test/about', text: 'About us' },
+  { href: 'https://records-finder.test/privacy-policy', text: 'Privacy Policy' },
+  { href: 'https://records-finder.test/ccpa-request', text: 'California Privacy Rights' },
+  { href: 'https://records-finder.test/opt-out', text: 'Do Not Sell My Personal Information' },
+  { href: 'https://records-finder.test/contact', text: 'Contact' },
+];
+
+test('the removal route outranks the privacy policy', () => {
+  const found = findOptOutLinks(footer, PAGE);
+  assert.equal(found[0].url, 'https://records-finder.test/opt-out');
+  assert.equal(found[0].route, ROUTE.REMOVAL);
+  const policy = found.find((f) => /privacy-policy/.test(f.url));
+  assert.ok(found[0].score > policy.score, 'the policy must never be offered first');
+});
+
+test('navigation links are not mistaken for removal routes', () => {
+  const found = findOptOutLinks(footer, PAGE);
+  const urls = found.map((f) => f.url);
+  assert.ok(!urls.includes('https://records-finder.test/about'));
+  assert.ok(!urls.includes('https://records-finder.test/'));
+  assert.ok(!urls.includes('https://records-finder.test/contact'), 'a support page is not a removal route');
+});
+
+test('a URL path alone is enough when the link text is unhelpful', () => {
+  const found = findOptOutLinks(
+    [{ href: 'https://records-finder.test/do-not-sell-my-info', text: 'Click here' }], PAGE,
+  );
+  assert.equal(found[0].route, ROUTE.DO_NOT_SELL);
+});
+
+test('link text alone is enough when the URL is opaque', () => {
+  const found = findOptOutLinks(
+    [{ href: 'https://records-finder.test/x/9f2a', text: 'Remove my information' }], PAGE,
+  );
+  assert.equal(found[0].route, ROUTE.REMOVAL);
+});
+
+test('a brand containing "privacy" is not treated as a privacy route', () => {
+  const found = findOptOutLinks(
+    [{ href: 'https://privacyshieldhosting.test/pricing', text: 'Hosting' }], PAGE,
+  );
+  assert.equal(found.length, 0, 'the hostname must not be searched for these words');
+});
+
+test('an off-site privacy portal is ranked lower, not discarded', () => {
+  const found = findOptOutLinks([
+    { href: 'https://privacyportal.onetrust.test/webform/dsar', text: 'Submit a privacy request' },
+    { href: 'https://records-finder.test/privacy-policy', text: 'Privacy Policy' },
+  ], PAGE);
+  const portal = found.find((f) => /onetrust/.test(f.url));
+  assert.ok(portal, 'third-party consent platforms are a legitimate route');
+  assert.equal(portal.sameSite, false);
+  assert.ok(portal.score > found.find((f) => /privacy-policy/.test(f.url)).score);
+});
+
+test('a privacy mailbox counts; a support mailbox does not', () => {
+  const found = findOptOutLinks([
+    { href: 'mailto:support@records-finder.test', text: 'Email us' },
+    { href: 'mailto:privacy@records-finder.test', text: 'Privacy team' },
+  ], PAGE);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].route, ROUTE.PRIVACY_CONTACT);
+  assert.match(found[0].url, /privacy@/);
+});
+
+test('the same route linked twice is offered once', () => {
+  const found = findOptOutLinks([
+    { href: 'https://records-finder.test/opt-out', text: 'Opt out' },
+    { href: 'https://records-finder.test/opt-out/', text: 'Opt Out' },
+  ], PAGE);
+  assert.equal(found.length, 1);
+});
+
+test('no links means no route, not a guessed one', () => {
+  const found = findOptOutLinks([], PAGE);
+  assert.equal(found.length, 0, 'inventing /opt-out here is how a confident 404 happens');
+});
+
+test('fallback searches are separately answerable, never one OR-soup', () => {
+  const qs = optOutSearches('xome.com');
+  assert.ok(qs.length >= 4);
+  for (const q of qs) {
+    assert.ok(!/\bOR\b/.test(q.text), `"${q.text}" mixes OR groups — engines return nothing for these`);
+    assert.ok(q.why, 'every query says why it is worth running');
+  }
+  assert.match(qs[0].text, /^site:xome\.com/);
+  // At least one must not use site:, for the common case of an unindexed page.
+  assert.ok(qs.some((q) => !q.text.startsWith('site:')));
+});
+
+test('no fallback searches without a domain', () => {
+  assert.deepEqual(optOutSearches(''), []);
 });
 
 /* ================================================================ report */

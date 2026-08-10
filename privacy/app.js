@@ -33,6 +33,8 @@ import { STATE, STATE_LABELS, transition, summarize } from '../privacy-agent/src
 import { fnv1a, registrableDomain } from '../privacy-agent/src/core/text.js';
 import { extractFromPage, extractSearchResults } from '../privacy-agent/src/discover/extract.js';
 import { attackSurface } from '../privacy-agent/src/core/attack-surface.js';
+import { explainExposure } from '../privacy-agent/src/core/explain.js';
+import { findOptOutLinks, optOutSearches } from '../privacy-agent/src/core/optout.js';
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
@@ -326,7 +328,7 @@ function renderPlan() {
       <li class="qrow${state.searched.includes(q.id) ? ' searched' : ''}" data-q="${q.id}">
         <div class="qt">
           <code>${esc(q.text)}</code>
-          <div class="qk">${esc(q.why || kindLabel(q.kind))} · priority ${q.priority}</div>
+          <div class="qk">${esc(q.why || kindLabel(q.kind))}</div>
         </div>
         <a class="btn sm" target="_blank" rel="noopener noreferrer"
            href="${engine}${encodeURIComponent(q.text)}" data-run="${q.id}">Search →</a>
@@ -645,6 +647,7 @@ function dedupeByDomain(items) {
 function trackScanned(s, status) {
   const domain = s.domain || registrableDomain(s.url);
   const id = `exp_${fnv1a(s.url)}`;
+  const jurisdiction = detectJurisdiction(state.profile.residence, s.snippet || '');
   const exposure = {
     id,
     url: s.url,
@@ -662,7 +665,8 @@ function trackScanned(s, status) {
     removability: s.removability,
     risk: s.risk,
     paywalled: s.extracted.paywalled,
-    jurisdiction: detectJurisdiction(state.profile.residence, s.snippet || ''),
+    jurisdiction,
+    privacyChoices: preferredChoices(jurisdiction.documentedProcesses || []),
     fromSnippet: true,
     status: STATE.DISCOVERED,
     history: [],
@@ -751,6 +755,7 @@ $('#analyse-bulk').addEventListener('click', () => {
 
   const track = (s, status) => {
     const id = `exp_${fnv1a(s.url)}`;
+    const jurisdiction = detectJurisdiction(state.profile.residence, s.snippet);
     const exposure = {
       id,
       url: s.url,
@@ -768,7 +773,8 @@ $('#analyse-bulk').addEventListener('click', () => {
       removability: s.removability,
       risk: s.risk,
       paywalled: s.extracted.paywalled,
-      jurisdiction: detectJurisdiction(state.profile.residence, s.snippet),
+      jurisdiction,
+      privacyChoices: preferredChoices(jurisdiction.documentedProcesses || []),
       // Snippet-derived, so flagged: the record came from a search summary
       // rather than the page itself, which is thinner evidence.
       fromSnippet: true,
@@ -904,6 +910,7 @@ function analyse(url, text) {
   const saveExposure = (status) => {
     const id = `exp_${fnv1a(url || firstLine)}`;
     const existing = state.exposures.findIndex((e) => e.id === id);
+    const jurisdiction = detectJurisdiction(state.profile.residence, text);
     const exposure = {
       id,
       url: url || '(no URL given)',
@@ -921,7 +928,8 @@ function analyse(url, text) {
       removability,
       risk,
       paywalled: extracted.paywalled,
-      jurisdiction: detectJurisdiction(state.profile.residence, text),
+      jurisdiction,
+      privacyChoices: preferredChoices(jurisdiction.documentedProcesses || []),
       status: STATE.DISCOVERED,
       history: [],
     };
@@ -1014,12 +1022,22 @@ function renderBoard() {
     return;
   }
 
-  const dupes = groupDuplicates(live).filter((g) => g.count > 1);
+  // Grouped once, then handed to each card. Without the group, question 1
+  // ("how did they get it?") describes a page in isolation and misses the only
+  // answer that actually changes what the user should do — that this is one
+  // record being resold, not twelve separate leaks.
+  const groups = groupDuplicates(live);
+  const groupFor = new Map();
+  for (const g of groups) for (const m of g.members) groupFor.set(m.id, g);
+  const dupes = groups.filter((g) => g.count > 1);
 
+  const ordered = prioritize(live);
   $('#board-out').innerHTML =
     (dupes.length ? `<div class="okbox"><b>Duplicate records spotted.</b> ${
       dupes.map((g) => esc(g.summary)).join(' ')}</div>` : '')
-    + prioritize(live).map((e) => renderExposure(e)).join('');
+    // Only the top card opens its explanation by default. Expanding all of them
+    // buries the priority order under a wall of prose.
+    + ordered.map((e, i) => renderExposure(e, groupFor.get(e.id), i === 0)).join('');
 
   for (const btn of document.querySelectorAll('[data-adv]')) {
     btn.addEventListener('click', () => advance(btn.dataset.adv, btn.dataset.to));
@@ -1037,34 +1055,81 @@ function renderBoard() {
       save(); renderBoard(); markDone();
     });
   }
+  for (const btn of document.querySelectorAll('[data-optout]')) {
+    btn.addEventListener('click', () => findOptOut(btn.dataset.optout));
+  }
 }
 
-function renderExposure(e) {
+/**
+ * One exposure card.
+ *
+ * The centre of it is "Explain why you found me" — the four questions from
+ * `explain.js`. Everything else on the card is status; those four are the part
+ * that teaches, and the reason someone who has removed one listing understands
+ * why the next eleven exist.
+ *
+ * They are rendered from analysis already performed — the match evidence, the
+ * removability classification, the risk combinations, the duplicate group.
+ * Nothing here is generated speculatively, and where the engine does not know
+ * the answer it says so rather than inventing a plausible one.
+ */
+function renderExposure(e, group, open) {
   const [label, help] = STATE_LABELS[e.status] || [e.status, ''];
   const pill = e.status === STATE.SUCCESSFULLY_REMOVED ? 'ok'
     : e.status === STATE.NOT_REMOVABLE ? 'bad'
       : e.status === STATE.PENDING_REMOVAL ? 'warn' : 'info';
-  const choices = preferredChoices(e.jurisdiction?.documentedProcesses || []);
-  const rec = e.jurisdiction?.recommended?.[0];
+  const choices = e.privacyChoices || preferredChoices(e.jurisdiction?.documentedProcesses || []);
+  const why = explainExposure(e, state.profile, { duplicateGroup: group });
 
-  return `<div class="exp">
+  const q = (n, question, answer, extra = '') => `
+    <div class="q4">
+      <div class="q4-n">${n}</div>
+      <div class="q4-b">
+        <h5>${esc(question)}</h5>
+        <p>${esc(answer)}</p>
+        ${extra}
+      </div>
+    </div>`;
+
+  return `<div class="exp" data-band="${esc(e.risk.band)}">
     <div class="exp-h">
       <b>${esc(e.domain)}</b>
       <span class="pill ${riskPill(e.risk.band)}">risk ${e.risk.score}</span>
       <span class="pill g">${Math.round(e.matchScore * 100)}% match</span>
       <span class="pill ${pill}" title="${esc(help)}">${esc(label)}</span>
+      ${group && group.acrossSites > 1
+        ? `<span class="pill warn" title="${esc(group.summary)}">1 of ${group.acrossSites} copies</span>` : ''}
     </div>
     <div class="meta mono">${esc(e.url)}</div>
-    <p class="note" style="margin:8px 0 0"><b>Exposed:</b> ${esc(e.fields.join(', '))}</p>
-    <p class="note" style="margin:4px 0 0">${esc(e.risk.explanation)}</p>
-    <p class="note" style="margin:8px 0 0"><b>Removal:</b> ${esc(e.removability.userMessage)}</p>
-    ${rec ? `<p class="note" style="margin:4px 0 0"><b>Approach:</b> ${esc(rec.action)} <span style="color:var(--light-muted)">${esc(rec.why)}</span></p>` : ''}
-    ${choices.choices.length ? `<p class="note" style="margin:4px 0 0"><b>Take:</b> ${esc(choices.rationale)}</p>` : ''}
+    ${e.fields.length ? `<div class="chips">${e.fields.map((f) =>
+      `<span class="chip">${esc(fieldLabel(f))}</span>`).join('')}</div>` : ''}
+
+    <details class="why4"${open ? ' open' : ''}>
+      <summary>Explain why you found me<span class="hint">how they got it · why it is you · what it enables · fastest way out</span></summary>
+      ${q(1, 'How did this site get my information?', why.howTheyGotIt.text)}
+      ${q(2, 'Why does it think this record is me?', why.whyItsYou.text, `
+        ${why.whyItsYou.signals.length ? `<ul class="ev">${
+          why.whyItsYou.signals.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
+        ${why.whyItsYou.conflicts.length ? `<ul class="ev conf">${
+          why.whyItsYou.conflicts.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
+        <div class="q4-meter">
+          <div class="meter"><i style="width:${why.whyItsYou.confidence}%"></i></div>
+          <span>${why.whyItsYou.confidence}% confident this is you</span>
+        </div>`)}
+      ${q(3, 'What could someone do with this?', why.whatSomeoneCouldDo.text, `
+        <span class="sev s-${esc(why.whatSomeoneCouldDo.severity)}">${esc(why.whatSomeoneCouldDo.severity)}</span>
+        ${why.whatSomeoneCouldDo.combinations.length > 1 ? `<ul class="ev">${
+          why.whatSomeoneCouldDo.combinations.slice(1).map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}`)}
+      ${q(4, 'What is the fastest way to eliminate it?', why.fastestRemoval.text, `
+        ${why.fastestRemoval.action ? `<p class="do"><b>Do this:</b> ${esc(why.fastestRemoval.action)}</p>` : ''}
+        ${choices.choices?.length ? `<p class="do">${esc(choices.rationale)}</p>` : ''}`)}
+    </details>
+
+    ${renderTimeline(e)}
 
     <div class="btns" style="margin-top:12px">
       ${e.removability.removable && e.status === STATE.CONFIRMED_EXPOSURE ? `
-        <a class="btn sm" target="_blank" rel="noopener noreferrer"
-           href="https://duckduckgo.com/?q=${encodeURIComponent(`site:${e.domain} opt out OR "do not sell" OR "remove my information"`)}">Find the opt-out →</a>
+        <button class="btn sm" data-optout="${e.id}">Find the opt-out</button>
         <button class="btn sm" data-copy="${esc(requestText(e))}">Copy removal request</button>
         <button class="btn sm" data-adv="${e.id}" data-to="${STATE.PENDING_REMOVAL}">I submitted it</button>` : ''}
       ${e.status === STATE.PENDING_REMOVAL ? `
@@ -1074,7 +1139,158 @@ function renderExposure(e) {
         <button class="btn sm" data-adv="${e.id}" data-to="${STATE.NOT_REMOVABLE}">Acknowledge</button>` : ''}
       <button class="btn sm" data-del="${e.id}">Remove from list</button>
     </div>
+    <div class="oo" id="oo-${e.id}"></div>
   </div>`;
+}
+
+/**
+ * Find the removal route by reading the listing's own links.
+ *
+ * The previous version fired one search — `site:x.com opt out OR "do not sell"
+ * OR "remove my information"` — which looks thorough and returns nothing,
+ * because engines do not mix bare terms with quoted OR groups the way that
+ * query assumes. Worse, a broker's listing page is frequently not indexed at
+ * all, so no query against it can ever succeed.
+ *
+ * Reading the page is both more reliable and more correct: several
+ * jurisdictions require the opt-out to be linked from every page, so the answer
+ * is usually sitting in the footer of the exact page holding the record. No URL
+ * is guessed at, and nothing here knows the name of a single broker.
+ */
+async function findOptOut(id) {
+  const e = state.exposures.find((x) => x.id === id);
+  const box = $(`#oo-${CSS.escape(id)}`);
+  if (!e || !box) return;
+
+  const searches = optOutSearches(e.domain);
+  const engine = $('#engine')?.value || 'https://duckduckgo.com/?q=';
+  const searchList = (intro) => `
+    <p class="note" style="margin:0 0 8px">${intro}</p>
+    <ul class="qlist">${searches.map((s) => `
+      <li class="qrow">
+        <div class="qt"><code>${esc(s.text)}</code><div class="qk">${esc(s.why)}</div></div>
+        <a class="btn sm" target="_blank" rel="noopener noreferrer"
+           href="${engine}${encodeURIComponent(s.text)}">Search →</a>
+      </li>`).join('')}</ul>`;
+
+  box.innerHTML = '<p class="note"><span class="spin">•</span> Reading the page for its own opt-out link…</p>';
+
+  let data;
+  try {
+    const res = await fetch(`${API_BASE}/api/scan/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: e.url }),
+    });
+    data = await res.json();
+  } catch (err) {
+    box.innerHTML = `<div class="oo-box">${searchList(
+      `<b>Could not reach the page (${esc(err.message || 'network error')}).</b> Try these instead — each is simple enough for any engine to answer:`,
+    )}</div>`;
+    return;
+  }
+
+  if (data?.error) {
+    box.innerHTML = `<div class="oo-box">${searchList(
+      `<b>The page could not be read (${esc(data.error)}).</b> Brokers often block automated reads — that is normal, and these searches are the way round it:`,
+    )}</div>`;
+    return;
+  }
+
+  const found = findOptOutLinks(data.links || [], data.url || e.url);
+  if (!found.length) {
+    box.innerHTML = `<div class="oo-box">${searchList(
+      '<b>The page publishes no opt-out link.</b> That is itself worth knowing — several US state laws require one. Try these, and if nothing turns up, the privacy policy usually names an address to write to:',
+    )}</div>`;
+    return;
+  }
+
+  box.innerHTML = `<div class="oo-box">
+    <p class="note" style="margin:0 0 10px"><b>Found ${found.length} route${found.length === 1 ? '' : 's'}
+    on the page itself.</b> Try them in this order — the first is the most direct.</p>
+    <ul class="qlist">${found.slice(0, 6).map((r) => `
+      <li class="qrow">
+        <div class="qt">
+          <code>${esc(r.text)}</code>
+          <div class="qk">${esc(r.why)}${r.sameSite ? '' : ' · hosted off-site, which is normal for privacy portals'}</div>
+        </div>
+        <a class="btn sm" target="_blank" rel="noopener noreferrer" href="${esc(r.url)}">Open →</a>
+      </li>`).join('')}</ul>
+    <p class="note">Once you have submitted it, come back and press <b>I submitted it</b> — that
+    starts the clock, and the console will remind you that submitted is not removed.</p>
+  </div>`;
+}
+
+/**
+ * The removal journey, from the exposure's own history.
+ *
+ * This is the honest version of a progress bar: it shows what actually
+ * happened and when, so "request submitted" cannot be mistaken for "removed" —
+ * those are two separate stops with a verification step between them, and the
+ * gap between the timestamps is the wait the user is actually in.
+ */
+function renderTimeline(e) {
+  // The state machine insists on passing through "removal path found" and
+  // "submitting" on the way to "submitted", so one click writes four entries in
+  // the same second. Those are bookkeeping, not events the user lived through —
+  // a step is only drawn when it is the last thing that happened at that moment.
+  const all = (e.history || []).filter((h) => h.to !== h.from);
+  const steps = all.filter((h, i) => !all[i + 1] || all[i + 1].at !== h.at);
+  if (!steps.length) return '';
+
+  const rows = [
+    { label: 'Found', note: e.fromSnippet ? 'Spotted in a search result' : 'Checked in detail', at: e.discoveredAt },
+    ...steps.map((h) => ({ label: (STATE_LABELS[h.to] || [h.to])[0], note: h.note, at: h.at })),
+  ];
+
+  // What has not happened yet matters as much as what has: an exposure sitting
+  // at "awaiting removal" needs the unfinished step drawn, not a tidy full bar.
+  const pending = e.status === STATE.PENDING_REMOVAL || e.status === STATE.REQUEST_SUBMITTED
+    ? 'Confirmed removed — not yet. Re-check the page before believing it.'
+    : null;
+
+  return `<div class="tl">
+    ${rows.map((r) => `<div class="tl-row done">
+      <span class="tl-dot"></span>
+      <div><b>${esc(r.label)}</b>${r.note ? ` — ${esc(r.note)}` : ''}
+        <span class="tl-at">${esc(when(r.at))}</span></div>
+    </div>`).join('')}
+    ${pending ? `<div class="tl-row"><span class="tl-dot"></span>
+      <div class="tl-todo">${esc(pending)}</div></div>` : ''}
+  </div>`;
+}
+
+function when(iso) {
+  if (!iso) return '';
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return '';
+  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days} days ago`;
+  return then.toLocaleDateString();
+}
+
+/** Field keys are engine-internal. Nobody should have to read `address_history`. */
+function fieldLabel(f) {
+  return {
+    address: 'home address',
+    address_history: 'past addresses',
+    phone: 'phone number',
+    email: 'email address',
+    relatives: 'relatives',
+    age: 'age',
+    birth_date: 'date of birth',
+    employer: 'employer',
+    ssn_fragment: 'part of your SSN',
+    property: 'property owned',
+    income: 'income estimate',
+    court: 'court records',
+    criminal: 'criminal records',
+    license: 'licence number',
+    vehicle: 'vehicle records',
+    neighbors: 'neighbours',
+  }[f] || String(f).replace(/_/g, ' ');
 }
 
 function riskPill(band) {
