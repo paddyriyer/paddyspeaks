@@ -12,6 +12,7 @@ import {
   CONTACT_REASONS, RELATIONSHIPS, DISPLAY_PREFS, LIMITS,
 } from '../lib/forms.js';
 import { redactEmails } from '../worker/forms-util.js';
+import { isFetchable, linksOf } from '../worker/scan.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -299,6 +300,49 @@ ok(!/@/.test(redactEmails('to: a@b.com, cc: c.d+tag@sub.example.co.uk')),
 eq(redactEmails('Invalid `from` field'), 'Invalid `from` field', 'redactEmails preserves the diagnostic wording');
 eq(redactEmails(null), '', 'redactEmails handles null');
 ok(redactEmails('x@y.com').includes('[redacted-email]'), 'redactEmails substitutes a visible placeholder');
+
+/* ── scan proxy: SSRF guard ── */
+
+for (const bad of [
+  'http://localhost/x', 'http://127.0.0.1/', 'http://10.1.2.3/', 'http://192.168.0.1/',
+  'http://172.16.5.5/', 'http://169.254.169.254/latest/meta-data/', 'http://metadata.google.internal/',
+  'http://[::1]/', 'http://[fd00::1]/', 'http://box.internal/', 'http://printer.local/',
+  'file:///etc/passwd', 'gopher://x/', 'not a url', '',
+]) {
+  ok(!isFetchable(bad), `isFetchable rejects ${bad || '(empty)'}`);
+}
+for (const good of ['https://records-finder.test/p/x', 'http://example.com/opt-out']) {
+  ok(isFetchable(good), `isFetchable allows ${good}`);
+}
+
+/* ── scan proxy: link extraction ── */
+
+const HTML = `<html><body>
+  <a href="/opt-out">Do Not Sell My <b>Personal</b> Information</a>
+  <a href='https://elsewhere.test/dsar'>Privacy request</a>
+  <a href=/privacy-policy>Privacy Policy</a>
+  <a href="#top">Back to top</a>
+  <a href="javascript:void(0)">Menu</a>
+  <a href="tel:+15555550142">Call us</a>
+  <a href="mailto:privacy@records-finder.test">Privacy team</a>
+  <a href="/opt-out">Opt out</a>
+  <a href="/x#frag">Fragment</a>
+</body></html>`;
+const links = linksOf(HTML, 'https://records-finder.test/p/someone');
+const hrefs = links.map((l) => l.href);
+
+ok(hrefs.includes('https://records-finder.test/opt-out'), 'linksOf resolves relative hrefs to absolute');
+ok(hrefs.includes('https://elsewhere.test/dsar'), 'linksOf keeps off-site links');
+ok(hrefs.includes('https://records-finder.test/privacy-policy'), 'linksOf reads unquoted href attributes');
+ok(hrefs.includes('mailto:privacy@records-finder.test'), 'linksOf keeps mailto: — often the only removal route');
+ok(!hrefs.some((h) => h.startsWith('#')), 'linksOf drops in-page anchors');
+ok(!hrefs.some((h) => /javascript:/i.test(h)), 'linksOf drops javascript: hrefs');
+ok(!hrefs.some((h) => /^tel:/i.test(h)), 'linksOf drops tel: links');
+eq(hrefs.filter((h) => h.endsWith('/opt-out')).length, 1, 'linksOf deduplicates repeated hrefs');
+ok(!hrefs.some((h) => h.includes('#frag')), 'linksOf strips fragments so one page is not listed twice');
+eq(links.find((l) => l.href.endsWith('/opt-out')).text,
+  'Do Not Sell My Personal Information', 'linksOf flattens nested markup in the link text');
+eq(linksOf('<p>no links here</p>', 'https://x.test/').length, 0, 'linksOf handles a page with no links');
 
 /* ── report ── */
 console.log(fails.join('\n'));

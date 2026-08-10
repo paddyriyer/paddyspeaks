@@ -34,6 +34,7 @@ import { fnv1a, registrableDomain } from '../privacy-agent/src/core/text.js';
 import { extractFromPage, extractSearchResults } from '../privacy-agent/src/discover/extract.js';
 import { attackSurface } from '../privacy-agent/src/core/attack-surface.js';
 import { explainExposure } from '../privacy-agent/src/core/explain.js';
+import { findOptOutLinks, optOutSearches } from '../privacy-agent/src/core/optout.js';
 import { GROUPS, normalizeAnswers, assessCoverage } from '../privacy-agent/src/onboarding/interview.js';
 
 const KEY = 'ps-privacy-v1';
@@ -1054,6 +1055,9 @@ function renderBoard() {
       save(); renderBoard(); markDone();
     });
   }
+  for (const btn of document.querySelectorAll('[data-optout]')) {
+    btn.addEventListener('click', () => findOptOut(btn.dataset.optout));
+  }
 }
 
 /**
@@ -1125,8 +1129,7 @@ function renderExposure(e, group, open) {
 
     <div class="btns" style="margin-top:12px">
       ${e.removability.removable && e.status === STATE.CONFIRMED_EXPOSURE ? `
-        <a class="btn sm" target="_blank" rel="noopener noreferrer"
-           href="https://duckduckgo.com/?q=${encodeURIComponent(`site:${e.domain} opt out OR "do not sell" OR "remove my information"`)}">Find the opt-out →</a>
+        <button class="btn sm" data-optout="${e.id}">Find the opt-out</button>
         <button class="btn sm" data-copy="${esc(requestText(e))}">Copy removal request</button>
         <button class="btn sm" data-adv="${e.id}" data-to="${STATE.PENDING_REMOVAL}">I submitted it</button>` : ''}
       ${e.status === STATE.PENDING_REMOVAL ? `
@@ -1136,6 +1139,85 @@ function renderExposure(e, group, open) {
         <button class="btn sm" data-adv="${e.id}" data-to="${STATE.NOT_REMOVABLE}">Acknowledge</button>` : ''}
       <button class="btn sm" data-del="${e.id}">Remove from list</button>
     </div>
+    <div class="oo" id="oo-${e.id}"></div>
+  </div>`;
+}
+
+/**
+ * Find the removal route by reading the listing's own links.
+ *
+ * The previous version fired one search — `site:x.com opt out OR "do not sell"
+ * OR "remove my information"` — which looks thorough and returns nothing,
+ * because engines do not mix bare terms with quoted OR groups the way that
+ * query assumes. Worse, a broker's listing page is frequently not indexed at
+ * all, so no query against it can ever succeed.
+ *
+ * Reading the page is both more reliable and more correct: several
+ * jurisdictions require the opt-out to be linked from every page, so the answer
+ * is usually sitting in the footer of the exact page holding the record. No URL
+ * is guessed at, and nothing here knows the name of a single broker.
+ */
+async function findOptOut(id) {
+  const e = state.exposures.find((x) => x.id === id);
+  const box = $(`#oo-${CSS.escape(id)}`);
+  if (!e || !box) return;
+
+  const searches = optOutSearches(e.domain);
+  const engine = $('#engine')?.value || 'https://duckduckgo.com/?q=';
+  const searchList = (intro) => `
+    <p class="note" style="margin:0 0 8px">${intro}</p>
+    <ul class="qlist">${searches.map((s) => `
+      <li class="qrow">
+        <div class="qt"><code>${esc(s.text)}</code><div class="qk">${esc(s.why)}</div></div>
+        <a class="btn sm" target="_blank" rel="noopener noreferrer"
+           href="${engine}${encodeURIComponent(s.text)}">Search →</a>
+      </li>`).join('')}</ul>`;
+
+  box.innerHTML = '<p class="note"><span class="spin">•</span> Reading the page for its own opt-out link…</p>';
+
+  let data;
+  try {
+    const res = await fetch(`${API_BASE}/api/scan/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: e.url }),
+    });
+    data = await res.json();
+  } catch (err) {
+    box.innerHTML = `<div class="oo-box">${searchList(
+      `<b>Could not reach the page (${esc(err.message || 'network error')}).</b> Try these instead — each is simple enough for any engine to answer:`,
+    )}</div>`;
+    return;
+  }
+
+  if (data?.error) {
+    box.innerHTML = `<div class="oo-box">${searchList(
+      `<b>The page could not be read (${esc(data.error)}).</b> Brokers often block automated reads — that is normal, and these searches are the way round it:`,
+    )}</div>`;
+    return;
+  }
+
+  const found = findOptOutLinks(data.links || [], data.url || e.url);
+  if (!found.length) {
+    box.innerHTML = `<div class="oo-box">${searchList(
+      '<b>The page publishes no opt-out link.</b> That is itself worth knowing — several US state laws require one. Try these, and if nothing turns up, the privacy policy usually names an address to write to:',
+    )}</div>`;
+    return;
+  }
+
+  box.innerHTML = `<div class="oo-box">
+    <p class="note" style="margin:0 0 10px"><b>Found ${found.length} route${found.length === 1 ? '' : 's'}
+    on the page itself.</b> Try them in this order — the first is the most direct.</p>
+    <ul class="qlist">${found.slice(0, 6).map((r) => `
+      <li class="qrow">
+        <div class="qt">
+          <code>${esc(r.text)}</code>
+          <div class="qk">${esc(r.why)}${r.sameSite ? '' : ' · hosted off-site, which is normal for privacy portals'}</div>
+        </div>
+        <a class="btn sm" target="_blank" rel="noopener noreferrer" href="${esc(r.url)}">Open →</a>
+      </li>`).join('')}</ul>
+    <p class="note">Once you have submitted it, come back and press <b>I submitted it</b> — that
+    starts the clock, and the console will remind you that submitted is not removed.</p>
   </div>`;
 }
 

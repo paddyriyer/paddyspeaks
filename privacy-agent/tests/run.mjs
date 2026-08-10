@@ -41,6 +41,7 @@ import { encrypt, decrypt, deriveKey, newSalt, verifyPassphrase, passphraseCheck
 import { normalizeAnswers, assessCoverage, GROUPS } from '../src/onboarding/interview.js';
 import { recheckDate } from '../src/agent.js';
 import { explainExposure } from '../src/core/explain.js';
+import { findOptOutLinks, optOutSearches, ROUTE } from '../src/core/optout.js';
 
 let passed = 0;
 let failed = 0;
@@ -1436,6 +1437,105 @@ test('deletion is paired with do-not-sell so the record cannot be re-listed', ()
     privacyChoices: { choices: ['delete', 'opt_out_sale'] },
   }, null);
   assert.match(x.fastestRemoval.text, /re-acquire and re-list/i);
+});
+
+/* ========================================================= opt-out routes */
+
+const PAGE = 'https://records-finder.test/p/padmanabhan-iyer';
+const footer = [
+  { href: 'https://records-finder.test/', text: 'Home' },
+  { href: 'https://records-finder.test/about', text: 'About us' },
+  { href: 'https://records-finder.test/privacy-policy', text: 'Privacy Policy' },
+  { href: 'https://records-finder.test/ccpa-request', text: 'California Privacy Rights' },
+  { href: 'https://records-finder.test/opt-out', text: 'Do Not Sell My Personal Information' },
+  { href: 'https://records-finder.test/contact', text: 'Contact' },
+];
+
+test('the removal route outranks the privacy policy', () => {
+  const found = findOptOutLinks(footer, PAGE);
+  assert.equal(found[0].url, 'https://records-finder.test/opt-out');
+  assert.equal(found[0].route, ROUTE.REMOVAL);
+  const policy = found.find((f) => /privacy-policy/.test(f.url));
+  assert.ok(found[0].score > policy.score, 'the policy must never be offered first');
+});
+
+test('navigation links are not mistaken for removal routes', () => {
+  const found = findOptOutLinks(footer, PAGE);
+  const urls = found.map((f) => f.url);
+  assert.ok(!urls.includes('https://records-finder.test/about'));
+  assert.ok(!urls.includes('https://records-finder.test/'));
+  assert.ok(!urls.includes('https://records-finder.test/contact'), 'a support page is not a removal route');
+});
+
+test('a URL path alone is enough when the link text is unhelpful', () => {
+  const found = findOptOutLinks(
+    [{ href: 'https://records-finder.test/do-not-sell-my-info', text: 'Click here' }], PAGE,
+  );
+  assert.equal(found[0].route, ROUTE.DO_NOT_SELL);
+});
+
+test('link text alone is enough when the URL is opaque', () => {
+  const found = findOptOutLinks(
+    [{ href: 'https://records-finder.test/x/9f2a', text: 'Remove my information' }], PAGE,
+  );
+  assert.equal(found[0].route, ROUTE.REMOVAL);
+});
+
+test('a brand containing "privacy" is not treated as a privacy route', () => {
+  const found = findOptOutLinks(
+    [{ href: 'https://privacyshieldhosting.test/pricing', text: 'Hosting' }], PAGE,
+  );
+  assert.equal(found.length, 0, 'the hostname must not be searched for these words');
+});
+
+test('an off-site privacy portal is ranked lower, not discarded', () => {
+  const found = findOptOutLinks([
+    { href: 'https://privacyportal.onetrust.test/webform/dsar', text: 'Submit a privacy request' },
+    { href: 'https://records-finder.test/privacy-policy', text: 'Privacy Policy' },
+  ], PAGE);
+  const portal = found.find((f) => /onetrust/.test(f.url));
+  assert.ok(portal, 'third-party consent platforms are a legitimate route');
+  assert.equal(portal.sameSite, false);
+  assert.ok(portal.score > found.find((f) => /privacy-policy/.test(f.url)).score);
+});
+
+test('a privacy mailbox counts; a support mailbox does not', () => {
+  const found = findOptOutLinks([
+    { href: 'mailto:support@records-finder.test', text: 'Email us' },
+    { href: 'mailto:privacy@records-finder.test', text: 'Privacy team' },
+  ], PAGE);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].route, ROUTE.PRIVACY_CONTACT);
+  assert.match(found[0].url, /privacy@/);
+});
+
+test('the same route linked twice is offered once', () => {
+  const found = findOptOutLinks([
+    { href: 'https://records-finder.test/opt-out', text: 'Opt out' },
+    { href: 'https://records-finder.test/opt-out/', text: 'Opt Out' },
+  ], PAGE);
+  assert.equal(found.length, 1);
+});
+
+test('no links means no route, not a guessed one', () => {
+  const found = findOptOutLinks([], PAGE);
+  assert.equal(found.length, 0, 'inventing /opt-out here is how a confident 404 happens');
+});
+
+test('fallback searches are separately answerable, never one OR-soup', () => {
+  const qs = optOutSearches('xome.com');
+  assert.ok(qs.length >= 4);
+  for (const q of qs) {
+    assert.ok(!/\bOR\b/.test(q.text), `"${q.text}" mixes OR groups — engines return nothing for these`);
+    assert.ok(q.why, 'every query says why it is worth running');
+  }
+  assert.match(qs[0].text, /^site:xome\.com/);
+  // At least one must not use site:, for the common case of an unindexed page.
+  assert.ok(qs.some((q) => !q.text.startsWith('site:')));
+});
+
+test('no fallback searches without a domain', () => {
+  assert.deepEqual(optOutSearches(''), []);
 });
 
 /* ================================================================ report */
