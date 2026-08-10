@@ -43,6 +43,7 @@ import { recheckDate } from '../src/agent.js';
 import { explainExposure } from '../src/core/explain.js';
 import { findOptOutLinks, optOutSearches, ROUTE } from '../src/core/optout.js';
 import { bulkRemovalFor, coveredByBulk, PROGRAM } from '../src/core/bulk-removal.js';
+import { readConsoleExport, mergeExposures, looksLikeConsoleExport } from '../src/core/handoff.js';
 
 let passed = 0;
 let failed = 0;
@@ -1639,6 +1640,120 @@ test('coverage is worded as an expectation, never a guarantee', () => {
   const c = coveredByBulk({ removability: { category: CATEGORY.BROKER } }, bulkRemovalFor(inCA));
   assert.ok(!/\bis covered\b|\bwill be deleted\b|\bguarantee/i.test(c.why),
     'only the register says who is registered — an unregistered broker is exactly the one still publishing you');
+});
+
+/* ======================================== console → agent handoff */
+
+const consoleExport = {
+  answers: { fullName: 'Padmanabhan Iyer', address: '738 Bantry Ct Sunnyvale CA 94087', phone: '(415) 555-0142' },
+  profile: { names: [{ value: 'STALE NAME FROM AN OLD BUILD' }] },
+  exposures: [
+    { url: 'https://records-finder.test/a', matchScore: 0.93, status: STATE.CONFIRMED_EXPOSURE, fields: ['address'] },
+    { url: 'https://other-broker.test/b', matchScore: 0.88, status: STATE.PENDING_REMOVAL, history: [{ to: STATE.CONFIRMED_EXPOSURE, at: '2026-08-01T00:00:00Z' }] },
+    { url: 'https://not-me.test/c', matchScore: 0.2, status: STATE.FALSE_MATCH },
+    { url: 'https://court.test/d', matchScore: 0.9, status: STATE.NOT_REMOVABLE },
+    { url: 'not-a-url', matchScore: 0.9, status: STATE.CONFIRMED_EXPOSURE },
+    { url: 'https://unscored.test/e', status: STATE.CONFIRMED_EXPOSURE },
+  ],
+};
+
+test('a console export is recognised, and other JSON is not', () => {
+  assert.equal(looksLikeConsoleExport(consoleExport), true);
+  for (const junk of [null, 'text', 42, [], { unrelated: true }]) {
+    assert.equal(looksLikeConsoleExport(junk), false, `${JSON.stringify(junk)} must be rejected`);
+  }
+  const bad = readConsoleExport({ unrelated: true });
+  assert.equal(bad.ok, false);
+  assert.match(bad.warnings[0], /does not look like a Privacy Console export/);
+});
+
+test('records the user rejected are never imported', () => {
+  const r = readConsoleExport(consoleExport);
+  assert.ok(!r.exposures.some((e) => /not-me\.test/.test(e.url)),
+    'importing a known false match would file a removal against a stranger');
+  assert.ok(r.skipped.some((s) => /not-me\.test/.test(s.url)));
+  assert.ok(r.warnings.some((w) => /somebody else/.test(w)));
+});
+
+test('unusable records are skipped with a reason, not silently dropped', () => {
+  const r = readConsoleExport(consoleExport);
+  const reasons = Object.fromEntries(r.skipped.map((s) => [s.url, s.why]));
+  assert.match(reasons['not-a-url'], /no usable URL/);
+  assert.match(reasons['https://unscored.test/e'], /unscored/);
+});
+
+test('"submitted" is never inherited from the browser', () => {
+  const r = readConsoleExport(consoleExport);
+  const pending = r.exposures.find((e) => /other-broker/.test(e.url));
+  assert.equal(pending.status, STATE.CONFIRMED_EXPOSURE,
+    'the agent must witness a submission itself, not take the browser\'s word');
+  assert.deepEqual(pending.history, consoleExport.exposures[1].history, 'but the history is kept');
+});
+
+test('"not removable" survives, because it is a finding rather than a claim', () => {
+  const r = readConsoleExport(consoleExport);
+  assert.equal(r.exposures.find((e) => /court\.test/.test(e.url)).status, STATE.NOT_REMOVABLE);
+});
+
+test('imported records are flagged as leads to verify, not pages the agent read', () => {
+  const r = readConsoleExport(consoleExport);
+  for (const e of r.exposures) {
+    assert.equal(e.fromSnippet, true);
+    assert.equal(e.importedFrom, 'web-console');
+  }
+});
+
+test('the profile is rebuilt from answers, never trusted from the file', () => {
+  const r = readConsoleExport(consoleExport);
+  assert.deepEqual(r.answers, consoleExport.answers);
+  assert.ok(!('profile' in r), 'a stale serialized profile must not cross the bridge');
+});
+
+test('an export with no answers says so instead of wiping the vault profile', () => {
+  const r = readConsoleExport({ exposures: [] });
+  assert.equal(r.ok, true);
+  assert.equal(r.answers, null);
+  assert.ok(r.warnings.some((w) => /keep the profile it already has/.test(w)));
+});
+
+test('an import never resets a removal the agent already filed', () => {
+  const existing = [{ url: 'https://records-finder.test/a', status: STATE.PENDING_REMOVAL, caseNumber: 'AB-1' }];
+  const { exposures, added, kept } = mergeExposures(existing, readConsoleExport(consoleExport).exposures);
+  const same = exposures.find((e) => /records-finder\.test/.test(e.url));
+  assert.equal(same.status, STATE.PENDING_REMOVAL, 'filing twice because of an import is a real harm');
+  assert.equal(same.caseNumber, 'AB-1');
+  assert.equal(kept, 1);
+  assert.ok(added >= 2);
+});
+
+test('merging is case-insensitive on the URL', () => {
+  const { added } = mergeExposures(
+    [{ url: 'https://Records-Finder.test/a', status: STATE.PENDING_REMOVAL }],
+    [{ url: 'https://records-finder.test/a', status: STATE.CONFIRMED_EXPOSURE }],
+  );
+  assert.equal(added, 0);
+});
+
+test('an exposure with no risk score gets one, rather than sinking the queue', () => {
+  const r = readConsoleExport(consoleExport);
+  for (const e of r.exposures) {
+    assert.equal(typeof e.risk?.score, 'number', `${e.url} arrived without a usable risk score`);
+    assert.ok(e.risk.band);
+  }
+});
+
+test('a risk score already computed in the browser is kept', () => {
+  const r = readConsoleExport({
+    answers: { fullName: 'X' },
+    exposures: [{ url: 'https://a.test/1', matchScore: 0.9, status: STATE.CONFIRMED_EXPOSURE, risk: { score: 77, band: 'high', explanation: 'from the console' } }],
+  });
+  assert.equal(r.exposures[0].risk.score, 77);
+  assert.equal(r.exposures[0].risk.explanation, 'from the console');
+});
+
+test('the summary counts what the agent can actually act on', () => {
+  const r = readConsoleExport(consoleExport);
+  assert.match(r.summary, /3 exposures imported, 2 ready/);
 });
 
 /* ================================================================ report */

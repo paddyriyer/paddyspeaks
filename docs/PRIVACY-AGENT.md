@@ -21,6 +21,18 @@ add a Node import (`fs`, `path`, `crypto`) to anything under `core/`** — it
 breaks the web app instantly and silently. What the browser cannot do is drive
 Chrome or submit forms; that stays in the CLI.
 
+That split is enforced by the platform, not chosen. A page may not fill in or
+submit a form on another origin — the same rule that stops any tab you have open
+posting from your bank — so the console stops at the submit button and the
+removal engine is the CLI. `privacy-agent import <file.json>` carries a console
+session across (profile, verified exposures and all) so `run --mission` can file
+them for real. See `core/handoff.js`. The bridge is one-directional and refuses
+to inherit `pending_removal` or `successfully_removed` from the browser: the
+agent must witness a submission itself, because those two states are precisely
+what this project will not take on trust. Records the user rejected never cross,
+since filing a removal against a stranger is the worst thing this software
+could do.
+
 ### What must never be centralised
 
 **No identity dossier is ever stored off the user's machine.** Thousands of

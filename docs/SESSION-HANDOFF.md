@@ -56,6 +56,16 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
     console says so and falls back to the paste flow; it never scrapes result
     pages. See the warning in `wrangler.toml` — a plaintext var is wiped on the
     next Git-integrated deploy.
+  - **The website never submits anything, and cannot.** A page may not fill in
+    or submit a form on another origin — same-origin policy, the rule that stops
+    any open tab posting from your bank. So the console stops at the submit
+    button by law of the platform, not by choice, and the removal engine is the
+    CLI. `privacy-agent import <export.json>` carries a console session into the
+    vault (`core/handoff.js`), then `run --mission` files the requests. The
+    bridge deliberately refuses to inherit a `pending_removal` or
+    `successfully_removed` status from the browser: the agent must witness a
+    submission itself, since those two states are exactly what this project
+    will not take on trust. Rejected records never cross.
   - The CLI additionally drives real Chromium and submits forms, which a static
     page cannot. Verified end-to-end against a local fixture broker with a real
     opt-out form: real submission, case number + processing window parsed,
