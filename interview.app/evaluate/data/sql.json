@@ -13820,6 +13820,22 @@
       ],
       "answer": 0,
       "explanation": "DISTINCT ON in PostgreSQL must reference columns in the ORDER BY clause before any non-deterministic columns. Option 0 correctly orders by user_id first (matching the DISTINCT ON column), then by created_at DESC to get the most recent event per user. The other options either violate DISTINCT ON syntax rules or don't preserve the timestamp column in results."
+    },
+    {
+      "id": "sql-new-061",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-08-12",
+      "prompt": "In BigQuery, you're querying a table with nested STRUCT and REPEATED fields. You execute:\n\n```sql\nSELECT\n  user_id,\n  ARRAY_LENGTH(events) as event_count,\n  events.event_name,\n  user_profile.age\nFROM users\nWHERE event_timestamp > TIMESTAMP('2025-01-01')\n```\n\nwhere `events` is a REPEATED STRUCT with fields `event_name` and `event_timestamp`, and `user_profile` is a STRUCT with field `age`. What is the primary issue with this query?",
+      "options": [
+        "The query will fail because you cannot reference nested fields directly without UNNEST; BigQuery will throw a 'field not found' error.",
+        "The query will run but return incorrect results because the WHERE clause is evaluated before the nested arrays are unnested, filtering at the wrong level.",
+        "The query is valid; BigQuery automatically flattens REPEATED fields in the SELECT clause and applies WHERE to the lowest level of nesting.",
+        "The ARRAY_LENGTH function requires the SAFE prefix in BigQuery or the query will error on NULL arrays."
+      ],
+      "answer": 0,
+      "explanation": "BigQuery requires explicit UNNEST to work with REPEATED fields in joins or cross joins. Referencing `events.event_name` directly without UNNEST will fail because the query engine cannot correlate array elements to outer rows. The correct approach is `SELECT user_id, ARRAY_LENGTH(events) FROM users, UNNEST(events) as e WHERE e.event_timestamp > ...`."
     }
   ]
 }
