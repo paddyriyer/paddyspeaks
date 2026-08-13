@@ -1,9 +1,26 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-08-10. This file is the running memory between Claude Code
+_Last updated: 2026-08-12. This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-08-12, latest): article "Consequences Don't Transfer" shipped.**
+  Supplied as one flat infographic PNG plus a self-contained HTML draft with all
+  16 images inlined as sloppy base64 crops (label chips duplicated, neighbouring
+  panels bleeding in, captions clipped). Both files had junk names and are gone.
+  - Artwork now lives in `images/articles/consequences-dont-transfer/` — 22
+    re-trimmed WebP files on exact panel boundaries, plus the untouched
+    `source-infographic.png` and a 1200x630 `share-card.png`.
+  - The hero elephant and the five "why advice fails" icons have their cream
+    paper knocked out (border-connected flood fill), so they float on the page.
+    Do not re-flatten them onto a white box.
+  - Case strips are a **justified flex row**: `--ar` on each `.ps-shot` is the
+    frame's true aspect ratio, which gives all three a shared height with zero
+    cropping. If you add a frame, set its `--ar` or the row will go ragged.
+  - Page went 2.0 MB -> ~91 KB of HTML. Never re-inline the images as base64.
+  - Re-crop script kept out of the repo; boundaries are documented by the
+    filenames themselves.
 
 - **NEW (2026-08-10, latest): hosted removal is PLANNED BUT GATED — read
   `docs/HOSTED-REMOVAL.md` before writing a line of it.** The natural next ask
