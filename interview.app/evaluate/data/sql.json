@@ -13836,6 +13836,22 @@
       ],
       "answer": 0,
       "explanation": "BigQuery requires explicit UNNEST to work with REPEATED fields in joins or cross joins. Referencing `events.event_name` directly without UNNEST will fail because the query engine cannot correlate array elements to outer rows. The correct approach is `SELECT user_id, ARRAY_LENGTH(events) FROM users, UNNEST(events) as e WHERE e.event_timestamp > ...`."
+    },
+    {
+      "id": "sql-new-062",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-08-13",
+      "prompt": "In BigQuery, you have a table `events(user_id STRING, event_time TIMESTAMP, event_type STRING)` with billions of rows. You run this query:\n\n```sql\nSELECT\n  user_id,\n  COUNT(*) as event_count,\n  ARRAY_AGG(event_type IGNORE NULLS ORDER BY event_time LIMIT 100) as recent_events\nFROM events\nWHERE event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)\nGROUP BY user_id\n```\n\nWhich statement best describes this query's behavior and performance implications in BigQuery?",
+      "options": [
+        "The query will fail because ARRAY_AGG cannot use ORDER BY and LIMIT together in BigQuery.",
+        "The query groups events by user, aggregates the last 100 events per user (ordered by time) into an array, and is efficient because BigQuery's columnar storage handles array aggregation well with pushdown filtering on event_time.",
+        "The query is inefficient because ARRAY_AGG will materialize all events in memory before applying LIMIT 100, even though the WHERE clause filters to 30 days.",
+        "The query will succeed but the ORDER BY inside ARRAY_AGG is ignored; BigQuery only respects ORDER BY at the top level SELECT."
+      ],
+      "answer": 1,
+      "explanation": "BigQuery's ARRAY_AGG supports ORDER BY and LIMIT as window-like modifiers within the aggregation function, making this query both valid and performant. The WHERE clause pushes down to filter on event_time before aggregation, and the LIMIT 100 is applied per group efficiently. The columnar storage means BigQuery doesn't materialize all rows before limiting\u2014it applies the ORDER BY and LIMIT logically during aggregation."
     }
   ]
 }
