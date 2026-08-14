@@ -13852,6 +13852,22 @@
       ],
       "answer": 1,
       "explanation": "BigQuery's ARRAY_AGG supports ORDER BY and LIMIT as window-like modifiers within the aggregation function, making this query both valid and performant. The WHERE clause pushes down to filter on event_time before aggregation, and the LIMIT 100 is applied per group efficiently. The columnar storage means BigQuery doesn't materialize all rows before limiting\u2014it applies the ORDER BY and LIMIT logically during aggregation."
+    },
+    {
+      "id": "sql-new-063",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-08-14",
+      "prompt": "You have a `customer_snapshot` table in Snowflake with columns `customer_id INT, email TEXT, last_updated TIMESTAMP`. You receive a daily batch of 50,000 customer records in a `staging_customers` table with the same schema. You want to upsert: insert new customers and update existing ones only if the staging row is newer. Which MERGE statement correctly implements this, using `customer_id` as the match key?",
+      "options": [
+        "MERGE INTO customer_snapshot cs USING staging_customers sc ON cs.customer_id = sc.customer_id WHEN MATCHED AND sc.last_updated > cs.last_updated THEN UPDATE SET cs.email = sc.email, cs.last_updated = sc.last_updated WHEN NOT MATCHED THEN INSERT (customer_id, email, last_updated) VALUES (sc.customer_id, sc.email, sc.last_updated);",
+        "MERGE INTO customer_snapshot cs USING staging_customers sc ON cs.customer_id = sc.customer_id WHEN MATCHED THEN UPDATE SET cs.email = sc.email, cs.last_updated = sc.last_updated WHEN NOT MATCHED THEN INSERT VALUES (sc.customer_id, sc.email, sc.last_updated);",
+        "INSERT INTO customer_snapshot SELECT * FROM staging_customers WHERE customer_id NOT IN (SELECT customer_id FROM customer_snapshot) UNION ALL UPDATE customer_snapshot SET email = staging_customers.email WHERE customer_snapshot.customer_id = staging_customers.customer_id AND staging_customers.last_updated > customer_snapshot.last_updated;",
+        "MERGE INTO customer_snapshot USING staging_customers ON customer_snapshot.customer_id = staging_customers.customer_id WHEN MATCHED THEN DELETE WHEN NOT MATCHED THEN INSERT SELECT * FROM staging_customers;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is the only syntactically correct MERGE statement that properly handles both the insert and conditional update cases. The key difference is the `WHEN MATCHED AND sc.last_updated > cs.last_updated` clause, which ensures updates only occur when the staging row is actually newer, preventing stale data from overwriting recent values. Options 1 and 2 lack this temporal condition or have syntax errors, and option 3 uses DELETE instead of the required logic."
     }
   ]
 }
