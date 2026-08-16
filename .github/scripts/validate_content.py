@@ -36,7 +36,7 @@ ARTICLES = ROOT / "articles"
 METADATA = ROOT / "article_metadata.json"
 
 REQUIRED_KEYS = ("title", "date", "category", "slug")
-KNOWN_CATEGORIES = {"philosophy", "technology", "ai"}
+KNOWN_CATEGORIES = {"philosophy", "technology", "ai", "personality"}
 
 errors: list[str] = []
 warnings: list[str] = []

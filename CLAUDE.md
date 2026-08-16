@@ -65,3 +65,8 @@ Use existing articles as reference. Key elements:
 - `philosophy` — Spiritual, sacred texts, Vedanta
 - `technology` — Data, software, enterprise
 - `ai` — Artificial intelligence
+- `personality` — Personality development: leadership, boundaries, self-worth
+
+Adding a category means touching five places: `KNOWN_CATEGORIES` in
+`.github/scripts/validate_content.py`, and in `index.html` the nav-bar link, the
+deck filter button, the hash allow-list, and `catLabels` in the search engine.
