@@ -26,7 +26,9 @@ TODAY = str(date.today())
 
 ID_PREFIXES = {"python": "py", "sql": "sql", "design": "ds"}
 
-# Map Google Form topic values → internal topic keys
+# Map Google Form topic values → internal topic keys. The form lets people type
+# their own topic, so this can never be exhaustive — anything unrecognised falls
+# back to ROUTING (below) rather than being dropped.
 TOPIC_MAP = {
     "python": "python",
     "sql": "sql",
@@ -34,7 +36,53 @@ TOPIC_MAP = {
     "system design": "design",
     "system design / architecture": "design",
     "data engineering / system design": "design",
+    "data modelling": "design",
+    "data modeling": "design",
+    "modelling": "design",
+    "modeling": "design",
+    "dimensional modelling": "design",
+    "dimensional modeling": "design",
+    "architecture": "design",
+    "data architecture": "design",
+    "etl": "design",
+    "pipelines": "design",
+    "data quality": "design",
+    "governance": "design",
+    "dashboarding": "design",
+    "dashboards": "design",
+    "bi": "design",
+    "visualization": "design",
+    "visualisation": "design",
+    "analytics": "design",
+    "spark": "python",
+    "pyspark": "python",
+    "pandas": "python",
+    "database": "sql",
+    "databases": "sql",
 }
+
+# Unknown topic labels are routed on the wording of the question itself, and
+# land in "design" if nothing matches. Silently dropping a submission is worse
+# than filing it in the wrong bank — a mis-filed question is still visible and
+# still answerable; a dropped one is gone, because its row is marked processed.
+ROUTING = [
+    ("sql", re.compile(r"\b(select|group by|join|window function|cte|partition by|"
+                       r"having|sql|query plan)\b", re.I)),
+    ("python", re.compile(r"\b(python|pandas|pyspark|dataframe|numpy|list|dict|"
+                          r"generator|decorator)\b", re.I)),
+]
+DEFAULT_TOPIC = "design"
+
+
+def route_topic(topic_raw, raw_question):
+    """Resolve a form topic label to a question bank. Never returns None."""
+    topic = TOPIC_MAP.get(topic_raw)
+    if topic:
+        return topic, False
+    for candidate, pattern in ROUTING:
+        if pattern.search(raw_question):
+            return candidate, True
+    return DEFAULT_TOPIC, True
 
 SYSTEM = """You are an expert data engineering interviewer.
 A community member submitted a raw interview question they encountered.
@@ -188,11 +236,9 @@ def main():
             processed.add(key)
             continue
 
-        topic = TOPIC_MAP.get(topic_raw)
-        if not topic:
-            print(f"  SKIP — unknown topic '{topic_raw}'")
-            processed.add(key)
-            continue
+        topic, guessed = route_topic(topic_raw, raw_question)
+        if guessed:
+            print(f"  NOTE — unmapped topic '{topic_raw}', routed to '{topic}'")
 
         print(f"  Processing {topic} question: {raw_question[:60]}…")
 
