@@ -22,6 +22,13 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
   - `source: "community"` is what lights up the ◆ Community badge in the quiz
     engine and floats the question on `/interview.app/whats-new/`. Anything
     added by hand from the sheet must carry it.
+  - **Skill Check counts were 2 years stale** (`791` in the title/meta/schema
+    vs `1656` actual, "4-section" vs six sections) because nothing refreshed
+    them. `interview/scripts/update_counts.py` now derives Skill Check pool
+    sizes from `interview.app/evaluate/data/*.json` too, and both question
+    workflows (`weekly-questions.yml`, `ingest-submissions.yml`) run it before
+    committing. Also fixed: the prerender lede said "…Snowflake and 107 other
+    companies" when 107 is the total including the 8 it just named.
 
 - **NEW (2026-08-12, latest): article "Consequences Don't Transfer" shipped.**
   Supplied as one flat infographic PNG plus a self-contained HTML draft with all

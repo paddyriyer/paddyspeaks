@@ -25,6 +25,33 @@ COS = mf["companies"]
 SQL_N = mf["languages"].get("sql", 0)
 PY_N = mf["languages"].get("python", 0)
 
+# The Skill Check (interview.app/evaluate/) is a different dataset from the
+# question bank above — its pools live as one JSON file per section. Its SEO
+# copy is hardcoded too, so count the pools here and keep those strings honest.
+EVAL_DATA = ROOT / "interview.app" / "evaluate" / "data"
+EVAL_SECTIONS = {
+    "sql": "sql",
+    "python": "python",
+    "design": "design",
+    "topics2026": "hot-topics-2026",
+    "ai": "ai",
+    "communication": "communication",
+}
+
+
+def eval_counts() -> dict[str, int]:
+    counts = {}
+    for key, stem in EVAL_SECTIONS.items():
+        path = EVAL_DATA / f"{stem}.json"
+        if path.exists():
+            counts[key] = len(json.loads(path.read_text()).get("questions", []))
+    return counts
+
+
+EVAL = eval_counts()
+EVAL_TOTAL = sum(EVAL.values())
+EVAL_SECTION_N = len(EVAL)
+
 # Each tuple is (regex, replacement). The regex is anchored on a keyword
 # adjacent to the number so plain "710" elsewhere in the codebase isn't
 # touched by accident.
@@ -61,9 +88,10 @@ SUBS = [
     (re.compile(r"\b\d+\s+companies\s+including\b"),
      f"{COS} companies including"),
 
-    # "and 108 other companies" (prerender lede)
+    # "and 99 other companies" (prerender lede) — the sentence names 8
+    # companies first, so "other" is COS minus those 8, not COS.
     (re.compile(r"\band\s+\d+\s+other\s+companies\b"),
-     f"and {COS} other companies"),
+     f"and {COS - 8} other companies"),
 
     # SQL playground titles
     (re.compile(r"\b\d+\s+Real\s+SQL\s+Interview\s+Questions\b"),
@@ -113,6 +141,31 @@ FILES = [
     "interview.app/README.md",
 ]
 
+# Skill Check pages. Kept on their own list with their own substitutions —
+# the bank totals above must never leak into these strings, and vice versa.
+EVAL_SUBS = [
+    (re.compile(r"\b\d+-Question Bank\b"), f"{EVAL_TOTAL}-Question Bank"),
+    (re.compile(r"\b\d+(-section (?:auto-graded )?skill assessment)"),
+     lambda m: f"{EVAL_SECTION_N}{m.group(1)}"),
+    (re.compile(r"\b\d+ (questions across SQL)"),
+     lambda m: f"{EVAL_TOTAL} {m.group(1)}"),
+    (re.compile(r"\bSQL \(\d+ questions\)"), f"SQL ({EVAL.get('sql', 0)} questions)"),
+    (re.compile(r"\bPython \(\d+ questions\)"), f"Python ({EVAL.get('python', 0)} questions)"),
+    (re.compile(r"\b(Data (?:&amp;|&) System Design) \(\d+ questions\)"),
+     lambda m: f"{m.group(1)} ({EVAL.get('design', 0)} questions)"),
+    (re.compile(r"\b(2026 Hot Topics) \(\d+ questions"),
+     lambda m: f"{m.group(1)} ({EVAL.get('topics2026', 0)} questions"),
+    (re.compile(r"\b(AI Engineering) \(\d+ questions\)"),
+     lambda m: f"{m.group(1)} ({EVAL.get('ai', 0)} questions)"),
+    (re.compile(r"\b(Communication) \(\d+ questions\)"),
+     lambda m: f"{m.group(1)} ({EVAL.get('communication', 0)} questions)"),
+]
+
+EVAL_FILES = [
+    "interview.app/evaluate/index.html",
+    "interview.app/evaluate/quiz.html",
+]
+
 
 def main():
     for rel in FILES:
@@ -132,7 +185,25 @@ def main():
             print(f"update {rel}")
         else:
             print(f"clean  {rel}")
+
+    for rel in EVAL_FILES:
+        path = ROOT / rel
+        if not path.exists():
+            print(f"skip   {rel} (missing)")
+            continue
+        src = path.read_text()
+        new = src
+        for rgx, repl in EVAL_SUBS:
+            new = rgx.sub(repl, new)
+        if new != src:
+            path.write_text(new)
+            print(f"update {rel}")
+        else:
+            print(f"clean  {rel}")
+
     print(f"\nCurrent counts → {TOTAL} questions · {COS} companies · sql {SQL_N} · python {PY_N}")
+    print(f"Skill Check    → {EVAL_TOTAL} questions across {EVAL_SECTION_N} sections · "
+          + " · ".join(f"{k} {v}" for k, v in EVAL.items()))
 
 
 if __name__ == "__main__":

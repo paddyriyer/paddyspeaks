@@ -54,11 +54,16 @@ jobs:
           RUN_MODE: ${{ steps.mode.outputs.mode }}
         run: python .github/scripts/generate_questions.py
 
+      # Pool sizes are baked into the Skill Check's title, meta description and
+      # schema.org block. Without this the counts drift every single run.
+      - name: Refresh hardcoded counts
+        run: python3 interview/scripts/update_counts.py
+
       - name: Commit and push
         run: |
           git config user.name "PaddySpeaks Bot"
           git config user.email "bot@paddyspeaks.com"
-          git add interview.app/evaluate/data/
+          git add interview.app/evaluate/data/ interview.app/evaluate/index.html interview.app/evaluate/quiz.html
           git diff --cached --quiet && echo "No changes" && exit 0
           COUNT=$(git diff --cached --stat | grep -oP '\d+ insertion' | grep -oP '\d+' || echo "?")
           git commit -m "🤖 [${{ steps.mode.outputs.mode }}] Add new interview questions — $(date +%Y-%m-%d)"
