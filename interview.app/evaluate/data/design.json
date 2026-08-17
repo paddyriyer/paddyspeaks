@@ -5512,6 +5512,54 @@
       ],
       "answer": 2,
       "explanation": "Option 2 (dual topics) is simple but creates operational sprawl and coordination overhead. Option 1 (BACKWARD mode) allows new fields but doesn't enforce minimum schema versions for consumers, risking old code reading new fields incorrectly. Option 3 is correct: BACKWARD_TRANSITIVE ensures that new schemas can be read by old consumers (new fields default to null, old fields always present); explicit minimum version declarations in consumer configs let teams opt into new fields asynchronously; Schema Registry enforces this automatically. This matches data mesh's autonomy principle\u2014payments can evolve independently, consumers upgrade at their own pace."
+    },
+    {
+      "id": "ds-new-053",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "You're building a real-time payment settlement pipeline using Kafka and Flink. Payments must be idempotent\u2014retrying a failed transaction twice should only debit the account once. Your Flink job writes results to a PostgreSQL ledger table with a compound key (payment_id, idempotency_key). However, Flink's checkpoint mechanism can fail mid-write. Which combination ensures exactly-once semantics end-to-end?",
+      "options": [
+        "Enable Flink's 'exactly-once' checkpoint mode + PostgreSQL UNIQUE constraint on (payment_id, idempotency_key) + committing offsets only after DB write succeeds",
+        "Use Kafka transactions to batch 100 payments per transaction + Flink at-least-once mode + rely on PostgreSQL's CHECK constraint for deduplication",
+        "Write to PostgreSQL with BEGIN...COMMIT wrapping each payment + enable Flink's idempotent sink + use Kafka's offset auto-commit",
+        "Implement a distributed transaction coordinator (Saga pattern) + Flink exactly-once + PostgreSQL serializable isolation level"
+      ],
+      "answer": 0,
+      "explanation": "Exactly-once semantics requires: (1) Flink's exactly-once checkpointing to prevent duplicate processing, (2) a unique constraint to catch any duplicates from retries, and (3) offset commits only after persistent writes succeed to avoid data loss. Option 3's auto-commit defeats the purpose; option 1's Saga is overkill and doesn't guarantee idempotence; option 2's at-least-once contradicts exactly-once requirements."
+    },
+    {
+      "id": "ds-new-054",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-08-17",
+      "prompt": "Your dbt project has 200+ models organized by: staging (raw data), intermediate (joins), marts (final tables), and utilities. A new analyst queries `stg_customers` directly in a BI tool instead of the modeled `fct_customers` mart, causing metric divergence. Which dbt best practice prevents this in future?",
+      "options": [
+        "Mark staging models as `materialized: ephemeral` in dbt_project.yml so they only exist in lineage graphs, not as queryable tables",
+        "Add `config(tags=['staging'])` to staging models and use dbt meta tags in BI tool governance policies to restrict access",
+        "Implement a pre-commit hook that fails if queries reference models tagged `staging` or contain the `stg_` prefix",
+        "Use dbt's `persist_docs` feature with descriptions in YAML, then configure your data warehouse to hide all schemas except `marts`"
+      ],
+      "answer": 0,
+      "explanation": "Ephemeral models are compiled as CTEs and never materialized as tables, making them impossible to query directly. This enforces the dependency chain: staging \u2192 intermediate \u2192 marts. Options 1 (tags) and 3 (pre-commit) are governance layers, not enforcement; option 4 requires warehouse-specific config and doesn't scale across teams."
+    },
+    {
+      "id": "ds-new-055",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "Your organization is adopting data mesh with decentralized ownership: the 'Payments' domain owns transactions, 'Marketing' owns campaigns, and 'Analytics' consumes both. The Payments team stores data in Kafka (7-day retention) but Marketing needs 90-day historical campaigns joined with transactions. Marketing claims they need direct Kafka access; Payments prefers serving a curated data product. What's the best mesh pattern?",
+      "options": [
+        "Payments publishes a data product (Delta table on S3) with transaction history via a data catalog; Marketing subscribes and pulls daily increments for their own warehouse",
+        "Grant Marketing read access to Payments' Kafka topic and let them manage their own retention policy to avoid coupling",
+        "Create a centralized data lake where Payments writes transactions nightly and Marketing queries with a service account, bypassing domain silos",
+        "Payments replicates Kafka to a shared PostgreSQL table with read replicas for each consumer domain"
+      ],
+      "answer": 0,
+      "explanation": "A data product (curated table/API) published by the domain owner is the data mesh standard\u2014it defines a contract, enforces SLAs, and decouples consumers from technical details. Option 1 respects domain ownership while serving Marketing's need for history. Option 2 breaks isolation by giving direct access; option 3 recreates the centralized anti-pattern; option 4's read-replicas introduce coupling and maintenance overhead."
     }
   ]
 }

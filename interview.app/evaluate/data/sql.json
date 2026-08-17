@@ -13868,6 +13868,70 @@
       ],
       "answer": 0,
       "explanation": "Option 0 is the only syntactically correct MERGE statement that properly handles both the insert and conditional update cases. The key difference is the `WHEN MATCHED AND sc.last_updated > cs.last_updated` clause, which ensures updates only occur when the staging row is actually newer, preventing stale data from overwriting recent values. Options 1 and 2 lack this temporal condition or have syntax errors, and option 3 uses DELETE instead of the required logic."
+    },
+    {
+      "id": "sql-new-064",
+      "type": "single",
+      "topic": "COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-08-17",
+      "prompt": "You have a schema: `customer(id INT, preferred_email TEXT, fallback_email TEXT, phone TEXT)`. Many rows have NULL in `preferred_email`. You need to return a single contact field per customer, prioritizing `preferred_email`, then `fallback_email`, then `phone`. If all three are NULL, return 'NO_CONTACT'. Which query is correct?",
+      "options": [
+        "SELECT id, COALESCE(preferred_email, fallback_email, phone, 'NO_CONTACT') AS contact FROM customer;",
+        "SELECT id, CASE WHEN preferred_email IS NOT NULL THEN preferred_email WHEN fallback_email IS NOT NULL THEN fallback_email WHEN phone IS NOT NULL THEN phone ELSE 'NO_CONTACT' END AS contact FROM customer;",
+        "SELECT id, IFNULL(preferred_email, IFNULL(fallback_email, IFNULL(phone, 'NO_CONTACT'))) AS contact FROM customer;",
+        "SELECT id, NVL(preferred_email, NVL(fallback_email, NVL(phone, 'NO_CONTACT'))) AS contact FROM customer;"
+      ],
+      "answer": 0,
+      "explanation": "COALESCE returns the first non-NULL argument in its list, making it the idiomatic choice for this exact use case. While the CASE statement (option 1) and NVL/IFNULL chains would also work, COALESCE is the most concise and standard SQL solution for multi-level fallback logic."
+    },
+    {
+      "id": "sql-new-065",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "In Snowflake, you run: `BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 5; SELECT balance FROM accounts WHERE id = 5;` in one session, and in another session simultaneously run: `SELECT balance FROM accounts WHERE id = 5;` The first session has not yet committed. Under Snowflake's default transaction isolation level, what will the second session observe?",
+      "options": [
+        "The second session will see the updated balance because Snowflake uses READ UNCOMMITTED by default.",
+        "The second session will see the original balance because Snowflake uses SERIALIZABLE isolation and blocks the read until commit.",
+        "The second session will see the original balance because Snowflake uses READ COMMITTED (snapshot isolation) and reads from a previous snapshot.",
+        "The second session will hang indefinitely waiting for the transaction to complete."
+      ],
+      "answer": 2,
+      "explanation": "Snowflake's default isolation level is READ COMMITTED (also called Snapshot Isolation in Snowflake). Each query reads from a consistent snapshot of data as of the query start time, so uncommitted changes are invisible to other sessions. This prevents dirty reads while maintaining concurrency."
+    },
+    {
+      "id": "sql-new-066",
+      "type": "single",
+      "topic": "NULLIF",
+      "difficulty": "medium",
+      "added_date": "2026-08-17",
+      "prompt": "You have a schema: `metrics(event_name TEXT, value INT, previous_value INT)`. You want to calculate the percentage change, but when `previous_value` equals `value`, you want the result to be NULL instead of dividing by zero or returning 0. Which expression is most appropriate?",
+      "options": [
+        "SELECT event_name, CASE WHEN previous_value = value THEN NULL ELSE (value - previous_value) / previous_value END AS pct_change FROM metrics;",
+        "SELECT event_name, (value - previous_value) / NULLIF(previous_value, value) AS pct_change FROM metrics;",
+        "SELECT event_name, (value - previous_value) / NULLIF(previous_value, 0) AS pct_change FROM metrics;",
+        "SELECT event_name, COALESCE((value - previous_value) / previous_value, NULL) AS pct_change FROM metrics;"
+      ],
+      "answer": 1,
+      "explanation": "NULLIF(previous_value, value) returns NULL when previous_value equals value, and otherwise returns previous_value. This directly handles the requirement: when values are equal, division by NULL produces NULL; otherwise division proceeds normally. Option 0 is verbose but equivalent; options 2 and 3 do not address the actual requirement."
+    },
+    {
+      "id": "sql-new-067",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "You are loading 50 GB of raw events into a Snowflake table daily via `INSERT INTO events SELECT ... FROM @staging_stage;`. After two weeks, query performance degrades significantly despite no schema changes. You investigate and notice the table has a clustering key on `user_id`. Which statement best explains the degradation?",
+      "options": [
+        "Snowflake's micro-partition clustering decays naturally over time; you must run OPTIMIZE TABLE daily to maintain performance.",
+        "The clustering key index has become fragmented; you need to rebuild it using ALTER TABLE REBUILD CLUSTERING KEY.",
+        "New inserted data is added to new micro-partitions that do not yet respect the clustering key order; over time, if inserts are unsorted relative to the key, clustering depth increases and pruning becomes less effective.",
+        "Snowflake automatically re-clusters tables, but this process is paused after 14 days unless you explicitly enable auto-clustering."
+      ],
+      "answer": 2,
+      "explanation": "Snowflake does not guarantee that newly inserted data will be sorted according to the clustering key. If daily inserts are random relative to user_id, new micro-partitions accumulate out of order. Clustering depth increases, reducing the effectiveness of partition pruning. OPTIMIZE can help, but the root cause is insertion order. Auto-clustering (if enabled) may eventually correct this, but it is not automatic and has costs."
     }
   ]
 }
