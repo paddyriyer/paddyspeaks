@@ -36,6 +36,7 @@ EVAL_SECTIONS = {
     "topics2026": "hot-topics-2026",
     "ai": "ai",
     "communication": "communication",
+    "dashboarding": "dashboarding",
 }
 
 
@@ -149,6 +150,10 @@ EVAL_SUBS = [
      lambda m: f"{EVAL_SECTION_N}{m.group(1)}"),
     (re.compile(r"\b\d+ (questions across SQL)"),
      lambda m: f"{EVAL_TOTAL} {m.group(1)}"),
+    (re.compile(r"\b\d+ (skill-assessment pools)"),
+     lambda m: f"{EVAL_SECTION_N} {m.group(1)}"),
+    (re.compile(r"\b(Dashboarding (?:&amp;|&) BI) \(\d+ questions\)"),
+     lambda m: f"{m.group(1)} ({EVAL.get('dashboarding', 0)} questions)"),
     (re.compile(r"\bSQL \(\d+ questions\)"), f"SQL ({EVAL.get('sql', 0)} questions)"),
     (re.compile(r"\bPython \(\d+ questions\)"), f"Python ({EVAL.get('python', 0)} questions)"),
     (re.compile(r"\b(Data (?:&amp;|&) System Design) \(\d+ questions\)"),

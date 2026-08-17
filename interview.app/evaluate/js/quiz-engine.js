@@ -17,6 +17,7 @@ const SECTIONS = {
   topics2026: { slug: "topics2026", label: "2026 Hot Topics", file: "./data/hot-topics-2026.json" },
   ai:     { slug: "ai",     label: "AI Engineering", file: "./data/ai.json" },
   communication: { slug: "communication", label: "Communication", file: "./data/communication.json" },
+  dashboarding: { slug: "dashboarding", label: "Dashboarding & BI", file: "./data/dashboarding.json" },
 };
 
 const params = new URLSearchParams(window.location.search);
