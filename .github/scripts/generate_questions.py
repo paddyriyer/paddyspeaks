@@ -13,9 +13,9 @@ DATA_DIR = "interview.app/evaluate/data"
 
 # How many questions to add per topic per run
 COUNTS = {
-    "daily":   {"python": 1, "sql": 1, "design": 0},
-    "weekly":  {"python": 3, "sql": 4, "design": 3},
-    "monthly": {"python": 5, "sql": 5, "design": 5},
+    "daily":   {"python": 1, "sql": 1, "design": 0, "dashboarding": 0},
+    "weekly":  {"python": 3, "sql": 4, "design": 3, "dashboarding": 2},
+    "monthly": {"python": 5, "sql": 5, "design": 5, "dashboarding": 4},
 }
 
 TOPIC_HINTS = {
@@ -39,9 +39,21 @@ TOPIC_HINTS = {
         "data observability", "dbt best practices", "Airflow patterns",
         "cost optimization", "data vault", "reverse ETL"
     ],
+    "dashboarding": [
+        "chart selection", "non-additive measures", "semantic layer",
+        "metric definitions and governance", "join fan-out in BI models",
+        "aggregate awareness", "extracts vs live connections",
+        "dashboard caching and cache warming", "row-level security",
+        "high-cardinality filters", "incremental refresh",
+        "date-range and time-zone handling", "drill-down vs drill-through",
+        "real-time OLAP serving layers", "Power BI DAX filter context",
+        "Tableau order of operations and LOD expressions",
+        "Looker symmetric aggregates", "dashboard test data and environments",
+        "usage telemetry and dashboard certification", "accessibility"
+    ],
 }
 
-ID_PREFIXES = {"python": "py", "sql": "sql", "design": "ds"}
+ID_PREFIXES = {"python": "py", "sql": "sql", "design": "ds", "dashboarding": "dash"}
 
 SYSTEM = """You are an expert data engineering interviewer writing multiple-choice quiz questions.
 Generate realistic, specific questions that a senior data engineer would encounter in interviews at

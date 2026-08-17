@@ -1,0 +1,898 @@
+{
+  "section": "dashboarding",
+  "title": "Dashboarding & BI Skill Check",
+  "tagline": "Chart choice, grain and non-additive measures, semantic layers, filters and date ranges, dashboard performance, non-prod test data, row-level security and BI tooling internals",
+  "duration_minutes": 30,
+  "passing_score": 70,
+  "quiz_length": 18,
+  "questions": [
+    {
+      "id": "dash-001",
+      "type": "single",
+      "topic": "Chart Selection",
+      "difficulty": "easy",
+      "prompt": "A dashboard needs to compare one metric \u2014 revenue \u2014 across 14 product categories for a single period. Which encoding reads fastest and most accurately?",
+      "options": [
+        "A horizontal bar chart sorted by value",
+        "A pie chart with 14 slices",
+        "A radar chart with one axis per category",
+        "A treemap sized by revenue"
+      ],
+      "answer": 0,
+      "explanation": "Position along a common axis is the most accurately decoded visual channel; sorted horizontal bars also give long category labels room to breathe. Pie and radar force angle/area comparisons across too many categories, and a treemap is for part-to-whole with nesting, not precise ranking."
+    },
+    {
+      "id": "dash-002",
+      "type": "single",
+      "topic": "Chart Selection",
+      "difficulty": "easy",
+      "prompt": "Stakeholders want to see whether weekly signups are trending up over two years, and to spot the seasonal dip each December. Which chart fits?",
+      "options": [
+        "A line chart of weekly signups over time",
+        "A bar chart of total signups per year",
+        "A KPI tile showing signups vs last week",
+        "A scatter plot of signups vs week number"
+      ],
+      "answer": 0,
+      "explanation": "A line chart on a continuous time axis is built for trend and seasonality \u2014 the eye follows slope and repeats. Yearly bars destroy the within-year pattern, a single KPI tile shows no history, and a scatter drops the time ordering that makes seasonality visible."
+    },
+    {
+      "id": "dash-003",
+      "type": "single",
+      "topic": "Chart Selection",
+      "difficulty": "medium",
+      "prompt": "A team wants to show how a funnel's conversion rate differs across 8 countries AND across 6 months, on one chart. Which is the most readable option?",
+      "options": [
+        "A heatmap with countries on one axis, months on the other, colour by conversion rate",
+        "Eight overlaid line charts, one per country",
+        "A stacked bar chart with months stacked inside each country",
+        "A dual-axis chart with countries on the left axis and months on the right"
+      ],
+      "answer": 0,
+      "explanation": "Two categorical dimensions against one measure is exactly what a heatmap encodes \u2014 the reader scans rows and columns for hot spots. Eight overlaid lines become spaghetti, stacking a rate is meaningless (rates don't add), and dual axes compare unrelated scales."
+    },
+    {
+      "id": "dash-004",
+      "type": "single",
+      "topic": "Aggregation & Grain",
+      "difficulty": "medium",
+      "prompt": "A dashboard shows Average Order Value by region. When a viewer expands to country level and mentally averages the country numbers, the result doesn't match the region number. What is the underlying cause?",
+      "options": [
+        "AOV is a ratio, so it must be recomputed as SUM(revenue)/SUM(orders) at each level rather than averaged from lower levels",
+        "The region filter is applied after the aggregation instead of before",
+        "The country dimension has nulls that are silently dropped",
+        "The BI tool is caching stale results for the region view"
+      ],
+      "answer": 0,
+      "explanation": "Ratios are non-additive: averaging averages weights every country equally regardless of order volume. Store the additive components (revenue, orders) in the model and let the measure divide the sums at whatever grain the user lands on."
+    },
+    {
+      "id": "dash-005",
+      "type": "single",
+      "topic": "Aggregation & Grain",
+      "difficulty": "hard",
+      "prompt": "A BI model joins `orders` (1 row per order) to `order_items` (many rows per order). The revenue KPI, which sums `orders.order_total`, is now roughly 3x too high. What is the correct fix?",
+      "options": [
+        "Keep the two facts at their own grain and aggregate each separately, joining only through conformed dimensions",
+        "Add SELECT DISTINCT to the dashboard's query",
+        "Divide the revenue measure by the average number of items per order",
+        "Switch the join from LEFT to INNER"
+      ],
+      "answer": 0,
+      "explanation": "This is join fan-out: the one-to-many join duplicates the order row once per item, so summing an order-grain column over-counts. Model each fact at its own grain (Looker's symmetric aggregates and Power BI's separate fact tables both exist for this) rather than patching the number with DISTINCT or a fudge factor."
+    },
+    {
+      "id": "dash-006",
+      "type": "single",
+      "topic": "Aggregation & Grain",
+      "difficulty": "medium",
+      "prompt": "A stacked bar of sessions by traffic source totals 840k, but the KPI tile above it reads 902k sessions for the same filters. The most likely cause is:",
+      "options": [
+        "Sessions with a NULL traffic source are dropped by the colour dimension but counted in the tile",
+        "The KPI tile uses a different date column",
+        "The stacked bar is limited to the top 5 sources and the tile is not",
+        "The tile counts sessions while the bar counts users"
+      ],
+      "answer": 0,
+      "explanation": "Any of these can produce a mismatch, but a NULL in the colour/breakdown dimension silently removing rows is the classic one. Coalesce the dimension to an explicit 'Unknown' member in the model so every row lands somewhere and the parts sum to the whole."
+    },
+    {
+      "id": "dash-007",
+      "type": "multi",
+      "topic": "Aggregation & Grain",
+      "difficulty": "medium",
+      "prompt": "A dashboard total disagrees with the finance team's report for the same period. Which of these are plausible causes worth checking first? (Select all that apply)",
+      "options": [
+        "The dashboard's default date filter uses a different time zone than the source report",
+        "The dashboard measure is a non-additive ratio being summed or averaged across levels",
+        "The dashboard model deduplicates the fact at a different grain than the report",
+        "The dashboard is rendered in a different browser",
+        "One side includes cancelled or test transactions that the other excludes"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Reconciliation gaps almost always come from definition drift: time zone boundaries, non-additive measures, grain/dedup differences, and inclusion rules for cancellations, refunds and internal test accounts. The rendering client has no bearing on the numbers."
+    },
+    {
+      "id": "dash-008",
+      "type": "single",
+      "topic": "Semantic Layer & Metric Definitions",
+      "difficulty": "medium",
+      "prompt": "Two dashboards report different values for 'active users' because each analyst wrote their own SQL. What is the durable fix?",
+      "options": [
+        "Define the metric once in a governed semantic layer / metrics store that both dashboards consume",
+        "Add a footnote to each dashboard explaining its definition",
+        "Have both analysts copy the same SQL snippet into their dashboards",
+        "Make one dashboard the official one and delete the other"
+      ],
+      "answer": 0,
+      "explanation": "Copy-pasted SQL drifts the moment one copy is edited. A semantic layer (LookML, dbt metrics, Power BI shared datasets, Cube) makes the definition a single versioned artifact that every consumer resolves against."
+    },
+    {
+      "id": "dash-009",
+      "type": "single",
+      "topic": "Semantic Layer & Metric Definitions",
+      "difficulty": "medium",
+      "prompt": "The business changes the definition of 'churn' from 30 days inactive to 60. What does a well-governed BI stack make possible?",
+      "options": [
+        "Change the definition in one place, and see every dashboard that depends on it via lineage before you ship",
+        "Change each dashboard individually so nothing else is disturbed",
+        "Create a second metric and let each team pick",
+        "Rebuild the affected extracts and hope nothing downstream breaks"
+      ],
+      "answer": 0,
+      "explanation": "The value of a semantic layer is not just the single definition \u2014 it's the lineage that tells you the blast radius before the change lands. Parallel definitions with no owner are how the same word ends up meaning two things."
+    },
+    {
+      "id": "dash-010",
+      "type": "single",
+      "topic": "Filters & Date Ranges",
+      "difficulty": "medium",
+      "prompt": "A 'Last 30 days' filter shows different totals depending on who opens the dashboard and when. What is the most robust anchor for relative date filters?",
+      "options": [
+        "The warehouse's maximum loaded date (the pipeline watermark) in a fixed reporting time zone",
+        "The viewer's browser date in their local time zone",
+        "The dashboard server's system clock in UTC",
+        "The date the extract was last refreshed, in the viewer's time zone"
+      ],
+      "answer": 0,
+      "explanation": "Anchoring on the data's own watermark in one declared reporting time zone makes the window reproducible and stops a half-loaded final day from looking like a crash. Browser-local 'today' guarantees two viewers see different numbers."
+    },
+    {
+      "id": "dash-011",
+      "type": "single",
+      "topic": "Filters & Date Ranges",
+      "difficulty": "hard",
+      "prompt": "QA reports that the date-range filter 'works' but shows a suspicious dip on the last day of every selected range. What should you check first?",
+      "options": [
+        "Whether the range's end boundary is exclusive while the data includes same-day partial loads",
+        "Whether the chart's colour palette has enough contrast",
+        "Whether the extract refresh schedule overlaps business hours",
+        "Whether the filter control is a slider rather than a date picker"
+      ],
+      "answer": 0,
+      "explanation": "A trailing-day dip is the signature of either an exclusive/inclusive boundary mismatch or an incomplete final partition. Both are boundary bugs, which is exactly why date-range tests should include single-day, month-end, year-end and DST-crossing ranges."
+    },
+    {
+      "id": "dash-012",
+      "type": "multi",
+      "topic": "Filters & Date Ranges",
+      "difficulty": "medium",
+      "prompt": "Which date-range cases belong in a dashboard test plan? (Select all that apply)",
+      "options": [
+        "A range that returns zero rows",
+        "A single-day range",
+        "A range crossing a daylight-saving transition",
+        "A range spanning a fiscal-year boundary where the fiscal calendar differs from the calendar year",
+        "A range where the end date precedes the start date"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "explanation": "All five are real failure modes: empty states break layouts, single-day ranges break period-over-period comparisons, DST and fiscal boundaries break bucketing, and an inverted range should be handled gracefully rather than throwing."
+    },
+    {
+      "id": "dash-013",
+      "type": "single",
+      "topic": "Filters & Interactivity",
+      "difficulty": "medium",
+      "prompt": "A dashboard has 9 filters, all defaulting to 'All'. Users complain it is slow and confusing. The best first move is:",
+      "options": [
+        "Set sensible defaults that narrow the data, and demote rarely-used filters into a collapsed panel",
+        "Move all filters to the bottom of the page",
+        "Increase the extract refresh frequency",
+        "Convert every filter to a multi-select dropdown"
+      ],
+      "answer": 0,
+      "explanation": "Unfiltered defaults make the first query the most expensive one, and nine equal-weight controls give no guidance about which matter. Opinionated defaults plus progressive disclosure fix both the performance and the comprehension problem."
+    },
+    {
+      "id": "dash-014",
+      "type": "single",
+      "topic": "Filters & Interactivity",
+      "difficulty": "hard",
+      "prompt": "A slicer bound to `customer_id` with 480,000 distinct values takes several seconds to open. Why, and what is the right fix?",
+      "options": [
+        "High-cardinality slicers must scan and materialize the full distinct list \u2014 replace it with a type-ahead search parameter or a hierarchy that narrows first",
+        "The slicer is rendering in the wrong container \u2014 move it to the filter pane",
+        "The column needs a different data type \u2014 cast it to string",
+        "Increase the visual's row limit so it loads in one pass"
+      ],
+      "answer": 0,
+      "explanation": "Every distinct member has to be fetched and rendered before the control is usable. Search-driven parameters, or drilling region \u2192 account \u2192 customer, keep the control's working set small."
+    },
+    {
+      "id": "dash-015",
+      "type": "single",
+      "topic": "Dashboard Performance",
+      "difficulty": "easy",
+      "prompt": "A dashboard has 14 visuals, each issuing its own query against a 900-million-row raw fact table. Which change gives the largest speedup for the least effort?",
+      "options": [
+        "Build a pre-aggregated summary table at the grain the dashboard actually displays",
+        "Add a spinner so the wait feels shorter",
+        "Split the dashboard into two pages with 7 visuals each",
+        "Increase the BI tool's query timeout"
+      ],
+      "answer": 0,
+      "explanation": "Dashboards almost never need row-level detail on first paint. Aggregating to the displayed grain cuts the scanned volume by orders of magnitude; splitting pages just hides the cost and a longer timeout hides nothing."
+    },
+    {
+      "id": "dash-016",
+      "type": "single",
+      "topic": "Dashboard Performance",
+      "difficulty": "medium",
+      "prompt": "When is a live (direct query) connection preferable to an in-memory extract/import?",
+      "options": [
+        "When the data must be current to the minute, or the source is far too large to import",
+        "Whenever the dashboard has more than five visuals",
+        "Whenever the source database is a cloud warehouse",
+        "When the dashboard is shared with more than 50 users"
+      ],
+      "answer": 0,
+      "explanation": "Extracts win on speed and isolation; live connections win on freshness and on datasets too big to hold in memory. A common hybrid is an imported aggregate for the summary with drill-through going live to detail."
+    },
+    {
+      "id": "dash-017",
+      "type": "single",
+      "topic": "Dashboard Performance",
+      "difficulty": "medium",
+      "prompt": "Business users open a dashboard at 8am and always hit a cold cache. What is the standard remedy?",
+      "options": [
+        "Schedule cache warming \u2014 run the dashboard's common queries before business hours",
+        "Ask users to open the dashboard twice",
+        "Disable caching so every query is consistent",
+        "Reduce the number of colours in each visual"
+      ],
+      "answer": 0,
+      "explanation": "Cache warming (Looker's scheduled datagroups, Power BI's scheduled refresh plus query caching, Tableau's subscription-triggered warm-up) trades a little off-peak compute for a fast first impression."
+    },
+    {
+      "id": "dash-018",
+      "type": "single",
+      "topic": "Dashboard Performance",
+      "difficulty": "hard",
+      "prompt": "A BI tool issues one query per visual per filter change \u2014 40+ queries on every interaction \u2014 and the warehouse bill has doubled. Which approach addresses the root cause?",
+      "options": [
+        "Consolidate onto a shared aggregate model so visuals resolve from the same cached result set, and enable query fusion/result reuse",
+        "Move the dashboard to a larger warehouse cluster",
+        "Set every visual to refresh on a timer instead of on interaction",
+        "Ask users to change fewer filters"
+      ],
+      "answer": 0,
+      "explanation": "The fix is fewer, broader queries with reuse \u2014 a shared aggregate the visuals slice locally, plus the engine's result-reuse feature. Scaling the cluster pays the same bill faster; timers make the problem constant rather than interactive."
+    },
+    {
+      "id": "dash-019",
+      "type": "open",
+      "topic": "Dashboard Performance",
+      "difficulty": "medium",
+      "prompt": "A dashboard that used to load in 3 seconds now takes 45. Walk me through how you diagnose it.",
+      "model_answer": "Work the layers in order, and measure before changing anything.\n\n**1. Confirm and scope it.** Is it every visual or one? Every user or one region? Every filter combination or a specific one? A single slow visual points at a query; a uniformly slow page points at the model, the cache, or the source.\n\n**2. Read the tool's own telemetry.** Every BI platform exposes per-visual timings \u2014 Power BI Performance Analyzer, Tableau's Performance Recording, Looker's History/Explore query log. That splits the total into query time, rendering time and tool overhead, which immediately tells you whether to look at the warehouse or the layout.\n\n**3. Take the generated SQL to the warehouse.** Run it directly, read the query plan, look at bytes scanned versus bytes returned. Common findings: partition pruning stopped working after a filter changed; the aggregate table was silently bypassed; a join fanned out; statistics went stale.\n\n**4. Ask what changed.** Data volume growth, a new column, a schema change that broke aggregate awareness, a new filter default, more concurrent users, a warehouse resize, or an extract that quietly started failing so the dashboard fell back to live. Correlate the slowdown's start date with deploys and pipeline changes.\n\n**5. Check the rendering side too.** A visual returning 50,000 marks is slow to draw no matter how fast the query is \u2014 high-cardinality scatter plots and giant tables are frequent culprits.\n\n**6. Fix at the lowest layer that solves it**, then re-measure: pre-aggregate to the displayed grain, restore partition pruning, reduce marks, cut visual count on first paint, warm the cache. Add a guardrail so the regression is caught next time \u2014 assert p95 query time in CI against a production-scale environment.",
+      "key_points": [
+        "Scopes the problem (which visuals, which users, which filters) before touching anything",
+        "Uses the BI tool's own performance profiler to split query time from render time",
+        "Reads the generated SQL and its plan in the warehouse \u2014 bytes scanned, partition pruning, fan-out",
+        "Asks what changed: volume, schema, filter defaults, extract failures, concurrency",
+        "Considers mark count and rendering, not only the query",
+        "Ends with a regression guardrail, not just a one-off fix"
+      ]
+    },
+    {
+      "id": "dash-020",
+      "type": "single",
+      "topic": "Test Data & Environments",
+      "difficulty": "medium",
+      "prompt": "Dev and QA hold 20,000 rows; Production holds 400 million. Which class of dashboard defect will this gap most reliably hide?",
+      "options": [
+        "Query performance and layout breakage under real cardinality and skew",
+        "Incorrect metric definitions",
+        "Broken hyperlinks between dashboards",
+        "Misspelled chart titles"
+      ],
+      "answer": 0,
+      "explanation": "Definition and copy errors surface at any volume. What only appears at scale is the slow query, the axis that can't fit 400 categories, the slicer that takes 8 seconds to open and the legend that overflows \u2014 all functions of volume, cardinality and skew."
+    },
+    {
+      "id": "dash-021",
+      "type": "single",
+      "topic": "Test Data & Environments",
+      "difficulty": "hard",
+      "prompt": "You need production-like data in QA without exposing PII. Which masking property matters most for dashboards specifically?",
+      "options": [
+        "Determinism \u2014 the same input always maps to the same token, so joins, distinct counts and group-bys still behave",
+        "That masked values are shorter than the originals, to save storage",
+        "That every masked column uses a different algorithm",
+        "That masking runs after the data is exported to QA"
+      ],
+      "answer": 0,
+      "explanation": "Non-deterministic masking breaks referential integrity: joins miss, distinct counts change and every grouped visual becomes wrong. Masking must also happen inside the production boundary \u2014 exporting raw data and cleaning it later has already leaked it."
+    },
+    {
+      "id": "dash-022",
+      "type": "single",
+      "topic": "Test Data & Environments",
+      "difficulty": "medium",
+      "prompt": "Which combination gives QA both correctness coverage and performance coverage?",
+      "options": [
+        "A referentially intact masked subset for correctness, amplified with synthetic rows to production scale for performance, plus curated edge-case fixtures",
+        "A random 5% sample of every table taken independently",
+        "Fully synthetic data generated from the schema alone",
+        "A nightly copy of production with column-level encryption applied on read"
+      ],
+      "answer": 0,
+      "explanation": "A per-table random sample shreds referential integrity; schema-only synthetic data is too clean to surface real skew. The hybrid keeps real structure, reaches real volume, and still pins the nasty cases you can't rely on finding by chance."
+    },
+    {
+      "id": "dash-023",
+      "type": "open",
+      "topic": "Test Data & Environments",
+      "difficulty": "medium",
+      "prompt": "When building and testing data dashboards, a common problem is that Dev and QA environments lack the data quality, structural complexity, and sheer volume of Production. This makes it difficult to validate chart layouts, test date-range filters, and catch query performance issues early.\n\nHow would you approach solving this problem? Specifically, what conversations, strategies, tools, or pipelines would you implement to ensure non-production environments have realistic, high-volume data for dashboard validation without compromising data security?",
+      "model_answer": "The trap in this question is treating it as one problem. It is three needs pulling in different directions, plus one hard constraint.\n\n**Separate the needs**\n\n\u2022 **Structural realism** \u2014 referential integrity, real cardinality and skew, messy strings, nulls, late-arriving rows. This is what breaks chart layouts and filter logic.\n\u2022 **Volume** \u2014 production-scale row counts and partition spread. This is what surfaces slow queries and missing indexes.\n\u2022 **Edge cases** \u2014 empty result sets, a single-day range, a leap day, DST boundaries, fiscal-year vs calendar-year, a customer with a 90-character name, a category with 400 distinct values.\n\u2022 **The constraint** \u2014 no production PII in lower environments, ever.\n\n**Conversations before tooling**\n\nStart with security, privacy and legal: what data classes may leave the production boundary, what masking is acceptable, and does masked data still count as confidential (usually yes). Then data owners for sign-off, QA for what they actually need to test, and platform/FinOps for the cost of a full-volume environment. The output is a written policy \u2014 allowed classes, masking standard, refresh cadence, who approves \u2014 because without it every refresh becomes a negotiation.\n\n**The strategy I would recommend: hybrid**\n\n1. **Masked subset for correctness.** Take a referentially coherent slice (e.g. 5% of customers with *all* their related rows, not a random 5% of every table) and mask inside the production boundary before anything is exported. Use **deterministic, format-preserving masking** \u2014 the same input always maps to the same token, so joins and distinct counts survive and dashboards still group correctly. Tools: Tonic.ai, Delphix, Redgate Data Masking, or native features (Snowflake masking policies plus zero-copy clone, Databricks column masks, AWS DMS + Glue).\n2. **Synthetic amplification for volume.** Generate to production scale on top of that skeleton, preserving the real *distributions* \u2014 skew, cardinality, seasonality, null rates \u2014 because dashboards fall over on skew, not on row count alone. Tools: SDV, Gretel, Faker/Mimesis for simple cases, or a dbt/Spark generator seeded from a production profile.\n3. **Curated edge-case fixtures.** A small hand-built \"golden dataset\" that deliberately contains the nasty cases, kept in version control and used for regression tests on specific charts.\n\nSubsetting alone leaves you blind to performance; synthetic alone tends to be too clean and misses real-world structure. The combination covers both.\n\n**Pipeline and automation**\n\n\u2022 Scheduled refresh (nightly for dev subset, weekly for the full-volume QA environment) as a proper job with alerting, not a manual export.\n\u2022 Masking runs *inside* production \u2014 never export raw and clean it later.\n\u2022 Seed the generator so runs are reproducible and test failures are diagnosable.\n\u2022 Schema-drift detection: when production DDL changes, the refresh job should fail loudly rather than silently produce a stale shape.\n\u2022 Profile-based data quality checks (Great Expectations / Soda) comparing distributions in non-prod against the production profile, so \"realistic\" is measured, not assumed.\n\n**Catching performance early**\n\nRun the dashboard's *actual* generated queries against the full-volume environment in CI, capture query plans, and assert thresholds (p95 query time, bytes scanned). Test the date-range filters explicitly across boundaries \u2014 empty range, one day, three years, fiscal year end, DST, leap day. The full-volume environment can be ephemeral: spin it up before a release and tear it down after, which is usually how you get budget approval.\n\n**Security details that separate a strong answer**\n\nNo production credentials in lower environments; RBAC and row-level security replicated so those rules are tested too; audit access to the masked environment; check re-identification risk on quasi-identifiers (postcode + DOB + gender is not anonymous) rather than only masking names; and never \"mask\" by shuffling a single column \u2014 the correlations give it away.\n\n**In one line:** masked, referentially intact subset for correctness, synthetic amplification for volume, curated fixtures for edge cases, all automated behind a policy the security team signed off on.",
+      "key_points": [
+        "Separates structural realism, volume and edge cases as distinct needs",
+        "Starts with the security/legal conversation and a written policy, not with a tool",
+        "Deterministic, format-preserving masking applied inside the production boundary",
+        "Referentially intact subsetting rather than per-table random sampling",
+        "Synthetic amplification that preserves real distributions and skew",
+        "Automated refresh, seeded generation, schema-drift detection",
+        "Performance assertions in CI and explicit date-boundary tests",
+        "Re-identification risk on quasi-identifiers, not just name masking"
+      ],
+      "source": "community",
+      "added_date": "2026-08-17"
+    },
+    {
+      "id": "dash-024",
+      "type": "single",
+      "topic": "Dashboard Testing & Release",
+      "difficulty": "medium",
+      "prompt": "What does a practical regression test suite for dashboards assert?",
+      "options": [
+        "That a fixed golden dataset produces known metric values, and that key visuals still render within a time budget",
+        "That the dashboard's colours match the brand guide",
+        "That every user can log in",
+        "That the underlying tables have no NULLs anywhere"
+      ],
+      "answer": 0,
+      "explanation": "Pin the inputs and assert the outputs: known totals from a versioned fixture catch definition drift, and a render/query time budget catches performance regressions. Screenshot diffing can be layered on top for layout, but the number assertions are what stop silent wrongness."
+    },
+    {
+      "id": "dash-025",
+      "type": "single",
+      "topic": "Security & Access",
+      "difficulty": "medium",
+      "prompt": "Regional managers must each see only their own region. Where does that rule belong?",
+      "options": [
+        "In row-level security at the data or semantic layer, keyed to the authenticated user's identity",
+        "As a default filter on the dashboard, set to the manager's region",
+        "In a separate copy of the dashboard per region",
+        "In the export settings, so downloads are filtered"
+      ],
+      "answer": 0,
+      "explanation": "A dashboard filter is a display preference \u2014 the viewer can change it, and the underlying query already returned everything. RLS enforced where the query executes is the only version that survives an inquisitive user, an export or a direct dataset connection."
+    },
+    {
+      "id": "dash-026",
+      "type": "multi",
+      "topic": "Security & Access",
+      "difficulty": "hard",
+      "prompt": "Which of these genuinely reduce PII exposure through a dashboard? (Select all that apply)",
+      "options": [
+        "Enforcing row-level security in the semantic layer, evaluated per authenticated user",
+        "Masking or tokenizing identifier columns before they reach the BI model",
+        "Aggregating to a grain where individuals cannot be singled out, with a minimum-group-size rule",
+        "Hiding the column in the visual while leaving it in the underlying dataset",
+        "Auditing who viewed and exported which dashboard"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Hiding a field in the visual layer is cosmetic \u2014 the data is still in the model and reachable by export, tooltip or a direct connection. The other four act where the data actually lives or record who touched it."
+    },
+    {
+      "id": "dash-027",
+      "type": "single",
+      "topic": "Freshness & Refresh",
+      "difficulty": "medium",
+      "prompt": "What should a dashboard's 'Last updated' indicator show?",
+      "options": [
+        "The pipeline's data watermark \u2014 the timestamp of the newest data actually loaded",
+        "The time the page was rendered in the browser",
+        "The scheduled refresh time, whether or not it succeeded",
+        "The time the dashboard file was last edited"
+      ],
+      "answer": 0,
+      "explanation": "Users need to know how current the *data* is. Render time and a scheduled slot both stay reassuringly green when the load silently failed; the watermark is the only one that goes stale when the data does."
+    },
+    {
+      "id": "dash-028",
+      "type": "single",
+      "topic": "Freshness & Refresh",
+      "difficulty": "hard",
+      "prompt": "A Power BI dataset uses incremental refresh partitioned by date. Records are occasionally corrected up to 10 days after the fact. What must the configuration account for?",
+      "options": [
+        "A refresh window that re-processes at least the last 10 days, so late corrections are picked up",
+        "Increasing the dataset's row limit",
+        "Switching the partition column to a surrogate key",
+        "Disabling incremental refresh during month end"
+      ],
+      "answer": 0,
+      "explanation": "Incremental refresh only re-reads the partitions inside its rolling window. If corrections arrive on a 10-day lag and the window is 2 days, those corrections never reach the model \u2014 the numbers quietly stay wrong."
+    },
+    {
+      "id": "dash-029",
+      "type": "single",
+      "topic": "Freshness & Refresh",
+      "difficulty": "medium",
+      "prompt": "A nightly extract failed at 2am. What behaviour is most useful to the business?",
+      "options": [
+        "The dashboard keeps showing yesterday's data with a visible staleness warning, and the owner is alerted",
+        "The dashboard shows an empty state until the extract succeeds",
+        "The dashboard silently falls back to a live query against production",
+        "The dashboard shows the last successful data with no indication of its age"
+      ],
+      "answer": 0,
+      "explanation": "Stale-but-labelled beats both blank and silently-stale. A silent live fallback is worse still: it changes the performance and cost profile without anyone knowing why the dashboard suddenly crawled."
+    },
+    {
+      "id": "dash-030",
+      "type": "single",
+      "topic": "Real-Time Dashboards",
+      "difficulty": "hard",
+      "prompt": "An operations dashboard must show sub-minute metrics over a Kafka stream. Which serving architecture fits?",
+      "options": [
+        "Stream into a real-time OLAP store (Druid, Pinot, ClickHouse) with pre-aggregated rollups the dashboard queries",
+        "Query the data lake's raw Parquet files directly on every dashboard refresh",
+        "Refresh a nightly extract more often, every 30 seconds",
+        "Have the dashboard subscribe to the Kafka topic directly from the browser"
+      ],
+      "answer": 0,
+      "explanation": "Real-time dashboards need a serving layer built for high-ingest, low-latency aggregate queries. Lake scans are far too slow per refresh, 30-second full extracts are wasteful and fragile, and browsers have no business consuming a raw topic."
+    },
+    {
+      "id": "dash-031",
+      "type": "single",
+      "topic": "Real-Time Dashboards",
+      "difficulty": "medium",
+      "prompt": "Before building a 'real-time' dashboard, which question matters most?",
+      "options": [
+        "What decision will someone make in the next minute that they cannot make with hourly data?",
+        "Which colour palette conveys urgency?",
+        "Which BI tool has the shortest refresh interval?",
+        "How many users will view it simultaneously?"
+      ],
+      "answer": 0,
+      "explanation": "Real-time infrastructure costs real money and real complexity. If no one acts inside the latency window, hourly batch delivers the same business value at a fraction of the cost \u2014 and 'real-time' becomes an alerting requirement, not a dashboard one."
+    },
+    {
+      "id": "dash-032",
+      "type": "single",
+      "topic": "Layout & Storytelling",
+      "difficulty": "easy",
+      "prompt": "Where should the single most important metric sit on a Western-audience dashboard?",
+      "options": [
+        "Top-left, where the eye lands first",
+        "Bottom-right, as the conclusion",
+        "Centred in the middle of the page",
+        "Anywhere \u2014 placement does not affect comprehension"
+      ],
+      "answer": 0,
+      "explanation": "Reading order is a design tool. Top-left is the first fixation for left-to-right readers, so the headline metric belongs there and supporting detail flows down and right."
+    },
+    {
+      "id": "dash-033",
+      "type": "single",
+      "topic": "Accessibility",
+      "difficulty": "easy",
+      "prompt": "A dashboard signals good/bad status using red and green fills only. What is the accessibility problem and the fix?",
+      "options": [
+        "Red-green colour blindness affects roughly 8% of men \u2014 add a shape, icon or text label so colour is not the only carrier of meaning",
+        "Red and green render slowly on mobile \u2014 use lighter fills",
+        "Red and green are not brand-compliant \u2014 use the corporate palette",
+        "There is no problem as long as the contrast ratio passes"
+      ],
+      "answer": 0,
+      "explanation": "Colour must be redundant, never load-bearing on its own. Pair it with an arrow, an icon or a written label \u2014 and check contrast separately, since passing contrast does not help someone who cannot distinguish the two hues."
+    },
+    {
+      "id": "dash-034",
+      "type": "single",
+      "topic": "Layout & Storytelling",
+      "difficulty": "medium",
+      "prompt": "A 12-tile desktop dashboard is opened mostly on phones. The best response is:",
+      "options": [
+        "Design a separate mobile layout carrying the 2-3 decisions that matter on a phone",
+        "Let the tiles shrink proportionally to fit the narrower screen",
+        "Add horizontal scrolling to the desktop layout",
+        "Tell users the dashboard is desktop-only"
+      ],
+      "answer": 0,
+      "explanation": "Shrinking makes every tile equally unreadable. Mobile is a different use case \u2014 a glance, not an analysis \u2014 so it deserves its own layout with a ruthless subset of content."
+    },
+    {
+      "id": "dash-035",
+      "type": "single",
+      "topic": "Layout & Storytelling",
+      "difficulty": "easy",
+      "prompt": "A KPI tile reads 'Revenue: $1.2M'. What single addition most improves it?",
+      "options": [
+        "A comparison \u2014 change versus the prior period or versus target",
+        "A larger font size",
+        "A background image related to revenue",
+        "The exact figure to the cent"
+      ],
+      "answer": 0,
+      "explanation": "A number without a reference point cannot be judged. Period-over-period change or progress to target turns a fact into a signal; precision to the cent and decoration add nothing at a glance."
+    },
+    {
+      "id": "dash-036",
+      "type": "single",
+      "topic": "Navigation & Drill",
+      "difficulty": "medium",
+      "prompt": "What distinguishes drill-down from drill-through?",
+      "options": [
+        "Drill-down moves to a finer level within the same hierarchy and visual; drill-through navigates to a different, detail-focused page filtered by the selected context",
+        "Drill-down is for numeric fields; drill-through is for text fields",
+        "Drill-down works only on extracts; drill-through only on live connections",
+        "They are the same feature under different vendor names"
+      ],
+      "answer": 0,
+      "explanation": "Drill-down is depth in place \u2014 year to quarter to month. Drill-through is a context handoff to another page, which is where you put the row-level detail you deliberately kept off the summary."
+    },
+    {
+      "id": "dash-037",
+      "type": "single",
+      "topic": "Governance & Adoption",
+      "difficulty": "medium",
+      "prompt": "An organization has 400 dashboards and nobody trusts any of them. Which intervention addresses the root cause?",
+      "options": [
+        "Certify a small set as authoritative, publish their metric definitions and owners, and retire unused dashboards using usage telemetry",
+        "Standardize every dashboard on the same colour palette",
+        "Migrate all dashboards to a newer BI tool",
+        "Give every employee edit access so they can fix errors themselves"
+      ],
+      "answer": 0,
+      "explanation": "Trust is a governance property: a named owner, a published definition and a visible certification mark. Usage telemetry supplies the evidence for what to retire, which is the half most organizations skip."
+    },
+    {
+      "id": "dash-038",
+      "type": "single",
+      "topic": "Governance & Adoption",
+      "difficulty": "medium",
+      "prompt": "A newly launched dashboard has almost no repeat usage after two weeks. What is the most informative first step?",
+      "options": [
+        "Interview the intended users about the decision they actually make, and check the usage logs for where they drop off",
+        "Add more charts so it covers more ground",
+        "Email a reminder to the distribution list",
+        "Rebuild it in a different BI tool"
+      ],
+      "answer": 0,
+      "explanation": "Low adoption is usually a mismatch between what the dashboard shows and the decision someone has to make. Logs tell you where attention dies; the interview tells you why. Adding charts to an unused dashboard adds unused charts."
+    },
+    {
+      "id": "dash-039",
+      "type": "single",
+      "topic": "Alerting",
+      "difficulty": "medium",
+      "prompt": "A team wants to be told when daily orders drop more than 20% week-over-week. Where should that live?",
+      "options": [
+        "As a metric-level alert in the pipeline or semantic layer, so it fires whether or not anyone opens the dashboard",
+        "As a red-highlighted tile on the dashboard",
+        "In the dashboard's scheduled email subscription",
+        "As a note in the dashboard description asking users to check daily"
+      ],
+      "answer": 0,
+      "explanation": "Dashboards are pull; alerts are push. A condition that requires action must fire on its own \u2014 a red tile only works if someone happens to be looking, which is precisely what you cannot assume."
+    },
+    {
+      "id": "dash-040",
+      "type": "single",
+      "topic": "BI Tooling Internals",
+      "difficulty": "hard",
+      "prompt": "In Looker, symmetric aggregates exist primarily to solve which problem?",
+      "options": [
+        "Correctly summing measures from a fact table that has been fanned out by a one-to-many join",
+        "Compressing large extracts in memory",
+        "Rendering charts symmetrically across a dashboard grid",
+        "Applying row-level security to joined tables"
+      ],
+      "answer": 0,
+      "explanation": "Symmetric aggregates let a measure stay correct after a join multiplies its rows, by aggregating over the primary key rather than the duplicated rows. It is the vendor's answer to the fan-out problem, not a layout or security feature."
+    },
+    {
+      "id": "dash-041",
+      "type": "single",
+      "topic": "BI Tooling Internals",
+      "difficulty": "hard",
+      "prompt": "In Power BI, a measure written as `DIVIDE(SUM(Sales[Revenue]), SUM(Sales[Orders]))` behaves correctly at every level of a matrix, while a calculated column computing revenue/orders per row does not. Why?",
+      "options": [
+        "The measure is evaluated within each cell's filter context, so it re-aggregates at whatever level is displayed; the calculated column is computed once per row at refresh and then summed",
+        "Calculated columns cannot use DIVIDE",
+        "Measures are cached and calculated columns are not",
+        "The calculated column is stored as text"
+      ],
+      "answer": 0,
+      "explanation": "This is the measure-versus-calculated-column distinction: measures recompute against the current filter context; calculated columns are materialized per row at refresh, so aggregating them afterwards averages ratios \u2014 the non-additive trap again."
+    },
+    {
+      "id": "dash-042",
+      "type": "single",
+      "topic": "BI Tooling Internals",
+      "difficulty": "hard",
+      "prompt": "In Tableau, a percent-of-total must be computed against the whole category even when a filter narrows the view. Which mechanism gives the correct denominator?",
+      "options": [
+        "A Fixed level-of-detail expression, which is computed before dimension filters are applied",
+        "A quick table calculation on the filtered result",
+        "A context filter applied after the LOD",
+        "Sorting the view by the measure"
+      ],
+      "answer": 0,
+      "explanation": "Tableau's order of operations is the whole answer: FIXED LODs are evaluated before dimension filters, so they hold the full-category denominator, whereas a table calculation only ever sees what survived the filters."
+    },
+    {
+      "id": "dash-043",
+      "type": "open",
+      "topic": "Stakeholder & Requirements",
+      "difficulty": "medium",
+      "prompt": "How do you decide what belongs on an executive dashboard versus an analyst dashboard?",
+      "model_answer": "Start from the decision, not the data. The two audiences differ in what they do next, and that dictates everything else.\n\n**Executive**\n\n\u2022 Answers \"are we on track, and where is the problem?\" \u2014 five to nine metrics, each with a target or a prior-period comparison.\n\u2022 Highly aggregated, heavily curated, stable over time so the layout itself becomes familiar and readable at a glance.\n\u2022 Every metric has an owner and a definition, because the follow-up question goes to a person, not to a filter.\n\u2022 Minimal interactivity \u2014 an executive should not have to configure anything to see the state of the business. One drill-through into the owning team's view is usually enough.\n\n**Analyst**\n\n\u2022 Answers \"why did that happen?\" \u2014 exploratory, granular, many dimensions and filters.\n\u2022 Access to atomic grain, or a clean path to it via drill-through, plus the ability to export and continue in SQL or a notebook.\n\u2022 Changes often, and that is fine \u2014 it is a working surface, not a published statement.\n\n**How I run the conversation**\n\nI ask three questions: what decision does this inform, what would make you act differently, and how often do you look? If the answer to the first is vague, the dashboard is decoration and I would rather find that out before building it. I also ask what they do today \u2014 the spreadsheet they maintain by hand is the real requirements document.\n\n**The trap to name**\n\nMerging both audiences into one dashboard serves neither: the executive drowns in filters, the analyst is starved of grain. Two surfaces over one governed semantic layer keeps the definitions identical while letting the presentation differ \u2014 which is exactly the point of having a semantic layer at all.",
+      "key_points": [
+        "Anchors on the decision each audience makes, not on the data available",
+        "Executive: few metrics, targets and comparisons, stable layout, low interactivity, named owners",
+        "Analyst: granular, exploratory, many dimensions, path to atomic detail and export",
+        "Asks what decision it informs, what would change behaviour, and how often they look",
+        "Names the trap of one dashboard for both audiences",
+        "Keeps one governed definition underneath both surfaces"
+      ]
+    },
+    {
+      "id": "dash-044",
+      "type": "open",
+      "topic": "Stakeholder & Requirements",
+      "difficulty": "hard",
+      "prompt": "A stakeholder tells you \"the numbers on this dashboard are wrong.\" Walk me through what you do.",
+      "model_answer": "Treat it as a reconciliation problem with a person attached \u2014 both halves matter.\n\n**1. Get specific, fast.** Which metric, which filters, which date range, which value did they expect, and where did the expected number come from? \"Wrong\" is a feeling until it is two numbers side by side. Ask for a screenshot with the filter state visible.\n\n**2. Reproduce it exactly.** Same filters, same user, same time. If it reproduces only for them, suspect row-level security, a personal bookmark, a saved filter state or a stale cached view \u2014 all of which are real bugs, just different ones.\n\n**3. Compare definitions before comparing data.** Most \"wrong number\" reports are definition mismatches: gross versus net, order date versus ship date, includes cancellations or not, time zone, currency conversion date, whether internal test accounts are excluded. Establish whose definition is authoritative before deciding which number is wrong \u2014 often neither is.\n\n**4. Then trace the pipeline.** Query the semantic layer, then the model, then the source, at the same grain and filters. Where the numbers diverge is where the defect is. Check the freshness watermark early \u2014 an unreported load failure explains a surprising number of these.\n\n**5. Close the loop honestly.** Tell them what the number is, why it differs from theirs, and which one is now authoritative. If the dashboard was wrong, say so plainly and state what changed. If their expectation was based on a different definition, document that definition where the metric is defined \u2014 not in a Slack reply that vanishes.\n\n**6. Make it not happen again.** Add the reconciliation as an automated test against a fixture, surface the definition on the dashboard itself (tooltip or info panel), and show the freshness watermark. A single unexplained wrong number costs more trust than ten correct dashboards earn.\n\n**Tone matters.** The person reporting it is doing you a favour. Defensiveness here is how organizations end up with 400 dashboards nobody trusts \u2014 people stop reporting problems and start building their own spreadsheet instead.",
+      "key_points": [
+        "Pins down metric, filters, date range, expected value and its source before investigating",
+        "Reproduces with the same user and filter state; considers RLS, saved state, caching",
+        "Checks definition mismatches (gross/net, date basis, cancellations, time zone, currency) first",
+        "Traces semantic layer \u2192 model \u2192 source at identical grain to localize the divergence",
+        "Checks the freshness watermark for a silent load failure",
+        "Closes the loop honestly and documents the authoritative definition",
+        "Adds a regression test and surfaces definition + freshness on the dashboard",
+        "Treats the reporter as an ally, not an adversary"
+      ]
+    },
+    {
+      "id": "dash-045",
+      "type": "open",
+      "topic": "Dashboard Design Process",
+      "difficulty": "medium",
+      "prompt": "You have been asked to build a dashboard from a one-line request: \"we need visibility into customer churn.\" What do you do before building anything?",
+      "model_answer": "A one-line request is a symptom, not a specification. I would spend the first conversation converting it into something buildable.\n\n**Questions I ask**\n\n\u2022 **Who is the audience and what will they do?** The retention team wanting to intervene on at-risk accounts and a VP wanting a monthly board number need completely different surfaces.\n\u2022 **What is churn, exactly?** Voluntary versus involuntary, contract non-renewal versus 60 days inactive, logo churn versus revenue churn. Get the definition agreed and written down \u2014 this is where the project succeeds or fails.\n\u2022 **At what grain and cadence?** Monthly cohort, weekly rolling, per-segment? Does anyone act daily?\n\u2022 **What is the decision threshold?** \"What number would make you do something different?\" If there is no such number, we are building a report, not a dashboard, and should say so.\n\u2022 **What exists today?** The spreadsheet someone maintains by hand is the real requirements document, and its owner is the person to bring along.\n\n**What I check before designing**\n\nSource availability and quality \u2014 do we have subscription state history, or only current state? Churn needs history; if the source overwrites, the model needs SCD Type 2 before any chart is possible. That constraint has to surface before a layout is promised.\n\n**How I de-risk the build**\n\nSketch the layout on paper or as a static mock with fake numbers and get sign-off on the *shape* before wiring data. Then build the metric in the semantic layer first, validate it against a known period the business already agrees on, and only then lay out visuals. Ship a narrow version to a few users, watch how they use it, and expand from evidence.\n\n**What I would push back on**\n\nA request for \"all the churn data\" with no decision attached. I would offer one number with a target and one drill path instead, and let usage tell us what to add next.",
+      "key_points": [
+        "Identifies audience and the specific decision before anything else",
+        "Forces an explicit, written definition of the metric (voluntary/involuntary, logo/revenue)",
+        "Establishes grain, cadence and the threshold that would trigger action",
+        "Finds the spreadsheet or process that exists today",
+        "Checks source data supports the metric \u2014 e.g. history/SCD2 for state changes",
+        "Mocks the layout and validates the metric against an agreed period before building",
+        "Ships narrow, observes usage, expands from evidence",
+        "Willing to say the request is a report, not a dashboard"
+      ]
+    },
+    {
+      "id": "dash-046",
+      "type": "open",
+      "topic": "Executive Dashboard Design",
+      "difficulty": "easy",
+      "prompt": "A VP wants a dashboard showing revenue, orders, average order value and year-over-year growth, broken down by region and product. How would you design it?",
+      "model_answer": "The request names four measures and two dimensions. The design work is deciding the hierarchy, not arranging the fields.\n\n**1. Establish the KPI hierarchy.** Revenue is the headline; orders and AOV explain it (revenue = orders x AOV, so they are the two levers); YoY growth is the judgement layer that turns a number into good or bad news. That gives a natural top row: four KPI tiles, each with its YoY delta and an arrow, revenue largest and leftmost.\n\n**2. One chart per question, below the tiles.**\n\u2022 Revenue trend by month with the prior year overlaid \u2014 answers \"are we improving?\"\n\u2022 Revenue by region as a sorted horizontal bar with a YoY delta per bar \u2014 answers \"where?\"\n\u2022 Top N products by revenue, with the rest rolled into \"Other\" \u2014 answers \"what?\"\nThree charts, each with a single job. Region x product detail belongs behind a drill-through, not on the summary.\n\n**3. Handle AOV correctly.** AOV is a ratio and therefore non-additive: define it as SUM(revenue)/SUM(orders) in the semantic layer so it recomputes at every level. Storing a per-row AOV and averaging it is the single most common bug in this exact dashboard.\n\n**4. Define YoY precisely.** Same calendar period versus same fiscal period, and how partial current periods are handled \u2014 an incomplete current month compared against a full prior month produces a fake collapse every month. Either compare like-for-like (month-to-date vs month-to-date) or mark the current period as partial.\n\n**5. Filters.** Date range (defaulting to something opinionated such as last 12 months), region, product category. Not fifteen filters \u2014 an executive should get the answer without configuring anything.\n\n**6. Non-negotiables.** A freshness watermark showing the newest loaded data; metric definitions available in a tooltip; a named owner; row-level security if regional VPs should see only their own region.\n\n**What I would confirm before building:** the fiscal calendar, currency handling if regions transact in different currencies (which conversion rate and as of when), and whether revenue means gross, net of refunds, or recognized revenue. Those three answers change the entire model, and none of them are visible in the original request.",
+      "key_points": [
+        "Builds an explicit KPI hierarchy: headline, explanatory levers, judgement layer",
+        "Recognizes revenue = orders x AOV and lays the tiles out accordingly",
+        "Treats AOV as non-additive \u2014 SUM/SUM in the semantic layer, never an average of averages",
+        "Pins down YoY semantics including partial current periods",
+        "One chart per question; region x product detail behind drill-through",
+        "Opinionated filter defaults instead of everything set to All",
+        "Freshness watermark, definitions, owner, row-level security",
+        "Surfaces the unasked questions: fiscal calendar, currency, gross vs net revenue"
+      ]
+    },
+    {
+      "id": "dash-047",
+      "type": "open",
+      "topic": "Funnel Analytics",
+      "difficulty": "easy",
+      "prompt": "Build a dashboard for an e-commerce funnel: visits \u2192 product views \u2192 cart \u2192 checkout \u2192 purchase. What would you show, and how would you identify where users are dropping?",
+      "model_answer": "**The core visual** is a funnel or a stepped bar showing absolute counts per stage, with two conversion numbers on each step: step-to-step conversion (cart \u2192 checkout) and cumulative conversion from the top (visits \u2192 purchase). Step-to-step is what you act on; cumulative is what leadership quotes.\n\n**Define the unit of analysis first.** Sessions or users? A funnel counted in sessions and a funnel counted in users give different answers and both are legitimate \u2014 but only one can be on the dashboard without a label. Also decide whether the funnel is strictly ordered (must have viewed a product to count as reaching cart) and what window it spans: same session, 24 hours, 7 days? Cross-session purchases silently vanish from a session-scoped funnel.\n\n**Where the drop-off actually gets identified: segmentation.** An aggregate funnel tells you the weakest step; it never tells you why. The dashboard needs the same funnel sliced by device (mobile checkout is a perennial offender), traffic source, new versus returning, geography, and product category. The pattern to look for is a step where one segment diverges sharply from the rest \u2014 that is where the defect or the friction lives.\n\n**Trend the conversion rates over time**, not just the current snapshot. A step that dropped 15% last Tuesday is a release; a step that has been sliding for three months is a product problem.\n\n**Supporting detail worth including:** time between steps (a lengthening cart-to-checkout gap often means a payment issue), a drop-off-reasons breakdown if the instrumentation supports it (e.g. payment declines), and the absolute count alongside every rate so a 40% conversion on 12 sessions is not read as a signal.\n\n**The trap to name in the interview:** funnel rates are ratios of instrumented events, so a tracking change to any single stage moves the conversion rate without any user behaviour changing at all. The dashboard should carry an event-volume sanity check per stage so an instrumentation break looks like an instrumentation break rather than a business result.",
+      "key_points": [
+        "Shows absolute counts plus both step-to-step and cumulative conversion",
+        "Defines the unit (sessions vs users), ordering, and the attribution window",
+        "Drop-off is found by segmentation \u2014 device, source, new/returning, geo, category",
+        "Trends conversion over time to separate a release from a slow decline",
+        "Includes time-between-steps and absolute denominators to avoid small-sample noise",
+        "Names the instrumentation risk: a tracking change moves the rate with no behaviour change",
+        "Adds per-stage event-volume sanity checks"
+      ]
+    },
+    {
+      "id": "dash-048",
+      "type": "open",
+      "topic": "Dashboard Redesign & Usability",
+      "difficulty": "easy",
+      "prompt": "A dashboard has 25 charts, 18 filters and six colour schemes, and users complain they cannot find anything. How would you redesign it?",
+      "model_answer": "This dashboard has no point of view. The redesign is mostly subtraction, and subtraction needs evidence so it does not become an argument.\n\n**1. Find out what is actually used.** Usage telemetry per visual and per filter, plus five short user interviews: what decision do you come here to make, and which chart do you look at first? Almost always a handful of visuals carry nearly all the attention and the rest are someone's old request that nobody removed.\n\n**2. Rebuild around one question per surface.** If the interviews reveal three distinct audiences, that is three dashboards over one governed model, not one dashboard with 18 filters. Trying to serve everyone in one page is the root cause, not the symptom.\n\n**3. Impose a visual hierarchy.** Top row: three to five KPI tiles with comparisons. Middle: two or three charts that explain the KPIs. Bottom or behind drill-through: detail and tables. Size and position should encode importance \u2014 right now everything is equally loud, which is the same as everything being silent.\n\n**4. Cut the palette to one.** A single sequential palette for magnitude, one accent colour reserved for the metric that matters, grey for context. Colour must mean one thing across the whole dashboard; six schemes means colour means nothing.\n\n**5. Reduce filters by an order of magnitude.** Keep the three or four that change the answer, give them sensible defaults rather than \"All\", and collapse the rest into an advanced panel. Every filter is a decision the user is forced to make before they see anything.\n\n**6. Ship it as a migration, not a surprise.** Publish the new version alongside the old, tell the affected users what moved and where, keep the old one read-only for a fixed window, then retire it. Deleting charts people quietly depend on is how a good redesign gets reverted.\n\n**How I would prove it worked:** time-to-first-insight in a quick usability test, and adoption/repeat-usage after four weeks \u2014 not the number of charts removed.",
+      "key_points": [
+        "Starts with usage telemetry and user interviews rather than opinion",
+        "Splits multiple audiences into separate surfaces over one governed model",
+        "Establishes a clear visual hierarchy \u2014 KPIs, explanation, detail",
+        "Reduces to one coherent palette where colour carries a single meaning",
+        "Cuts filters drastically and replaces All-defaults with opinionated ones",
+        "Runs it as a migration with a deprecation window and communication",
+        "Measures success by time-to-insight and adoption, not by charts deleted"
+      ]
+    },
+    {
+      "id": "dash-049",
+      "type": "open",
+      "topic": "Metric Governance & Reconciliation",
+      "difficulty": "medium",
+      "prompt": "Finance says monthly revenue is $48M, Sales says $52M and the BI dashboard says $50M. How would you investigate, and how would you prevent it happening again?",
+      "model_answer": "Three numbers usually mean three definitions, not three bugs. I would resist the urge to declare one system wrong until the definitions are on the table.\n\n**Investigate \u2014 in this order**\n\n1. **Collect each number's provenance.** For each of the three: exact query or report, source system, period boundaries, and the filters applied. Get the number reproduced in front of me rather than quoted from memory.\n2. **Compare definitions before comparing data.** The usual suspects, and they explain most of a 4-8% spread: gross versus net of refunds, discounts and credits; bookings versus billings versus recognized revenue; order date versus ship date versus invoice date; period boundaries and time zone; currency conversion rate and the date it was struck; inclusion of internal, test and intercompany transactions; cancelled orders.\n3. **Reconcile mechanically.** Build a bridge, not an argument: start at $48M and add each definitional difference as a named line until you land on $52M. That single artifact usually ends the debate, because every line is attributable to a rule someone chose.\n4. **Only then look for defects.** Late-arriving data and a stale watermark, a fan-out join inflating the BI number, dedupe differences, a broken incremental refresh window. The bridge tells you whether any unexplained residual is left to chase.\n\n**Prevent**\n\n\u2022 **One definition, one owner.** Revenue gets defined once in the semantic layer, with a named business owner \u2014 typically Finance for anything that touches the general ledger \u2014 and every consumer resolves against it. Sales and BI stop computing their own.\n\u2022 **Certify the number.** Publish the definition on the dashboard itself, mark the certified metric visibly, and treat uncertified copies as unofficial by policy.\n\u2022 **Automate the reconciliation.** A scheduled job that compares the warehouse figure to the GL to the cent and alerts on drift beyond a threshold. Reconciliation as a test, not as a quarterly fire drill.\n\u2022 **Lineage before change.** When the definition changes, lineage shows every dashboard affected before the change ships, and the change is versioned with an effective date so history does not silently rewrite itself.\n\u2022 **Kill the alternate paths.** Direct extracts and personal spreadsheets are how the third number is born. Give people a governed path that is easier than the ungoverned one.\n\n**The framing I would offer leadership:** the problem is not that the dashboard is wrong. The problem is that the organization has three owners of one word.",
+      "key_points": [
+        "Treats definitional divergence as the likely cause, not a calculation bug",
+        "Collects provenance for all three numbers and reproduces them",
+        "Enumerates the standard definitional axes: gross/net, bookings/billings/recognized, date basis, time zone, currency, test and intercompany data",
+        "Builds a line-by-line reconciliation bridge between the figures",
+        "Only then investigates defects \u2014 fan-out, dedupe, stale watermark, refresh window",
+        "Prevention: single definition with a named business owner in the semantic layer",
+        "Certification, published definitions, and automated GL reconciliation with alerting",
+        "Lineage-driven change management and closing the ungoverned side paths"
+      ]
+    },
+    {
+      "id": "dash-050",
+      "type": "open",
+      "topic": "Dashboard Performance Architecture",
+      "difficulty": "medium",
+      "prompt": "A Tableau or Power BI dashboard takes 18 seconds to load because every refresh scans billions of warehouse rows. How would you bring it below 2 seconds?",
+      "model_answer": "18 seconds is a symptom of the dashboard querying at the wrong grain. The fix is layered \u2014 measure first, then move work off the critical path.\n\n**Measure before optimizing.** Use Performance Analyzer or Performance Recording to split the 18 seconds into query time, rendering time and tool overhead. If 16 seconds is one visual's query, that is a different project from 12 visuals at 1.5 seconds each.\n\n**Layer 1 \u2014 pre-aggregate to the displayed grain.** The dashboard shows revenue by month by region by category; it does not need billions of event rows. A summary table at exactly that grain is typically four to six orders of magnitude smaller and is the single biggest win. Keep the atomic fact for drill-through only.\n\n**Layer 2 \u2014 make the aggregate transparently used.** Aggregate awareness in Looker, aggregation tables in Power BI, materialized views with automatic rewrite in BigQuery/Snowflake, so summary queries hit the small table without anyone rewriting a report. An aggregate that requires the author to remember it will be bypassed within a month.\n\n**Layer 3 \u2014 physical layout at the source.** Partition by the date column the filters use and cluster on the high-selectivity dimension, so the remaining scans prune properly. Confirm pruning in the query plan rather than assuming it.\n\n**Layer 4 \u2014 reduce query count.** Twelve visuals firing twelve queries per interaction is twelve times the latency and the cost. Consolidate onto a shared dataset the visuals slice locally, remove visuals that nobody uses, and defer anything below the fold.\n\n**Layer 5 \u2014 cache and serve.** Import/extract mode for the summary model, scheduled refresh timed to land before business hours, cache warming so the first user of the day is not the unlucky one, and the warehouse's result reuse enabled.\n\n**Layer 6 \u2014 change the engine only if needed.** If concurrency and sub-second interaction still are not met \u2014 many simultaneous users slicing large data \u2014 put a real OLAP serving layer in front (Druid, Pinot, ClickHouse, BI Engine) rather than continuing to tune the warehouse.\n\n**Then lock it in:** assert p95 load time in CI against production-scale data, and alert when it regresses. Otherwise the next added visual quietly puts you back at 18 seconds.\n\n**Honest caveat:** if the dashboard genuinely requires arbitrary slicing across billions of rows at sub-second latency, that is an OLAP engine requirement, and the sooner that is said out loud the less time is spent tuning extracts that cannot get there.",
+      "key_points": [
+        "Measures first \u2014 splits query time from render time with the tool's profiler",
+        "Pre-aggregates to the exact displayed grain as the primary win",
+        "Makes the aggregate transparent via aggregate awareness or auto-rewrite",
+        "Partitions and clusters the source, and verifies pruning in the plan",
+        "Reduces the number of queries per interaction, not just their individual cost",
+        "Extract/import plus scheduled refresh, cache warming and result reuse",
+        "Escalates to a dedicated OLAP serving layer when concurrency demands it",
+        "Adds a p95 performance assertion in CI so the fix does not decay"
+      ]
+    },
+    {
+      "id": "dash-051",
+      "type": "open",
+      "topic": "Global & Multi-Region Dashboards",
+      "difficulty": "medium",
+      "prompt": "The CEO wants one dashboard covering North America, Europe and Asia, but currencies, fiscal calendars, time zones and business definitions differ by region. How would you architect it?",
+      "model_answer": "One dashboard is achievable; one *definition* is the actual project. I would separate what must be canonical from what must stay local.\n\n**Currency.** Store every transaction in its original currency *and* in a single reporting currency, with the FX rate and the rate date stored on the row. Which rate \u2014 transaction-date spot, monthly average, or budget rate \u2014 is a Finance policy decision, not an engineering one, and it must be recorded because restating history when the policy changes is otherwise impossible. Offer a currency toggle: reporting currency for the CEO, local currency for the regional team.\n\n**Fiscal calendars.** Build a date dimension carrying calendar date, and per-region fiscal year/quarter/period columns. The global view rolls up on the corporate fiscal calendar; regional views can present their own. Never derive fiscal periods in the BI tool with expressions \u2014 they belong in the conformed date dimension where every consumer sees the same boundaries.\n\n**Time zones.** Store UTC as the physical truth, plus a local timestamp and the source time zone. Declare one reporting time zone for the global dashboard and label it on the page. A day boundary is a business decision: an APAC transaction at 09:00 local may fall on the previous UTC day, and a global daily revenue number has to state which convention it uses.\n\n**Definitions.** This is the hard part and it is organizational. For each metric, decide whether it is canonical (identical everywhere \u2014 revenue, active customer) or local (legitimately different \u2014 a sales-qualified lead may genuinely mean different things per market). Canonical metrics live once in the semantic layer. Local metrics get region-prefixed names so they can never be silently rolled up into a global total. The failure mode to avoid is a global number that is the sum of three incompatible definitions.\n\n**Modelling.** Conformed dimensions (product, customer, channel, date) shared across regions, with region as a first-class dimension rather than three parallel models. Where a region's source system has its own product taxonomy, map it to the conformed hierarchy in the pipeline and keep the local code as an attribute.\n\n**Presentation.** One global summary on canonical metrics in reporting currency and corporate fiscal periods, with drill-through to regional views that switch to local currency, local calendar and local definitions \u2014 clearly labelled at the point of switch.\n\n**Operationally:** regional pipelines land at different times, so the global number is only complete once the slowest region has loaded. Show per-region freshness rather than a single green tick, and decide explicitly whether the global view waits for all regions or displays partial with a warning.",
+      "key_points": [
+        "Stores original and reporting currency plus the FX rate and rate date, with the rate policy owned by Finance",
+        "Puts per-region fiscal calendars in a conformed date dimension, not in BI expressions",
+        "UTC as physical truth with local timestamp and source zone; one declared and labelled reporting time zone",
+        "Separates canonical metrics from legitimately local ones, and prevents local ones rolling up",
+        "Conformed dimensions with region as a first-class dimension, not three parallel models",
+        "Global summary with drill-through to regional views that switch currency, calendar and definitions",
+        "Per-region freshness and an explicit rule for partial global completeness"
+      ]
+    },
+    {
+      "id": "dash-052",
+      "type": "open",
+      "topic": "Large-Scale BI Architecture",
+      "difficulty": "hard",
+      "prompt": "You have 5 PB of event data, 500 concurrent dashboard users, and executives expect sub-second interaction. Design the end-to-end architecture.",
+      "model_answer": "Sub-second at 500 concurrent users is not a query-tuning problem. Nothing scans 5 PB interactively \u2014 the answer has to already exist when the question is asked.\n\n**Principle: move the work from query time to ingest time.**\n\n**Ingest and storage.** Events land in an open table format (Iceberg or Delta) on object storage, partitioned by event date and clustered on the highest-selectivity dimension. This is the system of record and the drill-through destination \u2014 it is not what dashboards query.\n\n**Precomputation layer.** Model the cube the dashboards actually need: the ten to twenty dimension combinations that real users slice by, at day grain, materialized as rollup tables built incrementally. Keep additive measures wherever possible; for distinct counts store HyperLogLog sketches so cardinality stays mergeable across any rollup rather than requiring a rescan. This layer is typically gigabytes, not petabytes \u2014 a five-to-six order of magnitude reduction, which is where the sub-second comes from.\n\n**Serving layer.** A real-time OLAP engine \u2014 Druid, Pinot, or ClickHouse \u2014 holding the rollups. These are built for high concurrency and sub-second aggregate scans, with columnar storage, bitmap indexes and per-segment parallelism. A cloud warehouse can be made fast, but 500 concurrent interactive users is exactly the workload profile these engines exist for.\n\n**Caching.** Result cache at the serving layer, plus a BI-level cache and cache warming for the standard executive views before business hours. Most of the 500 users look at overlapping slices; the cache hit rate is the difference between comfortable and expensive.\n\n**Semantic layer** in front so all 500 users resolve the same metric definitions, and so the engine can route a query to the right rollup automatically (aggregate awareness). Without automatic routing, users will find their way back to the raw table.\n\n**Concurrency and isolation.** Separate compute for interactive dashboards from batch and ad-hoc analysis so a heavyweight query cannot degrade the executive view. Queue limits and per-query resource caps so one runaway request cannot take the tier down.\n\n**Drill-through path.** When someone genuinely needs the atomic rows, the click goes to a separate, slower, clearly-labelled detail view against the lake \u2014 not to the interactive tier.\n\n**Cost control**, because at this scale it dominates: incremental rollup builds rather than full rebuilds, TTL on rollups nobody queries, usage telemetry driving which cubes exist at all, and a hard rule that a new dashboard does not get a new bespoke pipeline by default.\n\n**Trade-off to state plainly:** precomputation buys latency at the cost of flexibility. A question outside the modelled dimensions is either slow or impossible until the cube is extended, so the process for requesting a new dimension has to be explicit and reasonably fast, or people route around the platform.",
+      "key_points": [
+        "States the core principle: precompute at ingest, never scan 5 PB at query time",
+        "Open table format lake as system of record and drill-through target only",
+        "Rollup cubes at the dimension combinations users actually slice, built incrementally",
+        "Additive measures plus HLL sketches so distinct counts stay mergeable",
+        "Dedicated OLAP serving engine (Druid/Pinot/ClickHouse) for high-concurrency sub-second scans",
+        "Multi-level caching with warming for standard executive views",
+        "Semantic layer with automatic aggregate routing so users cannot bypass the rollups",
+        "Workload isolation, queueing and per-query caps for 500 concurrent users",
+        "Cost controls: incremental builds, TTLs, usage-driven cube inventory",
+        "Names the precomputation/flexibility trade-off and the process to extend a cube"
+      ]
+    },
+    {
+      "id": "dash-053",
+      "type": "open",
+      "topic": "Streaming & Batch Reconciliation",
+      "difficulty": "hard",
+      "prompt": "A payments company needs fraud signals, transaction volume, approval rate and outages reflected within 5 seconds, while historical analytics must still reconcile with Finance. Design the system.",
+      "model_answer": "Two requirements pull in opposite directions: five-second freshness wants speed and tolerates approximation; Finance reconciliation wants exactness and tolerates delay. Trying to serve both from one path is how these systems fail. I would build both explicitly and make the boundary visible.\n\n**Speed path (operational, 5-second SLA).** Transactions publish to Kafka. A stream processor (Flink) maintains windowed aggregates \u2014 volume, approval rate, decline reasons, latency \u2014 keyed by merchant, issuer, region and payment method, written to a real-time OLAP store (Pinot or Druid) that the operations dashboard queries. Fraud signals ride the same path, with model scores emitted as events. Design for at-least-once delivery with idempotent keys; the operational view can tolerate a small correction, but not duplicates that double an approval rate.\n\n**Truth path (financial).** The same events land in the lake, then run through batch reconciliation against the payment processors' settlement files. This path handles late arrivals, chargebacks, reversals and corrections, and produces the numbers that reconcile to the general ledger. It is hours behind and that is correct \u2014 settlement data does not exist earlier.\n\n**Making the two coexist honestly.**\n\u2022 Label every surface with which path it came from and its freshness. An operations dashboard says \"live, unreconciled\"; the finance dashboard says \"reconciled through <date>\".\n\u2022 Run a scheduled reconciliation job comparing the streaming aggregate to the batch result for closed periods, and alert when the gap exceeds a threshold. A persistent drift means the stream is losing or duplicating events, and you want to know that from a monitor, not from Finance.\n\u2022 Never let the streaming number be restated silently into the historical series. Once a period is reconciled, the batch value is authoritative and the dashboard should say so.\n\n**Outage detection** deserves its own treatment: absence of events is the signal, and a dashboard cannot see absence. Monitor expected-versus-actual volume per issuer and per region on the stream, and alert on a drop \u2014 pushed to on-call, not waiting for someone to be looking at a screen.\n\n**Operational details that matter:** watermarks and allowed lateness in Flink tuned to the real arrival distribution; exactly-once sinks or idempotent upserts into the serving store; per-key state TTL so state does not grow unbounded; and a replay path so a fixed processor can rebuild the serving layer from the log.\n\n**The sentence I would want the interviewer to hear:** operational speed and financial truth are different products with different SLAs, and the architecture's job is to serve both without ever letting one pretend to be the other.",
+      "key_points": [
+        "Separates a speed path and a truth path rather than compromising both",
+        "Kafka + Flink windowed aggregates into a real-time OLAP store for the 5-second SLA",
+        "Batch path reconciles against settlement files, handling late arrivals, chargebacks and reversals",
+        "Idempotent keys / exactly-once sinks so retries cannot distort approval rate",
+        "Labels every surface with its path and freshness; reconciled values become authoritative",
+        "Scheduled streaming-vs-batch reconciliation with alerting on drift",
+        "Treats outage detection as absence-of-events monitoring pushed to on-call",
+        "Covers watermarks, allowed lateness, state TTL and a replay path"
+      ]
+    },
+    {
+      "id": "dash-054",
+      "type": "open",
+      "topic": "Data Quality & Instrumentation",
+      "difficulty": "hard",
+      "prompt": "After a product launch, conversion suddenly jumps 35%. Leadership is celebrating, but you suspect the dashboard. Walk through how you determine whether the business improved or the instrumentation broke.",
+      "model_answer": "A 35% step change on a launch date is more often a measurement change than a behaviour change. Behaviour usually moves gradually; instrumentation moves the instant code ships. I would work the ratio apart before saying anything to leadership.\n\n**1. Decompose the ratio.** Conversion is numerator over denominator. Plot both separately. Three signatures, three different stories:\n\u2022 Denominator fell, numerator flat \u2192 tracking for the top of the funnel broke, or a filter/bot-exclusion rule changed. This is the most common cause of a sudden \"improvement\".\n\u2022 Numerator rose, denominator flat \u2192 plausible genuine improvement, or double-counted conversion events.\n\u2022 Both moved proportionally \u2192 likely a population or attribution change rather than a behaviour change.\n\n**2. Check the event pipeline around the launch.** Did the release change event names, properties, the SDK version, the consent/cookie banner, or page-load timing so an event now fires earlier or twice? Diff the tracking plan against what is actually arriving. Look at raw event volumes per event type, not just the derived metric.\n\n**3. Look for a step versus a ramp.** Plot at hourly grain around the deploy. A vertical cliff at the deploy timestamp is instrumentation. A genuine product improvement almost always ramps as traffic rolls over, and differs by cohort.\n\n**4. Segment aggressively.** By platform, app version, browser, geography, new versus returning. Instrumentation breaks are usually platform-specific \u2014 iOS 3.2.0 only, or one browser after a consent change. A real product effect is usually broader and directionally consistent.\n\n**5. Find an independent witness.** Reconcile against a system that did not change: orders in the transactional database, payments in the processor, server logs versus client-side events. If the warehouse says conversions rose 35% and the payments processor says transaction count is flat, the dashboard is lying and you now have proof rather than a hunch.\n\n**6. Check the definition and the model.** Did the metric's SQL, filter, or attribution window change in the same release? Did a join start fanning out? Did a dedupe key change? Check the semantic layer's version history for the same date.\n\n**7. Report it carefully.** Present the decomposition, the independent reconciliation and the segment evidence \u2014 not a bare \"it's wrong\". State the confidence level and what would confirm it. If it is genuine, that is excellent news and worth explaining just as clearly.\n\n**8. Then make it structural.** Volume anomaly detection on raw event streams, a tracking-plan test in CI so renamed or missing events fail the build, a denominator sanity check alongside every rate metric on the dashboard, and freshness plus volume indicators visible next to the KPI. The goal is that the next instrumentation break announces itself instead of being celebrated.",
+      "key_points": [
+        "Decomposes the ratio and plots numerator and denominator separately",
+        "Maps each movement signature to a distinct likely cause",
+        "Checks release-time changes: event names, SDK, consent banner, firing timing",
+        "Distinguishes a deploy-timed cliff from a genuine gradual ramp using fine-grained time",
+        "Segments by platform, app version, browser and geography to find scoped breakage",
+        "Reconciles against an independent system that did not change (payments, server logs)",
+        "Reviews metric definition, attribution window, dedupe and join changes in the same release",
+        "Communicates with evidence and stated confidence rather than accusation",
+        "Adds anomaly detection, tracking-plan CI tests and denominator checks to prevent recurrence"
+      ]
+    },
+    {
+      "id": "dash-055",
+      "type": "open",
+      "topic": "Analytics Platform Strategy",
+      "difficulty": "hard",
+      "prompt": "Your company has 4,000 dashboards, thousands of duplicated metrics, enormous warehouse spend, and nobody knows which dashboards are trustworthy. You are asked to redesign the analytics platform. What do you do?",
+      "model_answer": "4,000 dashboards is an organizational outcome, not a tooling failure. Any plan that starts with a migration will produce 4,000 dashboards in a new tool. I would sequence it: measure, then govern, then consolidate, then optimize cost.\n\n**Phase 1 \u2014 Instrument the estate (weeks, not months).** You cannot manage what you cannot see. Collect per-dashboard usage (views, unique viewers, last-viewed), the query cost attributable to each, the lineage from dashboard to model to table, and duplicate-metric detection across definitions. In practice the distribution is brutal and useful: a small fraction of dashboards carry nearly all the viewing, and a small fraction of queries carry most of the spend. Publish this. It changes the conversation from opinion to evidence.\n\n**Phase 2 \u2014 Establish the semantic layer and certification.** Pick the twenty to fifty metrics the business actually runs on, agree one definition and one business owner for each, implement them once (dbt metrics, LookML, Cube, or the platform's shared datasets), and mark dashboards built on certified metrics with a visible badge. Trust is not a feeling \u2014 it is an owner, a published definition, a freshness SLA and a certification mark. Uncertified dashboards remain usable but are explicitly labelled unofficial.\n\n**Phase 3 \u2014 Consolidate with a deprecation process.** Retire dashboards with no views in 90 days after notifying owners, with a restore window. Merge near-duplicates into one certified version. Make the certified path the easy path \u2014 a template, a starter model, a fast review \u2014 because if the governed route is slower than building a bespoke one, people will keep building bespoke ones. Expect to remove a large majority of the estate.\n\n**Phase 4 \u2014 Cost.** Attribute warehouse spend to dashboards, teams and metrics, and show teams their own number. Then the standard levers: aggregate tables for the heavy dashboards, result reuse and caching, killing scheduled refreshes for dashboards nobody opens (a shocking share of spend), right-sized warehouses with auto-suspend, and workload isolation so ad-hoc work cannot starve the certified tier.\n\n**Phase 5 \u2014 Keep it from regrowing.** This is the phase most programmes skip and it is the one that determines whether you are back here in two years. Certification required for anything shared beyond a team; a metric-change process with lineage-based impact review; usage-based automatic deprecation running continuously; and a self-serve path that is genuinely pleasant, because dashboard sprawl is what people do when the sanctioned route is too slow.\n\n**How I would report progress:** percentage of viewing time spent on certified dashboards, number of duplicate definitions for the top metrics, warehouse cost per active dashboard, and time-to-publish for a new certified dashboard. Not \"dashboards deleted\" \u2014 that number rewards the wrong behaviour.\n\n**Political reality worth naming:** every dashboard has an author who believes it is essential. Evidence from usage data, an explicit deprecation window and a restore path are what make the cleanup survivable.",
+      "key_points": [
+        "Refuses a tool migration as the opening move \u2014 treats sprawl as organizational",
+        "Phase 1: instrument usage, cost attribution, lineage and duplicate-metric detection, and publish it",
+        "Phase 2: semantic layer with 20-50 owned, certified metric definitions and visible certification",
+        "Phase 3: evidence-based deprecation with notification, restore window and duplicate merging",
+        "Makes the governed path faster than the ungoverned one, or expects it to be bypassed",
+        "Phase 4: cost attribution by team, aggregates, caching, killing refreshes for unused dashboards, auto-suspend",
+        "Phase 5: prevention \u2014 certification gates, lineage-based change review, continuous usage-based deprecation",
+        "Measures certified-viewing share and cost per active dashboard, not dashboards deleted",
+        "Names the political reality and how the deprecation is made survivable"
+      ]
+    }
+  ]
+}

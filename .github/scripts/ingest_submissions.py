@@ -24,7 +24,7 @@ DATA_DIR = "interview.app/evaluate/data"
 STATE_FILE = ".github/scripts/processed_submissions.json"
 TODAY = str(date.today())
 
-ID_PREFIXES = {"python": "py", "sql": "sql", "design": "ds"}
+ID_PREFIXES = {"python": "py", "sql": "sql", "design": "ds", "dashboarding": "dash"}
 
 # Map Google Form topic values → internal topic keys. The form lets people type
 # their own topic, so this can never be exhaustive — anything unrecognised falls
@@ -48,11 +48,11 @@ TOPIC_MAP = {
     "pipelines": "design",
     "data quality": "design",
     "governance": "design",
-    "dashboarding": "design",
-    "dashboards": "design",
-    "bi": "design",
-    "visualization": "design",
-    "visualisation": "design",
+    "dashboarding": "dashboarding",
+    "dashboards": "dashboarding",
+    "bi": "dashboarding",
+    "visualization": "dashboarding",
+    "visualisation": "dashboarding",
     "analytics": "design",
     "spark": "python",
     "pyspark": "python",
@@ -70,6 +70,9 @@ ROUTING = [
                        r"having|sql|query plan)\b", re.I)),
     ("python", re.compile(r"\b(python|pandas|pyspark|dataframe|numpy|list|dict|"
                           r"generator|decorator)\b", re.I)),
+    ("dashboarding", re.compile(r"\b(dashboard|dashboards|tableau|power ?bi|looker|"
+                                r"qlik|superset|kpi|chart|visuali[sz]ation|"
+                                r"semantic layer)\b", re.I)),
 ]
 DEFAULT_TOPIC = "design"
 
