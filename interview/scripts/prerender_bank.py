@@ -91,7 +91,10 @@ def render_section(questions):
     parts.append(
         '  <p class="qbpr-lede">'
         "Below is a static preview of the bank — handpicked questions from "
-        f"{', '.join(POPULAR_COMPANIES[:8])} and {len(set(q.get('company') for q in questions if q.get('company')))} other companies. "
+        # "other" is literal: the 8 named companies are already listed, so they
+        # come off the total or the sentence overcounts by 8.
+        f"{', '.join(POPULAR_COMPANIES[:8])} and "
+        f"{len(set(q.get('company') for q in questions if q.get('company')) - set(POPULAR_COMPANIES[:8]))} other companies. "
         f'Use the interactive widget above to filter all {len(questions)} questions, '
         'save your set, and run answers in the in-browser playground.'
         "</p>"

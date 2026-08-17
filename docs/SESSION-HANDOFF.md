@@ -1,9 +1,34 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-08-12. This file is the running memory between Claude Code
+_Last updated: 2026-08-17. This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-08-17, latest): community submissions were being silently dropped
+  on unknown topic labels — fixed in `.github/scripts/ingest_submissions.py`.**
+  The Google Form lets people type their own topic. `TOPIC_MAP` only knew
+  python/sql/design variants, so rows labelled "Data Modelling" and
+  "Dashboarding" hit `SKIP — unknown topic`, were marked processed, and were
+  gone for good (the state file is the only dedupe). Two real submissions
+  (Freddie Mac data-modeling process, Virtusa non-prod dashboard test data)
+  were lost that way and have now been written by hand into
+  `interview.app/evaluate/data/design.json` as `ds-new-059` / `ds-new-060`,
+  `type: open`, `source: community`.
+  - The map now covers modelling/dashboarding/BI/ETL/etc., and anything still
+    unrecognised is routed by the wording of the question (`ROUTING`) with a
+    `design` fallback. **Nothing is dropped for an unknown topic any more** — a
+    mis-filed question is visible and fixable, a dropped one is not.
+  - `source: "community"` is what lights up the ◆ Community badge in the quiz
+    engine and floats the question on `/interview.app/whats-new/`. Anything
+    added by hand from the sheet must carry it.
+  - **Skill Check counts were 2 years stale** (`791` in the title/meta/schema
+    vs `1656` actual, "4-section" vs six sections) because nothing refreshed
+    them. `interview/scripts/update_counts.py` now derives Skill Check pool
+    sizes from `interview.app/evaluate/data/*.json` too, and both question
+    workflows (`weekly-questions.yml`, `ingest-submissions.yml`) run it before
+    committing. Also fixed: the prerender lede said "…Snowflake and 107 other
+    companies" when 107 is the total including the 8 it just named.
 
 - **NEW (2026-08-12, latest): article "Consequences Don't Transfer" shipped.**
   Supplied as one flat infographic PNG plus a self-contained HTML draft with all
