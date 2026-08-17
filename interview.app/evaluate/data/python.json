@@ -7376,6 +7376,54 @@
       ],
       "answer": 1,
       "explanation": "Option B is the correct pattern: `functools.wraps(func)` copies metadata (__name__, __doc__, __annotations__, etc.) from the original function to the wrapper, ensuring introspection tools and help() work correctly. Option A is manual and error-prone. Options C and D solve different problems (caching and partial application) and don't address metadata preservation."
+    },
+    {
+      "id": "py-new-068",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "medium",
+      "added_date": "2026-08-17",
+      "prompt": "You have a Polars DataFrame with 10 million rows. You need to filter rows where `amount > 100` and then group by `category` to compute the sum of `amount`. Which approach is most efficient and why?\n\nA) Use `df.filter(pl.col('amount') > 100).groupby('category').agg(pl.col('amount').sum())`\n\nB) Convert to pandas with `df.to_pandas()`, then filter and groupby\n\nC) Use `df.groupby('category').filter(pl.col('amount') > 100).agg(pl.col('amount').sum())`\n\nD) Use SQL query on the underlying Arrow table",
+      "options": [
+        "Use `df.filter(pl.col('amount') > 100).groupby('category').agg(pl.col('amount').sum())`",
+        "Convert to pandas with `df.to_pandas()`, then filter and groupby",
+        "Use `df.groupby('category').filter(pl.col('amount') > 100).agg(pl.col('amount').sum())`",
+        "Use SQL query on the underlying Arrow table"
+      ],
+      "answer": 0,
+      "explanation": "Polars' lazy evaluation and query optimization engine pushes filters down before groupby operations, minimizing memory overhead. Converting to pandas defeats the purpose of Polars' performance benefits. Option A uses the lazy execution model that Polars excels at, executing the filter before the expensive groupby aggregation."
+    },
+    {
+      "id": "py-new-069",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "You're building a data pipeline that processes JSON files in parallel. You have a CPU-bound function that parses large JSON objects and a separate I/O-bound function that reads files from S3. Which concurrency strategy would be most effective?\n\nA) Use `multiprocessing.Pool` for both JSON parsing and S3 reads\n\nB) Use `threading.Thread` for both JSON parsing and S3 reads\n\nC) Use `multiprocessing.Pool` for JSON parsing and `asyncio` with `aiohttp` for S3 reads\n\nD) Use `concurrent.futures.ThreadPoolExecutor` with a high number of workers for everything",
+      "options": [
+        "Use `multiprocessing.Pool` for both JSON parsing and S3 reads",
+        "Use `threading.Thread` for both JSON parsing and S3 reads",
+        "Use `multiprocessing.Pool` for JSON parsing and `asyncio` with `aiohttp` for S3 reads",
+        "Use `concurrent.futures.ThreadPoolExecutor` with a high number of workers for everything"
+      ],
+      "answer": 2,
+      "explanation": "JSON parsing is CPU-bound, so `multiprocessing` bypasses the GIL. S3 reads are I/O-bound and benefit from `asyncio`, which is more efficient than threads for many concurrent I/O operations. Option A wastes resources on multiprocessing for I/O; Option B hits GIL contention for CPU work; Option D still uses threads which limits CPU-bound parallelism due to the GIL."
+    },
+    {
+      "id": "py-new-070",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "You're designing a data schema validation framework where every data class must automatically register itself in a global registry and validate that required fields are defined. What's the best approach?\n\nA) Use a metaclass that intercepts `__new__` to register classes and validate field definitions at class creation time\n\nB) Use `__init_subclass__` hook in a base class to register subclasses and defer validation to instance creation\n\nC) Use a decorator factory applied to each class that registers it and validates fields\n\nD) Override `__getattribute__` in each class to validate fields at runtime",
+      "options": [
+        "Use a metaclass that intercepts `__new__` to register classes and validate field definitions at class creation time",
+        "Use `__init_subclass__` hook in a base class to register subclasses and defer validation to instance creation",
+        "Use a decorator factory applied to each class that registers it and validates fields",
+        "Override `__getattribute__` in each class to validate fields at runtime"
+      ],
+      "answer": 0,
+      "explanation": "A metaclass is the appropriate tool here because it provides compile-time introspection and registration\u2014you catch schema errors when the class is defined, not at runtime. It allows you to enforce constraints across an entire class hierarchy uniformly. Option B works but doesn't provide the same control; Option C requires manual decoration of each class; Option D is inefficient and happens at runtime, not at definition time."
     }
   ]
 }

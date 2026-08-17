@@ -5560,6 +5560,54 @@
       ],
       "answer": 0,
       "explanation": "A data product (curated table/API) published by the domain owner is the data mesh standard\u2014it defines a contract, enforces SLAs, and decouples consumers from technical details. Option 1 respects domain ownership while serving Marketing's need for history. Option 2 breaks isolation by giving direct access; option 3 recreates the centralized anti-pattern; option 4's read-replicas introduce coupling and maintenance overhead."
+    },
+    {
+      "id": "ds-new-056",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "You're building a payment processing pipeline on Kafka + Flink that must guarantee exactly-once delivery to a PostgreSQL ledger. Transactions arrive at ~50K/sec with occasional network partitions. Which approach best ensures exactly-once end-to-end semantics while minimizing latency?",
+      "options": [
+        "Use Flink's CheckpointedFunction with idempotent upserts keyed by (payment_id, idempotency_token) and PostgreSQL UNIQUE constraints; enable Flink exactly-once checkpointing with RocksDB state backend",
+        "Enable Kafka transactional producers and consumers with isolation.level=read_committed; rely on Kafka's offset management to prevent replays",
+        "Implement application-level deduplication in Flink using a TTL-based state store; disable checkpointing to maximize throughput",
+        "Use a Lambda architecture: stream writes to DynamoDB for deduplication, batch reconciliation nightly against PostgreSQL"
+      ],
+      "answer": 0,
+      "explanation": "Exactly-once semantics requires idempotent writes (upserts with business keys) combined with Flink's checkpointing to handle task failures. The idempotency token + UNIQUE constraint ensures duplicate writes within the same Kafka offset range are safely absorbed, and Flink's exactly-once checkpoint guarantees recovery doesn't cause replays. Kafka's transactional API alone doesn't solve exactly-once to external systems; Lambda sacrifices real-time consistency."
+    },
+    {
+      "id": "ds-new-057",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-08-17",
+      "prompt": "Your dbt project has 800+ models spanning 12 domains (finance, marketing, ops). The CI/CD pipeline runs on every PR and takes 45 minutes to build all models. Stakeholders complain about slow feedback loops. Which practice best balances development velocity with data quality?",
+      "options": [
+        "Split dbt into 12 separate projects by domain; each team owns their project's CI independently with selective_tests enabled",
+        "Implement dbt slim CI with `state:modified+` to test only changed models and downstream dependents; store production dbt artifacts in a shared S3 bucket for state comparison",
+        "Disable all tests in dev; run full test suite only nightly in production to avoid blocking PRs",
+        "Use dbt Cloud's native CI with partial parsing and model auto-categorization; set all models to `materialized: ephemeral` to skip table creation in dev"
+      ],
+      "answer": 1,
+      "explanation": "dbt slim CI with state comparison is the industry-standard approach for large projects: it reduces CI runtime by 80-90% while maintaining quality gates on changed code. Storing artifacts in S3 enables accurate state tracking across runs. Splitting into 12 projects creates organizational friction and cross-domain dependency hell; disabling tests in dev introduces regressions; ephemeral materialization breaks downstream model testing."
+    },
+    {
+      "id": "ds-new-058",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-08-17",
+      "prompt": "You're implementing a data mesh at a 500-person company with 8 autonomous product teams. The Finance team (domain owner) publishes a `transactions` data product; Marketing wants to consume it but also enrich it with attribution data. Which governance model prevents chaos while enabling self-service?",
+      "options": [
+        "Finance publishes contracts (schema, SLAs, owner contact) in a central Git repo; Marketing forks the transactions topic into their own cluster and applies transformations; centralized ops team syncs data weekly",
+        "Establish a Data Product Office that owns all contracts and mediates cross-domain dependencies; each domain team uses dbt within Snowflake with role-based access control (RBAC) and published output ports",
+        "Finance publishes transactions via Apache Atlas with OpenMetadata; Marketing discovers it and creates a streaming SQL view via Kafka SQL; domain teams self-register outputs in a schema registry with SLA contracts",
+        "Use Databricks Unity Catalog to register Finance's transactions as a managed table with published schema; Marketing creates a downstream dbt model with lineage tracking and materialized to their own schema; both teams monitor via Soda/Great Expectations"
+      ],
+      "answer": 3,
+      "explanation": "Unity Catalog + dbt + lineage tracking provides federated governance: Finance retains ownership of their source data product, Marketing has autonomy to create derived products, and RBAC/lineage prevents unauthorized access. This scales better than centralized gatekeeping (option B) or chaotic forking (option A). Kafka SQL in option C adds operational complexity without clear governance boundaries. The model supports the core mesh principle: domain ownership with explicit contracts and observable lineage."
     }
   ]
 }
