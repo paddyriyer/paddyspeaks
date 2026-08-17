@@ -512,6 +512,7 @@ async function handleInsights(request, env, url, ch) {
   let studio = { visitors: 0, starts: 0, completions: 0, completionRate: null, prevCompletionRate: null, funnel: {}, tracks: [], abandonStep: '' };
   let dqEvents = { botRate: null, internalRate: null, lastEventAt: null, freshnessMin: null };
   let searchGaps = 0;
+  let eventsTableOk = false; // becomes true only if the events queries succeed
   try {
     const batchB = await env.DB.batch([
       env.DB.prepare(`SELECT session_id, anonymous_visitor_id AS vid, event_name, properties FROM events WHERE occurred_at >= ? AND event_name IN ('question_completed','quiz_completed','simulator_completed','related_click','cta_click') LIMIT 20000`).bind(since),
@@ -528,7 +529,11 @@ async function handleInsights(request, env, url, ch) {
       env.DB.prepare(`SELECT MAX(occurred_at) AS last FROM events`),
       env.DB.prepare(`SELECT COUNT(*) AS c FROM events WHERE occurred_at >= ? AND event_name='no_search_results'`).bind(since),
       env.DB.prepare(`SELECT SUM(CASE WHEN event_name='question_started' THEN 1 ELSE 0 END) AS starts, SUM(CASE WHEN event_name='question_completed' THEN 1 ELSE 0 END) AS completions, COUNT(DISTINCT anonymous_visitor_id) AS visitors FROM events WHERE occurred_at >= ? AND occurred_at < ?`).bind(prevSince, since),
+      // Distinct visitors who touched ANY Studio event (fix: the old fallback read
+      // interview_studio_opened/question_viewed which are not always emitted → 0).
+      env.DB.prepare(`SELECT COUNT(DISTINCT anonymous_visitor_id) AS v FROM events WHERE occurred_at >= ? AND (event_name IN ('interview_studio_opened','track_viewed','track_selected','question_viewed','question_started','answer_submitted','answer_correct','answer_incorrect','code_run','explanation_viewed','question_completed','quiz_started','quiz_completed','simulator_started','simulator_completed','flashcard_reviewed') OR json_extract(properties,'$.track') IS NOT NULL)`).bind(since),
     ]);
+    eventsTableOk = true; // the events table exists and is queryable
 
     for (const g of (batchB[0].results || [])) {
       goalsCount++;
@@ -537,7 +542,7 @@ async function handleInsights(request, env, url, ch) {
     }
     const funnel = {}; for (const r of (batchB[1].results || [])) funnel[r.event_name] = r.v;
     studio.funnel = funnel;
-    studio.visitors = funnel.interview_studio_opened || funnel.question_viewed || 0;
+    studio.visitors = (batchB[7].results && batchB[7].results[0] && batchB[7].results[0].v) || 0;
     studio.starts = (funnel.question_started || 0) + (funnel.quiz_started || 0);
     studio.completions = (funnel.question_completed || 0) + (funnel.quiz_completed || 0);
     studio.completionRate = studio.starts ? studio.completions / studio.starts : null;
@@ -574,7 +579,7 @@ async function handleInsights(request, env, url, ch) {
     smallSample: totalSessions < T.smallSampleFloor,
   };
 
-  const dataQuality = { durationCoverage, scrollCoverage, ...dqEvents };
+  const dataQuality = { durationCoverage, scrollCoverage, ...dqEvents, eventsTableOk };
 
   // Build the aggregate the insight engine consumes
   const agg = {

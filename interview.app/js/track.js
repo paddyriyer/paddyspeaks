@@ -154,7 +154,7 @@
       facets.formats = dedupe(QUESTIONS.map(exType));
       restoreFilters(savedView && savedView.filters);
       render();
-      if (window.psTrack) window.psTrack("track_selected", { track: CFG.section });
+      if (window.psTrack) { window.psTrack("interview_studio_opened", { surface: "track", track: CFG.section }); window.psTrack("track_selected", { track: CFG.section }); }
     }).catch(function (e) {
       root.innerHTML = '<div class="tk-empty">Could not load track content (' + esc(e.message) + '). Please refresh.</div>';
     });

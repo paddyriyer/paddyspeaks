@@ -891,7 +891,7 @@
         // Content 2×2
         renderContentClass(d.content || []);
         // Studio
-        renderStudio(d.studio || {});
+        renderStudio(d.studio || {}, (d.dataQuality || {}).eventsTableOk);
         // Data quality
         renderDQ(d.dataQuality || {}, d.searchGaps);
     }
@@ -925,12 +925,19 @@
         t.innerHTML = h + '</tbody>';
     }
 
-    function renderStudio(s) {
+    function renderStudio(s, eventsTableOk) {
         var fEl = document.getElementById('studioFunnel');
         var steps = [['interview_studio_opened', 'Studio opened'], ['track_viewed', 'Track viewed'], ['track_selected', 'Track selected'], ['question_viewed', 'Question viewed'], ['question_started', 'Question started'], ['answer_submitted', 'Answer submitted'], ['question_completed', 'Question completed']];
         var f = s.funnel || {};
         var maxV = 0; steps.forEach(function(st) { maxV = Math.max(maxV, f[st[0]] || 0); });
-        if (!maxV) { /* leave the empty state already in HTML */ }
+        if (!maxV) {
+            // Distinguish "table missing" (a setup problem) from "no usage yet"
+            if (eventsTableOk === false) {
+                fEl.innerHTML = '<div class="empty-state"><span class="es-icon">⚠️</span><strong>The <code>events</code> table isn\'t reachable.</strong><br>Apply <code>analytics/worker/migrate-v6-events.sql</code> in the D1 Console (paste it line-by-line) for <code>paddyspeaks-analytics</code>, then refresh. Until then, no Interview Studio, goal, or retention-cohort data can be stored.</div>';
+            } else {
+                fEl.innerHTML = '<div class="empty-state"><span class="es-icon">🎯</span>Events are being collected, but no Interview Studio activity in this period yet. Open the Studio and start a quiz, then refresh — or widen the date range.</div>';
+            }
+        }
         else {
             fEl.innerHTML = steps.map(function(st) {
                 var v = f[st[0]] || 0, w = maxV ? (v / maxV * 100) : 0;
@@ -997,6 +1004,11 @@
 
     function renderDQ(dq, searchGaps) {
         var g = '';
+        // Events pipeline status — the #1 reason Studio/goal/retention panels are empty
+        var evOk = dq.eventsTableOk;
+        var evVal = evOk === false ? '⚠ not reachable' : (evOk === true ? '✓ connected' : '—');
+        var evSub = evOk === false ? 'Apply migrate-v6-events.sql in the D1 Console' : (dq.lastEventAt ? 'events flowing' : 'connected, awaiting first event');
+        g += '<div class="kpi" style="' + (evOk === false ? 'border-color:var(--color-rust);border-width:1.5px' : '') + '"><div class="kpi-label"><span class="tip" title="Whether the events table (migrate-v6) exists and is queryable. If not reachable, no Studio/goal/retention data can be stored.">Events pipeline</span></div><div class="kpi-val" style="font-size:1.2rem">' + evVal + '</div><div class="kpi-sub">' + evSub + '</div></div>';
         g += kpiCard('Duration coverage', pctStr(dq.durationCoverage), '% of sessions that recorded engagement time. Low = mobile exit beacons not firing.', {});
         g += kpiCard('Scroll coverage', pctStr(dq.scrollCoverage), '% of sessions with scroll data.', {});
         g += kpiCard('Bot / suspected rate', dq.botRate != null ? pctStr(dq.botRate) : '—', 'Share of events flagged suspected/bot (multi-signal). Flagged, not deleted.', {});
