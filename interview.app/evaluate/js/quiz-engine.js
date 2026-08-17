@@ -114,7 +114,7 @@ async function init() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.section = data;
-    if (window.psTrack) window.psTrack("track_selected", { track: sectionSlug });
+    if (window.psTrack) { window.psTrack("interview_studio_opened", { surface: "skill_check", track: sectionSlug }); window.psTrack("track_selected", { track: sectionSlug }); }
     let bank = data.questions;
     if (!Array.isArray(bank) || bank.length === 0) {
       throw new Error("Question bank is empty.");
