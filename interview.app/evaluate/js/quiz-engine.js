@@ -1158,7 +1158,7 @@ function renderReviewItem(q, idx) {
       <div class="review-answer-label">Your answer</div>
       <div class="review-your-answer ${q.type === "code" ? "code" : ""}">${userVal ? escapeHTML(userVal) : "<em>No answer</em>"}</div>
       <div class="review-answer-label">Model answer</div>
-      <div class="review-model-answer ${q.type === "code" ? "code" : ""}">${escapeHTML(q.model_answer || "")}</div>
+      <div class="review-model-answer ${q.type === "code" ? "code" : ""}">${formatModelAnswer(q)}</div>
       ${q.key_points && q.key_points.length ? `
         <div class="review-answer-label">Key points to look for</div>
         <ul class="review-keypoints">${q.key_points.map(kp => `<li>${formatInline(kp)}</li>`).join("")}</ul>
@@ -1254,7 +1254,27 @@ function escapeHTML(str) {
 
 function formatInline(str) {
   const esc = escapeHTML(str);
-  return esc.replace(/`([^`]+)`/g, "<code>$1</code>");
+  return esc.replace(/`([^`]+)`/g, "<code>$1</code>")
+            .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+}
+
+// Model answers are authored in light markdown. The review block keeps
+// white-space: pre-wrap, so newlines already render — this only needs to turn
+// the inline marks into elements, and lift fenced blocks into <pre> so code
+// keeps its monospace. Code-type answers are whole programs: left verbatim.
+function formatModelAnswer(q) {
+  const raw = q.model_answer || "";
+  if (q.type === "code") return escapeHTML(raw);
+  const parts = [];
+  const fence = /```(?:\w*)\n([\s\S]*?)```/g;
+  let last = 0, m;
+  while ((m = fence.exec(raw)) !== null) {
+    if (m.index > last) parts.push(formatInline(raw.slice(last, m.index)));
+    parts.push(`<pre class="review-ma-code">${escapeHTML(m[1].replace(/\n$/, ""))}</pre>`);
+    last = m.index + m[0].length;
+  }
+  if (last < raw.length) parts.push(formatInline(raw.slice(last)));
+  return parts.join("");
 }
 
 // Render the optional rich content fields carried by the Communication and AI
