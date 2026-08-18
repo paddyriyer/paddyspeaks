@@ -13938,6 +13938,22 @@
       ],
       "answer": 2,
       "explanation": "Snowflake does not guarantee that newly inserted data will be sorted according to the clustering key. If daily inserts are random relative to user_id, new micro-partitions accumulate out of order. Clustering depth increases, reducing the effectiveness of partition pruning. OPTIMIZE can help, but the root cause is insertion order. Auto-clustering (if enabled) may eventually correct this, but it is not automatic and has costs."
+    },
+    {
+      "id": "sql-new-068",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-08-18",
+      "prompt": "You maintain a `customer_metrics` table in Snowflake with columns (customer_id INT, metric_date DATE, total_orders INT, total_spend NUMERIC, last_updated TIMESTAMP). You receive a daily batch of updated metrics from your data lake. Some customers are new, some already exist and need updates. Using a MERGE statement, you want to: (1) insert new customers, (2) update existing customers if their metric_date is newer, and (3) ignore records where the incoming metric_date equals the stored metric_date. Which WHEN clause sequence correctly implements requirement (3)?",
+      "options": [
+        "WHEN MATCHED AND incoming.metric_date > target.metric_date THEN UPDATE ... WHEN MATCHED THEN DELETE",
+        "WHEN MATCHED AND incoming.metric_date > target.metric_date THEN UPDATE ... WHEN NOT MATCHED THEN INSERT",
+        "WHEN MATCHED AND incoming.metric_date = target.metric_date THEN DELETE WHEN MATCHED AND incoming.metric_date > target.metric_date THEN UPDATE ... WHEN NOT MATCHED THEN INSERT",
+        "WHEN NOT MATCHED THEN INSERT WHEN MATCHED AND incoming.metric_date >= target.metric_date THEN UPDATE"
+      ],
+      "answer": 1,
+      "explanation": "MERGE requires WHEN clauses in strict order: WHEN MATCHED (multiple allowed with AND conditions), then WHEN NOT MATCHED. Option B correctly sequences UPDATE for matching newer records, then INSERT for new records, implicitly ignoring equal-date matches. Options A and C violate clause ordering or use invalid DELETE operations in MERGE. Option D places NOT MATCHED first, which is syntactically invalid."
     }
   ]
 }
