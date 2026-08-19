@@ -939,7 +939,7 @@
   <button type="button" id="ba-both" aria-pressed="true">Both</button>
 </div>
 
-<div class="lab-ba-wrap" id="ba-wrap">
+<div class="lab-ba-wrap is-both" id="ba-wrap">
 
 <div class="lab-exercise" id="ba-exercise">
   <h3>You have 90 seconds. What changed?</h3>
@@ -2203,6 +2203,9 @@ FROM play_events WHERE ds = CURRENT_DATE GROUP BY ds, country;
 SELECT ds, SUM(streams) FROM agg_streams_daily
 WHERE ds &gt;= DATEADD(day,-90,CURRENT_DATE) GROUP BY ds;</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> A dashboard is read hundreds of times between data refreshes, so paying the scan once in a scheduled job and serving everyone from a one-row-per-day×dimension table is the highest-leverage move in all of analytics. Keep a small ladder of grains (hourly → daily → monthly) and point each panel at the coarsest one that answers it.</p>
+<div class="opt-impact"><strong>Impact:</strong> billions of rows scanned per load → ~90 rows; warehouse spend on that tile drops by 3–4 orders of magnitude.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-2">
@@ -2226,6 +2229,9 @@ FROM   bookings_obt
 WHERE  ds BETWEEN :start AND :end
 GROUP BY market, room_type;</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> Star schemas are the right <em>storage</em> model, but joins are the most expensive thing a dashboard does repeatedly. Flattening the hot dimensions onto the fact in an ELT step (a "one big table") trades a little storage and refresh cost for join-free reads — and columnar compression makes the duplicated dimension values nearly free. The semantic layer (№4) can still present it as a clean star.</p>
+<div class="opt-impact"><strong>Impact:</strong> N panels × a 6-way join per refresh → a single wide scan; the most common cause of a "slow dashboard, idle warehouse… then a spike."</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-3">
@@ -2247,6 +2253,9 @@ pre_aggregations:
   by_city_day:      {measures: [gbv], dimensions: [city],
                      granularity: day}
 # a country-month question auto-routes to by_country_month</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Aggregate awareness (Looker's <code>aggregate_awareness</code>, Cube pre-aggregations, Mondrian agg tables) lets you define a hierarchy of rollups and have the BI layer automatically rewrite each query to the smallest pre-aggregation that can answer it — transparently falling back to raw for unusual cuts. Analysts write one logical query; the engine routes it.</p>
+<div class="opt-impact"><strong>Impact:</strong> coarse questions hit kilobyte tables, fine questions still work — without analysts hand-picking the source.</div>
 </div>
   </div>
 </details>
@@ -2271,6 +2280,9 @@ metrics:
     filter: "is_bot = false AND events &gt; 0"
 # every dashboard references metric('weekly_active_users')</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> A semantic/metrics layer makes the metric definition a single governed object that every tool consumes, so the numbers reconcile by construction. It also centralises the join paths and rollup routing — which means the performance wins of №1–3 are applied <em>once</em> and inherited by every dashboard instead of re-litigated in each.</p>
+<div class="opt-impact"><strong>Impact:</strong> dashboards stop disagreeing; one change to the definition propagates everywhere; "whose number is right?" stops being a meeting.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-5">
@@ -2290,6 +2302,9 @@ FROM   agg_daily
 WHERE  month = '2024-01';
 -- sketches MERGE across any window → correct MAU,
 -- L7, L28, quarter — all without rescanning raw.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Sums, counts and min/max are additive — you can roll them up freely. <em>Distinct counts are not</em>, and pre-aggregating them as integers bakes in a double-counting bug. Storing a HyperLogLog sketch instead keeps the metric mergeable: any time window is a union of sketches, so the rollup stays both correct and cheap. (Same engine as Performance №14, used here to keep the serving layer honest.)</p>
+<div class="opt-impact"><strong>Impact:</strong> distinct-user metrics become rollup-safe at every grain — no raw rescans, no silent over-count.</div>
 </div>
   </div>
 </details>
@@ -2314,6 +2329,9 @@ FROM base GROUP BY region, ds;
 -- repeat queries also return from the result
 -- cache instantly until the data changes.</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> A materialized view persists the aggregate and (on Snowflake/BigQuery/Redshift) maintains it incrementally as the base changes, so viewers read a small, current result. The warehouse result cache stacks on top: byte-identical repeat queries return with zero compute until the inputs change. Together they absorb the "everyone opens the same dashboard" load.</p>
+<div class="opt-impact"><strong>Impact:</strong> the first viewer pays; the next hundred are served from MV + cache for ~free until the next data load.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-7">
@@ -2333,6 +2351,9 @@ FROM base GROUP BY region, ds;
 -- the app queries the OLAP store, not the warehouse:
 SELECT dim, SUM(metric) FROM events_realtime
 WHERE ts &gt; now() - INTERVAL '7' DAY GROUP BY dim;</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Druid, Pinot and ClickHouse are built for exactly this: roll-up at ingestion, columnar segments with bitmap/inverted indexes, and scatter-gather execution tuned for many small concurrent aggregations with sub-second p99. They ingest from Kafka for minute-fresh data. It's the standard pattern when a dashboard is really a <em>product surface</em>, not an internal report.</p>
+<div class="opt-impact"><strong>Impact:</strong> seconds-and-queueing → sub-200&nbsp;ms at thousands of QPS, minute-fresh — latency a warehouse fundamentally can't hit at that concurrency.</div>
 </div>
   </div>
 </details>
@@ -2354,6 +2375,9 @@ WHERE ts &gt; now() - INTERVAL '7' DAY GROUP BY dim;</code></pre></div>
 -- use LIVE/DirectQuery only when true real-time
 -- freshness is the requirement.</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> A Tableau Hyper extract or Power BI import is a purpose-built columnar cache sitting next to the BI engine — interactions resolve in memory instead of round-tripping to the warehouse, which is both faster and dramatically cheaper. Reserve live/DirectQuery for genuinely real-time needs, and even then back it with aggregate awareness. Extract only the fields and grain the workbook uses (never <code>SELECT *</code>).</p>
+<div class="opt-impact"><strong>Impact:</strong> interaction latency decouples from warehouse load; the per-click warehouse bill goes to roughly zero.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-9">
@@ -2374,6 +2398,9 @@ SELECT ... FROM events
   WHERE ds &gt; (SELECT MAX(ds) FROM {{ this }})
 {% endif %}</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> The same "compute once" discipline from the Performance pillar (№23–24) applied to the serving layer: partition the extract/MV by date and refresh only the recent, mutable window — archiving the stable history. Refresh cost scales with new data, not total history, so the hourly job stays flat as the dataset grows.</p>
+<div class="opt-impact"><strong>Impact:</strong> an hourly refresh that read 730 days now reads ~3; refresh time and cost stop growing with the table.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-10">
@@ -2391,6 +2418,9 @@ FROM   live_views;        -- exact, expensive, and
 FROM   live_views;        -- ~1–2% error, a fraction
                           -- of the cost; exact reserved
                           -- for billing/export drill-downs.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> A headline counter is read at a glance — 14.2M vs 14,237,104 changes no decision, so paying for exactness is pure waste. Approximate distinct/percentile (HLL, t-digest) give the number in a fraction of the cost and memory. Keep exact computation for the places that legally require it — billing, finance, compliance exports.</p>
+<div class="opt-impact"><strong>Impact:</strong> the most-viewed tiles get cheap and fast; exactness is spent only where it actually matters.</div>
 </div>
   </div>
 </details>
@@ -2415,6 +2445,9 @@ WHERE ds &gt;= DATEADD(day,-28,CURRENT_DATE)
 -- rest until scrolled/expanded; let users opt in
 -- to longer ranges explicitly.</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> Most dashboard views only need a recent window, and most panels are never looked at in a given session. A sensible bounded default plus lazy tile loading turns a 30-query thundering herd on every open into a handful of small, recent-window queries — which also prune partitions cleanly. Longer ranges become an explicit, infrequent choice.</p>
+<div class="opt-impact"><strong>Impact:</strong> queries per open drop from 30 to ~5, each scanning a recent slice instead of all history.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-12">
@@ -2434,6 +2467,9 @@ WHERE ds &gt;= :start AND merchant_id = :m;
 -- Delta:     OPTIMIZE ... ZORDER BY (merchant_id)
 -- now merchant_id prunes via min/max stats and the
 -- dashboard's most common filter skips most files.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> The serving table should be physically organised around how the dashboard actually filters. Partition by the coarse time dimension, cluster/Z-order by the high-selectivity filter columns (merchant, account, country), and every interactive filter prunes instead of scans. This is Performance №26 applied with the dashboard's <code>WHERE</code> clause as the design input.</p>
+<div class="opt-impact"><strong>Impact:</strong> the most-used filter goes from "scan the whole date range" to "skip to the matching files."</div>
 </div>
   </div>
 </details>
@@ -2455,6 +2491,9 @@ ALTER WAREHOUSE bi SET MIN_CLUSTER_COUNT=1
   MAX_CLUSTER_COUNT=10 SCALING_POLICY='STANDARD';
 -- 3) BigQuery: a BI Engine reservation for the dash.</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> High-concurrency spikes are a different problem from slow queries — the fix is to (a) make most requests cache hits so they never touch compute, and (b) let the remainder fan out across auto-added clusters instead of queueing. The combination handles the Monday-morning herd without permanently over-provisioning a giant warehouse that sits idle the rest of the week.</p>
+<div class="opt-impact"><strong>Impact:</strong> the herd is mostly cache hits; the rest scale out and back in — interactive latency holds, idle cost doesn't.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-14">
@@ -2474,6 +2513,9 @@ WHERE ds &gt;= :start GROUP BY category ORDER BY 2 DESC LIMIT 50;
 -- row-level detail → a paginated drill-down or a
 -- "download CSV" that runs an async export job.</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> A visualization should return what a human can perceive — a few dozen bars, a ranked top-N, a trend line. Massive table widgets pay twice: a large result transfer from the warehouse and an expensive client-side render. Aggregate or top-N for the on-screen view, and route true row-level needs to pagination or an async export.</p>
+<div class="opt-impact"><strong>Impact:</strong> result size drops from tens of thousands of rows to dozens; the panel renders instantly.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-15">
@@ -2491,6 +2533,9 @@ WHERE ds &gt;= :start GROUP BY category ORDER BY 2 DESC LIMIT 50;
 -- AFTER each load so the first human always hits a
 -- warm cache. Invalidate on load completion, not by
 -- a guessed timer.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> There's no value in recomputing a number more often than its inputs change. Setting the cache TTL to the data-freshness SLA, and warming the cache immediately after each pipeline load, means viewers almost always hit a fresh cache and the warehouse runs the heavy query once per load instead of once per click. Best of all is event-driven invalidation keyed to load completion.</p>
+<div class="opt-impact"><strong>Impact:</strong> the expensive query runs ~once per data load, not once per interaction; every viewer still sees current numbers.</div>
 </div>
   </div>
 </details>
@@ -2515,6 +2560,9 @@ FROM   orders;        -- one $9,000 catering order
 FROM   orders;        -- show p50 as "typical", and
                       -- the p50-vs-mean gap reveals skew.</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> On the heavy-tailed distributions that dominate real business data, the mean is pulled toward the whales and misrepresents the typical case. Lead with the median, show a percentile spread, and consider a log scale for whale-heavy charts. The gap between mean and median is itself the skew signal. (Vocabulary on the <a href="../design/skew-and-distributions.html">Skew &amp; Distributions</a> page.)</p>
+<div class="opt-impact"><strong>Impact:</strong> the KPI reflects the typical customer instead of being silently governed by the top 0.1%.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-17">
@@ -2534,6 +2582,9 @@ FROM   events
 WHERE  ts &lt; DATE_TRUNC('day', CURRENT_TIMESTAMP)  -- exclude
 GROUP BY 1;                                       -- partial today
 -- or mark the in-progress day as provisional in the viz.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Two classic dashboard lies: plotting an incomplete current partition as if it were a finished day, and aggregating by an implicit UTC "day" that doesn't match how the business thinks about time. Excluding (or visibly flagging) the in-progress day kills the daily false-drop, and converting to a declared business time zone makes day-over-day comparisons honest.</p>
+<div class="opt-impact"><strong>Impact:</strong> no more morning false-alarms; day boundaries match the business, and trends are comparable.</div>
 </div>
   </div>
 </details>
@@ -2555,6 +2606,9 @@ FROM   agg_daily
 WHERE  week = :w;       -- ratio computed at read time
                         -- from rolled-up components.</code></pre></div>
 </div>
+<p class="opt-why"><strong>Why it wins.</strong> Ratios, rates and averages are <em>not</em> additive — you can't sum or average them across grains without weighting. The rule is to pre-aggregate only additive components (numerator and denominator, sums and counts) and compute the ratio at read time. Same family as storing sketches instead of distinct counts (№5): keep the building blocks, derive the metric.</p>
+<div class="opt-impact"><strong>Impact:</strong> rates and averages roll up correctly to any grain; the weekly number stops being a meaningless average-of-averages.</div>
+</div>
   </div>
 </details>
 <details class="pl-item" id="opt-19">
@@ -2572,6 +2626,9 @@ WHERE  week = :w;       -- ratio computed at read time
 -- exact, un-sampled query → the path used for
 --   billing, finance, compliance and any export.
 -- one click from the tile to the exact drill-down.</code></pre></div>
+</div>
+<p class="opt-why"><strong>Why it wins.</strong> Approximation (№10) and sampling are the right call for speed — but only if consumers know which numbers are estimates. Visibly labelling approximate/sampled panels and routing finance-grade questions to an exact, un-sampled path preserves both speed <em>and</em> trust. The failure mode isn't the approximation; it's an estimate masquerading as the source of truth.</p>
+<div class="opt-impact"><strong>Impact:</strong> fast approximate tiles for everyday use, an audited exact path where it counts, and nobody reconciles against the wrong one.</div>
 </div>
   </div>
 </details>
