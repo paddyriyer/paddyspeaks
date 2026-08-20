@@ -13970,6 +13970,22 @@
       ],
       "answer": 0,
       "explanation": "BigQuery partitioning by event_date (a date column) is ideal because queries almost always filter by date range, allowing partition pruning to eliminate most data before scanning. Clustering by event_type and user_id within each partition further reduces bytes scanned for the secondary filters and grouping. Partitioning by user_id (option B) would be inefficient for date-range queries. Option C and D ignore the critical date filtering pattern, losing significant pruning benefits."
+    },
+    {
+      "id": "sql-new-070",
+      "type": "single",
+      "topic": "lateral joins",
+      "difficulty": "hard",
+      "added_date": "2026-08-20",
+      "prompt": "You have a `users` table with `user_id` and `created_at`, and an `events` table with `user_id`, `event_type`, and `event_timestamp`. You need to find, for each user, their most recent 3 events in a single result set along with user metadata. Which approach is most efficient and why?\n\nSchema:\n- users(user_id INT, created_at TIMESTAMP, name TEXT)\n- events(user_id INT, event_type TEXT, event_timestamp TIMESTAMP)\n\nYou want output: user_id, name, event_type (3 most recent per user), event_timestamp (3 most recent per user).",
+      "options": [
+        "Use a LEFT JOIN with a subquery that ranks events by ROW_NUMBER() THEN filters WHERE row_num <= 3. This avoids LATERAL and is supported everywhere.",
+        "Use a LATERAL JOIN: `FROM users LEFT JOIN LATERAL (SELECT event_type, event_timestamp FROM events WHERE events.user_id = users.user_id ORDER BY event_timestamp DESC LIMIT 3) e ON true`. LATERAL allows the subquery to reference the outer table and executes per user row.",
+        "Use CROSS APPLY (SQL Server) or equivalent LATERAL to unnest arrays of the top 3 events, then explode rows. This requires pre-aggregating events into arrays.",
+        "Use a window function with PARTITION BY user_id and ROW_NUMBER(), then self-join the events table three times (once per rank). This ensures all three events appear in separate columns."
+      ],
+      "answer": 1,
+      "explanation": "LATERAL JOINs are specifically designed for this use case: they allow a subquery in the FROM clause to reference columns from earlier tables, and the subquery executes once per outer row. This is more efficient and cleaner than option A (which produces a wide Cartesian product before filtering) and avoids the complexity of option C (array aggregation) or option D (multiple self-joins). Option B directly expresses the intent: correlate each user's top 3 events in a single logical step."
     }
   ]
 }
