@@ -7,30 +7,37 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 - **NEW (2026-08-21, latest): article "The Subject Nobody Taught" shipped** —
   `articles/the-subject-nobody-taught.html`, category `personality`, self-contained
-  (inline CSS/SVG/JS, ~92 KB HTML + ~175 KB of WebP). It is a visual essay on
-  financial literacy as a missing school subject.
-  - **Nine PNGs were supplied by hand** and are preserved untouched in
-    `images/articles/the-subject-nobody-taught/source/`. They are 481–555 px wide,
-    far too small to run full-bleed, so they were **cut down rather than scaled up**:
-    six photographic plates and twenty knocked-out icons (`stage-*`, `missing-*`,
-    `psy-*`). Every plate is capped at `max-width:620px` so nothing upscales past
-    ~1.2×. If you add a plate, cap it too or it will go soft.
-  - **Four of the nine had wrong numbers or typos baked into the pixels** — image 6
-    (garbled bar labels, a duplicated "Contributed $120,000"), image 7 ($650,000 does
-    not follow from $500/month), image 8 ("Keeping wealth. requires"), image 9
-    ("INEEP" for INVEST, and no TEACH node at all). Those four are **not used as
-    graphics**. The two data visualisations and the flywheel are drawn in inline SVG
-    from figures computed in-repo. Do not swap the images back in.
+  (inline CSS/SVG/JS). A visual essay on financial literacy as a missing school
+  subject.
+  - **The supplied artwork is used WHOLE. Never crop, trim, or re-frame it.** An
+    earlier pass cut the images into plates and icons and was reverted at the
+    author's request. Every `plate-*.webp` is a straight, aspect-preserving
+    conversion of its file in `source/`; only `plate-flywheel.webp` is resampled
+    (1535 -> 1200 px wide) and nothing is cropped. If you add artwork, convert the
+    whole file.
+  - **The artwork is the diagram on wide screens; the HTML is the reading layer on
+    narrow ones.** A single `@media(min-width:861px)` rule hides `.lifecycle`,
+    `.missing-strip`, `.principles`, `.loop-list` and `.narrow-only`, so desktop
+    shows the images alone and phones get real markup at a legible size. Alt text
+    carries the full content either way. Do not delete the HTML versions — they are
+    what makes the page work at 375px and for screen readers.
+  - **Images 6 (compounding) and 7 (start early) are deliberately NOT in the page.**
+    Their figures are wrong in the pixels: image 6 has garbled bar labels and a
+    duplicated "Contributed $120,000"; image 7's $650,000 does not follow from
+    $500/month at 8%. Their two sections use inline-SVG charts built from figures
+    computed in-repo instead. **Drop the images in as plates the moment fixed
+    versions arrive** — that is exactly what happened with image 9, which was
+    re-supplied at 1535x1024 with TEACH restored and "INEEP" fixed, and is now the
+    flywheel graphic.
   - **The financial figures are load-bearing and were verified.** $500/month at 8%
     nominal compounded monthly: 10y $91,473 · 20y $294,510 · 30y $745,180 · 40y
-    $1,745,504. Contributions are $6,000/yr. The early-vs-late pair is Priya (25→65,
-    $240,000 in) vs Raj (35→65, $180,000 in) — $60,000 more contributed, $1,000,324
+    $1,745,504. Contributions are $6,000/yr. The early-vs-late pair is Priya (25->65,
+    $240,000 in) vs Raj (35->65, $180,000 in) — $60,000 more contributed, $1,000,324
     more at the end. If you touch a number, re-derive the SVG path data with it; the
     polyline points and the prose must not drift apart.
   - Chart labels live in **HTML positioned over the SVG**, not inside it, so they stay
     legible at 375px. The SVGs carry geometry only and use `preserveAspectRatio="none"`
-    with an explicit `height:clamp(215px,30vw,360px)`. In-plot annotations are hidden
-    below 620px in favour of the `.split` summary.
+    with an explicit `height:clamp(215px,30vw,360px)`.
   - Everything renders with **JavaScript off** — reveals only hide once `has-js` is on
     the root, counters carry their final values as literal text, and the chart wipe is
     `display:none` without JS and under `prefers-reduced-motion`.
