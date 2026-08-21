@@ -7466,6 +7466,22 @@
       ],
       "answer": 2,
       "explanation": "Option 2 (`asyncio.as_completed` + semaphore) provides fine-grained control: the semaphore limits concurrent connections, `as_completed` allows early termination as results come in, and calling `cancel()` on pending tasks immediately halts work. Options 0 and 1 wait for all tasks, delaying failure detection; option 3 uses threads which are less efficient for I/O-bound API calls and lose asyncio's advantages."
+    },
+    {
+      "id": "py-new-074",
+      "type": "single",
+      "topic": "functools and pandas performance optimization",
+      "difficulty": "hard",
+      "added_date": "2026-08-21",
+      "prompt": "You have a pandas DataFrame with 10M rows. A colleague writes:\n\n```python\nfrom functools import lru_cache\n\n@lru_cache(maxsize=128)\ndef lookup_category(product_id):\n    # Expensive DB call\n    return db.query(f\"SELECT category FROM products WHERE id={product_id}\")\n\ndf['category'] = df['product_id'].apply(lookup_category)\n```\n\nThey claim this will be fast because `lru_cache` caches results. In a real-world scenario with 10M rows and ~50k unique product_ids, what is the primary performance issue with this approach?",
+      "options": [
+        "The `lru_cache` decorator doesn't work on functions that make DB calls, so caching is ineffective.",
+        "Each `apply()` call is single-threaded and serializes the function invocations; `lru_cache` prevents vectorization and the GIL blocks concurrent hits to cached values.",
+        "The `maxsize=128` is too small; with 50k unique product_ids, most lookups will miss the cache, causing thrashing and DB calls.",
+        "The `lru_cache` is thread-unsafe by default, so concurrent accesses from pandas' internal thread pool will corrupt the cache."
+      ],
+      "answer": 2,
+      "explanation": "With 50k unique product_ids but an `lru_cache` maxsize of only 128, the cache will evict frequently-needed entries, causing most lookups to miss and trigger redundant DB calls. The correct fix is either increasing `maxsize` to at least 50k, using a persistent dictionary, or pre-loading the lookup table into memory. While option B mentions real issues with `apply()`, it incorrectly suggests `lru_cache` itself prevents vectorization\u2014the actual bottleneck here is cache misses, not the apply mechanism."
     }
   ]
 }
