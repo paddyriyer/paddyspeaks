@@ -14066,6 +14066,70 @@
       ],
       "answer": 1,
       "explanation": "Materialized views in Snowflake can track changes via Streams for incremental refresh. If automatic refresh is disabled or Streams are not configured on source tables, the MV falls back to full refresh on every modification. Given the 4x slowdown with 10x volume increase, this suggests non-incremental behavior. Re-enabling incremental refresh would be the quickest fix."
+    },
+    {
+      "id": "sql-new-076",
+      "type": "single",
+      "topic": "COALESCE / NULLIF",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You have a `customer_events` table with columns: `user_id`, `event_type` (VARCHAR), `previous_value` (INT), `new_value` (INT). Some rows have NULL in both `previous_value` and `new_value`. You need to return a single value per row: the new_value if it exists, otherwise the previous_value, but only if at least one is non-NULL. If both are NULL, return 0. Which query is correct?",
+      "options": [
+        "SELECT user_id, COALESCE(new_value, previous_value, 0) AS value FROM customer_events;",
+        "SELECT user_id, NULLIF(COALESCE(new_value, previous_value), NULL) AS value FROM customer_events;",
+        "SELECT user_id, CASE WHEN new_value IS NOT NULL THEN new_value WHEN previous_value IS NOT NULL THEN previous_value ELSE 0 END AS value FROM customer_events;",
+        "SELECT user_id, IFNULL(new_value, IFNULL(previous_value, 0)) AS value FROM customer_events;"
+      ],
+      "answer": 0,
+      "explanation": "COALESCE returns the first non-NULL argument in order, so COALESCE(new_value, previous_value, 0) correctly prioritizes new_value, then previous_value, and defaults to 0. Options 1 and 3 are functionally equivalent and correct; option 0 is the most concise and idiomatic SQL solution."
+    },
+    {
+      "id": "sql-new-077",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "In BigQuery, you're writing a query that processes 10 TB of data monthly. You use NULLIF to compare two STRING columns and want to ensure the NULL result doesn't trigger unnecessary slot consumption. Which statement is true about NULLIF behavior in BigQuery?",
+      "options": [
+        "NULLIF causes BigQuery to scan columns byte-for-byte to detect NULL, increasing slot usage proportionally.",
+        "NULLIF is a logical operation that produces NULL without additional scanning; the comparison itself is what triggers slot consumption based on the data scanned, not the NULL result.",
+        "BigQuery optimizes NULLIF to scan only non-NULL rows, reducing slot consumption by up to 50%.",
+        "NULLIF forces BigQuery to create a temporary table holding only non-NULL results, which must be removed after the query."
+      ],
+      "answer": 1,
+      "explanation": "NULLIF is a simple logical comparison (expr1 = expr2 ? NULL : expr1) that doesn't inherently change slot consumption. Slot usage is determined by the amount of data scanned, not the presence of NULLs in the result. The query optimizer handles the comparison efficiently regardless of the NULL output."
+    },
+    {
+      "id": "sql-new-078",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "You're implementing a daily incremental load in Snowflake using MERGE. Your source table `stg_orders` has new and updated orders; your target `orders` table has PK (order_id). During the WHEN MATCHED clause, you want to update only columns where the source value differs from the target, avoiding unnecessary micro-partition rewrites. How should you structure the UPDATE clause?",
+      "options": [
+        "MERGE INTO orders o USING stg_orders s ON o.order_id = s.order_id WHEN MATCHED THEN UPDATE SET o.amount = s.amount, o.status = s.status;",
+        "MERGE INTO orders o USING stg_orders s ON o.order_id = s.order_id WHEN MATCHED AND (o.amount != s.amount OR o.status != s.status) THEN UPDATE SET o.amount = s.amount, o.status = s.status;",
+        "MERGE INTO orders o USING stg_orders s ON o.order_id = s.order_id WHEN MATCHED THEN UPDATE SET o.amount = COALESCE(s.amount, o.amount), o.status = COALESCE(s.status, o.status);",
+        "MERGE INTO orders o USING stg_orders s ON o.order_id = s.order_id WHEN MATCHED THEN UPDATE SET o.amount = CASE WHEN o.amount IS DISTINCT FROM s.amount THEN s.amount ELSE o.amount END;"
+      ],
+      "answer": 1,
+      "explanation": "Adding a condition in the WHEN MATCHED clause (option 1) prevents the UPDATE action from executing when no columns have actually changed, avoiding unnecessary micro-partition rewrites and improving performance. Option 0 updates every match regardless of change, and options 2 and 3 don't prevent the rewrite action itself."
+    },
+    {
+      "id": "sql-new-079",
+      "type": "single",
+      "topic": "NULLIF",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You have a metrics table with `metric_name`, `current_value` (DECIMAL), and `previous_value` (DECIMAL). You want to calculate percent change, but you must avoid division by zero errors. A metric should only be included if previous_value was non-zero. Which approach correctly handles this?",
+      "options": [
+        "SELECT metric_name, (current_value - previous_value) / NULLIF(previous_value, 0) AS pct_change FROM metrics WHERE previous_value != 0;",
+        "SELECT metric_name, (current_value - previous_value) / NULLIF(previous_value, 0) AS pct_change FROM metrics;",
+        "SELECT metric_name, CASE WHEN NULLIF(previous_value, 0) IS NOT NULL THEN (current_value - previous_value) / previous_value END AS pct_change FROM metrics;",
+        "SELECT metric_name, (current_value - previous_value) / COALESCE(NULLIF(previous_value, 0), 1) AS pct_change FROM metrics;"
+      ],
+      "answer": 1,
+      "explanation": "NULLIF(previous_value, 0) converts zeros to NULL, and dividing by NULL automatically produces NULL in SQL (no error). This is cleaner than option 0 which requires a WHERE clause. Option 1 returns NULL for zero division cases, which is the desired safe behavior. Options 2 and 3 are less idiomatic."
     }
   ]
 }

@@ -5666,6 +5666,54 @@
       ],
       "answer": 3,
       "explanation": "Option 3 leverages Snowflake's native Data Sharing (no data duplication, payments team retains control), built-in masking policies (centralized PII governance), and row-level filtering via joins on org_id (scalable RLS without manual view replication). OpenMetadata provides discovery. Options 1\u20132 involve data duplication or high maintenance burden on cloning/view management across domains."
+    },
+    {
+      "id": "ds-new-063",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "You're building a Kafka \u2192 Spark Streaming \u2192 Snowflake pipeline processing financial transactions. The pipeline must guarantee exactly-once delivery into Snowflake despite Spark executor failures mid-transaction. Spark checkpointing is enabled. Which approach best achieves this?",
+      "options": [
+        "Rely on Spark's idempotent write combined with Snowflake's MERGE with a unique constraint on transaction_id; store offsets in Snowflake after MERGE succeeds.",
+        "Use Kafka transactions with Spark's transactionalWrite flag, store offsets in a separate PostgreSQL database, and poll Kafka on recovery.",
+        "Implement a deduplication window in Spark using RocksDB state store, commit Snowflake writes first, then commit Kafka offsets to external store.",
+        "Enable Kafka auto-commit and rely on Spark's WAL (write-ahead logs) to replay failed micro-batches; Snowflake's built-in idempotency handles duplicates."
+      ],
+      "answer": 0,
+      "explanation": "The correct pattern stores Kafka offsets as part of the same transaction that writes the fact data to Snowflake, using MERGE with a unique constraint on transaction_id to deduplicate. This ensures that either both offset and data are committed (exactly-once) or neither, preventing duplicate rows on replay. Option 2 decouples offset and data commits; option 3 adds unnecessary complexity; option 4 relies on auto-commit which does not provide exactly-once guarantees."
+    },
+    {
+      "id": "ds-new-064",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "Your data platform ingests Avro messages from 120 producer services into Kafka, then writes to Delta Lake. You need to support schema evolution: adding optional fields, removing deprecated fields, and renaming fields across producer teams. Which strategy minimizes breaking changes and simplifies schema registry governance?",
+      "options": [
+        "Store a single canonical schema in Confluent Schema Registry; require all producers to update their schema versions synchronously before deploying code changes.",
+        "Use Schema Registry with schema versioning and compatibility mode set to BACKWARD_WITH_DEFAULT; consumers read schema from Registry and deserialize dynamically.",
+        "Disable Schema Registry; embed schema as a JSON string in each Kafka message header; parse and validate in the Delta Lake write job.",
+        "Maintain separate schemas per producer service in Schema Registry; implement a schema-merge layer in the Delta Lake writer that flattens and standardizes fields."
+      ],
+      "answer": 1,
+      "explanation": "BACKWARD_WITH_DEFAULT compatibility mode allows producers to add optional fields with defaults and remove fields without breaking consumers reading old message versions. The Schema Registry dynamically manages versioning, avoiding tight coupling between producers and consumers. Option 0 requires synchronous coordination (not scalable across 120 teams); option 2 loses governance and validation; option 3 adds operational complexity without schema governance."
+    },
+    {
+      "id": "ds-new-065",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You manage an Airflow DAG that orchestrates 30 daily ELT jobs across a data warehouse. Several jobs are interdependent (e.g., dimension loads must complete before fact loads), but others are independent and should run in parallel. The DAG currently chains all tasks sequentially, causing a 4-hour run time. The warehouse can handle parallelism up to 8 concurrent jobs. How should you refactor the DAG structure?",
+      "options": [
+        "Use Airflow's @task.branch decorator to conditionally skip independent tasks and re-run them if upstream tasks fail.",
+        "Define explicit task dependencies using set_downstream() and set_upstream() only for jobs with true dependencies; group independent jobs into a @task_group with max_active_tis_per_dagrun=8.",
+        "Create separate DAGs for independent job clusters and trigger them all from a parent DAG; limit concurrency using a pool with 8 slots.",
+        "Use Airflow's DependencyChain utility to auto-detect dependencies via table lineage; dynamically generate task order at DAG parse time."
+      ],
+      "answer": 2,
+      "explanation": "Creating separate DAGs for independent job clusters and triggering them from a parent DAG (orchestration DAG pattern) provides the clearest separation of concerns, allows independent DAGs to be monitored separately, and using a pool with 8 slots globally limits warehouse concurrency. Option 1 uses @task.branch incorrectly (for conditional logic, not parallelization); option 2 requires manual dependency definition (error-prone at scale); option 3 (DependencyChain) does not exist in standard Airflow and conflicts with the interdependency requirements stated in the problem."
     }
   ]
 }

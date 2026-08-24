@@ -925,6 +925,38 @@
       ],
       "answer": 0,
       "explanation": "Incremental merge ETLs using schema-based column mapping often fail silently when upstream schemas change. If the new currency column was not explicitly mapped in the merge statement, those transactions could be inserted without currency values and then filtered out by downstream null checks or aggregation logic. The certification process failed because it didn't validate end-to-end data completeness after infrastructure changes\u2014only query correctness. This is a common gap between logic validation and operational data integrity."
+    },
+    {
+      "id": "dash-new-003",
+      "type": "single",
+      "topic": "row-level security",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "Your company has a dashboard showing customer revenue by sales region. Sales managers should only see data for their own region, while executives see all regions. You've implemented RLS at the semantic layer using a `user_region` attribute. A regional manager reports seeing data from two regions instead of one. What is the most likely root cause?",
+      "options": [
+        "The `user_region` attribute was not properly joined to the fact table's region dimension.",
+        "The RLS filter is applied after aggregation rather than before, allowing data to leak through GROUP BY operations.",
+        "The dashboard cache is shared across users and not invalidated when RLS policies change.",
+        "The manager's user account was assigned multiple region values in the RLS configuration."
+      ],
+      "answer": 1,
+      "explanation": "RLS filters must be applied at query-generation time before aggregation occurs. If the filter is applied post-aggregation (e.g., in the presentation layer), grouped results from restricted rows can still appear. Option 3 (caching) and Option 0 (join issues) would cause complete data visibility loss, not a partial leak. Option 3 would be a configuration error but is less common than architectural RLS placement mistakes."
+    },
+    {
+      "id": "dash-new-004",
+      "type": "single",
+      "topic": "dashboard test data and environments",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "Your QA team runs dashboard tests against a staging database with 50,000 rows of synthetic test data. In production, the fact table has 2.8 billion rows. A dashboard visual that performs well in staging (returns in <500ms) now takes 8 seconds in production. Which scenario would NOT explain this performance gap?",
+      "options": [
+        "The staging table lacks indexes on columns used in WHERE and JOIN clauses that exist in production.",
+        "Cardinality of dimension values differs\u2014staging has 12 countries while production has 195 countries, increasing GROUP BY complexity.",
+        "The production query plan uses a full table scan due to stale statistics, whereas staging uses an index scan.",
+        "A downstream application caches staging results hourly but queries production live on every dashboard load."
+      ],
+      "answer": 0,
+      "explanation": "Staging typically has fewer indexes than production due to lower resource constraints; missing indexes in staging would make it slower, not faster. Options 1, 2, and 3 all plausibly explain why production is slower: higher cardinality increases grouping work, stale statistics cause inefficient plans, and live querying without caching adds latency. The question asks what would NOT explain the gap, making the index scenario the wrong direction."
     }
   ]
 }

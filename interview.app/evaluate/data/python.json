@@ -7530,6 +7530,54 @@
       ],
       "answer": 1,
       "explanation": "`asyncio.Semaphore(3)` limits concurrency to 3, and `asyncio.gather()` preserves task order in its results regardless of completion order. Option 0 allows unlimited concurrency, option 2 is sequential (defeats concurrency), and option 4 uses threading which is less efficient for I/O-bound async operations."
+    },
+    {
+      "id": "py-new-078",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You're building a data pipeline class where column names must be validated against a schema on assignment. Which descriptor pattern best solves this without repeating validation logic across 20+ properties?\n\nclass Pipeline:\n    # Should validate column names against allowed_cols\n    source_table = ???\n    target_table = ???\n\nGiven that validation rules are complex (regex, length, special chars), what is the best approach?",
+      "options": [
+        "Use __setattr__ in __init__ to manually validate each assignment",
+        "Create a single descriptor class that validates column name strings and reuse it for each property",
+        "Use @property decorators with manual validation logic duplicated in each setter",
+        "Use __slots__ to restrict attribute names and validate in __getattribute__"
+      ],
+      "answer": 1,
+      "explanation": "Descriptors (via __set__/__get__) are designed exactly for this use case\u2014centralizing validation logic that applies to multiple attributes. A single descriptor class can be instantiated multiple times with different configurations, avoiding code duplication and enabling consistent behavior. __setattr__ is too broad, @property requires duplication, and __slots__ doesn't provide validation logic."
+    },
+    {
+      "id": "py-new-079",
+      "type": "single",
+      "topic": "itertools",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You have a generator `events` (timestamp, user_id, event_type) arriving in chronological order. You need to group consecutive events by user_id for sessionization, but memory is limited and you cannot materialize the full stream.\n\nWhich itertools function is most appropriate?\n\nfrom itertools import ???\n\nfor user_id, group in ???(events, key=lambda x: x[1]):\n    session = list(group)  # Process each session\n    # emit session",
+      "options": [
+        "groupby \u2014 it yields consecutive groups and doesn't hold the entire stream in memory",
+        "combinations \u2014 it pairs all possible user events for matching",
+        "chain \u2014 it flattens nested event sequences into a single stream",
+        "cycle \u2014 it repeats users in a rotating fashion for load balancing"
+      ],
+      "answer": 0,
+      "explanation": "itertools.groupby is specifically designed for grouping consecutive elements by a key function. Critically, it doesn't materialize the entire group in memory\u2014you iterate through it once. This is perfect for sessionization on streaming data. combinations, chain, and cycle don't provide grouping behavior."
+    },
+    {
+      "id": "py-new-080",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "Your team is building a metrics framework where every metric class must auto-register with a central registry and enforce that all metrics define a `compute()` method. Currently, forgetting to implement `compute()` causes runtime errors in production.\n\nWhich approach using metaclasses would enforce this at class definition time (not instantiation)?",
+      "options": [
+        "Use __init_subclass__ hook in a base Metric class to validate compute() exists",
+        "Create a metaclass that inspects the class dict in __new__ and raises TypeError if compute is missing",
+        "Use a decorator on each metric class to register and validate it",
+        "Override __init__ in Metric to check if compute is defined and raise AttributeError"
+      ],
+      "answer": 1,
+      "explanation": "Metaclasses intercept class creation via __new__, allowing validation *before* the class object is finalized. This catches missing methods at definition time. __init_subclass__ is a lighter alternative but doesn't prevent class creation. Decorators and __init__ checks happen after class creation, allowing invalid classes to be defined. A metaclass ensures no invalid Metric subclass can be created."
     }
   ]
 }
