@@ -893,6 +893,38 @@
         "Measures certified-viewing share and cost per active dashboard, not dashboards deleted",
         "Names the political reality and how the deprecation is made survivable"
       ]
+    },
+    {
+      "id": "dash-new-001",
+      "type": "single",
+      "topic": "dashboard caching and cache warming",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "Your organization has a critical executive dashboard viewed by 200+ users every morning at 9am. Query execution takes 8 seconds against a 2TB fact table. Users report consistently slow load times during the first 15 minutes, then performance improves. What is the most effective cache warming strategy?",
+      "options": [
+        "Schedule a full table scan at 8:45am to pre-populate the entire fact table in memory",
+        "Pre-execute the dashboard's actual queries at 8:50am to warm the query result cache before users arrive",
+        "Increase the BI tool's in-memory cache size by 50% to accommodate concurrent users",
+        "Add a materialized view aggregated to daily granularity and query that instead of the fact table"
+      ],
+      "answer": 1,
+      "explanation": "Pre-executing the exact dashboard queries minutes before peak load ensures the specific result sets users need are cached and ready. Full table scans waste memory on unused data, cache size increases don't address cold-start latency, and materialized views help query speed but don't solve the cold cache problem. This approach directly addresses the pattern of slow first-load then fast subsequent access."
+    },
+    {
+      "id": "dash-new-002",
+      "type": "single",
+      "topic": "incremental refresh and dashboard certification",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "Your company implements a dashboard certification program requiring re-validation quarterly. A certified revenue dashboard uses an incremental load pattern: daily ETL appends new transactions to a historical table via a merge statement. Last week, a schema change added a new currency column to the upstream system, but the ETL continued to run successfully without errors. The certified dashboard now shows $200K less revenue than the audit report. What is the likely root cause?",
+      "options": [
+        "The incremental ETL silently dropped the new currency column, causing transactions in non-USD currencies to be skipped during the merge",
+        "The daily ETL is using a stale cached view of the schema and inserting NULL for unmapped columns, inflating the row count without adding values",
+        "The certification validation only checked query logic, not the ETL lineage\u2014the upstream system's currency conversion logic changed but the dashboard's aggregation did not",
+        "The merge statement's join condition became ambiguous after the schema change, causing duplicate detection to fail and result in reconciliation errors"
+      ],
+      "answer": 0,
+      "explanation": "Incremental merge ETLs using schema-based column mapping often fail silently when upstream schemas change. If the new currency column was not explicitly mapped in the merge statement, those transactions could be inserted without currency values and then filtered out by downstream null checks or aggregation logic. The certification process failed because it didn't validate end-to-end data completeness after infrastructure changes\u2014only query correctness. This is a common gap between logic validation and operational data integrity."
     }
   ]
 }

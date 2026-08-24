@@ -14002,6 +14002,70 @@
       ],
       "answer": 1,
       "explanation": "LATERAL joins are specifically designed for row-by-row operations where the right side can reference the left side and apply per-row filtering/limiting. Inside a LATERAL subquery, you can ORDER BY event_time DESC and LIMIT 3 for each user, avoiding expensive window functions or cross joins. This is more efficient than standard joins with post-hoc ranking or DISTINCT ON when you need a true TOP-N per group with row-dependent logic."
+    },
+    {
+      "id": "sql-new-072",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You have a table `transactions(id INT, amount DECIMAL, status TEXT, created_at TIMESTAMP)`. You need to calculate both the total amount of all transactions AND the total amount of only 'completed' transactions in a single pass. Which approach is most efficient in PostgreSQL or Snowflake?",
+      "options": [
+        "SELECT SUM(amount) as total, SUM(CASE WHEN status='completed' THEN amount ELSE 0 END) as completed_total FROM transactions;",
+        "SELECT SUM(amount) FILTER (WHERE TRUE) as total, SUM(amount) FILTER (WHERE status='completed') as completed_total FROM transactions;",
+        "SELECT SUM(amount) as total FROM transactions UNION ALL SELECT SUM(amount) as completed_total FROM transactions WHERE status='completed';",
+        "SELECT DISTINCT SUM(amount) as total, SUM(amount) as completed_total FROM transactions GROUP BY status;"
+      ],
+      "answer": 1,
+      "explanation": "The FILTER clause is the standard SQL way to apply conditions to aggregate functions without requiring CASE statements. Option 1 works but is less clean and harder to read. Option 2 using FILTER is the most explicit, efficient, and readable approach supported by modern SQL databases."
+    },
+    {
+      "id": "sql-new-073",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "In Snowflake, you write: `SELECT COUNT(*) FILTER (WHERE event_type='login'), COUNT(*) FILTER (WHERE event_type='logout') FROM events WHERE date >= CURRENT_DATE - 7`. A colleague claims this is slower than two separate queries with UNION. Under what condition is your colleague correct?",
+      "options": [
+        "When the events table has no clustering key; the single query must scan all partitions anyway.",
+        "When event_type has very low cardinality and 'logout' events are extremely rare; the query optimizer cannot push down the FILTER conditions efficiently.",
+        "When you are querying the result cache; cached results are only valid for identical queries, so UNION prevents cache hits.",
+        "Never; FILTER clauses always outperform UNION ALL queries because they reduce data movement."
+      ],
+      "answer": 2,
+      "explanation": "The query result cache in Snowflake matches based on exact query text. Two separate queries with UNION might hit the cache from previous runs, while a single FILTER query would not match. Additionally, two optimized queries that read only their respective filtered partitions (if properly clustered) could be faster than a single query scanning the full table before filtering."
+    },
+    {
+      "id": "sql-new-074",
+      "type": "single",
+      "topic": "Lateral joins",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You have `customers(id, name)` and `orders(customer_id, order_date, amount)`. You need the top 3 most recent orders for EACH customer. Which approach is correct in PostgreSQL?",
+      "options": [
+        "SELECT c.id, c.name, o.order_date, o.amount FROM customers c JOIN orders o ON c.id = o.customer_id ORDER BY c.id, o.order_date DESC LIMIT 3;",
+        "SELECT c.id, c.name, o.order_date, o.amount FROM customers c CROSS JOIN LATERAL (SELECT * FROM orders WHERE customer_id = c.id ORDER BY order_date DESC LIMIT 3) o;",
+        "SELECT c.id, c.name, o.order_date, o.amount FROM customers c LEFT JOIN orders o ON c.id = o.customer_id QUALIFY ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY o.order_date DESC) <= 3;",
+        "SELECT DISTINCT c.id, c.name, o.order_date, o.amount FROM customers c JOIN orders o ON c.id = o.customer_id WHERE ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY o.order_date DESC) <= 3;"
+      ],
+      "answer": 1,
+      "explanation": "A LATERAL join is the correct PostgreSQL syntax for this operation. It allows the subquery to reference the outer table (c.id) and is evaluated row-by-row for each customer. Option 0 only returns 3 rows total, not 3 per customer. Option 2 uses QUALIFY which is Snowflake-specific syntax. Option 3 uses window functions incorrectly in the WHERE clause."
+    },
+    {
+      "id": "sql-new-075",
+      "type": "single",
+      "topic": "Materialized views",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "You have a Snowflake materialized view `mv_daily_revenue` that is refreshed nightly and used by 50 downstream reports. The underlying `transactions` table now receives 10x more volume. The MV refresh job is taking 4x longer and you notice it's scanning 100 GB instead of 10 GB. What is the most likely root cause and best fix?",
+      "options": [
+        "The materialized view needs a clustering key; add CLUSTER BY to the MV definition and recreate it.",
+        "Snowflake's MV refresh is now not incremental; check if automatic refresh is still enabled and re-enable Streams on the source table.",
+        "The transaction table changed its micro-partition layout; run OPTIMIZE on the transactions table to improve clustering naturally.",
+        "The MV definition includes a full table scan that was acceptable before; refactor the query to use a window function with PARTITION BY instead of a GROUP BY."
+      ],
+      "answer": 1,
+      "explanation": "Materialized views in Snowflake can track changes via Streams for incremental refresh. If automatic refresh is disabled or Streams are not configured on source tables, the MV falls back to full refresh on every modification. Given the 4x slowdown with 10x volume increase, this suggests non-incremental behavior. Re-enabling incremental refresh would be the quickest fix."
     }
   ]
 }

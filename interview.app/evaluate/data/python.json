@@ -7482,6 +7482,54 @@
       ],
       "answer": 2,
       "explanation": "With 50k unique product_ids but an `lru_cache` maxsize of only 128, the cache will evict frequently-needed entries, causing most lookups to miss and trigger redundant DB calls. The correct fix is either increasing `maxsize` to at least 50k, using a persistent dictionary, or pre-loading the lookup table into memory. While option B mentions real issues with `apply()`, it incorrectly suggests `lru_cache` itself prevents vectorization\u2014the actual bottleneck here is cache misses, not the apply mechanism."
+    },
+    {
+      "id": "py-new-075",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You're writing a data pipeline that reads from multiple database connections and must ensure all are closed even if an error occurs. You implement a custom context manager class `DatabasePool`. Which implementation correctly ensures cleanup happens in reverse order of acquisition?",
+      "options": [
+        "class DatabasePool:\n  def __enter__(self):\n    self.conns = []\n    return self\n  def __exit__(self, *args):\n    for conn in self.conns:\n      conn.close()",
+        "class DatabasePool:\n  def __enter__(self):\n    self.conns = []\n    return self\n  def __exit__(self, *args):\n    for conn in reversed(self.conns):\n      conn.close()",
+        "class DatabasePool:\n  def __enter__(self):\n    self.conns = []\n    return self\n  def __exit__(self, *args):\n    self.conns.sort()\n    for conn in self.conns:\n      conn.close()",
+        "class DatabasePool:\n  def __enter__(self):\n    self.conns = []\n    return self\n  def __exit__(self, *args):\n    self.conns.pop().close()"
+      ],
+      "answer": 1,
+      "explanation": "Using `reversed(self.conns)` ensures LIFO (last-in-first-out) cleanup, which is best practice for nested resource acquisition. This mirrors how the context stack works and prevents dependency issues. Option 0 closes in acquisition order, option 2 sorts arbitrarily, and option 3 only closes the last connection."
+    },
+    {
+      "id": "py-new-076",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "You're building a data validation tool that processes all CSV files recursively from a directory, skipping any in subdirectories named 'archive'. Using `pathlib.Path`, which approach correctly filters out archived files?",
+      "options": [
+        "from pathlib import Path\ncsv_files = [f for f in Path('data').glob('**/*.csv') if 'archive' not in f.parts]",
+        "from pathlib import Path\ncsv_files = [f for f in Path('data').glob('**/*.csv') if 'archive' not in f.name]",
+        "from pathlib import Path\ncsv_files = [f for f in Path('data').glob('*.csv') if 'archive' not in str(f)]",
+        "from pathlib import Path\ncsv_files = [f for f in Path('data').rglob('*.csv') if f.parent.name != 'archive']"
+      ],
+      "answer": 0,
+      "explanation": "`f.parts` returns the full tuple of path components, so checking `'archive' not in f.parts` excludes any file whose full path contains 'archive' at any level. Option 1 only checks the filename, option 2 doesn't recursively include all levels, and option 3 only filters the immediate parent directory, missing nested archives."
+    },
+    {
+      "id": "py-new-077",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "You're building an async data ingestion service that fetches records from 10 APIs concurrently, but must limit to 3 simultaneous requests. After collecting all results, you need to process them in the order APIs were called (not completion order). Which approach is correct?",
+      "options": [
+        "tasks = [fetch(api_url) for api_url in urls]\nresults = await asyncio.gather(*tasks)\n# Results are in original order by default",
+        "semaphore = asyncio.Semaphore(3)\nasync def fetch_with_limit(url):\n  async with semaphore:\n    return await fetch(url)\ntasks = [fetch_with_limit(url) for url in urls]\nresults = await asyncio.gather(*tasks)",
+        "results = []\nfor url in urls:\n  result = await fetch(url)\n  results.append(result)",
+        "executor = ThreadPoolExecutor(max_workers=3)\nloop = asyncio.get_event_loop()\nresults = await asyncio.gather(*[loop.run_in_executor(executor, fetch, url) for url in urls])"
+      ],
+      "answer": 1,
+      "explanation": "`asyncio.Semaphore(3)` limits concurrency to 3, and `asyncio.gather()` preserves task order in its results regardless of completion order. Option 0 allows unlimited concurrency, option 2 is sequential (defeats concurrency), and option 4 uses threading which is less efficient for I/O-bound async operations."
     }
   ]
 }

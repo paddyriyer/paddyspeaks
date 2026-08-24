@@ -5618,6 +5618,54 @@
       "prompt": "Walk me through your process for designing a data model from scratch. How would your approach differ between two different industries, like finance and healthcare?",
       "model_answer": "The interviewer is checking two things: that you have a repeatable process, and that you know a process is not a substitute for domain understanding.\n\n**The process (industry-agnostic)**\n\n1. **Start with the decisions, not the tables.** What questions must this model answer, who asks them, how often, and what do they do with the answer? Write the top 10-15 questions down \u2014 they become your acceptance tests.\n2. **Map the business processes and source systems.** Which system is the book of record for each entity? Where does the same entity exist twice under different keys?\n3. **Declare the grain first.** One row = one what? Get this wrong and everything downstream is wrong (see the grain question).\n4. **Dimensions, then facts.** Identify the descriptive context (who/what/where/when), build a bus matrix of conformed dimensions across processes, then hang measures off the declared grain.\n5. **Keys and history.** Surrogate keys, natural-key mapping, SCD strategy per attribute (not per table \u2014 most tables are a mix of Type 1 and Type 2), late-arriving dimensions and facts.\n6. **Non-functionals.** Volume and growth, latency, partitioning/clustering, retention, access control, and how the model absorbs a source schema change.\n7. **Prototype against real data before you commit.** Load a slice, run the 15 questions, show them to the business. Profiling real data always kills at least one assumption.\n8. **Document the contract.** Grain, keys, metric definitions, ownership. If a metric has no single owner, it has no definition.\n\n**Where finance and healthcare diverge**\n\nThe technique is the same; what changes is what \"correct\" means and who arbitrates it.\n\n*Finance* is about point-in-time truth and auditability. Numbers get restated and amended, so you model bi-temporally \u2014 valid time (when it was true in the world) versus system time (when we learned it) \u2014 and you never overwrite: corrections are new versions with an effective date. Balances are semi-additive (you can sum across accounts, never across time), which pushes you toward periodic snapshot facts alongside transaction facts. Currency and FX rates need their own grain. Regulatory reporting, not analyst convenience, drives the conformed hierarchies (legal entity, GL account, cost centre, product), and the model has to reconcile to the general ledger to the cent \u2014 that reconciliation is a first-class output, not a QA afterthought. Lineage and immutability exist for auditors, not for engineers. For a mortgage servicer specifically: loan-level atomic grain, monthly servicing snapshots, delinquency status transitions, and pool/security hierarchies that roll loans up to what was sold.\n\n*Healthcare* is about identity, standards and privacy. The hardest modeling problem is that one patient exists five times across systems, so an EMPI/identity-resolution layer sits under the model rather than beside it. Your dimensions are largely not yours to invent \u2014 FHIR resources, HL7 feeds, and versioned code sets (ICD-10, CPT, SNOMED, LOINC) are the conformed dimensions, and they change on a published schedule. Clinical data is sparse and heterogeneous, so observations tend toward a narrow fact (one row per observation with a code and a value) rather than a wide one. Episodes of care span encounters and providers, which means bridge tables for genuine many-to-many relationships. And PHI changes the physical design: minimum-necessary access, de-identified marts for research, column masking, consent modeled as data, and retention that is a legal rule rather than a storage decision.\n\n**If you lack the domain (say so, then show how you close it)**\n\nA good answer here is honest and specific: I would read the regulatory reports and reconciliation packs the business already produces, sit with two or three SMEs to learn the top metrics and their exact definitions, and find where the arguments happen \u2014 the metric people disagree about is where the modeling risk is. The pattern-matching transfers; the vocabulary and the constraints have to be learned, and the fastest way in is the outputs the organisation is already legally obliged to produce.",
       "source": "community"
+    },
+    {
+      "id": "ds-new-060",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "Your Delta Lake table ingests 500M rows/day from Kafka using `MERGE INTO` upserts, keyed on `(user_id, event_id)`. After 60 days, you notice queries scanning the entire table are 40% slower than month 1. You check `DESCRIBE DETAIL` and see 18,000 files in the latest version. Which combination of optimizations will most effectively address this without breaking CDC downstream consumers?",
+      "options": [
+        "Run `OPTIMIZE` with `Z-ORDER BY (user_id, event_ts)` weekly, and enable `delta.autoOptimize.optimizeWrite=true` for new writes.",
+        "Partition the table by `day(event_ts)` and run `VACUUM` with a 0-day retention to aggressively compact old partitions.",
+        "Increase the Kafka batch size to 100K records per micro-batch and disable `delta.autoOptimize.optimizeWrite` to reduce merge overhead.",
+        "Rewrite the table as an Iceberg format with positional delete files, which natively handle upserts more efficiently than Delta merge."
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly combines Z-ORDER clustering (which co-locates related rows for faster filtering on user_id queries) with autoOptimize.optimizeWrite (which reduces small files from upserts). Partitioning by day (option 1) breaks CDC consumers relying on version-based replay. Aggressive VACUUM risks corrupting the commit log. Iceberg rewrites break existing Delta consumers."
+    },
+    {
+      "id": "ds-new-061",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-08-24",
+      "prompt": "You're designing a CDC pipeline from a PostgreSQL OLTP database (8 tables, ~50GB, 100K writes/min peak) to a Snowflake data warehouse. Your organization requires exactly-once semantics, sub-60-second latency, and the ability to replay changes from any point in the last 7 days without re-snapshotting the entire database. Which architecture minimizes operational complexity while meeting all constraints?",
+      "options": [
+        "Use AWS DMS with full-load + CDC task, writing to S3 in Parquet, then COPY into Snowflake. Retain 7 days of S3 files and query via Athena to replay.",
+        "Stream PostgreSQL WAL logs via Debezium to Kafka, deduplicate in Flink using state store (keyed by LSN), write to Snowflake Iceberg tables with `MERGE INTO` on primary key.",
+        "Set up Postgres logical replication slots, consume via a Python script polling slot changes, buffer changes in DynamoDB, batch-insert to Snowflake every 30 seconds.",
+        "Use Fivetran's PostgreSQL connector configured for incremental syncs with timestamps, store all versions in Snowflake with SCD Type 2 lookups, and snapshot weekly to Parquet backups."
+      ],
+      "answer": 1,
+      "explanation": "Option 1 (Debezium + Kafka + Flink + Snowflake Iceberg) provides exactly-once semantics via Flink's idempotent writes, sub-60s latency through streaming, 7-day replay via Kafka topic retention, and low operational overhead compared to managing replication slots (option 2). DMS and Fivetran are higher-latency and harder to replay from arbitrary points."
+    },
+    {
+      "id": "ds-new-062",
+      "type": "single",
+      "topic": "Data mesh",
+      "difficulty": "medium",
+      "added_date": "2026-08-24",
+      "prompt": "Your company is adopting a data mesh with 12 domain teams, each owning their own data products on Snowflake. The payments domain must expose a 'transactions' dataset that inventory and reporting domains consume. You need to enforce (1) PII masking for non-payments users, (2) row-level access (users see only their org's transactions), and (3) automatic discovery via a central catalog. Which combination of tools/patterns best achieves this without centralizing data ownership?",
+      "options": [
+        "Payments team publishes to a shared S3 'data product' bucket with static Parquet exports. Other domains mount via Iceberg views. Use Collibra for catalog and role-based Snowflake roles for masking.",
+        "Payments team creates a secure Snowflake share. Consuming domains clone and apply downstream view logic for masking and filtering. Register all assets in a DataHub instance for discovery.",
+        "Payments domain publishes domain events to Kafka. Each consuming domain maintains a Snowflake table via Fivetran CDC consumer. Masking handled in dbt marts. Apache Atlas tracks lineage.",
+        "Use Snowflake native Data Sharing with a masking policy in the payments account. Consuming teams access via shared databases with a mapping table for org_id RLS. Register data products in OpenMetadata."
+      ],
+      "answer": 3,
+      "explanation": "Option 3 leverages Snowflake's native Data Sharing (no data duplication, payments team retains control), built-in masking policies (centralized PII governance), and row-level filtering via joins on org_id (scalable RLS without manual view replication). OpenMetadata provides discovery. Options 1\u20132 involve data duplication or high maintenance burden on cloning/view management across domains."
     }
   ]
 }
