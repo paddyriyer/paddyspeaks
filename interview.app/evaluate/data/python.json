@@ -7594,6 +7594,22 @@
       ],
       "answer": 0,
       "explanation": "Option A is correct. The context manager protocol requires `__enter__` and `__exit__` (with double underscores). `__enter__` should return self to allow the `as` binding, and `__exit__` should return False (or None) to propagate exceptions. Option B lacks a return value from `__exit__`, Option C uses incorrect method names, and Option D returns True, which suppresses exceptions\u2014dangerous for error handling."
+    },
+    {
+      "id": "py-new-082",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "medium",
+      "added_date": "2026-08-26",
+      "prompt": "You are optimizing a data pipeline where `compute_daily_metrics(date_str)` is called repeatedly with the same dates across multiple workers. The function is expensive (queries a warehouse). You want to cache results within a single process. Which approach correctly uses `functools` and avoids memory bloat when the pipeline runs for weeks?\n\n```python\nfrom functools import lru_cache\n\n@lru_cache(maxsize=128)\ndef compute_daily_metrics(date_str: str) -> dict:\n    # expensive warehouse query\n    return {...}\n```\n\nWhich statement is TRUE?",
+      "options": [
+        "This will cache indefinitely; after 30 days of unique dates, memory will grow unbounded because LRU never evicts old dates.",
+        "This correctly caches up to 128 unique dates; older entries are evicted when the limit is exceeded, keeping memory bounded.",
+        "The `maxsize=128` applies per-worker process, so if you have 10 workers, you actually cache 1280 date results.",
+        "This approach is unsafe because multiple workers share the same cache, causing race conditions on warehouse queries."
+      ],
+      "answer": 1,
+      "explanation": "`functools.lru_cache` with `maxsize=128` limits the cache to 128 most-recently-used entries. When the 129th unique date is requested, the least-recently-used entry is evicted, keeping memory bounded. The cache is per-process (not shared across workers), so each worker maintains its own 128-entry cache, which is correct for this scenario."
     }
   ]
 }

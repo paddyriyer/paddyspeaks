@@ -14146,6 +14146,22 @@
       ],
       "answer": 1,
       "explanation": "NULLIF(adjusted_amount, 0) converts zero values to NULL, then COALESCE picks the first non-NULL value, falling back to `amount` when adjusted_amount is NULL or zero. The other options either ignore the zero-as-NULL requirement (A, D) or lack the nullification step (C)."
+    },
+    {
+      "id": "sql-new-081",
+      "type": "single",
+      "topic": "DISTINCT ON",
+      "difficulty": "medium",
+      "added_date": "2026-08-26",
+      "prompt": "You have a `user_events` table with columns: `user_id`, `event_type`, `timestamp`, `session_id`. You need to find the most recent event for each user, but only one row per user. PostgreSQL supports `DISTINCT ON (user_id) ORDER BY user_id, timestamp DESC`, but Snowflake does not. Which approach is most efficient in Snowflake?\n\nAssume the table has 500M rows, 10M unique users, and queries run frequently.",
+      "options": [
+        "SELECT * FROM user_events WHERE (user_id, timestamp) IN (SELECT user_id, MAX(timestamp) FROM user_events GROUP BY user_id)",
+        "SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY timestamp DESC) AS rn FROM user_events) WHERE rn = 1",
+        "SELECT DISTINCT ON user_id * FROM user_events ORDER BY timestamp DESC (use an extension)",
+        "SELECT * FROM user_events QUALIFY ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY timestamp DESC) = 1"
+      ],
+      "answer": 3,
+      "explanation": "Snowflake's QUALIFY clause is the native equivalent of DISTINCT ON and is more efficient than window function subqueries or IN clauses with GROUP BY, as it filters post-aggregation without materializing intermediate result sets. Option 2 (standard window function) also works but QUALIFY is Snowflake-native and cleaner syntax. Option 1 causes a join on large cardinality. Option 3 is invalid\u2014DISTINCT ON is PostgreSQL syntax."
     }
   ]
 }
