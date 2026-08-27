@@ -5,7 +5,35 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEW (2026-08-27, latest): Interview Studio gained a Spark track** —
+- **NEW (2026-08-27, revision pass): the Spark track was hardened after review.**
+  Eight fixes, all verification and readability — deliberately no new topics.
+  - **Added `#refs`, a References & version notes appendix.** Maps each question
+    to the Apache Spark doc page that answers it, plus a version-caveat table
+    (AQE default-on from 3.2, `REBALANCE` from 3.3, ANSI default in 4.0, Storage
+    Partition Join's per-release support, structured logging, serializer, Arrow).
+    **The doc URLs could not be verified from the container — `spark.apache.org`
+    is blocked by the egress proxy.** Only long-stable canonical paths were used;
+    click through once before promoting the page anywhere.
+  - **Removed absolutes the page could not defend.** "Every problem lives at
+    exactly one level" now says every incident has a *primary* layer, with an
+    explicit cascade example (skew → spill → disk → GC → heartbeat → executor
+    loss → FetchFailed). "Spill is the only honest memory metric" now reads as
+    *most actionable*, alongside Peak Execution Memory. Partition-pruning advice
+    now says function-wrapping and type coercion *can prevent or weaken* pruning
+    and tells the reader to check `PartitionFilters` rather than assume.
+  - **Fixed an AQE inconsistency in four places.** "AQE cannot split what was
+    never divided" contradicted the page's own skew-splitting material; all four
+    now say coalescing merges, skew handling can split an *eligible* partition,
+    and neither rescues a uniformly under-partitioned stage.
+  - **Corrected two counts.** The TOC now holds exactly 30 numbered parts with
+    artifacts and references as separate coda links. The drill count was wrong in
+    both directions at different times — the real figure is **39 (21 inline + 18
+    dedicated)** and the strip now says so.
+  - **Breathing room + print styles.** Interview boxes, config tables, the matrix,
+    case files and runbook cells all got larger type and more padding; a
+    `@media print` block keeps cases and drills from splitting across pages.
+
+- **NEW (2026-08-27): Interview Studio gained a Spark track** —
   `interview.app/spark/index.html`, a ~480 KB self-contained deep-dive: "The Spark
   Pipeline Debugging & Performance Engineering Handbook". It sits in the **Learn**
   hub alongside Performance / Dashboarding / AI Engineering, and is a full Studio
