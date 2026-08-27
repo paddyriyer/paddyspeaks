@@ -14162,6 +14162,22 @@
       ],
       "answer": 3,
       "explanation": "Snowflake's QUALIFY clause is the native equivalent of DISTINCT ON and is more efficient than window function subqueries or IN clauses with GROUP BY, as it filters post-aggregation without materializing intermediate result sets. Option 2 (standard window function) also works but QUALIFY is Snowflake-native and cleaner syntax. Option 1 causes a join on large cardinality. Option 3 is invalid\u2014DISTINCT ON is PostgreSQL syntax."
+    },
+    {
+      "id": "sql-new-082",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-08-27",
+      "prompt": "You have a table `org_chart(employee_id, manager_id, salary)` with 50,000 employees. You write a recursive CTE to find all direct and indirect reports under employee_id=1, then join back to the original table to sum their salaries. The recursive anchor queries 1 row, the recursive step typically matches ~100 rows per level, and there are ~8 levels deep. Which statement about query performance is most accurate?",
+      "options": [
+        "Recursive CTEs in Snowflake use depth-first evaluation by default, so intermediate results are not materialized; the query will complete in milliseconds.",
+        "The recursion will produce a working set that grows exponentially (roughly 100^8), causing the query to materialize billions of rows and fail or timeout.",
+        "Each recursive iteration materializes results into a temporary work table; with ~8 levels and ~100 rows per level, you'll materialize roughly 800 rows total, making it efficient.",
+        "Recursive CTEs are optimized by Snowflake's query planner to convert into an equivalent iterative loop, so depth has no performance impact regardless of branching factor."
+      ],
+      "answer": 2,
+      "explanation": "Recursive CTEs in most databases (including Snowflake) use iterative, breadth-first evaluation where each recursive step materializes results. With ~100 rows per level and 8 levels, you materialize approximately 100+200+300+...+800 \u2248 3,600 rows total, not exponential growth. Options 1 and 4 are incorrect because recursion does materialize intermediate results. Option 2 incorrectly assumes exponential growth (which would happen only if each of the ~100 rows at one level spawned 100 new rows at the next level)."
     }
   ]
 }

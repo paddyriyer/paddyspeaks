@@ -7610,6 +7610,22 @@
       ],
       "answer": 1,
       "explanation": "`functools.lru_cache` with `maxsize=128` limits the cache to 128 most-recently-used entries. When the 129th unique date is requested, the least-recently-used entry is evicted, keeping memory bounded. The cache is per-process (not shared across workers), so each worker maintains its own 128-entry cache, which is correct for this scenario."
+    },
+    {
+      "id": "py-new-083",
+      "type": "single",
+      "topic": "GIL and multi-threading performance",
+      "difficulty": "hard",
+      "added_date": "2026-08-27",
+      "prompt": "You're profiling a Python data pipeline that processes JSON files in parallel. The code uses `ThreadPoolExecutor` with 8 workers to parse 1000 files. Each file takes ~100ms of CPU time (no I/O). When you run it, wall-clock time is ~13 seconds instead of the expected ~1.25 seconds. Which statement best explains the bottleneck and the most practical fix?\n\n```python\nfrom concurrent.futures import ThreadPoolExecutor\nimport json\n\ndef parse_file(path):\n    with open(path) as f:\n        return json.load(f)  # CPU-bound JSON parsing\n\nwith ThreadPoolExecutor(max_workers=8) as executor:\n    results = list(executor.map(parse_file, file_paths))\n```",
+      "options": [
+        "The GIL prevents threads from running in parallel; use ProcessPoolExecutor instead, but be aware of pickling overhead\u2014consider using multiprocessing.Manager() for shared state.",
+        "Thread contention on the file system is the issue; increase max_workers to 16 and add file locking with fcntl.",
+        "JSON parsing releases the GIL, so the issue is memory allocation; use memory pools via pymalloc configuration.",
+        "This is expected behavior for I/O-bound work; ThreadPoolExecutor is correctly utilizing all 8 cores, and 13 seconds is normal."
+      ],
+      "answer": 0,
+      "explanation": "JSON parsing is CPU-bound and does not release the GIL, so only one thread executes bytecode at a time, eliminating parallelism. ProcessPoolExecutor uses separate processes to bypass the GIL, though data serialization adds overhead\u2014acceptable here since each file is independent. The other options misidentify the bottleneck (file system contention, memory allocation) or deny the problem exists."
     }
   ]
 }
