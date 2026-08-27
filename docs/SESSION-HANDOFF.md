@@ -1,9 +1,42 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-08-21. This file is the running memory between Claude Code
+_Last updated: 2026-08-27. This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-08-27, latest): Interview Studio gained a Spark track** —
+  `interview.app/spark/index.html`, a ~480 KB self-contained deep-dive: "The Spark
+  Pipeline Debugging & Performance Engineering Handbook". It sits in the **Learn**
+  hub alongside Performance / Dashboarding / AI Engineering, and is a full Studio
+  page (`studio.css` + `.netflix-prep` skin + track-local Spark-orange styles).
+  - **30 parts** — triage, UI + log forensics, memory, GC, skew, shuffle, joins,
+    driver, CPU, files, partitioning, storage-partition joins, caching, sizing,
+    stragglers, network, disk, SQL anti-patterns, data-quality look-alikes,
+    regressions, cost, the scientific method, a 34-row troubleshooting matrix,
+    20 case files, 33 interview drills, a config reference, observability and
+    prevention — closing with three one-page artefacts (decision tree, UI cheat
+    sheet, production runbook).
+  - **31 original inline SVG diagrams**, all token-driven (`.dg-*` classes) so
+    dark mode works without a second palette. Every one validated as well-formed
+    XML by `.github/scripts/validate_content.py`'s SVG check.
+  - **Editorial rules baked into the page — keep them if you edit it.** Every
+    environment-specific claim carries a label: `Apache Spark default`,
+    `Platform-dependent`, `Workload-dependent heuristic`, `Version-dependent`.
+    Vendor defaults (Databricks / EMR / Glue / Dataproc / Synapse) are never
+    presented as Apache defaults, and the page repeatedly tells the reader to
+    verify in the Environment tab rather than trust a quoted default. Where a
+    value has moved across the 3.x line (AQE skew thresholds, memoryOverhead
+    factor, serializer) it is deliberately NOT stated as a number.
+  - **Wiring:** added to `interview.app/partials/nav.html` (Learn hub, desktop +
+    mobile) then propagated with `python3 interview.app/build_nav.py` — 34 pages
+    updated, do not hand-edit the nav in individual pages. Pillar card
+    `hp-feat-card-19` added to `interview.app/index.html`. `sitemap.xml` entry
+    added. A `next-card` cross-link added to `interview.app/performance/`.
+  - **Layout note:** wide artefacts (`.matrix-scroll`, `.fig.wide`, `.sheet`)
+    break out of the 980 px reading column above 1080 px via negative margins,
+    and every plain table becomes its own scroll container below 860 px. Verified
+    zero horizontal page overflow at 390 / 1400 px in light and dark.
 
 - **NEW (2026-08-21, latest): article "The Subject Nobody Taught" shipped** —
   `articles/the-subject-nobody-taught.html`, category `personality`, self-contained
