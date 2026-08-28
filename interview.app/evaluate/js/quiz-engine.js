@@ -18,6 +18,7 @@ const SECTIONS = {
   ai:     { slug: "ai",     label: "AI Engineering", file: "./data/ai.json" },
   communication: { slug: "communication", label: "Communication", file: "./data/communication.json" },
   dashboarding: { slug: "dashboarding", label: "Dashboarding & BI", file: "./data/dashboarding.json" },
+  spark:  { slug: "spark",  label: "Spark Debugging & Performance", file: "./data/spark.json" },
 };
 
 const params = new URLSearchParams(window.location.search);

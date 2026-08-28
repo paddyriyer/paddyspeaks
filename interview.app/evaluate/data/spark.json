@@ -1,0 +1,2388 @@
+{
+ "section": "spark",
+ "title": "Spark Debugging & Performance Skill Check",
+ "tagline": "Triage and evidence, Spark UI and log forensics, executor memory and the four distinct OOMs, GC, data skew, shuffle and AQE, join strategy and cardinality, driver bottlenecks, UDF cost, file layout, the three partitionings, caching, cluster sizing, stragglers, and cost per TB. Diagnosis before configuration.",
+ "duration_minutes": 30,
+ "passing_score": 70,
+ "quiz_length": 20,
+ "questions": [
+  {
+   "id": "spark-tri-001",
+   "type": "single",
+   "topic": "Triage & Method",
+   "difficulty": "easy",
+   "prompt": "A pipeline that normally finishes in 40 minutes has been running for three hours. What is the correct FIRST action?",
+   "options": [
+    "Split the elapsed time into scheduler time and Spark execution time",
+    "Add more executors to speed up the remaining work",
+    "Enable adaptive query execution",
+    "Increase executor memory and restart the job"
+   ],
+   "answer": 0,
+   "explanation": "A 'three-hour pipeline' may be a 40-minute Spark job sitting behind a two-hour upstream sensor wait plus cluster provisioning. The orchestrator knows queue time, retries and provisioning time; the Spark UI does not. Splitting the clock first tells you whether this is a Spark problem at all — and prevents you from tuning a segment that is only part of the total."
+  },
+  {
+   "id": "spark-tri-002",
+   "type": "single",
+   "topic": "Triage & Method",
+   "difficulty": "medium",
+   "prompt": "Your job is RUNNING but slow. Which single comparison most efficiently separates the major cause families?",
+   "options": [
+    "Total shuffle bytes versus total input bytes",
+    "Max task duration versus median task duration, cross-referenced against task input size",
+    "Executor count versus the number of partitions",
+    "GC time versus wall-clock time"
+   ],
+   "answer": 1,
+   "explanation": "Max-vs-median duration separates 'one thing is slow' from 'everything is slow'. Cross-referencing against task INPUT then splits the first case again: if the slow task also read far more data, it is skew; if it read a normal amount, it is a straggler or an unhealthy host. Those three outcomes — skew, under-partitioning, straggler — have almost no fixes in common, so getting this wrong wastes the whole incident."
+  },
+  {
+   "id": "spark-tri-003",
+   "type": "single",
+   "topic": "Triage & Method",
+   "difficulty": "medium",
+   "prompt": "A pipeline fails and there is no application ID, no driver log and nothing in the History Server. What does this tell you?",
+   "options": [
+    "The event log was disabled, so evidence was lost",
+    "The driver ran out of memory before it could register",
+    "The failure is upstream of Spark — orchestration, provisioning, permissions or packaging",
+    "The cluster manager killed the application immediately"
+   ],
+   "answer": 2,
+   "explanation": "No application ID means Spark never started. The failure lives in the scheduler, cluster provisioning, IAM/credentials, dependency or JAR resolution, the Python environment, or driver initialisation code that runs before the session is created. Nothing you know about shuffle partitions is relevant, and the Spark UI does not exist to be consulted. A suspiciously round total duration (60s, 300s, 900s) is a strong tell for a provisioning or auth timeout."
+  },
+  {
+   "id": "spark-tri-004",
+   "type": "single",
+   "topic": "Triage & Method",
+   "difficulty": "medium",
+   "prompt": "A job COMPLETED successfully but took 126 minutes instead of its usual 42. What technique actually works here?",
+   "options": [
+    "Enable speculative execution to eliminate stragglers",
+    "Profile the driver's CPU usage",
+    "Re-run it with more executors and compare",
+    "Compare against a baseline metric by metric, looking for the one that moved disproportionately to input"
+   ],
+   "answer": 3,
+   "explanation": "Nothing crashed and the output is correct, so there is no dramatic evidence to follow. The only reliable technique is baseline comparison across a fixed set of counters — input bytes, output rows, shuffle read/write, spill, GC, task count, task p50/p95/max, executor-hours. The metric that moved OUT OF PROPORTION to input is the diagnosis. If you have no historical metrics, the first deliverable from the incident is the instrumentation, not the fix."
+  },
+  {
+   "id": "spark-tri-005",
+   "type": "single",
+   "topic": "Triage & Method",
+   "difficulty": "hard",
+   "prompt": "Which statement best describes how Spark incidents propagate through the stack?",
+   "options": [
+    "Incidents typically have a primary origin layer but cascade upward, so the visible symptom is often several layers above the cause",
+    "Incidents are non-deterministic and cannot be reliably attributed to a layer",
+    "Each incident is confined to exactly one layer, which is why you must identify that layer first",
+    "Incidents start at the top and propagate downward into the data layer"
+   ],
+   "answer": 0,
+   "explanation": "A real incident commonly cascades: a skewed key (data) creates an oversized partition (tasks), which spills (memory), which saturates local disk, which lengthens GC, which misses a heartbeat, which loses an executor, which triggers a FetchFailedException. You meet it at the BOTTOM of that chain. Every fix applied downstream of the origin buys time and nothing else — the discipline is to walk back up to the layer where the cost actually originates."
+  },
+  {
+   "id": "spark-tri-006",
+   "type": "multi",
+   "topic": "Triage & Method",
+   "difficulty": "medium",
+   "prompt": "Before changing ANY configuration during an incident, which of these should you capture? (Select all that apply.)",
+   "options": [
+    "The application ID",
+    "Current runtime versus the historical median for the same weekday",
+    "Input bytes and the slowest stage's task p50/p95/max",
+    "The exact wording of the alert message",
+    "The active Spark configuration from the Environment tab"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    4
+   ],
+   "explanation": "Application ID, runtime-versus-baseline, input volume, slowest-stage task quantiles and the effective configuration are all needed to prove afterwards that a change helped. The alert's wording is not evidence — it is the notification that evidence is needed. Without a baseline captured BEFORE the change, any improvement is unattributable."
+  },
+  {
+   "id": "spark-tri-007",
+   "type": "single",
+   "topic": "Triage & Method",
+   "difficulty": "hard",
+   "prompt": "You change five Spark configs at once and the job gets 30% faster. What is the most serious problem with this?",
+   "options": [
+    "The improvement might be within normal run-to-run variance",
+    "You cannot attribute the gain, some changes may have hurt, and a config chosen without a mechanism will not survive a change in the data",
+    "Five changes will make the job harder to roll back",
+    "Other engineers will not be able to reproduce the result"
+   ],
+   "answer": 1,
+   "explanation": "All four are downsides, but the deepest is the third clause. Attribution failure means you carry unexplained settings forever; masking means the real available gain may have been larger; and — worst — a fix chosen without naming a mechanism breaks the moment the data shifts. If you raised memory when the real cause was skew, it works until the hot key grows 20%, and the runbook then says 'increase memory' because that is what worked last time."
+  },
+  {
+   "id": "spark-tri-008",
+   "type": "open",
+   "topic": "Triage & Method",
+   "difficulty": "hard",
+   "prompt": "Describe the disciplined debugging loop for a slow Spark job, and explain why 'change a config and re-run' fails as a method.",
+   "model_answer": "The loop is: SYMPTOM (what the alert said) -> EVIDENCE (UI, logs, metrics) -> BOTTLENECK (which level, which stage) -> ROOT CAUSE (the mechanism, named) -> FIX (one variable) -> VALIDATE (measure, compare, keep or revert) -> DOCUMENT -> add a regression detector. The key properties are: a falsifiable hypothesis that names a mechanism rather than a resource; exactly one variable changed; a prediction of which metric should move and roughly how much; and confirmation of the MECHANISM (spill went to zero, max/median fell, shuffle bytes dropped) rather than runtime alone, because runtime can improve for unrelated reasons. 'Change a config and re-run' fails because it produces no knowledge that transfers: you cannot say which change mattered, you cannot safely revert, and you cannot tell the next engineer why the setting exists. It is also slow in practice — each speculative re-run on a large job costs real wall-clock time and real money, and the folklore loop (slow job -> more memory -> retry -> pray) never terminates because it never identifies a cause.",
+   "explanation": "The senior signal is naming the mechanism and the confirming metric, plus acknowledging Spark's real run-to-run variance — a small delta from a single pair of runs is usually noise."
+  },
+  {
+   "id": "spark-ui-001",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "easy",
+   "prompt": "In the Spark UI, which tab is authoritative for what configuration your job ACTUALLY ran with?",
+   "options": [
+    "The Jobs tab",
+    "The Executors tab",
+    "The Environment tab",
+    "The SQL / DataFrame tab"
+   ],
+   "answer": 2,
+   "explanation": "The Environment tab (or /api/v1/applications/<id>/environment) lists the effective configuration for that run. It outranks the Apache documentation, your platform's documentation and anyone's memory — managed platforms routinely override defaults. Check it before arguing about what a default is, and check it again after someone says they 'didn't change anything'."
+  },
+  {
+   "id": "spark-ui-002",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "medium",
+   "prompt": "A stage's summary metrics show median task duration 26s, max 34 minutes, and the average is 26.4s. What is the correct reading?",
+   "options": [
+    "The median is misleading because it ignores the tail",
+    "The stage needs more executors to reduce the average",
+    "The average shows the stage is healthy; the max is an outlier to ignore",
+    "The average is irrelevant — stage wall clock is set by the LAST task to finish, so the max explains the runtime"
+   ],
+   "answer": 3,
+   "explanation": "With 5,000 tasks at 26s and one at 34 minutes, the average is ~26.4s while the stage takes 34 minutes. The average is not wrong — it is irrelevant. Read MEDIAN to size the normal unit of work, MAX to explain the runtime, and the RATIO between them to name the cause. Adding executors changes nothing when 4,999 slots are already idle waiting on one task."
+  },
+  {
+   "id": "spark-ui-003",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "medium",
+   "prompt": "Which Spark UI metric most directly indicates that partitions do not fit in the memory available per task?",
+   "options": [
+    "Spill (memory) and Spill (disk)",
+    "Shuffle Read Blocked Time",
+    "GC Time",
+    "Scheduler Delay"
+   ],
+   "answer": 0,
+   "explanation": "Spill is data evicted from execution memory and written out — it appears only when something actually had to be paid for. It is the most actionable pressure signal, and should be read alongside Peak Execution Memory (how close you are to spilling) and the executor peak-memory columns. GC time indicates allocation pressure, scheduler delay indicates placement/queueing, and blocked time indicates fetch or network waits — different problems."
+  },
+  {
+   "id": "spark-ui-004",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "medium",
+   "prompt": "High 'Shuffle Read Blocked Time' across essentially ALL tasks in a stage points to what?",
+   "options": [
+    "Data skew on the join key",
+    "Tasks waiting on remote shuffle blocks — network, remote executor pressure, or oversized blocks",
+    "Insufficient executor memory",
+    "An expensive Python UDF"
+   ],
+   "answer": 1,
+   "explanation": "Blocked time is time spent waiting for shuffle blocks to arrive. When it is high for one or two tasks it can accompany skew; when it is high across the board it points at the transport layer — network saturation, an overloaded external shuffle service, or blocks so large that transfers stall. The tell is low CPU with the job still crawling: you are waiting, not computing."
+  },
+  {
+   "id": "spark-ui-005",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "hard",
+   "prompt": "Which UI observation most strongly suggests the DRIVER is the bottleneck rather than the executors?",
+   "options": [
+    "Shuffle write greatly exceeds input bytes",
+    "Every task in the dominant stage is slow and uniform",
+    "Long gaps in the Jobs timeline with no active stage, plus active tasks far below total slots",
+    "GC time is a large fraction of task time on several executors"
+   ],
+   "answer": 2,
+   "explanation": "Gaps with no active stage mean the driver is doing something serial — file listing, plan compilation, or the write commit. Combined with idle slots, that says work is not reaching the executors. Other driver tells: hundreds or thousands of tiny jobs in the Jobs tab (a loop submitting an action per iteration), and task counts in the millions, where per-task metadata alone becomes a driver heap and CPU problem. Adding executors makes this WORSE, because it gives the same driver more tasks to track."
+  },
+  {
+   "id": "spark-ui-006",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "medium",
+   "prompt": "In a scan node of the SQL tab, an empty `PartitionFilters` list on a partitioned table means what?",
+   "options": [
+    "The filter was pushed all the way into the file format",
+    "Adaptive query execution removed the filter as redundant",
+    "The table has no partitions defined",
+    "Directory-level partition pruning is not being applied, so the scan is reading far more than it needs"
+   ],
+   "answer": 3,
+   "explanation": "Populated `PartitionFilters` is how you confirm directory pruning happened. Empty, with input bytes equal to the whole table, means the predicate is being evaluated after reading rather than used to choose directories — commonly because the partition column was wrapped in a function or compared against a mismatched type. Verify rather than assume: also read the 'number of partitions read' metric."
+  },
+  {
+   "id": "spark-ui-007",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "hard",
+   "prompt": "Why can a physical plan printed by `EXPLAIN` differ from what actually ran?",
+   "options": [
+    "With AQE enabled, the plan is re-optimised at runtime using real shuffle statistics, so joins may convert and partitions may coalesce or split",
+    "EXPLAIN randomises join order for cost estimation",
+    "The physical plan is only finalised after the first action completes on the driver",
+    "EXPLAIN always shows the logical plan, never the physical one"
+   ],
+   "answer": 0,
+   "explanation": "Adaptive Query Execution (on by default from Spark 3.2.0) re-plans stage by stage using measured sizes: a sort-merge join can be promoted to a broadcast join, partitions can be coalesced, and eligible skewed partitions can be split. A static EXPLAIN is therefore a proposal. The SQL tab of the finished run shows the plan that actually executed, including AQE nodes — that is the only authoritative view."
+  },
+  {
+   "id": "spark-ui-008",
+   "type": "multi",
+   "topic": "Spark UI Forensics",
+   "difficulty": "hard",
+   "prompt": "Which physical-plan operators should immediately raise suspicion when you did not expect them? (Select all that apply.)",
+   "options": [
+    "CartesianProduct",
+    "BroadcastNestedLoopJoin",
+    "SortMergeJoin on two large tables joined by an equality condition",
+    "BatchEvalPython sitting between two fused regions",
+    "ReusedExchange"
+   ],
+   "answer": [
+    0,
+    1,
+    3
+   ],
+   "explanation": "CartesianProduct and BroadcastNestedLoopJoin mean no usable equality condition survived — comparisons scale with the product of the inputs, so these are alarms rather than information. BatchEvalPython marks a row-at-a-time Python UDF boundary, which both costs per-row serialization and blocks the optimizer from pushing filters through. SortMergeJoin on a large equi-join is the correct, robust choice. ReusedExchange is GOOD news — a shuffle computed once and reused."
+  },
+  {
+   "id": "spark-ui-009",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "medium",
+   "prompt": "Which REST API call gives you a stage's task-duration percentiles without reading the UI?",
+   "options": [
+    "/api/v1/applications/<id>/executors",
+    "/api/v1/applications/<id>/stages/<stage>/<attempt>/taskSummary?quantiles=...",
+    "/api/v1/applications/<id>/jobs",
+    "/api/v1/applications/<id>/environment"
+   ],
+   "answer": 1,
+   "explanation": "`taskSummary` with a `quantiles` parameter returns the same summary metrics the UI renders, as JSON — including duration, shuffle read and spill at each quantile. This is how you build baselines and automated skew detection (tracking max ÷ p50 per run) instead of eyeballing screenshots during an incident."
+  },
+  {
+   "id": "spark-ui-010",
+   "type": "single",
+   "topic": "Spark UI Forensics",
+   "difficulty": "medium",
+   "prompt": "Task locality is mostly `ANY` on a cluster reading from cloud object storage. What should you conclude?",
+   "options": [
+    "Dynamic allocation is releasing executors too aggressively",
+    "Placement has failed and should be tuned",
+    "Essentially nothing — there is no local replica to schedule near on object storage, so ANY is expected",
+    "The executors are under-provisioned"
+   ],
+   "answer": 2,
+   "explanation": "Data locality is an HDFS-era concept: it matters when a block has a physical home on a specific node. On object storage there is no 'local' copy, so ANY locality is normal and is not a finding. On an HDFS-style cluster, mostly-ANY locality IS worth investigating."
+  },
+  {
+   "id": "spark-ui-011",
+   "type": "open",
+   "topic": "Spark UI Forensics",
+   "difficulty": "hard",
+   "prompt": "You open a slow stage. Describe, in order, the specific metrics you read and what each one rules in or out.",
+   "model_answer": "1) Duration at p50 and max, and the max/median ratio — separates 'one thing slow' from 'everything slow'. 2) Shuffle Read (and Input) size at p50 and max — this is the discriminator: if the slow task also read far more data, it is skew; if it read a normal amount, it is a straggler or an unhealthy host. 3) Spill (memory) and Spill (disk) — any meaningful spill says partitions exceed the execution memory each task actually gets, which is roughly (heap x memory.fraction) / cores. 4) GC Time as a fraction of task time — a rising fraction over the stage points at an accumulating live set (caching, aggregation state) rather than the data. 5) Shuffle Read Blocked Time — high across all tasks means transport, not compute. 6) Scheduler Delay — high means placement or a driver too busy to dispatch. 7) The executor id / host column for the slowest tasks — if several share one executor, it is a bad node, not the data. 8) CPU time versus duration — CPU ~= duration with no spill and no blocked time means an expensive per-row operation such as a UDF, regex or JSON parse.",
+   "explanation": "The senior signal is treating shuffle-read distribution as the discriminator rather than stopping at duration, and grouping slow tasks by executor before concluding skew."
+  },
+  {
+   "id": "spark-log-001",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "easy",
+   "prompt": "`org.apache.spark.SparkException: Job aborted due to stage failure` appears in the driver log. What is this message worth?",
+   "options": [
+    "It indicates a driver memory problem",
+    "It means the stage exceeded spark.stage.maxConsecutiveAttempts",
+    "It identifies the root cause precisely",
+    "Almost nothing on its own — it is the outermost wrapper; the cause is further down the Caused by chain, often on another host"
+   ],
+   "answer": 3,
+   "explanation": "The exception you are shown is almost never the exception that happened. Read from the bottom and keep descending the `Caused by:` chain until a message names a RESOURCE (heap, container limit, disk, a file, a credential) or a VALUE (a column, a cast, a row). If the chain bottoms out in a Spark internal such as FetchFailed or ExecutorLost, the real cause is on a different executor — get the host from the message and read that executor's own log."
+  },
+  {
+   "id": "spark-log-002",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "hard",
+   "prompt": "An executor disappears. Its log ends mid-line with no exception, and the container exit code is 137. What happened?",
+   "options": [
+    "The process was killed from outside for exceeding the container memory limit — nothing threw",
+    "The network partitioned and the driver declared it dead",
+    "The executor was gracefully decommissioned during a scale-down",
+    "A Java heap OutOfMemoryError was thrown and swallowed"
+   ],
+   "answer": 0,
+   "explanation": "Exit 137 is the classic memory-kill signature: the cluster manager or kernel killed the whole process because the CONTAINER exceeded its limit. The JVM heap may have been half empty — what overflowed is outside it (Python workers, native libraries, direct buffers, off-heap). Nothing threw, which is why the log simply stops. Exit 143 (SIGTERM) instead usually means decommissioning or preemption."
+  },
+  {
+   "id": "spark-log-003",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "hard",
+   "prompt": "How do you distinguish a Java heap OOM from a container memory kill, and why does it matter?",
+   "options": [
+    "They are the same failure with different names",
+    "A heap OOM throws a stack trace and the task retries; a container kill leaves no exception and the process vanishes — and raising executor.memory makes the second one WORSE",
+    "A heap OOM only affects the driver; a container kill only affects executors",
+    "A container kill can be fixed by raising spark.task.maxFailures"
+   ],
+   "answer": 1,
+   "explanation": "They have opposite fixes. A heap OOM means one task's working set exceeded its share of the heap — the answer is usually less data per task (more partitions, fix skew) or fewer cores per executor. A container kill means total container memory was exceeded, usually by NON-heap consumers; raising spark.executor.memory inside a fixed-size container grows the heap and squeezes the very region that overflowed."
+  },
+  {
+   "id": "spark-log-004",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "medium",
+   "prompt": "A `FetchFailedException` appears. What does it most often actually mean?",
+   "options": [
+    "The driver ran out of memory tracking shuffle metadata",
+    "The network is unreliable and retries should be increased",
+    "The executor that held those shuffle blocks died, so the cause is on another host",
+    "The shuffle partition count is too low"
+   ],
+   "answer": 2,
+   "explanation": "Fetch failures are usually a CONSEQUENCE. Shuffle output is not replicated — it lives on the local disk of the executor that produced it — so when that executor dies, the data is gone and Spark must re-run the map stage that produced it. Raising retries cannot resurrect a dead executor; it converts a fast failure into a slow one and destroys the evidence. Find the EARLIEST executor death and read its own log."
+  },
+  {
+   "id": "spark-log-005",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "hard",
+   "prompt": "A job runs for four hours (normally 50 minutes) with repeated stage attempts and hundreds of fetch failures, then fails. What is the correct investigative focus?",
+   "options": [
+    "The total number of fetch failures as a measure of network health",
+    "The stage with the highest shuffle write",
+    "The last failure before the job aborted",
+    "The FIRST executor death — everything after it is cascade"
+   ],
+   "answer": 3,
+   "explanation": "This is a retry storm. Each executor loss destroys its map output, forcing re-execution, which puts the same pressure on the same cluster and kills another executor. Sort the Executors tab by removal time, take the earliest death, and read that executor's log and exit code. Raising spark.stage.maxConsecutiveAttempts only makes the storm last longer and cost more before failing."
+  },
+  {
+   "id": "spark-log-006",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "medium",
+   "prompt": "`ERROR HeartbeatReceiver: Removing executor 23 with no recent heartbeats`. What is the most common underlying cause?",
+   "options": [
+    "A long stop-the-world GC pause on that executor, or CPU starvation",
+    "The driver ran out of file descriptors",
+    "The executor finished all its tasks and idled out",
+    "A genuine network partition"
+   ],
+   "answer": 0,
+   "explanation": "The executor is often perfectly alive but unable to answer. Check that executor's GC time as a fraction of its run time first, then host CPU and disk. Raising spark.network.timeout (Apache default 120s) is the 'larger waiting room' fix — it makes you slower to notice the patient is sick. It is occasionally justified on a genuinely high-latency network, but never as step one."
+  },
+  {
+   "id": "spark-log-007",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "medium",
+   "prompt": "`Task not serializable`, caused by `NotSerializableException: com.acme.DbConnection`. What is the fix?",
+   "options": [
+    "Mark every class in the project Serializable",
+    "Capture only what the closure needs — pull values into locals, or construct the object inside the task via mapPartitions",
+    "Increase spark.kryoserializer.buffer.max",
+    "Switch spark.serializer to Kryo"
+   ],
+   "answer": 1,
+   "explanation": "The closure captured something that cannot cross the wire — commonly `this`, because an instance field was referenced from inside a lambda. Copy the needed value to a local variable first, or build the non-serializable resource on the executor, typically once per partition with mapPartitions. Making everything Serializable is a workaround that ships objects you never wanted to send."
+  },
+  {
+   "id": "spark-log-008",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "medium",
+   "prompt": "`WARN TaskSetManager: Stage 3 contains a task of very large size (18234 KiB)`. What is happening?",
+   "options": [
+    "The result returned to the driver is too large",
+    "The partition is too large and should be split",
+    "Data is being shipped inside the task closure — broadcast it or read it on the executor instead",
+    "The shuffle block size limit was exceeded"
+   ],
+   "answer": 2,
+   "explanation": "A large task means you captured data in the closure — a big lookup map, a config blob, a collected list. It also inflates 'Task Deserialization Time' in stage metrics, which is how you spot it from the UI. The fix is to broadcast the lookup once, or read it from storage on the executor."
+  },
+  {
+   "id": "spark-log-009",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "hard",
+   "prompt": "A PySpark job fails with `Python worker exited unexpectedly (crashed)` caused by an `EOFException`. What does the EOFException tell you?",
+   "options": [
+    "The Arrow serialization format was mismatched",
+    "The worker exceeded spark.driver.maxResultSize",
+    "The input file was truncated",
+    "Only that the pipe to the Python process closed — it is never the root cause"
+   ],
+   "answer": 3,
+   "explanation": "The JVM-side EOFException just reports that the worker went away. Look in the same executor's stderr for what actually happened: a Python traceback (a crash on a specific record), a segfault line (a native library fault), or NOTHING at all plus a container-kill event (the worker was killed for memory). Those three have different fixes."
+  },
+  {
+   "id": "spark-log-010",
+   "type": "single",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "medium",
+   "prompt": "A job succeeds for 55 minutes then fails with a permissions error. What does the TIMING suggest?",
+   "options": [
+    "A credential or token that expired mid-run — the fix is in credential refresh, not the policy",
+    "The output path was deleted by another job",
+    "The cluster lost its instance profile",
+    "A misconfigured IAM role or bucket policy"
+   ],
+   "answer": 0,
+   "explanation": "Two shapes mean opposite things. Failure AT THE START is a misconfiguration — wrong role, wrong path, wrong policy. Failure late in a long run is almost always an expired credential, and the tell is that the same job succeeds whenever it happens to run faster. Fix how credentials are refreshed rather than broadening permissions."
+  },
+  {
+   "id": "spark-log-011",
+   "type": "multi",
+   "topic": "Logs & Failure Classification",
+   "difficulty": "hard",
+   "prompt": "`ExecutorLostFailure` is reported. Which of these are genuine candidate causes? (Select all that apply.)",
+   "options": [
+    "A Java heap OOM inside that executor",
+    "Container or pod kill for exceeding a memory limit",
+    "Spot / preemptible instance reclamation",
+    "Local disk failure or the scratch volume filling",
+    "A skewed join key in the query"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "'An executor disappeared' is all the message says, and at least seven things produce it: heap OOM, container kill, Kubernetes eviction, YARN preemption, node failure or spot reclamation, network partition, disk failure or disk-full, and graceful decommissioning. A skewed key is not itself a cause of executor loss — though skew can lead to spill, which fills disk, which CAN kill an executor. That is a cascade, and the distinction matters when you decide what to fix."
+  },
+  {
+   "id": "spark-mem-001",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "easy",
+   "prompt": "What does `spark.executor.memory` actually control?",
+   "options": [
+    "The total memory of the executor container",
+    "The JVM heap of each executor — one region inside the container, not the container itself",
+    "The memory available to execution and storage combined",
+    "The per-task memory budget"
+   ],
+   "answer": 1,
+   "explanation": "The container also holds JVM non-heap (metaspace, thread stacks, code cache, direct buffers), Python worker processes, native library memory, optional off-heap memory, and miscellaneous overhead. Several of the most common failures happen in the regions spark.executor.memory does NOT describe — which is why raising it is not a general-purpose remedy."
+  },
+  {
+   "id": "spark-mem-002",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "medium",
+   "prompt": "With `spark.memory.fraction` at its Apache default of 0.6, what does the remaining share of usable heap serve?",
+   "options": [
+    "The JVM's reserved off-heap region",
+    "Cached blocks only",
+    "User memory — your objects, UDF state, closures and Spark's own internal structures",
+    "The shuffle write buffers"
+   ],
+   "answer": 2,
+   "explanation": "Unified memory (execution + storage) gets 0.6 of usable heap by default; the rest is user memory. This is why raising memory.fraction is a late knob rather than an early one: it takes room from the region that holds your materialised objects, so with object-heavy code you can convert a spill (recoverable, slow) into an OOM (fatal)."
+  },
+  {
+   "id": "spark-mem-003",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "hard",
+   "prompt": "An executor has a 16 GB heap and 5 cores. Roughly how much unified memory does each concurrent task get, and why does it matter?",
+   "options": [
+    "16 GB / 16, based on the default partition count",
+    "It depends only on spark.memory.storageFraction",
+    "16 GB — memory is not divided between tasks",
+    "Roughly (usable heap x memory.fraction) / 5, so a few GB — which is why HALVING cores doubles per-task memory at no extra cost"
+   ],
+   "answer": 3,
+   "explanation": "Unified memory is per EXECUTOR, shared by its concurrent tasks. Per-task memory is approximately (heap x memory.fraction) / cores. That makes spark.executor.cores one of the most underrated knobs in Spark: lowering it raises per-task memory for free, and in PySpark it also reduces the number of simultaneous Python worker processes per container. The counter-pressure is more JVMs, each with its own overhead and its own copy of every broadcast."
+  },
+  {
+   "id": "spark-mem-004",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "hard",
+   "prompt": "Executors are being OOM-killed in a PySpark job, but heap dumps show the JVM heap only ~40% used. What is the leading hypothesis?",
+   "options": [
+    "Python worker processes — one per concurrent task, living entirely outside the JVM heap — pushing the container over its limit",
+    "spark.memory.fraction is set too low",
+    "The driver is broadcasting too much data",
+    "A memory leak in Spark's shuffle manager"
+   ],
+   "answer": 0,
+   "explanation": "In PySpark there is one worker process per concurrent task, so an 8-core executor can run 8 Python processes each holding whatever the UDF materialises. That memory is outside the heap and counts against the container. The cheapest fix is usually reducing spark.executor.cores — fewer simultaneous workers AND more JVM memory per remaining task. Then make the budget explicit with spark.executor.pyspark.memory, and only then raise overhead plus the container size together."
+  },
+  {
+   "id": "spark-mem-005",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "medium",
+   "prompt": "When is raising `spark.executor.memoryOverhead` the right response?",
+   "options": [
+    "Whenever an OutOfMemoryError is thrown",
+    "When the container was killed with a healthy heap and non-heap use is genuinely large — and you raise the container size with it",
+    "Whenever tasks spill to disk",
+    "When the driver exceeds maxResultSize"
+   ],
+   "answer": 1,
+   "explanation": "Overhead covers what lives outside the heap. It is the right knob for container kills with a half-empty heap. Two cautions: on some managers overhead comes out of the same total budget, so raising it without raising the container size just shrinks the heap; and if the underlying growth is unbounded (a Python worker holding whole partitions), raising overhead only delays the next failure."
+  },
+  {
+   "id": "spark-mem-006",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "hard",
+   "prompt": "Which of these is the LEAST likely to help an executor heap OOM caused by data skew?",
+   "options": [
+    "Filtering out sentinel and NULL keys that cannot match",
+    "Isolating hot keys into a separate branch",
+    "Doubling spark.executor.memory",
+    "Salting the aggregation and combining in two stages"
+   ],
+   "answer": 2,
+   "explanation": "Under skew, one partition is orders of magnitude larger than the rest. Doubling memory buys one doubling of headroom against a partition that may be 100x the median — it will fail again as soon as the hot key grows. The durable fixes change the DISTRIBUTION: remove keys that cannot match, isolate hot keys, salt with a two-stage combine, or redesign the model. Memory is the correct answer only when the per-task working set is genuinely irreducible."
+  },
+  {
+   "id": "spark-mem-007",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "medium",
+   "prompt": "What does `spark.memory.storageFraction` (Apache default 0.5) actually guarantee?",
+   "options": [
+    "The fraction of the container reserved for off-heap storage",
+    "The proportion of shuffle data held in memory before spilling",
+    "A hard cap on cache memory",
+    "A floor of unified memory that cached blocks are guaranteed to keep — not a hard split"
+   ],
+   "answer": 3,
+   "explanation": "Execution and storage borrow from each other within unified memory. Execution can evict cached blocks; storage cannot evict execution. storageFraction only sets the floor storage is guaranteed to retain. This asymmetry is why caching in a job that is already short of execution memory tends to make things worse."
+  },
+  {
+   "id": "spark-mem-008",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "hard",
+   "prompt": "`spark.memory.offHeap.enabled=true` is set with a size, but the container size is unchanged. What is the likely outcome?",
+   "options": [
+    "Container kills — off-heap memory now competes for the same container budget, so effective memory shrank",
+    "No change; off-heap is drawn from the OS page cache",
+    "Faster shuffles due to reduced serialization",
+    "Longer GC pauses"
+   ],
+   "answer": 0,
+   "explanation": "Off-heap execution memory is a legitimate technique for large execution memory without heap-scan pause cost — but it lives inside the container like everything else. Enabling it without enlarging the container reduces what is actually available and produces exactly the container-kill failure it was meant to avoid."
+  },
+  {
+   "id": "spark-mem-009",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "medium",
+   "prompt": "`Total size of serialized results ... is bigger than spark.driver.maxResultSize`. What is the appropriate first response?",
+   "options": [
+    "Set spark.driver.maxResultSize to 0 (unlimited)",
+    "Stop returning that much to the driver — write to storage, aggregate first, or sample",
+    "Raise spark.driver.memory to match",
+    "Increase the number of shuffle partitions"
+   ],
+   "answer": 1,
+   "explanation": "The guard (Apache default 1g) exists to fail your job cleanly instead of killing the driver. Raising it is occasionally right when you have deliberately decided the driver should hold that much and have sized driver memory for the DESERIALIZED form, which is typically several times the serialized bytes. Setting it to 0 removes the airbag."
+  },
+  {
+   "id": "spark-mem-010",
+   "type": "multi",
+   "topic": "Memory Engineering",
+   "difficulty": "hard",
+   "prompt": "Which fixes are usually better than 'increase executor memory' for an executor heap OOM? (Select all that apply.)",
+   "options": [
+    "Increase the number of partitions so each task holds less",
+    "Reduce spark.executor.cores to raise per-task memory",
+    "Remove or isolate a skewed key",
+    "Unpersist a cache that is pinning the heap",
+    "Increase spark.network.timeout"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "More partitions, fewer cores per executor, removing skew and unpersisting a cache all reduce the working set a single task must hold, or free heap that was deliberately occupied. Network timeout has nothing to do with memory — it changes how long the driver waits before declaring an unresponsive executor dead, which at best hides a symptom. Note that more memory can also make a job LESS stable: bigger heaps mean longer stop-the-world pauses, which cause heartbeat timeouts, which cause executor loss, which causes fetch failures."
+  },
+  {
+   "id": "spark-mem-011",
+   "type": "single",
+   "topic": "Memory Engineering",
+   "difficulty": "medium",
+   "prompt": "Which four distinct failures are commonly all called 'OOM', and why does naming them matter?",
+   "options": [
+    "Driver OOM, executor OOM, shuffle OOM and broadcast OOM",
+    "They are variants of the same JVM error",
+    "Executor heap OOM, container/pod kill, driver heap OOM, and Python worker memory — each has a different diagnosis path and different fixes",
+    "Heap OOM, metaspace OOM, direct buffer OOM and stack overflow"
+   ],
+   "answer": 2,
+   "explanation": "Executor heap OOM throws and the task retries; a container kill leaves no exception and the process vanishes; a driver heap OOM kills the whole application with no recovery path; and a Python worker memory kill surfaces on the JVM side as an EOFException. Naming which one you have is most of the fix — and the wrong name sends you to a knob that makes things worse."
+  },
+  {
+   "id": "spark-mem-012",
+   "type": "open",
+   "topic": "Memory Engineering",
+   "difficulty": "hard",
+   "prompt": "Walk through your diagnostic path when a Spark job reports 'out of memory'.",
+   "model_answer": "First question: was an exception THROWN, or did a process VANISH? If thrown, read the stack to decide driver versus executor. A driver stack mentioning collect, toPandas, BroadcastExchange or plan objects means the coordinator was asked to hold too much — the fix is to stop collecting, cap the broadcast, or reduce task count, never simply more driver memory. An executor heap OOM sends me to the distribution question: is max task input far above the median? If yes it is skew and no amount of memory is sufficient; if it is uniform, raise parallelism or lower cores per executor, since per-task memory is roughly (heap x memory.fraction) / cores. If instead the process vanished — exit 137, OOMKilled, log ending mid-line — it is a container kill and the heap may be half empty, so the overflow is non-heap: in PySpark the prime suspect is Python worker processes, one per concurrent task; otherwise off-heap settings, native codecs or direct buffers. There the fixes are capping pyspark memory, reducing cores, or raising memoryOverhead AND the container together. Raising spark.executor.memory is roughly the tenth option, and it is actively wrong for a container kill because it grows the heap at the expense of the region that overflowed.",
+   "explanation": "The senior signal is the exception-versus-kill split first, the skew-versus-uniform split second, and knowing that more memory can trade an OOM for a GC-induced heartbeat timeout."
+  },
+  {
+   "id": "spark-gc-001",
+   "type": "single",
+   "topic": "Garbage Collection",
+   "difficulty": "medium",
+   "prompt": "An executor reports Task Time 4.2 h and GC Time 1.9 h. What is the reading, and what is the risk beyond slowness?",
+   "options": [
+    "About 45% GC, which is normal for shuffle-heavy jobs",
+    "GC time overlaps task time, so the ratio is not meaningful",
+    "About 31% GC — acceptable if the job completes",
+    "About 45% GC — nearly half the paid time produced nothing, and a long pause can trigger a heartbeat timeout and executor loss"
+   ],
+   "answer": 3,
+   "explanation": "GC% = JVM GC Time / Executor Run Time, computed per executor rather than cluster-wide. At ~45% the executor's useful throughput is roughly half what you pay for, and it is one long pause away from missing heartbeats — which is why GC problems often show up in the incident log as a FetchFailedException and get misdiagnosed as a network issue."
+  },
+  {
+   "id": "spark-gc-002",
+   "type": "single",
+   "topic": "Garbage Collection",
+   "difficulty": "hard",
+   "prompt": "Tasks in a stage get progressively slower as the stage runs, with no change in per-task input. What does this pattern suggest?",
+   "options": [
+    "A growing live set — accumulating cached blocks or aggregation state — so collections take longer and recover less",
+    "Speculative execution competing for slots",
+    "The shuffle service throttling requests",
+    "Network congestion building up"
+   ],
+   "answer": 0,
+   "explanation": "The signature of GC pressure is not that GC exists — it is that pauses GROW as the stage progresses. That growth means objects are accumulating: cached blocks, a large aggregation hash map, or objects being promoted faster than they die. A job that gets steadily slower without the data changing is the classic surface symptom."
+  },
+  {
+   "id": "spark-gc-003",
+   "type": "single",
+   "topic": "Garbage Collection",
+   "difficulty": "hard",
+   "prompt": "When is changing the JVM garbage collector an appropriate response?",
+   "options": [
+    "As the first fix whenever GC time exceeds 10%",
+    "Only after workload-level causes are excluded and GC logs show pause behaviour, not live-set size, is the constraint",
+    "Whenever executors are lost to heartbeat timeouts",
+    "Whenever the heap exceeds 32 GB"
+   ],
+   "answer": 1,
+   "explanation": "Collector settings change how efficiently the JVM manages a live set you have not yet tried to reduce. If an executor spends 45% of its time collecting because someone cached a 400 GB DataFrame that is read once, no collector setting fixes that. Exclude caching, object churn in UDFs, cores per executor and oversized heaps first; then, if you do change it, change one thing and write down why."
+  },
+  {
+   "id": "spark-gc-004",
+   "type": "single",
+   "topic": "Garbage Collection",
+   "difficulty": "medium",
+   "prompt": "Which of these most directly increases GC pressure on an executor?",
+   "options": [
+    "Lowering spark.sql.files.maxPartitionBytes",
+    "Raising spark.sql.shuffle.partitions",
+    "Caching large datasets, which fills the old generation with long-lived objects the collector must scan and cannot free",
+    "Enabling adaptive query execution"
+   ],
+   "answer": 2,
+   "explanation": "Cached blocks are long-lived by definition. Other major contributors: too many cores per executor (N concurrent tasks all allocating into one heap), row-at-a-time UDFs allocating per record, wide rows materialised as objects, oversized heaps (more to scan, longer worst-case pauses), and high-cardinality GROUP BY building enormous hash maps."
+  },
+  {
+   "id": "spark-gc-005",
+   "type": "open",
+   "topic": "Garbage Collection",
+   "difficulty": "medium",
+   "prompt": "Explain why giving a Spark executor MORE memory can make a job less stable.",
+   "model_answer": "Beyond a certain heap size the cost of collection rises: there is more to scan, and stop-the-world pauses get longer in the worst case. A pause long enough to miss heartbeats — the Apache default network timeout is 120s — causes the driver to declare the executor dead. Losing an executor destroys its shuffle output, because shuffle data is written to local disk and is not replicated, so Spark must re-run the map stage that produced it. That re-execution puts the same pressure back on the same cluster, and if the underlying cause is still present the cycle compounds into a retry storm. So the chain is: bigger heap -> longer pause -> heartbeat timeout -> executor loss -> FetchFailedException -> stage re-execution. You can genuinely trade a clean, retryable OOM for an expensive cascade. The better levers are usually reducing what each task must hold — more partitions, fewer cores per executor, less caching — rather than enlarging the heap.",
+   "explanation": "The senior signal is connecting heap size to pause duration to heartbeat loss to unreplicated shuffle output, rather than treating memory as monotonically good."
+  },
+  {
+   "id": "spark-skew-001",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "easy",
+   "prompt": "A stage has 5,000 tasks; 4,998 finish in 45 seconds and two run for 40 minutes. What is the single most important thing to check next?",
+   "options": [
+    "Whether speculative execution is enabled",
+    "The total shuffle write for the stage",
+    "The executor logs for those two tasks",
+    "Whether those two tasks also READ far more data than the median"
+   ],
+   "answer": 3,
+   "explanation": "Input volume is the discriminator between the two candidate causes. If the slow tasks read ~100x more data, duration scales with work and it is skew — go find the hot key. If they read a normal amount and simply took longer, it is environmental: check whether they shared an executor or host, then GC time and host disk/network. Speculation helps the second case and is useless against the first."
+  },
+  {
+   "id": "spark-skew-002",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "medium",
+   "prompt": "Which value is most often the single largest 'key' in a real fact table?",
+   "options": [
+    "A sentinel such as -1, 0, 'UNKNOWN' or an empty string, emitted by upstream systems that refuse to write NULL",
+    "The primary key of the largest dimension",
+    "The most common customer ID",
+    "The most recent partition date"
+   ],
+   "answer": 0,
+   "explanation": "Sentinels are the classic hidden hot key. NULL skew behaves similarly — every NULL hashes to the same partition — with an extra insult: in an INNER equi-join NULL keys never match, so those rows are shuffled across the network and then discarded. Profiling the key with counts and percentage-of-total surfaces both immediately."
+  },
+  {
+   "id": "spark-skew-003",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "hard",
+   "prompt": "Adaptive skew-join handling is enabled, yet a 40-minute straggler persists. Which of these does NOT explain that?",
+   "options": [
+    "The partition exceeds the relative factor but not the absolute byte threshold",
+    "Adaptive query execution only applies to DataFrame code, not Spark SQL",
+    "The skew is in a GROUP BY group rather than a join",
+    "The skew was created downstream by an explode()"
+   ],
+   "answer": 1,
+   "explanation": "AQE applies to both the SQL and DataFrame paths — they share the same optimizer. The three real explanations: its skew handling targets skewed shuffle partitions in JOINS, so it does nothing for aggregation-group skew or for skew generated after the shuffle boundary by explode; and BOTH the relative factor and the absolute byte threshold must be exceeded, so a partition 40x the median can still be ignored. Skew on the READ side (one enormous input file) is a fourth case, before any shuffle exists to split."
+  },
+  {
+   "id": "spark-skew-004",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "medium",
+   "prompt": "Why does `repartition(2000, hot_key)` fail to fix skew on that key?",
+   "options": [
+    "Because AQE immediately coalesces the result",
+    "Because 2000 is too few partitions",
+    "Because hashing a hot value still sends every row carrying it to a single partition",
+    "Because repartition is a narrow transformation"
+   ],
+   "answer": 2,
+   "explanation": "Hash partitioning is deterministic: all rows with the same key land together, by design — that is what makes joins and aggregations work. Repartitioning helps when the CURRENT partitioning is bad for an unrelated reason, or when you repartition on a different, better-distributed column. It also costs a full shuffle, so it must pay for itself."
+  },
+  {
+   "id": "spark-skew-005",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "hard",
+   "prompt": "For which aggregation does salting NOT compose cleanly into a two-stage combine?",
+   "options": [
+    "MAX",
+    "SUM",
+    "COUNT",
+    "An exact median"
+   ],
+   "answer": 3,
+   "explanation": "Salting works for aggregations that are associative and can be combined from partial results: SUM, COUNT, MIN, MAX. An exact median (or an exact COUNT DISTINCT without a sketch) needs the full group together, so partial results per salt bucket cannot simply be merged. Approximate percentile functions and sketch-based distinct counts exist precisely to make these tractable at scale."
+  },
+  {
+   "id": "spark-skew-006",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "hard",
+   "prompt": "When salting a JOIN (rather than an aggregation), what cost do you accept?",
+   "options": [
+    "The other side must be replicated N ways, multiplying its size",
+    "The join can no longer use an equality condition",
+    "Output ordering becomes non-deterministic",
+    "The join result becomes approximate"
+   ],
+   "answer": 0,
+   "explanation": "Salting the fact side spreads a hot key across N buckets, but every matching row on the dimension side must then exist in all N buckets — so the dimension is replicated N times. The spread factor is a real cost, not a free knob, and it is why isolating a small number of hot keys into a broadcast branch is often cheaper than salting the whole join."
+  },
+  {
+   "id": "spark-skew-007",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "medium",
+   "prompt": "Why prefer a deterministic salt (for example a hash of a high-cardinality column) over `RAND()`?",
+   "options": [
+    "It produces a more even spread in all cases",
+    "RAND() is non-deterministic, so a stage retry can repartition differently and make results harder to reproduce",
+    "RAND() is not supported inside a GROUP BY",
+    "Deterministic salts avoid the extra shuffle"
+   ],
+   "answer": 1,
+   "explanation": "Determinism matters for reproducibility and for pipelines that must produce identical output across retries. The trade-off runs the other way on evenness: a deterministic salt is only as uniform as the column you hash, so pick something high-cardinality and uncorrelated with the join key — and then VERIFY the resulting distribution rather than assuming it."
+  },
+  {
+   "id": "spark-skew-008",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "medium",
+   "prompt": "In an INNER equi-join, what happens to rows whose join key is NULL?",
+   "options": [
+    "They are broadcast to every executor",
+    "They are matched against all rows on the other side",
+    "They are shuffled to a common partition and then discarded, because NULL never equals NULL",
+    "They are filtered out before the shuffle automatically"
+   ],
+   "answer": 2,
+   "explanation": "This is pure waste: network transfer and one oversized partition, for rows that cannot survive the join. Filtering them before the exchange removes the largest partition entirely. The caveat is LEFT joins, where those rows must be retained — handle them in a separate branch and union the results back rather than dropping them."
+  },
+  {
+   "id": "spark-skew-009",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "hard",
+   "prompt": "Which measure best predicts how expensive a hot key will be when records vary greatly in width?",
+   "options": [
+    "Distinct count of the key",
+    "The number of partitions the key spans",
+    "Row count per key",
+    "Bytes per key"
+   ],
+   "answer": 3,
+   "explanation": "Row counts are a proxy. When record width varies — a nested array column, a large JSON blob — a key with 200k wide rows can cost more than one with 2M narrow rows. Profiling bytes per key (or row count alongside average width) predicts partition size far better and avoids chasing the wrong key."
+  },
+  {
+   "id": "spark-skew-010",
+   "type": "multi",
+   "topic": "Data Skew",
+   "difficulty": "hard",
+   "prompt": "Which are legitimate ways to address a skewed join? (Select all that apply.)",
+   "options": [
+    "Filter out sentinel and NULL keys that cannot match",
+    "Split hot keys into a separate branch and broadcast the small side there",
+    "Salt the hot key and replicate the other side",
+    "Redesign the data model so the whale no longer shares the join key",
+    "Raise spark.task.maxFailures so skewed tasks get more attempts"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "Filtering unmatched keys, isolating hot keys, salting, and redesigning the model all change the distribution or the work done per partition. Raising task retries does nothing for a task that is slow rather than failing — and if it IS failing, more attempts just pay for the same doomed work repeatedly. Each real remedy has limits worth stating: filtering only applies where those rows cannot contribute; the two-path pattern rescans unless you persist; salting costs replication; the model redesign is a quarter of work, not an afternoon."
+  },
+  {
+   "id": "spark-skew-011",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "medium",
+   "prompt": "How do you PROVE a skew fix worked, rather than getting lucky?",
+   "options": [
+    "The max/median ratio for duration AND shuffle read fell, and you noted the change in total shuffle bytes and executor-hours",
+    "No tasks failed on the retry",
+    "The stage now uses more executors",
+    "The job finished faster than the previous run"
+   ],
+   "answer": 0,
+   "explanation": "Runtime can improve for unrelated reasons — a quieter cluster, a smaller input day. The distribution ratios are the mechanism. Also record total shuffle bytes and executor-hours, because some skew fixes (salting with replication, two-path scans) INCREASE total work while reducing wall clock. That may be the right trade, but you must know you made it."
+  },
+  {
+   "id": "spark-skew-012",
+   "type": "single",
+   "topic": "Data Skew",
+   "difficulty": "hard",
+   "prompt": "Which of these produces skew that adaptive skew-join handling cannot address at all?",
+   "options": [
+    "A hot merchant_id in a fact-to-dimension join",
+    "One input Parquet file that is far larger than the rest, before any shuffle exists",
+    "A NULL-heavy join key",
+    "A moderately uneven distribution across shuffle partitions"
+   ],
+   "answer": 1,
+   "explanation": "AQE reasons about SHUFFLE partitions — it observes their real sizes after a stage completes and can split ones that qualify. A skewed input file is a read-side problem that occurs before any shuffle boundary, so there is nothing for it to split. Fixes there are file-layout ones: compaction, splitting the file, or adjusting maxPartitionBytes if the file is splittable."
+  },
+  {
+   "id": "spark-skew-013",
+   "type": "open",
+   "topic": "Data Skew",
+   "difficulty": "hard",
+   "prompt": "A job is stuck at 99% with two long-running tasks. Walk through your investigation and remediation.",
+   "model_answer": "First I separate skew from straggler, because they share a symptom and share almost no fixes. I open the task table, find the two tasks, and compare their input and shuffle-read bytes to the median. If they read ~100x more, duration scales with work and it is skew. If they read a normal amount, it is environmental — I check whether both ran on the same executor or host, then that executor's GC ratio and the host's disk and network metrics; a degraded disk produces exactly this. For skew, I profile the key with a GROUP BY key, COUNT(*), and percentage-of-total, looking specifically for sentinels like -1, 0 or 'UNKNOWN' and for NULL, and I check bytes per key as well as row count if records vary in width. Then I choose by what the profile shows: if the hot value cannot match (a sentinel or NULL in an inner join) I filter it before the exchange, which deletes the biggest partition outright; if a handful of genuine whale keys dominate, I isolate them into a separate branch where the small side can be broadcast, and union back; if the aggregation is additive I salt with a two-stage combine, using a deterministic salt for reproducibility. I also check whether AQE skew handling engaged at all, since it needs both its relative factor and its absolute byte threshold exceeded, and it does nothing for aggregation-group skew or explode-generated skew. I verify by the max/median ratio for duration AND shuffle read falling, not by runtime alone, and I record total shuffle bytes and executor-hours because salting trades total work for wall clock. Prevention is a daily key-distribution check alerting when any single value exceeds a set share of rows.",
+   "explanation": "The senior signal is the input-size discriminator first, naming sentinel and NULL keys specifically, and verifying against the distribution ratio rather than runtime."
+  },
+  {
+   "id": "spark-shf-001",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "easy",
+   "prompt": "What is the Apache Spark default for `spark.sql.shuffle.partitions`?",
+   "options": [
+    "It is derived from input size",
+    "The total number of executor cores",
+    "200",
+    "1000"
+   ],
+   "answer": 2,
+   "explanation": "200 is the Apache default. Note that `spark.default.parallelism` — which defaults to the total number of cores in cluster mode — governs RDD operations, NOT DataFrame/SQL shuffles. Setting the latter and expecting SQL shuffles to change is a common source of confusion."
+  },
+  {
+   "id": "spark-shf-002",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "Which four physical resources does a single shuffle consume simultaneously?",
+   "options": [
+    "CPU, memory, network and driver heap",
+    "Memory, disk, network and the metastore",
+    "CPU, disk, network and the external shuffle service",
+    "CPU, memory, disk and network"
+   ],
+   "answer": 3,
+   "explanation": "Map side: partition by key, sort within partition, serialize and compress (CPU), buffer (memory), write data and index files to LOCAL disk. Reduce side: fetch each partition's block from every map executor (network), buffer in execution memory, spill if it does not fit. A fifth cost is durability: map output must survive until consumed, or the map stage re-runs."
+  },
+  {
+   "id": "spark-shf-003",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "hard",
+   "prompt": "With AQE enabled, how should you think about `spark.sql.shuffle.partitions`?",
+   "options": [
+    "It is the INITIAL count before coalescing — set it generously, because coalescing only merges and skew splitting applies only to qualifying partitions",
+    "It should be set as low as possible to reduce scheduling overhead",
+    "It should exactly match the number of executor cores",
+    "It is ignored entirely"
+   ],
+   "answer": 0,
+   "explanation": "AQE moves the tuning unit from a COUNT to a SIZE. Coalescing merges small post-shuffle partitions toward the advisory size; skew handling can split a partition that clears both its relative and absolute conditions. Neither rescues a stage where every partition is uniformly oversized — so too low is worse than too high, and the real dial is the advisory partition size."
+  },
+  {
+   "id": "spark-shf-004",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "What is the Apache default for `spark.sql.adaptive.advisoryPartitionSizeInBytes`?",
+   "options": [
+    "8 MB",
+    "64 MB",
+    "128 MB",
+    "256 MB"
+   ],
+   "answer": 1,
+   "explanation": "64 MB. This is the most useful AQE knob because it expresses the target as a SIZE rather than a count — raise it for wide, cheap rows; lower it for expensive per-row work. Watch that a large advisory size can silently undo an increase in the initial partition count by coalescing straight back."
+  },
+  {
+   "id": "spark-shf-005",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "From which Spark version is `spark.sql.adaptive.enabled` true by default?",
+   "options": [
+    "4.0.0",
+    "3.0.0",
+    "3.2.0",
+    "3.4.0"
+   ],
+   "answer": 2,
+   "explanation": "AQE was introduced in 3.0 but was OFF by default there and in 3.1; it became enabled by default in 3.2.0. On 3.0/3.1 the older fixed-partition-count tuning advice still applies. Always confirm it is actually on in your run — legacy job configs frequently disable it."
+  },
+  {
+   "id": "spark-shf-006",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "hard",
+   "prompt": "A stage shows 200 tasks, median shuffle read 7.8 GB, max ~8.1 GB, and 9 TB of disk spill. What is the diagnosis?",
+   "options": [
+    "A slow local disk on one host",
+    "An expensive Python UDF in the stage",
+    "Severe data skew on the join key",
+    "Uniform under-partitioning — every partition exceeds the execution memory each task gets"
+   ],
+   "answer": 3,
+   "explanation": "Max ~= median rules out skew. Enormous per-task input plus multi-TB spill says every partition is too big for its share of execution memory — roughly (heap x memory.fraction) / cores. The fix is more partitions (and an advisory size low enough that AQE does not coalesce them back), or fewer cores per executor. The confirming metric is spill going to ZERO, not runtime falling."
+  },
+  {
+   "id": "spark-shf-007",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "hard",
+   "prompt": "A stage has 240,000 tasks with a median duration of 40 ms and the driver's CPU is pinned. What is happening?",
+   "options": [
+    "Over-partitioning — per-task scheduling overhead exceeds useful work, and the driver is the bottleneck",
+    "The shuffle service is throttling fetches",
+    "GC pressure on the driver from cached blocks",
+    "The executors are under-provisioned"
+   ],
+   "answer": 0,
+   "explanation": "Tasks shorter than their own scheduling overhead mean you are paying coordination cost for nothing, and the driver must track metadata for every one of them. Ensure AQE coalescing is enabled and raise the advisory partition size. Watch median task duration as the signal: once it is in the tens of milliseconds, you have gone too far in that direction."
+  },
+  {
+   "id": "spark-shf-008",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "Why does an `Exchange` node in a physical plan not automatically indicate a problem?",
+   "options": [
+    "Exchanges are always removed by AQE at runtime",
+    "Any large join, wide aggregation or window over a key requires equal keys to be co-located — that is what an Exchange does",
+    "Exchange nodes are logical only and cost nothing",
+    "Exchanges only move metadata, not data"
+   ],
+   "answer": 1,
+   "explanation": "Removing exchanges is not a goal in itself — a job with zero exchanges that scans ten times more data is slower. An Exchange deserves attention when it is AVOIDABLE (a broadcast would do, or the data is already partitioned compatibly), OVERSIZED (you are shuffling columns nothing downstream reads), or REPEATED (computed twice because reuse failed). Those three questions, not the word itself, are the diagnosis."
+  },
+  {
+   "id": "spark-shf-009",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "Total shuffle write is 2.1 TB for a job whose input is 2 TB, joining a large fact to an 80 MB dimension. What should you check first?",
+   "options": [
+    "Whether compression is enabled on shuffle output",
+    "Whether the shuffle partition count is too low",
+    "Whether the join is a SortMergeJoin that should have been a broadcast — typically because statistics are missing or stale",
+    "Whether local disks are fast enough for that volume"
+   ],
+   "answer": 2,
+   "explanation": "Shuffling the fact table to join an 80 MB dimension is work that should not exist. If the SQL tab shows the build side is genuinely tiny but the plan chose sort-merge, the size ESTIMATE was wrong — usually missing statistics. Running ANALYZE TABLE ... COMPUTE STATISTICS and confirming the plan converts is a far bigger win than any partition-count tuning. The best shuffle optimization is the shuffle you delete."
+  },
+  {
+   "id": "spark-shf-010",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "hard",
+   "prompt": "What does `spark.default.parallelism` control?",
+   "options": [
+    "The maximum number of concurrent tasks per executor",
+    "The initial executor count under dynamic allocation",
+    "The number of partitions produced by DataFrame and SQL shuffles",
+    "The default partition count for RDD operations — it does NOT govern SQL/DataFrame shuffles"
+   ],
+   "answer": 3,
+   "explanation": "This trips people up in a specific way: someone sets spark.default.parallelism, sees no change in a DataFrame job, and concludes the setting 'does not work'. Modern pipeline code is almost all DataFrame or SQL, where spark.sql.shuffle.partitions applies. If RDD operations are mixed in, or a library drops to RDDs, both are live at once."
+  },
+  {
+   "id": "spark-shf-011",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "What does the `AQEShuffleRead` node in the SQL tab tell you?",
+   "options": [
+    "What AQE actually decided at runtime — coalescing and skew-split counts",
+    "That the shuffle output was cached",
+    "That the stage was retried",
+    "That the shuffle was read from an external shuffle service"
+   ],
+   "answer": 0,
+   "explanation": "Its presence confirms AQE acted, and its metrics show what it did. This is the only way to see AQE's decisions — a static EXPLAIN cannot show them, because they are made using statistics that only exist after a stage completes."
+  },
+  {
+   "id": "spark-shf-012",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "hard",
+   "prompt": "Why is a fetch failure disproportionately expensive compared with other task failures?",
+   "options": [
+    "It always aborts the job immediately",
+    "Shuffle output is not replicated, so losing the producing executor forces re-execution of the map stage that created it",
+    "It forces a full re-read of the source data",
+    "It invalidates all cached blocks cluster-wide"
+   ],
+   "answer": 1,
+   "explanation": "Map output lives on the producing executor's local disk. When that executor is gone, the data is gone, and Spark must re-run the map tasks that produced it — potentially an hour of upstream work on a large job. That re-execution then puts the same pressure back on the same cluster. This is also why an external shuffle service changes the economics: it decouples shuffle data from executor lifetime."
+  },
+  {
+   "id": "spark-shf-013",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "Which metric should determine the right shuffle partition SIZE for a given stage?",
+   "options": [
+    "The ratio of shuffle write to shuffle read",
+    "The number of executors",
+    "Spill — zero spill with tasks comfortably longer than a few seconds means the size is right",
+    "The input file count"
+   ],
+   "answer": 2,
+   "explanation": "A partition's cost depends on how much memory its rows occupy while being processed, how expensive each row is, how well it compresses, and how much execution memory each task actually gets — none of which are constants across workloads. Spill says partitions are too big for the memory available; median durations in the tens of milliseconds say they are too small. Any single universal number is implicitly assuming one workload shape."
+  },
+  {
+   "id": "spark-shf-014",
+   "type": "multi",
+   "topic": "Shuffle & AQE",
+   "difficulty": "hard",
+   "prompt": "Which are genuine costs of setting the shuffle partition count very high? (Select all that apply.)",
+   "options": [
+    "Per-task scheduling overhead becomes a significant fraction of useful work",
+    "The number of shuffle blocks grows as maps x reducers, producing many tiny reads",
+    "The driver tracks more task metadata",
+    "Writes can produce many small output files",
+    "Each partition is more likely to spill to disk"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "Scheduling overhead, the maps-times-reducers block explosion, extra driver metadata and tiny output files are all real costs of over-partitioning. Spill is the opposite failure — it comes from partitions that are too LARGE for the memory each task gets, so a higher partition count reduces spill rather than causing it. That asymmetry is why a generous initial count plus AQE coalescing is the safer default."
+  },
+  {
+   "id": "spark-shf-015",
+   "type": "single",
+   "topic": "Shuffle & AQE",
+   "difficulty": "medium",
+   "prompt": "What does `spark.sql.adaptive.coalescePartitions.enabled` (Apache default true) make safe?",
+   "options": [
+    "Broadcasting larger tables",
+    "Running with fewer executors than partitions",
+    "Disabling the external shuffle service",
+    "Setting a generous INITIAL shuffle partition count, since small partitions get merged toward the advisory size"
+   ],
+   "answer": 3,
+   "explanation": "Coalescing is what turns 'set it high and let AQE reduce it' from reckless into standard practice. Without it, a generous initial count leaves you with the full number of small partitions and all the scheduling overhead that implies."
+  },
+  {
+   "id": "spark-shf-016",
+   "type": "open",
+   "topic": "Shuffle & AQE",
+   "difficulty": "hard",
+   "prompt": "A stage spills 9 TB to disk. Walk from that number to a validated fix.",
+   "model_answer": "First I establish whether the spill is uniform or concentrated, because that changes everything. I compare max task input against median: if they are close, every partition is too big and it is a sizing problem; if the spill is concentrated in a few tasks, it is skew and partition count will not help. Assuming uniform, I do the arithmetic — per-task execution memory is roughly (usable heap x spark.memory.fraction) / spark.executor.cores — and compare that against the median partition size. If a 16 GB heap with 5 cores gives each task on the order of a couple of GB and the median partition is 7.8 GB, spill is inevitable rather than incidental. The fix is one variable: raise the initial shuffle partition count so partitions start small enough, and lower the advisory partition size so AQE does not coalesce them straight back into the same problem — those are two settings but one mechanism, the partition-size target. Halving cores per executor is the alternative lever, since it doubles per-task memory at no extra cost. I predict before running: median task input should fall roughly proportionally, spill should approach zero, and stage duration should fall by more than half. Then I measure the SAME metrics I captured as a baseline. The confirming metric is spill going to zero — not runtime, which can improve for unrelated reasons. I also watch two side effects: task count rises, and output file count rises with it, so I may add a REBALANCE before the write to keep file sizes sane. Finally I add 'any disk spill on this stage' to the health scorecard so the failure becomes a monitored condition rather than oral tradition.",
+   "explanation": "The senior signal is the uniform-versus-concentrated split, the per-task memory arithmetic, and validating on spill rather than runtime."
+  },
+  {
+   "id": "spark-join-001",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "easy",
+   "prompt": "What is the Apache default for `spark.sql.autoBroadcastJoinThreshold`?",
+   "options": [
+    "10 MB",
+    "100 MB",
+    "It is disabled by default",
+    "1 MB"
+   ],
+   "answer": 0,
+   "explanation": "10 MB. Two subtleties matter more than the number: it is compared against an ESTIMATE, not a measurement; and the estimate concerns the size in Spark's internal representation, not the compressed file size on disk — a 10 MB Parquet file can expand well beyond 10 MB in memory."
+  },
+  {
+   "id": "spark-join-002",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "medium",
+   "prompt": "In a BroadcastHashJoin, where does the build side physically go?",
+   "options": [
+    "Directly from storage to each executor",
+    "Collected to the DRIVER first, then shipped to every executor",
+    "Into the external shuffle service",
+    "Into a replicated cache on the cluster manager"
+   ],
+   "answer": 1,
+   "explanation": "This is why a broadcast join is effectively a collect() you did not write, and why raising the broadcast threshold globally increases driver memory pressure for every join in every query. It is also why spark.sql.broadcastTimeout (Apache default 300s) exists and why timeout warnings are an early signal that the build side is growing."
+  },
+  {
+   "id": "spark-join-003",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "hard",
+   "prompt": "A pipeline that ran for 18 months starts failing with a driver OOM during a broadcast exchange. The code has not changed. What is the most likely cause?",
+   "options": [
+    "The dimension table's statistics became stale",
+    "The driver's memory allocation was reduced",
+    "An explicit BROADCAST hint overrides the size check, and the hinted table has grown well past what fits",
+    "AQE started converting the join to a broadcast"
+   ],
+   "answer": 2,
+   "explanation": "A hint tells Spark 'trust me, this is small', and nothing re-checks it next quarter. A table hinted at 6 MB that has grown to 40 million rows will take the driver down. Every broadcast hint in a long-lived pipeline should be paired with a size assertion or a row-count alert. Broadcast-timeout warnings in earlier runs are the early warning that usually gets ignored."
+  },
+  {
+   "id": "spark-join-004",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "medium",
+   "prompt": "Why is SortMergeJoin described as robust for large equi-joins?",
+   "options": [
+    "It never requires sorting when inputs are bucketed",
+    "It automatically handles skewed keys",
+    "It avoids shuffling either side",
+    "The sort lets it spill to disk and keep going, so it degrades rather than failing"
+   ],
+   "answer": 3,
+   "explanation": "SortMergeJoin shuffles both sides by key, sorts each partition, and merges. The sort is what makes it degrade gracefully under memory pressure. ShuffledHashJoin avoids the sort by building a hash map from one side's partition — faster when it fits, but far less graceful under skew, because one oversized partition simply will not fit."
+  },
+  {
+   "id": "spark-join-005",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "hard",
+   "prompt": "Seeing `BroadcastNestedLoopJoin` in a plan should prompt what reaction?",
+   "options": [
+    "Investigate: it means no usable equality condition, so comparison count scales with the product of the inputs",
+    "Increase the broadcast threshold so it becomes a hash join",
+    "Enable AQE so it can be converted at runtime",
+    "None — it is an optimisation for small tables"
+   ],
+   "answer": 0,
+   "explanation": "It appears when the join condition is non-equi (BETWEEN, <, LIKE) or missing entirely. Even when the OUTPUT is small, the work is O(left x right) comparisons — 1M x 50k is 50 billion. The usual fix is to add an equality component (a bucket, a date key) so a hash join becomes possible, then apply the range predicate as a filter."
+  },
+  {
+   "id": "spark-join-006",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "medium",
+   "prompt": "`orders` has 100M rows and joins `dim_customer` on customer_id. Output is 500M rows. What happened?",
+   "options": [
+    "The join produced a cartesian product",
+    "The dimension has ~5 rows per customer_id — an SCD2 history not filtered to current, or a duplicate load",
+    "The fact table was read five times",
+    "AQE split skewed partitions, duplicating rows"
+   ],
+   "answer": 1,
+   "explanation": "A clean 5x is multiplication, not growth — organic growth is not a round multiple. Test with GROUP BY key HAVING COUNT(*) > 1 on the dimension. Critically, this is a CORRECTNESS incident as much as a performance one: every downstream aggregate has been 5x too high since it started, so the response includes finding what published on top of it."
+  },
+  {
+   "id": "spark-join-007",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "medium",
+   "prompt": "Which single ratio best detects join fan-out automatically?",
+   "options": [
+    "GC time divided by task time",
+    "Shuffle write divided by input bytes",
+    "Output rows divided by input rows, tracked against its own baseline",
+    "Task count divided by executor count"
+   ],
+   "answer": 2,
+   "explanation": "Output-per-input-row catches the whole class — duplicate dimension keys, an SCD2 filter that was dropped, an unbounded explode. It belongs on the pipeline health scorecard alongside input bytes, because the performance symptom and the correctness bug are the SAME event."
+  },
+  {
+   "id": "spark-join-008",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "hard",
+   "prompt": "Statistics on a dimension were reset by a maintenance operation. What is the likely consequence?",
+   "options": [
+    "Partition pruning stops working",
+    "AQE is disabled for that table",
+    "Queries fail with an AnalysisException",
+    "Size estimates fall back to a much larger raw footprint, so a broadcast join can become a sort-merge join and shuffle volume explodes"
+   ],
+   "answer": 3,
+   "explanation": "The optimizer picks broadcast from an estimate. With no statistics, the estimate can be wildly wrong in either direction. A 6-minute query becoming 71 minutes with shuffle write rising from 40 GB to 2.1 TB — on unchanged data — is the classic signature. Fix is ANALYZE TABLE ... COMPUTE STATISTICS, then confirm the plan reverts on its own rather than pinning it with a hint."
+  },
+  {
+   "id": "spark-join-009",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "medium",
+   "prompt": "Why collect COLUMN statistics in addition to table statistics?",
+   "options": [
+    "They provide distinct counts, min/max and null counts, which let the optimizer estimate SELECTIVITY rather than just size",
+    "They enable adaptive query execution",
+    "They are needed for broadcast joins to work at all",
+    "Column statistics are required for partition pruning"
+   ],
+   "answer": 0,
+   "explanation": "Table statistics give row count and total size, enabling size-based strategy choice. Column statistics let the optimizer estimate how much a predicate reduces a relation, which drives join ordering and intermediate-size estimates. Note that cost-based optimization and CBO join reordering are both DISABLED by default in Apache Spark and depend on these statistics — turning CBO on without them changes nothing useful."
+  },
+  {
+   "id": "spark-join-010",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "hard",
+   "prompt": "Why can a query broadcast correctly in development on a 1% sample but choose sort-merge in production?",
+   "options": [
+    "Sampling changes the join type explicitly",
+    "The build side crosses the broadcast threshold at full scale, so production runs a fundamentally different physical plan that dev never tested",
+    "Production disables AQE by default",
+    "Sample data is always cached"
+   ],
+   "answer": 1,
+   "explanation": "This is a THRESHOLD being crossed, which is why the failure is discontinuous rather than gradual. It is also why 'works on a sample, dies at full scale' should trigger a PLAN comparison rather than a volume comparison: skew is invisible at 1%, per-partition memory scales, and cardinality effects multiply. Compare the two plans first — a plan difference explains most of these instantly."
+  },
+  {
+   "id": "spark-join-011",
+   "type": "multi",
+   "topic": "Join Engineering",
+   "difficulty": "hard",
+   "prompt": "Which are legitimate reasons a join produces far more rows than expected? (Select all that apply.)",
+   "options": [
+    "Duplicate keys in the dimension table",
+    "An SCD2 dimension not filtered to the current record",
+    "A missing predicate producing a cartesian product",
+    "Many-to-many relationships on both sides",
+    "The shuffle partition count being too low"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "Duplicate dimension keys, an unfiltered SCD2 history, a missing predicate and many-to-many relationships are all cardinality mechanisms. Partition count affects how work is DIVIDED, never how many rows the join produces — a common confusion that sends people to a tuning knob when they have a correctness bug. Output rows are a function of the data and the join condition, not the parallelism."
+  },
+  {
+   "id": "spark-join-012",
+   "type": "single",
+   "topic": "Join Engineering",
+   "difficulty": "medium",
+   "prompt": "When is `spark.sql.autoBroadcastJoinThreshold = -1` a defensible setting?",
+   "options": [
+    "Whenever AQE is enabled",
+    "Whenever broadcasts cause any driver pressure",
+    "As a diagnostic to confirm broadcasts are the cause of driver instability, or where estimates are systematically unreliable",
+    "On any cluster with fewer than 50 executors"
+   ],
+   "answer": 2,
+   "explanation": "Setting it to -1 disables auto-broadcast entirely — useful as an experiment, and occasionally as a blunt production setting where no statistics exist and estimates keep choosing broadcast for things that are not small. The cost is that EVERY join now shuffles, including the ones where broadcast was correct and valuable, so it usually trades one incident for a permanent tax. Targeted alternatives: fix statistics, lower rather than disable the threshold, or hint the specific offending join."
+  },
+  {
+   "id": "spark-join-013",
+   "type": "open",
+   "topic": "Join Engineering",
+   "difficulty": "hard",
+   "prompt": "How do you determine which join strategy a query actually used, and what would you do if it is not the one you expected?",
+   "model_answer": "I look at the SQL tab of the FINISHED run rather than a static EXPLAIN, because with AQE enabled the plan is re-optimised at runtime — a sort-merge join can be promoted to a broadcast once real shuffle sizes are measured, so the pre-execution plan is a proposal and only the executed plan is authoritative. In the join node I read the strategy and the build-side size metric. If it is sort-merge and I expected broadcast, I compare that measured size against spark.sql.autoBroadcastJoinThreshold and ask why the ESTIMATE was wrong. Two common gaps: statistics are missing or stale, so the estimate came from a raw footprint far larger than reality; or the build side sits behind a filter whose selectivity the optimizer cannot estimate without column statistics. My first move is ANALYZE TABLE ... COMPUTE STATISTICS, including FOR COLUMNS on the join and filter keys, then re-run and confirm the plan converts on its own — that fixes the decision everywhere rather than at one call site. I reach for a BROADCAST hint only as a last resort, because a hint overrides the safety check, and I pair it with a size assertion or a row-count alert on that table, since a hinted table that quietly grows is how you turn a slow job into a driver OOM. I would also check the reverse case: a plan that broadcasts something it should not, where the honest fix is removing the hint rather than raising driver memory.",
+   "explanation": "The senior signal is treating the SQL tab as authoritative over EXPLAIN, fixing statistics before hints, and knowing a hint is a promise someone has to keep."
+  },
+  {
+   "id": "spark-drv-001",
+   "type": "single",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "easy",
+   "prompt": "Why is a driver failure more serious than an executor failure?",
+   "options": [
+    "Driver failures corrupt the output data",
+    "Executor failures are always retried automatically, driver failures never are",
+    "Drivers are more expensive to provision",
+    "Spark recovers from executor loss by re-running work; losing the driver kills the application with no recovery path"
+   ],
+   "answer": 3,
+   "explanation": "The asymmetry is structural. Executor loss costs re-execution — expensive, but recoverable. The driver holds the DAG, all task metadata, every broadcast build side and anything collected; it is one JVM, one heap, and there is no failover. That is why almost every catastrophic Spark failure is a driver failure even though almost every tuning conversation is about executors."
+  },
+  {
+   "id": "spark-drv-002",
+   "type": "single",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "medium",
+   "prompt": "A job runs 50 minutes, all stages green, then fails and the output table is empty. Where do you look?",
+   "options": [
+    "The driver — the failure is after all distributed work, which localises it immediately",
+    "The last executor to be removed",
+    "The shuffle service logs",
+    "Storage permissions on the output path"
+   ],
+   "answer": 0,
+   "explanation": "All stages complete with no failed tasks means the distributed work succeeded. Anything failing after that is the driver: a collect(), a toPandas(), the result-size guard, or the write commit. The classic culprit is a validation helper such as `len(df.collect()) > 0` that was harmless when the output was 40,000 rows and is fatal now that it is 90 million."
+  },
+  {
+   "id": "spark-drv-003",
+   "type": "single",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "medium",
+   "prompt": "Why is `toPandas()` more dangerous on the driver than `collect()`?",
+   "options": [
+    "It bypasses spark.driver.maxResultSize",
+    "The data lands in the driver's JVM and is then converted into the driver's Python process, so you need room for both representations",
+    "It always disables Arrow optimisation",
+    "It runs on a single executor before transferring"
+   ],
+   "answer": 1,
+   "explanation": "You pay twice, concurrently. Arrow-based conversion makes the transfer far more efficient, but efficiency is not capacity — an efficient transfer of 40 GB into an 8 GB driver still fails. If the answer is 'but I need all the rows in pandas', the pipeline design is the problem, not the memory setting."
+  },
+  {
+   "id": "spark-drv-004",
+   "type": "single",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "hard",
+   "prompt": "A stage has millions of tasks. Beyond scheduling overhead, what specific driver risk does that create?",
+   "options": [
+    "Broadcast variables must be re-sent per task",
+    "Increased shuffle block count on executors",
+    "The driver holds metadata and accumulator updates for every task, so it becomes both a heap and a CPU bottleneck",
+    "The event log grows too large to write"
+   ],
+   "answer": 2,
+   "explanation": "At tens of thousands of tasks this is invisible; at millions it is a heap problem and a scheduler-thread problem simultaneously. The tell is low executor CPU with high driver CPU and executors idle waiting for work. The fix is partition sizing or file layout — raising driver memory only postpones it."
+  },
+  {
+   "id": "spark-drv-005",
+   "type": "single",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "hard",
+   "prompt": "A backfill provisions 500 executors, runs 9 hours at ~6% cluster CPU, and the Jobs tab shows 4,380 separate jobs. What is the cause?",
+   "options": [
+    "Dynamic allocation is thrashing executors",
+    "Object-store throttling on the output prefix",
+    "The shuffle partition count is far too low",
+    "A loop in driver code submitting one action per iteration — each is a full job with plan compilation, scheduling and teardown"
+   ],
+   "answer": 3,
+   "explanation": "Thousands of tiny jobs means the driver is the constraint and the executors were never the bottleneck. The fix is to express the loop as DATA — read the whole date range in one job with the date as a column, write partitioned output in a single action. Requesting more executors makes it worse by giving the same driver more to track."
+  },
+  {
+   "id": "spark-drv-006",
+   "type": "single",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "medium",
+   "prompt": "There is a multi-minute gap between job submission and the first task starting, with no active stage. What is the most likely cause?",
+   "options": [
+    "The driver is listing files or compiling a very large plan before any task can run",
+    "The first stage is waiting on a broadcast",
+    "The event log is being initialised",
+    "Executors are still being provisioned"
+   ],
+   "answer": 0,
+   "explanation": "On object storage, listing a table with a very large number of files or partition directories means a very large number of API calls, and it happens on the driver before a single task runs. Deep plans with many unions or wide CTEs can also make plan compilation take minutes. Both look identical from the outside: an application that is 'running' while nothing happens."
+  },
+  {
+   "id": "spark-drv-007",
+   "type": "multi",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "hard",
+   "prompt": "Which symptoms together indicate a driver bottleneck rather than an executor one? (Select all that apply.)",
+   "options": [
+    "Active tasks far below total slots while the job is 'running'",
+    "Driver CPU pinned at 100%",
+    "Long gaps between stages with no stage active",
+    "Hundreds or thousands of tiny jobs in the Jobs tab",
+    "High disk spill in the dominant stage"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "Idle slots, pinned driver CPU, timeline gaps with no active stage, and a flood of tiny jobs all say work is not reaching the executors or the coordinator is saturated. Disk spill is an executor-side memory symptom — it means partitions exceed per-task execution memory, which is a distribution and sizing problem. Mixing the two is how people end up adding executors to a driver-bound job and making it slower."
+  },
+  {
+   "id": "spark-drv-008",
+   "type": "open",
+   "topic": "Driver Bottlenecks",
+   "difficulty": "hard",
+   "prompt": "Contrast an executor problem with a driver problem, and explain why the distinction changes what you do.",
+   "model_answer": "An executor problem is 'the distributed work is too heavy': its symptoms scale with DATA — partition size, skew, join strategy, file layout, memory per task — and adding executors can genuinely help, because there is more parallelisable work than there are slots. A driver problem is 'the coordinator is being asked to do too much': its symptoms scale with TASK COUNT, FILE COUNT and RESULT SIZE — millions of tasks whose metadata fills the driver heap, millions of files that must be listed before any stage starts, a collect() or toPandas() returning a distributed dataset to one machine, a broadcast build side that grew, an enormous query plan, or a loop submitting thousands of small jobs. The distinction changes everything because the fixes are opposite in direction: for the driver case, adding executors makes it strictly WORSE, since more executors means more tasks for the same single-threaded coordinator to schedule and track. The diagnostic is cheap: if executors are alive but mostly idle while the job is 'running', if there are long gaps in the timeline with no active stage, and if driver CPU is pinned, stop thinking about executor capacity and go look at task count, file count, and what the code returns to the driver. Note too that the driver has no failover — losing it kills the application mid-write — so driver-side limits like spark.driver.maxResultSize are guards worth keeping rather than raising.",
+   "explanation": "The senior signal is naming the scaling variable for each (data versus task/file/result count) and stating that scale-out actively harms the driver case."
+  },
+  {
+   "id": "spark-cpu-001",
+   "type": "single",
+   "topic": "CPU & UDFs",
+   "difficulty": "medium",
+   "prompt": "Which plan node marks a row-at-a-time Python UDF boundary?",
+   "options": [
+    "ArrowEvalPython",
+    "BatchEvalPython",
+    "Generate",
+    "ObjectHashAggregate"
+   ],
+   "answer": 1,
+   "explanation": "BatchEvalPython indicates row-at-a-time evaluation; ArrowEvalPython indicates the vectorised, Arrow-based path where data crosses in batches. Seeing either tells you rows are leaving the JVM; seeing BatchEvalPython tells you that you are also paying per-row serialization."
+  },
+  {
+   "id": "spark-cpu-002",
+   "type": "single",
+   "topic": "CPU & UDFs",
+   "difficulty": "hard",
+   "prompt": "Replacing a SQL CASE expression with a Python UDF took a job from 12 minutes to 3 hours. Beyond serialization cost, what else likely happened?",
+   "options": [
+    "The UDF caused every partition to be cached",
+    "The UDF forced a shuffle",
+    "The UDF is an optimizer barrier, so a predicate that used to be pushed into the scan no longer is — turning a pruned read into a much larger one",
+    "Python UDFs disable whole-stage code generation cluster-wide"
+   ],
+   "answer": 2,
+   "explanation": "There are two separate costs and the second is usually the larger. Mechanically, each row moves to a Python worker and back, and the fused loop is cut into pieces around the UDF node. At the optimizer level the UDF is a black box: Catalyst cannot push a filter through it, eliminate it for rows that do not matter, or reorder around it. Check whether PushedFilters changed — that regression can dwarf the serialization cost."
+  },
+  {
+   "id": "spark-cpu-003",
+   "type": "single",
+   "topic": "CPU & UDFs",
+   "difficulty": "medium",
+   "prompt": "Why do pandas/Arrow UDFs generally outperform row-at-a-time Python UDFs?",
+   "options": [
+    "They are visible to the Catalyst optimizer",
+    "They avoid launching Python worker processes",
+    "They execute inside the JVM",
+    "Data crosses to Python in Arrow batches, so serialization is paid per batch rather than per row"
+   ],
+   "answer": 3,
+   "explanation": "The transfer cost drops dramatically. But two things do NOT change: the UDF is still opaque to the optimizer, so filters still cannot be pushed through it; and batch size now drives memory — a large batch times many concurrent workers is a container-kill risk, since Python worker memory lives outside the JVM heap."
+  },
+  {
+   "id": "spark-cpu-004",
+   "type": "single",
+   "topic": "CPU & UDFs",
+   "difficulty": "hard",
+   "prompt": "How do you establish that a stage is CPU-bound rather than memory- or I/O-bound?",
+   "options": [
+    "Uniform task durations, zero spill, near-zero shuffle read blocked time, modest input bytes, and CPU time close to task duration",
+    "Task count far exceeding executor slots",
+    "Shuffle write greatly exceeding shuffle read",
+    "High GC time with low spill"
+   ],
+   "answer": 0,
+   "explanation": "You infer CPU-bound from what is ABSENT. Uniform durations rule out skew; zero spill rules out memory pressure; near-zero blocked time rules out the network; modest input with long duration rules out I/O volume. CPU time ~= duration is the confirmation. Then look in the plan for the per-row operator: a UDF, a regex, a JSON function, or a window."
+  },
+  {
+   "id": "spark-cpu-005",
+   "type": "single",
+   "topic": "CPU & UDFs",
+   "difficulty": "medium",
+   "prompt": "A query calls `get_json_object` three times on the same column to extract three fields. What is the better pattern?",
+   "options": [
+    "Cache the DataFrame before the extractions",
+    "Parse once into a typed struct with an explicit schema, then select fields",
+    "Increase the shuffle partition count so parsing parallelises",
+    "Move the extraction into a Python UDF"
+   ],
+   "answer": 1,
+   "explanation": "Per-row JSON parsing is expensive, and three calls can mean three parses. Common-subexpression elimination helps but is not guaranteed for every expression shape. Parsing once into a struct also lets the engine prune fields it does not need. Verify by watching stage CPU time fall with input and output unchanged."
+  },
+  {
+   "id": "spark-cpu-006",
+   "type": "single",
+   "topic": "CPU & UDFs",
+   "difficulty": "medium",
+   "prompt": "What is the risk of three different window specifications in one SELECT?",
+   "options": [
+    "Window functions force a broadcast join",
+    "Window functions cannot be combined in one query",
+    "Each distinct specification implies its own exchange and sort, so you pay the shuffle three times instead of once",
+    "The optimizer will silently drop two of them"
+   ],
+   "answer": 2,
+   "explanation": "Sharing one specification across several expressions collapses them into a single pass. Also watch the partition key itself: PARTITION BY a low-cardinality column such as country, in a business concentrated in one country, is skew by construction."
+  },
+  {
+   "id": "spark-cpu-007",
+   "type": "multi",
+   "topic": "CPU & UDFs",
+   "difficulty": "hard",
+   "prompt": "Which contribute meaningfully to CPU cost in a Spark stage? (Select all that apply.)",
+   "options": [
+    "Backtracking regular expressions over billions of rows",
+    "Per-row JSON parsing",
+    "A heavy compression codec on a CPU-bound stage",
+    "Unbounded window frames",
+    "Increasing spark.sql.shuffle.partitions"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "Backtracking regexes, per-row JSON parsing, a heavy codec on a CPU-bound stage and unbounded window frames are all per-row or per-partition computational costs. Partition count changes how work is DIVIDED, not how much per-row computation exists — the total CPU is roughly the same, spread over more tasks. On codecs specifically: heavier compression trades CPU for I/O, which is exactly backwards on a stage that is already CPU-bound."
+  },
+  {
+   "id": "spark-cpu-008",
+   "type": "open",
+   "topic": "CPU & UDFs",
+   "difficulty": "medium",
+   "prompt": "When is a Python UDF the right choice despite its costs?",
+   "model_answer": "When the logic genuinely has no native equivalent — a specialised algorithm, a domain library, a model call — and rewriting it in SQL would be either impossible or so convoluted that correctness suffers. The cost hierarchy is a tendency, not a law: a well-written Python UDF over a small, already-filtered set can easily beat a monstrous native expression tree, and an ill-conceived native regex over a billion rows is worse than either. The discipline is to make the choice deliberately and then reduce its blast radius: filter BEFORE the UDF so it sees as few rows as possible, since the optimizer cannot push predicates through it and will not do this for you; prefer an Arrow/pandas UDF so serialization is paid per batch rather than per row, while remembering that batch size now drives Python worker memory and that workers live outside the JVM heap; and watch cores per executor, because there is one worker process per concurrent task. I would also verify from the plan that PushedFilters on the source scan did not change when the UDF was introduced — that regression is often larger than the UDF's own cost and is easy to miss.",
+   "explanation": "The senior signal is refusing the absolute rule, then naming the specific mitigations: filter first, batch the boundary, watch worker count and check pushdown did not regress."
+  },
+  {
+   "id": "spark-file-001",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "easy",
+   "prompt": "What is the Apache default for `spark.sql.files.maxPartitionBytes`?",
+   "options": [
+    "256 MB",
+    "1 GB",
+    "32 MB",
+    "128 MB"
+   ],
+   "answer": 3,
+   "explanation": "128 MB. It is the target bytes per read partition when splitting files, which is why large SPLITTABLE files do not reduce parallelism — Spark divides them. The exception worth checking is a large file in a non-splittable compression format, which becomes exactly one task."
+  },
+  {
+   "id": "spark-file-002",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "medium",
+   "prompt": "Reading 150 GB stored as 50,000 files takes 25 minutes; the same data in ~300 files takes 4. Which cost is usually LARGEST?",
+   "options": [
+    "Listing plus per-file open and footer reads — metadata cost scales with FILE COUNT, not data size",
+    "Network transfer of the additional bytes",
+    "Shuffle write amplification",
+    "CPU spent decompressing more blocks"
+   ],
+   "answer": 0,
+   "explanation": "Four costs stack up: driver-side listing of 50,000 objects before any task starts; a footer read per file; poorer compression and encoding because 3 MB row groups are too small for dictionary and run-length encoding to work well; and scheduling overhead from thousands of tasks doing milliseconds of work each. A fifth, subtler one: per-file statistics over 3 MB are too coarse to skip anything, so predicate pushdown stops helping."
+  },
+  {
+   "id": "spark-file-003",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "hard",
+   "prompt": "What does `spark.sql.files.openCostInBytes` (Apache default 4 MB) actually do?",
+   "options": [
+    "Rejects files smaller than 4 MB",
+    "Models the cost of opening a file, in bytes, so Spark packs small files into read partitions accordingly",
+    "Sets the minimum Parquet row-group size on write",
+    "Controls the read-ahead buffer size"
+   ],
+   "answer": 1,
+   "explanation": "It is a MODELLING parameter, not a limit. Raising it makes Spark pack MORE small files into each task, which helps on high-latency object storage. It is a legitimate interim mitigation for a small-file problem — but it does nothing about listing cost, so it treats a symptom while the real fix is compaction plus fixing the writer."
+  },
+  {
+   "id": "spark-file-004",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "medium",
+   "prompt": "Which three distinct optimizations does columnar storage enable, and what does each skip?",
+   "options": [
+    "Broadcast, shuffle and sort avoidance",
+    "Compression, encryption and caching",
+    "Partition pruning (skips directories), predicate pushdown / data skipping (skips row groups), and column pruning (skips columns)",
+    "Vectorisation, bucketing and sorting"
+   ],
+   "answer": 2,
+   "explanation": "They are frequently conflated but fail independently. Verify each separately in the scan node: PartitionFilters populated for directory pruning, PushedFilters populated for row-group skipping, and ReadSchema listing only the columns you need for projection. An empty PartitionFilters on a partitioned table is the expensive one."
+  },
+  {
+   "id": "spark-file-005",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "hard",
+   "prompt": "Why is `SELECT *` particularly costly on a wide columnar table?",
+   "options": [
+    "It disables predicate pushdown entirely",
+    "It prevents the vectorised reader from being used",
+    "It forces a full table lock",
+    "It defeats projection pushdown, so you read every column off storage and carry them through every exchange"
+   ],
+   "answer": 3,
+   "explanation": "Columnar formats let you read only the columns you name. SELECT * reads all of them, then shuffles bytes nothing downstream looks at — frequently a 5-20x difference in bytes scanned and shuffled on a wide table. It also makes the query fragile: a new upstream column silently changes your output schema."
+  },
+  {
+   "id": "spark-file-006",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "medium",
+   "prompt": "Which characteristics of cloud object storage most change Spark debugging instincts?",
+   "options": [
+    "Listing is an API call scaling with object count, every open has real latency, and throughput can be per-prefix",
+    "Reads are always slower than HDFS regardless of layout",
+    "Object stores do not support columnar formats efficiently",
+    "Files are immutable, so caching is unnecessary"
+   ],
+   "answer": 0,
+   "explanation": "Listing cost is the invisible minutes before a job starts. Per-open latency is nothing for one file and everything for 50,000. And per-prefix throughput means a layout concentrating reads on one prefix can throttle even at modest total volume. Data locality, meanwhile, is largely moot — there is no local replica to schedule near, so ANY locality is normal rather than a finding."
+  },
+  {
+   "id": "spark-file-007",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "hard",
+   "prompt": "A table partitioned by `(ds, customer_id)` with 4 million customers spends 14 minutes before the first task runs. What is wrong?",
+   "options": [
+    "The partition columns are in the wrong order",
+    "customer_id is a high-cardinality partition key, creating an unbounded number of directories that must be listed on every query",
+    "Statistics are missing on the table",
+    "The files are too large to split"
+   ],
+   "answer": 1,
+   "explanation": "This is the most common irreversible modelling mistake: partitioning by a high-cardinality column creates millions of directories, most holding one tiny file, so listing dominates every query regardless of how selective the filter is. The fix is partitioning by ds only and serving the customer access pattern with clustering/sorting and statistics inside each day."
+  },
+  {
+   "id": "spark-file-008",
+   "type": "single",
+   "topic": "Storage & File Layout",
+   "difficulty": "medium",
+   "prompt": "Why can a partitioned table also be UNDER-partitioned?",
+   "options": [
+    "Because statistics cannot be collected",
+    "Because too few partitions cause skew",
+    "Because with no useful partition column, every query must scan the whole table regardless of how selective its filter is",
+    "Because AQE cannot coalesce read partitions"
+   ],
+   "answer": 2,
+   "explanation": "Partitioning is a band, not a direction. Too many partitions means listing cost and tiny files; too few — or partitioning on a column nobody filters on — means no pruning is possible and every query is a full scan. Partition on what queries actually filter on, and keep the cardinality bounded."
+  },
+  {
+   "id": "spark-file-009",
+   "type": "multi",
+   "topic": "Storage & File Layout",
+   "difficulty": "hard",
+   "prompt": "Which are effective ways to prevent a small-file problem at the source? (Select all that apply.)",
+   "options": [
+    "Control the output partition count before the write",
+    "Use a REBALANCE hint so AQE targets an even output size",
+    "Run compaction as a scheduled maintenance job",
+    "Use coalesce(10) immediately before writing",
+    "Reduce the number of storage partitions written into per run"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    4
+   ],
+   "explanation": "Output file count is (partitions at write time) x (storage partitions written into) — 4,000 shuffle partitions into 200 date partitions can mean 800,000 files. REBALANCE lets AQE size partitions rather than you guessing. coalesce is the trap: because it avoids a shuffle it cannot create a stage boundary, so reduced parallelism propagates BACKWARD through the whole preceding stage."
+  },
+  {
+   "id": "spark-file-010",
+   "type": "open",
+   "topic": "Storage & File Layout",
+   "difficulty": "hard",
+   "prompt": "Explain why 150 GB in 50,000 files and 150 GB in 300 files are not the same job.",
+   "model_answer": "The bytes are identical; the OVERHEAD is 50,000 times a fixed cost. First, listing: the driver must enumerate every object before any task starts, and on object storage that is API-call latency you cannot parallelise away because it happens on the coordinator — you see it as a long gap before the first stage. Second, per-file open and footer read: Parquet metadata cost scales with file count rather than data size, so you pay 50,000 footer reads for the same data. Third, compression and encoding efficiency: 3 MB files have tiny row groups, so dictionary and run-length encoding barely work and you physically transfer more bytes for the same information. Fourth, scheduling: with file-count-driven partitioning you get thousands of tasks each doing milliseconds of work, so per-task overhead becomes a real fraction and the driver tracks all of it. Fifth and subtlest, statistics granularity: min/max over a 3 MB file are too coarse to skip anything, so predicate pushdown quietly stops helping. The fix is compaction plus fixing whatever writer produces that layout — commonly a micro-batch committing every couple of minutes. Raising spark.sql.files.openCostInBytes makes Spark pack more small files per task and is a reasonable interim mitigation, but it does nothing about listing, so it is not the cure. Conversely files can be too big: a very large file in a non-splittable codec becomes exactly one task, so the target is a size band, not a maximum.",
+   "explanation": "The senior signal is naming listing and statistics granularity, not just 'more file opens', and noting the too-big failure mode as well."
+  },
+  {
+   "id": "spark-part-001",
+   "type": "single",
+   "topic": "Partitioning",
+   "difficulty": "medium",
+   "prompt": "Which three distinct things are all called 'partitioning' in Spark?",
+   "options": [
+    "Input, intermediate and output partitioning",
+    "Static, dynamic and adaptive partitioning",
+    "Hash, range and round-robin partitioning",
+    "Storage partitioning (directories on disk), Spark execution partitions (read parallelism), and shuffle partitions (produced by an Exchange)"
+   ],
+   "answer": 3,
+   "explanation": "They are unrelated and have separate toolkits. Storage partitioning controls WHAT YOU READ and is set at write time. Execution partitions control HOW MANY TASKS READ IT and are derived from file sizes and maxPartitionBytes. Shuffle partitions control PARALLELISM AFTER A SHUFFLE. 'Increase partitions' is meaningless until you say which — raising shuffle partitions does nothing for a full scan caused by a broken partition filter."
+  },
+  {
+   "id": "spark-part-002",
+   "type": "single",
+   "topic": "Partitioning",
+   "difficulty": "hard",
+   "prompt": "Adding `.coalesce(10)` before a write took a job from 8 minutes to 90. Why?",
+   "options": [
+    "coalesce avoids a shuffle, so it cannot create a stage boundary — the reduced parallelism propagates backward through the whole preceding stage",
+    "coalesce forces a sort before writing",
+    "The write commit protocol serialises across partitions",
+    "Ten partitions cannot hold the output volume"
+   ],
+   "answer": 0,
+   "explanation": "The intent was 'compute normally, then merge into 10 files'. What happens is that the entire chain of narrow dependencies in that stage now runs 10-way. The tell is a final stage with exactly 10 very long tasks. If you also multiplied the data each task holds by two hundred, you may now be spilling as well. To merge only at the end you need a shuffle boundary: repartition(10), or a REBALANCE hint."
+  },
+  {
+   "id": "spark-part-003",
+   "type": "single",
+   "topic": "Partitioning",
+   "difficulty": "medium",
+   "prompt": "What does the `REBALANCE` hint provide that `repartition(n)` does not?",
+   "options": [
+    "It avoids a shuffle entirely",
+    "It lets AQE choose partition boundaries to hit an even target size, including splitting skewed ones, instead of you guessing n",
+    "It guarantees exactly one output file per storage partition",
+    "It preserves the existing sort order"
+   ],
+   "answer": 1,
+   "explanation": "REBALANCE (available from Spark 3.3) expresses intent as a SIZE target rather than a count, which is the same shift AQE made for shuffle partitions generally. It needs AQE enabled. repartition(n) is still the right tool when you genuinely need a specific number of partitions."
+  },
+  {
+   "id": "spark-part-004",
+   "type": "single",
+   "topic": "Partitioning",
+   "difficulty": "medium",
+   "prompt": "Why does `repartition(n, col)` NOT fix skew on `col`?",
+   "options": [
+    "AQE immediately re-coalesces the partitions",
+    "It uses round-robin distribution, ignoring the column",
+    "Hash partitioning by design sends all rows with the same key to one partition",
+    "It only applies to RDDs"
+   ],
+   "answer": 2,
+   "explanation": "Co-locating equal keys is the POINT of hash partitioning — it is what makes joins and aggregations correct. It cannot also spread a single hot value. Repartitioning helps when the current partitioning is bad for an unrelated reason, or when you repartition on a different, better-distributed column."
+  },
+  {
+   "id": "spark-part-005",
+   "type": "single",
+   "topic": "Partitioning",
+   "difficulty": "hard",
+   "prompt": "When is `repartitionByRange` preferable to `repartition`?",
+   "options": [
+    "When the data is already sorted",
+    "When you want to avoid a shuffle",
+    "When you need exactly n equally sized partitions",
+    "When you want range-partitioned output — useful for sorted writes and range pruning — accepting that boundaries come from sampling"
+   ],
+   "answer": 3,
+   "explanation": "Range partitioning groups by value ranges rather than hash, which suits sorted output and downstream range filters. The trade-off is that boundaries are chosen by SAMPLING, so partition sizes are approximate and mildly non-deterministic — worth knowing before you rely on exact sizing."
+  },
+  {
+   "id": "spark-part-006",
+   "type": "single",
+   "topic": "Partitioning",
+   "difficulty": "medium",
+   "prompt": "A query filters on the partition column but input bytes equal the whole table. What do you check?",
+   "options": [
+    "The scan node's PartitionFilters — a function around the column or a type mismatch can prevent or weaken pruning",
+    "Whether the shuffle partition count is too low",
+    "Whether AQE coalescing merged the read partitions",
+    "Whether statistics are up to date"
+   ],
+   "answer": 0,
+   "explanation": "Wrapping the partition column in a function, or comparing it against a different type so the engine casts the COLUMN, can stop the predicate being used to choose directories. Whether a given expression defeats pruning depends on the expression, the source and the version — so verify against PartitionFilters and the partitions-read metric rather than assuming. Compute the constant side and leave the column bare."
+  },
+  {
+   "id": "spark-part-007",
+   "type": "multi",
+   "topic": "Partitioning",
+   "difficulty": "hard",
+   "prompt": "Which are true of storage partition keys? (Select all that apply.)",
+   "options": [
+    "They should be columns queries actually filter on",
+    "High cardinality keys can create unmanageable numbers of directories",
+    "Changing them requires rewriting the table",
+    "Hour-level partitioning is right when each hour holds substantial data",
+    "More partition columns always improves pruning"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "The claim that more partition columns always improves pruning is false, and it is the trap: partitioning by an additional high-cardinality column multiplies directory count and makes listing dominate every query, while pruning gains nothing if queries do not filter on it. Modern table formats offer hidden partitioning and transforms that decouple physical layout from literal column values, which usually beats hand-rolled directory schemes where available."
+  },
+  {
+   "id": "spark-part-008",
+   "type": "open",
+   "topic": "Partitioning",
+   "difficulty": "hard",
+   "prompt": "Distinguish storage partitioning, execution partitions and shuffle partitions, and give a symptom that belongs to each.",
+   "model_answer": "Storage partitioning is the physical directory layout, set at write time with PARTITIONED BY. It controls WHAT YOU READ. Its symptom is a scan whose input bytes equal the whole table when the query filters on one day — pruning was lost, usually because the partition column was wrapped in a function or compared against a mismatched type, and you confirm it by an empty PartitionFilters in the scan node. Its other failure is high-cardinality keys producing millions of directories, whose symptom is minutes of listing before the first task runs. Execution partitions are the units of read parallelism, derived from file sizes and spark.sql.files.maxPartitionBytes (Apache default 128 MB) plus the small-file packing governed by openCostInBytes. They control HOW MANY TASKS READ IT. Their symptom is thousands of tasks each doing milliseconds of work on a tiny-file table, or too few tasks leaving slots idle. You do not set this directly — you change file layout or the byte thresholds. Shuffle partitions are what an Exchange produces, governed by spark.sql.shuffle.partitions (Apache default 200) as an initial count, then coalesced by AQE toward the advisory size. They control PARALLELISM AFTER A SHUFFLE. Their symptom is disk spill when partitions exceed per-task execution memory, or tiny tasks and tiny output files when there are too many. The practical value of keeping these separate is that 'increase partitions' is meaningless until you say which one — raising shuffle partitions does nothing at all for a full-table scan caused by a broken partition filter.",
+   "explanation": "The senior signal is one concrete symptom per layer and the observation that the generic advice is unactionable without naming the layer."
+  },
+  {
+   "id": "spark-cache-001",
+   "type": "single",
+   "topic": "Caching",
+   "difficulty": "medium",
+   "prompt": "An engineer adds `.cache()` and the job gets 30% SLOWER. Which explanation is most complete?",
+   "options": [
+    "Caching always adds a write step, so some slowdown is expected",
+    "Storage and execution share one memory pool, so execution may now spill; cached blocks are long-lived so GC rises; and if it does not fit, evicted blocks are recomputed anyway",
+    "The cache was placed after the action instead of before it",
+    "Cached data cannot be read by more than one executor"
+   ],
+   "answer": 1,
+   "explanation": "All three costs can exceed the benefit. Check the Storage tab for the fraction actually cached and the size in memory, check whether spill appeared where there was none, and check GC time. Then ask the diagnostic question FIRST: is this dataset read more than once at all? A cache on a dataset used once is pure loss, and that is the most common version of this bug."
+  },
+  {
+   "id": "spark-cache-002",
+   "type": "single",
+   "topic": "Caching",
+   "difficulty": "easy",
+   "prompt": "What is the first question to ask before caching a DataFrame?",
+   "options": [
+    "Has it been repartitioned?",
+    "Does it fit in memory?",
+    "Is it read more than once?",
+    "Is the storage level serialized?"
+   ],
+   "answer": 2,
+   "explanation": "Reuse is the precondition for any benefit at all. Only then does it matter whether recomputation is expensive, whether it fits, and whether that memory would serve execution better. Most production caches fail at question one."
+  },
+  {
+   "id": "spark-cache-003",
+   "type": "single",
+   "topic": "Caching",
+   "difficulty": "hard",
+   "prompt": "Why is caching a dataset far larger than available storage memory the WORST case?",
+   "options": [
+    "The cache silently switches to disk-only and becomes slower than the source",
+    "Cached blocks are replicated, doubling the footprint",
+    "Spark raises an error and fails the job",
+    "Evicted blocks are recomputed on access, so you pay the recomputation you were avoiding PLUS the memory pressure and GC you added"
+   ],
+   "answer": 3,
+   "explanation": "You get the worst of both worlds. The Storage tab showing 'fraction cached' below 100% is the direct evidence. Meanwhile execution has less memory (possibly introducing spill) and the old generation is full of long-lived objects the collector must scan."
+  },
+  {
+   "id": "spark-cache-004",
+   "type": "single",
+   "topic": "Caching",
+   "difficulty": "medium",
+   "prompt": "How does `df.cache()` differ from `CACHE TABLE t` in SQL?",
+   "options": [
+    "df.cache() is lazy — nothing is cached until an action runs — whereas CACHE TABLE is eager by default",
+    "CACHE TABLE replicates blocks across executors",
+    "df.cache() only caches the schema",
+    "They use different storage levels by default"
+   ],
+   "answer": 0,
+   "explanation": "A useful difference to know when reasoning about when the cost is actually paid. Both are released with unpersist/UNCACHE — the step everyone forgets. In a long-lived session, forgotten caches accumulate silently and are a classic cause of a mysteriously degrading cluster."
+  },
+  {
+   "id": "spark-cache-005",
+   "type": "open",
+   "topic": "Caching",
+   "difficulty": "medium",
+   "prompt": "When does caching genuinely earn its keep, and what should you do before caching?",
+   "model_answer": "It earns its keep when an expensive intermediate is reused several times — a heavy join or aggregation feeding three downstream branches; in iterative algorithms that walk the same dataset repeatedly; when breaking a long lineage before an action that would otherwise recompute a deep chain on retry; and in interactive exploration where a human will query the same intermediate ten times. Before caching, PROJECT and FILTER first: cache the narrow, filtered result you will actually use, not the wide source. Caching 60 columns to read 6 wastes memory by roughly an order of magnitude, and since storage and execution share one pool that waste comes directly out of the memory joins and aggregations need. I would also choose the storage level deliberately — a serialized level cuts memory and GC pressure at the cost of CPU on read, and a disk-inclusive level avoids the recompute-on-eviction trap. Then measure: runtime, spill and GC before and after, because caching is an intervention with a cost and belongs in the same one-variable experimental loop as any config change. And always pair it with an unpersist at the end of the dataset's useful life.",
+   "explanation": "The senior signal is 'project before you cache' plus treating caching as a measured intervention rather than a free speedup."
+  },
+  {
+   "id": "spark-size-001",
+   "type": "single",
+   "topic": "Cluster Sizing & Allocation",
+   "difficulty": "medium",
+   "prompt": "You double the executor count and runtime improves by 8%. What does that tell you?",
+   "options": [
+    "The job needs even more executors",
+    "The job is not limited by available slots — and you just roughly doubled the cost for 8%",
+    "Dynamic allocation is misconfigured",
+    "The shuffle partition count should be doubled to match"
+   ],
+   "answer": 1,
+   "explanation": "Candidates: a single stage whose wall clock is set by one enormous task, so extra slots have nothing to do; a serial phase (listing, plan compilation, write commit) that does not parallelise; a throughput limit on the storage side; or the driver being the constraint, in which case more executors actively hurt. Confirm via slot utilisation over time — if many slots are idle during the slow stage, capacity was never the problem."
+  },
+  {
+   "id": "spark-size-002",
+   "type": "single",
+   "topic": "Cluster Sizing & Allocation",
+   "difficulty": "hard",
+   "prompt": "Why is `spark.executor.cores` described as a memory decision disguised as a CPU decision?",
+   "options": [
+    "Because Spark allocates one JVM per core",
+    "Because each core reserves a fixed amount of heap",
+    "Because unified memory is per executor and shared by concurrent tasks, so per-task memory is roughly (heap x memory.fraction) / cores",
+    "Because cores determine the number of shuffle partitions"
+   ],
+   "answer": 2,
+   "explanation": "Halving cores doubles per-task memory without buying a gigabyte — which is why 'reduce executor cores' recurs in the OOM fix list, and why very fat executors reliably spill. In PySpark it matters twice over, because there is one Python worker process per concurrent task. The counter-pressure is more JVMs for the same capacity, each with its own overhead and its own copy of every broadcast."
+  },
+  {
+   "id": "spark-size-003",
+   "type": "single",
+   "topic": "Cluster Sizing & Allocation",
+   "difficulty": "medium",
+   "prompt": "What is the Apache default for `spark.dynamicAllocation.enabled`?",
+   "options": [
+    "true only on YARN",
+    "It depends on spark.master",
+    "true",
+    "false"
+   ],
+   "answer": 3,
+   "explanation": "False in Apache Spark, though managed platforms frequently enable it. This is a good example of why the Environment tab outranks documentation: a 'Spark default' quoted from a vendor blog is a vendor default."
+  },
+  {
+   "id": "spark-size-004",
+   "type": "single",
+   "topic": "Cluster Sizing & Allocation",
+   "difficulty": "hard",
+   "prompt": "Why does dynamic allocation need shuffle tracking or an external shuffle service?",
+   "options": [
+    "Because an executor holding shuffle output another stage still needs cannot simply be released without forcing re-execution",
+    "To allow executors to be added mid-stage",
+    "To keep broadcast variables alive across stages",
+    "To let executors share cached blocks"
+   ],
+   "answer": 0,
+   "explanation": "Shuffle output lives on the producing executor's local disk and is not replicated. Releasing such an executor destroys map output and forces the map stage to re-run — exactly the fetch-failure cascade. `spark.dynamicAllocation.shuffleTracking.enabled` (Apache default false) makes Spark keep executors that still hold needed shuffle data; an external shuffle service solves it by decoupling the data from executor lifetime."
+  },
+  {
+   "id": "spark-size-005",
+   "type": "single",
+   "topic": "Cluster Sizing & Allocation",
+   "difficulty": "medium",
+   "prompt": "A cluster is sized for its widest stage but sits at 7% slot utilisation through a long final tail. What is the right response?",
+   "options": [
+    "Lower spark.dynamicAllocation.executorIdleTimeout and accept the tail",
+    "Fix the tail's distribution — the skew or imbalance that makes two tasks hold the whole cluster",
+    "Increase maxExecutors so the tail finishes sooner",
+    "Enable speculative execution"
+   ],
+   "answer": 1,
+   "explanation": "Lowering the idle timeout treats the cost symptom, and can help, but the tail itself is the defect: the cluster is fully billed while doing almost nothing. Increasing maxExecutors is the classic false win — it buys parallelism for the wide middle stage and pays for all of it through a tail only two tasks are using."
+  },
+  {
+   "id": "spark-size-006",
+   "type": "multi",
+   "topic": "Cluster Sizing & Allocation",
+   "difficulty": "hard",
+   "prompt": "Which are genuine costs of running many small executors (one or two cores each)? (Select all that apply.)",
+   "options": [
+    "More JVMs to start and manage",
+    "Every broadcast variable is copied into each executor",
+    "More shuffle connections between executors",
+    "Less opportunity for tasks to share work within an executor",
+    "Less memory available per task"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "More JVMs, a broadcast copy per executor, more shuffle connections and less in-executor sharing are all real overheads of going too narrow. Memory per task is the one that IMPROVES as cores per executor fall, since unified memory is divided among concurrent tasks — that is precisely the trade-off. There is a middle band, it is workload-dependent, and it is found by experiment rather than by a number from a conference talk."
+  },
+  {
+   "id": "spark-size-007",
+   "type": "open",
+   "topic": "Cluster Sizing & Allocation",
+   "difficulty": "hard",
+   "prompt": "Explain why 'more executors' is not a general answer to a slow Spark job.",
+   "model_answer": "Adding executors makes a job WIDER, and width only helps if there is work waiting for a slot. Several common situations have no such work. If one stage's wall clock is set by a single enormous task — skew — then 4,999 slots are already idle and adding more changes nothing while multiplying the bill. If part of the job is serial (driver-side file listing, plan compilation, the write commit) that portion does not scale at all, so Amdahl's law caps the gain. If the constraint is the DRIVER — millions of tasks to schedule and track, or thousands of tiny jobs from a loop — then more executors make it strictly worse, because the same single coordinator now has more to do. If the constraint is storage throughput or per-prefix throttling, more executors means more clients contending on the same throttled path. Meanwhile cost scales almost exactly linearly with executor-hours, so a change that improves runtime 8% while doubling capacity is a 92% cost increase reported as a win. The honest framing is not 'can we make it faster' but 'what is the cheapest configuration that meets the SLA' — a job finishing at 04:10 against an 06:00 deadline gains nothing from finishing at 03:50. The diagnostic that settles it in a minute is slot utilisation over time: if allocated executors greatly exceed active tasks during the slow stage, capacity was never the bottleneck.",
+   "explanation": "The senior signal is naming the specific non-scaling components and reporting executor-hours alongside runtime."
+  },
+  {
+   "id": "spark-strag-001",
+   "type": "single",
+   "topic": "Stragglers & Speculation",
+   "difficulty": "medium",
+   "prompt": "What is the Apache default for `spark.speculation`?",
+   "options": [
+    "It is determined by the cluster manager",
+    "true",
+    "false",
+    "true when dynamic allocation is enabled"
+   ],
+   "answer": 2,
+   "explanation": "False in Apache Spark, though many managed platforms enable it. Related defaults: spark.speculation.multiplier 1.5 (how much slower than the comparison a task must be) and spark.speculation.quantile 0.75 (the fraction of tasks that must complete before speculation may start)."
+  },
+  {
+   "id": "spark-strag-002",
+   "type": "single",
+   "topic": "Stragglers & Speculation",
+   "difficulty": "hard",
+   "prompt": "Why does speculative execution NOT cure data skew?",
+   "options": [
+    "It is disabled automatically when AQE skew handling is on",
+    "It requires deterministic tasks, which skewed joins are not",
+    "It only applies to the first attempt of each task",
+    "It duplicates the same pathological partition onto another executor, where it takes just as long, while consuming a slot"
+   ],
+   "answer": 3,
+   "explanation": "Speculation is a hedge against a slow HOST. Against skew you add cost and remove capacity for zero benefit, because the duplicate must process the same enormous partition. It also has a correctness dimension: for non-idempotent work — writing to an external system, calling an API, incrementing a counter — running a task twice may do the thing twice."
+  },
+  {
+   "id": "spark-strag-003",
+   "type": "single",
+   "topic": "Stragglers & Speculation",
+   "difficulty": "medium",
+   "prompt": "Slow tasks are concentrated on one executor id across multiple different stages. What does that indicate?",
+   "options": [
+    "An unhealthy host or noisy neighbour — the fix is to drain it, not to tune Spark",
+    "The executor has too little memory allocated",
+    "AQE is assigning it larger partitions",
+    "Data skew on a shared key"
+   ],
+   "answer": 0,
+   "explanation": "Grouping the slowest tasks by executor and host takes thirty seconds and is conclusive when the same host recurs across unrelated stages. Skew would follow the DATA, appearing wherever the hot key lands rather than tracking one machine. Check that executor's GC ratio and the host's disk I/O wait to confirm."
+  },
+  {
+   "id": "spark-strag-004",
+   "type": "open",
+   "topic": "Stragglers & Speculation",
+   "difficulty": "hard",
+   "prompt": "A single task runs 12 minutes while 100 peers finish in 30 seconds. Diagnose it.",
+   "model_answer": "The discriminator is one column: the slow task's input or shuffle-read bytes versus the median. If it read on the order of a hundred times more, duration scales with work and this is skew — I go find the hot key with a GROUP BY and percentage-of-total, checking specifically for sentinels like -1 or 'UNKNOWN' and for NULL, and remediate by filtering keys that cannot match, isolating hot keys into a broadcast branch, or salting an additive aggregation. If instead it read a NORMAL amount and simply took longer, duration does not scale with data and the cause is environmental: I check whether it and other slow tasks share an executor or host, then that executor's GC time as a fraction of run time, then the host's CPU and disk I/O wait — a degraded local volume or a noisy co-tenant produces exactly this pattern. Speculative execution is the right hedge for the second case and useless for the first, which is a compact way to state the difference. It is worth being explicit about the economics either way: 100 slots sat idle for 11.5 minutes while being fully billed, so a straggler is a cost problem even when the job succeeds. If the same host recurs across multiple stages or multiple days, the fix is to drain and replace it rather than to tune Spark at all.",
+   "explanation": "The senior signal is refusing to call it skew before checking input size, and naming speculation as the fix for exactly one of the two branches."
+  },
+  {
+   "id": "spark-net-001",
+   "type": "single",
+   "topic": "Network & Disk Failures",
+   "difficulty": "easy",
+   "prompt": "What is the Apache default for `spark.network.timeout`?",
+   "options": [
+    "30s",
+    "120s",
+    "300s",
+    "600s"
+   ],
+   "answer": 1,
+   "explanation": "120s. It is the default timeout for most network interactions including heartbeat-based failure detection. Raising it is the classic 'larger waiting room' fix — the patient waits longer without getting better. It is occasionally justified on a genuinely high-latency network or during a known long pause you are actively working to remove, but never as step one."
+  },
+  {
+   "id": "spark-net-002",
+   "type": "single",
+   "topic": "Network & Disk Failures",
+   "difficulty": "hard",
+   "prompt": "Why is raising `spark.shuffle.io.maxRetries` a poor first response to fetch failures?",
+   "options": [
+    "It conflicts with speculative execution",
+    "Retries are not supported for remote blocks",
+    "If the executor holding the blocks is dead the data is gone, so more retries add waiting rather than success — and each retry delays discovering the real cause",
+    "It increases the shuffle partition count implicitly"
+   ],
+   "answer": 2,
+   "explanation": "Retries only help when the block is still there and the failure was transient. Since shuffle output dies with its executor, the first question is always whether an executor died — check the Executors tab for removals near the failure timestamp and read that executor's own log. Retry settings are a resilience knob for genuinely transient conditions, not a diagnosis."
+  },
+  {
+   "id": "spark-net-003",
+   "type": "single",
+   "topic": "Network & Disk Failures",
+   "difficulty": "medium",
+   "prompt": "Describe the spill feedback loop that turns a memory problem into an executor-loss cascade.",
+   "options": [
+    "Spill increases shuffle partitions, which increases scheduling overhead",
+    "Spill forces recomputation of cached blocks, which increases memory pressure",
+    "Spill causes GC, which causes more spill",
+    "Memory pressure causes spill, spill saturates local disk I/O, tasks slow, executors live longer accumulating more shuffle files, disk fills, executors die and their map output is lost"
+   ],
+   "answer": 3,
+   "explanation": "It is self-reinforcing, which is why it must be broken at the TOP. Provisioning bigger or faster local disks buys time; only reducing memory pressure — smaller partitions, fewer cores per executor, removing an unnecessary shuffle — ends it."
+  },
+  {
+   "id": "spark-net-004",
+   "type": "single",
+   "topic": "Network & Disk Failures",
+   "difficulty": "medium",
+   "prompt": "Which symptom set points at local disk rather than memory or network?",
+   "options": [
+    "Rising disk spill, task times creeping up as the stage progresses, and executor loss with 'No space left on device'",
+    "High shuffle read blocked time across all tasks",
+    "Long gaps between stages with no active stage",
+    "High GC with uniform task durations"
+   ],
+   "answer": 0,
+   "explanation": "Spark needs local scratch for BOTH shuffle files and spill, and it is invisible in most monitoring. Check host disk utilisation and I/O wait on the SCRATCH volume specifically — often a different device from the root volume — and check how many local dirs are configured, since spreading scratch across multiple physical devices raises aggregate throughput."
+  },
+  {
+   "id": "spark-net-005",
+   "type": "multi",
+   "topic": "Network & Disk Failures",
+   "difficulty": "hard",
+   "prompt": "Which are plausible causes of a `FetchFailedException`? (Select all that apply.)",
+   "options": [
+    "The executor holding the shuffle blocks died",
+    "Local disk failure or a full scratch volume where shuffle files were written",
+    "Genuine network problems such as saturation or a security-group change",
+    "Individual shuffle blocks so large that transfers time out",
+    "The query used the wrong join strategy"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "A dead executor, a failed or full scratch volume, genuine network problems and oversized shuffle blocks are all real mechanisms. Join strategy is not a direct cause — though a bad strategy can produce enormous shuffle volume, which fills disks and creates oversized blocks, which then produces fetch failures. That is a cascade, and distinguishing the origin from the symptom is exactly the point."
+  },
+  {
+   "id": "spark-net-006",
+   "type": "single",
+   "topic": "Network & Disk Failures",
+   "difficulty": "hard",
+   "prompt": "Executor losses were 'fixed' three months ago by raising the network timeout to 600s. Runtime has crept up 40% since. What most likely happened?",
+   "options": [
+    "The longer timeout increased scheduling overhead",
+    "A degraded host stopped being evicted, so Spark keeps scheduling work onto a machine that cannot do it",
+    "Dynamic allocation stopped releasing idle executors",
+    "The larger timeout increased shuffle buffer sizes"
+   ],
+   "answer": 1,
+   "explanation": "Raising the timeout stopped Spark declaring the unhealthy executor dead. Instead of losing it quickly, the job keeps assigning tasks to it. The evidence is slow tasks concentrated on one executor across multiple stages and days, with ORDINARY input sizes — and host metrics showing disk I/O wait far above its peers. The fix is draining the host and restoring the timeout, not tuning around it."
+  },
+  {
+   "id": "spark-sql-001",
+   "type": "single",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "medium",
+   "prompt": "A query adds `DISTINCT` to remove duplicates that appeared after a join. What is the deeper problem?",
+   "options": [
+    "DISTINCT forces a broadcast join",
+    "DISTINCT is slower than GROUP BY",
+    "DISTINCT is usually a bandage over a cardinality bug — the join fanned out, and a semi-join expresses the real intent without multiplying rows",
+    "DISTINCT prevents predicate pushdown"
+   ],
+   "answer": 2,
+   "explanation": "DISTINCT forces a full shuffle and aggregation over every selected column, and it hides the fact that the join produced rows it should not have. If the intent is 'orders that have items', EXISTS or a semi-join never fans out in the first place. Fixing the cardinality is both faster and more correct."
+  },
+  {
+   "id": "spark-sql-002",
+   "type": "single",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "hard",
+   "prompt": "Why is a global `ORDER BY` on 4 billion rows expensive, and what is usually intended instead?",
+   "options": [
+    "It disables AQE for the whole query",
+    "It prevents column pruning",
+    "It forces a broadcast; use a hint instead",
+    "A total order needs range-partitioning plus a sort and can serialise at the end; usually people want either ORDER BY with LIMIT, or SORT BY within partitions for sorted files"
+   ],
+   "answer": 3,
+   "explanation": "ORDER BY with LIMIT is a different physical operation — the engine can keep only the top N per partition, shown as TakeOrderedAndProject. And 'the output files should be sorted' is SORT BY within partitions, which is cheap, not ORDER BY, which is not."
+  },
+  {
+   "id": "spark-sql-003",
+   "type": "single",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "medium",
+   "prompt": "Three subqueries each count a different event type from the same partition. What is the better pattern?",
+   "options": [
+    "One scan with conditional aggregation — COUNT(*) FILTER (WHERE ...) per type",
+    "Union the three results",
+    "Repartition by event type first",
+    "Cache the table before the subqueries"
+   ],
+   "answer": 0,
+   "explanation": "Three subqueries are three scans of the same data. Conditional aggregation reads it once. The same principle applies to CTEs referenced multiple times — a CTE is not automatically materialised, so referencing it three times can mean computing it three times unless the optimizer reuses the exchange. Count Scan nodes in the plan and look for ReusedExchange."
+  },
+  {
+   "id": "spark-sql-004",
+   "type": "single",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "hard",
+   "prompt": "Why is an unbounded `explode()` a distinctive kind of skew risk?",
+   "options": [
+    "It always produces a cartesian product",
+    "It multiplies rows AFTER the shuffle boundary, so skew it creates cannot be addressed by AQE's shuffle-partition splitting",
+    "It disables whole-stage code generation",
+    "It forces a sort on the exploded column"
+   ],
+   "answer": 1,
+   "explanation": "Array-length distributions are almost always heavy-tailed — one crawler session with hundreds of thousands of page views becomes one enormous partition. AQE reasons about shuffle partitions; skew generated downstream of that boundary is outside what it can split. Check the Generate node's output rows against its input rows, profile array-length percentiles, and bound or filter before exploding."
+  },
+  {
+   "id": "spark-sql-005",
+   "type": "single",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "medium",
+   "prompt": "Input rows are flat but output rows rose 410% overnight with no code change. What is the FIRST hypothesis?",
+   "options": [
+    "Statistics went stale and changed the join strategy",
+    "Traffic spiked and the cluster needs resizing",
+    "A join fanned out — most likely duplicate keys in a dimension or a dropped current-record filter",
+    "The shuffle partition count is now too low"
+   ],
+   "answer": 2,
+   "explanation": "Flat input with multiplied output is a cardinality event, and a near-round multiple is the tell — organic growth is not a round multiple. Test with GROUP BY key HAVING COUNT(*) > 1 on each dimension. Remember it is simultaneously a correctness incident: every downstream aggregate has been inflated since it started."
+  },
+  {
+   "id": "spark-sql-006",
+   "type": "single",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "hard",
+   "prompt": "A pipeline unchanged for a year suddenly takes 4 hours instead of 40 minutes. No deploy, no config change. What are the first three checks?",
+   "options": [
+    "GC time, spill, and task count",
+    "The physical plan, the Storage tab, and the event log",
+    "Executor count, memory settings, and shuffle partitions",
+    "Input bytes and rows versus the same weekday; output-over-input row ratio; input file count and bytes-per-file"
+   ],
+   "answer": 3,
+   "explanation": "With nothing changed on your side, the change is in the DATA or the environment. A source that reprocessed history or a duplicate load explains everything instantly and is not a Spark problem. A moved output-per-input ratio means a fan-out — and a correctness incident. A jump in file count with flat bytes means an upstream writer changed. Only if all three are flat do you diff the physical plan against a previous run."
+  },
+  {
+   "id": "spark-sql-007",
+   "type": "multi",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "medium",
+   "prompt": "Which data-quality events commonly present as Spark performance incidents? (Select all that apply.)",
+   "options": [
+    "Duplicate dimension rows",
+    "A surge in NULLs on a join key",
+    "Record-size explosion with flat row counts",
+    "An upstream writer switching to micro-batches, multiplying file count",
+    "A change to spark.sql.shuffle.partitions"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "Duplicate dimension rows, a NULL surge, record-size explosion and a file-count jump are all data or layout events that surface as slowness, which is why input/output volume counters belong on the dashboard before any Spark-side metric. The last is a configuration change — a real cause of slowness, but not a data-quality event, and it would show up in the Environment tab rather than in volume counters."
+  },
+  {
+   "id": "spark-sql-008",
+   "type": "open",
+   "topic": "SQL Anti-patterns & Data Quality",
+   "difficulty": "hard",
+   "prompt": "Give three SQL changes that speed up a slow Spark query and say how you would PROVE each one worked.",
+   "model_answer": "I would order them by which cost they cut and name the confirming metric for each. First, cut bytes SCANNED: project explicit columns instead of SELECT *, and keep the partition predicate on a bare, correctly-typed column so directory pruning applies. Proof is the scan node — ReadSchema listing only the needed columns, PartitionFilters populated, the partitions-read metric matching expectation, and input bytes dropping from table size to partition size. Second, cut bytes SHUFFLED: pre-aggregate before the join so you move eight million pre-aggregated rows rather than four billion raw ones, or restore a broadcast that stale statistics turned into a sort-merge join. Proof is shuffle write bytes for that stage falling, and the join node in the SQL tab of the finished run changing strategy — the finished run, because AQE can re-plan and a static EXPLAIN is only a proposal. Third, cut bytes WRITTEN and re-read: make the job incremental so it touches one partition instead of recomputing history, and collapse repeated scans of the same source into one pass with conditional aggregation. Proof is output bytes, output file count, and the number of Scan nodes in the plan. In every case I capture the before numbers first and change one thing at a time, because the failure mode in this work is making three changes and being unable to attribute the improvement to any of them — and I would record executor-hours alongside runtime, since a change that improves wall clock while increasing total work is a trade-off to be argued rather than a win to be announced.",
+   "explanation": "The senior signal is naming a confirming metric per change and insisting on the finished-run plan rather than EXPLAIN."
+  },
+  {
+   "id": "spark-cost-001",
+   "type": "single",
+   "topic": "Cost Optimization",
+   "difficulty": "medium",
+   "prompt": "Version A: 90 min on 100 executors (150 executor-hours). Version B: 50 min on 500 executors (417 executor-hours). The SLA is 06:00 and both finish comfortably. Which is better?",
+   "options": [
+    "A — it meets the SLA at roughly 36% of the cost, and the 40 minutes B buys are worth nothing against that deadline",
+    "B, because faster jobs free the cluster for other work",
+    "They are equivalent since both meet the SLA",
+    "B — it is 44% faster"
+   ],
+   "answer": 0,
+   "explanation": "Runtime is the metric everyone optimises because it is visible; cost is the one the business feels. When headroom against the SLA is already comfortable, extra speed has no consumer. The interesting middle option in practice is usually a version like 58 min on 180 executors — 92% of B's speed at ~42% of B's cost — because the curve flattens as the serial and skewed portions stop scaling."
+  },
+  {
+   "id": "spark-cost-002",
+   "type": "single",
+   "topic": "Cost Optimization",
+   "difficulty": "hard",
+   "prompt": "Which metric best reveals that a 'performance win' actually bought speed with money?",
+   "options": [
+    "Total shuffle bytes",
+    "Executor-hours — if it rises while runtime falls, you scaled capacity rather than removing work",
+    "Task count",
+    "Peak executor memory"
+   ],
+   "answer": 1,
+   "explanation": "Executor-hours is the cost proxy that stays honest. The version worth being proud of is the one where runtime improved AND executor-hours fell, because that means you removed work — usually a plan or layout fix — rather than buying parallelism. Reporting both together is what stops a 40% speedup that tripled the bill from being announced as a win."
+  },
+  {
+   "id": "spark-cost-003",
+   "type": "single",
+   "topic": "Cost Optimization",
+   "difficulty": "medium",
+   "prompt": "Why is 'cost per TB processed' a useful metric to trend?",
+   "options": [
+    "It identifies which team owns each pipeline",
+    "It is required for chargeback accounting",
+    "It normalises for data growth, so it should FALL over time as layout, pruning and join strategy improve",
+    "It correlates directly with runtime"
+   ],
+   "answer": 2,
+   "explanation": "If data volume grew 3x and cost grew 3x, nothing improved — that is linear scaling, the baseline rather than an achievement. Cost per TB keeps improving when you make the job cheaper, not just faster, which is the behaviour worth rewarding."
+  },
+  {
+   "id": "spark-cost-004",
+   "type": "single",
+   "topic": "Cost Optimization",
+   "difficulty": "hard",
+   "prompt": "Which cost source is entirely invisible in the Spark UI?",
+   "options": [
+    "Executor idle time during a long tail",
+    "Re-executed stages after fetch failures",
+    "Shuffle volume",
+    "Cluster startup and provisioning time"
+   ],
+   "answer": 3,
+   "explanation": "Cluster creation happens before the application exists, so only the orchestrator's timestamps reveal it — and on short pipelines it can be a substantial share of the bill. Shuffle volume, idle capacity and re-execution are all visible inside Spark itself — in stage metrics, in slot utilisation over time, and in stage attempt counts respectively."
+  },
+  {
+   "id": "spark-cost-005",
+   "type": "multi",
+   "topic": "Cost Optimization",
+   "difficulty": "hard",
+   "prompt": "Which changes reduce cost WITHOUT necessarily reducing runtime? (Select all that apply.)",
+   "options": [
+    "Fixing a skewed tail so the cluster can be sized smaller",
+    "Removing re-execution caused by executor loss",
+    "Eliminating a repeated scan of the same source",
+    "Shrinking the cluster to use up genuine SLA headroom",
+    "Raising spark.sql.autoBroadcastJoinThreshold globally"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explanation": "Fixing the tail, removing re-execution, eliminating a repeated scan and using up genuine SLA headroom all remove wasted work or wasted capacity. Raising the broadcast threshold globally is a risk transfer, not a saving: it increases driver memory pressure for every join in every query, and if the estimate was wrong to begin with it amplifies the error. Note that a job finishing three hours before its deadline has headroom that is currently being spent on nothing."
+  },
+  {
+   "id": "spark-cost-006",
+   "type": "open",
+   "topic": "Cost Optimization",
+   "difficulty": "hard",
+   "prompt": "How would you reduce a pipeline's cost by 40% without breaking its SLA?",
+   "model_answer": "I would separate cost into work I can DELETE and capacity I can stop BUYING, and attack the first because it improves both axes at once. Work I can delete: bytes scanned — restore partition pruning, project only needed columns, and collapse repeated scans of the same source into one pass; bytes shuffled — broadcast what should broadcast (usually by fixing statistics rather than adding hints), pre-aggregate before joins, and remove defensive repartitions that exist 'to be safe'; bytes written — make the job incremental rather than recomputing history; and re-executed work, since any stage attempt above one has been paid for twice, which usually traces back to a single executor death worth root-causing. Capacity I can stop buying: I look at slot utilisation over time, because most clusters are sized for their widest stage and then idle through a long tail, so fixing the tail's skew often lets me cut the cluster substantially with almost no runtime change; I check instance shape against actual use, since a memory-shaped instance for a CPU-bound job wastes half of what it costs; and on short pipelines I check provisioning time, which is invisible in the Spark UI and can be a third of the bill. Then I check whether the SLA is real by asking the consumer when they actually need the data — a job finishing at 03:00 against an 06:00 deadline has three hours of headroom being spent on nothing. I would report the result as executor-hours and cost per TB rather than runtime, because those are the numbers that stay honest as data grows.",
+   "explanation": "The senior signal is the delete-work-before-buying-less-capacity ordering, and treating the SLA itself as something to verify rather than assume."
+  }
+ ]
+}
