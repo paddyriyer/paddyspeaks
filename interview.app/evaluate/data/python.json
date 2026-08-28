@@ -7626,6 +7626,22 @@
       ],
       "answer": 0,
       "explanation": "JSON parsing is CPU-bound and does not release the GIL, so only one thread executes bytecode at a time, eliminating parallelism. ProcessPoolExecutor uses separate processes to bypass the GIL, though data serialization adds overhead\u2014acceptable here since each file is independent. The other options misidentify the bottleneck (file system contention, memory allocation) or deny the problem exists."
+    },
+    {
+      "id": "py-new-084",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-08-28",
+      "prompt": "You're building a data pipeline that concurrently fetches from 50 external APIs and writes results to files. Each API call takes ~2 seconds, and you need to limit concurrency to 10 simultaneous requests to avoid overwhelming the service. Which approach correctly implements this with asyncio?",
+      "options": [
+        "Use `asyncio.Semaphore(10)` to wrap each API call, acquiring before the request and releasing after, ensuring at most 10 concurrent requests at any time.",
+        "Use `asyncio.gather(*[fetch_api(i) for i in range(50)])` which automatically limits concurrency to the system's CPU count.",
+        "Create a thread pool with `ThreadPoolExecutor(max_workers=10)` and pass it to `asyncio.get_event_loop().set_executor()`.",
+        "Use `asyncio.Queue` with 10 worker tasks that consume from a queue fed by the 50 API requests, plus `asyncio.run_in_executor()` for I/O."
+      ],
+      "answer": 0,
+      "explanation": "asyncio.Semaphore(10) is the idiomatic approach for concurrency limiting in async code\u2014each coroutine acquires the semaphore before the critical section and releases it after, enforcing the 10-request cap. Option 1 is correct; gather() has no built-in concurrency limiting, ThreadPoolExecutor doesn't integrate cleanly with asyncio for this pattern, and while Queue+workers works, it's unnecessarily complex compared to Semaphore."
     }
   ]
 }
