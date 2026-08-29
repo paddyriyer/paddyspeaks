@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Architecture Problem — Designing a Data Architecture From Day Zero | Interview Studio</title>
+<meta name="description" content="A complete worked answer to a Citi Data Architect interview: the sequential design process from business goals to blueprint, the decision register, source forensics, one-way vs two-way doors, identity resolution and bitemporal schema design, contracts, the strangler migration, and the production metrics that would make you roll back." />
+<meta name="keywords" content="data architecture interview, data architect Citi, decision register, one-way door decisions, bitemporal modeling, identity resolution, party xref, BCBS 239, data contracts, reconciliation, strangler migration, data architecture metrics" />
+<meta name="author" content="Padmanabhan Iyer" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+
+<link rel="canonical" href="https://paddyspeaks.com/interview.app/design/the-architecture-problem.html" />
+
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/the-architecture-problem.html" />
+<meta property="og:title" content="The Architecture Problem — Designing a Data Architecture From Day Zero" />
+<meta property="og:description" content="Design process, decision matrix and production metrics for a data architecture built from scratch against real data debt. Diagrams, DDL, and the follow-up probes that decide the interview." />
+<meta property="og:image" content="https://paddyspeaks.com/images/og-default.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:site_name" content="PaddySpeaks" />
+<meta property="og:locale" content="en_US" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@paddyspeaks" />
+<meta name="twitter:title" content="The Architecture Problem — Designing a Data Architecture From Day Zero" />
+<meta name="twitter:description" content="The sequential design process, the reversibility matrix, identity and bitemporal schema, and the metrics that would make you roll back." />
+<meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png" />
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap">
+<link rel="stylesheet" href="whiteboard.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+h1 em { color: var(--teal, #0a8070) !important; }
+
+.anchor-nav { position: sticky; top: 0; z-index: 100; background: #faf8f4; border-bottom: 1px solid #e8e0d0; display: flex; gap: 0; overflow-x: auto; padding: 0 24px; }
+.anchor-nav a { padding: 10px 16px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #8f8672; text-decoration: none; white-space: nowrap; }
+.anchor-nav a:hover { color: #0a8070; }
+
+.community-ribbon { background:#ecfeff; border:1px solid #67e8f9; border-left:4px solid #0891b2; padding:14px 20px; margin:24px auto; max-width:900px; border-radius:4px; font-family:'DM Mono',monospace; font-size:13px; color:#155e75; }
+.community-ribbon strong { color:#0e7490; }
+
+.svg-diagram { width:100%; max-width:820px; margin:28px auto; display:block; overflow:hidden; background:#fffdf8; border:1px solid #e3dccb; border-radius:6px; }
+.svg-diagram text { font-family:'DM Mono', monospace; }
+.figcap { text-align:center; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.06em; color:#8f8672; margin:-14px 0 30px; text-transform:uppercase; }
+
+.cmp-table { width:100%; border-collapse:collapse; margin:24px 0; font-family:'DM Mono',monospace; font-size:12px; }
+.cmp-table th { background:#1a1208; color:#d8a44a; padding:9px 13px; text-align:left; font-size:10px; letter-spacing:.12em; text-transform:uppercase; border:1px solid #3a2e1a; }
+.cmp-table td { padding:9px 13px; border:1px solid #3a2e1a; color:#8f8672; vertical-align:top; }
+.cmp-table tr:nth-child(odd) td { background:#120e06; }
+.cmp-table tr:nth-child(even) td { background:#1a1208; }
+.cmp-table td:first-child { color:#e9e2d0; font-weight:600; }
+
+.keypoint { border-left:3px solid #0a8070; background:#f0fdfa; padding:14px 20px; margin:16px 0; border-radius:4px; font-size:17px; }
+.keypoint strong { color:#065a50; }
+.mistake-card { border-left:3px solid #dc2626; background:#120e06; padding:16px 20px; margin:8px 0; border-radius:4px; font-family:'DM Mono',monospace; font-size:13px; color:#e9e2d0; }
+.mistake-card strong { color:#f87171; }
+.verdict { border:2px solid #0a8070; background:#f0fdfa; padding:22px 26px; margin:26px 0; border-radius:6px; }
+.verdict h3 { font-family:'DM Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#065a50; margin-bottom:10px; }
+
+.scroll-btns { position:fixed; bottom:28px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:999; }
+.scroll-btns a { display:flex; align-items:center; justify-content:center; width:40px; height:40px; background:#0a8070; color:#fff; border-radius:50%; text-decoration:none; font-size:18px; box-shadow:0 2px 8px rgba(0,0,0,.25); transition:background .2s; }
+.scroll-btns a:hover { background:#065a50; }
+.back-home { position:fixed; bottom:28px; left:24px; z-index:999; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+.back-home a { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; background:#1a1208; color:#d8a44a; border-radius:20px; text-decoration:none; box-shadow:0 2px 8px rgba(0,0,0,.3); transition:background .2s; }
+.back-home a:hover { background:#2a2010; }
+</style>
+</head>
+<body id="top">
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 40</div>
+    <h1 class="reveal">The <em>Architecture</em> Problem</h1>
+    <p class="deck reveal">You are a data architect making structural choices from day zero — before code is written, before vendors are locked in, and never on a clean slate. There is always data debt, there are always legacy systems, and the source ecosystem is always messier than the org chart admits. A complete worked answer: the sequential design process and the artifact each step produces, the decision register that converts vague goals into a latency budget, source forensics, one-way versus two-way doors, identity and bitemporal schema design, contracts, the coexistence plan — and the production metrics that would actually make you roll back.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Data Architecture / Strategic Design</b></span>
+      <span>READING · <b>~24 min</b></span>
+    </div>
+  </div>
+</header>
+<style>
+/* At-a-glance summary — scannable TL;DR so the page reads as a reference, not an essay */
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a8070}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#8f8672}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}
+.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}
+.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+</style>
+<section class="tldr-wrap" aria-label="At a glance">
+<div class="wrap tldr">
+  <div class="tldr-head">
+    <span class="tldr-eyebrow">At a glance</span>
+    <span class="tldr-sub">The three-part answer, compressed</span>
+  </div>
+  <div class="tldr-grid">
+    <div class="tldr-cell tldr-move">
+      <h4>The process</h4>
+      <p>Seven steps, each producing a named artifact. It starts with a <strong>decision register</strong>, not a requirements document — decisions carry latency and accuracy budgets that you can architect against.</p>
+    </div>
+    <div class="tldr-cell tldr-move">
+      <h4>The matrix</h4>
+      <p>Sort every open choice by <strong>reversibility</strong>. Grain, identity, bitemporality and metric semantics are one-way doors. Orchestrators and BI tools are not. Spend the design budget accordingly.</p>
+    </div>
+    <div class="tldr-cell">
+      <h4>The metrics</h4>
+      <p>One is non-negotiable: <strong>reconciliation variance against the system of record must be zero</strong>. The rest are error budgets. Time-to-onboard-a-source is the best proxy for resilience to business change.</p>
+    </div>
+    <div class="tldr-cell tldr-trap">
+      <h4>The trap</h4>
+      <p>Answering with a stack. The question is about <em>sequencing and trade-offs under ambiguity</em>; naming tools is what candidates reach for when they have no process.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<nav class="anchor-nav">
+  <a href="#question">The Question</a>
+  <a href="#testing">What It Tests</a>
+  <a href="#process">The Process</a>
+  <a href="#register">Decision Register</a>
+  <a href="#forensics">Source Forensics</a>
+  <a href="#doors">One-Way Doors</a>
+  <a href="#layers">The Blueprint</a>
+  <a href="#identity">Identity</a>
+  <a href="#bitemporal">Bitemporal</a>
+  <a href="#grain">Grain &amp; DDL</a>
+  <a href="#contracts">Contracts</a>
+  <a href="#tradeoffs">Trade-off Rules</a>
+  <a href="#migration">Coexistence</a>
+  <a href="#metrics">Metrics</a>
+  <a href="#reconciliation">Reconciliation</a>
+  <a href="#oneminute">1-Min Answer</a>
+  <a href="#probes">The Probes</a>
+  <a href="#mistakes">Mistakes</a>
+</nav>
+
+<div class="community-ribbon">
+  ◆ <strong>Community question.</strong> Shared by a reader after a Data Architecture interview at Citi: <em>"I could answer some but not convincingly when they probed."</em> That last clause is the reason this page exists — the probes are in <a href="#probes" style="color:#0e7490;font-weight:600;">§ 17</a>.
+</div>
+
+<section id="question">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>Asked as three parts, scored as one</h2>
+  <div class="qcard reveal">
+    <div class="qmeta"><span class="tag">Data Architecture</span> · Hard · Citi</div>
+    <div class="qtext">
+      <p>As a data architect, you are making structural choices from day zero, often before code is written or vendors are locked in. I want to understand your exact strategic execution process. Even when designing a new architecture from scratch, there is usually existing data debt, legacy systems, or messy source ecosystems to account for.</p>
+      <p><strong>The Design Process:</strong> What are the sequential steps you take to translate high-level business goals into a conceptual blueprint while navigating existing data constraints?</p>
+      <p><strong>The Decision Matrix:</strong> What foundational rules or trade-offs guide your early choices when deciding on data modeling patterns and the technical stack?</p>
+      <p><strong>The Evaluation:</strong> Once the architecture begins handling production workloads, what specific, non-negotiable metrics do you use to evaluate whether the system is genuinely 'good,' scalable, and resilient against future business shifts?</p>
+    </div>
+  </div>
+  <p class="lede reveal">Three questions, one assessment. The interviewer is not collecting three lists — they are checking whether the same spine runs through all three answers. If your process produces artifacts, your matrix decides using those artifacts, and your metrics measure what the matrix bet on, the answer holds together under probing. If the three parts are independent lists of good practice, the first follow-up will show it.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="testing">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 02 — WHAT IT'S REALLY TESTING</span>Reading the question behind the question</h2>
+  <table class="cmp-table reveal">
+    <thead><tr><th>The phrasing</th><th>What it's actually probing</th></tr></thead>
+    <tbody>
+      <tr><td>"from day zero, before vendors are locked in"</td><td>Can you reason without a stack? Candidates who lead with tool names have no process underneath.</td></tr>
+      <tr><td>"exact strategic execution process"</td><td>Sequence and artifacts. "Exact" is the tell — they want steps with outputs, not principles.</td></tr>
+      <tr><td>"there is usually existing data debt"</td><td>Greenfield is a fiction. They want the coexistence and migration plan treated as part of the design, not a phase-two problem.</td></tr>
+      <tr><td>"foundational rules"</td><td>Do you have decision rules that produce an answer, or do you say "it depends" and stop?</td></tr>
+      <tr><td>"non-negotiable metrics"</td><td>Which numbers would make you roll back? Most candidates list dashboard metrics that nobody would ever act on.</td></tr>
+      <tr><td>"resilient against future business shifts"</td><td>Evolvability, not uptime. Can the architecture absorb a new product line, an acquisition, a regulation?</td></tr>
+    </tbody>
+  </table>
+  <div class="keypoint reveal">
+    <strong>The single highest-signal move</strong> is to say early that you do not design against requirements — you design against <em>decisions</em>. Requirements are a wish list with no budget attached. A decision has an owner, a cadence, a tolerable staleness and a cost of being wrong, and those four facts are what actually determine the architecture. Everything below follows from that.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="process">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 03 — THE DESIGN PROCESS</span>Seven steps, each with an artifact</h2>
+  <p class="lede reveal">A process you can name but not evidence is a philosophy. Every step below ends in a document someone can review, argue with and sign. That is what makes the answer concrete under probing — you can be asked "show me the output of step two" and have something to describe.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 860 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Seven-step design process: decision inventory, source forensics, conceptual model, reversibility triage, contracts, thin vertical slice, coexistence plan — each producing a named artifact.">
+    <defs>
+      <marker id="pa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8a5d12"/></marker>
+    </defs>
+    <rect x="0" y="0" width="860" height="430" fill="#fffdf8"/>
+
+    <text x="30" y="30" fill="#0a8070" font-size="11" font-family="DM Mono, monospace" letter-spacing="1.5">THE SPINE — EACH STEP PRODUCES A REVIEWABLE ARTIFACT</text>
+
+    <!-- step boxes -->
+    <g>
+      <rect x="30" y="52" width="112" height="58" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+      <text x="86" y="74" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">1 · Decision</text>
+      <text x="86" y="88" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">inventory</text>
+      <text x="86" y="102" fill="#8f8672" font-size="8.5" text-anchor="middle">not requirements</text>
+
+      <rect x="164" y="52" width="112" height="58" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+      <text x="220" y="74" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">2 · Source</text>
+      <text x="220" y="88" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">forensics</text>
+      <text x="220" y="102" fill="#8f8672" font-size="8.5" text-anchor="middle">profile, don't ask</text>
+
+      <rect x="298" y="52" width="112" height="58" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+      <text x="354" y="74" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">3 · Conceptual</text>
+      <text x="354" y="88" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">model</text>
+      <text x="354" y="102" fill="#8f8672" font-size="8.5" text-anchor="middle">vendor-neutral</text>
+
+      <rect x="432" y="52" width="112" height="58" rx="6" fill="#0a8070" stroke="#076558"/>
+      <text x="488" y="74" fill="#ffffff" font-size="10.5" text-anchor="middle" font-weight="600">4 · Reversibility</text>
+      <text x="488" y="88" fill="#ffffff" font-size="10.5" text-anchor="middle" font-weight="600">triage</text>
+      <text x="488" y="102" fill="#cdeae4" font-size="8.5" text-anchor="middle">where budget goes</text>
+
+      <rect x="566" y="52" width="112" height="58" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+      <text x="622" y="74" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">5 · Contracts</text>
+      <text x="622" y="88" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">at boundaries</text>
+      <text x="622" y="102" fill="#8f8672" font-size="8.5" text-anchor="middle">schema + SLA + owner</text>
+
+      <rect x="700" y="52" width="130" height="58" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+      <text x="765" y="74" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">6 · Thin vertical</text>
+      <text x="765" y="88" fill="#d8a44a" font-size="10.5" text-anchor="middle" font-weight="600">slice → prod</text>
+      <text x="765" y="102" fill="#8f8672" font-size="8.5" text-anchor="middle">one real decision</text>
+    </g>
+
+    <!-- arrows between -->
+    <g stroke="#8a5d12" stroke-width="1.4" marker-end="url(#pa)" fill="none">
+      <path d="M142,81 L162,81"/><path d="M276,81 L296,81"/><path d="M410,81 L430,81"/>
+      <path d="M544,81 L564,81"/><path d="M678,81 L698,81"/>
+    </g>
+
+    <!-- artifacts row -->
+    <text x="30" y="146" fill="#0a8070" font-size="10" font-family="DM Mono, monospace" letter-spacing="1.2">ARTIFACT PRODUCED</text>
+    <g>
+      <rect x="30" y="156" width="112" height="52" rx="5" fill="#fffdf8" stroke="#a8b58a" stroke-width="1.5"/>
+      <text x="86" y="176" fill="#3a352b" font-size="9.5" text-anchor="middle">Decision register</text>
+      <text x="86" y="190" fill="#8f8672" font-size="8" text-anchor="middle">latency + accuracy</text>
+      <text x="86" y="201" fill="#8f8672" font-size="8" text-anchor="middle">budget per decision</text>
+
+      <rect x="164" y="156" width="112" height="52" rx="5" fill="#fffdf8" stroke="#a8b58a" stroke-width="1.5"/>
+      <text x="220" y="176" fill="#3a352b" font-size="9.5" text-anchor="middle">Source dossier</text>
+      <text x="220" y="190" fill="#8f8672" font-size="8" text-anchor="middle">trust grade per</text>
+      <text x="220" y="201" fill="#8f8672" font-size="8" text-anchor="middle">system</text>
+
+      <rect x="298" y="156" width="112" height="52" rx="5" fill="#fffdf8" stroke="#a8b58a" stroke-width="1.5"/>
+      <text x="354" y="176" fill="#3a352b" font-size="9.5" text-anchor="middle">Conceptual ERD</text>
+      <text x="354" y="190" fill="#8f8672" font-size="8" text-anchor="middle">+ grain statement</text>
+      <text x="354" y="201" fill="#8f8672" font-size="8" text-anchor="middle">per fact</text>
+
+      <rect x="432" y="156" width="112" height="52" rx="5" fill="#fffdf8" stroke="#0a8070" stroke-width="1.8"/>
+      <text x="488" y="176" fill="#3a352b" font-size="9.5" text-anchor="middle">Decision matrix</text>
+      <text x="488" y="190" fill="#8f8672" font-size="8" text-anchor="middle">one-way vs</text>
+      <text x="488" y="201" fill="#8f8672" font-size="8" text-anchor="middle">two-way doors</text>
+
+      <rect x="566" y="156" width="112" height="52" rx="5" fill="#fffdf8" stroke="#a8b58a" stroke-width="1.5"/>
+      <text x="622" y="176" fill="#3a352b" font-size="9.5" text-anchor="middle">Interface contracts</text>
+      <text x="622" y="190" fill="#8f8672" font-size="8" text-anchor="middle">versioned,</text>
+      <text x="622" y="201" fill="#8f8672" font-size="8" text-anchor="middle">deprecation policy</text>
+
+      <rect x="700" y="156" width="130" height="52" rx="5" fill="#fffdf8" stroke="#a8b58a" stroke-width="1.5"/>
+      <text x="765" y="176" fill="#3a352b" font-size="9.5" text-anchor="middle">Proven pattern</text>
+      <text x="765" y="190" fill="#8f8672" font-size="8" text-anchor="middle">+ measured cost</text>
+      <text x="765" y="201" fill="#8f8672" font-size="8" text-anchor="middle">model</text>
+    </g>
+
+    <!-- step 7 spanning -->
+    <rect x="30" y="248" width="800" height="56" rx="6" fill="#fdf3e3" stroke="#d98e63" stroke-width="1.6"/>
+    <text x="48" y="270" fill="#8a5d12" font-size="11" font-weight="600">7 · Coexistence plan — runs in parallel with every step above, never after them</text>
+    <text x="48" y="288" fill="#6b6355" font-size="9.5">Strangler boundaries · dual-run window · reconciliation gates · decommission criteria for each legacy system</text>
+
+    <!-- feedback loop -->
+    <path d="M765,304 L765,344 L14,344 L14,81 L26,81" stroke="#8a5d12" stroke-width="1.3" stroke-dasharray="5 4" fill="none" marker-end="url(#pa)"/>
+    <text x="420" y="338" fill="#8a5d12" font-size="9.5" text-anchor="middle" font-family="DM Mono, monospace">the slice invalidates assumptions — the register and the model get rewritten, on purpose</text>
+
+    <rect x="30" y="360" width="800" height="48" rx="5" fill="#f3f0e6" stroke="#e9e2d0"/>
+    <text x="48" y="380" fill="#3a352b" font-size="10" font-weight="600">The order is load-bearing.</text>
+    <text x="48" y="396" fill="#6b6355" font-size="9.5">Every step consumes the artifact before it. Skip step 1 and step 4 has no budget to triage against; skip step 2 and step 3 models a fiction.</text>
+  </svg>
+  <p class="figcap reveal">The design spine. Steps 1–6 are sequential; step 7 is continuous. The dashed return path is not failure — the vertical slice exists precisely to break assumptions cheaply.</p>
+
+  <p class="reveal"><strong>1 · Decision inventory.</strong> Not "what data do you need" — that question returns everything anyone can imagine. Instead: <em>what decisions will this change, who makes them, how often, and what does it cost to be wrong or late?</em> Four columns, and they convert an unbounded wish list into a bounded engineering problem. In practice this is where most of the requested scope evaporates: of forty stated "real-time" needs, two or three usually have a decision behind them that actually changes if the number arrives sooner.</p>
+
+  <p class="reveal"><strong>2 · Source forensics.</strong> Profile the sources; do not interview people about them. Documentation describes intent, and intent is not what the data does. This is the step that most often changes the architecture, and it is covered on its own in <a href="#forensics">§ 05</a>.</p>
+
+  <p class="reveal"><strong>3 · Conceptual model.</strong> Entities, grain, identity, relationships — deliberately vendor-neutral, deliberately before any stack conversation. The output is a conceptual ERD plus one sentence per fact table stating its grain. If you cannot write the grain sentence, you do not understand the process being modelled yet.</p>
+
+  <p class="reveal"><strong>4 · Reversibility triage.</strong> The step candidates never mention, and the one that most distinguishes an architect from a senior engineer. Sort every open decision by what it costs to undo. Detailed in <a href="#doors">§ 06</a>.</p>
+
+  <p class="reveal"><strong>5 · Contracts at the boundaries.</strong> Wherever data crosses a team boundary, publish a contract: schema, semantics, freshness SLA, owner, deprecation policy. Everything inside a boundary stays refactorable; everything crossing one becomes expensive to change. Drawing those boundaries deliberately is the architecture.</p>
+
+  <p class="reveal"><strong>6 · Thin vertical slice, in production.</strong> One decision from the register, end to end, with real data, real authentication, real users and a real bill. Not a sandbox proof-of-concept — those validate the happy path and none of the things that actually sink programmes: identity, entitlements, network egress, the cost model at volume, and whoever owns the on-call.</p>
+
+  <p class="reveal"><strong>7 · Coexistence.</strong> The legacy estate does not pause while you build. Treated as an afterthought, it becomes the reason the programme stalls at 70% — see <a href="#migration">§ 13</a>.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="register">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 04 — THE DECISION REGISTER</span>The artifact the whole design hangs from</h2>
+  <p class="lede reveal">This is the deliverable that makes the rest of the answer defensible. Each row is a real decision a real person makes on a real cadence. The strictest row sets the architecture; every other row rides on infrastructure built for that one.</p>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>Decision</th><th>Owner</th><th>Cadence</th><th>Tolerable staleness</th><th>Tolerable error</th><th>Cost of being wrong</th></tr></thead>
+    <tbody>
+      <tr><td>Intraday liquidity / funding call</td><td>Treasury</td><td>Hourly, market hours</td><td><strong>15 min</strong></td><td>Zero — must tie to GL</td><td>Regulatory breach, funding cost</td></tr>
+      <tr><td>Fraud hold on a transaction</td><td>Fin-crime engine</td><td>Per event</td><td><strong>Sub-second</strong></td><td>Tuned FP/FN rate</td><td>Loss, or a blocked good customer</td></tr>
+      <tr><td>Credit line increase offer</td><td>Risk</td><td>Daily batch</td><td>24 hours</td><td>&lt; 0.5%</td><td>Credit loss, mis-selling exposure</td></tr>
+      <tr><td>Regulatory position report</td><td>Finance</td><td>Daily / quarter-end</td><td>T+1 close</td><td>Zero, and <em>reproducible</em></td><td>Restatement, fine, attestation risk</td></tr>
+      <tr><td>Campaign segment refresh</td><td>Marketing</td><td>Weekly</td><td>7 days</td><td>~5%</td><td>Wasted spend</td></tr>
+      <tr><td>Branch staffing model</td><td>Ops</td><td>Monthly</td><td>30 days</td><td>~10%</td><td>Service level, overtime</td></tr>
+    </tbody>
+  </table>
+
+  <div class="keypoint reveal">
+    <strong>What this table buys you in the interview.</strong> Three things, and they map exactly onto the three questions. It tells you <em>which</em> decisions justify a streaming path (two of six here — and fraud is an operational system, not the warehouse). It tells you where correctness is absolute rather than statistical, which is what forces bitemporality and reconciliation. And it gives you a defensible answer to "why did you spend money on that?" — because a named owner makes a named decision that a named tolerance requires.
+  </div>
+
+  <p class="reveal">The row that quietly dominates a bank's architecture is the regulatory one, and not because of latency — T+1 is generous. It is the words <em>zero and reproducible</em>. Reproducibility means you must be able to regenerate the report exactly as filed, months later, after the underlying data has been corrected. That single requirement rules out mutable dimension tables and rules in transaction-time history, which is a one-way door decided in week one. That is the kind of chain the interviewer is listening for: a business fact, to a modelling constraint, to a decision you cannot walk back.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="forensics">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 05 — SOURCE FORENSICS</span>The data debt is never where the documentation says</h2>
+  <p class="lede reveal">"Account for existing data debt" is the part of the question most candidates gesture at and move past. Be specific instead: here are the pathologies that actually change an architecture, how to detect each one in an afternoon, and what each forces you to build.</p>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>Pathology</th><th>How you detect it</th><th>What it forces in the design</th></tr></thead>
+    <tbody>
+      <tr><td>In-place mutation with no <code>updated_at</code></td><td>Snapshot twice a day and diff row hashes; count rows that changed without any timestamp moving</td><td>Incremental extraction is impossible. Log-based CDC, or full-scan compare — a large, early cost that must be budgeted, not discovered</td></tr>
+      <tr><td>Soft deletes with an inconsistent flag</td><td><code>COUNT(*) WHERE is_deleted IS NULL</code> — nulls mean the column was added later and history was never backfilled</td><td>Every downstream filter is wrong for rows older than the column. Needs an explicit "unknown" state, not a coalesce to false</td></tr>
+      <tr><td>Recycled natural keys</td><td>Group by the key, count distinct open/close date pairs — closed accounts whose numbers are reissued</td><td>The single strongest argument for surrogate keys. A natural key join silently merges two customers years apart</td></tr>
+      <tr><td>Same party, different id per product silo</td><td>Fuzzy-match a sample across cards, deposits, mortgage; measure the overlap you cannot resolve deterministically</td><td>An identity resolution layer with its own lifecycle — <a href="#identity">§ 08</a></td></tr>
+      <tr><td>Local timestamps with no offset</td><td>Look for a missing hour in spring and a duplicated hour in autumn</td><td>Store UTC plus the original offset. Never store local time alone — DST makes it ambiguous, permanently</td></tr>
+      <tr><td>Amounts without a currency column</td><td>Distribution of magnitudes per source system; a "1,200" that is JPY next to one that is GBP</td><td>Currency is part of the grain of every monetary fact. Retrofitting it is a full-history rewrite</td></tr>
+      <tr><td>Late-arriving backdated corrections</td><td>Compare a daily snapshot to the same day re-extracted a month later</td><td>Your "immutable" daily fact is not immutable. Either bitemporality or a restatement process — there is no third option</td></tr>
+      <tr><td>Multi-region duplicates, different collation</td><td>Case- and accent-insensitive match on name/address across regional instances</td><td>Deduplication rules become policy, not code, and need an owner who can arbitrate</td></tr>
+    </tbody>
+  </table>
+
+  <div class="keypoint reveal">
+    <strong>Grade each source, and publish the grade.</strong> A · reconciles to a system of record, has reliable change capture, an owner who answers. B · usable with known caveats. C · quarantine only — it may feed exploratory work but never a conformed layer or a regulatory number. The grade is not an insult to the source team; it is what lets you publish a number and honestly say what it can be used for. In practice this single artifact prevents more downstream incidents than any amount of pipeline testing.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="doors">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 06 — THE DECISION MATRIX</span>Sort by reversibility, not by importance</h2>
+  <p class="lede reveal">The second question asks for "foundational rules or trade-offs." The honest organising principle is not a list of dichotomies — it is a single test applied to every open choice: <em>what does it cost to undo this after a year of production data?</em> That test sorts decisions into two piles that deserve completely different amounts of deliberation.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 860 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two columns: one-way door decisions requiring history rewrite or consumer renegotiation, versus two-way door decisions that are cheap to reverse.">
+    <rect x="0" y="0" width="860" height="400" fill="#fffdf8"/>
+    <text x="30" y="28" fill="#0a8070" font-size="11" font-family="DM Mono, monospace" letter-spacing="1.5">THE TEST — DOES UNDOING IT REQUIRE A HISTORY REWRITE OR A CONSUMER RENEGOTIATION?</text>
+
+    <!-- left column -->
+    <rect x="30" y="46" width="390" height="330" rx="8" fill="#fdf3e3" stroke="#d98e63" stroke-width="2"/>
+    <text x="50" y="72" fill="#8a5d12" font-size="13" font-weight="600">ONE-WAY DOORS — yes</text>
+    <text x="50" y="90" fill="#6b6355" font-size="9.5">Decide slowly. Write down the reasoning. These are the architecture.</text>
+
+    <g font-size="10.5" fill="#3a352b">
+      <rect x="48" y="104" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="60" y="118">Grain of the core facts</text><text x="60" y="129" font-size="8.5" fill="#8f8672">you cannot recover detail you never stored</text>
+      <rect x="48" y="140" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="60" y="154">Identity and key strategy</text><text x="60" y="165" font-size="8.5" fill="#8f8672">every downstream join encodes this choice</text>
+      <rect x="48" y="176" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="60" y="190">Bitemporality — keeping transaction time</text><text x="60" y="201" font-size="8.5" fill="#8f8672">unrecoverable retroactively; the knowledge is simply gone</text>
+      <rect x="48" y="212" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="60" y="226">Semantics of core metrics</text><text x="60" y="237" font-size="8.5" fill="#8f8672">changing "active customer" invalidates every published trend</text>
+      <rect x="48" y="248" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="60" y="262">PII tokenization boundary</text><text x="60" y="273" font-size="8.5" fill="#8f8672">re-tokenizing history is a regulated migration of its own</text>
+      <rect x="48" y="284" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="60" y="298">Timezone and currency conventions</text><text x="60" y="309" font-size="8.5" fill="#8f8672">ambiguity here is not fixable after the fact</text>
+      <rect x="48" y="320" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="60" y="334">Partitioning of the very large tables</text><text x="60" y="345" font-size="8.5" fill="#8f8672">repartitioning petabytes is a project, not a change</text>
+    </g>
+
+    <!-- right column -->
+    <rect x="440" y="46" width="390" height="330" rx="8" fill="#f2f6ec" stroke="#a8b58a" stroke-width="2"/>
+    <text x="460" y="72" fill="#4a6b3a" font-size="13" font-weight="600">TWO-WAY DOORS — no</text>
+    <text x="460" y="90" fill="#6b6355" font-size="9.5">Decide fast, in the slice. Deliberating here is procrastination.</text>
+
+    <g font-size="10.5" fill="#3a352b">
+      <rect x="458" y="104" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="470" y="118">Orchestration tool</text><text x="470" y="129" font-size="8.5" fill="#8f8672">a rewrite of DAG definitions, not of data</text>
+      <rect x="458" y="140" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="470" y="154">Transformation framework</text><text x="470" y="165" font-size="8.5" fill="#8f8672">the SQL survives the framework</text>
+      <rect x="458" y="176" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="470" y="190">BI / semantic tool</text><text x="470" y="201" font-size="8.5" fill="#8f8672">painful, bounded, and no data is lost</text>
+      <rect x="458" y="212" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="470" y="226">Compute engine — <tspan font-style="italic">if storage is open format</tspan></text><text x="470" y="237" font-size="8.5" fill="#8f8672">this is exactly why open table formats are worth the tax</text>
+      <rect x="458" y="248" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="470" y="262">Cluster sizing and cost tuning</text><text x="470" y="273" font-size="8.5" fill="#8f8672">continuously adjustable; never worth an early argument</text>
+      <rect x="458" y="284" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="470" y="298">Naming conventions, folder layout</text><text x="470" y="309" font-size="8.5" fill="#8f8672">cheap to rename with lineage in place</text>
+      <rect x="458" y="320" width="354" height="30" rx="4" fill="#fffdf8" stroke="#e9e2d0"/>
+      <text x="470" y="334">Batch schedule and cadence</text><text x="470" y="345" font-size="8.5" fill="#8f8672">a config change, provided the grain supports it</text>
+    </g>
+  </svg>
+  <p class="figcap reveal">The reversibility matrix. The left column is where an architect earns their title; the right column is where programmes lose months to committee.</p>
+
+  <div class="keypoint reveal">
+    <strong>The move that reframes the whole answer:</strong> "Choosing the warehouse vendor is mostly a two-way door <em>if</em> I keep storage in an open table format — so I decide it quickly and spend the deliberation on grain and identity instead, which are not reversible at any price." That sentence demonstrates you know which choices are load-bearing, and it converts the vendor question from a religious argument into an engineering one.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="layers">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 07 — THE CONCEPTUAL BLUEPRINT</span>Layers, and what changes at each boundary</h2>
+  <p class="lede reveal">The question asks for a conceptual blueprint, so draw one — but the value is not the boxes. Every architecture diagram has these boxes. The value is naming what changes at each boundary, and which boundaries carry contracts.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 860 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Layered blueprint: sources, landing, integration in third normal form and bitemporal, serving in dimensional form, consumption; with a control plane for lineage, quality, reconciliation and access spanning all layers.">
+    <defs>
+      <marker id="la" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8a5d12"/></marker>
+    </defs>
+    <rect x="0" y="0" width="860" height="470" fill="#fffdf8"/>
+
+    <!-- layers -->
+    <rect x="28" y="60" width="132" height="250" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+    <text x="94" y="84" fill="#d8a44a" font-size="11" text-anchor="middle" font-weight="600">SOURCES</text>
+    <text x="94" y="106" fill="#8f8672" font-size="9" text-anchor="middle">Core banking</text>
+    <text x="94" y="122" fill="#8f8672" font-size="9" text-anchor="middle">Cards</text>
+    <text x="94" y="138" fill="#8f8672" font-size="9" text-anchor="middle">Mortgage</text>
+    <text x="94" y="154" fill="#8f8672" font-size="9" text-anchor="middle">CRM</text>
+    <text x="94" y="170" fill="#8f8672" font-size="9" text-anchor="middle">General ledger</text>
+    <text x="94" y="186" fill="#8f8672" font-size="9" text-anchor="middle">Market data</text>
+    <text x="94" y="208" fill="#d98e63" font-size="8.5" text-anchor="middle">graded A / B / C</text>
+    <text x="94" y="222" fill="#8f8672" font-size="8" text-anchor="middle">§ 05</text>
+
+    <rect x="188" y="60" width="132" height="250" rx="6" fill="#2a2114" stroke="#3a2e1a"/>
+    <text x="254" y="84" fill="#d8a44a" font-size="11" text-anchor="middle" font-weight="600">LANDING</text>
+    <text x="254" y="106" fill="#c9c0ad" font-size="9" text-anchor="middle">Immutable, raw</text>
+    <text x="254" y="122" fill="#c9c0ad" font-size="9" text-anchor="middle">As-received</text>
+    <text x="254" y="138" fill="#c9c0ad" font-size="9" text-anchor="middle">Partitioned by</text>
+    <text x="254" y="152" fill="#c9c0ad" font-size="9" text-anchor="middle">arrival</text>
+    <text x="254" y="176" fill="#a8b58a" font-size="8.5" text-anchor="middle">no business logic</text>
+    <text x="254" y="192" fill="#a8b58a" font-size="8.5" text-anchor="middle">ever, on purpose</text>
+    <text x="254" y="216" fill="#8f8672" font-size="8" text-anchor="middle">replayable</text>
+
+    <rect x="348" y="60" width="150" height="250" rx="6" fill="#0a8070" stroke="#076558"/>
+    <text x="423" y="84" fill="#ffffff" font-size="11" text-anchor="middle" font-weight="600">INTEGRATION</text>
+    <text x="423" y="106" fill="#cdeae4" font-size="9" text-anchor="middle">Conformed, 3NF</text>
+    <text x="423" y="122" fill="#cdeae4" font-size="9" text-anchor="middle">Bitemporal</text>
+    <text x="423" y="138" fill="#cdeae4" font-size="9" text-anchor="middle">Identity resolved</text>
+    <text x="423" y="154" fill="#cdeae4" font-size="9" text-anchor="middle">Surrogate keys</text>
+    <text x="423" y="170" fill="#cdeae4" font-size="9" text-anchor="middle">Integrity enforced</text>
+    <text x="423" y="196" fill="#ffffff" font-size="8.5" text-anchor="middle" font-weight="600">the system of</text>
+    <text x="423" y="209" fill="#ffffff" font-size="8.5" text-anchor="middle" font-weight="600">record for meaning</text>
+    <text x="423" y="232" fill="#cdeae4" font-size="8" text-anchor="middle">§ 08 · § 09 · § 10</text>
+
+    <rect x="526" y="60" width="150" height="250" rx="6" fill="#2a2114" stroke="#3a2e1a"/>
+    <text x="601" y="84" fill="#d8a44a" font-size="11" text-anchor="middle" font-weight="600">SERVING</text>
+    <text x="601" y="106" fill="#c9c0ad" font-size="9" text-anchor="middle">Dimensional</text>
+    <text x="601" y="122" fill="#c9c0ad" font-size="9" text-anchor="middle">Wide, denormalized</text>
+    <text x="601" y="138" fill="#c9c0ad" font-size="9" text-anchor="middle">Pre-aggregated</text>
+    <text x="601" y="154" fill="#c9c0ad" font-size="9" text-anchor="middle">Query-shaped</text>
+    <text x="601" y="178" fill="#a8b58a" font-size="8.5" text-anchor="middle">rebuildable from</text>
+    <text x="601" y="191" fill="#a8b58a" font-size="8.5" text-anchor="middle">integration, always</text>
+    <text x="601" y="214" fill="#8f8672" font-size="8" text-anchor="middle">disposable by design</text>
+
+    <rect x="704" y="60" width="128" height="250" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+    <text x="768" y="84" fill="#d8a44a" font-size="11" text-anchor="middle" font-weight="600">CONSUMPTION</text>
+    <text x="768" y="108" fill="#8f8672" font-size="9" text-anchor="middle">Regulatory report</text>
+    <text x="768" y="124" fill="#8f8672" font-size="9" text-anchor="middle">Risk models</text>
+    <text x="768" y="140" fill="#8f8672" font-size="9" text-anchor="middle">Dashboards</text>
+    <text x="768" y="156" fill="#8f8672" font-size="9" text-anchor="middle">Feature store</text>
+    <text x="768" y="172" fill="#8f8672" font-size="9" text-anchor="middle">Data products</text>
+
+    <!-- arrows -->
+    <g stroke="#8a5d12" stroke-width="1.5" marker-end="url(#la)" fill="none">
+      <path d="M160,185 L186,185"/><path d="M320,185 L346,185"/><path d="M498,185 L524,185"/><path d="M676,185 L702,185"/>
+    </g>
+
+    <!-- contract markers -->
+    <g>
+      <circle cx="173" cy="150" r="9" fill="#d98e63"/><text x="173" y="154" fill="#fff" font-size="10" text-anchor="middle" font-weight="700">C</text>
+      <circle cx="689" cy="150" r="9" fill="#d98e63"/><text x="689" y="154" fill="#fff" font-size="10" text-anchor="middle" font-weight="700">C</text>
+    </g>
+    <text x="430" y="336" fill="#8a5d12" font-size="9.5" text-anchor="middle" font-family="DM Mono, monospace">◆ = contract boundary: schema + semantics + freshness SLA + named owner + deprecation policy</text>
+
+    <!-- control plane -->
+    <rect x="28" y="352" width="804" height="52" rx="6" fill="#fdf3e3" stroke="#d98e63" stroke-width="1.6"/>
+    <text x="48" y="374" fill="#8a5d12" font-size="11" font-weight="600">CONTROL PLANE — spans every layer, built in step one, never bolted on</text>
+    <text x="48" y="392" fill="#6b6355" font-size="9.5">Column-level lineage · data quality assertions · reconciliation to system of record · access control and PII tokenization · cost attribution</text>
+
+    <rect x="28" y="416" width="804" height="40" rx="5" fill="#f3f0e6" stroke="#e9e2d0"/>
+    <text x="48" y="433" fill="#3a352b" font-size="10" font-weight="600">Why two modelling styles rather than one:</text>
+    <text x="48" y="448" fill="#6b6355" font-size="9.5">Integration is normalized because that is where you reconcile and enforce integrity. Serving is dimensional because that is where humans query. Arguing "3NF vs star" as a single global choice is the mistake — they answer different questions at different layers.</text>
+  </svg>
+  <p class="figcap reveal">The blueprint. Note that serving is explicitly disposable: anything in it must be reproducible from integration, which is what lets you change serving technology without a migration.</p>
+
+  <p class="reveal">Two properties of this blueprint matter more than its shape, and both are worth saying out loud. First, <strong>landing is immutable and replayable</strong> — every transformation downstream can be rebuilt from it, which converts most future mistakes from incidents into reruns. Second, <strong>serving is disposable</strong>. If the BI tool changes, or a new consumer needs a different shape, you rebuild serving from integration and nothing is lost. Those two properties together are what make the middle layer worth the effort of getting right.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="identity">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 08 — IDENTITY</span>The one-way door that decides everything downstream</h2>
+  <p class="lede reveal">In a bank, the same human being is a different customer in cards, deposits, mortgage and wealth — with different identifiers, different name spellings and different addresses, each authoritative in its own system. Every meaningful question ("what is our exposure to this client?") depends on resolving that, and the resolution changes over time. This is the hardest schema in the design.</p>
+
+  <div class="codelabel">Identity resolution — the cross-reference that outlives every source system</div>
+  <div class="codeblock"><span class="cl">-- The surrogate party key is ours. It never appears in a source system,
+-- it is never derived from a source id, and it never leaves the platform
+-- in a form a source system could reuse. Everything joins on this.</span>
+<span class="ck">CREATE TABLE</span> dim_party (
+    party_key        BIGINT      <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    party_type       TEXT        <span class="ck">NOT NULL</span>,  <span class="cl">-- individual | organisation</span>
+    <span class="cl">-- Attributes are deliberately thin here. Anything that varies by
+    -- source system belongs in the xref, not in the golden record.</span>
+    created_at       TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="cl">-- The xref is effective-dated because identity DECISIONS change.
+-- Two parties merge when we learn they are one person; a merge is
+-- reversed when we learn we were wrong. Neither event may rewrite
+-- history -- it is recorded as a new assertion.</span>
+<span class="ck">CREATE TABLE</span> party_xref (
+    xref_id          BIGINT      <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    party_key        BIGINT      <span class="ck">NOT NULL REFERENCES</span> dim_party,
+    source_system    TEXT        <span class="ck">NOT NULL</span>,
+    source_party_id  TEXT        <span class="ck">NOT NULL</span>,
+
+    <span class="cl">-- How we came to believe this, and how strongly. Auditors ask.</span>
+    match_method     TEXT        <span class="ck">NOT NULL</span>,  <span class="cl">-- deterministic | probabilistic | steward</span>
+    match_score      NUMERIC(5,4),
+    matched_on       TEXT[],                 <span class="cl">-- ['tax_id','dob','postcode']</span>
+    steward_id       TEXT,                   <span class="cl">-- who approved, when manual</span>
+
+    <span class="cl">-- Business time: when this linkage was true.</span>
+    valid_from       TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    valid_to         TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> 'infinity',
+    <span class="cl">-- Knowledge time: when WE learned it. See § 09.</span>
+    recorded_at      TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now(),
+    superseded_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> 'infinity',
+
+    <span class="ck">CONSTRAINT</span> uq_live_link <span class="ck">UNIQUE</span> (source_system, source_party_id, valid_from, recorded_at)
+);
+
+<span class="cl">-- A source id may only map to one party at one instant of business time,
+-- among currently-believed rows. Enforced, not assumed.</span>
+<span class="ck">CREATE UNIQUE INDEX</span> uq_xref_current <span class="ck">ON</span> party_xref (source_system, source_party_id)
+    <span class="ck">WHERE</span> valid_to = 'infinity' <span class="ck">AND</span> superseded_at = 'infinity';
+
+<span class="cl">-- Merges and splits are events with a reason, not UPDATEs.
+-- This table is what you show an auditor who asks "why is this one client?"</span>
+<span class="ck">CREATE TABLE</span> party_merge_log (
+    event_id         BIGINT      <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    event_type       TEXT        <span class="ck">NOT NULL</span>,  <span class="cl">-- merge | split | unmerge</span>
+    surviving_key    BIGINT      <span class="ck">NOT NULL REFERENCES</span> dim_party,
+    absorbed_key     BIGINT      <span class="ck">NOT NULL REFERENCES</span> dim_party,
+    reason           TEXT        <span class="ck">NOT NULL</span>,
+    evidence         JSONB,
+    actor            TEXT        <span class="ck">NOT NULL</span>,
+    occurred_at      TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);</div>
+
+  <div class="keypoint reveal">
+    <strong>Three rules that follow, and that interviewers probe for.</strong> <em>One</em> — never join on a source system's identifier, because they are reused, they collide across systems, and they change during migrations. <em>Two</em> — the mapping is effective-dated, because identity is a belief that gets revised, not a fact. <em>Three</em> — a merge must be reversible without rewriting history, which is only possible if you kept knowledge time. That third rule is the bridge into the next section, and it is exactly where the "convincing under probing" is won.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="bitemporal">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 09 — BITEMPORALITY</span>Two clocks, and why regulation forces the second</h2>
+  <p class="lede reveal">Most warehouses track one time: when something was true in the business. Regulated reporting needs a second: when the organisation knew it. Without both, "regenerate the report exactly as it was filed on 31 March" is unanswerable — and that question is asked after every restatement.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 860 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two timelines showing valid time versus transaction time. A backdated correction changes what was true in business time but is recorded later in knowledge time, so the originally filed report remains reproducible.">
+    <rect x="0" y="0" width="860" height="330" fill="#fffdf8"/>
+    <text x="30" y="28" fill="#0a8070" font-size="11" font-family="DM Mono, monospace" letter-spacing="1.5">A BACKDATED CORRECTION, SEEN ON BOTH CLOCKS</text>
+
+    <!-- valid time axis -->
+    <text x="30" y="66" fill="#3a352b" font-size="11" font-weight="600">VALID TIME — when it was true in the business</text>
+    <line x1="30" y1="88" x2="820" y2="88" stroke="#8a5d12" stroke-width="1.4"/>
+    <g font-size="9" fill="#6b6355">
+      <line x1="140" y1="82" x2="140" y2="94" stroke="#8a5d12"/><text x="140" y="110" text-anchor="middle">10 Mar</text>
+      <line x1="380" y1="82" x2="380" y2="94" stroke="#8a5d12"/><text x="380" y="110" text-anchor="middle">31 Mar — period close</text>
+      <line x1="640" y1="82" x2="640" y2="94" stroke="#8a5d12"/><text x="640" y="110" text-anchor="middle">30 Apr</text>
+    </g>
+    <rect x="140" y="60" width="14" height="14" rx="3" fill="#0a8070"/>
+    <text x="162" y="72" fill="#0a8070" font-size="9.5">trade booked, value 1,000</text>
+    <rect x="140" y="122" width="14" height="14" rx="3" fill="#d98e63"/>
+    <text x="162" y="134" fill="#8a5d12" font-size="9.5">…same trade, corrected value 1,150 — still dated 10 Mar</text>
+
+    <!-- transaction time axis -->
+    <text x="30" y="184" fill="#3a352b" font-size="11" font-weight="600">TRANSACTION TIME — when we learned it</text>
+    <line x1="30" y1="206" x2="820" y2="206" stroke="#8a5d12" stroke-width="1.4"/>
+    <g font-size="9" fill="#6b6355">
+      <line x1="140" y1="200" x2="140" y2="212" stroke="#8a5d12"/><text x="140" y="228" text-anchor="middle">10 Mar</text>
+      <line x1="380" y1="200" x2="380" y2="212" stroke="#8a5d12"/><text x="380" y="228" text-anchor="middle">05 Apr — report filed</text>
+      <line x1="640" y1="200" x2="640" y2="212" stroke="#8a5d12"/><text x="640" y="228" text-anchor="middle">22 Apr — correction arrives</text>
+    </g>
+    <rect x="140" y="178" width="14" height="14" rx="3" fill="#0a8070"/>
+    <rect x="640" y="178" width="14" height="14" rx="3" fill="#d98e63"/>
+
+    <rect x="30" y="248" width="390" height="62" rx="6" fill="#f2f6ec" stroke="#a8b58a" stroke-width="1.6"/>
+    <text x="48" y="268" fill="#4a6b3a" font-size="10" font-weight="600">As filed — reproducible forever</text>
+    <text x="48" y="284" fill="#6b6355" font-size="9">WHERE valid_from &lt;= '31 Mar'</text>
+    <text x="48" y="298" fill="#6b6355" font-size="9">AND recorded_at &lt;= '05 Apr' → returns 1,000</text>
+
+    <rect x="440" y="248" width="392" height="62" rx="6" fill="#fdf3e3" stroke="#d98e63" stroke-width="1.6"/>
+    <text x="458" y="268" fill="#8a5d12" font-size="10" font-weight="600">As corrected — today's truth</text>
+    <text x="458" y="284" fill="#6b6355" font-size="9">WHERE valid_from &lt;= '31 Mar'</text>
+    <text x="458" y="298" fill="#6b6355" font-size="9">AND superseded_at = 'infinity' → returns 1,150</text>
+  </svg>
+  <p class="figcap reveal">Both answers are correct; they answer different questions. A single-clock model can produce only one of them, and silently loses the other the moment the correction lands.</p>
+
+  <div class="codelabel">The pattern applied to a slowly-changing dimension</div>
+  <div class="codeblock"><span class="cl">-- Business time answers "what was the customer's risk rating in March?"
+-- Knowledge time answers "what did we THINK it was when we filed?"</span>
+<span class="ck">CREATE TABLE</span> dim_customer_risk (
+    party_key      BIGINT      <span class="ck">NOT NULL REFERENCES</span> dim_party,
+    risk_rating    TEXT        <span class="ck">NOT NULL</span>,
+    rating_source  TEXT        <span class="ck">NOT NULL</span>,
+
+    valid_from     TIMESTAMPTZ <span class="ck">NOT NULL</span>,   <span class="cl">-- business time</span>
+    valid_to       TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> 'infinity',
+    recorded_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now(),   <span class="cl">-- knowledge time</span>
+    superseded_at  TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> 'infinity',
+
+    <span class="cl">-- Corrections INSERT. Nothing in this table is ever UPDATEd
+    -- except superseded_at, and nothing is ever DELETEd.</span>
+    <span class="ck">PRIMARY KEY</span> (party_key, valid_from, recorded_at)
+);
+
+<span class="cl">-- "As we understood it on the filing date" -- the reproducibility query
+-- that a regulator, an auditor or a restatement review will ask for.</span>
+<span class="ck">SELECT</span> party_key, risk_rating
+<span class="ck">FROM</span>   dim_customer_risk
+<span class="ck">WHERE</span>  valid_from    &lt;= <span class="cs">'2026-03-31'</span> <span class="ck">AND</span> valid_to      &gt; <span class="cs">'2026-03-31'</span>
+  <span class="ck">AND</span>  recorded_at   &lt;= <span class="cs">'2026-04-05'</span> <span class="ck">AND</span> superseded_at &gt; <span class="cs">'2026-04-05'</span>;</div>
+
+  <p class="reveal"><strong>The cost, stated honestly.</strong> Bitemporality roughly doubles the row count on corrected entities, makes every query carry four predicates instead of two, and is genuinely harder for analysts to use — so you expose a current-state view over it and reserve the full four-predicate form for reporting and audit. Say that trade-off out loud in the interview. A candidate who applies bitemporality to everything is as unconvincing as one who applies it to nothing: it belongs on entities that feed regulated or restated numbers, and nowhere else.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="grain">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 10 — GRAIN</span>The decision you cannot buy your way out of later</h2>
+  <p class="lede reveal">Grain is the first line of any physical design and the most expensive thing to get wrong, because detail you did not store is gone. The rule is simple to state and constantly violated: <strong>model at the finest grain the business could ever ask about, and aggregate upward.</strong> Aggregation is a query; disaggregation is a data recovery project.</p>
+
+  <div class="codelabel">The atomic transaction fact — one row per posting, per currency</div>
+  <div class="codeblock"><span class="cl">-- GRAIN: exactly one row per (transaction, leg, currency). Writing this
+-- sentence before the DDL is the discipline; if you cannot write it in one
+-- line, the model is not understood yet.</span>
+<span class="ck">CREATE TABLE</span> fct_transaction (
+    txn_key          BIGINT       <span class="ck">GENERATED ALWAYS AS IDENTITY PRIMARY KEY</span>,
+    <span class="cl">-- Surrogate FKs only. No source identifier is ever a join key (§ 08).</span>
+    party_key        BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_party,
+    account_key      BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_account,
+    product_key      BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_product,
+
+    <span class="cl">-- Currency is part of the grain, never implied by the source system.
+    -- Retrofitting this column is a full-history rewrite (§ 05).</span>
+    amount           NUMERIC(20,4) <span class="ck">NOT NULL</span>,
+    currency_code    CHAR(3)      <span class="ck">NOT NULL</span>,
+    <span class="cl">-- Reporting-currency amount is stored, not computed on read, so a
+    -- historical report cannot silently move when FX rates are revised.</span>
+    amount_rpt_ccy   NUMERIC(20,4) <span class="ck">NOT NULL</span>,
+    fx_rate_key      BIGINT       <span class="ck">NOT NULL REFERENCES</span> dim_fx_rate,
+
+    <span class="cl">-- UTC plus the original offset. Local time alone is ambiguous
+    -- across DST, permanently and unfixably (§ 05).</span>
+    occurred_at_utc  TIMESTAMPTZ  <span class="ck">NOT NULL</span>,
+    occurred_offset  INTERVAL     <span class="ck">NOT NULL</span>,
+    booking_date     DATE         <span class="ck">NOT NULL</span>,   <span class="cl">-- business date, drives partitioning</span>
+
+    <span class="cl">-- Lineage on the row itself: which extract produced it, and from where.
+    -- This is what makes an incident a 20-minute investigation.</span>
+    source_system    TEXT         <span class="ck">NOT NULL</span>,
+    source_txn_id    TEXT         <span class="ck">NOT NULL</span>,
+    batch_id         BIGINT       <span class="ck">NOT NULL</span>,
+    recorded_at      TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+
+    <span class="ck">CONSTRAINT</span> uq_src <span class="ck">UNIQUE</span> (source_system, source_txn_id, currency_code)
+) <span class="ck">PARTITION BY RANGE</span> (booking_date);
+
+<span class="cl">-- Partition on the column the filters actually use. Every reporting query
+-- is bounded by business date; arrival date would prune nothing.
+-- Repartitioning this later is a one-way door (§ 06).</span>
+
+<span class="cl">-- The invariant that makes the ledger trustworthy: legs of one event net
+-- to zero within a currency. Tested continuously, not assumed (§ 15).</span></div>
+
+  <div class="keypoint reveal">
+    <strong>The one legitimate exception, and how to phrase it.</strong> Cost and regulatory retention can force coarser grain — but the decision is then explicit, dated and signed, not accidental. "We hold atomic detail for 25 months and monthly aggregates for seven years, because retention policy X requires the aggregate and the detail costs Y" is an architectural decision. "We only had monthly" is a discovery someone makes two years later in an audit.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="contracts">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 11 — CONTRACTS</span>Where change becomes expensive, on purpose</h2>
+  <p class="lede reveal">Inside a boundary, refactor freely. Across a boundary, you have consumers you cannot see and cannot call. A contract makes that asymmetry explicit — and deciding where the boundaries go is most of what "architecture" means in practice.</p>
+
+  <div class="codelabel">A published contract — the minimum that makes a dataset a product</div>
+  <div class="codeblock"><span class="cl"># Not a schema file. A schema says what the columns are; a contract says
+# what someone may rely on, for how long, and who answers when it breaks.</span>
+dataset: <span class="cs">fct_transaction_daily</span>
+owner:   <span class="cs">data-platform/retail-banking</span>      <span class="cl"># a team, never a person</span>
+on_call: <span class="cs">#retail-data-oncall</span>
+
+grain:   <span class="cs">"one row per party, product, booking_date, currency"</span>
+
+sla:
+  freshness:     <span class="cs">"T+1 by 06:00 UTC"</span>
+  availability:  <span class="cs">"99.5% of business days within SLA"</span>   <span class="cl"># error budget, not a wish</span>
+  backfill:      <span class="cs">"90 days reprocessable within 4 hours"</span>
+
+semantics:
+  amount_rpt_ccy: <span class="cs">"converted at the rate valid on booking_date,
+                   stored at write time -- does not move when rates are revised"</span>
+  party_key:      <span class="cs">"resolved identity; may merge historically (see party_merge_log)"</span>
+
+guarantees:
+  - <span class="cs">"additive columns only within a major version"</span>
+  - <span class="cs">"reconciles to GL daily; variance = 0 or the dataset is held back"</span>
+  - <span class="cs">"no row is ever deleted; corrections arrive as new rows"</span>
+
+deprecation:
+  notice:    <span class="cs">"2 quarters"</span>
+  dual_run:  <span class="cs">"1 quarter with both versions published"</span>
+
+<span class="cl"># The guarantees section is the interesting one. "Additive only" is what
+# lets consumers upgrade lazily. "Held back on variance" is a promise that
+# the pipeline will fail LOUDLY rather than publish a wrong number quietly --
+# and that choice is the difference between a platform people trust and one
+# they shadow-copy into spreadsheets.</span></div>
+
+  <p class="reveal">The last comment is the point worth making aloud. Every organisation with an untrusted warehouse has the same symptom: analysts maintaining private extracts. That is not a discipline problem, it is a contract problem — nobody promised them anything, so they insured themselves. Contracts are how you end that, and they cost nothing but the willingness to be held to them.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="tradeoffs">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 12 — THE TRADE-OFF RULES</span>Each one resolves to an answer</h2>
+  <p class="lede reveal">"It depends" is not a trade-off, it is a refusal to have one. A usable rule names what it depends <em>on</em> and what value tips it. These are the ones worth carrying into an interview, phrased so that they decide something.</p>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>The choice</th><th>The rule that decides it</th><th>What tips it</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Batch vs streaming</strong></td>
+        <td>Stream only where a registered decision has tolerable staleness below the batch cycle <em>and</em> acting sooner changes the outcome</td>
+        <td>No decision under ~1 hour → batch. Streaming roughly triples operational surface: ordering, state, replay, exactly-once, backfill</td>
+      </tr>
+      <tr>
+        <td><strong>Normalize vs denormalize</strong></td>
+        <td>Both, at different layers. 3NF where you reconcile and enforce integrity; dimensional where humans query</td>
+        <td>Not a global choice. Treating it as one is the tell of a candidate who has only worked in one layer</td>
+      </tr>
+      <tr>
+        <td><strong>Build vs buy</strong></td>
+        <td>Buy unless a regulator or a customer would recognise the thing as <em>yours</em></td>
+        <td>Ingestion, orchestration, storage → buy. Identity resolution rules, risk logic, metric semantics → build</td>
+      </tr>
+      <tr>
+        <td><strong>Central vs federated (mesh)</strong></td>
+        <td>Federate only when domains have dedicated data engineers <em>and</em> a self-serve platform team already exists</td>
+        <td>Below roughly three staffed domains, mesh is silos with better vocabulary. The platform must precede the federation</td>
+      </tr>
+      <tr>
+        <td><strong>ELT vs ETL</strong></td>
+        <td>Land raw first, always. Transform after, in the warehouse, where it is versioned and re-runnable</td>
+        <td>The exception is PII that may not land unmasked — tokenize in flight, and accept the operational cost</td>
+      </tr>
+      <tr>
+        <td><strong>Warehouse vs lakehouse</strong></td>
+        <td>Choose the storage format first and the engine second; open table format keeps the engine a two-way door</td>
+        <td>If a vendor's proprietary storage is the only option, the vendor decision has silently become one-way (§ 06)</td>
+      </tr>
+      <tr>
+        <td><strong>Real-time identity resolution</strong></td>
+        <td>Resolve asynchronously; serve the last resolved state. Synchronous resolution puts a fuzzy-matching service on the critical path</td>
+        <td>Unless a decision in the register needs it inline — fraud usually does, reporting never does</td>
+      </tr>
+      <tr>
+        <td><strong>One warehouse vs many marts</strong></td>
+        <td>One conformed integration layer, many serving marts. Conform the dimensions, not the consumers</td>
+        <td>Marts that bypass integration are how two teams end up with two revenue numbers and no way to adjudicate</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="keypoint reveal">
+    <strong>How to deploy these under probing.</strong> Give the rule, then immediately name its failure mode — "stream only where a decision needs it; the failure mode is that someone senior wants a real-time dashboard nobody acts on, and I would push back by asking what they would do differently at 9am versus noon." Naming the counter-pressure shows you have applied the rule in an organisation rather than read it. That is precisely the register the Citi interviewer was probing for.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="migration">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 13 — COEXISTENCE</span>The legacy estate does not pause while you build</h2>
+  <p class="lede reveal">The question explicitly says there is existing data debt and legacy systems. Programmes rarely fail at the new architecture; they fail at the switch-over, and they stall at roughly 70% — new platform live, old platform still running, nobody willing to sign the decommission. The defence is to make decommissioning a gate with numeric criteria rather than a decision someone has to be brave about.</p>
+
+  <svg class="svg-diagram reveal" viewBox="0 0 860 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Strangler migration: consumers routed through a facade, legacy and new pipelines running in parallel, a reconciliation gate comparing outputs, then cutover and decommission.">
+    <defs>
+      <marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8a5d12"/></marker>
+    </defs>
+    <rect x="0" y="0" width="860" height="340" fill="#fffdf8"/>
+    <text x="30" y="28" fill="#0a8070" font-size="11" font-family="DM Mono, monospace" letter-spacing="1.5">STRANGLER — CONSUMERS MOVE ONCE, TO A FACADE, AND NEVER AGAIN</text>
+
+    <rect x="30" y="52" width="110" height="60" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+    <text x="85" y="78" fill="#d8a44a" font-size="10" text-anchor="middle">Sources</text>
+    <text x="85" y="94" fill="#8f8672" font-size="8.5" text-anchor="middle">unchanged</text>
+
+    <rect x="180" y="34" width="150" height="46" rx="6" fill="#5a4a32" stroke="#3a2e1a"/>
+    <text x="255" y="54" fill="#d8c4a0" font-size="10" text-anchor="middle">Legacy pipeline</text>
+    <text x="255" y="69" fill="#a89880" font-size="8.5" text-anchor="middle">still authoritative</text>
+
+    <rect x="180" y="96" width="150" height="46" rx="6" fill="#0a8070" stroke="#076558"/>
+    <text x="255" y="116" fill="#ffffff" font-size="10" text-anchor="middle">New pipeline</text>
+    <text x="255" y="131" fill="#cdeae4" font-size="8.5" text-anchor="middle">shadow, then primary</text>
+
+    <rect x="376" y="58" width="130" height="70" rx="6" fill="#fdf3e3" stroke="#d98e63" stroke-width="2"/>
+    <text x="441" y="80" fill="#8a5d12" font-size="10" text-anchor="middle" font-weight="600">Reconciliation</text>
+    <text x="441" y="95" fill="#8a5d12" font-size="10" text-anchor="middle" font-weight="600">gate</text>
+    <text x="441" y="112" fill="#6b6355" font-size="8.5" text-anchor="middle">row + aggregate</text>
+    <text x="441" y="123" fill="#6b6355" font-size="8.5" text-anchor="middle">diff, every run</text>
+
+    <rect x="552" y="58" width="120" height="70" rx="6" fill="#2a2114" stroke="#3a2e1a"/>
+    <text x="612" y="86" fill="#d8a44a" font-size="10" text-anchor="middle">Facade /</text>
+    <text x="612" y="101" fill="#d8a44a" font-size="10" text-anchor="middle">semantic layer</text>
+    <text x="612" y="118" fill="#a8b58a" font-size="8.5" text-anchor="middle">one stable address</text>
+
+    <rect x="718" y="58" width="112" height="70" rx="6" fill="#1a1208" stroke="#3a2e1a"/>
+    <text x="774" y="86" fill="#d8a44a" font-size="10" text-anchor="middle">Consumers</text>
+    <text x="774" y="103" fill="#8f8672" font-size="8.5" text-anchor="middle">move once,</text>
+    <text x="774" y="116" fill="#8f8672" font-size="8.5" text-anchor="middle">at the start</text>
+
+    <g stroke="#8a5d12" stroke-width="1.4" marker-end="url(#ma)" fill="none">
+      <path d="M140,72 L178,57"/><path d="M140,92 L178,116"/>
+      <path d="M330,57 L374,80"/><path d="M330,119 L374,106"/>
+      <path d="M506,93 L550,93"/><path d="M672,93 L716,93"/>
+    </g>
+
+    <rect x="30" y="170" width="800" height="58" rx="6" fill="#f2f6ec" stroke="#a8b58a" stroke-width="1.6"/>
+    <text x="48" y="191" fill="#4a6b3a" font-size="11" font-weight="600">The decommission gate — numeric, agreed in advance, so nobody has to be brave</text>
+    <text x="48" y="209" fill="#6b6355" font-size="9.5">30 consecutive business days at zero unexplained variance · every consumer migrated to the facade · runbook and on-call transferred · rollback rehearsed once</text>
+    <text x="48" y="222" fill="#6b6355" font-size="9.5">Until every criterion is met the legacy system stays. Once they are all met, decommissioning is administrative rather than a judgement call.</text>
+
+    <rect x="30" y="248" width="800" height="72" rx="6" fill="#f3f0e6" stroke="#e9e2d0"/>
+    <text x="48" y="269" fill="#3a352b" font-size="10" font-weight="600">Why the facade comes first, before any pipeline work:</text>
+    <text x="48" y="287" fill="#6b6355" font-size="9.5">If consumers point at physical tables, every migration is a negotiation with every consumer, and the cost of change scales with adoption — the</text>
+    <text x="48" y="302" fill="#6b6355" font-size="9.5">worst possible incentive. Point them at a stable logical address on day one and you can replace what is behind it as often as you need to.</text>
+    <text x="48" y="316" fill="#8a5d12" font-size="9.5" font-style="italic">This is the step that most often gets deferred, and deferring it is what produces the 70% stall.</text>
+  </svg>
+  <p class="figcap reveal">Strangler with a reconciliation gate. The dual-run period is not waste — it is the only evidence that will let anyone sign the decommission.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="metrics">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 14 — THE METRICS</span>Only one is genuinely non-negotiable</h2>
+  <p class="lede reveal">The third question asks which metrics prove the system is good. The strongest framing is to answer a sharper question than the one asked: <em>which numbers would make me roll back a release or hold a publication?</em> Metrics that would never trigger an action are dashboard decoration, and listing them is what makes an answer sound rehearsed.</p>
+
+  <table class="cmp-table reveal">
+    <thead><tr><th>Metric</th><th>Target</th><th>What it tells you that nothing else does</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Reconciliation variance</strong> vs system of record</td>
+        <td><strong>Zero.</strong> Daily. Breaks logged and aged</td>
+        <td>The only truly non-negotiable one. If warehouse revenue ≠ GL revenue, every other metric is measuring the performance of a wrong answer</td>
+      </tr>
+      <tr>
+        <td>Freshness, as an error budget</td>
+        <td>99.5% of business days within the contracted SLA</td>
+        <td>A single threshold hides how often you miss. A budget makes reliability negotiable with a number rather than a feeling</td>
+      </tr>
+      <tr>
+        <td>Completeness of expected partitions</td>
+        <td>100% landed, or the dataset is held back</td>
+        <td>Catches the silent failure that quality tests miss entirely — data that is correct but <em>absent</em></td>
+      </tr>
+      <tr>
+        <td><strong>Time to onboard a new source</strong></td>
+        <td>Trending down; measured per source</td>
+        <td>The single best proxy for "resilient against future business shifts." A rigid architecture shows up here first, long before latency degrades</td>
+      </tr>
+      <tr>
+        <td>Schema-change lead time &amp; consumer break rate</td>
+        <td>Additive change same-day; zero unplanned breaks</td>
+        <td>If adding a column takes three weeks or breaks four dashboards, the architecture is brittle no matter how fast it queries</td>
+      </tr>
+      <tr>
+        <td>Column-level lineage coverage</td>
+        <td>100% of published regulatory metrics</td>
+        <td>Directly demanded by BCBS 239-style expectations. Also the difference between a 20-minute incident and a two-day one</td>
+      </tr>
+      <tr>
+        <td>Backfill throughput</td>
+        <td>90 days reprocessed within one business day</td>
+        <td>Your real recovery capability. RPO/RTO on a cluster is meaningless if correcting history takes three weeks</td>
+      </tr>
+      <tr>
+        <td>Cost per million transactions processed</td>
+        <td>Flat or declining as volume grows</td>
+        <td>Absolute spend rising is fine when volume rises faster. Unit cost is the metric that reveals whether the architecture actually scales</td>
+      </tr>
+      <tr>
+        <td>Query latency p95 / p99 by consumer class</td>
+        <td>Per contract</td>
+        <td>Averages hide the tail, and the tail is what users experience and remember</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="keypoint reveal">
+    <strong>The two that separate a strong answer from a generic one</strong> are <em>time to onboard a new source</em> and <em>schema-change lead time</em>. Everyone lists freshness and latency. Almost nobody names a metric for evolvability — and evolvability is precisely what "resilient against future business shifts" is asking about. An architecture that serves today's queries in 200 ms but takes a quarter to absorb an acquired bank's data has failed the actual question.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="reconciliation">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 15 — THE CONTROL</span>What "reconciliation variance = zero" actually is</h2>
+  <p class="lede reveal">Claiming a non-negotiable metric invites the obvious follow-up: how is it enforced? Have the mechanism ready, because "we monitor it" is not an answer — monitoring tells you after someone has already used the number.</p>
+
+  <div class="codelabel">The gate that runs before publication, not after</div>
+  <div class="codeblock"><span class="cl">-- Runs after load, before the serving layer is swapped. If it fails, the
+-- previous day's data stays live and someone is paged. Publishing a wrong
+-- number is strictly worse than publishing yesterday's -- one is a stale
+-- decision, the other is a wrong one nobody knows is wrong.</span>
+<span class="ck">WITH</span> warehouse <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> booking_date, currency_code,
+           <span class="cf">SUM</span>(amount) <span class="ck">AS</span> amt, <span class="cf">COUNT</span>(*) <span class="ck">AS</span> rows
+    <span class="ck">FROM</span>   fct_transaction
+    <span class="ck">WHERE</span>  booking_date = :business_date
+    <span class="ck">GROUP BY</span> 1, 2
+),
+ledger <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> posting_date <span class="ck">AS</span> booking_date, currency_code,
+           <span class="cf">SUM</span>(posted_amount) <span class="ck">AS</span> amt, <span class="cf">COUNT</span>(*) <span class="ck">AS</span> rows
+    <span class="ck">FROM</span>   gl_postings                    <span class="cl">-- the system of record</span>
+    <span class="ck">WHERE</span>  posting_date = :business_date
+    <span class="ck">GROUP BY</span> 1, 2
+)
+<span class="ck">SELECT</span> <span class="cf">COALESCE</span>(w.booking_date, l.booking_date) <span class="ck">AS</span> booking_date,
+       <span class="cf">COALESCE</span>(w.currency_code, l.currency_code) <span class="ck">AS</span> ccy,
+       <span class="cf">COALESCE</span>(w.amt, 0) - <span class="cf">COALESCE</span>(l.amt, 0)   <span class="ck">AS</span> amount_variance,
+       <span class="cf">COALESCE</span>(w.rows, 0) - <span class="cf">COALESCE</span>(l.rows, 0) <span class="ck">AS</span> row_variance
+<span class="ck">FROM</span>       warehouse w
+<span class="ck">FULL OUTER JOIN</span> ledger l              <span class="cl">-- FULL OUTER: a missing side is a break too</span>
+       <span class="ck">ON</span>  w.booking_date = l.booking_date
+       <span class="ck">AND</span> w.currency_code = l.currency_code
+<span class="ck">WHERE</span>      <span class="cf">COALESCE</span>(w.amt, 0)  &lt;&gt; <span class="cf">COALESCE</span>(l.amt, 0)
+       <span class="ck">OR</span>  <span class="cf">COALESCE</span>(w.rows, 0) &lt;&gt; <span class="cf">COALESCE</span>(l.rows, 0);
+
+<span class="cl">-- Any row returned = publication halted. Note the three deliberate choices:
+--   1. FULL OUTER, so a currency present on only one side is caught.
+--   2. Both amount AND row count -- two errors can cancel in a sum.
+--   3. Grouped by currency, because a cross-currency total can net to zero
+--      while both sides are wrong. Reconciling on a single grand total is
+--      the classic control that passes while the data is broken.</span></div>
+
+  <p class="reveal">Breaks that are understood and accepted — a known timing difference, a documented in-transit account — go into a <strong>break register</strong> with an owner and an expiry date, and the gate excludes them explicitly by identifier. What it must never do is widen a tolerance to make the check pass. A tolerance that grows is a control that has been quietly switched off, and in a regulated environment that is the finding an auditor is specifically looking for.</p>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="oneminute">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 16 — THE ONE-MINUTE ANSWER</span>If you get sixty seconds, say this</h2>
+  <div class="verdict reveal">
+    <h3>Compressed</h3>
+    <p style="font-size:17px; margin-bottom:12px;">"I design against <strong>decisions</strong>, not requirements. Step one is a decision register — who decides what, how often, how stale it can be, what being wrong costs. That converts vague goals into a latency and accuracy budget. Step two is source forensics: I profile the sources rather than interview people about them, because documentation describes intent and I need behaviour. Then the conceptual model — entities, grain, identity — deliberately before any vendor conversation."</p>
+    <p style="font-size:17px; margin-bottom:12px;">"For trade-offs, I sort every open choice by <strong>reversibility</strong>. Grain, identity, bitemporality and metric semantics are one-way doors — undoing them means rewriting history or renegotiating with every consumer, so they get the deliberation. Orchestrators, BI tools, even the compute engine if storage is an open format, are two-way doors — I decide those quickly and move on. Most programmes invert this and spend six weeks on a tool bake-off while the grain gets decided by whoever writes the first pipeline."</p>
+    <p style="font-size:17px;">"In production, one metric is non-negotiable: <strong>reconciliation variance against the system of record is zero</strong>, checked before publication, not after. Everything else is an error budget — freshness at 99.5% of business days, completeness, p95 latency per contract. But the two I watch for resilience are <strong>time to onboard a new source</strong> and <strong>schema-change lead time</strong>, because those are what tell me whether the architecture can absorb a business shift. A platform that answers today's questions in 200 milliseconds but needs a quarter to take on an acquisition has failed the actual test."</p>
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="probes">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 17 — THE PROBES</span>Where this interview is actually decided</h2>
+  <p class="lede reveal">The reader who shared this question said they could answer, but not convincingly once the interviewer probed. That is the normal failure mode: the prepared answer holds for ninety seconds, and the follow-up finds the edge. These are the probes that follow this question, and what a convincing reply sounds like.</p>
+
+  <div class="keypoint reveal">
+    <strong>"What if the business cannot articulate its goals?"</strong><br>
+    Then stop asking. Watch instead: find decisions currently being made late, badly, or in spreadsheets, and reconstruct the register from those. People cannot specify what they want in the abstract but are precise about what frustrates them. "Which decision did you make last month where you wished you'd had better data, and what did it cost?" gets a usable answer where "what are your requirements?" gets a wish list.
+  </div>
+
+  <div class="keypoint reveal">
+    <strong>"Our CDO has mandated a data mesh. Would you push back?"</strong><br>
+    Not on the destination — on the sequence. Mesh needs two prerequisites: domain teams with real data engineering capacity, and a self-serve platform so a domain can publish without rebuilding infrastructure. Without those, federation produces silos with better vocabulary and no conformed dimensions. So: build the platform and the contract standard first, federate the two most mature domains as proof, expand on evidence. That is agreeing with the strategy while refusing to skip its foundation — which is a different thing from resisting it, and interviewers can tell the difference.
+  </div>
+
+  <div class="keypoint reveal">
+    <strong>"A critical source is unreliable and the owning team will not fix it."</strong><br>
+    Grade it C and quarantine it — it may feed exploratory analysis, never a conformed layer or a regulatory number. Publish anything derived from it with the caveat attached to the data, not buried in a wiki. This usually resolves itself: the moment a consumer is told a number cannot be used for reporting because of source X, the pressure to fix source X arrives from a direction the data team never had access to.
+  </div>
+
+  <div class="keypoint reveal">
+    <strong>"Why not just buy a platform that does all of this?"</strong><br>
+    Often you should, and I would start there for ingestion, orchestration and storage. But name what the purchase decides for you: if it stores in a proprietary format, the engine has silently become a one-way door; if it imposes its own identity model, that is the most expensive decision in the design made by procurement. Buy the commodity layers, keep storage open, and keep identity resolution and metric semantics in your own control — those are the two things a regulator will hold you accountable for, and a vendor cannot be accountable on your behalf.
+  </div>
+
+  <div class="keypoint reveal">
+    <strong>"Tell me about a time you got a foundational decision wrong."</strong><br>
+    Have a real one, and make it a one-way door — a two-way door story proves nothing. The strong shape: name the decision, name the signal you missed, name the cost, and name the practice you changed. "We set the fact grain at daily because no stated requirement needed intraday; nine months later treasury needed hourly and there was no detail to recover, so we ran fourteen months of backfill from archives. Now I profile what the source actually emits before setting grain, and store the finest grain available even when nothing has asked for it — because grain is the one thing you cannot add later."
+  </div>
+
+  <div class="keypoint reveal">
+    <strong>"How do you know when the architecture is done?"</strong><br>
+    It is not, and saying so is correct rather than evasive — but follow it with the criterion. It is working when the cost of the next change is flat: onboarding the tenth source costs about what the fifth did, and adding a column does not require a committee. Rising marginal cost of change is the signal that the architecture has stopped absorbing the business and started resisting it. That is the same measurement as § 14, which is why those two metrics are in the answer at all.
+  </div>
+</div>
+</section>
+
+<hr class="rule">
+
+<section id="mistakes">
+<div class="wrap">
+  <h2 class="reveal"><span class="num">§ 18 — COMMON MISTAKES</span>What tanks this answer</h2>
+  <div class="mistake-card reveal"><strong>Leading with a stack.</strong> Naming Snowflake, dbt and Airflow in the first sentence answers a question about tools that nobody asked. The prompt explicitly says "before vendors are locked in."</div>
+  <div class="mistake-card reveal"><strong>A process with no artifacts.</strong> "Gather requirements, design, build, iterate" describes every project ever attempted. Each step must produce something reviewable.</div>
+  <div class="mistake-card reveal"><strong>Treating greenfield as clean.</strong> The prompt says data debt exists. An answer that never mentions coexistence, dual-run or decommission has ignored a third of the question.</div>
+  <div class="mistake-card reveal"><strong>Trade-offs that never resolve.</strong> "It depends on the use case" for every choice. A rule must name what it depends on and what tips it.</div>
+  <div class="mistake-card reveal"><strong>Metrics nobody would act on.</strong> Listing uptime and row counts. The useful question is which number halts a release — and reconciliation is the answer.</div>
+  <div class="mistake-card reveal"><strong>Confusing resilience with uptime.</strong> "Resilient against future business shifts" is about evolvability. Failover time does not measure whether you can absorb an acquisition.</div>
+  <div class="mistake-card reveal"><strong>Bitemporality everywhere.</strong> Applying it to all entities to sound rigorous. It has real analyst-facing cost; it belongs on regulated and restated entities, and naming that boundary is the signal.</div>
+  <div class="mistake-card reveal"><strong>Mesh as a default.</strong> Proposing federation without naming its prerequisites. Interviewers at large banks have watched this fail and will probe it hard.</div>
+</div>
+</section>
+
+<hr class="rule">
+
+<div class="community-ribbon">
+  ◆ <strong>This was a community submission.</strong> Just finished an interview? Share the question that stumped you — anonymous or credited. <a href="/interview.app/submit/" style="color:#0e7490;font-weight:600;">Share a question →</a> &nbsp;|&nbsp; <a href="index.html" style="color:#0e7490;font-weight:600;">← Design Index</a>
+</div>
+
+<script>
+(function(){
+  if(!('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+})();
+</script>
+
+<div class="back-home"><a href="https://paddyspeaks.com" target="_blank">← paddyspeaks.com</a></div>
+<div class="scroll-btns"><a href="#top" title="Back to top">↑</a><a href="#bottom" title="Go to bottom">↓</a></div>
+<div id="bottom"></div>
+</body>
+</html>
