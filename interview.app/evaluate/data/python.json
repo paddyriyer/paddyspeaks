@@ -7642,6 +7642,54 @@
       ],
       "answer": 0,
       "explanation": "asyncio.Semaphore(10) is the idiomatic approach for concurrency limiting in async code\u2014each coroutine acquires the semaphore before the critical section and releases it after, enforcing the 10-request cap. Option 1 is correct; gather() has no built-in concurrency limiting, ThreadPoolExecutor doesn't integrate cleanly with asyncio for this pattern, and while Queue+workers works, it's unnecessarily complex compared to Semaphore."
+    },
+    {
+      "id": "py-new-085",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "You implement a descriptor that validates positive integers on assignment. The descriptor's `__set__` method raises `ValueError` if the value is not positive. When you assign a negative value to an instance attribute using this descriptor, what happens in the following code?\n\n```python\nclass PositiveInt:\n    def __set__(self, obj, value):\n        if value <= 0:\n            raise ValueError('must be positive')\n        obj.__dict__['_value'] = value\n    def __get__(self, obj, objtype=None):\n        return obj.__dict__.get('_value')\n\nclass Account:\n    balance = PositiveInt()\n\nacc = Account()\nacc.balance = -100\n```",
+      "options": [
+        "The ValueError is raised immediately and the assignment fails; `acc.balance` remains unset",
+        "Python silently ignores the descriptor and stores -100 directly in `acc.__dict__['balance']`",
+        "The descriptor catches the error internally and defaults to 0",
+        "The assignment succeeds because descriptors only validate on retrieval, not assignment"
+      ],
+      "answer": 0,
+      "explanation": "Descriptors' `__set__` methods are called during assignment (before the value is stored). When `ValueError` is raised in `__set__`, the exception propagates immediately and the assignment operation fails\u2014the attribute is never created. Descriptors enforce validation at assignment time, not retrieval time."
+    },
+    {
+      "id": "py-new-086",
+      "type": "single",
+      "topic": "walrus operator",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "A data engineer uses the walrus operator in a Spark data processing pipeline. Which code snippet correctly uses `:=` to both compute and use a value in a conditional, and what is the key advantage over traditional assignment?\n\n```python\n# Option A\nif (df_filtered := df.filter('revenue > 1000')).count() > 100:\n    process(df_filtered)\n\n# Option B\ndf_filtered = df.filter('revenue > 1000')\nif df_filtered.count() > 100:\n    process(df_filtered)\n```\nAssuming both are syntactically valid, which statement is TRUE?",
+      "options": [
+        "Option A evaluates the filter twice; Option B is more efficient because it reuses the variable",
+        "Option A allows assignment and conditional check in one expression, reducing variable scope pollution and improving readability",
+        "Option B is required because PySpark doesn't support walrus operators in method chains",
+        "Both are identical in performance and readability; walrus operator provides no practical benefit here"
+      ],
+      "answer": 1,
+      "explanation": "The walrus operator `:=` enables assignment within expressions, allowing the filtered DataFrame to be both computed and used in the conditional in a single statement. This keeps the variable's scope tighter and avoids polluting the outer namespace with intermediate variables, improving code clarity. Option A and B have identical performance (one evaluation each), but Option A is more Pythonic."
+    },
+    {
+      "id": "py-new-087",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "You're building a data pipeline and define a dataclass to represent events with a mutable default list. What is the problem with this code and how does `dataclasses` handle it?\n\n```python\nfrom dataclasses import dataclass\n\n@dataclass\nclass Event:\n    name: str\n    tags: list = []  # Problematic line\n\ne1 = Event('click')\ne2 = Event('view')\ne1.tags.append('important')\nprint(e2.tags)\n```",
+      "options": [
+        "The code raises `TypeError` because dataclasses forbid mutable defaults; you must use `field(default_factory=list)`",
+        "Both `e1.tags` and `e2.tags` reference the same list, so `e2.tags` will be `['important']`\u2014a classic Python gotcha",
+        "Dataclasses automatically create separate list instances for each object, so `e2.tags` remains `[]`",
+        "The code works correctly; `list = []` is evaluated once per dataclass definition, not per instance"
+      ],
+      "answer": 1,
+      "explanation": "Without using `field(default_factory=list)`, the mutable default `[]` is shared across all instances\u2014a classic Python gotcha. When you append to `e1.tags`, you modify the shared list, so `e2.tags` also reflects the change. The correct approach is to use `field(default_factory=list)` to ensure each instance gets its own list instance."
     }
   ]
 }

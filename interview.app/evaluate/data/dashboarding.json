@@ -989,6 +989,38 @@
       ],
       "answer": 0,
       "explanation": "The matrix's row context (Month) creates an additional filter on top of the Q4 slicer, reducing the total. CALCULATE() with ALL(Date) removes that month-level filter to restore the full Q4 sum. TREATAS is for lookup alignment, KEEPFILTERS preserves the problem, and SUMX iterates but doesn't address the filter context conflict."
+    },
+    {
+      "id": "dash-new-007",
+      "type": "single",
+      "topic": "semantic layer",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "Your company has three separate BI tools (Looker, Tableau, Power BI) used by different teams. Each tool independently calculates 'Monthly Recurring Revenue' (MRR) using slightly different logic: one excludes trial customers, one uses UTC midnight cutoff, and one applies a currency conversion factor. Finance reports a fourth number. Which architectural pattern best prevents this divergence across all downstream dashboards?",
+      "options": [
+        "Implement a centralized semantic layer (dbt metrics or BI semantic model) as the single source of truth for MRR definition, with all tools querying it rather than raw tables",
+        "Enforce a strict SQL naming convention (e.g., mrr_v2_finance_approved) and audit all dashboard queries monthly",
+        "Create a reconciliation dashboard that highlights differences and flags mismatches for manual investigation",
+        "Move all dashboards to a single BI tool so definitions are co-located in one codebase"
+      ],
+      "answer": 0,
+      "explanation": "A semantic layer decouples metric definitions from BI tools and query patterns, ensuring MRR is computed identically regardless of which tool executes the query. This addresses the root cause (inconsistent logic) rather than treating symptoms. A naming convention or reconciliation dashboard only detects problems; moving to one tool trades flexibility for compliance but doesn't guarantee correctness."
+    },
+    {
+      "id": "dash-new-008",
+      "type": "single",
+      "topic": "aggregate awareness",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "A dashboard queries a fact table with 2.8 billion daily transaction rows to display 'Total Revenue by Month' across 18 months. The query takes 8 seconds even with a clustered index on (date, revenue). A pre-aggregated monthly summary table exists but is manually refreshed weekly. What is the primary risk of routing dashboard queries to the pre-aggregated table without additional safeguards?",
+      "options": [
+        "The pre-aggregated table will consume more storage than the fact table, making infrastructure costs prohibitive",
+        "Dashboards will serve stale data if the pre-aggregated table has not been refreshed since the last transaction was recorded, leading to inconsistency with ad-hoc queries against raw data",
+        "The monthly aggregation loses transaction-level detail, preventing drill-down analysis that users may later request",
+        "Pre-aggregation breaks standard SQL semantics and requires users to learn a new query language"
+      ],
+      "answer": 1,
+      "explanation": "Without metadata tracking or freshness checks, a stale pre-aggregated table will return different results than live transaction data, especially problematic if the current month's aggregation lags actual transactions. This violates data contract expectations and confuses users. Storage and detail-loss are trade-offs users accept; language barriers can be abstracted by the BI layer. The key risk is silent inconsistency."
     }
   ]
 }

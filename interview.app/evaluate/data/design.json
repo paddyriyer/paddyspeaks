@@ -5784,6 +5784,54 @@
       ],
       "answer": 0,
       "explanation": "Option 0 is the correct Data Vault 2.0 approach: separate Satellites per source preserve audit history and load timestamps, allowing full traceability of conflicts while avoiding data loss. Business logic (not the vault) resolves conflicts via priority rules. Option 1 breaks the immutability principle; option 2 loses granular source-level audit trails; option 3 violates the single-Hub-per-business-concept rule and creates downstream matching complexity."
+    },
+    {
+      "id": "ds-new-070",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "You're migrating a 2PB fact table from Delta Lake to Iceberg. The table has 500 daily partitions, 50M small files per partition, and queries filter on timestamp + user_id. During migration, you need to minimize query latency degradation. Which approach minimizes manifest file bloat and read latency after cutover?",
+      "options": [
+        "Use Iceberg's 'add' API with partition evolution to incrementally rewrite files while maintaining Delta-to-Iceberg dual-write; prioritize compacting partitions older than 90 days to v2 manifests.",
+        "Do a full table rewrite in one batch job, sorting by (user_id, timestamp), compacting to 256MB files, and setting v2-manifest format with statistics enabled before cutover.",
+        "Run a streaming Spark job that continuously rewrites the 50 most recent partitions into 512MB Iceberg files while keeping older partitions as Delta; use Iceberg row-level deletes for soft deletes.",
+        "Migrate only the schema and metadata; keep data in Delta format with an Iceberg view on top; use Iceberg's SQL rewrite APIs to compact files only when they exceed 1GB."
+      ],
+      "answer": 1,
+      "explanation": "Full batch rewrite with explicit sorting by query predicates (user_id, timestamp), larger file sizes (256MB), and v2-manifest format with stats directly reduces manifest overhead and read latency. Delta-to-Iceberg dual writes add complexity and latency; keeping Delta underneath defeats Iceberg's time-travel and schema-evolution benefits; rewriting only recent partitions leaves legacy small-file problems in older data."
+    },
+    {
+      "id": "ds-new-071",
+      "type": "single",
+      "topic": "data contracts",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "Your data contracts framework requires producers to publish schema, SLA (freshness, row-count bounds), and lineage. A downstream ML team consumes a user_clicks table but their feature-extraction job fails when a new nullable boolean column 'is_bot' is added with no SLA update. Which design choice prevents this class of contract violation?",
+      "options": [
+        "Require producers to version their contracts (v1, v2, \u2026) and forbid backward-incompatible changes; consumers must explicitly opt-in to new versions before accessing new columns.",
+        "Add a 'contract-change-severity' field (breaking/non-breaking); breaking changes require consumer sign-off; non-breaking changes (new optional columns) auto-propagate after a 7-day grace period.",
+        "Enforce that new nullable columns must declare a 'populate_missing_values' SLA (e.g., 'backfill within 30 days'); consumers use a contract-validator UDF that replaces missing values with a default before processing.",
+        "Implement schema-on-read with a default-value registry; when consumers read the table, missing columns are auto-filled from the registry; producers register defaults when adding columns."
+      ],
+      "answer": 0,
+      "explanation": "Explicit versioning with opt-in consumption gives consumers control and predictability; producers cannot unilaterally break downstream jobs. Grace periods (option B) still allow unexpected failures during the window; schema-on-read (options C, D) mask contract violations rather than preventing them and add runtime overhead."
+    },
+    {
+      "id": "ds-new-072",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "Your Delta table (500GB, partitioned by date, 10K daily appends) uses Z-order clustering on user_id. After 6 months, you notice a spike in VACUUM errors and query plans show file-level skipping is failing. You suspect excessive small-file accumulation from multi-partition updates. Which Delta optimization strategy addresses both root causes?",
+      "options": [
+        "Run OPTIMIZE with Z-order target every Sunday; set delta.autoOptimize.optimizeWrite=true and delta.autoOptimize.autoCompact=true; increase VACUUM retention to 30 days and disable deletion.",
+        "Enable delta.dataChange=false on all append-only writes; schedule a weekly OPTIMIZE job with binSize=256MB and maxFileSize=1GB; run VACUUM with a 7-day retention window weekly.",
+        "Repartition the table by (date, user_id_hash % 100) to increase parallelism; disable Z-order; enable delta.tuneFileSizesForRewrites=true; run OPTIMIZE after each bulk load.",
+        "Enable delta.enableUniquePrefixMetadata=true to track file lineage; increase delta.logStore.numRetries; run OPTIMIZE only on partitions modified in the last 3 days using liquid clustering on (date, user_id)."
+      ],
+      "answer": 1,
+      "explanation": "Option B correctly identifies multi-partition updates (dataChange=false ensures Delta optimizations apply), sets explicit file-size targets (256MB\u20131GB range optimal for skipping), and uses an appropriate VACUUM retention window (7 days). autoOptimize flags (option A) can cause unpredictable compaction; repartitioning (option C) discards Z-order benefits; liquid clustering (option D) is not a Delta feature and doesn't address VACUUM errors."
     }
   ]
 }

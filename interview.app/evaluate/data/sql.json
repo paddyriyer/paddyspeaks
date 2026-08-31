@@ -14258,6 +14258,70 @@
       ],
       "answer": 0,
       "explanation": "Window function ordering must be fully deterministic\u2014when prices tie, the window function needs a tiebreaker column (like product_id) to ensure consistent row numbering across executions. RANK() handles ties differently but doesn't solve the root cause. Query result ordering and hints don't affect window function row assignment logic."
+    },
+    {
+      "id": "sql-new-088",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "You have a `customer_master` table and receive daily updates in a `staging_customers` table. Some customers are new, some have address/phone changes, and some should be marked inactive. You need to merge in one transaction: insert new customers, update existing ones, and set a `is_active` flag to false for customers not in staging. Which MERGE clause combination correctly handles this?",
+      "options": [
+        "WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED BY SOURCE THEN UPDATE SET is_active = false WHEN NOT MATCHED THEN INSERT",
+        "WHEN NOT MATCHED THEN INSERT ... WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED BY TARGET THEN DELETE",
+        "WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED BY SOURCE THEN DELETE ... WHEN NOT MATCHED THEN INSERT",
+        "WHEN NOT MATCHED THEN INSERT ... WHEN NOT MATCHED BY SOURCE THEN UPDATE SET is_active = false ... WHEN MATCHED THEN UPDATE"
+      ],
+      "answer": 0,
+      "explanation": "MERGE processes WHEN MATCHED (row exists in target), WHEN NOT MATCHED (row only in source), and WHEN NOT MATCHED BY SOURCE (row only in target). The correct order is: update matched rows, soft-delete rows absent from source, then insert new rows. This ensures all three operations execute correctly in a single transaction."
+    },
+    {
+      "id": "sql-new-089",
+      "type": "single",
+      "topic": "Query Planning",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "A query joins `orders` (1M rows, clustered by customer_id) with `customers` (100K rows) on customer_id. The query filter is `WHERE orders.created_date >= '2024-01-01'` (returns 50K rows) and `customers.region = 'US'` (returns 80K rows). A query planner pushes the predicate on customers.region into the join. Why is this pushdown beneficial?",
+      "options": [
+        "It reduces the number of rows scanned in the customers table from 100K to 80K before the join, lowering memory and I/O cost",
+        "It eliminates the need for a hash join and converts to a nested loop, which is always faster for small result sets",
+        "It allows the query to skip reading the orders table entirely and only scan the customers table",
+        "It ensures the join is executed on the warehouse's leader node instead of worker nodes, improving cache locality"
+      ],
+      "answer": 0,
+      "explanation": "Predicate pushdown on the smaller dimension table (customers) reduces the cardinality entering the join. By filtering 100K customers down to 80K before joining, the join processes fewer rows, consuming less memory and I/O. This is a fundamental query optimization technique used by all modern planners."
+    },
+    {
+      "id": "sql-new-090",
+      "type": "single",
+      "topic": "CTEs",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "You write a CTE that unions three separate event streams (page_views, clicks, purchases) and then filters for a specific user_id. The CTE is referenced once in the main query. Your DBA warns that the query is scanning all three tables fully instead of pushing down the user_id filter. What is the likely issue?",
+      "options": [
+        "The CTE was not declared as MATERIALIZED, so the optimizer refuses to apply any pushdown rules to it",
+        "The optimizer materialized the CTE because it contains a UNION, and materialization happens before filter pushdown can apply",
+        "The user_id column has different names in each of the three tables, preventing the optimizer from recognizing the filter",
+        "CTEs are never optimized by any SQL engine; they are always executed as temporary tables before the main query runs"
+      ],
+      "answer": 1,
+      "explanation": "Many SQL engines (Snowflake, BigQuery, etc.) materialize CTEs containing UNION operations by default, especially if the UNION ALL combines large tables. Once materialized, the intermediate result is computed before the outer filter is applied, preventing pushdown. Declaring the CTE as RECURSIVE or adding UNION ALL instead of UNION can sometimes enable better optimization."
+    },
+    {
+      "id": "sql-new-091",
+      "type": "single",
+      "topic": "Query Planning",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "You have two queries that differ only in join order: Query A joins fact_sales to dim_date to dim_customer, while Query B joins in the reverse order (dim_customer to dim_date to fact_sales). Fact_sales has 100M rows, dim_date has 366 rows, and dim_customer has 1M rows. Assuming no statistics are outdated, which query should the planner choose and why?",
+      "options": [
+        "Query B is better because it always processes smaller tables first, reducing memory overhead regardless of selectivity",
+        "Query A is better because joining the largest table first allows the planner to apply partition pruning more effectively",
+        "Query B is better because joining smaller dimension tables first reduces the cardinality fed into subsequent joins, minimizing data volume",
+        "Both queries will produce identical execution plans; join order has no impact on performance in modern cost-based optimizers"
+      ],
+      "answer": 2,
+      "explanation": "The optimal join order typically starts with smaller tables to reduce cardinality entering larger joins. Starting with dim_customer (1M) and dim_date (366), then joining to fact_sales, minimizes the working set. Joining fact_sales first would process all 100M rows before filtering, increasing memory and I/O costs significantly."
     }
   ]
 }
