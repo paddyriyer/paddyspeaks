@@ -14194,6 +14194,70 @@
       ],
       "answer": 2,
       "explanation": "This is a classic lost-update anomaly where two transactions both compute based on the same initial state. SERIALIZABLE isolation level enforces serializability, ensuring one transaction's reads and writes are atomic with respect to others, preventing the balance inconsistency. REPEATABLE READ still allows phantom reads in some databases (notably MySQL), and explicit locks are a workaround rather than a proper isolation level solution."
+    },
+    {
+      "id": "sql-new-084",
+      "type": "single",
+      "topic": "window functions",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "You have a `transactions` table with `user_id`, `amount`, and `transaction_date`. You need to find the running total of amounts per user, ordered by date, but only for transactions where the running total hasn't exceeded $10,000. Which approach is most efficient in Snowflake?",
+      "options": [
+        "Use SUM() OVER (PARTITION BY user_id ORDER BY transaction_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) then filter the result set where running_total <= 10000",
+        "Use a recursive CTE to iterate through transactions and stop when the threshold is reached",
+        "Use ROW_NUMBER() to assign sequence numbers, then self-join to calculate running totals incrementally",
+        "Create a temporary table with a cursor loop to compute running totals row-by-row"
+      ],
+      "answer": 0,
+      "explanation": "Window functions with cumulative SUM() are the most efficient and readable approach in Snowflake. They compute the running total in a single pass without recursion or loops, then filtering post-aggregation is cheap. Recursive CTEs and explicit loops are significantly slower for this pattern."
+    },
+    {
+      "id": "sql-new-085",
+      "type": "single",
+      "topic": "date arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "A column `event_timestamp` contains timestamps in UTC. You need to calculate business hours elapsed (9am-5pm, Mon-Fri only) between two events for reporting in the user's local timezone. The user timezone is stored as an offset like '+05:30' or '-08:00'. What is the best approach?",
+      "options": [
+        "Convert timestamps to the user's timezone, then use DATEDIFF() to calculate total hours and multiply by 0.8",
+        "Use CONVERT_TIMEZONE() to shift timestamps, then manually iterate through each day counting valid business hours, adjusting for weekends",
+        "Create a business hours calendar table pre-calculated for each timezone, then use LATERAL JOIN to count matching intervals",
+        "Store a separate business_hours_elapsed column computed at ingestion time using a UDF"
+      ],
+      "answer": 2,
+      "explanation": "A pre-computed business hours calendar table with a LATERAL JOIN is the standard data warehouse pattern\u2014it's maintainable, scales well, and handles timezone and holiday logic cleanly. DATEDIFF multipliers are imprecise. Manual iteration in SQL is inefficient. UDFs at ingestion add complexity and aren't recalculate-friendly if rules change."
+    },
+    {
+      "id": "sql-new-086",
+      "type": "single",
+      "topic": "lateral joins",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "You have a `users` table and a `user_events` table (100M rows). You need to fetch, for each user, their 3 most recent events with the event description from a `events_catalog` table. A naive approach with window functions times out. Which optimization using LATERAL is most effective?",
+      "options": [
+        "SELECT FROM users, LATERAL (SELECT * FROM user_events WHERE user_id = users.user_id ORDER BY event_date DESC LIMIT 3), then JOIN events_catalog",
+        "Use a LATERAL subquery on events_catalog instead, filtering within the subquery for each user's top 3 events",
+        "Pre-aggregate user_events with ROW_NUMBER(), materialize filtered results, then LATERAL JOIN the catalog",
+        "Use LATERAL FLATTEN on a JSON array of events that was pre-computed in an earlier stage"
+      ],
+      "answer": 0,
+      "explanation": "LATERAL with a filtered, limited subquery pushed down per user is the optimal pattern\u2014it retrieves only necessary rows from user_events (3 per user), then joins the small result set to the catalog. This avoids materializing all 100M rows or using expensive window functions globally. Pre-aggregation adds an extra materialization step; FLATTEN is for nested data, not relational queries."
+    },
+    {
+      "id": "sql-new-087",
+      "type": "single",
+      "topic": "window functions",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "In a query using ROW_NUMBER() OVER (PARTITION BY category ORDER BY price DESC), you notice that when multiple rows share the same price, their assigned row numbers appear random across query executions. What is the issue and how do you fix it?",
+      "options": [
+        "Add a secondary ORDER BY column (like product_id) to break ties deterministically in the OVER clause",
+        "Use RANK() instead of ROW_NUMBER() to handle ties correctly",
+        "Wrap the window function in ORDER BY to enforce execution order",
+        "Enable the DETERMINISTIC hint in Snowflake session parameters"
+      ],
+      "answer": 0,
+      "explanation": "Window function ordering must be fully deterministic\u2014when prices tie, the window function needs a tiebreaker column (like product_id) to ensure consistent row numbering across executions. RANK() handles ties differently but doesn't solve the root cause. Query result ordering and hints don't affect window function row assignment logic."
     }
   ]
 }

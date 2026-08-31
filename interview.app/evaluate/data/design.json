@@ -5736,6 +5736,54 @@
         "Time to onboard a source and schema-change lead time are the evolvability metrics most candidates miss",
         "Resilience to business shift means a flat marginal cost of change, not uptime"
       ]
+    },
+    {
+      "id": "ds-new-067",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "Your organization is transitioning to a data mesh architecture with 12 autonomous domain teams. Each team owns its data products and exposes them via self-serve APIs. However, you notice that one team's \"customer\" data product is being duplicated and cached locally by 5 other teams, defeating the mesh principle. Which design intervention best addresses this without centralizing ownership?",
+      "options": [
+        "Mandate that all downstream teams query the source domain's API in real-time, with SLA guarantees and circuit breakers",
+        "Create a federated caching layer (e.g., Redis Cluster) managed by the customer domain team, with TTL and cache-invalidation contracts",
+        "Require all teams to subscribe to the customer domain's change-data-capture (CDC) stream and replicate into their own Iceberg tables with ownership boundaries",
+        "Implement a centralized data lake as a single source of truth to eliminate domain silos"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (CDC replication with Iceberg) best balances mesh autonomy with data freshness. It preserves domain ownership while allowing teams to cache data in their own storage, satisfies eventual-consistency patterns typical in mesh designs, and Iceberg's versioning/time-travel supports audit trails. Option 0 creates latency bottlenecks; option 1 reintroduces central dependency; option 3 abandons the mesh."
+    },
+    {
+      "id": "ds-new-068",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "hard",
+      "added_date": "2026-08-31",
+      "prompt": "You are migrating a fact table from Hive partitioned by `date` (365K partitions) to Iceberg. The table sees 2B writes/day via Spark micro-batches (100 batches/day) and frequent analytical queries filtering on `date` and `user_id`. You observe that Iceberg's manifest file grows to 500MB after 30 days, causing query planning to slow by 3x. Which optimization strategy is most effective?",
+      "options": [
+        "Switch to hourly partitioning and enable Iceberg's hidden partitioning to reduce partition cardinality",
+        "Enable Iceberg V2 clustering on `user_id`, increase the manifest cache TTL, and implement manifest file compaction scheduled daily",
+        "Disable Iceberg's snapshot history retention and manually compact manifests using `rewrite_manifests()` every 7 days",
+        "Migrate to Delta Lake, which has smaller manifest overhead than Iceberg by design"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 is most effective: V2 clustering on `user_id` optimizes query pruning for the common filter; manifest cache TTL and daily compaction directly address the 500MB manifest bloat (Iceberg's `rewrite_manifests()` can reduce manifest size by 10-100x). Option 0 increases partitions (counterproductive); option 2 loses snapshot history needed for compliance; option 3 abandons Iceberg's ACID guarantees."
+    },
+    {
+      "id": "ds-new-069",
+      "type": "single",
+      "topic": "data vault",
+      "difficulty": "medium",
+      "added_date": "2026-08-31",
+      "prompt": "You are designing a Data Vault 2.0 model for a multi-source e-commerce platform. Customer records arrive from three systems: legacy CRM (batch daily), Salesforce (CDC hourly), and a third-party vendor database (API-driven, irregular). Each system occasionally sends conflicting customer attributes (e.g., different `email` or `phone` for the same customer ID). Which design choice best handles this conflict without losing audit history?",
+      "options": [
+        "Create a single customer Hub with surrogate keys, use a Satellite table per source system with separate `dv_load_date` and `dv_load_end_date`, and implement a priority-rule business logic layer in BI to select the authoritative source",
+        "Create a Hub for customer with a unified Satellite that stores only the most recent attribute, and maintain a separate audit log table outside the vault to track conflicting versions",
+        "Use a single Satellite with a `source_id` column and `is_current` flag; mark old records inactive and keep all versions in the same table for query simplicity",
+        "Create separate Hubs per source system (e.g., `hub_customer_crm`, `hub_customer_salesforce`) to avoid conflicts, and use Link tables to match them later"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is the correct Data Vault 2.0 approach: separate Satellites per source preserve audit history and load timestamps, allowing full traceability of conflicts while avoiding data loss. Business logic (not the vault) resolves conflicts via priority rules. Option 1 breaks the immutability principle; option 2 loses granular source-level audit trails; option 3 violates the single-Hub-per-business-concept rule and creates downstream matching complexity."
     }
   ]
 }
