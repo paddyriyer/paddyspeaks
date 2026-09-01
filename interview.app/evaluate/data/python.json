@@ -7770,6 +7770,86 @@
       ],
       "answer": 2,
       "explanation": "itertools.islice() with manual iteration allows fine-grained control over batch boundaries and flush event handling. You can check each item during iteration and break/reset on flush without pre-sorting or buffering entire groups. groupby() (option 0) groups consecutive identical items but doesn't handle dynamic reset points. takewhile() (option 1) is deterministic and doesn't support conditional breaks. compress() (option 3) filters but doesn't create batches."
+    },
+    {
+      "id": "py-new-093",
+      "type": "single",
+      "topic": "memory management",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "You're processing 10GB of data in a long-running ETL pipeline. Memory profiling shows a leak that grows ~50MB/hour. You suspect circular references between pandas DataFrames and custom objects. Which approach best identifies the root cause without restarting the entire pipeline?",
+      "options": [
+        "Use `gc.get_objects()` with `sys.getrefcount()` to track referrer chains and identify cycles",
+        "Call `gc.collect()` every 100 rows to force garbage collection and measure memory delta",
+        "Switch to NumPy arrays since they don't create circular references like pandas",
+        "Enable `-X dev` mode in Python interpreter to get automatic leak warnings"
+      ],
+      "answer": 0,
+      "explanation": "`gc.get_objects()` combined with `sys.getrefcount()` and referrer tracking (via `gc.get_referents()`) is the standard forensic approach for identifying circular reference patterns in production. gc.collect() is reactive and won't help identify the cause; NumPy doesn't solve DataFrame issues; `-X dev` provides general warnings but not circular reference debugging."
+    },
+    {
+      "id": "py-new-094",
+      "type": "single",
+      "topic": "walrus operator",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "In a data validation pipeline, you need to read chunks from a file iterator and process only non-empty chunks. Which code snippet correctly uses the walrus operator to minimize redundant reads?",
+      "options": [
+        "while (chunk := file_iter.read(8192)) and len(chunk) > 0:\n    process(chunk)",
+        "chunk = file_iter.read(8192)\nwhile chunk and len(chunk) > 0:\n    process(chunk)\n    chunk = file_iter.read(8192)",
+        "for chunk in file_iter:\n    if (size := len(chunk)) > 0:\n        process(chunk, size)",
+        "while chunk := file_iter.read(8192):\n    if chunk:\n        process(chunk)"
+      ],
+      "answer": 0,
+      "explanation": "Option A correctly uses the walrus operator to assign and test `chunk` in a single expression, avoiding the redundant read at the end of the loop. Option B requires two separate read calls; Option C assigns inside the loop but still reads sequentially; Option D loses the falsy empty-string check since walrus will assign before the if."
+    },
+    {
+      "id": "py-new-095",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "You're migrating a pandas-based aggregation from Spark to Polars. The original computes percentiles (p25, p50, p75) per group with nulls handled as zeros. When you use `pl.col('value').fill_null(0).quantile([0.25, 0.5, 0.75]).over('group')`, the result differs. Why?",
+      "options": [
+        "Polars' `quantile()` is approximate by default; use `method='linear'` and `interpolation='linear'` for exact matching",
+        "The `over()` window function is evaluated before `fill_null()`, so nulls affect quantile computation; swap the order or use `fill_null().quantile()`",
+        "Polars quantiles exclude zero-filled values from the computation; use `clip_min(0)` instead of `fill_null(0)`",
+        "Polars `quantile()` in a window context doesn't support `fill_null()`; you must use `with_columns()` and explicit groupby"
+      ],
+      "answer": 1,
+      "explanation": "In Polars, expression evaluation order matters: `over()` creates the window context first, then applies operations. The null values exist during quantile calculation before `fill_null()` takes effect. Using `fill_null(0).quantile([...])` ensures nulls become zeros before quantile computation, matching pandas behavior."
+    },
+    {
+      "id": "py-new-096",
+      "type": "single",
+      "topic": "memory management",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "A data engineer builds a cache of 100K embeddings (~8GB total) using a dict. After processing, memory isn't released even after `del cache` and `gc.collect()`. The embeddings are numpy arrays with `dtype=float32`. What is the most likely cause?",
+      "options": [
+        "Numpy arrays with float32 dtype hold references to C memory pools that Python's GC cannot touch",
+        "The dict retains a hash table structure; you need to call `cache.clear()` before `del`",
+        "Another object in the session holds a reference to the cache (e.g., function closure, exception traceback, or logger)",
+        "Memory fragmentation in the heap prevents deallocation; this is normal and will be reclaimed on process exit"
+      ],
+      "answer": 2,
+      "explanation": "While numpy arrays do use C memory, Python's GC can free them once all Python references are gone. The most common cause of memory persistence after `del` and `gc.collect()` is hidden references in closures, exception tracebacks (especially in Jupyter), or logger buffers. Option B is incorrect because `del` on a dict already calls its `__del__` method; Option A overstates the issue; Option D is defeatist when the real cause is usually traceable."
+    },
+    {
+      "id": "py-new-097",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You're converting a Pandas operation that uses `df.groupby('key').agg({'col1': 'sum', 'col2': 'mean'})` to Polars. After switching to `df.groupby('key').agg([pl.col('col1').sum(), pl.col('col2').mean()])`, downstream code breaks because column names changed. What happened?",
+      "options": [
+        "Polars strips the original column names in groupby context; use `.alias()` to restore: `pl.col('col1').sum().alias('col1')`",
+        "The aggregation order differs between Polars and Pandas; Polars returns columns in a non-deterministic order",
+        "Polars renamed columns by appending the aggregation function name; `col1_sum` and `col2_mean` are the new names",
+        "You must explicitly select the groupby column first: `df.groupby('key').select([pl.col('key'), pl.col('col1').sum(), ...])` "
+      ],
+      "answer": 0,
+      "explanation": "Polars doesn't automatically preserve the original column names after aggregation like Pandas does. You must use `.alias()` to explicitly rename aggregated columns back to their original names. Options B and C are incorrect (order is consistent, and names don't auto-append); Option D is overly verbose and not the standard pattern."
     }
   ]
 }

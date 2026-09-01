@@ -1085,6 +1085,70 @@
       ],
       "answer": 1,
       "explanation": "The correct fix is to redefine the window as 'last 30 complete calendar days' and anchor it to the user's timezone (ET), truncating to midnight rather than using a floating 30-day interval. This ensures stakeholders see a predictable, aligned set of data. Option 0 is impractical (switching the entire warehouse to ET). Option 2 introduces a false adjustment. Option 3 trades convenience for precision unnecessarily."
+    },
+    {
+      "id": "dash-new-013",
+      "type": "single",
+      "topic": "Join fan-out in BI models",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "A BI model joins `customers` (1 row per customer) to `subscriptions` (many rows per customer, one per month) to `usage_events` (many rows per subscription). A dashboard displays total revenue by customer segment. The revenue total is 3.2x higher than the finance team's actuals. What is the root cause?",
+      "options": [
+        "The join cardinality is multiplicative: each customer row fans out across subscriptions and usage_events, inflating the revenue aggregate by the Cartesian product.",
+        "The dashboard is using SUM instead of AVERAGE for the revenue metric, which naturally inflates the result when multiple rows exist per customer.",
+        "The finance team excludes certain customer segments from their report, so the BI model correctly shows more revenue but appears inflated in comparison.",
+        "The dashboard filter on 'active segments only' is excluding cancelled subscriptions, which paradoxically increases the per-customer average."
+      ],
+      "answer": 0,
+      "explanation": "Join fan-out occurs when a one-to-many join multiplies rows, and a subsequent many-to-many join (subscriptions to usage_events) compounds the problem. If one customer has 12 subscriptions and each subscription has ~27 usage events on average, a single revenue value gets counted 324 times. The correct fix is to aggregate at the subscription or customer level before joining, or use a many-to-one relationship in tools like Power BI."
+    },
+    {
+      "id": "dash-new-014",
+      "type": "single",
+      "topic": "Power BI DAX filter context",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "A Power BI dashboard has a DAX measure: `[Revenue] = SUM(Sales[Amount])`. A slicer filters `Sales[Region]` to 'North America'. A card visual displays revenue, and a table visual shows revenue by product. The card shows $5.2M, but the table's subtotal shows $5.8M. What is the most likely cause?",
+      "options": [
+        "The table has an implicit filter on Product that the slicer does not share; filter context is not propagating from the slicer to the product grouping.",
+        "The card's filter context includes the slicer correctly, but the table is using ALLSELECTED(Sales[Region]) in a hidden column, removing the slicer's effect.",
+        "The table visual has a row-level security (RLS) rule that blocks certain products for the current user, but the card does not; they operate under different filter contexts.",
+        "The slicer uses a column from a related dimension table, and the table visual's Product column comes from a different table without a direct relationship, breaking filter propagation."
+      ],
+      "answer": 3,
+      "explanation": "Filter context in DAX propagates along relationships. If the slicer filters a table that is not directly related to the Product dimension (e.g., filtering Region through a Geography table without a relationship to Products), the table visual will not respect the slicer's filter. The card, if it uses a measure that relates to the slicer's table directly, will show the filtered value while the table shows unfiltered or partially filtered data. This is a common relationship design issue."
+    },
+    {
+      "id": "dash-new-015",
+      "type": "single",
+      "topic": "Looker symmetric aggregates",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "A Looker dashboard queries a view with symmetric aggregates defined on `revenue` (SUM), `transactions` (COUNT), and `avg_transaction_value` (SUM(revenue) / COUNT(transactions)). A user filters by `order_date` = '2025-01-15'. The avg_transaction_value shown is $142, but manual calculation of the filtered revenue and transactions yields $128. What is the issue?",
+      "options": [
+        "The symmetric aggregate for avg_transaction_value is pre-computed at the dashboard cache level and does not re-aggregate on filter application; it requires a custom dimension instead.",
+        "The filter on order_date is applied at query time, but the symmetric aggregate for avg_transaction_value was calculated before the filter was pushed down, using the full table.",
+        "Looker's symmetric aggregate engine caches composite measures and does not support dimensionality reduction; use a derived table with a single grain instead.",
+        "The view has multiple hidden joins in its derived table that create row duplication in the revenue and transaction counts; the avg_transaction_value measure is correct, but the manual calculation is undercounting transactions."
+      ],
+      "answer": 0,
+      "explanation": "Symmetric aggregates in Looker are designed for pre-aggregated data that maintains consistent cardinality across measures. However, if the aggregate is defined at a coarser grain than the filter being applied (e.g., pre-aggregated at order level, but filtered at order_date), the measure will not dynamically re-aggregate. The solution is to use a custom dimension or SQL-based measure that recalculates the division after filtering, not a symmetric aggregate derived from cached totals."
+    },
+    {
+      "id": "dash-new-016",
+      "type": "single",
+      "topic": "Join fan-out in BI models",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "A Snowflake data warehouse has a star schema: `fact_sales` (50M rows), `dim_customer` (500K rows), and `dim_product` (50K rows). A BI tool creates a logical model joining all three. A dashboard metric 'average order value' is defined as `SUM(fact_sales.amount) / COUNT(DISTINCT fact_sales.order_id)`. When filtered to a single customer, the metric shows $180, but the customer's actual average is $165 (verified in SQL). What is the root cause?",
+      "options": [
+        "The BI tool's COUNT(DISTINCT) is applied after the join, so it counts distinct order_ids in the joined result set; if one order has multiple product rows, it underounts orders and inflates the average.",
+        "The dimension tables are joined with a left outer join, creating null product rows that inflate the numerator (SUM) without increasing the denominator (COUNT DISTINCT orders).",
+        "The customer filter is applied at the dimension level, but the fact table still contains all products; the average is correct for the customer-product intersection, not the customer alone.",
+        "The BI tool is using a version of the fact table from an earlier ETL run cached in the semantic layer, which has stale order amounts; the SQL result reflects the current warehouse state."
+      ],
+      "answer": 0,
+      "explanation": "When a fact table with one row per product per order is joined to dim_product, if the logical model is not carefully aggregated before the COUNT(DISTINCT), the distinct count is taken on the post-join set, which still contains multiple rows per order. This reduces the denominator artificially. The correct approach is to ensure the metric either uses a pre-aggregated fact grain or aggregates to the order level before computing the division."
     }
   ]
 }

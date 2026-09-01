@@ -14402,6 +14402,86 @@
       ],
       "answer": 1,
       "explanation": "Option 1 correctly computes cumulative percentage by summing revenue from the start up to the current row (default window frame with ORDER BY), then dividing by the total revenue across all products. Option 0 references a non-existent alias. Option 2 reuses `pct_of_total` which requires aliasing the first calculation. Option 3 unnecessarily partitions by product_id when you want a global cumulative sum."
+    },
+    {
+      "id": "sql-new-097",
+      "type": "single",
+      "topic": "LATERAL joins",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "You have a `users` table with (user_id, created_at) and an `events` table with (user_id, event_time, event_type). You need to find the first 3 events after account creation for each user. Which approach is most efficient in PostgreSQL?",
+      "options": [
+        "JOIN users to events, then window rank by user_id and filter rank <= 3",
+        "Use LATERAL JOIN: SELECT * FROM users CROSS JOIN LATERAL (SELECT * FROM events WHERE events.user_id = users.user_id AND events.event_time > users.created_at ORDER BY event_time LIMIT 3)",
+        "Use a self-join on events with ROW_NUMBER() and a subquery filter",
+        "Use UNION ALL of three separate queries, one for each event rank"
+      ],
+      "answer": 1,
+      "explanation": "LATERAL joins allow the right table to reference columns from the left table in its WHERE clause, enabling efficient correlated filtering per user. This avoids expensive self-joins and is optimized by PostgreSQL's planner for this exact pattern. Window functions followed by filtering work but require materializing all events before ranking, making LATERAL superior for large event volumes."
+    },
+    {
+      "id": "sql-new-098",
+      "type": "single",
+      "topic": "COALESCE / NULLIF",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "A `transactions` table has columns (txn_id, merchant, amount, refund_amount). You want to calculate net_amount as amount minus refund_amount, but refund_amount is NULL when there is no refund. Which expression is correct?",
+      "options": [
+        "COALESCE(amount - refund_amount, amount)",
+        "amount - COALESCE(refund_amount, 0)",
+        "NULLIF(amount - refund_amount, amount)",
+        "amount - NULLIF(refund_amount, NULL)"
+      ],
+      "answer": 1,
+      "explanation": "COALESCE(refund_amount, 0) treats NULL refund_amount as 0, so the subtraction produces the correct net amount. Option 0 fails because NULL - anything = NULL. Option 2 uses NULLIF incorrectly (it returns NULL when values match, not useful here). Option 3 is redundant since refund_amount is already NULL when there's no refund."
+    },
+    {
+      "id": "sql-new-099",
+      "type": "single",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "A `file_system` table has (inode INT, parent_inode INT, name TEXT) representing a directory tree. You want to find the full path from root (parent_inode IS NULL) to a given inode. What is the critical performance consideration when writing this recursive CTE?",
+      "options": [
+        "Always use UNION instead of UNION ALL to eliminate duplicates",
+        "Ensure the base case returns exactly one row to minimize recursion depth",
+        "Filter by the target inode in the base case, then join upward to parents; use a UNION ALL termination condition",
+        "Use DISTINCT at each recursion level to prevent infinite loops"
+      ],
+      "answer": 2,
+      "explanation": "The key is anchoring the recursion at the target inode (base case) and traversing upward to the root, which limits recursion to the tree depth rather than scanning all rows. Option 0 is inefficient (UNION sorts). Option 1 is vague. Option 3 is incorrect; DISTINCT doesn't prevent cycles\u2014a WHERE condition on the recursion does."
+    },
+    {
+      "id": "sql-new-100",
+      "type": "single",
+      "topic": "LATERAL joins",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You have a `customers` table and a `purchases` table. Using a LATERAL subquery, you want to fetch each customer and their 5 most recent purchases along with a running total of spend. What is a limitation of LATERAL in this scenario?",
+      "options": [
+        "LATERAL cannot be used with aggregate functions like SUM()",
+        "LATERAL subqueries cannot reference multiple tables in the FROM clause",
+        "Window functions inside LATERAL are computed before the LIMIT is applied, potentially over-counting",
+        "LATERAL is not supported in WHERE clauses, only in FROM or JOIN clauses"
+      ],
+      "answer": 2,
+      "explanation": "Window functions like SUM() OVER(...) are applied to the intermediate result before LIMIT, so you must wrap the LATERAL in a subquery and re-apply the window function outside to compute running totals correctly over just the 5 rows. Options 0 and 1 are false; LATERAL supports aggregates and multiple tables. Option 3 is incorrect; LATERAL is for FROM/JOIN only anyway."
+    },
+    {
+      "id": "sql-new-101",
+      "type": "single",
+      "topic": "COALESCE / NULLIF",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "A `survey_responses` table has (response_id, question_1, question_2, ..., question_50) where blank answers are stored as empty strings ''. You want to count non-blank responses per user. Which pattern handles both NULL and empty string correctly?",
+      "options": [
+        "COUNT(question_1) counts only non-NULL values, treating '' as a value, so use SUM(CASE WHEN question_1 != '' THEN 1 ELSE 0 END)",
+        "Use COUNT(NULLIF(question_1, '')) which converts '' to NULL, then COUNT ignores it",
+        "Use COALESCE(NULLIF(question_1, ''), 'N/A') and then COUNT the 'N/A' markers",
+        "Both A and B work; B is more concise"
+      ],
+      "answer": 3,
+      "explanation": "Both options A and B correctly count non-empty responses. Option B using NULLIF(question_1, '') is more elegant because it converts empty strings to NULL, and COUNT naturally excludes NULLs. Option A also works but is more verbose. Option C incorrectly coalesces to 'N/A', which would be counted, defeating the purpose. Option 3 correctly identifies that both A and B work."
     }
   ]
 }

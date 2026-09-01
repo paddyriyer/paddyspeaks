@@ -5912,6 +5912,86 @@
       ],
       "answer": 1,
       "explanation": "Parquet columnar storage with column projection reduces scan size from 500GB to ~25GB (85% of 10/200 fields), dropping costs 10\u201315x. S3 Select further pushes filtering to S3 layer. Redshift Spectrum adds latency and upfront costs. Partitioning by field subset duplicates data. Compression and caching help marginally but don't address the core waste of scanning irrelevant columns."
+    },
+    {
+      "id": "ds-new-078",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "You're running a high-volume fact table in Snowflake with 500M rows/day. A new business requirement adds a nullable column `campaign_id` to every row. You want zero downtime and minimal cost impact. The table is partitioned by `date` and clustered by `user_id`. What's the best approach?",
+      "options": [
+        "Add the column directly with ALTER TABLE ADD COLUMN, then backfill nulls in batches during off-peak hours to avoid table locks.",
+        "Create a new table with the additional column, use a view alias to redirect reads, and migrate writes incrementally to minimize query plan changes.",
+        "Use Snowflake's native ALTER TABLE ADD COLUMN (non-blocking) and backfill the column asynchronously via an incremental merge job that touches only new/modified partitions.",
+        "Add the column to the staging table only, use a UNION ALL view that joins the fact table to a sparse lookup, and defer full backfill to a future archival cycle."
+      ],
+      "answer": 2,
+      "explanation": "Snowflake's ADD COLUMN is non-blocking and returns immediately, allowing reads and writes to continue. Backfilling via incremental merge on new partitions and clustered segments minimizes cost and IO. Options 1 and 4 introduce unnecessary delays; option 2 adds query complexity and view resolution overhead."
+    },
+    {
+      "id": "ds-new-079",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "Your Delta Lake table on S3 has 2 years of daily partitions (`year=2023/month=01/day=01/...`). You're experiencing timeout errors during reads because manifest files exceed 100MB. You need to scan only the past 90 days. Which optimization minimizes latency and cost?",
+      "options": [
+        "Enable Z-order clustering on the partition columns and rewrite all old partitions to reduce manifest bloat.",
+        "Create a materialized view with 90 days of data using CTAS, then query the view instead of the full table.",
+        "Use Delta's `partition pruning` with a WHERE clause filter and enable `delta.dataSkippingNumIndexedCols` to skip old partitions entirely.",
+        "Configure Delta log compaction via `VACUUM` and `OPTIMIZE`, then implement a second-layer Parquet table for the 90-day window and query both with UNION."
+      ],
+      "answer": 2,
+      "explanation": "Delta's partition pruning automatically skips non-matching partitions before reading, avoiding manifest bloat. The `delta.dataSkippingNumIndexedCols` setting enables stats-based skipping on indexed columns. Option 1 is expensive; option 3 adds operational overhead; option 4 duplicates data unnecessarily."
+    },
+    {
+      "id": "ds-new-080",
+      "type": "single",
+      "topic": "cost optimization",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You're running Databricks SQL Endpoint queries on a multi-tenant data lake. Tenant A (80% of queries) runs repeated analytics dashboards; Tenant B (20%) runs ad-hoc exploration. Your SQL Endpoint bill is $4K/month. What's the most cost-effective strategy?",
+      "options": [
+        "Consolidate all tenants onto a single, larger SQL Endpoint with reserved capacity discounts.",
+        "Use separate SQL Endpoints per tenant: one for Tenant A with reserved capacity, one for Tenant B with serverless compute.",
+        "Migrate Tenant A's dashboards to Databricks Lakeware (cached materialized views) and keep ad-hoc queries on a shared serverless Endpoint.",
+        "Implement a query queue with prioritization on a single Endpoint and throttle Tenant B's ad-hoc queries during peak hours."
+      ],
+      "answer": 2,
+      "explanation": "Lakeware caches frequently-accessed dashboard results, eliminating redundant compute for Tenant A. Keeping Tenant B on serverless Endpoint avoids paying for idle capacity. This hybrid approach reduces Tenant A's cost dramatically while maintaining flexibility for B. Options 1 and 4 don't reduce underlying compute; option 3 lacks the caching benefit."
+    },
+    {
+      "id": "ds-new-081",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You're designing a Delta Lake table that tracks user events with a nested JSON `attributes` column. Over time, new fields are added to `attributes` (e.g., `device_id`, then `ip_geo`, then `ab_test_variant`). You want schema evolution to work transparently without manual intervention. Which approach is most maintainable?",
+      "options": [
+        "Store attributes as a MAP(STRING, STRING) and rely on Spark's schema-on-read to handle missing keys.",
+        "Flatten the JSON into top-level columns at write time using a Pyspark UDF, incrementally adding columns as the schema evolves.",
+        "Use Delta's schema evolution with `mergeSchema=true` and apply a standardized JSON schema with STRUCT containing nullable fields for all known attributes.",
+        "Store raw JSON as STRING and implement a view layer that uses LATERAL VIEW explode to extract attributes on-the-fly during queries."
+      ],
+      "answer": 2,
+      "explanation": "Delta's `mergeSchema=true` automatically handles new columns in STRUCT-typed nested fields without manual DDL. Using nullable fields in a versioned STRUCT allows safe schema evolution and maintains type safety. Option 1 loses type information; option 2 requires schema management at write time; option 4 adds query complexity and loses type safety."
+    },
+    {
+      "id": "ds-new-082",
+      "type": "single",
+      "topic": "cost optimization",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "Your Snowflake warehouse processes 10TB of raw logs daily across 3 regions. You provision separate warehouses per region (`large_us`, `large_eu`, `large_apac`), each running 24/7 at ~30% utilization. The bill is $18K/month. How do you reduce costs while maintaining 15-minute freshness SLA?",
+      "options": [
+        "Consolidate all regions into a single `xlarge` warehouse and use COPY INTO with S3 Cross-Region Replication to centralize ingestion.",
+        "Implement dynamic warehouse sizing: use `small` warehouses during off-peak hours (10PM\u20138AM in each region) and `large` during peak hours (8AM\u201310PM), with CONVERT_TIMEZONE-based scheduling.",
+        "Use Snowflake's native clustering on geographic partition columns to eliminate cross-region queries, and switch to serverless Snowpark tasks for transformations.",
+        "Replicate raw logs to a shared S3 bucket using CloudSync, load into a single centralized warehouse with transient tables, and use materialized views to cache regional aggregates."
+      ],
+      "answer": 1,
+      "explanation": "Dynamic warehouse resizing (small off-peak, large peak) reduces idle compute by ~50% while respecting 15-minute freshness (peak windows cover the critical window). CONVERT_TIMEZONE-based scheduling handles multi-region time zones automatically. Option 0 introduces latency via cross-region replication; option 2 adds operational complexity; option 3 duplicates data and adds architectural layers."
     }
   ]
 }
