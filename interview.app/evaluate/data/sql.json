@@ -14322,6 +14322,86 @@
       ],
       "answer": 2,
       "explanation": "The optimal join order typically starts with smaller tables to reduce cardinality entering larger joins. Starting with dim_customer (1M) and dim_date (366), then joining to fact_sales, minimizes the working set. Joining fact_sales first would process all 100M rows before filtering, increasing memory and I/O costs significantly."
+    },
+    {
+      "id": "sql-new-092",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "In BigQuery, you have a table with 10TB of data partitioned by `event_date`. You run: `SELECT * FROM table WHERE event_date BETWEEN '2024-01-01' AND '2024-01-31' AND user_id = 12345`. BigQuery scans only January 2024 partitions. However, you add `AND _TABLE_SUFFIX = '20240115'` to the WHERE clause. What happens?",
+      "options": [
+        "BigQuery will scan the single partition for 2024-01-15, ignoring the BETWEEN clause",
+        "BigQuery will scan January partitions first, then filter by _TABLE_SUFFIX, resulting in no rows",
+        "BigQuery will throw an error because _TABLE_SUFFIX cannot be used with BETWEEN",
+        "BigQuery will still scan all January partitions but apply _TABLE_SUFFIX as a post-filter"
+      ],
+      "answer": 0,
+      "explanation": "The `_TABLE_SUFFIX` pseudo-column takes precedence over partition pruning in WHERE clauses. When you explicitly specify `_TABLE_SUFFIX = '20240115'`, BigQuery scans only that single partition, effectively overriding the BETWEEN condition for partition selection. This is a common optimization but can be unintuitive."
+    },
+    {
+      "id": "sql-new-093",
+      "type": "single",
+      "topic": "Window functions",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "Given a table `transactions(user_id, timestamp, amount)`, you need to find the maximum amount spent by each user in any 30-day rolling window. Which approach is most efficient in a data warehouse?",
+      "options": [
+        "Use ROWS BETWEEN 30 PRECEDING AND CURRENT ROW with MAX() window function, ordered by timestamp",
+        "Use a self-join of the table with a 30-day condition, then GROUP BY and MAX()",
+        "Use RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW with MAX(), ordered by timestamp",
+        "Use LAG/LEAD to compare each transaction with the previous 30 days manually"
+      ],
+      "answer": 2,
+      "explanation": "RANGE BETWEEN with INTERVAL is the correct approach because it handles time-based windows semantically, not row counts. ROWS BETWEEN would only look at the last 30 rows regardless of actual time gaps. A self-join would be much less efficient for large datasets. LAG/LEAD is impractical for 30-day lookbacks."
+    },
+    {
+      "id": "sql-new-094",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You have a revenue table with `gross_amount` and `discount_amount`. Some rows have discount_amount = 0 to indicate no discount applied. You want net_amount = gross_amount - discount, but treat missing discounts as NULL in analysis. Which query is correct?",
+      "options": [
+        "SELECT gross_amount - NULLIF(discount_amount, 0) AS net_amount FROM revenue",
+        "SELECT gross_amount - COALESCE(discount_amount, 0) AS net_amount FROM revenue",
+        "SELECT gross_amount - CASE WHEN discount_amount = 0 THEN NULL ELSE discount_amount END AS net_amount FROM revenue",
+        "SELECT gross_amount - CASE WHEN discount_amount IS NULL THEN 0 ELSE discount_amount END AS net_amount FROM revenue"
+      ],
+      "answer": 0,
+      "explanation": "NULLIF(discount_amount, 0) returns NULL when discount_amount equals 0, which is exactly what you need. When you subtract NULL, the result is NULL, representing 'discount not applicable'. Option 1 and 3 are functionally equivalent, but option 0 is more concise. Option 1 (COALESCE) would replace NULL with 0, which is the opposite of what we want."
+    },
+    {
+      "id": "sql-new-095",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "In BigQuery, you have nested and repeated fields: `STRUCT<user_id INT64, events ARRAY<STRUCT<event_type STRING, timestamp INT64>>>`. You want to unnest events and filter for 'click' events only, keeping only rows where at least one click occurred. Which query correctly handles this while minimizing data scanned?",
+      "options": [
+        "SELECT user_id FROM table, UNNEST(events) AS e WHERE e.event_type = 'click'",
+        "SELECT DISTINCT user_id FROM table, UNNEST(events) AS e WHERE e.event_type = 'click'",
+        "SELECT user_id FROM table WHERE ARRAY_LENGTH(ARRAY(SELECT 1 FROM UNNEST(events) AS e WHERE e.event_type = 'click')) > 0",
+        "SELECT user_id, ARRAY(SELECT e FROM UNNEST(events) AS e WHERE e.event_type = 'click') AS click_events FROM table WHERE ARRAY_LENGTH(ARRAY(SELECT 1 FROM UNNEST(events) AS e WHERE e.event_type = 'click')) > 0"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 (DISTINCT) is the most efficient because it unnests once and filters for 'click' events, returning unique user_ids. DISTINCT ensures you get one row per user even if they have multiple clicks. Option 0 without DISTINCT returns duplicate user_ids (one per click). Option 2 and 3 use subqueries that scan the events array twice, doubling the work. Option 3 is unnecessarily complex."
+    },
+    {
+      "id": "sql-new-096",
+      "type": "single",
+      "topic": "Window functions",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You need to calculate the percentage of total revenue contributed by each product, ordered by product_id. You also need the cumulative percentage. What window function clause is missing? `SELECT product_id, revenue, revenue / SUM(revenue) OVER () AS pct_of_total, _____ AS cumulative_pct FROM sales GROUP BY product_id ORDER BY product_id`",
+      "options": [
+        "SUM(revenue / SUM(revenue) OVER ()) OVER (ORDER BY product_id)",
+        "SUM(revenue) OVER (ORDER BY product_id) / SUM(revenue) OVER () AS cumulative_pct",
+        "SUM(pct_of_total) OVER (ORDER BY product_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+        "SUM(revenue) OVER (PARTITION BY product_id ORDER BY product_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / SUM(revenue) OVER ()"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 correctly computes cumulative percentage by summing revenue from the start up to the current row (default window frame with ORDER BY), then dividing by the total revenue across all products. Option 0 references a non-existent alias. Option 2 reuses `pct_of_total` which requires aliasing the first calculation. Option 3 unnecessarily partitions by product_id when you want a global cumulative sum."
     }
   ]
 }

@@ -5832,6 +5832,86 @@
       ],
       "answer": 1,
       "explanation": "Option B correctly identifies multi-partition updates (dataChange=false ensures Delta optimizations apply), sets explicit file-size targets (256MB\u20131GB range optimal for skipping), and uses an appropriate VACUUM retention window (7 days). autoOptimize flags (option A) can cause unpredictable compaction; repartitioning (option C) discards Z-order benefits; liquid clustering (option D) is not a Delta feature and doesn't address VACUUM errors."
+    },
+    {
+      "id": "ds-new-073",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "Your Airflow DAG processes daily batches for 200 business units independently. Currently, you create one task per unit sequentially, resulting in ~6-hour runtimes. What pattern minimizes DAG compilation time and enables true parallelism?",
+      "options": [
+        "Use dynamic task mapping with `expand()` to generate tasks from a list of unit IDs at parse time",
+        "Use BranchPythonOperator to conditionally execute units based on business logic",
+        "Create a parent DAG that triggers 200 separate child DAGs via SubDagOperator for each unit",
+        "Use TaskGroup with a for-loop to nest all units and set pool size to 200"
+      ],
+      "answer": 0,
+      "explanation": "Dynamic task mapping (Airflow 2.3+) avoids DAG explosion at parse time by expanding tasks at runtime, enabling true parallelism while keeping the DAG definition clean. SubDagOperator is deprecated, BranchPythonOperator doesn't parallelize, and TaskGroups still require upfront compilation of all tasks."
+    },
+    {
+      "id": "ds-new-074",
+      "type": "single",
+      "topic": "Cost optimization",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "Your Snowflake warehouse runs 120 queries/day with 90% single-user analytical queries (2\u201315 min each) and 10% batch loads (30+ min, 8 concurrent). Current setup: one 2XL warehouse (32 credits/hour). What cost-optimized approach best fits?",
+      "options": [
+        "Split into two warehouses: one Medium for analytical queries, one Large for batch loads; route via application logic based on query type",
+        "Use a single 4XL warehouse to handle concurrency and set auto-suspend to 1 minute to minimize credit bleed",
+        "Implement Snowflake's query queuing on the 2XL and enable resource monitors to auto-suspend during idle periods",
+        "Migrate batch loads to Snowpark jobs and keep analytical queries on a Medium warehouse for cost isolation"
+      ],
+      "answer": 0,
+      "explanation": "Splitting workloads isolates consumption: Medium warehouse (4 credits/hour) handles 90% of queries efficiently, while Large (8 credits/hour) handles concurrent batch loads. This avoids paying 2XL rates for light analytical work and avoids queuing overhead. A single larger warehouse would increase per-query cost, and Snowpark jobs still consume credits but don't solve the concurrency issue."
+    },
+    {
+      "id": "ds-new-075",
+      "type": "single",
+      "topic": "Data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "Your company adopts a data mesh with 15 domain teams publishing data products. You observe duplicate transformation logic across three teams (customer-360, fraud, and marketing domains). Which governance principle best prevents drift while respecting domain autonomy?",
+      "options": [
+        "Create a shared 'core-transformations' domain team that owns all common logic; other domains depend on it as a managed service",
+        "Enforce a central data engineering team to audit and standardize all transformation code across domains quarterly",
+        "Define a federated data contract (schema, SLA, quality rules) that each domain must implement independently, with contracts monitored centrally",
+        "Require all three teams to use the same code repository branch for shared transformations to prevent divergence"
+      ],
+      "answer": 2,
+      "explanation": "Data contracts enforce semantic consistency and quality standards without centralizing implementation, respecting domain ownership. A dedicated core-transformations domain introduces a bottleneck and violates autonomy. Central audits are reactive and slow. Shared repository branches eliminate autonomy entirely and contradict the mesh principle of decentralized ownership."
+    },
+    {
+      "id": "ds-new-076",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You're building an Airflow DAG that ingests data from 50 partner APIs with wildly different rate limits and retry behaviors. Some partners require 10-second backoff, others allow 100 req/sec. How should you structure this to avoid cross-API contention?",
+      "options": [
+        "Use a single pool with 50 slots (one per API) and configure per-operator pool_slots and retry configuration",
+        "Create one Kubernetes Pod per API with dedicated resource requests; use a priority queue to manage submissions",
+        "Define separate named pools (one per API or API-family) and assign each task to its corresponding pool with custom retry policies per pool",
+        "Use a single DAG with dynamic task mapping, setting a global pool_slots=50 and a universal exponential backoff of 2^attempt seconds"
+      ],
+      "answer": 2,
+      "explanation": "Named pools per API allow fine-grained rate-limit enforcement and retry policies without cross-contamination. Single pool with 50 slots treats all APIs equally, losing the ability to enforce individual rate limits. Kubernetes pods add operational overhead without solving rate-limit isolation. Dynamic mapping with global backoff can't express per-API retry policies."
+    },
+    {
+      "id": "ds-new-077",
+      "type": "single",
+      "topic": "Cost optimization",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "Your company processes 500GB/day of nested JSON logs in S3. Currently, you query via Athena with SELECT * across all fields; monthly spend is $1,200. Analyzing query patterns, 85% of queries touch only 10 of 200 fields. Which optimization delivers the most immediate cost reduction?",
+      "options": [
+        "Migrate to Redshift Spectrum and use materialized views to pre-filter columns before scan",
+        "Implement Parquet columnar format with only the 10 frequently-accessed fields projected; use S3 Select for pushdown filtering",
+        "Partition logs by date and create separate Athena tables for each field subset to enable targeted querying",
+        "Compress JSON with Snappy and tune Athena's result cache to 24 hours to avoid re-scanning"
+      ],
+      "answer": 1,
+      "explanation": "Parquet columnar storage with column projection reduces scan size from 500GB to ~25GB (85% of 10/200 fields), dropping costs 10\u201315x. S3 Select further pushes filtering to S3 layer. Redshift Spectrum adds latency and upfront costs. Partitioning by field subset duplicates data. Compression and caching help marginally but don't address the core waste of scanning irrelevant columns."
     }
   ]
 }

@@ -7690,6 +7690,86 @@
       ],
       "answer": 1,
       "explanation": "Without using `field(default_factory=list)`, the mutable default `[]` is shared across all instances\u2014a classic Python gotcha. When you append to `e1.tags`, you modify the shared list, so `e2.tags` also reflects the change. The correct approach is to use `field(default_factory=list)` to ensure each instance gets its own list instance."
+    },
+    {
+      "id": "py-new-088",
+      "type": "single",
+      "topic": "memory management",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You're processing a 10GB CSV file line-by-line in Python. After reading 5GB, memory usage jumps to 8GB even though you only keep one row in memory at a time. What is the most likely cause?",
+      "options": [
+        "Python's reference counting is broken and you should use del() explicitly",
+        "The garbage collector hasn't run yet; small objects are held in freelists by Python's memory allocator",
+        "Your iterator is accidentally creating a closure that captures the entire file buffer",
+        "You need to use generators instead of regular functions"
+      ],
+      "answer": 1,
+      "explanation": "Python's memory allocator maintains freelists for small objects to speed up allocation. Even after a variable goes out of scope, its memory may not be immediately returned to the OS. The garbage collector runs periodically but doesn't run on every variable deletion. This is especially visible with large files where the allocator optimizes for repeated small allocations."
+    },
+    {
+      "id": "py-new-089",
+      "type": "single",
+      "topic": "itertools",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "You need to merge 100 sorted lists and emit results in order without loading all data into memory. Which itertools function is most appropriate?",
+      "options": [
+        "itertools.chain() \u2014 concatenates iterables but doesn't preserve order across lists",
+        "itertools.merge() \u2014 doesn't exist in the standard library; use heapq.merge() instead",
+        "itertools.combinations() \u2014 generates all possible pairs from the lists",
+        "itertools.zip_longest() \u2014 interleaves elements until all iterables are exhausted"
+      ],
+      "answer": 1,
+      "explanation": "While itertools doesn't have a merge function, heapq.merge() is the standard library solution for merging sorted iterables while maintaining order and memory efficiency. It uses a min-heap and works lazily, making it ideal for large datasets. The correct answer acknowledges that itertools.merge() doesn't exist and directs to the proper tool."
+    },
+    {
+      "id": "py-new-090",
+      "type": "single",
+      "topic": "memory management",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "A data pipeline holds references to 1000 dataframes in a list. You delete the list with `del frames`, but memory isn't freed. Which statement is most accurate about why?",
+      "options": [
+        "del() only removes the variable name from the namespace; if other references exist (cyclic references, cached module data, or internal pandas caches), the objects persist",
+        "Pandas dataframes use a custom memory manager that ignores Python's garbage collection",
+        "You must explicitly call pandas.DataFrame.free() on each frame before deleting",
+        "This is a known memory leak in Python versions before 3.11 and cannot be fixed"
+      ],
+      "answer": 0,
+      "explanation": "del() removes the variable binding but doesn't guarantee object deletion. If cyclic references exist, internal caches hold references, or other variables reference the dataframes, they won't be garbage collected. In data pipelines, cached metadata, indices, and internal pandas state often hold additional references that prevent immediate memory release."
+    },
+    {
+      "id": "py-new-091",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "You're designing a data schema validation framework where every field class must register itself globally. Which approach best uses metaclasses for this use case?",
+      "options": [
+        "Override __init_subclass__() in a base Field class to auto-register subclasses without needing a metaclass",
+        "Create a metaclass that implements __new__() to intercept class creation and add each field class to a registry dict",
+        "Use a decorator on each field class definition to manually call a registration function",
+        "Rely on Python's __subclasses__() method to dynamically discover all field types at runtime"
+      ],
+      "answer": 1,
+      "explanation": "A metaclass implementing __new__() intercepts class creation before the class object is fully constructed, allowing automatic registration of all subclasses. This is the canonical use case for metaclasses. While __init_subclass__() (option 0) is simpler and often preferred in modern Python, the question specifically asks for metaclass usage. Decorators (option 2) require manual application, and __subclasses__() (option 3) only works at query time, not registration time."
+    },
+    {
+      "id": "py-new-092",
+      "type": "single",
+      "topic": "itertools",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "You're streaming events where you need to batch items by time window AND reset if a 'flush' event arrives. Which itertools pattern handles this efficiently without loading all data?",
+      "options": [
+        "Use itertools.groupby() on a sorted stream and nest loop breaks for flush events",
+        "Use itertools.takewhile() to collect until flush, then recursively call itself on the remainder",
+        "Chain itertools.islice() calls, manually checking for flush within each slice iteration",
+        "Combine itertools.compress() with a boolean stream generated from window logic"
+      ],
+      "answer": 2,
+      "explanation": "itertools.islice() with manual iteration allows fine-grained control over batch boundaries and flush event handling. You can check each item during iteration and break/reset on flush without pre-sorting or buffering entire groups. groupby() (option 0) groups consecutive identical items but doesn't handle dynamic reset points. takewhile() (option 1) is deterministic and doesn't support conditional breaks. compress() (option 3) filters but doesn't create batches."
     }
   ]
 }

@@ -1021,6 +1021,70 @@
       ],
       "answer": 1,
       "explanation": "Without metadata tracking or freshness checks, a stale pre-aggregated table will return different results than live transaction data, especially problematic if the current month's aggregation lags actual transactions. This violates data contract expectations and confuses users. Storage and detail-loss are trade-offs users accept; language barriers can be abstracted by the BI layer. The key risk is silent inconsistency."
+    },
+    {
+      "id": "dash-new-009",
+      "type": "single",
+      "topic": "date-range and time-zone handling",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "A dashboard displays 'Revenue (Last 7 Days)' and is used by teams in San Francisco (PST), London (GMT), and Singapore (SGT). The dashboard refreshes daily at midnight UTC. A London user opens it at 9am GMT on Wednesday and sees revenue through Tuesday midnight UTC. A Singapore user opens the same dashboard 8 hours later (5pm SGT Wednesday, which is 9am UTC Thursday) and sees a different 7-day range. Why is this occurring, and what is the most robust fix?",
+      "options": [
+        "The dashboard should store all timestamps in the user's local timezone and recalculate the 7-day window on every page load based on their client clock.",
+        "The 'Last 7 Days' filter should be defined as a fixed UTC interval (e.g., UTC midnight to UTC midnight) and the dashboard should convert display times to each user's timezone only for presentation, never for filtering.",
+        "Use server-side session variables to lock each user into their timezone at login, then apply all date logic relative to that fixed timezone for the duration of their session.",
+        "The issue cannot be resolved; multi-timezone dashboards must ask users to select their timezone explicitly in every filter interaction."
+      ],
+      "answer": 1,
+      "explanation": "The correct approach is to define the metric window in a canonical timezone (UTC) server-side to ensure consistency, then convert for display only. This prevents different users from seeing different data ranges. Option 0 fails because client clocks are unreliable and shift the metric definition. Option 2 locks users incorrectly if they span timezones. Option 3 is defeatist; explicit timezone selection adds friction."
+    },
+    {
+      "id": "dash-new-010",
+      "type": "single",
+      "topic": "aggregate awareness",
+      "difficulty": "hard",
+      "added_date": "2026-09-01",
+      "prompt": "A dashboard has two visuals: (1) 'Total Revenue by Day' (a line chart with ~365 points per year) and (2) 'Revenue Breakdown by Product Category' (a table filtered to a single day, showing ~50 categories). The backend has pre-aggregated tables: `daily_revenue` (1 row per day) and `daily_revenue_by_category` (1 row per day per category). A user selects a date range spanning 2 years and then clicks on a specific day in the line chart to filter visual 2. Which pattern most accurately describes the query execution risk?",
+      "options": [
+        "Visual 1 will correctly use `daily_revenue`; Visual 2 will correctly use `daily_revenue_by_category`. No risk.",
+        "Visual 1 uses `daily_revenue`, but Visual 2 may incorrectly query the fact table instead of the pre-agg if the BI tool's aggregate awareness does not recognize that the day-level filter is compatible with both tables.",
+        "Visual 1 will be forced to query the fact table because the 2-year date range exceeds the row limit of `daily_revenue`.",
+        "Both visuals will use the same pre-agg table, causing Visual 2 to return duplicate rows for each category."
+      ],
+      "answer": 1,
+      "explanation": "Modern BI tools use aggregate awareness to route queries to pre-aggregated tables when dimensions and filters are compatible. However, if the tool's metadata does not correctly declare that `daily_revenue_by_category` is compatible with day-level filtering, it may fall back to the fact table, causing performance degradation. Options 0 and 3 assume perfect aggregate routing. Option 2 misunderstands pre-agg design; row limits don't force fact-table queries."
+    },
+    {
+      "id": "dash-new-011",
+      "type": "single",
+      "topic": "high-cardinality filters",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "A dashboard includes a filter on `customer_id` with 2.8 million distinct values. Users report that typing in the filter box is sluggish, and the dropdown list is unusable. The BI tool supports three modes: (1) full enumeration of all 2.8M values into a dropdown, (2) server-side search where each keystroke queries a 'customers' table, (3) a pre-built lookup table with top-1000 customers by revenue, plus a free-text search. Which approach best balances usability and performance for an internal analytics dashboard?",
+      "options": [
+        "Mode 1 (full enumeration) is necessary for data completeness and should be used regardless of performance cost.",
+        "Mode 2 (server-side search) requires careful indexing on the filter column and pagination to be efficient, making it the most flexible and scalable approach for high-cardinality dimensions.",
+        "Mode 3 (pre-built lookup + free-text search) sacrifices coverage of all 2.8M customers but provides instant results for common use cases and reduces latency; it is suitable if users typically filter to a subset of customers.",
+        "None of these modes can work; high-cardinality filters should be removed from dashboards and accessed via a separate customer lookup tool."
+      ],
+      "answer": 1,
+      "explanation": "Mode 2 (server-side search with proper indexing and pagination) is the gold standard for high-cardinality filters because it allows users to search by a customer name or ID, retrieves results on-demand, and scales to millions of values without loading them all into memory. Mode 1 is impractical. Mode 3 works for specific use cases but excludes long-tail customers. Option 3 is overly conservative; high-cardinality filters are common in production dashboards when properly implemented."
+    },
+    {
+      "id": "dash-new-012",
+      "type": "single",
+      "topic": "date-range and time-zone handling",
+      "difficulty": "medium",
+      "added_date": "2026-09-01",
+      "prompt": "A dashboard metric 'Conversion Rate (Last 30 Days)' is defined as conversions / sessions. A data engineer notices that when the dashboard is opened on the 15th of a month, it includes partial data from the upcoming month (e.g., 1-2 days from the next month) due to how the 'last 30 days' window is computed relative to the current UTC timestamp. Business stakeholders expect the metric to always span exactly 30 calendar days in their local timezone (US Eastern). What is the primary issue with this design, and what is the best remediation?",
+      "options": [
+        "The issue is that UTC timestamps cannot accurately represent user timezones; switch all calculations to Eastern Time and rebuild the data warehouse in ET.",
+        "The issue is that 'last 30 days' computed as `CURRENT_TIMESTAMP - INTERVAL '30 days'` produces a rolling window that spans into the next calendar period and includes partial days. Define the window instead as 'the last 30 complete calendar days' by truncating to midnight ET and counting backward, excluding the current partial day.",
+        "The issue is that the conversion rate denominator (sessions) grows faster than the numerator (conversions) in the current UTC window, skewing the ratio. Add a synthetic 'adjustment factor' to normalize the rate.",
+        "There is no issue; 'last 30 days' is inherently ambiguous and should be replaced with explicit date filters (e.g., 'Jan 1 \u2013 Jan 30') that users must set manually."
+      ],
+      "answer": 1,
+      "explanation": "The correct fix is to redefine the window as 'last 30 complete calendar days' and anchor it to the user's timezone (ET), truncating to midnight rather than using a floating 30-day interval. This ensures stakeholders see a predictable, aligned set of data. Option 0 is impractical (switching the entire warehouse to ET). Option 2 introduces a false adjustment. Option 3 trades convenience for precision unnecessarily."
     }
   ]
 }
