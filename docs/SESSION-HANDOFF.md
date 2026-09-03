@@ -1,9 +1,53 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-08-27. This file is the running memory between Claude Code
+_Last updated: 2026-09-03. This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-03): a Devotional Music section, built as a SERIES.**
+  Lives at `devotional-music/` and is wired into `index.html` (nav-bar link +
+  a hand-written section card) and `sitemap.xml`. PR #797 (draft).
+  - **The shape is hub + one article per song**, not one big page. The hub
+    (`devotional-music/index.html` + `data.js` + `app.js` + `style.css`) holds
+    12 Ramadasu keertanas including all 9 Navaratnas, with Telugu text,
+    transliteration, meanings, ragam/talam and esoteric commentary. Five views:
+    Keertanas, Ragams (12, with arohana/avarohana), The Composer, The Tradition
+    (sampradaya bhajan + glossary), Search.
+  - **`article.css` is the shared skin for every future song article** — reuse it
+    rather than writing a new stylesheet per song.
+  - **Song 01 is live:** `devotional-music/rama-dayajudave/` — an 18-part
+    long-form article (glance card, composer, text in four layers, sahitya deep
+    dive, three-level esoteric reading, daya, ragam + tala, version comparison,
+    kriti-vs-nama, nama mahima, listening cues, mudra, research note, listening
+    room, related songs, reflection, sources).
+  - **EDITORIAL RULES — keep them if you add songs.** They are written into the
+    header comment of `data.js` too.
+    1. Ramadasu left *sahityam*, not notation. Every ragam carries a
+       `ragaConfidence` of `established` or `varies`; where sources disagree,
+       show the disagreement (Rama Dayajudave is sung in Bhairavi, Dhanyasi AND
+       Keeravani). Never silently pick one.
+    2. Reproduce lyrics only as far as they can be corroborated. Say where the
+       text stops; never invent a charanam, ragam, tala or anecdote.
+    3. Songs by other composers that get misattributed to Ramadasu go in
+       `MISATTRIBUTED`, never in `KRITIS`. Already caught: **Ksheerabdhi
+       Kanyakaku** (Annamacharya) and **Nanu Palimpa** (Tyagaraja).
+    4. Pallavi of Rama Dayajudave follows the better-attested
+       `bhadrachala dhama` reading; the `bhadrachala rama` variant is noted.
+    5. Devotional legend (the mohurs) is told as tradition, not as history.
+  - **Design brief:** ivory/sandalwood, deep maroon, muted temple gold,
+    restrained saffron; line-drawn SVG motifs only (gopuram, tambura, jalra,
+    lamp). No deity imagery, no neon, no giant Om. A full-page ruled
+    "manuscript" texture was tried and **removed** — it banded across body text.
+    Don't reintroduce it.
+  - **Next songs** would naturally be Paluke Bangaramayena, Ee Teeruga Nanu, or
+    Ikshvaku Kula Tilaka; the goal discussed was 15–20 Ramadasu articles, not
+    just the famous concert pieces. Each new article should also get a
+    `sitemap.xml` entry and an `article` field on its kriti in `data.js` (that
+    field is what renders the "Read the full article" CTA on the hub card).
+  - **Open question for a rasika:** the Telugu script for charanams 2 and 3 of
+    Rama Dayajudave was set from transliterated sources, not a printed Telugu
+    edition. Worth a check.
 
 - **NEW (2026-08-27, revision pass): the Spark track was hardened after review.**
   Eight fixes, all verification and readability — deliberately no new topics.
