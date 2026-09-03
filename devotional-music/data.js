@@ -2086,3 +2086,247 @@ const COLLECTION = {
     { step: "Return to the words differently", te: "మళ్ళీ" }
   ]
 };
+
+/* ── Kapi (added with Song 02) ────────────────────────────────── */
+
+RAGAS["Kapi"] = {
+  telugu: "కాపి", melakarta: "Janya of Kharaharapriya (22nd)", type: "Audava-sampurna, bhashanga",
+  arohana: "S R₂ M₁ P N₂ Ṡ", avarohana: "Ṡ N₂ D₂ N₂ P M₁ G₂ R₂ S",
+  bhava: "Often used for tenderness, yearning and devotional warmth",
+  note: "One of the most-loved ragams in the devotional and lighter-classical repertoire. It is " +
+    "<em>bhashanga</em> — it admits notes from outside its parent scale, chiefly antara gandhara (G₃) and " +
+    "kakali nishada (N₃), and those borrowed touches are exactly where its characteristic ache lives. " +
+    "<strong>Carnatic Kapi is not Hindustani Kafi.</strong> The names are cognate and the ragams are not: " +
+    "Hindustani Kafi corresponds far more closely to Kharaharapriya itself, while Carnatic Kapi is a " +
+    "distinct janya with its own phrases and its own borrowed colours.",
+  prayogas: ["S R₂ M₁ P", "P N₂ Ṡ", "Ṡ N₂ D₂ N₂ P", "M₁ G₂ R₂ S", "P M₁ G₂ R₂ S"],
+  jiva: "Gandhara (G₂), nishada (N₂) and rishabha (R₂); the madhyama is a frequent resting place.",
+  gamaka: "The sadharana gandhara carries a slow oscillation, and the anya swaras — the raised gandhara " +
+    "and nishada — are touched in passing rather than settled on. That glancing quality is the ragam's " +
+    "signature: it brightens for an instant and then falls back.",
+  distinguish: "Against its parent Kharaharapriya, Kapi drops gandhara and dhaivata in ascent and adds " +
+    "the borrowed G₃/N₃ in descent. Against Hindustani Kafi — a genuinely different ragam despite the " +
+    "shared name — the borrowed notes and the vakra descent are what set it apart.",
+  withText: "Its ability to lean warm and then catch suits a text that repeats one word until the word " +
+    "changes temperature: the same syllable can be brightened by an anya touch on one repetition and left " +
+    "plain on the next, which is precisely what a bhava intensifier needs."
+};
+
+/* ── Song 02: Caranamule Nammiti ──────────────────────────────── */
+
+KRITIS.push({
+  id: "caranamule-nammiti",
+  title: "Caranamule Nammiti",
+  telugu: "చరణములే నమ్మితి",
+  translit: "caraṇamulē nammiti",
+  gloss: "\"Your feet — those alone I have trusted\"",
+  raga: "Kapi",
+  ragaConfidence: "established",
+  ragaNote: "Kapi, Adi talam — consistent across the sources consulted, including karnatik.com and " +
+    "several lyrics editions that name the ragam in their own titles.",
+  tala: "Adi",
+  navaratna: null,
+  featured: true,
+  article: { href: "caranamule-nammiti/", label: "Read the full article" },
+  bhava: "Sharanagati — surrender arrived at by repetition",
+  summary: "Six verses, and in each one a single word is said three times. The dictionary meaning never " +
+    "changes. Everything else does.",
+
+  pallavi: {
+    telugu: "చరణములే నమ్మితి\nనీ దివ్య చరణములే నమ్మితి",
+    translit: "caraṇamulē nammiti\nnī divya caraṇamulē nammiti",
+    meaning: "Your feet — those alone I have trusted. In your divine feet alone I have placed my trust.",
+    note: "<strong>The hinge of the whole composition.</strong> Every one of the six charanams ends on the " +
+      "bare words <em>nī divya</em> — \"your divine…\" — which is not a finished phrase. It completes only " +
+      "when the singer returns to the pallavi and supplies <em>caraṇamulē nammiti</em>. Six times, the " +
+      "verse hands off mid-thought and the refrain finishes the sentence."
+  },
+  anupallavi: null,
+  anupallaviNote: "The composition is a pallavi with six charanams; the sources consulted show no anupallavi.",
+  charanams: [
+    { num: 1,
+      telugu: "వారిధి గట్టిన వర భద్రాచల\nవరదా వరదా వరదా నీ దివ్య",
+      translit: "vāridhi gaṭṭina vara bhadrāchala\nvaradā varadā varadā nī divya",
+      meaning: "O boon-giver of blessed Bhadrachalam, you who bound the ocean — Varada, Varada, Varada… your divine…",
+      note: "<em>Vāridhi</em>, the ocean; <em>gaṭṭina</em>, bound or built across — the Setu. The verse " +
+        "opens on the largest thing Rama ever did and closes on a single word said three times." },
+    { num: 2,
+      telugu: "ఆది పురుష నన్నరమర సేయకుమయ్యా\nఅయ్యా అయ్యా నీ దివ్య",
+      translit: "ādi puruṣa nannaramara sēyakumayyā\nayyā ayyā nī divya",
+      meaning: "O primordial being, do not hold back from me — my Lord, my Lord… your divine…",
+      note: "<strong>Textual variant.</strong> Some Telugu sources read <em>ādi puruṣa</em> (primordial " +
+        "being); others preserve or add <em>ādiśēṣa</em>. Translations also differ on " +
+        "<em>aramara</em> (అరమర) — reserve, reticence, holding something back: some render the line " +
+        "\"do not keep any reserve from me,\" others \"do not hold my devotion at arm's length.\" " +
+        "Both readings come from the same word. Sources differ; neither has been normalised away here." },
+    { num: 3,
+      telugu: "వనమున రాతిని వనితగ జేసిన\nచరణము చరణము చరణము నీ దివ్య",
+      translit: "vanamuna rātini vanitaga jēsina\ncaraṇamu caraṇamu caraṇamu nī divya",
+      meaning: "The foot that in the forest made a stone into a woman — that foot, that foot, that foot… your divine…",
+      note: "The Ahalya episode: Rama's coming to the hermitage restores her from stone to living form. " +
+        "The verse names the deed and then simply points, three times, at the instrument of it." },
+    { num: 4,
+      telugu: "పాదారవిందమే ఆధారమని నేను\nపట్టితి పట్టితి పట్టితి నీ దివ్య",
+      translit: "pādāravindamē ādhāramani nēnu\npaṭṭiti paṭṭiti paṭṭiti nī divya",
+      meaning: "Holding your lotus feet alone to be my support, I have grasped them — I have held on, held on, held on… your divine…",
+      note: "<em>Pādāravinda</em>, lotus-feet; <em>ādhāra</em>, support or foundation; <em>paṭṭiti</em>, " +
+        "I seized, I caught hold. The only charanam whose repeated word is a verb the devotee performs " +
+        "rather than a name he calls." },
+    { num: 5,
+      telugu: "వెయ్యారు విధముల కుయ్యాలించి రావయ్యా\nఅయ్యా అయ్యా నీ దివ్య",
+      translit: "veyyāru vidhamula kuyyāliṁci rāvayyā\nayyā ayyā nī divya",
+      meaning: "Hear my cry, uttered a thousand ways, and come — my Lord, my Lord… your divine…",
+      note: "<em>Veyyāru</em> is literally <em>veyyi</em> (a thousand) plus <em>āru</em> (six) — a thousand " +
+        "and six — but it is idiomatic Telugu for \"countless, in every conceivable way,\" and is not " +
+        "meant to be counted. <em>Kuyyi</em> is a cry or wail; <em>ālinci</em>, having heard." },
+    { num: 6,
+      telugu: "బాగుగ నన్నేలు భద్రాచల రామదాసుడ\nదాసుడ దాసుడ నీ దివ్య",
+      translit: "bāguga nannēlu bhadrāchala rāmadāsuḍa\ndāsuḍa dāsuḍa nī divya",
+      meaning: "Rule over me graciously, O Lord of Bhadrachalam — [I am your] servant, servant, servant… your divine…",
+      note: "<strong>The mudra, and what happens to it.</strong> <em>Nannu ēlu</em> — rule me, govern me, " +
+        "take me into your keeping. The signature <em>Bhadrāchala Rāmadāsuḍa</em> arrives, and then the " +
+        "last three syllables of his own name detach and repeat on their own: <em>dāsuḍa, dāsuḍa</em>. " +
+        "See the esoteric reading below." }
+  ],
+
+  esoteric: [
+    { head: "Every verse ends mid-sentence",
+      evidence: "TEXTUAL",
+      text: "All six charanams close on <em>nī divya</em> — \"your divine…\" — and stop. It is not a " +
+        "phrase; it is a dangling adjective waiting for its noun. The noun only arrives when the singer " +
+        "returns to the pallavi: <em>caraṇamulē nammiti</em>. So the structure guarantees the refrain " +
+        "cannot be skipped and the song cannot be sung once. The same <em>antādi</em> joinery runs through " +
+        "<a href=\"#kriti-rama-daya-judave\">Rama Daya Judave</a>, where the seams manufacture " +
+        "<em>Sita-Rama</em> and <em>jagadabhirama</em>. Here it does something simpler and more relentless: " +
+        "six times the verse reaches for the feet and cannot name them without going back to the beginning." },
+    { head: "The repeated word is cut loose from its own grammar",
+      evidence: "TEXTUAL",
+      text: "This is the sharpest thing in the composition, and it is visible in the transliteration. In " +
+        "charanam 2 the line ends <em>sēyakum-<strong>ayyā</strong></em> — where <em>ayyā</em> is the " +
+        "ordinary vocative tail of a Telugu verb — and then <em>ayyā, ayyā</em> continue on their own. " +
+        "Charanam 5 does it again: <em>rāv-<strong>ayyā</strong></em>, then <em>ayyā, ayyā</em>. " +
+        "Charanam 6 does it to his own name: <em>rāma<strong>dāsuḍa</strong></em>, then " +
+        "<em>dāsuḍa, dāsuḍa</em>. The repeated word is not appended to the line — it is <em>extracted</em> " +
+        "from it. A syllable that was doing grammatical work breaks free of the sentence and becomes pure " +
+        "address. That is what the repetitions are: language shedding its structure." },
+    { head: "The signature dissolves into the word",
+      evidence: "TEXTUAL",
+      text: "Follow charanam 6 slowly. The <em>mudra</em> — the composer's signature, the thing that marks " +
+        "the song as his — is <em>Bhadrāchala Rāmadāsuḍa</em>. And the word that then repeats is the tail " +
+        "of that signature: <em>dāsuḍa</em>, servant. Ramadasu does not sign the song and then say " +
+        "something. His name comes apart, and what is left standing when the <em>Bhadrāchala</em> and the " +
+        "<em>Rāma</em> have fallen away is the word <em>servant</em>, said twice more into the silence. " +
+        "The identity of the poet is consumed by the last word of his own name." },
+    { head: "Rama's history offered back to him as argument",
+      evidence: "TRADITIONAL",
+      text: "Charanam 1 names the binding of the ocean; charanam 3 names Ahalya restored. Neither is " +
+        "narrated for its own sake. The devotional logic is precedent: <em>those feet crossed an ocean; " +
+        "those feet raised a stone into a woman — and I am asking them to do considerably less for me.</em> " +
+        "Ramadasu argues this way constantly. The squirrel of <a href=\"#kriti-paluke-bangaramayena\">Paluke " +
+        "Bangaramayena</a> is cited as a ruling, the avataras of <a href=\"#kriti-takkuvemi-manaku\">Takkuvemi " +
+        "Manaku</a> as ten pieces of evidence. Here the case law is compressed into two verses." },
+    { head: "Caraṇa and śaraṇa — a resonance, not an etymology",
+      evidence: "TRADITIONAL",
+      text: "The song turns on <em>caraṇa</em>, foot, and everything it says about those feet is the " +
+        "language of <em>śaraṇa</em>, refuge. It is worth being precise: these are two distinct Sanskrit " +
+        "words with distinct roots, and the tradition does not claim otherwise. What it does is let them " +
+        "lean on each other — in devotional usage the Lord's <em>caraṇa</em> is where one takes " +
+        "<em>śaraṇa</em>, and <em>śaraṇāgati</em> is quite literally described as falling at the feet. " +
+        "The resonance is real; the etymology is not. Ramadasu is working the first, not asserting the second." },
+    { head: "Why the intensification cannot be a code",
+      evidence: "INTERPRETIVE",
+      text: "It is tempting to look for a hidden system in the triples — three for the three gunas, or the " +
+        "three levels of speech, or some tantric count. Nothing in the text supports that, and reaching for " +
+        "it would cheapen what is actually happening. The repetitions are <strong>bhava intensifiers</strong>. " +
+        "The lexical meaning of <em>ayyā</em> is identical on all three soundings; what changes is the " +
+        "distance between the one calling and the one called. This is the same mechanism as " +
+        "<em>nama-japa</em> — where the Name is not decoded but dwelt in — and it is why a bhajana hall " +
+        "can sing one line for twenty minutes without anyone thinking it has been repeated." }
+  ],
+
+  sahitya: "Notice the direction of travel across the six verses. Charanam 1 describes Rama in the third " +
+    "person — <em>he who bound the ocean</em>. Charanam 2 turns to address him directly. Charanam 3 points " +
+    "at his feet. Charanam 4 takes hold of them. Charanam 5 is a cry with almost no content left in it. " +
+    "Charanam 6 is no longer about Rama at all — it is the devotee stating what he is. The song begins as " +
+    "description and ends as identity, and the repeated words are the rungs.",
+
+  /* ── second-pass layer ── */
+  beforePlay: "Read the words once and you will think you understand the song. You will not, quite. " +
+    "Six verses, and each one ends by saying a single word three times — <em>varadā, varadā, varadā</em>. " +
+    "On the page that looks like emphasis. Sung, it is a man getting closer with each repetition, until " +
+    "by the last verse he has stopped describing God and is only saying what he himself is.",
+
+  keyWord: {
+    word: "Nammiti", telugu: "నమ్మితి", translit: "nammiti",
+    literal: "I trusted; I believed. Past tense, first person.",
+    colloquial: "In everyday Telugu, <em>nammu</em> is what you do with a person, not a proposition — " +
+      "you trust someone with money, with a child, with a secret. It carries risk.",
+    spiritual: "Closer to <em>I have entrusted myself to you</em> than to <em>I believe that you exist</em>. " +
+      "The devotional force is dependence, not assent — and the past tense makes it a thing already done " +
+      "rather than a resolution being formed.",
+    why: "The pallavi could have said <em>I worship</em>, or <em>I praise</em>, or <em>I take refuge</em>. " +
+      "It says <em>I trusted</em> — the ordinary word for handing something valuable to someone and " +
+      "walking away. And it says it in the completed past, twice, before the song has argued anything."
+  },
+
+  cues: [
+    { mark: "The first <span lang='te'>వరదా</span>, and then the second", provenance: "tradition",
+      text: "Listen to whether the singer keeps the three soundings identical or lets them change. Most " +
+        "do not repeat them flat — the second usually opens a little, the third leans. Nothing in the text " +
+        "instructs this; it is what performers do with a word that has been handed to them three times." },
+    { mark: "The seam at <span lang='te'>నీ దివ్య</span>", provenance: "text",
+      text: "Every charanam ends on an unfinished phrase — \"your divine…\" — and the refrain completes it. " +
+        "Listen for the small lean into the return. It is in the text, so every performance has it, but " +
+        "you have to know it is there to hear the verse handing off." },
+    { mark: "<span lang='te'>అయ్యా</span> breaking off from the verb", provenance: "text",
+      text: "In charanams 2 and 5 the first <em>ayyā</em> is the tail of a word — <em>sēyakum-ayyā</em>, " +
+        "<em>rāv-ayyā</em> — and the next two stand alone. Listen for the moment the syllable stops being " +
+        "grammar and becomes a call." },
+    { mark: "<span lang='te'>పట్టితి</span> — the grip", provenance: "tradition",
+      text: "The one repeated word that is an action rather than an address. Many singers tighten here — " +
+        "shorter phrases, less ornament — which turns the triple into something closer to a grip than a " +
+        "cry. Worth comparing across renditions; the text does not require it." },
+    { mark: "The last <span lang='te'>దాసుడ</span>", provenance: "text",
+      text: "His own signature comes apart and leaves the word <em>servant</em> standing alone. Listen for " +
+        "where the singer places the weight — on <em>Rāmadāsuḍa</em>, the name, or on the bare " +
+        "<em>dāsuḍa</em> that follows it. That choice is the whole reading of the song." }
+  ],
+
+  modern: "The song is built out of a suspicion most people know: that being heard requires saying it " +
+    "again. We rephrase, escalate, try a different channel, wonder whether the failure is in the asking. " +
+    "Ramadasu does all of that — <em>veyyāru vidhamula</em>, a thousand ways — and arrives somewhere " +
+    "unexpected. The repetitions do not get louder or more clever. They get shorter, until only one word " +
+    "is left. Whatever else that is, it is not the behaviour of someone trying harder to be persuasive. " +
+    "It looks more like what happens when persuasion stops mattering and only the address remains.",
+
+  listening: [
+    { performer: "Dr. M. Balamuralikrishna", tradition: "Concert",
+      raga: "Kapi", tala: "Adi", kind: "watch", id: "T1Kk2qwo8Go", verify: "index-corroborated",
+      why: "Listen for how little he does to the repetitions — the restraint is the interpretation." },
+    { performer: "Rendition with English and Telugu lyrics", tradition: "Ragam Kapi, with text on screen",
+      raga: "Kapi", tala: "Adi", kind: "watch", id: "32dRhSXeoFo", verify: "index-corroborated",
+      why: "The easiest way to watch the triples arrive while you hear them — useful on a first listen." },
+    { performer: "Kaapi &middot; Adi &middot; classical rendition", tradition: "Carnatic",
+      raga: "Kapi", tala: "Adi", kind: "watch", id: "HRb8vO3Oea0", verify: "index-corroborated",
+      why: "Names its ragam and talam in the title; a straightforward reading to compare the others against." },
+    { performer: "Sri Ramadasu (2006) — film version", tradition: "Popular / film",
+      raga: "Kapi-based film setting", tala: "Adi", kind: "watch", id: "D0JIP3byR1k", verify: "index-corroborated",
+      why: "How most Telugu listeners first met this song; hear what a film arrangement does to a bhava intensifier." }
+  ],
+
+  sources: [
+    { label: "Karnatik.com — charaNamulE nammiti (Kapi, Adi)", url: "https://www.karnatik.com/c2465.shtml" },
+    { label: "Bhadrachalaramadasu.com — Charanamule nammiti", url: "https://bhadrachalaramadasu.com/50-charanamule-nammiti/" },
+    { label: "Rasikas.org — translation discussion for charaNamuLe nammiti", url: "https://www.rasikas.org/forums/viewtopic.php?t=22420" },
+    { label: "Templesinindia — Charanamule Nammiti lyrics", url: "https://templesinindiainfo.com/charanamu-le-nammiti-lyrics-in-english-ramadasu-keerthana/" },
+    { label: "Slokam.in — Charanamule Nammithi (Telugu and English)", url: "https://slokam.in/charanamule-nammithi-in-english/" }
+  ]
+});
+
+// Resolve listening urls for the pushed kriti (the earlier merge pass has already run).
+KRITIS.filter(function (k) { return k.id === 'caranamule-nammiti'; })
+  .forEach(function (k) {
+    k.listening.forEach(function (l) {
+      l.url = l.kind === 'watch' ? ytWatch(l.id) : ytSearch(l.q);
+    });
+  });

@@ -1,9 +1,50 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-03 (second pass). This file is the running memory between Claude Code
+_Last updated: 2026-09-03 (Song 02). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-03): Song 02 of the Devotional Music series is published.**
+  `devotional-music/caranamule-nammiti/` — *Caraṇamulē Nammiti*, rāga Kāpi,
+  Ādi. The collection is now **13 keertanas and 13 ragams** (counts appear in
+  the hub header tags, the "All 13" filter button, the section intro, the
+  JSON-LD description, and the homepage card — update all of them together).
+  - **The article's thesis:** repetition as *bhāva intensifier*, not esoteric
+    code. Six verses, each ending in one word said three times (varadā, ayyā,
+    caraṇamu, paṭṭiti, ayyā, dāsuḍa). Key line: "The dictionary has not
+    changed. The heart has."
+  - **Three genuine textual findings, all TEXTUAL-labelled and worth keeping:**
+    1. Every caraṇam ends on the bare `nī divya` — an adjective with no noun —
+       which completes only on the return to the pallavi. Same antādi joinery
+       as Rama Dayajudave.
+    2. In caraṇams 2, 5 and 6 the repeated word is **extracted from the
+       preceding word**: sēyakum-*ayyā* → ayyā ayyā; rāv-*ayyā* → ayyā ayyā;
+       rāmadāsu*ḍa* → dāsuḍa dāsuḍa. A suffix breaks free of its grammar and
+       becomes pure address.
+    3. The **mudra dissolves**: the signature is Bhadrāchala Rāmadāsuḍa, and
+       the word that repeats is the tail of his own name. Place-name and god's
+       name fall away; the common noun *servant* is what is left.
+  - **Textual variant preserved, not normalised:** caraṇam 2 reads *ādi puruṣa*
+    in some sources and *ādiśēṣa* in others; translations of *aramara* (అరమర —
+    reserve, holding back) also split on direction. Both flagged in data.js and
+    in the article.
+  - **`veyyāru`** is literally 1006 (veyyi + āru) but idiomatic for "countless".
+    Do not over-literalise it.
+  - **Kāpi added** to RAGAS + RAGA_DETAIL with the important warning that
+    **Carnatic Kāpi is not Hindustani Kāfi** (Kāfi maps closer to
+    Kharaharapriya itself).
+
+- **Listening links for Song 02 are the best-corroborated so far** — four
+  `kind:"watch"` entries whose indexed titles name the composition, including
+  a Balamuralikrishna rendition (`T1Kk2qwo8Go`) and two that state Kāpi/Ādi in
+  the title. Still **not liveness-verified** — YouTube remains blocked by the
+  egress proxy. Same two-tier model and same open caveat on the page.
+
+- **New article CSS components** (in `article.css`, reusable for later songs):
+  `.triple-strip`, `.rendering`, `.seq`, `.dissolve`, `.ladder`, `.remnant`,
+  `.arch`. The dissolve block is the strike-through of the mudra; the remnant
+  block is the bare-words display.
 
 - **NEW (2026-09-03, second pass): the Devotional Music section gained an
   EXPERIENCE layer.** The reference material was kept; what was added turns it
