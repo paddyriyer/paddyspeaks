@@ -7866,6 +7866,22 @@
       ],
       "answer": 0,
       "explanation": "`__slots__` eliminates the per-instance `__dict__`, saving roughly 240-280 bytes per object (substantial across 500M instances), but prevents adding new attributes dynamically and complicates inheritance. This is a standard memory optimization in data-heavy workloads, though it trades flexibility for efficiency. Options 1, 3, and 4 misstate the mechanics or applicability of `__slots__`."
+    },
+    {
+      "id": "py-new-099",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-09-03",
+      "prompt": "You are processing data pipeline logs stored across multiple nested directories. You need to find all `.log` files modified in the last 24 hours and read them efficiently without constructing paths as strings. Which approach is most Pythonic and memory-efficient for a data engineer?\n\nGiven:\n```python\nfrom pathlib import Path\nimport time\n\nbase_dir = Path('/var/logs/pipeline')\nthreshold = time.time() - 86400  # 24 hours ago\n```\n\nWhich code correctly finds and processes recent logs?",
+      "options": [
+        "for log in base_dir.rglob('*.log'):\n    if log.stat().st_mtime > threshold:\n        process(log.read_text())",
+        "for log in base_dir.glob('**/*.log'):\n    if log.stat().st_mtime > threshold:\n        with open(str(log)) as f:\n            process(f.read())",
+        "logs = [str(p) for p in base_dir.rglob('*.log') if p.stat().st_mtime > threshold]\nfor log_path in logs:\n    with open(log_path) as f:\n        process(f.read())",
+        "for root, dirs, files in os.walk(base_dir):\n    for f in files:\n        if f.endswith('.log'):\n            path = os.path.join(root, f)\n            if os.path.getmtime(path) > threshold:\n                process(open(path).read())"
+      ],
+      "answer": 0,
+      "explanation": "`Path.rglob()` is the most Pythonic and memory-efficient for recursive globbing\u2014it returns an iterator (not a list), avoiding unnecessary storage of all paths. Using `Path` objects directly with `.stat()` and `.read_text()` avoids string conversions and context manager overhead. Options 1-3 either require string conversion, build lists in memory, or use deprecated `os.walk()`."
     }
   ]
 }
