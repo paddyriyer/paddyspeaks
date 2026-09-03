@@ -89,7 +89,7 @@ const RAGAS = {
   "Varali": {
     telugu: "వరాళి", melakarta: "39th melakarta (Jhalavarali)", type: "Sampurna, vakra",
     arohana: "S G₁ R₁ G₁ M₂ P D₁ N₃ Ṡ", avarohana: "Ṡ N₃ D₁ P M₂ G₁ R₁ S",
-    bhava: "Awe, otherworldliness, the numinous",
+    bhava: "Often used for awe and the otherworldly",
     note: "A ragam of strange, almost unearthly colour — the sharp fourth (prati madhyama) against the lowest second and third. " +
       "Tradition surrounds it with caution: a guru is said not to teach it directly to a student, which is best read as a warning " +
       "about its difficulty rather than a superstition. It does not console. It makes the hair stand up."
@@ -97,57 +97,57 @@ const RAGAS = {
   "Atana": {
     telugu: "అఠాణా", melakarta: "Janya of Dheerasankarabharanam (29th)", type: "Vakra, audava-vakra",
     arohana: "S R₂ M₁ P N₃ Ṡ", avarohana: "Ṡ N₂ D₂ P M₁ R₂ G₃ R₂ S",
-    bhava: "Veera — valour, resolve",
+    bhava: "Often carries veera — valour, resolve",
     note: "The heroic ragam of the Carnatic repertoire, full of brisk gamakas and a characteristically " +
       "unstable nishada. Its use for a song about holding a name on the tongue is the whole point: steadiness is a form of courage."
   },
   "Ananda Bhairavi": {
     telugu: "ఆనందభైరవి", melakarta: "Janya of Natabhairavi (20th)", type: "Vakra sampurna",
     arohana: "S G₂ R₂ G₂ M₁ P D₂ P Ṡ", avarohana: "Ṡ N₂ D₂ P M₁ G₂ R₂ S",
-    bhava: "Karuna and shanta — compassion, tenderness",
+    bhava: "Often used for karuna and shanta — compassion, tenderness",
     note: "Borrows the D₂ that its parent scale does not have, which is where its warmth comes from. " +
-      "The tradition credits it with a soothing, almost therapeutic quality and uses it for lullabies. " +
+      "It is widely associated with a soothing, almost therapeutic quality and is often used for lullabies. " +
       "Ramadasu's most famous reproach is set in the gentlest ragam he could have chosen."
   },
   "Saveri": {
     telugu: "సావేరి", melakarta: "Janya of Mayamalavagowla (15th)", type: "Audava-sampurna",
     arohana: "S R₁ M₁ P D₁ Ṡ", avarohana: "Ṡ N₃ D₁ P M₁ G₃ R₁ S",
-    bhava: "Karuna — pleading, supplication",
+    bhava: "Often used for karuna — pleading",
     note: "A five-note ascent and a full descent, with the flat second and sixth doing the emotional work. " +
       "The classic ragam of asking."
   },
   "Khamas": {
     telugu: "ఖమాస్", melakarta: "Janya of Harikambhoji (28th)", type: "Vakra audava-sampurna",
     arohana: "S M₁ G₃ M₁ P D₂ N₂ Ṡ", avarohana: "Ṡ N₂ D₂ P M₁ G₃ R₂ S",
-    bhava: "Lightness, intimacy, coaxing",
+    bhava: "Often used for lightness and coaxing",
     note: "An evening ragam that skips the second on the way up and leans on the madhyama. Its home is " +
       "the padam and the javali — the repertoire of persuasion. Exactly right for a street hawker's cry."
   },
   "Dhanyasi": {
     telugu: "ధన్యాసి", melakarta: "Janya of Natabhairavi (20th)", type: "Audava-sampurna",
     arohana: "S G₂ M₁ P N₂ Ṡ", avarohana: "Ṡ N₂ D₁ P M₁ G₂ R₁ S",
-    bhava: "Bhakti with a plaintive edge",
+    bhava: "Often bhakti with a plaintive edge",
     note: "Pentatonic going up, complete coming down — the shape gives it a rising simplicity and a " +
       "descending ache. A workhorse ragam of Telugu devotional song."
   },
   "Kanada": {
     telugu: "కానడ", melakarta: "Janya of Kharaharapriya (22nd)", type: "Vakra",
     arohana: "S R₂ G₂ M₁ D₂ N₂ Ṡ", avarohana: "Ṡ N₂ D₂ M₁ P G₂ M₁ R₂ S",
-    bhava: "Gambhira — gravity, weight",
+    bhava: "Often gambhira — gravity, weight",
     note: "A crooked, deliberately winding ragam whose phrases refuse to travel in a straight line. " +
       "Serious without being sorrowful."
   },
   "Saurashtram": {
     telugu: "సౌరాష్ట్రం", melakarta: "Janya of Mayamalavagowla (15th)", type: "Vakra sampurna",
     arohana: "S R₁ G₃ M₁ P M₁ D₂ N₃ Ṡ", avarohana: "Ṡ N₃ D₂ N₃ P M₁ G₃ R₁ S",
-    bhava: "Mangala — auspiciousness, assurance",
+    bhava: "Strongly associated with mangala — auspiciousness",
     note: "The ragam of benediction; the traditional mangalam that closes a concert is set in it. " +
       "A song arguing that nothing is lacking could hardly be anywhere else."
   },
   "Nadanamakriya": {
     telugu: "నాదనామక్రియ", melakarta: "Janya of Mayamalavagowla (15th)", type: "Descending-oriented",
     arohana: "(from the upper octave) Ṡ N₃ D₁ P M₁ G₃ R₁ S", avarohana: "Sung as a descent; phrases characteristically begin high and fall",
-    bhava: "Deep karuna — pathos",
+    bhava: "Often deep karuna — pathos",
     note: "Unusual among ragams in that it is conceived as a falling shape, traditionally begun from the " +
       "upper note. Close to folk devotional idiom and hugely effective in bhajan. It is the sound of a " +
       "voice giving way."
@@ -155,21 +155,21 @@ const RAGAS = {
   "Bhairavi": {
     telugu: "భైరవి", melakarta: "Janya of Natabhairavi (20th)", type: "Sampurna (asymmetric dhaivata)",
     arohana: "S R₂ G₂ M₁ P D₂ N₂ Ṡ", avarohana: "Ṡ N₂ D₁ P M₁ G₂ R₂ S",
-    bhava: "Devotion at scale — vastness",
+    bhava: "Affords breadth; often used for grave devotion",
     note: "Its signature is the two dhaivatas: the higher one going up, the lower one coming down. " +
       "A ragam with room in it."
   },
   "Keeravani": {
     telugu: "కీరవాణి", melakarta: "21st melakarta", type: "Sampurna",
     arohana: "S R₂ G₂ M₁ P D₁ N₃ Ṡ", avarohana: "Ṡ N₃ D₁ P M₁ G₂ R₂ S",
-    bhava: "Longing, pathos",
+    bhava: "Often longing, pathos",
     note: "The flat sixth against the sharp seventh gives Keeravani its characteristic catch. " +
       "Nearly identical in scale to the Western harmonic minor."
   },
   "Yadukula Kambhoji": {
     telugu: "యదుకుల కాంభోజి", melakarta: "Janya of Harikambhoji (28th)", type: "Audava-sampurna",
     arohana: "S R₂ M₁ P D₂ Ṡ", avarohana: "Ṡ N₂ D₂ P M₁ G₃ R₂ S",
-    bhava: "Tenderness shading into grief",
+    bhava: "Often tenderness shading into grief",
     note: "Drops the third on the ascent, which is what makes it sound like restraint. " +
       "Often chosen for texts of complaint that are trying not to sound like complaints."
   }
@@ -243,6 +243,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "The chain: sītā-rāma, jagadabhi-rāma",
+        evidence: "TEXTUAL",
         text: "Read the joins. The pallavi ends on <em>sītā</em> — and the singer returns to <em>rāma daya jūḍavē</em>, " +
           "so the seam of the loop reads <strong>sītā-rāma</strong>. The anupallavi ends on the bare prefix " +
           "<em>jagadabhi</em>, which is not a word at all until the next <em>rāma</em> completes it: " +
@@ -254,6 +255,7 @@ const KRITIS = [
       },
       {
         head: "Ananya-gatitva — having nowhere else to go",
+        evidence: "TRADITIONAL",
         text: "<em>Dikku nīvani nammiti</em> — \"I trusted that you are my direction.\" <em>Dikku</em> in Telugu carries both " +
           "senses at once: a compass direction, and a refuge. Classical sharanagati counts six limbs, and this is the " +
           "sharpest of them — <strong>ananya-gatitva</strong>, the state of having no other recourse. It is not a boast " +
@@ -261,12 +263,14 @@ const KRITIS = [
       },
       {
         head: "Chikkulu — the knot, not the punishment",
+        evidence: "INTERPRETIVE",
         text: "He does not ask to be released, forgiven, or vindicated. He asks not to be left in <em>chikkulu</em> — " +
           "tangles, knots, snarls. The image is of thread, not of chains. What the bound soul needs is not a key " +
           "but a patient hand, and the yogic literature calls the same thing <em>granthi-bheda</em>, the untying of the knot."
       },
       {
         head: "Why the last word is Sita's",
+        evidence: "TRADITIONAL",
         text: "Three verses of address to Rama close by turning to <em>chakkani Jānaki</em> — lovely Janaki. This is " +
           "<strong>purushakara</strong>, the doctrine of mediation: the Mother is approached because she does not judge " +
           "the case, only pleads it. Sri Vaishnava theology makes this structural — the jiva reaches Narayana through " +
@@ -275,6 +279,7 @@ const KRITIS = [
       },
       {
         head: "Tataka first",
+        evidence: "INTERPRETIVE",
         text: "Of all Rama's victories he opens with <em>tāṭaka saṁharaṇa</em> — a demoness killed by a boy on the road, " +
           "before Sita, before the bow, before Ravana. The commentarial reading is that Tataka is the first coarse " +
           "obstruction on any path, and that grace begins its work at the crudest layer, not the subtlest."
@@ -354,6 +359,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "Gold is not only precious — it is hoarded",
+        evidence: "INTERPRETIVE",
         text: "The metaphor is usually translated as \"your words have become as precious as gold,\" which is " +
           "half the sentence. Gold in Telugu idiom is also what is <em>locked away</em>. Ramadasu — jailed for " +
           "spending gold on a temple — accuses God of doing to speech what the treasury does to bullion: " +
@@ -361,6 +367,7 @@ const KRITIS = [
       },
       {
         head: "Ninda-stuti: the reproach as the highest praise",
+        evidence: "TRADITIONAL",
         text: "Devotional Sanskrit and Telugu have a recognised genre — <strong>ninda-stuti</strong>, praise by " +
           "abuse — and a recognised mood, <em>pranaya-kalaha</em>, the lovers' quarrel. Only an intimate has " +
           "standing to accuse. When Ramadasu asks why God won't speak, the accusation presupposes a relationship " +
@@ -368,6 +375,7 @@ const KRITIS = [
       },
       {
         head: "The squirrel argument",
+        evidence: "TEXTUAL",
         text: "The squirrel of charanam 2 is from the Setu-building episode: a creature that carried grains of " +
           "sand to the causeway while vanaras carried boulders, and whose effort Rama honoured. Ramadasu is not " +
           "telling a sweet story. He is making an argument from precedent — <em>you have already established that " +
@@ -375,6 +383,7 @@ const KRITIS = [
       },
       {
         head: "Holding God to His own title",
+        evidence: "TEXTUAL",
         text: "The final charanam reaches for <em>birudu</em> — a formal title of honour, the kind a king has " +
           "proclaimed before him. <em>Sharanagata-trana</em>, protector of the surrendered, is one of Rama's. " +
           "Ramadasu's closing move is legal rather than emotional: he does not ask for a favour, he asks the " +
@@ -383,7 +392,8 @@ const KRITIS = [
       },
       {
         head: "The gentlest ragam for the harshest text",
-        text: "A song of accusation set in Ananda Bhairavi — the ragam the tradition reserves for lullabies and " +
+        evidence: "INTERPRETIVE",
+        text: "A song of accusation set in Ananda Bhairavi — a ragam widely associated with lullabies and " +
           "credits with a healing quality. The music refuses to be angry with the words. The effect in performance " +
           "is that the reproach arrives sounding like tenderness, which is the truth about it."
       }
@@ -446,13 +456,15 @@ const KRITIS = [
     esoteric: [
       {
         head: "The grammar of pointing",
+        evidence: "TEXTUAL",
         text: "<em>Idigō</em> — here it is, near. <em>Adigō</em> — there it is, far. Telugu has separate " +
           "demonstratives for the thing in your hand and the thing on the horizon, and the pallavi uses both in " +
           "one breath: the hill is <em>here</em>, the river is <em>there</em>. The whole kriti is deixis. " +
-          "There is no petition anywhere in it. After a corpus of asking, this is the one song that only shows."
+          "There is no petition anywhere in it. After so much asking elsewhere, this is a song that mostly just shows."
       },
       {
         head: "The itemised prison sentence, sung as praise",
+        evidence: "INTERPRETIVE",
         text: "The <em>svarṇa prākāra</em> — the golden rampart — and the <em>gopura dvāramulu</em> are not generic " +
           "temple furniture. They are specific construction line-items, and elsewhere in his corpus " +
           "(<a href=\"#kriti-ikshvaku-kula-tilaka\">Ikshvaku Kula Tilaka</a>) Ramadasu prices them to the varaha. " +
@@ -461,12 +473,14 @@ const KRITIS = [
       },
       {
         head: "Why Varali, of all ragams",
-        text: "Varali is the least comfortable ragam in the repertoire — angular, prati-madhyama, tradition-bound " +
-          "with warnings. It is a strange choice for a tourist's-eye view of a temple, unless the point is that " +
+        evidence: "INTERPRETIVE",
+        text: "Varali is among the least comfortable ragams in the repertoire — angular, prati-madhyama, and surrounded " +
+          "by cautionary lore. It is a strange choice for a tourist's-eye view of a temple, unless the point is that " +
           "what he is pointing at is not, finally, a building. Varali makes the gopuram look like an apparition."
       },
       {
         head: "Dhaga dhaga",
+        evidence: "TEXTUAL",
         text: "<em>Dhaga dhaga meriseḍi</em> — the flashing of the golden chakra rendered as raw onomatopoeia. " +
           "Sanskritic devotional poetry would reach for a simile. Ramadasu reaches for a noise. It is the moment " +
           "the classical register drops out of the song and a Telugu villager says: look at it <em>flash</em>."
@@ -514,6 +528,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "Sthiramai — the word the whole kriti turns on",
+        evidence: "TEXTUAL",
         text: "<em>Sthira</em> means fixed, steady, established. Not <em>on</em> the tongue but <em>firm</em> upon it. " +
           "Japa has a recognised progression — spoken, then whispered, then mental, then <em>ajapa</em>, the " +
           "repetition that continues without a repeater. <em>Sthiramai</em> names the hinge: the point at which " +
@@ -521,6 +536,7 @@ const KRITIS = [
       },
       {
         head: "Nama-siddhanta",
+        evidence: "TRADITIONAL",
         text: "The southern bhakti schools hold that the Name is <em>nama-brahman</em> — not a label attached to a " +
           "deity but the deity in audible form, and therefore not less powerful than the deity's presence. This is " +
           "why the tradition of Ramadasu, Tyagaraja and the Nama Siddhanta acharyas can claim that chanting is " +
@@ -529,6 +545,7 @@ const KRITIS = [
       },
       {
         head: "Valour for a song about a syllable",
+        evidence: "INTERPRETIVE",
         text: "Atana is the veera ragam — brisk, martial, the sound of resolve. Setting a song about holding a " +
           "name on the tongue in the ragam of warriors makes an argument that the text never states outright: " +
           "that constancy is not a passive virtue. Keeping one syllable steady for a lifetime is the heroism " +
@@ -574,6 +591,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "Chalu — 'enough'",
+        evidence: "TEXTUAL",
         text: "The whole kriti hangs on one flat Telugu word: <em>chālu</em>, enough, that's sufficient, stop there. " +
           "It is not a mystical word. It is what you say to someone still pouring. Against the vast apparatus of " +
           "ritual available to a 17th-century Telugu brahmin — vratas, kshetras, deities for every affliction — " +
@@ -581,12 +599,14 @@ const KRITIS = [
       },
       {
         head: "Ananya-bhakti, stated as common sense",
+        evidence: "TRADITIONAL",
         text: "The technical doctrine is <em>devatantara-parigraha-nishedha</em> — the prohibition on hedging your " +
           "devotion across deities. In the theological literature it is argued at length. Here it is a rhetorical " +
           "question put to a neighbour: why are you looking around?"
       },
       {
         head: "Where the song actually lands",
+        evidence: "TEXTUAL",
         text: "It would be easy to expect a kriti on the sufficiency of the Name to end in ecstasy. It ends in " +
           "two instructions: don't hurt anyone, and feed the hungry. The most doctrinally ambitious claim in the " +
           "corpus is cashed out as table manners. That collapse — from nama-siddhanta straight into conduct, " +
@@ -635,6 +655,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "The medicine is for the arishadvarga",
+        evidence: "TRADITIONAL",
         text: "The ailments named — <em>kama</em> (lust), <em>krodha</em> (anger), <em>mada</em> (arrogance), " +
           "<em>matsarya</em> (envy), <em>lobha</em> (greed) — are not a random list of vices. They are the " +
           "<strong>arishadvarga</strong>, the six inner enemies of classical Indian ethics. Ramadasu has taken " +
@@ -642,6 +663,7 @@ const KRITIS = [
       },
       {
         head: "Konare — the paradox in the verb",
+        evidence: "TEXTUAL",
         text: "<em>Konarē</em> is the imperative of buying, the cry of a hawker working a street. And then the " +
           "charanam says the thing cannot be bought for crores. The song sells what is not for sale. " +
           "The doctrine underneath is <em>akraya</em> — grace is not purchasable — but Ramadasu does not state " +
@@ -650,6 +672,7 @@ const KRITIS = [
       },
       {
         head: "Rama as a wandering physician",
+        evidence: "INTERPRETIVE",
         text: "<em>Jogi</em> is the Telugu form of <em>yogi</em>, but in street usage it means the itinerant " +
           "mendicant — and itinerant mendicants sold remedies. To cast Rama, prince of Ayodhya, as a travelling " +
           "quack with a satchel is an act of deliberate deflation, and a very old one: the Buddha is the " +
@@ -658,6 +681,7 @@ const KRITIS = [
       },
       {
         head: "Khamas and the art of persuasion",
+        evidence: "INTERPRETIVE",
         text: "Khamas is the ragam of the padam and the javali — the repertoire of coaxing, flirtation, " +
           "persuasion. If the attribution is right, the choice is exact: a sales pitch needs the ragam that " +
           "knows how to wheedle. Note that the competing attribution, Nadanamakriya, would make it a very " +
@@ -704,6 +728,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "Taraka — that which ferries you across",
+        evidence: "TRADITIONAL",
         text: "The root is <em>tṛ</em>, to cross. A <em>taraka</em> is a ferry, and the <em>Advaya Taraka " +
           "Upanishad</em> gives the etymology in doctrinal form: it is called Taraka because it carries one " +
           "across the fear of the womb, of birth, of old age, of death. The Rama-taraka mantra — " +
@@ -712,14 +737,16 @@ const KRITIS = [
       },
       {
         head: "The grammar of finding",
+        evidence: "TEXTUAL",
         text: "<em>Kōrina dorikenu</em> — \"having sought, it was found.\" Then immediately: " +
           "<em>dhanyuḍanaitini</em>, \"I have become blessed.\" Not <em>I will be</em> blessed, not <em>I hope " +
           "to be</em>. The past tense is the theological content. In a corpus full of unanswered petitions, " +
-          "this is the one kriti in the perfect tense, and what completes it is not a rescue or a vision — " +
+          "this is among the few here in the perfect tense, and what completes it is not a rescue or a vision — " +
           "it is having been given the words."
       },
       {
         head: "Orana",
+        evidence: "TEXTUAL",
         text: "The pallavi ends by addressing not God but a person — <em>ōrana</em>, a familiar, slightly rough " +
           "Telugu vocative, roughly \"hey, you.\" Every other kriti here is aimed upward. This one turns sideways " +
           "and tells a neighbour. That turn is the entire social mechanism of Nama Sankeerthanam: the discovery " +
@@ -727,6 +754,7 @@ const KRITIS = [
       },
       {
         head: "Dhanyasi's two halves",
+        evidence: "INTERPRETIVE",
         text: "Dhanyasi climbs on five notes and comes down on seven. The ascent is bare and quick; the descent " +
           "has the extra steps that let it ache. A song about joy arrived at through long deprivation gets a " +
           "ragam shaped exactly that way."
@@ -773,6 +801,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "Patita-pavana requires the fallen",
+        evidence: "TRADITIONAL",
         text: "Rama's title <em>patita-pavana</em> — purifier of the fallen — is the hinge of this kriti's logic. " +
           "A redeemer of the fallen needs fallen people; the unworthy are not an embarrassment to the title but " +
           "its precondition. So the devotee presses his own unworthiness forward as his credential. " +
@@ -781,6 +810,7 @@ const KRITIS = [
       },
       {
         head: "Karpanya",
+        evidence: "TRADITIONAL",
         text: "The formal name for this is <strong>karpanya</strong> — the sense of one's own helplessness — " +
           "counted among the limbs of sharanagati. The doctrine insists it is not self-abasement, because " +
           "self-abasement is still a performance of self. Karpanya is the abandonment of the case for oneself. " +
@@ -788,6 +818,7 @@ const KRITIS = [
       },
       {
         head: "Why the doubled Hari",
+        evidence: "INTERPRETIVE",
         text: "<em>Hari hari</em> — the name repeated before the sentence begins. In Telugu and Marathi bhajan " +
           "usage the doubled name functions as both invocation and sigh; it is the sound of someone gathering " +
           "themselves to speak. The kriti opens with the name because it opens with the only thing the singer " +
@@ -839,6 +870,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "An argument from the record, not from faith",
+        evidence: "TEXTUAL",
         text: "This is not a song saying <em>God will help us</em>. It is a song saying <em>look at what he has " +
           "already done</em> — and then producing ten pieces of evidence in sequence. The avatara-krama is being " +
           "used as case law. Each verse is a precedent; the refrain is the ruling drawn from it. It is the same " +
@@ -848,6 +880,7 @@ const KRITIS = [
       },
       {
         head: "Okkadu — the one",
+        evidence: "TEXTUAL",
         text: "<em>Rāmuṇḍokkaḍuṇḍu</em> — \"Rama, one, exists.\" The numeral is doing theology. Against the " +
           "crowded pantheon the singer sets a count of one, and against every conceivable lack he sets a single " +
           "presence. It is the arithmetic answer to <a href=\"#kriti-sri-ramula-divyanama\">Sri Ramula Divya " +
@@ -855,6 +888,7 @@ const KRITIS = [
       },
       {
         head: "Saurashtram, the benediction ragam",
+        evidence: "INTERPRETIVE",
         text: "Saurashtram is where the traditional <em>mangalam</em> lives — the auspicious closing piece of a " +
           "concert. Setting a song of reassurance in the ragam of benediction means the music makes the claim " +
           "before the words do. By the time the first avatara is named, the listener has already been told that " +
@@ -862,7 +896,7 @@ const KRITIS = [
       }
     ],
 
-    sahitya: "Note the pronoun: <em>manaku</em>, to <strong>us</strong>, not to me. Alone in this set of songs, " +
+    sahitya: "Note the pronoun: <em>manaku</em>, to <strong>us</strong>, not to me. Unusually for this set of songs, " +
       "this one is not a private address to God. It is a man turning to the people around him. That is what makes " +
       "it a sankeerthanam rather than a prayer, and it is why it survives as a group piece.",
 
@@ -882,7 +916,7 @@ const KRITIS = [
     raga: "Nadanamakriya",
     ragaConfidence: "established",
     ragaNote: "Nadanamakriya. The ninth and closing kriti of the Navaratna set.",
-    tala: "Adi",
+    tala: "Khanda Chapu",
     navaratna: 9,
     featured: false,
     bhava: "Darshana-ananda — the joy of having seen",
@@ -902,6 +936,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "The past tense as the whole point",
+        evidence: "TEXTUAL",
         text: "<em>Kaṇṭinēḍu</em> — \"today I saw.\" After a corpus of vocatives and imperatives — show mercy, " +
           "protect me, speak to me — the ninth gem arrives in the completed past. Nothing is being asked for. " +
           "The Navaratna set is sequenced so that it ends here, and that sequence is itself an argument: " +
@@ -909,6 +944,7 @@ const KRITIS = [
       },
       {
         head: "Ma ramula — our Rama",
+        evidence: "TEXTUAL",
         text: "Not <em>Sri Rama</em>, not <em>Raghupati</em>. <em>Mā rāmula</em> — <strong>our</strong> Rama, " +
           "with the possessive that Telugu families use for the <em>kula-daivam</em>, the household deity. " +
           "The god of the Ramayana is vast; the god of this line belongs to a specific family in a specific " +
@@ -917,6 +953,7 @@ const KRITIS = [
       },
       {
         head: "Why joy sounds like grief",
+        evidence: "INTERPRETIVE",
         text: "Nadanamakriya is the ragam of deep pathos — falling phrases, begun from above, close to folk " +
           "lament. Setting the moment of fulfilled darshana in it is not a contradiction. The tradition is " +
           "clear-eyed about this: the tears of longing and the tears of arrival are the same tears, and " +
@@ -974,7 +1011,8 @@ const KRITIS = [
     esoteric: [
       {
         head: "An invoice as an act of worship",
-        text: "No other major devotional composer does this. Ramadasu names sums. Ten thousand varahas for the " +
+        evidence: "TEXTUAL",
+        text: "This is an unusual move in the surviving Telugu devotional repertoire. Ramadasu names sums. Ten thousand varahas for the " +
           "prakara; itemised gifts for Rama's brothers and for Sita. Sung from prison, where he was held for " +
           "precisely this expenditure, the ledger is doing double duty — it is his legal defence before the " +
           "Nawab and his claim before God, in the same words. The tradition has a name for this nerve: " +
@@ -983,6 +1021,7 @@ const KRITIS = [
       },
       {
         head: "Ika naina — 'even now'",
+        evidence: "TEXTUAL",
         text: "Two small words carry the twelve years. <em>Ika naina balukavu</em> — will you not speak <em>even " +
           "now</em>? The phrase implies everything that has already been tried and everything that has already " +
           "been endured. It is the same silence <a href=\"#kriti-paluke-bangaramayena\">Paluke Bangaramayena</a> " +
@@ -990,6 +1029,7 @@ const KRITIS = [
       },
       {
         head: "Rakshakulevarinka — the closing of every other door",
+        evidence: "TRADITIONAL",
         text: "\"Who else is there to protect me?\" Formally this is <strong>ananya-gatitva</strong>, the state " +
           "of having no other recourse, and it recurs across the corpus (see " +
           "<a href=\"#kriti-rama-daya-judave\">Rama Daya Judave</a>'s <em>dikku nīvani nammiti</em>). " +
@@ -998,6 +1038,7 @@ const KRITIS = [
       },
       {
         head: "Do not treat me as a stranger",
+        evidence: "INTERPRETIVE",
         text: "The plea is not for mercy but for <em>recognition</em> — don't handle me as an outsider. " +
           "For a man whose crime was treating temple funds as family funds, the line is exact. He is asking the " +
           "deity to confirm the very relationship the state has just declared to be embezzlement."
@@ -1044,6 +1085,7 @@ const KRITIS = [
     esoteric: [
       {
         head: "The interrogative that is not a doubt",
+        evidence: "INTERPRETIVE",
         text: "<em>Ē tīruga</em> — in what manner, by what route, in what shape. The grammar assumes the mercy " +
           "and questions only its form. This is the precise theological position of <em>goptritva-varana</em> — " +
           "electing God as one's protector — after which the manner of protection is explicitly no longer the " +
@@ -1051,6 +1093,7 @@ const KRITIS = [
       },
       {
         head: "Bhava-sagara-tarana",
+        evidence: "TRADITIONAL",
         text: "\"Can I swim across?\" — the <em>bhava-sagara</em>, the ocean of becoming, is the standard image " +
           "for samsara, and the standard answer is that no one swims it. One is ferried. Read against " +
           "<a href=\"#kriti-taraka-mantramu\">Taraka Mantramu</a> — where <em>taraka</em> means precisely " +
@@ -1059,6 +1102,7 @@ const KRITIS = [
       },
       {
         head: "Nadanamakriya's falling line",
+        evidence: "INTERPRETIVE",
         text: "The ragam begins high and descends — phrase after phrase starting above and giving way. " +
           "For a text that opens on a question and sinks into the image of drowning, the melodic shape " +
           "<em>is</em> the sahityam. This is the most-heard example of Nadanamakriya in Telugu popular memory, " +
@@ -1173,5 +1217,872 @@ const TRADITION = {
     { term: "Ninda-stuti", telugu: "నిందాస్తుతి", def: "Praise in the form of reproach — a recognised devotional genre, not a lapse of reverence." },
     { term: "Nama-siddhanta", telugu: "నామసిద్ధాంతం", def: "The doctrine that the divine Name is itself divine — not a pointer to God but a form of God, and therefore sufficient." },
     { term: "Vaggeyakara", telugu: "వాగ్గేయకార", def: "One who makes both the words (vak) and the music (geya) — the composer-poet. Telugu counts Annamacharya, Kshetrayya, Ramadasu and Tyagaraja among them." }
+  ]
+};
+
+/* ── Second-pass enrichment ───────────────────────────────────── */
+// Merged onto KRITIS by id at the bottom of this file. Kept separate so the
+// original scholarly entries stay legible and diffable.
+//
+// LISTENING LINKS — read this before editing.
+//   YouTube is unreachable from the authoring environment, so no link below
+//   has been checked for liveness. Each entry therefore carries a `verify`:
+//     "index-corroborated" — the video id came from a search index whose
+//        recorded title matches this composition (and, where stated, the
+//        performer). Not confirmed live, not watched.
+//     "search" — no corroborated recording found; the link is a YouTube
+//        SEARCH url, which is correct by construction and cannot rot.
+//   To promote a search link: set kind:"watch" and put the id in `id`.
+//   Never add a watch link on a title match alone — confirm the recording.
+//
+// CUE PROVENANCE — every listening cue names where the observation comes from:
+//     "text"        — in the sahityam itself; true of any performance.
+//     "tradition"   — common performance practice, not the composer's mark.
+//     "rendition"   — depends on the specific recording named.
+
+function ytSearch(q) {
+  return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
+}
+function ytWatch(id) {
+  return 'https://www.youtube.com/watch?v=' + id;
+}
+
+const ENRICH = {
+
+  /* ─────────── Rama Daya Judave ─────────── */
+  "rama-daya-judave": {
+    beforePlay: "Do not listen to this as a polished Carnatic composition first. Listen to it as a man " +
+      "who has exhausted every argument — the ledger, the precedent, the crore of written names — and is " +
+      "left holding one word: <em>daya</em>. Everything before that word is preparation. Everything after " +
+      "it is consequence.",
+    keyWord: {
+      word: "Daya", telugu: "దయ", translit: "daya",
+      literal: "Compassion, mercy, pity.",
+      colloquial: "In everyday Telugu, the softening of someone who has power over you — a landlord, " +
+        "an officer, a parent. It presumes a gap in standing.",
+      spiritual: "The tenderness of the greater toward the smaller, which the devotee cannot earn and " +
+        "can only be shown. Distinct from <em>karuna</em> (compassion as a state) and " +
+        "<em>anugraha</em> (grace as an act): <em>daya</em> is compassion as a <em>relation</em>.",
+      why: "He does not ask for release, restitution or vindication — all of which he had standing to " +
+        "ask for. He asks to be looked at. And because <em>daya</em> is a word that only works between " +
+        "two people, asking for it in that word is already an admission of rank."
+    },
+    cues: [
+      { mark: "The first <span lang='te'>రామ</span>", provenance: "tradition",
+        text: "Listen to whether the singer attacks the note or lets the name emerge. The composition " +
+          "opens on the name itself, so a performer's choice here is an interpretive decision made before " +
+          "the sentence has even begun." },
+      { mark: "<span lang='te'>దయ జూడవే</span> — where the phrase bends", provenance: "tradition",
+        text: "Listen for whether the voice wavers or hesitates as <em>daya</em> passes. In most Carnatic " +
+          "renditions the oscillated gandhara does this work. Treat it as emotional language rather than " +
+          "ornament: the word means compassion, the unsteady pitch means <em>I am not sure you will give it</em>." },
+      { mark: "The seam: <span lang='te'>సీతా</span> &rarr; <span lang='te'>రామ</span>", provenance: "text",
+        text: "When the pallavi ends and loops back, listen to the join rather than the phrases either " +
+          "side of it. Last word plus first word makes <strong>Sita-Rama</strong>. This is in the text, so " +
+          "it is true of every performance — but you have to be listening for it to hear it." },
+      { mark: "The unfinished word <span lang='te'>జగదభి</span>", provenance: "text",
+        text: "The anupallavi ends on a fragment that is not a word until the refrain supplies " +
+          "<em>rama</em> and completes <strong>jagadabhirama</strong>. Listen for the small suspension. " +
+          "Some singers let it hang; the text asks for it either way." },
+      { mark: "The return to the pallavi, after each charanam", provenance: "text",
+        text: "The words do not change. What changes is what stands behind them. After charanam 2 the " +
+          "same plea arrives carrying a crore of written names; after charanam 3 it arrives having already " +
+          "given up and turned to Sita. Listen to the third return as a different sentence made of " +
+          "identical syllables." }
+    ],
+    modern: "<em>Dikku nivani nammiti</em> — \"I trusted that you are my only direction.\" The line is easy " +
+      "to admire and uncomfortable to apply. Most of us arrange our lives so that this sentence is never " +
+      "true: there is always another option, another contact, another plan. Ramadasu is not recommending " +
+      "that we dismantle those. He is describing what is left when they have been dismantled for us — and " +
+      "reporting, from inside that, that it was not empty. The question the song leaves is quieter than a " +
+      "moral: when every exit has closed, what do you turn toward, and had you given it any attention " +
+      "before you needed it?",
+    listening: [
+      { performer: "Search — Bhajana and concert renditions", tradition: "Version A · Bhairavi",
+        raga: "Bhairavi", tala: "Adi", kind: "search", verify: "search",
+        q: "Rama daya judave Bhadrachala Ramadasu Bhairavi",
+        why: "The setting filed in the Sangeetasudha collection; the broadest and gravest of the three." },
+      { performer: "Search — Dhanyasi renditions", tradition: "Version B · Dhanyasi",
+        raga: "Dhanyasi", tala: "Adi", kind: "search", verify: "search",
+        q: "Rama dayajudave Ramadasu Dhanyasi keerthana",
+        why: "The setting in most circulating lyric editions — simpler ascent, more ache on the descent." }
+    ]
+  },
+
+  /* ─────────── Paluke Bangaramayena ─────────── */
+  "paluke-bangaramayena": {
+    beforePlay: "It begins almost lightly — a pretty tune, a gentle raga, a turn of phrase that sounds " +
+      "like a compliment. Stay with it. <em>Your speech has turned to gold</em> is not praise; it is an " +
+      "accusation about silence, and the music never raises its voice to tell you so.",
+    keyWord: {
+      word: "Paluke", telugu: "పలుకే", translit: "palukē",
+      literal: "Speech, word, utterance — with the emphatic <em>-ē</em>: <em>the speech itself</em>.",
+      colloquial: "Not oratory. The ordinary act of answering when somebody calls you. A household word.",
+      spiritual: "Divine response — the moment the silence of God breaks into address. Its absence is " +
+        "the standard condition of the devotee, and the tradition treats that absence as pedagogy rather " +
+        "than abandonment.",
+      why: "He does not say God's <em>grace</em> has become gold, or His <em>darshan</em>. He picks the " +
+        "smallest possible thing — a reply — and prices it like bullion. The smallness is the complaint: " +
+        "he is not asking for a miracle, only for an answer, and cannot get even that."
+    },
+    cues: [
+      { mark: "The opening phrase's lightness", provenance: "tradition",
+        text: "Ananda Bhairavi is warm, and most renditions let the pallavi sound almost affectionate. " +
+          "Notice the gap between how the line sounds and what it says. The music is not contradicting " +
+          "the words; it is showing you that the reproach is made from inside love." },
+      { mark: "<span lang='te'>పిలిచిన పలుకవేమి</span> — \"why won't you answer when I call?\"", provenance: "text",
+        text: "The plainest sentence in the kriti, and the one everything else orbits. Listen for whether " +
+          "the singer lets it sit rather than decorating it." },
+      { mark: "<span lang='te'>చక్కని తండ్రి</span> — \"beautiful father\"", provenance: "text",
+        text: "Twice he calls God by a domestic endearment while accusing him. Listen for the tonal shift " +
+          "on <em>tandri</em>. Every hard line in this song is aimed at someone being addressed as family." },
+      { mark: "The squirrel verse", provenance: "text",
+        text: "<em>Udata bhaktiki</em> — the squirrel that carried sand to the Setu. He is not telling a " +
+          "sweet story; he is citing a precedent. Listen to it as an argument, not an illustration." },
+      { mark: "The final charanam's turn", provenance: "text",
+        text: "<em>Sharanagata-trana birudankuduvu kava</em> — \"are you not titled protector of the " +
+          "surrendered?\" The register shifts from complaint to something almost legal: he stops pleading " +
+          "and starts holding God to His own advertised office." }
+    ],
+    modern: "This is the song for anyone who has prayed and heard nothing back. Its refusal to resolve is " +
+      "the point — it does not end with the silence explained, or broken, or reframed as secretly a gift. " +
+      "It ends with the devotee still there, still talking. Perhaps that is the only honest thing to say " +
+      "about unanswered prayer: not that the silence means something, but that people have gone on " +
+      "addressing it for four hundred years, and made this out of the waiting.",
+    listening: [
+      { performer: "Carnatic vocal rendition", tradition: "Carnatic",
+        raga: "Ananda Bhairavi", tala: "Adi", kind: "watch", id: "HBcSvNDUWJM", verify: "index-corroborated",
+        why: "Listen for how the pallavi is shaped — whether the accusation is allowed to sound tender." },
+      { performer: "Dr. M. Balamuralikrishna", tradition: "Concert · the settings most listeners know",
+        raga: "Ananda Bhairavi", tala: "Adi", kind: "watch", id: "T85AgXmTifo", verify: "index-corroborated",
+        why: "A collection rather than a single track; listen for the sahitya clarity that made these settings standard." }
+    ]
+  },
+
+  /* ─────────── Adigo Bhadradri ─────────── */
+  "adigo-bhadradri": {
+    beforePlay: "This is the one song here that asks for nothing. A man who was jailed for the money that " +
+      "built a temple stands and points at it — <em>look, all of you</em> — with no trace of grievance in " +
+      "the whole text. Varali makes the pointing sound less like a tour and more like a vision.",
+    keyWord: {
+      word: "Idigo / Adigo", telugu: "ఇదిగో / అదిగో", translit: "idigō / adigō",
+      literal: "\"Here it is\" / \"there it is.\"",
+      colloquial: "Two everyday demonstratives Telugu keeps separate: the thing within reach, and the " +
+        "thing on the horizon. You would use both pointing out a house to a visitor.",
+      spiritual: "Darshana as an act performed for others — not <em>I have seen</em> but <em>look</em>. " +
+        "The devotee becomes the one who directs another's gaze.",
+      why: "In a corpus built almost entirely of first-person petition, this song's key word is not a " +
+        "request at all. It is a gesture. The grammar changes from <em>give me</em> to <em>look</em>, " +
+        "and the whole emotional weather changes with it."
+    },
+    cues: [
+      { mark: "The strangeness of Varali on a temple description", provenance: "text",
+        text: "The words are almost a guidebook — walls, gates, tower, chakra. The ragam is angular and " +
+          "otherworldly. Listen for the gap: it is what turns masonry into apparition." },
+      { mark: "<span lang='te'>ధగ ధగ</span> — \"dhaga dhaga\"", provenance: "text",
+        text: "The flashing of the golden chakra rendered as raw onomatopoeia rather than simile. Listen " +
+          "for the moment the classical register drops out and a Telugu villager just says: look at it flash." },
+      { mark: "The two demonstratives in one breath", provenance: "text",
+        text: "<em>Idigo</em> (here) and <em>adigo</em> (there) land in the same line — the hill near, the " +
+          "river far. Listen for how the singer places them; the whole pallavi is an act of pointing." },
+      { mark: "No petition anywhere", provenance: "text",
+        text: "Listen for what never arrives. There is no <em>brovave</em>, no <em>daya</em>, no plea. " +
+          "Having heard the other eight Navaratnas, the absence becomes conspicuous." }
+    ],
+    listening: [
+      { performer: "Navaratna series, with lyrics", tradition: "Navaratna series",
+        raga: "Varali", tala: "Adi", kind: "watch", id: "RkWhH5PBV5g", verify: "index-corroborated",
+        why: "Opens the Navaratna set, with the text on screen — the easiest entry point to the nine." }
+    ]
+  },
+
+  /* ─────────── Sri Rama Namame ─────────── */
+  "sri-rama-namame": {
+    beforePlay: "A song about keeping one syllable steady on the tongue, set in the ragam of warriors. " +
+      "That pairing is the argument: constancy is not a passive virtue. Listen to it as somebody stating " +
+      "the one thing he has managed to hold on to.",
+    keyWord: {
+      word: "Sthiramai", telugu: "స్థిరమై", translit: "sthiramai",
+      literal: "Having become fixed, steady, firmly established.",
+      colloquial: "What you say of something that has finally stopped moving — a price, a decision, a " +
+        "man's character.",
+      spiritual: "The hinge in the progression of japa: spoken, whispered, mental, then " +
+        "<em>ajapa</em> — the repetition that continues without a repeater. <em>Sthiramai</em> names the " +
+        "point where the devotee stops doing the japa and the japa keeps going.",
+      why: "Not <em>on</em> the tongue but <em>firm</em> upon it. The claim is not that he chants often; " +
+        "it is that the chanting has become a property of him rather than an activity he performs."
+    },
+    cues: [
+      { mark: "Atana's briskness against a contemplative text", provenance: "text",
+        text: "Listen for the friction. The ragam is martial and quick-moving; the subject is a name held " +
+          "steady. The setting argues that steadiness takes nerve." },
+      { mark: "The unstable nishada", provenance: "tradition",
+        text: "Atana's characteristic wavering seventh is part of its grammar. Listen for how it keeps the " +
+          "line from ever quite settling — under a text about being settled." },
+      { mark: "<span lang='te'>నామమే</span> — the emphatic", provenance: "text",
+        text: "The <em>-ē</em> means <em>the name alone</em>, and it carries the whole doctrine of " +
+          "nama-siddhanta. Listen for the stress the singer puts on it." }
+    ],
+    listening: [
+      { performer: "Nedunuri Krishnamurthy & Malladi Brothers", tradition: "The Navaratna project · guru and students",
+        raga: "Atana", tala: "Adi", kind: "watch", id: "0HMHlarLZwo", verify: "index-corroborated",
+        why: "The most authoritative pairing available for this repertoire — listen for sahitya governing the music rather than the reverse." },
+      { performer: "Navaratna series, with lyrics", tradition: "Navaratna series",
+        raga: "Atana", tala: "Adi", kind: "watch", id: "Or1cbP54gI4", verify: "index-corroborated",
+        why: "A lyrics-on-screen rendition; useful for following the Telugu while you listen." }
+    ]
+  },
+
+  /* ─────────── Sri Ramula Divyanama ─────────── */
+  "sri-ramula-divyanama": {
+    beforePlay: "The most doctrinally ambitious claim in the collection, delivered as a shrug. He tells " +
+      "you the Name is enough, asks why you are still shopping around — and then cashes the whole thing " +
+      "out as: do no harm, feed the hungry.",
+    keyWord: {
+      word: "Chalu", telugu: "చాలు", translit: "chālu",
+      literal: "Enough. It suffices. That will do.",
+      colloquial: "Flat and ordinary — what you say to someone still pouring, or to a child still " +
+        "explaining. There is nothing elevated about the word at all.",
+      spiritual: "The sufficiency of nama-smarana: not a stage on the way to something better, but a " +
+        "terminus. The technical form of the claim is that no supplementary means is required.",
+      why: "Against the enormous ritual apparatus available to a 17th-century Telugu brahmin — vratas, " +
+        "kshetras, a deity for every affliction — he sets one flat domestic word. The plainness is the point."
+    },
+    cues: [
+      { mark: "Saveri's pleading contour under a confident text", provenance: "tradition",
+        text: "The words say <em>enough, stop looking</em>; Saveri is the ragam of asking. Listen for the " +
+          "tension between a settled statement and a supplicating melody." },
+      { mark: "The rhetorical question", provenance: "text",
+        text: "<em>Why do you search here and there among other gods?</em> Listen for whether the singer " +
+          "delivers it as doctrine or as a neighbour's mild exasperation. The text supports the second." },
+      { mark: "Where the song lands", provenance: "text",
+        text: "Wait for the charanams to arrive at conduct — do no harm, feed those who are hungry. A song " +
+          "about the sufficiency of the Name ends in table manners. Listen for that drop." }
+    ],
+    listening: [
+      { performer: "Search — Navaratna 4 renditions", tradition: "Navaratna series",
+        raga: "Saveri", tala: "Adi", kind: "search", verify: "search",
+        q: "Sri Ramula Divyanama Smarana Ramadasu Navaratnam Saveri",
+        why: "Look for the Navaratna-series upload with lyrics, or a Nedunuri-lineage concert rendition." }
+    ]
+  },
+
+  /* ─────────── Ramajogi Mandu ─────────── */
+  "ramajogi-mandu": {
+    beforePlay: "A street hawker's cry for a medicine that cannot be bought. It is the wittiest thing " +
+      "Ramadasu wrote and quietly the most demanding — by the end you discover your money is no good " +
+      "here, and the only accepted currency is attention.",
+    keyWord: {
+      word: "Konare", telugu: "కొనరే", translit: "konarē",
+      literal: "\"Won't you buy?\" — the plural imperative of buying.",
+      colloquial: "A vendor's call, worked down a street. Utterly commercial, faintly wheedling.",
+      spiritual: "The paradox of grace offered freely and yet not purchasable — <em>akraya</em>, that " +
+        "which has no price. The verb creates a marketplace precisely so the marketplace can fail.",
+      why: "He could have said <em>take this</em> or <em>receive this</em>. He chose the language of a " +
+        "transaction, then spent the charanams explaining that crores cannot complete it. The word sets " +
+        "up its own refutation."
+    },
+    cues: [
+      { mark: "The hawker's rhythm", provenance: "tradition",
+        text: "Listen for the lilt — this is the repertoire of the padam and javali, music that knows how " +
+          "to coax. It should sound like someone selling you something." },
+      { mark: "The ailments listed", provenance: "text",
+        text: "Lust, anger, arrogance, envy, greed — not a random list of vices but the " +
+          "<em>arishadvarga</em>, a formal taxonomy. Listen to it as a medicine label." },
+      { mark: "The price", provenance: "text",
+        text: "Wait for the line saying crores cannot buy it. The joke turns there: the pitch has been " +
+          "for something that was never on sale." },
+      { mark: "Which ragam you are hearing", provenance: "rendition",
+        text: "Sources split between Khamas and Nadanamakriya for this kriti, and the two make very " +
+          "different songs — a wheedling sales pitch, or a hawker's cry in the ragam of pathos. Identify " +
+          "which one your recording is using before deciding what the song means." }
+    ],
+    listening: [
+      { performer: "Search — Navaratna 5 renditions", tradition: "Navaratna series",
+        raga: "Khamas (some renditions Nadanamakriya)", tala: "Adi", kind: "search", verify: "search",
+        q: "Ramajogi Mandu Konare Ramadasu Navaratnam keerthana",
+        why: "Worth finding two renditions in the competing ragams and hearing how differently the joke lands." }
+    ]
+  },
+
+  /* ─────────── Taraka Mantramu ─────────── */
+  "taraka-mantramu": {
+    beforePlay: "After so much asking elsewhere, here is a man who has found what he was looking for — " +
+      "and turns not upward but sideways, to tell a friend. What he found was not a rescue. It was a set " +
+      "of syllables.",
+    keyWord: {
+      word: "Dorikenu", telugu: "దొరికెను", translit: "dorikenu",
+      literal: "It was found; it was obtained.",
+      colloquial: "What you say about a thing you had misplaced and have now come across — a key, a " +
+        "receipt. Faintly accidental: things <em>get found</em> more than one finds them.",
+      spiritual: "The completed acquisition of the Taraka mantra. Note the passive shading — the " +
+        "grammar does not quite credit the seeker, which fits a tradition holding that the Name is given " +
+        "rather than achieved.",
+      why: "The whole collection is written in petition and the present tense of need. This one word is " +
+        "in the perfect: the search is over, and the song's joy is entirely a matter of its verb."
+    },
+    cues: [
+      { mark: "<span lang='te'>ఓరన</span> — \"orana\"", provenance: "text",
+        text: "The pallavi ends by addressing not God but a person — a familiar, slightly rough Telugu " +
+          "vocative, roughly \"hey, you.\" Listen for the turn outward. It is the social mechanism of " +
+          "sankeerthanam in a single word." },
+      { mark: "Dhanyasi's two halves", provenance: "text",
+        text: "Five notes going up, seven coming down. Listen for how bare the ascent is and how much " +
+          "more room the descent has — a joy arrived at through long deprivation, given a shape to match." },
+      { mark: "<span lang='te'>ధన్యుడనైతిని</span> — \"I have become blessed\"", provenance: "text",
+        text: "Past tense, not future or hopeful. Listen for the settledness in it." }
+    ],
+    listening: [
+      { performer: "Navaratna series", tradition: "Navaratna series",
+        raga: "Dhanyasi", tala: "Adi", kind: "watch", id: "62wzkD8q704", verify: "index-corroborated",
+        why: "Listen for the settled, unhurried quality — this is the one song here with nothing left to ask for." }
+    ]
+  },
+
+  /* ─────────── Hari Hari Rama ─────────── */
+  "hari-hari-rama": {
+    beforePlay: "A short song built on an uncomfortable argument: that the singer's own unworthiness is " +
+      "his qualification. Kanada gives it weight rather than sweetness, which is right — this is not " +
+      "self-pity, it is a claim being pressed.",
+    keyWord: {
+      word: "Hari Hari", telugu: "హరి హరి", translit: "hari hari",
+      literal: "The name of Vishnu, doubled.",
+      colloquial: "In Telugu and Marathi devotional speech the doubled name works as invocation and as " +
+        "sigh at once — what someone says while gathering themselves to speak, or on hearing bad news.",
+      spiritual: "Nama uttered before any petition is made, so that the request rests on the Name rather " +
+        "than on the merit of the one requesting.",
+      why: "The song opens with the only thing its singer claims to possess. Everything after it is an " +
+        "argument he expects to lose on the merits."
+    },
+    cues: [
+      { mark: "The doubled name at the opening", provenance: "text",
+        text: "Listen for whether it lands as invocation or as sigh. The text supports both, and " +
+          "different singers choose differently." },
+      { mark: "Kanada's crooked phrases", provenance: "tradition",
+        text: "This is a vakra ragam — its lines refuse to travel straight. Listen for the winding, and " +
+          "for how it keeps the song serious without tipping into sorrow." },
+      { mark: "The turn to Rama's titles", provenance: "text",
+        text: "Destroyer of the ten-headed one, delight of Shiva, redeemer of the fallen. Listen for the " +
+          "last of these — it is the one the devotee actually needs, and the one his own condition qualifies him for." }
+    ],
+    listening: [
+      { performer: "Search — Navaratna 7 renditions", tradition: "Navaratna series",
+        raga: "Kanada", tala: "Adi", kind: "search", verify: "search",
+        q: "Hari Hari Rama Ramadasu Navaratnam keerthana Kanada",
+        why: "Note that some collections file a closely related text as <em>hari hara rama</em> in Kannada ragam; check which you have." }
+    ]
+  },
+
+  /* ─────────── Takkuvemi Manaku ─────────── */
+  "takkuvemi-manaku": {
+    beforePlay: "The one song here that is not addressed to God at all. Ramadasu turns to the people " +
+      "around him and asks a question he then answers ten times over, walking through the avataras like " +
+      "a man laying evidence on a table. Saurashtram tells you the verdict before the first witness speaks.",
+    keyWord: {
+      word: "Manaku", telugu: "మనకు", translit: "manaku",
+      literal: "To us — and specifically the <em>inclusive</em> we, the one that takes in the person " +
+        "you are speaking to.",
+      colloquial: "Telugu distinguishes the we-that-includes-you from the we-that-excludes-you. This is " +
+        "the first. It gathers the listener in rather than reporting to them.",
+      spiritual: "The congregational turn: devotion stated as a shared condition rather than a private " +
+        "transaction. This grammatical choice is what makes a song a sankeerthanam.",
+      why: "Everywhere else he says <em>nanu</em> — me, protect me, look at me. Here one pronoun changes " +
+        "and the song stops being a prayer and becomes an argument made to a room."
+    },
+    cues: [
+      { mark: "The pronoun", provenance: "text",
+        text: "Listen for <em>manaku</em> — <em>us</em>. Having heard the other songs' relentless first " +
+          "person singular, the shift is audible even without Telugu." },
+      { mark: "Saurashtram's auspiciousness", provenance: "tradition",
+        text: "This is where the traditional concert-closing <em>mangalam</em> lives. Listen for how the " +
+          "ragam settles the question before the words have argued it." },
+      { mark: "The avatara roll-call", provenance: "text",
+        text: "Matsya, Kurma, Varaha, Vamana and on. Each verse a deed, each answered by the same refrain. " +
+          "Listen to it as case law rather than mythology — precedent, then ruling, ten times." },
+      { mark: "The refrain's repetition", provenance: "text",
+        text: "<em>What do we lack?</em> comes back unchanged after every avatara. Listen for how the " +
+          "same question grows more rhetorical each time the evidence is added to." }
+    ],
+    modern: "\"What do we lack?\" is a harder question now than it was in a Golconda cell, because the " +
+      "honest answer is: materially, very little. The song was written by a man with nothing, to reassure " +
+      "people with almost nothing. Sung by people with a great deal, it changes into something more " +
+      "searching — a question about why abundance has not produced the confidence it promised, and why " +
+      "fear scales so comfortably with possession.",
+    listening: [
+      { performer: "Navaratna series, with lyrics", tradition: "Navaratna series",
+        raga: "Saurashtram", tala: "Adi", kind: "watch", id: "qi1Eg0PsR9I", verify: "index-corroborated",
+        why: "Listen for the group-singable architecture — this is a song built for a room, not a soloist." }
+    ]
+  },
+
+  /* ─────────── Kantinedu Ma Ramula ─────────── */
+  "kantinedu-ma-ramula": {
+    beforePlay: "The Navaratna set closes here, on a completed seeing — and in the ragam of weeping. " +
+      "That is not a contradiction. Listen to it knowing that the tears of longing and the tears of " +
+      "arrival have always sounded the same.",
+    keyWord: {
+      word: "Kantinedu", telugu: "కంటినేడు", translit: "kaṇṭinēḍu",
+      literal: "<em>Kanti</em> — I saw; <em>nedu</em> — today. \"Today I have seen.\"",
+      colloquial: "Plain reportage, the way you would tell someone you ran into a relative in the market.",
+      spiritual: "Darshana as a completed event rather than a hoped-for one. In a repertoire of vocatives " +
+        "and imperatives, a simple perfective verb.",
+      why: "Eight songs of asking, and the ninth opens in the past tense with nothing requested. Whether " +
+        "or not the ordering was designed, the set as we receive it resolves petition into sight."
+    },
+    cues: [
+      { mark: "The past tense at the opening", provenance: "text",
+        text: "Nothing is being asked for. Listen for the absence of petition — after the other eight, it " +
+          "is the loudest thing in the song." },
+      { mark: "<span lang='te'>మా రాముల</span> — \"our Rama\"", provenance: "text",
+        text: "Not Sri Rama, not Raghupati. The possessive Telugu families use for the household deity. " +
+          "Listen for how small and particular the address is." },
+      { mark: "Nadanamakriya's falling shape", provenance: "tradition",
+        text: "The ragam is conceived as a descent, phrases beginning high and giving way. Listen for joy " +
+          "delivered in the contours of lament." },
+      { mark: "Khanda chapu, not Adi", provenance: "tradition",
+        text: "The Nedunuri notation gives this kriti a five-beat cycle where the rest of the set is in " +
+          "eight. Listen for the shorter, slightly off-balance gait — the set does not close in the metre it travelled in." }
+    ],
+    listening: [
+      { performer: "Navaratna series, with lyrics", tradition: "Navaratna series",
+        raga: "Nadanamakriya", tala: "Khanda Chapu", kind: "watch", id: "inyd9Jc3lkA", verify: "index-corroborated",
+        why: "Closes the nine; listen for the shift into khanda chapu and how differently the set ends." }
+    ]
+  },
+
+  /* ─────────── Ikshvaku Kula Tilaka ─────────── */
+  "ikshvaku-kula-tilaka": {
+    beforePlay: "A devotional song that is also an itemised expense claim. Ramadasu prices the temple to " +
+      "the coin and presents the bill to the deity it was built for. Sung from the prison he was put in " +
+      "for that spending, it is simultaneously his defence and his prayer.",
+    keyWord: {
+      word: "Ika naina", telugu: "ఇక నైన", translit: "ika naina",
+      literal: "\"Even now\" — <em>ika</em>, henceforth/still; <em>naina</em>, even.",
+      colloquial: "The phrase of someone who has been waiting a long time and is not being answered. " +
+        "It carries everything already tried without naming any of it.",
+      spiritual: "The devotee's sense of time inside unanswered prayer — the point at which duration " +
+        "itself becomes part of the petition.",
+      why: "Two small words hold the twelve years. He does not describe the imprisonment anywhere in the " +
+        "song; he simply times the silence, and the timing does the work that description would have."
+    },
+    cues: [
+      { mark: "The sums", provenance: "text",
+        text: "Ten thousand varahas for the rampart; gifts itemised for Bharata, Shatrughna, Lakshmana, " +
+          "Sita. Listen for the accountancy. It is startling in a devotional text and entirely deliberate." },
+      { mark: "\"Do not treat me as a stranger\"", provenance: "text",
+        text: "The plea is for recognition, not mercy. For a man whose crime was treating temple funds as " +
+          "family funds, listen to how exact that request is." },
+      { mark: "Misra chapu's seven beats", provenance: "tradition",
+        text: "Where most of this repertoire sits in an even eight, this is commonly set in a limping " +
+          "seven. Listen for the asymmetry under a text that is trying to sound reasonable." },
+      { mark: "<span lang='te'>రక్షకులెవరింక</span>", provenance: "text",
+        text: "\"Who else is there to protect me?\" Listen for where the ledger stops and the surrender " +
+          "begins — they are in the same sentence." }
+    ],
+    modern: "Anyone who has done the right thing by the wrong procedure knows this song. He is not " +
+      "claiming innocence — the money was the state's and he spent it — but insisting the account be read " +
+      "with its purpose visible. The uncomfortable part is that he is presenting the invoice to God rather " +
+      "than to the court, which suggests he had already stopped expecting the court to look at it.",
+    listening: [
+      { performer: "Search — concert and bhajana renditions", tradition: "Carnatic",
+        raga: "Yadukula Kambhoji (commonly)", tala: "Misra Chapu", kind: "search", verify: "search",
+        q: "Ikshvaku Kula Tilaka Ramadasu keerthana",
+        why: "Listen for whether the singer lets the itemised sums sound matter-of-fact or aggrieved; both readings are current." }
+    ]
+  },
+
+  /* ─────────── Ee Teeruga Nanu ─────────── */
+  "ee-teeruga-nanu": {
+    beforePlay: "The question is not whether mercy will come. It is what shape it will arrive in — which " +
+      "means the song sounds like anxiety and is built like trust. For many Telugu listeners this is the " +
+      "sound of Nadanamakriya itself, carried to them by a film they saw once and never forgot.",
+    keyWord: {
+      word: "Teeruga", telugu: "తీరుగ", translit: "tīruga",
+      literal: "In the manner of; by the way or fashion of. From <em>tīru</em>, manner, mode, way.",
+      colloquial: "How something is done rather than whether — the word you use asking after method.",
+      spiritual: "Grace's mode rather than its fact. Once the devotee has elected the Lord as protector, " +
+        "the manner of protection is explicitly no longer the devotee's business.",
+      why: "The whole theological position sits in a grammatical choice. He does not ask <em>will you</em> " +
+        "show mercy. He asks <em>in what manner</em> — and the interrogative concedes everything except " +
+        "the certainty."
+    },
+    cues: [
+      { mark: "The falling opening", provenance: "tradition",
+        text: "Nadanamakriya is conceived as a descent, traditionally begun from above. For a text that " +
+          "opens on a question and sinks toward the image of drowning, listen for how the melodic shape " +
+          "<em>is</em> the sahityam." },
+      { mark: "<span lang='te'>ఇనవంశోత్తమ</span> — the courtly epithet", provenance: "text",
+        text: "\"Best of the solar dynasty,\" placed immediately after a line of raw uncertainty. Listen " +
+          "for the formality arriving exactly where the composure fails." },
+      { mark: "The image of the ocean", provenance: "text",
+        text: "<em>Can I swim across?</em> The standard answer in the tradition is that nobody swims it — " +
+          "one is ferried. Listen to the question knowing it has an answer elsewhere in this collection." }
+    ],
+    modern: "Most anxiety is not about whether help will come but about what form it will take, and " +
+      "whether we will recognise it as help when it does. Ramadasu's question is the same one, asked " +
+      "without the modern assumption that we are owed an explanation in advance. The song does not resolve " +
+      "it. It simply keeps asking in a voice that has already decided to stay.",
+    listening: [
+      { performer: "Search — Carnatic and film renditions", tradition: "Carnatic · and the 1980 film Sankarabharanam",
+        raga: "Nadanamakriya", tala: "Adi", kind: "search", verify: "search",
+        q: "Ye Teeruga Nanu Daya Juchedavo Ramadasu Nadanamakriya",
+        why: "Worth hearing a classical rendition and the film version together — the same ragam doing very different cultural work." }
+    ]
+  }
+};
+
+// Merge enrichment onto the kriti records.
+KRITIS.forEach(function (k) {
+  var e = ENRICH[k.id];
+  if (!e) return;
+  Object.keys(e).forEach(function (key) { k[key] = e[key]; });
+  // Resolve listening urls
+  (k.listening || []).forEach(function (l) {
+    l.url = l.kind === 'watch' ? ytWatch(l.id) : ytSearch(l.q);
+  });
+});
+
+/* ── Ragam detail (second pass) ───────────────────────────────── */
+// Scales alone do not explain a ragam. What follows is the grammar: the phrases
+// that identify it, the notes it rests on, how its gamakas behave, and what
+// separates it from the scale-neighbour it is most often confused with.
+//
+// These follow common modern practice. Bani (school) variants exist for most
+// janya ragams — treat these as the usual account, not the only one. Rasa is
+// contextual: nothing here says a ragam "means" an emotion.
+
+const RAGA_DETAIL = {
+  "Bhairavi": {
+    prayogas: ["S G₂ R₂ G₂ M₁ P", "M₁ P D₂ N₂ Ṡ", "Ṡ N₂ D₁ P", "G₂ M₁ P G₂ R₂ S"],
+    jiva: "Gandhara (G₂) and dhaivata carry the ragam; madhyama (M₁) is a common resting place.",
+    gamaka: "The gandhara is rarely sung plain — a broad kampita (oscillation) is its normal condition, " +
+      "and the long-held madhyama is its other fingerprint.",
+    distinguish: "Against its parent Natabhairavi, the giveaway is the ascending D₂ — foreign to the " +
+      "parent scale, and what makes Bhairavi bhashanga. Against Mukhari, which shares much of the same " +
+      "material, the separation is phrase-by-phrase rather than note-by-note.",
+    withText: "A wide tessitura and a habitable lower register let a singer dwell on an opening word " +
+      "and still climb for the martial epithets — useful for a text that changes register between verses."
+  },
+  "Atana": {
+    prayogas: ["S R₂ M₁ P N₃ Ṡ", "Ṡ N₂ D₂ P M₁ R₂ S", "P M₁ R₂ G₃ R₂ S"],
+    jiva: "Rishabha (R₂), panchama and nishada.",
+    gamaka: "Brisk and wide-swinging; the nishada is characteristically unstable, and the gandhara " +
+      "appears only as a fleeting vakra touch in descent rather than as a note to rest on.",
+    distinguish: "Against Dheerasankarabharanam, its parent, Atana's gandhara never stands still — it " +
+      "is approached and left within a phrase, which is why the scale on paper misleads.",
+    withText: "The quick, gamaka-heavy motion sits oddly under a text about steadiness, and that friction " +
+      "is arguably the setting's whole argument."
+  },
+  "Ananda Bhairavi": {
+    prayogas: ["S G₂ R₂ G₂ M₁ P", "P D₂ P Ṡ", "Ṡ N₂ D₂ P M₁ G₂ R₂ S"],
+    jiva: "Gandhara (G₂), madhyama and panchama.",
+    gamaka: "A slow, rounded oscillation on the gandhara gives the ragam its warmth; the phrases tend " +
+      "to curve back on themselves rather than travel.",
+    distinguish: "It borrows D₂ (and, in some phrases, N₃) from outside its parent Natabhairavi — those " +
+      "borrowed notes are where the sweetness comes from.",
+    withText: "Its unhurried, consoling motion can make a reproach arrive sounding like tenderness, " +
+      "which is one reading of why the accusation in this kriti never feels like anger."
+  },
+  "Saveri": {
+    prayogas: ["S R₁ M₁ P D₁ Ṡ", "Ṡ N₃ D₁ P M₁ G₃ R₁ S", "P D₁ Ṡ", "M₁ G₃ R₁ S"],
+    jiva: "Rishabha (R₁), madhyama and dhaivata (D₁).",
+    gamaka: "The flat second and sixth are heavily oscillated; the ragam leans on them rather than " +
+      "passing through.",
+    distinguish: "Against Mayamalavagowla, its parent, Saveri drops gandhara and nishada on the way up — " +
+      "the five-note ascent is what gives it its plaintive lean.",
+    withText: "A supplicating melodic contour under a text asserting sufficiency produces a useful " +
+      "tension: the words say <em>enough</em>, the line keeps asking."
+  },
+  "Khamas": {
+    prayogas: ["S M₁ G₃ M₁ P D₂ N₂ Ṡ", "Ṡ N₂ D₂ P M₁ G₃ R₂ S", "M₁ G₃ M₁ P D₂ N₂ Ṡ"],
+    jiva: "Madhyama, gandhara and the kaisiki nishada (N₂).",
+    gamaka: "The N₂ is the colour note and is usually approached with a slide; phrases lean on M₁ rather " +
+      "than resolving quickly to Sa.",
+    distinguish: "Against Harikambhoji, its parent, Khamas skips rishabha in ascent and enters through " +
+      "the madhyama — that opening leap is the identifying gesture.",
+    withText: "Its home is the padam and javali repertoire, music built to coax — which suits a text " +
+      "shaped as a sales pitch, if the Khamas attribution is the one your rendition follows."
+  },
+  "Dhanyasi": {
+    prayogas: ["S G₂ M₁ P N₂ Ṡ", "Ṡ N₂ D₁ P M₁ G₂ R₁ S", "M₁ G₂ R₁ S"],
+    jiva: "Gandhara (G₂), madhyama and nishada (N₂).",
+    gamaka: "The gandhara carries an oscillation; the descent's R₁ is a slow, weighted note rather than " +
+      "a passing one.",
+    distinguish: "Do not confuse it with <strong>Suddha Dhanyasi</strong>, which is pentatonic in both " +
+      "directions and is a janya of Kharaharapriya. Dhanyasi's full descent — including R₁ and D₁ — is " +
+      "exactly what Suddha Dhanyasi lacks.",
+    withText: "Five notes up and seven down gives a bare ascent and a descent with room to ache — a " +
+      "shape that suits a text about something found after long looking."
+  },
+  "Kanada": {
+    prayogas: ["S R₂ G₂ M₁ D₂ N₂ Ṡ", "Ṡ N₂ D₂ M₁ P G₂ M₁ R₂ S", "G₂ M₁ R₂ S", "M₁ P G₂ M₁"],
+    jiva: "Gandhara (G₂) and madhyama.",
+    gamaka: "The gandhara is characteristically approached from the madhyama above rather than from " +
+      "below; the phrases are deliberately crooked and resist straight motion.",
+    distinguish: "Against Kharaharapriya, its parent, Kanada omits panchama in ascent and its descent is " +
+      "markedly vakra — the winding is the ragam, not an ornament on it.",
+    withText: "Its gravity keeps a plea of unworthiness serious rather than self-pitying."
+  },
+  "Saurashtram": {
+    prayogas: ["S R₁ G₃ M₁ P M₁ D₂ N₃ Ṡ", "Ṡ N₃ D₂ N₃ P M₁ G₃ R₁ S", "N₃ D₂ N₃ P"],
+    jiva: "Rishabha (R₁), gandhara and nishada (N₃).",
+    gamaka: "The N₃–D₂–N₃ turn in descent is the signature gesture; the ragam has a settled, declarative " +
+      "motion rather than a searching one.",
+    distinguish: "Against Mayamalavagowla, it takes the higher dhaivata D₂ as an anya swara — that one " +
+      "note is most of the difference in character.",
+    withText: "It is the ragam of the traditional concert-closing mangalam, so a reassurance set in it " +
+      "arrives already sounding settled — the music reaches the verdict before the argument does."
+  },
+  "Nadanamakriya": {
+    prayogas: ["Ṡ N₃ D₁ P M₁ G₃ R₁ S", "P M₁ G₃ R₁ S", "G₃ R₁ S"],
+    jiva: "Gandhara (G₃) and rishabha (R₁), both usually reached from above.",
+    gamaka: "Phrases characteristically begin high and give way; the descent is the ragam's natural " +
+      "direction rather than its return journey.",
+    distinguish: "It shares its notes with Mayamalavagowla but is treated quite differently — conceived " +
+      "as a falling shape, traditionally begun from the upper Sa, and kept within a narrower range. The " +
+      "scale is a poor guide here; the contour is the identity.",
+    withText: "A melodic line that sinks under a text about drowning, or about a completed seeing, " +
+      "means the shape and the sahityam are doing the same work."
+  },
+  "Varali": {
+    prayogas: ["S G₁ R₁ G₁ M₂ P", "M₂ P D₁ N₃ Ṡ", "Ṡ N₃ D₁ P M₂ G₁ R₁ S"],
+    jiva: "Gandhara (G₁) and the prati madhyama (M₂).",
+    gamaka: "The suddha gandhara is rare in the repertoire and highly distinctive; the vakra opening " +
+      "phrase (S G₁ R₁ G₁ M₂) is how the ragam announces itself.",
+    distinguish: "Against Kamavardhani (Panthuvarali), which shares the sharp fourth, Varali's gandhara " +
+      "is the lowest one — that single note accounts for its very different colour.",
+    withText: "Its angularity can make plain descriptive text sound like something glimpsed rather than " +
+      "something seen — one reason a straightforward temple description does not sound straightforward."
+  },
+  "Keeravani": {
+    prayogas: ["S R₂ G₂ M₁ P D₁ N₃ Ṡ", "Ṡ N₃ D₁ P M₁ G₂ R₂ S", "P D₁ N₃ Ṡ"],
+    jiva: "Gandhara (G₂), dhaivata (D₁) and nishada (N₃).",
+    gamaka: "The catch in the ragam comes from the interval between the flat sixth and the sharp " +
+      "seventh; that step is usually taken deliberately rather than glossed over.",
+    distinguish: "Against Natabhairavi it differs by one note — the kakali nishada N₃ where Natabhairavi " +
+      "has N₂ — and that note changes the whole affect.",
+    withText: "Of the three ragams this kriti is sung in, Keeravani keeps the longing nearest the surface."
+  },
+  "Yadukula Kambhoji": {
+    prayogas: ["S R₂ M₁ P D₂ Ṡ", "Ṡ N₂ D₂ P M₁ G₃ R₂ S", "P D₂ Ṡ", "G₃ R₂ S"],
+    jiva: "Rishabha (R₂), madhyama and dhaivata.",
+    gamaka: "Restrained by convention — the ragam is usually kept in a lower tessitura and not opened " +
+      "out, which is part of its character.",
+    distinguish: "Against Kambhoji it drops gandhara in ascent and stays lower; the two are close on " +
+      "paper and quite distinct in practice.",
+    withText: "Its habitual restraint suits a text of complaint that is trying not to sound like one."
+  }
+};
+
+Object.keys(RAGA_DETAIL).forEach(function (name) {
+  if (RAGAS[name]) {
+    Object.keys(RAGA_DETAIL[name]).forEach(function (k) {
+      RAGAS[name][k] = RAGA_DETAIL[name][k];
+    });
+  }
+});
+
+/* ── Collection-level essays (second pass) ────────────────────── */
+
+const COLLECTION = {
+
+  /* ---- Ramadasu is not praying politely ---- */
+  voice: {
+    title: "Ramadasu Is Not Praying Politely",
+    lede: "Read the collection in one sitting and a single thing stands out: not what he asks for, but " +
+      "the standing he assumes while asking.",
+    intro: "Devotional poetry is often addressed upward, in the careful vocabulary of a subject before a " +
+      "sovereign. Ramadasu knows that vocabulary — <em>king among kings, worshipped by the kings of " +
+      "kings</em> — and uses it, and then leaves it behind. What follows is a progression you can trace " +
+      "across the songs. It is not a chronology; several of these registers appear inside a single kriti.",
+    stages: [
+      { n: 1, name: "Asking", telugu: "ప్రార్థన",
+        text: "The plain petition. <em>Rama daya judave</em> — look at me with compassion. Nothing " +
+          "unusual yet; this is where most devotional poetry lives.",
+        song: "Rama Daya Judave", songId: "rama-daya-judave" },
+      { n: 2, name: "Pleading", telugu: "వేడుకోలు",
+        text: "The asking acquires duration. <em>Sare sareku vediti</em> — again and again I have begged. " +
+          "The past tense starts doing work the words do not state.",
+        song: "Rama Daya Judave", songId: "rama-daya-judave" },
+      { n: 3, name: "Complaining", telugu: "నింద",
+        text: "<em>Paluke bangaramayena</em> — has your speech turned to gold? The silence is named as a " +
+          "fault. The tradition calls this <em>ninda-stuti</em> and treats it as a genre, not a lapse.",
+        song: "Paluke Bangaramayena", songId: "paluke-bangaramayena" },
+      { n: 4, name: "Arguing", telugu: "వాదన",
+        text: "<em>Pantamu seya nenentati vadanu</em> — who am I to hold out in a contest of wills " +
+          "against you? He concedes the argument while making it, which is itself a move in the argument.",
+        song: "Paluke Bangaramayena", songId: "paluke-bangaramayena" },
+      { n: 5, name: "Presenting evidence", telugu: "సాక్ష్యం",
+        text: "The ledger. Ten thousand varahas for the rampart; gifts itemised for Rama's brothers and " +
+          "for Sita; elsewhere, a crore of written names. He submits an account.",
+        song: "Ikshvaku Kula Tilaka", songId: "ikshvaku-kula-tilaka" },
+      { n: 6, name: "Invoking the promises", telugu: "బిరుదు",
+        text: "<em>Sharanagata-trana birudankuduvu kava</em> — are you not <em>titled</em> protector of " +
+          "the surrendered? He stops asking for a favour and asks God to be consistent with His own " +
+          "advertised office. The squirrel of the Setu is cited the same way: as precedent.",
+        song: "Paluke Bangaramayena", songId: "paluke-bangaramayena" },
+      { n: 7, name: "Going through Sita", telugu: "పురుషకారం",
+        text: "The case will not be won on merit, so he turns to the one who does not weigh it. " +
+          "<em>Chakkaga brovave chakkani Janaki.</em> In Sri Vaishnava theology this is structural: the " +
+          "soul reaches the Lord through the Mother.",
+        song: "Rama Daya Judave", songId: "rama-daya-judave" },
+      { n: 8, name: "Surrendering", telugu: "శరణాగతి",
+        text: "<em>Dikku nivani nammiti</em> — you are my only direction. <em>Rakshakulevarinka</em> — who " +
+          "else is there? Not a boast of exclusive devotion but a confession of exhausted options, which " +
+          "the tradition holds to be the same thing when it is honest.",
+        song: "Ikshvaku Kula Tilaka", songId: "ikshvaku-kula-tilaka" },
+      { n: 9, name: "Seeing", telugu: "దర్శనం",
+        text: "<em>Kantinedu ma ramula</em> — today I have seen our Rama. Nothing is requested. The " +
+          "asking has not been answered so much as outlived.",
+        song: "Kantinedu Ma Ramula", songId: "kantinedu-ma-ramula" }
+    ],
+    close: "It would be easy to read the middle of that list as irreverence. It is worth being precise " +
+      "about why it is not. A stranger has no expectation and therefore cannot be disappointed; only " +
+      "someone who believes he belongs can be aggrieved by silence. The complaint presupposes the " +
+      "relationship it appears to strain. This is what the tradition means by <em>bhakti-dharshtya</em> — " +
+      "devotional audacity — and why the same poet can spend three verses arguing and close, without any " +
+      "change of key, on a domestic endearment. He was never outside the family. He was arguing within it."
+  },
+
+  /* ---- The Navaratna arc ---- */
+  arc: {
+    title: "The Nine, Read as One Journey",
+    lede: "An interpretive reading — offered as a way of hearing the set, not as a claim about how it was assembled.",
+    caveat: "<strong>What is established:</strong> the nine keertanas, and their order as published in the " +
+      "notation volume prepared under the guidance of Sangita Kalanidhi Nedunuri Krishnamurthy, which is " +
+      "the sequence in which they are sung as a group at Ramadasu Jayanti observances. " +
+      "<strong>What is not established:</strong> that Ramadasu composed them as a cycle, or intended any " +
+      "emotional progression between them. They were gathered as his nine best-loved songs, not written " +
+      "as a suite. The arc below is what emerges when you listen to them in the received order — a " +
+      "PaddySpeaks reading, and nothing stronger.",
+    steps: [
+      { n: 1, song: "Idigo Bhadradri", songId: "adigo-bhadradri", raga: "Varali",
+        stage: "Darshana", telugu: "దర్శనం", gloss: "Look — there it is",
+        text: "The set opens by pointing at something, not asking for it." },
+      { n: 2, song: "Sri Rama Namame", songId: "sri-rama-namame", raga: "Atana",
+        stage: "The Name", telugu: "నామం", gloss: "One syllable, held",
+        text: "From the seen object to the sounded name — and the claim that holding it is enough." },
+      { n: 3, song: "Paluke Bangaramayena", songId: "paluke-bangaramayena", raga: "Ananda Bhairavi",
+        stage: "The question", telugu: "ప్రశ్న", gloss: "Why won't you answer?",
+        text: "The first crack. The Name is being chanted and nothing is coming back." },
+      { n: 4, song: "Sri Ramula Divyanama", songId: "sri-ramula-divyanama", raga: "Saveri",
+        stage: "Sufficiency", telugu: "చాలు", gloss: "It is enough",
+        text: "The answer to the question is not a reply but a reassertion: stop looking elsewhere." },
+      { n: 5, song: "Ramajogi Mandu", songId: "ramajogi-mandu", raga: "Khamas",
+        stage: "Medicine", telugu: "మందు", gloss: "For what ails you",
+        text: "Sufficiency turns practical. The Name is prescribed, against named afflictions." },
+      { n: 6, song: "Taraka Mantramu", songId: "taraka-mantramu", raga: "Dhanyasi",
+        stage: "Discovery", telugu: "దొరికెను", gloss: "I sought, and found",
+        text: "The prescription is filled. The one perfect tense in the set." },
+      { n: 7, song: "Hari Hari Rama", songId: "hari-hari-rama", raga: "Kanada",
+        stage: "Helplessness", telugu: "కార్పణ్యం", gloss: "Do not think me low",
+        text: "And immediately the ground gives way again — having found it, he doubts he deserves it." },
+      { n: 8, song: "Takkuvemi Manaku", songId: "takkuvemi-manaku", raga: "Saurashtram",
+        stage: "Confidence", telugu: "ధైర్యం", gloss: "What do we lack?",
+        text: "The recovery, and the only song in the nine addressed to other people rather than to God." },
+      { n: 9, song: "Kantinedu Ma Ramula", songId: "kantinedu-ma-ramula", raga: "Nadanamakriya",
+        stage: "Darshana fulfilled", telugu: "కంటినేడు", gloss: "Today I have seen",
+        text: "The set closes where it opened — on seeing. But the first was a finger pointing outward, " +
+          "and this one is in the past tense and the first person." }
+    ],
+    close: "Whether or not anyone designed it, the received order does something worth noticing: it " +
+      "begins and ends on sight. The first song points at a temple and says <em>look</em>. The last says " +
+      "<em>I have seen</em>. Everything between is the distance between those two sentences — the Name " +
+      "taken up, doubted, prescribed, found, doubted again, and finally not needed as an argument. " +
+      "It also ends in a different metre from the one it travelled in, which is either an accident of " +
+      "compilation or the most elegant thing about the set."
+  },
+
+  /* ---- Concert hall vs bhajan hall ---- */
+  halls: {
+    title: "Concert Hall and Bhajan Hall",
+    lede: "The same composition, in two rooms, doing two different things. Neither is the degraded version " +
+      "of the other.",
+    rows: [
+      { aspect: "The direction of the singing", concert: "Performer &rarr; audience.",
+        bhajan: "Everyone &rarr; Rama." },
+      { aspect: "What the ragam is for", concert: "Exploration. Alapana before the piece; the ragam's " +
+          "grammar laid out at length.", bhajan: "A vessel. Held steady so attention can go elsewhere." },
+      { aspect: "Elaboration", concert: "Sangatis — successive variations opening the same line further. " +
+          "Niraval, kalpana svaras, manodharma.", bhajan: "Minimal. The line is sung as it is, and sung " +
+          "again. Variation would work against what repetition is building." },
+      { aspect: "Architecture", concert: "Pallavi &rarr; anupallavi &rarr; charanams, shaped as one arc " +
+          "with a planned climax.", bhajan: "Cyclical. The refrain returns after every unit, for as long " +
+          "as the singing lasts." },
+      { aspect: "What is being cultivated", concert: "Aesthetic appreciation; bhava conveyed and received.",
+        bhajan: "Absorption. Nama-smarana — the singer altered by the repetition." },
+      { aspect: "Where the boundary is", concert: "Between performer and listener. The separation is the form.",
+        bhajan: "Dissolving. There is no audience, only participants at different volumes." }
+    ],
+    close: "In the concert hall we listen to someone sing Rama.<br>In Nama Sankeerthanam, eventually the " +
+      "room itself begins saying Rama.",
+    note: "Both rooms have kept this repertoire alive, and they have kept different things about it. The " +
+      "concert tradition preserved the music's architecture and gave us the settings most people now know. " +
+      "The bhajana tradition preserved the songs themselves, nightly, for three centuries, without notation " +
+      "and without needing any."
+  },
+
+  /* ---- Why these songs survived ---- */
+  survival: {
+    title: "Why These Songs Survived",
+    lede: "Four hundred years is a long time for a song to stay singable. It is worth asking what these " +
+      "particular ones have.",
+    reasons: [
+      { head: "Refrains a room can catch on one hearing",
+        text: "<em>Paluke bangaramayena. Takkuvemi manaku. Rama daya judave.</em> Short, front-loaded, " +
+          "and built to be answered. You can join a bhajana already in progress and be singing within a cycle." },
+      { head: "The first person",
+        text: "Almost everything here is <em>I</em> — I trusted, I bowed, I wrote, I begged. Not " +
+          "descriptions of devotion but sentences in it." },
+      { head: "Two registers in one song",
+        text: "Sanskrit compounds for the theology, plain Telugu for the desperation — often within four " +
+          "lines. The learned listener and the unlettered one are both addressed, and neither is patronised." },
+      { head: "The Name carried inside the sound",
+        text: "Alliteration on <em>ra</em>, the doubled <em>hari hari</em>, the antadi seams that " +
+          "manufacture <em>Sita-Rama</em> at the join. Even a listener following none of the sense is " +
+          "hearing the Name continuously." },
+      { head: "Complaint as well as praise",
+        text: "The songs make room for the experience of not being answered. A repertoire that only " +
+          "celebrated would have less use on a bad night." },
+      { head: "Architecture built for groups",
+        text: "Refrain, verse, refrain — with the sense engineered so the refrain must return. These are " +
+          "not solo art-songs that a congregation borrowed; they are congregational from the joinery up." },
+      { head: "Musical adaptability",
+        text: "Because Ramadasu left words and not notation, every generation could set them again. What " +
+          "looks like a gap in the record is arguably the reason the songs never became period pieces." },
+      { head: "Vulnerability that does not resolve",
+        text: "He does not tidy the endings. The silence in <em>Paluke Bangaramayena</em> is never " +
+          "explained, and the song is four centuries old and still sung." }
+    ],
+    close: "Underneath all of it is one structural fact. Ramadasu did not mainly write songs that people " +
+      "could perform. He wrote <strong>first-person sentences that generations of strangers could " +
+      "temporarily make their own</strong> — and then, in the last verse of each, stepped aside and named " +
+      "himself in the third person, so that the <em>I</em> was left standing empty for whoever came next."
+  },
+
+  /* ---- The coda ---- */
+  coda: {
+    lines: [
+      "After all the ragams, talams, manuscripts, disagreements, meanings and interpretations, " +
+        "Ramadasu eventually leaves us with something embarrassingly simple:",
+      "Rama.",
+      "Perhaps that is why these songs survived.",
+      "The scholarship helps us understand the words.",
+      "The music helps us feel them.",
+      "Nama Sankeerthanam asks us to do one thing more:",
+      "Sing them until the distinction between singer, song and Name begins to disappear."
+    ],
+    final: "Sri Rama Jaya Rama Jaya Jaya Rama.",
+    finalTe: "శ్రీ రామ జయ రామ జయ జయ రామ"
+  },
+
+  /* ---- The reader's journey ---- */
+  journey: [
+    { step: "Read the words", te: "సాహిత్యం" },
+    { step: "Understand the meaning", te: "అర్థం" },
+    { step: "Discover the inner meaning", te: "అంతరార్థం" },
+    { step: "Hear the ragam", te: "రాగం" },
+    { step: "Listen to the keertana", te: "కీర్తన" },
+    { step: "Return to the words differently", te: "మళ్ళీ" }
   ]
 };

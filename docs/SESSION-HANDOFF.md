@@ -1,9 +1,70 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-03. This file is the running memory between Claude Code
+_Last updated: 2026-09-03 (second pass). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-03, second pass): the Devotional Music section gained an
+  EXPERIENCE layer.** The reference material was kept; what was added turns it
+  into somewhere you can also hear the music. Three layers now: sahityam (what
+  he said) / sangitam (how the music carries it) / anubhavam (what you may
+  experience).
+  - **Per song (all 12):** `beforePlay` (a 2–4 sentence emotional preparation),
+    `keyWord` (the one word that holds the song — literal / colloquial /
+    spiritual / why), `cues` (3–5 listening cues, 45 total), `listening`
+    (recordings), and `modern` on 5 of them (a restrained contemporary
+    reflection — deliberately NOT self-help).
+  - **New hub views:** `#listen` (Paddy's Listening Room — reader-journey strip
+    + a 6-column index table) and `#voice` (Ramadasu Is Not Praying Politely —
+    a 9-stage progression from asking to seeing, plus the Navaratna arc).
+    The Tradition view gained Concert Hall vs Bhajan Hall and Why These Songs
+    Survived. A quiet coda closes the page, after all scholarship.
+  - **Deep links now support `#<view>` as well as `#kriti-<id>`** (see
+    `applyHash` in app.js). The article links to `../#listen`.
+  - **EVIDENCE LABELS — the important new discipline.** Every esoteric reading
+    carries `evidence`: TEXTUAL (supported by the sahityam) / TRADITIONAL
+    (established commentarial tradition) / INTERPRETIVE (a PaddySpeaks
+    contemplative reading). 44 in data.js, 16 more in the article. Every
+    listening cue carries `provenance`: text / tradition / rendition, so a later
+    performance practice is never presented as Ramadasu's own mark. **Keep
+    labelling new entries — this is what protects the interpretations'
+    credibility.**
+  - **Absolute claims were audited and softened** ("no other composer…",
+    "the tradition reserves…", "the only…", "alone in this set…"). Ragam
+    `bhava` fields were reworded from "X means sadness" shapes to "often used
+    for…". Do not reintroduce rasa-as-property phrasing.
+  - **Ragam sections deepened:** each of the 12 now has `prayogas`, `jiva`,
+    `gamaka`, `distinguish` (the scale-neighbour it is confused with) and
+    `withText`. Note the Dhanyasi vs Suddha Dhanyasi warning.
+  - **Corrections made this pass:** Kantinedu Ma Ramula is **Khanda Chapu**,
+    not Adi (per the Nedunuri notation volume). The Navaratna ORDER was
+    verified against that volume and matches: Adigo → Sri Rama Namame → Paluke
+    → Divyanama → Ramajogi → Taraka → Hari Hari Rama → Takkuvemi → Kantinedu.
+    The emotional arc built on it is presented as **interpretive**, with an
+    explicit caveat that Ramadasu is not known to have composed them as a cycle.
+
+- **⚠️ LISTENING LINKS — UNFINISHED, NEEDS A HUMAN PASS.**
+  YouTube is **blocked by the container's egress proxy** (WebFetch, curl, and
+  even the oEmbed endpoint all rejected), so **no recording was played or
+  checked for liveness**. The link model is deliberately two-tier:
+  - `kind:"watch"` (8 entries) — video id came from a search index whose
+    recorded title matches the composition, and in one case the performer
+    (Nedunuri + Malladi, Atana, `0HMHlarLZwo`). **Corroborated, not verified.**
+  - `kind:"search"` (7 entries) — a YouTube *search* URL. Correct by
+    construction, cannot rot, cannot point at the wrong thing.
+  - **To promote a search link to a real one:** set `kind:"watch"` and add
+    `id:"<videoId>"`. The renderer does the rest. See the header comment in the
+    ENRICH block of `data.js`.
+  - The page states this limitation openly in `LISTEN_CAVEAT`. **Do not quietly
+    publish unverified watch links** — it would contradict the page's own
+    editorial rule.
+  - Still needing a corroborated recording: Sri Ramula Divyanama, Ramajogi
+    Mandu, Hari Hari Rama, Rama Dayajudave, Ikshvaku Kula Tilaka, Ee Teeruga Nanu.
+
+- **Still open from the first pass:** the Telugu script for charanams 2 and 3 of
+  Rama Dayajudave was set from transliterated sources, not a printed Telugu
+  edition. Worth a rasika's check.
 
 - **NEW (2026-09-03): a Devotional Music section, built as a SERIES.**
   Lives at `devotional-music/` and is wired into `index.html` (nav-bar link +
