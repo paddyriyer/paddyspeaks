@@ -42,7 +42,24 @@ When adding a new article, manually insert a card into `index.html`:
 1. Create the HTML file in `articles/` using an existing article as template
 2. Add metadata to `article_metadata.json` (newest article first)
 3. Manually add cards to `index.html` (sidebar + deck grid)
-4. Run NO index generation scripts
+4. Add a `<url>` entry to `sitemap.xml`
+5. Run NO index generation scripts
+
+## Sitemap
+
+`sitemap.xml` is hand-maintained — add and remove `<url>` entries by hand, as
+above. The one thing that is automated is the `<lastmod>` date, which otherwise
+goes stale the moment a page is edited:
+
+```
+python .github/scripts/refresh_sitemap_lastmod.py          # report stale dates
+python .github/scripts/refresh_sitemap_lastmod.py --write  # set them from git
+```
+
+It rewrites `<lastmod>` values only — URLs, order, `<priority>`, `<changefreq>`
+and whitespace are untouched — so the diff is dates and nothing else. Worth
+running before any push that changes published pages: Google uses `lastmod` as a
+recrawl hint and learns to ignore a feed whose dates are reliably wrong.
 
 ## Site Structure
 
