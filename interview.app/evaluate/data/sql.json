@@ -14514,6 +14514,16 @@
       ],
       "answer": 2,
       "explanation": "Snowflake's LATERAL join (using TABLE(FLATTEN(...))) allows the right side of the join to reference columns from the left side, enabling true correlation between unnested array elements and per-user computed metrics. This is more efficient and readable than workarounds like CROSS JOIN with WHERE filters or CTEs. EXPLODE() is Spark syntax, not Snowflake."
+    },
+    {
+      "id": "sql-new-104",
+      "type": "single",
+      "topic": "BigQuery-specific window functions with NULLIF",
+      "difficulty": "hard",
+      "added_date": "2026-09-04",
+      "prompt": "In BigQuery, you have a table `sales(date DATE, region STRING, revenue NUMERIC, returned_revenue NUMERIC)`. You need to calculate the net revenue (revenue - returned_revenue) and rank regions by net revenue within each date, but exclude regions where net revenue is zero or negative from the ranking. Which query correctly achieves this?\n\nA) SELECT date, region, revenue - returned_revenue as net_rev, RANK() OVER (PARTITION BY date ORDER BY NULLIF(CASE WHEN revenue - returned_revenue <= 0 THEN NULL ELSE revenue - returned_revenue END, 0) DESC) as rank FROM sales\n\nB) SELECT date, region, revenue - returned_revenue as net_rev, RANK() OVER (PARTITION BY date ORDER BY NULLIF(revenue - returned_revenue, CASE WHEN revenue - returned_revenue <= 0 THEN 0 END) DESC) as rank FROM sales\n\nC) SELECT date, region, revenue - returned_revenue as net_rev, RANK() OVER (PARTITION BY date ORDER BY CASE WHEN revenue - returned_revenue > 0 THEN revenue - returned_revenue ELSE NULL END DESC) as rank FROM sales\n\nD) SELECT date, region, revenue - returned_revenue as net_rev, DENSE_RANK() OVER (PARTITION BY date ORDER BY COALESCE(NULLIF(revenue - returned_revenue, 0), -1) DESC) as rank FROM sales WHERE revenue - returned_revenue > 0",
+      "answer": 2,
+      "explanation": "Option C correctly uses CASE WHEN to conditionally exclude zero/negative net revenues (returning NULL) while preserving positive values for ranking. RANK() treats NULLs as the lowest values, effectively excluding them from ranking. Option A has incorrect NULLIF syntax (attempting to set NULLs to 0). Option B misuses NULLIF logic. Option D filters at WHERE level, which removes rows entirely rather than just excluding them from ranking."
     }
   ]
 }
