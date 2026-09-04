@@ -1,9 +1,34 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-03 (Song 02). This file is the running memory between Claude Code
+_Last updated: 2026-09-04 (The Interview Room). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-04): `articles/the-interview-room.html` is published** — a
+  ~19k-word fictional screenplay in fifteen acts: a staff-level escalation
+  interview at the fictional **Northstar Data Platforms** between hiring
+  manager **Alex Morgan** and candidate **Jordan Lee**. Category `technology`,
+  55 min, dated 2026-09-04.
+  - **Everything in it is fictional and is labelled as such** in three places:
+    the notice block near the top, the closing disclaimer, and the JSON-LD
+    (`"genre": "Fiction"`). No real company, product vendor or person is named
+    or implied — that constraint was explicit and must be preserved if the
+    article is ever edited. Open-source project names (Spark, Kafka, Airflow)
+    are fine; commercial vendors are not.
+  - **Fifteen illustrations are generated, not hand-written HTML.** The source
+    of truth is `images/articles/the-interview-room/source/make_plates.py`,
+    which authors each plate as SVG and renders a 2x PNG (kept in `source/`)
+    plus the `plate-*.webp` the page loads, plus `share-card.png` and
+    `poster.webp`. Re-run it after `pip install pillow cairosvg`; do not edit
+    the webp files by hand.
+  - Article CSS is a self-contained screenplay system: `.slug`, `.dir`, `.cue`
+    (with `.cue--a` / `.cue--j` for the two characters), `.beat` for rapid-fire
+    exchanges, `.term` for log/plan blocks, `pre.ascii` for diagrams, and the
+    `.panel--test` / `.panel--weak` pair that closes most scenes.
+  - Homepage: sidebar card + deck card added by hand (per CLAUDE.md, `index.html`
+    is never regenerated). Filter counts bumped to **All (146)** and
+    **Technology (77)**; sitemap entry added.
 
 - **NEW (2026-09-03): Song 02 of the Devotional Music series is published.**
   `devotional-music/caranamule-nammiti/` — *Caraṇamulē Nammiti*, rāga Kāpi,
