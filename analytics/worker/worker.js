@@ -38,6 +38,28 @@ export default {
       return new Response(null, { headers: ch });
     }
 
+    // ── Crawlers ─────────────────────────────────────────────────────────
+    // robots.txt is per-HOST: the one at paddyspeaks.com/robots.txt does not
+    // govern this Worker's hostname. Without this route, /robots.txt fell
+    // through to the 404 at the bottom of this handler — and a 404 for
+    // robots.txt tells a crawler the host is entirely crawlable. So Googlebot
+    // crawled https://ps.paddyspeaks.com/ and filed it in Search Console under
+    // "Not found (404)".
+    //
+    // This host serves only API endpoints for the site's own pages; nothing on
+    // it is a document, so nothing on it should be crawled. Browser traffic is
+    // unaffected — robots.txt binds crawlers, not fetch()/sendBeacon().
+    if (url.pathname === '/robots.txt') {
+      return new Response('User-agent: *\nDisallow: /\n', {
+        status: 200,
+        headers: {
+          ...ch,
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      });
+    }
+
     // Privacy Console scan proxy. Stateless: no logging, no D1, no cache.
     if (url.pathname.startsWith('/api/scan')) {
       const scanned = await routeScan(request, env, url, ch);
