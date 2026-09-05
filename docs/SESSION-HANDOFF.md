@@ -1,9 +1,40 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-05 (Can You Really Afford the Bay Area?). This file is the running memory between Claude Code
+_Last updated: 2026-09-05 (Bay Area article: six data charts added). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-05, second pass): six data charts added to the Bay Area article.**
+  The first cut was 13.5k words against 10 illustrations - one visual per ~1,350
+  words, and 75% of the text sat in unbroken runs of 450+ words. It read as an
+  essay with pictures rather than a visual essay. Six charts now bring that to
+  **one visual per ~870 words**, with 63% in long runs.
+  - **Source of truth is `scripts/make_bay_area_charts.py`**, which emits the SVG.
+    Values are copied from the two model scripts; change a number there, re-run
+    both, then re-run this and re-paste. Do not hand-edit the chart SVG in the
+    article.
+  - **The palette is validated, not chosen.** The article's editorial ink colours
+    FAIL as a categorical chart palette - #23527C and #1F6B4A fall under the
+    OKLCH chroma floor (they read gray as fills) and green/red sit at deltaE 6.6
+    under deuteranopia. Charts therefore use a separate validated split:
+    series **#2E74B5**, emphasis **#A32B22**, ordinal ramp
+    **#93B6D4 -> #3D7DB5 -> #1B4E7A**. All pass the six checks on the #FCFBF7
+    surface. **The original #23527C stays for line art and text** - it is fine
+    there, it just is not a data fill. If charts are ever added, re-run the
+    validator rather than eyeballing a new colour.
+  - **Forms follow the data's job:** price-to-income and deposit-in-years are
+    single-series columns with emphasis on 2026; the housing-cost breakdown is an
+    ordinal stack (the segments have a natural order) with a 100%-of-income rule;
+    the budget is nominal categories so every bar takes the SAME hue (colouring
+    them by value would double-encode bar length); cash runway is bars against an
+    18-month threshold; years-of-freedom is two runway bars.
+  - **Charts scroll sideways below 720px** rather than scaling down - at 390px the
+    1000-unit viewBox shrinks axis type to ~3px. Same treatment the wide tables
+    already get, with the same `.scrollhint`.
+  - A hover tooltip layer is attached to `.chart .bar` groups. It **enhances and
+    never gates**: every charted value also appears in a direct label or in the
+    article's existing tables, which are the accessible table-view twin.
 
 - **NEW (2026-09-05): `articles/can-you-really-afford-the-bay-area.html` is published** —
   a ~13.5k-word data-driven visual investigation in twelve parts: whether an
