@@ -1,9 +1,59 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-04 (The Interview Room). This file is the running memory between Claude Code
+_Last updated: 2026-09-05 (Can You Really Afford the Bay Area?). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-05): `articles/can-you-really-afford-the-bay-area.html` is published** —
+  a ~13.5k-word data-driven visual investigation in twelve parts: whether an
+  ordinary professional family could build *and protect* a middle-class life in
+  Santa Clara County in each decade from 1960 to 2026. Category `personality`,
+  42 min, dated 2026-09-05. Homepage sidebar + deck card added by hand; filter
+  counts bumped to **All (147)** and **Personality Development (3)**; sitemap
+  entry added.
+  - **All arithmetic is reproducible and was computed, not estimated by eye.**
+    The anchor is a modelled representative 4-bedroom house (county median
+    single-family sale price × ~1.10), 20% down, 30-year fixed, every decade.
+    Headline results: price-to-income 2.6 in 1960 → 13.1 in 2026; total annual
+    housing cost 28% of median income in 1960 → **104%** in 2026; the down
+    payment goes from 5 months of median income to 2 years 8 months.
+  - **The strongest finding, and the one to preserve if the piece is ever
+    edited:** the rate needed on today's $1.84M loan to reproduce 1980's
+    burden (53% of median income) is **3.03%** — i.e. almost exactly the 2020
+    rate. The 2020–21 window made a $1.8M loan *behave* like a 1980 mortgage;
+    remove it and principal is the binding constraint. Corollary line:
+    "You can refinance a rate. You cannot refinance a principal."
+  - **Data-integrity scheme is load-bearing.** Every figure carries one of four
+    tags — FACT / ESTIMATE / MODELLING ASSUMPTION / SCENARIO — explained in a
+    legend near the top. The 1960 and 1970 county rows are explicitly the
+    softest (±15%) and say so. **Do not quietly upgrade an estimate to a fact.**
+  - **One deliberate modelling choice worth keeping:** maintenance is modelled
+    as a *physical* cost (~$4.30/sq ft/yr in 2026 dollars, CPI-deflated and
+    scaled to house size), **not** as 1% of purchase price. Roofs do not get
+    more expensive because land does; the 1%-of-price rule over-reserves badly
+    in the Bay Area because you are reserving against dirt.
+  - **Central concept introduced: YEARS OF FINANCIAL FREEDOM** — accessible
+    assets (cash + taxable, excluding retirement and home equity) divided by
+    essential annual burn. The Part XI pair have net worth within 3% of each
+    other ($3.2M vs $3.3M) and freedom of **1.4 years vs 10.5 years**. If the
+    article is ever excerpted, this is the idea to lead with.
+  - **Ten illustrations, all hand-authored inline SVG** in the article itself
+    (no build step, unlike The Interview Room). Editorial newspaper style:
+    hatched money stacks, stick figures, no photorealism. All are XML-valid —
+    `validate_content.py` is strict on changed files, so keep them well-formed.
+  - **Share card and homepage poster are generated**, not hand-drawn:
+    `images/articles/can-you-really-afford-the-bay-area/source/make_cards.py`
+    authors both as SVG and renders `share-card.png` (1200×630) and
+    `poster.webp` (800×860). Re-run after `pip install cairosvg pillow`; the
+    container only has Liberation/DejaVu fonts, which is why the script names
+    those explicitly rather than Newsreader. Do not hand-edit the outputs.
+  - **Research caveat for future sessions:** `WebFetch` was blocked for every
+    domain by the egress proxy in this session, so primary sources could not be
+    opened directly — figures were confirmed via `WebSearch` result summaries
+    and are cited to the primary source they originate from. Anything in the
+    Sources section is worth spot-checking against the live source before it is
+    quoted elsewhere.
 
 - **NEW (2026-09-04): `articles/the-interview-room.html` is published** — a
   ~19k-word fictional screenplay in fifteen acts: a staff-level escalation
