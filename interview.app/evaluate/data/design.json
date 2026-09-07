@@ -5992,6 +5992,54 @@
       ],
       "answer": 1,
       "explanation": "Dynamic warehouse resizing (small off-peak, large peak) reduces idle compute by ~50% while respecting 15-minute freshness (peak windows cover the critical window). CONVERT_TIMEZONE-based scheduling handles multi-region time zones automatically. Option 0 introduces latency via cross-region replication; option 2 adds operational complexity; option 3 duplicates data and adds architectural layers."
+    },
+    {
+      "id": "ds-new-083",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "You're building a payment reconciliation pipeline that reads transactions from Kafka and writes to a Snowflake `transactions` table. The pipeline must guarantee exactly-once semantics to prevent duplicate charges. Your Kafka consumer processes 50k msgs/sec with ~2sec end-to-end latency. Which approach is MOST operationally safe?",
+      "options": [
+        "Use Kafka transactions with idempotent Snowflake MERGE statements keyed on (transaction_id, kafka_offset); commit offsets after successful write",
+        "Write to a staging table with UNIQUE (transaction_id), then MERGE to prod; rely on Snowflake's atomic MERGE to deduplicate",
+        "Use Kafka consumer groups with auto.commit=false; write to Snowflake with a surrogate key (transaction_id, attempt_number); filter duplicates on read",
+        "Implement a Redis-backed deduplication cache with TTL; skip writes if transaction_id exists; commit offset only after cache + DB writes succeed"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 combines Kafka transaction semantics with idempotent SQL operations, ensuring that the offset commit and Snowflake write are atomic. The MERGE with kafka_offset guards against offset resets after partial failures. Options 1\u20133 either lack offset semantics, introduce cache staleness, or create race conditions between cache and database writes."
+    },
+    {
+      "id": "ds-new-084",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "Your team operates both a real-time recommendation service (Kafka \u2192 ML model \u2192 cache, <200ms latency) and a nightly batch job (Spark on 10TB data warehouse) that retrains the model. The batch job now runs 4 hours longer due to schema evolution. Which approach reduces batch runtime WITHOUT breaking the real-time pipeline?",
+      "options": [
+        "Stream aggregated features into an Iceberg staging table throughout the day; batch job reads pre-computed features instead of raw events",
+        "Split the batch job: run model training on yesterday's streamed data (small subset), and run feature engineering on the full 10TB separately; combine results",
+        "Switch both pipelines to Flink; process all data as streaming, removing the batch/streaming boundary entirely",
+        "Disable real-time updates during batch hours; run both jobs sequentially with shared compute to reduce overhead"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 leverages streaming to pre-compute features into Iceberg, reducing the batch job's computational burden while preserving feature freshness. Option 1 is incomplete (separate jobs may still bottleneck), option 2 requires major refactoring, and option 3 degrades service availability during peak hours."
+    },
+    {
+      "id": "ds-new-085",
+      "type": "single",
+      "topic": "data observability",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "Your data platform ingests 800 Kafka topics into Snowflake via Fivetran connectors. One topic (`user_events`) suddenly doubles its daily row count, but no alert fires because the threshold-based anomaly detector uses a static daily volume. The downstream ML team's training job runs OOM. How should you prevent this in the future?",
+      "options": [
+        "Implement schema-level volume SLOs (e.g., P50 daily rows \u00b1 2\u03c3) and alert when any topic exceeds its baseline; additionally track table-level row count deltas per hour",
+        "Add a pre-pipeline data quality check: compute row count before Fivetran sync; if delta > 50% from 7-day average, pause ingestion and alert",
+        "Replace static thresholds with adaptive thresholds using exponential moving average (EMA) updated hourly; trigger alerts only when EMA exceeds \u00b13\u03c3",
+        "Create a data cost anomaly detector: monitor Snowflake compute costs per topic per day; alert when cost anomaly (via Isolation Forest) exceeds threshold"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 provides layered observability: schema-level SLOs catch volume anomalies while hourly deltas detect rapid spikes before downstream impact. Option 1 may block legitimate traffic surges, option 2 (EMA) lags behind sudden events, and option 3 focuses on cost rather than the root cause (volume)."
     }
   ]
 }

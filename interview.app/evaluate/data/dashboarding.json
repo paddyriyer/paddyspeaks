@@ -1149,6 +1149,38 @@
       ],
       "answer": 0,
       "explanation": "When a fact table with one row per product per order is joined to dim_product, if the logical model is not carefully aggregated before the COUNT(DISTINCT), the distinct count is taken on the post-join set, which still contains multiple rows per order. This reduces the denominator artificially. The correct approach is to ensure the metric either uses a pre-aggregated fact grain or aggregates to the order level before computing the division."
+    },
+    {
+      "id": "dash-new-017",
+      "type": "single",
+      "topic": "join fan-out in BI models",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "A dashboard displays 'Total Revenue by Campaign' using a BI model that joins `campaigns` (1 row per campaign) to `impressions` (many rows per campaign) to `conversions` (many rows per impression). The dashboard shows $12.5M total revenue. However, when you sum the same metric in the underlying warehouse query directly, you get $3.1M. What is the most likely root cause?",
+      "options": [
+        "The dashboard is applying an incorrect exchange rate conversion for multi-currency transactions.",
+        "The BI model is creating a Cartesian product by joining through impressions without proper grain specification, inflating revenue by multiplying it across multiple impression rows per conversion.",
+        "The warehouse query is using a DISTINCT aggregation while the dashboard is not, causing double-counting.",
+        "A dashboard filter on campaign_status is filtering out 75% of the data in the warehouse query but not in the BI model."
+      ],
+      "answer": 1,
+      "explanation": "Join fan-out occurs when joining at incompatible grains (campaigns \u2192 many impressions \u2192 many conversions). Each conversion row gets matched to multiple impressions, and each impression to multiple campaigns, multiplying the base revenue metric by the fanout factors. This is a classic BI modeling error that inflates aggregates significantly. Direct warehouse queries avoid this by using proper GROUP BY logic, while BI models without careful grain alignment compound the issue."
+    },
+    {
+      "id": "dash-new-018",
+      "type": "single",
+      "topic": "dashboard certification",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "Your organization is implementing a dashboard certification program. A dashboard used by the CFO for board reporting has been certified as 'Gold' based on a quarterly validation. Two weeks after certification, a data warehouse schema change adds a new column to the `revenue_adjustments` table, but no logic in the dashboard's underlying model was updated. The dashboard still renders correctly and shows the same numbers. Should this dashboard lose its certification status immediately?",
+      "options": [
+        "Yes, because any schema change to upstream tables automatically invalidates the certification, even if the numbers appear correct.",
+        "No, because the dashboard still renders and produces correct output; certification should only be revoked if the metric values actually change.",
+        "It depends\u2014the dashboard should lose certification if the schema change affects the table's grain or introduces new dimensions that the model doesn't account for, even if current outputs appear unaffected; proactive re-validation is required.",
+        "No, because certification is only valid for the quarter in which it was granted, regardless of upstream changes."
+      ],
+      "answer": 2,
+      "explanation": "Dashboard certification must consider not just current correctness but future-proofing and model completeness. A schema change that introduces new dimensions or alters table grain creates a latent risk: future filter additions or model extensions could produce incorrect results. Certification programs at mature organizations (Google, Meta, Databricks) require re-validation when upstream schemas change, as the model may not be handling the new structure correctly even if legacy queries still work. This reflects the principle that certification is a statement of ongoing quality, not a point-in-time check."
     }
   ]
 }

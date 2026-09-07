@@ -14524,6 +14524,70 @@
       "prompt": "In BigQuery, you have a table `sales(date DATE, region STRING, revenue NUMERIC, returned_revenue NUMERIC)`. You need to calculate the net revenue (revenue - returned_revenue) and rank regions by net revenue within each date, but exclude regions where net revenue is zero or negative from the ranking. Which query correctly achieves this?\n\nA) SELECT date, region, revenue - returned_revenue as net_rev, RANK() OVER (PARTITION BY date ORDER BY NULLIF(CASE WHEN revenue - returned_revenue <= 0 THEN NULL ELSE revenue - returned_revenue END, 0) DESC) as rank FROM sales\n\nB) SELECT date, region, revenue - returned_revenue as net_rev, RANK() OVER (PARTITION BY date ORDER BY NULLIF(revenue - returned_revenue, CASE WHEN revenue - returned_revenue <= 0 THEN 0 END) DESC) as rank FROM sales\n\nC) SELECT date, region, revenue - returned_revenue as net_rev, RANK() OVER (PARTITION BY date ORDER BY CASE WHEN revenue - returned_revenue > 0 THEN revenue - returned_revenue ELSE NULL END DESC) as rank FROM sales\n\nD) SELECT date, region, revenue - returned_revenue as net_rev, DENSE_RANK() OVER (PARTITION BY date ORDER BY COALESCE(NULLIF(revenue - returned_revenue, 0), -1) DESC) as rank FROM sales WHERE revenue - returned_revenue > 0",
       "answer": 2,
       "explanation": "Option C correctly uses CASE WHEN to conditionally exclude zero/negative net revenues (returning NULL) while preserving positive values for ranking. RANK() treats NULLs as the lowest values, effectively excluding them from ranking. Option A has incorrect NULLIF syntax (attempting to set NULLs to 0). Option B misuses NULLIF logic. Option D filters at WHERE level, which removes rows entirely rather than just excluding them from ranking."
+    },
+    {
+      "id": "sql-new-105",
+      "type": "single",
+      "topic": "date arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "You have a `subscription` table with columns (subscriber_id, start_date, billing_cycle_days). You need to find all subscribers whose next billing date falls within the next 7 calendar days from today. Which query correctly handles this, accounting for leap years and variable month lengths?",
+      "options": [
+        "SELECT subscriber_id FROM subscription WHERE start_date + billing_cycle_days * INTERVAL '1 day' BETWEEN CURRENT_DATE AND CURRENT_DATE + 7",
+        "SELECT subscriber_id FROM subscription WHERE start_date + (billing_cycle_days || ' days')::INTERVAL BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'",
+        "SELECT subscriber_id FROM subscription WHERE DATE_ADD(start_date, INTERVAL billing_cycle_days DAY) BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY)",
+        "SELECT subscriber_id FROM subscription WHERE DATEADD(day, billing_cycle_days, start_date) BETWEEN CAST(GETDATE() AS DATE) AND CAST(DATEADD(day, 7, GETDATE()) AS DATE)"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 is correct MySQL/standard SQL syntax using DATE_ADD with INTERVAL arithmetic, which properly handles leap years and month-length variations. Option 1 uses incorrect interval syntax for most SQL dialects. Options 3 and 4 are dialect-specific (MySQL and SQL Server respectively), but option 2 works across Snowflake, BigQuery, and other modern warehouses with proper DATE arithmetic."
+    },
+    {
+      "id": "sql-new-106",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "In a `metrics` table (date, event_type, value), you need to compute the daily sum of values, plus separate running totals for 'impression' and 'click' events only. You want to avoid multiple GROUP BY operations. Which approach using FILTER is most efficient?",
+      "options": [
+        "SELECT date, SUM(value) as total, SUM(value) FILTER (WHERE event_type IN ('impression', 'click')) as filtered_sum FROM metrics GROUP BY date",
+        "SELECT date, SUM(value) as total, SUM(value) FILTER (WHERE event_type = 'impression') as impression_sum, SUM(value) FILTER (WHERE event_type = 'click') as click_sum FROM metrics GROUP BY date",
+        "SELECT date, SUM(value) as total FROM metrics GROUP BY date UNION ALL SELECT date, SUM(value) FROM metrics WHERE event_type IN ('impression', 'click') GROUP BY date",
+        "SELECT date, SUM(CASE WHEN 1=1 THEN value END) as total, SUM(CASE WHEN event_type = 'impression' THEN value END) as impression_sum FROM metrics GROUP BY date"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 is correct\u2014it uses FILTER to compute separate aggregates in a single pass without subqueries. FILTER applies a WHERE condition directly to aggregate functions, making it more readable and efficient than CASE statements. Option 2 adds a click_sum metric. Option 3 requires multiple scans. Option 4 uses outdated CASE logic instead of the modern FILTER clause."
+    },
+    {
+      "id": "sql-new-107",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "You have a `bill_of_materials` table (component_id INT, sub_component_id INT, quantity INT) representing a multi-level assembly hierarchy. You need to compute the total quantity of a leaf component required to build one unit of a top-level product (product_id = 1), accounting for nested assemblies. Which recursive CTE structure correctly computes this?",
+      "options": [
+        "WITH RECURSIVE bom AS (SELECT component_id, sub_component_id, quantity FROM bill_of_materials WHERE component_id = 1 UNION ALL SELECT b.component_id, b.sub_component_id, b.quantity FROM bill_of_materials b JOIN bom ON b.component_id = bom.sub_component_id) SELECT sub_component_id, SUM(quantity) FROM bom GROUP BY sub_component_id",
+        "WITH RECURSIVE bom AS (SELECT component_id, sub_component_id, quantity, 1 as level FROM bill_of_materials WHERE component_id = 1 UNION ALL SELECT bom.component_id, b.sub_component_id, b.quantity * bom.quantity, bom.level + 1 FROM bom JOIN bill_of_materials b ON bom.sub_component_id = b.component_id) SELECT sub_component_id, SUM(quantity) FROM bom GROUP BY sub_component_id",
+        "WITH RECURSIVE bom AS (SELECT component_id, sub_component_id, quantity FROM bill_of_materials WHERE component_id = 1 UNION ALL SELECT b.component_id, bom.sub_component_id, quantity FROM bom b JOIN bill_of_materials bom ON b.sub_component_id = bom.component_id) SELECT * FROM bom",
+        "WITH RECURSIVE bom AS (SELECT 1 as product_id, 0 as level UNION ALL SELECT component_id, level + 1 FROM bill_of_materials WHERE component_id IN (SELECT product_id FROM bom)) SELECT * FROM bom"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 correctly accumulates quantities by multiplying nested component quantities (b.quantity * bom.quantity) as it traverses the hierarchy, preserving the recursive relationship. The anchor selects top-level product 1, and the recursive part joins to find sub-components while multiplying their quantities. Option 0 doesn't accumulate quantities correctly. Options 2 and 3 have incorrect join logic or missing quantity calculations."
+    },
+    {
+      "id": "sql-new-108",
+      "type": "single",
+      "topic": "date arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "A `contract` table has (contract_id, start_date, end_date). You need to find the average contract duration in months (rounded to nearest integer), where a month is defined as 30.44 days (average days per month accounting for leap years over a 400-year cycle). Which query is correct?",
+      "options": [
+        "SELECT ROUND(AVG(DATEDIFF(day, start_date, end_date) / 30.44)) FROM contract",
+        "SELECT ROUND(AVG(EXTRACT(EPOCH FROM (end_date - start_date)) / 2629746)) FROM contract",
+        "SELECT ROUND(AVG((end_date - start_date) / 30.44)) FROM contract",
+        "SELECT ROUND(AVG(MONTHS_BETWEEN(end_date, start_date))) FROM contract"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is correct\u2014it computes the day difference with DATEDIFF (SQL Server/Snowflake syntax), then divides by 30.44 to approximate months. Option 1 uses EPOCH which is Unix-time-specific and overly complex. Option 2 uses an interval subtraction that doesn't work directly in most SQL dialects without casting. Option 3 (MONTHS_BETWEEN) is Oracle-specific and may not be available in all systems."
     }
   ]
 }
