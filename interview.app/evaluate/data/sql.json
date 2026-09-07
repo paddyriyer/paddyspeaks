@@ -14588,6 +14588,70 @@
       ],
       "answer": 0,
       "explanation": "Option 0 is correct\u2014it computes the day difference with DATEDIFF (SQL Server/Snowflake syntax), then divides by 30.44 to approximate months. Option 1 uses EPOCH which is Unix-time-specific and overly complex. Option 2 uses an interval subtraction that doesn't work directly in most SQL dialects without casting. Option 3 (MONTHS_BETWEEN) is Oracle-specific and may not be available in all systems."
+    },
+    {
+      "id": "sql-new-109",
+      "type": "single",
+      "topic": "DISTINCT ON",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "You have a `user_events(user_id INT, event_type TEXT, event_time TIMESTAMP)` table with multiple events per user over time. You need to retrieve the most recent event for each user, but only the event_type and event_time columns. In PostgreSQL, which query is most efficient?",
+      "options": [
+        "SELECT DISTINCT ON (user_id) user_id, event_type, event_time FROM user_events ORDER BY user_id, event_time DESC;",
+        "SELECT user_id, event_type, event_time FROM user_events WHERE event_time = (SELECT MAX(event_time) FROM user_events u2 WHERE u2.user_id = user_events.user_id);",
+        "SELECT user_id, event_type, event_time FROM (SELECT user_id, event_type, event_time, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_time DESC) as rn FROM user_events) WHERE rn = 1;",
+        "SELECT DISTINCT user_id, event_type, event_time FROM user_events ORDER BY event_time DESC LIMIT 1;"
+      ],
+      "answer": 0,
+      "explanation": "DISTINCT ON in PostgreSQL is the most efficient for this use case\u2014it returns the first row for each distinct value in the specified column based on the ORDER BY clause. Option 0 correctly orders by user_id first (to group), then by event_time DESC to get the most recent event per user. Options 1 and 2 work but are less efficient; option 3 is incorrect as LIMIT 1 would return only one user's event, not one per user."
+    },
+    {
+      "id": "sql-new-110",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "In a `metrics(metric_id INT, current_value NUMERIC, previous_value NUMERIC)` table, you need to calculate percent change, but avoid division by zero when previous_value is 0 or NULL. Which approach handles all edge cases correctly?",
+      "options": [
+        "SELECT metric_id, (current_value - previous_value) / previous_value AS pct_change FROM metrics;",
+        "SELECT metric_id, (current_value - COALESCE(previous_value, 0)) / NULLIF(COALESCE(previous_value, 0), 0) AS pct_change FROM metrics;",
+        "SELECT metric_id, CASE WHEN previous_value = 0 THEN NULL ELSE (current_value - previous_value) / previous_value END AS pct_change FROM metrics;",
+        "SELECT metric_id, (current_value - previous_value) / NULLIF(previous_value, 0) AS pct_change FROM metrics;"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 uses COALESCE to handle NULL previous_value by treating it as 0, then NULLIF ensures division by zero returns NULL (avoiding errors). Option 2 doesn't handle NULL previous_value correctly; option 3 works for zero but not NULL; option 0 will error when dividing by zero or NULL. COALESCE + NULLIF together provide complete edge case coverage."
+    },
+    {
+      "id": "sql-new-111",
+      "type": "single",
+      "topic": "Table Partitioning",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "You maintain a `user_activity(user_id INT, activity_date DATE, event_count INT)` table with 500M rows in Snowflake, partitioned by activity_date. A common query filters on activity_date and user_id. After 6 months, queries slow down. What is the likely root cause and best fix?",
+      "options": [
+        "Partitions are too small; consolidate monthly partitions into quarterly ones and use a materialized view for faster joins.",
+        "The table has accumulated too many micro-partitions; reclustering on (activity_date, user_id) will improve pruning and query performance.",
+        "Snowflake partitioning is inefficient; migrate to Apache Iceberg with Z-order partitioning for better data skipping.",
+        "Add a secondary index on user_id since queries filter on both columns, which Snowflake indexes automatically optimize."
+      ],
+      "answer": 1,
+      "explanation": "Snowflake uses automatic micro-partitioning; after 6 months of incremental writes, too many overlapping micro-partitions degrade pruning efficiency. RECLUSTER improves data organization to enable better clustering statistics and partition elimination. Options 0 and 2 are unnecessary (Snowflake is already optimized); option 3 is incorrect (Snowflake doesn't support traditional indexes)."
+    },
+    {
+      "id": "sql-new-112",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "In a data warehouse, you have `revenue(region TEXT, product_id INT, sales NUMERIC, adjustments NUMERIC)`. To calculate net_revenue, adjustments can be NULL (no adjustment), 0 (explicit no adjustment), or a negative value (discount). Which expression correctly distinguishes these cases?",
+      "options": [
+        "SELECT region, product_id, sales + COALESCE(adjustments, 0) AS net_revenue FROM revenue;",
+        "SELECT region, product_id, sales + NULLIF(adjustments, 0) AS net_revenue FROM revenue;",
+        "SELECT region, product_id, CASE WHEN adjustments IS NULL THEN sales WHEN adjustments = 0 THEN sales ELSE sales + adjustments END AS net_revenue FROM revenue;",
+        "SELECT region, product_id, sales + COALESCE(NULLIF(adjustments, 0), 0) AS net_revenue FROM revenue;"
+      ],
+      "answer": 2,
+      "explanation": "Since the semantics distinguish NULL (no adjustment), 0 (explicit no adjustment), and negative values (discount), explicit CASE logic is required. Option 0 treats NULL and 0 identically. Option 1 treats 0 as NULL but still adds NULL values. Option 3 treats NULL and 0 the same way. Only option 2 correctly handles all three semantically distinct cases by treating NULL and 0 as 'no adjustment' but applying negative adjustments."
     }
   ]
 }

@@ -6040,6 +6040,54 @@
       ],
       "answer": 0,
       "explanation": "Option 0 provides layered observability: schema-level SLOs catch volume anomalies while hourly deltas detect rapid spikes before downstream impact. Option 1 may block legitimate traffic surges, option 2 (EMA) lags behind sudden events, and option 3 focuses on cost rather than the root cause (volume)."
+    },
+    {
+      "id": "ds-new-086",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "You're building a reverse ETL pipeline to sync customer segments from your data warehouse to a third-party marketing platform via their REST API. The API has a rate limit of 100 requests/sec and enforces idempotency keys. Your segment has 5M customers, and you need to handle membership changes daily. Which design pattern minimizes API calls while ensuring exactly-once delivery semantics?",
+      "options": [
+        "Batch all 5M customers into 50K API calls (100 customers per call) with a UUID-based idempotency key per batch; retry failed batches with exponential backoff.",
+        "Stream customer changes via Kafka to a consumer that debounces per-customer updates for 5 minutes, then sends only delta changes (adds/removes) with a deterministic idempotency key derived from (customer_id, segment_id, timestamp).",
+        "Poll the warehouse every hour for full segment membership, compute the diff against the previous snapshot, then upsert via bulk API endpoint with request-level idempotency keys; maintain a changelog table for audit.",
+        "Use Fivetran or a managed reverse ETL tool to handle throttling and retries automatically without custom logic."
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (delta-based with deterministic idempotency keys) balances API efficiency and exactly-once semantics best. Debouncing reduces noise, computing deltas minimizes payload volume, and deterministic idempotency keys (derived from immutable identifiers and timestamps) ensure the platform can deduplicate even after retries. Option 1 lacks idempotency guarantees per-customer. Option 3 works but full-snapshot approach is less efficient at scale. Option 4 abdicates the design problem."
+    },
+    {
+      "id": "ds-new-087",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "Your company runs both a real-time recommendation engine (Kafka \u2192 Flink) and a nightly batch ETL (Spark). The batch job re-computes user embeddings from raw events, but stale batch embeddings occasionally override fresh streaming-computed embeddings due to clock skew and delayed batch job starts. You need to prevent stale batch data from clobbering fresh online features. Which approach is most robust?",
+      "options": [
+        "Add a timestamp column to all embedding records; update the online feature store only if the new record's timestamp is newer, using a distributed compare-and-set operation.",
+        "Separate concerns: have streaming write to a 'staging' feature table with TTL=2 hours, and batch write only to a 'batch_checkpoint' table. At query time, merge both tables with streaming taking precedence.",
+        "Use a message queue (Kafka) as the single source of truth for all embeddings (batch and stream); consume in order via a single Kafka consumer to enforce ordering, writing deduped results to the feature store.",
+        "Introduce a lightweight orchestrator that prevents batch jobs from running if streaming has written within the last 30 minutes, ensuring no overlap."
+      ],
+      "answer": 1,
+      "explanation": "Option 2 cleanly separates streaming (fresh, with TTL) and batch (historical reference), and resolves conflicts at query time via a deterministic precedence rule. This avoids write-time arbitration and clock dependencies. Option 1 relies on clock accuracy (risky in distributed systems). Option 3 forces all embeddings through Kafka, adding latency and complexity for batch workloads. Option 4 is brittle and doesn't truly resolve the conflict if jobs overlap."
+    },
+    {
+      "id": "ds-new-088",
+      "type": "single",
+      "topic": "data observability",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "Your data platform ingests events from 200+ sources into S3 and Snowflake. Lately, you've had three incidents: (1) a schema change in a Kafka topic broke downstream jobs, (2) a data quality rule caught late-arriving events with null `user_id`, and (3) SLA breach because a daily batch job ran 6 hours late due to cluster saturation. You're building an observability layer. Which metric/alert combination gives you earliest warning of future incidents?",
+      "options": [
+        "Schema registry version mismatches + row count anomalies + job start-time SLA; alert on any deviation.",
+        "Data freshness lag (max(event_time) - ingestion_time), schema version conflicts via Confluent Schema Registry webhooks, and task slot utilization forecasting with 24-hour lookahead.",
+        "Row count, column nullability rates, and job execution time; compute z-scores hourly and alert if any metric drifts >2 std devs.",
+        "Manual reviews of 5 random tables daily + weekly data quality audits + monthly job performance reviews."
+      ],
+      "answer": 1,
+      "explanation": "Option 2 combines proactive early warnings (data freshness lag catches ingestion delays, schema conflicts caught at ingest time, slot utilization forecasting prevents cluster saturation before it impacts jobs) with reactive quality checks. It targets root causes rather than symptoms. Option 1 is passive (only alerts after something breaks). Option 3 is reactive and noisy. Option 4 doesn't scale and misses real-time events."
     }
   ]
 }

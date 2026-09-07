@@ -1181,6 +1181,38 @@
       ],
       "answer": 2,
       "explanation": "Dashboard certification must consider not just current correctness but future-proofing and model completeness. A schema change that introduces new dimensions or alters table grain creates a latent risk: future filter additions or model extensions could produce incorrect results. Certification programs at mature organizations (Google, Meta, Databricks) require re-validation when upstream schemas change, as the model may not be handling the new structure correctly even if legacy queries still work. This reflects the principle that certification is a statement of ongoing quality, not a point-in-time check."
+    },
+    {
+      "id": "dash-new-019",
+      "type": "single",
+      "topic": "non-additive measures",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "You're building a dashboard showing Inventory Level (units on hand) by product category and warehouse. A user drills from company total (50,000 units) to see 12 categories, then to 45 warehouses per category. When they sum all 540 visible cells, the total is 2.1 million units\u2014wildly different from 50,000. What is the root cause and how should you fix the dashboard?",
+      "options": [
+        "The warehouse dimension is additive but category is not; aggregate all warehouse cells first, then sum categories",
+        "Inventory Level is non-additive across dimensions; show it only at the lowest grain (warehouse + category) or use a lookup table to display the pre-aggregated company total separately",
+        "The user filtered incorrectly; add a validation rule that prevents drilling below category level",
+        "Use a running total calculation instead of a simple SUM to account for inventory movements across time periods"
+      ],
+      "answer": 1,
+      "explanation": "Inventory Level is a non-additive (semi-additive) measure\u2014it represents a point-in-time snapshot that cannot be summed across different dimensions. Summing inventory across all warehouses and categories double-counts stock and violates the semantic meaning. The fix is to restrict visualization to the lowest grain or use a separate, pre-aggregated dimension table for company-level totals that bypasses dimensional drill-down."
+    },
+    {
+      "id": "dash-new-020",
+      "type": "single",
+      "topic": "row-level security",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "Your semantic layer enforces row-level security (RLS) so regional sales managers see only their region's data. A dashboard shows 'Total Revenue' at the top and 'Revenue by Country' below. A user from the APAC region opens the dashboard and sees Total Revenue = $5.2M, but when they manually sum the country cards visible to them, the total is $4.8M. What is the most likely explanation?",
+      "options": [
+        "The RLS filter was applied only to the country-level visual; the Total Revenue tile still queries all regions without the RLS context",
+        "A previous user's cached result is being reused; clear the in-memory cache and refresh",
+        "The country dimension has duplicate rows in the source table; deduplicate before applying RLS",
+        "The dashboard uses two different fact tables with conflicting grain definitions; unify to a single conformed table"
+      ],
+      "answer": 0,
+      "explanation": "RLS context must be consistently applied across all visuals and queries on a dashboard. If the Total Revenue tile bypasses the RLS filter (e.g., due to separate query context or an unfiltered pre-aggregated summary table), it will show the global total while country-level visuals show only the filtered region, causing a mismatch. The fix is to ensure the RLS context is propagated to all queries, including aggregates."
     }
   ]
 }

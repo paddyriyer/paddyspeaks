@@ -7946,6 +7946,54 @@
       ],
       "answer": 0,
       "explanation": "Polars' key advantages for this workload are: (1) lazy evaluation enables query optimization before execution, (2) Apache Arrow columnar format is cache-efficient and allows vectorized operations, (3) multi-threaded parallelization within a single machine, and (4) type safety and expression API. It doesn't auto-distribute across machines, and while C++ helps, the real advantage is the columnar architecture and lazy evaluation. Caching of intermediate results is not a primary feature."
+    },
+    {
+      "id": "py-new-104",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "You are implementing a data validation framework where a descriptor should enforce that a numeric field is always stored as an integer, but allows float assignment and auto-converts it. The descriptor's `__set__` method receives a float value 3.7. Which implementation correctly stores the converted value while maintaining proper descriptor semantics?\n\nA) Store `int(value)` directly in instance.__dict__['field']\nB) Store via object.__setattr__(instance, '_field', int(value))\nC) Store in instance.__dict__[self.name] where self.name was set during __set_name__\nD) Store in the descriptor's own __dict__ with instance id as key",
+      "options": [
+        "Store `int(value)` directly in instance.__dict__['field']",
+        "Store via object.__setattr__(instance, '_field', int(value))",
+        "Store in instance.__dict__[self.name] where self.name was set during __set_name__",
+        "Store in the descriptor's own __dict__ with instance id as key"
+      ],
+      "answer": 2,
+      "explanation": "The correct approach uses __set_name__ (called automatically by Python 3.6+) to capture the attribute name, then stores the converted value in the instance's __dict__ using that name. This avoids infinite recursion, prevents memory leaks (option D), and works correctly across instances. Options A and B either bypass descriptor protocol or use fragile naming conventions."
+    },
+    {
+      "id": "py-new-105",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-09-07",
+      "prompt": "You are optimizing a data ingestion pipeline that processes 50 million records/hour. The pipeline has two CPU-bound stages (JSON parsing and schema validation) running in separate threads. You notice throughput is capped at single-threaded performance. Which statement best explains the bottleneck and the correct mitigation?\n\nA) The GIL serializes execution; use multiprocessing with process-per-worker and shared memory via multiprocessing.Queue\nB) Thread contention on locks; switch to asyncio with thread pool for I/O only, keep CPU work single-threaded\nC) The GIL only affects C extensions; refactor to use numpy arrays for batch processing to release the GIL\nD) Python threads have too much overhead; use concurrent.futures.ThreadPoolExecutor with max_workers=num_cpus",
+      "options": [
+        "The GIL serializes execution; use multiprocessing with process-per-worker and shared memory via multiprocessing.Queue",
+        "Thread contention on locks; switch to asyncio with thread pool for I/O only, keep CPU work single-threaded",
+        "The GIL only affects C extensions; refactor to use numpy arrays for batch processing to release the GIL",
+        "Python threads have too much overhead; use concurrent.futures.ThreadPoolExecutor with max_workers=num_cpus"
+      ],
+      "answer": 0,
+      "explanation": "CPU-bound work in threads is serialized by the GIL, so multiprocessing is required. Option B misses that asyncio doesn't help CPU-bound tasks. Option C is incorrect\u2014the GIL affects all Python bytecode, not just C extensions. Option D doesn't solve the GIL problem. Multiprocessing with message passing (Queue) avoids shared-memory complexity while enabling true parallelism."
+    },
+    {
+      "id": "py-new-106",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-09-07",
+      "prompt": "You are writing a data pipeline that recursively processes log files across nested directories. The directory structure is: `/logs/2026/01/15/app.log`, `/logs/2026/01/16/app.log`, etc. You need to find all `.log` files, sort them by date (subdirectory order), and process them sequentially. Which pathlib approach is most efficient and maintainable?\n\nA) Path('/logs').rglob('*.log') with manual datetime parsing of parent directories\nB) sorted(Path('/logs').rglob('*.log'), key=lambda p: p.relative_to('/logs').parts)\nC) Path('/logs').glob('*/*/*.log') chained with glob('*/*/*/*.log') to handle depth variations\nD) Walk the file system with os.walk() then filter with pathlib.Path for consistency",
+      "options": [
+        "Path('/logs').rglob('*.log') with manual datetime parsing of parent directories",
+        "sorted(Path('/logs').rglob('*.log'), key=lambda p: p.relative_to('/logs').parts)",
+        "Path('/logs').glob('*/*/*.log') chained with glob('*/*/*/*.log') to handle depth variations",
+        "Walk the file system with os.walk() then filter with pathlib.Path for consistency"
+      ],
+      "answer": 1,
+      "explanation": "Option B uses rglob() for recursive searching (clean and concise), then sorts by the relative path components tuple. Since directory names are numeric (year/month/day), tuple comparison works naturally without parsing. Option A requires manual datetime logic. Option C is brittle with hardcoded depths. Option D mixes APIs unnecessarily. pathlib's relative_to() and tuple-based sorting is the idiomatic modern approach."
     }
   ]
 }
