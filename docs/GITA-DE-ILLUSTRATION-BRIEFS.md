@@ -2,11 +2,23 @@
 
 Article: `articles/bhagavad-gita-of-data-engineering.html`
 
-Eleven visuals ship with the article. Ten are hand-authored inline SVGs; one
-(Fig. 8) is a rendered interface mock in HTML. The same briefs are embedded as
-HTML comments immediately above each figure in the article source, so an
-illustrator replacing an SVG with commissioned art has the brief in front of
-them.
+Eleven visuals ship with the article. **Figs. 1-7 and 9-11 are finished
+illustrations** (`images/articles/bhagavad-gita-of-data-engineering/fig-NN.webp`);
+Fig. 8 is a rendered interface mock in HTML. The placeholder SVGs these briefs
+were originally written for are gone.
+
+**Each illustration has its caption baked into the artwork**, which is why the
+figures carry no HTML `<figcaption>` — adding one prints the caption twice. The
+caption text lives in the image's `alt` attribute instead, so screen readers
+still get it. Keep that arrangement if you replace an image.
+
+Source PNGs (~1.9 MB each) were converted to WebP at quality 82 — 19.3 MB down
+to 1.7 MB across the set, with the fine print in the artwork still legible at
+1:1. The originals remain in git history at commits `d0726af`, `d8f9f4a` and
+`7d4ac8a` if a re-export is ever needed.
+
+The briefs below are also embedded as HTML comments above each figure in the
+article source, as the spec any replacement art should satisfy.
 
 **House style.** Sophisticated editorial cartoon — New Yorker line-work crossed
 with Indian philosophical imagery and a modern data-engineering workplace.
@@ -71,7 +83,7 @@ on the engineer's side of the chariot.
 **CAPTION:** "Same headline. Different nervous system."
 **DETAILS:** Cart total $1,340; "Thread 1/47"; left clock 02:14, right clock 07:30; the right-hand notepad has three lines, the last being "test it Thursday"; an unread badge showing 47.
 
-## Fig. 8 — The post *(rendered as an HTML interface mock, not a drawing)*
+## Fig. 8 — The post *(rendered as an HTML interface mock, not a drawing — no image file)*
 **Section:** A short reading from the LinkedIn Gita
 **VISUAL:** A pixel-accurate but slightly-too-earnest social post card. The achievement is enormous, the course was 47 minutes, and the engagement bar is where the joke lands.
 **HUMOR:** Everything about it is real except the accomplishment.

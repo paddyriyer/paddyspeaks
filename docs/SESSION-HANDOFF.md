@@ -1,9 +1,32 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-08 (Gita of Data Engineering: satirical rewrite + 11 illustrations). This file is the running memory between Claude Code
+_Last updated: 2026-09-08 (Gita of Data Engineering: real illustrations replaced the placeholder SVGs). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-08, SECOND pass): the Gita article's ten placeholder SVGs were replaced
+  with Paddy's commissioned illustrations.** He called the hand-authored SVGs "childish" —
+  they were, they were stick figures — and uploaded real artwork to `images/` as
+  `Fig {n} BG for DE.png`. Those are now
+  `images/articles/bhagavad-gita-of-data-engineering/fig-NN.webp` (01-07, 09-11; Fig. 8 is
+  the HTML LinkedIn mock and has no image).
+  - **Every illustration has its caption baked into the artwork.** The figures therefore
+    carry **no `<figcaption>`** — adding one prints the caption twice. The caption text
+    lives in each `alt` attribute so screen readers still get it. **Do not "restore" the
+    figcaptions.**
+  - **19.3 MB of PNG -> 1.73 MB of WebP** (quality 82, native dimensions kept; fine print
+    still legible at 1:1). The source PNGs were removed from the working tree — they are
+    preserved in git history at `d0726af`, `d8f9f4a`, `7d4ac8a`. Regenerate with Pillow;
+    the container has no cwebp/ImageMagick, so `pip install Pillow` first.
+  - **All figures are now `fig-wide`.** At the 736px prose width the small type in the art
+    ("cert. no. 14", "TODO: Be relevant? - 2017") is unreadable.
+  - **A tap-to-enlarge lightbox was added**, because at 390px these text-heavy panels are
+    otherwise decorative. Watch the CSS: `.lb` sets `display:flex`, which outranks the
+    browser's `[hidden]` rule — without the explicit `.lb[hidden]{display:none}` the
+    invisible overlay covers the page and swallows **every click on the article**. That bug
+    shipped briefly during this session and was caught by a click-through test; keep the
+    test if you touch the lightbox.
 
 - **NEW (2026-09-08): "The Bhagavad Gita of Data Engineering" was rewritten, not
   replaced.** The philosophical arc is intact and in the same order (Arjuna freezes -> FOBO
