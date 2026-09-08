@@ -1,9 +1,36 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-05 (Bay Area article: rebuilt as a 17-slide visual essay). This file is the running memory between Claude Code
+_Last updated: 2026-09-08 (Gita of Data Engineering: satirical rewrite + 11 illustrations). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-08): "The Bhagavad Gita of Data Engineering" was rewritten, not
+  replaced.** The philosophical arc is intact and in the same order (Arjuna freezes -> FOBO
+  -> identity/tools -> three Gunas -> Nishkama Karma -> Karma vs Dharma -> architect ->
+  numbers -> Sthitaprajna -> manifesto -> Arjuna acts). What changed is the data-engineering
+  half: it is now workplace satire, with a recurring cast (**Tamas Tambi**, **Rajas Rao**,
+  **Sattva Subramaniam**), mini-dialogues, and **eleven illustrations** (ten hand-authored
+  inline SVGs + one HTML LinkedIn-post mock). ~50KB -> ~165KB.
+  - **The scripture is never the joke.** Every Sanskrit verse carries its correct chapter and
+    verse (2.1, 2.47, 2.56, 14.5, 18.73) with a faithful translation; Krishna is drawn with
+    dignity in Fig. 9. A footer note says the characters are satire and the philosophy is not.
+    Keep it that way in any future edit.
+  - **Three unsourced statistics were removed, not softened.** The old "51% of workers /
+    Resume Now-Pew 2026" became the real Pew figure (**52%**, Feb 2025, Oct 2024 fieldwork,
+    linked) with its actual wording. The "25% higher salaries" became PwC's **62%** (2026 AI
+    Jobs Barometer, linked) *with its methodology caveat spelled out in the body* - it
+    compares job ads, not people. The `ClickVision AI Displacement Report, 2026` pull quote
+    was **fabricated** and is gone. The invented 65/80/15 Guna bar chart is now an
+    interactive self-audit that says outright there is no survey behind it.
+  - **Illustration briefs live in `docs/GITA-DE-ILLUSTRATION-BRIEFS.md`** and are duplicated
+    as HTML comments above each figure, so commissioned art can replace any SVG in place.
+  - `.fig-wide` full-bleed figures use negative margins (`figure.fig.fig-wide`), not
+    `transform` - `.reveal` owns `transform` and silently ate the earlier version.
+  - `sitemap.xml` has ~220 pre-existing stale `lastmod` values across the whole site. Only
+    the two pages touched here were updated by hand;
+    `python .github/scripts/refresh_sitemap_lastmod.py --write` is still worth running as
+    its own commit.
 
 - **NEW (2026-09-05, FOURTH pass): the Bay Area article was REBUILT as a 17-slide
   visual essay.** Paddy supplied a 17-slide deck (`images/Slide1..17.jpeg`, now
