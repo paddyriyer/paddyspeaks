@@ -5,6 +5,42 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEW (2026-09-09): Song 03 published — `devotional-music/ramajogi-mandu/`**
+  (*Rāmajōgi Mandu Konarē*, Navaratna 5, Khamās, Ādi). Series now at three
+  articles; collection stays at 13 keertanas (this song was already in it).
+  - **Thesis:** the commercial conceit. A street hawker's cry sustained for
+    three sections *so that it can fail* in caraṇam 2 — `konanu dorakani`,
+    not to be had by buying. The marketplace exists to be refused.
+  - **This song's entry gained its full text.** It previously shipped with
+    `charanams: []` and an honest note; it now has the anupallavi and all four
+    caraṇams in Telugu, transliteration and translation.
+  - **TWO TEXTUAL CORRECTIONS worth preserving** — circulating versions get
+    both wrong, and each one breaks something:
+    1. Anupallavi verb is **`bhujiyincharayyā`** — *eat it* (from *bhuji*, to
+       eat) — NOT a verb of worship. A medicine you venerate stays outside
+       you and the whole pharmacological conceit collapses.
+    2. Caraṇam 1 is **`kāṭuka koṇḍalavaṇṭi`** — mountains of *kohl /
+       collyrium*, i.e. jet-black and made of the finest grains. Rendering it
+       as generic "huge mountains" loses the image: karma accumulates like
+       soot, not like boulders.
+  - **Other variants flagged on the page, not normalised:** pallavi vocative
+    is `pāmarulārā` here but `ō janulārā` in the Navaratna publication; the
+    parse of caraṇam 3 (`vāduku cheppina gāni`) varies; longer recensions add
+    verses on *mada*/*mātsarya* and on Hari's devotees — not reproduced,
+    since uncorroborated.
+  - **Caraṇam 3 carries the strongest doctrine in the song:** the Name works
+    *even when uttered in argument* — the Ajāmila logic. Note the productive
+    tension with the anupallavi's "take it with love": love is how it should
+    be taken; the medicine is stronger than the manner of taking.
+  - **Rāga contested (second case in the series):** Navaratna gives Khamās,
+    Sangeetasudha gives Nādanāmakriya. The article argues these produce
+    different theology — cheerful pressing vs. calling to a crowd that won't
+    stop. Both presented, neither adjudicated.
+  - **Listening upgraded to three corroborated `watch` links**, including
+    **Nedunuri Krishnamurthy & Malladi Brothers in Khamās** (`_NuptLD6n2Q`) —
+    the ideal source for this repertoire. Six `search` fallbacks remain across
+    the collection.
+
 - **NEW (2026-09-08, SECOND pass): the Gita article's ten placeholder SVGs were replaced
   with Paddy's commissioned illustrations.** He called the hand-authored SVGs "childish" —
   they were, they were stick figures — and uploaded real artwork to `images/` as

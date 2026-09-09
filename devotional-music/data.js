@@ -636,21 +636,68 @@ const KRITIS = [
     tala: "Adi",
     navaratna: 5,
     featured: true,
+    article: { href: "ramajogi-mandu/", label: "Read the full article" },
     bhava: "Playfulness carrying a hard doctrine",
     summary: "A street hawker's cry for a medicine that cannot be bought — the corpus's wittiest song and " +
       "its most exacting one.",
 
     pallavi: {
-      telugu: "రామజోగి మందు కొనరే",
-      translit: "rāmajōgi mandu konarē",
-      meaning: "Buy the Rama-ascetic's medicine, won't you!"
+      telugu: "రామజోగి మందు కొనరే పామరులారా\nరామజోగి మందు కొనరే",
+      translit: "rāmajōgi mandu konarē pāmarulārā\nrāmajōgi mandu konarē",
+      meaning: "Buy the medicine of Rama the yogi, O simple folk! Buy the medicine of Rama the yogi.",
+      note: "<strong>On the address.</strong> Two vocatives are attested. Several editions read " +
+        "<em>pāmarulārā</em> — O simple ones, O unlettered ones — while the Navaratna publication gives " +
+        "<em>ō janulārā</em>, O people. Both are a hawker calling to a crowd; <em>pāmarulārā</em> is the " +
+        "blunter of the two, and is the reading followed here. Sources differ."
     },
-    anupallavi: null,
-    charanams: [],
-    charanamsNote: "The charanams work the metaphor out: taken wholeheartedly, this medicine uproots lust and " +
-      "anger; it dispels arrogance, envy and greed instantly; it clears sins piled up like jet-black mountains; " +
-      "it is the one medicine of its kind in this world; it cannot be had for crores of rupees — only the ardent " +
-      "devotee obtains it, by meditating on Rama. Full text in the sources below.",
+    anupallavi: {
+      telugu: "రామజోగి మందు మీరు ప్రేమతో భుజియించరయ్యా\nకామ క్రోధములనెల్ల కడకు పారద్రోలే మందు",
+      translit: "rāmajōgi mandu mīru prēmatō bhujiyincharayyā\nkāma krōdhamulanella kaḍaku pāradrōlē mandu",
+      meaning: "This medicine of Rama — take it, sirs, and take it with love. It is the medicine that " +
+        "drives desire and anger clean away, to the very last of them.",
+      note: "<strong>The verb matters.</strong> <em>Bhujiyinchu</em> means to <em>eat</em>, to consume — " +
+        "not to worship. Some circulating texts substitute a verb of worship here, which quietly breaks " +
+        "the whole conceit: you do not venerate a medicine, you swallow it. <em>Kaḍaku</em> — to the very " +
+        "end, utterly — is what makes the cure total rather than partial."
+    },
+    charanams: [
+      { num: 1,
+        telugu: "కాటుక కొండలవంటి కర్మములెడబాపే మందు\nసాటి లేని జగమునందు స్వామి రామజోగి మందు",
+        translit: "kāṭuka koṇḍalavaṇṭi karmamuleḍabāpē mandu\nsāṭi lēni jagamunandu svāmi rāmajōgi mandu",
+        meaning: "The medicine that clears away karma heaped up like mountains of kohl. In all this world " +
+          "there is nothing to equal it — the Lord's own, Rama the yogi's medicine.",
+        note: "<em>Kāṭuka</em> is collyrium — the black kohl worn on the eyes. <strong>Mountains of " +
+          "kohl</strong>: not merely large, but <em>black</em>, and made of the finest possible grains. " +
+          "Texts that render this as generic 'huge mountains' lose the colour and the granularity, which " +
+          "are the whole image: karma accumulates the way soot does, a particle at a time, until it is a range." },
+      { num: 2,
+        telugu: "కోటి ధనములిటునని కొనను దొరకని మందు\nసాటి లేని భాగవతులు స్మరణ జేసి తలచు మందు",
+        translit: "kōṭi dhanamuliṭunani konanu dorakani mandu\nsāṭi lēni bhāgavatulu smaraṇa jēsi talachu mandu",
+        meaning: "Say what you like — <em>here, take crores of wealth</em> — and still it is a medicine no " +
+          "buying will obtain. It is the medicine that peerless bhagavatas come by, remembering and dwelling on Him.",
+        note: "The turn the whole song is built toward. A hawker's cry has been running for three sections, " +
+          "and here the customer discovers his money is refused." },
+      { num: 3,
+        telugu: "వాదుకు చెప్పిన గాని వారి పాపములు గొట్టి\nముదముతో నే మోక్షమిచ్చే ముద్దు రామజోగి మందు",
+        translit: "vāduku cheppina gāni vāri pāpamulu goṭṭi\nmudamutō nē mōkṣhamichchē muddu rāmajōgi mandu",
+        meaning: "Even uttered in argument, it strikes their sins away, and joyfully grants liberation — " +
+          "the dear medicine of Rama the yogi.",
+        note: "<em>Vādu</em> is dispute, contention, argument. The line is read as saying the Name works " +
+          "even when it is spoken <em>in argument</em> — without reverence, without belief, perhaps in " +
+          "mockery. Parses of this line vary across editions; the reading given is the common one." },
+      { num: 4,
+        telugu: "ముదముతో భద్రాద్రియందు ముక్తిని పొందించే మందు\nసదయుడైన రామదాసు సద్భక్తితో గొలిచే మందు",
+        translit: "mudamutō bhadrādriyandu muktini pondinchē mandu\nsadayuḍaina rāmadāsu sadbhaktitō golichē mandu",
+        meaning: "The medicine that joyfully bestows liberation at Bhadradri. The medicine that the " +
+          "compassionate Ramadasa serves with true devotion.",
+        note: "The mudra verse. Note that Ramadasu does not claim to <em>own</em> the medicine or to " +
+          "dispense it — he <em>golichē</em>, serves or attends upon it. The hawker turns out to be staff." }
+    ],
+    charanamsNote: "<strong>On the length of the song.</strong> The best-attested form — including the " +
+      "Navaratna publication — is a pallavi, an anupallavi and <strong>four</strong> charanams, closing on " +
+      "the mudra above. Longer recensions circulate, adding verses on <em>mada</em> and <em>mātsarya</em> " +
+      "(pride and envy) and on the devotees of Sri Hari. Those are not reproduced here because they could " +
+      "not be corroborated in the sources consulted; their absence is not evidence against them.",
 
     esoteric: [
       {
@@ -1498,10 +1545,15 @@ const ENRICH = {
           "which one your recording is using before deciding what the song means." }
     ],
     listening: [
-      { performer: "Search — Navaratna 5 renditions", tradition: "Navaratna series",
-        raga: "Khamas (some renditions Nadanamakriya)", tala: "Adi", kind: "search", verify: "search",
-        q: "Ramajogi Mandu Konare Ramadasu Navaratnam keerthana",
-        why: "Worth finding two renditions in the competing ragams and hearing how differently the joke lands." }
+      { performer: "Nedunuri Krishnamurthy & Malladi Brothers", tradition: "The Navaratna project · guru and students",
+        raga: "Khamas", tala: "Adi", kind: "watch", id: "_NuptLD6n2Q", verify: "index-corroborated",
+        why: "The most authoritative pairing for this repertoire, and it names Khamas — listen for how lightly the pitch is delivered." },
+      { performer: "Smt. Veeraghanta Lalitha Chandra Sekhar", tradition: "Carnatic · Navaratna Keertanalu",
+        raga: "Khamas", tala: "Adi", kind: "watch", id: "6xJ2iwUSYP4", verify: "index-corroborated",
+        why: "States ragam and talam in its own title; a clean reading to set the others against." },
+      { performer: "Navaratna Kirtana series", tradition: "Navaratna series",
+        raga: "Khamas", tala: "Adi", kind: "watch", id: "zEnWlYxKeXc", verify: "index-corroborated",
+        why: "Hear it in sequence with the other eight — the medicine cry sits fifth, right after the sufficiency song." }
     ]
   },
 
