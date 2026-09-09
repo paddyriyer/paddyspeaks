@@ -14668,6 +14668,22 @@
       ],
       "answer": 1,
       "explanation": "PERCENTILE_CONT(0.75) OVER (PARTITION BY region) computes the 75th percentile value within each region partition and makes it available as a scalar for comparison in the WHERE clause. Option 0 uses PERCENT_RANK which returns a rank ratio (0-1), not the actual percentile value. Option 2 (NTILE) works but is less direct. Option 3 has incorrect logic and cannot reference window function results in WHERE clause without a subquery."
+    },
+    {
+      "id": "sql-new-114",
+      "type": "single",
+      "topic": "NULLIF / COALESCE with window functions",
+      "difficulty": "hard",
+      "added_date": "2026-09-09",
+      "prompt": "You have a `sales(region TEXT, quarter INT, revenue NUMERIC, previous_revenue NUMERIC)` table tracking quarterly revenue by region. Some regions have NULL previous_revenue for their first quarter. You need to calculate the year-over-year growth rate, but division by zero must be avoided. You also want to rank regions within each quarter by growth rate, treating missing previous_revenue as 0% growth (rank 1). Which query correctly implements this?",
+      "options": [
+        "SELECT region, quarter, COALESCE(NULLIF(previous_revenue, 0), revenue) AS adj_prev, RANK() OVER (PARTITION BY quarter ORDER BY (revenue - COALESCE(previous_revenue, 0)) / COALESCE(previous_revenue, 1) DESC) AS growth_rank FROM sales;",
+        "SELECT region, quarter, COALESCE(previous_revenue, 0) AS adj_prev, RANK() OVER (PARTITION BY quarter ORDER BY CASE WHEN previous_revenue IS NULL THEN 0 ELSE (revenue - previous_revenue) / NULLIF(previous_revenue, 0) END DESC) AS growth_rank FROM sales;",
+        "SELECT region, quarter, COALESCE(previous_revenue, revenue) AS adj_prev, DENSE_RANK() OVER (PARTITION BY quarter ORDER BY (revenue - COALESCE(previous_revenue, 0)) / NULLIF(COALESCE(previous_revenue, 0), 0) DESC NULLS LAST) AS growth_rank FROM sales;",
+        "SELECT region, quarter, previous_revenue, RANK() OVER (PARTITION BY quarter ORDER BY CASE WHEN previous_revenue IS NULL THEN revenue ELSE (revenue - previous_revenue) / previous_revenue END DESC) AS growth_rank FROM sales WHERE previous_revenue IS NOT NULL;"
+      ],
+      "answer": 1,
+      "explanation": "Option B correctly uses COALESCE(previous_revenue, 0) to treat NULL values as 0 revenue, then uses a CASE statement to handle the division-by-zero scenario by checking if previous_revenue IS NULL (returns 0% growth, lowest rank) or computing the growth rate. The RANK() window function then properly ranks within each quarter. Option A uses NULLIF unnecessarily and doesn't handle the rank-1 requirement for missing data. Option C has redundant NULLIF logic that would create NULL comparisons. Option D filters out NULLs entirely, violating the requirement to rank them as 1."
     }
   ]
 }
