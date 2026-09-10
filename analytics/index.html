@@ -494,6 +494,12 @@
             </div>
         </div>
 
+        <!-- ── Server-side pages (the pixel fires without JS, so this sees what ps.js cannot) ── -->
+        <div class="panel">
+            <div class="panel-title">Server Pages <span style="font-weight:400;color:var(--muted);font-size:0.8rem">every load, including ad-blocked, incognito and no-JS · "—" = page not in the JS top 15, which is unknown, not zero</span></div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableServerPages"><tbody></tbody></table></div>
+        </div>
+
         <!-- ── Cities + Referrers ── -->
         <div class="grid-2">
             <div class="panel">
@@ -1168,6 +1174,7 @@
 
         // Tables
         renderPagesTable(data.topPages || []);
+        renderServerPagesTable(data.serverTopPages || [], data.topPages || []);
         renderCountriesTable(data.countries || []);
         renderCitiesTable(data.cities || []);
         renderReferrersTable(data.referrers || []);
@@ -1387,6 +1394,46 @@
         });
         html += '</tbody>';
         document.getElementById(tableId).innerHTML = html;
+    }
+
+    // ── Server Pages Table ───────────────────
+    // server_hits counts every page load, because the pixel needs no JS;
+    // page_views only counts what ps.js managed to report. The per-page gap is
+    // the ad-blocked / incognito / no-JS share.
+    //
+    // clientPages is the JS *top 15*, so a server page missing from it has an
+    // unknown client count, not a zero — those show "—" rather than a
+    // fabricated "100% invisible".
+    function renderServerPagesTable(serverPages, clientPages) {
+        var t = document.getElementById('tableServerPages');
+        var html = '<thead><tr><th>Page</th><th style="text-align:right">Server hits</th>' +
+                   '<th style="text-align:right">JS views</th><th style="text-align:right">Invisible</th></tr></thead><tbody>';
+        if (!serverPages.length) {
+            t.innerHTML = html + '<tr><td colspan="4" class="empty-state">No server-pixel hits in this range yet.</td></tr></tbody>';
+            return;
+        }
+        var clientViews = {};
+        (clientPages || []).forEach(function(p) { clientViews[p.page] = p.views; });
+
+        var maxHits = serverPages[0].hits || 1;
+        serverPages.forEach(function(s) {
+            var w = Math.round((s.hits / maxHits) * 100);
+            var label = s.page.replace(/^\/articles\//, '').replace(/\.html$/, '').replace(/^\//, '') || '/';
+            var known = Object.prototype.hasOwnProperty.call(clientViews, s.page);
+            var views = known ? clientViews[s.page] : null;
+            // Clamp: page_views can exceed server_hits (the two bot filters differ),
+            // and a negative "invisible" would be nonsense.
+            var hidden = known ? Math.max(0, s.hits - views) : null;
+            html += '<tr>';
+            html += '<td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span>' +
+                    '<span class="bar-label" style="font-family:var(--font-mono);font-size:0.85rem" title="' +
+                    escHtml(s.page) + '">' + escHtml(label) + '</span></td>';
+            html += '<td class="num">' + fmt(s.hits) + '</td>';
+            html += '<td class="num">' + (known ? fmt(views) : '—') + '</td>';
+            html += '<td class="num">' + (hidden === null ? '—' : Math.round((hidden / s.hits) * 100) + '%') + '</td>';
+            html += '</tr>';
+        });
+        t.innerHTML = html + '</tbody>';
     }
 
     // ── UTM Campaigns Table ─────────────────
