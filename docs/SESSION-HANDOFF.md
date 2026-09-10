@@ -1,9 +1,52 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-10 (new article: The Job Posting Is Not the Job). This file is the running memory between Claude Code
+_Last updated: 2026-09-10 (The Job Posting Is Not the Job — REBUILT as a visual field guide). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **REBUILT (2026-09-10, second pass): "The Job Posting Is Not the Job" was
+  rewritten from scratch as a VISUAL FIELD GUIDE, replacing the 24k-word essay
+  at the same slug and URL.** Paddy's brief: "not a traditional long-form
+  article" — a premium, scannable editorial web experience where **the graphics
+  ARE the article** and prose only connects them.
+  - **Numbers that define the format.** Core prose **3,047 words** (brief asked
+    for 2,500–3,500); **2,529 more words behind `<details>` expandables**;
+    document height **24,022px, down from 85,970px**. Read time 62 min → **13
+    min**. Ten inline SVGs across **13 numbered scenes** plus a finale.
+  - **The previous 24k-word version is NOT deleted — it is in git history**
+    (merged in PR #815, commit `55b0aef`). If a "full field manual" companion
+    is ever wanted, recover it from there rather than rewriting.
+  - **Design identity:** bone `#FAF7F1` / charcoal `#191C20` / one teal accent
+    `#12657E` / muted go-hold-stop. Newsreader display, IBM Plex Sans + Mono,
+    **Caveat for hand-drawn annotations**. Scene rhythm is deliberate: `.scene`
+    → `.statement` (a single sentence owning a dark full-bleed screen) → `.scene--alt`.
+  - **THE TRAP THAT BIT TWICE — reveal-on-scroll must never gate content.**
+    `.rv{opacity:0}` hid every diagram when the observer script was not yet
+    written. Fixed by scoping to `.js .rv{opacity:0}`, where an inline script
+    right after `<body>` sets the `js` class. **No-JS now renders everything.**
+    Keep it that way; do not un-scope those rules.
+  - **Mobile diagrams need `.figscroll svg{min-width:880px}` under 900px.**
+    Omitted it in this rewrite and every diagram silently shrank to 354px at
+    phone width, turning labels into ~4px mush. The `<figcaption>` and
+    `.fighint` stay OUTSIDE `.figscroll` so they don't pan.
+  - **SVG gotchas re-confirmed:** HTML named entities (`&mdash;`, `&rarr;`, …)
+    are *undefined in XML* and break the CI validator — use literal characters
+    inside `<svg>`. There is a scripted entity-cleaning pass in the session log
+    worth reusing. Long `<text>` silently overruns its `<rect>`; SVG has no
+    wrapping, so split lines and grow the rect *and* the viewBox.
+  - **Interactive bits:** an 8-way scenario tab selector (`.pick` buttons +
+    `role="tabpanel"`, `s1` open, `s2`–`s8` `hidden`) and expandable
+    "See the data / Show the other five / Use the full checklist" modules. All
+    verified: 8 tabs ↔ 8 panels, no duplicate ids, no broken in-page anchors.
+  - **Evidence discipline survived the shrink.** Fourteen numbered sources, all
+    fourteen cited inline, `Evidence`/`Practice`/`Contested` badges retained,
+    and a small "How we know" expandable sits in the hero instead of a
+    methodology preamble. Both debunkings kept: the "80% of jobs are never
+    advertised" myth and "75% of résumés are rejected by ATS".
+  - Share card and `poster.webp` were **not** regenerated — the existing card
+    already shows the struck-through old model above the eight-step 2026 model,
+    which is exactly Scene 0. `tools/share-cards/` holds the regeneration source.
 
 - **NEW (2026-09-10): "The Job Posting Is Not the Job" published —
   `articles/the-job-posting-is-not-the-job.html`** (category `personality`,
