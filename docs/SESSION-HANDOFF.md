@@ -1,9 +1,60 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-10 (The Job Posting Is Not the Job — REBUILT as a visual field guide). This file is the running memory between Claude Code
+_Last updated: 2026-09-10 (The Job Posting Is Not the Job — third pass: real photography + three pattern interrupts). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **THIRD PASS (2026-09-10): "The Job Posting Is Not the Job" gained four
+  commissioned photographs and three deliberate "pattern interrupts".** Paddy
+  scored the second pass at content 9, readability 8.5, visual storytelling 8.5,
+  and asked for a surgical cleanup rather than another rewrite — plus 2–3 visual
+  surprises, because 15–20 screens of cream/charcoal/teal had become predictable.
+  - **FOUR PHOTOGRAPHS, uploaded by Paddy to `images/` as `img1 -jobsearch.png`
+    … `img4 jobsearch.png`** (note the space in filenames). Converted to WebP
+    (q82, max width 1600) and renamed into
+    `images/articles/the-job-posting-is-not-the-job/`:
+    `desk-tracker` (hero), `recruiter-queue` (Scene 01), `hiring-map-glass`
+    (Scene 04), `pipeline-kanban` (Scene 11). **7.32 MB of PNG → 395 KB of
+    WebP.** The source PNGs were removed from the tree; they live in git
+    history at **`4586ad5`**. Regenerate with Pillow.
+  - **The photo/diagram division of labour is deliberate: photographs carry the
+    visceral beat, SVGs do the analytical work.** `img2` is especially lucky —
+    it is literally a hand-drawn hiring map on glass, so it now opens Scene 04
+    and the precise SVG org chart follows it. Do not swap these roles.
+  - **THE THREE PATTERN INTERRUPTS** (each a departure from the editorial grid):
+    1. **Scene 03 is now a detective evidence board.** Graph-paper ground via an
+       SVG `<pattern>`, the posting pinned at `rotate(-1.4deg)`, hand-drawn
+       double-stroke ellipses and curved arrows, Caveat annotations in red /
+       green / amber: *47 days old? · req id ✓ · who is Dana?* **Left-margin
+       annotations must end before x=344** — that is the card's left edge, and
+       two of them overlapped it before being reflowed.
+    2. **Scene 07's bad message is now a messaging-UI mock** (`.dmwrap` / `.dm`)
+       with a rotated `DELETED IN 4.2 SECONDS` stamp absolutely positioned over
+       it. Deliberately generic — no LinkedIn logo or brand blue, fictional
+       sender — so it illustrates rather than impersonates. Keep it that way.
+    3. **Scene 10 opens on a dark band with a perspective tunnel**, the
+       application at the wide mouth and five follow-ups shrinking and reddening
+       as they recede (*Following up → Circling back → Just bubbling this up →
+       Bump → HELLO???*), with a teal light at day 39. The old "annoying"
+       column was **deleted**, not kept — the tunnel carries that joke now, and
+       keeping both was the repetition Paddy warned about.
+  - **Six surgical corrections from the review:** the cover said 12 scenes and
+    there are 13; "Scene 03" was announced twice (kept the stronger
+    *four-minute autopsy*); the queue diagram's `244` and recruiter panel are
+    now dominant with the micro-annotations promoted into a legible three-card
+    `.statrow`; the second full-bleed statement's payoff line went from an 11px
+    `.attrib` to a `clamp(21px,3.6vw,40px)` `.substatement`; every scenario row
+    is now ~2 sentences with the remainder behind a nested `<details>`; and the
+    finale ends on a dedicated `.knockout` section where *"the right 10 people"*
+    owns the screen at up to 98px.
+  - Core prose is **2,998 words** with **3,090 behind expandables** — the
+    trimming moved words into progressive disclosure rather than deleting them.
+    Document height 28,864px (was 24,022 before the photos; 85,970 in the
+    original essay).
+  - Share card and index cards were **not** changed. A photo-led OG image
+    (`desk-tracker`) is the obvious upgrade if social performance matters —
+    offered to Paddy, not done unasked.
 
 - **REBUILT (2026-09-10, second pass): "The Job Posting Is Not the Job" was
   rewritten from scratch as a VISUAL FIELD GUIDE, replacing the 24k-word essay
