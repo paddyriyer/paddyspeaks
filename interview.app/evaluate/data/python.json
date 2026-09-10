@@ -8026,6 +8026,22 @@
       ],
       "answer": 1,
       "explanation": "`rglob()` efficiently handles recursive pattern matching, and pairing it with `pl.scan_parquet()` provides lazy evaluation to avoid loading entire files into memory. Using `itertools.islice()` enables batching for memory-efficient processing, and checking `.stat().st_mtime` filters by modification time without full file reads. This is the optimal approach for handling millions of files at scale."
+    },
+    {
+      "id": "py-new-109",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "hard",
+      "added_date": "2026-09-10",
+      "prompt": "You're building a data pipeline that processes large files with concurrent writes. You implement a custom context manager using `__enter__` and `__exit__`. During file processing, an exception occurs mid-write. Which statement is true about context manager behavior?\n\n```python\nclass FileWriter:\n    def __init__(self, filepath):\n        self.filepath = filepath\n        self.file = None\n    \n    def __enter__(self):\n        self.file = open(self.filepath, 'w')\n        return self.file\n    \n    def __exit__(self, exc_type, exc_val, exc_tb):\n        if self.file:\n            self.file.close()\n        return False  # Propagate exceptions\n\nwith FileWriter('data.txt') as f:\n    f.write('header\\n')\n    raise ValueError('Processing failed')\n    f.write('data\\n')\n```",
+      "options": [
+        "The file is never closed because the exception prevents __exit__ from being called",
+        "The file is closed by __exit__, the exception propagates, and 'data\\n' is never written",
+        "__exit__ suppresses the exception and 'data\\n' is written to the file",
+        "The context manager re-raises the exception, and the file remains open for manual cleanup"
+      ],
+      "answer": 1,
+      "explanation": "Context managers guarantee that __exit__ is called even when exceptions occur, ensuring the file is always closed. Since __exit__ returns False, the exception propagates after cleanup. The 'data\\n' write never executes because the exception stops execution at the raise statement. This is critical for resource management in data pipelines to prevent file descriptor leaks."
     }
   ]
 }

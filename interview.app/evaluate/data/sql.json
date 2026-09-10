@@ -14684,6 +14684,22 @@
       ],
       "answer": 1,
       "explanation": "Option B correctly uses COALESCE(previous_revenue, 0) to treat NULL values as 0 revenue, then uses a CASE statement to handle the division-by-zero scenario by checking if previous_revenue IS NULL (returns 0% growth, lowest rank) or computing the growth rate. The RANK() window function then properly ranks within each quarter. Option A uses NULLIF unnecessarily and doesn't handle the rank-1 requirement for missing data. Option C has redundant NULLIF logic that would create NULL comparisons. Option D filters out NULLs entirely, violating the requirement to rank them as 1."
+    },
+    {
+      "id": "sql-new-115",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-09-10",
+      "prompt": "You have a `product_catalog` table (product_id INT PRIMARY KEY, name TEXT, price NUMERIC, last_updated TIMESTAMP) and a `staging_products` table with the same schema containing daily updates. You need to merge staging data into the catalog, but with a constraint: only update prices if the new price differs by more than 5% from the current price, and insert new products only if they don't exist. Which approach is most efficient in a production data warehouse?",
+      "options": [
+        "Use MERGE INTO with a WHEN MATCHED clause that includes a price comparison condition (ABS(new_price - old_price) / old_price > 0.05), then WHEN NOT MATCHED for inserts",
+        "Perform two separate operations: first DELETE old records, then INSERT all records from staging",
+        "Use a CTE to identify products to update/insert, then execute UPDATE and INSERT statements separately with EXISTS checks",
+        "Join staging to catalog using OUTER JOIN, then use INSERT OVERWRITE to replace the entire table"
+      ],
+      "answer": 0,
+      "explanation": "MERGE INTO with conditional WHEN MATCHED clauses is the most efficient approach as it performs the merge in a single pass, reducing I/O and lock contention. The conditional price check within the WHEN MATCHED clause ensures updates only occur for significant price changes, and WHEN NOT MATCHED handles new products atomically. Option 2 causes data loss, option 3 requires multiple round-trips with potential race conditions, and option 4 is inefficient for partial updates."
     }
   ]
 }
