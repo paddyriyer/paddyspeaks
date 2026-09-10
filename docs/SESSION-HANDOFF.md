@@ -1,9 +1,38 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-10 (The Job Posting Is Not the Job — third pass: real photography + three pattern interrupts). This file is the running memory between Claude Code
+_Last updated: 2026-09-10 (site-wide server-side tracking pixel). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-10): every published HTML page now carries a server-side
+  tracking pixel.** PR #820, merged as `c21a15a`. A 1×1 `img` pointing at
+  `https://ps.paddyspeaks.com/api/px.gif` (`alt=""`, `width=1`, `height=1`,
+  `style="position:absolute;opacity:0"`, `loading="eager"`) sits immediately
+  before the closing `body` tag, so pageviews are counted **without depending on
+  JS** — it complements `lib/ps.js`, it does not replace it.
+  - **308 pages of 1299 candidates.** Skipped: top-level `analytics/` and
+    `scripts/` (10 files, tooling not pages) and **991 files with no closing
+    `body` tag** — HTML fragments, 989 of them under
+    `interview/data/enrichments/`, plus `tools/share-cards/` and
+    `interview.app/partials/nav.html`.
+  - **`interview.app/analytics/index.html` IS pixelled.** Despite the directory
+    name it is a public content page (own canonical URL, `robots: index,follow`,
+    OG tags). Only the *top-level* `analytics/` is Worker tooling. Don't "fix"
+    this by excluding it.
+  - **`Paddy_Iyer_Resume.html` is a single-line document** (a Google Docs
+    export). Its tag is spliced inline rather than put on its own line. Any
+    script that inserts before `</body>` must handle this case — treating the
+    text before the tag as "indentation" duplicates the entire file.
+  - **The endpoint itself was never exercised end-to-end** from the container
+    (the sandbox blocks `*.workers.dev`, and calling the real pixel would write
+    junk rows into live analytics). Worth confirming once that hits actually
+    land in D1.
+  - **`sitemap.xml` was deliberately NOT touched.** Running
+    `refresh_sitemap_lastmod.py` would have stamped today's date on nearly every
+    page for a change that is invisible to readers — precisely the "dates
+    reliably wrong" failure the script's own docs warn about. A tracking pixel
+    is not a recrawl signal.
 
 - **THIRD PASS (2026-09-10): "The Job Posting Is Not the Job" gained four
   commissioned photographs and three deliberate "pattern interrupts".** Paddy
@@ -1122,8 +1151,27 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
   fix for an iPad auto-dark bug. Keep them light; WCAG-AA contrast.
 - **D1 dashboard Console flattens newlines** — paste the comment-free
   `.console.sql`, not the commented schema.
+- **A green local `validate_content.py` does NOT mean CI is green.** The
+  Validate Content workflow runs it as
+  `validate_content.py --changed <articles the PR touched>`, and `--changed`
+  promotes the inline-SVG and `<title>`/`<!doctype>` checks from *warnings* to
+  *hard errors* for those files. So a bare local run reporting "✓ content valid
+  (N warnings)" can still fail CI: any warning against a file your PR touched
+  becomes an error. **Reproduce CI properly** before pushing:
+  `python3 .github/scripts/validate_content.py --changed $(git diff --name-only origin/main...HEAD -- 'articles/*.html')`.
+  The practical trap is wide-reaching mechanical edits — they touch hundreds of
+  articles and drag every latent legacy warning into the strict set at once.
+- **Inline SVGs are parsed as XML, so HTML habits break them.** A bare `&`, or
+  `&nbsp;` / `&middot;` / any named entity outside `lt gt amp apos quot`, is
+  invalid XML even though browsers render it fine. Use `&amp;` and numeric refs
+  (`&#160;`, `&#183;`). Note `minidom` reports only the **first** error per SVG,
+  so the error count understates the defect count — fix the whole class, don't
+  stop at what CI printed. (A bare `&` inside an SVG *comment* is legal; leave
+  those alone.)
 - After a PR merges, **restart this branch from latest `main`** for the next
-  change (branch: `claude/paddyspeaks-expert-review-0c0gcf`).
+  change (branch: `claude/add-pixel-tracking-tag-qcq74j`). If the branch is
+  fully merged, `git merge --ff-only origin/main` does this without the
+  destructive-action prompt that `git checkout -B` triggers.
 
 ## What shipped this session (high level)
 
