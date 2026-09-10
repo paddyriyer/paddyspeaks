@@ -118,6 +118,25 @@ const PIXEL = new Uint8Array([
   0x01,0x00,0x3B
 ]);
 
+// The pixel lives on a different origin to the site, so browsers' default
+// `strict-origin-when-cross-origin` policy strips the path from Referer and
+// leaves only the origin — every hit would land on '/'. Pages therefore pass
+// their own path as ?p=; Referer stays as the fallback for older cached HTML.
+// `p` is attacker-controllable, so it is validated, not trusted.
+export function pixelPage(url, referer) {
+  const p = url.searchParams.get('p');
+  if (p) {
+    // Must be a site-relative path: '/' but not '//' (protocol-relative, which
+    // parses as a host), no control characters, and bounded in length.
+    const path = p.split(/[?#]/)[0];
+    if (path.length <= 512 && path.startsWith('/') && !path.startsWith('//') &&
+        !/[\x00-\x1F\x7F]/.test(path)) {
+      return path;
+    }
+  }
+  try { return new URL(referer).pathname; } catch (e) { return '/'; }
+}
+
 async function handlePixel(request, env, ctx, ch) {
   const cf = request.cf || {};
   const ua = request.headers.get('User-Agent') || '';
@@ -127,8 +146,7 @@ async function handlePixel(request, env, ctx, ch) {
     return new Response(PIXEL, { headers: { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store' } });
   }
 
-  let page = '/';
-  try { page = new URL(referer).pathname; } catch (e) {}
+  const page = pixelPage(new URL(request.url), referer);
 
   ctx.waitUntil(
     env.DB.prepare(`

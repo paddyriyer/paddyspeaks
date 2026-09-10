@@ -24,6 +24,25 @@ sessions (the web container clones fresh each time). CLAUDE.md points here._
     export). Its tag is spliced inline rather than put on its own line. Any
     script that inserts before `</body>` must handle this case — treating the
     text before the tag as "indentation" duplicates the entire file.
+  - **Each page passes its own path as `?p=`, and it has to.** The pixel is on
+    `ps.paddyspeaks.com`, a *different origin* to the site, so browsers'
+    default `strict-origin-when-cross-origin` policy strips the path from
+    `Referer` and sends only the origin — deriving the page from `Referer`
+    alone put **every** hit on `/`. `pixelPage()` in `worker.js` prefers `?p=`
+    and keeps `Referer` as the fallback for HTML cached before this shipped.
+    `?p=` is attacker-controllable, so it is validated (must start with a
+    single `/`, no control characters, ≤512 chars, query/fragment stripped) —
+    see the `pixelPage` cases in `analytics/tests/run.mjs`.
+  - **The `?p=` value is `location.pathname`, deliberately — not the canonical
+    URL.** `lib/ps.js` records `page_views.page` from `location.pathname`, so
+    matching it keeps the two tables comparable. 14 legacy pages canonicalise
+    to a *different* preferred URL (e.g. `articles/ai-bill-arrives.html` →
+    `.../your-ai-is-brilliant-then-the-bill-arrives.html`); using canonical
+    would have mis-filed real visits onto pages nobody loaded.
+  - **`serverTopPages` is computed by the API but not rendered anywhere** in
+    `analytics/index.html` — only the `serverHits` total and the "% invisible"
+    tile are. Per-page server numbers are correct in D1 but currently invisible
+    in the dashboard.
   - **The endpoint itself was never exercised end-to-end** from the container
     (the sandbox blocks `*.workers.dev`, and calling the real pixel would write
     junk rows into live analytics). Worth confirming once that hits actually
