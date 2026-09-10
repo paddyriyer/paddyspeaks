@@ -38,32 +38,21 @@ export default {
       return new Response(null, { headers: ch });
     }
 
-    // ── Crawlers ─────────────────────────────────────────────────────────
-    // robots.txt is per-HOST: the one at paddyspeaks.com/robots.txt does not
-    // govern this Worker's hostname. Without this route, /robots.txt fell
-    // through to the 404 at the bottom of this handler — and a 404 for
-    // robots.txt tells a crawler the host is entirely crawlable. So Googlebot
-    // crawled https://ps.paddyspeaks.com/ and filed it in Search Console under
-    // "Not found (404)".
-    //
-    // This host serves only API endpoints for the site's own pages; nothing on
-    // it is a document, so nothing on it should be crawled. Browser traffic is
-    // unaffected — robots.txt binds crawlers, not fetch()/sendBeacon().
     if (url.pathname === '/robots.txt') {
       return new Response('User-agent: *\nDisallow: /\n', {
         status: 200,
-        headers: {
-          ...ch,
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': 'public, max-age=86400',
-        },
+        headers: { ...ch, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' },
       });
     }
 
-    // Privacy Console scan proxy. Stateless: no logging, no D1, no cache.
     if (url.pathname.startsWith('/api/scan')) {
       const scanned = await routeScan(request, env, url, ch);
       if (scanned) return scanned;
+    }
+
+    // Server-side pixel: captures ALL traffic (incognito, ad-blocked, no-JS)
+    if (url.pathname === '/api/px.gif' && request.method === 'GET') {
+      return handlePixel(request, env, ctx, ch);
     }
 
     if ((url.pathname === '/collect' || url.pathname === '/api/v') && request.method === 'POST') {
@@ -106,21 +95,65 @@ export default {
       return handleExcludeList(request, env, ch);
     }
 
-    // Contact form (separate D1 `FORMS` + Resend; see contact.js)
     const contact = await routeContact(request, env, url, ch);
     if (contact) return contact;
 
-    // Testimonials — submit/list/moderation (separate D1 `FORMS`; see testimonials.js)
     const testimonials = await routeTestimonials(request, env, url, ch);
     if (testimonials) return testimonials;
 
-    // Anonymous leaderboard (separate D1 `LB` + HMAC secret; see leaderboard.js)
     const lb = await routeLeaderboard(request, env, url, ch);
     if (lb) return lb;
 
     return new Response('Not found', { status: 404, headers: ch });
   },
 };
+
+/* ───────── Server-side pixel (unblockable) ───────── */
+
+const PIXEL = new Uint8Array([
+  0x47,0x49,0x46,0x38,0x39,0x61,0x01,0x00,0x01,0x00,
+  0x80,0x00,0x00,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x21,
+  0xF9,0x04,0x01,0x00,0x00,0x00,0x00,0x2C,0x00,0x00,
+  0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x02,0x02,0x44,
+  0x01,0x00,0x3B
+]);
+
+async function handlePixel(request, env, ctx, ch) {
+  const cf = request.cf || {};
+  const ua = request.headers.get('User-Agent') || '';
+  const referer = request.headers.get('Referer') || '';
+
+  if (/bot|crawl|spider|slurp|preview/i.test(ua)) {
+    return new Response(PIXEL, { headers: { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store' } });
+  }
+
+  let page = '/';
+  try { page = new URL(referer).pathname; } catch (e) {}
+
+  ctx.waitUntil(
+    env.DB.prepare(`
+      INSERT INTO server_hits (page, country, city, as_org, browser, os, device_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      page,
+      cf.country || 'Unknown',
+      cf.city || 'Unknown',
+      cf.asOrganization || '',
+      parseBrowser(ua),
+      parseOS(ua),
+      parseDevice(ua)
+    ).run().catch(e => console.error('Pixel write error:', e.message))
+  );
+
+  return new Response(PIXEL, {
+    headers: {
+      'Content-Type': 'image/gif',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Expires': '0',
+      ...ch,
+    },
+  });
+}
 
 /* ───────── Collect (page view + exit events) ───────── */
 
@@ -130,15 +163,10 @@ async function handleCollect(request, env, ctx, ch) {
     const cf = request.cf || {};
     const ua = request.headers.get('User-Agent') || '';
 
-    // Filter bots
     if (/bot|crawl|spider|slurp|facebook|twitter|whatsapp|telegram|preview/i.test(ua)) {
       return new Response('ok', { headers: ch });
     }
 
-    // Exit event — update duration and scroll depth on the latest matching row.
-    // Fix (audit B): SQLite/D1 does NOT support ORDER BY/LIMIT on UPDATE, so the
-    // old statement threw and silently lost time+scroll. Target the row by its
-    // primary key via a subselect instead — standard SQL, works on D1.
     if (data.t === 'exit') {
       ctx.waitUntil(
         env.DB.prepare(`
@@ -158,7 +186,6 @@ async function handleCollect(request, env, ctx, ch) {
       return new Response('ok', { headers: ch });
     }
 
-    // Page view event — insert new row with all dimensions
     ctx.waitUntil(
       env.DB.prepare(`
         INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id, visitor_id, is_new, viewport, utm_source, utm_medium, utm_campaign, dark_mode, timezone, asn, as_org, page_num, search_query, is_404, load_time)
@@ -198,13 +225,7 @@ async function handleCollect(request, env, ctx, ch) {
   }
 }
 
-/* ───────── Versioned event ingest (schema v1) ─────────
- * Writes to the `events` table (migrate-v6-events.sql). Fully decoupled from the
- * page_views path above: if the migration has not been applied yet, the insert
- * fails inside its own catch and page-view collection is completely unaffected.
- * Dedupes on event_id (INSERT OR IGNORE). Classifies bots/internal/referrer
- * server-side and keeps suspected bots VISIBLE (bot_class), never dropped.
- */
+/* ───────── Versioned event ingest (schema v1) ───────── */
 async function handleEvent(request, env, ctx, ch) {
   try {
     const d = await request.json();
@@ -245,7 +266,6 @@ async function handleEvent(request, env, ctx, ch) {
           sanitize(d.v || ''), JSON.stringify(props).slice(0, 4000), 'full', bc.class, internal
         ).run();
 
-        // Visitor roll-up for correct new/returning + cohorts (best-effort).
         if (d.vid) {
           await env.DB.prepare(`
             INSERT INTO visitors (anonymous_visitor_id, first_seen, last_seen, sessions)
@@ -253,7 +273,7 @@ async function handleEvent(request, env, ctx, ch) {
             ON CONFLICT(anonymous_visitor_id) DO UPDATE SET last_seen = datetime('now')
           `).bind(sanitize(d.vid)).run();
         }
-      } catch (e) { /* migration not yet applied, or transient — never blocks collection */ }
+      } catch (e) { /* migration not yet applied */ }
     })());
 
     return new Response('ok', { headers: ch });
@@ -282,7 +302,6 @@ async function handleStats(request, env, url, ch) {
   const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 7;
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  // Drill-down filters
   const filterCountry = url.searchParams.get('country') || '';
   const filterPage = url.searchParams.get('page') || '';
   const filterCity = url.searchParams.get('city') || '';
@@ -303,7 +322,6 @@ async function handleStats(request, env, url, ch) {
   if (filterReferrer) { filterSQL += ' AND referrer = ?'; filterBinds.push(filterReferrer); }
   if (filterOrg) { filterSQL += ' AND as_org = ?'; filterBinds.push(filterOrg); }
 
-  // Exclude admin visitors
   const excludeMe = url.searchParams.get('exclude_me') !== '0';
   if (excludeMe) {
     filterSQL += ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)';
@@ -326,34 +344,22 @@ async function handleStats(request, env, url, ch) {
     env.DB.prepare(`SELECT language, COUNT(*) as views FROM page_views ${w} GROUP BY language ORDER BY views DESC LIMIT 15`).bind(...b),
     env.DB.prepare(`SELECT utm_source, utm_medium, utm_campaign, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} AND utm_source != '' GROUP BY utm_source, utm_medium, utm_campaign ORDER BY views DESC LIMIT 20`).bind(...b),
     env.DB.prepare(`SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as views FROM page_views ${w} GROUP BY hour ORDER BY hour`).bind(...b),
-    // 13: timezones
     env.DB.prepare(`SELECT timezone, COUNT(*) as views FROM page_views WHERE created_at >= ? AND timezone != '' GROUP BY timezone ORDER BY views DESC LIMIT 15`).bind(since),
-    // 14: day of week
     env.DB.prepare(`SELECT CAST(strftime('%w', created_at) AS INTEGER) as dow, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} GROUP BY dow ORDER BY dow`).bind(...b),
-    // 15: recent activity (last 50 visits with full context)
     env.DB.prepare(`SELECT created_at, page, country, city, browser, os, device_type, referrer, duration, scroll_depth, is_new, utm_source, as_org FROM page_views ${w} ORDER BY created_at DESC LIMIT 50`).bind(...b),
-    // 16: organizations (company/ISP from ASN)
     env.DB.prepare(`SELECT as_org, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, COUNT(DISTINCT visitor_id) as people FROM page_views ${w} AND as_org != '' GROUP BY as_org ORDER BY views DESC LIMIT 30`).bind(...b),
-    // 17: content groups
     env.DB.prepare(`SELECT CASE WHEN page LIKE '/articles/%' AND page LIKE '%gita%' OR page LIKE '%shankara%' OR page LIKE '%govindam%' OR page LIKE '%vedant%' OR page LIKE '%lotus%' OR page LIKE '%skull%' OR page LIKE '%discipline%' OR page LIKE '%chamakam%' OR page LIKE '%ashtavakra%' OR page LIKE '%narayaneeyam%' OR page LIKE '%frankl%' OR page LIKE '%fear-greed%' OR page LIKE '%death-fear%' OR page LIKE '%frenemies%' OR page LIKE '%prana%' OR page LIKE '%breathing%' OR page LIKE '%dharmakshetre%' THEN 'Philosophy' WHEN page LIKE '/interview%' THEN 'Interview Prep' WHEN page LIKE '/bhagavad-gita/%' OR page LIKE '/vishnu-sahasranama/%' OR page LIKE '/lalitha-sahasranama/%' OR page LIKE '/hanumanchalisa/%' OR page LIKE '/rudramchamakam/%' OR page LIKE '/soundarya-Lahari/%' OR page LIKE '/narayaneeyam/%' OR page LIKE '/bhaja-govindam/%' OR page LIKE '/durga-suktam/%' OR page LIKE '/sri-suktam/%' OR page LIKE '/purusha-suktam/%' OR page LIKE '/medha-suktam/%' OR page LIKE '/aditya-hridayam/%' OR page LIKE '/bajrang-baan/%' OR page LIKE '/sandhyavandanam/%' OR page LIKE '/navagraha/%' OR page LIKE '/abhirami-andhadhi/%' OR page LIKE '/subramanya-bhujangam/%' OR page LIKE '/rama-raksha-stotram/%' OR page LIKE '/ApaduddharakaStotram/%' OR page LIKE '/shashtikavacham/%' OR page LIKE '/mahAnyAsam/%' OR page LIKE '/amavasya-tharpanam/%' THEN 'Sacred Texts' WHEN page LIKE '/articles/%' THEN 'Technology' WHEN page = '/' OR page = '/index.html' THEN 'Homepage' ELSE 'Other' END as content_group, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_time FROM page_views ${w} GROUP BY content_group ORDER BY views DESC`).bind(...b),
-    // 18: bounce rate (sessions with only 1 page view)
     env.DB.prepare(`SELECT COUNT(*) as total_sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced_sessions FROM (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id)`).bind(...b),
-    // 19: previous period overview (for week-over-week comparison)
     env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ? AND created_at < ?` + (excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '')).bind(new Date(Date.now() - days * 2 * 86400000).toISOString(), since),
-    // 20-25: existing queries...
     env.DB.prepare(`SELECT page, COUNT(*) as entries FROM page_views ${w} AND page_num = 1 GROUP BY page ORDER BY entries DESC LIMIT 15`).bind(...b),
     env.DB.prepare(`SELECT page, COUNT(*) as exits FROM (SELECT session_id, page, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn FROM page_views ${w}) WHERE rn = 1 GROUP BY page ORDER BY exits DESC LIMIT 15`).bind(...b),
     env.DB.prepare(`SELECT search_query, COUNT(*) as views FROM page_views ${w} AND search_query != '' GROUP BY search_query ORDER BY views DESC LIMIT 20`).bind(...b),
     env.DB.prepare(`SELECT page, COUNT(*) as hits, MAX(created_at) as last_hit FROM page_views ${w} AND is_404 = 1 GROUP BY page ORDER BY hits DESC LIMIT 15`).bind(...b),
     env.DB.prepare(`SELECT page, COUNT(*) as total, SUM(CASE WHEN scroll_depth >= 75 AND duration >= 60 THEN 1 ELSE 0 END) as completed, ROUND(100.0 * SUM(CASE WHEN scroll_depth >= 75 AND duration >= 60 THEN 1 ELSE 0 END) / COUNT(*)) as completion_rate FROM page_views ${w} AND page LIKE '/articles/%' GROUP BY page HAVING total >= 2 ORDER BY completion_rate DESC LIMIT 20`).bind(...b),
     env.DB.prepare(`SELECT ROUND(AVG(CASE WHEN load_time > 0 AND load_time < 30000 THEN load_time END)) as avg_load, ROUND(MAX(CASE WHEN load_time > 0 THEN load_time END)) as max_load FROM page_views ${w}`).bind(...b),
-    // 26: bounce rate by landing page
     env.DB.prepare(`SELECT page, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.page, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views WHERE created_at >= ? GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY page HAVING sessions >= 2 ORDER BY sessions DESC LIMIT 20`).bind(since, since),
-    // 27: bounce rate by device type
     env.DB.prepare(`SELECT device_type, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.device_type, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views WHERE created_at >= ? GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY device_type ORDER BY sessions DESC`).bind(since, since),
-    // 28: bounce rate by referrer source
     env.DB.prepare(`SELECT CASE WHEN referrer = '' THEN 'Direct' WHEN referrer LIKE '%google%' THEN 'Google Search' WHEN referrer LIKE '%linkedin%' THEN 'LinkedIn' WHEN referrer LIKE '%twitter%' OR referrer LIKE '%t.co%' THEN 'Twitter/X' WHEN referrer LIKE '%facebook%' THEN 'Facebook' WHEN referrer LIKE '%chatgpt%' THEN 'ChatGPT' WHEN referrer LIKE '%paddyspeaks%' THEN 'Internal' ELSE 'Other Referral' END as source, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.referrer, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views WHERE created_at >= ? GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY source HAVING sessions >= 2 ORDER BY sessions DESC`).bind(since, since),
-    // 29: bounce rate new vs returning
     env.DB.prepare(`SELECT CASE WHEN is_new = 1 THEN 'New Visitor' ELSE 'Returning' END as visitor_type, COUNT(*) as sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced, ROUND(100.0 * SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) / COUNT(*)) as bounce_rate FROM (SELECT pv.session_id, pv.is_new, s.cnt FROM page_views pv INNER JOIN (SELECT session_id, COUNT(*) as cnt FROM page_views WHERE created_at >= ? GROUP BY session_id) s ON pv.session_id = s.session_id WHERE pv.page_num = 1 AND pv.created_at >= ?) GROUP BY visitor_type ORDER BY sessions DESC`).bind(since, since),
   ]);
 
@@ -402,6 +408,21 @@ async function handleStats(request, env, url, ch) {
     bounceByVisitorType: batch[29].results,
   };
 
+  // Server-side hit counts (separate table)
+  try {
+    const serverHits = await env.DB.prepare(
+      `SELECT COUNT(*) as total_hits FROM server_hits WHERE created_at >= ?`
+    ).bind(since).first();
+    const serverByPage = await env.DB.prepare(
+      `SELECT page, COUNT(*) as hits FROM server_hits WHERE created_at >= ? GROUP BY page ORDER BY hits DESC LIMIT 15`
+    ).bind(since).all();
+    data.serverHits = serverHits || { total_hits: 0 };
+    data.serverTopPages = serverByPage.results || [];
+  } catch (e) {
+    data.serverHits = { total_hits: 0 };
+    data.serverTopPages = [];
+  }
+
   const response = new Response(JSON.stringify(data), {
     headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60', 'X-Cache': 'MISS' },
   });
@@ -414,12 +435,7 @@ async function handleStats(request, env, url, ch) {
   return response;
 }
 
-/* ───────── Decision metrics + insights (Phase 2) ─────────
- * Corrected, decision-oriented aggregates. Engaged sessions, medians, correct
- * session-grain new/returning, source value classes, content 2×2, Studio
- * funnels, data quality — computed with the tested pure libs. Reads page_views
- * (has history) for engagement and `events` (best-effort) for goals/Studio.
- */
+/* ───────── Decision metrics + insights (Phase 2) ───────── */
 async function handleInsights(request, env, url, ch) {
   const authError = authenticate(request, env, ch);
   if (authError) return authError;
@@ -434,7 +450,6 @@ async function handleInsights(request, env, url, ch) {
   const excludeMe = url.searchParams.get('exclude_me') !== '0';
   const excl = excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '';
 
-  // ── Per-session rollup from page_views (works on existing data) ──
   const sessRoll = `
     SELECT session_id, MIN(created_at) AS start_at,
       MAX(duration) AS dur, MAX(scroll_depth) AS scr, COUNT(*) AS pc,
@@ -468,7 +483,6 @@ async function handleInsights(request, env, url, ch) {
   const engaged = s => (s.dur >= T.engagedActiveSeconds) || (s.scr >= T.engagedScrollPct) || (s.pc >= T.engagedMinPageViews);
   const meaningfulRow = s => (s.scr >= T.engagedScrollPct) || (s.dur >= T.engagedActiveSeconds);
 
-  // Overview
   const totalSessions = sessions.length;
   const engagedSessions = sessions.filter(engaged).length;
   const engagementRate = totalSessions ? engagedSessions / totalSessions : null;
@@ -477,7 +491,6 @@ async function handleInsights(request, env, url, ch) {
   const visitorsSet = new Set(sessions.map(s => s.visitor_id));
   const totalVisitors = visitorsSet.size;
 
-  // Correct new/returning (session grain, first-seen based) — fixes audit A
   const returningVisitors = new Set();
   for (const s of sessions) {
     const fs = firstSeen.get(s.visitor_id);
@@ -485,11 +498,9 @@ async function handleInsights(request, env, url, ch) {
   }
   const meaningfulVisitors = new Set(sessions.filter(meaningfulRow).map(s => s.visitor_id));
 
-  // Previous period (engagement only, for comparison)
   const prevEngaged = prevSessions.filter(engaged).length;
   const prevEngagementRate = prevSessions.length ? prevEngaged / prevSessions.length : null;
 
-  // Sources (classified)
   const sessionSource = new Map();
   const srcAgg = new Map();
   for (const s of sessions) {
@@ -510,7 +521,6 @@ async function handleInsights(request, env, url, ch) {
   }));
   sources = classifySources(sources).sort((a, b) => b.visitors - a.visitors);
 
-  // Content (2×2)
   let content = pageRows.map(r => ({
     path: r.page, readers: r.readers, entrances: r.entrances,
     engagedReaders: r.engaged_readers, engagementRate: r.readers ? r.engaged_readers / r.readers : 0,
@@ -518,44 +528,32 @@ async function handleInsights(request, env, url, ch) {
   }));
   content = classifyContent(content);
 
-  // Data quality (page_views side)
   const durationCoverage = totalSessions ? durations.length / totalSessions : null;
   const scrollCoverage = totalSessions ? scrolls.length / totalSessions : null;
 
-  // Device split for mobile-friction insight
   const dev = { mobile: { e: 0, n: 0 }, desktop: { e: 0, n: 0 } };
   for (const s of sessions) {
     const k = s.device === 'Mobile' ? 'mobile' : (s.device === 'Desktop' ? 'desktop' : null);
     if (k) { dev[k].n++; if (engaged(s)) dev[k].e++; }
   }
 
-  // ── Events side (goals + Studio + bot rate) — best-effort ──
   let goalsCount = 0, conversionVisitors = new Set(), interviewCompletions = 0;
   let studio = { visitors: 0, starts: 0, completions: 0, completionRate: null, prevCompletionRate: null, funnel: {}, tracks: [], abandonStep: '' };
   let dqEvents = { botRate: null, internalRate: null, lastEventAt: null, freshnessMin: null };
   let searchGaps = 0;
-  let eventsTableOk = false; // becomes true only if the events queries succeed
+  let eventsTableOk = false;
   try {
     const batchB = await env.DB.batch([
       env.DB.prepare(`SELECT session_id, anonymous_visitor_id AS vid, event_name, properties FROM events WHERE occurred_at >= ? AND event_name IN ('question_completed','quiz_completed','simulator_completed','related_click','cta_click') LIMIT 20000`).bind(since),
       env.DB.prepare(`SELECT event_name, COUNT(DISTINCT anonymous_visitor_id) AS v FROM events WHERE occurred_at >= ? AND event_name IN ('interview_studio_opened','track_viewed','track_selected','question_viewed','question_started','answer_submitted','question_completed','quiz_started','quiz_completed') GROUP BY event_name`).bind(since),
-      env.DB.prepare(`SELECT json_extract(properties,'$.track') AS track,
-          COUNT(DISTINCT anonymous_visitor_id) AS visitors,
-          SUM(CASE WHEN event_name='question_started' THEN 1 ELSE 0 END) AS starts,
-          SUM(CASE WHEN event_name='question_completed' THEN 1 ELSE 0 END) AS completions,
-          SUM(CASE WHEN event_name='answer_submitted' THEN 1 ELSE 0 END) AS answers,
-          SUM(CASE WHEN event_name='answer_correct' THEN 1 ELSE 0 END) AS correct,
-          SUM(CASE WHEN event_name='hint_requested' THEN 1 ELSE 0 END) AS hints
-        FROM events WHERE occurred_at >= ? AND json_extract(properties,'$.track') IS NOT NULL GROUP BY track ORDER BY visitors DESC`).bind(since),
+      env.DB.prepare(`SELECT json_extract(properties,'$.track') AS track, COUNT(DISTINCT anonymous_visitor_id) AS visitors, SUM(CASE WHEN event_name='question_started' THEN 1 ELSE 0 END) AS starts, SUM(CASE WHEN event_name='question_completed' THEN 1 ELSE 0 END) AS completions, SUM(CASE WHEN event_name='answer_submitted' THEN 1 ELSE 0 END) AS answers, SUM(CASE WHEN event_name='answer_correct' THEN 1 ELSE 0 END) AS correct, SUM(CASE WHEN event_name='hint_requested' THEN 1 ELSE 0 END) AS hints FROM events WHERE occurred_at >= ? AND json_extract(properties,'$.track') IS NOT NULL GROUP BY track ORDER BY visitors DESC`).bind(since),
       env.DB.prepare(`SELECT bot_class, SUM(internal) AS internal, COUNT(*) AS c FROM events WHERE occurred_at >= ? GROUP BY bot_class`).bind(since),
       env.DB.prepare(`SELECT MAX(occurred_at) AS last FROM events`),
       env.DB.prepare(`SELECT COUNT(*) AS c FROM events WHERE occurred_at >= ? AND event_name='no_search_results'`).bind(since),
       env.DB.prepare(`SELECT SUM(CASE WHEN event_name='question_started' THEN 1 ELSE 0 END) AS starts, SUM(CASE WHEN event_name='question_completed' THEN 1 ELSE 0 END) AS completions, COUNT(DISTINCT anonymous_visitor_id) AS visitors FROM events WHERE occurred_at >= ? AND occurred_at < ?`).bind(prevSince, since),
-      // Distinct visitors who touched ANY Studio event (fix: the old fallback read
-      // interview_studio_opened/question_viewed which are not always emitted → 0).
       env.DB.prepare(`SELECT COUNT(DISTINCT anonymous_visitor_id) AS v FROM events WHERE occurred_at >= ? AND (event_name IN ('interview_studio_opened','track_viewed','track_selected','question_viewed','question_started','answer_submitted','answer_correct','answer_incorrect','code_run','explanation_viewed','question_completed','quiz_started','quiz_completed','simulator_started','simulator_completed','flashcard_reviewed') OR json_extract(properties,'$.track') IS NOT NULL)`).bind(since),
     ]);
-    eventsTableOk = true; // the events table exists and is queryable
+    eventsTableOk = true;
 
     for (const g of (batchB[0].results || [])) {
       goalsCount++;
@@ -582,9 +580,8 @@ async function handleInsights(request, env, url, ch) {
     searchGaps = (batchB[5].results && batchB[5].results[0] && batchB[5].results[0].c) || 0;
     const pv = batchB[6].results && batchB[6].results[0];
     if (pv && pv.starts) studio.prevCompletionRate = pv.completions / pv.starts;
-  } catch (e) { /* events table not migrated yet — Studio/goal sections stay empty */ }
+  } catch (e) { /* events table not migrated yet */ }
 
-  // Meaningful visitors also counts anyone who completed a goal
   for (const v of conversionVisitors) meaningfulVisitors.add(v);
 
   const overview = {
@@ -603,12 +600,8 @@ async function handleInsights(request, env, url, ch) {
 
   const dataQuality = { durationCoverage, scrollCoverage, ...dqEvents, eventsTableOk };
 
-  // Build the aggregate the insight engine consumes
   const agg = {
-    current: {
-      sessions: totalSessions, engagementRate, visitors: totalVisitors,
-      goals: goalsCount, conversionRate: overview.conversionRate, medianActiveS: overview.medianActiveS,
-    },
+    current: { sessions: totalSessions, engagementRate, visitors: totalVisitors, goals: goalsCount, conversionRate: overview.conversionRate, medianActiveS: overview.medianActiveS },
     previous: { sessions: prevSessions.length, engagementRate: prevEngagementRate, studioVisitors: (studio && studio.prevVisitors) || null },
     sources, content, searchGaps, dailySeries,
     byDevice: {
@@ -628,14 +621,10 @@ async function handleInsights(request, env, url, ch) {
   return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' } });
 }
 
-/* ───────── Journeys & Retention (Phase 4) ─────────
- * Weekly retention cohorts (Day 1/7/30, incomplete windows rendered null — never
- * 0) + anonymous path analysis (landings, transitions, exits, cross-domain).
- * All from page_views (history); no raw IP or PII exposed.
- */
+/* ───────── Journeys & Retention (Phase 4) ───────── */
 function weekKey(ms) {
   const d = new Date(ms);
-  const dow = (d.getUTCDay() + 6) % 7; // Monday=0
+  const dow = (d.getUTCDay() + 6) % 7;
   const mon = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow));
   return mon.toISOString().slice(0, 10);
 }
@@ -647,16 +636,13 @@ async function handleJourneys(request, env, url, ch) {
   const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 30;
   const nowMs = Date.now();
   const since = new Date(nowMs - days * 86400000).toISOString();
-  const cohortSince = new Date(nowMs - 63 * 86400000).toISOString(); // 9 weeks of cohorts
+  const cohortSince = new Date(nowMs - 63 * 86400000).toISOString();
   const excludeMe = url.searchParams.get('exclude_me') !== '0';
   const excl = excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '';
 
   const batch = await env.DB.batch([
-    // Cohort visitors: first-seen (all-time) within the last 9 weeks
     env.DB.prepare(`SELECT visitor_id, MIN(created_at) AS fs FROM page_views GROUP BY visitor_id HAVING fs >= ?`).bind(cohortSince),
-    // Activity days for the cohort window (bounded)
     env.DB.prepare(`SELECT DISTINCT visitor_id, DATE(created_at) AS d FROM page_views WHERE created_at >= ? LIMIT 100000`).bind(cohortSince),
-    // Session page sequences for the selected period
     env.DB.prepare(`SELECT session_id, page, id FROM page_views WHERE created_at >= ?${excl} ORDER BY session_id, id LIMIT 50000`).bind(since),
   ]);
 
@@ -665,7 +651,6 @@ async function handleJourneys(request, env, url, ch) {
   const seqRows = batch[2].results || [];
   const DAY = 86400000;
 
-  // ── Retention cohorts by ISO week ──
   const activeByVisitorDay = new Set();
   for (const r of activityRows) activeByVisitorDay.add(`${r.visitor_id}:${Math.floor(Date.parse(r.d + 'T00:00:00Z') / DAY)}`);
   const weeks = new Map();
@@ -681,7 +666,6 @@ async function handleJourneys(request, env, url, ch) {
     return { week: wk, size: r.size, d1: r.windows[1], d7: r.windows[7], d30: r.windows[30] };
   });
 
-  // ── Path analysis ──
   const bySession = new Map();
   for (const r of seqRows) {
     if (!bySession.has(r.session_id)) bySession.set(r.session_id, []);
@@ -734,8 +718,6 @@ async function handleRealtime(request, env, ch) {
   });
 }
 
-/* ───────── Helpers ───────── */
-
 /* ───────── CSV Export ───────── */
 
 async function handleExport(request, env, url, ch) {
@@ -759,11 +741,7 @@ async function handleExport(request, env, url, ch) {
   }
 
   return new Response(csv, {
-    headers: {
-      ...ch,
-      'Content-Type': 'text/csv',
-      'Content-Disposition': 'attachment; filename="paddyspeaks-analytics-' + period + '.csv"',
-    },
+    headers: { ...ch, 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="paddyspeaks-analytics-' + period + '.csv"' },
   });
 }
 
