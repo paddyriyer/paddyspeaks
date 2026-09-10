@@ -1,9 +1,68 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-08 (Gita of Data Engineering: real illustrations replaced the placeholder SVGs). This file is the running memory between Claude Code
+_Last updated: 2026-09-10 (new article: The Job Posting Is Not the Job). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-10): "The Job Posting Is Not the Job" published —
+  `articles/the-job-posting-is-not-the-job.html`** (category `personality`,
+  ~23,900 words, 62 min, six inline SVG diagrams). A field manual for the 2026
+  job market. Scope deliberately **stops at the foot in the door** — recruiter
+  screen, hiring-manager call, interview invite. Interview prep, behavioural
+  questions and salary negotiation are explicitly out of scope and flagged in
+  the closing panel as "the next article." **Keep that boundary** if this gets
+  extended.
+  - **Central argument:** Search → Apply → Wait is dead because AI made
+    applying free, and a signal that costs nothing carries nothing. The
+    replacement is an eight-step loop (Discover → Validate → Map → Position →
+    Connect → Apply → Follow Up → Convert), compressed into the **SIGNAL**
+    mnemonic (Scan, Interrogate, Graph, Narrate, Approach, Loop).
+  - **Every substantive claim carries one of three inline marks — `Evidence`,
+    `Practice`, `Contested`** — with 22 numbered sources at the end. This is
+    the article's spine, not decoration: it separates sourced fact from my
+    recommendation from genuinely disputed data. **Do not add an unmarked
+    statistic.** Two claims are deliberately debunked rather than repeated:
+    the "80% of jobs are never advertised" myth (no credible source) and
+    "75% of résumés are rejected by ATS" (same). The Greenhouse channel data
+    is used to give the honest version instead.
+  - **Load-bearing sources** (all linked, all checked this session): Greenhouse
+    Benchmark Report Mar 2026 (115→244 applications per role, recruiting teams
+    −55%, job boards ~75% of applications but <50% of hires, referrals ~7%/~40%);
+    BLS JOLTS Jul 2026; BLS TED long-term unemployment; Indeed Hiring Lab on the
+    seniority tilt; NY Fed recent-graduate series; SHRM 2026 (39-day median
+    time-to-fill); Handshake internships index; NACE Job Outlook 2026 + Spring
+    Update; **Rajkumar et al., *Science* 2022** (the causal weak-ties experiment
+    — the strongest single citation in the piece); AARP Jan 2026; SIA Sep 2026;
+    Clarify Capital + Korn Ferry on ghost jobs; FTC + BBB on employment fraud;
+    Duke Pratt on résumé prompt injection (≥1% of résumés).
+  - **Three render/layout traps worth remembering:**
+    1. **Diagrams need `.figscroll` on mobile.** A 1200-unit viewBox at 390px
+       renders 354px wide, which turns 15px labels into 4.4px. Each SVG is
+       wrapped in `<div class="figscroll">` with `min-width:840px` under 900px
+       so it pans sideways; the `<figcaption>` stays **outside** that div so it
+       does not scroll, and a `.fighint` line appears only on narrow screens.
+       Don't "simplify" this away.
+    2. **Long `<text>` in an SVG silently overruns its `<rect>`** — it happened
+       three times (fig 2's red bar, fig 6's disclaimer). There is no wrapping
+       in SVG; split into explicit lines and grow the rect *and* the viewBox.
+    3. **Figure 1 must stay outside the 740px prose column.** It lives in its
+       own `<div class="wrap">` so it renders ~1148px; inside `.col` it was
+       688px and the step labels were unreadable.
+  - **Share card is generated, not drawn:** `tools/share-cards/the-job-posting-is-not-the-job.card.html`
+    is the source. Render with headless Chromium at
+    `--force-device-scale-factor=2 --window-size=1200,980`, then crop
+    `(0,0,2400,1260)` and downscale to 1200×630. **The taller window is
+    required** — a 630px-tall viewport does not composite the bottom ~85px in
+    headless Chromium, which silently drops the byline. Fonts were inlined as
+    base64 for the render; the archived source links Google Fonts instead.
+  - `poster.webp` (sidebar card) and `share-card.png` (deck card + OG/Twitter)
+    both live in `images/articles/the-job-posting-is-not-the-job/`.
+  - Deck counts updated: **all 147→148, Personality 3→4** (verified against
+    actual `data-category` counts in `index.html`).
+  - **`refresh_sitemap_lastmod.py --write` was run**, which corrected ~215
+    stale `<lastmod>` dates across the whole sitemap in addition to adding the
+    new URL. That is why the sitemap diff is large; it is dates only.
 
 - **NEW (2026-09-09): Song 03 published — `devotional-music/ramajogi-mandu/`**
   (*Rāmajōgi Mandu Konarē*, Navaratna 5, Khamās, Ādi). Series now at three
