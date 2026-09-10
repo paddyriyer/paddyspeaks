@@ -13,6 +13,7 @@ import {
 } from '../lib/forms.js';
 import { redactEmails } from '../worker/forms-util.js';
 import { isFetchable, linksOf } from '../worker/scan.js';
+import { pixelPage } from '../worker/worker.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -343,6 +344,45 @@ ok(!hrefs.some((h) => h.includes('#frag')), 'linksOf strips fragments so one pag
 eq(links.find((l) => l.href.endsWith('/opt-out')).text,
   'Do Not Sell My Personal Information', 'linksOf flattens nested markup in the link text');
 eq(linksOf('<p>no links here</p>', 'https://x.test/').length, 0, 'linksOf handles a page with no links');
+
+/* ── pixelPage: which page a server-pixel hit is attributed to ── */
+const PX = 'https://ps.paddyspeaks.com/api/px.gif';
+const px = (query, referer = '') => pixelPage(new URL(PX + query), referer);
+const NUL = String.fromCharCode(0);
+
+// The pixel is cross-origin to the site, so browsers send only the origin in
+// Referer. ?p= is what makes per-page attribution possible at all.
+eq(px('?p=/articles/foo.html', 'https://paddyspeaks.com/'), '/articles/foo.html',
+  'pixelPage prefers ?p= over an origin-only Referer');
+eq(px('?p=/'), '/', 'pixelPage handles the site root');
+eq(px('?p=/interview/ads%20engineering/Five_Rooms.html'), '/interview/ads engineering/Five_Rooms.html',
+  'pixelPage decodes percent-encoded paths');
+
+// Referer remains the fallback so HTML cached before ?p= shipped still counts.
+eq(px('', 'https://paddyspeaks.com/about.html'), '/about.html',
+  'pixelPage falls back to Referer when ?p= is absent');
+eq(px('?p=', 'https://paddyspeaks.com/about.html'), '/about.html',
+  'pixelPage falls back when ?p= is empty');
+eq(px('', ''), '/', 'pixelPage defaults to / with neither ?p= nor Referer');
+
+// ?p= is attacker-controllable: anyone can call the pixel with any value.
+eq(px('?p=//evil.test/x', 'https://paddyspeaks.com/a.html'), '/a.html',
+  'pixelPage rejects a protocol-relative //host path');
+eq(px('?p=https%3A%2F%2Fevil.test%2Fx', 'https://paddyspeaks.com/a.html'), '/a.html',
+  'pixelPage rejects an absolute URL');
+eq(px('?p=notapath', 'https://paddyspeaks.com/a.html'), '/a.html',
+  'pixelPage rejects a path with no leading slash');
+eq(px('?p=' + encodeURIComponent('/a' + NUL + 'b'), 'https://paddyspeaks.com/a.html'), '/a.html',
+  'pixelPage rejects control characters');
+eq(px('?p=%2F' + 'x'.repeat(600), 'https://paddyspeaks.com/a.html'), '/a.html',
+  'pixelPage rejects an over-long path');
+eq(px('?p=%2F' + 'x'.repeat(500)), '/' + 'x'.repeat(500),
+  'pixelPage accepts a long-but-bounded path');
+
+// Keep the stored value comparable with page_views.page, which ps.js fills
+// from location.pathname — never a query string or fragment.
+eq(px('?p=%2Fa.html%3Fx%3D1'), '/a.html', 'pixelPage strips a query string from ?p=');
+eq(px('?p=%2Fa.html%23frag'), '/a.html', 'pixelPage strips a fragment from ?p=');
 
 /* ── report ── */
 console.log(fails.join('\n'));
