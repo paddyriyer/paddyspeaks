@@ -14700,6 +14700,22 @@
       ],
       "answer": 0,
       "explanation": "MERGE INTO with conditional WHEN MATCHED clauses is the most efficient approach as it performs the merge in a single pass, reducing I/O and lock contention. The conditional price check within the WHEN MATCHED clause ensures updates only occur for significant price changes, and WHEN NOT MATCHED handles new products atomically. Option 2 causes data loss, option 3 requires multiple round-trips with potential race conditions, and option 4 is inefficient for partial updates."
+    },
+    {
+      "id": "sql-new-116",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-09-11",
+      "prompt": "You have a table `comments(comment_id INT PRIMARY KEY, parent_comment_id INT, user_id INT, content TEXT, created_at TIMESTAMP)` representing a threaded comment system where replies reference their parent comment via `parent_comment_id` (NULL for top-level comments). You need to find all replies (direct and indirect) to comment_id = 5, including the depth level of each reply. Which recursive CTE approach correctly computes this?",
+      "options": [
+        "WITH RECURSIVE reply_chain AS (SELECT comment_id, parent_comment_id, user_id, 0 as depth FROM comments WHERE comment_id = 5 UNION ALL SELECT c.comment_id, c.parent_comment_id, c.user_id, rc.depth + 1 FROM comments c INNER JOIN reply_chain rc ON c.parent_comment_id = rc.comment_id) SELECT * FROM reply_chain;",
+        "WITH RECURSIVE reply_chain AS (SELECT comment_id, parent_comment_id, user_id, 0 as depth FROM comments WHERE parent_comment_id = 5 UNION ALL SELECT c.comment_id, c.parent_comment_id, c.user_id, rc.depth + 1 FROM comments c INNER JOIN reply_chain rc ON c.parent_comment_id = rc.comment_id) SELECT * FROM reply_chain WHERE comment_id != 5;",
+        "WITH RECURSIVE reply_chain AS (SELECT comment_id, parent_comment_id, user_id, 1 as depth FROM comments WHERE comment_id = 5 UNION ALL SELECT c.comment_id, c.parent_comment_id, c.user_id, rc.depth + 1 FROM comments c LEFT JOIN reply_chain rc ON c.parent_comment_id = rc.comment_id WHERE rc.comment_id IS NOT NULL) SELECT * FROM reply_chain;",
+        "SELECT DISTINCT c.comment_id, c.parent_comment_id, c.user_id, COUNT(*) OVER (PARTITION BY c.parent_comment_id) as depth FROM comments c WHERE c.parent_comment_id = 5 OR c.parent_comment_id IN (SELECT comment_id FROM comments WHERE parent_comment_id = 5);"
+      ],
+      "answer": 1,
+      "explanation": "Option B correctly initializes the recursive CTE with direct children of comment_id = 5 (WHERE parent_comment_id = 5), then recursively joins to find all nested replies. The depth counter starts at 1 and increments with each level. Option A incorrectly starts with comment_id = 5 itself rather than its children, option C uses an inefficient LEFT JOIN that doesn't properly filter recursion, and option D doesn't truly recursively traverse the tree structure."
     }
   ]
 }

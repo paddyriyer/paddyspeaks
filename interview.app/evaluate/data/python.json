@@ -8042,6 +8042,22 @@
       ],
       "answer": 1,
       "explanation": "Context managers guarantee that __exit__ is called even when exceptions occur, ensuring the file is always closed. Since __exit__ returns False, the exception propagates after cleanup. The 'data\\n' write never executes because the exception stops execution at the raise statement. This is critical for resource management in data pipelines to prevent file descriptor leaks."
+    },
+    {
+      "id": "py-new-110",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-09-11",
+      "prompt": "You're building a data ingestion service that processes records from Kafka in batches. Each batch requires multiple async I/O operations (DB writes, cache updates, metric publishing). You need to ensure batches are processed sequentially to avoid race conditions, but operations within a batch run concurrently. Which approach best balances correctness and performance?\n\nConsider:\n- Batch A: 50 records \u2192 3 async tasks each\n- Batch B: 50 records \u2192 3 async tasks each\n- If Batch B starts before Batch A completes, data corruption occurs",
+      "options": [
+        "Use asyncio.Queue with a single consumer coroutine that awaits asyncio.gather() on all tasks for each batch before dequeuing the next",
+        "Use asyncio.Semaphore(1) to wrap each batch's asyncio.gather() call, ensuring only one batch's concurrent tasks run at a time",
+        "Create a thread pool with 1 worker that runs loop.run_until_complete() for each batch sequentially",
+        "Use asyncio.Lock() around individual task execution, acquiring per-operation rather than per-batch"
+      ],
+      "answer": 1,
+      "explanation": "Option B is correct: asyncio.Semaphore(1) allows concurrent task execution within a batch (via asyncio.gather()) while serializing batch processing at the semaphore level. Option A incorrectly adds queue overhead without enforcing sequential batches. Option C blocks the event loop with thread pool blocking calls. Option D acquires the lock per-operation, defeating concurrency within batches."
     }
   ]
 }
