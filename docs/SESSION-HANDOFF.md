@@ -1,9 +1,39 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-14 (three executive demo dashboards). This file is the running memory between Claude Code
-sessions (the web container clones fresh each time). CLAUDE.md points here._
+_Last updated: 2026-09-14 (all four demo dashboards moved to a light theme). This file is the running memory
+between Claude Code sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-14, later the same day): all four Data Lab dashboards are now
+  LIGHT-THEMED.** Paddy asked for lighter backgrounds — the dark demos were
+  causing eye strain. `/lakehouse/`, `/ai-command-center/`,
+  `/revenue-intelligence/` and `/resilience-war-room/` all moved from near-black
+  grounds to soft off-white ones. **Do not "restore" the dark theme.**
+  - **Off-white, not pure white.** Grounds are ~`#eef0f7` with white panels;
+    pure `#fff` behind everything is its own kind of harsh.
+  - **Each demo keeps its hue identity** (violet / emerald / amber / orange) and
+    its own type stack. They are still meant to look like four products.
+  - **Accents were darkened, not just reused.** `#34d399` on white is ~3:1 and
+    unreadable at 10px. Every accent has a darker twin (e.g. mint
+    `#34d399` → `#0a7f57`, amber `#ffb01f` → `#935c00`, cyan `#22d3ee` →
+    `#087a97`). If you add a colour, check it against the ground before shipping.
+  - **Three classes of colour had to move, and only the first is obvious:**
+    (1) the `:root` tokens; (2) hard-coded hexes in Chart.js configs and inline
+    SVG, which no token swap reaches; (3) `rgba(255,255,255,.04)` hairlines and
+    `rgba(0,0,0,.6)` shadows, which become invisible and filthy respectively on
+    a light ground. A theme swap that only does (1) looks broken.
+  - **Contrast is audited, not eyeballed.** `scratchpad/contrast.mjs` walks every
+    tab and computes the real ratio of every text node against its resolved
+    background. It cannot see `background-image`, so white text on a gradient
+    (the header orbs, the active `QTD` chip) reports as a false positive —
+    verify those with a screenshot rather than "fixing" them.
+  - **The homepage Data Lab card covers were relit too**, so the preview matches
+    the dashboard you land on.
+  - **Label fix shipped alongside:** war-room incidents used to read
+    "$1.38B exposed", which contradicted the $842M "revenue exposed" KPI. That
+    figure is the revenue *behind* the affected line, so it now reads
+    "behind it". Same class of error as the map's "in scope" fix.
 
 - **NEW (2026-09-14): three executive demo dashboards ship alongside `/lakehouse/`.**
   `/ai-command-center/`, `/revenue-intelligence/` and `/resilience-war-room/` —
