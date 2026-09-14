@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise Resilience &amp; Scenario War Room — PaddySpeaks</title>
+<meta name="description" content="Interactive executive demo: a strategic control room for supply continuity, vendor concentration, cyber and operational risk, scenario planning, and response playbooks.">
+<meta property="og:title" content="Enterprise Resilience &amp; Scenario War Room — PaddySpeaks">
+<meta property="og:description" content="What breaks first, and what do we do when it does? Global risk map, vendor cascade graph, scenario simulation and activatable response playbooks.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://paddyspeaks.com/resilience-war-room/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Enterprise Resilience &amp; Scenario War Room — PaddySpeaks">
+<meta name="twitter:description" content="A resilience operating system for enterprise leadership, not a BI dashboard with pretty lipstick.">
+<link rel="canonical" href="https://paddyspeaks.com/resilience-war-room/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05070a;--bg2:#080b11;--panel:#0b1016;--panel2:#111823;--panel3:#18212e;
+  --line:#16202c;--line2:#1f2c3b;--line3:#2b3a4d;
+  --text:#dfe7ef;--muted:#7d8ea2;--dim:#4f5f72;
+  --amber:#ffb01f;--red:#ff3b4e;--teal:#2dd4bf;--steel:#6b8cae;--green:#3ddc84;--violet:#9d7bff;--ice:#67e8f9;
+  --mono:'Roboto Mono',ui-monospace,monospace;
+  --cond:'Barlow Condensed','Barlow',sans-serif;
+}
+html,body{height:100%;font-family:'Barlow',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13.5px;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+/* faint operations-room grid, kept well under the content */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(rgba(107,140,174,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(107,140,174,.045) 1px,transparent 1px);
+  background-size:48px 48px}
+#app{position:relative;z-index:1;min-height:100vh}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:0}
+::-webkit-scrollbar-thumb:hover{background:var(--line3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.cond{font-family:var(--cond);text-transform:uppercase;letter-spacing:.06em}
+
+/* ── command bar ── */
+.cmdbar{background:linear-gradient(180deg,#080c12,#060910);border-bottom:1px solid var(--line2);padding:11px 22px;
+  display:flex;align-items:center;justify-content:space-between;gap:18px;position:sticky;top:0;z-index:130;flex-wrap:wrap}
+.sig{display:flex;align-items:center;gap:13px}
+.sig-badge{width:38px;height:38px;border:1px solid var(--amber);display:flex;align-items:center;justify-content:center;
+  background:rgba(255,176,31,.07);position:relative;clip-path:polygon(14% 0,100% 0,100% 86%,86% 100%,0 100%,0 14%)}
+.sig-badge span{font-family:var(--cond);font-weight:700;font-size:16px;color:var(--amber);letter-spacing:.05em}
+.sig h1{font-family:var(--cond);font-size:19px;font-weight:700;letter-spacing:.055em}
+.sig .sub{font-size:10.5px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+.cmd-right{text-align:right;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.pulse{display:inline-block;width:7px;height:7px;background:var(--green);margin-right:6px;animation:bl 2s infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes up{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes ring{0%{r:5;opacity:.85}100%{r:22;opacity:0}}
+.back{color:var(--ice);text-decoration:none;font-size:10px;opacity:.75}
+.back:hover{opacity:1}
+
+/* ── posture strip ── */
+.posture{display:flex;align-items:stretch;background:var(--bg2);border-bottom:1px solid var(--line)}
+.pst-l{padding:9px 22px;display:flex;align-items:center;gap:11px;border-right:1px solid var(--line)}
+.pst-l .lbl{font-family:var(--cond);font-size:11px;color:var(--dim);letter-spacing:.11em}
+.pst-l .lvl{font-family:var(--cond);font-size:17px;font-weight:700;letter-spacing:.06em}
+.pst-steps{display:flex;flex:1;gap:0}
+.pstep{flex:1;padding:9px 10px;border-right:1px solid var(--line);font-family:var(--mono);font-size:9.5px;
+  color:var(--dim);text-align:center;position:relative;transition:background .2s}
+.pstep.on{color:#05070a;font-weight:700}
+.pst-r{padding:9px 20px;font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;gap:16px;border-left:1px solid var(--line)}
+
+/* ── tabs ── */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--line2);padding:0 22px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{font-family:var(--cond);padding:11px 16px;font-size:13px;font-weight:600;letter-spacing:.075em;color:var(--muted);
+  background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .18s;text-transform:uppercase}
+.tab:hover{color:var(--text);background:rgba(107,140,174,.06)}
+.tab.active{color:var(--amber);border-bottom-color:var(--amber);background:linear-gradient(180deg,rgba(255,176,31,.09),transparent)}
+
+/* ── filters ── */
+.fbar{display:flex;align-items:center;gap:17px;flex-wrap:wrap;padding:9px 22px;background:var(--bg2);border-bottom:1px solid var(--line)}
+.fg{display:flex;align-items:center;gap:7px}
+.fl{font-family:var(--cond);font-size:10px;color:var(--dim);letter-spacing:.12em}
+select.fs{background:var(--panel);color:var(--text);border:1px solid var(--line2);padding:5px 9px;font-size:11.5px;
+  font-family:'Barlow',sans-serif;cursor:pointer;outline:none;border-radius:0}
+select.fs:hover,select.fs:focus{border-color:var(--amber)}
+.fspace{flex:1}
+.fnote{font-family:var(--mono);font-size:10px;color:var(--dim)}
+
+/* ── layout ── */
+.stage{padding:18px 22px 54px;max-width:1660px;margin:0 auto;animation:up .3s ease}
+.sh{display:flex;align-items:center;gap:13px;margin:22px 0 11px}
+.sh:first-child{margin-top:0}
+.sh h2{font-family:var(--cond);font-size:16px;font-weight:700;letter-spacing:.07em}
+.sh .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent)}
+.sh .meta{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.g{display:grid;gap:12px;margin-bottom:12px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
+.g23{grid-template-columns:2fr 1fr}.g32{grid-template-columns:1fr 2fr}
+
+/* ── panels: hard-edged, corner-notched ── */
+.pnl{background:var(--panel);border:1px solid var(--line2);padding:14px 16px;position:relative}
+.pnl::before,.pnl::after{content:'';position:absolute;width:7px;height:7px;border-color:var(--line3);border-style:solid}
+.pnl::before{top:-1px;left:-1px;border-width:1px 0 0 1px}
+.pnl::after{bottom:-1px;right:-1px;border-width:0 1px 1px 0}
+.pnl-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:3px}
+.pnl-h h3{font-family:var(--cond);font-size:13px;font-weight:600;letter-spacing:.075em}
+.pnl-s{font-size:11px;color:var(--dim);margin-bottom:12px;line-height:1.5}
+.chip{font-family:var(--mono);font-size:9px;font-weight:500;padding:2px 7px;border:1px solid;letter-spacing:.04em;white-space:nowrap}
+.c-red{border-color:rgba(255,59,78,.5);color:var(--red);background:rgba(255,59,78,.09)}
+.c-amber{border-color:rgba(255,176,31,.5);color:var(--amber);background:rgba(255,176,31,.09)}
+.c-green{border-color:rgba(61,220,132,.45);color:var(--green);background:rgba(61,220,132,.08)}
+.c-teal{border-color:rgba(45,212,191,.45);color:var(--teal);background:rgba(45,212,191,.08)}
+.c-steel{border-color:var(--line3);color:var(--muted)}
+.chart{position:relative;width:100%;height:255px}
+.chart>canvas{position:absolute;top:0;left:0}
+.chart-s{height:200px}
+
+/* ── KPI tiles ── */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:10px;margin-bottom:14px}
+@media(min-width:1380px){.kpis.ten{grid-template-columns:repeat(5,1fr)}}
+.kpi{background:var(--panel);border:1px solid var(--line2);padding:12px 14px;position:relative;cursor:pointer;transition:border-color .18s,background .18s}
+.kpi:hover{border-color:var(--line3);background:var(--panel2)}
+.kpi .bar{position:absolute;left:0;top:0;bottom:0;width:2px}
+.kpi .l{font-family:var(--cond);font-size:10.5px;color:var(--muted);letter-spacing:.1em}
+.kpi .v{font-family:var(--mono);font-size:23px;font-weight:500;margin-top:5px;letter-spacing:-.5px}
+.kpi .d{font-size:10px;color:var(--dim);margin-top:4px;line-height:1.4}
+
+/* ── world map ── */
+.mapwrap{position:relative;background:linear-gradient(180deg,#070b11,#050709);border:1px solid var(--line2)}
+.map{display:block;width:100%;height:auto;max-height:min(62vh,560px)}
+.land{fill:#101a25;stroke:#20303f;stroke-width:.8}
+.node{cursor:pointer}
+.node circle.core{transition:r .18s}
+.node:hover circle.core{r:9}
+.node text{font-family:var(--mono);font-size:9px;fill:var(--muted);pointer-events:none}
+.overlays{display:flex;gap:0;border-top:1px solid var(--line2);background:var(--bg2)}
+.ov{flex:1;padding:8px 6px;font-family:var(--cond);font-size:11px;letter-spacing:.09em;color:var(--dim);
+  background:none;border:none;border-right:1px solid var(--line);cursor:pointer;transition:all .18s;text-transform:uppercase}
+.ov:last-child{border-right:none}
+.ov:hover{color:var(--text);background:rgba(107,140,174,.07)}
+.ov.on{color:#05070a;font-weight:700}
+
+/* ── vendor graph ── */
+.graph{display:block;width:100%;height:auto;max-height:min(66vh,620px);background:linear-gradient(180deg,#070b11,#050709);border:1px solid var(--line2)}
+.edge{stroke:#243447;stroke-width:1;transition:stroke .2s,stroke-width .2s}
+.edge.hot{stroke:var(--red);stroke-width:2}
+.vnode{cursor:pointer}
+.vnode rect,.vnode circle{transition:all .18s}
+.vnode text{font-family:var(--mono);font-size:8.5px;fill:var(--muted);pointer-events:none}
+.vnode.hot text{fill:var(--text)}
+
+/* ── tables ── */
+.tw{overflow:auto;max-height:420px;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead{position:sticky;top:0;z-index:3}
+th{background:var(--panel2);color:var(--muted);font-family:var(--cond);font-weight:600;font-size:10.5px;letter-spacing:.09em;
+  padding:8px 10px;text-align:left;border-bottom:1px solid var(--line2);white-space:nowrap;text-transform:uppercase}
+th.n{text-align:right}
+td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+tr.hv{cursor:pointer}
+tr.hv:hover td{background:rgba(255,176,31,.07)}
+td .sub{display:block;font-size:9.5px;color:var(--dim);margin-top:2px;font-family:var(--mono)}
+
+/* ── bars & meters ── */
+.br{display:grid;grid-template-columns:158px 1fr 62px;gap:10px;align-items:center;padding:5px 0;font-size:11.5px}
+.br-l{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.br-t{height:12px;background:var(--panel3);position:relative;overflow:hidden}
+.br-f{height:100%;transition:width .5s ease}
+.br-v{text-align:right;font-family:var(--mono);font-size:10.5px;font-weight:500}
+.meter{display:flex;gap:2px;margin-top:7px}
+.mseg{flex:1;height:6px;background:var(--panel3)}
+
+/* ── incidents ── */
+.inc{display:flex;gap:12px;align-items:flex-start;padding:11px 13px;border:1px solid var(--line);border-left:3px solid var(--amber);
+  background:var(--panel);margin-bottom:8px;cursor:pointer;transition:transform .18s,border-color .18s}
+.inc:hover{transform:translateX(3px);border-color:var(--line3)}
+.inc-id{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:62px}
+.inc-t{font-size:12px;font-weight:600}
+.inc-d{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.inc-m{font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:5px}
+
+/* ── scenarios ── */
+.scen{display:grid;grid-template-columns:repeat(auto-fit,minmax(252px,1fr));gap:11px}
+.sc{background:var(--panel);border:1px solid var(--line2);padding:14px 15px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.sc:hover{border-color:var(--amber);transform:translateY(-2px)}
+.sc.on{border-color:var(--amber);background:linear-gradient(160deg,rgba(255,176,31,.1),var(--panel))}
+.sc-ico{font-size:19px;margin-bottom:8px}
+.sc-t{font-family:var(--cond);font-size:14px;font-weight:600;letter-spacing:.05em}
+.sc-d{font-size:10.5px;color:var(--dim);margin-top:5px;line-height:1.5}
+.sc-p{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+.simbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:13px 16px;background:var(--panel2);border:1px solid var(--line2);margin-bottom:12px}
+.simbar .lbl{font-family:var(--cond);font-size:11px;color:var(--muted);letter-spacing:.1em}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--panel3);outline:none;cursor:pointer;width:190px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;background:var(--amber);cursor:pointer;border-radius:0;box-shadow:0 0 9px rgba(255,176,31,.6)}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;background:var(--amber);cursor:pointer;border-radius:0}
+.sev{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--amber);min-width:86px}
+
+/* ── playbooks ── */
+.pb{border:1px solid var(--line2);background:var(--panel);margin-bottom:10px;transition:border-color .2s}
+.pb.active{border-color:var(--green)}
+.pb-h{display:flex;align-items:center;gap:13px;padding:13px 15px;cursor:pointer}
+.pb-n{font-family:var(--mono);font-size:11px;color:var(--dim);min-width:46px}
+.pb-t{font-family:var(--cond);font-size:14px;font-weight:600;letter-spacing:.05em;flex:1}
+.pb-b{padding:0 15px 15px 74px;font-size:11.5px;color:var(--muted);line-height:1.6}
+.pb-step{display:flex;gap:11px;padding:6px 0;border-bottom:1px solid var(--line)}
+.pb-step:last-child{border-bottom:none}
+.pb-step .n{font-family:var(--mono);font-size:10px;color:var(--amber);min-width:18px}
+.btn{font-family:var(--cond);font-size:11px;font-weight:600;letter-spacing:.11em;padding:6px 14px;background:none;
+  border:1px solid var(--line3);color:var(--muted);cursor:pointer;transition:all .18s;text-transform:uppercase}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn.go{border-color:var(--green);color:var(--green);background:rgba(61,220,132,.08)}
+
+/* ── stats ── */
+.st{border:1px solid var(--line2);background:var(--panel);padding:11px 13px}
+.st .l{font-family:var(--cond);font-size:10.5px;color:var(--muted);letter-spacing:.1em}
+.st .v{font-family:var(--mono);font-size:19px;font-weight:500;margin-top:4px}
+.st .d{font-size:10px;color:var(--dim);margin-top:3px;line-height:1.45}
+
+/* ── hover card ── */
+.hc{position:fixed;z-index:900;background:#0c141d;border:1px solid var(--line3);padding:13px 15px;width:324px;
+  max-height:84vh;overflow-y:auto;box-shadow:0 20px 54px rgba(0,0,0,.8);pointer-events:none;opacity:0;transition:opacity .15s}
+.hc.on{opacity:1}
+.hc h4{font-family:var(--cond);font-size:12.5px;font-weight:700;color:var(--amber);letter-spacing:.09em;margin-bottom:9px}
+.hr{display:flex;justify-content:space-between;gap:11px;padding:4px 0;font-size:10.5px;border-bottom:1px solid rgba(255,255,255,.04)}
+.hr:last-of-type{border-bottom:none}
+.hr .k{color:var(--muted)}
+.hr .v{font-family:var(--mono);font-weight:500}
+.hc-n{margin-top:9px;padding-top:8px;border-top:1px solid var(--line2);font-size:10px;color:var(--muted);line-height:1.55}
+
+/* ── modal ── */
+.bd{position:fixed;inset:0;background:rgba(2,4,7,.8);z-index:940;opacity:0;pointer-events:none;transition:opacity .2s}
+.bd.on{opacity:1;pointer-events:auto}
+.md{position:fixed;top:50%;left:50%;transform:translate(-50%,-48%);width:min(800px,calc(100vw - 34px));max-height:85vh;
+  overflow-y:auto;background:var(--panel);border:1px solid var(--line3);z-index:950;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;box-shadow:0 40px 90px rgba(0,0,0,.76)}
+.md.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+.md-h{padding:18px 22px 13px;border-bottom:1px solid var(--line2);display:flex;justify-content:space-between;gap:15px;
+  align-items:flex-start;position:sticky;top:0;background:var(--panel);z-index:2}
+.md-h h2{font-family:var(--cond);font-size:19px;font-weight:700;letter-spacing:.055em}
+.md-h p{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:4px}
+.mx{background:none;border:1px solid var(--line2);color:var(--muted);width:28px;height:28px;cursor:pointer;font-size:14px;flex-shrink:0}
+.mx:hover{color:var(--red);border-color:var(--red)}
+.md-b{padding:17px 22px 23px}
+.mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px;margin-bottom:16px}
+.ms{margin-top:15px}
+.ms h4{font-family:var(--cond);font-size:11.5px;font-weight:600;color:var(--ice);letter-spacing:.1em;margin-bottom:8px}
+.ms p{font-size:12px;color:var(--muted);line-height:1.68}
+.ml{list-style:none}
+.ml li{font-size:11.5px;color:var(--muted);padding:7px 0 7px 21px;position:relative;line-height:1.55;border-bottom:1px solid rgba(255,255,255,.04)}
+.ml li::before{content:'▸';position:absolute;left:0;color:var(--amber)}
+.ml li:last-child{border-bottom:none}
+
+.note{margin-top:28px;padding:12px 15px;border:1px solid var(--line);border-left:3px solid var(--line3);
+  font-size:10.5px;color:var(--dim);line-height:1.65}
+.note b{color:var(--muted)}
+
+@media(max-width:1240px){.g4,.g5{grid-template-columns:repeat(2,1fr)}.g3,.g23,.g32{grid-template-columns:1fr}}
+@media(max-width:840px){.g2,.g4,.g5{grid-template-columns:1fr}.stage{padding:14px 12px 44px}.cmdbar{padding:10px 12px;position:relative}
+  .tabs,.fbar{padding-left:12px;padding-right:12px}.hc{display:none}.posture{flex-direction:column}.pst-l,.pst-r{border-right:none;border-left:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="bd" id="bd"></div>
+<div class="md" id="md"></div>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   ENTERPRISE RESILIENCE & SCENARIO WAR ROOM
+   Synthetic dataset. Reference org: "Arclight Industrial" — global
+   manufacturer, $6.8B revenue, 41 plants, 1,840 suppliers, 62 countries.
+   ═══════════════════════════════════════════════════════════════ */
+
+const TABS = [
+  { id:'overview', label:'Resilience Overview' },
+  { id:'map',      label:'Global Risk Map' },
+  { id:'supply',   label:'Supply Chain Health' },
+  { id:'vendor',   label:'Vendor Exposure' },
+  { id:'cyber',    label:'Cyber & Operational Risk' },
+  { id:'scenario', label:'Scenario Planning' },
+  { id:'playbook', label:'Response Playbooks' }
+];
+
+const POSTURE_LEVELS = [
+  { k:'SECURE',   c:'#3ddc84' }, { k:'GUARDED',  c:'#2dd4bf' }, { k:'ELEVATED', c:'#ffb01f' },
+  { k:'HIGH',     c:'#ff8c42' }, { k:'SEVERE',   c:'#ff3b4e' }
+];
+const CURRENT_POSTURE = 2;   // ELEVATED
+
+const MONTHS = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'];
+
+/* ── coarse world outline, in degrees; projected at render time ── */
+const LAND = [
+  [[-168,66],[-156,71],[-140,70],[-125,70],[-100,73],[-82,73],[-62,66],[-55,52],[-64,48],[-67,45],[-70,43],[-75,36],[-81,26],[-84,30],[-90,29],[-97,26],[-105,20],[-112,26],[-117,32],[-124,40],[-124,48],[-133,55],[-150,60],[-165,62]],
+  [[-81,8],[-76,11],[-66,11],[-60,8],[-52,5],[-44,-2],[-35,-6],[-39,-14],[-48,-24],[-54,-34],[-58,-39],[-63,-42],[-66,-46],[-70,-53],[-75,-51],[-73,-44],[-72,-36],[-71,-24],[-70,-18],[-76,-14],[-79,-6],[-80,0]],
+  [[-17,15],[-16,21],[-10,28],[-2,32],[10,34],[20,32],[32,31],[34,28],[35,22],[38,16],[43,12],[51,12],[48,4],[42,-1],[40,-10],[36,-18],[33,-26],[28,-32],[20,-34],[16,-28],[12,-16],[9,-2],[3,5],[-5,5],[-11,8],[-15,12]],
+  [[-10,43],[-9,38],[-6,36],[0,38],[7,43],[12,45],[16,41],[19,40],[24,41],[29,41],[30,45],[34,46],[38,47],[40,50],[35,55],[30,60],[28,66],[22,70],[15,68],[11,63],[8,58],[4,52],[-2,50],[-5,48]],
+  [[35,55],[45,55],[60,60],[75,68],[90,73],[105,77],[120,74],[135,72],[150,70],[162,68],[170,64],[163,60],[155,56],[143,52],[135,45],[130,42],[122,38],[121,31],[112,22],[109,12],[104,2],[100,6],[98,14],[93,20],[88,22],[80,10],[77,8],[73,20],[68,24],[62,25],[57,25],[50,28],[45,36],[40,40],[36,42],[40,50]],
+  [[113,-22],[120,-19],[128,-14],[136,-12],[142,-11],[146,-18],[150,-24],[153,-29],[150,-38],[143,-39],[136,-35],[129,-32],[120,-34],[114,-28]],
+  [[130,32],[136,35],[141,41],[145,44],[142,45],[138,37],[133,33]],
+  [[-6,50],[-2,53],[-3,58],[-6,57],[-6,52]],
+  [[166,-46],[174,-41],[178,-37],[175,-36],[168,-44]],
+  [[43,-12],[50,-16],[47,-25],[44,-20]],
+  [[-45,60],[-20,70],[-20,77],[-60,77],[-55,70]]
+];
+
+/* ── regional risk nodes ── */
+const NODES = [
+  { id:'us-mw', name:'US Midwest', hub:'Chicago', lon:-88, lat:41, rev:980, sup:212, sites:9,
+    geo:14, weather:38, labor:31, logistics:22, cyber:44,
+    note:'The largest concentration of owned production and the lowest external risk. Exposure here is operational, not geopolitical.' },
+  { id:'us-gulf', lp:'s', name:'US Gulf Coast', hub:'Houston', lon:-95, lat:29, rev:520, sup:118, sites:5,
+    geo:12, weather:81, labor:28, logistics:34, cyber:41,
+    note:'Hurricane season carries a predictable annual outage window. Predictable is not the same as planned for — two of five sites have no alternate routing.' },
+  { id:'mx', lp:'w', name:'Mexico', hub:'Monterrey', lon:-100, lat:25, rev:410, sup:96, sites:4,
+    geo:34, weather:24, labor:52, logistics:41, cyber:38,
+    note:'Nearshoring has doubled volume here in three years. Labour availability, not capacity, is now the constraint.' },
+  { id:'br', name:'Brazil', hub:'São Paulo', lon:-46, lat:-23, rev:230, sup:64, sites:3,
+    geo:41, weather:33, labor:46, logistics:58, cyber:36,
+    note:'Inland logistics add 11 days to any lane that misses its port window.' },
+  { id:'uk', lp:'w', name:'UK & Ireland', hub:'Manchester', lon:-2, lat:53, rev:280, sup:71, sites:3,
+    geo:26, weather:29, labor:34, logistics:44, cyber:52,
+    note:'Customs friction is now a standing cost rather than an event. Lead times have reset 4 days longer than pre-2021 and have not recovered.' },
+  { id:'weu', lp:'s', name:'Western Europe', hub:'Rotterdam', lon:4, lat:52, rev:740, sup:186, sites:7,
+    geo:28, weather:26, labor:38, logistics:47, cyber:56,
+    note:'Rotterdam is the single busiest node in the European network. A one-week closure reroutes through Antwerp at 2.4× cost.' },
+  { id:'ceu', lp:'n', name:'Central Europe', hub:'Kraków', lon:19, lat:52, rev:390, sup:142, sites:6,
+    geo:64, weather:22, labor:41, logistics:38, cyber:61,
+    note:'Geopolitical risk here is the fastest-moving number on this map. Energy contracts reprice quarterly and three suppliers have no fixed-price cover past Q1.' },
+  { id:'me', name:'Middle East', hub:'Dubai', lon:55, lat:25, rev:260, sup:58, sites:2,
+    geo:72, weather:36, labor:29, logistics:68, cyber:48,
+    note:'Red Sea routing adds 12–18 days and roughly $2,400 per container when the alternate is taken. It has been taken for most of the year.' },
+  { id:'in', name:'India', hub:'Chennai', lon:80, lat:13, rev:480, sup:224, sites:6,
+    geo:38, weather:54, labor:62, logistics:51, cyber:46,
+    note:'Fastest-growing supply base and the fastest-growing labour cost. Monsoon disruption is seasonal and modelled; labour action is neither.' },
+  { id:'sea', lp:'s', name:'Southeast Asia', hub:'Singapore', lon:104, lat:1, rev:620, sup:164, sites:5,
+    geo:44, weather:48, labor:44, logistics:74, cyber:51,
+    note:'The strait is the chokepoint for 34% of inbound component value. There is no land alternative, only a longer sea one.' },
+  { id:'cn', name:'China', hub:'Shenzhen', lon:114, lat:23, rev:1240, sup:386, sites:8,
+    geo:78, weather:42, labor:49, logistics:66, cyber:69,
+    note:'The largest single-country exposure in the book: 27% of tier-1 spend and 41% of tier-2 spend, much of it invisible until a tier-1 stops shipping.' },
+  { id:'nea', lp:'e', name:'Northeast Asia', hub:'Busan', lon:129, lat:35, rev:560, sup:148, sites:4,
+    geo:58, weather:44, labor:36, logistics:57, cyber:64,
+    note:'Semiconductor and precision-component dependency concentrates here. Substitution time is measured in quarters, not weeks.' },
+  { id:'au', name:'Australia', hub:'Sydney', lon:151, lat:-34, rev:190, sup:42, sites:2,
+    geo:16, weather:46, labor:33, logistics:52, cyber:39,
+    note:'Distance is the only real risk. Everything else is stable and everything arrives late.' },
+  { id:'za', name:'South Africa', hub:'Durban', lon:31, lat:-30, rev:130, sup:38, sites:2,
+    geo:48, weather:34, labor:57, logistics:71, cyber:42,
+    note:'Port congestion at Durban has exceeded 9 days for four consecutive months. Rail alternatives are theoretical.' }
+];
+const OVERLAYS = [
+  { k:'composite', label:'Composite', col:'#ffb01f' },
+  { k:'geo', label:'Geopolitical', col:'#ff3b4e' },
+  { k:'weather', label:'Weather', col:'#67e8f9' },
+  { k:'labor', label:'Labour', col:'#9d7bff' },
+  { k:'logistics', label:'Logistics', col:'#2dd4bf' },
+  { k:'cyber', label:'Cyber', col:'#ff8c42' }
+];
+const composite = n => Math.round(n.geo * .3 + n.logistics * .25 + n.cyber * .2 + n.labor * .15 + n.weather * .1);
+
+/* ── tier-1 suppliers ── */
+const SUPPLIERS = [
+  { id:'s1', name:'Hanwei Precision', cat:'Machined components', region:'cn', spend:184, risk:82, single:true,
+    otd:88.4, lead:46, vari:11.2, fin:'B−', alt:'None qualified', tier2:['t1','t3','t7'],
+    note:'The single largest concentration risk in the book. Sole-source on 14 part numbers, three of which have no drawing package outside the supplier.' },
+  { id:'s2', name:'Meridian Polymers', cat:'Engineered resins', region:'weu', spend:142, risk:44, single:false,
+    otd:96.1, lead:28, vari:4.1, fin:'A−', alt:'2 qualified', tier2:['t2','t4'],
+    note:'Stable, dual-sourced, and the benchmark for what the rest of the base should look like.' },
+  { id:'s3', name:'Kyusan Electronics', cat:'Control modules', region:'nea', spend:168, risk:71, single:true,
+    otd:91.2, lead:62, vari:14.8, fin:'BBB', alt:'1 in qualification',
+    tier2:['t3','t5','t8'],
+    note:'Sole-source on the controller family. A qualified alternate is 7 months into a 9-month qualification — the gap is the risk.' },
+  { id:'s4', name:'Aurelia Castings', cat:'Aluminium castings', region:'ceu', spend:96, risk:64, single:false,
+    otd:89.6, lead:34, vari:9.4, fin:'BB', alt:'2 qualified', tier2:['t4','t6'],
+    note:'Energy-cost exposed. Fixed-price cover expires in Q1 and the renewal quote is 31% higher.' },
+  { id:'s5', name:'Nordkap Steel', cat:'Structural steel', region:'weu', spend:128, risk:38, single:false,
+    otd:97.4, lead:22, vari:3.2, fin:'A', alt:'3 qualified', tier2:['t6'],
+    note:'Commodity, multi-sourced, low drama. The right profile for a category with no differentiation.' },
+  { id:'s6', name:'Chennai Harness Works', cat:'Wiring harnesses', region:'in', spend:74, risk:58, single:false,
+    otd:92.8, lead:38, vari:8.6, fin:'BB+', alt:'2 qualified', tier2:['t5','t7'],
+    note:'Labour-intensive and exposed to regional wage action. Two work stoppages in eighteen months, both resolved inside a week.' },
+  { id:'s7', name:'Strait Logistics Group', cat:'Freight & 3PL', region:'sea', spend:112, risk:69, single:true,
+    otd:84.2, lead:18, vari:16.4, fin:'BBB−', alt:'1 qualified', tier2:['t9'],
+    note:'Not a parts supplier but a single point of failure all the same: 34% of inbound component value moves on their bookings.' },
+  { id:'s8', name:'Gulf Coast Chemicals', cat:'Specialty coatings', region:'us-gulf', spend:68, risk:52, single:false,
+    otd:94.1, lead:26, vari:6.8, fin:'A−', alt:'2 qualified', tier2:['t10'],
+    note:'Hurricane-window exposure is the whole risk profile, and it is on the calendar every year.' }
+];
+
+/* ── tier-2 dependencies, several shared across tier-1s ── */
+const TIER2 = [
+  { id:'t1', name:'Fujian Rare Metals', cat:'Raw material', region:'cn', risk:88, shared:3 },
+  { id:'t2', name:'Rhine Additives', cat:'Chemical', region:'weu', risk:41, shared:1 },
+  { id:'t3', name:'Shenzhen Microfab', cat:'Semiconductor', region:'cn', risk:84, shared:2 },
+  { id:'t4', name:'Baltic Alloys', cat:'Raw material', region:'ceu', risk:62, shared:2 },
+  { id:'t5', name:'Penang Assembly', cat:'Sub-assembly', region:'sea', risk:57, shared:2 },
+  { id:'t6', name:'Ural Ferroalloys', cat:'Raw material', region:'ceu', risk:76, shared:2 },
+  { id:'t7', name:'Dongguan Connectors', cat:'Component', region:'cn', risk:72, shared:2 },
+  { id:'t8', name:'Kumamoto Substrates', cat:'Semiconductor', region:'nea', risk:66, shared:1 },
+  { id:'t9', name:'Malacca Port Services', cat:'Logistics', region:'sea', risk:74, shared:1 },
+  { id:'t10', name:'Houston Petrochem', cat:'Chemical', region:'us-gulf', risk:49, shared:1 }
+];
+
+/* ── inventory & continuity ── */
+const INVENTORY = [
+  { line:'Industrial Drives',   cover:18, target:30, atRisk:64, rev:1840 },
+  { line:'Power Systems',       cover:26, target:30, atRisk:41, rev:1620 },
+  { line:'Automation Controls', cover:11, target:28, atRisk:78, rev:1380 },
+  { line:'Thermal Management',  cover:34, target:30, atRisk:12, rev:940 },
+  { line:'Service & Spares',    cover:42, target:45, atRisk:19, rev:1020 }
+];
+const CONTINUITY = [96.8,96.1,95.4,95.9,94.8,95.2,94.1,93.6,94.4,93.9,94.6,94.2];
+const OTD_TREND  = [93.4,92.8,92.1,92.6,91.4,91.8,90.9,90.2,91.1,90.6,91.4,91.2];
+
+/* ── cyber & operational ── */
+const CYBER_INCIDENTS = [
+  { m:'Oct', crit:0, high:2, med:6, low:11 }, { m:'Nov', crit:0, high:1, med:8, low:14 },
+  { m:'Dec', crit:1, high:3, med:7, low:12 }, { m:'Jan', crit:0, high:2, med:9, low:16 },
+  { m:'Feb', crit:0, high:4, med:11, low:18 }, { m:'Mar', crit:1, high:3, med:8, low:14 },
+  { m:'Apr', crit:0, high:2, med:10, low:15 }, { m:'May', crit:0, high:3, med:12, low:19 },
+  { m:'Jun', crit:1, high:5, med:9, low:13 }, { m:'Jul', crit:0, high:4, med:11, low:17 },
+  { m:'Aug', crit:1, high:6, med:14, low:21 }, { m:'Sep', crit:2, high:5, med:12, low:18 }
+];
+const CRITICAL_SYSTEMS = [
+  { sys:'Plant MES — Shenzhen', crit:'Tier 0', exposure:'High', patch:38, seg:'Partial', rto:'4h', rev:1240 },
+  { sys:'ERP core (finance + supply)', crit:'Tier 0', exposure:'Medium', patch:96, seg:'Full', rto:'2h', rev:6800 },
+  { sys:'Warehouse control — Rotterdam', crit:'Tier 1', exposure:'High', patch:52, seg:'Partial', rto:'8h', rev:740 },
+  { sys:'SCADA — Gulf Coast', crit:'Tier 0', exposure:'Critical', patch:41, seg:'None', rto:'6h', rev:520 },
+  { sys:'Supplier portal (external)', crit:'Tier 1', exposure:'High', patch:88, seg:'Full', rto:'12h', rev:0 },
+  { sys:'Logistics TMS', crit:'Tier 1', exposure:'Medium', patch:74, seg:'Full', rto:'6h', rev:0 },
+  { sys:'Plant MES — Kraków', crit:'Tier 1', exposure:'Medium', patch:69, seg:'Partial', rto:'8h', rev:390 }
+];
+const DOWNTIME = [4.2,3.8,6.1,3.4,5.2,4.6,3.1,4.8,7.4,5.1,8.2,6.4];
+
+const INCIDENTS = [
+  { id:'INC-2291', t:'Durban port congestion exceeds 9 days for a fourth month', sev:'High', col:'var(--red)',
+    d:'Average dwell at Durban is 9.4 days against a 3-day plan. 38 containers of structural steel and coatings are sitting against a production window that closes in 11 days.',
+    m:'owner: Logistics · opened 4 days ago · playbook PB-01 available', rev:130 },
+  { id:'INC-2288', t:'Hanwei Precision financial rating cut to B−', sev:'Critical', col:'var(--red)',
+    d:'Our single largest sole-source supplier was downgraded on deteriorating working capital. 14 part numbers have no qualified alternate, and three have no drawing package outside the supplier.',
+    m:'owner: Procurement · opened 9 days ago · playbook PB-02 available', rev:1240 },
+  { id:'INC-2284', t:'Elevated intrusion attempts against the supplier portal', sev:'Medium', col:'var(--amber)',
+    d:'Credential-stuffing volume against the external supplier portal is 14× baseline. No successful authentications; the portal is fully segmented and MFA-enforced.',
+    m:'owner: Security · opened 2 days ago · contained', rev:0 },
+  { id:'INC-2279', t:'Automation Controls inventory cover falls to 11 days', sev:'High', col:'var(--red)',
+    d:'Cover on the highest-margin product line is 11 days against a 28-day target, driven by Kyusan controller lead times stretching to 62 days.',
+    m:'owner: Supply Planning · opened 12 days ago · playbook PB-03 available', rev:1380 },
+  { id:'INC-2276', t:'Aurelia Castings energy cover expires in Q1', sev:'Medium', col:'var(--amber)',
+    d:'Fixed-price energy cover for our Central European castings supplier ends in Q1. The renewal quote implies a 31% increase, of which roughly two thirds would pass through to our landed cost.',
+    m:'owner: Procurement · opened 3 weeks ago · commercial review', rev:390 }
+];
+
+/* ── scenarios: figures below are stated at severity 3 and scale with it ── */
+const SEV_FACTOR = [0.35, 0.65, 1, 1.55, 2.30];
+const SEV_NAME = ['Contained','Limited','Planning case','Severe','Worst credible'];
+
+const SCENARIOS = [
+  { id:'port', ico:'⚓', name:'Port closure in Asia', regions:['sea','cn','nea'],
+    d:'The Strait of Malacca closes to commercial traffic. 34% of inbound component value is on that water.',
+    trigger:'Navigational closure, 21 days', rev:284, delay:26, cust:1840, recover:41, conf:'Modelled',
+    playbooks:['PB-01','PB-04','PB-05'],
+    response:'Reroute through the Lombok and Sunda straits at 9–14 additional days, air-freight the Automation Controls bill of materials only, and hold Thermal Management at current build rate — it has 34 days of cover and does not need the capacity.',
+    detail:'This is the scenario the network is least able to absorb, because the alternative is not a different supplier but a longer ocean. Air freight closes the gap for roughly 6% of volume by weight and 41% by value, which is the only reason the revenue number is not double.' },
+  { id:'cloud', ico:'☁', name:'Major cloud outage', regions:['us-mw','weu','cn'],
+    d:'A multi-region outage at the primary cloud provider takes ERP, TMS and three plant MES instances offline.',
+    trigger:'Provider region failure, 14 hours', rev:96, delay:3, cust:640, recover:6, conf:'Tested',
+    playbooks:['PB-06','PB-05'],
+    response:'Fail ERP to the secondary region (tested, 2-hour RTO), run the three affected plants on local paper-backed sequencing for one shift, and suspend outbound commitments rather than promising dates the TMS cannot confirm.',
+    detail:'The tested failover is what keeps this scenario cheap. The untested part is the plant MES layer: two of the three instances have never been failed over under load, and the recovery estimate for those is an assumption rather than a measurement.' },
+  { id:'bankrupt', ico:'⚠', name:'Critical supplier bankruptcy', regions:['cn'],
+    d:'Hanwei Precision enters administration. 14 sole-source part numbers stop shipping with no qualified alternate.',
+    trigger:'Insolvency filing', rev:412, delay:68, cust:2240, recover:112, conf:'Modelled',
+    playbooks:['PB-02','PB-03','PB-05'],
+    response:'Secure the tooling and drawing packages before the administrator does, place a bridge order against existing inventory at the supplier, and start emergency qualification on the two alternates already surveyed — nine months compressed to four, at roughly 3.2× unit cost.',
+    detail:'The financial rating was cut nine days ago and this scenario moved from theoretical to planning-grade the same afternoon. The expensive part is not the parts, it is that three part numbers have no drawing package anywhere outside the supplier — if the administrator controls that IP, qualification cannot start at all.' },
+  { id:'tariff', ico:'§', name:'Tariff increase', regions:['cn','sea','mx'],
+    d:'A 25-point tariff lands on the largest inbound category from the primary sourcing region.',
+    trigger:'Policy change, 90-day notice', rev:168, delay:0, cust:0, recover:180, conf:'Modelled',
+    playbooks:['PB-03','PB-04'],
+    response:'Pull forward 60 days of cover inside the notice window, accelerate the Mexico dual-source qualification already in flight, and model the price pass-through by product line before the commercial conversation, not during it.',
+    detail:'The only scenario on this list with no delay days and no immediate customer impact — and the second most expensive over twelve months. It is also the only one where the notice period is long enough to genuinely change the outcome, which is exactly why it tends to be under-prepared.' },
+  { id:'ransom', ico:'⛊', name:'Ransomware event', regions:['cn','us-gulf','weu'],
+    d:'Encryption reaches the Shenzhen MES and the Gulf Coast SCADA environment through a shared vendor remote-access path.',
+    trigger:'Lateral movement from a third-party account', rev:238, delay:9, cust:1420, recover:24, conf:'Exercised',
+    playbooks:['PB-06','PB-05','PB-04'],
+    response:'Isolate the OT segments immediately and accept the production loss rather than risk propagation, restore from offline backups (last verified restore: 38 days ago), and run customer notification on the legal clock, not the recovery clock.',
+    detail:'Two of the three systems in the blast radius are partially segmented and one is not segmented at all. The recovery estimate assumes backups restore cleanly; the last verified restore test was 38 days ago, which is inside policy and outside comfortable.' }
+];
+
+const PLAYBOOKS = [
+  { id:'PB-01', t:'Reroute supply', owner:'Logistics · S. Adeyemi', time:'4 hours to activate', pre:'Alternate lane contracts current',
+    d:'Move affected volume to pre-contracted alternate lanes and re-sequence inbound against the production window rather than the original ETA.',
+    steps:['Freeze new bookings on the affected lane before the backlog builds behind it',
+      'Release pre-negotiated alternate-lane capacity — 2 of 4 lanes are contracted, the other 2 are spot',
+      'Re-sequence inbound by production window, not by original promised date',
+      'Publish the revised ETA set to planning within 4 hours, even where it is bad news'],
+    cost:'$2,400 per container on the Red Sea alternate', effect:'Recovers 60–70% of delayed volume inside 14 days' },
+  { id:'PB-02', t:'Activate alternate supplier', owner:'Procurement · J. Alvarez', time:'5 days to first parts',
+    pre:'Alternate qualified, or emergency qualification accepted',
+    d:'Stand up a qualified alternate, or compress qualification where none exists, and secure the tooling and IP before anyone else does.',
+    steps:['Secure tooling, fixtures and drawing packages — this step is first for a reason and it is legal, not technical',
+      'Place a bridge order against inventory held at the incumbent while it is still shippable',
+      'Release emergency qualification on surveyed alternates: 9 months compressed to 4',
+      'Accept the cost premium explicitly at executive level rather than absorbing it quietly in the plant'],
+    cost:'≈3.2× unit cost during qualification', effect:'First qualified parts in 16 weeks, full rate at 22' },
+  { id:'PB-03', t:'Prioritize high-margin SKUs', owner:'Supply Planning · M. Duarte', time:'1 shift',
+    pre:'Current margin-by-SKU model within 30 days',
+    d:'When capacity is short, allocate it deliberately by margin and strategic account rather than by whoever shouts loudest.',
+    steps:['Freeze the allocation model — it has to be set before the phone starts ringing, not after',
+      'Allocate constrained components to Automation Controls and Industrial Drives first',
+      'Hold Thermal Management at current rate; it has 34 days of cover and does not need the parts',
+      'Publish the allocation logic to Sales so the conversation is about the rule, not the exception'],
+    cost:'Deferred revenue on de-prioritised lines', effect:'Protects ~74% of gross margin at ~61% of volume' },
+  { id:'PB-04', t:'Notify strategic customers', owner:'Commercial · P. Lindholm', time:'Within 24 hours',
+    pre:'Impact assessment complete to line-item level',
+    d:'Tell the accounts that matter before they find out, with a date you can hold rather than the date you wish were true.',
+    steps:['Segment by exposure, not by revenue — a small account with a single-source dependency is more exposed than a large diversified one',
+      'Contact the top 40 accounts inside 24 hours with a specific revised date, not a reassurance',
+      'Offer partial shipment and substitution options where they exist, in writing',
+      'Hold one date change. A second one costs more credibility than the original delay did'],
+    cost:'Commercial concessions, typically 1–3% of affected value', effect:'Historically halves escalation volume' },
+  { id:'PB-05', t:'Spin up recovery team', owner:'COO office · R. Bhatt', time:'2 hours',
+    pre:'Named standing roster, refreshed quarterly',
+    d:'Stand up a single decision-making body with the authority to spend, so the organisation stops waiting for permission.',
+    steps:['Activate the standing roster — named individuals, not functions, and a named deputy for each',
+      'Set the spend authority explicitly at activation: this is the step most often skipped and most often regretted',
+      'Twice-daily situation reporting for the first 72 hours, then daily',
+      'Define the stand-down criteria at activation, before anyone is invested in staying activated'],
+    cost:'Opportunity cost of 9 senior people', effect:'Cuts decision latency from days to hours' },
+  { id:'PB-06', t:'Isolate and restore', owner:'Security · T. Okonkwo', time:'Immediate',
+    pre:'Offline backups verified within 30 days',
+    d:'Contain first and accept the production loss; a contained outage is recoverable and a propagated one is not.',
+    steps:['Isolate affected OT segments immediately — production loss is the cost of containment, not a failure of it',
+      'Verify backup integrity before restoring, not during; a restored infection is a second incident',
+      'Restore in dependency order: identity, then ERP, then MES, then the edge',
+      'Start the regulatory notification clock at detection, and run it separately from the recovery effort'],
+    cost:'Full production loss in the isolated segment', effect:'Contains blast radius; restore in 18–24 hours if backups verify' }
+];
+
+/* ═══ state ═══ */
+let tab = 'overview';
+const F = { region:'all', unit:'all', tier:'all', sev:'all' };
+const SIM = { scenario:'port', severity:3 };
+const ACTIVE_PB = {};
+let charts = {};
+let overlay = 'composite';
+let hcEl = null, hcTarget = null;
+let hotVendor = null;
+
+/* ═══ helpers ═══ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const n0 = n => Math.round(n).toLocaleString('en-US');
+const n1 = (n,d=1) => Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const $M = n => n >= 1000 ? '$' + n1(n/1000,2) + 'B' : '$' + n0(n) + 'M';
+const riskCol = r => r >= 70 ? 'var(--red)' : r >= 50 ? 'var(--amber)' : r >= 30 ? 'var(--teal)' : 'var(--green)';
+const riskHex = r => r >= 70 ? '#ff3b4e' : r >= 50 ? '#ffb01f' : r >= 30 ? '#2dd4bf' : '#3ddc84';
+const riskWord = r => r >= 70 ? 'Critical' : r >= 50 ? 'Elevated' : r >= 30 ? 'Guarded' : 'Stable';
+
+/* Filters reslice the network. Region narrows the node and supplier set;
+   tier narrows the vendor graph; severity filters the incident list. */
+function nodes(){ return F.region === 'all' ? NODES : NODES.filter(n => n.id === F.region); }
+function suppliers(){ return F.region === 'all' ? SUPPLIERS : SUPPLIERS.filter(s => s.region === F.region); }
+function regionName(id){ const n = NODES.find(x => x.id === id); return n ? n.name : id; }
+const sumRev = () => nodes().reduce((s,n) => s + n.rev, 0);
+
+const chip = (txt, kind) => `<span class="chip c-${kind}">${esc(txt)}</span>`;
+const riskChip = r => chip(riskWord(r) + ' ' + r, r >= 70 ? 'red' : r >= 50 ? 'amber' : r >= 30 ? 'teal' : 'green');
+const st = (l,v,d,c) => `<div class="st"><div class="l">${esc(l)}</div>
+  <div class="v"${c?` style="color:${c}"`:''}>${v}</div>${d?`<div class="d">${esc(d)}</div>`:''}</div>`;
+
+function kpi(o){
+  return `<div class="kpi" data-hc="kpi" data-k="${o.k}">
+    <div class="bar" style="background:${o.color}"></div>
+    <div class="l">${esc(o.label)}</div>
+    <div class="v" style="color:${o.color}">${o.value}</div>
+    <div class="d">${esc(o.sub)}</div>
+  </div>`;
+}
+function br(label, val, max, color, disp){
+  const w = Math.max(1.5, Math.min(100, (val / max) * 100));
+  return `<div class="br"><div class="br-l" title="${esc(label)}">${esc(label)}</div>
+    <div class="br-t"><div class="br-f" style="width:${w}%;background:${color}"></div></div>
+    <div class="br-v">${disp}</div></div>`;
+}
+function meter(val, max, color){
+  const on = Math.round((val / max) * 10);
+  return `<div class="meter">${Array.from({length:10}, (_,i) =>
+    `<div class="mseg" style="background:${i < on ? color : 'var(--panel3)'}"></div>`).join('')}</div>`;
+}
+
+/* equirectangular projection into the map viewBox */
+const MAPW = 1000, MAPH = 370, LAT_TOP = 78, LAT_BOT = -55;
+const px = lon => ((lon + 180) / 360) * MAPW;
+const py = lat => ((LAT_TOP - lat) / (LAT_TOP - LAT_BOT)) * MAPH;
+
+/* ═══════════════════════════════════════════════════════════════
+   CHARTS
+   ═══════════════════════════════════════════════════════════════ */
+function killCharts(){ Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} }); charts = {}; }
+function mk(id, cfg){
+  const cv = document.getElementById(id);
+  if (!cv || typeof Chart === 'undefined') return;
+  // Chart.js reads these from `options`, not from the config root.
+  const base = { options: {
+    responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
+    plugins:{
+      legend:{ display:false, labels:{ color:'#7d8ea2', font:{ size:10, family:'Barlow' }, boxWidth:9, boxHeight:9, usePointStyle:true } },
+      tooltip:{ backgroundColor:'rgba(9,14,20,.97)', borderColor:'#2b3a4d', borderWidth:1, titleColor:'#dfe7ef',
+        bodyColor:'#a3b2c2', padding:10, cornerRadius:0, titleFont:{ size:11, weight:'700', family:'Roboto Mono' },
+        bodyFont:{ size:11, family:'Roboto Mono' }, displayColors:true, boxPadding:3 }
+    },
+    scales:{
+      x:{ grid:{ color:'rgba(107,140,174,.07)', drawTicks:false }, border:{ display:false },
+          ticks:{ color:'#4f5f72', font:{ size:10, family:'Roboto Mono' } } },
+      y:{ grid:{ color:'rgba(107,140,174,.07)', drawTicks:false }, border:{ display:false },
+          ticks:{ color:'#4f5f72', font:{ size:10, family:'Roboto Mono' } } }
+    }
+  } };
+  charts[id] = new Chart(cv.getContext('2d'), deep(base, cfg));
+}
+function deep(a,b){
+  const o = Array.isArray(a) ? a.slice() : Object.assign({}, a);
+  for (const k in b){
+    if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object') o[k] = deep(a[k], b[k]);
+    else o[k] = b[k];
+  }
+  return o;
+}
+function grad(ctx, rgb, top=.3){
+  const g = ctx.createLinearGradient(0,0,0,240);
+  g.addColorStop(0, `rgba(${rgb},${top})`); g.addColorStop(1, `rgba(${rgb},0)`); return g;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   WORLD MAP
+   ═══════════════════════════════════════════════════════════════ */
+/* Labels are placed per node: the European and Gulf clusters sit too close
+   for a single default position to stay legible. */
+function label(n, x, y, r){
+  const txt = esc(n.hub.toUpperCase());
+  switch (n.lp){
+    case 's': return `<text x="${x}" y="${(y + r + 14).toFixed(1)}" text-anchor="middle">${txt}</text>`;
+    case 'w': return `<text x="${(x - r - 7).toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${txt}</text>`;
+    case 'e': return `<text x="${(x + r + 7).toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="start">${txt}</text>`;
+    default:  return `<text x="${x}" y="${(y - r - 7).toFixed(1)}" text-anchor="middle">${txt}</text>`;
+  }
+}
+
+function mapSvg(){
+  const paths = LAND.map(poly =>
+    `<path class="land" d="M${poly.map(p => px(p[0]).toFixed(1) + ',' + py(p[1]).toFixed(1)).join('L')}Z"/>`).join('');
+
+  const ov = OVERLAYS.find(o => o.k === overlay);
+  const val = n => overlay === 'composite' ? composite(n) : n[overlay];
+
+  const marks = nodes().map(n => {
+    const x = px(n.lon), y = py(n.lat), v = val(n);
+    const r = 4 + (v / 100) * 7;
+    const col = overlay === 'composite' ? riskHex(v) : ov.col;
+    const alarm = v >= 65;
+    return `<g class="node" data-hc="node" data-id="${n.id}" data-md="node">
+      ${alarm ? `<circle cx="${x}" cy="${y}" r="5" fill="none" stroke="${col}" stroke-width="1.2" opacity=".55">
+        <animate attributeName="r" values="5;22" dur="2.6s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values=".55;0" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
+      <circle cx="${x}" cy="${y}" r="${(r + 5).toFixed(1)}" fill="${col}" opacity=".14"/>
+      <circle class="core" cx="${x}" cy="${y}" r="${r.toFixed(1)}" fill="${col}" opacity=".85" stroke="#05070a" stroke-width="1"/>
+      ${label(n, x, y, r)}
+    </g>`;
+  }).join('');
+
+  const grid = Array.from({length:7}, (_,i) => {
+    const y = (i / 6) * MAPH;
+    return `<line x1="0" y1="${y}" x2="${MAPW}" y2="${y}" stroke="rgba(107,140,174,.07)" stroke-width="1"/>`;
+  }).join('') + Array.from({length:13}, (_,i) => {
+    const x = (i / 12) * MAPW;
+    return `<line x1="${x}" y1="0" x2="${x}" y2="${MAPH}" stroke="rgba(107,140,174,.07)" stroke-width="1"/>`;
+  }).join('');
+
+  return `<div class="mapwrap">
+    <svg class="map" viewBox="0 0 ${MAPW} ${MAPH}" role="img" aria-label="Global risk map by region">
+      ${grid}${paths}${marks}
+    </svg>
+    <div class="overlays">${OVERLAYS.map(o =>
+      `<button class="ov${overlay===o.k?' on':''}" data-ov="${o.k}"${overlay===o.k?` style="background:${o.col}"`:''}>${esc(o.label)}</button>`).join('')}</div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VENDOR DEPENDENCY GRAPH
+   ═══════════════════════════════════════════════════════════════ */
+function graphLayout(){
+  const cx = 500, cy = 260, r1 = 160, r2 = 218;
+  const t1 = SUPPLIERS.map((s,i) => {
+    const a = (i / SUPPLIERS.length) * Math.PI * 2 - Math.PI / 2;
+    return Object.assign({}, s, { x:cx + Math.cos(a) * r1, y:cy + Math.sin(a) * r1 * 0.78 });
+  });
+  const t2 = TIER2.map((v,i) => {
+    const a = (i / TIER2.length) * Math.PI * 2 - Math.PI / 2 + 0.3;
+    return Object.assign({}, v, { x:cx + Math.cos(a) * (r2 + 74), y:cy + Math.sin(a) * (r2 + 74) * 0.80 });
+  });
+  return { cx, cy, t1, t2 };
+}
+
+function graphSvg(){
+  const { cx, cy, t1, t2 } = graphLayout();
+  const hot = hotVendor;
+  const isHotT1 = id => hot && (hot === id || (t2.find(v => v.id === hot)?.id && SUPPLIERS.find(s => s.id === id)?.tier2.includes(hot)));
+  const isHotT2 = id => hot && (hot === id || SUPPLIERS.find(s => s.id === hot)?.tier2.includes(id));
+
+  let edges = t1.map(s =>
+    `<line class="edge${isHotT1(s.id) ? ' hot' : ''}" x1="${cx}" y1="${cy}" x2="${s.x.toFixed(1)}" y2="${s.y.toFixed(1)}"/>`).join('');
+  t1.forEach(s => (s.tier2 || []).forEach(tid => {
+    const v = t2.find(x => x.id === tid); if (!v) return;
+    const h = hot && (hot === s.id || hot === tid);
+    edges += `<line class="edge${h ? ' hot' : ''}" x1="${s.x.toFixed(1)}" y1="${s.y.toFixed(1)}" x2="${v.x.toFixed(1)}" y2="${v.y.toFixed(1)}"/>`;
+  }));
+
+  const centre = `<g>
+    <rect x="${cx-62}" y="${cy-20}" width="124" height="40" fill="#111823" stroke="#ffb01f" stroke-width="1.2"/>
+    <text x="${cx}" y="${cy+4}" text-anchor="middle" style="font-family:'Barlow Condensed';font-size:15px;fill:#ffb01f;letter-spacing:.09em">ARCLIGHT</text>
+  </g>`;
+
+  const t1n = t1.map(s => {
+    const h = isHotT1(s.id), c = riskHex(s.risk);
+    return `<g class="vnode${h ? ' hot' : ''}" data-hc="v1" data-id="${s.id}" data-md="supplier">
+      <rect x="${(s.x-63).toFixed(1)}" y="${(s.y-13).toFixed(1)}" width="126" height="26"
+        fill="${h ? 'rgba(255,59,78,.18)' : '#0b1016'}" stroke="${c}" stroke-width="${h ? 1.8 : 1}"/>
+      ${s.single ? `<circle cx="${(s.x+57).toFixed(1)}" cy="${(s.y-9).toFixed(1)}" r="3.4" fill="#ff3b4e"/>` : ''}
+      <text x="${s.x.toFixed(1)}" y="${(s.y+3).toFixed(1)}" text-anchor="middle">${esc(s.name.slice(0,21))}</text>
+    </g>`;
+  }).join('');
+
+  const t2n = t2.map(v => {
+    const h = isHotT2(v.id), c = riskHex(v.risk);
+    return `<g class="vnode${h ? ' hot' : ''}" data-hc="v2" data-id="${v.id}">
+      <circle cx="${v.x.toFixed(1)}" cy="${v.y.toFixed(1)}" r="${v.shared > 1 ? 11 : 8}"
+        fill="${h ? 'rgba(255,59,78,.24)' : '#0b1016'}" stroke="${c}" stroke-width="${h ? 1.8 : 1}"/>
+      ${v.shared > 1 ? `<text x="${v.x.toFixed(1)}" y="${(v.y+3.4).toFixed(1)}" text-anchor="middle" style="fill:${c};font-size:9px">${v.shared}</text>` : ''}
+      <text x="${v.x.toFixed(1)}" y="${(v.y + (v.y < cy ? -16 : 22)).toFixed(1)}" text-anchor="middle">${esc(v.name)}</text>
+    </g>`;
+  }).join('');
+
+  return `<svg class="graph" viewBox="0 0 1000 560" role="img" aria-label="Vendor dependency network, tier 1 and tier 2">
+    <g>${edges}</g>${centre}${t1n}${t2n}
+    <g style="font-family:'Roboto Mono';font-size:9px;fill:#4f5f72">
+      <text x="16" y="24">TIER 1 — DIRECT SUPPLIERS (RECTANGLES)</text>
+      <text x="16" y="40">TIER 2 — THEIR SUPPLIERS (CIRCLES; NUMBER = TIER-1s SERVED)</text>
+      <text x="16" y="56">RED DOT = SOLE SOURCE · HOVER ANY NODE TO TRACE THE CASCADE</text>
+    </g>
+  </svg>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HOVER + MODAL
+   ═══════════════════════════════════════════════════════════════ */
+function hcShow(t, html){
+  if (!hcEl){ hcEl = document.createElement('div'); hcEl.className = 'hc'; document.body.appendChild(hcEl); }
+  hcEl.innerHTML = html; hcEl.classList.add('on');
+  const r = t.getBoundingClientRect(), b = hcEl.getBoundingClientRect();
+  let l = r.right + 12, tp = r.top;
+  if (l + b.width > innerWidth - 10) l = Math.max(10, r.left - b.width - 12);
+  if (tp + b.height > innerHeight - 10) tp = Math.max(10, innerHeight - b.height - 10);
+  hcEl.style.left = l + 'px'; hcEl.style.top = tp + 'px';
+}
+function hcHide(){ if (hcEl) hcEl.classList.remove('on'); hcTarget = null; }
+const hr = (k,v) => `<div class="hr"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`;
+
+const KPI_NOTES = {
+  supplierRisk:{ t:'CRITICAL SUPPLIER RISK', rows:[['Scale','0 = stable, 100 = critical'],['Weighted by','Spend × substitutability'],['Worst supplier','Hanwei Precision, 82'],['Sole-source count','14 part numbers']],
+    n:'A weighted score, not an average. One sole-source supplier at 82 moves this number more than five diversified ones at 60, because the question it answers is not "how risky is the base" but "what happens if the worst one stops".' },
+  highDep:{ t:'HIGH-DEPENDENCY VENDORS', rows:[['Definition','>$50M spend or sole-source'],['Sole-source','3 of 8 tier-1'],['No qualified alternate','14 part numbers'],['Qualification lead time','9 months typical']],
+    n:'Dependency is not spend. A $12M supplier with no alternate is a larger exposure than a $180M supplier with three.' },
+  continuity:{ t:'PRODUCTION CONTINUITY', rows:[['Definition','Scheduled output actually produced'],['Target','96.5%'],['12-month trend','−2.6 pts'],['Largest single loss','Durban congestion']],
+    n:'Falling steadily for a year. No single month looks alarming, which is exactly how a 2.6-point decline goes unescalated.' },
+  recovery:{ t:'AVERAGE RECOVERY TIME', rows:[['Across all incident types','8.4 days'],['Cyber (tested)','1.2 days'],['Supply (sole-source)','68 days'],['Target','5 days']],
+    n:'The average hides the shape. Cyber recovery is fast because it has been exercised; sole-source recovery is measured in months because it never has been.' },
+  cyber:{ t:'CYBER THREAT LEVEL', rows:[['Current','ELEVATED'],['Driver','Third-party remote access'],['Critical systems unsegmented','1 of 7'],['Last verified restore','38 days ago']],
+    n:'The elevation is driven by the supplier portal, not by anything internal. The attack path that matters runs through a vendor account, which is the path that is hardest to see and easiest to forget.' },
+  incidents:{ t:'OPEN INCIDENTS', rows:[['Critical','1'],['High','2'],['Medium','4'],['Oldest open','21 days']],
+    n:'One critical incident — a supplier credit downgrade — carries more projected revenue impact than the other six combined.' },
+  revExposed:{ t:'REVENUE EXPOSED TO DISRUPTION', rows:[['Total','$842M'],['Single largest','China, $1.24B gross'],['Concentration','27% of tier-1 spend'],['Mitigated share','38%']],
+    n:'Exposed is not lost. It is the revenue that depends on a node with no tested alternative — the number that should be falling every quarter and has not moved in three.' },
+  geo:{ t:'GEOGRAPHIC CONCENTRATION', rows:[['Score','61 / 100'],['APAC share of tier-1 spend','47%'],['China share','27%'],['Single-country max policy','25%']],
+    n:'China sits two points above the policy ceiling the board set last year. That is a governance fact, not a sourcing preference, and it has a date attached to it.' },
+  inventory:{ t:'INVENTORY AT RISK', rows:[['Value','$214M'],['Below target cover','3 of 5 lines'],['Worst line','Automation Controls, 11 days'],['Target','28–30 days']],
+    n:'Cover on the highest-margin line is at 11 days against a 28-day target. That is not a buffer, it is a countdown.' },
+  readiness:{ t:'CONTINGENCY READINESS', rows:[['Score','72 / 100'],['Playbooks current','6 of 6'],['Exercised in 12 months','3 of 6'],['Never exercised','Supplier bankruptcy']],
+    n:'Six playbooks exist and three have been exercised. The three that have not include the one for the scenario currently rated most likely.' }
+};
+
+function openMd(html){ $('#md').innerHTML = html; $('#md').classList.add('on'); $('#bd').classList.add('on'); document.body.style.overflow = 'hidden'; }
+function closeMd(){ $('#md').classList.remove('on'); $('#bd').classList.remove('on'); document.body.style.overflow = ''; }
+
+function nodeModal(n){
+  const c = composite(n);
+  return `<div class="md-h"><div><h2>${esc(n.name)}</h2>
+      <p>${esc(n.hub)} · ${n.sites} sites · ${n0(n.sup)} suppliers · composite risk ${c}</p></div>
+      <button class="mx" data-x="1" aria-label="Close">✕</button></div>
+    <div class="md-b">
+      <div class="mg">${st('Composite risk', String(c), riskWord(c), riskCol(c))}
+        ${st('Revenue in scope', $M(n.rev))}${st('Suppliers', n0(n.sup))}${st('Sites', String(n.sites))}</div>
+      <div class="ms"><h4>Risk dimensions</h4>
+        ${[['Geopolitical','geo'],['Weather & climate','weather'],['Labour','labor'],['Logistics','logistics'],['Cyber','cyber']]
+          .map(([l,k]) => br(l, n[k], 100, riskHex(n[k]), String(n[k]))).join('')}</div>
+      <div class="ms"><h4>Executive read</h4><p>${esc(n.note)}</p></div>
+    </div>`;
+}
+function supplierModal(s){
+  return `<div class="md-h"><div><h2>${esc(s.name)}</h2>
+      <p>${esc(s.cat)} · ${esc(regionName(s.region))} · $${n0(s.spend)}M annual spend · rating ${esc(s.fin)}</p></div>
+      <button class="mx" data-x="1" aria-label="Close">✕</button></div>
+    <div class="md-b">
+      <div class="mg">${st('Risk score', String(s.risk), riskWord(s.risk), riskCol(s.risk))}
+        ${st('On-time delivery', n1(s.otd) + '%', 'target 95%', s.otd < 92 ? 'var(--red)' : 'var(--text)')}
+        ${st('Lead time', s.lead + ' d', '±' + n1(s.vari) + ' d variability')}
+        ${st('Sourcing', s.single ? 'Sole source' : 'Multi-source', s.alt, s.single ? 'var(--red)' : 'var(--green)')}
+        ${st('Financial rating', s.fin)}
+        ${st('Tier-2 dependencies', String((s.tier2 || []).length))}</div>
+      <div class="ms"><h4>Why it matters</h4><p>${esc(s.note)}</p></div>
+      <div class="ms"><h4>Tier-2 exposure behind this supplier</h4><ul class="ml">
+        ${(s.tier2 || []).map(id => { const v = TIER2.find(x => x.id === id); return v
+          ? `<li>${esc(v.name)} — ${esc(v.cat)}, ${esc(regionName(v.region))}, risk ${v.risk}${v.shared > 1 ? ` · also feeds ${v.shared - 1} other tier-1 supplier${v.shared > 2 ? 's' : ''}` : ''}</li>` : ''; }).join('')}
+      </ul></div>
+      <div class="ms"><h4>If this supplier stops</h4><p>${esc(s.single
+        ? 'There is no qualified alternate, so the recovery path is emergency qualification: roughly four months compressed from nine, at about 3.2× unit cost, and only if the tooling and drawing packages can be secured first. That last condition is legal rather than technical, and it is the one that decides whether the clock starts at all.'
+        : 'Qualified alternates exist, so this is a cost and lead-time event rather than a continuity one. Expect a premium on transferred volume and four to six weeks of elevated expedite spend while the second source ramps.')}</p></div>
+    </div>`;
+}
+function incidentModal(i){
+  return `<div class="md-h"><div><h2>${esc(i.t)}</h2><p>${esc(i.id)} · ${esc(i.m)}</p></div>
+      <button class="mx" data-x="1" aria-label="Close">✕</button></div>
+    <div class="md-b">
+      <div class="mg">${st('Severity', i.sev, '', i.col)}${st('Revenue exposed', i.rev ? $M(i.rev) : '—')}
+        ${st('Status','Open','', 'var(--amber)')}</div>
+      <div class="ms"><h4>Situation</h4><p>${esc(i.d)}</p></div>
+      <div class="ms"><h4>Decisions this needs from the executive</h4><ul class="ml">
+        <li>Whether to spend ahead of certainty — every option here gets more expensive the longer it is held open</li>
+        <li>Who carries the authority to commit that spend, named, before the next situation report</li>
+        <li>What we stop doing to free the capacity, stated explicitly rather than absorbed by the plants</li>
+        <li>The stand-down criteria, agreed now rather than argued about later</li>
+      </ul></div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB — RESILIENCE OVERVIEW
+   ═══════════════════════════════════════════════════════════════ */
+function renderOverview(){
+  const ns = nodes(), sps = suppliers();
+  const avgRisk = Math.round(ns.reduce((s,n) => s + composite(n), 0) / (ns.length || 1));
+  const worst = ns.slice().sort((a,b) => composite(b) - composite(a));
+  return `<div class="kpis ten">
+    ${kpi({ k:'supplierRisk', label:'Critical supplier risk', value:'68', sub:'weighted by spend × substitutability', color:'var(--red)' })}
+    ${kpi({ k:'highDep', label:'High-dependency vendors', value:String(sps.filter(s => s.single || s.spend > 50).length), sub:'3 sole-source of 8 tier-1', color:'var(--amber)' })}
+    ${kpi({ k:'continuity', label:'Production continuity', value:'94.2%', sub:'against a 96.5% target', color:'var(--amber)' })}
+    ${kpi({ k:'recovery', label:'Avg recovery time', value:'8.4 d', sub:'1.2 d cyber · 68 d sole-source', color:'var(--amber)' })}
+    ${kpi({ k:'cyber', label:'Cyber threat level', value:'ELEVATED', sub:'driver: third-party remote access', color:'var(--amber)' })}
+    ${kpi({ k:'incidents', label:'Open incidents', value:String(INCIDENTS.length), sub:'1 critical · 2 high · oldest 21 days', color:'var(--red)' })}
+    ${kpi({ k:'revExposed', label:'Revenue exposed', value:$M(842), sub:'depends on a node with no tested alternative', color:'var(--red)' })}
+    ${kpi({ k:'geo', label:'Concentration risk', value:'61', sub:'China 27% vs a 25% policy ceiling', color:'var(--red)' })}
+    ${kpi({ k:'inventory', label:'Inventory at risk', value:$M(214), sub:'3 of 5 lines below target cover', color:'var(--amber)' })}
+    ${kpi({ k:'readiness', label:'Contingency readiness', value:'72', sub:'6 playbooks · 3 exercised', color:'var(--teal)' })}
+  </div>
+
+  <div class="g g23">
+    <div class="pnl">
+      <div class="pnl-h"><h3>Open incidents</h3>${chip(INCIDENTS.length + ' active','red')}</div>
+      <div class="pnl-s">Ranked by revenue exposed, not by age. Click any incident for the decisions it needs.</div>
+      ${INCIDENTS.slice().sort((a,b) => b.rev - a.rev).map(i => `<div class="inc" data-md="incident" data-id="${i.id}"
+          style="border-left-color:${i.col}">
+        <div class="inc-id">${esc(i.id)}</div>
+        <div style="flex:1">
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+            <div class="inc-t">${esc(i.t)}</div>${chip(i.sev, i.sev === 'Critical' || i.sev === 'High' ? 'red' : 'amber')}</div>
+          <div class="inc-d">${esc(i.d)}</div>
+          <div class="inc-m">${esc(i.m)}${i.rev ? ' · ' + $M(i.rev) + ' exposed' : ''}</div>
+        </div></div>`).join('')}
+    </div>
+    <div class="pnl">
+      <div class="pnl-h"><h3>Posture rationale</h3>${chip('ELEVATED','amber')}</div>
+      <div class="pnl-s">Why the network sits where it does today.</div>
+      <div style="font-size:11.5px;color:var(--muted);line-height:1.7">
+        Three things hold the posture at elevated rather than guarded, and only one of them is an event.
+      </div>
+      <ul class="ml" style="margin-top:11px">
+        <li><b style="color:var(--text)">A sole-source supplier was downgraded nine days ago.</b> Fourteen part numbers, no qualified alternate, and three with no drawing package outside the supplier.</li>
+        <li><b style="color:var(--text)">Concentration sits above the board's own ceiling.</b> China is 27% of tier-1 spend against a 25% policy limit, and 41% of tier-2 spend where nobody set a limit at all.</li>
+        <li><b style="color:var(--text)">Cover on the highest-margin line is 11 days.</b> Against a 28-day target, on the line that carries the best margin in the portfolio.</li>
+      </ul>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+        None of these is an emergency today. All three are the kind of thing that is obvious in hindsight and boring in advance.</div>
+    </div>
+  </div>
+
+  <div class="g g2">
+    <div class="pnl">
+      <div class="pnl-h"><h3>Production continuity</h3>${chip('−2.6 pts over 12 months','red')}</div>
+      <div class="pnl-s">Scheduled output actually produced, against a 96.5% target.</div>
+      <div class="chart"><canvas id="c-cont"></canvas></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-h"><h3>Highest-risk regions</h3>${chip('composite score','steel')}</div>
+      <div class="pnl-s">Weighted: geopolitical 30, logistics 25, cyber 20, labour 15, weather 10.</div>
+      <div style="margin-top:11px">${worst.slice(0,8).map(n => br(n.name, composite(n), 100, riskHex(composite(n)), String(composite(n)))).join('')}</div>
+      <div style="margin-top:13px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+        Average composite across ${ns.length} region${ns.length === 1 ? '' : 's'} is ${avgRisk}. The average is not the risk —
+        the top two carry ${Math.round((worst.slice(0,2).reduce((s,n) => s + n.rev, 0) / sumRev()) * 100)}% of revenue in scope between them.</div>
+    </div>
+  </div>
+
+  <div class="note"><b>Synthetic demonstration data.</b> Arclight Industrial is fictional: $6.8B revenue, 41 plants,
+  1,840 suppliers, 62 countries. Every figure is generated for this demo. Filters reslice the network; the scenario
+  simulator recomputes live from the same dataset rather than replaying a stored result.</div>`;
+}
+function initOverview(){
+  mk('c-cont', { type:'line',
+    data:{ labels:MONTHS, datasets:[
+      { label:'Continuity %', data:CONTINUITY, borderColor:'#ffb01f', borderWidth:2.2, tension:.3, pointRadius:0,
+        pointHoverRadius:5, fill:true, backgroundColor:c => grad(c.chart.ctx,'255,176,31') },
+      { label:'Target', data:MONTHS.map(() => 96.5), borderColor:'#3ddc84', borderWidth:1.4, borderDash:[5,4], pointRadius:0, fill:false }
+    ] },
+    options:{ plugins:{ legend:{ display:true, position:'bottom' }, tooltip:{ callbacks:{ label:c => c.dataset.label + ': ' + c.raw + '%' } } },
+      scales:{ y:{ min:92, max:98, ticks:{ callback:v => v+'%' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB — GLOBAL RISK MAP
+   ═══════════════════════════════════════════════════════════════ */
+function renderMap(){
+  const ns = nodes().slice().sort((a,b) => composite(b) - composite(a));
+  const ov = OVERLAYS.find(o => o.k === overlay);
+  return `<div class="sh"><h2>Global Risk Map</h2><div class="rule"></div>
+    <span class="meta">${esc(ov.label.toUpperCase())} OVERLAY · ${ns.length} NODES · ${$M(sumRev())} IN SCOPE</span></div>
+  ${mapSvg()}
+
+  <div class="g g4" style="margin-top:12px">
+    ${st('Highest composite', ns[0].name, ns[0].hub + ' · ' + composite(ns[0]), riskCol(composite(ns[0])))}
+    ${st('Revenue in scope', $M(sumRev()), 'across ' + ns.length + ' regional nodes')}
+    ${st('Nodes above 60', String(ns.filter(n => composite(n) >= 60).length), 'of ' + ns.length + ' monitored', 'var(--red)')}
+    ${st('Suppliers in scope', n0(ns.reduce((s,n) => s + n.sup, 0)), 'tier-1 and tier-2 combined')}
+  </div>
+
+  <div class="pnl">
+    <div class="pnl-h"><h3>Regional risk register</h3>${chip('hover a row or a map node','steel')}</div>
+    <div class="pnl-s">Every monitored node, every dimension. Click for the regional brief.</div>
+    <div class="tw"><table>
+      <thead><tr><th>Region</th><th>Hub</th><th class="n">Composite</th><th class="n">Geo</th><th class="n">Weather</th>
+      <th class="n">Labour</th><th class="n">Logistics</th><th class="n">Cyber</th><th class="n">Revenue</th>
+      <th class="n">Suppliers</th><th>Status</th></tr></thead>
+      <tbody>${ns.map(n => { const c = composite(n); return `<tr class="hv" data-hc="node" data-id="${n.id}" data-md="node">
+        <td><b>${esc(n.name)}</b></td><td style="color:var(--dim)">${esc(n.hub)}</td>
+        <td class="n" style="color:${riskCol(c)};font-weight:700">${c}</td>
+        <td class="n" style="color:${riskCol(n.geo)}">${n.geo}</td>
+        <td class="n" style="color:${riskCol(n.weather)}">${n.weather}</td>
+        <td class="n" style="color:${riskCol(n.labor)}">${n.labor}</td>
+        <td class="n" style="color:${riskCol(n.logistics)}">${n.logistics}</td>
+        <td class="n" style="color:${riskCol(n.cyber)}">${n.cyber}</td>
+        <td class="n">${$M(n.rev)}</td><td class="n">${n0(n.sup)}</td>
+        <td>${riskChip(c)}</td></tr>`; }).join('')}</tbody>
+    </table></div>
+  </div>
+
+  <div class="note"><b>The map is a prioritisation device, not a weather report.</b> A node is red because of what depends on it,
+  not because of what is happening there — which is why the US Gulf Coast sits amber through hurricane season while a politically
+  calm region with a sole-source supplier sits red all year.</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB — SUPPLY CHAIN HEALTH
+   ═══════════════════════════════════════════════════════════════ */
+function renderSupply(){
+  const sps = suppliers();
+  const singles = sps.filter(s => s.single);
+  const maxSpend = Math.max(...sps.map(s => s.spend), 1);
+  return `<div class="sh"><h2>Supply Chain Health</h2><div class="rule"></div>
+    <span class="meta">${sps.length} TIER-1 · ${singles.length} SOLE-SOURCE</span></div>
+
+  <div class="g g4">
+    ${st('On-time delivery', '91.2%', 'against a 95% target, 12 months down', 'var(--amber)')}
+    ${st('Lead-time variability', '±9.6 d', 'weighted across tier-1', 'var(--amber)')}
+    ${st('Sole-source part numbers', '14', 'no qualified alternate', 'var(--red)')}
+    ${st('Lines below target cover', '3 of 5', 'worst at 11 days of 28', 'var(--red)')}
+  </div>
+
+  <div class="g g2">
+    <div class="pnl">
+      <div class="pnl-h"><h3>On-time delivery and continuity</h3>${chip('12 months','steel')}</div>
+      <div class="pnl-s">Supplier performance against what actually came off the line.</div>
+      <div class="chart"><canvas id="c-otd"></canvas></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-h"><h3>Lead time against variability</h3>${chip('bubble = spend','steel')}</div>
+      <div class="pnl-s">Top-right is the quadrant you cannot plan around: long and unpredictable.</div>
+      <div class="chart"><canvas id="c-lead"></canvas></div>
+    </div>
+  </div>
+
+  <div class="g g23">
+    <div class="pnl">
+      <div class="pnl-h"><h3>Tier-1 supplier register</h3>${chip(singles.length + ' sole-source','red')}</div>
+      <div class="pnl-s">Click any supplier for the cascade behind it and what happens if it stops.</div>
+      <div class="tw"><table>
+        <thead><tr><th>Supplier</th><th>Category</th><th>Region</th><th class="n">Spend</th><th class="n">Risk</th>
+        <th class="n">OTD</th><th class="n">Lead</th><th class="n">±Var</th><th>Rating</th><th>Sourcing</th></tr></thead>
+        <tbody>${sps.slice().sort((a,b) => b.risk - a.risk).map(s => `<tr class="hv" data-hc="v1" data-id="${s.id}" data-md="supplier">
+          <td><b>${esc(s.name)}</b><span class="sub">${(s.tier2 || []).length} tier-2 dependencies</span></td>
+          <td style="color:var(--dim)">${esc(s.cat)}</td>
+          <td style="color:var(--dim)">${esc(regionName(s.region))}</td>
+          <td class="n">$${n0(s.spend)}M</td>
+          <td class="n" style="color:${riskCol(s.risk)};font-weight:700">${s.risk}</td>
+          <td class="n" style="color:${s.otd < 92 ? 'var(--red)' : 'var(--text)'}">${n1(s.otd)}%</td>
+          <td class="n">${s.lead}d</td><td class="n">${n1(s.vari)}</td>
+          <td class="n">${esc(s.fin)}</td>
+          <td>${s.single ? chip('SOLE SOURCE','red') : chip(s.alt,'green')}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-h"><h3>Spend concentration</h3></div>
+      <div class="pnl-s">Annual spend by tier-1 supplier. Red bars have no qualified alternate.</div>
+      <div style="margin-top:11px">${sps.slice().sort((a,b) => b.spend - a.spend)
+        .map(s => br(s.name, s.spend, maxSpend, s.single ? '#ff3b4e' : riskHex(s.risk), '$' + n0(s.spend) + 'M')).join('')}</div>
+      <div style="margin-top:13px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+        The three sole-source suppliers carry $${n0(singles.reduce((s,x) => s + x.spend,0))}M of spend between them —
+        ${Math.round(singles.reduce((s,x) => s + x.spend,0) / sps.reduce((s,x) => s + x.spend,0) * 100)}% of the tier-1 book
+        with no tested way to replace any of it.</div>
+    </div>
+  </div>
+
+  <div class="pnl">
+    <div class="pnl-h"><h3>Inventory coverage by product line</h3>${chip('days of cover vs target','amber')}</div>
+    <div class="pnl-s">Cover is the only buffer between a supplier event and a customer one.</div>
+    <div class="g g5" style="margin-top:12px;margin-bottom:0">
+      ${INVENTORY.map(i => { const pctv = (i.cover / i.target) * 100; return `<div class="st">
+        <div class="l">${esc(i.line)}</div>
+        <div class="v" style="color:${pctv < 50 ? 'var(--red)' : pctv < 90 ? 'var(--amber)' : 'var(--green)'}">${i.cover}<span style="font-size:11px;color:var(--dim)"> / ${i.target} d</span></div>
+        ${meter(i.cover, Math.max(i.target, i.cover), pctv < 50 ? '#ff3b4e' : pctv < 90 ? '#ffb01f' : '#3ddc84')}
+        <div class="d">${$M(i.rev)} revenue · ${i.atRisk}% at risk</div></div>`; }).join('')}
+    </div>
+  </div>`;
+}
+function initSupply(){
+  mk('c-otd', { type:'line',
+    data:{ labels:MONTHS, datasets:[
+      { label:'Supplier on-time %', data:OTD_TREND, borderColor:'#2dd4bf', borderWidth:2.2, tension:.3, pointRadius:0,
+        pointHoverRadius:5, fill:true, backgroundColor:c => grad(c.chart.ctx,'45,212,191') },
+      { label:'Production continuity %', data:CONTINUITY, borderColor:'#ffb01f', borderWidth:2, tension:.3, pointRadius:0, fill:false }
+    ] },
+    options:{ plugins:{ legend:{ display:true, position:'bottom' } }, scales:{ y:{ min:88, max:98, ticks:{ callback:v => v+'%' } } } } });
+
+  mk('c-lead', { type:'bubble',
+    data:{ datasets: suppliers().map(s => ({ label:s.name,
+      data:[{ x:s.lead, y:s.vari, r:Math.max(5, Math.sqrt(s.spend) * 1.05) }],
+      backgroundColor:riskHex(s.risk) + 'aa',
+      borderColor:'rgba(255,255,255,.2)', borderWidth:1 })) },
+    options:{ interaction:{ mode:'point', intersect:true },
+      plugins:{ legend:{ display:true, position:'bottom', labels:{ font:{ size:9 }, padding:7 } },
+        tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${c.parsed.x}d lead, ±${c.parsed.y}d` } } },
+      scales:{ x:{ min:10, max:70, title:{ display:true, text:'Lead time (days)', color:'#4f5f72', font:{ size:10 } } },
+               y:{ min:0, max:20, title:{ display:true, text:'Variability (± days)', color:'#4f5f72', font:{ size:10 } } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB — VENDOR EXPOSURE
+   ═══════════════════════════════════════════════════════════════ */
+function renderVendor(){
+  const shared = TIER2.filter(v => v.shared > 1);
+  const worstT2 = TIER2.slice().sort((a,b) => (b.risk * b.shared) - (a.risk * a.shared))[0];
+  return `<div class="sh"><h2>Vendor Exposure</h2><div class="rule"></div>
+    <span class="meta">${SUPPLIERS.length} TIER-1 · ${TIER2.length} TIER-2 · ${shared.length} SHARED DEPENDENCIES</span></div>
+
+  <div class="g g4">
+    ${st('Sole-source tier-1', String(SUPPLIERS.filter(s => s.single).length), 'of ' + SUPPLIERS.length + ' direct suppliers', 'var(--red)')}
+    ${st('Shared tier-2 nodes', String(shared.length), 'feed more than one tier-1', 'var(--amber)')}
+    ${st('Deepest cascade', worstT2.name, 'feeds ' + worstT2.shared + ' tier-1 suppliers at risk ' + worstT2.risk, 'var(--red)')}
+    ${st('Tier-2 visibility', '62%', 'of tier-1s have declared their tier-2 base', 'var(--amber)')}
+  </div>
+
+  ${graphSvg()}
+
+  <div class="g g2" style="margin-top:12px">
+    <div class="pnl">
+      <div class="pnl-h"><h3>Shared tier-2 dependencies</h3>${chip('cascade risk','red')}</div>
+      <div class="pnl-s">A tier-2 that feeds several tier-1s turns one failure into several. Hover to trace it on the graph.</div>
+      <div class="tw" style="max-height:310px"><table>
+        <thead><tr><th>Tier-2 vendor</th><th>Category</th><th>Region</th><th class="n">Risk</th>
+        <th class="n">Tier-1s served</th><th>Cascade</th></tr></thead>
+        <tbody>${TIER2.slice().sort((a,b) => (b.risk * b.shared) - (a.risk * a.shared)).map(v => {
+          const feeds = SUPPLIERS.filter(s => (s.tier2 || []).includes(v.id));
+          return `<tr class="hv" data-hc="v2" data-id="${v.id}">
+          <td><b>${esc(v.name)}</b><span class="sub">${feeds.map(f => f.name).join(' · ')}</span></td>
+          <td style="color:var(--dim)">${esc(v.cat)}</td><td style="color:var(--dim)">${esc(regionName(v.region))}</td>
+          <td class="n" style="color:${riskCol(v.risk)};font-weight:700">${v.risk}</td>
+          <td class="n">${v.shared}</td>
+          <td>${v.shared > 2 ? chip('SEVERE','red') : v.shared > 1 ? chip('ELEVATED','amber') : chip('CONTAINED','green')}</td>
+        </tr>`; }).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-h"><h3>What the graph is actually showing</h3></div>
+      <div class="pnl-s">Concentration, not complexity.</div>
+      <ul class="ml" style="margin-top:8px">
+        <li><b style="color:var(--text)">Fujian Rare Metals feeds three of our eight tier-1 suppliers.</b> We have no contract with them, no visibility into their capacity, and no way to influence their allocation. If they stop, three of our suppliers stop, and the diversification we paid for turns out to have been notional.</li>
+        <li><b style="color:var(--text)">Two of the ten tier-2 nodes are semiconductor.</b> Substitution there is measured in quarters because qualification is a physics problem, not a commercial one.</li>
+        <li><b style="color:var(--text)">Tier-2 visibility is 62%.</b> The remaining 38% is not low risk — it is unmeasured risk, which is a different and worse thing to report to a board.</li>
+        <li><b style="color:var(--text)">Four of eight tier-1s sit in a single country.</b> That is the concentration number the policy ceiling was written for, and it is the one currently breaching it.</li>
+      </ul>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB — CYBER & OPERATIONAL RISK
+   ═══════════════════════════════════════════════════════════════ */
+function renderCyber(){
+  const last = CYBER_INCIDENTS[CYBER_INCIDENTS.length - 1];
+  const tot = CYBER_INCIDENTS.reduce((s,m) => s + m.crit + m.high + m.med + m.low, 0);
+  return `<div class="sh"><h2>Cyber &amp; Operational Risk</h2><div class="rule"></div>
+    <span class="meta">THREAT LEVEL ELEVATED · ${tot} INCIDENTS IN 12 MONTHS</span></div>
+
+  <div class="g g5">
+    ${st('Incidents this month', String(last.crit + last.high + last.med + last.low), last.crit + ' critical · ' + last.high + ' high', 'var(--amber)')}
+    ${st('Mean time to detect', '18 min', 'target 30 min', 'var(--green)')}
+    ${st('Mean time to contain', '52 min', 'target 60 min', 'var(--green)')}
+    ${st('Operational downtime', '6.4 h', 'this month, across all sites', 'var(--amber)')}
+    ${st('Unsegmented critical systems', '1 of 7', 'Gulf Coast SCADA', 'var(--red)')}
+  </div>
+
+  <div class="g g23">
+    <div class="pnl">
+      <div class="pnl-h"><h3>Incident volume by severity</h3>${chip('rising','red')}</div>
+      <div class="pnl-s">Total volume is up 43% over twelve months. Critical events are up from zero to two a month.</div>
+      <div class="chart"><canvas id="c-cyber"></canvas></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-h"><h3>Operational downtime</h3>${chip('hours / month','amber')}</div>
+      <div class="pnl-s">Unplanned production downtime attributable to IT and OT events.</div>
+      <div class="chart"><canvas id="c-down"></canvas></div>
+    </div>
+  </div>
+
+  <div class="pnl">
+    <div class="pnl-h"><h3>Critical systems at risk</h3>${chip('tier 0 = revenue stops without it','red')}</div>
+    <div class="pnl-s">Patch currency, network segmentation and recovery objective for every tier-0 and tier-1 system.</div>
+    <div class="tw"><table>
+      <thead><tr><th>System</th><th>Criticality</th><th>Exposure</th><th class="n">Patch currency</th>
+      <th>Segmentation</th><th class="n">RTO</th><th class="n">Revenue behind it</th></tr></thead>
+      <tbody>${CRITICAL_SYSTEMS.map(s => `<tr class="hv">
+        <td><b>${esc(s.sys)}</b></td>
+        <td>${chip(s.crit, s.crit === 'Tier 0' ? 'red' : 'amber')}</td>
+        <td>${chip(s.exposure, s.exposure === 'Critical' ? 'red' : s.exposure === 'High' ? 'amber' : 'steel')}</td>
+        <td class="n" style="color:${s.patch < 50 ? 'var(--red)' : s.patch < 80 ? 'var(--amber)' : 'var(--green)'}">${s.patch}%</td>
+        <td>${chip(s.seg, s.seg === 'None' ? 'red' : s.seg === 'Partial' ? 'amber' : 'green')}</td>
+        <td class="n">${esc(s.rto)}</td>
+        <td class="n">${s.rev ? $M(s.rev) : '—'}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div style="margin-top:13px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+      The Gulf Coast SCADA row is the one to read twice: tier-0 criticality, critical exposure, 41% patch currency and no
+      segmentation at all. Every other row on this table has at least one control holding it up. That one has none.</div>
+  </div>`;
+}
+function initCyber(){
+  mk('c-cyber', { type:'bar',
+    data:{ labels:CYBER_INCIDENTS.map(m => m.m), datasets:[
+      { label:'Low', data:CYBER_INCIDENTS.map(m => m.low), backgroundColor:'rgba(107,140,174,.55)', stack:'a' },
+      { label:'Medium', data:CYBER_INCIDENTS.map(m => m.med), backgroundColor:'rgba(45,212,191,.7)', stack:'a' },
+      { label:'High', data:CYBER_INCIDENTS.map(m => m.high), backgroundColor:'rgba(255,176,31,.8)', stack:'a' },
+      { label:'Critical', data:CYBER_INCIDENTS.map(m => m.crit), backgroundColor:'rgba(255,59,78,.9)', stack:'a' }
+    ] },
+    options:{ plugins:{ legend:{ display:true, position:'bottom' } },
+      scales:{ x:{ stacked:true }, y:{ stacked:true } } } });
+
+  mk('c-down', { type:'bar',
+    data:{ labels:MONTHS, datasets:[{ data:DOWNTIME,
+      backgroundColor:DOWNTIME.map(v => v > 7 ? 'rgba(255,59,78,.85)' : v > 5 ? 'rgba(255,176,31,.8)' : 'rgba(45,212,191,.7)') }] },
+    options:{ plugins:{ tooltip:{ callbacks:{ label:c => c.raw + ' hours' } } },
+      scales:{ y:{ ticks:{ callback:v => v+'h' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB — SCENARIO PLANNING
+   ═══════════════════════════════════════════════════════════════ */
+function simulate(){
+  const s = SCENARIOS.find(x => x.id === SIM.scenario) || SCENARIOS[0];
+  const f = SEV_FACTOR[SIM.severity - 1];
+  return {
+    s, f,
+    rev: s.rev * f,
+    delay: Math.round(s.delay * f),
+    cust: Math.round(s.cust * f),
+    recover: Math.round(s.recover * f),
+    margin: s.rev * f * 0.31,
+    sites: Math.min(41, Math.round(s.regions.reduce((t,r) => t + (NODES.find(n => n.id === r)?.sites || 0), 0) * Math.min(1.6, f)))
+  };
+}
+
+function renderScenario(){
+  const r = simulate();
+  return `<div class="sh"><h2>Scenario Planning</h2><div class="rule"></div>
+    <span class="meta">SEVERITY ${SIM.severity} — ${esc(SEV_NAME[SIM.severity-1].toUpperCase())}</span></div>
+
+  <div class="scen">${SCENARIOS.map(s => `<div class="sc${SIM.scenario===s.id?' on':''}" data-scen="${s.id}">
+    <div class="sc-ico" style="color:${SIM.scenario===s.id?'var(--amber)':'var(--muted)'}">${s.ico}</div>
+    <div class="sc-t">${esc(s.name)}</div>
+    <div class="sc-d">${esc(s.d)}</div>
+    <div class="sc-p">${esc(s.trigger.toUpperCase())} · ${esc(s.conf.toUpperCase())}</div>
+  </div>`).join('')}</div>
+
+  <div class="simbar" style="margin-top:12px">
+    <span class="lbl">Severity</span>
+    <input type="range" id="sev" min="1" max="5" step="1" value="${SIM.severity}">
+    <span class="sev">${SIM.severity} · ${esc(SEV_NAME[SIM.severity-1])}</span>
+    <div class="fspace"></div>
+    <span class="lbl" style="color:var(--dim)">Figures are stated at severity 3 and scale with the slider</span>
+  </div>
+
+  <div class="g g5">
+    ${st('Revenue impact', $M(r.rev), 'over the disruption window', 'var(--red)')}
+    ${st('Gross margin impact', $M(r.margin), 'at a 31% blended margin', 'var(--red)')}
+    ${st('Delay', r.delay + ' days', r.delay ? 'added to affected lanes' : 'no lane delay in this scenario', r.delay > 20 ? 'var(--red)' : 'var(--amber)')}
+    ${st('Customers affected', r.cust ? n0(r.cust) : '—', r.cust ? 'with a committed date at risk' : 'no immediate customer impact', 'var(--amber)')}
+    ${st('Recovery', r.recover + ' days', 'to pre-event run rate', r.recover > 60 ? 'var(--red)' : 'var(--amber)')}
+  </div>
+
+  <div class="g g23">
+    <div class="pnl">
+      <div class="pnl-h"><h3>Impact across severity</h3>${chip(esc(r.s.name),'amber')}</div>
+      <div class="pnl-s">How this scenario scales. The slider position is highlighted.</div>
+      <div class="chart"><canvas id="c-scen"></canvas></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-h"><h3>Recommended response</h3>${chip(r.s.playbooks.join(' · '),'teal')}</div>
+      <div class="pnl-s">What the war room does first.</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-top:6px">${esc(r.s.response)}</div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+        <div class="l" style="font-family:var(--cond);font-size:10.5px;color:var(--dim);letter-spacing:.11em;margin-bottom:8px">PLAYBOOKS TO ACTIVATE</div>
+        ${r.s.playbooks.map(id => { const p = PLAYBOOKS.find(x => x.id === id); return p
+          ? `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:11.5px">
+              <span><span class="mono" style="color:var(--amber);margin-right:8px">${esc(p.id)}</span>${esc(p.t)}</span>
+              <span class="mono" style="color:var(--dim);font-size:10px">${esc(p.time)}</span></div>` : ''; }).join('')}
+      </div>
+      <div style="margin-top:14px;font-size:10.5px;color:var(--dim);line-height:1.6">${esc(r.s.detail)}</div>
+    </div>
+  </div>
+
+  <div class="pnl">
+    <div class="pnl-h"><h3>Regions in the blast radius</h3>${chip(r.s.regions.length + ' nodes','amber')}</div>
+    <div class="pnl-s">What this scenario touches, and what each node carries.</div>
+    <div class="tw" style="max-height:230px"><table>
+      <thead><tr><th>Region</th><th>Hub</th><th class="n">Composite risk</th><th class="n">Revenue</th>
+      <th class="n">Sites</th><th class="n">Suppliers</th><th>Exposure in this scenario</th></tr></thead>
+      <tbody>${r.s.regions.map(id => { const n = NODES.find(x => x.id === id); if (!n) return '';
+        const share = n.rev / r.s.regions.reduce((t,rr) => t + (NODES.find(x => x.id === rr)?.rev || 0), 0);
+        return `<tr class="hv" data-hc="node" data-id="${n.id}" data-md="node">
+        <td><b>${esc(n.name)}</b></td><td style="color:var(--dim)">${esc(n.hub)}</td>
+        <td class="n" style="color:${riskCol(composite(n))};font-weight:700">${composite(n)}</td>
+        <td class="n">${$M(n.rev)}</td><td class="n">${n.sites}</td><td class="n">${n0(n.sup)}</td>
+        <td class="n">${$M(r.rev * share)}</td></tr>`; }).join('')}</tbody>
+    </table></div>
+  </div>
+
+  <div class="note"><b>Severity 3 is the planning case, not the expected case.</b> Planning to the average is how organisations
+  discover that the average never happens. The value of the slider is the shape of the curve between 3 and 5 — for the supplier
+  bankruptcy scenario that curve is close to linear, which is unusual and is precisely why it is the expensive one.</div>`;
+}
+function initScenario(){
+  const s = SCENARIOS.find(x => x.id === SIM.scenario) || SCENARIOS[0];
+  mk('c-scen', { type:'bar',
+    data:{ labels:SEV_NAME.map((n,i) => (i+1) + ' · ' + n),
+      datasets:[
+        { label:'Revenue impact ($M)', data:SEV_FACTOR.map(f => +(s.rev * f).toFixed(0)),
+          backgroundColor:SEV_FACTOR.map((_,i) => i === SIM.severity - 1 ? 'rgba(255,59,78,.92)' : 'rgba(255,59,78,.3)') },
+        { label:'Recovery (days)', type:'line', data:SEV_FACTOR.map(f => Math.round(s.recover * f)),
+          borderColor:'#ffb01f', borderWidth:2, tension:.25, pointRadius:3, pointBackgroundColor:'#ffb01f', fill:false, yAxisID:'y1' }
+      ] },
+    options:{ plugins:{ legend:{ display:true, position:'bottom' } },
+      scales:{ y:{ ticks:{ callback:v => '$'+v+'M' } },
+        y1:{ position:'right', grid:{ display:false }, border:{ display:false },
+             ticks:{ color:'#4f5f72', font:{ size:10, family:'Roboto Mono' }, callback:v => v+'d' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB — RESPONSE PLAYBOOKS
+   ═══════════════════════════════════════════════════════════════ */
+function renderPlaybook(){
+  const scen = SCENARIOS.find(x => x.id === SIM.scenario) || SCENARIOS[0];
+  const activeCount = Object.values(ACTIVE_PB).filter(Boolean).length;
+  return `<div class="sh"><h2>Response Playbooks</h2><div class="rule"></div>
+    <span class="meta">${PLAYBOOKS.length} PLAYBOOKS · ${activeCount} ACTIVATED · 3 EXERCISED IN 12 MONTHS</span></div>
+
+  <div class="g g4">
+    ${st('Playbooks current', '6 of 6', 'reviewed within 90 days', 'var(--green)')}
+    ${st('Exercised in 12 months', '3 of 6', 'the other three are documents, not capabilities', 'var(--amber)')}
+    ${st('Fastest activation', '2 hours', 'PB-05 recovery team', 'var(--green)')}
+    ${st('Currently activated', String(activeCount), activeCount ? 'live in this session' : 'none — click activate to simulate', activeCount ? 'var(--green)' : 'var(--dim)')}
+  </div>
+
+  <div class="pnl" style="margin-bottom:12px">
+    <div class="pnl-h"><h3>Recommended for the selected scenario</h3>${chip(esc(scen.name),'amber')}</div>
+    <div class="pnl-s">Set on the Scenario Planning tab. These three are the ones that matter first.</div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:6px">
+      ${scen.playbooks.map(id => { const p = PLAYBOOKS.find(x => x.id === id); return p
+        ? `<span class="chip c-amber" style="padding:5px 11px;font-size:10.5px">${esc(p.id)} — ${esc(p.t)}</span>` : ''; }).join('')}
+    </div>
+  </div>
+
+  ${PLAYBOOKS.map(p => {
+    const on = !!ACTIVE_PB[p.id], rec = scen.playbooks.includes(p.id);
+    return `<div class="pb${on ? ' active' : ''}">
+      <div class="pb-h">
+        <span class="pb-n">${esc(p.id)}</span>
+        <span class="pb-t">${esc(p.t)}</span>
+        ${rec ? chip('RECOMMENDED','amber') : ''}
+        ${on ? chip('ACTIVATED','green') : ''}
+        <span class="mono" style="font-size:10px;color:var(--dim)">${esc(p.time)}</span>
+        <button class="btn${on ? ' go' : ''}" data-pb="${p.id}">${on ? 'Stand down' : 'Activate'}</button>
+      </div>
+      <div class="pb-b">
+        <div style="margin-bottom:10px">${esc(p.d)}</div>
+        ${p.steps.map((s,i) => `<div class="pb-step"><span class="n">${String(i+1).padStart(2,'0')}</span><span>${esc(s)}</span></div>`).join('')}
+        <div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:11px;padding-top:10px;border-top:1px solid var(--line);
+          font-family:var(--mono);font-size:10px;color:var(--dim)">
+          <span>OWNER: ${esc(p.owner.toUpperCase())}</span>
+          <span>PRE-CONDITION: ${esc(p.pre.toUpperCase())}</span>
+          <span>COST: ${esc(p.cost.toUpperCase())}</span>
+          <span style="color:var(--teal)">EFFECT: ${esc(p.effect.toUpperCase())}</span>
+        </div>
+      </div>
+    </div>`; }).join('')}
+
+  <div class="note"><b>A playbook that has never been exercised is a document, not a capability.</b> Three of these six have been
+  run under exercise conditions in the last twelve months, and their recovery estimates are measurements. The other three carry
+  estimates that are assumptions — including the supplier-bankruptcy playbook, which is the one currently attached to the
+  highest-rated open incident on the overview.</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHELL + ENGINE
+   ═══════════════════════════════════════════════════════════════ */
+function shell(){
+  const p = POSTURE_LEVELS[CURRENT_POSTURE];
+  return `<div class="cmdbar">
+    <div class="sig">
+      <div class="sig-badge"><span>AR</span></div>
+      <div>
+        <h1>Enterprise Resilience &amp; Scenario War Room</h1>
+        <div class="sub">ARCLIGHT INDUSTRIAL · 41 PLANTS · 1,840 SUPPLIERS · 62 COUNTRIES</div>
+      </div>
+    </div>
+    <div class="cmd-right">
+      <div><span class="pulse"></span>MONITORING <span id="clk">${new Date().toLocaleTimeString()}</span></div>
+      <div style="color:var(--dim);margin-top:2px">5 OPEN INCIDENTS · 1 CRITICAL · READINESS 72</div>
+      <a href="https://paddyspeaks.com/" class="back">← PaddySpeaks.com</a>
+    </div>
+  </div>
+
+  <div class="posture">
+    <div class="pst-l"><span class="lbl">Posture</span><span class="lvl" style="color:${p.c}">${p.k}</span></div>
+    <div class="pst-steps">${POSTURE_LEVELS.map((l,i) =>
+      `<div class="pstep${i===CURRENT_POSTURE?' on':''}"${i===CURRENT_POSTURE?` style="background:${l.c}"`:''}>${l.k}</div>`).join('')}</div>
+    <div class="pst-r"><span>REV EXPOSED ${$M(842)}</span><span>CONTINUITY 94.2%</span><span>MTTC 52 MIN</span></div>
+  </div>
+
+  <div class="tabs">${TABS.map(t =>
+    `<button class="tab${tab===t.id?' active':''}" data-tab="${t.id}">${esc(t.label)}</button>`).join('')}</div>
+
+  <div class="fbar">
+    <div class="fg"><span class="fl">Region</span>
+      <select class="fs" data-f="region" aria-label="Region">
+        <option value="all">All regions</option>
+        ${NODES.map(n => `<option value="${n.id}"${F.region===n.id?' selected':''}>${esc(n.name)}</option>`).join('')}
+      </select></div>
+    <div class="fg"><span class="fl">Scenario</span>
+      <select class="fs" data-f="scenario" aria-label="Scenario">
+        ${SCENARIOS.map(s => `<option value="${s.id}"${SIM.scenario===s.id?' selected':''}>${esc(s.name)}</option>`).join('')}
+      </select></div>
+    <div class="fspace"></div>
+    <div class="fnote">VIEWING ${esc(F.region === 'all' ? 'ALL REGIONS' : regionName(F.region).toUpperCase())} ·
+      SCENARIO ${esc((SCENARIOS.find(s => s.id === SIM.scenario) || SCENARIOS[0]).name.toUpperCase())} · SEVERITY ${SIM.severity}</div>
+  </div>
+  <div class="stage"></div>`;
+}
+
+const VIEWS = { overview:[renderOverview, initOverview], map:[renderMap, null], supply:[renderSupply, initSupply],
+  vendor:[renderVendor, null], cyber:[renderCyber, initCyber], scenario:[renderScenario, initScenario],
+  playbook:[renderPlaybook, null] };
+
+function paint(){
+  const host = $('.stage'); if (!host) return;
+  const [render, init] = VIEWS[tab] || VIEWS.overview;
+  killCharts();
+  host.innerHTML = render();
+  if (init) requestAnimationFrame(() => { try { init(); } catch(e){ console.warn('chart', e); } });
+}
+function mount(){ $('#app').innerHTML = shell(); paint(); }
+
+/* ═══ hover content ═══ */
+function hcFor(t){
+  const kind = t.dataset.hc;
+  if (kind === 'kpi'){
+    const d = KPI_NOTES[t.dataset.k]; if (!d) return '';
+    return `<h4>${esc(d.t)}</h4>${d.rows.map(r => hr(r[0], esc(r[1]))).join('')}<div class="hc-n">${esc(d.n)}</div>`;
+  }
+  if (kind === 'node'){
+    const n = NODES.find(x => x.id === t.dataset.id); if (!n) return '';
+    const c = composite(n);
+    return `<h4>${esc(n.name.toUpperCase())} · ${esc(n.hub.toUpperCase())}</h4>
+      ${hr('Composite risk', `<span style="color:${riskCol(c)}">${c} — ${riskWord(c)}</span>`)}
+      ${hr('Geopolitical', String(n.geo))}${hr('Weather & climate', String(n.weather))}${hr('Labour', String(n.labor))}
+      ${hr('Logistics', String(n.logistics))}${hr('Cyber', String(n.cyber))}
+      ${hr('Revenue in scope', $M(n.rev))}${hr('Suppliers', n0(n.sup))}${hr('Sites', String(n.sites))}
+      <div class="hc-n">${esc(n.note)}</div>`;
+  }
+  if (kind === 'v1'){
+    const s = SUPPLIERS.find(x => x.id === t.dataset.id); if (!s) return '';
+    return `<h4>${esc(s.name.toUpperCase())}</h4>
+      ${hr('Category', esc(s.cat))}${hr('Region', esc(regionName(s.region)))}
+      ${hr('Annual spend', '$' + n0(s.spend) + 'M')}
+      ${hr('Risk score', `<span style="color:${riskCol(s.risk)}">${s.risk} — ${riskWord(s.risk)}</span>`)}
+      ${hr('On-time delivery', n1(s.otd) + '%')}${hr('Lead time', s.lead + ' d ±' + n1(s.vari))}
+      ${hr('Financial rating', esc(s.fin))}${hr('Sourcing', s.single ? 'SOLE SOURCE' : esc(s.alt))}
+      ${hr('Tier-2 behind it', String((s.tier2 || []).length))}
+      <div class="hc-n">${esc(s.note)}</div>`;
+  }
+  if (kind === 'v2'){
+    const v = TIER2.find(x => x.id === t.dataset.id); if (!v) return '';
+    const feeds = SUPPLIERS.filter(s => (s.tier2 || []).includes(v.id));
+    return `<h4>${esc(v.name.toUpperCase())}</h4>
+      ${hr('Category', esc(v.cat))}${hr('Region', esc(regionName(v.region)))}
+      ${hr('Risk score', `<span style="color:${riskCol(v.risk)}">${v.risk} — ${riskWord(v.risk)}</span>`)}
+      ${hr('Tier-1s served', String(v.shared))}
+      ${hr('Spend behind it', '$' + n0(feeds.reduce((s,f) => s + f.spend, 0)) + 'M')}
+      <div class="hc-n">${esc(v.shared > 1
+        ? 'Shared across ' + feeds.map(f => f.name).join(', ') + '. A failure here defeats the diversification we paid for at tier 1 — three separate suppliers, one actual dependency.'
+        : 'Single-path dependency behind ' + (feeds[0] ? feeds[0].name : 'one tier-1 supplier') + '. Contained, provided the tier-1 above it holds inventory.')}</div>`;
+  }
+  return '';
+}
+
+/* ═══ events ═══ */
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab[data-tab]');
+  if (t){ if (t.dataset.tab !== tab){ tab = t.dataset.tab; hcHide(); hotVendor = null;
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    paint(); scrollTo({ top:0, behavior:'smooth' }); } return; }
+
+  const ov = e.target.closest('[data-ov]');
+  if (ov){ overlay = ov.dataset.ov; paint(); return; }
+
+  if (e.target.closest('[data-x]') || e.target.id === 'bd'){ closeMd(); return; }
+
+  const sc = e.target.closest('[data-scen]');
+  if (sc){ SIM.scenario = sc.dataset.scen;
+    const sel = document.querySelector('[data-f="scenario"]'); if (sel) sel.value = SIM.scenario;
+    updateFilterNote(); paint(); return; }
+
+  const pb = e.target.closest('[data-pb]');
+  if (pb){ const id = pb.dataset.pb; ACTIVE_PB[id] = !ACTIVE_PB[id]; paint(); return; }
+
+  const m = e.target.closest('[data-md]');
+  if (m){
+    hcHide();
+    const kind = m.dataset.md;
+    if (kind === 'node'){ const n = NODES.find(x => x.id === m.dataset.id); if (n) openMd(nodeModal(n)); }
+    else if (kind === 'supplier'){ const s = SUPPLIERS.find(x => x.id === m.dataset.id); if (s) openMd(supplierModal(s)); }
+    else if (kind === 'incident'){ const i = INCIDENTS.find(x => x.id === m.dataset.id); if (i) openMd(incidentModal(i)); }
+  }
+});
+
+function updateFilterNote(){
+  const el = document.querySelector('.fnote');
+  if (el) el.textContent = `VIEWING ${F.region === 'all' ? 'ALL REGIONS' : regionName(F.region).toUpperCase()} · ` +
+    `SCENARIO ${(SCENARIOS.find(s => s.id === SIM.scenario) || SCENARIOS[0]).name.toUpperCase()} · SEVERITY ${SIM.severity}`;
+}
+
+document.addEventListener('change', e => {
+  const f = e.target.closest('[data-f]');
+  if (f){
+    if (f.dataset.f === 'scenario') SIM.scenario = f.value; else F[f.dataset.f] = f.value;
+    updateFilterNote(); paint(); return;
+  }
+  if (e.target.id === 'sev'){ SIM.severity = +e.target.value; updateFilterNote(); paint(); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'sev'){
+    const v = +e.target.value;
+    const lbl = document.querySelector('.sev');
+    if (lbl) lbl.textContent = v + ' · ' + SEV_NAME[v-1];
+  }
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeMd(); hcHide(); } });
+
+if (matchMedia('(hover:hover) and (pointer:fine)').matches){
+  document.addEventListener('mouseover', e => {
+    const t = e.target.closest('[data-hc]');
+    if (t === hcTarget) return;
+    if (!t){
+      if (hcTarget){ hcHide(); if (hotVendor && tab === 'vendor'){ hotVendor = null; refreshGraph(); } }
+      return;
+    }
+    hcTarget = t;
+    const html = hcFor(t);
+    if (html) hcShow(t, html); else hcHide();
+    if (tab === 'vendor' && (t.dataset.hc === 'v1' || t.dataset.hc === 'v2')){
+      if (hotVendor !== t.dataset.id){ hotVendor = t.dataset.id; refreshGraph(); }
+    }
+  });
+  document.addEventListener('mouseout', e => {
+    const t = e.target.closest('[data-hc]');
+    if (!t || t !== hcTarget) return;
+    if (e.relatedTarget && t.contains(e.relatedTarget)) return;
+    hcHide();
+  });
+}
+
+/* Repaint only the graph so tracing a cascade never rebuilds the whole tab. */
+function refreshGraph(){
+  const old = document.querySelector('svg.graph');
+  if (!old) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = graphSvg();
+  old.replaceWith(tmp.firstElementChild);
+}
+
+addEventListener('scroll', hcHide, { capture:true, passive:true });
+setInterval(() => { const c = document.getElementById('clk'); if (c) c.textContent = new Date().toLocaleTimeString(); }, 5000);
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+</script>
+<script defer src="/lib/ps.js"></script>
+<img src="https://ps.paddyspeaks.com/api/px.gif?p=/resilience-war-room/" alt="" width="1" height="1" style="position:absolute;opacity:0" loading="eager">
+</body>
+</html>

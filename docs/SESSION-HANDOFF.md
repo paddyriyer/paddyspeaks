@@ -1,9 +1,51 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-10 (site-wide server-side tracking pixel). This file is the running memory between Claude Code
+_Last updated: 2026-09-14 (three executive demo dashboards). This file is the running memory between Claude Code
 sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-14): three executive demo dashboards ship alongside `/lakehouse/`.**
+  `/ai-command-center/`, `/revenue-intelligence/` and `/resilience-war-room/` —
+  each a single self-contained HTML file, seven tabs, Chart.js from jsdelivr,
+  `lib/ps.js` + tracking pixel, same shape as the lakehouse demo. They are
+  deliberately **not** MDM/data-quality dashboards: the story is executive
+  decision-making (AI value realization, margin protection, resilience).
+  - **They are visually distinct from each other on purpose** — different
+    palettes, type stacks (Inter/JetBrains, IBM Plex, Barlow/Roboto Mono),
+    and different signature components (agent fleet cards; a KPI ticker rail
+    and a CSS margin waterfall; an SVG world map and a vendor cascade graph).
+    Do not "harmonise" them into one design system; the point of three demos
+    is that they do not look like one demo shown three times.
+  - **Chart.js config gotcha, found the hard way.** `responsive`,
+    `maintainAspectRatio`, `plugins` and `scales` must sit under `options`, not
+    at the config root. Put at the root they are silently ignored — the tell is
+    canvases rendering at a 2:1 aspect ratio instead of filling their panel, and
+    axis/grid styling reverting to Chart.js light-theme defaults. All three
+    demos nest a shared `base = { options: {...} }` and deep-merge the per-chart
+    config into it.
+  - **`var(--x)` cannot be concatenated with an alpha suffix.** `var(--mint)99`
+    is not a colour, so any gradient built in JS resolves to hex first (see the
+    `HEX`/`hex()` helper in the AI demo). This bug renders progress bars
+    invisible rather than throwing, so it survives a console check.
+  - **The numbers reconcile, and are meant to stay that way.** In the revenue
+    demo the funnel, the margin waterfall, the product table and the action list
+    all tie to $412.6M booked / $23.8M recoverable / $18.6M actionable. In the AI
+    demo the simulator reproduces the $57.9M net baseline exactly when every
+    input is at plan (97,710 hrs/qtr × 4 × $123.6 + $23.1M − $8.9M − $4.6M).
+    If you change a figure, change its siblings.
+  - **Filters reslice, they do not scale rates.** Money-like measures scale with
+    the selected slice; percentages, confidence and uptime are re-sliced only.
+    A margin percentage does not fall because you looked at one region.
+  - **CDN is blocked in the web container** (`cdn.jsdelivr.net` returns 403 at
+    the proxy), so Chart.js never loads in-sandbox. To verify charts locally,
+    `npm i chart.js` and route `**/cdn.jsdelivr.net/**` to the local UMD build
+    in Playwright. All three demos guard on `typeof Chart === 'undefined'` and
+    degrade to chartless panels rather than throwing.
+  - **`index.html` was hand-edited, not regenerated** (per CLAUDE.md). The Data
+    Lab grid is now four cards in a 2×2 `auto-fit` layout; the lakehouse card was
+    restyled to match but its copy is unchanged. `sitemap.xml` gained three
+    entries grouped with `/lakehouse/`.
 
 - **NEW (2026-09-10): every published HTML page now carries a server-side
   tracking pixel.** PR #820, merged as `c21a15a`. A 1×1 `img` pointing at
