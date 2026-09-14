@@ -14780,6 +14780,70 @@
       ],
       "answer": 3,
       "explanation": "DYNAMIC_TABLEs in Snowflake use clustering keys to optimize incremental maintenance by pruning which data needs re-computation. Adding a clustering key on frequently queried columns reduces the rows Snowflake must recompute during each refresh cycle. Options 1 increases cost, option 2 defeats the purpose of dynamic tables, and option 3 may lose required data."
+    },
+    {
+      "id": "sql-new-121",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "You have a `customer_accounts` table with columns `account_id INT PRIMARY KEY, email TEXT, balance NUMERIC, last_updated TIMESTAMP`. A nightly batch job receives a feed of 10M records with the same schema. Some accounts are new, some exist but need balance updates. Which approach best handles this in Snowflake with minimal resource consumption?",
+      "options": [
+        "Use INSERT followed by UPDATE: first insert new rows, catch constraint violations, then update existing ones",
+        "Use MERGE statement with ON account_id match, updating balance and last_updated when matched, inserting when not matched",
+        "Use INSERT OVERWRITE with a UNION of old and new data, then drop the old table",
+        "Load feed into a staging table, then use DELETE + INSERT in a transaction"
+      ],
+      "answer": 1,
+      "explanation": "MERGE is the standard SQL construct for upsert operations and atomically handles both INSERT and UPDATE in a single statement. It's efficient, avoids constraint violations, and provides clean WHEN MATCHED/NOT MATCHED semantics. This minimizes resource consumption compared to multi-statement approaches."
+    },
+    {
+      "id": "sql-new-122",
+      "type": "single",
+      "topic": "Materialized views",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "In Postgres, you create a materialized view `sales_summary_mv` that aggregates sales by region from a large `transactions` table (updated hourly). Downstream dashboards query this view. The view refresh takes 8 minutes. Which technique best prevents stale reads without blocking queries?",
+      "options": [
+        "Drop and recreate the materialized view using CONCURRENTLY; use a concurrent refresh mechanism",
+        "Use REFRESH MATERIALIZED VIEW CONCURRENTLY on the view to allow queries during refresh",
+        "Add a CHECK constraint on the source table to prevent updates",
+        "Convert the materialized view to a regular VIEW and add query caching at the application layer"
+      ],
+      "answer": 1,
+      "explanation": "REFRESH MATERIALIZED VIEW CONCURRENTLY allows the view to remain queryable while the refresh happens in the background, using a secondary index to avoid locks. This balances freshness with availability for downstream consumers."
+    },
+    {
+      "id": "sql-new-123",
+      "type": "single",
+      "topic": "Partitioning",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "You have a BigQuery table `events` partitioned by DATE(event_timestamp) with 2 years of data. Queries typically filter on event_timestamp within a 7-day window, but occasionally need full-table scans. You notice partition pruning isn't working on some legacy queries. What is the most likely cause?",
+      "options": [
+        "The partition column event_timestamp is nullable; BigQuery cannot prune NULL partitions efficiently",
+        "Queries are using BETWEEN with explicit string dates (e.g., '2025-01-01') instead of DATE() function; literal comparisons bypass partition elimination",
+        "BigQuery caches partition metadata daily, so recent data isn't immediately pruned",
+        "The table has a clustering key that conflicts with partition pruning logic"
+      ],
+      "answer": 1,
+      "explanation": "Partition pruning in BigQuery requires the filter to be on the partition column itself. If queries use string literals or type-mismatched comparisons instead of the DATE() function, BigQuery's optimizer cannot guarantee which partitions to scan and skips pruning. Using explicit DATE(event_timestamp) = DATE('2025-01-01') ensures partition elimination."
+    },
+    {
+      "id": "sql-new-124",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "In a real-time data pipeline, you use MERGE on a Databricks Delta table `user_profiles` to sync updates from Kafka. The source has duplicates due to retries. Your MERGE has multiple WHEN MATCHED clauses updating different columns based on conditions. After a failure and replay, you notice some rows updated twice. What is the root cause?",
+      "options": [
+        "Delta's ACID guarantees are not enabled; enable deltaProperties to enforce serializability",
+        "MERGE matches on user_id, but if source has multiple rows with the same user_id, each match triggers separately; deduplicate source before MERGE",
+        "The WHEN MATCHED condition is ambiguous; only one WHEN MATCHED clause is executed per source row",
+        "Databricks MERGE does not support multiple WHEN MATCHED clauses; use nested CASE statements instead"
+      ],
+      "answer": 1,
+      "explanation": "In a MERGE statement, if the source data contains duplicate keys (multiple rows with the same user_id), each source row matches the target independently, causing multiple updates to the same target row. The fix is to deduplicate the source (e.g., using ROW_NUMBER() PARTITION BY user_id) before the MERGE to ensure at most one source row per key."
     }
   ]
 }

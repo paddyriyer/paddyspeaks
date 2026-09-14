@@ -6136,6 +6136,54 @@
       ],
       "answer": 1,
       "explanation": "When MERGE performance degrades over time despite stable data size, the delta_log/ directory grows with each transaction, causing slower metadata lookups. VACUUM removes old log entries (respecting retention policy) and improves MERGE performance. While statistics and partitioning help, the 6x slowdown over time is a classic symptom of log bloat, not initial design issues."
+    },
+    {
+      "id": "ds-new-092",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "You're running an Airflow DAG that orchestrates 50 downstream Spark jobs. Each job writes to a separate Apache Iceberg table. One job fails randomly at 3% rate. You've implemented exponential backoff retries (3 max retries), but you still lose ~0.9% of daily runs. Your requirement is exactly-once semantics per partition. Which approach minimizes production impact while meeting the exactly-once requirement?",
+      "options": [
+        "Increase max_retries to 7 and use Iceberg's merge-on-read with upsert logic keyed on a monotonic transaction ID.",
+        "Use dynamic task mapping to fan-out each Spark job into 10 parallel subtasks with individual idempotency tokens; implement Iceberg's copy-on-write mode with partition-level atomic commits.",
+        "Wrap each Spark job in a custom Airflow operator that writes a checksum file to S3 before publishing to Iceberg; on retry, validate the checksum before re-running the write.",
+        "Implement Iceberg snapshots at the beginning of each DAG run; on any failure, rollback all writes to the snapshot and re-execute from the failed task with Airflow's catchup=False."
+      ],
+      "answer": 1,
+      "explanation": "Dynamic task mapping with individual idempotency tokens ensures each subtask can be safely retried without duplicates. Iceberg's copy-on-write with partition-level atomicity guarantees exactly-once semantics per partition\u2014even under concurrent retries. Merging multiple approaches (retries + upsert + merge-on-read) adds complexity without solving the root idempotency issue; snapshots don't prevent duplicates in the Iceberg table itself; checksum files don't enforce transactional guarantees across Iceberg commits."
+    },
+    {
+      "id": "ds-new-093",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "Your data lakehouse ingests 500 million events per day into an Iceberg table partitioned by `event_date` and clustered by `user_id`. A reverse ETL tool must push updated user cohorts (100MB daily delta) back to Salesforce every 6 hours. The reverse ETL reads the full Iceberg table (2TB), filters to cohort members, and pushes changes. Latency SLA is <15 min end-to-end. Currently taking 45 min. Which single optimization has the highest impact?",
+      "options": [
+        "Add a secondary index on `user_id` and cohort membership columns; configure Iceberg's v2 row-level delete optimization to prune 98% of rows before Salesforce push.",
+        "Create a materialized view using Iceberg's time-travel to snapshot only the last 6 hours of events; configure reverse ETL to read the delta instead of the full table.",
+        "Switch to Iceberg's merge-on-read mode and implement Z-order clustering on `user_id` and `cohort_id`; use partition pruning to read only recent partitions.",
+        "Use Iceberg's hidden partition column to pre-compute user-cohort membership at ingestion time; create a separate 'cohort_changes' Iceberg table tracking deltas, and have reverse ETL read only this delta table."
+      ],
+      "answer": 3,
+      "explanation": "Pre-computing cohort membership at ingestion and maintaining a delta table eliminates the need to read 2TB and re-filter every 6 hours. Reading only cohort_changes (100MB) reduces I/O by 95%, directly solving the latency problem. Secondary indexes and row-level deletes still require scanning most of the table. Time-travel snapshots don't help if the full table is being filtered; merge-on-read adds write overhead without addressing read latency."
+    },
+    {
+      "id": "ds-new-094",
+      "type": "single",
+      "topic": "Reverse ETL",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "Your reverse ETL pipeline syncs 5M customer records from a data warehouse to a Marketo instance every 4 hours. Marketo's API allows only 10K batch upserts per request with a rate limit of 100 req/sec. On Friday, a data quality bug caused 2M incorrect updates to push to Marketo. You rolled back the warehouse, but Marketo has no native time-travel. Which approach best prevents future silent data corruption from reaching Marketo?",
+      "options": [
+        "Implement a two-tier validation: hash each record before push to an audit table; compute hash after Marketo pull to verify round-trip integrity. On mismatch, trigger an automated rollback via Marketo's native undo feature.",
+        "Create a 'shadow mode' reverse ETL that writes to a test Marketo workspace first; run data quality checks (schema, null explosion, distribution anomalies) before promoting to production. Store the 4-hour delta in a quarantine table.",
+        "Implement a row-level change-data-capture (CDC) stream from the warehouse; publish each change to a Kafka topic with schema validation. Reverse ETL reads from Kafka with configurable delay (e.g., 30 min) to allow manual approval before Marketo sync.",
+        "Use Marketo's field-level audit logs to version each customer record update; before each reverse ETL push, compare the delta against the previous push's hash and block if deviation exceeds 2% at field level."
+      ],
+      "answer": 1,
+      "explanation": "A shadow workspace with pre-push validation catches data quality issues before production sync without adding latency dependencies. Quarantine tables enable safe review and revert decisions. Hashing for audit trails is standard practice. Kafka-based delays add unnecessary latency to a 4-hour cycle and don't prevent bad data from entering Marketo. Marketo's audit logs help investigation but don't prevent pushes. Rollback via 'native undo' does not exist in Marketo (a critical constraint)."
     }
   ]
 }

@@ -1245,6 +1245,38 @@
       ],
       "answer": 2,
       "explanation": "Looker's symmetric_aggregate feature ensures that filters are applied *after* aggregation at a consistent grain, preventing fanout or premature filtering. Without it, category-level rolls-ups may exclude rows that the order-level KPI includes, or vice versa. The mismatch between bar-chart totals and the KPI is a classic symptom of missing symmetric_aggregate declarations on the measure definitions in the many-to-one relationship."
+    },
+    {
+      "id": "dash-new-023",
+      "type": "single",
+      "topic": "Date-range and time-zone handling",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "A dashboard displays 'Revenue (Last 7 Days)' and is used by teams in London (UTC+0), Tokyo (UTC+9), and S\u00e3o Paulo (UTC-3). The default filter applies a relative date range. When a S\u00e3o Paulo user opens the dashboard at 9am local time on Wednesday, they see revenue for a different 7-day window than a London user opening it at 9am the same day. How should you fix this inconsistency while preserving the intent of a rolling 'last 7 days' metric?",
+      "options": [
+        "Store all timestamps in the warehouse as Unix epoch (UTC), and have the BI tool convert to each user's local timezone only for display, never for filtering or aggregation.",
+        "Add a UTC offset column to the user table, then apply the filter in the data model using CONVERT_TIMEZONE to shift the 'current date' calculation to each user's timezone before the 7-day lookback.",
+        "Define 'last 7 days' as a fixed UTC window (e.g., 'past 7 calendar days in UTC') in the semantic layer, and document that all users see the same cohort regardless of local time.",
+        "Move the dashboard to a live connection so that each user's local system time is passed directly to the warehouse query engine."
+      ],
+      "answer": 2,
+      "explanation": "Option 2 is incorrect because applying user-specific timezone shifts to the filter creates different cohorts per user, defeating consistency. Option 3 is correct: defining a single UTC-anchored window in the semantic layer ensures all users see identical data; any user-level timezone conversion applies only to display (e.g., labeling), not aggregation. This is the standard practice at companies like Google and Stripe where multi-timezone consistency is critical."
+    },
+    {
+      "id": "dash-new-024",
+      "type": "single",
+      "topic": "Extracts vs live connections",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "Your dashboard joins three tables: `transactions` (200M rows, updated every 10 minutes), `merchants` (50K rows, static), and `merchant_fraud_flags` (50K rows, updated hourly by a risk model). You're deciding between a full extract refresh and a live connection. Which approach best balances freshness, performance, and operational simplicity?",
+      "options": [
+        "Use a live connection for all three tables so merchants always see the latest fraud flags with zero latency.",
+        "Extract all three tables on a 10-minute schedule to match transaction freshness, accepting 10-minute staleness on fraud_flags.",
+        "Materialize `transactions` + `merchants` as an extract refreshed every 10 minutes, and join to `merchant_fraud_flags` live, with a semantic layer managing the join logic.",
+        "Extract only `merchants` and `merchant_fraud_flags`, and query `transactions` live to ensure real-time transaction data."
+      ],
+      "answer": 2,
+      "explanation": "Option 2 sacrifices fraud freshness unnecessarily. Option 4 forces 200M-row live queries, creating performance and warehouse load issues. Option 1 works but adds unnecessary latency for static merchant data. Option 3 is optimal: it extracts the large, frequently-joined transaction+merchant base (maximizing query speed), while keeping the smaller, fast-changing fraud_flags table live\u2014a hybrid strategy that Databricks and Snowflake recommend for complex joins with mixed freshness requirements."
     }
   ]
 }

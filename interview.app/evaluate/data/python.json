@@ -8106,6 +8106,54 @@
       ],
       "answer": 1,
       "explanation": "The generator expression `transformed` isn't actually evaluated until the list comprehension `[process(item) for item in transformed]` consumes it. However, the list comprehension itself materializes all 10K records as `process(item)` results, which persist in the results list. Switching to `tuple(process(item) for item in transformed)` or directly iterating with a generator for save() avoids materializing all results simultaneously. The plateau at 8GB reflects the peak memory needed for a batch's processed results."
+    },
+    {
+      "id": "py-new-114",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "You're implementing a data processing pipeline that parallelizes CPU-bound work across 8 cores. You have two approaches: (1) using `threading.Thread` with 8 threads, and (2) using `multiprocessing.Pool` with 8 processes. Given that your workload involves pure computation on NumPy arrays without I/O, which statement is most accurate regarding performance implications?",
+      "options": [
+        "Threading will outperform multiprocessing because thread creation is faster and NumPy operations release the GIL during computation",
+        "Multiprocessing will outperform threading because the GIL prevents true parallelism, though NumPy's C implementations do release it for some operations",
+        "Both will perform identically because NumPy's vectorized operations bypass the GIL entirely regardless of the parallelization method",
+        "Threading will be faster because it shares memory, avoiding expensive inter-process communication overhead"
+      ],
+      "answer": 1,
+      "explanation": "While NumPy does release the GIL during certain C-level operations, the GIL is re-acquired between operations, making pure threading inefficient for CPU-bound work. Multiprocessing avoids the GIL entirely by using separate processes, providing true parallelism on multi-core systems despite the IPC overhead."
+    },
+    {
+      "id": "py-new-115",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "In a data pipeline, you need to process all JSON files in a directory structure where files are organized as: `data/2024/01/file1.json`, `data/2024/02/file2.json`, etc. You want to use `pathlib.Path.glob()` to find all JSON files and sort them chronologically by their path hierarchy. Which approach correctly achieves this?",
+      "options": [
+        "sorted(Path('data').glob('*.json')) will find all JSON files and sort them alphabetically by filename",
+        "sorted(Path('data').glob('**/*.json'), key=lambda p: p.parts) will recursively find all JSON files and sort by path tuple components",
+        "Path('data').rglob('*.json') returns an unsorted iterator, but you can convert to list and sort with sorted()",
+        "Path('data').glob('*/*.json') only searches one level deep, missing the month subdirectories"
+      ],
+      "answer": 1,
+      "explanation": "`glob('**/*.json')` with double asterisk enables recursive searching through all subdirectories. Sorting by `p.parts` (which returns a tuple of path components like ('data', '2024', '01', 'file1.json')) naturally provides chronological ordering by year, then month, then filename."
+    },
+    {
+      "id": "py-new-116",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "You're building a feature engineering pipeline where expensive transformations are reused across multiple training runs. You implement caching using `functools.lru_cache` on a function that accepts a DataFrame and returns transformed features. However, DataFrames are unhashable and mutable. Which solution is most production-appropriate?",
+      "options": [
+        "Use `functools.cache` instead of `lru_cache` since it handles unhashable types automatically",
+        "Wrap the DataFrame in `functools.reduce` to convert it into a hashable tuple before caching",
+        "Convert DataFrames to immutable representations (e.g., tuple of tuples or frozenset of column hashes) as cache keys using `functools.wraps` decorator",
+        "Apply `@lru_cache(maxsize=None)` directly to the function; Python will automatically serialize the DataFrame"
+      ],
+      "answer": 2,
+      "explanation": "Since DataFrames are unhashable, they cannot be cache keys directly. The production approach is to normalize DataFrames into hashable representations (like tuples or hash values of their contents) before passing to a cached function. This requires a wrapper function that handles the conversion, similar to what you'd implement with `functools.wraps` for decorator composition."
     }
   ]
 }
