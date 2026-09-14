@@ -6088,6 +6088,54 @@
       ],
       "answer": 1,
       "explanation": "Option 2 combines proactive early warnings (data freshness lag catches ingestion delays, schema conflicts caught at ingest time, slot utilization forecasting prevents cluster saturation before it impacts jobs) with reactive quality checks. It targets root causes rather than symptoms. Option 1 is passive (only alerts after something breaks). Option 3 is reactive and noisy. Option 4 doesn't scale and misses real-time events."
+    },
+    {
+      "id": "ds-new-089",
+      "type": "single",
+      "topic": "Exactly-Once Semantics",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "You're building a Delta Lake pipeline that ingests from Kafka with exactly-once semantics. Your current design uses idempotent writes with a deduplication window of 24 hours. A spike in data volume causes some Kafka messages to arrive 36 hours late due to network delays. What is the PRIMARY risk, and how should you mitigate it?",
+      "options": [
+        "Duplicate records will be written to Delta Lake because they fall outside the dedup window; extend the dedup window and use Delta Lake's MERGE with a generated checksum as the unique key",
+        "Late-arriving messages will be silently dropped; add a dead-letter topic and reprocess missed records on a daily schedule",
+        "The Kafka consumer will fail due to offset management; implement exactly-once processing at the Kafka offset level instead of row level",
+        "Network delays will cause data loss; switch to a pull-based architecture with Kafka Connect"
+      ],
+      "answer": 0,
+      "explanation": "With a 24-hour dedup window, messages arriving after 36 hours are outside the dedup scope and will be treated as new records, causing duplicates. Extending the dedup window and using MERGE with unique key constraints (checksums of message content) ensures idempotent writes even for late arrivals. This is the standard pattern for exactly-once semantics in Delta Lake."
+    },
+    {
+      "id": "ds-new-090",
+      "type": "single",
+      "topic": "Airflow Patterns",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "Your Airflow DAG processes 50 daily fact tables, each with 5\u201310 downstream dependent fact tables. You're seeing 30% of runs fail at random downstream tasks even though upstream data is valid. The DAG uses dynamic task generation with a loop over table lists, and each task has `max_tries=1`. What is the most likely root cause and best fix?",
+      "options": [
+        "Dynamic task IDs are colliding; refactor to use task_id templates with unique prefixes for each parent table",
+        "The DAG is hitting Airflow scheduler limits due to task explosion; reduce parallelism and batch tables into single Airflow tasks",
+        "Resource contention or transient cloud API failures are causing random task failures; add exponential backoff retry logic and increase max_tries, or implement task pools to throttle concurrency",
+        "Downstream task dependencies are missing; explicitly set upstream_list >> downstream_list dependencies in the DAG"
+      ],
+      "answer": 2,
+      "explanation": "With 50 \u00d7 5\u201310 downstream tasks (250\u2013500 tasks total), random failures suggest resource exhaustion or transient failures rather than DAG logic issues. `max_tries=1` guarantees failure on any transient error. Adding retry logic with exponential backoff and using task pools to limit concurrent execution on shared resources (database, API) is the standard pattern for handling transient failures at scale."
+    },
+    {
+      "id": "ds-new-091",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "Your Delta Lake table has grown to 200M rows. A daily MERGE operation that upsertsinto this table now takes 90 minutes instead of 15 minutes (a 6x slowdown). Table statistics show no skew, and the source data size hasn't changed. Delta Lake logs show many small files being compacted. What is the most likely cause and what should you check first?",
+      "options": [
+        "The Z-order clustering is stale; run OPTIMIZE with Z-ORDER BY on your merge key columns to improve file pruning",
+        "Delta Lake's internal transaction log (delta_log/) has grown too large, slowing metadata operations; run VACUUM and reduce log retention",
+        "The MERGE operation is rewriting all underlying Parquet files instead of just touched files due to missing statistics; run ANALYZE TABLE to regenerate column statistics",
+        "The table lacks proper partitioning; partition by the merge key to reduce the number of files MERGE must scan"
+      ],
+      "answer": 1,
+      "explanation": "When MERGE performance degrades over time despite stable data size, the delta_log/ directory grows with each transaction, causing slower metadata lookups. VACUUM removes old log entries (respecting retention policy) and improves MERGE performance. While statistics and partitioning help, the 6x slowdown over time is a classic symptom of log bloat, not initial design issues."
     }
   ]
 }

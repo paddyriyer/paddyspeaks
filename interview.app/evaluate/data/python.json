@@ -8058,6 +8058,54 @@
       ],
       "answer": 1,
       "explanation": "Option B is correct: asyncio.Semaphore(1) allows concurrent task execution within a batch (via asyncio.gather()) while serializing batch processing at the semaphore level. Option A incorrectly adds queue overhead without enforcing sequential batches. Option C blocks the event loop with thread pool blocking calls. Option D acquires the lock per-operation, defeating concurrency within batches."
+    },
+    {
+      "id": "py-new-111",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "You're building a data ingestion pipeline that reads from 500 Kafka partitions concurrently using asyncio. Each partition requires 2-5 seconds to fetch. You implement it with `asyncio.gather(*tasks)`. After 30 minutes, you notice the event loop is blocked intermittently and memory usage grows linearly. What is the most likely root cause and solution?",
+      "options": [
+        "The gather() call creates all 500 tasks simultaneously, overwhelming the event loop. Use asyncio.Semaphore(50) to limit concurrency.",
+        "Kafka connections are not being properly closed. Wrap each partition reader in an async context manager.",
+        "The event loop needs tuning via uvloop. Replace the default event loop with uvloop.new_event_loop().",
+        "Tasks are blocking on disk I/O. Use asyncio.to_thread() to offload blocking operations to a thread pool."
+      ],
+      "answer": 0,
+      "explanation": "Creating 500 concurrent tasks without backpressure saturates the event loop and task queue. A Semaphore limits active tasks to a manageable number (50-100), allowing controlled concurrency while keeping the event loop responsive. The other options address different issues but don't solve the core problem of unbounded concurrent task creation."
+    },
+    {
+      "id": "py-new-112",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "You're implementing a distributed data pipeline with context managers that acquire database connections, S3 clients, and Spark sessions. You write:\n\n```python\nwith get_db_conn() as db, get_s3_client() as s3, get_spark_session() as spark:\n    process_data(db, s3, spark)\n```\n\nDuring processing, an exception occurs in S3 operations. What is guaranteed about resource cleanup?",
+      "options": [
+        "Only the S3 client is properly closed; db and spark remain open because the exception interrupted the context stack.",
+        "All three resources are closed in reverse order (spark, s3, db) regardless of which one raised the exception, though S3's __exit__ may also raise.",
+        "The first resource (db) is closed first, then execution halts. The remaining resources leak.",
+        "Python re-raises the S3 exception after closing only the S3 client, leaving db and spark in an undefined state."
+      ],
+      "answer": 1,
+      "explanation": "Python's context manager protocol guarantees that all __exit__ methods are called in reverse order, even if one raises an exception. Each context manager is responsible for cleanup in its __exit__. However, if multiple __exit__ methods raise exceptions, only the last one propagates. This is why it's crucial to handle exceptions within __exit__ methods to avoid masking the original exception."
+    },
+    {
+      "id": "py-new-113",
+      "type": "single",
+      "topic": "memory management",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "A data transformation pipeline processes 1M records in batches of 10K. You observe that memory usage plateaus at 8GB after the first 100K records and remains high throughout. The code uses generator expressions extensively:\n\n```python\nfor batch in get_batches(records):\n    transformed = (transform(r) for r in batch)\n    results = [process(item) for item in transformed]\n    save(results)\n```\n\nWhat is the most likely memory issue and its resolution?",
+      "options": [
+        "Generator expressions create circular references with the batch iterator. Use del batch after processing to break cycles.",
+        "The list comprehension materializes all 10K transformed records in memory. The generator is never consumed until the list comprehension forces evaluation; use a generator expression or itertools.islice.",
+        "The save() function is caching results. Profile with tracemalloc to identify which functions retain object references, and explicitly clear caches with gc.collect().",
+        "Python's small object allocator is fragmenting. Switch to a memory pool allocator by setting PYTHONMALLOC=pymalloc_debug environment variable."
+      ],
+      "answer": 1,
+      "explanation": "The generator expression `transformed` isn't actually evaluated until the list comprehension `[process(item) for item in transformed]` consumes it. However, the list comprehension itself materializes all 10K records as `process(item)` results, which persist in the results list. Switching to `tuple(process(item) for item in transformed)` or directly iterating with a generator for save() avoids materializing all results simultaneously. The plateau at 8GB reflects the peak memory needed for a batch's processed results."
     }
   ]
 }

@@ -14716,6 +14716,70 @@
       ],
       "answer": 1,
       "explanation": "Option B correctly initializes the recursive CTE with direct children of comment_id = 5 (WHERE parent_comment_id = 5), then recursively joins to find all nested replies. The depth counter starts at 1 and increments with each level. Option A incorrectly starts with comment_id = 5 itself rather than its children, option C uses an inefficient LEFT JOIN that doesn't properly filter recursion, and option D doesn't truly recursively traverse the tree structure."
+    },
+    {
+      "id": "sql-new-117",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "In Snowflake, you need to deduplicate rows based on the most recent `updated_at` timestamp within each `customer_id` group. You have a table `customer_events(customer_id INT, event_id INT, event_name VARCHAR, updated_at TIMESTAMP)`. Which approach is most efficient in Snowflake?",
+      "options": [
+        "SELECT DISTINCT ON (customer_id) * FROM customer_events ORDER BY customer_id, updated_at DESC",
+        "SELECT * FROM customer_events WHERE (customer_id, updated_at) IN (SELECT customer_id, MAX(updated_at) FROM customer_events GROUP BY customer_id)",
+        "SELECT * FROM customer_events QUALIFY ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY updated_at DESC) = 1",
+        "SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY updated_at DESC) as rn FROM customer_events) WHERE rn = 1"
+      ],
+      "answer": 2,
+      "explanation": "Snowflake's QUALIFY clause is a window function filter that executes after window functions are computed, making it more efficient than subqueries. While option 3 and 4 both produce correct results, QUALIFY is Snowflake's preferred syntax and avoids the overhead of explicit subquery materialization."
+    },
+    {
+      "id": "sql-new-118",
+      "type": "single",
+      "topic": "Transaction isolation",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "You have two concurrent transactions under READ COMMITTED isolation level. Transaction A reads `account(balance=100)`, Transaction B updates the same account to `balance=50`, then Transaction A reads again and sees `balance=50`. What phenomenon has occurred?",
+      "options": [
+        "Dirty read - A read an uncommitted value from B",
+        "Non-repeatable read (fuzzy read) - A read different values in the same transaction",
+        "Phantom read - A's query result set changed due to B's insert",
+        "Lost update - B's write was overwritten by A's concurrent write"
+      ],
+      "answer": 1,
+      "explanation": "Non-repeatable read occurs when a transaction reads the same row twice and gets different values because another committed transaction modified it between reads. READ COMMITTED prevents dirty reads but allows non-repeatable reads. Dirty reads would require READ UNCOMMITTED, and this is neither a phantom read (no insert/delete) nor a lost update (no concurrent write conflict)."
+    },
+    {
+      "id": "sql-new-119",
+      "type": "single",
+      "topic": "CTEs",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "You have a recursive CTE that generates a series of dates. The anchor query starts with '2026-01-01' and the recursive query adds 1 day per iteration. After 10 iterations, you query the CTE and expect 10 rows, but you get 11. What is the most likely cause?",
+      "options": [
+        "The anchor query produces 1 row, and the recursive query produces 10 additional rows for a total of 11",
+        "The recursive query's termination condition is missing or incorrect",
+        "Snowflake's RECURSIVE setting requires explicit cycle detection",
+        "The CTE is evaluated twice due to a JOIN in the outer query"
+      ],
+      "answer": 0,
+      "explanation": "In a recursive CTE, the anchor query executes first and produces the initial set of rows. Then the recursive query executes repeatedly on those results. With 1 anchor row and 10 recursive iterations, you get 1 + 10 = 11 total rows. This is the expected behavior unless a WHERE condition explicitly stops the recursion earlier."
+    },
+    {
+      "id": "sql-new-120",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "In Snowflake, you're writing a query that uses DYNAMIC_TABLE to materialize results incrementally. You notice the dynamic table is consuming excessive compute credits. Which optimization strategy is most appropriate?",
+      "options": [
+        "Increase the materialization frequency to update the table more often",
+        "Convert to a MATERIALIZED VIEW with a scheduled task to refresh during off-peak hours",
+        "Add a WHERE clause to filter historical data and reduce the working dataset",
+        "Use CLUSTERING KEY on columns frequently used in WHERE clauses to prune partitions during refresh"
+      ],
+      "answer": 3,
+      "explanation": "DYNAMIC_TABLEs in Snowflake use clustering keys to optimize incremental maintenance by pruning which data needs re-computation. Adding a clustering key on frequently queried columns reduces the rows Snowflake must recompute during each refresh cycle. Options 1 increases cost, option 2 defeats the purpose of dynamic tables, and option 3 may lose required data."
     }
   ]
 }

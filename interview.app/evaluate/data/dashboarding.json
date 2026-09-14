@@ -1213,6 +1213,38 @@
       ],
       "answer": 0,
       "explanation": "RLS context must be consistently applied across all visuals and queries on a dashboard. If the Total Revenue tile bypasses the RLS filter (e.g., due to separate query context or an unfiltered pre-aggregated summary table), it will show the global total while country-level visuals show only the filtered region, causing a mismatch. The fix is to ensure the RLS context is propagated to all queries, including aggregates."
+    },
+    {
+      "id": "dash-new-021",
+      "type": "single",
+      "topic": "real-time OLAP serving layers",
+      "difficulty": "hard",
+      "added_date": "2026-09-14",
+      "prompt": "Your team built a real-time dashboard that aggregates click events into 50+ dimensions (user cohort, device, geo, feature flag, time bucket). Events arrive via Kafka at 10k/sec. Users complain that filtering by a specific cohort + geo combination takes 8\u201312 seconds, even though the raw event table queries complete in <500ms. The serving layer uses a columnar OLAP engine (DuckDB) with pre-aggregated Parquet files updated every 60 seconds. What is the most likely bottleneck?",
+      "options": [
+        "The Parquet files are too large; you need to partition them by cohort and geo to enable pushdown pruning.",
+        "The OLAP engine is materializing all 50 dimensions into a single denormalized table, causing slow joins when filtering on sparse dimension combinations.",
+        "60-second batch latency means users see stale data; switch to real-time streaming aggregation (e.g., Flink or Spark Streaming) to eliminate the delay.",
+        "The pre-aggregation strategy assumes queries hit high-cardinality dimension combinations; consider switching to a fact table + dimension tables with on-demand aggregation or a multi-level aggregation strategy."
+      ],
+      "answer": 3,
+      "explanation": "Pre-aggregated cubes work well for predictable, common queries but fail when users filter on rare or unanticipated dimension combinations\u2014the query must scan the full cube or fall back to raw data. A multi-level aggregation (e.g., pre-aggregate top 20 combinations, fallback to on-demand roll-ups) or fact+dimension design handles ad-hoc drilling better. Partitioning by every dimension is infeasible; 60-second latency is acceptable for most dashboards; and full denormalization isn't the core issue."
+    },
+    {
+      "id": "dash-new-022",
+      "type": "single",
+      "topic": "Looker symmetric aggregates",
+      "difficulty": "medium",
+      "added_date": "2026-09-14",
+      "prompt": "In Looker, you have a dashboard with three visualizations: (1) total_revenue by product_category, (2) average_order_value (AOV) by product_category, and (3) a KPI tile showing company-wide total_revenue. The underlying data model has a many-to-one relationship: orders \u2192 order_items. When you add a filter on order_item.discount_tier, the KPI tile's total_revenue changes, but the product_category breakdown bars shrink disproportionately. The sum of the bars no longer equals the KPI total. What is the root cause?",
+      "options": [
+        "Looker is applying the discount_tier filter at the order level instead of the order_item level, causing asymmetric aggregation.",
+        "The order_items table is being fanout-joined with a second table (e.g., promotions), creating duplicate rows that are over-counted in the KPI but not in the breakdown.",
+        "The product_category breakdown lacks a symmetric_aggregate parameter, causing Looker to aggregate discount_tier before summing by category instead of after.",
+        "The KPI tile and the breakdown charts are using different derived tables or Explores; one applies the filter before aggregation and the other applies it after."
+      ],
+      "answer": 2,
+      "explanation": "Looker's symmetric_aggregate feature ensures that filters are applied *after* aggregation at a consistent grain, preventing fanout or premature filtering. Without it, category-level rolls-ups may exclude rows that the order-level KPI includes, or vice versa. The mismatch between bar-chart totals and the KPI is a classic symptom of missing symmetric_aggregate declarations on the measure definitions in the many-to-one relationship."
     }
   ]
 }
