@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revenue Leakage &amp; Margin Intelligence Hub — PaddySpeaks</title>
+<meta name="description" content="Interactive executive demo: where enterprise revenue leaks and margin erodes — pricing, discounts, billing accuracy, renewals, churn, product mix, and the actions that recover it.">
+<meta property="og:title" content="Revenue Leakage &amp; Margin Intelligence Hub — PaddySpeaks">
+<meta property="og:description" content="A CFO and CRO dashboard for margin protection: leakage funnel, margin drivers, pricing outliers, renewal risk, product profitability, and a ranked recovery action list.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://paddyspeaks.com/revenue-intelligence/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Revenue Leakage &amp; Margin Intelligence Hub — PaddySpeaks">
+<meta name="twitter:description" content="Executives do not lose sleep over records validated. They lose sleep over margin erosion.">
+<link rel="canonical" href="https://paddyspeaks.com/revenue-intelligence/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0c11;--bg2:#0d1017;--panel:#12151d;--panel2:#171b25;--panel3:#1e2430;
+  --line:#1f2531;--line2:#2b3342;--line3:#3a4456;
+  --text:#e6eaf2;--muted:#8a94a6;--dim:#5b6475;
+  --up:#00d68f;--down:#ff5470;--warn:#ffb020;--info:#7aa2f7;--teal:#2dd4bf;--gold:#d4a843;--plum:#a78bfa;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+html,body{height:100%;font-family:'IBM Plex Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+#app{min-height:100vh}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--line3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.warn{color:var(--warn)}.dimt{color:var(--dim)}
+
+/* ── header: ledger masthead, ruled rather than glowing ── */
+.masthead{background:var(--bg2);border-bottom:1px solid var(--line2);padding:0 24px;position:sticky;top:0;z-index:120}
+.mast-top{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:13px 0;flex-wrap:wrap}
+.mark{display:flex;align-items:center;gap:13px}
+.mark-glyph{width:38px;height:38px;border:1px solid var(--line3);border-radius:4px;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#151a24,#0f131a);position:relative}
+.mark-glyph::after{content:'';position:absolute;left:8px;right:8px;bottom:9px;height:1px;background:var(--down)}
+.mark-glyph span{font-family:var(--mono);font-weight:700;font-size:15px;color:var(--up);letter-spacing:-1px}
+.mast-title{font-size:15.5px;font-weight:600;letter-spacing:-.2px}
+.mast-sub{font-size:10.5px;color:var(--muted);margin-top:2px;font-family:var(--mono)}
+.mast-right{text-align:right;font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-right:6px;animation:blip 2.6s infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.back{color:var(--info);text-decoration:none;font-size:10px;opacity:.8}
+.back:hover{opacity:1}
+
+/* ── KPI ticker rail: 12 metrics, hairline-separated, no card chrome ── */
+.rail{display:flex;overflow-x:auto;scrollbar-width:none;border-top:1px solid var(--line);background:linear-gradient(180deg,#0e1117,#0b0e14)}
+.rail::-webkit-scrollbar{display:none}
+.rcell{flex:1 0 auto;min-width:126px;padding:11px 13px 12px;border-right:1px solid var(--line);cursor:pointer;transition:background .18s;position:relative}
+.rcell:last-child{border-right:none}
+.rcell:hover{background:rgba(122,162,247,.06)}
+.rcell::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:transparent;transition:background .18s}
+.rcell:hover::before{background:var(--info)}
+.rlabel{font-size:9px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.9px;white-space:nowrap}
+.rvalue{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:5px;letter-spacing:-.6px}
+.rdelta{font-size:9.5px;font-family:var(--mono);margin-top:3px}
+
+/* ── tabs ── */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--line2);padding:0 24px;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;z-index:100}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:11px 0;margin-right:26px;font-size:12px;font-weight:500;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:color .18s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--up);font-weight:600;border-bottom-color:var(--up)}
+.tab .tnum{font-family:var(--mono);font-size:10px;color:var(--dim);margin-right:7px}
+.tab.active .tnum{color:var(--up)}
+
+/* ── filter strip ── */
+.filters{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 24px;background:var(--bg2);border-bottom:1px solid var(--line)}
+.fg{display:flex;align-items:center;gap:7px}
+.fl{font-size:9px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.9px}
+select.fs{background:var(--panel);color:var(--text);border:1px solid var(--line2);border-radius:3px;padding:5px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;outline:none}
+select.fs:hover,select.fs:focus{border-color:var(--info)}
+.cmp{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.cmp button{background:var(--panel);border:1px solid var(--line2);color:var(--muted);font-family:var(--mono);font-size:10.5px;padding:5px 11px;border-radius:3px;cursor:pointer;transition:all .18s}
+.cmp button:hover{color:var(--text);border-color:var(--line3)}
+.cmp button.on{background:rgba(0,214,143,.12);border-color:var(--up);color:var(--up)}
+
+/* ── layout ── */
+.wrap{padding:20px 24px 56px;max-width:1620px;margin:0 auto;animation:fadeUp .3s ease}
+.shead{display:flex;align-items:baseline;gap:12px;margin:24px 0 11px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.shead:first-child{margin-top:0}
+.shead .sn{font-family:var(--mono);font-size:11px;color:var(--down)}
+.shead h2{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.shead p{font-size:11px;color:var(--dim);margin-left:auto;text-align:right}
+.g{display:grid;gap:13px;margin-bottom:13px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}.g23{grid-template-columns:2fr 1fr}.g32{grid-template-columns:1fr 2fr}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:15px 17px}
+.panel-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:3px}
+.panel-h h3{font-size:12px;font-weight:600}
+.panel-s{font-size:10.5px;color:var(--dim);margin-bottom:13px;line-height:1.5}
+.tag{font-family:var(--mono);font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;letter-spacing:.4px;white-space:nowrap}
+.t-up{background:rgba(0,214,143,.12);color:var(--up)}
+.t-down{background:rgba(255,84,112,.12);color:var(--down)}
+.t-warn{background:rgba(255,176,32,.12);color:var(--warn)}
+.t-info{background:rgba(122,162,247,.12);color:var(--info)}
+.t-dim{background:rgba(255,255,255,.05);color:var(--muted)}
+.chart{position:relative;width:100%;height:265px}
+.chart>canvas{position:absolute;top:0;left:0}
+.chart-s{height:205px}
+
+/* ── ledger table ── */
+.tw{overflow:auto;max-height:440px;border:1px solid var(--line);border-radius:5px}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead{position:sticky;top:0;z-index:3}
+th{background:var(--panel2);color:var(--muted);font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.8px;padding:8px 11px;text-align:left;border-bottom:1px solid var(--line2);white-space:nowrap}
+th.n{text-align:right}
+td{padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+tbody tr:nth-child(even) td{background:rgba(255,255,255,.012)}
+tr.hv{cursor:pointer}
+tr.hv:hover td{background:rgba(122,162,247,.07)}
+td .sub{display:block;font-size:9.5px;color:var(--dim);margin-top:2px}
+
+/* ── funnel ── */
+.funnel{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.fstage{position:relative;cursor:pointer}
+.fbar{height:52px;border-radius:3px;display:flex;align-items:center;padding:0 15px;justify-content:space-between;transition:filter .18s;border:1px solid transparent}
+.fstage:hover .fbar{filter:brightness(1.22);border-color:var(--line3)}
+.fname{font-size:11.5px;font-weight:600}
+.fsub{font-size:9.5px;opacity:.72;margin-top:2px}
+.fval{font-family:var(--mono);font-size:16px;font-weight:600}
+.fdrop{display:flex;align-items:center;gap:9px;padding:6px 15px 6px 0;margin-left:26px;font-size:10.5px;color:var(--down);font-family:var(--mono)}
+.fdrop .arrow{color:var(--line3)}
+.fdrop .why{color:var(--muted);font-family:'IBM Plex Sans',sans-serif}
+
+/* ── waterfall ── */
+.wf{display:flex;align-items:flex-end;gap:5px;height:230px;padding-top:12px}
+.wcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;cursor:pointer}
+.wbox{width:100%;border-radius:3px 3px 0 0;position:relative;transition:filter .18s}
+.wcol:hover .wbox{filter:brightness(1.3)}
+.wv{font-family:var(--mono);font-size:10.5px;font-weight:600;margin-bottom:5px;white-space:nowrap}
+.wl{font-size:9.5px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.3;height:28px}
+
+/* ── heat grid ── */
+.heat{display:grid;gap:3px;margin-top:6px;font-size:10px}
+.hcell{padding:9px 6px;border-radius:3px;text-align:center;font-family:var(--mono);font-weight:600;cursor:pointer;transition:transform .15s,outline-color .15s;outline:1px solid transparent}
+.hcell:hover{transform:scale(1.06);outline-color:var(--line3)}
+.hhead{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;padding:4px 2px;text-align:center}
+.hrow{font-size:10px;color:var(--muted);display:flex;align-items:center;padding-right:8px}
+
+/* ── action rows ── */
+.act{display:flex;gap:14px;align-items:flex-start;padding:14px 15px;border:1px solid var(--line);border-left:3px solid var(--up);border-radius:5px;background:var(--panel);margin-bottom:9px;cursor:pointer;transition:border-color .18s,transform .18s,background .18s}
+.act:hover{transform:translateX(3px);background:var(--panel2);border-color:var(--line3)}
+.act-rank{font-family:var(--mono);font-size:19px;font-weight:600;color:var(--line3);min-width:28px}
+.act-b{flex:1;min-width:0}
+.act-t{font-size:12.5px;font-weight:600;margin-bottom:4px}
+.act-d{font-size:10.5px;color:var(--muted);line-height:1.55}
+.act-m{display:flex;gap:16px;margin-top:8px;font-size:9.5px;color:var(--dim);font-family:var(--mono);flex-wrap:wrap}
+.act-v{text-align:right;flex-shrink:0}
+.act-v .amt{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--up)}
+.act-v .lbl{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
+
+/* ── mini bars ── */
+.mb{display:grid;grid-template-columns:1fr 62px;gap:11px;align-items:center;padding:5px 0;font-size:11px}
+.mb-l{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mb-t{height:16px;background:var(--panel3);border-radius:2px;overflow:hidden;position:relative}
+.mb-f{height:100%;border-radius:2px;transition:width .5s ease}
+.mb-v{text-align:right;font-family:var(--mono);font-weight:600;font-size:10.5px}
+.stat{border:1px solid var(--line);border-radius:5px;padding:12px 14px;background:var(--panel)}
+.stat .l{font-size:9px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.85px}
+.stat .v{font-family:var(--mono);font-size:20px;font-weight:600;margin-top:5px}
+.stat .d{font-size:10px;color:var(--dim);margin-top:4px;line-height:1.45}
+
+/* ── hover card ── */
+.hc{position:fixed;z-index:900;background:#141922;border:1px solid var(--line3);border-radius:6px;padding:14px 16px;width:330px;max-height:84vh;overflow-y:auto;box-shadow:0 22px 56px rgba(0,0,0,.76);pointer-events:none;opacity:0;transition:opacity .16s}
+.hc.on{opacity:1}
+.hc h4{font-size:11.5px;font-weight:600;color:var(--up);margin-bottom:9px;font-family:var(--mono);letter-spacing:.2px}
+.hr{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:10.5px;border-bottom:1px solid rgba(255,255,255,.045)}
+.hr:last-of-type{border-bottom:none}
+.hr .k{color:var(--muted)}
+.hr .v{font-family:var(--mono);font-weight:600}
+.hc-note{margin-top:10px;padding-top:9px;border-top:1px solid var(--line2);font-size:10px;color:var(--muted);line-height:1.55}
+
+/* ── modal ── */
+.bd{position:fixed;inset:0;background:rgba(5,7,10,.78);z-index:940;opacity:0;pointer-events:none;transition:opacity .2s}
+.bd.on{opacity:1;pointer-events:auto}
+.md{position:fixed;top:50%;left:50%;transform:translate(-50%,-48%);width:min(780px,calc(100vw - 36px));max-height:84vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line3);border-radius:8px;z-index:950;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:0 40px 90px rgba(0,0,0,.72)}
+.md.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+.md-h{padding:19px 23px 14px;border-bottom:1px solid var(--line2);display:flex;justify-content:space-between;gap:16px;align-items:flex-start;position:sticky;top:0;background:var(--panel);z-index:2}
+.md-h h2{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.md-h p{font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+.mx{background:none;border:1px solid var(--line2);color:var(--muted);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:14px;flex-shrink:0}
+.mx:hover{color:var(--down);border-color:var(--down)}
+.md-b{padding:18px 23px 24px}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:10px;margin-bottom:17px}
+.msec{margin-top:16px}
+.msec h4{font-size:10px;font-weight:600;color:var(--info);text-transform:uppercase;letter-spacing:.95px;margin-bottom:9px}
+.msec p{font-size:12px;color:var(--muted);line-height:1.68}
+.ml{list-style:none}
+.ml li{font-size:11.5px;color:var(--muted);padding:7px 0 7px 20px;position:relative;line-height:1.55;border-bottom:1px solid rgba(255,255,255,.04)}
+.ml li::before{content:'—';position:absolute;left:0;color:var(--up)}
+.ml li:last-child{border-bottom:none}
+
+.note{margin-top:30px;padding:12px 15px;border:1px solid var(--line);border-left:3px solid var(--line3);border-radius:4px;font-size:10.5px;color:var(--dim);line-height:1.65}
+.note b{color:var(--muted)}
+
+@media(max-width:1200px){.g4{grid-template-columns:repeat(2,1fr)}.g3,.g23,.g32{grid-template-columns:1fr}}
+@media(max-width:820px){.g2,.g4{grid-template-columns:1fr}.wrap{padding:15px 13px 44px}.masthead{padding:0 13px;position:relative}.tabs,.filters{padding-left:13px;padding-right:13px;position:relative}.hc{display:none}.wf{height:190px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="bd" id="bd"></div>
+<div class="md" id="md"></div>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   REVENUE LEAKAGE & MARGIN INTELLIGENCE HUB
+   Synthetic dataset. Reference org: "Helix Systems" — B2B software,
+   $412.6M gross revenue, 2,140 customers, four routes to market.
+   Every figure below reconciles: the funnel, the waterfall, the
+   product table and the action list all tie back to the same totals.
+   ═══════════════════════════════════════════════════════════════ */
+
+const TABS = [
+  { id:'pulse',    label:'Revenue Pulse' },
+  { id:'leakage',  label:'Leakage Map' },
+  { id:'margin',   label:'Margin Drivers' },
+  { id:'pricing',  label:'Pricing Intelligence' },
+  { id:'renewals', label:'Renewals & Churn' },
+  { id:'mix',      label:'Product Mix' },
+  { id:'actions',  label:'Action Center' }
+];
+
+const QTRS = ['Q4 24','Q1 25','Q2 25','Q3 25','Q4 25','Q1 26','Q2 26','Q3 26'];
+
+/* ── funnel: booked → invoiced → collected → retained ── */
+const FUNNEL = [
+  { stage:'Booked',    val:412.6, color:'#7aa2f7', sub:'Signed contract value, current quarter annualized' },
+  { stage:'Invoiced',  val:398.1, color:'#2dd4bf', sub:'Reached an invoice with the right amount on it' },
+  { stage:'Collected', val:386.4, color:'#00d68f', sub:'Cash received, net of credits and refunds' },
+  { stage:'Retained',  val:371.9, color:'#d4a843', sub:'Still on the books after churn and contraction' }
+];
+const DROPS = [
+  { from:'Booked', to:'Invoiced',  amt:14.5, why:'Billing mismatches, unbilled usage, entitlement overruns', recover:7.7 },
+  { from:'Invoiced', to:'Collected', amt:11.7, why:'Credits, goodwill refunds, uncollected true-ups', recover:5.3 },
+  { from:'Collected', to:'Retained', amt:14.5, why:'Churn, contraction, lapsed auto-renewals', recover:10.8 }
+];
+
+/* ── leakage sources: sum to the $23.8M recoverable total ── */
+const LEAKS = [
+  { src:'Under-priced enterprise contracts', amt:6.2, cat:'Pricing',  owner:'Deal Desk',    accts:14, trend:+0.8, age:'Chronic',
+    note:'Fourteen contracts signed below the approved floor and renewed at the same number three times. Nobody reopened them because nobody owned reopening them.' },
+  { src:'Invoice & billing mismatches', amt:4.1, cat:'Billing',  owner:'Revenue Ops',  accts:186, trend:+0.6, age:'Acute',
+    note:'A tax-rule change in the EMEA billing engine has been under-invoicing VAT-inclusive contracts since March. The error is systematic, which is the good news — one fix clears all 186.' },
+  { src:'Unbilled usage & entitlement overrun', amt:3.6, cat:'Billing',  owner:'Product Ops', accts:62, trend:+0.9, age:'Growing',
+    note:'API calls above contracted volume are metered but never invoiced. The meter works. The billing rule that reads it was never switched on for the 2025 plan family.' },
+  { src:'Uncollected true-ups & late renewals', amt:2.9, cat:'Collections', owner:'Finance', accts:41, trend:-0.2, age:'Improving',
+    note:'Mid-term expansions agreed verbally and never papered. Collections cannot chase what was never invoiced.' },
+  { src:'Duplicate credits & goodwill refunds', amt:2.4, cat:'Credits', owner:'Customer Care', accts:238, trend:+0.4, age:'Growing',
+    note:'Care and Finance both issue goodwill credits and neither checks the other first. 61 accounts received two credits for one incident.' },
+  { src:'Contract auto-renew lapses', amt:2.2, cat:'Renewals', owner:'Renewals', accts:9, trend:+0.3, age:'Acute',
+    note:'Nine agreements passed their notice window without the renewal being raised. Each is recoverable, and each gets harder every week it sits.' },
+  { src:'Channel rebate misapplication', amt:1.5, cat:'Channel', owner:'Partner Ops', accts:23, trend:0.0, age:'Chronic',
+    note:'Tier-2 partners claiming tier-1 rebate rates. The claims are processed automatically and the tier is checked manually, which is the wrong way round.' },
+  { src:'Service overdelivery vs contracted scope', amt:0.9, cat:'Delivery', owner:'Prof. Services', accts:17, trend:+0.1, age:'Chronic',
+    note:'Statements of work delivered at 118% of contracted hours on average. Generous, unbilled, and invisible until it shows up in the margin line.' }
+];
+
+/* ── margin waterfall: list margin down to realized margin ── */
+const MARGIN_WF = [
+  { label:'List margin',            val:74.0, type:'start' },
+  { label:'Discounting',            val:-6.4, type:'neg', detail:'Average realized discount 21.4% against a 15% policy band' },
+  { label:'Pricing pressure',       val:-2.1, type:'neg', detail:'Competitive resets on renewal in EMEA and APAC' },
+  { label:'Support burden',         val:-1.9, type:'neg', detail:'42 accounts consume 31% of support capacity' },
+  { label:'Implementation cost',    val:-1.4, type:'neg', detail:'Onboarding overrun on managed-services deals' },
+  { label:'Product delivery cost',  val:-0.5, type:'neg', detail:'Infrastructure cost of the data-residency tier' },
+  { label:'Churn & contraction',    val:-0.3, type:'neg', detail:'Mix shift as high-margin logos leave' },
+  { label:'Realized margin',        val:61.4, type:'end' }
+];
+
+const MARGIN_TREND = { list:[74.2,74.1,74.0,74.0,74.0,74.0,74.0,74.0], realized:[66.8,66.1,65.2,64.4,63.6,62.9,62.1,61.4] };
+
+/* ── pricing ── */
+const DISCOUNT_OUTLIERS = [
+  { acct:'Meridian Health',   seg:'Enterprise', region:'EMEA',  acv:4.82, disc:38.4, bench:16.0, rep:'T. Okonkwo', renew:'2026-11-30' },
+  { acct:'Vanterra Group',    seg:'Enterprise', region:'NA',    acv:3.94, disc:34.1, bench:16.0, rep:'M. Duarte',  renew:'2027-01-15' },
+  { acct:'Kestrel Logistics', seg:'Enterprise', region:'APAC',  acv:3.11, disc:33.6, bench:16.0, rep:'S. Park',    renew:'2026-10-01' },
+  { acct:'Northgate Public',  seg:'Public',     region:'NA',    acv:2.88, disc:31.2, bench:22.0, rep:'L. Ferrari', renew:'2027-03-31' },
+  { acct:'Orbis Manufacturing',seg:'Enterprise',region:'EMEA',  acv:2.64, disc:30.8, bench:16.0, rep:'T. Okonkwo', renew:'2026-12-31' },
+  { acct:'Calder Retail',     seg:'Mid-market', region:'NA',    acv:1.92, disc:29.4, bench:12.0, rep:'R. Adeyemi', renew:'2026-10-31' },
+  { acct:'Suntide Energy',    seg:'Enterprise', region:'LATAM', acv:1.74, disc:28.9, bench:16.0, rep:'C. Rivas',   renew:'2027-02-28' },
+  { acct:'Helvetia Finance',  seg:'Enterprise', region:'EMEA',  acv:1.68, disc:27.6, bench:16.0, rep:'A. Brenner', renew:'2026-11-15' },
+  { acct:'Pinnacle Media',    seg:'Mid-market', region:'NA',    acv:1.24, disc:26.8, bench:12.0, rep:'R. Adeyemi', renew:'2027-01-31' },
+  { acct:'Aurora Labs',       seg:'Mid-market', region:'APAC',  acv:0.98, disc:25.1, bench:12.0, rep:'S. Park',    renew:'2026-12-15' }
+];
+
+const PRICE_REALIZATION = [
+  { region:'North America', real:96.2, bench:100, acv:184.2, note:'Holding. Deal desk enforcement landed here first.' },
+  { region:'APAC',          real:91.7, bench:100, acv:71.4,  note:'Competitive resets on renewal, concentrated in two accounts.' },
+  { region:'EMEA',          real:88.4, bench:100, acv:118.6, note:'The weakest realization against the largest exposure. This is the priority.' },
+  { region:'LATAM',         real:84.1, bench:100, acv:38.4,  note:'Small base, worst realization. Currency pass-through is not being applied.' }
+];
+
+const SEGMENT_PRICING = [
+  { seg:'Enterprise',  acv:248.4, disc:21.4, band:16.0, count:184 },
+  { seg:'Mid-market',  acv:112.8, disc:17.8, band:12.0, count:642 },
+  { seg:'SMB',         acv:28.6,  disc:9.2,  band:8.0,  count:1206 },
+  { seg:'Public sector',acv:22.8, disc:24.6, band:22.0, count:108 }
+];
+
+const UPLIFT_ZONES = [
+  { zone:'EMEA Enterprise renewals, H1 FY27', accts:22, acv:41.8, uplift:3.4, conf:'High' },
+  { zone:'Mid-market accounts above 25% discount', accts:38, acv:18.2, uplift:1.9, conf:'High' },
+  { zone:'LATAM currency pass-through', accts:31, acv:12.4, uplift:1.1, conf:'Medium' },
+  { zone:'Public sector re-tender uplift', accts:14, acv:9.6, uplift:0.6, conf:'Low' }
+];
+
+/* ── renewals & churn ── */
+const AT_RISK = [
+  { acct:'Meridian Health', arr:4.82, health:31, renew:'2026-11-30', reason:'Price / value', csm:'D. Okafor', support:214, exec:'No', usage:-18 },
+  { acct:'Vanterra Group',  arr:3.94, health:44, renew:'2027-01-15', reason:'Champion left', csm:'P. Lindholm', support:86, exec:'Yes', usage:-9 },
+  { acct:'Orbis Manufacturing', arr:2.64, health:38, renew:'2026-12-31', reason:'Product gaps', csm:'D. Okafor', support:168, exec:'No', usage:-22 },
+  { acct:'Kestrel Logistics', arr:3.11, health:52, renew:'2026-10-01', reason:'Support experience', csm:'J. Mbeki', support:312, exec:'Yes', usage:4 },
+  { acct:'Helvetia Finance', arr:1.68, health:41, renew:'2026-11-15', reason:'M&A consolidation', csm:'A. Brenner', support:44, exec:'Yes', usage:-31 },
+  { acct:'Suntide Energy',  arr:1.74, health:48, renew:'2027-02-28', reason:'Price / value', csm:'C. Rivas', support:96, exec:'No', usage:-6 },
+  { acct:'Calder Retail',   arr:1.92, health:57, renew:'2026-10-31', reason:'Product gaps', csm:'R. Adeyemi', support:128, exec:'No', usage:-11 },
+  { acct:'Pinnacle Media',  arr:1.24, health:36, renew:'2027-01-31', reason:'Support experience', csm:'J. Mbeki', support:186, exec:'No', usage:-27 },
+  { acct:'Aurora Labs',     arr:0.98, health:62, renew:'2026-12-15', reason:'Price / value', csm:'S. Park', support:58, exec:'Yes', usage:12 },
+  { acct:'Northgate Public',arr:2.88, health:66, renew:'2027-03-31', reason:'Re-tender required', csm:'L. Ferrari', support:72, exec:'Yes', usage:2 }
+];
+
+const CHURN_REASONS = [
+  { r:'Price / value', pct:31, col:'#ff5470' },
+  { r:'Product gaps', pct:24, col:'#ffb020' },
+  { r:'Champion left', pct:18, col:'#7aa2f7' },
+  { r:'Support experience', pct:15, col:'#a78bfa' },
+  { r:'M&A consolidation', pct:12, col:'#5b6475' }
+];
+
+const RENEWAL_COHORTS = [
+  { cohort:'Q4 25', due:68.4, won:62.1, rate:90.8, down:4.2, up:9.6 },
+  { cohort:'Q1 26', due:74.2, won:66.4, rate:89.5, down:5.1, up:8.4 },
+  { cohort:'Q2 26', due:81.6, won:72.3, rate:88.6, down:6.4, up:7.2 },
+  { cohort:'Q3 26', due:88.4, won:78.1, rate:88.4, down:7.2, up:6.8 },
+  { cohort:'Q4 26 (open)', due:94.2, won:0, rate:0, down:0, up:0 }
+];
+
+const NRR_TREND = [112.4,110.8,109.1,108.2,107.4,106.1,105.2,104.2];
+
+/* ── product mix ── */
+const PRODUCTS = [
+  { p:'Core Platform',       rev:168.4, margin:78.2, growth:9.1,  attach:100, cost:36.7, line:'platform',
+    note:'The margin engine. Everything else is judged against what it does to this line.' },
+  { p:'Analytics Suite',     rev:84.2,  margin:71.4, growth:18.6, attach:54,  cost:24.1, line:'analytics',
+    note:'Highest-margin growth product. Attach rate is the whole opportunity — 46% of the base has never bought it.' },
+  { p:'Managed Services',    rev:58.6,  margin:28.4, growth:22.4, attach:24,  cost:41.9, line:'services',
+    note:'Grows revenue, crushes margin. Every managed-services win drags blended margin down by roughly 0.4 points.' },
+  { p:'Integration Hub',     rev:46.8,  margin:64.1, growth:12.2, attach:38,  cost:16.8, line:'integrations',
+    note:'Quietly healthy. Strongest retention correlation in the portfolio — accounts with the hub churn at half the rate.' },
+  { p:'Premium Support',     rev:31.4,  margin:52.8, growth:6.2,  attach:41,  cost:14.8, line:'support',
+    note:'Margin falling as the 42 high-cost accounts consume capacity they are not paying for.' },
+  { p:'Data Residency Add-on',rev:14.2, margin:81.6, growth:31.2, attach:11,  cost:2.6,  line:'platform',
+    note:'Best margin in the book, smallest base, fastest growth. Underpriced against what it unlocks in regulated deals.' },
+  { p:'Legacy Connectors',   rev:9.0,   margin:18.2, growth:-14.6,attach:9,   cost:7.4,  line:'integrations',
+    note:'Declining, unprofitable, and still supported. The only open question is whether it is sunset or repriced.' }
+];
+
+const BUNDLES = [
+  { b:'Platform + Analytics', accts:412, margin:76.4, uplift:'+14.2%', retention:'96.1%' },
+  { b:'Platform + Integration Hub', accts:288, margin:74.8, uplift:'+11.8%', retention:'97.4%' },
+  { b:'Platform + Analytics + Hub', accts:164, margin:75.9, uplift:'+22.6%', retention:'98.2%' },
+  { b:'Platform + Managed Services', accts:196, margin:52.1, uplift:'+31.4%', retention:'91.8%' }
+];
+
+/* ── action center: recoveries sum to the $18.6M headline ── */
+const ACTIONS = [
+  { t:'Renegotiate 14 underpriced enterprise contracts', amt:5.4, effort:'High', owner:'Deal Desk + Sales', conf:'High', horizon:'2 quarters',
+    d:'Fourteen enterprise agreements sit 18–22 points below the approved discount floor and have renewed at that number three times without review.',
+    steps:['Freeze auto-renew on all 14 pending a pricing review','Model the walk-away risk per account before the conversation, not during it','Open with the two accounts whose usage grew most — value is easiest to argue where it is visible','Hold the floor on eight; accept a staged uplift on the remaining six'],
+    risk:'Two of the fourteen are reference accounts. A clumsy reopening costs more in pipeline than it recovers in margin.' },
+  { t:'Intervene on the top 20 churn-risk accounts', amt:4.2, effort:'Medium', owner:'Customer Success', conf:'Medium', horizon:'1 quarter',
+    d:'$31.2M of ARR sits in the elevated and high risk bands. Twenty accounts carry 68% of it, and eleven have no executive sponsor on either side.',
+    steps:['Assign an executive sponsor to the eleven accounts that have none','Run the value review before the renewal conversation, not inside it','Fix the support experience for the four accounts above 150 tickets a quarter','Accept contraction where the alternative is churn — a downgrade is a renewal'],
+    risk:'Intervention without a fix is a meeting. Three of these accounts have a product gap that no relationship will close.' },
+  { t:'Fix the EMEA invoice mismatch', amt:3.8, effort:'Low', owner:'Revenue Ops', conf:'High', horizon:'6 weeks',
+    d:'A tax-rule change has under-invoiced 186 VAT-inclusive EMEA contracts since March. The defect is systematic, so one correction clears the whole population.',
+    steps:['Patch the billing-engine tax rule and regression-test against the 186 affected contracts','Re-invoice in arrears where the contract permits it — 141 of 186 do','Write off the 45 that do not, and stop pretending they are recoverable','Add a monthly invoice-to-contract reconciliation so the next one surfaces in weeks'],
+    risk:'Re-invoicing in arrears is a customer conversation, not a finance transaction. Sequence it with the renewals calendar.' },
+  { t:'Bill unmetered API overage on 62 accounts', amt:2.3, effort:'Low', owner:'Product Ops', conf:'High', horizon:'1 quarter',
+    d:'Usage above contracted volume is metered accurately and never invoiced — the billing rule was not enabled for the 2025 plan family.',
+    steps:['Enable the overage rule for the 2025 plan family','Notify the 62 accounts before the first invoice carries it, without exception','Offer a volume-tier upgrade as the alternative to overage pricing','Backdate only where the contract explicitly allows it'],
+    risk:'A surprise overage invoice is how a healthy account becomes a churn-risk account. The notification is not optional.' },
+  { t:'Reprice three support-heavy segments', amt:1.6, effort:'Medium', owner:'Pricing + Care', conf:'Medium', horizon:'2 quarters',
+    d:'42 accounts consume 31% of support capacity while paying standard rates. They are not bad customers; they are mispriced ones.',
+    steps:['Publish the cost-to-serve per account so the conversation is about data','Move the heaviest 18 to a usage-tiered support plan at renewal','Fund a product fix for the top three ticket drivers — repricing a defect is not a strategy','Leave the remaining 24 alone; the cost to serve is inside tolerance'],
+    risk:'Two of the eighteen are in the churn-risk list. Repricing them this quarter would be an expensive coincidence.' },
+  { t:'Recover nine lapsed auto-renewals', amt:1.3, effort:'Low', owner:'Renewals', conf:'Medium', horizon:'6 weeks',
+    d:'Nine agreements passed their notice window without a renewal being raised. All nine are still using the product.',
+    steps:['Contact all nine this week — recoverability decays fast after the notice window','Reinstate on original terms where possible rather than opening a negotiation','Fix the renewal calendar alerting that missed them','Report the root cause, not just the recovery'],
+    risk:'Each of the nine now knows it can run without a contract. Speed matters more than terms here.' }
+];
+
+/* ── high-cost customers ── */
+const HIGH_COST = [
+  { acct:'Kestrel Logistics', arr:3.11, tickets:312, cost:0.84, ratio:27.0, sev:'Critical' },
+  { acct:'Meridian Health',   arr:4.82, tickets:214, cost:0.71, ratio:14.7, sev:'High' },
+  { acct:'Pinnacle Media',    arr:1.24, tickets:186, cost:0.52, ratio:41.9, sev:'Critical' },
+  { acct:'Orbis Manufacturing',arr:2.64,tickets:168, cost:0.46, ratio:17.4, sev:'High' },
+  { acct:'Calder Retail',     arr:1.92, tickets:128, cost:0.38, ratio:19.8, sev:'High' },
+  { acct:'Suntide Energy',    arr:1.74, tickets:96,  cost:0.26, ratio:14.9, sev:'Medium' }
+];
+
+/* ── quarterly series ── */
+const REV_TREND   = [341.2,356.8,368.4,379.6,388.2,396.4,404.8,412.6];
+const LEAK_TREND  = [14.2,15.8,17.1,18.6,19.9,21.2,22.4,23.8];
+const REGION_MIX  = { all:1, na:0.446, emea:0.287, apac:0.173, latam:0.093 };
+const SEG_MIX     = { all:1, ent:0.602, mid:0.273, smb:0.069, pub:0.055 };
+const CHAN_MIX    = { all:1, direct:0.618, partner:0.216, marketplace:0.104, oem:0.062 };
+const LINE_MIX    = { all:1, platform:0.443, analytics:0.204, services:0.142, integrations:0.135, support:0.076 };
+const LBL = {
+  region:{ all:'All regions', na:'North America', emea:'EMEA', apac:'APAC', latam:'LATAM' },
+  seg:{ all:'All segments', ent:'Enterprise', mid:'Mid-market', smb:'SMB', pub:'Public sector' },
+  chan:{ all:'All channels', direct:'Direct', partner:'Partner / VAR', marketplace:'Marketplace', oem:'OEM' },
+  line:{ all:'All product lines', platform:'Platform', analytics:'Analytics Suite', services:'Managed Services',
+         integrations:'Integrations', support:'Support & Success' }
+};
+
+/* ═══ state ═══ */
+let tab = 'pulse';
+const F = { region:'all', seg:'all', chan:'all', line:'all', cmp:'qoq' };
+let charts = {};
+let hcEl = null, hcTarget = null;
+
+/* ═══ helpers ═══ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num = (n,d=1) => Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const M = (n,d=1) => (n < 0 ? '−$' : '$') + num(Math.abs(n),d) + 'M';
+const P = (n,d=1) => num(n,d) + '%';
+const signed = (n,d=1) => (n > 0 ? '+' : n < 0 ? '−' : '') + num(Math.abs(n),d);
+
+/* Filters reslice the book. Money-like measures scale by the selected slice;
+   rates (margin %, renewal rate, billing accuracy) do not — a percentage does
+   not shrink because you looked at one region. */
+function slice(){ return REGION_MIX[F.region] * SEG_MIX[F.seg] * CHAN_MIX[F.chan] * LINE_MIX[F.line]; }
+const S = n => n * slice();
+const sliceLabel = () => [LBL.region[F.region], LBL.seg[F.seg], LBL.chan[F.chan], LBL.line[F.line]]
+  .filter((v,i) => [F.region,F.seg,F.chan,F.line][i] !== 'all').join(' · ') || 'Whole book';
+const cmpLabel = () => F.cmp === 'qoq' ? 'vs prior quarter' : 'vs same quarter last year';
+const cmpScale = () => F.cmp === 'qoq' ? 1 : 2.8;   // YoY deltas are larger than QoQ
+
+function rcell(o){
+  const d = o.delta * cmpScale();
+  const good = o.invert ? d < 0 : d > 0;
+  return `<div class="rcell" data-hc="kpi" data-k="${o.k}">
+    <div class="rlabel">${esc(o.label)}</div>
+    <div class="rvalue" style="color:${o.color || 'var(--text)'}">${o.value}</div>
+    <div class="rdelta ${good ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${o.fmtDelta ? o.fmtDelta(d) : signed(d) + (o.unit || '')}</div>
+  </div>`;
+}
+function mb(label, val, max, color, disp){
+  const w = Math.max(1.5, Math.min(100, (val / max) * 100));
+  return `<div class="mb"><div class="mb-t" title="${esc(label)}">
+      <div class="mb-f" style="width:${w}%;background:${color}"></div>
+    </div><div class="mb-v">${disp}</div>
+    <div class="mb-l" style="grid-column:1/-1;margin-top:-3px;font-size:10px">${esc(label)}</div></div>`;
+}
+function bar2(label, val, max, color, disp){
+  const w = Math.max(1.5, Math.min(100, (val / max) * 100));
+  return `<div style="display:grid;grid-template-columns:168px 1fr 70px;gap:11px;align-items:center;padding:5px 0;font-size:11px">
+    <div class="mb-l">${esc(label)}</div>
+    <div class="mb-t"><div class="mb-f" style="width:${w}%;background:${color}"></div></div>
+    <div class="mb-v">${disp}</div></div>`;
+}
+const stat = (l,v,d,c) => `<div class="stat"><div class="l">${esc(l)}</div>
+  <div class="v"${c?` style="color:${c}"`:''}>${v}</div>${d?`<div class="d">${esc(d)}</div>`:''}</div>`;
+function tag(s){
+  const m = { Critical:'t-down', High:'t-down', Medium:'t-warn', Low:'t-info', Acute:'t-down', Growing:'t-warn',
+    Chronic:'t-dim', Improving:'t-up', Yes:'t-up', No:'t-down' };
+  return `<span class="tag ${m[s] || 't-dim'}">${esc(s)}</span>`;
+}
+function healthColor(h){ return h < 40 ? 'var(--down)' : h < 60 ? 'var(--warn)' : 'var(--up)'; }
+
+/* ── leakage heat matrix: rows sum to the region total, columns to the
+      category total, and the grand total is the same $23.8M as everywhere else ── */
+const HEAT_COLS = ['Pricing','Billing','Collections','Credits','Renewals','Channel & delivery'];
+const HEAT_ROWS = [
+  { r:'North America', v:[2.1,1.4,1.4,1.1,0.9,0.9] },
+  { r:'EMEA',          v:[2.6,5.1,0.8,0.7,0.7,0.8] },
+  { r:'APAC',          v:[1.0,0.8,0.5,0.4,0.4,0.5] },
+  { r:'LATAM',         v:[0.5,0.4,0.2,0.2,0.2,0.2] }
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   CHARTS
+   ═══════════════════════════════════════════════════════════════ */
+function killCharts(){ Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} }); charts = {}; }
+function mk(id, cfg){
+  const cv = document.getElementById(id);
+  if (!cv || typeof Chart === 'undefined') return;
+  // Chart.js reads these from `options`, not from the config root.
+  const base = { options: {
+      responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:false, labels:{ color:'#8a94a6', font:{ size:10, family:'IBM Plex Sans' }, boxWidth:9, boxHeight:9, usePointStyle:true } },
+        tooltip:{ backgroundColor:'rgba(18,21,29,.97)', borderColor:'#3a4456', borderWidth:1, titleColor:'#e6eaf2',
+          bodyColor:'#a9b3c4', padding:10, cornerRadius:4, titleFont:{ size:11, weight:'600', family:'IBM Plex Mono' },
+          bodyFont:{ size:11, family:'IBM Plex Mono' }, displayColors:true, boxPadding:3 }
+      },
+      scales:{
+        x:{ grid:{ color:'rgba(255,255,255,.04)', drawTicks:false }, border:{ display:false },
+            ticks:{ color:'#5b6475', font:{ size:10, family:'IBM Plex Mono' } } },
+        y:{ grid:{ color:'rgba(255,255,255,.04)', drawTicks:false }, border:{ display:false },
+            ticks:{ color:'#5b6475', font:{ size:10, family:'IBM Plex Mono' } } }
+      }
+  
+  } };
+  charts[id] = new Chart(cv.getContext('2d'), deep(base, cfg));
+}
+function deep(a,b){
+  const o = Array.isArray(a) ? a.slice() : Object.assign({}, a);
+  for (const k in b){
+    if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object') o[k] = deep(a[k], b[k]);
+    else o[k] = b[k];
+  }
+  return o;
+}
+function fill(ctx, rgb, top=.26){
+  const g = ctx.createLinearGradient(0,0,0,250);
+  g.addColorStop(0, `rgba(${rgb},${top})`); g.addColorStop(1, `rgba(${rgb},0)`); return g;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HOVER CARD
+   ═══════════════════════════════════════════════════════════════ */
+function hcShow(t, html){
+  if (!hcEl){ hcEl = document.createElement('div'); hcEl.className = 'hc'; document.body.appendChild(hcEl); }
+  hcEl.innerHTML = html; hcEl.classList.add('on');
+  const r = t.getBoundingClientRect(), b = hcEl.getBoundingClientRect();
+  let l = r.right + 12, tp = r.top;
+  if (l + b.width > innerWidth - 10) l = Math.max(10, r.left - b.width - 12);
+  if (tp + b.height > innerHeight - 10) tp = Math.max(10, innerHeight - b.height - 10);
+  hcEl.style.left = l + 'px'; hcEl.style.top = tp + 'px';
+}
+function hcHide(){ if (hcEl) hcEl.classList.remove('on'); hcTarget = null; }
+const hrow = (k,v) => `<div class="hr"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`;
+
+const KPI_NOTES = {
+  gross:{ t:'GROSS REVENUE', rows:[['Definition','Signed contract value, annualized'],['Recognised','Not the same number'],['Currency','Constant, FY26 rates'],['Includes','New, renewal, expansion']],
+    n:'Booked, not billed and not banked. The distance between this number and retained revenue is the entire subject of this dashboard.' },
+  nrr:{ t:'NET REVENUE RETAINED', rows:[['Formula','(Start + expansion − contraction − churn) ÷ start'],['Expansion','$28.9M'],['Contraction','−$12.4M'],['Churn','−$18.1M'],['Trend','8 quarters down']],
+    n:'Still above 100, which reads healthy, and falling every quarter for two years, which does not. The trend is the signal.' },
+  leak:{ t:'REVENUE LEAKAGE DETECTED', rows:[['Recoverable','$23.8M'],['Structural / accepted','$16.9M'],['Total funnel gap','$40.7M'],['Identified this quarter','$2.1M']],
+    n:'Only the recoverable half is counted here. Legitimate churn and contractual credits are a gap, not a leak — calling them leakage inflates the number and destroys the credibility of the fix list.' },
+  margin:{ t:'REALIZED MARGIN', rows:[['List margin','74.0%'],['Realized','61.4%'],['Erosion','12.6 pts'],['Largest driver','Discounting, 6.4 pts']],
+    n:'Twelve and a half points of margin are given away between the price list and the bank. Six of them are decisions somebody made deliberately.' },
+  disc:{ t:'DISCOUNT SLIPPAGE', rows:[['Realized discount','21.4%'],['Policy band','15.0%'],['Slippage','6.4 pts'],['Deals above band','38%']],
+    n:'Slippage is the gap between the discount policy and the discount practice. A band nobody enforces is a suggestion.' },
+  bill:{ t:'BILLING ACCURACY', rows:[['Invoices correct first time','97.1%'],['Affected accounts','186'],['Root cause','EMEA tax rule'],['Fix effort','Low']],
+    n:'97% sounds like a rounding error until you multiply it by the invoice base. The 2.9% is $4.1M and it is one defect.' },
+  renew:{ t:'RENEWAL WIN RATE', rows:[['Current cohort','88.4%'],['Four quarters ago','90.8%'],['Downgrades','$7.2M'],['Lapsed without contact','9 accounts']],
+    n:'Down 2.4 points across four cohorts. Nine of this quarter’s losses were never actually contested.' },
+  arr:{ t:'AT-RISK ARR', rows:[['Elevated + high risk','$31.2M'],['Top 20 accounts','68% of it'],['No exec sponsor','11 accounts'],['Renewing inside 2 quarters','$18.4M']],
+    n:'Concentration is the one piece of good news here. Twenty conversations cover two thirds of the exposure.' },
+  refund:{ t:'REFUNDS & CREDITS', rows:[['Total issued','$6.4M'],['Duplicate credits','$2.4M'],['Accounts double-credited','61'],['Approval required above','$5,000']],
+    n:'Two teams issue goodwill credits and neither checks the other first. That is a process defect wearing a customer-empathy costume.' },
+  hicost:{ t:'HIGH-COST CUSTOMERS', rows:[['Accounts','42'],['Share of support capacity','31%'],['Share of revenue','7.4%'],['Worst cost-to-serve ratio','41.9%']],
+    n:'These are not bad customers. They are mispriced ones, and the difference decides whether you fix the price or the product.' },
+  expand:{ t:'EXPANSION REVENUE', rows:[['Total','$28.9M'],['From Analytics attach','$11.4M'],['From seat growth','$9.8M'],['From tier upgrade','$7.7M']],
+    n:'Expansion is the cheapest revenue in the book and the first thing to stall when support experience slips.' },
+  recover:{ t:'RECOVERY OPPORTUNITIES', rows:[['Identified','$18.6M'],['Low effort','$7.4M'],['Inside 2 quarters','$16.1M'],['Highest single item','$5.4M']],
+    n:'The actionable subset of detected leakage: each item has an owner, an effort estimate and a route to cash. The rest is diagnosis.' }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   MODALS
+   ═══════════════════════════════════════════════════════════════ */
+function openMd(html){ $('#md').innerHTML = html; $('#md').classList.add('on'); $('#bd').classList.add('on'); document.body.style.overflow = 'hidden'; }
+function closeMd(){ $('#md').classList.remove('on'); $('#bd').classList.remove('on'); document.body.style.overflow = ''; }
+
+function actionModal(a, rank){
+  return `<div class="md-h"><div><h2>${esc(a.t)}</h2>
+      <p>Priority ${rank} · ${esc(a.owner)} · ${esc(a.horizon)} · confidence ${esc(a.conf).toLowerCase()}</p></div>
+      <button class="mx" data-x="1" aria-label="Close">✕</button></div>
+    <div class="md-b">
+      <div class="mgrid">${stat('Recovery', M(S(a.amt)), '', 'var(--up)')}${stat('Effort', a.effort)}
+        ${stat('Confidence', a.conf)}${stat('Horizon', a.horizon)}</div>
+      <div class="msec"><h4>The situation</h4><p>${esc(a.d)}</p></div>
+      <div class="msec"><h4>Plan</h4><ul class="ml">${a.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>
+      <div class="msec"><h4>What could go wrong</h4><p>${esc(a.risk)}</p></div>
+    </div>`;
+}
+function leakModal(l){
+  return `<div class="md-h"><div><h2>${esc(l.src)}</h2>
+      <p>${esc(l.cat)} · owner ${esc(l.owner)} · ${l.accts} accounts · ${esc(l.age).toLowerCase()}</p></div>
+      <button class="mx" data-x="1" aria-label="Close">✕</button></div>
+    <div class="md-b">
+      <div class="mgrid">${stat('Leakage', M(S(l.amt)), '', 'var(--down)')}${stat('Accounts', String(l.accts))}
+        ${stat('Trend', signed(l.trend,1) + 'M', cmpLabel(), l.trend > 0 ? 'var(--down)' : 'var(--up)')}
+        ${stat('Owner', esc(l.owner))}</div>
+      <div class="msec"><h4>What is actually happening</h4><p>${esc(l.note)}</p></div>
+      <div class="msec"><h4>Recoverability</h4><p>${esc(
+        l.age === 'Acute' ? 'Acute leaks are the cheapest to fix and the fastest to compound. This one has a known root cause and a defined population, which means it is an execution problem rather than an investigation.'
+        : l.age === 'Chronic' ? 'Chronic leaks survive because no single quarter feels bad enough to act. The only way this number changes is if someone owns it beyond the current planning cycle.'
+        : l.age === 'Growing' ? 'This leak is widening faster than the base is growing. Left alone for two more quarters it overtakes the largest item on this list.'
+        : 'Already narrowing under existing effort. Worth confirming the fix is structural rather than somebody chasing it manually.')}</p></div>
+    </div>`;
+}
+function acctModal(a){
+  return `<div class="md-h"><div><h2>${esc(a.acct)}</h2>
+      <p>${M(a.arr,2)} ARR · renews ${esc(a.renew)} · CSM ${esc(a.csm)}</p></div>
+      <button class="mx" data-x="1" aria-label="Close">✕</button></div>
+    <div class="md-b">
+      <div class="mgrid">${stat('ARR', M(a.arr,2))}${stat('Health', String(a.health), 'of 100', healthColor(a.health))}
+        ${stat('Churn reason', esc(a.reason))}${stat('Support tickets', String(a.support), 'this quarter')}
+        ${stat('Usage trend', signed(a.usage,0) + '%', '', a.usage < 0 ? 'var(--down)' : 'var(--up)')}
+        ${stat('Exec sponsor', a.exec, '', a.exec === 'No' ? 'var(--down)' : 'var(--up)')}</div>
+      <div class="msec"><h4>Read</h4><p>${esc(
+        a.exec === 'No' && a.health < 45 ? 'Low health, falling usage and no executive sponsor on either side. This account is not at risk of churning — on current trajectory it has already decided, and the renewal date is a formality. If it is worth keeping, the intervention is this quarter, not next.'
+        : a.support > 150 ? 'The support load is the story. This account files more tickets than accounts four times its size, which means the cost to serve is quietly eating the margin on the contract before any discount is applied. Fix the top ticket drivers before touching the price.'
+        : a.usage < 0 ? 'Usage is falling ahead of the renewal, which is the most reliable leading indicator in the book. Something changed inside the account and nobody on our side has found out what.'
+        : 'Health is holding and usage is stable. The risk here is commercial rather than relational — the renewal will turn on price, so arrive with the value case already built.')}</p></div>
+      <div class="msec"><h4>Recommended play</h4><ul class="ml">
+        ${a.exec === 'No' ? '<li>Assign an executive sponsor before the next contact, not after the first bad meeting</li>' : '<li>Use the existing executive relationship for the value review, not the renewal ask</li>'}
+        ${a.support > 150 ? '<li>Publish the ticket analysis to the account — the top three drivers are almost certainly product defects</li>' : ''}
+        ${a.usage < 0 ? '<li>Run a usage review to find what changed; falling usage predicts churn better than any survey</li>' : ''}
+        <li>Model the contraction outcome now — a downgrade accepted early beats a churn contested late</li>
+      </ul></div>
+    </div>`;
+}
+function productModal(p){
+  const contrib = p.rev * p.margin / 100;
+  return `<div class="md-h"><div><h2>${esc(p.p)}</h2>
+      <p>${M(S(p.rev))} revenue · ${P(p.margin)} gross margin · ${signed(p.growth)}% growth</p></div>
+      <button class="mx" data-x="1" aria-label="Close">✕</button></div>
+    <div class="md-b">
+      <div class="mgrid">${stat('Revenue', M(S(p.rev)))}${stat('Gross margin', P(p.margin), '', p.margin > 60 ? 'var(--up)' : p.margin > 40 ? 'var(--warn)' : 'var(--down)')}
+        ${stat('Margin contribution', M(S(contrib)))}${stat('Cost to deliver', M(S(p.cost)))}
+        ${stat('Growth', signed(p.growth) + '%', cmpLabel(), p.growth > 0 ? 'var(--up)' : 'var(--down)')}
+        ${stat('Attach rate', p.attach + '%', 'of the customer base')}</div>
+      <div class="msec"><h4>Read</h4><p>${esc(p.note)}</p></div>
+      <div class="msec"><h4>The commercial question</h4><p>${esc(
+        p.margin < 30 ? 'Every incremental sale of this product makes the blended margin worse. That is acceptable when it buys retention or pulls platform revenue behind it, and indefensible when it is sold on its own to hit a number.'
+        : p.growth < 0 ? 'Declining and barely profitable. The decision is sunset or reprice, and deferring it is itself a decision — one that costs support capacity every quarter.'
+        : p.attach < 40 ? 'Strong margin, weak attach. The opportunity is not in the price of this product but in the majority of the base that has never been offered it.'
+        : 'Healthy on every axis. The risk is complacency: the products that quietly work are the ones that get no roadmap attention until they stop working.')}</p></div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 01 — REVENUE PULSE
+   ═══════════════════════════════════════════════════════════════ */
+function renderPulse(){
+  return `<div class="shead"><span class="sn">01</span><h2>Revenue Pulse</h2>
+    <p>${esc(sliceLabel())} · ${esc(cmpLabel())}</p></div>
+
+  <div class="g g4">
+    ${stat('Gross revenue', M(S(412.6)), 'booked contract value, annualized', 'var(--info)')}
+    ${stat('Retained revenue', M(S(371.9)), 'what survives to the books', 'var(--up)')}
+    ${stat('Funnel gap', M(S(40.7)), '9.9% of everything booked', 'var(--down)')}
+    ${stat('Recoverable', M(S(23.8)), '58% of the gap has a named owner', 'var(--warn)')}
+  </div>
+
+  <div class="g g23">
+    <div class="panel">
+      <div class="panel-h"><h3>Revenue and leakage, eight quarters</h3><span class="tag t-down">leakage +67%</span></div>
+      <div class="panel-s">Revenue on the left axis, detected leakage on the right. Revenue is growing 6.4% a quarter. Leakage is growing 6.3%.</div>
+      <div class="chart"><canvas id="c-rev"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Net revenue retained</h3><span class="tag t-warn">8 quarters down</span></div>
+      <div class="panel-s">Still above 100. Down every quarter for two years.</div>
+      <div class="chart"><canvas id="c-nrr"></canvas></div>
+    </div>
+  </div>
+
+  <div class="g g32">
+    <div class="panel">
+      <div class="panel-h"><h3>Where the quarter moved</h3></div>
+      <div class="panel-s">The four changes that explain most of the delta.</div>
+      <div style="margin-top:6px">
+        ${[['Discount slippage widened','+0.9 pts','var(--down)','Enterprise renewals in EMEA closed 4.2 points below the prior cohort'],
+           ['Managed Services grew','+22.4%','var(--warn)','Fastest-growing line, lowest margin in the book — blended margin fell 0.4 pts'],
+           ['Analytics attach improved','+6 pts','var(--up)','The single largest positive contributor to expansion revenue'],
+           ['Billing defect compounded','+$0.6M','var(--down)','EMEA tax rule has now under-invoiced for two full quarters']]
+          .map(x => `<div style="display:flex;gap:12px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line)">
+            <span class="mono" style="color:${x[2]};font-size:11.5px;min-width:66px;font-weight:600">${x[1]}</span>
+            <div><div style="font-size:11.5px;font-weight:600">${esc(x[0])}</div>
+            <div style="font-size:10.5px;color:var(--dim);margin-top:2px">${esc(x[3])}</div></div></div>`).join('')}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Leakage funnel</h3><span class="tag t-info">${M(S(40.7))} total gap</span></div>
+      <div class="panel-s">Booked value on the way to the bank. Hover a stage; the full breakdown is on the Leakage Map.</div>
+      ${funnelHtml(true)}
+    </div>
+  </div>
+
+  <div class="note"><b>Synthetic demonstration data.</b> Helix Systems is fictional. Every number on this dashboard reconciles to
+  the same book: the funnel, the margin waterfall, the product table and the action list all tie to $412.6M booked and $23.8M
+  recoverable leakage. Filters reslice money-like measures; rates are not scaled, because a margin percentage does not fall
+  because you looked at one region.</div>`;
+}
+
+function funnelHtml(compact){
+  const max = FUNNEL[0].val;
+  let out = '<div class="funnel">';
+  FUNNEL.forEach((f,i) => {
+    const w = (f.val / max) * 100;
+    out += `<div class="fstage" data-hc="funnel" data-i="${i}">
+      <div class="fbar" style="width:${w}%;min-width:240px;background:linear-gradient(90deg,${f.color}2e,${f.color}12);border-left:3px solid ${f.color}">
+        <div><div class="fname">${esc(f.stage)}</div>${compact ? '' : `<div class="fsub">${esc(f.sub)}</div>`}</div>
+        <div class="fval" style="color:${f.color}">${M(S(f.val))}</div>
+      </div></div>`;
+    const d = DROPS[i];
+    if (d) out += `<div class="fdrop"><span class="arrow">↳</span><span>−${M(S(d.amt)).replace('$','$')}</span>
+      <span class="why">${esc(d.why)}</span></div>`;
+  });
+  return out + '</div>';
+}
+
+function initPulse(){
+  mk('c-rev', { type:'line',
+    data:{ labels:QTRS, datasets:[
+      { label:'Revenue', data:REV_TREND.map(v => +S(v).toFixed(1)), borderColor:'#7aa2f7', borderWidth:2.2, tension:.3,
+        pointRadius:0, pointHoverRadius:5, fill:true, backgroundColor:c => fill(c.chart.ctx,'122,162,247') },
+      { label:'Leakage', data:LEAK_TREND.map(v => +S(v).toFixed(1)), borderColor:'#ff5470', borderWidth:2, tension:.3,
+        pointRadius:0, pointHoverRadius:5, fill:false, yAxisID:'y1' }
+    ] },
+    options:{ plugins:{ legend:{ display:true, position:'bottom' },
+        tooltip:{ callbacks:{ label:c => `${c.dataset.label}: $${c.raw}M` } } },
+      scales:{ y:{ ticks:{ callback:v => '$'+v+'M' } },
+        y1:{ position:'right', grid:{ display:false }, border:{ display:false },
+             ticks:{ color:'#5b6475', font:{ size:10, family:'IBM Plex Mono' }, callback:v => '$'+v+'M' } } } } });
+
+  mk('c-nrr', { type:'line',
+    data:{ labels:QTRS, datasets:[{ label:'NRR', data:NRR_TREND, borderColor:'#ffb020', borderWidth:2.4, tension:.3,
+      pointRadius:0, pointHoverRadius:5, fill:true, backgroundColor:c => fill(c.chart.ctx,'255,176,32') }] },
+    options:{ plugins:{ tooltip:{ callbacks:{ label:c => c.raw + '%' } } },
+      scales:{ y:{ min:100, max:115, ticks:{ callback:v => v+'%' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 02 — LEAKAGE MAP
+   ═══════════════════════════════════════════════════════════════ */
+function renderLeakage(){
+  const maxLeak = Math.max(...LEAKS.map(l => l.amt));
+  const allHeat = HEAT_ROWS.flatMap(r => r.v), maxHeat = Math.max(...allHeat);
+  return `<div class="shead"><span class="sn">02</span><h2>Leakage Map</h2>
+    <p>${esc(sliceLabel())} · ${M(S(23.8))} recoverable of a ${M(S(40.7))} gap</p></div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Booked to banked</h3><span class="tag t-down">9.9% falls out</span></div>
+    <div class="panel-s">Every stage is a place value leaves. Click a stage for the detail behind the drop.</div>
+    ${funnelHtml(false)}
+    <div class="g g3" style="margin-top:18px;margin-bottom:0">
+      ${DROPS.map(d => `<div class="stat"><div class="l">${esc(d.from)} → ${esc(d.to)}</div>
+        <div class="v" style="color:var(--down)">−${M(S(d.amt))}</div>
+        <div class="d">${esc(d.why)}<br><span style="color:var(--up)">${M(S(d.recover))} judged recoverable</span></div></div>`).join('')}
+    </div>
+  </div>
+
+  <div class="g g23">
+    <div class="panel">
+      <div class="panel-h"><h3>Leakage by source</h3><span class="tag t-warn">${LEAKS.length} sources</span></div>
+      <div class="panel-s">Ranked by value. Click any row for the root cause and how recoverable it really is.</div>
+      <div class="tw"><table>
+        <thead><tr><th>Source</th><th>Category</th><th>Owner</th><th class="n">Accounts</th><th class="n">Leakage</th>
+        <th class="n">${F.cmp === 'qoq' ? 'QoQ' : 'YoY'}</th><th>Age</th></tr></thead>
+        <tbody>${LEAKS.map((l,i) => `<tr class="hv" data-md="leak" data-i="${i}" data-hc="leak">
+          <td><b>${esc(l.src)}</b></td><td class="dimt">${esc(l.cat)}</td><td class="dimt">${esc(l.owner)}</td>
+          <td class="n">${l.accts}</td><td class="n" style="color:var(--down);font-weight:600">${M(S(l.amt))}</td>
+          <td class="n ${l.trend > 0 ? 'down' : l.trend < 0 ? 'up' : 'dimt'}">${l.trend === 0 ? '—' : signed(l.trend * cmpScale(),1)}</td>
+          <td>${tag(l.age)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Concentration</h3></div>
+      <div class="panel-s">Share of recoverable leakage by source.</div>
+      <div style="margin-top:12px">${LEAKS.map(l => bar2(l.src, l.amt, maxLeak,
+        l.amt > 4 ? 'var(--down)' : l.amt > 2 ? 'var(--warn)' : 'var(--line3)', M(S(l.amt)))).join('')}</div>
+      <div style="margin-top:14px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+        The top three sources are 60% of the recoverable total, and two of the three are billing defects rather than
+        commercial decisions. That is the cheerful reading: defects have fixes, and fixes do not need a negotiation.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Leakage heat — region against category</h3><span class="tag t-info">$M recoverable</span></div>
+    <div class="panel-s">EMEA billing is not a hotspot on this grid. It is the grid.</div>
+    <div class="heat" style="grid-template-columns:120px repeat(${HEAT_COLS.length},1fr)">
+      <div class="hhead"></div>${HEAT_COLS.map(c => `<div class="hhead">${esc(c)}</div>`).join('')}
+      ${HEAT_ROWS.map(r => `<div class="hrow">${esc(r.r)}</div>` + r.v.map((v,ci) => {
+        const t = v / maxHeat;
+        const col = t > .66 ? `rgba(255,84,112,${.22 + t * .5})` : t > .33 ? `rgba(255,176,32,${.18 + t * .4})` : `rgba(122,162,247,${.1 + t * .3})`;
+        return `<div class="hcell" style="background:${col};color:${t > .5 ? '#fff' : 'var(--muted)'}"
+          data-hc="heat" data-r="${esc(r.r)}" data-c="${esc(HEAT_COLS[ci])}" data-v="${v}">${num(S(v),1)}</div>`;
+      }).join('')).join('')}
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 03 — MARGIN DRIVERS
+   ═══════════════════════════════════════════════════════════════ */
+function renderMargin(){
+  return `<div class="shead"><span class="sn">03</span><h2>Margin Drivers</h2>
+    <p>List margin 74.0% → realized 61.4% · 12.6 points of erosion</p></div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>From list margin to realized margin</h3><span class="tag t-down">−12.6 pts</span></div>
+    <div class="panel-s">Each step is a decision or a defect. Hover any column for what sits behind it.</div>
+    ${waterfallHtml()}
+  </div>
+
+  <div class="g g2">
+    <div class="panel">
+      <div class="panel-h"><h3>Margin trend</h3><span class="tag t-down">realized falling</span></div>
+      <div class="panel-s">List margin has not moved in two years. Realized margin has fallen 5.4 points.</div>
+      <div class="chart"><canvas id="c-margin"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Driver detail</h3></div>
+      <div class="panel-s">The six things standing between the price list and the margin line.</div>
+      <div class="tw" style="max-height:290px"><table>
+        <thead><tr><th>Driver</th><th class="n">Impact</th><th>What is behind it</th></tr></thead>
+        <tbody>${MARGIN_WF.filter(w => w.type === 'neg').map(w => `<tr class="hv">
+          <td><b>${esc(w.label)}</b></td>
+          <td class="n down">${num(w.val,1)} pts</td>
+          <td class="dimt" style="white-space:normal;max-width:300px">${esc(w.detail)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="g g23">
+    <div class="panel">
+      <div class="panel-h"><h3>High cost-to-serve accounts</h3><span class="tag t-down">42 accounts · 31% of capacity</span></div>
+      <div class="panel-s">Support cost as a share of the contract it is serving. Above 20% the account is unprofitable before any discount.</div>
+      <div class="tw" style="max-height:300px"><table>
+        <thead><tr><th>Account</th><th class="n">ARR</th><th class="n">Tickets</th><th class="n">Support cost</th>
+        <th class="n">Cost ÷ ARR</th><th>Severity</th></tr></thead>
+        <tbody>${HIGH_COST.map(h => `<tr class="hv">
+          <td><b>${esc(h.acct)}</b></td><td class="n">${M(h.arr,2)}</td><td class="n">${h.tickets}</td>
+          <td class="n">${M(h.cost,2)}</td>
+          <td class="n" style="color:${h.ratio > 25 ? 'var(--down)' : h.ratio > 15 ? 'var(--warn)' : 'var(--text)'};font-weight:600">${P(h.ratio)}</td>
+          <td>${tag(h.sev)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Where the 12.6 points went</h3></div>
+      <div class="panel-s">Erosion by driver, largest first.</div>
+      <div style="margin-top:12px">${MARGIN_WF.filter(w => w.type === 'neg')
+        .sort((a,b) => a.val - b.val)
+        .map(w => bar2(w.label, Math.abs(w.val), 6.4, Math.abs(w.val) > 3 ? 'var(--down)' : 'var(--warn)', num(w.val,1) + ' pts')).join('')}</div>
+      <div style="margin-top:14px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+        Half the erosion is discounting, which is a decision, not a cost. It is also the only driver on this list that can be
+        reversed inside one renewal cycle without changing anything about the product.</div>
+    </div>
+  </div>`;
+}
+
+function waterfallHtml(){
+  const top = 76, bottom = 56, span = top - bottom;
+  let running = MARGIN_WF[0].val;
+  const cols = MARGIN_WF.map((w,i) => {
+    if (w.type === 'start' || w.type === 'end'){
+      const h = ((w.val - bottom) / span) * 100;
+      return { label:w.label, val:w.val, disp:P(w.val), bottom:0, height:h,
+        color:w.type === 'start' ? 'linear-gradient(180deg,#7aa2f7,#5a7fd0)' : 'linear-gradient(180deg,#00d68f,#009a68)',
+        detail:w.type === 'start' ? 'Margin if every deal closed at list price and cost nothing extra to deliver'
+                                  : 'What actually reaches the margin line after every deduction above', i };
+    }
+    const before = running; running += w.val;
+    const h = (Math.abs(w.val) / span) * 100;
+    const b = ((running - bottom) / span) * 100;
+    return { label:w.label, val:w.val, disp:num(w.val,1), bottom:b, height:h,
+      color:'linear-gradient(180deg,#ff5470,#c93a53)', detail:w.detail, before, after:running, i };
+  });
+  return `<div class="wf">${cols.map(c => `<div class="wcol" data-hc="wf" data-i="${c.i}">
+      <div class="wv" style="color:${c.val < 0 ? 'var(--down)' : c.val > 65 ? 'var(--info)' : 'var(--up)'}">${c.disp}</div>
+      <div style="width:100%;height:${100 - c.bottom - c.height}%"></div>
+      <div class="wbox" style="height:${c.height}%;background:${c.color}"></div>
+      <div style="width:100%;height:${c.bottom}%"></div>
+      <div class="wl">${esc(c.label)}</div>
+    </div>`).join('')}</div>`;
+}
+
+function initMargin(){
+  mk('c-margin', { type:'line',
+    data:{ labels:QTRS, datasets:[
+      { label:'List margin', data:MARGIN_TREND.list, borderColor:'#7aa2f7', borderWidth:2, borderDash:[5,4], tension:.2, pointRadius:0, fill:false },
+      { label:'Realized margin', data:MARGIN_TREND.realized, borderColor:'#ff5470', borderWidth:2.4, tension:.3,
+        pointRadius:0, pointHoverRadius:5, fill:true, backgroundColor:c => fill(c.chart.ctx,'255,84,112') }
+    ] },
+    options:{ plugins:{ legend:{ display:true, position:'bottom' }, tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${c.raw}%` } } },
+      scales:{ y:{ min:58, max:76, ticks:{ callback:v => v+'%' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 04 — PRICING INTELLIGENCE
+   ═══════════════════════════════════════════════════════════════ */
+function renderPricing(){
+  return `<div class="shead"><span class="sn">04</span><h2>Pricing Intelligence</h2>
+    <p>Realized discount 21.4% against a 15.0% policy band</p></div>
+
+  <div class="g g4">
+    ${stat('Realized discount', '21.4%', 'weighted by contract value', 'var(--down)')}
+    ${stat('Policy band', '15.0%', 'approved without escalation')}
+    ${stat('Deals above band', '38%', 'of contract value signed this year', 'var(--warn)')}
+    ${stat('Uplift identified', M(S(7.0)), 'across four pricing zones', 'var(--up)')}
+  </div>
+
+  <div class="g g23">
+    <div class="panel">
+      <div class="panel-h"><h3>Discount against deal size</h3><span class="tag t-down">10 outliers</span></div>
+      <div class="panel-s">The benchmark line is the policy band. Everything above it was approved by somebody.</div>
+      <div class="chart"><canvas id="c-disc"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Price realization by region</h3></div>
+      <div class="panel-s">Achieved price as a share of the regional benchmark.</div>
+      <div style="margin-top:12px">${PRICE_REALIZATION.map(r => bar2(r.region, r.real, 100,
+        r.real > 95 ? 'var(--up)' : r.real > 90 ? 'var(--warn)' : 'var(--down)', P(r.real))).join('')}</div>
+      <div style="margin-top:14px;padding-top:11px;border-top:1px solid var(--line)">
+        ${PRICE_REALIZATION.map(r => `<div style="display:flex;gap:10px;padding:6px 0;font-size:10.5px">
+          <span class="mono" style="color:var(--dim);min-width:52px">${M(r.acv,1)}</span>
+          <span style="color:var(--muted);line-height:1.5">${esc(r.note)}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  <div class="g g2">
+    <div class="panel">
+      <div class="panel-h"><h3>Discount outliers</h3><span class="tag t-down">${M(S(24.95),1)} exposed</span></div>
+      <div class="panel-s">Contracts furthest above their segment band. Click for the account view.</div>
+      <div class="tw" style="max-height:330px"><table>
+        <thead><tr><th>Account</th><th>Segment</th><th>Region</th><th class="n">ACV</th><th class="n">Discount</th>
+        <th class="n">Band</th><th class="n">Over</th><th>Renews</th></tr></thead>
+        <tbody>${DISCOUNT_OUTLIERS.map(d => `<tr class="hv" data-hc="outlier" data-a="${esc(d.acct)}">
+          <td><b>${esc(d.acct)}</b><span class="sub">${esc(d.rep)}</span></td>
+          <td class="dimt">${esc(d.seg)}</td><td class="dimt">${esc(d.region)}</td>
+          <td class="n">${M(d.acv,2)}</td>
+          <td class="n" style="color:var(--down);font-weight:600">${P(d.disc)}</td>
+          <td class="n dimt">${P(d.bench,0)}</td>
+          <td class="n warn">+${num(d.disc - d.bench,1)}</td>
+          <td class="dimt">${esc(d.renew)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Segments below benchmark</h3></div>
+      <div class="panel-s">Realized discount against the approved band, by segment.</div>
+      <div class="tw" style="max-height:150px"><table>
+        <thead><tr><th>Segment</th><th class="n">Contracts</th><th class="n">ACV</th><th class="n">Realized</th>
+        <th class="n">Band</th><th class="n">Slippage</th></tr></thead>
+        <tbody>${SEGMENT_PRICING.map(s => `<tr class="hv">
+          <td><b>${esc(s.seg)}</b></td><td class="n">${num(s.count,0)}</td><td class="n">${M(S(s.acv))}</td>
+          <td class="n">${P(s.disc)}</td><td class="n dimt">${P(s.band,0)}</td>
+          <td class="n" style="color:${s.disc - s.band > 4 ? 'var(--down)' : 'var(--warn)'};font-weight:600">+${num(s.disc - s.band,1)} pts</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+
+      <div class="panel-h" style="margin-top:18px"><h3>Recommended uplift zones</h3><span class="tag t-up">${M(S(7.0))}</span></div>
+      <div class="panel-s">Where price can move without a product change.</div>
+      <div class="tw" style="max-height:170px"><table>
+        <thead><tr><th>Zone</th><th class="n">Accounts</th><th class="n">ACV</th><th class="n">Uplift</th><th>Confidence</th></tr></thead>
+        <tbody>${UPLIFT_ZONES.map(z => `<tr class="hv">
+          <td><b>${esc(z.zone)}</b></td><td class="n">${z.accts}</td><td class="n">${M(S(z.acv))}</td>
+          <td class="n up" style="font-weight:600">${M(S(z.uplift),1)}</td><td>${tag(z.conf)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="note"><b>A discount is not a defect.</b> Every one of these was approved by somebody who had a reason at the time.
+  What makes them a margin problem is that the reason was never revisited: eleven of the ten largest outliers have renewed at
+  the same discount at least twice, and no renewal has ever carried a pricing review as a required step.</div>`;
+}
+
+function initPricing(){
+  mk('c-disc', { type:'scatter',
+    data:{ datasets:[
+      { label:'Enterprise', data:DISCOUNT_OUTLIERS.filter(d => d.seg === 'Enterprise').map(d => ({ x:d.acv, y:d.disc })),
+        backgroundColor:'rgba(255,84,112,.72)', pointRadius:8, pointHoverRadius:11 },
+      { label:'Mid-market', data:DISCOUNT_OUTLIERS.filter(d => d.seg === 'Mid-market').map(d => ({ x:d.acv, y:d.disc })),
+        backgroundColor:'rgba(255,176,32,.72)', pointRadius:8, pointHoverRadius:11 },
+      { label:'Public sector', data:DISCOUNT_OUTLIERS.filter(d => d.seg === 'Public').map(d => ({ x:d.acv, y:d.disc })),
+        backgroundColor:'rgba(122,162,247,.72)', pointRadius:8, pointHoverRadius:11 },
+      { label:'Policy band (enterprise)', type:'line', data:[{ x:0.5, y:16 },{ x:5.2, y:16 }], borderColor:'#00d68f',
+        borderWidth:1.6, borderDash:[6,4], pointRadius:0, fill:false }
+    ] },
+    options:{ interaction:{ mode:'point', intersect:true },
+      plugins:{ legend:{ display:true, position:'bottom' },
+        tooltip:{ callbacks:{ label:c => `$${c.parsed.x}M ACV at ${c.parsed.y}% discount` } } },
+      scales:{ x:{ min:0.5, max:5.2, title:{ display:true, text:'Annual contract value ($M)', color:'#5b6475', font:{ size:10 } } },
+               y:{ min:10, max:42, title:{ display:true, text:'Discount %', color:'#5b6475', font:{ size:10 } },
+                   ticks:{ callback:v => v+'%' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 05 — RENEWALS & CHURN
+   ═══════════════════════════════════════════════════════════════ */
+function renderRenewals(){
+  const atRiskTotal = AT_RISK.reduce((s,a) => s + a.arr, 0);
+  const noExec = AT_RISK.filter(a => a.exec === 'No').length;
+  return `<div class="shead"><span class="sn">05</span><h2>Renewals &amp; Churn</h2>
+    <p>${M(S(31.2))} at risk · renewal win rate 88.4% and falling</p></div>
+
+  <div class="g g4">
+    ${stat('At-risk ARR', M(S(31.2)), 'elevated and high risk bands', 'var(--down)')}
+    ${stat('Renewal win rate', '88.4%', 'down 2.4 pts across four cohorts', 'var(--warn)')}
+    ${stat('Top 20 concentration', '68%', 'of at-risk ARR sits in 20 accounts', 'var(--info)')}
+    ${stat('No executive sponsor', String(noExec) + ' of ' + AT_RISK.length, 'among the largest at-risk accounts', 'var(--down)')}
+  </div>
+
+  <div class="g g23">
+    <div class="panel">
+      <div class="panel-h"><h3>Renewal cohorts</h3><span class="tag t-warn">four quarters declining</span></div>
+      <div class="panel-s">Value due, value won, and what moved up or down inside the renewal.</div>
+      <div class="chart"><canvas id="c-cohort"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Why customers leave</h3></div>
+      <div class="panel-s">Churned ARR by stated reason, trailing four quarters.</div>
+      <div class="chart chart-s"><canvas id="c-reasons"></canvas></div>
+      <div style="margin-top:12px;font-size:10.5px;color:var(--dim);line-height:1.6">
+        Price is the reason given in a third of exits. It is almost never the whole story — in eleven of the last
+        nineteen "price" exits, usage had already fallen for two quarters before anyone mentioned money.</div>
+    </div>
+  </div>
+
+  <div class="g g2">
+    <div class="panel">
+      <div class="panel-h"><h3>Accounts at risk</h3><span class="tag t-down">${M(S(atRiskTotal),1)} ARR</span></div>
+      <div class="panel-s">Ranked by exposure. Click any account for the read and the recommended play.</div>
+      <div class="tw"><table>
+        <thead><tr><th>Account</th><th class="n">ARR</th><th class="n">Health</th><th class="n">Usage</th>
+        <th class="n">Tickets</th><th>Reason</th><th>Exec</th><th>Renews</th></tr></thead>
+        <tbody>${AT_RISK.slice().sort((a,b) => b.arr - a.arr).map(a => `<tr class="hv" data-md="acct" data-a="${esc(a.acct)}" data-hc="acct">
+          <td><b>${esc(a.acct)}</b><span class="sub">${esc(a.csm)}</span></td>
+          <td class="n">${M(a.arr,2)}</td>
+          <td class="n" style="color:${healthColor(a.health)};font-weight:600">${a.health}</td>
+          <td class="n ${a.usage < 0 ? 'down' : 'up'}">${signed(a.usage,0)}%</td>
+          <td class="n ${a.support > 150 ? 'down' : ''}">${a.support}</td>
+          <td class="dimt">${esc(a.reason)}</td>
+          <td>${tag(a.exec)}</td>
+          <td class="dimt">${esc(a.renew)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Health against contract value</h3><span class="tag t-info">bubble = support load</span></div>
+      <div class="panel-s">Bottom-right is the quadrant that costs money: large contracts, poor health.</div>
+      <div class="chart"><canvas id="c-matrix"></canvas></div>
+      <div class="g g2" style="margin-top:14px;margin-bottom:0">
+        ${stat('Downgrade value', M(S(7.2)), 'contraction inside renewals', 'var(--warn)')}
+        ${stat('Expansion value', M(S(28.9)), 'upsell inside renewals', 'var(--up)')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function initRenewals(){
+  const closed = RENEWAL_COHORTS.filter(c => c.won > 0);
+  mk('c-cohort', { type:'bar',
+    data:{ labels:RENEWAL_COHORTS.map(c => c.cohort), datasets:[
+      { label:'Due', data:RENEWAL_COHORTS.map(c => +S(c.due).toFixed(1)), backgroundColor:'rgba(122,162,247,.34)', borderRadius:3, borderSkipped:false },
+      { label:'Won', data:RENEWAL_COHORTS.map(c => +S(c.won).toFixed(1)), backgroundColor:'rgba(0,214,143,.78)', borderRadius:3, borderSkipped:false },
+      { label:'Win rate %', data:RENEWAL_COHORTS.map(c => c.rate || null), type:'line', borderColor:'#ffb020',
+        borderWidth:2, tension:.25, pointRadius:3, pointBackgroundColor:'#ffb020', fill:false, yAxisID:'y1' }
+    ] },
+    options:{ plugins:{ legend:{ display:true, position:'bottom' } },
+      scales:{ y:{ ticks:{ callback:v => '$'+v+'M' } },
+        y1:{ position:'right', min:80, max:95, grid:{ display:false }, border:{ display:false },
+             ticks:{ color:'#5b6475', font:{ size:10, family:'IBM Plex Mono' }, callback:v => v+'%' } } } } });
+
+  mk('c-reasons', { type:'doughnut',
+    data:{ labels:CHURN_REASONS.map(r => r.r), datasets:[{ data:CHURN_REASONS.map(r => r.pct),
+      backgroundColor:CHURN_REASONS.map(r => r.col), borderColor:'#12151d', borderWidth:2, hoverOffset:6 }] },
+    options:{ cutout:'62%', interaction:{ mode:'nearest', intersect:true },
+      plugins:{ legend:{ display:true, position:'right', labels:{ font:{ size:10 }, padding:9 } },
+        tooltip:{ callbacks:{ label:c => `${c.label}: ${c.raw}% of churned ARR` } } },
+      scales:{ x:{ display:false }, y:{ display:false } } } });
+
+  mk('c-matrix', { type:'bubble',
+    data:{ datasets:[{ label:'At-risk accounts',
+      data:AT_RISK.map(a => ({ x:a.health, y:a.arr, r:Math.max(5, a.support / 18), acct:a.acct })),
+      backgroundColor:AT_RISK.map(a => a.health < 40 ? 'rgba(255,84,112,.62)' : a.health < 60 ? 'rgba(255,176,32,.6)' : 'rgba(0,214,143,.55)'),
+      borderColor:'rgba(255,255,255,.2)', borderWidth:1 }] },
+    options:{ interaction:{ mode:'point', intersect:true },
+      plugins:{ tooltip:{ callbacks:{ label:c => `${c.raw.acct}: health ${c.parsed.x} · $${c.parsed.y}M ARR` } } },
+      scales:{ x:{ min:25, max:75, title:{ display:true, text:'Health score', color:'#5b6475', font:{ size:10 } } },
+               y:{ min:0, max:5.5, title:{ display:true, text:'ARR ($M)', color:'#5b6475', font:{ size:10 } },
+                   ticks:{ callback:v => '$'+v+'M' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 06 — PRODUCT MIX
+   ═══════════════════════════════════════════════════════════════ */
+function renderMix(){
+  const blended = PRODUCTS.reduce((s,p) => s + p.rev * p.margin, 0) / PRODUCTS.reduce((s,p) => s + p.rev, 0);
+  const maxRev = Math.max(...PRODUCTS.map(p => p.rev));
+  return `<div class="shead"><span class="sn">06</span><h2>Product Mix</h2>
+    <p>Blended product margin ${P(blended)} before channel and delivery cost</p></div>
+
+  <div class="g g4">
+    ${stat('Blended product margin', P(blended), 'weighted by revenue', 'var(--info)')}
+    ${stat('Realized margin', '61.4%', 'after channel and delivery', 'var(--warn)')}
+    ${stat('Margin-dilutive revenue', M(S(67.6)), 'Managed Services + Legacy Connectors', 'var(--down)')}
+    ${stat('Attach opportunity', M(S(38.7)), 'Analytics into the 46% that never bought it', 'var(--up)')}
+  </div>
+
+  <div class="g g23">
+    <div class="panel">
+      <div class="panel-h"><h3>Growth against margin</h3><span class="tag t-info">bubble = revenue</span></div>
+      <div class="panel-s">Top-right compounds. Bottom-right grows the top line and shrinks the bottom one.</div>
+      <div class="chart"><canvas id="c-quad"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Revenue by product</h3></div>
+      <div class="panel-s">Bar colour is margin, not revenue.</div>
+      <div style="margin-top:12px">${PRODUCTS.map(p => bar2(p.p, p.rev, maxRev,
+        p.margin > 70 ? 'var(--up)' : p.margin > 50 ? 'var(--info)' : p.margin > 30 ? 'var(--warn)' : 'var(--down)',
+        M(S(p.rev),0))).join('')}</div>
+      <div style="margin-top:14px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+        Managed Services is the third-largest revenue line and the second-worst margin. It is also the fastest growing.
+        That combination is how a business grows its way into a margin problem.</div>
+    </div>
+  </div>
+
+  <div class="g g2">
+    <div class="panel">
+      <div class="panel-h"><h3>Product profitability</h3></div>
+      <div class="panel-s">Click any product for the commercial question it raises.</div>
+      <div class="tw"><table>
+        <thead><tr><th>Product</th><th class="n">Revenue</th><th class="n">Margin</th><th class="n">Contribution</th>
+        <th class="n">Growth</th><th class="n">Attach</th><th>Verdict</th></tr></thead>
+        <tbody>${PRODUCTS.map((p,i) => `<tr class="hv" data-md="product" data-i="${i}">
+          <td><b>${esc(p.p)}</b></td>
+          <td class="n">${M(S(p.rev),1)}</td>
+          <td class="n" style="color:${p.margin > 70 ? 'var(--up)' : p.margin > 50 ? 'var(--text)' : p.margin > 30 ? 'var(--warn)' : 'var(--down)'};font-weight:600">${P(p.margin)}</td>
+          <td class="n">${M(S(p.rev * p.margin / 100),1)}</td>
+          <td class="n ${p.growth > 0 ? 'up' : 'down'}">${signed(p.growth)}%</td>
+          <td class="n">${p.attach}%</td>
+          <td>${tag(p.margin < 30 ? 'Critical' : p.growth < 0 ? 'High' : p.attach < 40 ? 'Medium' : 'Low')}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Bundles</h3><span class="tag t-up">attach drives retention</span></div>
+      <div class="panel-s">What customers buy together, and what it does to margin and retention.</div>
+      <div class="tw" style="max-height:200px"><table>
+        <thead><tr><th>Bundle</th><th class="n">Accounts</th><th class="n">Margin</th><th class="n">ACV uplift</th><th class="n">Retention</th></tr></thead>
+        <tbody>${BUNDLES.map(b => `<tr class="hv">
+          <td><b>${esc(b.b)}</b></td><td class="n">${b.accts}</td>
+          <td class="n" style="color:${b.margin > 70 ? 'var(--up)' : 'var(--warn)'};font-weight:600">${P(b.margin)}</td>
+          <td class="n up">${esc(b.uplift)}</td><td class="n">${esc(b.retention)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div style="margin-top:14px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.6">
+        The three-product bundle carries both the highest retention and a margin within two points of the platform alone.
+        The managed-services bundle buys the largest ACV uplift in the book at 24 points of margin — worth it as a land
+        motion, expensive as a default.</div>
+    </div>
+  </div>`;
+}
+
+function initMix(){
+  mk('c-quad', { type:'bubble',
+    data:{ datasets: PRODUCTS.map((p,i) => ({ label:p.p,
+      data:[{ x:p.growth, y:p.margin, r:Math.max(6, Math.sqrt(p.rev) * 1.5) }],
+      backgroundColor:['rgba(0,214,143,.6)','rgba(45,212,191,.6)','rgba(255,176,32,.6)','rgba(122,162,247,.6)','rgba(167,139,250,.6)','rgba(212,168,67,.6)','rgba(255,84,112,.6)'][i],
+      borderColor:'rgba(255,255,255,.2)', borderWidth:1 })) },
+    options:{ interaction:{ mode:'point', intersect:true },
+      plugins:{ legend:{ display:true, position:'bottom', labels:{ font:{ size:9 }, padding:8 } },
+        tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${c.parsed.y}% margin · ${c.parsed.x > 0 ? '+' : ''}${c.parsed.x}% growth` } } },
+      scales:{ x:{ min:-20, max:36, title:{ display:true, text:'Growth %', color:'#5b6475', font:{ size:10 } }, ticks:{ callback:v => v+'%' } },
+               y:{ min:10, max:90, title:{ display:true, text:'Gross margin %', color:'#5b6475', font:{ size:10 } }, ticks:{ callback:v => v+'%' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 07 — ACTION CENTER
+   ═══════════════════════════════════════════════════════════════ */
+function renderActions(){
+  const total = ACTIONS.reduce((s,a) => s + a.amt, 0);
+  const low = ACTIONS.filter(a => a.effort === 'Low').reduce((s,a) => s + a.amt, 0);
+  const near = ACTIONS.filter(a => a.horizon !== '2 quarters').reduce((s,a) => s + a.amt, 0);
+  return `<div class="shead"><span class="sn">07</span><h2>Action Center</h2>
+    <p>${M(S(total),1)} recoverable · ${M(S(low),1)} of it is low effort</p></div>
+
+  <div class="g g4">
+    ${stat('Total recovery identified', M(S(total),1), 'across ' + ACTIONS.length + ' actions with named owners', 'var(--up)')}
+    ${stat('Low effort', M(S(low),1), 'no negotiation required', 'var(--teal)')}
+    ${stat('Inside one quarter', M(S(near),1), 'recoverable in six weeks to a quarter', 'var(--info)')}
+    ${stat('Detected but not actionable', M(S(23.8 - total),1), 'diagnosed, no route to cash yet', 'var(--dim)')}
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Ranked recovery actions</h3><span class="tag t-up">${M(S(total),1)}</span></div>
+    <div class="panel-s">Ordered by value, not by ease. Click any action for the plan and what could go wrong with it.</div>
+    <div style="margin-top:12px">
+      ${ACTIONS.map((a,i) => `<div class="act" data-md="action" data-i="${i}"
+          style="border-left-color:${a.effort === 'Low' ? 'var(--up)' : a.effort === 'Medium' ? 'var(--warn)' : 'var(--down)'}">
+        <div class="act-rank">${String(i + 1).padStart(2,'0')}</div>
+        <div class="act-b">
+          <div class="act-t">${esc(a.t)}</div>
+          <div class="act-d">${esc(a.d)}</div>
+          <div class="act-m"><span>OWNER ${esc(a.owner).toUpperCase()}</span><span>EFFORT ${esc(a.effort).toUpperCase()}</span>
+            <span>CONFIDENCE ${esc(a.conf).toUpperCase()}</span><span>${esc(a.horizon).toUpperCase()}</span></div>
+        </div>
+        <div class="act-v"><div class="amt">${M(S(a.amt),1)}</div><div class="lbl">recoverable</div></div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <div class="g g2">
+    <div class="panel">
+      <div class="panel-h"><h3>Recovery by effort</h3></div>
+      <div class="panel-s">What is available without a negotiation, and what needs one.</div>
+      <div class="chart chart-s"><canvas id="c-effort"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Sequencing</h3></div>
+      <div class="panel-s">The order matters more than the list.</div>
+      <ul class="ml" style="margin-top:10px">
+        <li>Ship the billing fixes first. ${M(S(6.1),1)} of recovery needs a code change and a customer notification, not a commercial conversation — and every week it waits, the arrears balance grows past what contracts allow you to invoice.</li>
+        <li>Do not reprice an account you are also trying to retain. Two of the eighteen support-heavy accounts are on the churn-risk list; repricing them this quarter turns one problem into two.</li>
+        <li>Renegotiate underpriced contracts before their renewal date, not at it. Reopening a contract inside its notice window hands the customer the leverage.</li>
+        <li>Accept contraction where the alternative is churn. A downgrade keeps the logo, the data and the option to expand later; a churn keeps none of them.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note"><b>Why the total here is smaller than the leakage number.</b> ${M(S(23.8),1)} of leakage is detected;
+  ${M(S(total),1)} of it has an owner, an effort estimate and a route to cash. The difference is not rounding — it is the part
+  that is diagnosed but not yet actionable, and reporting it as recoverable is how a recovery plan loses its credibility in
+  the second quarter.</div>`;
+}
+
+function initActions(){
+  const byEffort = ['Low','Medium','High'].map(e => ACTIONS.filter(a => a.effort === e).reduce((s,a) => s + a.amt, 0));
+  mk('c-effort', { type:'bar',
+    data:{ labels:['Low effort','Medium effort','High effort'],
+      datasets:[{ data:byEffort.map(v => +S(v).toFixed(1)),
+        backgroundColor:['rgba(0,214,143,.78)','rgba(255,176,32,.72)','rgba(255,84,112,.7)'], borderRadius:3, borderSkipped:false }] },
+    options:{ plugins:{ tooltip:{ callbacks:{ label:c => '$' + c.raw + 'M recoverable' } } },
+      scales:{ y:{ ticks:{ callback:v => '$'+v+'M' } } } } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHELL + ENGINE
+   ═══════════════════════════════════════════════════════════════ */
+function railHtml(){
+  const cells = [
+    { k:'gross',  label:'Gross revenue',        value:M(S(412.6),1), delta:6.4,  unit:'%', color:'var(--info)' },
+    { k:'nrr',    label:'Net revenue retained', value:'104.2%',      delta:-1.8, unit:' pts' },
+    { k:'leak',   label:'Leakage detected',     value:M(S(23.8),1),  delta:2.1,  unit:'M', invert:true, color:'var(--down)' },
+    { k:'margin', label:'Realized margin',      value:'61.4%',       delta:-1.2, unit:' pts' },
+    { k:'disc',   label:'Discount slippage',    value:'6.4 pts',     delta:0.9,  unit:' pts', invert:true, color:'var(--warn)' },
+    { k:'bill',   label:'Billing accuracy',     value:'97.1%',       delta:-0.4, unit:' pts' },
+    { k:'renew',  label:'Renewal win rate',     value:'88.4%',       delta:-2.1, unit:' pts' },
+    { k:'arr',    label:'At-risk ARR',          value:M(S(31.2),1),  delta:4.6,  unit:'M', invert:true, color:'var(--down)' },
+    { k:'refund', label:'Refunds & credits',    value:M(S(6.4),1),   delta:11.2, unit:'%', invert:true },
+    { k:'hicost', label:'High-cost customers',  value:'42',          delta:7,    unit:'', invert:true, fmtDelta:d => signed(d,0) },
+    { k:'expand', label:'Expansion revenue',    value:M(S(28.9),1),  delta:9.8,  unit:'%', color:'var(--up)' },
+    { k:'recover',label:'Recovery identified',  value:M(S(18.6),1),  delta:3.2,  unit:'M', color:'var(--up)' }
+  ];
+  return `<div class="rail">${cells.map(rcell).join('')}</div>`;
+}
+
+function shell(){
+  return `<div class="masthead">
+    <div class="mast-top">
+      <div class="mark">
+        <div class="mark-glyph"><span>RL</span></div>
+        <div>
+          <div class="mast-title">Revenue Leakage &amp; Margin Intelligence Hub</div>
+          <div class="mast-sub">HELIX SYSTEMS · FY26 Q3 · 2,140 customers · $412.6M booked</div>
+        </div>
+      </div>
+      <div class="mast-right">
+        <div><span class="dot"></span>SYNCED <span id="clk">${new Date().toLocaleTimeString()}</span></div>
+        <div style="color:var(--dim);margin-top:2px">ERP · CPQ · CRM · BILLING · reconciled daily</div>
+        <a href="https://paddyspeaks.com/" class="back">← PaddySpeaks.com</a>
+      </div>
+    </div>
+    ${railHtml()}
+  </div>
+  <div class="tabs">${TABS.map((t,i) =>
+    `<button class="tab${tab===t.id?' active':''}" data-tab="${t.id}"><span class="tnum">${String(i+1).padStart(2,'0')}</span>${esc(t.label)}</button>`).join('')}</div>
+  <div class="filters">
+    ${[['region','Region'],['seg','Segment'],['chan','Channel'],['line','Product line']].map(([k,l]) =>
+      `<div class="fg"><span class="fl">${l}</span><select class="fs" data-f="${k}" aria-label="${l}">${
+        Object.entries(LBL[k]).map(([v,t]) => `<option value="${v}"${F[k]===v?' selected':''}>${esc(t)}</option>`).join('')
+      }</select></div>`).join('')}
+    <div class="cmp"><span>COMPARE</span>
+      <button data-cmp="qoq" class="${F.cmp==='qoq'?'on':''}">QoQ</button>
+      <button data-cmp="yoy" class="${F.cmp==='yoy'?'on':''}">YoY</button>
+    </div>
+  </div>
+  <div class="wrap"></div>`;
+}
+
+const VIEWS = { pulse:[renderPulse, initPulse], leakage:[renderLeakage, null], margin:[renderMargin, initMargin],
+  pricing:[renderPricing, initPricing], renewals:[renderRenewals, initRenewals], mix:[renderMix, initMix],
+  actions:[renderActions, initActions] };
+
+function paint(){
+  const host = $('.wrap'); if (!host) return;
+  const [render, init] = VIEWS[tab] || VIEWS.pulse;
+  killCharts();
+  host.innerHTML = render();
+  if (init) requestAnimationFrame(() => {
+    try { init(); } catch(e){ console.warn('chart', e); }
+  });
+}
+function mount(){ $('#app').innerHTML = shell(); paint(); }
+
+/* ═══ hover content ═══ */
+function hcFor(t){
+  const kind = t.dataset.hc;
+  if (kind === 'kpi'){
+    const d = KPI_NOTES[t.dataset.k]; if (!d) return '';
+    return `<h4>${esc(d.t)}</h4>${d.rows.map(r => hrow(r[0], esc(r[1]))).join('')}
+      <div class="hc-note">${esc(d.n)}</div>`;
+  }
+  if (kind === 'funnel'){
+    const i = +t.dataset.i, f = FUNNEL[i], d = DROPS[i], prev = DROPS[i-1];
+    return `<h4>${esc(f.stage.toUpperCase())}</h4>
+      ${hrow('Value', M(S(f.val)))}
+      ${hrow('Share of booked', P((f.val / FUNNEL[0].val) * 100))}
+      ${prev ? hrow('Lost reaching here', '−' + M(S(prev.amt))) : ''}
+      ${d ? hrow('Lost after here', '−' + M(S(d.amt))) : ''}
+      <div class="hc-note">${esc(f.sub)}${d ? ' — ' + d.why + '.' : ''}</div>`;
+  }
+  if (kind === 'leak'){
+    const l = LEAKS[+t.dataset.i];
+    return `<h4>${esc(l.src.toUpperCase())}</h4>
+      ${hrow('Leakage', M(S(l.amt)))}${hrow('Category', esc(l.cat))}${hrow('Owner', esc(l.owner))}
+      ${hrow('Accounts affected', String(l.accts))}${hrow('Per account', M(S(l.amt) / l.accts * 1000, 1).replace('M','K'))}
+      ${hrow('Age', esc(l.age))}
+      <div class="hc-note">${esc(l.note)}</div>`;
+  }
+  if (kind === 'heat'){
+    const v = +t.dataset.v;
+    return `<h4>${esc(t.dataset.r.toUpperCase())} · ${esc(t.dataset.c.toUpperCase())}</h4>
+      ${hrow('Recoverable leakage', M(S(v)))}
+      ${hrow('Share of total', P((v / 23.8) * 100))}
+      <div class="hc-note">${esc(
+        v > 4 ? 'The single largest cell on the grid. One defect, one region, one fix — and more value than the four smallest categories combined.'
+        : v > 1.5 ? 'Material enough to have an owner and a date. Below this level the cost of a dedicated workstream exceeds the recovery.'
+        : 'Small in isolation. Worth fixing only as part of the same change that clears a larger cell in the same row or column.')}</div>`;
+  }
+  if (kind === 'outlier'){
+    const d = DISCOUNT_OUTLIERS.find(x => x.acct === t.dataset.a); if (!d) return '';
+    const lost = d.acv * (d.disc - d.bench) / 100;
+    return `<h4>${esc(d.acct.toUpperCase())}</h4>
+      ${hrow('Contract value', M(d.acv,2))}${hrow('Discount', P(d.disc))}${hrow('Segment band', P(d.bench,0))}
+      ${hrow('Over band', '+' + num(d.disc - d.bench,1) + ' pts')}
+      ${hrow('Annual margin given up', M(lost,2))}
+      ${hrow('Renews', esc(d.renew))}${hrow('Owner', esc(d.rep))}
+      <div class="hc-note">Recovering the band on this one contract is worth ${M(lost,2)} a year. Recovering it across all ten outliers is worth ${M(DISCOUNT_OUTLIERS.reduce((s,x) => s + x.acv * (x.disc - x.bench) / 100, 0),1)}.</div>`;
+  }
+  if (kind === 'acct'){
+    const a = AT_RISK.find(x => x.acct === t.dataset.a); if (!a) return '';
+    return `<h4>${esc(a.acct.toUpperCase())}</h4>
+      ${hrow('ARR', M(a.arr,2))}${hrow('Health', String(a.health) + ' / 100')}${hrow('Usage trend', signed(a.usage,0) + '%')}
+      ${hrow('Support tickets', String(a.support))}${hrow('Exec sponsor', esc(a.exec))}${hrow('Renews', esc(a.renew))}
+      ${hrow('Stated reason', esc(a.reason))}
+      <div class="hc-note">${esc(a.health < 45 && a.exec === 'No'
+        ? 'No sponsor, failing health, and a renewal date approaching. This is the profile that shows up in the churn report next quarter.'
+        : 'Recoverable with a deliberate intervention. Click for the recommended play.')}</div>`;
+  }
+  if (kind === 'wf'){
+    const w = MARGIN_WF[+t.dataset.i];
+    if (w.type === 'start') return `<h4>LIST MARGIN</h4>${hrow('Margin', P(w.val))}
+      <div class="hc-note">What the book would earn if every deal closed at list and cost nothing extra to deliver. Nobody has ever run a business at this number — it is the ceiling, not the target.</div>`;
+    if (w.type === 'end') return `<h4>REALIZED MARGIN</h4>${hrow('Margin', P(w.val))}${hrow('Erosion from list', '−12.6 pts')}
+      <div class="hc-note">What actually reaches the margin line. Six of the twelve lost points are discounting, which means half the erosion is a decision somebody can unmake.</div>`;
+    return `<h4>${esc(w.label.toUpperCase())}</h4>${hrow('Impact on margin', num(w.val,1) + ' pts')}
+      ${hrow('Share of total erosion', P(Math.abs(w.val) / 12.6 * 100))}
+      <div class="hc-note">${esc(w.detail)}</div>`;
+  }
+  return '';
+}
+
+/* ═══ events ═══ */
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab[data-tab]');
+  if (t){ if (t.dataset.tab !== tab){ tab = t.dataset.tab; hcHide();
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    paint(); scrollTo({ top:0, behavior:'smooth' }); } return; }
+
+  const c = e.target.closest('[data-cmp]');
+  if (c){ F.cmp = c.dataset.cmp;
+    document.querySelectorAll('[data-cmp]').forEach(b => b.classList.toggle('on', b.dataset.cmp === F.cmp));
+    $('.masthead .rail').outerHTML = railHtml(); paint(); return; }
+
+  if (e.target.closest('[data-x]') || e.target.id === 'bd'){ closeMd(); return; }
+
+  const m = e.target.closest('[data-md]');
+  if (m){
+    hcHide();
+    const kind = m.dataset.md;
+    if (kind === 'action') openMd(actionModal(ACTIONS[+m.dataset.i], +m.dataset.i + 1));
+    else if (kind === 'leak') openMd(leakModal(LEAKS[+m.dataset.i]));
+    else if (kind === 'product') openMd(productModal(PRODUCTS[+m.dataset.i]));
+    else if (kind === 'acct'){ const a = AT_RISK.find(x => x.acct === m.dataset.a); if (a) openMd(acctModal(a)); }
+  }
+});
+
+document.addEventListener('change', e => {
+  const f = e.target.closest('[data-f]');
+  if (f){ F[f.dataset.f] = f.value; mount(); }
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeMd(); hcHide(); } });
+
+if (matchMedia('(hover:hover) and (pointer:fine)').matches){
+  document.addEventListener('mouseover', e => {
+    const t = e.target.closest('[data-hc]');
+    if (t === hcTarget) return;
+    if (!t){ if (hcTarget) hcHide(); return; }
+    hcTarget = t;
+    const html = hcFor(t);
+    if (html) hcShow(t, html); else hcHide();
+  });
+  document.addEventListener('mouseout', e => {
+    const t = e.target.closest('[data-hc]');
+    if (!t || t !== hcTarget) return;
+    if (e.relatedTarget && t.contains(e.relatedTarget)) return;
+    hcHide();
+  });
+}
+addEventListener('scroll', hcHide, { capture:true, passive:true });
+setInterval(() => { const c = document.getElementById('clk'); if (c) c.textContent = new Date().toLocaleTimeString(); }, 5000);
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+</script>
+<script defer src="/lib/ps.js"></script>
+<img src="https://ps.paddyspeaks.com/api/px.gif?p=/revenue-intelligence/" alt="" width="1" height="1" style="position:absolute;opacity:0" loading="eager">
+</body>
+</html>
