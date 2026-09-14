@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Boundary Guard — Case Study | Paddy Iyer</title>
+    <meta name="description" content="A privacy migration passed every pre-deployment gate and still broke in production. How a hidden namespace boundary was found and turned into an offline-checkable invariant enforced before deploy.">
+    <meta name="keywords" content="data engineering case study, privacy engineering, namespace migration, pre-deployment validation, guardrail, data platform architecture, Paddy Iyer">
+    <meta name="author" content="Paddy Iyer">
+    <link rel="canonical" href="https://paddyspeaks.com/case-study-boundary-guard.html">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#1A1611">
+    <meta property="og:title" content="The Boundary Guard — Engineering Case Study">
+    <meta property="og:description" content="Every gate said green. Production said otherwise. How a hidden privacy boundary became an engineering guardrail.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://paddyspeaks.com/case-study-boundary-guard.html">
+    <meta property="og:site_name" content="PaddySpeaks">
+    <meta property="og:image" content="https://paddyspeaks.com/images/case-studies/boundary-guard.png">
+    <meta property="og:image:width" content="1920">
+    <meta property="og:image:height" content="1080">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Boundary Guard — Engineering Case Study">
+    <meta name="twitter:description" content="Every gate said green. Production said otherwise. How a hidden privacy boundary became an engineering guardrail.">
+    <meta name="twitter:image" content="https://paddyspeaks.com/images/case-studies/boundary-guard.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="style.css" as="style">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,300;1,8..60,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "The Migration That Passed Every Test — And Still Broke In Production",
+        "description": "How a hidden privacy boundary in a large-scale data migration was found and turned into an offline-checkable invariant enforced before deployment.",
+        "author": {"@type": "Person", "name": "Paddy Iyer", "url": "https://paddyspeaks.com/resume.html"},
+        "publisher": {"@type": "Organization", "name": "PaddySpeaks", "url": "https://paddyspeaks.com"},
+        "image": "https://paddyspeaks.com/images/case-studies/boundary-guard.png",
+        "mainEntityOfPage": "https://paddyspeaks.com/case-study-boundary-guard.html",
+        "about": ["Data Engineering", "Privacy Engineering", "Data Migration", "Software Architecture"]
+    }
+    </script>
+    <style>
+    /* Scoped entirely under .cs so no other page can be affected. */
+    .cs {
+        --ink:#12203a; --ink-soft:#3c4a60; --ink-mute:#667894;
+        --line:#dde5ef; --line-soft:#e9eef5; --surface:#fff; --canvas:#f6f8fc;
+        --deep:#101d33; --deep-2:#17293f;
+        --accent:#2563a8; --accent-dk:#1a4f8a; --accent-sft:#eaf1fa;
+        --alarm:#a8322a; --good:#256b47;
+        max-width:1120px; margin:0 auto; padding:0 32px 72px;
+        color:var(--ink); font-family:var(--font-body,'Source Serif 4',Georgia,serif);
+        font-size:17px; line-height:1.65; -webkit-font-smoothing:antialiased;
+    }
+    .cs *,.cs *::before,.cs *::after{box-sizing:border-box}
+    .cs-eyebrow{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:11px;font-weight:500;
+        letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+    .cs-h1{font-family:var(--font-display,'Playfair Display',Georgia,serif);font-size:46px;font-weight:600;
+        line-height:1.14;letter-spacing:-.01em;margin:0 0 14px;max-width:26ch;text-wrap:balance}
+    .cs-sub{font-size:20px;line-height:1.55;color:var(--ink-soft);max-width:60ch;margin:0 0 20px}
+    .cs-meta{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:11px;letter-spacing:.13em;
+        text-transform:uppercase;color:var(--ink-mute);padding-top:18px;border-top:1px solid var(--line)}
+    .cs-hero{padding:34px 0 40px}
+
+    figure.cs-fig{margin:0 0 56px}
+    figure.cs-fig img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:6px}
+    figure.cs-fig figcaption{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:11px;
+        letter-spacing:.11em;text-transform:uppercase;color:var(--ink-mute);margin-top:12px}
+
+    .cs-mvt{padding:36px 0;border-top:1px solid var(--line-soft);display:grid;
+        grid-template-columns:132px 1fr;gap:34px;align-items:start}
+    .cs-mvt-no{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:11px;font-weight:500;
+        letter-spacing:.16em;text-transform:uppercase;color:var(--accent);padding-top:7px}
+    .cs-h2{font-family:var(--font-display,'Playfair Display',Georgia,serif);font-size:27px;font-weight:600;
+        line-height:1.25;margin:0 0 12px}
+    .cs-mvt p{margin:0 0 13px;color:var(--ink-soft);max-width:66ch}
+    .cs-mvt p:last-child{margin-bottom:0}
+    .cs-mvt strong{color:var(--ink);font-weight:600}
+    .cs-code{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:14.5px;
+        background:var(--canvas);border:1px solid var(--line-soft);border-radius:5px;padding:2px 7px;
+        color:var(--ink);white-space:nowrap}
+    .cs-pull{border-left:3px solid var(--alarm);padding:4px 0 4px 20px;margin:20px 0;
+        font-family:var(--font-display,'Playfair Display',Georgia,serif);font-size:23px;line-height:1.3;
+        color:var(--ink);font-weight:600}
+    .cs-callout{display:flex;align-items:baseline;gap:18px;margin:22px 0;padding:20px 24px;
+        background:var(--canvas);border:1px solid var(--line);border-radius:10px}
+    .cs-callout b{font-family:var(--font-display,'Playfair Display',Georgia,serif);font-size:48px;
+        font-weight:600;line-height:1;color:var(--ink)}
+    .cs-callout span{font-size:16px;color:var(--ink-soft);line-height:1.45}
+
+    .cs-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:48px 0 0;
+        border-top:1px solid var(--ink);padding-top:26px}
+    .cs-metric{padding-left:26px;border-left:1px solid var(--line)}
+    .cs-metric:first-child{padding-left:0;border-left:0}
+    .cs-metric b{font-family:var(--font-display,'Playfair Display',Georgia,serif);font-size:38px;
+        font-weight:600;line-height:1;display:block}
+    .cs-metric span{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:10.5px;
+        letter-spacing:.11em;text-transform:uppercase;color:var(--ink-mute);display:block;margin-top:10px;line-height:1.5}
+
+    .cs-close{margin-top:44px;padding:40px 44px;border-radius:16px;color:#e9f1fa;
+        background:radial-gradient(110% 160% at 18% 0%,rgba(58,116,182,.28) 0,rgba(16,29,51,0) 60%),
+                   linear-gradient(158deg,var(--deep-2),var(--deep))}
+    .cs-close p.lead{font-family:var(--font-display,'Playfair Display',Georgia,serif);font-size:30px;
+        font-weight:600;line-height:1.28;color:#fff;margin:0 0 14px;max-width:24ch}
+    .cs-close p.sub{font-size:17px;color:#b9cbe0;margin:0;max-width:56ch}
+    .cs-back{display:inline-block;font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:11px;
+        letter-spacing:.14em;text-transform:uppercase;color:var(--ink-mute);text-decoration:none;margin-top:30px}
+    .cs-back:hover{color:var(--accent)}
+
+    @media (max-width:820px){
+        .cs{padding:0 20px 56px;font-size:16.5px}
+        .cs-h1{font-size:33px;max-width:none}
+        .cs-sub{font-size:18px}
+        .cs-mvt{grid-template-columns:1fr;gap:10px;padding:30px 0}
+        .cs-mvt-no{padding-top:0}
+        .cs-h2{font-size:23px}
+        .cs-metrics{grid-template-columns:repeat(2,1fr);row-gap:26px}
+        .cs-metric:nth-child(odd){padding-left:0;border-left:0}
+        .cs-close{padding:30px 26px}
+        .cs-close p.lead{font-size:24px}
+        .cs-callout{flex-direction:column;gap:6px;padding:18px 20px}
+    }
+    </style>
+</head>
+<body>
+<div class="page-frame"></div>
+<div class="top-bar">
+    <span>Est. 2026</span>
+    <span>Philosophy · Technology · Wisdom</span>
+    <span class="top-bar-links">
+        <a href="https://www.youtube.com/playlist?list=PLosfXEs7rcbvO9-dDQ2u1LnqDTn1BRafk" target="_blank" rel="noopener" class="yt-btn">▶ YouTube</a>
+        <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn ↗</a>
+    </span>
+</div>
+<header class="masthead">
+    <h1><a href="./">Paddy<span>Speaks</span></a></h1>
+    <p class="masthead-tagline">Where ancient wisdom meets the architecture of tomorrow</p>
+    <div class="masthead-rule"></div>
+</header>
+<nav class="nav-bar">
+    <a href="./">Journal</a>
+    <a href="index.html#philosophy">Philosophy</a>
+    <a href="index.html#technology">Technology</a>
+    <a href="index.html#ai">AI &amp; Future</a>
+    <a href="index.html#archive">Archive</a>
+    <a href="index.html#sacred-texts">Sacred Texts</a>
+    <a href="index.html#data-lab">Data Lab</a>
+    <a href="about.html">About</a>
+    <a href="resume.html">Resume</a>
+</nav>
+
+<main class="cs">
+
+    <div class="cs-hero">
+        <div class="cs-eyebrow">Case Study — Data Platform Engineering</div>
+        <h1 class="cs-h1">The migration that passed every test — and still broke in production</h1>
+        <p class="cs-sub">How a hidden privacy boundary was turned into an engineering guardrail.</p>
+        <div class="cs-meta">Privacy &amp; consent infrastructure &nbsp;·&nbsp; Revenue-critical path &nbsp;·&nbsp; Fig. 01</div>
+    </div>
+
+    <figure class="cs-fig">
+        <img src="images/case-studies/boundary-guard.png"
+             srcset="images/case-studies/boundary-guard.png 1920w, images/case-studies/boundary-guard@2x.png 3840w"
+             sizes="(max-width: 1120px) 100vw, 1056px"
+             width="1920" height="1080" loading="eager" decoding="async"
+             alt="Engineering diagram in four movements. A pipeline flows from privacy migration through the enterprise warehouse and ads infrastructure to revenue. It passes four green validation gates, then fractures at a runtime boundary. The investigation forks into an assumed simple rename versus the reality of a namespace change crossing a privacy boundary, with 81 percent of migrations requiring the latter. A boundary guard is then placed before production, probing 191 in-flight diffs and hard-gating 54 at-risk swaps.">
+        <figcaption>Fig. 01 — Boundary failure &amp; guardrail</figcaption>
+    </figure>
+
+    <section class="cs-mvt">
+        <div class="cs-mvt-no">01 — High-stakes migration</div>
+        <div>
+            <h2 class="cs-h2">Where a mistake shows up as revenue, not a red build</h2>
+            <p>The migration ran through the part of the warehouse that sits directly in the advertising revenue path. Data moved from the privacy migration, through the enterprise warehouse, into ads infrastructure, and out the other side as revenue.</p>
+            <p><strong>A mistake here didn't merely fail a test. It could affect revenue.</strong> That constraint drove every design decision that followed — most importantly, the decision to invest in prevention rather than in faster recovery.</p>
+        </div>
+    </section>
+
+    <section class="cs-mvt">
+        <div class="cs-mvt-no">02 — Everything looks green</div>
+        <div>
+            <h2 class="cs-h2">Every gate passed. Production disagreed.</h2>
+            <p>A change moved through the full pre-deployment stack — static validation, pre-deploy checks, human review, migration tooling. Four gates. All green.</p>
+            <p>Then it hit an unexpected runtime boundary and broke.</p>
+            <div class="cs-pull">Every gate said green.<br>Production said otherwise.</div>
+            <p>The gap was structural, not a missed case: <strong>pre-deploy validation could not see runtime privacy enforcement on cross-namespace reads.</strong> Permission checks returned PASS for tables that did not exist, and nothing in the stack modelled the enforcement that actually runs at query time. The diffs were not sneaking past the gates. The gates were looking at the wrong thing.</p>
+        </div>
+    </section>
+
+    <section class="cs-mvt">
+        <div class="cs-mvt-no">03 — The architectural discovery</div>
+        <div>
+            <h2 class="cs-h2">It was never a rename</h2>
+            <p>The tooling assumed each migration was a name change — <span class="cs-code">old_table → new_table</span>. Swap the identifier, update the references, done.</p>
+            <p>The reality was a namespace change — <span class="cs-code">namespace_A.table → namespace_B.table</span>. Every one of those moves crossed a privacy boundary, silently, and the boundary was the thing the runtime enforced.</p>
+            <div class="cs-callout">
+                <b>81%</b>
+                <span>of migrations actually required a namespace change, not the rename the tooling assumed — verified against the full asset inventory.</span>
+            </div>
+            <p>That turned a diffuse class of production failures into something mechanical. The source namespace had been encoded in the old table name all along, which meant the correct transform was <strong>provable offline</strong>, from the name itself, instead of depending on a lookup that pre-deploy validation could not perform.</p>
+        </div>
+    </section>
+
+    <section class="cs-mvt">
+        <div class="cs-mvt-no">04 — Experience becomes a guardrail</div>
+        <div>
+            <h2 class="cs-h2">Move the check to where it can still say no</h2>
+            <p>The fix was not a better runbook. It was a new component placed <strong>before</strong> deployment: a boundary guard that examines migration changes while they are still diffs, and refuses the ones that would cross a boundary incorrectly.</p>
+            <p>It probed <strong>191 in-flight diffs</strong> and hard-gated <strong>54 at-risk swaps</strong> before they could reach production. Every gate in it traces back to a specific postmortem — the guard is the accumulated incident history, expressed as code that runs before the damage rather than after it.</p>
+        </div>
+    </section>
+
+    <div class="cs-metrics">
+        <div class="cs-metric"><b>1,070</b><span>Production changes landed</span></div>
+        <div class="cs-metric"><b>3–5×</b><span>Faster remediation</span></div>
+        <div class="cs-metric"><b>~$500K</b><span>Engineering capacity recovered / year</span></div>
+        <div class="cs-metric"><b>&lt;$1K</b><span>Total LLM spend</span></div>
+    </div>
+
+    <div class="cs-close">
+        <p class="lead">A production failure became an offline-checkable invariant.</p>
+        <p class="sub">The goal wasn't to become better at fixing failures. It was to engineer the failure class out of the system.</p>
+    </div>
+
+    <a class="cs-back" href="resume.html">&larr; Back to resume</a>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-ornament">&#10087;</div>
+    <div class="footer-links">
+        <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="about.html">About</a>
+        <a href="resume.html">Resume</a>
+        <a href="/testimonials/">Testimonials</a>
+        <a href="/contact/">Contact</a>
+    </div>
+    <p class="footer-copy">&copy; 2026 PaddySpeaks. All rights reserved.</p>
+</footer>
+
+<script defer src="/lib/ps-nav.js"></script>
+<script defer src="/lib/ps.js"></script>
+</body>
+</html>
