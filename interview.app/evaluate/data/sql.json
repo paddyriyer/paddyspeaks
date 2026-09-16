@@ -14860,6 +14860,22 @@
       ],
       "answer": 0,
       "explanation": "The LAG() window function with PARTITION BY region and ORDER BY quarter correctly retrieves the previous quarter's revenue within each region. Computing (current_revenue - LAG(revenue)) / LAG(revenue) * 100 directly gives the quarter-over-quarter growth percentage. Options B (self-join is inefficient), C (LEAD looks forward, not backward), and D (RANK doesn't solve the problem) are incorrect approaches."
+    },
+    {
+      "id": "sql-new-126",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-09-16",
+      "prompt": "You have a `customer_accounts` table (account_id INT, customer_id INT, balance DECIMAL, last_updated TIMESTAMP) that receives daily updates. You need to upsert 1M new/updated records from a `staging_accounts` table. The business logic requires: (1) Insert new accounts, (2) Update existing accounts only if the staged record is newer, (3) Log all changed rows to an audit table. Which approach minimizes query planner overhead and avoids redundant scans?\n\nA) Use MERGE with WHEN NOT MATCHED and WHEN MATCHED clauses, including an OUTPUT clause to capture changed rows for the audit table in a single statement.\n\nB) First UPDATE existing accounts with a LEFT JOIN to staging, then separate INSERT, then query the result set twice to populate the audit table.\n\nC) Use two separate MERGE statements\u2014one for INSERT and one for UPDATE\u2014to allow the optimizer to parallelize each operation independently.\n\nD) Load staging data into a temporary table, execute UPDATE with a subquery filter, then INSERT with NOT EXISTS, capturing deltas via triggers on both operations.",
+      "options": [
+        "Use MERGE with WHEN NOT MATCHED and WHEN MATCHED clauses, including an OUTPUT clause to capture changed rows for the audit table in a single statement.",
+        "First UPDATE existing accounts with a LEFT JOIN to staging, then separate INSERT, then query the result set twice to populate the audit table.",
+        "Use two separate MERGE statements\u2014one for INSERT and one for UPDATE\u2014to allow the optimizer to parallelize each operation independently.",
+        "Load staging data into a temporary table, execute UPDATE with a subquery filter, then INSERT with NOT EXISTS, capturing deltas via triggers on both operations."
+      ],
+      "answer": 0,
+      "explanation": "Option A is optimal because a single MERGE statement with OUTPUT reduces table scans to one and avoids redundant I/O compared to separate UPDATE/INSERT operations. The OUTPUT clause captures changes atomically in one pass, eliminating the need for post-hoc queries or trigger overhead. Options B and D involve multiple scans and external logging mechanisms, while Option C splits the operation unnecessarily, losing the atomic guarantee and adding planner complexity."
     }
   ]
 }
