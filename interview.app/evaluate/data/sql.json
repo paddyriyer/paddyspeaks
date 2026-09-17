@@ -14876,6 +14876,22 @@
       ],
       "answer": 0,
       "explanation": "Option A is optimal because a single MERGE statement with OUTPUT reduces table scans to one and avoids redundant I/O compared to separate UPDATE/INSERT operations. The OUTPUT clause captures changes atomically in one pass, eliminating the need for post-hoc queries or trigger overhead. Options B and D involve multiple scans and external logging mechanisms, while Option C splits the operation unnecessarily, losing the atomic guarantee and adding planner complexity."
+    },
+    {
+      "id": "sql-new-127",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-09-17",
+      "prompt": "You have a `products` table (product_id INT, name TEXT, price DECIMAL, last_updated TIMESTAMP) and a `staging_products` table with new/updated product data. You need to implement an UPSERT that: (1) inserts new products, (2) updates existing products only if the staged price differs from the current price, and (3) tracks the update timestamp. Which approach is most efficient and correct?",
+      "options": [
+        "MERGE INTO products p USING staging_products s ON p.product_id = s.product_id WHEN MATCHED AND p.price <> s.price THEN UPDATE SET p.price = s.price, p.last_updated = CURRENT_TIMESTAMP WHEN NOT MATCHED THEN INSERT (product_id, name, price, last_updated) VALUES (s.product_id, s.name, s.price, CURRENT_TIMESTAMP);",
+        "DELETE FROM products WHERE product_id IN (SELECT product_id FROM staging_products); INSERT INTO products SELECT * FROM staging_products;",
+        "UPDATE products SET price = (SELECT price FROM staging_products WHERE staging_products.product_id = products.product_id), last_updated = CURRENT_TIMESTAMP WHERE product_id IN (SELECT product_id FROM staging_products); INSERT INTO products SELECT * FROM staging_products WHERE product_id NOT IN (SELECT product_id FROM products);",
+        "INSERT INTO products SELECT * FROM staging_products ON CONFLICT (product_id) DO UPDATE SET price = EXCLUDED.price WHERE products.price <> EXCLUDED.price;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 uses MERGE with a condition on MATCHED that only updates when prices differ, correctly implementing the UPSERT logic with timestamp tracking. Option 1 loses data via DELETE. Option 2 has a logical flaw in the INSERT subquery (checking after UPDATE). Option 3 uses PostgreSQL syntax and lacks the price comparison condition in the UPDATE clause."
     }
   ]
 }
